@@ -1,24 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Box, Check, Package, Download, Expand, Grid2X2, Handshake, Hash, ImagePlus, LoaderCircle, MoreVertical, Palette, Plus, Redo2, RotateCcw, Save, SendHorizontal, Shirt, SlidersHorizontal, Sparkles, Type, Undo2, Upload, WandSparkles, X } from 'lucide-react';
-import { api, fetchFile, media, saveBlob, type Catalog, type Project, type User } from '../api';
+import { ArrowRight, Box, Check, Package, Download, Expand, Grid2X2, Hash, ImagePlus, Layers, LoaderCircle, MoreVertical, Palette, Plus, Redo2, RotateCcw, Save, SendHorizontal, Shirt, SlidersHorizontal, Sparkles, Type, Undo2, WandSparkles, X, PenTool } from 'lucide-react';
+import { api, media, saveBlob, type Catalog, type Project, type User } from '../api';
 import { OrderKitDialog } from './Orders';
-import { type Design, type View } from '../types';
+import { type Design, type View, type Zone, type ArtworkLayer } from '../types';
 import KitViewer, { type KitViewerHandle } from '../components/KitViewer';
 import ColorWheel from '../components/ColorWheel';
 import { comingSoon, garmentArt } from './Create';
 import type { Draft } from '../App';
+import { ArtworkPanel, PresetPanel, patternNames, readAsset, type ArtworkDrop } from '../components/StudioArtwork';
+import '../../css/studio-tools.css';
 
-type Tool = 'ai' | 'garment' | 'colours' | 'patterns' | 'logos' | 'text' | 'numbers';
-type Asset = { id: number; name: string; type: string };
+type Tool = 'ai' | 'garment' | 'colours' | 'patterns' | 'logos' | 'text' | 'numbers' | 'presets';
 type Message = { from: 'you' | '3deezi'; text: string };
-const tools = [{ id: 'ai', label: 'AI', icon: Sparkles }, { id: 'garment', label: 'Garment', icon: Shirt }, { id: 'colours', label: 'Colours', icon: Palette }, { id: 'patterns', label: 'Patterns', icon: Grid2X2 }, { id: 'logos', label: 'Logos', icon: ImagePlus }, { id: 'text', label: 'Text', icon: Type }, { id: 'numbers', label: 'Numbers', icon: Hash }] as const;
+const tools = [{ id: 'ai', label: 'AI', icon: Sparkles }, { id: 'garment', label: 'Garment', icon: Shirt }, { id: 'colours', label: 'Colours', icon: Palette }, { id: 'patterns', label: 'Patterns', icon: Grid2X2 }, { id: 'logos', label: 'Artwork', icon: ImagePlus }, { id: 'text', label: 'Text', icon: Type }, { id: 'numbers', label: 'Numbers', icon: Hash }, { id: 'presets', label: 'Presets', icon: Layers }] as const;
 const colourSlots = [{ key: 'main', label: 'Primary' }, { key: 'secondary', label: 'Secondary' }, { key: 'accent', label: 'Accent' }, { key: 'patternColor', label: 'Pattern' }] as const;
 const palettes = [['#0b1016', '#00c2cc', '#36e3ee'], ['#08233e', '#efb84a', '#ffffff'], ['#f2f4f6', '#0076cd', '#0b1830'], ['#261133', '#ad47da', '#fb92d3'], ['#0c2824', '#31c29a', '#ffffff'], ['#240c12', '#ec3e5b', '#f9e6d4']];
 const suggestions = ['Make it red and gold', 'Add bold chevrons', 'Darker body, brighter trims', 'Number 7 for SMITH', 'Give it a tribal shoulder print'];
 
-export default function Studio({ draft, onChange, catalog, requireAuth, onNotice, user }: { draft: Draft; onChange: (draft: Draft) => void; catalog: Catalog | null; requireAuth: (action?: () => void) => void; onNotice: (text: string) => void; user: User | null }) {
-  const [tool, setTool] = useState<Tool | null>('colours');
+export default function Studio({ draft, onChange, catalog, requireAuth, onNotice, user, initialBoard = false }: { draft: Draft; onChange: (draft: Draft) => void; catalog: Catalog | null; requireAuth: (action?: () => void) => void; onNotice: (text: string) => void; user: User | null; initialBoard?: boolean }) {
+  const [tool, setTool] = useState<Tool | null>(initialBoard ? 'logos' : 'colours');
+  const [board, setBoard] = useState(initialBoard);
+  const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<ArtworkDrop | null>(null);
+  const [zone, setZone] = useState<Zone | 'all'>('all');
   const [slot, setSlot] = useState<(typeof colourSlots)[number]['key']>('main');
   const [view, setView] = useState<View>('front');
   const [rotating, setRotating] = useState(false);
@@ -43,6 +48,8 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const liveBase = useRef<Design | null>(null);
   const aiEnabled = !!catalog?.provider.is_ai;
   const navigate = useNavigate();
+  useEffect(() => { setBoard(initialBoard); if (initialBoard) setTool('logos'); }, [initialBoard]);
+  function openBoard(on: boolean) { setBoard(on); if (on) setTool('logos'); setRotating(false); }
 
   // A design from AI concepts, Convert or an AI edit arrives with a motif: generate its print.
   useEffect(() => {
@@ -58,12 +65,8 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(!draft.id);
-  const [assets, setAssets] = useState<Asset[] | null>(null);
-  const [assetBusy, setAssetBusy] = useState(false);
   const viewer = useRef<KitViewerHandle>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const upload = useRef<HTMLInputElement>(null);
-  const sponsorUpload = useRef<HTMLInputElement>(null);
   const askUpload = useRef<HTMLInputElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -83,6 +86,24 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   function commit() { if (!liveBase.current) return; const base = liveBase.current; liveBase.current = null; setPast(history => [...history.slice(-39), base]); setFuture([]); }
   function undo() { const previous = past.at(-1); if (!previous) return; setFuture(items => [draft.design, ...items]); setPast(items => items.slice(0, -1)); onChange({ ...draft, design: previous, garment: previous.garment }); setDirty(true); }
   function redo() { const next = future[0]; if (!next) return; setPast(items => [...items, draft.design]); setFuture(items => items.slice(1)); onChange({ ...draft, design: next, garment: next.garment }); setDirty(true); }
+  function applyPattern(pattern: string) { edit(zone === 'all' ? { pattern: pattern === 'None' ? 'Solid' : pattern, patternImage: null, zones: {} } : { zones: { ...draft.design.zones, [zone]: pattern } }); }
+  async function dropArtwork(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault(); const payload = dragging; setDragging(null);
+    if (!payload || !viewer.current || !stage.current) return;
+    const rect = stage.current.getBoundingClientRect();
+    try {
+      const hit = await viewer.current.pick((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
+      if (!hit.hit || !hit.part || !hit.side || hit.x === undefined || hit.y === undefined) { onNotice('Drop directly onto the garment or an artboard panel.'); return; }
+      if (payload.pattern && hit.zone) { edit({ zones: { ...latest.current.design.zones, [hit.zone]: payload.pattern } }); onNotice(`${payload.pattern} applied to the ${hit.zone}.`); return; }
+      if (payload.asset) {
+        const src = await readAsset(payload.asset); const currentLayers = latest.current.design.layers || [];
+        if (currentLayers.length >= 40) { onNotice('A design can contain up to 40 artwork layers.'); return; }
+        const id = crypto.randomUUID(); const layer: ArtworkLayer = { id, type: 'image', name: payload.asset.name, src, part: hit.part, side: hit.side, x: hit.x, y: hit.y, w: 0.12 };
+        edit({ layers: [...currentLayers, layer] }); setSelectedLayer(id); viewer.current.select(id);
+        onNotice(`${payload.asset.name} placed on the ${hit.side}.`);
+      }
+    } catch (e) { onNotice((e as Error).message); }
+  }
   useEffect(() => { const key = (e: KeyboardEvent) => { if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement).matches('input,textarea')) return; if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); } if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key); });
 
   async function captureThumbnail() {
@@ -100,19 +121,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     try { const thumbnail = await captureThumbnail(); const project = await api<Project>(draft.id ? `/projects/${draft.id}` : '/projects', { method: draft.id ? 'PATCH' : 'POST', body: JSON.stringify({ name: name.trim(), sport: draft.sport, garment: draft.garment, mode: draft.mode, design: draft.design, status: 'draft', ...(thumbnail ? { thumbnail } : {}), ...(draft.id ? { expected_version: draft.version } : {}) }) }); onChange({ ...project }); setDirty(false); setModal(null); onNotice(`${project.name} saved · Version ${project.version}`); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  async function loadAssets() { setAssetBusy(true); setError(''); try { setAssets((await api<Asset[]>('/assets')).filter(a => a.type === 'logo')); } catch (e) { setError((e as Error).message); } finally { setAssetBusy(false); } }
   function blobData(blob: Blob) { return new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(new Error('Unable to read this image.')); r.readAsDataURL(blob); }); }
-  async function applyLogo(asset: Asset) { setAssetBusy(true); setError(''); try { edit({ logoImage: await blobData(await fetchFile(`/assets/${asset.id}/file`)) }); onNotice(`${asset.name} added to your kit.`); } catch (e) { setError((e as Error).message); } finally { setAssetBusy(false); } }
-  async function uploadLogo(file: File, sponsor = false) {
-    setAssetBusy(true); setError('');
-    try {
-      if (file.size > 2 * 1024 * 1024) throw new Error('Use a logo smaller than 2 MB for the 3D designer.');
-      const form = new FormData(); form.append('file', file); form.append('name', (sponsor ? `Sponsor · ${file.name}` : file.name).slice(0, 120)); form.append('type', 'logo');
-      await api('/assets', { method: 'POST', body: form });
-      edit(sponsor ? { sponsorImage: await blobData(file) } : { logoImage: await blobData(file) }); setAssets(null);
-      onNotice(sponsor ? 'Sponsor logo added to the front of your kit.' : 'Logo added to your kit and saved in Assets.');
-    } catch (e) { setError((e as Error).message); } finally { setAssetBusy(false); }
-  }
   async function aiPattern() {
     if (motif.trim().length < 3) return;
     edit({ patternImage: null }, { patternMotif: motif.trim() }); setMotif('');
@@ -142,11 +151,14 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       onNotice('Showcase ready · also saved in your Assets.');
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  async function exportDesign(format: 'png' | 'front-back' | 'json') {
+  async function exportDesign(format: 'png' | 'front-back' | 'json' | 'artboard') {
     setBusy(true); setError(''); const filename = (draft.name || '3deezi-kit').replace(/[^a-z0-9-]/gi, '-').toLowerCase();
     try {
       if (format === 'json') saveBlob(new Blob([JSON.stringify({ schema: '3deezi.design.v1', name: draft.name, sport: draft.sport, garment: draft.garment, mode: draft.mode, version: draft.version || 1, design: draft.design }, null, 2)], { type: 'application/json' }), `${filename}.json`);
-      else {
+      else if (format === 'artboard') {
+        if (!viewer.current) throw new Error('The artboard is still starting. Please try again.');
+        const png = await viewer.current.captureBoard(); saveBlob(await (await fetch(png)).blob(), `${filename}-artboard.png`);
+      } else {
         if (!viewer.current) throw new Error('The 3D viewer is still starting. Please try again.');
         const front = await viewer.current.capture(format === 'png' ? view : 'front');
         if (format === 'png') saveBlob(await (await fetch(front)).blob(), `${filename}-${view}.png`);
@@ -159,12 +171,13 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); };
   const colourValue = slot === 'patternColor' ? (draft.design.patternColor || draft.design.secondary) : draft.design[slot];
 
-  return <div className="dyo">
+  return <div className={`dyo studio-extended ${board ? 'artboard-mode' : ''} ${tool === 'presets' ? 'presets-in-panel' : ''}`}>
     <header className="dyo-top">
-      <Link to="/" className="dyo-brand" aria-label="3DEEZI home"><img src={media('images/brand.png')} alt="3DEEZI" /><span>AI SPORTSWEAR DESIGNER</span></Link>
-      <span className="dyo-title">DYO STUDIO</span>
+      <Link to="/" className="dyo-brand" aria-label="3DEEZI home"><img src={media('images/brand-final.png')} alt="3DEEZI" /><span>AI SPORTSWEAR DESIGNER</span></Link>
+      <span className="dyo-title">{board ? '2D PANELS' : 'DYO STUDIO'}</span>
       <label className="dyo-name"><span>Project name</span><input value={draft.name} maxLength={120} onChange={e => { onChange({ ...draft, name: e.target.value }); setDirty(true); }} aria-label="Project name" /></label>
       <div className="dyo-actions">
+        <button className="button button-outline studio-mode-button" onClick={() => navigate('/artboard')}><PenTool size={16} /> Artboard</button><button className="button button-outline studio-mode-button" onClick={() => openBoard(!board)}>{board ? <Shirt size={16} /> : <Layers size={16} />}{board ? '3D view' : '2D panels'}</button>
         <button className="round-button" onClick={undo} disabled={!past.length} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 size={18} /></button>
         <button className="round-button" onClick={redo} disabled={!future.length} title="Redo (Ctrl+Y)" aria-label="Redo"><Redo2 size={18} /></button>
         <button className="button button-outline" onClick={() => requireAuth(() => { setError(''); setName(draft.name === 'Untitled kit' ? '' : draft.name); setModal('save'); })}><Save size={16} /> Save{dirty && <i className="dirty-dot" aria-label="Unsaved changes" />}</button>
@@ -185,24 +198,24 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             <div className="slot-tabs" role="tablist">{colourSlots.map(s => <button key={s.key} role="tab" aria-selected={slot === s.key} className={slot === s.key ? 'active' : ''} onClick={() => setSlot(s.key)}>{s.label}</button>)}</div>
             <ColorWheel value={colourValue} onChange={hex => preview({ [slot]: hex })} onCommit={commit} />
             <h4>READY-MADE PALETTES</h4><div className="preset-palettes">{palettes.map((palette, index) => <button key={index} aria-label={`Apply palette ${index + 1}`} onClick={() => edit({ main: palette[0], secondary: palette[1], accent: palette[2], patternColor: palette[1] })}>{palette.map((c, i) => <span key={i} style={{ background: c }} />)}</button>)}</div>
+            <div className="gradient-controls"><h4>GRADIENT FILL</h4><label className="gradient-toggle"><input type="checkbox" checked={!!draft.design.gradient} onChange={e => edit({ gradient: e.target.checked ? { from: draft.design.main, to: draft.design.secondary, angle: 0 } : null })} /> Blend two colours</label>{draft.design.gradient && <><div className="gradient-colours"><label>From<input aria-label="Gradient start colour" type="color" value={draft.design.gradient.from} onChange={e => edit({ gradient: { ...draft.design.gradient!, from: e.target.value } })} /></label><label>To<input aria-label="Gradient end colour" type="color" value={draft.design.gradient.to} onChange={e => edit({ gradient: { ...draft.design.gradient!, to: e.target.value } })} /></label></div><label className="field">Angle · {draft.design.gradient.angle}°<input type="range" min={0} max={360} step={5} value={draft.design.gradient.angle} onChange={e => preview({ gradient: { ...draft.design.gradient!, angle: Number(e.target.value) } })} onPointerUp={commit} onKeyUp={commit} /></label></>}</div>
           </>}
           {tool === 'patterns' && <>
-            <div className="pattern-grid">{['Chevron', 'Stripes', 'Velocity', 'Solid'].map(pattern => <button className={draft.design.pattern === pattern && !draft.design.patternImage ? 'selected' : ''} key={pattern} onClick={() => edit({ pattern, patternImage: null })}><span className={`pattern-preview pattern-${pattern.toLowerCase()}`} style={{ '--pattern-color': draft.design.secondary } as React.CSSProperties} /><span>{pattern}{draft.design.pattern === pattern && !draft.design.patternImage && <Check size={14} />}</span></button>)}</div>
+            <label className="field">Apply to area<select value={zone} onChange={e => setZone(e.target.value as Zone | 'all')}><option value="all">Whole garment</option><option value="body">Chest & body</option><option value="yoke">Shoulders</option><option value="sleeves">Sleeves</option><option value="sides">Side panels</option><option value="hem">Hem</option></select></label>
+            <p className="field-hint">Choose a pattern for this area, or drag a pattern directly onto the garment.</p>
+            <div className="pattern-grid">{patternNames.map(pattern => { const active = (zone === 'all' ? draft.design.pattern : draft.design.zones?.[zone]) === pattern && (zone !== 'all' || !draft.design.patternImage); return <button className={active ? 'selected' : ''} key={pattern} draggable onDragStart={e => { e.dataTransfer.setData('text/plain', pattern); e.dataTransfer.effectAllowed = 'copy'; setDragging({ pattern }); }} onDragEnd={() => setDragging(null)} onClick={() => applyPattern(pattern)}><span className={`pattern-preview pattern-${pattern.toLowerCase()}`} style={{ '--pattern-color': draft.design.patternColor || draft.design.secondary } as React.CSSProperties} /><span>{pattern}{active && <Check size={14} />}</span></button>; })}</div>
             {aiEnabled && <div className="ai-pattern"><h4>AI PRINT FROM WORDS</h4><div className="inline-field"><input value={motif} onChange={e => setMotif(e.target.value)} onKeyDown={e => e.key === 'Enter' && aiPattern()} placeholder="e.g. Maori-inspired koru waves" maxLength={200} /><button className="button button-gradient" disabled={patternBusy || motif.trim().length < 3} onClick={aiPattern}>{patternBusy ? <LoaderCircle className="spin" size={16} /> : <WandSparkles size={16} />}</button></div>{draft.design.patternImage && <button className="button button-secondary full-width" onClick={() => edit({ patternImage: null })}><X size={14} /> Remove AI print</button>}</div>}
             <label className="field">Pattern coverage<input type="range" min="0" max="1" step="0.05" value={draft.design.patternBody ?? 0.1} onChange={e => preview({ patternBody: Number(e.target.value) })} onPointerUp={commit} /><span className="field-hint">Shoulders → Full body</span></label>
           </>}
-          {tool === 'logos' && <>
-            <button className="logo-upload" disabled={assetBusy} onClick={() => requireAuth(() => upload.current?.click())}>{assetBusy ? <LoaderCircle className="spin" /> : <Upload />}<strong>Upload your team logo</strong><span>Chest crest · PNG, JPG or WEBP · up to 2 MB</span></button>
-            {draft.design.logoImage && <div className="applied-logo"><img src={draft.design.logoImage} alt="Applied team logo" /><span>Logo applied</span><button className="icon-button" aria-label="Remove logo from kit" onClick={() => edit({ logoImage: null })}><X size={16} /></button></div>}
-            <button className="button button-secondary full-width" disabled={assetBusy} onClick={() => requireAuth(loadAssets)}>Choose from your Assets <ArrowRight size={16} /></button>
-            {assets && <div className="logo-library">{assets.length ? assets.map(asset => <button key={asset.id} disabled={assetBusy} onClick={() => applyLogo(asset)}><ImagePlus size={16} />{asset.name}<Plus size={14} /></button>) : <p className="muted">No saved logos yet. Upload your first logo above.</p>}</div>}
-            <h4>SPONSOR · FRONT, BELOW THE WORDMARK</h4>
-            <button className="logo-upload" disabled={assetBusy} onClick={() => requireAuth(() => sponsorUpload.current?.click())}>{assetBusy ? <LoaderCircle className="spin" /> : <Handshake />}<strong>Upload a sponsor logo</strong><span>PNG with transparency works best</span></button>
-            {draft.design.sponsorImage && <div className="applied-logo"><img src={draft.design.sponsorImage} alt="Applied sponsor logo" /><span>Sponsor applied</span><button className="icon-button" aria-label="Remove sponsor from kit" onClick={() => edit({ sponsorImage: null })}><X size={16} /></button></div>}
+          {tool === 'logos' && <><ArtworkPanel design={draft.design} edit={edit} viewer={viewer} selected={selectedLayer} onSelect={setSelectedLayer} requireAuth={requireAuth} onNotice={onNotice} onDrag={setDragging} ready={ready} board={board} onBoard={() => openBoard(true)} />
+            {(draft.design.logoImage || draft.design.sponsorImage) && <h4>EXISTING FIXED LOGOS</h4>}
+            {draft.design.logoImage && <div className="applied-logo"><img src={draft.design.logoImage} alt="Existing team logo" /><span>Chest crest</span><button className="icon-button" aria-label="Remove existing team logo" onClick={() => edit({ logoImage: null })}><X size={16} /></button></div>}
+            {draft.design.sponsorImage && <div className="applied-logo"><img src={draft.design.sponsorImage} alt="Existing sponsor" /><span>Sponsor</span><button className="icon-button" aria-label="Remove existing sponsor" onClick={() => edit({ sponsorImage: null })}><X size={16} /></button></div>}
           </>}
           {tool === 'text' && <>
             <label className="field">Team wordmark<input value={draft.design.logoText} maxLength={20} onChange={e => edit({ logoText: e.target.value })} placeholder="YOUR TEAM" /></label>
             <div className="studio-tip"><Type size={18} /><p>Short team names create a stronger, more readable wordmark.</p></div>
+            <button className="button button-secondary full-width" onClick={() => { setTool('logos'); openBoard(true); }}><Plus size={16} /> Add movable text in 2D panels</button>
           </>}
           {tool === 'numbers' && <>
             <div className="number-preview" style={{ color: draft.design.accent, background: draft.design.main }}><small>{draft.design.backName || 'YOUR NAME'}</small><strong>{draft.design.number || '23'}</strong></div>
@@ -211,6 +224,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             <button className="button button-secondary full-width" onClick={() => { setView('back'); setRotating(false); }}>View the back <ArrowRight size={16} /></button>
           </>}
           {tool === 'garment' && <div className="panel-garments">{garments.map(g => <button key={g.id} className={draft.design.garment === g.id ? 'selected' : ''} onClick={() => edit({ garment: g.id as Design['garment'] })}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span>{draft.design.garment === g.id && <Check size={15} />}</button>)}</div>}
+          {tool === 'presets' && <PresetPanel design={draft.design} edit={edit} onNotice={onNotice} />}
           {tool === 'ai' && <div className="ai-chat">
             {!aiEnabled && <p className="muted">AI is not connected on this server.</p>}
             {chat.length === 0 && <div className="ai-hello"><Sparkles size={20} /><p>Tell me what to change, like you would in ChatGPT. Colours, patterns, names, numbers. Attach an image to match its style.</p></div>}
@@ -225,27 +239,28 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       </section>}
 
       <div className="dyo-stage" ref={stage}>
-        <KitViewer ref={viewer} design={draft.design} view={view} rotating={rotating} onReady={() => setReady(true)} className="studio-viewer" />
+        <KitViewer ref={viewer} design={draft.design} view={view} rotating={rotating} board={board} onLayers={layers => edit({ layers })} onSelection={setSelectedLayer} onReady={() => setReady(true)} className="studio-viewer" />
+        {dragging && <div className="studio-drop-target" onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }} onDrop={dropArtwork}><span>Drop {dragging.pattern ? `${dragging.pattern} on an area` : 'artwork onto your garment'}</span></div>}
+        {board && <div className="artboard-controls"><span>Drag to move · Corners resize · Top handle rotates</span><button disabled={!ready || busy} onClick={() => void exportDesign('artboard')}><Download size={14} /> Export board</button></div>}
         <div className="stage-chips">{patternBusy && <span><LoaderCircle className="spin" size={13} /> Creating AI print…</span>}<span>{catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport} · {catalog?.garments.find(g => g.id === draft.garment)?.name || draft.garment}</span></div>
         <div className="view-controls">{(['front', 'back', 'side'] as View[]).map(v => <button key={v} className={view === v && !rotating ? 'active' : ''} onClick={() => { setView(v); setRotating(false); }}>{v}</button>)}<button className={rotating ? 'active' : ''} onClick={() => setRotating(r => !r)} aria-pressed={rotating}><RotateCcw size={14} /> 360°</button><button className="fullscreen" aria-label="Fullscreen preview" onClick={() => { stage.current?.requestFullscreen?.().catch(() => onNotice('Fullscreen is unavailable in this browser.')); }}><Expand size={16} /></button></div>
       </div>
 
+      <aside className="studio-presets-aside" aria-label="Ready to use designs"><PresetPanel design={draft.design} edit={edit} onNotice={onNotice} /></aside>
       <aside className="dyo-garments" aria-label="Garments">{garments.map(g => <button key={g.id} className={draft.design.garment === g.id ? 'selected' : ''} onClick={() => edit({ garment: g.id as Design['garment'] })} aria-pressed={draft.design.garment === g.id}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span></button>)}{comingSoon.map(g => <button key={g.id} className="soon" disabled title="Coming soon"><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span><small>SOON</small></button>)}</aside>
     </div>
 
     <form className="dyo-prompt" onSubmit={e => { e.preventDefault(); requireAuth(() => askAi()); }}>
       <button type="button" className="round-button" aria-label="Attach a reference image" title="Attach a reference image" onClick={() => askUpload.current?.click()}><ImagePlus size={18} /></button>
-      <button type="button" className="round-button" aria-label="Add your logo" title="Add your logo" onClick={() => requireAuth(() => upload.current?.click())}><Plus size={18} /></button>
+      <button type="button" className="round-button" aria-label="Add your logo" title="Add your logo" onClick={() => setTool('logos')}><Plus size={18} /></button>
       {askImage && <span className="ask-image"><img src={askImage} alt="Reference" /><button type="button" onClick={() => setAskImage(null)} aria-label="Remove image"><X size={12} /></button></span>}
       <input value={ask} onChange={e => setAsk(e.target.value)} placeholder={aiEnabled ? 'Ask 3DEEZI to change anything…' : 'AI is not connected on this server'} disabled={!aiEnabled || asking} maxLength={600} aria-label="Ask 3DEEZI to change anything" />
       <button className="send-button" disabled={!aiEnabled || asking || !ask.trim()} aria-label="Send">{asking ? <LoaderCircle className="spin" size={18} /> : <SendHorizontal size={18} />}</button>
       <button type="button" className="round-button" aria-label="Open the AI panel" title="AI panel" onClick={() => setTool('ai')}><SlidersHorizontal size={18} /></button>
     </form>
-    <input type="file" hidden ref={upload} accept="image/png,image/jpeg,image/webp" onChange={e => { const file = e.target.files?.[0]; if (file) void uploadLogo(file); e.target.value = ''; }} />
-    <input type="file" hidden ref={sponsorUpload} accept="image/png,image/jpeg,image/webp" onChange={e => { const file = e.target.files?.[0]; if (file) void uploadLogo(file, true); e.target.value = ''; }} />
     <input type="file" hidden ref={askUpload} accept="image/png,image/jpeg,image/webp" onChange={async e => { const file = e.target.files?.[0]; e.target.value = ''; if (!file) return; if (file.size > 5 * 1024 * 1024) { onNotice('Use a reference image smaller than 5 MB.'); return; } setAskImage(await blobData(file)); }} />
 
     {ordering && user && draft.id && <OrderKitDialog projectId={draft.id} projectName={draft.name} user={user} onClose={() => setOrdering(false)} onOrdered={order => { setOrdering(false); onNotice(`Order ${order.number} sent · we’ll confirm the price.`); }} />}
-    {modal && <dialog ref={dialog} className="modal compact-modal" onCancel={() => !busy && setModal(null)}><button className="icon-button modal-close" disabled={busy} onClick={() => setModal(null)} aria-label="Close dialog"><X /></button><span className="eyebrow">{modal === 'save' ? 'KEEP THE GOOD IDEAS' : modal === 'showcase' ? 'PHOTOREAL SHOWCASE' : 'READY TO SHARE'}</span><h2>{modal === 'save' ? 'Save your project.' : modal === 'showcase' ? 'Your design, for real.' : 'Take your design with you.'}</h2>{modal === 'showcase' ? <div className="showcase-panel"><p className="muted">The live 3D kit is captured and turned into a photoreal marketing image. The design itself stays exactly as you made it.</p><div className="showcase-frame">{showcases.length ? <img src={showcases[selectedShowcase]} alt="Photoreal showcase of your design" /> : <span>{busy ? 'Creating your showcase… about a minute' : 'Choose a scene and generate.'}</span>}{busy && <LoaderCircle className="spin showcase-spinner" size={28} />}</div>{showcases.length > 1 && <div className="showcase-strip">{showcases.map((src, i) => <button key={i} className={i === selectedShowcase ? 'selected' : ''} onClick={() => setSelectedShowcase(i)}><img src={src} alt={`Showcase ${i + 1}`} /></button>)}</div>}<div className="prompt-chips">{(catalog?.showcase_scenes || []).map(s => <button type="button" key={s} className={scene === s ? 'selected' : ''} disabled={busy} onClick={() => setScene(s)}>{s}</button>)}</div><div className="prompt-chips">{([['Front', false], ['Back', true]] as const).map(([label, back]) => <button type="button" key={label} className={showcaseBack === back ? 'selected' : ''} disabled={busy} onClick={() => setShowcaseBack(back)}>{label}</button>)}</div>{error && <p className="error-message" role="alert">{error}</p>}<div className="showcase-actions"><button className="button button-gradient" disabled={busy || !ready} onClick={generateShowcase}>{busy ? <LoaderCircle className="spin" size={17} /> : <WandSparkles size={17} />}{busy ? 'GENERATING…' : 'GENERATE SHOWCASE'}</button>{showcases.length > 0 && <button className="button button-secondary" disabled={busy} onClick={async () => saveBlob(await (await fetch(showcases[selectedShowcase])).blob(), `${(draft.name || '3deezi-kit').replace(/[^a-z0-9-]/gi, '-').toLowerCase()}-showcase-${selectedShowcase + 1}.jpg`)}><Download size={16} /> Download</button>}</div><p className="field-hint">Every showcase is also saved in your Assets.</p></div> : modal === 'save' ? <form onSubmit={save}><p className="muted">{draft.id ? `Save a new version of your kit. Version ${draft.version || 1} will stay in your history.` : 'Your kit will be saved to your personal Projects library.'}</p><label className="field">Project name<input autoFocus value={name} onChange={e => setName(e.target.value)} required maxLength={120} placeholder="e.g. Coastal Warriors — Home kit" /></label><div className="save-summary"><span>{catalog?.sports.find(s => s.id === draft.sport)?.name}</span><span>{catalog?.garments.find(g => g.id === draft.garment)?.name}</span><span>VERSION {(draft.version || 0) + 1}</span></div>{error && <p className="error-message" role="alert">{error}</p>}<button className="button button-gradient full-width" disabled={busy || !name.trim()}>{busy ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}SAVE PROJECT<ArrowRight size={17} /></button></form> : <><p className="muted">Download a real 3D scene capture or the editable design specification.</p><div className="export-options"><button disabled={busy || !ready} onClick={() => exportDesign('png')}><Box /><span><strong>3D mockup</strong><small>Current view · PNG image</small></span><Download size={18} /></button><button disabled={busy || !ready} onClick={() => exportDesign('front-back')}><Shirt /><span><strong>Front & back</strong><small>Two views · One PNG image</small></span><Download size={18} /></button><button disabled={busy} onClick={() => exportDesign('json')}><Grid2X2 /><span><strong>Design specification</strong><small>Colours, pattern, and player details · JSON</small></span><Download size={18} /></button></div>{busy && <p className="export-progress"><LoaderCircle className="spin" size={17} /> Preparing your download…</p>}{error && <p className="error-message" role="alert">{error}</p>}<p className="field-hint">Mockups are for design review. These exports do not include manufacturing patterns or a production tech pack.</p></>}</dialog>}
+    {modal && <dialog ref={dialog} className="modal compact-modal" onCancel={() => !busy && setModal(null)}><button className="icon-button modal-close" disabled={busy} onClick={() => setModal(null)} aria-label="Close dialog"><X /></button><span className="eyebrow">{modal === 'save' ? 'KEEP THE GOOD IDEAS' : modal === 'showcase' ? 'PHOTOREAL SHOWCASE' : 'READY TO SHARE'}</span><h2>{modal === 'save' ? 'Save your project.' : modal === 'showcase' ? 'Your design, for real.' : 'Take your design with you.'}</h2>{modal === 'showcase' ? <div className="showcase-panel"><p className="muted">The live 3D kit is captured and turned into a photoreal marketing image. The design itself stays exactly as you made it.</p><div className="showcase-frame">{showcases.length ? <img src={showcases[selectedShowcase]} alt="Photoreal showcase of your design" /> : <span>{busy ? 'Creating your showcase… about a minute' : 'Choose a scene and generate.'}</span>}{busy && <LoaderCircle className="spin showcase-spinner" size={28} />}</div>{showcases.length > 1 && <div className="showcase-strip">{showcases.map((src, i) => <button key={i} className={i === selectedShowcase ? 'selected' : ''} onClick={() => setSelectedShowcase(i)}><img src={src} alt={`Showcase ${i + 1}`} /></button>)}</div>}<div className="prompt-chips">{(catalog?.showcase_scenes || []).map(s => <button type="button" key={s} className={scene === s ? 'selected' : ''} disabled={busy} onClick={() => setScene(s)}>{s}</button>)}</div><div className="prompt-chips">{([['Front', false], ['Back', true]] as const).map(([label, back]) => <button type="button" key={label} className={showcaseBack === back ? 'selected' : ''} disabled={busy} onClick={() => setShowcaseBack(back)}>{label}</button>)}</div>{error && <p className="error-message" role="alert">{error}</p>}<div className="showcase-actions"><button className="button button-gradient" disabled={busy || !ready} onClick={generateShowcase}>{busy ? <LoaderCircle className="spin" size={17} /> : <WandSparkles size={17} />}{busy ? 'GENERATING…' : 'GENERATE SHOWCASE'}</button>{showcases.length > 0 && <button className="button button-secondary" disabled={busy} onClick={async () => saveBlob(await (await fetch(showcases[selectedShowcase])).blob(), `${(draft.name || '3deezi-kit').replace(/[^a-z0-9-]/gi, '-').toLowerCase()}-showcase-${selectedShowcase + 1}.jpg`)}><Download size={16} /> Download</button>}</div><p className="field-hint">Every showcase is also saved in your Assets.</p></div> : modal === 'save' ? <form onSubmit={save}><p className="muted">{draft.id ? `Save a new version of your kit. Version ${draft.version || 1} will stay in your history.` : 'Your kit will be saved to your personal Projects library.'}</p><label className="field">Project name<input autoFocus value={name} onChange={e => setName(e.target.value)} required maxLength={120} placeholder="e.g. Coastal Warriors — Home kit" /></label><div className="save-summary"><span>{catalog?.sports.find(s => s.id === draft.sport)?.name}</span><span>{catalog?.garments.find(g => g.id === draft.garment)?.name}</span><span>VERSION {(draft.version || 0) + 1}</span></div>{error && <p className="error-message" role="alert">{error}</p>}<button className="button button-gradient full-width" disabled={busy || !name.trim()}>{busy ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}SAVE PROJECT<ArrowRight size={17} /></button></form> : <><p className="muted">Download your print panels, a 3D scene capture or the editable design specification.</p><div className="export-options"><button disabled={busy || !ready} onClick={() => exportDesign('artboard')}><Layers /><span><strong>Artboard panels</strong><small>Front and back print panels / PNG image</small></span><Download size={18} /></button><button disabled={busy || !ready} onClick={() => exportDesign('png')}><Box /><span><strong>3D mockup</strong><small>Current view · PNG image</small></span><Download size={18} /></button><button disabled={busy || !ready} onClick={() => exportDesign('front-back')}><Shirt /><span><strong>Front & back</strong><small>Two views · One PNG image</small></span><Download size={18} /></button><button disabled={busy} onClick={() => exportDesign('json')}><Grid2X2 /><span><strong>Design specification</strong><small>Colours, pattern, and player details · JSON</small></span><Download size={18} /></button></div>{busy && <p className="export-progress"><LoaderCircle className="spin" size={17} /> Preparing your download…</p>}{error && <p className="error-message" role="alert">{error}</p>}<p className="field-hint">Mockups are for design review. These exports do not include manufacturing patterns or a production tech pack.</p></>}</dialog>}
   </div>;
 }

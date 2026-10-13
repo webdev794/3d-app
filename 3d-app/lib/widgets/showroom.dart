@@ -59,7 +59,7 @@ class _EmblemLoaderState extends State<EmblemLoader>
                     ),
                   ],
                 ),
-                child: Image.asset('assets/images/showroom/emblem-256.webp'),
+                child: Image.asset('assets/images/emblem-final.png'),
               ),
             ),
           ],

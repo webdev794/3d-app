@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'app_controller.dart';
 import 'screens/ai_designer.dart';
+import 'screens/artboard.dart';
 import 'screens/create_home.dart';
 import 'screens/library.dart';
 import 'screens/onboarding.dart';
@@ -248,6 +249,7 @@ class _Phone extends StatelessWidget {
     AppScreen.assets => AssetsScreen(c),
     AppScreen.profile => ProfileScreen(c),
     AppScreen.showcase => ShowcaseScreen(c),
+    AppScreen.artboard => ArtboardScreen(c),
   };
 }
 
@@ -279,7 +281,7 @@ class _PresentationRail extends StatelessWidget {
       AppScreen.home => 1,
       AppScreen.aiDesigner || AppScreen.generating || AppScreen.concepts => 2,
       AppScreen.sport || AppScreen.garment => 3,
-      AppScreen.studio || AppScreen.showcase => 4,
+      AppScreen.studio || AppScreen.showcase || AppScreen.artboard => 4,
       _ => 5,
     };
     return SingleChildScrollView(

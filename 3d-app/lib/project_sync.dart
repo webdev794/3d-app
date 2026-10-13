@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'ai_service.dart';
 import 'app_controller.dart';
+import 'design_document.dart';
 
 /// Converts projects between the app and the website's database, which
 /// stores a kit as `design` (hex colours, pattern, text and image data
@@ -46,13 +47,16 @@ class ProjectSync {
         'main': hex(k.mainColor),
         'secondary': hex(k.secondaryColor),
         'accent': hex(k.accentColor),
-        'pattern': designPatterns.contains(k.pattern) ? k.pattern : 'Solid',
+        'pattern': studioPatterns.contains(k.pattern) ? k.pattern : 'Solid',
         'logoText': _clip(k.logoText, 40),
         'backName': _clip(k.backName, 40),
         'number': _clip(k.number, 3),
         'patternImage': dataUrl(k.patternTile),
         'logoImage': dataUrl(k.logoImage),
         'sponsorImage': dataUrl(k.sponsorImage),
+        'layers': copyLayers(k.layers),
+        'zones': copyZones(k.zones),
+        'gradient': copyGradient(k.gradient),
         if (p.brief.isNotEmpty) 'prompt': _clip(p.brief, 1500),
         'renderFront': dataUrl(p.renderFront),
         'renderBack': dataUrl(p.renderBack),
@@ -102,7 +106,7 @@ class ProjectSync {
         mainColor: color(d['main']),
         secondaryColor: color(d['secondary']),
         accentColor: color(d['accent']),
-        pattern: designPatterns.contains(d['pattern'])
+        pattern: studioPatterns.contains(d['pattern'])
             ? d['pattern'] as String
             : 'Solid',
         fabric: app['fabric'] as String? ?? 'Standard',
@@ -113,6 +117,9 @@ class ProjectSync {
         logoImage: bytes(d['logoImage']),
         sponsorImage: bytes(d['sponsorImage']),
         spec: spec == null ? null : DesignSpec.fromJson(spec),
+        layers: copyLayers(d['layers']),
+        zones: copyZones(d['zones']),
+        gradient: copyGradient(d['gradient']),
       ),
     );
   }

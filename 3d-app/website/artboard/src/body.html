@@ -1,0 +1,141 @@
+<div class="app">
+  <header class="top">
+    <div class="brand"><img src="__LOGO__" alt="3DEEZI"><span>ARTBOARD</span></div>
+    <nav class="menus" aria-label="Menu">
+      <div class="menu"><button>File</button><div class="drop">
+        <button data-action="new">New page</button><button data-action="open">Import image… <small>PNG, JPG, SVG</small></button><hr>
+        <button data-action="exportPng">Export artwork <small>PNG</small></button><button data-action="exportPage">Export page <small>PNG 300 DPI</small></button><button data-action="exportSvg">Export vector <small>SVG</small></button><hr>
+        <button data-action="send">Send to 3D Studio</button></div></div>
+      <div class="menu"><button>Edit</button><div class="drop">
+        <button data-action="undo">Undo <small>Ctrl+Z</small></button><button data-action="redo">Redo <small>Ctrl+Y</small></button><hr>
+        <button data-action="duplicate">Duplicate <small>Ctrl+D</small></button><button data-action="delete">Delete <small>Del</small></button><button data-action="selectAll">Select all <small>Ctrl+A</small></button></div></div>
+      <div class="menu"><button>View</button><div class="drop">
+        <button data-action="zoomIn">Zoom in</button><button data-action="zoomOut">Zoom out</button><button data-action="fit">Fit page</button><hr>
+        <button data-action="rulers">Rulers on / off</button><button data-action="grid">Grid on / off</button></div></div>
+      <div class="menu"><button>Layout</button><div class="drop">
+        <button data-action="layout">Centre selection on page</button></div></div>
+      <div class="menu"><button>Object</button><div class="drop">
+        <button data-action="group">Group / ungroup <small>Ctrl+G</small></button><button data-action="front">Bring to front</button><button data-action="back">Send backward</button><hr>
+        <button data-action="flipH">Flip horizontal</button><button data-action="flipV">Flip vertical</button></div></div>
+      <div class="menu"><button>Text</button><div class="drop"><button data-action="text">Add text <small>T</small></button></div></div>
+      <div class="menu"><button>Help</button><div class="drop"><button data-action="help">Shortcuts</button></div></div>
+    </nav>
+    <div class="top-actions">
+      <button class="round" id="undo" title="Undo (Ctrl+Z)" data-icon="undo"></button>
+      <button class="round" id="redo" title="Redo (Ctrl+Y)" data-icon="redo"></button>
+      <button class="btn" id="save" data-icon="save"><span class="lbl">Save</span></button>
+      <div class="menu"><button class="btn grad" data-icon="export"><span class="lbl">Export</span></button><div class="drop" style="right:0;left:auto">
+        <button data-action="exportPng">Artwork <small>transparent PNG</small></button><button data-action="exportPage">Whole page <small>PNG 300 DPI</small></button><button data-action="exportSvg">Vector <small>SVG</small></button></div></div>
+      <button class="btn send" id="sendBtn" data-icon="shirt"><span class="lbl">Send to 3D Studio</span></button>
+      <button class="round mobile-only" id="panelBtn" title="Colour, properties, layers and assets" data-icon="panel"></button>
+    </div>
+  </header>
+
+  <div class="props">
+    <div class="prop"><label>Fill</label><button class="chip" id="fillChip" title="Fill colour"></button><button class="ibtn" id="noFill" title="No fill" data-icon="close"></button></div>
+    <div class="prop"><label>Outline</label><button class="chip" id="strokeChip" title="Outline colour"></button><button class="ibtn" id="noStroke" title="No outline" data-icon="close"></button></div>
+    <div class="prop"><select id="strokeWidth" title="Outline width (mm)"><option value="0">No outline</option><option value="0.5">0.5 mm</option><option value="1">1.0 mm</option><option value="2">2.0 mm</option><option value="3">3.0 mm</option><option value="5">5.0 mm</option><option value="8">8.0 mm</option></select></div>
+    <div class="prop"><select id="dash" title="Line style"><option value="solid">─── Solid</option><option value="dashed">– – Dashed</option><option value="dotted">··· Dotted</option></select></div>
+    <div class="prop"><label>Opacity</label><input id="opacity" type="number" min="0" max="100" style="width:64px" title="Opacity %"></div>
+    <span class="sep"></span>
+    <button class="ibtn" id="alL" title="Align left" data-icon="alL"></button><button class="ibtn" id="alC" title="Centre horizontally" data-icon="alC"></button><button class="ibtn" id="alR" title="Align right" data-icon="alR"></button>
+    <button class="ibtn" id="alT" title="Align top" data-icon="alT"></button><button class="ibtn" id="alM" title="Centre vertically" data-icon="alM"></button><button class="ibtn" id="alB" title="Align bottom" data-icon="alB"></button>
+    <span class="sep"></span>
+    <div class="xywh"><span>X</span><input id="posX" title="X (mm)"><span>W</span><input id="sizeW" title="Width (mm)"><span>Y</span><input id="posY" title="Y (mm)"><span>H</span><input id="sizeH" title="Height (mm)"></div>
+    <button class="ibtn on" id="ratio" title="Keep proportions" data-icon="ratio"></button>
+    <span class="sep"></span>
+    <button class="ibtn" id="flipH" title="Flip horizontal" data-icon="flipH"></button><button class="ibtn" id="flipV" title="Flip vertical" data-icon="flipV"></button>
+    <button class="ibtn" id="front" title="Bring to front" data-icon="front"></button><button class="ibtn" id="back" title="Send backward" data-icon="back"></button>
+    <button class="ibtn" id="group" title="Group / ungroup" data-icon="group"></button><button class="ibtn" id="dup" title="Duplicate" data-icon="dup"></button>
+    <button class="ibtn" id="lock" title="Lock" data-icon="lock"></button><button class="ibtn" id="del" title="Delete" data-icon="trash"></button>
+  </div>
+
+  <div class="body">
+    <nav class="tools" aria-label="Tools">
+      <button class="tool" data-tool="select" data-icon="select">Select</button>
+      <button class="tool" data-tool="node" data-icon="node">Shape / Node</button>
+      <button class="tool" data-tool="crop" data-icon="crop">Crop</button>
+      <button class="tool" data-tool="zoom" data-icon="zoom">Zoom</button>
+      <button class="tool" data-tool="draw-menu" data-icon="draw"><span id="drawLabel">Draw</span><svg class="i more" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button class="tool" data-tool="rect" data-icon="rect">Shape</button>
+      <button class="tool" data-tool="ellipse" data-icon="ellipse">Ellipse</button>
+      <button class="tool" data-tool="polygon" data-icon="polygon">Polygon</button>
+      <button class="tool" data-tool="text" data-icon="text">Text</button>
+      <button class="tool" data-tool="image" data-icon="image">Image</button>
+      <button class="tool" data-tool="fill" data-icon="fill">Fill</button>
+      <button class="tool" data-tool="eyedropper" data-icon="eyedropper">Eyedropper</button>
+    </nav>
+    <div class="fly" id="drawFly">
+      <button data-kind="draw" data-icon="freehand">Freehand <small>F5</small></button>
+      <button data-kind="line" data-icon="line">2-Point Line</button>
+      <button data-kind="bezier" data-icon="bezier">Bézier <small>B</small></button>
+      <button data-kind="pen" data-icon="pen">Pen <small>P</small></button>
+      <button data-kind="polyline" data-icon="polyline">Polyline</button>
+    </div>
+
+    <main class="stage" id="stage">
+      <div class="corner"></div><canvas class="ruler h" id="rulerH"></canvas><canvas class="ruler v" id="rulerV"></canvas>
+      <div class="canvas-wrap" id="canvasWrap"><canvas id="board"></canvas></div>
+      <div class="hint" id="hint"></div>
+    </main>
+
+    <aside class="side" id="side">
+      <div class="tabs"><button data-tab="colour" class="on">Colour</button><button data-tab="props">Properties</button><button data-tab="layers">Layers</button><button data-tab="assets">Assets</button></div>
+      <section class="pane on" id="pane-colour">
+        <h3>Colour palette <button class="ibtn mobile-only" id="closeSide" data-icon="close"></button></h3>
+        <div class="target"><button data-target="fill" class="on">Fill</button><button data-target="stroke">Outline</button></div>
+        <select id="fillMode"><option value="solid">Solid colour</option><option value="gradient">Linear gradient</option></select>
+        <div class="grid2" id="gradRow" style="display:none"><label class="field">To colour<input type="color" id="gradTo" value="#7B4DFF"></label><label class="field">Angle<input type="number" id="gradAngle" value="0" step="15"></label></div>
+        <div class="picker-row"><div class="sv" id="sv"><canvas id="svCanvas"></canvas><i id="svDot"></i></div><div class="hue" id="hue"><canvas id="hueCanvas"></canvas><i id="hueDot"></i></div></div>
+        <div class="hexrow"><span class="chip" id="hexChip"></span><input id="hexIn" maxlength="7" aria-label="Hex colour"></div>
+        <div class="swatches" id="brandSw"></div>
+        <h3>Recent colours</h3><div class="swatches" id="recentSw"></div>
+        <h3>Colour harmony <select id="harmonyMode" style="width:auto"><option value="analogous">Analogous</option><option value="complementary">Complementary</option><option value="triadic">Triadic</option><option value="shades">Shades</option></select></h3>
+        <div class="harmony" id="harmony"></div>
+      </section>
+      <section class="pane" id="pane-props">
+        <h3>Properties</h3>
+        <p class="empty" id="propsEmpty">Select an object to edit it. Polygon settings below apply to the next polygon you draw.</p>
+        <div id="propsBody" style="display:none;flex-direction:column;gap:12px">
+          <label class="field">Name<input id="pName"></label>
+          <label class="field">Rotation (°)<input id="pAngle" type="number" step="5"></label>
+          <div id="textProps" class="card" style="display:none">
+            <label class="field">Font<select id="pFont"><option>Rajdhani</option><option>Inter</option><option>Arial</option><option>Georgia</option><option>Impact</option><option>Courier New</option></select></label>
+            <div class="grid2"><label class="field">Size (mm)<input id="pSize" type="number" min="2"></label><label class="field">Weight<select id="pWeight"><option value="400">Regular</option><option value="600">Semi-bold</option><option value="700">Bold</option><option value="900">Black</option></select></label></div>
+            <label class="field">Letter spacing<input id="pSpacing" type="number" step="20"></label>
+          </div>
+          <div id="rectProps" class="card" style="display:none"><label class="field">Corner radius (mm)<input id="pRadius" type="number" min="0" step="0.5"></label></div>
+        </div>
+        <div class="card"><b>Polygon tool</b><div class="grid2"><label class="field">Sides<input id="pSides" type="number" min="3" max="24" value="6"></label><label class="field" style="flex-direction:row;align-items:center;gap:8px;margin-top:18px"><input id="pStar" type="checkbox" style="width:16px;height:16px;accent-color:#12E1F0"> Star</label></div></div>
+      </section>
+      <section class="pane" id="pane-layers">
+        <h3>Layers <span id="layerCount" style="color:var(--muted);font-size:13px">0</span></h3>
+        <p class="empty" id="layersEmpty">Shapes, text and images you add appear here. The top of the list is drawn on top.</p>
+        <div class="layers" id="layerList"></div>
+      </section>
+      <section class="pane" id="pane-assets">
+        <h3>Assets</h3>
+        <button class="drop-zone" id="assetUpload">Upload logos or artwork<br><small>or drop files onto the page</small></button>
+        <p class="empty" id="assetsEmpty">Your uploaded logos and images appear here. Click one, or drag it onto the page.</p>
+        <div class="assets" id="assetGrid"></div>
+      </section>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    <span class="page">Page 1</span>
+    <span class="hide-sm">RGB</span><span class="hide-sm">300 DPI</span>
+    <select id="pageSize" class="hide-sm" title="Page size"></select><span id="pageInfo" class="hide-sm"></span>
+    <span class="spacer"></span>
+    <label class="hide-sm"><input type="checkbox" id="gridToggle"> Grid</label>
+    <label><input type="checkbox" id="snapToggle"> Snap</label>
+    <select id="zoomPct" title="Zoom" class="hide-sm"><option value="fit">Fit</option><option value="25">25%</option><option value="50">50%</option><option value="75">75%</option><option value="100">100%</option><option value="150">150%</option><option value="200">200%</option><option value="400">400%</option></select>
+    <button class="ibtn" id="zoomMinus" title="Zoom out" data-icon="minus"></button>
+    <input type="range" id="zoomRange" min="-200" max="300" value="0" class="hide-sm" aria-label="Zoom">
+    <span id="zoomLabel">100%</span>
+    <button class="ibtn" id="zoomPlus" title="Zoom in" data-icon="plus"></button>
+    <button class="ibtn" id="fitBtn" title="Fit page" data-icon="fit"></button>
+  </footer>
+</div>
+<input type="file" id="fileImage" accept="image/png,image/jpeg,image/webp,image/svg+xml" multiple>
+<div class="toast" id="toast" role="status"></div>

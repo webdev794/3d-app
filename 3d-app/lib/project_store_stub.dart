@@ -1,12 +1,11 @@
 import 'dart:typed_data';
 
-/// Web: projects stay in memory for the session (browser storage is too
-/// small for kit images).
+/// Unsupported platforms retain projects only for the current session.
 Future<void> writeProject(
   String id,
   Map<String, dynamic> json,
   Map<String, Uint8List> images,
-) async {}
+) async => throw UnsupportedError('Project storage is unavailable.');
 
 Future<List<(Map<String, dynamic>, Map<String, Uint8List>)>>
 readProjects() async => [];

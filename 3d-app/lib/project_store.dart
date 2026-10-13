@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 
 import 'ai_service.dart';
 import 'app_controller.dart';
+import 'design_document.dart';
 import 'project_store_stub.dart'
     if (dart.library.io) 'project_store_io.dart'
+    if (dart.library.js_interop) 'project_store_web.dart'
     as platform;
 
 /// Saves the user's projects on the device so they survive app restarts.
-/// On platforms without a file system (web) it does nothing.
+/// Web projects use browser storage; phones use the device file system.
 class ProjectStore {
   const ProjectStore();
 
@@ -67,6 +69,9 @@ class ProjectStore {
       'logoText': p.kit.logoText,
       'backName': p.kit.backName,
       'number': p.kit.number,
+      'layers': copyLayers(p.kit.layers),
+      'zones': copyZones(p.kit.zones),
+      'gradient': copyGradient(p.kit.gradient),
       'spec': p.kit.spec?.toJson(),
     },
   };
@@ -106,6 +111,9 @@ class ProjectStore {
         logoImage: images['logoImage'],
         sponsorImage: images['sponsorImage'],
         spec: spec == null ? null : DesignSpec.fromJson(spec),
+        layers: copyLayers(k['layers']),
+        zones: copyZones(k['zones']),
+        gradient: copyGradient(k['gradient']),
       ),
     );
   }

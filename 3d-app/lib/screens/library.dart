@@ -171,6 +171,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                         shadows: const [Shadow(blurRadius: 6)],
                                       ),
                                     ),
+                                  if (p.localSaveError != null)
+                                    Positioned(
+                                      left: 7,
+                                      top: 7,
+                                      child: Tooltip(
+                                        message: p.localSaveError!,
+                                        child: const Icon(
+                                          Icons.warning_amber_rounded,
+                                          color: Color(0xffffbc75),
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),

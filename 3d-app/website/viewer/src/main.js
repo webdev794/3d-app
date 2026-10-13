@@ -38,6 +38,9 @@ const DEFAULT_DESIGN = {
   patternImage: null,
   patternColor: '#0b6f78',
   patternBody: 0.06,
+  layers: [],
+  zones: {},
+  gradient: null,
 };
 
 // ---------- renderer, scene, camera
@@ -107,6 +110,10 @@ function buildKit(kind) {
   const key = PARTS[kind] ? kind : 'jersey';
   if (key === currentKind) return;
   currentKind = key;
+  const geometries = new Set();
+  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); if (o.material !== innerMaterial) o.material.dispose(); } });
+  geometries.forEach((geometry) => geometry.dispose());
+  parts.forEach((part) => part.texture.dispose());
   kit.clear();
   parts = [];
   let base = 0;
@@ -168,32 +175,41 @@ async function paintAll() {
 }
 
 /** A design from the host (website or app). */
-async function applyDesign(next) {
-  design = { ...design, ...next };
-  await paintAll();
-  post({ type: 'designApplied' });
+let paintQueue = Promise.resolve();
+const enqueuePaint = (work) => {
+  const task = paintQueue.then(work);
+  paintQueue = task.catch((error) => post({ type: 'error', command: 'setDesign', message: error.message }));
+  return task;
+};
+function applyDesign(next) {
+  return enqueuePaint(async () => {
+    if (!next || typeof next !== 'object' || Array.isArray(next)) throw new Error('A design object is required.');
+    design = { ...design, ...next };
+    await paintAll();
+    post({ type: 'designApplied' });
+  });
 }
 
 // ---------- design board (2D print panels) and picking
-let boardPaint = null, boardPending = false;
+let boardPending = false;
 const board = createBoard({
   getParts: () => parts,
   getDesign: () => design,
+  onSelect: (id) => post({ type: 'selection', id }),
   // Board edits repaint locally (throttled) and are reported to the host on release.
   onLayers: (layers, final) => {
     design.layers = layers;
     if (final) post({ type: 'layers', layers });
-    if (boardPaint) { boardPending = true; return; }
-    boardPaint = paintAll().finally(() => {
-      boardPaint = null;
-      if (boardPending) { boardPending = false; paintAll(); }
-    });
+    if (boardPending) return;
+    boardPending = true;
+    enqueuePaint(async () => { boardPending = false; await paintAll(); }).catch(() => {});
   },
 });
 
 const raycaster = new THREE.Raycaster();
 /** Normalised screen point (0..1) -> where it lands on the kit. */
 function pickAt(nx, ny) {
+  if (![nx, ny].every(Number.isFinite) || nx < 0 || nx > 1 || ny < 0 || ny > 1) return { hit: false };
   const onBoard = board.pick(nx, ny);
   if (onBoard) return { hit: true, ...onBoard, zone: zoneAt(onBoard.kind, onBoard.x, onBoard.y) };
   if (board.visible) return { hit: false };
@@ -385,26 +401,34 @@ window.viewer = {
   pick: ({ id, x, y }) => post({ type: 'pick', id, ...pickAt(x, y) }),
   /** {id, src, removeBg, tint, maxSize} -> posts {type:'image', id, data | error}. */
   processImage: ({ id, src, ...options }) =>
-    processImage(src, options).then(
+    processImage(src, { ...options, ...options.options }).then(
       (data) => post({ type: 'image', id, data }),
       (e) => post({ type: 'image', id, error: e.message }),
     ),
   /** Shows or hides the 2D design board. */
-  board: (on) => {
-    board.show(on);
+  board: async (on) => {
+    await paintQueue;
+    await board.show(on);
     canvas.style.visibility = on ? 'hidden' : 'visible';
     if (on) controls.autoRotate = false;
     post({ type: 'board', on: !!on });
   },
   select: (id) => board.select(id),
+  captureBoard: async ({ id } = {}) => {
+    try { await paintQueue; post({ type: 'captureBoard', id, data: await board.capture() }); }
+    catch (error) { post({ type: 'captureBoard', id, error: error.message }); }
+  },
   // One entry point for both hosts: {cmd, arg}.
   receive: (msg) => {
-    const m = typeof msg === 'string' ? JSON.parse(msg) : msg;
-    if (m && m.cmd !== 'receive' && typeof window.viewer[m.cmd] === 'function') window.viewer[m.cmd](m.arg);
+    try {
+      const m = typeof msg === 'string' ? JSON.parse(msg) : msg;
+      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'captureBoard'];
+      if (m && allowed.includes(m.cmd)) Promise.resolve(window.viewer[m.cmd](m.arg)).catch((error) => post({ type: 'error', command: m.cmd, message: error.message }));
+    } catch (error) { post({ type: 'error', message: error.message }); }
   },
 };
 addEventListener('message', (e) => {
-  if (e.source === window.parent && typeof e.data === 'string') window.viewer.receive(e.data);
+  if (e.source === window.parent && e.origin === location.origin && typeof e.data === 'string') window.viewer.receive(e.data);
 });
 
 (async () => {
@@ -415,4 +439,4 @@ addEventListener('message', (e) => {
   frame();
   document.body.classList.add('ready');
   post({ type: 'ready' });
-})();
+})().catch((error) => post({ type: 'error', message: error.message }));

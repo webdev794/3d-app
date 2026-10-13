@@ -21,8 +21,14 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 html,body{margin:0;height:100%;overflow:hidden;background:#03070c;touch-action:none;-webkit-user-select:none;user-select:none}
 #stage{display:block;width:100%;height:100%;opacity:0;transition:opacity .8s ease}.ready #stage{opacity:1}
 </style></head><body><canvas id="stage"></canvas>
-<script>window.DEFAULT_PATTERN='data:image/png;base64,${base64('viewer/sample-pattern.png')}';</script>
+<script>window.DEFAULT_PATTERN='data:image/png;base64,${base64('viewer/sample-pattern.png')}';window.STADIUM='data:image/webp;base64,${base64('website/public/media/showroom/studio-backdrop.webp')}';</script>
 <script>${js}</script></body></html>`;
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, html);
+// Keep the same board, artwork tools and cinematic renderer in the apps.
+const mobileOut = path.join(root, 'assets/viewer/index.html');
+fs.mkdirSync(path.dirname(mobileOut), { recursive: true });
+fs.writeFileSync(mobileOut, html);
+const presets = path.join(root, 'assets/presets.json');
+if (fs.existsSync(presets)) fs.copyFileSync(presets, path.join(root, 'website/public/media/presets.json'));
 console.log(`Cinematic website viewer built: ${path.relative(root, out)} (${Math.round(html.length / 1024)} KB)`);

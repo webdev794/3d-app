@@ -21,7 +21,9 @@ class BrandLogo extends StatelessWidget {
   final bool tagline;
   @override
   Widget build(BuildContext context) => Image.asset(
-    tagline ? 'assets/images/brand_tagline.png' : 'assets/images/brand.png',
+    tagline
+        ? 'assets/images/brand-tagline-final.png'
+        : 'assets/images/brand-final.png',
     width: width,
     fit: BoxFit.contain,
     filterQuality: FilterQuality.high,
@@ -110,7 +112,7 @@ class SecondaryButton extends StatelessWidget {
     this.icon,
   });
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final IconData? icon;
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -133,11 +135,14 @@ class SecondaryButton extends StatelessWidget {
             Icon(icon, size: 20),
             const SizedBox(width: 10),
           ],
-          Text(
-            label,
-            style: const TextStyle(
-              color: Palette.text,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Palette.text,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

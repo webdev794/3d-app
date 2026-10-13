@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'ai_service.dart';
 import 'api_client.dart';
+import 'design_document.dart';
 import 'project_store.dart';
 import 'project_sync.dart';
 import 'session_store.dart';
@@ -27,6 +28,7 @@ enum AppScreen {
   assets,
   profile,
   showcase,
+  artboard,
 }
 
 /// Everything about the kit that Undo/Redo restores.
@@ -46,11 +48,17 @@ class KitState {
     required this.logoImage,
     required this.spec,
     this.sponsorImage,
+    this.layers = const [],
+    this.zones = const {},
+    this.gradient,
   });
   final String garment, pattern, fabric, logoText, backName, number;
   final Color mainColor, secondaryColor, accentColor;
   final Uint8List? patternTile, logoImage, sponsorImage;
   final DesignSpec? spec;
+  final List<Map<String, dynamic>> layers;
+  final Map<String, String> zones;
+  final Map<String, dynamic>? gradient;
 }
 
 /// One AI concept on the "Choose a design" screen.
@@ -99,6 +107,7 @@ class Project {
 
   /// The last upload failed (shown on the project card).
   String? syncError;
+  String? localSaveError;
   String title;
   final String sport, garment, mode, brief;
   final KitState kit;
@@ -149,6 +158,80 @@ class AppController extends ChangeNotifier {
   String logoText = 'MANTIS', backName = 'MANTIS', number = '23';
   Uint8List? patternTile, logoImage, sponsorImage;
   DesignSpec? spec;
+  List<Map<String, dynamic>> layers = [];
+  Map<String, String> zones = {};
+  Map<String, dynamic>? gradient;
+  bool boardMode = false;
+  String? selectedLayerId;
+
+  Future<Uint8List?> Function()? captureBoard;
+  Future<String> Function(String src, {bool removeBg, String? tint})?
+  processArtwork;
+  Future<Map<String, dynamic>?> Function(double x, double y)? pickGarment;
+
+  Map<String, dynamic>? get selectedLayer =>
+      layers.where((layer) => layer['id'] == selectedLayerId).firstOrNull;
+
+  void selectLayer(String? id) => update(() => selectedLayerId = id);
+
+  void addLayer(Map<String, dynamic> layer) {
+    final id = 'layer-${DateTime.now().microsecondsSinceEpoch}';
+    edit(() {
+      layers = [
+        ...layers,
+        {
+          'id': id,
+          'part': garment == 'Shorts' ? 'shorts' : 'top',
+          'side': view == 'Back' ? 'back' : 'front',
+          'x': 0.0,
+          'y': garment == 'Shorts' ? 0.23 : 0.43,
+          'w': 0.16,
+          'rot': 0,
+          'opacity': 1,
+          ...layer,
+        },
+      ];
+      selectedLayerId = id;
+    });
+  }
+
+  void changeLayer(
+    String id,
+    Map<String, dynamic> patch, {
+    bool record = true,
+  }) {
+    void change() {
+      layers = [
+        for (final layer in layers)
+          if (layer['id'] == id) {...layer, ...patch} else layer,
+      ];
+    }
+
+    if (record) {
+      edit(change);
+    } else {
+      update(change);
+    }
+  }
+
+  void removeLayer(String id) => edit(() {
+    layers = layers.where((layer) => layer['id'] != id).toList();
+    if (selectedLayerId == id) selectedLayerId = null;
+  });
+
+  /// Replaces styling as one undo step; artwork is preserved when absent.
+  void applyPreset(Map<String, dynamic> design) => edit(() {
+    if (design['main'] != null) mainColor = ProjectSync.color(design['main']);
+    if (design['secondary'] != null) {
+      secondaryColor = ProjectSync.color(design['secondary']);
+    }
+    if (design['accent'] != null)
+      accentColor = ProjectSync.color(design['accent']);
+    if (design['pattern'] is String) pattern = design['pattern'] as String;
+    gradient = copyGradient(design['gradient']);
+    zones = copyZones(design['zones']);
+    if (design.containsKey('layers')) layers = copyLayers(design['layers']);
+  });
 
   // ---------- renders and the studio
   Uint8List? renderFront, renderBack;
@@ -169,6 +252,7 @@ class AppController extends ChangeNotifier {
   // ---------- projects and assets
   int selectedProject = -1;
   bool saved = false;
+  String? saveError;
   String projectName = '';
   final List<Uint8List> uploads = [], logos = [], aiPatterns = [], artwork = [];
 
@@ -382,8 +466,12 @@ class AppController extends ChangeNotifier {
         .save(p)
         .then((_) {
           p.persisted = true;
+          p.localSaveError = null;
         })
-        .catchError((Object _) {});
+        .catchError((Object _) {
+          p.localSaveError = 'Could not save a copy on this device.';
+          notifyListeners();
+        });
   }
 
   /// Loads projects saved on the device (newest first) above the samples.
@@ -508,6 +596,9 @@ class AppController extends ChangeNotifier {
     logoImage: logoImage,
     sponsorImage: sponsorImage,
     spec: spec,
+    layers: copyLayers(layers),
+    zones: copyZones(zones),
+    gradient: copyGradient(gradient),
   );
 
   void _restore(KitState k) {
@@ -524,6 +615,12 @@ class AppController extends ChangeNotifier {
     logoImage = k.logoImage;
     sponsorImage = k.sponsorImage;
     spec = k.spec;
+    layers = copyLayers(k.layers);
+    zones = copyZones(k.zones);
+    gradient = copyGradient(k.gradient);
+    if (!layers.any((layer) => layer['id'] == selectedLayerId)) {
+      selectedLayerId = null;
+    }
   }
 
   /// Changes the kit and records the previous state for Undo.
@@ -533,6 +630,7 @@ class AppController extends ChangeNotifier {
     _redo.clear();
     change();
     saved = false;
+    mockupFront = mockupBack = mockupSide = null;
     notifyListeners();
   }
 
@@ -541,6 +639,7 @@ class AppController extends ChangeNotifier {
     _redo.add(kit);
     _restore(_undo.removeLast());
     saved = false;
+    mockupFront = mockupBack = mockupSide = null;
     notifyListeners();
   }
 
@@ -549,6 +648,7 @@ class AppController extends ChangeNotifier {
     _undo.add(kit);
     _restore(_redo.removeLast());
     saved = false;
+    mockupFront = mockupBack = mockupSide = null;
     notifyListeners();
   }
 
@@ -580,9 +680,12 @@ class AppController extends ChangeNotifier {
     mockupBusy = false;
     view = 'Front';
     show3d = true;
+    boardMode = false;
+    selectedLayerId = null;
     selectedProject = -1;
     projectName = '';
     saved = false;
+    saveError = null;
   }
 
   void startAi() {
@@ -751,7 +854,7 @@ class AppController extends ChangeNotifier {
       ? projects[selectedProject].version + 1
       : 1;
 
-  void saveProject(String title, {Uint8List? thumbnail}) {
+  Future<bool> saveProject(String title, {Uint8List? thumbnail}) async {
     final updating = selectedProject >= 0 && selectedProject < projects.length;
     final project = Project(
       id: updating ? projects[selectedProject].id : null,
@@ -777,23 +880,31 @@ class AppController extends ChangeNotifier {
     projects.insert(0, project);
     selectedProject = 0;
     projectName = project.title;
-    saved = true;
+    saved = false;
+    saveError = null;
     notifyListeners();
-    store
-        .save(project)
-        .then((_) {
-          project.persisted = true;
-        })
-        .catchError((Object _) {})
-        .whenComplete(() async {
-          if (!signedIn) return;
-          try {
-            await _upload(project);
-          } on ApiException catch (e) {
-            await _expire(e.message);
-            notifyListeners();
-          }
-        });
+    try {
+      await store.save(project);
+      project.persisted = true;
+    } on Object {
+      project.localSaveError =
+          'Could not save on this device. Storage may be '
+          'full or unavailable. Keep this tab open, free some space and retry, '
+          'or sign in to save your design to your account.';
+    }
+    if (signedIn) {
+      try {
+        await _upload(project);
+      } on ApiException catch (e) {
+        await _expire(e.message);
+      }
+    }
+    saved =
+        project.persisted ||
+        (project.remoteId != null && !project.pendingUpload);
+    saveError = saved ? null : project.localSaveError;
+    notifyListeners();
+    return saved;
   }
 
   void loadProject(Project project) {

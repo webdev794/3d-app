@@ -5,8 +5,9 @@
 const load = (src) =>
   new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Unable to read this image.'));
+    const timer = setTimeout(() => reject(new Error('This image took too long to load.')), 15000);
+    img.onload = () => { clearTimeout(timer); resolve(img); };
+    img.onerror = () => { clearTimeout(timer); reject(new Error('Unable to read this image.')); };
     img.src = src;
   });
 
@@ -20,6 +21,10 @@ const rgb = (hex) => {
  * @param {{removeBg?: boolean, tolerance?: number, tint?: string|null, maxSize?: number}} options
  */
 export async function processImage(src, { removeBg = false, tolerance = 42, tint = null, maxSize = 1024 } = {}) {
+  if (typeof src !== 'string' || !src.length || src.length > 16000000) throw new Error('Choose a valid image smaller than 12 MB.');
+  maxSize = Math.max(32, Math.min(2048, Number(maxSize) || 1024));
+  tolerance = Math.max(1, Math.min(200, Number(tolerance) || 42));
+  if (tint && !/^#[0-9a-f]{6}$/i.test(tint)) throw new Error('Choose a valid six-digit colour.');
   const img = await load(src);
   const k = Math.min(1, maxSize / Math.max(img.width, img.height));
   const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));

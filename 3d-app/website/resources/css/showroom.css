@@ -424,3 +424,9 @@
 @media(max-height:900px){.carousel-item.is-active .carousel-label{display:none}}
 @media(max-width:600px){.carousel-dots{display:none}}
 @media(max-width:600px){.carousel-arrow{top:42%;bottom:auto;width:40px;height:40px}.carousel-arrow.prev{left:4px}.carousel-arrow.next{right:4px}}
+
+/* Artboard host: the shared editor fills the window. */
+.artboard-frame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#04090f;z-index:30}
+.lib-title-link{all:unset;cursor:pointer}
+.lib-title-link:hover{color:var(--cyan)}
+.lib-title-link:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}

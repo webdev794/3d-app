@@ -11,6 +11,9 @@ use App\Services\OpenAiDesigner;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->middleware('throttle:api')->group(function () {
+    Route::get('/presets', fn () => response()->json(['data' => json_decode(
+        file_get_contents(public_path('media/presets.json')), true, 512, JSON_THROW_ON_ERROR,
+    )]));
     Route::get('/catalog', fn () => response()->json(['data' => array_merge(
         config('catalog'),
         OpenAiDesigner::enabled()

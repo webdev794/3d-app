@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:three_deezi/app.dart';
 import 'package:three_deezi/app_controller.dart';
 
+import 'features_test.dart' show FakeStore;
+
 Future<void> mountPhone(WidgetTester tester, AppController controller) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(375, 720);
@@ -166,7 +168,7 @@ void main() {
   testWidgets('save creates versions and appears in My Projects', (
     tester,
   ) async {
-    final c = AppController()..screen = AppScreen.home;
+    final c = AppController(store: FakeStore())..screen = AppScreen.home;
     await mountPhone(tester, c);
     c.startDyo();
     c.go(AppScreen.studio);

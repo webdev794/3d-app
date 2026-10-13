@@ -2,7 +2,9 @@
 
 A Laravel 12 backend and React 19 / TypeScript website for the sportswear design flow. The website follows the existing mobile app: choose a creation method, select a sport and garment, customise a live 3D kit, save projects and versions, manage artwork, and export a design. The Laravel JSON API is also available to the mobile apps.
 
-This is a separate application in `website/`. Existing Flutter source and its bundled Three.js renderer remain unchanged. `npm run sync-assets` copies the mobile project's artwork, fonts and viewer into the website's public media directory. Mobile API integration is documented in [docs/API.md](docs/API.md); the existing Flutter screens do not automatically call this new backend.
+This application lives in `website/`. React and Flutter share the garment renderer, design schema and preset catalog. The Flutter app connects to the Laravel API for accounts and project synchronization. `npm run sync-assets` copies artwork/fonts and rebuilds the shared viewer. Mobile API integration is documented in [docs/API.md](docs/API.md).
+
+For the desktop launcher, artboard continuation and handoff details, see [docs/CONTINUATION.md](docs/CONTINUATION.md). From the repository root, run `scripts/Start-Desktop.cmd` to open both the website and Flutter app preview without a phone.
 
 ## Run locally
 

@@ -4,10 +4,11 @@
 
 const HANDLE = 9;
 
-export function createBoard({ getParts, getDesign, onLayers }) {
+export function createBoard({ getParts, getDesign, onLayers, onSelect = () => {} }) {
   const canvas = document.createElement('canvas');
   Object.assign(canvas.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', display: 'none', touchAction: 'none', cursor: 'default' });
   document.body.appendChild(canvas);
+  canvas.dataset.designBoard = 'true';
   const g = canvas.getContext('2d');
   let visible = false, rows = [], selected = null, drag = null, sizes = new Map();
   const dpr = () => Math.min(devicePixelRatio || 1, 2);
@@ -16,8 +17,8 @@ export function createBoard({ getParts, getDesign, onLayers }) {
   function layout() {
     const parts = getParts();
     const W = canvas.width, H = canvas.height, pad = 28 * dpr(), label = 22 * dpr();
-    const n = parts.length;
-    const rowH = Math.min((H - pad * (n + 1) - label * n - 40 * dpr()) / n, (W - pad * 2) / 2);
+    const n = parts.length || 1;
+    const rowH = Math.max(20, Math.min((H - pad * (n + 1) - label * n - 40 * dpr()) / n, (W - pad * 2) / 2));
     let y = pad + 40 * dpr();
     rows = parts.map((part) => {
       const tex = part.painter.canvas;
@@ -53,8 +54,8 @@ export function createBoard({ getParts, getDesign, onLayers }) {
     }
   }
 
-  function render() {
-    if (!visible) return;
+  function render(exporting = false) {
+    if (!visible && !exporting) return;
     const d = dpr();
     canvas.width = innerWidth * d;
     canvas.height = innerHeight * d;
@@ -69,7 +70,7 @@ export function createBoard({ getParts, getDesign, onLayers }) {
     g.fillStyle = '#9fb2c4';
     g.font = `600 ${12 * d}px Inter, sans-serif`;
     g.textAlign = 'center';
-    g.fillText('DESIGN BOARD  ·  drag to move  ·  corners resize  ·  top handle rotates', canvas.width / 2, 26 * d);
+    g.fillText(exporting ? '3DEEZI DESIGN BOARD  ·  DESIGN PREVIEW' : 'DESIGN BOARD  ·  drag to move  ·  corners resize  ·  top handle rotates', canvas.width / 2, 26 * d);
     for (const row of rows) {
       const tex = row.part.painter.canvas;
       const painter = row.part.painter;
@@ -105,7 +106,7 @@ export function createBoard({ getParts, getDesign, onLayers }) {
     // Selection.
     const layer = (getDesign().layers ?? []).find((l) => l.id === selected);
     const geo = layer && geometry(layer);
-    if (geo) {
+    if (geo && !exporting) {
       g.save();
       g.translate(geo.cx, geo.cy);
       g.rotate(geo.rot);
@@ -145,7 +146,9 @@ export function createBoard({ getParts, getDesign, onLayers }) {
       const tex = row.part.painter.canvas;
       const tx = (px - row.ox) / row.k, ty = (py - row.oy) / row.k;
       if (tx < 0 || ty < 0 || tx > tex.width || ty > tex.height) continue;
-      return { part: row.part.painter.partName, ...row.part.painter.fromCanvas(tx, ty), painter: row.part.painter };
+      const at = row.part.painter.fromCanvas(tx, ty);
+      if (!row.part.painter.contains(at.x, at.y)) continue;
+      return { part: row.part.painter.partName, ...at, painter: row.part.painter };
     }
     return null;
   }
@@ -174,21 +177,22 @@ export function createBoard({ getParts, getDesign, onLayers }) {
 
   const point = (e) => ({ x: e.clientX * dpr(), y: e.clientY * dpr() });
   const commit = (final) => onLayers([...(getDesign().layers ?? [])], final);
+  const select = (id) => { selected = id; onSelect(id); render(); };
 
   canvas.addEventListener('pointerdown', (e) => {
     const p = point(e);
     const hit = hitTest(p.x, p.y);
-    if (!hit) { selected = null; render(); return; }
+    if (!hit) { select(null); return; }
     if (hit.mode === 'delete') {
       getDesign().layers = (getDesign().layers ?? []).filter((l) => l !== hit.layer);
-      selected = null;
+      select(null);
       commit(true);
       return;
     }
-    selected = hit.layer.id;
+    select(hit.layer.id);
     canvas.setPointerCapture(e.pointerId);
     const start = local({ ...hit.geo, rot: 0 }, p.x, p.y);
-    drag = { ...hit, start, w0: hit.layer.w ?? 0.1, size0: (sizes.get(hit.layer.id)?.h ?? 0.06), dist0: Math.hypot(p.x - hit.geo.cx, p.y - hit.geo.cy), offset: { x: p.x - hit.geo.cx, y: p.y - hit.geo.cy } };
+    drag = { ...hit, start, w0: hit.layer.w ?? 0.1, h0: hit.layer.h ?? hit.layer.w ?? 0.1, size0: hit.layer.size ?? 0.06, dist0: Math.max(1, Math.hypot(p.x - hit.geo.cx, p.y - hit.geo.cy)), offset: { x: p.x - hit.geo.cx, y: p.y - hit.geo.cy } };
     render();
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -199,8 +203,11 @@ export function createBoard({ getParts, getDesign, onLayers }) {
       if (at && at.part === (layer.part ?? 'top')) Object.assign(layer, { side: at.side, x: at.x, y: at.y });
     } else if (drag.mode === 'scale') {
       const f = Math.max(0.15, Math.hypot(p.x - geo.cx, p.y - geo.cy) / drag.dist0);
-      if (layer.type === 'text') layer.size = Math.min(0.4, drag.size0 * f);
-      else layer.w = Math.min(0.6, drag.w0 * f);
+      if (layer.type === 'text') layer.size = Math.max(0.005, Math.min(0.4, drag.size0 * f));
+      else {
+        layer.w = Math.max(0.005, Math.min(1, drag.w0 * f));
+        if (layer.type === 'shape') layer.h = Math.max(0.005, Math.min(1, drag.h0 * f));
+      }
     } else if (drag.mode === 'rotate') {
       let deg = (Math.atan2(p.y - geo.cy, p.x - geo.cx) * 180) / Math.PI + 90;
       if (Math.abs(deg % 45) < 4) deg = Math.round(deg / 45) * 45; // snap to 45°
@@ -218,7 +225,8 @@ export function createBoard({ getParts, getDesign, onLayers }) {
   addEventListener('keydown', (e) => {
     if (!visible || !selected || !['Delete', 'Backspace'].includes(e.key)) return;
     getDesign().layers = (getDesign().layers ?? []).filter((l) => l.id !== selected);
-    selected = null;
+    e.preventDefault();
+    select(null);
     commit(true);
   });
   addEventListener('resize', () => render());
@@ -228,10 +236,11 @@ export function createBoard({ getParts, getDesign, onLayers }) {
     async show(on) {
       visible = !!on;
       canvas.style.display = visible ? 'block' : 'none';
-      if (visible) { await measure(); render(); }
+      if (visible) { render(); await measure(); render(); }
     },
-    async refresh() { if (visible) { await measure(); render(); } },
-    select(id) { selected = id; render(); },
+    async refresh() { if (visible) { render(); await measure(); render(); } },
+    select,
+    async capture() { render(true); await measure(); render(true); const data = canvas.toDataURL('image/png'); render(); return data; },
     /** Normalised screen point -> garment point on the board, or null. */
     pick(nx, ny) {
       if (!visible) return null;

@@ -15,6 +15,8 @@ class ProjectRequest extends FormRequest
     public function rules(): array
     {
         $required = $this->isMethod('post') ? 'required' : 'sometimes';
+        $patterns = ['Solid', 'Stripes', 'Chevron', 'Velocity', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
+        $color = 'regex:/^#[0-9a-fA-F]{6}$/';
 
         return [
             'name' => [$required, 'string', 'max:120'],
@@ -22,12 +24,37 @@ class ProjectRequest extends FormRequest
             'garment' => [$required, Rule::in(array_column(config('catalog.garments'), 'id'))],
             'mode' => ['sometimes', Rule::in(['ai', 'dyo'])],
             'status' => ['sometimes', Rule::in(['draft', 'approved'])],
-            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternScale,patternBody,prompt,renderFront,renderBack,app'],
+            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,zones,layers,presetId'],
             'design.garment' => ['sometimes', Rule::in(array_column(config('catalog.garments'), 'id'))],
             'design.main' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.secondary' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.accent' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'design.pattern' => ['required_with:design', Rule::in(['Solid', 'Stripes', 'Chevron', 'Velocity'])],
+            'design.pattern' => ['required_with:design', Rule::in($patterns)],
+            'design.presetId' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'design.gradient' => ['sometimes', 'nullable', 'array:from,to,angle'],
+            'design.gradient.from' => ['required_with:design.gradient', $color],
+            'design.gradient.to' => ['required_with:design.gradient', $color],
+            'design.gradient.angle' => ['sometimes', 'numeric', 'between:-360,360'],
+            'design.zones' => ['sometimes', 'array:body,yoke,sleeves,sides,hem'],
+            'design.zones.*' => ['string', Rule::in([...$patterns, 'None'])],
+            'design.layers' => ['sometimes', 'array', 'max:40'],
+            'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape'],
+            'design.layers.*.id' => ['required', 'string', 'max:80', 'distinct:strict'],
+            'design.layers.*.name' => ['sometimes', 'string', 'max:120'],
+            'design.layers.*.type' => ['required', Rule::in(['image', 'text', 'shape'])],
+            'design.layers.*.part' => ['sometimes', Rule::in(['top', 'shorts'])],
+            'design.layers.*.side' => ['required', Rule::in(['front', 'back'])],
+            'design.layers.*.x' => ['required', 'numeric', 'between:-1,1'],
+            'design.layers.*.y' => ['required', 'numeric', 'between:-0.5,1.5'],
+            'design.layers.*.w' => ['sometimes', 'numeric', 'between:0.005,1'],
+            'design.layers.*.h' => ['sometimes', 'numeric', 'between:0.005,1'],
+            'design.layers.*.rot' => ['sometimes', 'numeric', 'between:-360,360'],
+            'design.layers.*.opacity' => ['sometimes', 'numeric', 'between:0,1'],
+            'design.layers.*.src' => ['required_if:design.layers.*.type,image', 'nullable', 'string', 'max:4000000', $this->imageSourceRule()],
+            'design.layers.*.text' => ['required_if:design.layers.*.type,text', 'nullable', 'string', 'max:120'],
+            'design.layers.*.size' => ['sometimes', 'numeric', 'between:0.005,0.4'],
+            'design.layers.*.color' => ['sometimes', $color],
+            'design.layers.*.shape' => ['required_if:design.layers.*.type,shape', Rule::in(['rectangle', 'ellipse', 'triangle'])],
             'design.logoText' => ['sometimes', 'nullable', 'string', 'max:40'],
             'design.number' => ['sometimes', 'nullable', 'string', 'max:3'],
             'design.backName' => ['sometimes', 'nullable', 'string', 'max:40'],

@@ -1,0 +1,206 @@
+[
+  {
+    "id": "electric-chevron",
+    "name": "Electric Chevron",
+    "description": "Black and cyan match-day chevrons.",
+    "design": {
+      "main": "#0b1016",
+      "secondary": "#00c2cc",
+      "accent": "#36e3ee",
+      "pattern": "Chevron",
+      "gradient": null,
+      "zones": {},
+      "layers": []
+    }
+  },
+  {
+    "id": "midnight-stripes",
+    "name": "Midnight Stripes",
+    "description": "Fine blue stripes and electric shoulder panels.",
+    "design": {
+      "main": "#09152b",
+      "secondary": "#2962ff",
+      "accent": "#ffffff",
+      "pattern": "Stripes",
+      "gradient": null,
+      "zones": {
+        "yoke": "Solid"
+      },
+      "layers": []
+    }
+  },
+  {
+    "id": "sunset-fade",
+    "name": "Sunset Fade",
+    "description": "A warm coral-to-purple gradient with clean sleeves.",
+    "design": {
+      "main": "#b83280",
+      "secondary": "#251343",
+      "accent": "#fff2db",
+      "pattern": "Solid",
+      "gradient": {
+        "from": "#f97345",
+        "to": "#61258b",
+        "angle": 0
+      },
+      "zones": {
+        "sleeves": "Solid"
+      },
+      "layers": []
+    }
+  },
+  {
+    "id": "heritage-hoops",
+    "name": "Heritage Hoops",
+    "description": "Classic forest green hoops with cream details.",
+    "design": {
+      "main": "#0d342a",
+      "secondary": "#d8e4c6",
+      "accent": "#ffffff",
+      "pattern": "Hoops",
+      "gradient": null,
+      "zones": {},
+      "layers": []
+    }
+  },
+  {
+    "id": "crimson-velocity",
+    "name": "Crimson Velocity",
+    "description": "Angular racing graphics with bright red accents.",
+    "design": {
+      "main": "#161016",
+      "secondary": "#e3324e",
+      "accent": "#ffffff",
+      "pattern": "Velocity",
+      "gradient": null,
+      "zones": {
+        "yoke": "Diagonal"
+      },
+      "layers": []
+    }
+  },
+  {
+    "id": "ocean-dots",
+    "name": "Ocean Dots",
+    "description": "Turquoise-to-navy fade with dotted shoulder panels.",
+    "design": {
+      "main": "#12455c",
+      "secondary": "#38e2d5",
+      "accent": "#f4ffff",
+      "pattern": "Solid",
+      "gradient": {
+        "from": "#159fa6",
+        "to": "#10213c",
+        "angle": 0
+      },
+      "zones": {
+        "yoke": "Dots",
+        "sleeves": "Dots"
+      },
+      "layers": []
+    }
+  },
+  {
+    "id": "urban-camo",
+    "name": "Urban Camo",
+    "description": "Tonal camouflage with clean orange highlights.",
+    "design": {
+      "main": "#222b31",
+      "secondary": "#647780",
+      "accent": "#ff9b3d",
+      "pattern": "Camo",
+      "gradient": null,
+      "zones": {},
+      "layers": []
+    }
+  },
+  {
+    "id": "royal-diagonal",
+    "name": "Royal Diagonal",
+    "description": "Royal purple with diagonal gold shoulder graphics.",
+    "design": {
+      "main": "#311a54",
+      "secondary": "#e2b955",
+      "accent": "#fff5db",
+      "pattern": "Solid",
+      "gradient": null,
+      "zones": {
+        "yoke": "Diagonal",
+        "sleeves": "Diagonal",
+        "hem": "Solid"
+      },
+      "layers": []
+    }
+  },
+  {
+    "id": "jungle-strike",
+    "name": "Jungle Strike",
+    "description": "Green and gold tribal shoulders.",
+    "design": {
+      "main": "#0d3b1e",
+      "secondary": "#f2c200",
+      "accent": "#ffffff",
+      "pattern": "Solid",
+      "gradient": null,
+      "zones": {
+        "yoke": "Tribal",
+        "sleeves": "Tribal"
+      },
+      "layers": []
+    }
+  },
+  {
+    "id": "arctic-velocity",
+    "name": "Arctic Velocity",
+    "description": "Clean white with blue speed flashes.",
+    "design": {
+      "main": "#eef4fa",
+      "secondary": "#1e7bff",
+      "accent": "#0b1c33",
+      "pattern": "Velocity",
+      "gradient": null,
+      "zones": {
+        "hem": "Solid"
+      },
+      "layers": []
+    }
+  },
+  {
+    "id": "black-gold",
+    "name": "Black Gold",
+    "description": "Black-to-charcoal fade with gold diagonals.",
+    "design": {
+      "main": "#0b0b0d",
+      "secondary": "#d4a73a",
+      "accent": "#f3d27a",
+      "pattern": "Solid",
+      "gradient": {
+        "from": "#2a2a30",
+        "to": "#050506",
+        "angle": 0
+      },
+      "zones": {
+        "sleeves": "Diagonal",
+        "sides": "Solid"
+      },
+      "layers": []
+    }
+  },
+  {
+    "id": "inferno-tribal",
+    "name": "Inferno Tribal",
+    "description": "Red and black with tribal sleeves.",
+    "design": {
+      "main": "#120709",
+      "secondary": "#e3263b",
+      "accent": "#ffffff",
+      "pattern": "Chevron",
+      "gradient": null,
+      "zones": {
+        "sleeves": "Tribal",
+        "yoke": "Solid"
+      },
+      "layers": []
+    }
+  }
+]

@@ -8,11 +8,15 @@ import 'package:web/web.dart' as web;
 /// Hosts the 3D viewer in an iframe (Flutter web). Commands and replies
 /// travel over postMessage; each viewer tags its replies with its own id.
 class ViewerHost {
-  ViewerHost(void Function(String message) onMessage) {
-    final id = '3deezi-viewer-${_next++}';
+  ViewerHost(
+    void Function(String message) onMessage, {
+    String page = 'viewer',
+    String channel = 'Viewer',
+  }) {
+    final id = '3deezi-$page-${_next++}';
     _viewType = id;
     _iframe = web.HTMLIFrameElement()
-      ..src = 'assets/assets/viewer/index.html?host=$id'
+      ..src = 'assets/assets/$page/index.html?host=$id'
       ..allow = 'fullscreen';
     _iframe.style
       ..border = 'none'

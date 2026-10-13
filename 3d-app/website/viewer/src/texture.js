@@ -7,8 +7,9 @@ import { zoneRects } from './zones.js';
 const loadImage = (src) =>
   new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
+    const timer = setTimeout(() => reject(new Error('Artwork took too long to load.')), 15000);
+    img.onload = () => { clearTimeout(timer); resolve(img); };
+    img.onerror = () => { clearTimeout(timer); reject(new Error('Unable to read artwork.')); };
     img.src = src;
   });
 
@@ -426,6 +427,7 @@ export class KitPainter {
 
   image(src) {
     this._images ??= new Map();
+    if (this._images.size > 60) this._images.clear();
     if (!this._images.has(src)) this._images.set(src, loadImage(src).catch(() => null));
     return this._images.get(src);
   }
@@ -441,8 +443,8 @@ export class KitPainter {
     for (const layer of design.layers ?? []) {
       if ((layer.part ?? 'top') !== this.partName) continue;
       const back = layer.side === 'back';
-      const img = layer.type === 'text' ? null : await this.image(layer.src);
-      if (layer.type !== 'text' && !img) continue;
+      const img = layer.type === 'image' ? await this.image(layer.src) : null;
+      if (layer.type === 'image' && !img) continue;
       g.save();
       this.clipOutline(back);
       g.translate(layer.x, layer.y);
@@ -456,7 +458,15 @@ export class KitPainter {
         g.textBaseline = 'middle';
         g.fillStyle = layer.color ?? design.accent;
         g.fillText(String(layer.text ?? ''), 0, 0);
-      } else {
+      } else if (layer.type === 'shape') {
+        const w = layer.w ?? 0.1, h = layer.h ?? w;
+        g.fillStyle = layer.color ?? design.accent;
+        g.beginPath();
+        if (layer.shape === 'ellipse') g.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+        else if (layer.shape === 'triangle') { g.moveTo(0, -h / 2); g.lineTo(w / 2, h / 2); g.lineTo(-w / 2, h / 2); g.closePath(); }
+        else g.rect(-w / 2, -h / 2, w, h);
+        g.fill();
+      } else if (img) {
         const w = layer.w ?? 0.1, h = (w * img.height) / img.width;
         g.drawImage(img, -w / 2, -h / 2, w, h);
       }
@@ -480,6 +490,7 @@ export class KitPainter {
 
   /** Size of a layer in garment metres (images keep their aspect ratio). */
   async layerSize(layer) {
+    if (layer.type === 'shape') return { w: layer.w ?? 0.1, h: layer.h ?? layer.w ?? 0.1 };
     if (layer.type === 'text') {
       const g = this.ctx, size = layer.size ?? 0.06;
       g.save();
@@ -492,6 +503,16 @@ export class KitPainter {
     const img = await this.image(layer.src);
     const w = layer.w ?? 0.1;
     return { w, h: img ? (w * img.height) / img.width : w };
+  }
+
+  /** Reject board drops in empty atlas space, outside the actual garment. */
+  contains(x, y) {
+    let inside = false;
+    for (let i = 0, j = this.outline.length - 1; i < this.outline.length; j = i++) {
+      const a = this.outline[i], b = this.outline[j];
+      if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
   }
 
   /** Shorts: crest on one leg, number on the other, small wordmark behind. */

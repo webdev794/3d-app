@@ -1,7 +1,7 @@
 name: three_deezi
 description: A client presentation prototype of the 3DEEZI sportswear designer.
 publish_to: none
-version: 1.6.0+9
+version: 1.7.0+10
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:
@@ -25,6 +25,9 @@ flutter:
     - assets/images/art/
     - assets/images/showroom/
     - assets/viewer/
+    - assets/images/presets/
+    - assets/artboard/
+    - assets/presets.json
   fonts:
     - family: Inter
       fonts:

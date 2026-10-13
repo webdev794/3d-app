@@ -83,7 +83,7 @@ export default function ColorWheel({ value, onChange, onCommit }: { value: strin
     <div className="hex-row">
       <span className="swatch" style={{ background: hex }} />
       <label className="hex-field"><span>HEX</span><input value={hex} maxLength={7} onChange={e => typed(e.target.value)} onBlur={() => remember(live.current)} aria-label="Hex colour" /><button type="button" className="icon-button" aria-label="Copy hex" onClick={() => navigator.clipboard?.writeText(hex)}><Copy size={14} /></button></label>
-      <button type="button" className="button button-secondary save-colour" onClick={() => setSaved(old => { const next = [hex, ...old.filter(c => c !== hex)].slice(0, 12); store.set('3deezi.colours.saved', next); return next; })}><Plus size={14} /> Save colour</button>
+      <button type="button" className="button button-secondary save-colour" title="Save colour" aria-label="Save colour" onClick={() => setSaved(old => { const next = [hex, ...old.filter(c => c !== hex)].slice(0, 12); store.set('3deezi.colours.saved', next); return next; })}><Plus size={16} /></button>
     </div>
     {recent.length > 0 && <><h4>RECENT COLOURS</h4><div className="colour-dots">{recent.map(c => <button key={c} type="button" style={{ background: c }} aria-label={`Use ${c}`} onClick={() => choose(c)} />)}</div></>}
     {saved.length > 0 && <><h4>SAVED COLOURS</h4><div className="colour-dots">{saved.map(c => <button key={c} type="button" style={{ background: c }} aria-label={`Use saved ${c}`} onClick={() => choose(c)} />)}</div></>}

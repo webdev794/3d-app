@@ -3,18 +3,26 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-/// Hosts the 3D viewer in a native WebView (Android, iOS).
+/// Hosts a bundled page (the 3D viewer or the artboard) in a native
+/// WebView (Android, iOS).
 class ViewerHost {
-  ViewerHost(void Function(String message) onMessage) {
+  ViewerHost(
+    void Function(String message) onMessage, {
+    this.page = 'viewer',
+    String channel = 'Viewer',
+  }) {
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xff03060a))
       ..addJavaScriptChannel(
-        'Viewer',
+        channel,
         onMessageReceived: (m) => onMessage(m.message),
       )
-      ..loadFlutterAsset('assets/viewer/index.html');
+      ..loadFlutterAsset('assets/$page/index.html');
   }
+
+  /// Asset folder of the page; its script exposes `window.<page>.receive`.
+  final String page;
 
   late final WebViewController _web;
 
@@ -22,7 +30,7 @@ class ViewerHost {
   static bool get supported => WebViewPlatform.instance != null;
 
   /// [json] is a `{cmd, arg}` object literal.
-  void send(String json) => _web.runJavaScript('window.viewer.receive($json)');
+  void send(String json) => _web.runJavaScript('window.$page.receive($json)');
 
   Widget build() => WebViewWidget(
     controller: _web,

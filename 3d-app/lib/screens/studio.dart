@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import '../ai_service.dart';
 import '../app_controller.dart';
 import '../export_service.dart';
+import '../widgets/drag_tray.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/kit_viewer_3d.dart';
 import '../widgets/showroom.dart';
+import '../widgets/studio_tools.dart';
 import '../widgets/ui.dart';
 import 'create_home.dart' show comingSoonGarments, garmentTiles;
 
@@ -41,6 +43,10 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
   /// A reference image attached to the next request.
   Uint8List? _askImage;
   bool _preview = false;
+
+  /// The "Drag to kit" tray of assets and patterns.
+  bool _tray = false;
+  final _stageKey = GlobalKey();
 
   AppController get c => widget.c;
   bool get _live3d => c.show3d && KitViewer3D.supported;
@@ -192,10 +198,37 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     c.go(next);
   }
 
+  Future<void> _exportBoard() async {
+    setState(() => _busy = 'Exporting artboard...');
+    try {
+      final image = await c.captureBoard?.call();
+      if (!mounted) return;
+      if (image == null) {
+        showToast(context, 'The artboard is not ready. Please try again.');
+        return;
+      }
+      final box = context.findRenderObject() as RenderBox?;
+      final origin = box == null
+          ? null
+          : box.localToGlobal(Offset.zero) & box.size;
+      final message = await shareImage(
+        image,
+        '3DEEZI-artboard.png',
+        origin: origin,
+      );
+      if (mounted) showToast(context, message);
+    } on Object catch (error) {
+      if (mounted) showToast(context, '$error');
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+  }
+
   // ---------- layout
   @override
   Widget build(BuildContext context) {
     final stage = Stack(
+      key: _stageKey,
       children: [
         Positioned.fill(
           child: _live3d
@@ -210,7 +243,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                 )
               : KitPreview(controller: c, height: double.infinity),
         ),
-        if (!_preview)
+        if (!_preview && !c.boardMode)
           Positioned(
             left: 10,
             top: 10,
@@ -237,7 +270,10 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
               ],
             ),
           ),
-        if (!_preview && c.renderFront != null && KitViewer3D.supported)
+        if (!_preview &&
+            !c.boardMode &&
+            c.renderFront != null &&
+            KitViewer3D.supported)
           Positioned(
             right: 10,
             top: 10,
@@ -276,12 +312,78 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
           onSave: () => _leave(AppScreen.saveProject),
           onShowcase: () => _leave(AppScreen.showcase),
         ),
+        if (!_preview)
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                ActionChipPill(
+                  'Artboard',
+                  onTap: () => c.go(AppScreen.artboard),
+                ),
+                const SizedBox(width: 8),
+                ActionChipPill(
+                  c.boardMode ? 'Back to 3D' : '2D panels',
+                  selected: c.boardMode,
+                  onTap: KitViewer3D.supported
+                      ? () => c.update(() {
+                          c.show3d = true;
+                          c.boardMode = !c.boardMode;
+                        })
+                      : null,
+                ),
+                const SizedBox(width: 8),
+                ActionChipPill(
+                  'Drag to kit',
+                  selected: _tray,
+                  onTap: () => setState(() => _tray = !_tray),
+                ),
+                const SizedBox(width: 8),
+                ActionChipPill('Artwork', onTap: () => _openTool('Artwork')),
+                const SizedBox(width: 8),
+                ActionChipPill('Presets', onTap: () => _openTool('Presets')),
+                if (c.boardMode) ...[
+                  const SizedBox(width: 8),
+                  ActionChipPill(
+                    'Export board',
+                    onTap: _busy == null ? _exportBoard : null,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        if (_tray && !_preview) DragTray(c),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: stage,
+            child: DragTarget<KitDrop>(
+              onAcceptWithDetails: (details) async {
+                final box =
+                    _stageKey.currentContext?.findRenderObject() as RenderBox?;
+                if (box == null) return;
+                final note = await DragTray.drop(
+                  c,
+                  details.data,
+                  details.offset,
+                  box,
+                );
+                if (note != null && mounted) showToast(context, note);
+              },
+              builder: (context, candidates, _) => DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: candidates.isEmpty
+                      ? null
+                      : Border.all(color: Palette.cyan, width: 2.5),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: stage,
+                ),
+              ),
             ),
           ),
         ),
@@ -427,6 +529,8 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
               },
             ),
             'Text' => _TextTool(c),
+            'Artwork' => StudioArtworkTool(c),
+            'Presets' => StudioPresetsTool(c),
             _ => _GarmentTool(c),
           },
         ),
@@ -770,6 +874,7 @@ class _ColoursToolState extends State<_ColoursTool> {
             ),
         ],
       ),
+      StudioGradientTool(c),
     ],
   );
 }
@@ -821,6 +926,7 @@ class _PatternsTool extends StatelessWidget {
         icon: Icons.auto_awesome,
         onPressed: onGenerate,
       ),
+      StudioZoneTool(c),
     ],
   );
 
@@ -1097,6 +1203,7 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
         : widget.c.projectName,
   );
   bool _done = false;
+  bool _saving = false;
 
   AppController get c => widget.c;
 
@@ -1188,15 +1295,36 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
                     ),
                   ],
                 )
-              : GradientButton(
-                  label: 'SAVE PROJECT',
-                  icon: Icons.bookmark_add_outlined,
-                  onPressed: () {
-                    c.saveProject(_name.text);
-                    // The screen itself shows the saved state; a toast
-                    // would cover the buttons below.
-                    setState(() => _done = true);
-                  },
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (c.saveError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          c.saveError!,
+                          style: const TextStyle(
+                            color: Color(0xffff9b8d),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    GradientButton(
+                      label: _saving ? 'SAVING...' : 'SAVE PROJECT',
+                      icon: Icons.bookmark_add_outlined,
+                      onPressed: _saving
+                          ? null
+                          : () async {
+                              setState(() => _saving = true);
+                              final success = await c.saveProject(_name.text);
+                              if (!mounted) return;
+                              setState(() {
+                                _saving = false;
+                                _done = success;
+                              });
+                            },
+                    ),
+                  ],
                 ),
         ),
       ],
