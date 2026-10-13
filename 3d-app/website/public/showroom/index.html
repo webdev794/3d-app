@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#03080f">
+<title>3DEEZI Showroom</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* ===================================================================
+   UI: 3DEEZI dark glass, cyan to blue (#12E1F0 -> #1E7BFF)
+   =================================================================== */
+:root{--cyan:#12E1F0;--blue:#1E7BFF;--ink:#eaf4fb;--muted:#8fa3b6;--glass:rgba(8,18,30,.62);--line:rgba(18,225,240,.35);--heading:Rajdhani,Inter,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#03080f;color:var(--ink);font-family:Inter,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.glass{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 0 18px rgba(18,225,240,.12),inset 0 0 18px rgba(18,225,240,.05)}
+.top{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:max(12px,env(safe-area-inset-top)) 16px 10px;z-index:10;pointer-events:none}
+.top>*{pointer-events:auto}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--heading);font-weight:700;font-size:24px;letter-spacing:.06em}
+.brand img{height:30px;display:none}.brand.has-logo img{display:block}.brand.has-logo span{display:none}
+.top-actions{margin-left:auto;display:flex;gap:8px}
+.chip-btn{border:1px solid var(--line);background:var(--glass);border-radius:22px;padding:9px 14px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.chip-btn:hover{border-color:var(--cyan)}
+.cta{border:0;border-radius:22px;padding:10px 16px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#02131c;background:linear-gradient(110deg,var(--cyan),var(--blue));box-shadow:0 0 22px rgba(18,225,240,.45)}
+.headline{position:fixed;left:0;right:0;top:calc(max(12px,env(safe-area-inset-top)) + 46px);text-align:center;z-index:5;pointer-events:none;padding:0 16px}
+.eyebrow{font-size:10px;letter-spacing:.24em;color:var(--cyan);font-weight:700}
+.headline h1{margin:4px 0 0;font-family:var(--heading);font-weight:700;text-transform:uppercase;font-size:clamp(26px,4.2vw,54px);line-height:.95;letter-spacing:.01em;text-shadow:0 4px 30px #000}
+.headline h1 b{color:var(--cyan);text-shadow:0 0 26px rgba(18,225,240,.5)}
+.bottom{position:fixed;left:0;right:0;bottom:0;padding:0 12px max(12px,env(safe-area-inset-bottom));z-index:10;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+.bottom>*{pointer-events:auto}
+.views{display:flex;padding:4px;border-radius:28px}
+.views button{border:0;background:none;padding:9px 15px;border-radius:22px;font-size:12px;font-weight:700;color:#c8d6e4;letter-spacing:.04em}
+.views button.on{background:linear-gradient(110deg,var(--cyan),var(--blue));color:#02131c;box-shadow:0 0 14px rgba(18,225,240,.55)}
+.sports{display:flex;align-items:center;gap:8px;max-width:100%}
+.sport-list{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:4px 2px}
+.sport-list::-webkit-scrollbar{display:none}
+.sport{flex:none;scroll-snap-align:center;border:1.5px solid rgba(255,255,255,.14);background:rgba(6,16,26,.72);border-radius:12px;padding:9px 16px;font-family:var(--heading);font-weight:700;font-size:16px;letter-spacing:.06em;text-transform:uppercase;color:#cfdbe6;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:.2s}
+.sport.on{border:2px solid var(--cyan);color:#fff;box-shadow:0 0 18px rgba(18,225,240,.55),inset 0 0 14px rgba(18,225,240,.18)}
+.arrow{flex:none;width:42px;height:42px;border-radius:50%;border:1.5px solid rgba(255,255,255,.7);background:rgba(5,16,26,.8);display:grid;place-items:center;font-size:20px;box-shadow:0 0 14px rgba(18,225,240,.3)}
+.panel{position:fixed;right:16px;top:150px;width:300px;max-height:calc(100% - 270px);overflow-y:auto;border-radius:18px;padding:16px;z-index:11;display:flex;flex-direction:column;gap:14px}
+.panel h2{margin:0;font-family:var(--heading);font-size:22px;text-transform:uppercase;letter-spacing:.04em}
+.panel .close{display:none}
+.field{display:flex;flex-direction:column;gap:6px;font-size:11px;letter-spacing:.12em;font-weight:700;color:var(--muted);text-transform:uppercase}
+.field input[type=text]{border:1px solid rgba(255,255,255,.16);background:rgba(3,10,18,.7);border-radius:10px;padding:10px 12px;color:#fff;font-size:15px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.field input[type=text]:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 10px rgba(18,225,240,.4)}
+.colour-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.swatch{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.25);padding:0}
+.swatch.on{border-color:#fff;box-shadow:0 0 0 2px var(--cyan)}
+.picker{width:28px;height:28px;border-radius:50%;border:2px dashed rgba(255,255,255,.4);padding:0;overflow:hidden;position:relative;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)}
+.picker input{position:absolute;inset:-8px;opacity:0;cursor:pointer}
+.patterns{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.patterns button{border:1.5px solid rgba(255,255,255,.14);background:rgba(3,10,18,.6);border-radius:10px;padding:8px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#cfdbe6}
+.patterns button.on{border-color:var(--cyan);color:#fff;box-shadow:0 0 10px rgba(18,225,240,.4)}
+.two{display:grid;grid-template-columns:1fr 90px;gap:8px}
+.note{font-size:11px;color:var(--muted);line-height:1.5;margin:0}
+.loading{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,#0a2638,#02060c 70%);transition:opacity .8s}
+.loading.done{opacity:0;pointer-events:none}
+.loading div{text-align:center;font-family:var(--heading);letter-spacing:.2em;font-size:14px;color:var(--cyan)}
+.ring{width:84px;height:84px;margin:0 auto 18px;border-radius:50%;border:3px solid rgba(18,225,240,.15);border-top-color:var(--cyan);box-shadow:0 0 30px rgba(18,225,240,.35);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;top:110px;transform:translateX(-50%);z-index:40;padding:10px 16px;border-radius:12px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.shot{border:1px solid var(--line);border-radius:16px;background:#071320;color:var(--ink);padding:16px;max-width:min(92vw,900px)}
+.shot::backdrop{background:rgba(2,6,12,.8);backdrop-filter:blur(6px)}
+.shot img{display:block;max-width:100%;max-height:70vh;border-radius:10px}
+.shot .row{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap}
+.shot p{margin:0;font-size:12px;color:var(--muted)}
+.embed .top,.embed .headline{display:none}
+@media (max-width:820px){
+  .panel{left:0;right:0;bottom:0;top:auto;width:auto;transform:translateY(105%);max-height:62%;border-radius:20px 20px 0 0;transition:transform .3s;z-index:20}
+  .panel.open{transform:none}
+  .panel .close{display:block;position:absolute;right:12px;top:12px}
+  .views button{padding:8px 12px;font-size:11px}
+  .sport{font-size:14px;padding:8px 12px}
+  .arrow{display:none}
+  .headline h1{font-size:clamp(22px,7vw,34px)}
+  .headline{top:calc(max(12px,env(safe-area-inset-top)) + 54px)}
+  .brand{font-size:20px}.brand img{height:24px}
+  .top-actions{gap:6px}.chip-btn,.cta{padding:8px 11px;font-size:11px}
+  #quality{display:none}.wide{display:none}
+}
+@media (min-width:821px){#customise{display:none}}
+@media (max-height:520px) and (orientation:landscape){.headline{display:none}.panel{max-height:calc(100% - 120px)}}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+  "delaunator": "https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm"
+} }
+</script>
+</head>
+<body>
+<canvas id="stage" aria-label="3D garment showroom. Drag to rotate, pinch or scroll to zoom."></canvas>
+
+<header class="top">
+  <div class="brand" id="brand"><img src="../media/images/brand.png" alt="3DEEZI"><span>3DEEZI</span></div>
+  <div class="top-actions">
+    <button class="chip-btn" id="quality" title="Graphics quality (tap to change)">HD</button>
+    <button class="chip-btn" id="customise">Customise</button>
+    <button class="cta" id="capture">Capture<span class="wide"> mock-up</span></button>
+  </div>
+</header>
+<div class="headline"><span class="eyebrow">3D SHOWROOM</span><h1>Different sports. <b>Same team spirit.</b></h1></div>
+
+<div class="bottom">
+  <div class="views glass" role="group" aria-label="Camera view">
+    <button data-view="front" class="on">Front</button><button data-view="back">Back</button><button data-view="side">Side</button><button data-view="spin">360°</button>
+  </div>
+  <div class="sports"><button class="arrow" id="prev" aria-label="Previous sport">‹</button><div class="sport-list" id="sports"></div><button class="arrow" id="next" aria-label="Next sport">›</button></div>
+</div>
+
+<aside class="panel glass" id="panel" aria-label="Customise the kit">
+  <button class="chip-btn close" id="closePanel" aria-label="Close">✕</button>
+  <h2>Customise</h2>
+  <div class="field">Main colour<div class="colour-row" data-colour="main"></div></div>
+  <div class="field">Secondary colour<div class="colour-row" data-colour="secondary"></div></div>
+  <div class="field">Accent trim<div class="colour-row" data-colour="accent"></div></div>
+  <div class="field">Pattern<div class="patterns" id="patterns"></div></div>
+  <label class="field">Team name<input type="text" id="team" maxlength="12"></label>
+  <div class="two"><label class="field">Back name<input type="text" id="backName" maxlength="12"></label><label class="field">Number<input type="text" id="number" maxlength="2" inputmode="numeric"></label></div>
+  <p class="note" id="modelNote"></p>
+</aside>
+
+<div class="toast glass" id="toast" role="status"></div>
+<dialog class="shot" id="shot"><img id="shotImg" alt="Captured mock-up"><div class="row"><p id="shotInfo"></p><div><button class="chip-btn" id="shotClose">Close</button> <a class="cta" id="shotSave" download="3deezi-mockup.png">Download PNG</a></div></div></dialog>
+<div class="loading" id="loading"><div><div class="ring"></div>LOADING SHOWROOM</div></div>
+
+<script type="module">
+import * as THREE from 'three';
+import Delaunator from 'delaunator';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
+
+// ===================================================================
+// SETTINGS: the knobs that control the look (see README.md)
+// ===================================================================
+const params = new URLSearchParams(location.search);
+const LOOK = {
+  exposure: 1.0,            // overall brightness (ACES filmic)
+  bloomStrength: 0.38,       // glow on rings, rigs and beams
+  bloomRadius: 0.38,
+  bloomThreshold: 1.15,     // only HDR-bright things bloom, not the fabric
+  vignette: 1.0,           // edge darkening
+  fogDensity: 0.07,
+  envIntensity: 0.16,       // image-based light from the room environment
+  rimCyan: '#12E1F0', rimBlue: '#1E7BFF',
+  fabric: { roughness: 0.8, sheen: 0.35, sheenRoughness: 0.6, knit: 0.55 },
+  kitScreenHeight: 0.62,    // garment fills ~66% of the screen height
+};
+// Quality tiers. "auto" starts high on desktop, medium on phones, and steps
+// down when the frame rate drops.
+const TIERS = {
+  high:   { label: 'HD',  ratio: 2,   msaa: 4, reflector: true,  reflectRes: 0.75, shadow: 2048, particles: 520, texture: 2048, mesh: 0.0068 },
+  medium: { label: 'MED', ratio: 1.5, msaa: 2, reflector: true,  reflectRes: 0.45, shadow: 1024, particles: 320, texture: 2048, mesh: 0.0078 },
+  low:    { label: 'LOW', ratio: 1,   msaa: 0, reflector: false, reflectRes: 0,    shadow: 1024, particles: 160, texture: 1024, mesh: 0.0095 },
+};
+const mobile = matchMedia('(pointer:coarse)').matches || Math.min(innerWidth, innerHeight) < 600;
+let tierName = TIERS[params.get('quality')] ? params.get('quality') : (mobile ? 'medium' : 'high');
+let autoQuality = !params.get('quality');
+if (params.get('embed')) document.body.classList.add('embed');
+
+// ===================================================================
+// SPORTS: each sport is a kit made of parts. A part is drawn from a
+// purchased GLB model when the file exists, otherwise it is built here.
+// ===================================================================
+const SPORTS = [
+  { id: 'rugby-league', name: 'Rugby League', parts: [{ kind: 'jersey', model: 'models/rugby_jersey.glb' }, { kind: 'shorts', model: 'models/rugby_shorts.glb' }],
+    design: { main: '#0b1016', secondary: '#12E1F0', accent: '#1E7BFF', pattern: 'tribal', team: 'MANTIS', backName: 'SMITH', number: '7' } },
+  { id: 'soccer', name: 'Soccer', parts: [{ kind: 'tee', model: 'models/soccer_jersey.glb' }, { kind: 'shorts', model: 'models/soccer_shorts.glb' }],
+    design: { main: '#f2f6fa', secondary: '#1E7BFF', accent: '#0b1c33', pattern: 'stripes', team: 'UNITED', backName: 'SILVA', number: '10' } },
+  { id: 'basketball', name: 'Basketball', parts: [{ kind: 'singlet', model: 'models/basketball_singlet.glb' }, { kind: 'shorts', model: 'models/basketball_shorts.glb' }],
+    design: { main: '#ff6a13', secondary: '#121418', accent: '#ffffff', pattern: 'solid', team: 'BLAZE', backName: 'JONES', number: '23' } },
+  { id: 'afl', name: 'AFL', parts: [{ kind: 'singlet', model: 'models/afl_guernsey.glb' }, { kind: 'shorts', model: 'models/afl_shorts.glb' }],
+    design: { main: '#0d0e12', secondary: '#e3263b', accent: '#ffffff', pattern: 'chevron', team: 'COASTAL', backName: 'WALKER', number: '5' } },
+  { id: 'training', name: 'Training', parts: [{ kind: 'tee', model: 'models/training_tee.glb' }],
+    design: { main: '#151b23', secondary: '#12E1F0', accent: '#12E1F0', pattern: 'hoops', team: '3DEEZI', backName: 'TEAM', number: '1' } },
+];
+// ?models=folder/ lets you point at a different model folder for testing.
+const MODEL_BASE = params.get('models') ?? '';
+const PATTERNS = ['solid', 'stripes', 'hoops', 'chevron', 'tribal'];
+const PALETTE = ['#0b1016', '#ffffff', '#12E1F0', '#1E7BFF', '#0b1c33', '#e3263b', '#ff6a13', '#ffc52f', '#169f67', '#7b4dff', '#8a8f98'];
+
+// ===================================================================
+// SCENE: renderer, camera, controls
+// ===================================================================
+const canvas = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = LOOK.exposure;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#03070e');
+scene.fog = new THREE.FogExp2('#04101c', LOOK.fogDensity);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = LOOK.envIntensity;
+
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.05, 120);
+camera.position.set(0, 1.2, 6);
+camera.layers.enable(1);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.rotateSpeed = 0.7;
+controls.minPolarAngle = 0.95;
+controls.maxPolarAngle = Math.PI / 2 + 0.04;
+controls.autoRotateSpeed = 0.7;
+
+// ===================================================================
+// LIGHTING: image light + key + cyan/blue rims + podium glow
+// ===================================================================
+const kitAnchor = new THREE.Object3D();
+kitAnchor.position.set(0, 0.9, 0);
+scene.add(kitAnchor);
+scene.add(new THREE.HemisphereLight('#2c4f70', '#05070a', 0.15));
+const key = new THREE.DirectionalLight('#fff6ec', 2.4);
+key.position.set(-3.6, 3.4, 2.6);
+key.target = kitAnchor;
+key.castShadow = true;
+Object.assign(key.shadow.camera, { left: -1.4, right: 1.4, top: 1.6, bottom: -0.4, near: 1, far: 12 });
+key.shadow.bias = -0.0004;
+key.shadow.normalBias = 0.02;
+scene.add(key);
+const fill = new THREE.DirectionalLight('#8fb7ff', 0.35);
+fill.position.set(3, 1.4, 2.5);
+scene.add(fill);
+function rim(color, x) {
+  const s = new THREE.SpotLight(color, 14, 12, 0.55, 0.85, 2);
+  s.position.set(x, 2.6, -2.6);
+  s.target = kitAnchor;
+  scene.add(s);
+  return s;
+}
+const rims = [rim(LOOK.rimCyan, -2.3), rim(LOOK.rimBlue, 2.3)];
+const top = new THREE.SpotLight('#dff6ff', 7, 10, 0.45, 0.9, 2);
+top.position.set(0, 5.2, 0.8);
+top.target = kitAnchor;
+scene.add(top);
+// (The podium glow comes from the emissive rings + bloom, not a light: a point light this close burns hotspots into the cloth.)
+
+// ===================================================================
+// STADIUM: bowl with crowd lights, light rigs, beams, haze, floor, podium
+// ===================================================================
+const bloomLayer = []; // emissive materials whose glow we pulse on transitions
+
+function canvasTexture(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Distant bowl: tiers of seats with scattered lights, fading into darkness.
+const bowlTex = canvasTexture(2048, 512, (g, w, h) => {
+  const grad = g.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#02050a'); grad.addColorStop(0.45, '#061727'); grad.addColorStop(0.8, '#0a2236'); grad.addColorStop(1, '#03080f');
+  g.fillStyle = grad; g.fillRect(0, 0, w, h);
+  for (let tier = 0; tier < 3; tier++) {
+    const y0 = h * (0.42 + tier * 0.13);
+    g.fillStyle = 'rgba(30,123,255,.18)'; g.fillRect(0, y0, w, 2);
+    for (let i = 0; i < 900; i++) {
+      const a = Math.random();
+      g.fillStyle = `rgba(${150 + 100 * a | 0},${200 + 55 * a | 0},255,${0.15 + 0.5 * Math.random() ** 3})`;
+      g.fillRect(Math.random() * w, y0 + 4 + Math.random() * h * 0.11, 1.5, 1.5);
+    }
+  }
+  g.fillStyle = 'rgba(18,225,240,.5)'; g.fillRect(0, h * 0.4, w, 3); // LED ribbon board
+});
+bowlTex.wrapS = THREE.RepeatWrapping; bowlTex.repeat.x = 3;
+const bowl = new THREE.Mesh(new THREE.CylinderGeometry(26, 26, 14, 64, 1, true), new THREE.MeshBasicMaterial({ map: bowlTex, side: THREE.BackSide, fog: false, color: '#7f8a99' }));
+bowl.position.y = 5.5;
+scene.add(bowl);
+
+// Light rigs: towers with banks of floodlights, plus volumetric-style beams.
+const beamMaterial = (color) => new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  uniforms: { color: { value: new THREE.Color(color) }, strength: { value: 0.32 } },
+  vertexShader: `varying float vY; varying vec3 vN; varying vec3 vV; varying float vDepth;
+    void main(){ vY = uv.y; vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); vDepth = -mv.z; gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `uniform vec3 color; uniform float strength; varying float vY; varying vec3 vN; varying vec3 vV; varying float vDepth;
+    void main(){ float edge = pow(abs(dot(vN, vV)), 1.6); float fall = pow(vY, 1.8); float near = smoothstep(2.0, 6.0, vDepth); gl_FragColor = vec4(color * strength * edge * fall * near, 1.0); }`,
+});
+const rigs = [];
+const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#d8f4ff').multiplyScalar(3.2), fog: false });
+for (const angle of [-62, -32, 0, 32, 62]) {
+  const a = THREE.MathUtils.degToRad(angle + 180);
+  const r = 10.5;
+  const tower = new THREE.Group();
+  tower.position.set(Math.sin(a) * r, 0, Math.cos(a) * r);
+  tower.lookAt(0, 0, 0);
+  const pole = new THREE.Mesh(new THREE.BoxGeometry(0.22, 4.4, 0.22), new THREE.MeshStandardMaterial({ color: '#0c1622', metalness: 0.6, roughness: 0.5 }));
+  pole.position.y = 2.2;
+  tower.add(pole);
+  const head = new THREE.Group();
+  head.position.y = 4.5;
+  head.rotation.x = 0.3;
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) {
+    const lamp = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.22), lampMat);
+    lamp.position.set((i - 1.5) * 0.5, (j - 1) * 0.38, 0.16);
+    lamp.layers.set(1); // seen by the camera, not by the floor mirror
+    head.add(lamp);
+  }
+  head.add(new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.3, 0.25), new THREE.MeshStandardMaterial({ color: '#0a121b', metalness: 0.5, roughness: 0.6 })));
+  tower.add(head);
+  scene.add(tower);
+  // Beam from the rig head down towards the podium.
+  const from = new THREE.Vector3(); head.getWorldPosition(from);
+  tower.updateMatrixWorld(true); head.getWorldPosition(from);
+  const to = new THREE.Vector3((Math.random() - 0.5) * 1.2, 0, (Math.random() - 0.5) * 1.2);
+  const len = from.distanceTo(to);
+  const geo = new THREE.CylinderGeometry(0.25, 2.4, len, 32, 1, true);
+  geo.translate(0, -len / 2, 0);
+  const beam = new THREE.Mesh(geo, beamMaterial(Math.abs(angle) > 40 ? LOOK.rimBlue : '#9fe9ff'));
+  beam.position.copy(from);
+  beam.lookAt(to);
+  beam.rotateX(-Math.PI / 2);
+  beam.userData = { base: beam.quaternion.clone(), phase: Math.random() * 6 };
+  scene.add(beam);
+  rigs.push(beam);
+}
+
+// LED light columns ringing the back of the stadium (from the client's reference).
+const columnMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(LOOK.rimCyan).multiplyScalar(1.6), fog: true });
+for (let i = 0; i < 12; i++) {
+  const a = THREE.MathUtils.degToRad(115 + i * (130 / 11));
+  const col = new THREE.Mesh(new THREE.BoxGeometry(0.06, 3.4 + (i % 3) * 0.5, 0.06), columnMat);
+  col.position.set(Math.sin(a) * 11.5, 1.7 + (i % 3) * 0.25, Math.cos(a) * 11.5);
+  scene.add(col);
+}
+
+// Haze: slow drifting particles catching the light.
+const hazeTex = canvasTexture(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
+let haze;
+function buildHaze(count) {
+  if (haze) { scene.remove(haze); haze.geometry.dispose(); }
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 0.6 + Math.random() * 5, a = Math.random() * Math.PI * 2;
+    pos.set([Math.sin(a) * r, Math.random() * 4, Math.cos(a) * r - 1], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  haze = new THREE.Points(g, new THREE.PointsMaterial({ size: 0.07, map: hazeTex, transparent: true, opacity: 0.42, depthWrite: false, blending: THREE.AdditiveBlending, color: '#7fdcff' }));
+  scene.add(haze);
+}
+
+// Floor: a real mirror (Reflector) under a translucent dark "wet" coat. On
+// low quality the mirror is switched off and the coat becomes opaque.
+const floorGeo = new THREE.CircleGeometry(30, 96);
+let reflector = null;
+const floorCoat = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ color: '#04080e', roughness: 0.92, metalness: 0, envMapIntensity: 0.05, transparent: true, opacity: 0.86 }));
+floorCoat.rotation.x = -Math.PI / 2;
+floorCoat.position.y = 0.002;
+floorCoat.receiveShadow = true;
+scene.add(floorCoat);
+function buildReflector(res) {
+  if (reflector) { scene.remove(reflector); reflector.dispose?.(); reflector = null; }
+  if (!res) { floorCoat.material.opacity = 1; floorCoat.material.transparent = false; floorCoat.material.needsUpdate = true; return; }
+  reflector = new Reflector(floorGeo, { textureWidth: innerWidth * res, textureHeight: innerHeight * res, color: '#4a525c', clipBias: 0.003 });
+  reflector.rotation.x = -Math.PI / 2;
+  scene.add(reflector);
+  floorCoat.material.opacity = 0.86; floorCoat.material.transparent = true; floorCoat.material.needsUpdate = true;
+}
+const floorGlow = new THREE.Mesh(new THREE.CircleGeometry(2.6, 64), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+  map: canvasTexture(256, 256, (g) => { const r = g.createRadialGradient(128, 128, 20, 128, 128, 128); r.addColorStop(0, 'rgba(18,225,240,.16)'); r.addColorStop(0.5, 'rgba(30,123,255,.05)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 256, 256); }) }));
+floorGlow.rotation.x = -Math.PI / 2;
+floorGlow.position.y = 0.006;
+scene.add(floorGlow);
+
+// Podium: two dark metal tiers, glowing cyan ring edges.
+const metal = new THREE.MeshStandardMaterial({ color: '#0a121b', metalness: 0.6, roughness: 0.45, envMapIntensity: 0.35 });
+const base = new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.9, 0.16, 96), metal);
+base.position.y = 0.08;
+const deck = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.72, 0.06, 96), new THREE.MeshStandardMaterial({ color: '#0c1520', metalness: 0.5, roughness: 0.5, envMapIntensity: 0.3 }));
+deck.position.y = 0.19;
+for (const m of [base, deck]) { m.receiveShadow = true; m.castShadow = false; scene.add(m); }
+const ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(LOOK.rimCyan).multiplyScalar(2.4), fog: false });
+bloomLayer.push(ringMat);
+function ring(r, y, tube) {
+  const m = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 12, 160), ringMat);
+  m.rotation.x = Math.PI / 2; m.position.y = y;
+  scene.add(m);
+}
+ring(0.705, 0.221, 0.007);
+ring(0.865, 0.161, 0.006);
+const outerRing = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.004, 8, 200), new THREE.MeshBasicMaterial({ color: new THREE.Color(LOOK.rimBlue).multiplyScalar(2), fog: false }));
+outerRing.rotation.x = Math.PI / 2; outerRing.position.y = 0.008; scene.add(outerRing);
+// Soft contact shadow under the floating kit.
+const contact = new THREE.Mesh(new THREE.CircleGeometry(0.45, 48), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false,
+  map: canvasTexture(128, 128, (g) => { const r = g.createRadialGradient(64, 64, 0, 64, 64, 64); r.addColorStop(0, 'rgba(0,0,0,.75)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); }) }));
+contact.rotation.x = -Math.PI / 2;
+contact.position.y = 0.222;
+scene.add(contact);
+const DECK_TOP = 0.222;
+
+// ===================================================================
+// GARMENTS: procedural placeholders (flat print pattern inflated into a
+// volume), used when no GLB model is found. Outlines in metres, y up.
+// ===================================================================
+const TOP_BODY = [[0.19, 0.716], [0.258, 0.688], [0.33, 0.636], [0.418, 0.566], [0.398, 0.522], [0.372, 0.476], [0.31, 0.505], [0.258, 0.53], [0.25, 0.42], [0.244, 0.3], [0.25, 0.16], [0.258, 0.03], [0.2, 0.012], [0.1, 0.002], [0, 0]];
+const CUFF = [[0.418, 0.566], [0.372, 0.476]];
+const SPECS = {
+  jersey: { half: [[0, 0.672], [0.05, 0.712], [0.088, 0.738], ...TOP_BODY], neck: { drop: 0.072, half: 0.092 }, rim: { drop: 0.08, half: 0.11 }, cuff: CUFF, depth: 0.18, chest: true },
+  tee: { half: [[0, 0.7], [0.05, 0.722], [0.086, 0.738], ...TOP_BODY], neck: { drop: 0.045, half: 0.09 }, rim: { drop: 0.05, half: 0.11 }, cuff: CUFF, depth: 0.18, chest: true },
+  singlet: { half: [[0, 0.64], [0.06, 0.69], [0.095, 0.738], [0.152, 0.738], [0.165, 0.66], [0.19, 0.58], [0.236, 0.505], [0.246, 0.42], [0.24, 0.3], [0.246, 0.16], [0.254, 0.03], [0.2, 0.012], [0.1, 0.002], [0, 0]], neck: { drop: 0.072, half: 0.15 }, rim: { drop: 0.08, half: 0.11 }, armholes: true, depth: 0.175, chest: true },
+  shorts: { half: [[0, 0.42], [0.215, 0.42], [0.232, 0.32], [0.25, 0.16], [0.272, 0.02], [0.15, 0], [0.05, 0.02], [0.012, 0.15], [0, 0.17]], neck: { drop: 0.012, half: 0.4 }, rim: { drop: 0.015, half: 0.4 }, legs: true, depth: 0.16, chest: false },
+};
+
+function outline(kind, step) {
+  const half = SPECS[kind].half;
+  const pts = [...half.map(([x, y]) => new THREE.Vector2(x, y)), ...half.slice(1, -1).reverse().map(([x, y]) => new THREE.Vector2(-x, y))];
+  const curve = new THREE.SplineCurve([...pts, pts[0]]);
+  return curve.getSpacedPoints(Math.round(curve.getLength() / step)).slice(0, -1);
+}
+function inside(p, poly) {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) c = !c;
+  }
+  return c;
+}
+function distanceToOutline(p, poly, seam) {
+  let best = Infinity;
+  const ab = new THREE.Vector2(), ap = new THREE.Vector2();
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    if (seam && !(seam[i] && seam[(i + 1) % poly.length])) continue;
+    ab.subVectors(b, a); ap.subVectors(p, a);
+    const t = THREE.MathUtils.clamp(ap.dot(ab) / ab.lengthSq(), 0, 1);
+    best = Math.min(best, ap.addScaledVector(ab, -t).length());
+  }
+  return best;
+}
+
+/** Front + back panel sewn at the seams and inflated; UVs = the print layout (front left half, back right half). */
+function buildGarment(kind, step) {
+  const spec = SPECS[kind];
+  const poly = outline(kind, step);
+  const minX = Math.min(...poly.map((p) => p.x)), maxX = -minX;
+  const minY = Math.min(...poly.map((p) => p.y)), maxY = Math.max(...poly.map((p) => p.y));
+  const span = Math.max(maxX - minX, maxY - minY) * 1.02;
+  const cuff = spec.cuff?.map(([x, y]) => new THREE.Vector2(x, y));
+  const open = (p) => {
+    const ax = Math.abs(p.x);
+    if (p.y < minY + 0.03 && (!spec.legs || ax > 0.035)) return true;
+    if (p.y > maxY - spec.neck.drop && ax < spec.neck.half) return true;
+    if (spec.armholes && ax > 0.15 && p.y > 0.5 && ax < 0.24) return true;
+    if (cuff) {
+      const a = cuff[0], b = cuff[1], q = new THREE.Vector2(ax, p.y);
+      const ab = b.clone().sub(a), t = THREE.MathUtils.clamp(q.clone().sub(a).dot(ab) / ab.lengthSq(), 0, 1);
+      if (q.distanceTo(a.clone().addScaledVector(ab, t)) < 0.012) return true;
+    }
+    return false;
+  };
+  const seam = poly.map((p) => !open(p));
+  const points = [...poly];
+  const nb = points.length;
+  for (let y = minY + step / 2; y < maxY; y += step * 0.866) {
+    const shift = (Math.round((y - minY) / (step * 0.866)) % 2) * step * 0.5;
+    for (let x = minX + shift; x < maxX; x += step) {
+      const p = new THREE.Vector2(x, y);
+      if (inside(p, poly) && distanceToOutline(p, poly) > step * 0.55) points.push(p);
+    }
+  }
+  const tri = Delaunator.from(points, (p) => p.x, (p) => p.y).triangles;
+  const faces = [];
+  for (let i = 0; i < tri.length; i += 3) {
+    const [a, b, c] = [points[tri[i]], points[tri[i + 1]], points[tri[i + 2]]];
+    if (!inside(new THREE.Vector2((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3), poly)) continue;
+    const ccw = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0;
+    faces.push(ccw ? [tri[i], tri[i + 1], tri[i + 2]] : [tri[i], tri[i + 2], tri[i + 1]]);
+  }
+  // Depth grows with sqrt(distance to seam) for round volumes; waves add drape and folds.
+  const n = points.length;
+  const depth = points.map((p, i) => {
+    if (i < nb && seam[i]) return 0;
+    const d = distanceToOutline(p, poly, seam);
+    const edgeFade = Math.min(1, d * 32);
+    const hemWeight = Math.exp(-((p.y - 0.09) ** 2) / 0.025);
+    const sideWeight = Math.exp(-((Math.abs(p.x) - 0.19) ** 2) / 0.003);
+    const drape = edgeFade * (0.003 * Math.sin(p.x * 39 + p.y * 8) + 0.006 * Math.sin(p.x * 67 + Math.sin(p.y * 12) * 1.2) * hemWeight + 0.0045 * Math.sin(p.y * 60 + Math.abs(p.x) * 14) * sideWeight + 0.002 * Math.sin(p.x * 25 - p.y * 30));
+    const chest = spec.chest ? 0.01 * Math.exp(-((p.y - 0.52) ** 2) / 0.02) * Math.exp(-(p.x ** 2) / 0.03) : 0;
+    return spec.depth * Math.sqrt(d) + drape + chest;
+  });
+  const positions = new Float32Array(n * 6), uvs = new Float32Array(n * 4);
+  const backHeight = (p) => {
+    if (!spec.chest || Math.abs(p.x) > 0.112 || p.y < 0.62) return p.y;
+    const neckLine = kind === 'tee' ? 0.707 + Math.abs(p.x) * 0.42 : 0.672 + Math.abs(p.x) * 0.76;
+    const w = Math.exp(-((p.y - neckLine) ** 2) / 0.00072) * Math.max(0, 1 - Math.abs(p.x) / 0.12);
+    return p.y + Math.max(0, 0.752 - p.y) * w;
+  };
+  for (let i = 0; i < n; i++) {
+    const p = points[i];
+    positions.set([p.x, p.y, depth[i]], i * 3);
+    positions.set([p.x, backHeight(p), -depth[i] * 0.9], (n + i) * 3);
+    uvs.set([(0.5 * (p.x - minX)) / span, (p.y - minY) / span], i * 2);
+    uvs.set([0.5 + (0.5 * (maxX - p.x)) / span, (p.y - minY) / span], (n + i) * 2);
+  }
+  const index = [];
+  for (const [a, b, c] of faces) index.push(a, b, c);
+  for (const [a, b, c] of faces) index.push(n + a, n + c, n + b);
+  const weld = (i) => (i >= n && i - n < nb && seam[i - n] ? i - n : i);
+  const welded = new THREE.BufferGeometry();
+  welded.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  welded.setIndex(index.map(weld));
+  welded.computeVertexNormals();
+  const normals = welded.getAttribute('normal').array.slice();
+  for (let i = 0; i < nb; i++) if (seam[i]) normals.set(normals.slice(i * 3, i * 3 + 3), (n + i) * 3);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geometry.setIndex(index);
+  const neckIdx = poly.map((p, i) => i).filter((i) => !seam[i] && poly[i].y > maxY - spec.rim.drop && Math.abs(poly[i].x) < spec.rim.half);
+  neckIdx.sort((a, b) => poly[a].x - poly[b].x);
+  const neck = [...neckIdx.map((i) => new THREE.Vector3(poly[i].x, poly[i].y, depth[i])), ...neckIdx.slice().reverse().map((i) => new THREE.Vector3(poly[i].x, backHeight(poly[i]), -depth[i] * 0.9))];
+  return { kind, geometry, frame: { minX, maxX, minY, maxY, span }, outline: poly, neck };
+}
+
+/** Rib-knit collar or waistband: a sewn band along the opening. */
+function buildBand(neck, waist) {
+  const curve = new THREE.CatmullRomCurve3(neck, true);
+  const pts = curve.getSpacedPoints(200);
+  const pos = [], uv = [], idx = [];
+  const w = waist ? 0.02 : 0.014;
+  pts.forEach((p, i) => {
+    pos.push(p.x, p.y - w, p.z * 1.02, p.x, p.y + w * 0.3, p.z * 1.02);
+    uv.push(i / 200, 0, i / 200, 1);
+    if (i < 200) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+// Knit fabric: a tiny tileable relief turned into a normal map, so the
+// cloth catches light like athletic polyester rather than plastic.
+const knitNormal = (() => {
+  const S = 128, h = new Float32Array(S * S);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const cx = (x % 8) - 4, cy = (y % 12) - 6, shift = ((y / 12) | 0) % 2 ? 4 : 0;
+    const lx = ((x + shift) % 8) - 4;
+    h[y * S + x] = Math.exp(-(lx * lx) / 5 - (cy * cy) / 14) + 0.25 * Math.exp(-(cx * cx) / 2) + Math.random() * 0.08;
+  }
+  return canvasTexture(S, S, (g) => {
+    const img = g.createImageData(S, S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const hx = h[y * S + ((x + 1) % S)] - h[y * S + ((x + S - 1) % S)];
+      const hy = h[((y + 1) % S) * S + x] - h[((y + S - 1) % S) * S + x];
+      const v = new THREE.Vector3(-hx * 2.2, -hy * 2.2, 1).normalize();
+      const o = (y * S + x) * 4;
+      img.data.set([(v.x * 0.5 + 0.5) * 255, (v.y * 0.5 + 0.5) * 255, (v.z * 0.5 + 0.5) * 255, 255], o);
+    }
+    g.putImageData(img, 0, 0);
+  });
+})();
+knitNormal.colorSpace = THREE.NoColorSpace;
+knitNormal.wrapS = knitNormal.wrapT = THREE.RepeatWrapping;
+knitNormal.repeat.set(46, 46);
+
+function fabricMaterial(map) {
+  return new THREE.MeshPhysicalMaterial({
+    map, normalMap: knitNormal, normalScale: new THREE.Vector2(LOOK.fabric.knit, LOOK.fabric.knit),
+    roughness: LOOK.fabric.roughness, metalness: 0, sheen: LOOK.fabric.sheen, sheenRoughness: LOOK.fabric.sheenRoughness, sheenColor: new THREE.Color('#ffffff'),
+  });
+}
+
+// ===================================================================
+// DESIGN TEXTURE: painted on a canvas in garment units (metres), front on
+// the left half of the texture and back on the right half.
+// ===================================================================
+function shade(hex, f) { return '#' + new THREE.Color(hex).multiplyScalar(f).getHexString(); }
+function label(g, text, x, y, size, fill, stroke, width = 0.4) {
+  g.save();
+  g.translate(x, y);
+  g.scale(0.001, 0.001);
+  g.font = `700 ${size * 1000}px Rajdhani, Inter, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const max = width * 1000, w = g.measureText(text).width;
+  if (w > max) g.scale(max / w, 1);
+  if (stroke) { g.lineJoin = 'round'; g.lineWidth = size * 1000 * 0.16; g.strokeStyle = stroke; g.strokeText(text, 0, 0); }
+  g.fillStyle = fill; g.fillText(text, 0, 0);
+  g.restore();
+}
+function crest(g, x, y, s, d) {
+  g.save(); g.translate(x, y);
+  g.beginPath(); g.moveTo(-s, -s); g.lineTo(s, -s); g.lineTo(s, s * 0.3); g.quadraticCurveTo(s * 0.8, s * 1.1, 0, s * 1.45); g.quadraticCurveTo(-s * 0.8, s * 1.1, -s, s * 0.3); g.closePath();
+  g.fillStyle = d.secondary; g.fill(); g.lineWidth = s * 0.16; g.strokeStyle = d.accent; g.stroke();
+  g.restore();
+  label(g, (d.team || '3D').replace(/[^A-Z0-9]/gi, '').slice(0, 2).toUpperCase(), x, y + s * 0.15, s * 1.1, d.main, null, s * 1.6);
+}
+function paintPattern(g, d, kind) {
+  g.fillStyle = d.secondary;
+  switch (d.pattern) {
+    case 'stripes': for (let x = -0.6; x < 0.6; x += 0.1) g.fillRect(x, -0.8, 0.05, 0.85); break;
+    case 'hoops': for (let y = 0.04; y < 0.8; y += 0.11) g.fillRect(-0.6, -(y + 0.055), 1.2, 0.055); break;
+    case 'chevron':
+      g.strokeStyle = d.secondary; g.lineJoin = 'miter'; g.lineWidth = 0.05;
+      for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(-0.5, -(0.7 - k * 0.1)); g.lineTo(0, -(0.44 - k * 0.1)); g.lineTo(0.5, -(0.7 - k * 0.1)); g.stroke(); }
+      break;
+    case 'tribal': {
+      // Geometric shoulder yoke and side panels of interlocking triangles.
+      for (let x = -0.6; x < 0.6; x += 0.06) {
+        g.beginPath(); g.moveTo(x, -0.62); g.lineTo(x + 0.03, -0.72); g.lineTo(x + 0.06, -0.62); g.fill();
+        g.beginPath(); g.moveTo(x + 0.03, -0.6); g.lineTo(x + 0.045, -0.565); g.lineTo(x + 0.06, -0.6); g.fill();
+      }
+      g.fillStyle = d.accent;
+      for (let x = -0.6; x < 0.6; x += 0.06) { g.beginPath(); g.moveTo(x, -0.735); g.lineTo(x + 0.03, -0.765); g.lineTo(x + 0.06, -0.735); g.fill(); }
+      g.fillStyle = d.secondary;
+      for (const side of [-1, 1]) for (let y = 0.06; y < 0.5; y += 0.07) {
+        g.beginPath(); g.moveTo(side * 0.27, -y); g.lineTo(side * 0.2, -(y + 0.035)); g.lineTo(side * 0.27, -(y + 0.07)); g.fill();
+      }
+      for (const sx of [-1, 1]) for (let k = 0; k < 5; k++) { // sleeve flashes
+        g.beginPath(); g.moveTo(sx * (0.3 + k * 0.022), -(0.6 - k * 0.012)); g.lineTo(sx * (0.36 + k * 0.022), -(0.54 - k * 0.012)); g.lineTo(sx * (0.33 + k * 0.022), -(0.6 - k * 0.012)); g.fill();
+      }
+      break;
+    }
+  }
+  if (kind === 'tile') return; // repeating pattern only, for purchased models
+  if (kind !== 'shorts') { // side panels and trims
+    g.globalAlpha = 0.9; g.fillStyle = d.pattern === 'solid' ? d.secondary : shade(d.secondary, 0.85);
+    for (const s of [-1, 1]) g.fillRect(s > 0 ? 0.212 : -0.272, -0.5, 0.06, 0.5);
+    g.globalAlpha = 1;
+    g.strokeStyle = d.accent; g.lineWidth = 0.028; g.lineCap = 'butt';
+    for (const s of [-1, 1]) { g.beginPath(); g.moveTo(s * CUFF[0][0], -CUFF[0][1]); g.lineTo(s * CUFF[1][0], -CUFF[1][1]); g.stroke(); }
+    g.fillStyle = d.accent; g.fillRect(-0.6, -0.036, 1.2, 0.014);
+  } else {
+    g.fillStyle = d.secondary; for (const s of [-1, 1]) g.fillRect(s > 0 ? 0.222 : -0.27, -0.42, 0.048, 0.42);
+    g.fillStyle = d.accent; g.fillRect(-0.6, -0.03, 1.2, 0.012);
+  }
+}
+function makePainter(part, size) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const { minX, maxX, minY, span } = part.frame;
+  const sx = size * 0.5 / span, sy = size / span, oy = size * (1 + minY / span);
+  // Each side is drawn in "as you see it" coordinates: x to the viewer's right, y down.
+  const sides = [{ front: true, ox: -minX * sx }, { front: false, ox: size * 0.5 + maxX * sx }];
+  return {
+    tex,
+    paint(d) {
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.fillStyle = d.main; g.fillRect(0, 0, size, size);
+      for (const side of sides) {
+        g.save();
+        g.setTransform(sx, 0, 0, sy, side.ox, oy);
+        g.beginPath();
+        part.outline.forEach((p, i) => (i ? g.lineTo(p.x, -p.y) : g.moveTo(p.x, -p.y)));
+        g.closePath(); g.clip();
+        paintPattern(g, d, part.kind);
+        const chestY = part.kind === 'singlet' ? -0.6 : -0.6, cx = part.kind === 'singlet' ? 0.085 : 0.11;
+        if (part.kind === 'shorts') {
+          if (side.front) { label(g, d.number, 0.15, -0.12, 0.07, d.accent, d.secondary, 0.1); crest(g, -0.15, -0.15, 0.026, d); }
+        } else if (side.front) {
+          label(g, d.team.toUpperCase(), 0, -0.46, 0.074, d.accent === d.main ? '#ffffff' : d.accent, shade(d.main, 0.6), 0.36);
+          crest(g, cx, chestY, 0.034, d); // wearer's left chest
+          label(g, '3D', -cx, chestY + 0.012, 0.042, d.accent, null, 0.08);
+        } else {
+          label(g, d.backName.toUpperCase(), 0, -0.6, 0.056, d.accent, shade(d.main, 0.6), 0.34);
+          label(g, d.number, 0, -0.38, 0.24, d.accent === d.main ? '#ffffff' : d.accent, d.secondary, 0.34);
+        }
+        g.restore();
+      }
+      tex.needsUpdate = true;
+    },
+  };
+}
+
+// ===================================================================
+// GLB MODELS: a purchased model replaces the placeholder automatically.
+// Body/sleeve meshes get the colour + tiled pattern; collar/cuff/trim
+// meshes get the accent; team name, crest and number are projected decals.
+// ===================================================================
+let gltfLoader = null;
+const modelCache = new Map();
+async function loadModel(url) {
+  if (modelCache.has(url)) return modelCache.get(url);
+  const job = (async () => {
+    try {
+      const head = await fetch(url, { method: 'HEAD' });
+      const type = head.headers.get('content-type') || '';
+      if (!head.ok || /text\/html/.test(type)) return null; // missing (servers may answer with an HTML page)
+      if (!gltfLoader) gltfLoader = new (await import('three/addons/loaders/GLTFLoader.js')).GLTFLoader();
+      return (await gltfLoader.loadAsync(url)).scene;
+    } catch { return null; }
+  })();
+  modelCache.set(url, job);
+  return job;
+}
+function patternTexture(d) {
+  return canvasTexture(512, 512, (g, w) => {
+    g.fillStyle = d.main; g.fillRect(0, 0, w, w);
+    g.setTransform(w, 0, 0, w, w * 0.5, w * 0.8);
+    paintPattern(g, { ...d }, 'tile');
+  });
+}
+function decalTexture(draw, w = 1024, h = 512) {
+  const t = canvasTexture(w, h, (g) => { g.setTransform(h, 0, 0, h, w / 2, h / 2); draw(g); });
+  t.anisotropy = 8;
+  return t;
+}
+async function dressModel(source, part, d) {
+  const { DecalGeometry } = await import('three/addons/geometries/DecalGeometry.js');
+  const root = source.clone(true);
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const targetH = part.kind === 'shorts' ? 0.42 : 0.75;
+  root.scale.setScalar(targetH / size.y);
+  root.updateMatrixWorld(true);
+  box.setFromObject(root);
+  root.position.sub(new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y, (box.min.z + box.max.z) / 2));
+  root.updateMatrixWorld(true);
+  const bodyMat = fabricMaterial(patternTexture(d));
+  bodyMat.map.wrapS = bodyMat.map.wrapT = THREE.RepeatWrapping;
+  const trimMat = fabricMaterial(null); trimMat.color.set(d.accent);
+  const bodies = [];
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const name = `${o.name} ${o.material?.name ?? ''}`.toLowerCase();
+    o.castShadow = true;
+    if (/collar|cuff|rib|trim|neck|binding|waist/.test(name)) o.material = trimMat;
+    else { o.material = bodyMat; bodies.push(o); }
+  });
+  // Decals: raycast onto the front and back to find where to print.
+  const b = new THREE.Box3().setFromObject(root), h = b.max.y - b.min.y;
+  const ray = new THREE.Raycaster();
+  const decal = (x, yFrac, front, w, hgt, tex) => {
+    ray.set(new THREE.Vector3(x, b.min.y + h * yFrac, front ? b.max.z + 1 : b.min.z - 1), new THREE.Vector3(0, 0, front ? -1 : 1));
+    const hit = ray.intersectObjects(bodies, false)[0];
+    if (!hit) return;
+    const m = new THREE.Mesh(new DecalGeometry(hit.object, hit.point, new THREE.Euler(0, front ? 0 : Math.PI, 0), new THREE.Vector3(w, hgt, 0.3)),
+      new THREE.MeshPhysicalMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: 0.6, sheen: 0.5 }));
+    root.attach(m);
+  };
+  if (part.kind !== 'shorts') {
+    decal(0, 0.62, true, 0.36, 0.18, decalTexture((g) => label(g, d.team.toUpperCase(), 0, 0, 0.34, d.accent, shade(d.main, 0.6), 1.9)));
+    decal(0.11, 0.8, true, 0.09, 0.09, decalTexture((g) => crest(g, 0, -0.08, 0.3, d), 512, 512));
+    decal(0, 0.78, false, 0.3, 0.12, decalTexture((g) => label(g, d.backName.toUpperCase(), 0, 0, 0.5, d.accent, shade(d.main, 0.6), 1.9)));
+    decal(0, 0.5, false, 0.3, 0.3, decalTexture((g) => label(g, d.number, 0, 0, 0.8, d.accent, d.secondary, 0.95), 512, 512));
+  }
+  return { group: root, height: targetH, model: true };
+}
+
+// ===================================================================
+// KIT ASSEMBLY: builds the current sport's kit (models or placeholders)
+// ===================================================================
+let tier = TIERS[tierName];
+let kit = null;              // { group, painters, height }
+let sportIndex = 0;
+const designs = SPORTS.map((s) => ({ ...s.design }));
+const garmentCache = new Map();
+function garment(kind) {
+  const keyName = `${kind}@${tier.mesh}`;
+  if (!garmentCache.has(keyName)) garmentCache.set(keyName, buildGarment(kind, tier.mesh));
+  return garmentCache.get(keyName);
+}
+async function buildKit(index) {
+  const sport = SPORTS[index], d = designs[index];
+  const group = new THREE.Group();
+  const painters = [];
+  let y = 0, usedModels = 0;
+  const parts = [...sport.parts].reverse(); // shorts first (bottom), then the top
+  for (const part of parts) {
+    const model = await loadModel(MODEL_BASE + part.model);
+    let piece;
+    if (model) { piece = await dressModel(model, part, d); usedModels++; }
+    else {
+      const g = garment(part.kind);
+      const painter = makePainter(g, part.kind === 'shorts' ? tier.texture / 2 : tier.texture);
+      painter.paint(d);
+      const mat = fabricMaterial(painter.tex);
+      const mesh = new THREE.Mesh(g.geometry, mat);
+      mesh.castShadow = true;
+      const inner = new THREE.Mesh(g.geometry, new THREE.MeshStandardMaterial({ color: shade(d.main, 0.45), side: THREE.BackSide, roughness: 0.9 }));
+      const band = new THREE.Mesh(buildBand(g.neck, part.kind === 'shorts'), fabricMaterial(null));
+      band.material.color.set(d.accent);
+      band.castShadow = true;
+      const pg = new THREE.Group(); pg.add(mesh, inner, band);
+      painters.push({ painter, inner, band });
+      piece = { group: pg, height: g.frame.maxY - g.frame.minY };
+    }
+    // Stack: the top overlaps the shorts' waistband by 6 cm.
+    piece.group.position.y = y;
+    group.add(piece.group);
+    y += piece.height - (part.kind === 'shorts' ? 0.06 : 0);
+  }
+  const box = new THREE.Box3().setFromObject(group);
+  group.position.y = -box.min.y;
+  return { group, painters, height: box.max.y - box.min.y, width: box.max.x - box.min.x, usedModels, parts: sport.parts.length };
+}
+function repaint() {
+  const d = designs[sportIndex];
+  if (!kit) return;
+  if (kit.usedModels) { // models: rebuild (colours and decals live in the materials)
+    swapKit(sportIndex, true);
+    return;
+  }
+  for (const { painter, inner, band } of kit.painters) {
+    painter.paint(d);
+    inner.material.color.set(shade(d.main, 0.45));
+    band.material.color.set(d.accent);
+  }
+}
+const stand = new THREE.Group(); // floats and spins with transitions
+scene.add(stand);
+let transition = null;
+async function swapKit(index, quick = false) {
+  const next = await buildKit(index);
+  const old = kit;
+  next.group.scale.setScalar(quick ? 1 : 0.001);
+  stand.add(next.group);
+  kit = next;
+  frameCamera(!old);
+  transition = quick ? null : { start: performance.now(), old, next };
+  if (quick && old) { stand.remove(old.group); }
+  document.getElementById('modelNote').textContent = next.usedModels
+    ? `Showing ${next.usedModels} purchased 3D model${next.usedModels > 1 ? 's' : ''}.`
+    : 'Placeholder garments: drop GLB models into /showroom/models/ and they load automatically (see README).';
+}
+
+// ===================================================================
+// CAMERA: frame the kit at ~66% of the screen height; view transitions
+// ===================================================================
+let tween = null, spinMode = false, lastInput = performance.now();
+function frameCamera(snap) {
+  if (!kit) return;
+  const h = kit.height, w = kit.width;
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const byHeight = h / (LOOK.kitScreenHeight * 2 * Math.tan(fov / 2));
+  const byWidth = w / (0.86 * 2 * Math.tan(fov / 2) * camera.aspect);
+  const dist = Math.max(byHeight, byWidth) * 1.02;
+  const floatY = DECK_TOP + 0.16;
+  kitAnchor.position.set(0, floatY + h / 2, 0);
+  stand.position.y = floatY;
+  // Bottom UI is taller than the top: look slightly lower so the kit sits a touch high.
+  const target = new THREE.Vector3(0, floatY + h * 0.52, 0);
+  controls.minDistance = dist * 0.55;
+  controls.maxDistance = dist * 1.7;
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  if (snap || !isFinite(dir.x)) dir.set(0, 0.24, 1).normalize();
+  tween = { from: camera.position.clone(), fromTarget: controls.target.clone(), to: target.clone().addScaledVector(dir, dist), toTarget: target, t0: performance.now(), dur: snap ? 1 : 700 };
+}
+function viewTo(name) {
+  for (const b of document.querySelectorAll('.views button')) b.classList.toggle('on', b.dataset.view === name);
+  spinMode = name === 'spin';
+  controls.autoRotate = spinMode;
+  controls.autoRotateSpeed = spinMode ? 3 : 0.7;
+  if (spinMode) return;
+  const theta = { front: 0, back: Math.PI, side: Math.PI / 2 }[name];
+  const offset = camera.position.clone().sub(controls.target);
+  const s = new THREE.Spherical().setFromVector3(offset);
+  const start = s.theta;
+  let delta = ((theta - start + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  const phi = Math.PI / 2 - 0.23;
+  tween = { orbit: true, startTheta: start, delta, startPhi: s.phi, phi, radius: s.radius, t0: performance.now(), dur: 900 };
+  lastInput = performance.now();
+}
+controls.addEventListener('start', () => { tween = null; lastInput = performance.now(); if (!spinMode) controls.autoRotate = false; });
+const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+
+// ===================================================================
+// POST-PROCESSING + QUALITY
+// ===================================================================
+let composer, bloom, vignette;
+function buildComposer() {
+  composer?.dispose();
+  const pr = Math.min(devicePixelRatio, tier.ratio);
+  renderer.setPixelRatio(pr);
+  renderer.setSize(innerWidth, innerHeight, false);
+  const rt = new THREE.WebGLRenderTarget(innerWidth * pr, innerHeight * pr, { type: THREE.HalfFloatType, samples: tier.msaa });
+  composer = new EffectComposer(renderer, rt);
+  composer.setPixelRatio(pr);
+  composer.setSize(innerWidth, innerHeight);
+  composer.addPass(new RenderPass(scene, camera));
+  bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), LOOK.bloomStrength, LOOK.bloomRadius, LOOK.bloomThreshold);
+  composer.addPass(bloom);
+  vignette = new ShaderPass(VignetteShader);
+  vignette.uniforms.offset.value = 1.15;
+  vignette.uniforms.darkness.value = LOOK.vignette;
+  composer.addPass(vignette);
+  composer.addPass(new OutputPass());
+}
+function applyTier(name) {
+  tierName = name; tier = TIERS[name];
+  key.shadow.mapSize.set(tier.shadow, tier.shadow);
+  key.shadow.map?.dispose(); key.shadow.map = null;
+  buildReflector(tier.reflector ? tier.reflectRes : 0);
+  buildHaze(tier.particles);
+  buildComposer();
+  document.getElementById('quality').textContent = tier.label;
+}
+// Drop a tier when the frame rate stays low (measured over 2.5 s).
+let fpsFrames = 0, fpsStart = performance.now(), lowStreak = 0;
+function watchFps(now) {
+  fpsFrames++;
+  if (now - fpsStart < 2500) return;
+  const fps = (fpsFrames * 1000) / (now - fpsStart);
+  fpsFrames = 0; fpsStart = now;
+  if (!autoQuality || document.hidden) return;
+  lowStreak = fps < 40 ? lowStreak + 1 : 0;
+  if (lowStreak >= 1 && tierName !== 'low') {
+    applyTier(tierName === 'high' ? 'medium' : 'low');
+    toast(`Smoother graphics mode (${Math.round(fps)} fps)`);
+    lowStreak = 0;
+  }
+}
+
+// ===================================================================
+// CAPTURE: high-resolution PNG (2x screen or more, up to 4096 px)
+// ===================================================================
+function capture() {
+  const pr0 = renderer.getPixelRatio();
+  const ratio = Math.min(4096 / Math.max(innerWidth, innerHeight), Math.max(2, devicePixelRatio * 1.5, pr0 * 1.5));
+  renderer.setPixelRatio(ratio);
+  composer.setPixelRatio(ratio);
+  composer.setSize(innerWidth, innerHeight);
+  bloom.resolution?.set(innerWidth * ratio, innerHeight * ratio);
+  composer.render();
+  const url = canvas.toDataURL('image/png');
+  const w = canvas.width, h = canvas.height;
+  renderer.setPixelRatio(pr0);
+  composer.setPixelRatio(pr0);
+  composer.setSize(innerWidth, innerHeight);
+  const name = `3deezi-${SPORTS[sportIndex].id}-${designs[sportIndex].team.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`;
+  document.getElementById('shotImg').src = url;
+  document.getElementById('shotSave').href = url;
+  document.getElementById('shotSave').download = name;
+  document.getElementById('shotInfo').textContent = `${w} × ${h} px PNG · on a phone, press and hold the image to save it`;
+  document.getElementById('shot').showModal();
+}
+
+// ===================================================================
+// UI
+// ===================================================================
+const $ = (id) => document.getElementById(id);
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 2600); }
+const brandEl = $('brand'), brandImg = brandEl.querySelector('img');
+brandImg.onload = () => brandEl.classList.add('has-logo');
+brandImg.onerror = () => brandImg.remove();
+if (brandImg.complete && brandImg.naturalWidth) brandEl.classList.add('has-logo');
+
+const sportsEl = $('sports');
+SPORTS.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = 'sport'; b.textContent = s.name;
+  b.onclick = () => selectSport(i);
+  sportsEl.append(b);
+});
+function selectSport(i) {
+  sportIndex = (i + SPORTS.length) % SPORTS.length;
+  [...sportsEl.children].forEach((b, j) => b.classList.toggle('on', j === sportIndex));
+  sportsEl.children[sportIndex].scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  syncPanel();
+  swapKit(sportIndex);
+}
+$('prev').onclick = () => selectSport(sportIndex - 1);
+$('next').onclick = () => selectSport(sportIndex + 1);
+addEventListener('keydown', (e) => { if (e.target.matches('input')) return; if (e.key === 'ArrowLeft') selectSport(sportIndex - 1); if (e.key === 'ArrowRight') selectSport(sportIndex + 1); });
+for (const b of document.querySelectorAll('.views button')) b.onclick = () => viewTo(b.dataset.view);
+
+let repaintQueued = false;
+function update(patch) {
+  Object.assign(designs[sportIndex], patch);
+  syncPanel();
+  if (!repaintQueued) { repaintQueued = true; requestAnimationFrame(() => { repaintQueued = false; repaint(); }); }
+}
+for (const row of document.querySelectorAll('[data-colour]')) {
+  const key = row.dataset.colour;
+  for (const c of PALETTE) {
+    const b = document.createElement('button');
+    b.className = 'swatch'; b.style.background = c; b.dataset.c = c; b.setAttribute('aria-label', `${key} ${c}`);
+    b.onclick = () => update({ [key]: c });
+    row.append(b);
+  }
+  const picker = document.createElement('label');
+  picker.className = 'picker'; picker.title = 'Any colour';
+  const input = document.createElement('input'); input.type = 'color';
+  input.oninput = () => update({ [key]: input.value });
+  picker.append(input); row.append(picker);
+}
+for (const p of PATTERNS) {
+  const b = document.createElement('button');
+  b.textContent = p; b.dataset.p = p;
+  b.onclick = () => update({ pattern: p });
+  $('patterns').append(b);
+}
+$('team').oninput = (e) => update({ team: e.target.value.toUpperCase() || ' ' });
+$('backName').oninput = (e) => update({ backName: e.target.value.toUpperCase() || ' ' });
+$('number').oninput = (e) => update({ number: e.target.value.replace(/\D/g, '').slice(0, 2) || ' ' });
+function syncPanel() {
+  const d = designs[sportIndex];
+  for (const row of document.querySelectorAll('[data-colour]')) {
+    for (const b of row.querySelectorAll('.swatch')) b.classList.toggle('on', b.dataset.c.toLowerCase() === d[row.dataset.colour].toLowerCase());
+    row.querySelector('input').value = d[row.dataset.colour];
+  }
+  for (const b of $('patterns').children) b.classList.toggle('on', b.dataset.p === d.pattern);
+  for (const id of ['team', 'backName', 'number']) if (document.activeElement !== $(id)) $(id).value = d[id].trim();
+}
+$('customise').onclick = () => $('panel').classList.add('open');
+$('closePanel').onclick = () => $('panel').classList.remove('open');
+$('capture').onclick = capture;
+$('shotClose').onclick = () => $('shot').close();
+$('quality').onclick = () => { autoQuality = false; applyTier({ high: 'medium', medium: 'low', low: 'high' }[tierName]); toast(`Graphics: ${tier.label}`); };
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  buildComposer();
+  if (reflector) buildReflector(tier.reflectRes);
+  frameCamera(false);
+});
+
+// Embedding API (Flutter WebView / React iframe): window.showroom.*
+window.showroom = {
+  setSport: (id) => selectSport(Math.max(0, SPORTS.findIndex((s) => s.id === id))),
+  setDesign: (patch) => update(typeof patch === 'string' ? JSON.parse(patch) : patch),
+  view: viewTo,
+  capture,
+};
+
+// ===================================================================
+// LOOP
+// ===================================================================
+function frame(now) {
+  const t = now / 1000;
+  // Camera tweens.
+  if (tween) {
+    const k = ease(Math.min(1, (now - tween.t0) / tween.dur));
+    if (tween.orbit) {
+      const s = new THREE.Spherical(tween.radius, tween.startPhi + (tween.phi - tween.startPhi) * k, tween.startTheta + tween.delta * k);
+      camera.position.setFromSpherical(s).add(controls.target);
+    } else {
+      camera.position.lerpVectors(tween.from, tween.to, k);
+      controls.target.lerpVectors(tween.fromTarget, tween.toTarget, k);
+    }
+    if (k >= 1) tween = null;
+  } else if (!spinMode && now - lastInput > 6000) {
+    controls.autoRotate = true; // gentle idle turn
+  }
+  controls.update();
+  // Kit float and swap transition.
+  if (kit) kit.group.position.y = Math.sin(t * 1.1) * 0.012;
+  if (transition) {
+    const p = Math.min(1, (now - transition.start) / 900);
+    if (transition.old) {
+      const a = Math.min(1, p * 2);
+      transition.old.group.scale.setScalar(Math.max(0.001, 1 - ease(a)));
+      transition.old.group.rotation.y = ease(a) * Math.PI;
+      if (a >= 1 && transition.old.group.parent) stand.remove(transition.old.group);
+    }
+    const b = transition.old ? Math.max(0, p * 2 - 1) : p;
+    transition.next.group.scale.setScalar(Math.max(0.001, ease(b)));
+    transition.next.group.rotation.y = (1 - ease(b)) * -Math.PI;
+    ringMat.color.set(LOOK.rimCyan).multiplyScalar(2.4 + 4 * Math.sin(Math.PI * p));
+    if (p >= 1) { transition = null; ringMat.color.set(LOOK.rimCyan).multiplyScalar(2.4); }
+  }
+  // Beams sway, haze drifts.
+  for (const beam of rigs) {
+    beam.quaternion.copy(beam.userData.base);
+    beam.rotateZ(Math.sin(t * 0.35 + beam.userData.phase) * 0.06);
+    beam.material.uniforms.strength.value = 0.26 + 0.08 * Math.sin(t * 0.8 + beam.userData.phase);
+  }
+  if (haze) { haze.rotation.y = t * 0.02; haze.position.y = Math.sin(t * 0.2) * 0.1; }
+  composer.render();
+  watchFps(now);
+  requestAnimationFrame(frame);
+}
+
+// ===================================================================
+// START
+// ===================================================================
+applyTier(tierName);
+await Promise.all([document.fonts.load('700 100px Rajdhani'), document.fonts.ready]).catch(() => {});
+const startSport = Math.max(0, SPORTS.findIndex((s) => s.id === params.get('sport')));
+sportIndex = startSport;
+[...sportsEl.children].forEach((b, j) => b.classList.toggle('on', j === sportIndex));
+syncPanel();
+await swapKit(sportIndex);
+requestAnimationFrame(frame);
+setTimeout(() => $('loading').classList.add('done'), 350);
+</script>
+</body>
+</html>

@@ -1,0 +1,821 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+
+import 'ai_service.dart';
+import 'api_client.dart';
+import 'project_store.dart';
+import 'project_sync.dart';
+import 'session_store.dart';
+
+/// The screens of the client's "Complete App Flow", in order.
+enum AppScreen {
+  splash,
+  onboarding,
+  auth,
+  home,
+  aiDesigner,
+  generating,
+  concepts,
+  sport,
+  garment,
+  studio,
+  saveProject,
+  export,
+  projects,
+  assets,
+  profile,
+  showcase,
+}
+
+/// Everything about the kit that Undo/Redo restores.
+@immutable
+class KitState {
+  const KitState({
+    required this.garment,
+    required this.mainColor,
+    required this.secondaryColor,
+    required this.accentColor,
+    required this.pattern,
+    required this.fabric,
+    required this.logoText,
+    required this.backName,
+    required this.number,
+    required this.patternTile,
+    required this.logoImage,
+    required this.spec,
+    this.sponsorImage,
+  });
+  final String garment, pattern, fabric, logoText, backName, number;
+  final Color mainColor, secondaryColor, accentColor;
+  final Uint8List? patternTile, logoImage, sponsorImage;
+  final DesignSpec? spec;
+}
+
+/// One AI concept on the "Choose a design" screen.
+class Concept {
+  Concept(this.spec);
+  final DesignSpec spec;
+  Uint8List? image;
+  String? error;
+
+  /// Bundled sample image (demo mode, no API key).
+  String? asset;
+}
+
+class Project {
+  Project({
+    String? id,
+    required this.title,
+    required this.sport,
+    required this.garment,
+    required this.mode,
+    required this.kit,
+    required this.updated,
+    this.version = 1,
+    this.asset,
+    this.thumbnail,
+    this.renderFront,
+    this.renderBack,
+    this.brief = '',
+    this.persisted = false,
+    this.remoteId,
+    this.remoteVersion,
+    this.pendingUpload = false,
+  }) : id = id ?? 'p${DateTime.now().microsecondsSinceEpoch}';
+
+  /// Stable id; samples use "sample-N", user projects a timestamp.
+  final String id;
+
+  /// True once written to the device.
+  bool persisted;
+
+  /// The project's id and version in the server database, once uploaded.
+  int? remoteId, remoteVersion;
+
+  /// Saved on this device but not yet uploaded to the account.
+  bool pendingUpload;
+
+  /// The last upload failed (shown on the project card).
+  String? syncError;
+  String title;
+  final String sport, garment, mode, brief;
+  final KitState kit;
+  final DateTime updated;
+  final int version;
+  final String? asset;
+  final Uint8List? thumbnail, renderFront, renderBack;
+
+  String get age {
+    final d = DateTime.now().difference(updated);
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inHours < 1) return '${d.inMinutes}m ago';
+    if (d.inDays < 1) return '${d.inHours}h ago';
+    return '${d.inDays}d ago';
+  }
+}
+
+class AppController extends ChangeNotifier {
+  AppScreen screen = AppScreen.splash;
+  final List<AppScreen> _history = [];
+  final ai = AiService();
+  String name = 'Alex Morgan';
+
+  // ---------- creation path
+  /// 'AI' (AI Designer) or 'DYO' (Design Your Own).
+  String mode = 'AI';
+  String brief = '';
+  final List<Uint8List> references = [];
+  BriefMode? briefMode;
+  List<Concept> concepts = [];
+  int selectedConcept = 0;
+
+  /// The one-prompt HD presentation mockup (front, back, details).
+  bool wantMockup = true, mockupBusy = false;
+  Uint8List? mockupImage;
+  String? mockupError;
+
+  /// A custom AI print is being generated for the kit.
+  bool printBusy = false;
+  String sport = 'Rugby League';
+
+  // ---------- the kit (see [KitState])
+  String garment = 'Jersey';
+  Color mainColor = const Color(0xff0b1016);
+  Color secondaryColor = const Color(0xff00c2cc);
+  Color accentColor = const Color(0xff36e3ee);
+  String pattern = 'Chevron', fabric = 'Standard';
+  String logoText = 'MANTIS', backName = 'MANTIS', number = '23';
+  Uint8List? patternTile, logoImage, sponsorImage;
+  DesignSpec? spec;
+
+  // ---------- renders and the studio
+  Uint8List? renderFront, renderBack;
+  String view = 'Front';
+
+  /// The studio shows the live 3D kit; false shows the AI render.
+  bool show3d = true;
+  bool renderingBack = false;
+  Uint8List? mockupFront, mockupBack, mockupSide;
+
+  /// Set by the live 3D viewer while it is on screen.
+  Future<Uint8List?> Function(String view)? captureMockup;
+
+  /// The AI render for the current view (2D fallback preview).
+  Uint8List? get currentRender => view == 'Back' ? renderBack : renderFront;
+  bool get showRender => !show3d;
+
+  // ---------- projects and assets
+  int selectedProject = -1;
+  bool saved = false;
+  String projectName = '';
+  final List<Uint8List> uploads = [], logos = [], aiPatterns = [], artwork = [];
+
+  /// Photoreal Showcase images made in this session.
+  final List<Uint8List> showcases = [];
+  final ProjectStore store;
+
+  // ---------- account (the website's database)
+  final ApiClient api;
+  final SessionStore session;
+  ApiUser? user;
+  bool get signedIn => user != null;
+  bool syncing = false;
+
+  /// Why the last sync failed, for the profile screen.
+  String? syncMessage;
+
+  AppController({
+    this.store = const ProjectStore(),
+    ApiClient? api,
+    this.session = const SessionStore(),
+  }) : api = api ?? ApiClient();
+
+  /// Reopens the account saved on this device and syncs its projects.
+  Future<void> restoreSession() async {
+    try {
+      final saved = await session.load();
+      final server = saved.baseUrl;
+      if (server != null && server.isNotEmpty) {
+        api.baseUrl = ApiClient.normalize(server);
+      }
+      if (saved.token != null && saved.user != null && api.configured) {
+        api.token = saved.token;
+        user = saved.user;
+        name = saved.user!.name;
+        notifyListeners();
+        unawaited(syncProjects());
+      }
+    } on Object {
+      // Preferences unavailable: start signed out.
+    }
+  }
+
+  /// Changes the server; an account on the old server is signed out.
+  Future<void> setServer(String url) async {
+    final next = ApiClient.normalize(url);
+    if (next == api.baseUrl) return;
+    if (signedIn) await signOut();
+    api.baseUrl = next;
+    notifyListeners();
+    await session.saveServer(next).catchError((Object _) {});
+  }
+
+  /// Returns null on success, otherwise a message for the user.
+  Future<String?> signIn({required String email, required String password}) =>
+      _account(() => api.login(email: email.trim(), password: password));
+
+  Future<String?> register({
+    required String name,
+    required String email,
+    required String password,
+    required String passwordConfirmation,
+  }) => _account(
+    () => api.register(
+      name: name.trim(),
+      email: email.trim(),
+      password: password,
+      passwordConfirmation: passwordConfirmation,
+    ),
+  );
+
+  Future<String?> _account(Future<ApiUser> Function() call) async {
+    try {
+      final account = await call();
+      user = account;
+      name = account.name;
+      syncMessage = null;
+      notifyListeners();
+      await session.saveAccount(api.token!, account).catchError((Object _) {});
+      unawaited(syncProjects());
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    }
+  }
+
+  /// Signs out and removes this device's copies of the account's projects
+  /// (they stay in the cloud). Projects not yet uploaded are kept.
+  Future<void> signOut() async {
+    await api.logout();
+    user = null;
+    syncMessage = null;
+    await session.clearAccount().catchError((Object _) {});
+    for (final p
+        in projects
+            .where((p) => p.remoteId != null && !p.pendingUpload)
+            .toList()) {
+      projects.remove(p);
+      if (p.persisted) store.delete(p.id).catchError((Object _) {});
+    }
+    selectedProject = -1;
+    notifyListeners();
+  }
+
+  /// The token was rejected: sign out but keep every project.
+  Future<void> _expire(String message) async {
+    api.token = null;
+    user = null;
+    syncMessage = message;
+    await session.clearAccount().catchError((Object _) {});
+  }
+
+  /// Merges the account's projects with this device's: new and changed
+  /// server projects come down, projects deleted on the website are
+  /// removed, and local saves not yet uploaded go up.
+  Future<void> syncProjects() {
+    if (!signedIn) return Future.value();
+    // A sync already running (e.g. started by sign-in) is shared.
+    return _sync ??= _syncProjects().whenComplete(() => _sync = null);
+  }
+
+  Future<void>? _sync;
+
+  Future<void> _syncProjects() async {
+    syncing = true;
+    syncMessage = null;
+    notifyListeners();
+    final selectedId = selectedProject >= 0 && selectedProject < projects.length
+        ? projects[selectedProject].id
+        : null;
+    try {
+      final seen = <int>{};
+      for (final json in await api.projects()) {
+        final server = ProjectSync.fromServer(json);
+        seen.add(server.remoteId!);
+        final i = projects.indexWhere(
+          (p) =>
+              p.remoteId == server.remoteId ||
+              (p.remoteId == null && p.id == server.id),
+        );
+        if (i < 0) {
+          projects.add(server);
+          _persist(server);
+        } else if (!projects[i].pendingUpload &&
+            projects[i].remoteVersion != server.remoteVersion) {
+          projects[i] = server;
+          _persist(server);
+        }
+      }
+      projects.removeWhere((p) {
+        final gone =
+            p.remoteId != null &&
+            !p.pendingUpload &&
+            !seen.contains(p.remoteId);
+        if (gone && p.persisted) store.delete(p.id).catchError((Object _) {});
+        return gone;
+      });
+      for (final p in projects.where((p) => p.pendingUpload).toList()) {
+        await _upload(p);
+      }
+      // Newest first, with the bundled samples last.
+      bool sample(Project p) => p.asset != null && !p.persisted;
+      projects.sort((a, b) {
+        if (sample(a) != sample(b)) return sample(a) ? 1 : -1;
+        return b.updated.compareTo(a.updated);
+      });
+    } on ApiException catch (e) {
+      if (e.unauthorized) {
+        await _expire(e.message);
+      } else {
+        syncMessage = e.message;
+      }
+    } finally {
+      selectedProject = selectedId == null
+          ? -1
+          : projects.indexWhere((p) => p.id == selectedId);
+      syncing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Uploads one project. An expired session is rethrown; other failures
+  /// are recorded on the project.
+  Future<void> _upload(Project p) async {
+    try {
+      final body = ProjectSync.toServer(p);
+      final saved = p.remoteId == null
+          ? await api.createProject(body)
+          : await api.updateProject(p.remoteId!, body);
+      p
+        ..remoteId = saved['id'] as int
+        ..remoteVersion = saved['version'] as int?
+        ..pendingUpload = false
+        ..syncError = null;
+      _persist(p);
+    } on ApiException catch (e) {
+      if (e.unauthorized) rethrow;
+      if (e.status == 404 && p.remoteId != null) {
+        // Deleted on the website meanwhile: upload it as a new project.
+        p.remoteId = null;
+        return _upload(p);
+      }
+      p.syncError = e.message;
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  void _persist(Project p) {
+    store
+        .save(p)
+        .then((_) {
+          p.persisted = true;
+        })
+        .catchError((Object _) {});
+  }
+
+  /// Loads projects saved on the device (newest first) above the samples.
+  /// A saved project replaces the sample it was created from.
+  Future<void> restoreProjects() async {
+    try {
+      final saved = await store.loadAll();
+      if (saved.isEmpty) return;
+      final ids = saved.map((p) => p.id).toSet();
+      projects
+        ..removeWhere((p) => ids.contains(p.id))
+        ..insertAll(0, saved);
+      notifyListeners();
+    } on Object {
+      // Storage unavailable: keep the in-memory list.
+    }
+  }
+
+  /// Deletes a project from the list and from the device.
+  void deleteProject(Project project) {
+    projects.remove(project);
+    if (project.persisted) store.delete(project.id).catchError((Object _) {});
+    final remote = project.remoteId;
+    if (remote != null && signedIn) {
+      api.deleteProject(remote).catchError((Object _) {});
+    }
+    if (selectedProject >= projects.length) selectedProject = -1;
+    notifyListeners();
+  }
+
+  final List<Project> projects = [
+    for (final (i, title, sport, garment, mode, version, hours) in const [
+      (1, 'Warriors Concept', 'Rugby League', 'Jersey', 'AI', 1, 2),
+      (2, 'Mantis Elite', 'Training / Gym', 'Training Tee', 'AI', 2, 26),
+      (3, 'Club Jersey', 'Soccer', 'Jersey', 'DYO', 1, 30),
+      (4, 'Morahu', 'Basketball', 'Singlet', 'DYO', 3, 72),
+      (5, 'Coastal Blues', 'Rugby Union', 'Jersey', 'AI', 1, 96),
+      (6, 'Away Edition', 'Soccer', 'Training Tee', 'DYO', 2, 120),
+    ])
+      Project(
+        id: 'sample-$i',
+        title: title,
+        sport: sport,
+        garment: garment,
+        mode: mode,
+        version: version,
+        updated: DateTime.now().subtract(Duration(hours: hours)),
+        asset: 'assets/images/project_$i.png',
+        kit: _sampleKit(i, garment),
+      ),
+  ];
+
+  static KitState _sampleKit(int i, String garment) {
+    const palettes = [
+      (0xff0b1016, 0xff00c2cc, 0xff36e3ee, 'WARRIORS'),
+      (0xff10233f, 0xffffc52f, 0xffffd75e, 'MANTIS'),
+      (0xff2a0d2c, 0xffe796e4, 0xfff6c7f4, 'CLUB'),
+      (0xff1a0507, 0xfff44d56, 0xffffffff, 'MORAHU'),
+      (0xff07203a, 0xff2b92dd, 0xffeaf7ff, 'COASTAL'),
+      (0xffeaf7ff, 0xff8edaf2, 0xff0b2a40, 'AWAY'),
+    ];
+    final p = palettes[(i - 1) % palettes.length];
+    return KitState(
+      garment: garment,
+      mainColor: Color(p.$1),
+      secondaryColor: Color(p.$2),
+      accentColor: Color(p.$3),
+      pattern: const ['Chevron', 'Velocity', 'Stripes'][i % 3],
+      fabric: 'Standard',
+      logoText: p.$4,
+      backName: p.$4,
+      number: '${7 + i}',
+      patternTile: null,
+      logoImage: null,
+      spec: null,
+    );
+  }
+
+  // ---------- navigation
+  void go(AppScreen next) {
+    if (screen == next) return;
+    _history.add(screen);
+    screen = next;
+    notifyListeners();
+  }
+
+  void back() {
+    const transient = {AppScreen.splash, AppScreen.generating};
+    var previous = AppScreen.home;
+    while (_history.isNotEmpty) {
+      final candidate = _history.removeLast();
+      if (candidate != screen && !transient.contains(candidate)) {
+        previous = candidate;
+        break;
+      }
+    }
+    screen = previous;
+    notifyListeners();
+  }
+
+  void update(VoidCallback change) {
+    change();
+    notifyListeners();
+  }
+
+  // ---------- kit edits with Undo/Redo
+  final List<KitState> _undo = [], _redo = [];
+  bool get canUndo => _undo.isNotEmpty;
+  bool get canRedo => _redo.isNotEmpty;
+
+  KitState get kit => KitState(
+    garment: garment,
+    mainColor: mainColor,
+    secondaryColor: secondaryColor,
+    accentColor: accentColor,
+    pattern: pattern,
+    fabric: fabric,
+    logoText: logoText,
+    backName: backName,
+    number: number,
+    patternTile: patternTile,
+    logoImage: logoImage,
+    sponsorImage: sponsorImage,
+    spec: spec,
+  );
+
+  void _restore(KitState k) {
+    garment = k.garment;
+    mainColor = k.mainColor;
+    secondaryColor = k.secondaryColor;
+    accentColor = k.accentColor;
+    pattern = k.pattern;
+    fabric = k.fabric;
+    logoText = k.logoText;
+    backName = k.backName;
+    number = k.number;
+    patternTile = k.patternTile;
+    logoImage = k.logoImage;
+    sponsorImage = k.sponsorImage;
+    spec = k.spec;
+  }
+
+  /// Changes the kit and records the previous state for Undo.
+  void edit(VoidCallback change) {
+    _undo.add(kit);
+    if (_undo.length > 50) _undo.removeAt(0);
+    _redo.clear();
+    change();
+    saved = false;
+    notifyListeners();
+  }
+
+  void undo() {
+    if (_undo.isEmpty) return;
+    _redo.add(kit);
+    _restore(_undo.removeLast());
+    saved = false;
+    notifyListeners();
+  }
+
+  void redo() {
+    if (_redo.isEmpty) return;
+    _undo.add(kit);
+    _restore(_redo.removeLast());
+    saved = false;
+    notifyListeners();
+  }
+
+  void applySpec(DesignSpec value) => edit(() {
+    spec = value;
+    mainColor = value.mainColor;
+    secondaryColor = value.secondaryColor;
+    accentColor = value.accentColor;
+    pattern = value.pattern;
+    fabric = value.fabric;
+    logoText = value.logoText;
+    backName = value.logoText;
+  });
+
+  // ---------- starting points
+  void _resetDesign() {
+    _restore(_sampleKit(1, 'Jersey'));
+    logoText = backName = 'MANTIS';
+    number = '23';
+    mainColor = const Color(0xff0b1016);
+    _undo.clear();
+    _redo.clear();
+    spec = null;
+    renderFront = renderBack = null;
+    mockupFront = mockupBack = mockupSide = null;
+    concepts = [];
+    selectedConcept = 0;
+    mockupImage = mockupError = null;
+    mockupBusy = false;
+    view = 'Front';
+    show3d = true;
+    selectedProject = -1;
+    projectName = '';
+    saved = false;
+  }
+
+  void startAi() {
+    _resetDesign();
+    mode = 'AI';
+    brief = '';
+    references.clear();
+    briefMode = null;
+    go(AppScreen.aiDesigner);
+  }
+
+  void startDyo() {
+    _resetDesign();
+    mode = 'DYO';
+    go(AppScreen.sport);
+  }
+
+  /// Renders the HD presentation mockup for the brief in the background
+  /// (about a minute and a half); the concepts screen shows it when ready.
+  Future<void> startMockup() async {
+    if (!AiService.enabled || !wantMockup || brief.trim().isEmpty) return;
+    mockupBusy = true;
+    mockupImage = mockupError = null;
+    notifyListeners();
+    final forBrief = brief;
+    try {
+      final image = await ai.mockup(
+        brief: brief,
+        sport: sport,
+        garment: garment,
+        logos: references,
+      );
+      if (forBrief != brief) return;
+      mockupImage = image;
+      artwork.add(image);
+    } on AiException catch (e) {
+      if (forBrief == brief) mockupError = e.message;
+    } finally {
+      if (forBrief == brief) mockupBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// "Ask 3DEEZI to change anything": applies a plain-language change to the
+  /// kit as one undo step and returns the AI's reply. A requested custom
+  /// print is generated afterwards.
+  Future<String> askAi(String instruction, {Uint8List? image}) async {
+    final change = await ai.editKit(
+      main: mainColor,
+      secondary: secondaryColor,
+      accent: accentColor,
+      pattern: pattern,
+      logoText: logoText,
+      backName: backName,
+      number: number,
+      instruction: instruction,
+      image: image,
+    );
+    edit(() {
+      mainColor = change.mainColor;
+      secondaryColor = change.secondaryColor;
+      accentColor = change.accentColor;
+      pattern = change.pattern;
+      if (change.logoText.isNotEmpty) logoText = change.logoText;
+      backName = change.backName;
+      number = change.number;
+      if (change.motif != null) patternTile = null;
+    });
+    final motif = change.motif;
+    if (motif != null) unawaited(applyPrint(motif));
+    return motif == null
+        ? change.reply
+        : '${change.reply} Creating the print now…';
+  }
+
+  /// Generates a custom print from words and puts it on the kit.
+  Future<String?> applyPrint(String motif) async {
+    printBusy = true;
+    notifyListeners();
+    try {
+      final tile = await ai.generatePattern(motif);
+      aiPatterns.add(tile);
+      edit(() => patternTile = tile);
+      return null;
+    } on AiException catch (e) {
+      return e.message;
+    } finally {
+      printBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// CONVERT: a photo, sketch or mockup (even one from ChatGPT) becomes an
+  /// editable 3D design, opened in the studio with its print.
+  Future<void> convertImage(Uint8List image) async {
+    final design = await ai.planDesign(
+      sport: sport,
+      garment: garment,
+      brief:
+          'Recreate the main garment in the attached image as an editable '
+          'design: the same colours, the closest pattern, the exact wordmark '
+          'text and its print motif. Detect the sport and garment from it.',
+      reference: image,
+    );
+    _resetDesign();
+    mode = 'AI';
+    sport = design.sport;
+    applySpec(design);
+    garment = design.garment;
+    _undo.clear();
+    projectName = design.designName;
+    references
+      ..clear()
+      ..add(image);
+    go(AppScreen.studio);
+    if (design.patternMotif.trim().isNotEmpty) {
+      unawaited(applyPrint(design.patternMotif));
+    }
+  }
+
+  /// Opens the chosen AI concept in the Design Studio.
+  void openConcept(int index) {
+    final concept = concepts[index];
+    selectedConcept = index;
+    sport = concept.spec.sport;
+    applySpec(concept.spec);
+    garment = concept.spec.garment;
+    _undo.clear();
+    renderFront = concept.image;
+    renderBack = null;
+    projectName = concept.spec.designName;
+    show3d = true;
+    view = 'Front';
+    go(AppScreen.studio);
+  }
+
+  /// Switches view, rendering the AI back view the first time it is needed.
+  Future<String?> showView(String value) async {
+    view = value;
+    notifyListeners();
+    final front = renderFront, design = spec;
+    if (show3d ||
+        value != 'Back' ||
+        renderBack != null ||
+        front == null ||
+        design == null ||
+        renderingBack) {
+      return null;
+    }
+    renderingBack = true;
+    notifyListeners();
+    try {
+      renderBack = await ai.renderBack(front, design);
+      return null;
+    } on AiException catch (e) {
+      return e.message;
+    } finally {
+      renderingBack = false;
+      notifyListeners();
+    }
+  }
+
+  // ---------- projects
+  int get nextVersion =>
+      selectedProject >= 0 && selectedProject < projects.length
+      ? projects[selectedProject].version + 1
+      : 1;
+
+  void saveProject(String title, {Uint8List? thumbnail}) {
+    final updating = selectedProject >= 0 && selectedProject < projects.length;
+    final project = Project(
+      id: updating ? projects[selectedProject].id : null,
+      title: title.trim().isEmpty ? '$sport $garment' : title.trim(),
+      sport: sport,
+      garment: garment,
+      mode: mode,
+      kit: kit,
+      version: nextVersion,
+      updated: DateTime.now(),
+      asset: updating ? projects[selectedProject].asset : null,
+      thumbnail: thumbnail ?? mockupFront ?? renderFront,
+      renderFront: renderFront,
+      renderBack: renderBack,
+      brief: brief,
+      remoteId: updating ? projects[selectedProject].remoteId : null,
+      remoteVersion: updating ? projects[selectedProject].remoteVersion : null,
+      pendingUpload: true,
+    );
+    if (updating) {
+      projects.removeAt(selectedProject);
+    }
+    projects.insert(0, project);
+    selectedProject = 0;
+    projectName = project.title;
+    saved = true;
+    notifyListeners();
+    store
+        .save(project)
+        .then((_) {
+          project.persisted = true;
+        })
+        .catchError((Object _) {})
+        .whenComplete(() async {
+          if (!signedIn) return;
+          try {
+            await _upload(project);
+          } on ApiException catch (e) {
+            await _expire(e.message);
+            notifyListeners();
+          }
+        });
+  }
+
+  void loadProject(Project project) {
+    _resetDesign();
+    _restore(project.kit);
+    sport = project.sport;
+    mode = project.mode;
+    brief = project.brief;
+    renderFront = project.renderFront;
+    renderBack = project.renderBack;
+    selectedProject = projects.indexOf(project);
+    projectName = project.title;
+    saved = true;
+    go(AppScreen.studio);
+  }
+
+  /// Captures the live 3D kit (front, back, side) for Save and Export.
+  Future<void> captureViews() async {
+    final capture = captureMockup;
+    if (capture == null) return;
+    mockupFront = await capture('Front') ?? mockupFront;
+    mockupBack = await capture('Back') ?? mockupBack;
+    mockupSide = await capture('Side') ?? mockupSide;
+  }
+}

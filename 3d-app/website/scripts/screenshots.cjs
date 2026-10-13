@@ -1,0 +1,23 @@
+const path = require('node:path');
+const fs = require('node:fs');
+const { chromium } = require('../../.tools/browser/node_modules/playwright');
+(async () => {
+  const output=path.resolve(__dirname,'../../design-reference/website');
+  fs.mkdirSync(output,{recursive:true});
+  const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
+  const page=await browser.newPage({viewport:{width:1440,height:1050},deviceScaleFactor:1});
+  const errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  page.on('dialog',d=>d.accept());
+  await page.goto('http://127.0.0.1:8000/',{waitUntil:'networkidle'});
+  await page.screenshot({path:path.join(output,'home-desktop.png'),fullPage:true});
+  await page.goto('http://127.0.0.1:8000/studio',{waitUntil:'networkidle'});
+  await page.waitForFunction(()=>document.querySelector('.kit-viewer')?.getAttribute('aria-busy')==='false',null,{timeout:60000});
+  await page.screenshot({path:path.join(output,'studio-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('http://127.0.0.1:8000/',{waitUntil:'networkidle'});
+  await page.screenshot({path:path.join(output,'home-mobile.png'),fullPage:true});
+  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
+  console.log(JSON.stringify({errors,overflow,output}));
+  await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

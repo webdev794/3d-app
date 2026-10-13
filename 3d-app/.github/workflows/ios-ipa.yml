@@ -1,0 +1,90 @@
+name: Build iPhone IPA for Sideloadly
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out app source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Flutter 3.47.5
+        run: |
+          git clone --depth 1 --branch 3.47.5 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" --version
+          "$RUNNER_TEMP/flutter/bin/flutter" config --enable-swift-package-manager
+          "$RUNNER_TEMP/flutter/bin/flutter" precache --ios
+
+      - name: Build native iPhone app and package unsigned IPA
+        env:
+          # Optional repository secret. When set, the app's OpenAI features are
+          # enabled; the key goes through a temp file, never the command line.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          # Secrets pasted with a trailing newline/space break the Dart define.
+          key="$(printf '%s' "${OPENAI_API_KEY:-}" | tr -d '[:space:]')"
+          if [[ -n "$key" ]]; then
+            echo "::add-mask::$key"
+            defines="$RUNNER_TEMP/private-defines.json"
+            ( umask 077; jq -n --arg key "$key" '{OPENAI_API_KEY: $key}' > "$defines" )
+            bash scripts/build-ios-sideload.sh --dart-define-from-file="$defines"
+            rm -f -- "$defines"
+            echo "AI_ENABLED=true" >> "$GITHUB_ENV"
+          else
+            bash scripts/build-ios-sideload.sh
+            echo "AI_ENABLED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Show Xcode errors on failure
+        if: failure()
+        run: |
+          log=build/ios/xcodebuild.log
+          [[ -f "$log" ]] || exit 0
+          grep -v -E '^\s*export |DART_DEFINES|OPENAI|-D[A-Z_]+=' "$log" \
+            | grep -i -E 'error|failed|exception' | head -80 || true
+          rm -f -- "$log"
+
+      - name: Save IPA checksum
+        run: |
+          cd dist
+          shasum -a 256 3DEEZI_iOS_Unsigned.ipa > 3DEEZI_iOS_Unsigned.ipa.sha256
+
+      - name: Upload IPA for Windows USB installation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: 3DEEZI-iPhone-IPA-unsigned
+          path: |
+            dist/3DEEZI_iOS_Unsigned.ipa
+            dist/3DEEZI_iOS_Unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Explain installation
+        run: |
+          if [[ "$AI_ENABLED" == true ]]; then
+            echo "OpenAI features: **enabled** (key from the OPENAI_API_KEY secret)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "OpenAI features: **off** (no OPENAI_API_KEY secret); the app runs its demo flow." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          Built a native iPhone release app and packaged it as `3DEEZI_iOS_Unsigned.ipa`.
+
+          Download and extract the `3DEEZI-iPhone-IPA-unsigned` artifact. Import its IPA into Sideloadly on Windows, connect your iPhone by USB, and sign/install using your Apple account there. This IPA is unsigned and cannot be installed until signed. It is not a TestFlight or App Store package.
+
+          See `IOS_SETUP.md` in the source for device setup.
+          EOF

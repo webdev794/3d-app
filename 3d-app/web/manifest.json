@@ -1,0 +1,19 @@
+{
+    "name": "3DEEZI",
+    "short_name": "3DEEZI",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#05090d",
+    "theme_color": "#00dbea",
+    "description": "3DEEZI sportswear design prototype",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/3deezi.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

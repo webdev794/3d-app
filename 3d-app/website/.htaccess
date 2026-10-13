@@ -1,0 +1,12 @@
+# Protect Laravel source when previewing inside XAMPP's htdocs directory.
+# A virtual host with DocumentRoot set to website/public is preferred.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^$ %{REQUEST_URI}public/ [R=302,L]
+    RewriteRule ^(?!public(?:/|$)) - [F,L]
+</IfModule>
+
+# Do not expose configuration/source if Apache rewriting is disabled.
+<IfModule !mod_rewrite.c>
+    Require all denied
+</IfModule>
