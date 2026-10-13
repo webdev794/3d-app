@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
-import { CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, FolderOpen, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Trash2, TriangleAlert, Users, X } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Trash2, TriangleAlert, Users, X } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type User } from '../api';
 
 export interface AdminUser extends User { is_admin: boolean; projects_count?: number; orders_count?: number }
@@ -13,7 +13,9 @@ export interface Order {
 interface AdminProject { id: number; name: string; sport: string; garment: string; mode: string; status: 'draft' | 'approved'; version: number; thumbnail: string | null; updated_at: string; orders_count: number; user?: { id: number; name: string; email: string } }
 interface Page<T> { data: T[]; current_page: number; last_page: number; total: number }
 interface TrendPoint { day: string; kits: number; orders: number }
-interface Stats { users: number; admins: number; projects: number; orders: number; approved: number; quotes: number; garments: number; revenue: number; by_status: Record<string, number>; recent: Order[]; trend: TrendPoint[]; sports: { sport: string; count: number }[] }
+interface Stats { partners: number; new_partners: number; users: number; admins: number; projects: number; orders: number; approved: number; quotes: number; garments: number; revenue: number; by_status: Record<string, number>; recent: Order[]; trend: TrendPoint[]; sports: { sport: string; count: number }[] }
+interface Partner { id: number; company: string; name: string; email: string; phone: string | null; website: string | null; message: string | null; status: string; created_at: string }
+const PARTNER_STATUSES = ['new', 'contacted', 'onboarding', 'live', 'declined'];
 interface ApiSettings { configured: boolean; source: string; masked_key: string | null; text_model: string; image_model: string }
 interface DbInfo { driver: string; size: number | null; uploads: number; tables: { name: string; rows: number }[]; expired_tokens: number; php: string; laravel: string; backup: boolean }
 
@@ -33,6 +35,7 @@ const sections = [
   { id: 'users', label: 'Users', icon: Users, title: 'Users', sub: 'Add, edit and remove accounts and administrators.' },
   { id: 'projects', label: 'Projects', icon: FolderOpen, title: 'Projects', sub: 'Every kit designed on the platform.' },
   { id: 'orders', label: 'Orders', icon: Package, title: 'Orders', sub: 'Quotes, production and delivery.' },
+  { id: 'partners', label: 'Partners', icon: Handshake, title: 'Corporate partners', sub: 'Companies applying to bring 3DEEZI to their website.' },
   { id: 'database', label: 'Database Tools', icon: Database, title: 'Database tools', sub: 'Backups, housekeeping and health.' },
 ] as const;
 
@@ -49,7 +52,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
     api<ApiSettings>('/admin/settings').then(setApiState).catch(() => {});
   }, []);
   useEffect(refresh, [refresh, section]);
-  const counts: Record<string, number | undefined> = { users: stats?.users, projects: stats?.projects, orders: stats?.orders };
+  const counts: Record<string, number | undefined> = { users: stats?.users, projects: stats?.projects, orders: stats?.orders, partners: stats?.new_partners || undefined };
 
   return <div className={`console ${menu ? 'menu-open' : ''}`}>
     <aside className="console-side">
@@ -78,6 +81,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
           : section === 'orders' ? <OrdersPanel onNotice={onNotice} />
           : section === 'projects' ? <ProjectsPanel catalog={catalog} onNotice={onNotice} />
           : section === 'settings' ? <SettingsPanel state={apiState} onSaved={setApiState} onNotice={onNotice} />
+          : section === 'partners' ? <PartnersPanel onNotice={onNotice} />
           : section === 'database' ? <DatabasePanel onNotice={onNotice} />
           : <Dashboard stats={stats} apiState={apiState} />}
       </div>
@@ -365,4 +369,32 @@ function OrderForm({ order, onClose, onSaved }: { order: Order | null; onClose: 
     {error && <p className="error-message">{error}</p>}
     <button className="button button-gradient full-width" disabled={busy || quantity < 1 || (!order && !userId)}>{busy && <LoaderCircle className="spin" size={16} />}{order ? 'SAVE ORDER' : 'ADD ORDER'}</button>
   </form></Modal>;
+}
+
+function PartnersPanel({ onNotice }: { onNotice: (text: string) => void }) {
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('');
+  const { result, error, setPage, reload } = usePaged<Partner>('/admin/partners', { search: query, ...(status ? { status } : {}) });
+  async function setPartnerStatus(p: Partner, next: string) {
+    try { await api(`/admin/partners/${p.id}`, { method: 'PATCH', body: JSON.stringify({ status: next }) }); onNotice(`${p.company} is now ${next}.`); reload(); }
+    catch (e) { onNotice((e as Error).message); }
+  }
+  const site = (url: string) => /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  return <section className="glow-panel admin-card">
+    <div className="admin-toolbar"><h2><Handshake size={18} /> Partner applications {result && <small>{result.total}</small>}</h2>
+      <form className="admin-search" onSubmit={e => { e.preventDefault(); setQuery(search.trim()); }}><Search size={15} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Company, name or email" /></form>
+      <select className="admin-select" value={status} onChange={e => setStatus(e.target.value)} aria-label="Filter by status"><option value="">All statuses</option>{PARTNER_STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></div>
+    {error && <p className="error-message">{error}</p>}
+    {!result ? <div className="empty-state"><LoaderCircle className="spin" /></div> : <div className="table-wrap"><table className="admin-table"><thead><tr><th>Company</th><th>Contact</th><th>Message</th><th>Status</th><th>Date</th><th /></tr></thead><tbody>
+      {result.data.map(p => <tr key={p.id}><td><strong>{p.company}</strong>{p.website && <small className="cell-sub"><a href={site(p.website)} target="_blank" rel="noreferrer noopener">{p.website}</a></small>}</td>
+        <td>{p.name}<small className="cell-sub"><a href={`mailto:${p.email}`}>{p.email}</a>{p.phone ? ` · ${p.phone}` : ''}</small></td>
+        <td className="cell-message">{p.message || <span className="muted">—</span>}</td>
+        <td><select className={`status-select s-${p.status === 'live' ? 'delivered' : p.status === 'declined' ? 'cancelled' : p.status === 'new' ? 'pending' : 'confirmed'}`} value={p.status} onChange={e => setPartnerStatus(p, e.target.value)} aria-label={`Status of ${p.company}`}>{PARTNER_STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></td>
+        <td>{date(p.created_at)}</td>
+        <td className="row-actions"><button className="icon-button danger" aria-label={`Delete ${p.company}`} onClick={() => confirmDelete(`application from ${p.company}`, () => api(`/admin/partners/${p.id}`, { method: 'DELETE' }), () => { onNotice('Application deleted.'); reload(); }, onNotice)}><Trash2 size={15} /></button></td></tr>)}
+      {!result.data.length && <tr><td colSpan={6} className="muted">No partner applications yet.</td></tr>}
+    </tbody></table></div>}
+    {result && <Pager result={result} setPage={setPage} />}
+  </section>;
 }

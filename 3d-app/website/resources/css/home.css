@@ -11,3 +11,32 @@
 .hero-store span{display:flex;flex-direction:column;line-height:1.05}
 .hero-store small{font-size:9px;letter-spacing:.12em;color:#9fdfe8}
 .hero-store strong{font-size:21px;font-weight:700}
+
+/* Official-style store badges (client request: real App Store symbol). */
+.official-stores{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}
+.official-badge{display:inline-flex;align-items:center;gap:10px;height:56px;padding:0 18px 0 14px;border-radius:12px;background:#000;border:1.5px solid #a6a6a6;color:#fff;text-decoration:none;transition:transform .2s,box-shadow .2s}
+.official-badge:hover{transform:translateY(-2px);box-shadow:0 0 22px rgba(18,225,240,.4)}
+.official-badge svg{width:28px;height:28px;flex:none}
+.official-badge span{display:flex;flex-direction:column;line-height:1}
+.official-badge small{font-size:11px;letter-spacing:.02em;margin-bottom:3px}
+.official-badge strong{font:600 23px/1 -apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif;letter-spacing:-.01em}
+
+/* Phone showing the real 3DEEZI app, beside the hero copy. */
+.hero-phone{position:absolute;z-index:2;left:43%;bottom:-40px;width:clamp(170px,15vw,250px);transform:rotate(-9deg);transform-origin:bottom center}
+.hero-phone-frame{position:relative;aspect-ratio:390/844;border-radius:30px;padding:9px;background:linear-gradient(145deg,#2c3846,#0a0f15 40%,#1b2430);box-shadow:0 0 0 1.5px #4b5a6b,0 30px 60px #000c,0 0 40px rgba(18,225,240,.35)}
+.hero-phone-frame img{display:block;width:100%;height:100%;object-fit:cover;border-radius:22px}
+.hero-phone-notch{position:absolute;left:50%;top:15px;width:30%;height:16px;transform:translateX(-50%);border-radius:10px;background:#05080c;z-index:1}
+.hero-phone-glow{position:absolute;left:-20%;right:-20%;bottom:20px;height:60px;background:radial-gradient(ellipse at center,rgba(18,225,240,.45),transparent 70%);filter:blur(10px);z-index:-1}
+
+/* Glow around the three creation tiles (client request). */
+.path-card{border:2px solid #12e1f0aa;box-shadow:0 0 18px #00d9ed55,0 0 46px #00d9ed26,inset 0 0 26px #00d9ed14}
+.path-card:hover{border-color:#36e3ee;box-shadow:0 0 26px #00d9ed99,0 0 70px #00d9ed3d,inset 0 0 30px #00d9ed22}
+.path-ai{border-color:#7b4dffaa;box-shadow:0 0 18px #7b4dff55,0 0 46px #00d9ed26,inset 0 0 26px #7b4dff14}
+
+@media(max-width:1150px){.hero-phone{left:auto;right:3%;bottom:-30px;width:150px}}
+@media(max-width:800px){.hero-phone{display:none}}
+
+.download-stores{margin:27px 0 14px}
+.official-badge.is-soon{position:relative;cursor:default}
+.official-badge.is-soon:hover{transform:none;box-shadow:none}
+.official-badge em{position:absolute;top:-9px;right:10px;padding:2px 8px;border-radius:999px;background:linear-gradient(90deg,#12e1f0,#8b5cf6);color:#02070c;font:800 9px/1.4 Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;font-style:normal}

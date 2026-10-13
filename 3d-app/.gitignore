@@ -57,3 +57,4 @@ dist/
 
 # 3D viewer build tooling
 viewer/node_modules/
+website/artboard/node_modules/

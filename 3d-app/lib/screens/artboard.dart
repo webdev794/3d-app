@@ -83,11 +83,8 @@ class _ArtboardScreenState extends State<ArtboardScreen> {
         }
       case 'export':
         final data = msg['data'] as String?;
-        if (data == null || data.startsWith('data:image/svg')) {
-          if (mounted)
-            showToast(context, 'SVG export is available on the website.');
-          return;
-        }
+        // PNG, vector SVG and PDF all arrive as base64 data URLs.
+        if (data == null || !data.contains(';base64,')) return;
         final note = await shareImage(
           base64Decode(data.split(',').last),
           (msg['name'] as String?) ?? '3deezi-artwork.png',

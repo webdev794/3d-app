@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OrderRequest;
 use App\Models\Order;
+use App\Models\PartnerApplication;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -72,6 +73,7 @@ class OrderController extends Controller
 
             return ['day' => $day, 'kits' => (int) ($kits[$day] ?? 0), 'orders' => (int) ($orders[$day] ?? 0)];
         });
+        PartnerApplication::ensureTable();
         $names = collect(config('catalog.sports'))->pluck('name', 'id');
         $sports = Project::selectRaw('sport, count(*) as n')->groupBy('sport')->orderByDesc('n')->pluck('n', 'sport')
             ->map(fn ($n, $id) => ['sport' => $names[$id] ?? $id, 'count' => (int) $n])->values();
@@ -85,6 +87,8 @@ class OrderController extends Controller
             'admins' => User::where('is_admin', true)->count(),
             'projects' => Project::count(),
             'orders' => Order::count(),
+            'partners' => PartnerApplication::count(),
+            'new_partners' => PartnerApplication::where('status', 'new')->count(),
             'garments' => (int) Order::where('status', '!=', 'cancelled')->sum('quantity'),
             'revenue' => (float) Order::whereNotIn('status', ['cancelled', 'pending'])->sum('total'),
             'by_status' => Order::select('status', DB::raw('count(*) as count'))->groupBy('status')->pluck('count', 'status'),

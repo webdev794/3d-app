@@ -6,6 +6,7 @@ use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ConceptController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PartnerApplicationController;
 use App\Http\Controllers\ProjectController;
 use App\Services\OpenAiDesigner;
 use Illuminate\Support\Facades\Route;
@@ -21,6 +22,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             : ['showcase_scenes' => []],
     )]));
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:auth');
+    Route::post('/partners/apply', [PartnerApplicationController::class, 'store'])->middleware('throttle:auth');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
 
     Route::middleware('auth:sanctum')->group(function () {
@@ -50,6 +52,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::apiResource('users', Admin\UserController::class)->whereNumber('user');
             Route::apiResource('orders', Admin\OrderController::class)->except('show')->whereNumber('order');
             Route::apiResource('projects', Admin\ProjectController::class)->only(['index', 'update', 'destroy'])->whereNumber('project');
+            Route::apiResource('partners', Admin\PartnerController::class)->only(['index', 'update', 'destroy'])->whereNumber('partner');
             Route::get('/settings', [Admin\SettingsController::class, 'show'])->name('settings');
             Route::put('/settings', [Admin\SettingsController::class, 'update'])->name('settings.update');
             Route::post('/settings/test', [Admin\SettingsController::class, 'test'])->name('settings.test');
