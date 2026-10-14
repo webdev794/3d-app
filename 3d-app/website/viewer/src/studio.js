@@ -21,19 +21,21 @@ export function createStudio(scene, renderer, mobile) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   scene.fog = new THREE.FogExp2(0x06111d, 0.11);
 
-  const key = new THREE.DirectionalLight(0xeaf2ff, 2.05);
-  key.position.set(-1.2, 2.6, 2.5);
+  // Photographic garment lighting: neutral key and fill, soft cool rims for separation.
+  const key = new THREE.DirectionalLight(0xfff6ec, 2.3);
+  key.position.set(-2, 2.4, 1.9);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   Object.assign(key.shadow.camera, { left: -1.2, right: 1.2, top: 1.6, bottom: -.9, near: .1, far: 8 });
   key.shadow.bias = -.0002;
   key.shadow.normalBias = .008;
-  const fill = new THREE.DirectionalLight(0x97c8e8, .45);
+  const fill = new THREE.DirectionalLight(0xdce8f4, .45);
   fill.position.set(1.6, .9, 2);
-  const rimR = new THREE.DirectionalLight(0x5bdfff, 2.1);
-  rimR.position.set(1.1, 1.5, -1.8);
-  const rimL = new THREE.DirectionalLight(0xb7bfff, 1.4);
-  rimL.position.set(-1.5, 1.1, -1.5);
+  // Cool stadium floodlights, high behind the kit: they trace the edges and the fabric's sheen.
+  const rimR = new THREE.DirectionalLight(0xbfe3ff, 1.6);
+  rimR.position.set(1.4, 2.6, -2);
+  const rimL = new THREE.DirectionalLight(0xc8dcff, 1.15);
+  rimL.position.set(-1.6, 2.4, -1.8);
   const top = new THREE.DirectionalLight(0xffffff, .5);
   top.position.set(0, 3, .2);
   scene.add(key, fill, rimR, rimL, top, new THREE.HemisphereLight(0x7aadd3, 0x071017, .2));

@@ -45,6 +45,10 @@ const mix = (a, b, t) => {
   return `rgb(${m(r1, r2)},${m(g1, g2)},${m(b1, b2)})`;
 };
 
+/** Contrast bands along the finished edges (metres): kept narrow, the same width at the hem
+ *  (and leg hems) and round the sleeve ends, and even all the way round. */
+const HEM_BAND = 0.009, CUFF_BAND = 0.009;
+
 export class KitPainter {
   constructor(frame, outline, size = 2048, kind = 'jersey') {
     this.kind = kind;
@@ -59,10 +63,9 @@ export class KitPainter {
   }
 
   /** Sets the transform so drawing happens in garment metres on one side. */
-  side(back) {
+  side(back, g = this.ctx) {
     const { minX, maxX, minY, span } = this.frame;
     const s = this.canvas.height / span;
-    const g = this.ctx;
     if (back) g.setTransform(-s, 0, 0, -s, this.canvas.height + maxX * s, this.canvas.height + minY * s);
     else g.setTransform(s, 0, 0, -s, -minX * s, this.canvas.height + minY * s);
     return s;
@@ -91,6 +94,118 @@ export class KitPainter {
     g.restore();
   }
 
+  /**
+   * How the garment is sewn, in garment metres: `seams` where pieces are joined (shoulder
+   * panels, sides and set-in sleeves), `stitches` (double-needle cover-stitch rows on the
+   * hem, collar and sleeve hems, plus the seam stitching) and `folds` (the top edge of a
+   * hem turned up inside). Shared by the painted stitches and the relief map.
+   */
+  tailoring(back) {
+    const shorts = this.kind === 'shorts', sleeves = ['jersey', 'tee', 'polo'].includes(this.kind);
+    const stitches = [], seams = [], folds = [];
+    const along = (points) => (c) => points.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+    // Hems and sleeve ends: two rows of cover-stitch and the turned-up edge inside, each an even
+    // distance from the edge all the way round.
+    for (const { kind, points } of this.edges()) {
+      stitches.push(along(this.inset(points, .0115)), along(this.inset(points, .0147)));
+      folds.push(along(this.inset(points, .019, .006)));
+    }
+    for (const inset of [0, .0032]) {
+      if (shorts) { stitches.push((c) => { c.moveTo(-.3, .388 - inset); c.lineTo(.3, .388 - inset); }); continue; }
+      for (const dir of [-1, 1]) {
+        stitches.push((c) => { c.moveTo(dir * (.105 + inset), .718); c.quadraticCurveTo(dir * .235, .691 - inset, dir * .395, .548 - inset); });
+        stitches.push((c) => { c.moveTo(dir * (.235 - inset), .035); c.quadraticCurveTo(dir * (.21 - inset), .29, dir * (.234 - inset), .496); });
+      }
+    }
+    if (!shorts) {
+      for (const dir of [-1, 1]) {
+        seams.push((c) => { c.moveTo(dir * .1066, .718); c.quadraticCurveTo(dir * .235, .6894, dir * .395, .5464); });
+        seams.push((c) => { c.moveTo(dir * .2334, .035); c.quadraticCurveTo(dir * .2084, .29, dir * .2324, .496); });
+      }
+      // Collar: joined just below the neck trim, with two rows of stitching under it.
+      const crew = this.kind === 'tee' || this.kind === 'polo';
+      const neckline = (drop, inset) => (crew
+        ? (c) => { c.moveTo(-.09 + inset, .745 - drop); c.quadraticCurveTo(0, (back ? .73 : .66) - drop, .09 - inset, .745 - drop); }
+        : (c) => { c.moveTo(-.089 + inset, .745 - drop); c.lineTo(0, (back ? .69 : .668) - drop); c.lineTo(.089 - inset, .745 - drop); });
+      seams.push(neckline(.0095, 0));
+      for (const drop of [.0125, .0165]) stitches.push(neckline(drop, 0));
+    }
+    if (sleeves) {
+      // Set-in sleeves: the armhole seam from the shoulder down to the underarm, stitched on the body side.
+      for (const dir of [-1, 1]) {
+        seams.push((c) => { c.moveTo(dir * .257, .687); c.quadraticCurveTo(dir * .273, .61, dir * .261, .531); });
+        stitches.push((c) => { c.moveTo(dir * .2535, .683); c.quadraticCurveTo(dir * .269, .61, dir * .2565, .535); });
+      }
+    }
+    return { stitches, seams, folds };
+  }
+
+  /**
+   * Fine relief of the sewing as a normal map in the print's layout (seen when zoomed in):
+   * each stitch stands up and the fabric dips along the stitch rows, seams sink a little
+   * and pucker, and turned-up hems show a soft ridge. Depends only on the garment shape.
+   */
+  reliefMap() {
+    const W = this.canvas.width, H = this.canvas.height;
+    const height = document.createElement('canvas');
+    height.width = W; height.height = H;
+    const g = height.getContext('2d');
+    g.fillStyle = 'rgb(128,128,128)';
+    g.fillRect(0, 0, W, H);
+    const stroke = (paths, style, width, dash = []) => {
+      g.strokeStyle = style; g.lineWidth = width; g.setLineDash(dash); g.lineCap = 'round';
+      for (const draw of paths) { g.beginPath(); draw(g); g.stroke(); }
+    };
+    for (const back of [false, true]) {
+      const { stitches, seams, folds } = this.tailoring(back);
+      this.side(back, g);
+      stroke(seams, 'rgba(255,255,255,0.12)', .012, [.0035, .0035]);   // puckering across the seam
+      stroke(seams, 'rgba(0,0,0,0.32)', .0022);                        // the seam sinks
+      stroke(folds, 'rgba(255,255,255,0.24)', .004);                   // turned-up hem edge
+      stroke(stitches, 'rgba(0,0,0,0.24)', .0017);                     // fabric pulled down by the thread
+      stroke(stitches, 'rgba(255,255,255,0.8)', .0011, [.0024, .0016]); // each stitch stands up
+    }
+    // Soften the profiles, then turn heights into normals.
+    const soft = document.createElement('canvas');
+    soft.width = W; soft.height = H;
+    const sg = soft.getContext('2d', { willReadFrequently: true });
+    sg.filter = 'blur(0.8px)';
+    sg.drawImage(height, 0, 0);
+    const h = sg.getImageData(0, 0, W, H).data, out = sg.createImageData(W, H), o = out.data;
+    for (let y = 0; y < H; y++) {
+      const up = Math.max(0, y - 1) * W, down = Math.min(H - 1, y + 1) * W, row = y * W;
+      for (let x = 0; x < W; x++) {
+        const nx = (h[(row + Math.max(0, x - 1)) * 4] - h[(row + Math.min(W - 1, x + 1)) * 4]) / 255 * 2.4;
+        const ny = (h[(up + x) * 4] - h[(down + x) * 4]) / 255 * 2.4;
+        const len = Math.hypot(nx, ny, 1), i = (row + x) * 4;
+        o[i] = (nx / len * 0.5 + 0.5) * 255; o[i + 1] = (ny / len * 0.5 + 0.5) * 255; o[i + 2] = (1 / len * 0.5 + 0.5) * 255; o[i + 3] = 255;
+      }
+    }
+    sg.putImageData(out, 0, 0);
+    return soft;
+  }
+
+  /**
+   * Raised cover-stitch along each path (drawn in garment metres): a soft shadow,
+   * the thread, then a highlight on top, so stitches read tone-on-tone on any colour.
+   */
+  stitches(back, paths) {
+    const g = this.ctx;
+    this.side(back);
+    g.save();
+    g.setLineDash([.0024, .0016]);
+    g.lineCap = 'round';
+    for (const [dx, dy, style, width] of [[.00035, -.00045, 'rgba(0,0,0,0.42)', .0012], [0, 0, 'rgba(255,255,255,0.2)', .001], [-.00018, .00022, 'rgba(255,255,255,0.34)', .00045]]) {
+      g.save();
+      g.translate(dx, dy);
+      g.strokeStyle = style;
+      g.lineWidth = width;
+      for (const draw of paths) { g.beginPath(); draw(g); g.stroke(); }
+      g.restore();
+    }
+    g.restore();
+  }
+
   clipOutline(back) {
     const g = this.ctx;
     this.side(back);
@@ -98,6 +213,55 @@ export class KitPainter {
     this.outline.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
     g.closePath();
     g.clip();
+  }
+
+  /**
+   * The finished edges, each a run of outline points in garment metres: the hem (each leg
+   * opening on shorts) and each sleeve end. Bands and stitching follow them at an even
+   * distance, so they are the same width all the way round the body and the arms.
+   */
+  edges() {
+    if (this._edges) return this._edges;
+    const poly = this.outline, n = poly.length, shorts = this.kind === 'shorts';
+    const sleeves = ['jersey', 'tee', 'polo'].includes(this.kind);
+    const a = { x: 0.418, y: 0.566 }, b = { x: 0.372, y: 0.476 }, dx = b.x - a.x, dy = b.y - a.y;
+    const onCuff = (p) => {
+      const x = Math.abs(p.x), t = ((x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy);
+      return t >= 0 && t <= 1 && Math.hypot(x - a.x - dx * t, p.y - a.y - dy * t) < 0.006;
+    };
+    const kinds = poly.map((p) => (p.y < 0.03 && (!shorts || Math.abs(p.x) > 0.035) ? 'hem' : sleeves && onCuff(p) ? 'cuff' : null));
+    const runs = [], start = kinds.findIndex((k, i) => k !== kinds[(i - 1 + n) % n]);
+    for (let i = Math.max(0, start), seen = 0; start >= 0 && seen < n;) {
+      const kind = kinds[i], points = [];
+      while (seen < n && kinds[i] === kind) { points.push(poly[i]); i = (i + 1) % n; seen++; }
+      if (kind && points.length > 1) runs.push({ kind, points });
+    }
+    return (this._edges = runs);
+  }
+
+  /** An edge run moved `d` metres into the garment, square to the edge, and `ext` metres on past each end. */
+  inset(points, d, ext = 0) {
+    const n = points.length;
+    const out = points.map((p, i) => {
+      const a = points[Math.max(0, i - 1)], b = points[Math.min(n - 1, i + 1)], l = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      let nx = -(b.y - a.y) / l, ny = (b.x - a.x) / l;
+      if (!this.contains(p.x + nx * 0.003, p.y + ny * 0.003)) { nx = -nx; ny = -ny; }
+      return { x: p.x + nx * d, y: p.y + ny * d };
+    });
+    if (ext) {
+      const on = (p, q) => { const l = Math.hypot(p.x - q.x, p.y - q.y) || 1; return { x: p.x + ((p.x - q.x) / l) * ext, y: p.y + ((p.y - q.y) / l) * ext }; };
+      return [on(out[0], out[1]), ...out, on(out[n - 1], out[n - 2])];
+    }
+    return out;
+  }
+
+  /** Fills an even band `w` metres wide along an edge run (clipped to the outline by the caller). */
+  band(points, w) {
+    const g = this.ctx, path = [...this.inset(points, -0.004, 0.03), ...this.inset(points, w, 0.03).reverse()];
+    g.beginPath();
+    path.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
+    g.closePath();
+    g.fill();
   }
 
   proceduralPattern(design, name = design.pattern, ink = mix(design.main, design.secondary, 0.35)) {
@@ -222,18 +386,10 @@ export class KitPainter {
         }
         g.closePath();
         g.fill();
-        if (sleeves) {
-          g.beginPath();
-          g.moveTo(dir * 0.43, 0.6);
-          g.lineTo(dir * 0.395, 0.6);
-          g.lineTo(dir * 0.35, 0.47);
-          g.lineTo(dir * 0.385, 0.45);
-          g.closePath();
-          g.fill();
-        }
       }
-      // Hem band (leg hems on shorts) and the waistband.
-      g.fillRect(-0.3, 0, 0.6, 0.012);
+      // Bands an even width all the way round: the cuffs, the hem (leg hems on shorts), and
+      // the waistband. Each reaches a little past the edge so the rolled hem is banded too.
+      for (const run of this.edges()) this.band(run.points, run.kind === 'cuff' ? CUFF_BAND : HEM_BAND);
       if (shorts) g.fillRect(-0.3, 0.395, 0.6, 0.03);
 
       // AI pattern across the shoulders and sleeves (the yoke), fading out.
@@ -295,30 +451,7 @@ export class KitPainter {
         }
       }
       // Tailoring details are painted in the same panel coordinates as the kit.
-      // Fine double stitching and inset seams give the fabric a manufactured finish.
-      this.side(back);
-      g.strokeStyle = mix(design.main, design.accent, .24);
-      g.lineWidth = .0009;
-      g.setLineDash([.002, .0017]);
-      for (const inset of [0, .0032]) {
-        g.beginPath();
-        g.moveTo(-.255, .019 + inset);
-        g.quadraticCurveTo(0, .006 + inset, .255, .019 + inset);
-        g.stroke();
-        if (!shorts) {
-          for (const dir of [-1, 1]) {
-            g.beginPath();
-            g.moveTo(dir * (.105 + inset), .718);
-            g.quadraticCurveTo(dir * .235, .691 - inset, dir * .395, .548 - inset);
-            g.stroke();
-            g.beginPath();
-            g.moveTo(dir * (.235 - inset), .035);
-            g.quadraticCurveTo(dir * (.21 - inset), .29, dir * (.234 - inset), .496);
-            g.stroke();
-          }
-        }
-      }
-      g.setLineDash([]);
+      this.stitches(back, this.tailoring(back).stitches);
       g.restore();
     }
 
@@ -358,6 +491,7 @@ export class KitPainter {
       }
     } else {
       this._logo = null;
+      this._logoKey = null;
     }
     this.side(false);
     g.save();
@@ -515,14 +649,24 @@ export class KitPainter {
     return inside;
   }
 
-  /** Shorts: crest on one leg, number on the other, small wordmark behind. */
+  /**
+   * Shorts: crest on one leg, number on the other, small wordmark behind. The crest is the team
+   * logo, as on the shirt: the fixed chest crest, or else the logo placed on the front of the top
+   * (the logo-sized image nearest the chest crest). Artwork placed on the front of the shorts
+   * takes the crest's place.
+   */
   async paintShortsMarks(design, logo, textOutline) {
-    const g = this.ctx;
-    if (design.logoImage && design.logoImage !== this._logoKey) {
-      this._logo = await loadImage(design.logoImage).catch(() => null);
-      this._logoKey = design.logoImage;
+    const g = this.ctx, layers = design.layers ?? [];
+    const ownArt = layers.some((l) => l.part === 'shorts' && l.side !== 'back' && l.type !== 'text');
+    const nearCrest = (l) => Math.hypot(Math.abs(l.x) - 0.105, l.y - 0.6);
+    const topLogo = layers
+      .filter((l) => l.type === 'image' && (l.part ?? 'top') === 'top' && l.side !== 'back' && (l.w ?? 0.1) <= 0.18 && Math.abs(l.x) < 0.26)
+      .sort((a, b) => nearCrest(a) - nearCrest(b))[0];
+    const crest = design.logoImage || (ownArt ? null : topLogo?.src ?? null);
+    if (crest !== this._logoKey) {
+      this._logo = crest ? await loadImage(crest).catch(() => null) : null;
+      this._logoKey = crest;
     }
-    if (!design.logoImage) this._logo = null;
     this.side(false);
     g.save();
     g.translate(0.15, 0.13);
@@ -530,6 +674,8 @@ export class KitPainter {
       const box = 0.055, k = box / Math.max(this._logo.width, this._logo.height);
       g.scale(1, -1);
       g.drawImage(this._logo, (-this._logo.width * k) / 2, (-this._logo.height * k) / 2, this._logo.width * k, this._logo.height * k);
+    } else if (ownArt) {
+      // No default crest: the user's own artwork is on the shorts.
     } else {
       g.fillStyle = design.accent;
       g.beginPath();
@@ -543,7 +689,7 @@ export class KitPainter {
       g.fill();
     }
     g.restore();
-    if (!this._logo) this.text(false, '3D', 0.15, 0.13, 0.024, design.main, { maxWidth: 0.032 });
+    if (!this._logo && !ownArt) this.text(false, '3D', 0.15, 0.13, 0.024, design.main, { maxWidth: 0.032 });
     this.text(false, String(design.number ?? '23'), -0.15, 0.12, 0.075, design.accent, {
       maxWidth: 0.12,
       outline: textOutline,
@@ -555,15 +701,20 @@ export class KitPainter {
 }
 
 /** A small tileable knit normal map (pique dots), generated once. */
-export function knitNormalMap(size = 256) {
+/**
+ * Technical polyester sports knit: a fine diagonal twill. Raised yarn ridges run
+ * at 45° with recessed grooves between them, and the yarn crossings along each
+ * ridge step from one ridge to the next (as a twill does). Tileable; 32 ridges per tile.
+ */
+export function knitNormalMap(size = 512) {
   const h = new Float32Array(size * size);
-  const cells = 32, cell = size / cells;
+  const ridge = size / 32, yarn = size / 16;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const cx = ((x % cell) / cell) - 0.5, cy = ((y % cell) / cell) - 0.5;
-      const row = Math.floor(y / cell) % 2 ? 0.25 : 0;
-      const dx = ((cx + row + 1.5) % 1) - 0.5;
-      h[y * size + x] = Math.max(0, 1 - Math.hypot(dx * 1.4, cy) * 2.4);
+      const u = (x + y) / ridge, v = (x - y) / yarn;
+      const rib = 0.5 + 0.5 * Math.cos(2 * Math.PI * u);
+      const cross = 0.5 + 0.5 * Math.cos(2 * Math.PI * v + Math.PI * Math.floor(u));
+      h[y * size + x] = 0.68 * rib ** 1.6 + 0.32 * rib * cross;
     }
   }
   const c = document.createElement('canvas');

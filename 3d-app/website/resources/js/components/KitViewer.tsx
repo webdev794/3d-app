@@ -3,6 +3,9 @@ import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef,
 export type Garment = 'jersey' | 'tee' | 'polo' | 'singlet' | 'shorts' | 'fullkit';
 export type View = 'front' | 'side' | 'back';
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem';
+/** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
+const VIEWER_VERSION = '2026-10-14-8';
+
 export interface ArtworkLayer {
     id: string; name?: string; type: 'image' | 'text' | 'shape';
     part: 'top' | 'shorts'; side: 'front' | 'back'; x: number; y: number;
@@ -291,7 +294,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             <iframe
                 key={attempt}
                 ref={iframe}
-                src={`${appBase}/media/viewer/index.html?host=${encodeURIComponent(host)}&still&mobile`}
+                src={`${appBase}/media/viewer/index.html?host=${encodeURIComponent(host)}&still&mobile&v=${VIEWER_VERSION}`}
                 title="Interactive 3D kit preview. Drag to rotate and scroll to zoom."
                 allow="fullscreen"
                 style={{ width: '100%', height: '100%', minHeight: 260, display: 'block', border: 0 }}

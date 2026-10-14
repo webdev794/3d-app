@@ -25,10 +25,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#03070c;touch-action:n
 <script>${js}</script></body></html>`;
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, html);
-// Keep the same board, artwork tools and cinematic renderer in the apps.
-const mobileOut = path.join(root, 'assets/viewer/index.html');
-fs.mkdirSync(path.dirname(mobileOut), { recursive: true });
-fs.writeFileSync(mobileOut, html);
+// Keep the same board, artwork tools and cinematic renderer in the apps
+// (skipped with --website-only, so the app's files are left alone).
+if (!process.argv.includes('--website-only')) {
+  const mobileOut = path.join(root, 'assets/viewer/index.html');
+  fs.mkdirSync(path.dirname(mobileOut), { recursive: true });
+  fs.writeFileSync(mobileOut, html);
+}
 const presets = path.join(root, 'assets/presets.json');
 if (fs.existsSync(presets)) fs.copyFileSync(presets, path.join(root, 'website/public/media/presets.json'));
 console.log(`Cinematic website viewer built: ${path.relative(root, out)} (${Math.round(html.length / 1024)} KB)`);

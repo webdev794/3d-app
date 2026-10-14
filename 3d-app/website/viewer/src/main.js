@@ -55,12 +55,21 @@ const scene = new THREE.Scene();
 scene.background = backdrop();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.22;
+scene.environmentIntensity = 0.3;
 
 // A photographic stadium plate supplies the distant architecture. The editable
 // garment, stage, lighting, shadows and floor reflection are rendered in 3D.
 const environmentReady = new Promise((resolve) => {
   new THREE.TextureLoader().load(window.STADIUM || '../showroom/studio-backdrop.webp', (texture) => {
+    // Shallow depth of field: the stadium is softly out of focus behind the sharp kit.
+    const img = texture.image, blur = Math.max(2, Math.round(img.width / 240)), pad = blur * 3;
+    const soft = document.createElement('canvas');
+    soft.width = img.width; soft.height = img.height;
+    const g = soft.getContext('2d');
+    g.filter = `blur(${blur}px)`;
+    g.drawImage(img, -pad, -pad, img.width + pad * 2, img.height + pad * 2);
+    texture.dispose();
+    texture = new THREE.CanvasTexture(soft);
     texture.colorSpace = THREE.SRGBColorSpace;
     scene.background = texture;
     coverBackground();
@@ -73,25 +82,52 @@ const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 30);
 const { podium, ringMat, outerRing, pool, shadow } = createStudio(scene, renderer, mobile);
 
 // ---------- garment
+/** Relief of the sewing (stitches, seams, hem edges) per garment shape, made once. */
+const reliefs = new Map();
+/** Adds the sewing relief on top of the fabric weave (both are normal maps, blended in the shader). */
+function addRelief(target, painter) {
+  const key = `${painter.kind}:${painter.canvas.width}`;
+  if (!reliefs.has(key)) {
+    const relief = new THREE.CanvasTexture(painter.reliefMap());
+    relief.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    reliefs.set(key, relief);
+  }
+  const relief = reliefs.get(key);
+  target.customProgramCacheKey = () => 'sewing-relief';
+  target.onBeforeCompile = (shader) => {
+    shader.uniforms.reliefMap = { value: relief };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <normalmap_pars_fragment>', '#include <normalmap_pars_fragment>\nuniform sampler2D reliefMap;')
+      .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace(
+        'mapN.xy *= normalScale;',
+        'mapN.xy *= normalScale;\n\tvec3 relief = texture2D( reliefMap, vMapUv ).xyz * 2.0 - 1.0;\n\tmapN = normalize( vec3( mapN.xy + relief.xy, mapN.z * relief.z ) );',
+      ));
+  };
+}
+
 const kit = new THREE.Group();
 scene.add(kit);
 /** Garment parts on the podium: { painter, texture, rim, material }. */
 let parts = [];
 const material = new THREE.MeshPhysicalMaterial({
-  roughness: 0.82,
+  roughness: 0.64,
   reflectivity: 0.2,
   metalness: 0,
-  sheen: 0.12,
-  sheenRoughness: 0.72,
-  sheenColor: new THREE.Color(0x7192a7),
+  // Polyester's soft gloss, caught by the raised threads of the weave.
+  sheen: 0.45,
+  sheenRoughness: 0.42,
+  sheenColor: new THREE.Color(0x9fb4c6),
   side: THREE.FrontSide,
+  // Baked crease shading from the garment geometry (fold valleys, under the arms).
+  vertexColors: true,
 });
-const innerMaterial = new THREE.MeshStandardMaterial({ color: 0x05080c, roughness: 0.9, side: THREE.BackSide });
 const knit = new THREE.CanvasTexture(knitNormalMap());
 knit.wrapS = knit.wrapT = THREE.RepeatWrapping;
-knit.repeat.set(22, 11);
+// Twill ridges about 3 mm apart on the garment (u spans front + back, v one panel).
+knit.repeat.set(18, 9);
+knit.anisotropy = renderer.capabilities.getMaxAnisotropy();
 material.normalMap = knit;
-material.normalScale.set(0.17, 0.17);
+material.normalScale.set(0.42, 0.42);
 
 let design = { ...DEFAULT_DESIGN };
 let currentKind = null;
@@ -111,7 +147,7 @@ function buildKit(kind) {
   if (key === currentKind) return;
   currentKind = key;
   const geometries = new Set();
-  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); if (o.material !== innerMaterial) o.material.dispose(); } });
+  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); o.material.dispose(); } });
   geometries.forEach((geometry) => geometry.dispose());
   parts.forEach((part) => part.texture.dispose());
   kit.clear();
@@ -125,9 +161,11 @@ function buildKit(kind) {
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     const partMaterial = material.clone();
     partMaterial.map = texture;
+    addRelief(partMaterial, painter);
     const group = new THREE.Group();
-    // The inside of the fabric, seen through the neck, hem and cuffs.
-    group.add(new THREE.Mesh(garment.geometry, innerMaterial));
+    // The inside of the fabric, seen through the neck, hem and cuffs: the same print in
+    // shade (sublimated prints show through), not a black hole.
+    group.add(new THREE.Mesh(garment.geometry, new THREE.MeshStandardMaterial({ map: texture, color: 0x5a6068, roughness: 0.95, vertexColors: true, side: THREE.BackSide })));
     const fabric = new THREE.Mesh(garment.geometry, partMaterial);
     fabric.userData.part = parts.length;
     fabric.castShadow = true;
@@ -390,6 +428,9 @@ function backdrop() {
 }
 
 // ---------- public bridge (called from Flutter via runJavaScript)
+// Automated tests only (?debug): reach the camera for close-ups.
+if (new URLSearchParams(location.search).has('debug')) window.__v = { camera, controls, scene, kit, setCamera, get parts() { return parts; } };
+
 window.viewer = {
   setDesign: (json) => applyDesign(typeof json === 'string' ? JSON.parse(json) : json),
   setView,
