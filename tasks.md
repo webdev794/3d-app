@@ -9,7 +9,7 @@
 
 ## START HERE
 
-**Branch:** all work is on `v2` (v1.7.3, CorelDRAW-style Artboard built from `website/artboard/src`). `v3` is no longer used; missing features are built fresh in `v2`.
+**Branch:** work continues on `v3` = `v2` (v1.7.3, CorelDRAW-style Artboard built from `website/artboard/src`) + the 2026-10-14 work (old `v3` deleted and replaced 2026-10-14). `v2` itself is unchanged.
 
 **Still to build in `v2` (batches, each tested before the next):**
 - [x] Artboard effects and tools: Distort, Envelope, Extrude, Block Shadow, Mesh Fill, Table (5.24, 5.30–5.32, 5.34, 5.36)
