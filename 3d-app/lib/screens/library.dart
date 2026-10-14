@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../app_controller.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
+import 'business.dart';
 import 'onboarding.dart' show editServer;
 
 class _Tabs extends StatelessWidget {
@@ -94,6 +95,62 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (ok == true) widget.c.deleteProject(p);
   }
 
+  /// Long-press: order the kit or delete it (as the website's project menu).
+  Future<void> _actions(Project p) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Palette.surface,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                p.title,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(
+                p.approved
+                    ? 'Approved for production'
+                    : '${p.sport} · v${p.version}',
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, color: Palette.cyan),
+              title: const Text('Open in the studio'),
+              onTap: () => Navigator.pop(sheet, 'open'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.local_shipping_outlined,
+                color: Palette.cyan,
+              ),
+              title: const Text('Order this kit'),
+              onTap: () => Navigator.pop(sheet, 'order'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline,
+                color: Color(0xffff6b78),
+              ),
+              title: const Text('Delete'),
+              onTap: () => Navigator.pop(sheet, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    switch (action) {
+      case 'open':
+        widget.c.loadProject(p);
+      case 'order':
+        await showOrderKitSheet(context, widget.c, p);
+      case 'delete':
+        await _confirmDelete(p);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
@@ -101,6 +158,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       (p) => switch (_tab) {
         'AI Designs' => p.mode == 'AI',
         'DYO Designs' => p.mode == 'DYO',
+        'Approved' => p.approved,
         _ => true,
       },
     );
@@ -117,16 +175,27 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ],
         ),
         _Tabs(
-          labels: const ['All Designs', 'AI Designs', 'DYO Designs'],
+          labels: const [
+            'All Designs',
+            'AI Designs',
+            'DYO Designs',
+            'Approved',
+          ],
           selected: _tab,
           onSelect: (t) => setState(() => _tab = t),
         ),
         Expanded(
           child: shown.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No designs here yet.',
-                    style: TextStyle(color: Palette.muted),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: Text(
+                      _tab == 'Approved'
+                          ? 'Kits approved for production by 3DEEZI appear here.'
+                          : 'No designs here yet.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Palette.muted),
+                    ),
                   ),
                 )
               : GridView(
@@ -142,7 +211,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       GlowCard(
                         glow: false,
                         onTap: () => c.loadProject(p),
-                        onLongPress: () => _confirmDelete(p),
+                        onLongPress: () => _actions(p),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -169,6 +238,35 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                         size: 17,
                                         color: Palette.cyan,
                                         shadows: const [Shadow(blurRadius: 6)],
+                                      ),
+                                    ),
+                                  if (p.approved)
+                                    Positioned(
+                                      left: 7,
+                                      bottom: 7,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 7,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xe6052a1f),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xff34d399),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'APPROVED',
+                                          style: TextStyle(
+                                            color: Color(0xff34d399),
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: .8,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   if (p.localSaveError != null)
@@ -507,6 +605,16 @@ class ProfileScreen extends StatelessWidget {
               Icons.layers_outlined,
               'Asset library',
               () => c.go(AppScreen.assets),
+            ),
+            _row(
+              Icons.local_shipping_outlined,
+              'My orders',
+              () => c.go(AppScreen.orders),
+            ),
+            _row(
+              Icons.workspace_premium_outlined,
+              'Plans & pricing',
+              () => c.go(AppScreen.pricing),
             ),
             const SizedBox(height: 22),
             _row(

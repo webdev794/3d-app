@@ -7,124 +7,469 @@ import '../widgets/flow_ui.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
 
-/// 4 · Create home: choose AI Powered or Design Your Own.
-class CreateHomeScreen extends StatelessWidget {
+/// 4 · Create home, as the website: a stadium hero, then three glowing
+/// paths (AI Powered, Design Your Own, Artboard).
+class CreateHomeScreen extends StatefulWidget {
   const CreateHomeScreen(this.c, {super.key});
   final AppController c;
-
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Expanded(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-          child: Column(
-            children: [
-              const BrandLogo(width: 175, tagline: true),
-              const SizedBox(height: 18),
-              const ScreenTitle(
-                'How do you want to\n',
-                highlight: 'create?',
-                size: 25,
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _ModeCard(
-                  art: 'assets/images/art/home_ai.jpg',
-                  title: 'AI Powered',
-                  caption: 'Sportswear',
-                  body: 'Let 3DEEZI create it for you.',
-                  action: 'START WITH AI',
-                  onTap: c.startAi,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Expanded(
-                child: _ModeCard(
-                  art: 'assets/images/art/home_dyo.jpg',
-                  title: 'Design your own',
-                  body: 'Choose your sport and build it yourself.',
-                  action: 'START DESIGNING',
-                  onTap: c.startDyo,
-                ),
-              ),
-              const SizedBox(height: 12),
-              SecondaryButton(
-                label: 'Convert an image to 3D',
-                icon: Icons.document_scanner_outlined,
-                onPressed: () => convertFlow(context, c),
-              ),
-            ],
-          ),
-        ),
-      ),
-      BottomNav(controller: c),
-    ],
-  );
+  State<CreateHomeScreen> createState() => _CreateHomeScreenState();
 }
 
-class _ModeCard extends StatelessWidget {
-  const _ModeCard({
-    required this.art,
-    required this.title,
-    required this.body,
-    required this.action,
-    required this.onTap,
-    this.caption,
-  });
-  final String art, title, body, action;
-  final String? caption;
-  final VoidCallback onTap;
+class _CreateHomeScreenState extends State<CreateHomeScreen> {
+  final _paths = GlobalKey();
 
   @override
-  Widget build(BuildContext context) => GlowCard(
-    onTap: onTap,
+  Widget build(BuildContext context) {
+    final c = widget.c;
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Hero(
+                  onStart: () => Scrollable.ensureVisible(
+                    _paths.currentContext!,
+                    duration: const Duration(milliseconds: 450),
+                    curve: Curves.easeOut,
+                  ),
+                  onStudio: c.exploreStudio,
+                ),
+                Padding(
+                  key: _paths,
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const ScreenTitle(
+                        'How do you want to ',
+                        highlight: 'create?',
+                        size: 24,
+                      ),
+                      const SizedBox(height: 14),
+                      _PathCard(
+                        art: 'assets/images/art/home_ai.jpg',
+                        icon: Icons.auto_awesome,
+                        title: 'AI POWERED',
+                        sub: 'SPORTSWEAR',
+                        body:
+                            'Describe it. Create it. Refine it.\nTurn your brief into your next kit.',
+                        action: 'START WITH AI',
+                        onTap: c.startAi,
+                      ),
+                      const SizedBox(height: 16),
+                      _PathCard(
+                        art: 'assets/images/art/home_dyo.jpg',
+                        icon: Icons.view_in_ar_outlined,
+                        title: 'DESIGN',
+                        sub: 'YOUR OWN',
+                        body:
+                            'Choose your sport. Customize every\ndetail in 3D. Make it yours.',
+                        action: 'START DESIGNING',
+                        onTap: c.startDyo,
+                      ),
+                      const SizedBox(height: 16),
+                      _PathCard(
+                        illustration: const _MiniArtboard(),
+                        icon: Icons.draw_outlined,
+                        title: '3DEEZI',
+                        sub: 'ARTBOARD',
+                        body:
+                            'Arrange logos, shapes, and artwork.\nBring your composition into the 3D kit.',
+                        action: 'OPEN ARTBOARD',
+                        onTap: () => c.go(AppScreen.artboard),
+                      ),
+                      const SizedBox(height: 18),
+                      SecondaryButton(
+                        label: 'Convert an image to 3D',
+                        icon: Icons.document_scanner_outlined,
+                        onPressed: () => convertFlow(context, c),
+                      ),
+                      const SizedBox(height: 10),
+                      SecondaryButton(
+                        label: 'Plans & pricing',
+                        icon: Icons.workspace_premium_outlined,
+                        onPressed: () => c.go(AppScreen.pricing),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        BottomNav(controller: c),
+      ],
+    );
+  }
+}
+
+/// Floodlit stadium hero with the campaign line.
+class _Hero extends StatelessWidget {
+  const _Hero({required this.onStart, required this.onStudio});
+  final VoidCallback onStart, onStudio;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 450,
     child: Stack(
       fit: StackFit.expand,
       children: [
-        artImage(asset: art, alignment: const Alignment(0, -.2)),
+        artImage(
+          asset: 'assets/images/art/home_hero.webp',
+          alignment: const Alignment(.55, 0),
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xf2020509), Color(0x99020509), Color(0x00020509)],
+              stops: [0, .55, 1],
+            ),
+          ),
+        ),
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0x00000000), Color(0xe6020508)],
-              stops: [.35, .95],
+              colors: [Color(0x00000000), Color(0xff05090d)],
+              stops: [.7, 1],
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ScreenTitle(title, size: 24, align: TextAlign.left),
-              if (caption != null)
-                Text(
-                  caption!.toUpperCase(),
-                  style: const TextStyle(
-                    color: Palette.cyan,
-                    fontSize: 12,
-                    letterSpacing: 4.5,
-                    fontWeight: FontWeight.w700,
-                  ),
+              const BrandLogo(width: 120, tagline: true),
+              const Spacer(),
+              const Text(
+                'FROM IDEA TO YOUR TEAM’S NEXT KIT',
+                style: TextStyle(
+                  color: Palette.cyan,
+                  fontSize: 9.5,
+                  letterSpacing: 2.2,
+                  fontWeight: FontWeight.w700,
                 ),
-              const SizedBox(height: 3),
-              Text(
-                body,
-                style: const TextStyle(fontSize: 12, color: Color(0xffc9d6e0)),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
+              const Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: 'YOUR NEXT\n'),
+                    TextSpan(
+                      text: 'GAME CHANGER.\n',
+                      style: TextStyle(color: Palette.cyan),
+                    ),
+                    TextSpan(text: 'STARTS HERE.'),
+                  ],
+                ),
+                style: TextStyle(
+                  fontFamily: 'Rajdhani',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 36,
+                  height: .98,
+                  shadows: [Shadow(color: Color(0xaa000000), blurRadius: 12)],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const SizedBox(
+                width: 260,
+                child: Text(
+                  'Create sportswear with AI, real-time 3D, and your own artwork.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: Color(0xffc9d6e0)),
+                ),
+              ),
+              const SizedBox(height: 12),
               SizedBox(
-                width: 215,
+                width: 230,
                 child: GradientButton(
-                  label: action,
+                  label: 'START CREATING',
                   icon: Icons.arrow_forward_rounded,
                   compact: true,
-                  onPressed: onTap,
+                  onPressed: onStart,
                 ),
               ),
+              const SizedBox(height: 4),
+              TextButton.icon(
+                onPressed: onStudio,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+                icon: const Icon(Icons.view_in_ar_outlined, size: 17),
+                label: const Text(
+                  'EXPLORE THE 3D STUDIO  →',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// A creation path tile with the website's cyan glow.
+class _PathCard extends StatelessWidget {
+  const _PathCard({
+    this.art,
+    this.illustration,
+    required this.icon,
+    required this.title,
+    required this.sub,
+    required this.body,
+    required this.action,
+    required this.onTap,
+  });
+  final String? art;
+  final Widget? illustration;
+  final IconData icon;
+  final String title, sub, body, action;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '$title $sub',
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Palette.cyan.withValues(alpha: .33),
+            blurRadius: 18,
+            spreadRadius: -1,
+          ),
+          BoxShadow(
+            color: Palette.cyan.withValues(alpha: .15),
+            blurRadius: 46,
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: Material(
+        color: const Color(0xff061725),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: Palette.cyan.withValues(alpha: .67),
+            width: 2,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 232,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (art != null)
+                  artImage(asset: art!, alignment: const Alignment(.6, -.2)),
+                if (illustration != null)
+                  Align(alignment: Alignment.topRight, child: illustration),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Color(0xee020810),
+                        Color(0x55020810),
+                        Color(0x00020810),
+                      ],
+                      stops: [0, .6, 1],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(icon, color: Palette.cyan, size: 26),
+                          const SizedBox(width: 10),
+                          Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(text: '$title\n'),
+                                TextSpan(
+                                  text: sub,
+                                  style: const TextStyle(color: Palette.cyan),
+                                ),
+                              ],
+                            ),
+                            style: const TextStyle(
+                              fontFamily: 'Rajdhani',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 24,
+                              height: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        // Leave room for the Artboard tile's picture.
+                        width: illustration == null ? null : 150,
+                        child: Text(
+                          illustration == null
+                              ? body
+                              : body.replaceAll('\n', ' '),
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xffc9d6e0),
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      OutlinedButton.icon(
+                        onPressed: onTap,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Palette.cyan,
+                          side: const BorderSide(
+                            color: Palette.cyan,
+                            width: 1.4,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        iconAlignment: IconAlignment.end,
+                        icon: const Icon(Icons.arrow_forward_rounded, size: 17),
+                        label: Text(
+                          action,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .6,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The Artboard tile's picture: a tiny editor with the 3DEEZI emblem.
+class _MiniArtboard extends StatelessWidget {
+  const _MiniArtboard();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 170,
+    height: 150,
+    margin: const EdgeInsets.fromLTRB(0, 18, 14, 0),
+    decoration: BoxDecoration(
+      color: const Color(0xff0b1622),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0xff234257)),
+      boxShadow: [
+        BoxShadow(color: Palette.cyan.withValues(alpha: .18), blurRadius: 18),
+      ],
+    ),
+    child: Column(
+      children: [
+        Container(
+          height: 16,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: const BoxDecoration(
+            color: Color(0xff1a2233),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+          ),
+          child: Row(
+            children: [
+              for (final c in const [
+                Color(0xffff5f57),
+                Color(0xfffebc2e),
+                Color(0xff28c840),
+              ])
+                Container(
+                  width: 6,
+                  height: 6,
+                  margin: const EdgeInsets.only(right: 4),
+                  decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Row(
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Icon(Icons.near_me_outlined, size: 13, color: Palette.cyan),
+                    Icon(Icons.draw_outlined, size: 13, color: Palette.muted),
+                    Icon(Icons.text_fields, size: 13, color: Palette.muted),
+                    Icon(Icons.layers_outlined, size: 13, color: Palette.muted),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(0, 6, 6, 6),
+                  color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Image.asset(
+                      'assets/images/emblem-final.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (final c in const [
+                Palette.cyan,
+                Palette.blue,
+                Color(0xff7b4dff),
+                Color(0xffe8edf2),
+              ])
+                Container(
+                  width: 12,
+                  height: 12,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: c,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
             ],
           ),
         ),

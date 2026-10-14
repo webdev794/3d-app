@@ -88,6 +88,7 @@ class ProjectSync {
       remoteId: j['id'] as int,
       remoteVersion: remoteVersion,
       persisted: false,
+      approved: j['status'] == 'approved',
       title: j['name'] as String? ?? 'Untitled',
       sport:
           app['sport'] as String? ??

@@ -1,7 +1,7 @@
 name: three_deezi
 description: A client presentation prototype of the 3DEEZI sportswear designer.
 publish_to: none
-version: 1.7.3+13
+version: 1.7.4+14
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:

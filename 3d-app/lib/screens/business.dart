@@ -1,0 +1,1149 @@
+import 'package:flutter/material.dart';
+
+import '../api_client.dart';
+import '../app_controller.dart';
+import '../widgets/flow_ui.dart';
+import '../widgets/ui.dart';
+
+// Plans, Corporate Partner, ordering kits and order tracking: the same
+// offer and server endpoints as the website (/pricing, /orders).
+
+const _purple = Color(0xff8b5cf6);
+
+class _Plan {
+  const _Plan(
+    this.name,
+    this.tag,
+    this.monthly,
+    this.yearly,
+    this.credits,
+    this.features, {
+    this.popular = false,
+  });
+  final String name, tag;
+  final int monthly, yearly, credits;
+  final List<String> features;
+  final bool popular;
+}
+
+const _plans = [
+  _Plan('Rookie', 'Try it free', 0, 0, 20, [
+    'Unlimited 3D design studio',
+    '3 saved projects',
+    '20 AI credits each month',
+    'Standard-resolution exports',
+    '3DEEZI watermark on AI images',
+  ]),
+  _Plan('Creator', 'For designers & coaches', 19, 190, 250, [
+    'Everything in Rookie',
+    '250 AI credits each month',
+    'Unlimited projects & versions',
+    'HD exports, no watermark',
+    'Convert any image to 3D',
+  ]),
+  _Plan('Club', 'For clubs & schools', 59, 590, 900, [
+    'Everything in Creator',
+    '900 AI credits each month',
+    '5 team seats',
+    'Shared logo & asset library',
+    'Approval workflow for committees',
+    'Priority generation',
+  ], popular: true),
+  _Plan('Pro Studio', 'For brands & resellers', 149, 1490, 3000, [
+    'Everything in Club',
+    '3,000 AI credits each month',
+    '15 team seats',
+    'Brand kit & commercial licence',
+    'Custom branding on mockups',
+    'Dedicated support',
+  ]),
+];
+const _costs = [
+  ('AI edit in the studio (“Ask 3DEEZI”)', 1),
+  ('Convert an image to 3D', 1),
+  ('Four AI concepts with previews', 2),
+  ('AI print pattern', 3),
+  ('Photoreal showcase image', 5),
+  ('HD presentation mockup (one prompt)', 10),
+];
+const _perks = [
+  'Website integration',
+  'Your branding & garments',
+  'Team-led onboarding',
+  'Training & setup',
+  'Annual AI credit allowance',
+  'Priority partner support',
+];
+const _steps = [
+  ('Apply', Icons.assignment_outlined),
+  ('Consultation', Icons.forum_outlined),
+  ('Onboarding', Icons.handshake_outlined),
+  ('Launch', Icons.rocket_launch_outlined),
+];
+
+const _eyebrow = TextStyle(
+  color: Palette.cyan,
+  fontSize: 10.5,
+  letterSpacing: 2.4,
+  fontWeight: FontWeight.w700,
+);
+const _heading = TextStyle(
+  fontFamily: 'Rajdhani',
+  fontWeight: FontWeight.w700,
+  fontSize: 24,
+  height: 1.05,
+);
+
+/// Plans & pricing, with the Corporate Partner plan (as on the website).
+class PricingScreen extends StatefulWidget {
+  const PricingScreen(this.c, {super.key});
+  final AppController c;
+  @override
+  State<PricingScreen> createState() => _PricingScreenState();
+}
+
+class _PricingScreenState extends State<PricingScreen> {
+  bool _yearly = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.c;
+    return Column(
+      children: [
+        TopBar(onBack: c.back, title: 'Plans & pricing'),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 6, 18, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'PROPOSED PLANS · FOR DISCUSSION',
+                  style: _eyebrow,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const ScreenTitle(
+                  'Design more. ',
+                  highlight: 'Pay for what you use.',
+                  size: 25,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'The 3D studio is unlimited on every plan. Credits are only used when AI creates something.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Palette.muted,
+                    fontSize: 12.5,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Center(
+                  child: SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('Monthly')),
+                      ButtonSegment(
+                        value: true,
+                        label: Text('Yearly · 2 months free'),
+                      ),
+                    ],
+                    selected: {_yearly},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (v) =>
+                        setState(() => _yearly = v.first),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                for (final p in _plans) ...[
+                  _PlanCard(p, yearly: _yearly, onStart: c.startDyo),
+                  const SizedBox(height: 14),
+                ],
+                _PartnerCard(onApply: () => showPartnerSheet(context, c)),
+                const SizedBox(height: 14),
+                SurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('WHAT A CREDIT BUYS', style: _eyebrow),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Simple, predictable AI costs.',
+                        style: _heading,
+                      ),
+                      const SizedBox(height: 10),
+                      for (final (label, n) in _costs)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  label,
+                                  style: const TextStyle(fontSize: 12.5),
+                                ),
+                              ),
+                              Text(
+                                '$n credit${n > 1 ? 's' : ''}',
+                                style: const TextStyle(
+                                  color: Palette.cyan,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Extra credits: 100 for A\$9 or 500 for A\$39, and they never expire. Prices include GST.',
+                        style: TextStyle(
+                          color: Palette.muted,
+                          fontSize: 11.5,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'This is a proposed structure for review. Prices, credit amounts and features can be adjusted before payments go live.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Palette.muted, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PlanCard extends StatelessWidget {
+  const _PlanCard(this.p, {required this.yearly, required this.onStart});
+  final _Plan p;
+  final bool yearly;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final price = p.monthly == 0
+        ? 'Free'
+        : 'A\$${yearly ? (p.yearly / 12).round() : p.monthly}';
+    return GlowCard(
+      selected: p.popular,
+      radius: 14,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(p.name, style: _heading)),
+                if (p.popular)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      gradient: const LinearGradient(
+                        colors: [Palette.cyan, Palette.blue],
+                      ),
+                    ),
+                    child: const Text(
+                      'MOST POPULAR',
+                      style: TextStyle(
+                        color: Color(0xff02131c),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            Text(
+              p.tag,
+              style: const TextStyle(color: Palette.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: price,
+                    style: const TextStyle(
+                      fontFamily: 'Rajdhani',
+                      fontSize: 32,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (p.monthly > 0)
+                    TextSpan(
+                      text: yearly
+                          ? ' / month, A\$${p.yearly} billed yearly'
+                          : ' / month',
+                      style: const TextStyle(
+                        color: Palette.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.auto_awesome, size: 15, color: Palette.cyan),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    '${_n(p.credits)} AI credits / month',
+                    style: const TextStyle(
+                      color: Palette.cyan,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final f in p.features) _Check(f),
+            const SizedBox(height: 10),
+            p.popular
+                ? GradientButton(
+                    label: p.monthly > 0
+                        ? 'START 7-DAY FREE TRIAL'
+                        : 'START DESIGNING',
+                    compact: true,
+                    onPressed: onStart,
+                  )
+                : SecondaryButton(
+                    label: p.monthly > 0
+                        ? 'Start 7-day free trial'
+                        : 'Start designing',
+                    onPressed: onStart,
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _n(int v) =>
+    v >= 1000 ? '${v ~/ 1000},${(v % 1000).toString().padLeft(3, '0')}' : '$v';
+
+class _Check extends StatelessWidget {
+  const _Check(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: Icon(Icons.check_rounded, size: 16, color: Palette.cyan),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5))),
+      ],
+    ),
+  );
+}
+
+/// Corporate Partner: a glowing purple-cyan card, as on the website.
+class _PartnerCard extends StatelessWidget {
+  const _PartnerCard({required this.onApply});
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(16),
+      gradient: const LinearGradient(
+        colors: [Palette.cyan, _purple, Palette.cyan],
+        stops: [0, .55, 1],
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: _purple.withValues(alpha: .35),
+          blurRadius: 26,
+          spreadRadius: -2,
+        ),
+        BoxShadow(
+          color: Palette.cyan.withValues(alpha: .2),
+          blurRadius: 18,
+          spreadRadius: -2,
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.all(1.6),
+    child: Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14.5),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xff0a1222), Color(0xff060c17)],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: _purple.withValues(alpha: .15),
+              border: Border.all(color: _purple.withValues(alpha: .7)),
+            ),
+            child: const Text(
+              'YEARLY ONLY',
+              style: TextStyle(
+                color: Color(0xffc4b5fd),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.6,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: 'Corporate '),
+                TextSpan(
+                  text: 'Partner',
+                  style: TextStyle(color: Palette.cyan),
+                ),
+              ],
+            ),
+            style: TextStyle(
+              fontFamily: 'Rajdhani',
+              fontSize: 30,
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Bring 3DEEZI to your website.',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 3),
+          const Text(
+            'For sportswear companies ready to offer their own online design studio.',
+            style: TextStyle(color: Palette.muted, fontSize: 12.5),
+          ),
+          const SizedBox(height: 12),
+          const Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'From ',
+                  style: TextStyle(fontSize: 14, color: Color(0xffcbd5e1)),
+                ),
+                TextSpan(
+                  text: 'A\$5,990',
+                  style: TextStyle(
+                    fontFamily: 'Rajdhani',
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                TextSpan(
+                  text: '/year',
+                  style: TextStyle(fontSize: 14, color: Color(0xffcbd5e1)),
+                ),
+              ],
+            ),
+          ),
+          const Text(
+            'Yearly only. Setup fee applies. Pricing excludes GST.',
+            style: TextStyle(color: Palette.muted, fontSize: 11.5),
+          ),
+          const SizedBox(height: 10),
+          for (final p in _perks) _Check(p),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              for (final (i, (label, ic)) in _steps.indexed) ...[
+                Expanded(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: (i.isOdd ? _purple : Palette.cyan).withValues(
+                            alpha: .12,
+                          ),
+                          border: Border.all(
+                            color: (i.isOdd ? _purple : Palette.cyan)
+                                .withValues(alpha: .7),
+                            width: 1.4,
+                          ),
+                        ),
+                        child: Icon(
+                          ic,
+                          size: 18,
+                          color: i.isOdd
+                              ? const Color(0xffc4b5fd)
+                              : Palette.cyan,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (i < _steps.length - 1)
+                  const Icon(
+                    Icons.arrow_forward,
+                    size: 13,
+                    color: Palette.muted,
+                  ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          GradientButton(
+            label: 'APPLY TO BECOME A PARTNER',
+            icon: Icons.arrow_forward_rounded,
+            compact: true,
+            onPressed: onApply,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// -------------------------------------------------------------------
+// Bottom-sheet forms
+// -------------------------------------------------------------------
+Future<T?> _sheet<T>(BuildContext context, Widget child) =>
+    showModalBottomSheet<T>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Palette.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheet) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheet).bottom),
+        child: SafeArea(top: false, child: child),
+      ),
+    );
+
+InputDecoration _field(String label, {String? hint}) => InputDecoration(
+  labelText: label,
+  hintText: hint,
+  isDense: true,
+  border: const OutlineInputBorder(),
+);
+
+/// "Apply to become a partner" form (POST /partners/apply).
+Future<void> showPartnerSheet(BuildContext context, AppController c) =>
+    _sheet(context, _PartnerForm(c));
+
+class _PartnerForm extends StatefulWidget {
+  const _PartnerForm(this.c);
+  final AppController c;
+  @override
+  State<_PartnerForm> createState() => _PartnerFormState();
+}
+
+class _PartnerFormState extends State<_PartnerForm> {
+  final _form = GlobalKey<FormState>();
+  late final _fields = {
+    for (final k in ['company', 'website', 'name', 'phone', 'email', 'message'])
+      k: TextEditingController(),
+  };
+  bool _busy = false;
+  String? _error, _done;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.c.signedIn) {
+      _fields['name']!.text = widget.c.user!.name;
+      _fields['email']!.text = widget.c.user!.email;
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final t in _fields.values) {
+      t.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final reply = await widget.c.api.applyPartner({
+        for (final e in _fields.entries) e.key: e.value.text.trim(),
+      });
+      if (mounted) setState(() => _done = reply);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+    child: Form(
+      key: _form,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('CORPORATE PARTNER', style: _eyebrow),
+          const SizedBox(height: 4),
+          const Text('Apply to become a partner', style: _heading),
+          const SizedBox(height: 8),
+          if (_done != null) ...[
+            Row(
+              children: [
+                const Icon(Icons.check_circle_outline, color: Palette.cyan),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(_done!, style: const TextStyle(fontSize: 13)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            GradientButton(
+              label: 'CLOSE',
+              compact: true,
+              onPressed: () => Navigator.pop(context),
+            ),
+          ] else ...[
+            const Text(
+              'Tell us about your company. We’ll book a consultation to plan your branded 3DEEZI studio.',
+              style: TextStyle(color: Palette.muted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _fields['company'],
+              decoration: _field('Company'),
+              maxLength: 160,
+              validator: _required,
+            ),
+            TextFormField(
+              controller: _fields['website'],
+              decoration: _field('Website', hint: 'yoursport.com'),
+              maxLength: 255,
+              keyboardType: TextInputType.url,
+            ),
+            TextFormField(
+              controller: _fields['name'],
+              decoration: _field('Your name'),
+              maxLength: 120,
+              validator: _required,
+            ),
+            TextFormField(
+              controller: _fields['phone'],
+              decoration: _field('Phone'),
+              maxLength: 40,
+              keyboardType: TextInputType.phone,
+            ),
+            TextFormField(
+              controller: _fields['email'],
+              decoration: _field('Email'),
+              maxLength: 190,
+              keyboardType: TextInputType.emailAddress,
+              validator: _email,
+            ),
+            TextFormField(
+              controller: _fields['message'],
+              decoration: _field(
+                'What would you like to offer?',
+                hint: 'Sports, garments, expected customers, launch date',
+              ),
+              maxLength: 3000,
+              minLines: 2,
+              maxLines: 4,
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: Color(0xffff6b78),
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            GradientButton(
+              label: _busy ? 'SENDING…' : 'SEND APPLICATION',
+              compact: true,
+              onPressed: _busy ? null : _send,
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+String? _required(String? v) => (v ?? '').trim().isEmpty ? 'Required' : null;
+String? _email(String? v) =>
+    RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch((v ?? '').trim())
+    ? null
+    : 'Enter a valid email';
+
+/// Order a saved kit: quantities by size and delivery details (POST /orders).
+Future<void> showOrderKitSheet(
+  BuildContext context,
+  AppController c,
+  Project p,
+) async {
+  if (!c.signedIn) {
+    showToast(context, 'Sign in to order kits.');
+    c.go(AppScreen.auth);
+    return;
+  }
+  await _sheet(context, _OrderForm(c, p));
+}
+
+const orderSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
+
+class _OrderForm extends StatefulWidget {
+  const _OrderForm(this.c, this.p);
+  final AppController c;
+  final Project p;
+  @override
+  State<_OrderForm> createState() => _OrderFormState();
+}
+
+class _OrderFormState extends State<_OrderForm> {
+  final _form = GlobalKey<FormState>();
+  final _sizes = <String, int>{};
+  late final _name = TextEditingController(text: widget.c.user?.name ?? '');
+  final _phone = TextEditingController(),
+      _address = TextEditingController(),
+      _notes = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  int get _total => _sizes.values.fold(0, (a, b) => a + b);
+
+  @override
+  void dispose() {
+    for (final t in [_name, _phone, _address, _notes]) {
+      t.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    if (!_form.currentState!.validate() || _total < 1) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final order = await widget.c.orderKit(widget.p, {
+        'sizes': {
+          for (final e in _sizes.entries)
+            if (e.value > 0) e.key: e.value,
+        },
+        'contact_name': _name.text.trim(),
+        'phone': _phone.text.trim(),
+        'shipping_address': _address.text.trim(),
+        'notes': _notes.text.trim(),
+      });
+      if (!mounted) return;
+      Navigator.pop(context);
+      showToast(
+        context,
+        'Order ${order['number'] ?? ''} sent. We’ll confirm the price and timing.',
+      );
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _stepper(String size) {
+    final n = _sizes[size] ?? 0;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: n > 0 ? Palette.cyan : Palette.border),
+        borderRadius: BorderRadius.circular(10),
+        color: Palette.surface2,
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            size,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _tiny(
+                Icons.remove,
+                n > 0 ? () => setState(() => _sizes[size] = n - 1) : null,
+                'Fewer $size',
+              ),
+              SizedBox(
+                width: 26,
+                child: Text(
+                  '$n',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: n > 0 ? Palette.cyan : Palette.muted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              _tiny(
+                Icons.add,
+                () => setState(() => _sizes[size] = n + 1),
+                'More $size',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tiny(IconData icon, VoidCallback? onTap, String label) => IconButton(
+    tooltip: label,
+    onPressed: onTap,
+    icon: Icon(icon, size: 16),
+    visualDensity: VisualDensity.compact,
+    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+    padding: EdgeInsets.zero,
+  );
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+    child: Form(
+      key: _form,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('ORDER THIS KIT', style: _eyebrow),
+          const SizedBox(height: 4),
+          Text(
+            widget.p.title,
+            style: _heading,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Tell us the sizes you need. We’ll confirm the price and timing before anything is made.',
+            style: TextStyle(color: Palette.muted, fontSize: 12.5),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Quantities by size · $_total total',
+            style: const TextStyle(fontSize: 12, color: Palette.muted),
+          ),
+          const SizedBox(height: 8),
+          GridView.count(
+            crossAxisCount: 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 1.45,
+            children: [for (final s in orderSizes) _stepper(s)],
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _name,
+            decoration: _field('Contact name'),
+            maxLength: 120,
+            validator: _required,
+          ),
+          TextFormField(
+            controller: _phone,
+            decoration: _field('Phone'),
+            maxLength: 40,
+            keyboardType: TextInputType.phone,
+          ),
+          TextFormField(
+            controller: _address,
+            decoration: _field('Delivery address'),
+            maxLength: 1000,
+            minLines: 1,
+            maxLines: 3,
+          ),
+          TextFormField(
+            controller: _notes,
+            decoration: _field(
+              'Notes',
+              hint: 'Deadline, player names, anything we should know',
+            ),
+            maxLength: 2000,
+            minLines: 1,
+            maxLines: 3,
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                _error!,
+                style: const TextStyle(
+                  color: Color(0xffff6b78),
+                  fontSize: 12.5,
+                ),
+              ),
+            ),
+          GradientButton(
+            label: _busy
+                ? 'SENDING…'
+                : 'SEND ORDER REQUEST · $_total ITEM${_total == 1 ? '' : 'S'}',
+            compact: true,
+            onPressed: _busy || _total < 1 ? null : _send,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// My orders: status, quantities and price once 3DEEZI quotes it.
+class OrdersScreen extends StatefulWidget {
+  const OrdersScreen(this.c, {super.key});
+  final AppController c;
+  @override
+  State<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends State<OrdersScreen> {
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.c.signedIn) _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await widget.c.loadOrders();
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.c;
+    return Column(
+      children: [
+        TopBar(
+          onBack: c.back,
+          title: 'My orders',
+          trailing: [
+            if (c.signedIn)
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh),
+              ),
+          ],
+        ),
+        Expanded(
+          child: !c.signedIn
+              ? _Empty(
+                  'Sign in to order kits and follow them here.',
+                  action: 'SIGN IN',
+                  onAction: () => c.go(AppScreen.auth),
+                )
+              : _loading && c.orders.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null && c.orders.isEmpty
+              ? _Empty(_error!, action: 'TRY AGAIN', onAction: _load)
+              : c.orders.isEmpty
+              ? _Empty(
+                  'No orders yet. Open a project and choose “Order this kit”.',
+                  action: 'MY PROJECTS',
+                  onAction: () => c.go(AppScreen.projects),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                    itemCount: c.orders.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (_, i) => _OrderCard(c.orders[i]),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Empty extends StatelessWidget {
+  const _Empty(this.text, {required this.action, required this.onAction});
+  final String text, action;
+  final VoidCallback onAction;
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.inventory_2_outlined, size: 42, color: Palette.cyan),
+          const SizedBox(height: 12),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Palette.muted),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: 220,
+            child: GradientButton(
+              label: action,
+              compact: true,
+              onPressed: onAction,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+const _statusColours = {
+  'pending': Color(0xffffbc75),
+  'confirmed': Palette.cyan,
+  'in_production': Color(0xff8b78f2),
+  'shipped': Color(0xff4cc9f0),
+  'delivered': Color(0xff34d399),
+  'cancelled': Color(0xffff6b78),
+};
+String statusLabel(String s) =>
+    s.isEmpty ? s : (s[0].toUpperCase() + s.substring(1)).replaceAll('_', ' ');
+
+class _OrderCard extends StatelessWidget {
+  const _OrderCard(this.o);
+  final Map<String, dynamic> o;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = '${o['status'] ?? 'pending'}',
+        colour = _statusColours[status] ?? Palette.muted;
+    final total = o['total'],
+        sizes = (o['sizes'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final project = (o['project'] as Map?)?.cast<String, dynamic>();
+    final date = DateTime.tryParse('${o['created_at']}')?.toLocal();
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${o['number'] ?? 'Order'}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: colour.withValues(alpha: .14),
+                  border: Border.all(color: colour.withValues(alpha: .6)),
+                ),
+                child: Text(
+                  statusLabel(status),
+                  style: TextStyle(
+                    color: colour,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            project?['name'] as String? ?? 'Custom kit',
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${o['quantity'] ?? 0} garments · ${sizes.entries.map((e) => '${e.key} ${e.value}').join(', ')}',
+            style: const TextStyle(color: Palette.muted, fontSize: 11.5),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                total == null
+                    ? 'Quote pending'
+                    : 'A\$${double.tryParse('$total')?.toStringAsFixed(2) ?? total}',
+                style: TextStyle(
+                  color: total == null ? Palette.muted : Palette.cyan,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              if (date != null)
+                Text(
+                  '${date.day}/${date.month}/${date.year}',
+                  style: const TextStyle(color: Palette.muted, fontSize: 11),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
