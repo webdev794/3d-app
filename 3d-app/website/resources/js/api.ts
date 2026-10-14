@@ -45,7 +45,9 @@ export async function fetchFile(path: string): Promise<Blob> { return (await req
 export function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
-  anchor.href = url; anchor.download = filename; anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  anchor.href = url; anchor.download = filename;
+  document.body.append(anchor); anchor.click(); anchor.remove();
+  // Release the file a minute later: revoking it before a slow or busy browser has read it cancels the download.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 export async function downloadFile(path: string, filename: string) { saveBlob(await fetchFile(path), filename); }

@@ -6,7 +6,7 @@ import type { ArtworkLayer } from '../types';
 import { placements, readAsset, type LibraryAsset } from '../components/StudioArtwork';
 
 /** Bump when the editor (media/artboard/index.html) is rebuilt, so browsers load the new copy. */
-const EDITOR_VERSION = '2026-10-14-10';
+const EDITOR_VERSION = '2026-10-14-13';
 
 /**
  * The 3DEEZI Artboard (CorelDRAW-style artwork editor). The editor itself is

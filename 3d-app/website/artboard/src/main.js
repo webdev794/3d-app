@@ -13,6 +13,7 @@
 import {
   Canvas, Rect, Ellipse, Path, IText, FabricImage, PencilBrush,
   ActiveSelection, Group, Gradient, Pattern, Point, Shadow, util, loadSVGFromString,
+  FitContentLayout, LayoutManager, classRegistry,
 } from 'fabric';
 import { jsPDF } from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
@@ -302,7 +303,7 @@ canvas.on('object:moving', (e) => {
 // ===================================================================
 // History (undo / redo) and autosave
 // ===================================================================
-const EXTRA = ['name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell'];
+const EXTRA = ['name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell', 'pcFrame'];
 let history = [], future = [], restoring = false, muted = 0, saveTimer = null;
 const snapshot = () => JSON.stringify({ page: pageSize, guides: guides.get(), objects: userObjects().map((o) => o.toObject(EXTRA)) });
 function record() {
@@ -329,7 +330,7 @@ async function restore(snap) {
   setPage(data.page ?? pageSize, false);
   guides.set(data.guides);
   const objects = await util.enlivenObjects(data.objects ?? []);
-  for (const o of objects) { pruneEmptyParts(o); style(o); canvas.add(o); }
+  for (const o of objects) { pruneEmptyParts(o); fitPowerClips(o); style(o); canvas.add(o); }
   canvas.discardActiveObject();
   canvas.requestRenderAll();
   restoring = false;
@@ -346,8 +347,8 @@ function syncHistory() {
   $('undo').disabled = history.length < 2;
   $('redo').disabled = !future.length;
 }
-async function undo() { if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); }
-async function redo() { if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); }
+async function undo() { if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); }
+async function redo() { if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); }
 for (const ev of ['object:added', 'object:removed', 'object:modified']) canvas.on(ev, () => { if (muted) return; refreshLayers(); record(); });
 
 const guides = createGuides({
@@ -405,6 +406,7 @@ async function convertToCurves(objs = active()) {
         for (const k of conv) canvas.remove(k);
         const g = style(new Group(conv), { toolName: 'Group' });
         g.name = o.name;
+        if (o.powerClip) g.powerClip = true;
         replaceObject(o, g); out.push(g);
       } else { const p = toPathObject(o, { quiet: false }); if (p) out.push(p); }
     }
@@ -574,6 +576,7 @@ function applyToolFlags() {
 }
 function setTool(tool) {
   if (!TOOLS[tool]) return;
+  if (pcEdit && tool !== 'select') finishPowerClipEdit();
   finishPath(); cancelCurve3(); attrSample = null; pickFrame = null;
   if (tool === 'image') { $('fileImage').click(); return; }
   const prev = state.tool;
@@ -648,7 +651,8 @@ canvas.on('mouse:down', (opt) => {
   if (panning || spaceDown || opt.e.button === 1) return;
   guides.forget();
   const tool = state.tool, p = tool === 'node' ? canvas.getScenePoint(opt.e) : pointer(opt, tool), target = opt.target && !opt.target.isPage && !opt.target.isHelper ? opt.target : null;
-  if (pickFrame) { placeInFrame(target); return; }
+  // Place inside: the frame can sit under the contents (a picture over text), so skip them.
+  if (pickFrame) { placeInFrame(userObjects().slice().reverse().find((o) => !pickFrame.includes(o) && o.visible && !o.locked && o.containsPoint(new Point(p.x, p.y)))); return; }
   if (tool === 'node') { nodes.down(p, opt.e); return; }
   if (SCULPT.has(tool)) { nodes.brushDown(tool === 'smoothb' ? 'smooth' : tool, toolTargets.filter((o) => canvas.getObjects().includes(o)), p, state.shape.radius * MM); return; }
   if (tool === 'eraser') { erase = { points: [p], helper: helperPath(`M ${p.x} ${p.y}`, { stroke: 'rgba(255,80,80,.35)', strokeWidth: state.shape.eraser * MM, strokeDashArray: null, strokeLineCap: 'round', strokeLineJoin: 'round' }) }; return; }
@@ -750,6 +754,9 @@ canvas.on('mouse:up', (opt) => {
 });
 canvas.on('mouse:dblclick', (opt) => {
   if (state.tool === 'node') { nodes.dblclick(canvas.getScenePoint(opt.e)); return; }
+  // PowerClip: double-click to move the contents; double-click outside them to finish.
+  if (state.tool === 'select' && opt.target?.powerClip) { editPowerClip(opt.target); return; }
+  if (pcEdit && !opt.target) { finishPowerClipEdit(); return; }
   if (path) finishPath();
 });
 canvas.on('path:created', (e) => { style(e.path, { toolName: 'Freehand', strokeUniform: true }); e.path.name = `Freehand ${++counter}`; record(); refreshLayers(); });
@@ -766,6 +773,13 @@ function drawToolOverlay(ctx) {
       ctx.fillStyle = i === 0 ? '#12E1F0' : '#ffffff'; ctx.strokeStyle = '#1E7BFF';
       ctx.fillRect(q.x - 4, q.y - 4, 8, 8); ctx.strokeRect(q.x - 4, q.y - 4, 8, 8);
     }
+  }
+  for (const o of userObjects()) {
+    if (!o.pcFrame || !o.visible) continue;
+    const b = o.getBoundingRect(), a = S({ x: b.left, y: b.top }), w = b.width * v[0], h = b.height * v[3];
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(30,123,255,.6)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + w, a.y + h); ctx.moveTo(a.x + w, a.y); ctx.lineTo(a.x, a.y + h); ctx.stroke();
+    ctx.setLineDash([]);
   }
   if (toolTargets.length && OWN_MOUSE.has(state.tool) && state.tool !== 'node') {
     ctx.setLineDash([5, 4]); ctx.strokeStyle = '#7B4DFF';
@@ -1196,6 +1210,7 @@ function applyTransparency() {
 
 /** The area an object covers on the page, outline included (block shadows and extrusions follow it). */
 function regionD(o) {
+  if (o.powerClip) return regionD(o.getObjects()[0]);
   if (o.type === 'group') return o.getObjects().map(regionD).filter(Boolean).reduce((a, d) => (a ? V.boolean('unite', a, d) : d), '');
   if (o.type === 'image') return `M ${o.getCoords().map((q) => `${q.x} ${q.y}`).join(' L ')} Z`;
   if (!V.canConvert(o)) return '';
@@ -1205,6 +1220,7 @@ function regionD(o) {
 }
 /** The filled area only (mesh fill colours stay inside it). */
 function fillD(o) {
+  if (o.powerClip) return fillD(o.getObjects()[0]);
   if (o.type === 'group') return o.getObjects().map(fillD).filter(Boolean).reduce((a, d) => (a ? V.boolean('unite', a, d) : d), '');
   return V.canConvert(o) && o.fill ? worldD(o) : '';
 }
@@ -1453,47 +1469,177 @@ function eyedropClick(opt, target, p) {
   canvas.requestRenderAll();
 }
 
-// PowerClip: put objects inside a frame shape.
+// ===================================================================
+// PowerClip (CorelDRAW): objects shown only inside a frame shape. A PowerClip is
+// Group([frame, contents]) where the contents group is clipped to the frame's outline.
+// ===================================================================
+/** A PowerClip's box is its frame's box: hidden contents don't make the selection bigger. */
+class FrameLayout extends FitContentLayout {
+  static type = 'powerclip-frame';
+  calcBoundingBox(objects, context) { return super.calcBoundingBox(objects.slice(0, 1), context); }
+}
+classRegistry.setClass(FrameLayout);
+/** PowerClips saved before FrameLayout get it when loaded. */
+function fitPowerClips(o) {
+  if (o.type !== 'group') return;
+  o.getObjects().forEach(fitPowerClips);
+  if (o.powerClip && !(o.layoutManager?.strategy instanceof FrameLayout)) { o.layoutManager = new LayoutManager(new FrameLayout()); o.triggerLayout(); }
+}
+/** Frame + contents -> PowerClip at the frame's place in the stacking order. */
+function buildPowerClip(frame, contents, { name, index } = {}) {
+  const at = index ?? canvas.getObjects().indexOf(frame);
+  for (const o of [frame, ...contents]) if (canvas.getObjects().includes(o)) canvas.remove(o);
+  const clip = makePath(worldD(frame), null), inner = new Group(contents);
+  const c = clip.getCenterPoint(), local = util.transformPoint(c, util.invertTransform(inner.calcTransformMatrix()));
+  clip.set({ originX: 'center', originY: 'center', left: local.x, top: local.y, fill: '#000', stroke: null });
+  inner.clipPath = clip;
+  delete frame.pcFrame;
+  frame.set({ selectable: true, evented: true });
+  const pc = style(new Group([frame, inner], { layoutManager: new LayoutManager(new FrameLayout()) }), { toolName: 'PowerClip' });
+  pc.powerClip = true; pc.name = name ?? `PowerClip ${++counter}`;
+  canvas.insertAt(Math.max(1, at < 0 ? canvas.getObjects().length : at), pc);
+  return pc;
+}
+/** PowerClip -> its frame and contents (page positions), removed from the page. */
+function openPowerClip(pc) {
+  const index = canvas.getObjects().indexOf(pc), [frame, inner] = pc.removeAll();
+  canvas.remove(pc);
+  inner.clipPath = null;
+  return { frame, contents: inner.removeAll(), index, name: pc.name };
+}
+/** Move (and for fit / fill, scale) the contents to the frame: centre, fit inside, or fill the frame. */
+function placeContents(contents, frame, mode) {
+  const f = V.dBounds(worldD(frame)), rs = contents.map((o) => { o.setCoords(); return o.getBoundingRect(); });
+  const b = { left: Math.min(...rs.map((r) => r.left)), top: Math.min(...rs.map((r) => r.top)) };
+  b.width = Math.max(...rs.map((r) => r.left + r.width)) - b.left; b.height = Math.max(...rs.map((r) => r.top + r.height)) - b.top;
+  const k = mode === 'fit' ? Math.min(f.width / b.width, f.height / b.height) : mode === 'fill' ? Math.max(f.width / b.width, f.height / b.height) : 1;
+  const bc = new Point(b.left + b.width / 2, b.top + b.height / 2), fc = new Point(f.left + f.width / 2, f.top + f.height / 2);
+  for (const o of contents) {
+    const c = o.getCenterPoint();
+    o.set({ scaleX: o.scaleX * k, scaleY: o.scaleY * k });
+    o.setPositionByOrigin(new Point(fc.x + (c.x - bc.x) * k, fc.y + (c.y - bc.y) * k), 'center', 'center');
+    o.setCoords();
+  }
+}
+const overlaps = (a, b) => a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
+
+// Place inside: select the contents, choose PowerClip inside, then click the frame.
 function startPowerClip() {
   const contents = active();
   if (!contents.length) { toast('Select the objects to place inside a frame first'); return; }
   pickFrame = contents;
   canvas.discardActiveObject();
-  hint('Click the frame shape to place the objects inside it');
+  hint('Click the frame shape (or text) to place the objects inside it · Esc cancels');
   canvas.defaultCursor = 'copy';
 }
 async function placeInFrame(frame) {
-  const contents = pickFrame; pickFrame = null; hint(TOOL_HINTS[state.tool] ?? ''); canvas.defaultCursor = 'default';
-  if (!frame || contents.includes(frame) || !shapeable(frame)) { toast('PowerClip cancelled: click a shape that is not one of the contents'); return; }
-  const clip = makePath(worldD(frame), null);
+  const contents = pickFrame; pickFrame = null; hint(TOOL_HINTS[state.tool] ?? ''); canvas.defaultCursor = toolCursor(state.tool);
+  if (!frame || contents.includes(frame) || !(shapeable(frame) || frame.powerClip)) { toast('PowerClip cancelled: click a shape or text that is not one of the contents'); return; }
   let pc;
   batch(() => {
-    for (const o of contents) canvas.remove(o);
-    const inner = new Group(contents);
-    const c = clip.getCenterPoint(), local = util.transformPoint(c, util.invertTransform(inner.calcTransformMatrix()));
-    clip.set({ originX: 'center', originY: 'center', left: local.x, top: local.y, fill: '#000', stroke: null });
-    inner.clipPath = clip;
-    const i = canvas.getObjects().indexOf(frame);
-    canvas.remove(frame);
-    pc = style(new Group([frame, inner]), { toolName: 'PowerClip' });
-    pc.powerClip = true; pc.name = `PowerClip ${++counter}`;
-    canvas.insertAt(Math.max(1, i), pc);
+    // Placing into a PowerClip adds to what is already inside it.
+    const open = frame.powerClip ? openPowerClip(frame) : null, base = open?.frame ?? frame;
+    // Contents that would be hidden (nowhere over the frame) are centred in it, as CorelDRAW does.
+    const f = V.dBounds(worldD(base));
+    if (!contents.some((o) => overlaps(o.getBoundingRect(), f))) placeContents(contents, base, 'centre');
+    pc = buildPowerClip(base, [...(open?.contents ?? []), ...contents], { name: open?.name, index: open?.index });
   });
-  select([pc]); toast('Placed inside the frame (Object > PowerClip > Extract contents to undo)');
+  select([pc]);
+  toast('Placed inside the frame · double-click it to move the contents · right-click for more');
 }
-function extractPowerClip() {
-  const pc = one();
+function extractPowerClip(pc = one()) {
+  if (pcEdit) finishPowerClipEdit();
+  pc = pc?.powerClip ? pc : one();
   if (!pc?.powerClip) { toast('Select a PowerClip object'); return; }
   canvas.discardActiveObject();
   const out = [];
   batch(() => {
-    const [frame, inner] = pc.removeAll();
-    canvas.remove(pc);
-    canvas.add(frame); out.push(frame);
-    inner.clipPath = null;
-    for (const o of inner.removeAll()) { canvas.add(o); out.push(o); }
+    const { frame, contents, index } = openPowerClip(pc);
+    canvas.insertAt(Math.max(1, index), frame, ...contents);
+    out.push(frame, ...contents);
   });
   select(out);
+  toast('Contents taken out of the frame');
+}
+/** Centre the contents in the frame, fit them inside it, or scale them to fill it. */
+function arrangePowerClip(mode) {
+  if (pcEdit) {
+    const live = pcEdit.contents.filter((o) => canvas.getObjects().includes(o));
+    if (!live.length) return;
+    canvas.discardActiveObject(); placeContents(live, pcEdit.frame, mode); select(live);
+    canvas.requestRenderAll();
+    return;
+  }
+  const pc = one();
+  if (!pc?.powerClip) { toast('Select a PowerClip object'); return; }
+  let n;
+  batch(() => { const open = openPowerClip(pc); placeContents(open.contents, open.frame, mode); n = buildPowerClip(open.frame, open.contents, open); });
+  select([n]);
+  toast({ centre: 'Contents centred in the frame', fit: 'Contents fitted inside the frame', fill: 'Contents scaled to fill the frame' }[mode]);
+}
+
+// Edit contents (CorelDRAW "Edit PowerClip"): the contents come out, unclipped, to be moved
+// and resized while the frame's outline shows; Finish puts them back. One undo step.
+let pcEdit = null;
+function editPowerClip(pc = one()) {
+  if (pcEdit) finishPowerClipEdit();
+  if (!pc?.powerClip) { toast('Select a PowerClip object'); return; }
+  if (state.tool !== 'select') setTool('select');
+  canvas.discardActiveObject();
+  muted++;
+  const { frame, contents, index, name } = openPowerClip(pc);
+  canvas.insertAt(Math.max(1, index), frame, ...contents);
+  frame.set({ selectable: false, evented: false });
+  const helper = helperPath(worldD(frame), { stroke: '#12E1F0', strokeWidth: 2 / canvas.getZoom(), strokeDashArray: [8 / canvas.getZoom(), 5 / canvas.getZoom()] });
+  pcEdit = { frame, contents, helper, name };
+  select(contents);
+  hint('Editing PowerClip contents: move or resize them · the dashed line is the frame · Finish editing (or Esc) when done');
+  syncContext();
+}
+function finishPowerClipEdit() {
+  if (!pcEdit) return;
+  const { frame, contents, helper, name } = pcEdit;
+  pcEdit = null;
+  dropHelper(helper);
+  canvas.discardActiveObject();
+  const live = contents.filter((o) => canvas.getObjects().includes(o));
+  const pc = canvas.getObjects().includes(frame) && live.length ? buildPowerClip(frame, live, { name }) : null;
+  if (!pc) frame.set({ selectable: true, evented: true });
+  muted = Math.max(0, muted - 1);
+  refreshLayers(); record();
+  hint(TOOL_HINTS[state.tool] ?? '');
+  select([pc ?? frame].filter((o) => canvas.getObjects().includes(o)));
+}
+/** Undo while editing: put everything back as it was before Edit. */
+async function cancelPowerClipEdit() {
+  if (!pcEdit) return;
+  dropHelper(pcEdit.helper);
+  pcEdit = null;
+  muted = Math.max(0, muted - 1);
+  hint(TOOL_HINTS[state.tool] ?? '');
+  await restore(history.at(-1));
+}
+
+// Empty PowerClip frame (CorelDRAW): a shape waiting for contents; drop an image on it to fill it.
+function togglePowerClipFrame() {
+  const o = one();
+  if (!o || o.powerClip || !shapeable(o) || o.type === 'group') { toast('Select one shape or text to use as a frame'); return; }
+  if (o.pcFrame) { delete o.pcFrame; toast('No longer an empty PowerClip frame'); }
+  else { o.pcFrame = true; toast('Empty PowerClip frame: drag an image or logo from Assets (or a file) onto it'); }
+  canvas.fire('object:modified', { target: o }); canvas.requestRenderAll();
+}
+/** Images dropped onto a frame fill it; dropped onto a PowerClip they replace its contents. */
+function dropIntoFrame(frame, added) {
+  if (!canvas.getObjects().includes(frame)) return;
+  let pc;
+  batch(() => {
+    const open = frame.powerClip ? openPowerClip(frame) : null, base = open?.frame ?? frame;
+    placeContents(added, base, 'fill');
+    pc = buildPowerClip(base, added, { name: open?.name, index: open?.index });
+  });
+  setTool('select');
+  select([pc]);
+  toast(frame.powerClip ? 'Contents replaced (Undo brings the old ones back) · double-click to move them' : 'Placed inside the frame · double-click to move it');
 }
 
 // Text on a path.
@@ -1546,6 +1692,7 @@ async function addImage(src, name = 'Image', at) {
   setTool('select');
   canvas.setActiveObject(img);
   canvas.requestRenderAll();
+  return img;
 }
 /** SVG files come in as editable vector objects (grouped), not a bitmap. */
 async function addSvg(text, name = 'Vector', at) {
@@ -1562,6 +1709,7 @@ async function addSvg(text, name = 'Vector', at) {
   canvas.setActiveObject(g);
   canvas.requestRenderAll();
   toast('SVG imported as vectors: Ctrl+U ungroups, F10 edits nodes');
+  return g;
 }
 function addAsset(src, name) {
   if (assets.some((a) => a.src === src)) return;
@@ -1590,15 +1738,17 @@ async function importCorel(file) {
   toast('Converting your CorelDRAW file…');
 }
 async function importFiles(files, at) {
+  const added = [];
   for (const file of files) {
     if (/\.cdr$/i.test(file.name)) { await importCorel(file); continue; }
     if (file.size > 8 * 1024 * 1024) { toast('Use files under 8 MB'); continue; }
-    if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) { await addSvg(await file.text(), file.name, at); continue; }
+    if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) { added.push(await addSvg(await file.text(), file.name, at)); continue; }
     if (!file.type.startsWith('image/')) continue;
     const src = await readFile(file);
     addAsset(src, file.name);
-    await addImage(src, file.name, at);
+    added.push(await addImage(src, file.name, at));
   }
+  return added.filter(Boolean);
 }
 $('fileImage').onchange = async (e) => { await importFiles([...e.target.files]); e.target.value = ''; };
 $('assetUpload').onclick = () => $('fileImage').click();
@@ -1614,9 +1764,11 @@ wrap.addEventListener('drop', async (e) => {
     paintObject(o, colour, false); canvas.fire('object:modified', { target: o }); canvas.requestRenderAll();
     return;
   }
+  // An image dropped onto an empty PowerClip frame (or a PowerClip) goes inside it.
+  const under = objectAt(at), frame = under?.pcFrame || under?.powerClip ? under : null;
   const src = e.dataTransfer.getData('text/x-asset');
-  if (src) return addImage(src, 'Asset', at);
-  await importFiles([...e.dataTransfer.files], at);
+  const added = src ? [await addImage(src, 'Asset', at)].filter(Boolean) : await importFiles([...e.dataTransfer.files], at);
+  if (frame && added.length) dropIntoFrame(frame, added);
 });
 
 // ===================================================================
@@ -1786,7 +1938,10 @@ $('trApply').onclick = async () => {
   toast('Tracing…');
   await new Promise((r) => setTimeout(r, 30));
   const { objects } = await loadSVGFromString(B.traceSvg(pic.ctx, w, h, { colours: Number($('trColours').value), detail }));
-  const parts = objects.filter((p) => p && (p.opacity ?? 1) > 0.05 && p.fill && !(bg && B.nearColour(p.fill, bg)));
+  // Leave out the background: background-coloured areas touching the image edge only,
+  // so white (or other background-coloured) details inside the logo stay.
+  const atEdge = (p) => { const r = p.getBoundingRect(); return r.left <= 2 || r.top <= 2 || r.left + r.width >= w - 2 || r.top + r.height >= h - 2; };
+  const parts = objects.filter((p) => p && (p.opacity ?? 1) > 0.05 && p.fill && !(bg && B.nearColour(p.fill, bg) && atEdge(p)));
   if (!parts.length) { toast('Nothing to trace: try more colours or keep the background'); return; }
   const g = new Group(parts);
   // Place the vectors exactly over the image: trace pixels -> image pixels -> page.
@@ -1795,9 +1950,12 @@ $('trApply').onclick = async () => {
   g.setPositionByOrigin(at, 'center', 'center');
   style(g, { toolName: 'Traced bitmap' });
   g.name = `${o.name || 'Image'} traced`;
-  batch(() => canvas.insertAt(canvas.getObjects().indexOf(o) + 1, g));
+  // The vectors replace the image (as CorelDRAW's "Delete original image"), or sit next to it to compare.
+  const replace = $('trDelete').checked;
+  if (!replace) { const b = o.getBoundingRect(); g.set({ left: g.left + b.width + 10 * MM }); g.setCoords(); }
+  batch(() => { canvas.insertAt(canvas.getObjects().indexOf(o) + 1, g); if (replace) canvas.remove(o); });
   select([g]);
-  toast(`Traced into ${parts.length} vector shapes · Ctrl+U ungroups, F10 edits nodes`);
+  toast(replace ? `Traced into ${parts.length} vector shapes, in place of the image · Undo brings the image back` : `Traced into ${parts.length} vector shapes, placed next to the image to compare · Ctrl+U ungroups, F10 edits nodes`);
 };
 
 // Arrange, align, distribute, flip, group, lock, duplicate, delete.
@@ -1914,7 +2072,8 @@ function syncContext() {
   show('ctx-rect', t === 'rect' || (pick && o?.type === 'rect'));
   show('ctx-blend', t === 'blend'); show('ctx-contour', t === 'contour'); show('ctx-shadow', t === 'shadow'); show('ctx-transp', t === 'transparency');
   show('ctx-distort', t === 'distort'); show('ctx-envelope', t === 'envelope'); show('ctx-extrude', t === 'extrude'); show('ctx-block', t === 'blockshadow');
-  show('ctx-mesh', t === 'meshfill' || (pick && !!o?.fxMesh)); show('ctx-table', t === 'table'); show('ctx-eyedrop', t === 'eyedropper');
+  show('ctx-mesh', t === 'meshfill' || (pick && !!o?.fxMesh));
+  show('ctx-powerclip', !!pcEdit || (pick && !!o?.powerClip)); show('pcEditBtn', !pcEdit); show('pcFinishBtn', !!pcEdit); show('pcExtractBtn', !pcEdit); show('ctx-table', t === 'table'); show('ctx-eyedrop', t === 'eyedropper');
   if (t === 'distort') { const m = state.fx.distort; show('fxDZipWrap', m === 'zipper'); show('fxDTwistWrap', m === 'twister'); show('fxDPushWrap', m === 'push'); }
   if (t === 'eyedropper') { $('eyeTo').value = state.target; $('eyeChip').style.background = eye.colour ?? current(); $('eyePick').classList.toggle('on', eye.mode === 'pick'); $('eyeApply').classList.toggle('on', eye.mode === 'apply'); }
   $('meshChip').style.background = state.fill;
@@ -1996,6 +2155,8 @@ $('fxDistort').onclick = applyDistort; $('fxEnvelope').onclick = applyEnvelope;
 $('fxExtrude').onclick = () => applySweep('extrude'); $('fxExtrudeOff').onclick = () => applySweep('extrude', true);
 $('fxBlock').onclick = () => applySweep('blockshadow'); $('fxBlockOff').onclick = () => applySweep('blockshadow', true);
 $('fxMeshClear').onclick = removeMesh;
+$('pcEditBtn').onclick = () => editPowerClip(); $('pcFinishBtn').onclick = () => finishPowerClipEdit(); $('pcExtractBtn').onclick = () => extractPowerClip();
+for (const m of ['centre', 'fit', 'fill']) $(`pc-${m}`).onclick = () => arrangePowerClip(m);
 $('meshChip').onclick = () => { openTab('colour'); setTarget('fill'); };
 $('eyePick').onclick = () => setEyeMode('pick');
 $('eyeApply').onclick = () => { if (!eye.colour) { toast('Pick a colour first: click any colour on the page'); return; } setEyeMode('apply'); };
@@ -2301,6 +2462,7 @@ function download(data, name) {
   const a = document.createElement('a'); a.href = data; a.download = name; a.click();
 }
 function exportPng(whole) {
+  finishPowerClipEdit();
   const data = renderPng({ whole, maxPx: whole ? 4096 : 3000, background: whole ? '#ffffff' : null });
   if (!data) { toast('The page is empty'); return; }
   download(data, whole ? '3deezi-artboard-page.png' : '3deezi-artwork.png');
@@ -2340,10 +2502,12 @@ async function pageSvg() {
 }
 const b64 = (text) => btoa(unescape(encodeURIComponent(text)));
 async function exportSvg() {
+  finishPowerClipEdit();
   download(`data:image/svg+xml;base64,${b64(await pageSvg())}`, '3deezi-artwork.svg');
   toast('SVG exported: vector curves, editable in CorelDRAW or Illustrator');
 }
 async function exportPdf() {
+  finishPowerClipEdit();
   const [w, h] = pageSize;
   toast('Making the PDF…');
   const el = new DOMParser().parseFromString(await pageSvg(), 'image/svg+xml').documentElement;
@@ -2357,6 +2521,7 @@ async function exportPdf() {
   } catch (err) { toast(`PDF export failed: ${err.message}`); } finally { el.remove(); }
 }
 function sendToStudio() {
+  finishPowerClipEdit();
   const data = renderPng({ maxPx: 2048 });
   if (!data) { toast('Add some artwork first'); return; }
   const name = (userObjects().find(isText)?.text || 'Artboard design').slice(0, 40);
@@ -2394,7 +2559,7 @@ for (const id of ['pageW', 'pageH']) $(id).onchange = () => {
 const SNAP_LABELS = { grid: 'Grid (5 mm)', guides: 'Guidelines', objects: 'Objects', nodes: 'Nodes', page: 'Page' };
 const ACTIONS = {
   fonts: () => { if ($('textBar').hidden) setTool('text'); setTimeout(() => $('tFont').click()); },
-  new: async () => { if (userObjects().length && !confirm('Start a new page? Unsaved artwork will be cleared (Undo can restore it).')) return; batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); },
+  new: async () => { finishPowerClipEdit(); if (userObjects().length && !confirm('Start a new page? Unsaved artwork will be cleared (Undo can restore it).')) return; batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); },
   open: () => $('fileImage').click(),
   exportPng: () => exportPng(false), exportPage: () => exportPng(true), exportSvg, exportPdf,
   send: sendToStudio,
@@ -2412,7 +2577,8 @@ const ACTIONS = {
   distH: () => distribute('x'), distV: () => distribute('y'),
   curves: () => convertToCurves(), combine, breakApart, outline: outlineToObject,
   weld: () => shaping('weld'), trim: () => shaping('trim'), intersect: () => shaping('intersect'), simplify: () => shaping('simplify'), fmb: () => shaping('fmb'), bmf: () => shaping('bmf'),
-  powerclip: startPowerClip, extract: extractPowerClip,
+  powerclip: startPowerClip, extract: () => extractPowerClip(), pcEdit: () => editPowerClip(), pcFinish: () => finishPowerClipEdit(),
+  pcCentre: () => arrangePowerClip('centre'), pcFit: () => arrangePowerClip('fit'), pcFill: () => arrangePowerClip('fill'), pcFrame: togglePowerClipFrame,
   lock: () => { const o = one(); if (o) { setLocked(o, !o.locked); syncProps(); } },
   text: () => setTool('text'), fitPath: fitTextToPath, straighten: straightenText,
   blend: () => setTool('blend'), contour: () => setTool('contour'), shadow: () => setTool('shadow'), transparency: () => setTool('transparency'),
@@ -2425,24 +2591,37 @@ function closeMenus() { document.querySelectorAll('.menu.open, .fly.open').forEa
 document.querySelectorAll('.menu>button').forEach((b) => b.addEventListener('click', (e) => { const m = b.parentElement, open = m.classList.contains('open'); closeMenus(); if (!open) m.classList.add('open'); e.stopPropagation(); }));
 addEventListener('click', (e) => { if (!e.target.closest('.menu,.fly,.tool')) closeMenus(); });
 $('undo').onclick = undo; $('redo').onclick = redo;
-$('save').onclick = () => { try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ } post({ type: 'saved', json: snapshot() }); toast('Artboard saved on this device'); };
+$('save').onclick = () => { finishPowerClipEdit(); try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ } post({ type: 'saved', json: snapshot() }); toast('Artboard saved on this device'); };
 $('sendBtn').onclick = sendToStudio;
 // Right-click menu: order (to front / back), duplicate, curves, lock, delete for the object under the pointer.
 const CTX_ITEMS = [
   ['front', 'To front', 'Shift+PgUp'], ['forward', 'Forward one', 'Ctrl+PgUp'], ['backward', 'Back one', 'Ctrl+PgDn'], ['back', 'To back', 'Shift+PgDn'], null,
   ['duplicate', 'Duplicate', 'Ctrl+D'], ['curves', 'Convert to curves', 'Ctrl+Q'], ['lock', 'Lock / unlock', ''], null, ['delete', 'Delete', 'Del'],
 ];
+/** Right-click menu: PowerClip commands for what is selected, then the usual commands. */
+function ctxItems() {
+  const o = one(), items = [];
+  if (pcEdit) items.push(['pcFinish', 'Finish editing PowerClip', 'Esc'], null);
+  else if (o?.powerClip) items.push(['pcEdit', 'Edit PowerClip contents', 'double-click'], ['pcFit', 'Fit contents inside', ''], ['pcFill', 'Fill frame with contents', ''], ['pcCentre', 'Centre contents', ''], ['extract', 'Extract contents', ''], null);
+  else if (active().length) {
+    items.push(['powerclip', 'PowerClip inside frame…', '']);
+    if (o && shapeable(o) && o.type !== 'group') items.push(['pcFrame', o.pcFrame ? 'Not an empty PowerClip frame' : 'Make empty PowerClip frame', '']);
+    items.push(null);
+  }
+  return [...items, ...CTX_ITEMS];
+}
 wrap.addEventListener('contextmenu', (e) => {
   e.preventDefault(); e.stopPropagation();
   const target = objectAt(canvas.getScenePoint(e));
   if (target && !canvas.getActiveObjects().includes(target)) { setTool('select'); canvas.setActiveObject(target); canvas.requestRenderAll(); syncProps(); }
   const menu = $('ctxMenu');
   if (!active().length) { closeMenus(); return; }
-  menu.innerHTML = CTX_ITEMS.map((it) => (it ? `<button data-ctx="${it[0]}">${it[1]}${it[2] ? `<small>${it[2]}</small>` : ''}</button>` : '<hr>')).join('');
+  menu.innerHTML = ctxItems().map((it) => (it ? `<button data-ctx="${it[0]}">${it[1]}${it[2] ? `<small>${it[2]}</small>` : ''}</button>` : '<hr>')).join('');
   menu.querySelectorAll('[data-ctx]').forEach((b) => (b.onclick = () => { closeMenus(); ACTIONS[b.dataset.ctx]?.(); }));
   closeMenus();
-  Object.assign(menu.style, { left: `${Math.min(e.clientX, innerWidth - 230)}px`, top: `${Math.min(e.clientY, innerHeight - 330)}px`, bottom: 'auto' });
+  Object.assign(menu.style, { left: `${Math.min(e.clientX, innerWidth - 230)}px`, top: `${e.clientY}px`, bottom: 'auto' });
   menu.classList.add('open');
+  menu.style.top = `${Math.max(8, Math.min(e.clientY, innerHeight - menu.offsetHeight - 8))}px`;
 }, true);
 const SNAP_HELP = {
   grid: 'objects and drawing move in 5 mm steps (View > Grid on / off shows the grid)',
@@ -2597,6 +2776,7 @@ addEventListener('keydown', (e) => {
   else if (k === 'pageup' || k === 'pagedown') { e.preventDefault(); order(k === 'pageup' ? (e.shiftKey ? 'front' : 'forward') : (e.shiftKey ? 'back' : 'backward')); }
   else if (k === 'delete' || k === 'backspace') removeSelection();
   else if (k === 'escape') {
+    if (pcEdit) { finishPowerClipEdit(); return; }
     if (pickFrame) { pickFrame = null; hint(''); canvas.defaultCursor = 'default'; return; }
     if (path) { finishPath(); return; }
     cancelCurve3(); attrSample = null;
@@ -2622,7 +2802,7 @@ new ResizeObserver(() => resize()).observe(wrap);
 window.artboard = {
   setAssets: (list) => { for (const a of list ?? []) addAsset(a.src, a.name || 'Asset'); },
   addImage: ({ src, name }) => { addAsset(src, name || 'Image'); return addImage(src, name || 'Image'); },
-  load: (json) => restore(typeof json === 'string' ? json : JSON.stringify(json)),
+  load: (json) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)); },
   clear: () => ACTIONS.new(),
   toast: (text) => toast(String(text ?? '')),
   receive: (msg) => {
@@ -2631,7 +2811,7 @@ window.artboard = {
   },
 };
 // Automated tests only (?debug): reach the canvas from the browser.
-if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, F: { Rect, IText, FabricImage, Group, Path } };
+if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, B, F: { Rect, IText, FabricImage, Group, Path } };
 addEventListener('message', (e) => { if (e.source === window.parent && typeof e.data === 'string') { try { window.artboard.receive(e.data); } catch { /* not for us */ } } });
 
 // ===================================================================

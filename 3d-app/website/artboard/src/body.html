@@ -32,7 +32,9 @@
         <button data-action="front">To front of page <small>Shift+PgUp</small></button><button data-action="back">To back of page <small>Shift+PgDn</small></button>
         <button data-action="forward">Forward one <small>Ctrl+PgUp</small></button><button data-action="backward">Back one <small>Ctrl+PgDn</small></button><hr>
         <h5>PowerClip</h5>
-        <button data-action="powerclip">Place inside frame…</button><button data-action="extract">Extract contents</button><hr>
+        <button data-action="powerclip">Place inside frame…</button><button data-action="pcEdit">Edit contents <small>double-click</small></button><button data-action="pcFinish">Finish editing <small>Esc</small></button>
+        <button data-action="pcCentre">Centre contents</button><button data-action="pcFit">Fit contents inside</button><button data-action="pcFill">Fill frame with contents</button>
+        <button data-action="extract">Extract contents</button><button data-action="pcFrame">Empty frame on / off <small>drop images in</small></button><hr>
         <button data-action="flipH">Mirror horizontally</button><button data-action="flipV">Mirror vertically</button><button data-action="lock">Lock / unlock</button></div></div>
       <div class="menu"><button>Effects</button><div class="drop">
         <button data-action="blend">Blend</button><button data-action="contour">Contour</button><button data-action="shadow">Drop shadow</button><button data-action="transparency">Transparency</button><hr>
@@ -103,6 +105,7 @@
     <div class="ctx" id="ctx-extrude" hidden><span class="sep"></span><label>Depth X mm</label><input id="fxXX" type="number" step="0.5" style="width:56px"><label>Y mm</label><input id="fxXY" type="number" step="0.5" style="width:56px"><label>Side colour</label><input id="fxXColour" type="color"><button class="btn small grad" id="fxExtrude">Apply extrude</button><button class="btn small" id="fxExtrudeOff">Remove</button></div>
     <div class="ctx" id="ctx-block" hidden><span class="sep"></span><label>Depth X mm</label><input id="fxBX" type="number" step="0.5" style="width:56px"><label>Y mm</label><input id="fxBY" type="number" step="0.5" style="width:56px"><label>Colour</label><input id="fxBColour" type="color"><button class="btn small grad" id="fxBlock">Apply block shadow</button><button class="btn small" id="fxBlockOff">Remove</button></div>
     <div class="ctx" id="ctx-mesh" hidden><span class="sep"></span><label>Colour</label><button class="chip" id="meshChip" title="Spot colour: the current fill colour (click to change it)"></button><label>Spot size mm</label><input id="fxMSize" type="number" min="1" step="5" style="width:58px"><label>Strength %</label><input id="fxMStrength" type="number" min="0" max="100" step="5" style="width:56px"><button class="btn small" id="fxMeshClear">Remove mesh colours</button></div>
+    <div class="ctx" id="ctx-powerclip" hidden><span class="sep"></span><label>PowerClip</label><button class="btn small grad" id="pcEditBtn" title="Move or resize what is inside (or double-click the PowerClip)">Edit contents</button><button class="btn small grad" id="pcFinishBtn" title="Put the contents back inside the frame (Esc)">Finish editing</button><button class="btn small" id="pc-centre" title="Centre the contents in the frame">Centre</button><button class="btn small" id="pc-fit" title="Scale the contents to fit inside the frame">Fit inside</button><button class="btn small" id="pc-fill" title="Scale the contents to fill the whole frame">Fill frame</button><button class="btn small" id="pcExtractBtn" title="Take the contents out of the frame">Extract</button></div>
     <div class="ctx" id="ctx-table" hidden><span class="sep"></span><label>Rows</label><input id="tRows" type="number" min="1" max="30" style="width:56px"><label>Columns</label><input id="tCols" type="number" min="1" max="12" style="width:56px"></div>
     <div class="ctx" id="ctx-eyedrop" hidden><span class="sep"></span><button class="ibtn" id="eyePick" title="Pick a colour (Shift+click)" data-icon="eyedropper"></button><button class="ibtn" id="eyeApply" title="Fill objects with the picked colour" data-icon="fill"></button><span class="chip" id="eyeChip" title="Picked colour"></span><label>Apply to</label><select id="eyeTo"><option value="fill">Fill</option><option value="stroke">Outline</option></select></div>
 
@@ -196,8 +199,9 @@
             <b>Background</b>
             <button class="mini" id="bgRemove" type="button">Remove plain background</button>
             <b>Trace bitmap (to vectors)</b>
-            <div class="grid2"><label class="field">Colours<input id="trColours" type="number" min="2" max="16" value="4"></label><label class="field">Detail<select id="trDetail"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></label></div>
+            <div class="grid2"><label class="field">Colours<input id="trColours" type="number" min="2" max="16" value="8"></label><label class="field">Detail<select id="trDetail"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></label></div>
             <label class="check"><input id="trNoBg" type="checkbox" checked> Leave out the background colour</label>
+            <label class="check"><input id="trDelete" type="checkbox"> Delete the original image (vectors take its place)</label>
             <button class="mini" id="trApply" type="button">Trace to vectors</button>
           </div>
         </div>

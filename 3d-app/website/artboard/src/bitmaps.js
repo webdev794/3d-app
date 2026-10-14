@@ -39,6 +39,7 @@ export function imagePixels(img, max) {
   canvas.width = Math.max(1, Math.round(w * k));
   canvas.height = Math.max(1, Math.round(h * k));
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(el, img.cropX || 0, img.cropY || 0, w, h, 0, 0, canvas.width, canvas.height);
   return { canvas, ctx, kx: canvas.width / w, ky: canvas.height / h };
 }
@@ -88,13 +89,18 @@ export function removeBackground(ctx, w, h, tolerance = 42) {
   return true;
 }
 
+// pathomit drops specks outlined by fewer points than this (JPEG noise); the colour around fills them.
 export const TRACE_DETAIL = {
   low: { max: 400, ltres: 2, qtres: 2, pathomit: 16 },
-  medium: { max: 700, ltres: 1, qtres: 1, pathomit: 8 },
-  high: { max: 1000, ltres: 0.5, qtres: 0.5, pathomit: 4 },
+  medium: { max: 700, ltres: 1, qtres: 1, pathomit: 24 },
+  high: { max: 1000, ltres: 0.5, qtres: 0.5, pathomit: 24 },
 };
 
-/** The `n` most common opaque colours, averaged within 4-bit buckets. */
+/**
+ * The `n` most common opaque colours that are clearly different from each other
+ * (averaged within 4-bit buckets). Near-identical shades from soft edges are skipped,
+ * so they can't crowd out a logo's real colours.
+ */
 function dominantColours(px, n) {
   const buckets = new Map();
   for (let i = 0; i < px.length; i += 4) {
@@ -104,8 +110,21 @@ function dominantColours(px, n) {
     b.n++; b.r += px[i]; b.g += px[i + 1]; b.b += px[i + 2];
     buckets.set(key, b);
   }
-  return [...buckets.values()].sort((a, b) => b.n - a.n).slice(0, n)
-    .map((b) => ({ r: Math.round(b.r / b.n), g: Math.round(b.g / b.n), b: Math.round(b.b / b.n), a: 255 }));
+  const picked = [], total = [...buckets.values()].reduce((s, b) => s + b.n, 0);
+  // A rare colour lying between two picked colours is the soft edge between them, not a colour of its own.
+  const between = (c) => picked.some((p, i) => picked.slice(i + 1).some((q) => {
+    const d = [q.r - p.r, q.g - p.g, q.b - p.b], len = d[0] ** 2 + d[1] ** 2 + d[2] ** 2 || 1;
+    const t = Math.max(0, Math.min(1, ((c.r - p.r) * d[0] + (c.g - p.g) * d[1] + (c.b - p.b) * d[2]) / len));
+    return Math.hypot(c.r - p.r - t * d[0], c.g - p.g - t * d[1], c.b - p.b - t * d[2]) < 25;
+  }));
+  for (const b of [...buckets.values()].sort((a, b) => b.n - a.n)) {
+    const c = { r: Math.round(b.r / b.n), g: Math.round(b.g / b.n), b: Math.round(b.b / b.n), a: 255 };
+    if (picked.some((p) => Math.abs(p.r - c.r) + Math.abs(p.g - c.g) + Math.abs(p.b - c.b) < 60)) continue;
+    if (b.n / total < 0.006 && between(c)) continue;
+    picked.push(c);
+    if (picked.length === n) break;
+  }
+  return picked;
 }
 
 /**
@@ -113,14 +132,20 @@ function dominantColours(px, n) {
  * image's own most common colours, so small areas (a logo's accent colour) keep
  * their colour instead of being merged into a neighbour.
  */
-export function traceSvg(ctx, w, h, { colours = 4, detail = 'medium' } = {}) {
+export function traceSvg(ctx, w, h, { colours = 4, detail = 'medium', cycles = 1, blur = 0, blurdelta = 20 } = {}) {
   const d = TRACE_DETAIL[detail] ?? TRACE_DETAIL.medium, img = ctx.getImageData(0, 0, w, h);
   const pal = dominantColours(img.data, Math.max(2, Math.min(16, colours)));
   if (!pal.length) return '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+  // Each pixel is either see-through or solid: half-transparent pixels (a soft glow, a
+  // see-through white) would otherwise be matched to a wrong solid colour.
+  // Transparent areas (a PNG logo's background) get a see-through colour of their own.
+  let clear = false;
+  for (let i = 3; i < img.data.length; i += 4) { if (img.data[i] < 128) { img.data[i] = 0; clear = true; } else img.data[i] = 255; }
+  if (clear) pal.push({ r: 0, g: 0, b: 0, a: 0 });
   return ImageTracer.imagedataToSVG(img, {
-    pal, numberofcolors: pal.length, colorquantcycles: 1,
+    pal, numberofcolors: pal.length, colorquantcycles: cycles, blurdelta,
     ltres: d.ltres, qtres: d.qtres, pathomit: d.pathomit, strokewidth: 0, linefilter: true,
-    roundcoords: 1, viewbox: true, desc: false, blurradius: 0,
+    roundcoords: 1, viewbox: true, desc: false, blurradius: blur,
   });
 }
 
