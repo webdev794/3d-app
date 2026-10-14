@@ -5,6 +5,7 @@ use App\Http\Controllers\AiController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ConceptController;
+use App\Http\Controllers\ConvertController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PartnerApplicationController;
 use App\Http\Controllers\ProjectController;
@@ -21,6 +22,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             ? ['provider' => OpenAiDesigner::provider(), 'showcase_scenes' => array_keys(OpenAiDesigner::SCENES)]
             : ['showcase_scenes' => []],
     )]));
+    Route::get('/convert/formats', [ConvertController::class, 'formats']);
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:auth');
     Route::post('/partners/apply', [PartnerApplicationController::class, 'store'])->middleware('throttle:auth');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
@@ -38,6 +40,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::get('/assets/{asset}/file', [AssetController::class, 'file'])->whereNumber('asset')->name('assets.file');
         Route::delete('/assets/{asset}', [AssetController::class, 'destroy'])->whereNumber('asset');
         Route::post('/concepts', [ConceptController::class, 'store'])->middleware('throttle:concepts');
+        Route::post('/convert/cdr', [ConvertController::class, 'cdr'])->middleware('throttle:uploads');
         Route::post('/ai/pattern', [AiController::class, 'pattern'])->middleware('throttle:concepts');
         Route::post('/ai/showcase', [AiController::class, 'showcase'])->middleware('throttle:concepts');
         Route::post('/ai/mockup', [AiController::class, 'mockup'])->middleware('throttle:concepts');

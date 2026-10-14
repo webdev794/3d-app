@@ -347,6 +347,154 @@ export function blendDs(aD, bD, steps, samples = 96) {
 export const dBounds = (d) => { const b = toPaper(d).bounds; return { left: b.x, top: b.y, width: b.width, height: b.height }; };
 
 // ===================================================================
+// Reshaping effects: distort, envelope, and the solid sweep behind
+// block shadow / extrude. Curves are flattened into dense points, moved,
+// then fitted with smooth curves again (zipper keeps its sharp teeth).
+// ===================================================================
+/** The same shape with outer outlines clockwise and holes anticlockwise. */
+function oriented(d) {
+  const item = toPaper(d);
+  try { return item.resolveCrossings().reorient(true, true); } catch { return item; }
+}
+/** Each subpath as points (curves flattened to `tolerance` world units). */
+function flatParts(item, tolerance = 0.4) {
+  const kids = item.children ? item.children.slice() : [item];
+  return kids.map((k) => { const c = k.clone({ insert: false }); c.flatten(tolerance); return { closed: c.closed, pts: c.segments.map((s) => ({ x: s.point.x, y: s.point.y })) }; })
+    .filter((p) => p.pts.length > 1);
+}
+/** Keeps every point and adds more so no segment is longer than `max`. */
+function densify(pts, closed, max) {
+  const out = [], n = pts.length, last = closed ? n : n - 1;
+  for (let i = 0; i < n; i++) {
+    out.push(pts[i]);
+    if (i >= last) continue;
+    const a = pts[i], b = pts[(i + 1) % n], steps = Math.min(400, Math.floor(Math.hypot(b.x - a.x, b.y - a.y) / max));
+    for (let k = 1; k <= steps; k++) out.push(lerp(a, b, k / (steps + 1)));
+  }
+  return out;
+}
+/** Evenly spaced points along the outline (for the zipper's regular teeth). */
+function resample(pts, closed, step) {
+  const ring = closed ? [...pts, pts[0]] : pts, out = [ring[0]];
+  let carry = 0;
+  for (let i = 1; i < ring.length; i++) {
+    const a = ring[i - 1], b = ring[i], L = Math.hypot(b.x - a.x, b.y - a.y);
+    let t = step - carry;
+    for (; t <= L; t += step) out.push(lerp(a, b, t / L));
+    carry = L - (t - step);
+  }
+  if (closed && out.length > 1 && Math.hypot(out.at(-1).x - out[0].x, out.at(-1).y - out[0].y) < step / 2) out.pop();
+  return out.length > 3 ? out : pts;
+}
+const perimeter = (pts, closed) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : s), 0)
+  + (closed ? Math.hypot(pts[0].x - pts.at(-1).x, pts[0].y - pts.at(-1).y) : 0);
+/** Points back to path data: straight lines, or smooth curves fitted within `smooth` world units. */
+function partsToD(parts, smooth = 0) {
+  if (!smooth) return parts.map((p) => `M ${p.pts.map((q) => `${r3(q.x)} ${r3(q.y)}`).join(' L ')}${p.closed ? ' Z' : ''}`).join(' ');
+  const s = P();
+  return parts.map(({ closed, pts }) => {
+    const path = new s.Path({ segments: pts.map((q) => [q.x, q.y]), closed, insert: false });
+    if (pts.length > 4) path.simplify(smooth);
+    return path.pathData;
+  }).join(' ');
+}
+const boundsOf = (item, box) => (box ? { x: box.left, y: box.top, width: box.width, height: box.height } : { x: item.bounds.x, y: item.bounds.y, width: item.bounds.width, height: item.bounds.height });
+/**
+ * Distort (CorelDRAW): 'zipper' = teeth along the outline (amount = tooth height, teeth = count on the longest outline),
+ * 'twister' = swirl about the centre (amount = degrees), 'push' = bulge out (+%) or pull in (-%).
+ * `box` (world bounds) lets the parts of a group distort as one.
+ */
+export function distortD(d, mode, amount, { teeth = 30, box } = {}) {
+  const item = mode === 'zipper' ? oriented(d) : toPaper(d), b = boundsOf(item, box);
+  const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 }, R = Math.max(1, Math.hypot(b.width, b.height) / 2);
+  const parts = flatParts(item);
+  if (mode === 'zipper') {
+    const step = Math.max(0.5, Math.max(...parts.map((p) => perimeter(p.pts, p.closed))) / Math.max(2, teeth * 2));
+    return partsToD(parts.map(({ closed, pts }) => {
+      const q = resample(pts, closed, step);
+      return { closed, pts: q.map((p, i) => {
+        if (i % 2 === 0) return p;
+        const a = q[(i - 1 + q.length) % q.length], z = q[(i + 1) % q.length], dx = z.x - a.x, dy = z.y - a.y, l = Math.hypot(dx, dy) || 1;
+        return { x: p.x + (dy / l) * amount, y: p.y - (dx / l) * amount };  // outwards
+      }) };
+    }));
+  }
+  const moved = parts.map(({ closed, pts }) => ({ closed, pts: densify(pts, closed, R / 60).map((p) => {
+    const dx = p.x - c.x, dy = p.y - c.y, r = Math.hypot(dx, dy) / R;
+    if (mode === 'twister') { const th = ((amount * Math.PI) / 180) * Math.min(1, r), cs = Math.cos(th), sn = Math.sin(th); return { x: c.x + dx * cs - dy * sn, y: c.y + dx * sn + dy * cs }; }
+    const f = Math.max(0.02, 1 + (amount / 100) * Math.sin(Math.PI * Math.min(1, r)));
+    return { x: c.x + dx * f, y: c.y + dy * f };
+  }) }));
+  return partsToD(moved, 0.25);
+}
+/** Envelope presets: points bend by their place in the box (amount in world units, as CorelDRAW's envelope modes). */
+export function envelopeD(d, preset, amount, { box } = {}) {
+  const item = toPaper(d), b = boundsOf(item, box), W = b.width || 1, H = b.height || 1, cy = b.y + H / 2, bottom = b.y + H;
+  const k = Math.min(Math.abs(amount), H * 0.9) * Math.sign(amount);
+  const parts = flatParts(item).map(({ closed, pts }) => ({ closed, pts: densify(pts, closed, Math.max(W, H) / 150).map((p) => {
+    const u = Math.min(1, Math.max(0, (p.x - b.x) / W)), arc = Math.sin(Math.PI * u), top = (bottom - p.y) / H, q = { x: p.x, y: p.y };
+    if (preset === 'arcUp') q.y -= amount * arc;
+    else if (preset === 'arcDown') q.y += amount * arc;
+    else if (preset === 'bridge') q.y -= amount * arc * top;              // top edge arches, bottom stays straight
+    else if (preset === 'valley') q.y += k * arc * top;                   // top edge dips, bottom stays straight
+    else if (preset === 'bulge') q.y = cy + (p.y - cy) * (1 + ((2 * amount) / H) * arc);
+    else if (preset === 'pinch') q.y = cy + (p.y - cy) * Math.max(0.05, 1 - ((2 * k) / H) * arc);
+    else if (preset === 'wave') q.y += amount * Math.sin(2 * Math.PI * u);
+    else q.y = cy + (p.y - cy) * Math.max(0.05, 1 - (amount / H) * u);   // taper: narrower to the right
+    return q;
+  }) }));
+  return partsToD(parts, 0.25);
+}
+/**
+ * The shape swept along (dx, dy): one solid outline from the object to its copy at the
+ * offset (CorelDRAW block shadow / extrude): the shape, its moved copy and a strip for each
+ * run of outline edges that face the sweep direction, united into one outline.
+ */
+export function sweepD(d, dx, dy) {
+  const s = P(), base = oriented(d);
+  if (Math.hypot(dx, dy) < 0.01) return pathData(base);
+  const end = base.clone({ insert: false });
+  end.translate(new s.Point(dx, dy));
+  const strips = [];
+  for (const { pts } of flatParts(base, 0.3)) {
+    const n = pts.length;
+    // Outer outlines run clockwise, so the outward normal of edge a->b is (b.y - a.y, a.x - b.x).
+    const front = pts.map((a, i) => { const b = pts[(i + 1) % n]; return (b.y - a.y) * dx - (b.x - a.x) * dy > 1e-9; });
+    if (!front.some(Boolean)) continue;
+    const start = front.every(Boolean) ? 0 : front.findIndex((f, i) => f && !front[(i - 1 + n) % n]);
+    for (let i = start, seen = 0; seen < n;) {
+      if (!front[i]) { i = (i + 1) % n; seen++; continue; }
+      const chain = [pts[i]];
+      while (front[i] && seen < n) { i = (i + 1) % n; seen++; chain.push(pts[i]); }
+      strips.push(new s.Path({ segments: [...chain, ...chain.slice().reverse().map((p) => ({ x: p.x + dx, y: p.y + dy }))].map((p) => [p.x, p.y]), closed: true, insert: false }));
+    }
+  }
+  // Unite in pairs (small shapes first), then one clean outline without points on straight lines.
+  let list = [...strips, base, end];
+  while (list.length > 1) {
+    const next = [];
+    for (let i = 0; i < list.length; i += 2) next.push(list[i + 1] ? list[i].unite(list[i + 1], { insert: false }) : list[i]);
+    list = next;
+  }
+  return pathData(list[0].reduce({ simplify: true }));
+}
+/** Extrusion edges: a line from each sharp corner facing the extrusion to its far copy. */
+export function sweepEdgesD(d, dx, dy, minTurn = 30) {
+  const lim = Math.cos((minTurn * Math.PI) / 180), out = [];
+  for (const { pts } of flatParts(oriented(d), 0.3)) {
+    const n = pts.length;
+    if (n < 3) continue;
+    for (let i = 0; i < n; i++) {
+      const a = pts[(i - 1 + n) % n], p = pts[i], b = pts[(i + 1) % n];
+      const ux = p.x - a.x, uy = p.y - a.y, vx = b.x - p.x, vy = b.y - p.y, lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+      if (!lu || !lv || (ux * vx + uy * vy) / (lu * lv) > lim) continue;
+      if (uy * dx - ux * dy > 0 || vy * dx - vx * dy > 0) out.push(`M ${r3(p.x)} ${r3(p.y)} L ${r3(p.x + dx)} ${r3(p.y + dy)}`);
+    }
+  }
+  return out.join(' ');
+}
+
+// ===================================================================
 // Shape generators (CorelDRAW Object and Basic-shape tools)
 // ===================================================================
 /** Unit-box (0-100) path data -> world path data in a dragged box. */

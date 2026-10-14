@@ -3,7 +3,7 @@
     <div class="brand"><img src="__LOGO__" alt="3DEEZI"><span>ARTBOARD</span></div>
     <nav class="menus" aria-label="Menu">
       <div class="menu"><button>File</button><div class="drop">
-        <button data-action="new">New page</button><button data-action="open">Import… <small>Ctrl+I · SVG, PNG, JPG</small></button><hr>
+        <button data-action="new">New page</button><button data-action="open">Import… <small>Ctrl+I · SVG, PNG, JPG, CDR</small></button><hr>
         <button data-action="exportPdf">Export PDF <small>vector · Ctrl+E</small></button><button data-action="exportSvg">Export SVG <small>vector</small></button>
         <button data-action="exportPng">Export artwork <small>transparent PNG</small></button><button data-action="exportPage">Export page <small>PNG 300 DPI</small></button><hr>
         <button data-action="send">Send to 3D Studio</button></div></div>
@@ -14,7 +14,7 @@
         <button data-action="selectAll">Select all <small>Ctrl+A</small></button></div></div>
       <div class="menu"><button>View</button><div class="drop">
         <button data-action="zoomIn">Zoom in</button><button data-action="zoomOut">Zoom out</button><button data-action="fit">Fit page</button><hr>
-        <button data-action="rulers">Rulers on / off</button><button data-action="grid">Grid on / off</button></div></div>
+        <button data-action="rulers">Rulers on / off</button><button data-action="grid">Grid on / off</button><button data-action="clearGuides">Clear guidelines <small>drag from a ruler to add</small></button><hr><button data-action="snap_grid">Snap to grid</button><button data-action="snap_guides">Snap to guidelines</button><button data-action="snap_objects">Snap to objects</button><button data-action="snap_nodes">Snap to nodes</button><button data-action="snap_page">Snap to page</button></div></div>
       <div class="menu"><button>Layout</button><div class="drop">
         <button data-action="layout">Centre to page <small>P</small></button></div></div>
       <div class="menu"><button>Object</button><div class="drop wide">
@@ -26,7 +26,7 @@
         <button data-action="fmb">Front minus back</button><button data-action="bmf">Back minus front</button><hr>
         <h5>Align and distribute</h5>
         <button data-action="alignL">Align left <small>L</small></button><button data-action="alignR">Align right <small>R</small></button><button data-action="alignT">Align top <small>T</small></button>
-        <button data-action="alignB">Align bottom <small>B</small></button><button data-action="alignC">Align centres horizontally <small>E</small></button><button data-action="alignM">Align centres vertically <small>C</small></button>
+        <button data-action="alignB">Align bottom <small>B</small></button><button data-action="alignC">Align centres horizontally <small>E · in a column</small></button><button data-action="alignM">Align centres vertically <small>C · in a row</small></button>
         <button data-action="distH">Distribute horizontally</button><button data-action="distV">Distribute vertically</button><hr>
         <h5>Order</h5>
         <button data-action="front">To front of page <small>Shift+PgUp</small></button><button data-action="back">To back of page <small>Shift+PgDn</small></button>
@@ -35,7 +35,9 @@
         <button data-action="powerclip">Place inside frame…</button><button data-action="extract">Extract contents</button><hr>
         <button data-action="flipH">Mirror horizontally</button><button data-action="flipV">Mirror vertically</button><button data-action="lock">Lock / unlock</button></div></div>
       <div class="menu"><button>Effects</button><div class="drop">
-        <button data-action="blend">Blend</button><button data-action="contour">Contour</button><button data-action="shadow">Drop shadow</button><button data-action="transparency">Transparency</button></div></div>
+        <button data-action="blend">Blend</button><button data-action="contour">Contour</button><button data-action="shadow">Drop shadow</button><button data-action="transparency">Transparency</button><hr>
+        <button data-action="distort">Distort</button><button data-action="envelope">Envelope</button><button data-action="extrude">Extrude</button><button data-action="blockshadow">Block shadow</button><button data-action="meshfill">Mesh fill <small>M</small></button></div></div>
+      <div class="menu"><button>Table</button><div class="drop"><button data-action="table">New table <small>drag on the page</small></button></div></div>
       <div class="menu"><button>Text</button><div class="drop">
         <button data-action="text">Add text <small>F8</small></button><button data-action="fonts">Fonts…</button><hr>
         <button data-action="fitPath">Fit text to path</button><button data-action="straighten">Straighten text</button><hr>
@@ -92,6 +94,17 @@
     <div class="ctx" id="ctx-contour" hidden><span class="sep"></span><select id="fxCDir"><option value="outside">Outside</option><option value="inside">Inside</option></select><label>Steps</label><input id="fxCSteps" type="number" min="1" max="20" style="width:52px"><label>Offset mm</label><input id="fxCOffset" type="number" min="0.1" step="0.5" style="width:58px"><label>Colour</label><input id="fxCColour" type="color"><button class="btn small grad" id="fxContour">Apply contour</button></div>
     <div class="ctx" id="ctx-shadow" hidden><span class="sep"></span><label>X</label><input id="fxSX" type="number" step="0.5" style="width:52px"><label>Y</label><input id="fxSY" type="number" step="0.5" style="width:52px"><label>Feather</label><input id="fxSBlur" type="number" min="0" step="0.5" style="width:52px"><label>Opacity %</label><input id="fxSOpacity" type="number" min="0" max="100" style="width:52px"><input id="fxSColour" type="color"><button class="btn small grad" id="fxShadow">Apply</button><button class="btn small" id="fxShadowOff">Remove</button></div>
     <div class="ctx" id="ctx-transp" hidden><span class="sep"></span><select id="fxTType"><option value="none">No transparency</option><option value="uniform">Uniform</option><option value="linear">Linear (fade)</option></select><label>Amount %</label><input id="fxTValue" type="number" min="0" max="100" style="width:56px"><span id="fxTAngleWrap"><label>Angle</label><input id="fxTAngle" type="number" step="15" style="width:56px"></span><button class="btn small grad" id="fxTransp">Apply</button></div>
+    <div class="ctx" id="ctx-distort" hidden><span class="sep"></span><select id="fxDMode" title="Distortion"><option value="zipper">Zipper</option><option value="twister">Twister</option><option value="push">Push and pull</option></select>
+      <span id="fxDZipWrap"><label>Tooth mm</label><input id="fxDZip" type="number" step="0.5" min="-50" max="50" style="width:56px"><label>Teeth</label><input id="fxDTeeth" type="number" min="2" max="300" style="width:56px"></span>
+      <span id="fxDTwistWrap"><label>Turn °</label><input id="fxDTwist" type="number" step="15" style="width:62px"></span>
+      <span id="fxDPushWrap"><label>Amount % (+ push, − pull)</label><input id="fxDPush" type="number" min="-100" max="100" step="5" style="width:56px"></span>
+      <button class="btn small grad" id="fxDistort">Apply distortion</button></div>
+    <div class="ctx" id="ctx-envelope" hidden><span class="sep"></span><select id="fxEPreset" title="Envelope"><option value="arcUp">Arch up</option><option value="arcDown">Arch down</option><option value="bridge">Bridge</option><option value="valley">Valley</option><option value="bulge">Bulge</option><option value="pinch">Pinch</option><option value="wave">Wave (flag)</option><option value="taper">Taper</option></select><label>Amount mm</label><input id="fxEAmount" type="number" step="1" style="width:58px"><button class="btn small grad" id="fxEnvelope">Apply envelope</button></div>
+    <div class="ctx" id="ctx-extrude" hidden><span class="sep"></span><label>Depth X mm</label><input id="fxXX" type="number" step="0.5" style="width:56px"><label>Y mm</label><input id="fxXY" type="number" step="0.5" style="width:56px"><label>Side colour</label><input id="fxXColour" type="color"><button class="btn small grad" id="fxExtrude">Apply extrude</button><button class="btn small" id="fxExtrudeOff">Remove</button></div>
+    <div class="ctx" id="ctx-block" hidden><span class="sep"></span><label>Depth X mm</label><input id="fxBX" type="number" step="0.5" style="width:56px"><label>Y mm</label><input id="fxBY" type="number" step="0.5" style="width:56px"><label>Colour</label><input id="fxBColour" type="color"><button class="btn small grad" id="fxBlock">Apply block shadow</button><button class="btn small" id="fxBlockOff">Remove</button></div>
+    <div class="ctx" id="ctx-mesh" hidden><span class="sep"></span><label>Colour</label><button class="chip" id="meshChip" title="Spot colour: the current fill colour (click to change it)"></button><label>Spot size mm</label><input id="fxMSize" type="number" min="1" step="5" style="width:58px"><label>Strength %</label><input id="fxMStrength" type="number" min="0" max="100" step="5" style="width:56px"><button class="btn small" id="fxMeshClear">Remove mesh colours</button></div>
+    <div class="ctx" id="ctx-table" hidden><span class="sep"></span><label>Rows</label><input id="tRows" type="number" min="1" max="30" style="width:56px"><label>Columns</label><input id="tCols" type="number" min="1" max="12" style="width:56px"></div>
+    <div class="ctx" id="ctx-eyedrop" hidden><span class="sep"></span><button class="ibtn" id="eyePick" title="Pick a colour (Shift+click)" data-icon="eyedropper"></button><button class="ibtn" id="eyeApply" title="Fill objects with the picked colour" data-icon="fill"></button><span class="chip" id="eyeChip" title="Picked colour"></span><label>Apply to</label><select id="eyeTo"><option value="fill">Fill</option><option value="stroke">Outline</option></select></div>
 
     <div class="textbar" id="textBar" hidden>
       <span class="sep"></span>
@@ -100,21 +113,23 @@
       <button class="ibtn tstyle" id="tBold" title="Bold (Ctrl+B)"><b>B</b></button><button class="ibtn tstyle" id="tItalic" title="Italic (Ctrl+I)"><i>I</i></button><button class="ibtn tstyle" id="tUnder" title="Underline (Ctrl+U)"><u>U</u></button>
       <button class="ibtn" id="tAlign-left" title="Align text left" data-icon="textL"></button><button class="ibtn" id="tAlign-center" title="Centre text" data-icon="textC"></button><button class="ibtn" id="tAlign-right" title="Align text right" data-icon="textR"></button>
     </div>
-    <span class="sep"></span>
-    <button class="ibtn" id="alL" title="Align left (L)" data-icon="alL"></button><button class="ibtn" id="alC" title="Align centres horizontally (E)" data-icon="alC"></button><button class="ibtn" id="alR" title="Align right (R)" data-icon="alR"></button>
-    <button class="ibtn" id="alT" title="Align top (T)" data-icon="alT"></button><button class="ibtn" id="alM" title="Align centres vertically (C)" data-icon="alM"></button><button class="ibtn" id="alB" title="Align bottom (B)" data-icon="alB"></button>
+    <!-- Object buttons always start the second row, in the same place for images, shapes and text. -->
+    <span class="rowbreak" aria-hidden="true"></span>
+    <button class="ibtn" id="alL" title="Align left (L)" data-icon="alL"></button><button class="ibtn" id="alC" title="Align centres horizontally (E): lines centres up in a column" data-icon="alC"></button><button class="ibtn" id="alR" title="Align right (R)" data-icon="alR"></button>
+    <button class="ibtn" id="alT" title="Align top (T)" data-icon="alT"></button><button class="ibtn" id="alM" title="Align centres vertically (C): lines centres up in a row" data-icon="alM"></button><button class="ibtn" id="alB" title="Align bottom (B)" data-icon="alB"></button>
     <span class="sep"></span>
     <div class="xywh"><span>X</span><input id="posX" title="X (mm)"><span>W</span><input id="sizeW" title="Width (mm)"><span>Y</span><input id="posY" title="Y (mm)"><span>H</span><input id="sizeH" title="Height (mm)"></div>
     <button class="ibtn on" id="ratio" title="Keep proportions" data-icon="ratio"></button>
     <span class="sep"></span>
     <button class="ibtn" id="flipH" title="Mirror horizontally" data-icon="flipH"></button><button class="ibtn" id="flipV" title="Mirror vertically" data-icon="flipV"></button>
-    <button class="ibtn" id="front" title="To front (Shift+PgUp)" data-icon="front"></button><button class="ibtn" id="back" title="Back one (Ctrl+PgDn)" data-icon="back"></button>
+    <button class="ibtn lbtn" id="front" title="To front (Shift+PgUp)" data-icon="front"><span>To front</span></button><button class="ibtn lbtn" id="back" title="To back (Shift+PgDn)" data-icon="back"><span>To back</span></button>
     <button class="ibtn" id="group" title="Group / ungroup (Ctrl+G / Ctrl+U)" data-icon="group"></button><button class="ibtn" id="dup" title="Duplicate (Ctrl+D)" data-icon="dup"></button>
     <button class="ibtn" id="lock" title="Lock" data-icon="lock"></button><button class="ibtn" id="del" title="Delete" data-icon="trash"></button>
   </div>
 
   <div class="fly font-fly" id="fontFly"><input id="fontSearch" placeholder="Search fonts" aria-label="Search fonts" autocomplete="off"><div id="fontList"></div></div>
   <div class="fly tool-fly" id="toolFly"></div>
+<div class="fly ctx-menu" id="ctxMenu" role="menu"></div>
 
   <div class="body">
     <nav class="tools" id="tools" aria-label="Toolbox"></nav>
@@ -123,6 +138,13 @@
       <div class="corner"></div><canvas class="ruler h" id="rulerH"></canvas><canvas class="ruler v" id="rulerV"></canvas>
       <div class="canvas-wrap" id="canvasWrap"><canvas id="board"></canvas></div>
       <div class="hint" id="hint"></div>
+      <!-- Colour palette (CorelDRAW): click = fill, right-click = outline, drag onto an object. -->
+      <div class="palette" id="palette" aria-label="Colour palette">
+        <button class="pc pal-x" id="palNone" title="No colour · click: no fill · right-click: no outline"></button>
+        <span class="pal-sep"></span>
+        <span class="pal-group" id="palDoc" hidden><span class="pal-label">Document</span></span>
+        <span class="pal-group" id="palMain"></span>
+      </div>
     </main>
 
     <aside class="side" id="side">
@@ -130,10 +152,13 @@
       <section class="pane on" id="pane-colour">
         <h3>Colour palette <button class="ibtn mobile-only" id="closeSide" data-icon="close"></button></h3>
         <div class="target"><button data-target="fill" class="on">Fill</button><button data-target="stroke">Outline</button></div>
-        <select id="fillMode"><option value="solid">Uniform fill</option><option value="gradient">Linear gradient</option><option value="radial">Radial gradient</option></select>
+        <select id="fillMode"><option value="solid">Uniform fill</option><option value="gradient">Linear gradient</option><option value="radial">Radial gradient</option><option value="pattern">Pattern fill</option></select>
         <div class="grid2" id="gradRow" style="display:none"><label class="field">To colour<input type="color" id="gradTo" value="#7B4DFF"></label><label class="field">Angle<input type="number" id="gradAngle" value="0" step="15"></label></div>
+        <div class="grid3" id="patRow" style="display:none"><label class="field">Pattern<select id="patKind"><option value="stripes">Stripes</option><option value="hoops">Hoops</option><option value="diagonal">Diagonal</option><option value="dots">Dots</option><option value="checks">Checks</option><option value="chevron">Chevron</option></select></label><label class="field">Size (mm)<input type="number" id="patSize" value="10" min="2" max="100"></label><label class="field">Background<input type="color" id="patBg" value="#FFFFFF"></label></div>
         <div class="picker-row"><div class="sv" id="sv"><canvas id="svCanvas"></canvas><i id="svDot"></i></div><div class="hue" id="hue"><canvas id="hueCanvas"></canvas><i id="hueDot"></i></div></div>
         <div class="hexrow"><span class="chip" id="hexChip"></span><input id="hexIn" maxlength="7" aria-label="Hex colour"></div>
+        <div class="cvals"><label>R<input id="cR" type="number" min="0" max="255"></label><label>G<input id="cG" type="number" min="0" max="255"></label><label>B<input id="cB" type="number" min="0" max="255"></label></div>
+        <div class="cvals four"><label>C<input id="cC" type="number" min="0" max="100"></label><label>M<input id="cM" type="number" min="0" max="100"></label><label>Y<input id="cY" type="number" min="0" max="100"></label><label>K<input id="cK" type="number" min="0" max="100"></label></div>
         <div class="swatches" id="brandSw"></div>
         <h3>Recent colours</h3><div class="swatches" id="recentSw"></div>
         <h3>Colour harmony <select id="harmonyMode" style="width:auto"><option value="analogous">Analogous</option><option value="complementary">Complementary</option><option value="triadic">Triadic</option><option value="shades">Shades</option></select></h3>
@@ -149,11 +174,32 @@
             <label class="field">Font<select id="pFont"></select></label>
             <div class="grid2"><label class="field">Size (mm)<input id="pSize" type="number" min="2"></label><label class="field">Weight<select id="pWeight"><option value="400">Regular</option><option value="700">Bold</option><option value="900">Black</option></select></label></div>
             <label class="field">Letter spacing<input id="pSpacing" type="number" step="20"></label>
+            <button class="mini" data-action="curves" type="button">Convert to curves (Ctrl+Q)</button>
           </div>
           <div id="rectProps" class="card" style="display:none"><label class="field">Corner radius (mm)<input id="pRadius" type="number" min="0" step="0.5"></label></div>
+          <div id="tableProps" class="card" style="display:none"><b>Table</b>
+            <div class="grid3"><label class="field">Rows<input id="tbRows" type="number" min="1" max="30"></label><label class="field">Columns<input id="tbCols" type="number" min="1" max="12"></label><label class="field">Text (mm)<input id="tbSize" type="number" min="1" max="200" step="0.5"></label></div>
+            <div class="grid2"><label class="field">Text colour<input id="tbInk" type="color"></label><label class="field">Text font<select id="tbFont"></select></label></div>
+            <p class="empty">Fill and Outline colour the cells and lines. Type the text for each cell:</p>
+            <div class="cells" id="tbCells"></div></div>
           <div id="outlineProps" class="card" style="display:none"><b>Outline pen</b>
+            <div class="grid3"><label class="field">Width (mm)<input id="pOW" type="number" min="0" max="50" step="0.25"></label><label class="field">Style<select id="pODash"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label><label class="field">Colour<input id="pOC" type="color"></label></div>
+            <p class="empty" id="pONote">Caps and corners shape the outline: give it a width first.</p>
             <div class="grid2"><label class="field">Line caps<select id="pCap"><option value="butt">Square</option><option value="round">Round</option><option value="square">Extended</option></select></label>
             <label class="field">Corners<select id="pJoin"><option value="miter">Mitered</option><option value="round">Round</option><option value="bevel">Bevelled</option></select></label></div></div>
+          <div id="imgProps" class="card" style="display:none"><b>Image adjustments</b>
+            <label class="field">Brightness <span class="val" id="aBrightV">0</span><input id="aBright" type="range" min="-100" max="100" value="0"></label>
+            <label class="field">Contrast <span class="val" id="aContrastV">0</span><input id="aContrast" type="range" min="-100" max="100" value="0"></label>
+            <label class="field">Saturation <span class="val" id="aSatV">0</span><input id="aSat" type="range" min="-100" max="100" value="0"></label>
+            <label class="field">Blur <span class="val" id="aBlurV">0</span><input id="aBlur" type="range" min="0" max="100" value="0"></label>
+            <div class="grid2"><label class="check"><input id="aGray" type="checkbox"> Grayscale</label><button class="mini" id="aReset" type="button">Reset</button></div>
+            <b>Background</b>
+            <button class="mini" id="bgRemove" type="button">Remove plain background</button>
+            <b>Trace bitmap (to vectors)</b>
+            <div class="grid2"><label class="field">Colours<input id="trColours" type="number" min="2" max="16" value="4"></label><label class="field">Detail<select id="trDetail"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></label></div>
+            <label class="check"><input id="trNoBg" type="checkbox" checked> Leave out the background colour</label>
+            <button class="mini" id="trApply" type="button">Trace to vectors</button>
+          </div>
         </div>
       </section>
       <section class="pane" id="pane-layers">
@@ -173,8 +219,10 @@
   <footer class="foot">
     <span class="page">Page 1</span>
     <span class="hide-sm">RGB</span><span class="hide-sm">300 DPI</span>
-    <select id="pageSize" title="Page size"></select><span id="customSize" class="custom-size" hidden><input id="pageW" type="number" min="20" max="2000" aria-label="Page width (mm)"> x <input id="pageH" type="number" min="20" max="2000" aria-label="Page height (mm)"> mm</span><span id="pageInfo" class="hide-sm"></span>
+    <select id="pageSize" title="Page size"></select><span id="customSize" class="custom-size" hidden><input id="pageW" type="number" min="0" step="any" aria-label="Page width"> x <input id="pageH" type="number" min="0" step="any" aria-label="Page height"> <span id="pageUnit">mm</span></span><span id="pageInfo" class="hide-sm"></span>
+    <select id="units" class="hide-sm" title="Units for the rulers, position, size and page"><option value="mm">mm</option><option value="cm">cm</option><option value="in">inches</option><option value="px">pixels (300 DPI)</option></select>
     <span class="spacer"></span>
+    <span id="buildInfo" class="hide-sm build-info"></span>
     <label class="hide-sm"><input type="checkbox" id="gridToggle"> Grid</label>
     <label><input type="checkbox" id="snapToggle"> Snap</label>
     <select id="zoomPct" title="Zoom" class="hide-sm"><option value="fit">Fit</option><option value="25">25%</option><option value="50">50%</option><option value="75">75%</option><option value="100">100%</option><option value="150">150%</option><option value="200">200%</option><option value="400">400%</option></select>
@@ -185,13 +233,13 @@
     <button class="ibtn" id="fitBtn" title="Fit page" data-icon="fit"></button>
   </footer>
 </div>
-<input type="file" id="fileImage" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" multiple>
+<input type="file" id="fileImage" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,.cdr" multiple>
 <div class="toast" id="toast" role="status"></div>
 <dialog class="help" id="helpDialog">
   <h3>Tools and shortcuts <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
   <div class="help-cols">
     <div><h4>Tools</h4>
-      <p><b>Pick</b> V · <b>Shape</b> (nodes) F10 · <b>Freehand</b> F5 · <b>Rectangle</b> F6 · <b>Ellipse</b> F7 · <b>Text</b> F8 · <b>Polygon</b> Y · <b>Star</b> S · <b>Graph paper</b> D · <b>Spiral</b> A · <b>Eraser</b> X · <b>Zoom</b> Z · <b>Pan</b> H · <b>Interactive fill</b> G · <b>Eyedropper</b> I</p>
+      <p><b>Pick</b> V · <b>Shape</b> (nodes) F10 · <b>Freehand</b> F5 · <b>Rectangle</b> F6 · <b>Ellipse</b> F7 · <b>Text</b> F8 · <b>Polygon</b> Y · <b>Star</b> S · <b>Graph paper</b> D · <b>Spiral</b> A · <b>Eraser</b> X · <b>Zoom</b> Z · <b>Pan</b> H · <b>Interactive fill</b> G · <b>Mesh fill</b> M · <b>Eyedropper</b> I (click a colour, then click objects to fill them)</p>
       <p>Click a toolbox button again (or right-click it) to open its flyout: Smooth, Roughen, Attract, Repel, Knife, Bézier, Pen, B-Spline, Polyline, 3-Point Curve, Complex Star, basic shapes, dimensions, Blend, Contour, Drop Shadow, Transparency and more.</p></div>
     <div><h4>Curves and nodes</h4>
       <p><b>Convert to curves</b> Ctrl+Q · <b>Outline to object</b> Ctrl+Shift+Q · <b>Combine</b> Ctrl+L · <b>Break apart</b> Ctrl+K</p>

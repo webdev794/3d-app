@@ -1,1 +1,1 @@
-{"name":"3deezi-artboard","private":true,"scripts":{"build":"node build.mjs"},"dependencies":{"paper":"0.12.18","paperjs-offset":"1.0.8","opentype.js":"1.3.4","jspdf":"2.5.2","svg2pdf.js":"2.2.4"}}
+{"name":"3deezi-artboard","private":true,"scripts":{"build":"node build.mjs"},"dependencies":{"imagetracerjs":"1.2.6","jspdf":"2.5.2","opentype.js":"1.3.4","paper":"0.12.18","paperjs-offset":"1.0.8","svg2pdf.js":"2.2.4"}}

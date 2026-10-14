@@ -63,6 +63,7 @@ class AiApiTest extends TestCase
         $response->assertJsonPath('data.provider.is_ai', true)
             ->assertJsonPath('data.reference_images_analyzed', true)
             ->assertJsonCount(4, 'data.concepts')
+            ->assertJsonPath('data.concepts.0.design.garment', 'jersey')
             ->assertJsonPath('data.concepts.0.design.logoText', 'MANTIS')
             ->assertJsonPath('data.concepts.0.design.main', '#0B1016')
             ->assertJsonPath('data.concepts.3.design.pattern', 'Chevron')

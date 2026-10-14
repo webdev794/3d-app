@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, LoaderCircle, LogOut, Menu, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
 import { api, getToken, media, setToken, type Catalog, type Project, type User } from './api';
@@ -14,7 +14,20 @@ import Home, { DownloadsPage } from './pages/Home';
 
 export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string }
 export const newDraft = (): Draft => ({ name: 'Untitled kit', sport: 'rugby-league', garment: 'jersey', mode: 'dyo', design: { ...defaultDesign } });
-function loadDraft(): Draft { try { const saved = sessionStorage.getItem('3deezi.draft'); return saved ? { ...newDraft(), ...JSON.parse(saved) } : newDraft(); } catch { return newDraft(); } }
+const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', polo: 'polo', fullkit: 'fullkit', 'full kit': 'fullkit' };
+/** Seeded projects can store a null garment and older AI concepts a display name ("Jersey"); every draft gets a valid id so it stays saveable. */
+function normalizeDraft(draft: Draft): Draft {
+  const pick = (g?: string | null) => (g ? garmentIds[String(g).toLowerCase()] : undefined);
+  const garment = pick(draft.design?.garment) || pick(draft.garment) || defaultDesign.garment;
+  if (draft.garment === garment && draft.design?.garment === garment) return draft;
+  return { ...draft, garment, design: { ...defaultDesign, ...draft.design, garment } };
+}
+function loadDraft(): Draft {
+  try {
+    const saved = sessionStorage.getItem('3deezi.draft');
+    return saved ? normalizeDraft({ ...newDraft(), ...JSON.parse(saved) }) : newDraft();
+  } catch { return newDraft(); }
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -23,7 +36,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState('');
-  const [draft, setDraft] = useState<Draft>(loadDraft);
+  const [draft, setDraftRaw] = useState<Draft>(loadDraft);
+  const setDraft = useCallback((next: Draft | ((prev: Draft) => Draft)) => setDraftRaw(prev => normalizeDraft(typeof next === 'function' ? next(prev) : next)), []);
   const [notice, setNotice] = useState('');
   const afterAuth = useRef<(() => void) | null>(null);
   const navigate = useNavigate();
@@ -76,7 +90,7 @@ export default function App() {
       <Route path="/orders" element={protectedPage(<MyOrdersPage />)} />
       <Route path="/pricing" element={<PricingPage onStart={() => start('dyo')} />} />
       <Route path="/downloads" element={<DownloadsPage />} />
-      <Route path="/artboard" element={<ArtboardPage draft={draft} onChange={setDraft} user={user} onNotice={setNotice} />} />
+      <Route path="/artboard" element={<ArtboardPage draft={draft} onChange={setDraft} user={user} onNotice={setNotice} requireAuth={requireAuth} />} />
       <Route path="/studio" element={<Studio draft={draft} onChange={setDraft} catalog={catalog} requireAuth={requireAuth} onNotice={setNotice} user={user} />} />
       <Route path="/projects" element={protectedPage(<ProjectsPage onOpen={openProject} onCreate={() => start('dyo')} />)} />
       <Route path="/approved" element={protectedPage(<ProjectsPage approvedOnly onOpen={openProject} onCreate={() => start('dyo')} />)} />

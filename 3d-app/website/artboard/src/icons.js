@@ -104,4 +104,10 @@ export const ICONS = {
   tocurves: '<rect x="3" y="3" width="18" height="18" stroke-dasharray="2 2"/><path d="M6 17C8 8 16 8 18 17"/><rect x="4.5" y="15.5" width="3" height="3"/><rect x="16.5" y="15.5" width="3" height="3"/><rect x="10.5" y="8" width="3" height="3"/>',
   breakapart: '<rect x="2" y="2" width="9" height="9"/><rect x="13" y="13" width="9" height="9"/><path d="M14 4l5 5M19 4l-5 5" opacity=".5"/>',
   outlineobj: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-width="3"/><rect x="8" y="8" width="8" height="8" rx="1" opacity=".4"/>',
+  table: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9.5h18M3 15h18M9 4v16M15 4v16"/>',
+  distort: '<path d="M3 12l2.5-4 2.5 8 2.5-8 2.5 8 2.5-8 2.5 8 3-4"/>',
+  envelope: '<path d="M4 7c5-4 11-4 16 0v10c-5 4-11 4-16 0z"/><path d="M9 6v12M15 6v12" opacity=".45"/>',
+  extrude: '<path d="M4 9h11v11H4z"/><path d="M4 9l5-5h11l-5 5M15 20l5-5V4" opacity=".55"/>',
+  blockshadow: '<rect x="4" y="4" width="11" height="11" rx="1"/><path d="M15 6l5 5v9H9l-5-5" opacity=".55"/>',
+  meshfill: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9.5c6-2 12 2 18 0M3 15c6-2 12 2 18 0M9.5 3c-2 6 2 12 0 18M15 3c-2 6 2 12 0 18" opacity=".55"/>',
 };

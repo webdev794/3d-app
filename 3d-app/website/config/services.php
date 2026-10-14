@@ -34,6 +34,18 @@ return [
         'key' => env('RESEND_KEY'),
     ],
 
+    /*
+     * CorelDRAW (.cdr) conversion, tried in this order:
+     * 1. A conversion microservice (POST multipart "file", returns SVG) — any hosting.
+     * 2. A LibreOffice binary on this server — VPS/dedicated hosting.
+     * 3. The CloudConvert API — shared hosting without binaries.
+     */
+    'cdr' => [
+        'converter_url' => env('CDR_CONVERTER_URL'),
+        'soffice' => env('CDR_SOFFICE_PATH'),
+        'cloudconvert' => env('CLOUDCONVERT_API_KEY'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

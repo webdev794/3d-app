@@ -85,6 +85,8 @@ class ConceptController extends Controller
         } catch (RuntimeException $e) {
             abort(502, $e->getMessage());
         }
+        // The designer gets the garment's display name for its prompt; saved designs need the catalog id.
+        $concepts = array_map(fn (array $c) => array_replace_recursive($c, ['design' => ['garment' => $data['garment']]]), $concepts);
 
         return response()->json(['data' => [
             'provider' => OpenAiDesigner::provider(),

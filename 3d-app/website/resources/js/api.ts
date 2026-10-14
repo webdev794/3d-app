@@ -32,9 +32,14 @@ async function request(path: string, init: RequestInit = {}) {
   return response;
 }
 export async function api<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  // PHP silently drops requests over post_max_size, so catch oversized bodies with a clear message first.
+  if (typeof init?.body === 'string' && init.body.length > 48 * 1024 * 1024) {
+    throw new ApiError('This design is too large to save. Remove or shrink large images in your artwork and try again.', 413);
+  }
   const response = await request(path, init);
   if (response.status === 204) return undefined as T;
-  return (await response.json()).data as T;
+  try { return (await response.json()).data as T; }
+  catch { throw new ApiError('The server sent an unexpected reply. If your design contains large images, make them smaller and try again.', response.status); }
 }
 export async function fetchFile(path: string): Promise<Blob> { return (await request(path)).blob(); }
 export function saveBlob(blob: Blob, filename: string) {
