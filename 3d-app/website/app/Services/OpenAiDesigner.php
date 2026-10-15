@@ -368,6 +368,23 @@ class OpenAiDesigner
         ];
     }
 
+    /**
+     * A plain text reply to a conversation (used by 3DEEZI ASSIST).
+     *
+     * @param  array<int, array{role: string, content: string}>  $messages
+     */
+    public function respond(string $instructions, array $messages, int $maxTokens = 1500): string
+    {
+        $json = $this->post('/responses', [
+            'model' => config('services.openai.text_model'),
+            'instructions' => $instructions,
+            'input' => $messages,
+            'max_output_tokens' => $maxTokens,
+        ]);
+
+        return trim($this->outputText($json));
+    }
+
     private function client()
     {
         return Http::withToken((string) config('services.openai.key'))->timeout(180)->acceptJson();

@@ -29,6 +29,11 @@ class AppServiceProvider extends ServiceProvider
         ]);
         RateLimiter::for('uploads', fn (Request $request) => Limit::perMinute(20)->by($request->user()->id));
         RateLimiter::for('concepts', fn (Request $request) => Limit::perMinute(12)->by($request->user()->id));
+        // The help chat is public: a few questions a minute and a daily cap per visitor keep AI costs bounded.
+        RateLimiter::for('assist', fn (Request $request) => [
+            Limit::perMinute(10)->by('assist:'.($request->user('sanctum')?->id ?: $request->ip())),
+            Limit::perDay(200)->by('assist-day:'.($request->user('sanctum')?->id ?: $request->ip())),
+        ]);
 
         // Settings saved in the admin panel override .env.
         if (! $this->app->runningUnitTests()) {

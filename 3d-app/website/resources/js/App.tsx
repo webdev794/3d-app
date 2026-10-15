@@ -11,6 +11,7 @@ import Studio from './pages/Studio';
 import ArtboardPage from './pages/Artboard';
 import { ProjectsPage, AssetsPage, DashboardPage, ProfilePage } from './pages/Library';
 import Home, { DownloadsPage } from './pages/Home';
+import Assist from './components/Assist';
 
 export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string }
 export const newDraft = (): Draft => ({ name: 'Untitled kit', sport: 'rugby-league', garment: 'jersey', mode: 'dyo', design: { ...defaultDesign } });
@@ -99,6 +100,7 @@ export default function App() {
       <Route path="/profile" element={protectedPage(user && <ProfilePage user={user} onLogout={logout} />)} />
       <Route path="*" element={<div className="page-shell empty-state"><h1>Off the field?</h1><p>This page doesn’t exist. Your next kit starts here.</p><Link className="button button-primary" to="/">Back to create <ArrowRight size={18} /></Link></div>} />
     </Routes></main>
+    <Assist />
     {!studio && <footer className="site-footer"><Link to="/" className="footer-brand">3DEEZI<span>YOUR SPORT. <b>YOUR WAY.</b></span></Link><span>Designed for the next generation of teams.</span><Link to="/pricing" className="footer-link">Plans & pricing</Link><span>CREATE <i>·</i> DESIGN <i>·</i> PLAY</span></footer>}
     {authOpen && <AuthModal onClose={() => { setAuthOpen(false); afterAuth.current = null; }} onSuccess={(nextUser, token) => { setToken(token); setUser(nextUser); setAuthOpen(false); setNotice(`Welcome, ${nextUser.name.split(' ')[0]}. Your workspace is ready.`); const callback = afterAuth.current; afterAuth.current = null; callback?.(); }} />}
     {notice && <div className="toast" role="status"><Check size={18} /><span>{notice}</span><button className="icon-button" aria-label="Dismiss notification" onClick={() => setNotice('')}><X size={16} /></button></div>}

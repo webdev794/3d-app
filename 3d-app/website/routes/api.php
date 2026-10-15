@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\AiController;
+use App\Http\Controllers\AssistController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ConceptController;
@@ -26,6 +27,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:auth');
     Route::post('/partners/apply', [PartnerApplicationController::class, 'store'])->middleware('throttle:auth');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
+    // 3DEEZI ASSIST, the help chat on every page: open to visitors too.
+    Route::post('/assist', [AssistController::class, 'chat'])->middleware('throttle:assist');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
