@@ -1,17 +1,38 @@
-.home-next{background:#020912}.campaign-hero{position:relative;min-height:575px;height:min(47vw,700px);overflow:hidden;background:#020810}.campaign-backdrop{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 44%}.campaign-shade{position:absolute;inset:0;background:linear-gradient(90deg,#0208109e,transparent 62%),linear-gradient(0deg,#02081066,transparent 35%)}.campaign-copy{position:relative;z-index:2;padding:clamp(60px,6vw,105px) 5.1% 42px;max-width:54%}.campaign-copy>.eyebrow{font-size:10px;letter-spacing:.22em;margin-bottom:18px;color:#36e4f2}.campaign-copy h1{font-size:clamp(49px,5.2vw,79px);font-weight:700;letter-spacing:-.02em;line-height:.98;margin:0 0 24px}.campaign-copy h1>span{color:var(--cyan);background:linear-gradient(95deg,#01dfdf,#00bdf9 60%,#a64aff);background-clip:text;-webkit-text-fill-color:transparent}.campaign-copy>p:not(.eyebrow){max-width:430px;font-size:13px;line-height:1.8;color:#b9cad9;margin-bottom:25px}.campaign-copy>.button{border-radius:11px;min-height:51px;min-width:225px;gap:35px;font-size:11px}.campaign-app-link{margin-top:19px;display:flex;align-items:center;gap:8px;width:max-content;font-size:10px;color:#9fc1cf}.campaign-app-link:hover{color:var(--cyan)}.campaign-live{position:absolute;right:5.1%;bottom:34px;border:1px solid #13d5e653;border-radius:6px;background:#031422c9;display:flex;align-items:center;gap:11px;padding:12px 15px;font-size:9px;letter-spacing:.1em;color:#b4dce6;backdrop-filter:blur(10px)}.campaign-live:hover{border-color:#00d9ed}.creation-paths{position:relative;z-index:3;max-width:1480px;width:calc(100% - 72px);margin:-1px auto 0;padding:0 0 29px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}.path-card{position:relative;border:1.5px solid #0ddde66e;border-radius:11px;overflow:hidden;min-height:288px;padding:24px 23px;text-align:left;background:#061725;box-shadow:0 0 16px #00dcf015;color:#eaf4fc;display:flex;flex-direction:column;align-items:flex-start;transition:border-color .2s,transform .2s}.path-card:hover{transform:translateY(-4px);border-color:#00d9ed;box-shadow:0 0 23px #00d9ed33}.path-card>img{position:absolute;width:100%;height:100%;object-fit:cover;inset:0;object-position:60% center;opacity:.85}.path-shade{position:absolute;inset:0;background:linear-gradient(90deg,#03121feb,#03121f0d),linear-gradient(0deg,#03121fee,transparent)}.path-heading,.path-card>p,.path-card>.button{position:relative;z-index:2}.path-heading{display:flex;align-items:center;gap:16px;margin-bottom:21px}.path-icon{display:grid;place-items:center;flex-shrink:0;height:56px;width:51px;border:1px solid #76e6fba1;border-radius:11px;color:#b9f9ff;background:#07314848;box-shadow:0 0 12px #00d9ed33,inset 0 0 11px #00d9ed15}.path-heading h2{font-size:26px;line-height:1.02;margin:0}.path-heading h2 span{color:#00e3f2}.path-card>p{font-size:10px;color:#c0d0dc;line-height:1.9;max-width:240px;margin:0 0 24px}.path-card>.button{margin-top:auto;min-height:42px;font-size:10px;border-radius:8px;padding:10px 17px;gap:21px;min-width:170px}.path-ai>img{filter:hue-rotate(22deg)}.path-artboard{background:radial-gradient(ellipse at 100% 50%,#0d2d48,#03111e 85%)}.path-artboard .path-heading{max-width:230px}.path-artboard>p{max-width:230px}.mini-artboard{position:absolute;width:47%;height:64%;right:10px;top:25%;border:1px solid #335366;border-radius:6px;background:#101d2c;transform:perspective(650px) rotateY(-14deg) rotate(-2deg);opacity:.9;overflow:hidden}.mini-bar{display:flex;gap:4px;align-items:center;padding:7px;background:#05111e;border-bottom:1px solid #254257}.mini-bar>span{height:3px;width:3px;border-radius:50%;background:#48bfd3}.mini-tools{position:absolute;left:0;top:24px;bottom:0;width:19px;display:flex;align-items:center;flex-direction:column;gap:17px;color:#7cbbd3;padding-top:9px;background:#09131e}.mini-tools svg{width:10px;height:10px}.mini-canvas{position:absolute;top:41px;left:32px;right:20px;bottom:30px;background:repeating-linear-gradient(90deg,transparent 0 13px,#36536d1c 13px 14px),repeating-linear-gradient(0deg,#061420 0 13px,#36536d1c 13px 14px);border:1px solid #00d9edc4;display:flex;align-items:center;justify-content:center}.mini-canvas img{width:89%;mix-blend-mode:screen}.mini-canvas>i{width:4px;height:4px;background:#d5ffff;border:1px solid #00d9ed;position:absolute}.mini-canvas>i:nth-of-type(1){top:-3px;left:-3px}.mini-canvas>i:nth-of-type(2){top:-3px;right:-3px}.mini-canvas>i:nth-of-type(3){bottom:-3px;left:-3px}.mini-canvas>i:nth-of-type(4){bottom:-3px;right:-3px}.mini-swatches{display:flex;position:absolute;left:33px;bottom:11px;gap:5px}.mini-swatches>span{width:9px;height:9px;border-radius:2px;background:#00dcf0}.mini-swatches>span:nth-child(2){background:#0962ff}.mini-swatches>span:nth-child(3){background:#923cff}.mini-swatches>span:nth-child(4){background:#f4f8ff}.path-artboard>.path-heading,.path-artboard>p,.path-artboard>.button{filter:drop-shadow(0 2px 7px #010a14)}.home-app-strip{max-width:1480px;width:calc(100% - 72px);margin:auto;border-top:1px solid #00d9ed24;padding:24px 3px 26px;display:flex;align-items:center;justify-content:space-between;gap:20px;color:#87a5b8;font-size:11px}.home-app-strip>div,.home-app-strip>a{display:flex;align-items:center;gap:10px}.home-app-strip>div>svg{color:#00d9ed}.home-app-strip>a{font-size:9px;letter-spacing:.08em;color:#9dddea}.brand img,.dyo-brand img,.auth-logo,.loader-emblem img{mix-blend-mode:screen}.header-inner{max-width:1600px;padding-left:35px;padding-right:35px;gap:25px}.main-nav{gap:19px}.main-nav a{font-size:12px}.header-actions .button{font-size:10px}.brand,.brand img{width:165px}
-.downloads-page{display:grid;grid-template-columns:1.12fr .88fr;align-items:center;gap:65px;padding:70px 0;min-height:calc(100dvh - 170px)}.download-copy>.eyebrow{font-size:9px;margin-bottom:20px}.download-copy>h1{font-size:clamp(46px,5.5vw,72px);letter-spacing:-.025em;margin-bottom:24px}.download-copy>p{font-size:13px;color:#94aabd;max-width:450px;line-height:1.9}.store-badges{display:flex;flex-wrap:wrap;gap:13px;margin:27px 0 16px}.store-badge{padding:13px 17px;border:1px solid #94bcc35c;border-radius:9px;display:flex;align-items:center;gap:13px;background:#02070c;min-width:174px}.store-badge small{display:block;font-size:7px;letter-spacing:.07em;color:#9eb4c6;margin-bottom:4px}.store-badge strong{font-size:21px;font-weight:600}.download-status{font-size:10px!important;color:#637e92!important;margin-bottom:25px}.download-copy>.button{font-size:10px;min-height:47px}.download-features{display:flex;flex-direction:column;gap:13px;margin-top:32px;color:#8dabc0;font-size:11px}.download-features>span{display:flex;align-items:center;gap:10px}.download-features svg{color:#00d9ed}.phone-display{position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:30px;min-height:600px}.phone-halo{position:absolute;inset:0;background:radial-gradient(ellipse at center,#00d9ed23,transparent 65%);filter:blur(20px)}.phone-mockup{width:256px;height:522px;background:#02080e;border:3px solid #8098a3;box-shadow:0 0 0 3px #091421,0 0 0 4px #00d9ed35,15px 30px 60px #000a,0 0 70px #00d9ed18;border-radius:37px;padding:10px;position:relative;transform:perspective(1100px) rotateY(-9deg) rotate(3deg);overflow:hidden}.phone-camera{position:absolute;left:50%;transform:translateX(-50%);width:77px;height:20px;border-radius:0 0 14px 14px;background:#02060b;top:9px;z-index:4}.phone-screen{height:100%;border-radius:26px;overflow:hidden;background:#031322;position:relative;display:flex;flex-direction:column;align-items:center;padding-top:42px}.phone-brand{width:125px;mix-blend-mode:screen;position:relative;z-index:3}.phone-screen-label{font:600 8px Rajdhani;letter-spacing:.11em;margin-top:13px;position:relative;z-index:3;color:#bde8f0}.phone-jersey{position:absolute;width:100%;height:calc(100% - 55px);object-fit:cover;object-position:center center;top:40px}.phone-tools{position:absolute;bottom:45px;left:15px;right:15px;border:1px solid #00d9ed57;border-radius:9px;background:#05131be6;padding:12px;display:flex;align-items:center;justify-content:space-between;color:#00d9ed}.phone-tools svg{width:17px;height:17px}.phone-save{position:absolute;bottom:20px;font-size:7px;letter-spacing:.13em;color:#9bcedc}.phone-caption{position:relative;font-size:8px;letter-spacing:.2em;color:#729eaf}
-@media(min-width:1600px){.campaign-hero{height:690px}.campaign-copy{max-width:1460px;margin:auto;padding-left:0;padding-top:100px}.campaign-copy>h1,.campaign-copy>p{max-width:650px}.path-card{min-height:310px}.path-heading h2{font-size:31px}}
-@media(max-width:1150px){.header-inner{padding:0 23px;gap:17px}.main-nav{gap:13px}.main-nav a{font-size:10px}.brand,.brand img{width:146px}.header-cta{display:none}.campaign-copy{max-width:61%;padding-top:64px}.campaign-copy h1{font-size:58px}.creation-paths{width:calc(100% - 44px);gap:12px}.path-card{padding:20px 17px;min-height:275px}.path-heading{gap:12px;margin-bottom:20px}.path-icon{width:43px;height:47px}.path-heading h2{font-size:24px}.path-card>p{font-size:9px}.path-card>.button{font-size:9px;gap:17px;min-width:155px}.mini-artboard{opacity:.45;width:52%;right:0}.home-app-strip{width:calc(100% - 44px)}}
-@media(max-width:800px){.campaign-hero{height:580px}.campaign-copy{max-width:73%;padding:65px 22px 35px}.campaign-copy h1{font-size:52px}.campaign-copy>.eyebrow{font-size:8px}.campaign-copy>p:not(.eyebrow){font-size:12px;max-width:340px}.campaign-shade{background:linear-gradient(90deg,#020810b8,transparent 95%)}.campaign-backdrop{object-position:58% center}.campaign-live{right:22px;bottom:24px;font-size:8px;padding:10px 12px}.creation-paths{grid-template-columns:1fr;gap:15px;padding-top:20px}.path-card{min-height:244px;padding:24px}.path-card>img{object-position:center 42%}.path-shade{background:linear-gradient(90deg,#03121ff2,#03121f00),linear-gradient(0deg,#03121faa,transparent)}.path-card>p{font-size:11px}.path-heading h2{font-size:28px}.path-card>.button{font-size:10px}.mini-artboard{opacity:.9;right:25px;width:43%;height:75%;top:12%;max-width:260px}.home-app-strip{font-size:10px;padding:20px 0 25px}.home-app-strip>a{font-size:8px}.downloads-page{gap:25px;padding:50px 0;grid-template-columns:1fr .8fr}.download-copy>h1{font-size:46px}.download-copy>p{font-size:12px}.phone-display{padding:0;min-height:530px}.phone-mockup{width:225px;height:466px}.store-badges{gap:10px}.store-badge{min-width:164px}.main-nav a{font-size:14px}.brand,.brand img{width:148px}}
-@media(max-width:520px){.campaign-hero{min-height:785px;height:auto}.campaign-copy{max-width:100%;padding:34px 20px 30px}.campaign-copy h1{font-size:49px;margin-bottom:18px}.campaign-copy>.eyebrow{font-size:7px;letter-spacing:.12em;margin-bottom:15px}.campaign-copy>p:not(.eyebrow){font-size:11px;max-width:330px;margin-bottom:19px}.campaign-copy>.button{min-height:44px;min-width:190px;font-size:10px}.campaign-app-link{font-size:9px;margin-top:14px}.campaign-backdrop{top:350px;height:440px;object-position:78% center}.campaign-shade{background:linear-gradient(180deg,#020810 0 42%,transparent 62%,transparent 92%,#02081066)}.campaign-live{bottom:20px;right:20px;left:20px;justify-content:center;backdrop-filter:blur(8px)}.creation-paths{width:calc(100% - 30px);padding-top:18px}.path-card{min-height:265px;padding:23px 21px}.path-heading{gap:14px}.path-heading h2{font-size:29px}.path-card>p{font-size:10px;max-width:240px}.mini-artboard{right:7px;top:28%;height:58%;opacity:.64;width:46%}.path-artboard>p{max-width:205px}.home-app-strip{width:calc(100% - 34px);flex-direction:column;align-items:flex-start;gap:17px}.home-app-strip>div{font-size:9px}.downloads-page{display:flex;flex-direction:column;gap:20px;padding:38px 0}.download-copy>h1{font-size:47px}.download-copy>.eyebrow{font-size:8px}.download-copy>p{font-size:12px}.store-badges{gap:10px}.store-badge{min-width:0;flex:1;padding:12px 10px;gap:8px}.store-badge>svg{width:22px}.store-badge strong{font-size:18px}.store-badge small{font-size:6px}.download-status{font-size:9px!important}.download-copy>.button{font-size:9px;padding:13px 16px}.phone-display{min-height:540px;width:100%;padding:20px}.phone-mockup{width:244px;height:505px}.phone-caption{font-size:7px}}
-/* Noticeable app-store branding in the hero (client request). */
-.hero-stores{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}
-.hero-store{display:flex;align-items:center;gap:12px;padding:10px 18px 10px 14px;border-radius:12px;border:1.5px solid rgba(18,225,240,.65);background:rgba(3,10,18,.78);color:#fff;text-decoration:none;box-shadow:0 0 18px rgba(18,225,240,.25);backdrop-filter:blur(8px);transition:.2s}
-.hero-store:hover{border-color:#12E1F0;box-shadow:0 0 26px rgba(18,225,240,.5);transform:translateY(-2px)}
-.hero-store span{display:flex;flex-direction:column;line-height:1.05}
-.hero-store small{font-size:9px;letter-spacing:.12em;color:#9fdfe8}
-.hero-store strong{font-size:21px;font-weight:700}
-
+.home-next{background:#020912}
+.brand img,.dyo-brand img,.auth-logo,.loader-emblem img{mix-blend-mode:screen}
+.header-inner{max-width:1600px;padding-left:35px;padding-right:35px;gap:25px}
+.main-nav{gap:19px}
+.main-nav a{font-size:12px}
+.header-actions .button{font-size:10px}
+.brand,.brand img{width:165px}
+.downloads-page{display:grid;grid-template-columns:1.12fr .88fr;align-items:center;gap:65px;padding:70px 0;min-height:calc(100dvh - 170px)}
+.download-copy>.eyebrow{font-size:9px;margin-bottom:20px}
+.download-copy>h1{font-size:clamp(46px,5.5vw,72px);letter-spacing:-.025em;margin-bottom:24px}
+.download-copy>p{font-size:13px;color:#94aabd;max-width:450px;line-height:1.9}
+.store-badges{display:flex;flex-wrap:wrap;gap:13px;margin:27px 0 16px}
+.store-badge{padding:13px 17px;border:1px solid #94bcc35c;border-radius:9px;display:flex;align-items:center;gap:13px;background:#02070c;min-width:174px}
+.store-badge small{display:block;font-size:7px;letter-spacing:.07em;color:#9eb4c6;margin-bottom:4px}
+.store-badge strong{font-size:21px;font-weight:600}
+.download-status{font-size:10px!important;color:#637e92!important;margin-bottom:25px}
+.download-copy>.button{font-size:10px;min-height:47px}
+.download-features{display:flex;flex-direction:column;gap:13px;margin-top:32px;color:#8dabc0;font-size:11px}
+.download-features>span{display:flex;align-items:center;gap:10px}
+.download-features svg{color:#00d9ed}
+.phone-display{position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:30px;min-height:600px}
+.phone-halo{position:absolute;inset:0;background:radial-gradient(ellipse at center,#00d9ed23,transparent 65%);filter:blur(20px)}
+.phone-mockup{width:256px;height:522px;background:#02080e;border:3px solid #8098a3;box-shadow:0 0 0 3px #091421,0 0 0 4px #00d9ed35,15px 30px 60px #000a,0 0 70px #00d9ed18;border-radius:37px;padding:10px;position:relative;transform:perspective(1100px) rotateY(-9deg) rotate(3deg);overflow:hidden}
+.phone-camera{position:absolute;left:50%;transform:translateX(-50%);width:77px;height:20px;border-radius:0 0 14px 14px;background:#02060b;top:9px;z-index:4}
+.phone-screen{height:100%;border-radius:26px;overflow:hidden;background:#031322;position:relative;display:flex;flex-direction:column;align-items:center;padding-top:42px}
+.phone-brand{width:125px;mix-blend-mode:screen;position:relative;z-index:3}
+.phone-screen-label{font:600 8px Rajdhani;letter-spacing:.11em;margin-top:13px;position:relative;z-index:3;color:#bde8f0}
+.phone-jersey{position:absolute;width:100%;height:calc(100% - 55px);object-fit:cover;object-position:center center;top:40px}
+.phone-tools{position:absolute;bottom:45px;left:15px;right:15px;border:1px solid #00d9ed57;border-radius:9px;background:#05131be6;padding:12px;display:flex;align-items:center;justify-content:space-between;color:#00d9ed}
+.phone-tools svg{width:17px;height:17px}
+.phone-save{position:absolute;bottom:20px;font-size:7px;letter-spacing:.13em;color:#9bcedc}
+.phone-caption{position:relative;font-size:8px;letter-spacing:.2em;color:#729eaf}
+@media(max-width:1150px){.header-inner{padding:0 23px;gap:17px}.main-nav{gap:13px}.main-nav a{font-size:10px}.brand,.brand img{width:146px}.header-cta{display:none}}
+@media(max-width:800px){.downloads-page{gap:25px;padding:50px 0;grid-template-columns:1fr .8fr}.download-copy>h1{font-size:46px}.download-copy>p{font-size:12px}.phone-display{padding:0;min-height:530px}.phone-mockup{width:225px;height:466px}.store-badges{gap:10px}.store-badge{min-width:164px}.main-nav a{font-size:14px}.brand,.brand img{width:148px}}
+@media(max-width:520px){.downloads-page{display:flex;flex-direction:column;gap:20px;padding:38px 0}.download-copy>h1{font-size:47px}.download-copy>.eyebrow{font-size:8px}.download-copy>p{font-size:12px}.store-badges{gap:10px}.store-badge{min-width:0;flex:1;padding:12px 10px;gap:8px}.store-badge>svg{width:22px}.store-badge strong{font-size:18px}.store-badge small{font-size:6px}.download-status{font-size:9px!important}.download-copy>.button{font-size:9px;padding:13px 16px}.phone-display{min-height:540px;width:100%;padding:20px}.phone-mockup{width:244px;height:505px}.phone-caption{font-size:7px}}
 /* Official-style store badges (client request: real App Store symbol). */
 .official-stores{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}
 .official-badge{display:inline-flex;align-items:center;gap:10px;height:56px;padding:0 18px 0 14px;border-radius:12px;background:#000;border:1.5px solid #a6a6a6;color:#fff;text-decoration:none;transition:transform .2s,box-shadow .2s}
@@ -20,23 +41,220 @@
 .official-badge span{display:flex;flex-direction:column;line-height:1}
 .official-badge small{font-size:11px;letter-spacing:.02em;margin-bottom:3px}
 .official-badge strong{font:600 23px/1 -apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif;letter-spacing:-.01em}
-
-/* Phone showing the real 3DEEZI app, beside the hero copy. */
-.hero-phone{position:absolute;z-index:2;left:43%;bottom:-40px;width:clamp(170px,15vw,250px);transform:rotate(-9deg);transform-origin:bottom center}
-.hero-phone-frame{position:relative;aspect-ratio:390/844;border-radius:30px;padding:9px;background:linear-gradient(145deg,#2c3846,#0a0f15 40%,#1b2430);box-shadow:0 0 0 1.5px #4b5a6b,0 30px 60px #000c,0 0 40px rgba(18,225,240,.35)}
-.hero-phone-frame img{display:block;width:100%;height:100%;object-fit:cover;border-radius:22px}
-.hero-phone-notch{position:absolute;left:50%;top:15px;width:30%;height:16px;transform:translateX(-50%);border-radius:10px;background:#05080c;z-index:1}
-.hero-phone-glow{position:absolute;left:-20%;right:-20%;bottom:20px;height:60px;background:radial-gradient(ellipse at center,rgba(18,225,240,.45),transparent 70%);filter:blur(10px);z-index:-1}
-
-/* Glow around the three creation tiles (client request). */
-.path-card{border:2px solid #12e1f0aa;box-shadow:0 0 18px #00d9ed55,0 0 46px #00d9ed26,inset 0 0 26px #00d9ed14}
-.path-card:hover{border-color:#36e3ee;box-shadow:0 0 26px #00d9ed99,0 0 70px #00d9ed3d,inset 0 0 30px #00d9ed22}
-.path-ai{border-color:#7b4dffaa;box-shadow:0 0 18px #7b4dff55,0 0 46px #00d9ed26,inset 0 0 26px #7b4dff14}
-
-@media(max-width:1150px){.hero-phone{left:auto;right:3%;bottom:-30px;width:150px}}
-@media(max-width:800px){.hero-phone{display:none}}
-
 .download-stores{margin:27px 0 14px}
 .official-badge.is-soon{position:relative;cursor:default}
 .official-badge.is-soon:hover{transform:none;box-shadow:none}
 .official-badge em{position:absolute;top:-9px;right:10px;padding:2px 8px;border-radius:999px;background:linear-gradient(90deg,#12e1f0,#8b5cf6);color:#02070c;font:800 9px/1.4 Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;font-style:normal}
+
+/* Homepage (client design 2026-10-15): the app with its store badges on the left, the headline and
+   Start creating in the middle, the kit on the right and the three ways to create along the bottom,
+   leaving room on the right for 3DEEZI ASSIST. On computers the design's 1600 px grid scales with the
+   page width: --u is 1 px at 1600 px wide. Tablets and phones stack it (see the media queries). */
+.home-next{background:#020912;overflow:hidden}
+.home-stage{position:relative;container-type:inline-size;background:radial-gradient(ellipse 55% 75% at 70% 38%,#0c2c4c55,transparent 70%),linear-gradient(180deg,#030b16,#020912)}
+.home-stage-inner{--u:min(calc(100cqw / 1600),1.2px);position:relative;width:calc(1600 * var(--u));margin:0 auto;padding-bottom:calc(29 * var(--u))}
+.campaign-backdrop{position:absolute;left:calc(267 * var(--u));top:calc(-48 * var(--u));width:calc(1224 * var(--u));max-width:none;height:auto;pointer-events:none;-webkit-mask-image:linear-gradient(90deg,transparent,#000 24%),linear-gradient(180deg,#000 80%,transparent);-webkit-mask-composite:source-in;mask-image:linear-gradient(90deg,transparent,#000 24%),linear-gradient(180deg,#000 80%,transparent);mask-composite:intersect}
+.campaign-shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,#020912cc 0,#02091299 22%,#02091238 45%,transparent 60%)}
+/* The arena continues past the photo's right edge (x 1491): the photo's last strip mirrored there, so it
+   joins without a seam. Then soft white-blue smoke over the right edge, so it reads as haze, not a wall. */
+.hero-edge{position:absolute;z-index:0;left:calc(1489 * var(--u));top:calc(-48 * var(--u));width:calc(111 * var(--u));height:calc(816 * var(--u));pointer-events:none;background:var(--hero-photo) calc(-1111 * var(--u)) 0/calc(1224 * var(--u)) auto no-repeat;transform:scaleX(-1);-webkit-mask-image:linear-gradient(180deg,#000 59%,transparent 67%);mask-image:linear-gradient(180deg,#000 59%,transparent 67%)}
+/* ... and the floor below it continues from the photo's plain floor right of the stand (x 1477-1533 of the photo),
+   mirrored and widened, so no second stand appears at the edge. */
+.hero-edge-floor{position:absolute;z-index:0;left:calc(1489 * var(--u));top:calc(440 * var(--u));width:calc(111 * var(--u));height:calc(328 * var(--u));pointer-events:none;background:var(--hero-photo) calc(-2944 * var(--u)) calc(-488 * var(--u))/calc(3060 * var(--u)) calc(816 * var(--u)) no-repeat;transform:scaleX(-1);-webkit-mask-image:linear-gradient(180deg,transparent,#000 18%,#000 50%,transparent),linear-gradient(90deg,transparent,#000 60%);-webkit-mask-composite:source-in;mask-image:linear-gradient(180deg,transparent,#000 18%,#000 50%,transparent),linear-gradient(90deg,transparent,#000 60%);mask-composite:intersect}
+.hero-smoke{position:absolute;z-index:1;left:calc(1395 * var(--u));top:0;width:calc(205 * var(--u));height:calc(820 * var(--u));pointer-events:none;background:radial-gradient(ellipse 55% 9% at 70% 16%,#a9c4ea2e,transparent 70%),radial-gradient(ellipse 70% 8% at 55% 30%,#b8cff040,transparent 70%),radial-gradient(ellipse 80% 11% at 78% 45%,#c6d8f552,transparent 70%),radial-gradient(ellipse 65% 8% at 40% 53%,#a8bfe83d,transparent 70%),radial-gradient(ellipse 75% 10% at 82% 62%,#9aa6e036,transparent 70%),radial-gradient(ellipse 70% 9% at 60% 74%,#8c9ad82b,transparent 70%),linear-gradient(90deg,transparent,#8fb0dd14 35%,#a9c4ea26);filter:blur(calc(10 * var(--u)));-webkit-mask-image:linear-gradient(90deg,transparent,#000 45%);mask-image:linear-gradient(90deg,transparent,#000 45%)}
+/* The big 3DEEZI behind the headline, as in the design: our logo's letters in a whitish silver, placed as in
+   the design (x 425-1600, y 107-200 at 1600 px) and going behind the shirt (cut out along its collar and shoulders). */
+.hero-wordmark{position:absolute;z-index:1;left:calc(425 * var(--u));top:calc(25 * var(--u));width:calc(1175 * var(--u));height:calc(93 * var(--u));pointer-events:none;background:linear-gradient(90deg,#020710b3,#0207104d 12%,transparent 26%,transparent 84%,#02071080),radial-gradient(ellipse 14% 140% at 36% 30%,#a9bdd82e,transparent 70%),radial-gradient(ellipse 14% 140% at 78% 30%,#a9bdd826,transparent 70%),linear-gradient(180deg,#4d586c,#3c4558 45%,#252c3a);-webkit-mask:url('../../public/media/images/wordmark-mask.png') 0 0/100% 100% no-repeat,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1175 93' preserveAspectRatio='none'%3E%3Cfilter id='b' x='-5%' y='-30%' width='110%' height='160%'%3E%3CfeGaussianBlur stdDeviation='1.5'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill-rule='evenodd' d='M-20 -20H1195V113H-20Z M651 -4L778 -4L778 0L799 12L827 26L859 38L887 52L907 68L923 88L929 100L524 100L531 88L548 75L571 60L591 48L618 35L638 21L648 8L652 0Z'/%3E%3C/svg%3E") 0 0/100% 100% no-repeat;-webkit-mask-composite:source-in;mask:url('../../public/media/images/wordmark-mask.png') 0 0/100% 100% no-repeat,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1175 93' preserveAspectRatio='none'%3E%3Cfilter id='b' x='-5%' y='-30%' width='110%' height='160%'%3E%3CfeGaussianBlur stdDeviation='1.5'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill-rule='evenodd' d='M-20 -20H1195V113H-20Z M651 -4L778 -4L778 0L799 12L827 26L859 38L887 52L907 68L923 88L929 100L524 100L531 88L548 75L571 60L591 48L618 35L638 21L648 8L652 0Z'/%3E%3C/svg%3E") 0 0/100% 100% no-repeat;mask-composite:intersect}
+
+/* Lights on the left, as in the design: two slanted neon tubes in front of a blurred panelled wall,
+   a purple light streak and a glowing line along the floor. */
+.hero-lights{position:absolute;inset:0;z-index:1;pointer-events:none}
+.hero-lights>i{position:absolute;display:block}
+/* The photo's wet floor continues under the phone and badges, as in the design: the floor is mirrored at
+   x 440, where the photo fades out, so it joins it without a seam. Only plain floor is used (photo x 217-700,
+   widened a little): the shirt's round stand starts at x 735. Its outer edge fades. */
+.hl-wetfloor{left:0;top:calc(470 * var(--u));width:calc(440 * var(--u));height:calc(160 * var(--u));background:var(--hero-photo) calc(-198 * var(--u)) calc(-518 * var(--u))/calc(1399 * var(--u)) calc(816 * var(--u)) no-repeat;transform:scaleX(-1);-webkit-mask-image:linear-gradient(180deg,transparent,#000 16%,#000 60%,transparent),linear-gradient(90deg,transparent,#000 18%,#000 86%,transparent);-webkit-mask-composite:source-in;mask-image:linear-gradient(180deg,transparent,#000 16%,#000 60%,transparent),linear-gradient(90deg,transparent,#000 18%,#000 86%,transparent);mask-composite:intersect}
+/* Blue light beside the phone (left of it), not under it: under it is the floor. */
+.hl-haze{left:calc(-120 * var(--u));top:calc(200 * var(--u));width:calc(420 * var(--u));height:calc(380 * var(--u));background:radial-gradient(ellipse 50% 50% at 40% 55%,#2569c466,#164a9a26 50%,transparent 75%)}
+.hl-box{left:calc(-12 * var(--u));top:calc(40 * var(--u));width:calc(128 * var(--u));height:calc(215 * var(--u));background:repeating-linear-gradient(180deg,#2c5a82 0 calc(11 * var(--u)),transparent calc(11 * var(--u)) calc(21 * var(--u)));-webkit-mask-image:repeating-linear-gradient(90deg,#000 0 calc(20 * var(--u)),transparent calc(20 * var(--u)) calc(27 * var(--u))),linear-gradient(90deg,#000 30%,transparent),linear-gradient(180deg,transparent,#000 15%,#000 75%,transparent);-webkit-mask-composite:source-in;mask-image:repeating-linear-gradient(90deg,#000 0 calc(20 * var(--u)),transparent calc(20 * var(--u)) calc(27 * var(--u))),linear-gradient(90deg,#000 30%,transparent),linear-gradient(180deg,transparent,#000 15%,#000 75%,transparent);mask-composite:intersect;filter:blur(calc(1.8 * var(--u)));opacity:.5;transform:perspective(calc(320 * var(--u))) rotateY(28deg) skewY(-5deg);transform-origin:left center}
+.hl-tube{left:calc(54 * var(--u));top:calc(19 * var(--u));width:calc(7.5 * var(--u));height:calc(202 * var(--u));border-radius:99px;background:linear-gradient(90deg,#1f7dff,#5cb8ff 30%,#b9ecff 50%,#5cb8ff 70%,#1f7dff);filter:blur(calc(.7 * var(--u)));box-shadow:0 0 calc(6 * var(--u)) #4fb4ff,0 0 calc(16 * var(--u)) #2a8dff,0 0 calc(34 * var(--u)) #1e7bffd9,0 0 calc(64 * var(--u)) #1e6fff99,0 0 calc(110 * var(--u)) #1e6fff4d;transform:rotate(6.5deg)}
+.hl-tube::after{content:"";position:absolute;z-index:-1;left:calc(-70 * var(--u));right:calc(-70 * var(--u));top:-12%;bottom:-12%;background:radial-gradient(ellipse 45% 50% at 50% 50%,#1e7bff38,transparent 72%)}
+.hl-tube-low{left:calc(31 * var(--u));top:calc(250 * var(--u));height:calc(166 * var(--u));transform:rotate(6deg)}
+.hl-streak{left:calc(-6 * var(--u));top:calc(404 * var(--u));width:calc(160 * var(--u));height:calc(4 * var(--u));border-radius:99px;background:linear-gradient(90deg,#e6d0ff,#b48cff 30%,#8b5cff 60%,#5a7bff 85%,transparent);box-shadow:0 0 calc(6 * var(--u)) #c9a6ff,0 0 calc(16 * var(--u)) #8b5cff,0 0 calc(40 * var(--u)) #7b5cffb0,0 0 calc(70 * var(--u)) #7b5cff55;transform:rotate(14deg);transform-origin:left center}
+.hl-streak-high{top:calc(300 * var(--u));width:calc(150 * var(--u));height:calc(2 * var(--u));transform:rotate(9deg);opacity:.45}
+.hl-floor{left:0;top:calc(482 * var(--u));width:calc(980 * var(--u));height:calc(5 * var(--u));border-radius:99px;background:linear-gradient(90deg,#2a8dff66,#3aa4ff 18%,#b4f6ff 38%,#7fe9ff 46%,#2a8dff99 68%,transparent);box-shadow:0 0 calc(10 * var(--u)) #4fb8ff,0 0 calc(30 * var(--u)) #1e8bff,0 0 calc(70 * var(--u)) #1e8bffa0;opacity:.95}
+.hl-floor::after{content:"";position:absolute;left:calc(-20 * var(--u));width:calc(640 * var(--u));top:calc(-30 * var(--u));height:calc(150 * var(--u));background:radial-gradient(ellipse 50% 50% at 62% 30%,#2a9bff55,#1e6fd022 50%,transparent 72%)}
+
+.campaign-hero{position:relative;z-index:2;height:calc(572 * var(--u))}
+.hero-app{position:absolute;left:calc(100 * var(--u));top:calc(2 * var(--u));width:calc(380 * var(--u))}
+.hero-phone{position:relative;width:calc(248 * var(--u));margin-left:calc(8 * var(--u));perspective:calc(1200 * var(--u))}
+.hero-phone-frame{position:relative;height:calc(478 * var(--u));border-radius:calc(40 * var(--u));padding:calc(10 * var(--u));background:#06090d;transform:rotateX(8deg) rotate(3deg) skewX(5deg);transform-origin:50% 50%;box-shadow:inset 0 0 0 calc(3 * var(--u)) #4f5a67,inset 0 0 0 calc(4.5 * var(--u)) #1a2028,0 calc(30 * var(--u)) calc(60 * var(--u)) #000c,0 0 calc(40 * var(--u)) rgba(18,225,240,.25)}
+/* The phone's left side (metal edge and buttons), seen because the phone is turned. */
+.hero-phone-side{position:absolute;left:calc(-8 * var(--u));top:calc(34 * var(--u));bottom:calc(34 * var(--u));width:calc(11 * var(--u));border-radius:calc(10 * var(--u)) 0 0 calc(10 * var(--u));background:linear-gradient(90deg,#1a2028,#5b6674 45%,#2a323c 80%,#0e1318);box-shadow:inset 0 0 0 1px #8a95a333}
+.hero-phone-side::after{content:"";position:absolute;left:calc(-2 * var(--u));top:calc(52 * var(--u));width:calc(4 * var(--u));height:calc(126 * var(--u));border-radius:2px;background:linear-gradient(180deg,#56616f 0 calc(22 * var(--u)),transparent calc(22 * var(--u)) calc(34 * var(--u)),#56616f calc(34 * var(--u)) calc(76 * var(--u)),transparent calc(76 * var(--u)) calc(84 * var(--u)),#56616f calc(84 * var(--u)) calc(126 * var(--u)))}
+.hero-phone-notch{position:absolute;z-index:3;left:50%;top:calc(17 * var(--u));width:calc(66 * var(--u));height:calc(19 * var(--u));transform:translateX(-50%);border-radius:calc(12 * var(--u));background:#020407}
+.hero-phone-glow{position:absolute;left:-15%;right:-15%;bottom:calc(-6 * var(--u));height:calc(70 * var(--u));background:radial-gradient(ellipse at center,rgba(18,225,240,.4),transparent 70%);filter:blur(10px);z-index:-1}
+.hero-phone-screen{position:relative;height:100%;border-radius:calc(31 * var(--u));overflow:hidden;display:flex;flex-direction:column;align-items:center;padding:calc(13 * var(--u)) calc(9 * var(--u)) calc(8 * var(--u));background:radial-gradient(ellipse 80% 45% at 50% 42%,#12416188,transparent 70%),linear-gradient(180deg,#07121e,#03080f);color:#e9f3fa}
+.hp-status{width:100%;display:flex;justify-content:space-between;align-items:center;padding:0 calc(10 * var(--u));font:600 calc(10 * var(--u))/1 Inter,sans-serif}
+.hp-status>span:last-child{display:flex;gap:calc(3 * var(--u))}
+.hp-status svg{width:calc(10 * var(--u));height:calc(10 * var(--u))}
+.hp-brand{width:calc(142 * var(--u));margin-top:calc(18 * var(--u));mix-blend-mode:screen}
+.hp-tabs{display:flex;gap:calc(4 * var(--u));margin-top:calc(12 * var(--u));white-space:nowrap}
+.hp-tabs>span{padding:calc(8 * var(--u)) calc(6.5 * var(--u));border:1px solid #ffffff1f;border-radius:calc(7 * var(--u));background:#0c1826;font:600 calc(8.5 * var(--u))/1 Inter,sans-serif;letter-spacing:.02em;color:#d3e4ef}
+.hp-tabs>span.on{background:#39dcef;border-color:#39dcef;color:#03202c;box-shadow:0 0 calc(10 * var(--u)) #39dcef88}
+.hp-kit{position:relative;flex:1;width:100%;display:flex;align-items:center;justify-content:space-between;min-height:0}
+.hp-kit>img{position:absolute;z-index:1;left:50%;top:50%;width:calc(206 * var(--u));transform:translate(-50%,-50%);filter:hue-rotate(-14deg) saturate(1.15) drop-shadow(0 0 calc(9 * var(--u)) #1e8bffa0) drop-shadow(0 calc(10 * var(--u)) calc(16 * var(--u)) #000c)}
+/* The shirt is backlit, as in the design: a blue glow behind it and light pooling under the hem. */
+.hp-kit::before{content:"";position:absolute;left:50%;top:54%;width:calc(220 * var(--u));height:calc(240 * var(--u));transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(ellipse at 50% 64%,#2f86ffa8,#1f7bff3a 45%,transparent 72%);filter:blur(calc(6 * var(--u)))}
+.hp-kit::after{content:"";position:absolute;left:50%;top:calc(50% + 86 * var(--u));width:calc(196 * var(--u));height:calc(34 * var(--u));transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse at center,#b4f3ffee,#3a9bff8c 40%,transparent 72%);filter:blur(calc(4 * var(--u)))}
+.hp-kit>b{position:absolute;z-index:2;left:50%;top:57%;transform:translateX(-50%);font:700 calc(34 * var(--u))/1 var(--heading);color:#f2f7fb;text-shadow:0 1px 3px #000a}
+.hp-kit>svg{position:relative;z-index:2;width:calc(20 * var(--u));height:calc(20 * var(--u));color:#cfe0ea}
+.hp-colours{display:flex;gap:calc(9 * var(--u));padding:calc(7 * var(--u)) calc(11 * var(--u));border:1px solid #ffffff14;border-radius:calc(20 * var(--u));background:#0a1522cc}
+.hp-colours>span{width:calc(19 * var(--u));height:calc(19 * var(--u));border-radius:50%;border:1px solid #ffffff2a;background:#38dcef}
+.hp-colours>span:nth-child(2){background:radial-gradient(circle at 35% 35%,#5d6b7b,#1c2632)}
+.hp-colours>span:nth-child(3){background:radial-gradient(circle at 35% 35%,#7d8794,#353d48)}
+.hp-colours>span:nth-child(4){background:#e8eef4}
+.hp-colours>span:nth-child(5){background:#0a0e13}
+.hp-colours>span:nth-child(6){background:linear-gradient(135deg,#7b5cff,#3a2a8a)}
+.hp-thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:calc(4 * var(--u));width:100%;margin-top:calc(9 * var(--u))}
+.hp-thumbs>span{aspect-ratio:.86;border:1px solid #ffffff1c;border-radius:calc(6 * var(--u));background:#0c1826;overflow:hidden;display:grid;place-items:center}
+.hp-thumbs>span.on{border-color:#39dcef;box-shadow:0 0 calc(8 * var(--u)) #39dcef77}
+.hp-thumbs img{width:88%;height:88%;object-fit:contain}
+.hp-thumbs img.purple{filter:hue-rotate(55deg) saturate(1.2)}
+.hp-home{width:calc(78 * var(--u));height:calc(4 * var(--u));border-radius:9px;background:#ffffffb0;margin-top:calc(9 * var(--u))}
+.hero-stores.official-stores{flex-wrap:nowrap;gap:calc(14 * var(--u));margin:calc(18 * var(--u)) 0 0 calc(20 * var(--u))}
+.hero-stores .official-badge{height:max(40px,calc(50 * var(--u)));padding:0 calc(14 * var(--u)) 0 calc(11 * var(--u));gap:calc(8 * var(--u));border-radius:calc(9 * var(--u));box-shadow:0 calc(8 * var(--u)) calc(22 * var(--u)) #000a}
+.hero-stores .official-badge svg{width:max(20px,calc(26 * var(--u)));height:max(20px,calc(26 * var(--u)))}
+.hero-stores .official-badge small{font-size:max(8px,calc(10.5 * var(--u)))}
+.hero-stores .official-badge strong{font-size:max(16px,calc(20.5 * var(--u)))}
+
+.campaign-copy{position:absolute;left:calc(420 * var(--u));bottom:calc(82 * var(--u));width:calc(520 * var(--u))}
+.campaign-copy>.eyebrow{font-size:max(10px,calc(13 * var(--u)));letter-spacing:.3em;font-weight:700;color:#3fe0ef;margin:0 0 calc(17 * var(--u))}
+.campaign-copy h1{font-size:max(44px,calc(76 * var(--u)));line-height:.82;letter-spacing:0;font-weight:700;margin:0 0 calc(8 * var(--u))}
+.campaign-copy h1>span{background:linear-gradient(95deg,#12e3f2,#19bdfc 62%,#8a5cff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.campaign-copy>p:not(.eyebrow){max-width:calc(440 * var(--u));font-size:max(14px,calc(18 * var(--u)));line-height:1.3;color:#cfd9e4;margin:0 0 calc(19 * var(--u))}
+.campaign-copy>.button{justify-content:space-between;min-height:max(44px,calc(52 * var(--u)));min-width:calc(281 * var(--u));padding:0 calc(26 * var(--u)) 0 calc(38 * var(--u));gap:calc(38 * var(--u));border-radius:calc(12 * var(--u));font-size:max(11px,calc(15 * var(--u)));letter-spacing:.2em;color:#04192b;background:linear-gradient(100deg,#12e2f1,#1cc6f6 45%,#6d74ff 85%,#8c5cff);box-shadow:0 0 calc(24 * var(--u)) #12e1f055}
+.campaign-copy>.button svg{width:max(16px,calc(21 * var(--u)));height:max(16px,calc(21 * var(--u)))}
+
+.creation-paths{position:relative;z-index:3;margin-left:calc(95 * var(--u));width:min(calc(1122 * var(--u)),calc(100cqw - 24px - 344px * var(--assist-scale,1) - 113 * var(--u)));display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:calc(11 * var(--u))}
+.path-card{position:relative;min-height:calc(219 * var(--u));padding:calc(20 * var(--u)) calc(18 * var(--u)) calc(18 * var(--u));border:1.5px solid #12e1f0b3;border-radius:calc(8 * var(--u));overflow:hidden;background:#061624e8;color:#eaf4fc;text-align:left;display:flex;flex-direction:column;align-items:flex-start;box-shadow:0 0 18px #00d9ed45,0 0 46px #00d9ed1f,inset 0 0 26px #00d9ed12;transition:border-color .2s,transform .2s,box-shadow .2s}
+.path-card:hover{transform:translateY(-4px);border-color:#36e3ee;box-shadow:0 0 26px #00d9ed88,0 0 70px #00d9ed33,inset 0 0 30px #00d9ed22}
+.path-card>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:right center;opacity:.9}
+.path-ai>img{filter:hue-rotate(22deg)}
+.path-shade{position:absolute;inset:0;background:linear-gradient(90deg,#04121ff0,#04121fd6 36%,#04121f38 68%,transparent),linear-gradient(0deg,#04121fb3,transparent 42%)}
+.path-heading,.path-card>p,.path-card>.button{position:relative;z-index:2}
+.path-heading{display:flex;align-items:center;gap:calc(14 * var(--u));margin-bottom:calc(15 * var(--u))}
+.path-icon{display:grid;place-items:center;flex-shrink:0;width:max(36px,calc(45 * var(--u)));height:max(36px,calc(45 * var(--u)));border:1px solid #76e6fba8;border-radius:calc(9 * var(--u));color:#dffcff;background:#0731485c;box-shadow:0 0 12px #00d9ed33,inset 0 0 11px #00d9ed15}
+.path-icon svg{width:max(18px,calc(24 * var(--u)));height:max(18px,calc(24 * var(--u)))}
+.path-heading h2{font-size:max(18px,calc(23 * var(--u)));line-height:1.08;letter-spacing:.01em;margin:0}
+.path-heading h2 span{color:#21e3f2}
+.path-card>p{font-size:max(10.5px,calc(11.2 * var(--u)));line-height:1.6;color:#d3dee8;margin:0 0 calc(16 * var(--u))}
+.path-card>.button{margin-top:auto;justify-content:space-between;min-height:max(36px,calc(40 * var(--u)));min-width:calc(174 * var(--u));padding:0 calc(16 * var(--u)) 0 calc(22 * var(--u));gap:calc(24 * var(--u));border:1.5px solid #22d8ea;border-radius:calc(7 * var(--u));background:#04131fcc;font-size:max(10px,calc(12 * var(--u)));letter-spacing:.04em}
+.path-artboard{background:radial-gradient(ellipse at 100% 50%,#0d2d48,#03111e 85%)}
+.path-artboard>.path-heading,.path-artboard>p,.path-artboard>.button{filter:drop-shadow(0 2px 7px #010a14)}
+/* Narrower computer screens: the Artboard card text wraps beside its mini editor instead of running into it. */
+@media(min-width:1200px) and (max-width:1449px){.path-artboard>p{max-width:57%}.path-artboard>p br{display:none}.mini-artboard{width:37%}}
+.mini-artboard{position:absolute;right:calc(8 * var(--u));top:calc(36 * var(--u));width:40%;height:74%;border:1px solid #335366;border-radius:6px;background:#101d2c;transform:perspective(650px) rotateY(-14deg) rotate(-2deg);opacity:.92;overflow:hidden}
+.mini-bar{display:flex;gap:4px;align-items:center;padding:7px;background:#05111e;border-bottom:1px solid #254257}
+.mini-bar>span{height:3px;width:3px;border-radius:50%;background:#48bfd3}
+.mini-tools{position:absolute;left:0;top:24px;bottom:0;width:19px;display:flex;align-items:center;flex-direction:column;gap:17px;color:#7cbbd3;padding-top:9px;background:#09131e}
+.mini-tools svg{width:10px;height:10px}
+.mini-canvas{position:absolute;top:41px;left:32px;right:20px;bottom:30px;background:repeating-linear-gradient(90deg,transparent 0 13px,#36536d1c 13px 14px),repeating-linear-gradient(0deg,#061420 0 13px,#36536d1c 13px 14px);border:1px solid #00d9edc4;display:flex;align-items:center;justify-content:center}
+.mini-canvas img{width:89%;mix-blend-mode:screen}
+.mini-canvas>i{width:4px;height:4px;background:#d5ffff;border:1px solid #00d9ed;position:absolute}
+.mini-canvas>i:nth-of-type(1){top:-3px;left:-3px}.mini-canvas>i:nth-of-type(2){top:-3px;right:-3px}.mini-canvas>i:nth-of-type(3){bottom:-3px;left:-3px}.mini-canvas>i:nth-of-type(4){bottom:-3px;right:-3px}
+.mini-swatches{display:flex;position:absolute;left:33px;bottom:11px;gap:5px}
+.mini-swatches>span{width:9px;height:9px;border-radius:2px;background:#00dcf0}.mini-swatches>span:nth-child(2){background:#0962ff}.mini-swatches>span:nth-child(3){background:#923cff}.mini-swatches>span:nth-child(4){background:#f4f8ff}
+
+.home-app-strip{max-width:1480px;width:calc(100% - 72px);margin:auto;border-top:1px solid #00d9ed24;padding:24px 3px 26px;display:flex;align-items:center;justify-content:space-between;gap:20px;color:#87a5b8;font-size:11px}
+.home-app-strip>div,.home-app-strip>a{display:flex;align-items:center;gap:10px}
+.home-app-strip>div>svg{color:#00d9ed}
+.home-app-strip>a{font-size:9px;letter-spacing:.08em;color:#9dddea}
+
+/* Screens wider than the design (over 1920 px): the arena, its floor and the smoke fade into the dark page on the right. */
+@media(min-width:1940px){
+  .hero-edge{-webkit-mask-image:linear-gradient(180deg,#000 59%,transparent 67%),linear-gradient(90deg,transparent,#000 70%);-webkit-mask-composite:source-in;mask-image:linear-gradient(180deg,#000 59%,transparent 67%),linear-gradient(90deg,transparent,#000 70%);mask-composite:intersect}
+  .hero-edge-floor{-webkit-mask-image:linear-gradient(180deg,transparent,#000 18%,#000 50%,transparent),linear-gradient(90deg,transparent,#000 85%);mask-image:linear-gradient(180deg,transparent,#000 18%,#000 50%,transparent),linear-gradient(90deg,transparent,#000 85%)}
+  .hero-smoke{-webkit-mask-image:linear-gradient(90deg,transparent,#000 45%,#000 60%,transparent);mask-image:linear-gradient(90deg,transparent,#000 45%,#000 60%,transparent)}
+}
+/* Tablets: the app and the headline side by side, the kit behind on the right, the cards full width. */
+@media(max-width:1199px){
+  .home-stage-inner{--u:.8px;width:auto;padding:0 32px 30px}
+  .campaign-backdrop{left:auto;right:-6%;top:-20px;width:76%}
+  .campaign-shade{background:linear-gradient(90deg,#020912 0,#020912d9 40%,#02091266 70%,transparent 90%)}
+  .hero-wordmark,.hero-edge,.hero-edge-floor,.hero-smoke{display:none}
+  .campaign-hero{height:auto;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:end;column-gap:36px;padding:36px 0 32px}
+  .hero-app,.campaign-copy{position:relative;left:auto;top:auto;bottom:auto;width:auto}
+  .hero-stores.official-stores{margin:calc(18 * var(--u)) 0 0}
+  .campaign-copy{padding-bottom:58px}
+  .campaign-copy h1{font-size:clamp(46px,6.4vw,62px)}
+  .creation-paths{margin:0;width:auto}
+  .hero-lights>.hl-streak,.hero-lights>.hl-floor,.hero-lights>.hl-haze,.hero-lights>.hl-wetfloor{display:none}
+}
+@media(max-width:899px){
+  .creation-paths{grid-template-columns:1fr}
+  .path-card{min-height:190px}
+  .path-card>p{max-width:62%}
+  .mini-artboard{width:36%;max-width:240px}
+}
+/* The big "3", the coming-soon badges and the jersey shot belong to the phone design only. */
+.hero-mark,.hero-soon,.hero-shot{display:none}
+
+/* Phones, as in the client's mobile design (2026-10-15): a big centred logo header; the headline, text and
+   Start creating with a big glowing "3" behind; two coming-soon store buttons; the jersey on its stand.
+   That first screen fits the visible height (the jersey takes what is left, whole with its stand), then
+   the three cards. The app mock-up is not shown here. */
+@media(max-width:759px){
+  :root{--home-header:clamp(92px,13.2vh,116px);--home-header:clamp(92px,13.2svh,116px)}
+  html:has(.site-header.is-home){scroll-padding-top:12px}
+  .site-header.is-home{position:relative;height:var(--home-header);border-bottom:0;background:#04080f}
+  .site-header.is-home .header-inner{position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 14px 14px}
+  .site-header.is-home .brand{width:auto;margin:0;align-items:center;gap:clamp(6px,1.1svh,11px)}
+  .site-header.is-home .brand img{width:min(47vw,240px)}
+  .site-header.is-home .brand>span{font-size:clamp(7.5px,2.05vw,10px);letter-spacing:.36em;margin-right:-.36em;font-weight:500;color:#eef3f8}
+  .site-header.is-home .header-actions{position:absolute;right:10px;bottom:5px;gap:2px}
+  .site-header.is-home .header-actions>.button-quiet{font-size:12.5px;font-weight:500;color:#f2f6fa;padding:8px 6px;min-height:0}
+  .site-header.is-home .main-nav{top:100%}
+  .site-header.is-home::after{content:"";position:absolute;left:3%;right:3%;bottom:0;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#12e1f0 12%,#46ecf7 55%,#7d6bff 88%,transparent);box-shadow:0 0 10px #12e1f0b0,0 0 26px #12e1f066}
+
+  .home-stage{background:linear-gradient(180deg,#021520 0,#010913 64px,#000710 45%,#010913 100%)}
+  .home-stage-inner{--u:.82px;display:flex;flex-direction:column;padding:0 18px 24px}
+  .campaign-backdrop,.campaign-shade,.hero-lights,.hero-phone,.hero-stores.official-stores{display:none}
+  .campaign-hero{order:1;position:relative;display:flex;flex-direction:column;align-items:stretch;gap:0;height:auto;
+    min-height:min(calc(100vh - var(--home-header)),180vw);min-height:min(calc(100svh - var(--home-header)),180vw);padding:clamp(16px,4.5svh - 8px,44px) 0 0}
+  .campaign-copy{order:-1;position:relative;z-index:2;left:auto;bottom:auto;width:auto;padding:0}
+  .campaign-copy>.eyebrow{font-size:clamp(7.5px,2vw,10px);letter-spacing:.12em;margin-bottom:clamp(9px,1.8svh,16px)}
+  .campaign-copy h1{font-size:min(11.4vw,6.3svh,56px);line-height:.95;margin-bottom:clamp(8px,1.6svh,12px)}
+  .campaign-copy>p:not(.eyebrow){font-size:clamp(12px,2.95vw,15px);line-height:1.6;max-width:84%;color:#d6dee8;margin-bottom:clamp(10px,2.2svh,16px)}
+  .campaign-copy>.button{min-width:0;width:max(48%,190px);min-height:clamp(40px,6svh,46px);padding:0 18px 0 22px;gap:12px;border-radius:12px;font-size:12px;letter-spacing:.06em}
+  .hero-app{position:relative;z-index:2;left:auto;top:auto;width:auto;margin-top:clamp(10px,2svh,16px)}
+  .hero-soon{display:grid;grid-template-columns:1fr 1fr;gap:3.6%}
+  .hero-soon>a{display:flex;align-items:center;gap:10px;min-width:0;min-height:clamp(48px,7.4svh,56px);padding:6px 8px 6px 12px;border:1.5px solid #22c6dd;border-radius:12px;background:#040f1cd9;box-shadow:0 0 12px #12e1f040,inset 0 0 12px #12e1f014;color:#fff}
+  .hero-soon svg{width:23px;height:23px;flex:none;color:#fff}
+  .hero-soon span{display:flex;flex-direction:column;line-height:1.05;min-width:0}
+  .hero-soon small{font-size:clamp(6.5px,1.9vw,9px);letter-spacing:.12em;color:#cfe6f2;margin-bottom:4px;white-space:nowrap}
+  .hero-soon strong{font-size:clamp(14px,4.6vw,21px);font-weight:600;white-space:nowrap}
+
+  /* The jersey on its stand fills the rest of the first screen: the collar just under the store buttons
+     (the stadium fades in behind them) and the stand's base above the bottom edge. In the photo the collar
+     top is at y 85 and the base at y 858 of 1024; here the collar sits 42 px below the shot's top and the
+     base at 95 % of its height, whatever height is left. */
+  .hero-shot{display:block;order:3;position:relative;z-index:0;flex:1 1 auto;min-height:230px;margin:-38px -18px 0;overflow:hidden;
+    -webkit-mask-image:linear-gradient(180deg,transparent,#000 20%,#000 90%,transparent);mask-image:linear-gradient(180deg,transparent,#000 20%,#000 90%,transparent)}
+  .hero-shot>img{position:absolute;right:0;top:calc(46.6px - 10.46%);height:calc(125.83% - 55.6px);width:auto;max-width:none;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 14%);mask-image:linear-gradient(90deg,transparent,#000 14%)}
+
+  /* The 3DEEZI "3" is the client's own 3D render with its lighting and glow (cut from the mobile design,
+     public/media/images/hero-three-mobile.webp, design pixels x 450-853 / y 245-932). It is placed as in the
+     design: right edge on the screen edge, 47.25 % of the screen wide, its top 85 design pixels above the
+     eyebrow (9.97 vw), so it sits behind the headline the same way; its edges fade into the background. */
+  .hero-mark{display:block;position:absolute;z-index:1;right:-18px;top:calc(clamp(16px,4.5svh - 8px,44px) - 9.97vw);width:47.25vw;height:auto;max-width:none;pointer-events:none;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 9%),linear-gradient(180deg,transparent,#000 6%,#000 94%,transparent);-webkit-mask-composite:source-in;
+    mask-image:linear-gradient(90deg,transparent,#000 9%),linear-gradient(180deg,transparent,#000 6%,#000 94%,transparent);mask-composite:intersect}
+
+  .creation-paths{order:3;margin-top:12px}
+  .path-card>p{max-width:none}
+}
+@media(max-width:400px){
+  .home-app-strip{width:calc(100% - 34px);flex-direction:column;align-items:flex-start;gap:14px}
+}

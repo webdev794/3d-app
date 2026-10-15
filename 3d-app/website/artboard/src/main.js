@@ -2647,7 +2647,9 @@ function showSnapMenu() {
 }
 showSnapMenu();
 // The website passes ?v=<build>: shown in the status bar so testers can see they have the latest Artboard.
-if (params.get('v')) $('buildInfo').textContent = `Build ${params.get('v')}`;
+// The website passes the build as ?v=; the app's copy has it built in.
+const BUILD = params.get('v') || window.__ABBUILD;
+if (BUILD) $('buildInfo').textContent = `Build ${BUILD}`;
 $('snapToggle').checked = state.snap; $('gridToggle').checked = state.grid;
 $('snapToggle').onchange = (e) => { state.snap = e.target.checked; savePrefs(); };
 $('gridToggle').onchange = (e) => { state.grid = e.target.checked; savePrefs(); canvas.requestRenderAll(); };

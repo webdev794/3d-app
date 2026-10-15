@@ -49,6 +49,9 @@ function load(): { open: boolean; messages: Message[] } {
   catch { return { open: false, messages: [] }; }
 }
 
+/** The homepage design shows the chat open (2026-10-15): it opens by itself there on computer screens. */
+const opensOn = (page: string) => page === '/' && window.matchMedia('(min-width: 1200px)').matches;
+
 /** The 3DEEZI four-point sparkle. */
 export function Sparkle({ size = 24 }: { size?: number }) {
   return <svg className="assist-sparkle" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
@@ -59,22 +62,51 @@ export function Sparkle({ size = 24 }: { size?: number }) {
 export default function Assist() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [state, setState] = useState(load);
+  // Opened by itself on the homepage and not used yet: it leaves the keyboard focus on the page, and
+  // closes again when the visitor goes to another page.
+  const auto = useRef(false);
+  const [state, setState] = useState(() => {
+    const saved = load();
+    if (saved.open || !opensOn(location.pathname)) return saved;
+    auto.current = true;
+    return { ...saved, open: true };
+  });
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const list = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const { open, messages } = state;
   const tool = /^\/(studio|artboard|admin)/.test(location.pathname);
+  // Phones: on the homepage's first screen the button waits until the visitor scrolls (it would cover
+  // the jersey, as in the mobile design); it is there from the first scroll on.
+  const [waiting, setWaiting] = useState(false);
+  useEffect(() => {
+    if (location.pathname !== '/') { setWaiting(false); return; }
+    const phone = window.matchMedia('(max-width: 759px)');
+    const check = () => setWaiting(phone.matches && window.scrollY < window.innerHeight * 0.2);
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => { window.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, [location.pathname]);
   const path = useRef(location.pathname);
   path.current = location.pathname;
 
-  useEffect(() => { try { sessionStorage.setItem(storeKey, JSON.stringify({ open, messages: messages.slice(-40) })); } catch { /* Private mode: the chat still works. */ } }, [open, messages]);
+  useEffect(() => { try { sessionStorage.setItem(storeKey, JSON.stringify({ open: open && !auto.current, messages: messages.slice(-40) })); } catch { /* Private mode: the chat still works. */ } }, [open, messages]);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' }); }, [messages, busy, open]);
-  useEffect(() => { if (open) input.current?.focus({ preventScroll: true }); }, [open]);
+  useEffect(() => { if (open && !auto.current) input.current?.focus({ preventScroll: true }); }, [open]);
+  // Every visit to the homepage opens the chat; leaving it closes a chat that opened by itself, unused.
+  useEffect(() => {
+    if (opensOn(location.pathname)) {
+      if (!state.open) { auto.current = true; setState(s => ({ ...s, open: true })); }
+    } else if (auto.current) {
+      auto.current = false;
+      setState(s => ({ ...s, open: false }));
+    }
+  }, [location.pathname]);
   useEffect(() => {
     if (!open) return;
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setState(s => ({ ...s, open: false })); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') show(false); };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [open]);
@@ -83,6 +115,7 @@ export default function Assist() {
     const q = question.trim();
     if (!q || busy) return;
     const history = [...messages.filter(m => !m.error), { role: 'user' as const, content: q }];
+    auto.current = false;
     setState(s => ({ ...s, open: true, messages: [...s.messages, { role: 'user', content: q }] }));
     setText(''); setBusy(true);
     try {
@@ -145,9 +178,11 @@ export default function Assist() {
     }
     return done;
   }
-  const toggle = () => setState(s => ({ ...s, open: !s.open }));
-  const minimise = () => setState(s => ({ ...s, open: false }));
-  const endChat = () => { setState({ open: false, messages: [] }); setText(''); };
+  /** Opened or closed by the visitor (not by itself). */
+  function show(value: boolean) { auto.current = false; setState(s => ({ ...s, open: value })); }
+  const toggle = () => show(!open);
+  const minimise = () => show(false);
+  const endChat = () => { auto.current = false; setState({ open: false, messages: [] }); setText(''); };
   /**
    * Follows a link from a reply: opens the page and scrolls to the section after a # (e.g.
    * /#create-options); a link to the page already open scrolls to its top. The chat stays open on
@@ -164,7 +199,7 @@ export default function Assist() {
 
   const artboard = location.pathname.startsWith('/artboard');
   const studio = location.pathname.startsWith('/studio');
-  return <div className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''}`}>
+  return <div className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${waiting && !open ? 'is-waiting' : ''}`}>
     {open && <section className="assist-panel" id="assist-panel" role="dialog" aria-label="3DEEZI ASSIST help chat">
       <header className="assist-head">
         <Sparkle size={30} />

@@ -72,7 +72,7 @@ export default function App() {
 
   const studio = location.pathname.startsWith('/studio') || location.pathname.startsWith('/artboard') || (location.pathname.startsWith('/admin') && !!user?.is_admin);
   return <>
-    {!studio && <header className="site-header"><div className="header-inner">
+    {!studio && <header className={`site-header ${location.pathname === '/' ? 'is-home' : ''}`}><div className="header-inner">
       <Link to="/" className="brand" aria-label="3DEEZI home"><img src={media('images/brand-final.png')} alt="3DEEZI" /><span>AI SPORTSWEAR DESIGNER</span></Link>
       <nav className={`main-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
         <NavLink to="/" end>Create</NavLink><NavLink to="/convert">Convert</NavLink><NavLink to="/projects">Projects</NavLink><NavLink to="/approved">Approved</NavLink><NavLink to="/assets">Assets</NavLink><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>
@@ -81,7 +81,7 @@ export default function App() {
     </div></header>}
     {catalogError && <div className="server-banner" role="alert">{catalogError} <button onClick={loadCatalog}>Retry connection</button></div>}
     <main><Routes>
-      <Route path="/" element={<Home onStart={start} onStudio={() => navigate('/studio')} />} />
+      <Route path="/" element={<Home onStart={start} />} />
       <Route path="/create/ai" element={<AiDesigner catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} />} />
       <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={sport => setDraft(d => ({ ...d, sport, mode: 'dyo' }))} onNext={() => navigate('/create/garment')} />} />
       <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={garment => setDraft(d => ({ ...d, garment, design: { ...d.design, garment: garment as Design['garment'] } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport')} />} />

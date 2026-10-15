@@ -189,6 +189,13 @@ class ApiClient {
   }
 
   // ---------- transport
+  /// The largest request body sent (the website's limit too).
+  static const maxBodyLength = 48 * 1024 * 1024;
+
+  static const _tooLarge =
+      'This design is too large to save. Remove or shrink large images in '
+      'your artwork and try again.';
+
   /// Sends a request and returns the response's `data`.
   Future<dynamic> _send(
     String method,
@@ -198,13 +205,19 @@ class ApiClient {
     if (!configured) {
       throw ApiException('No 3DEEZI server is set. Add it under Server.');
     }
+    final encoded = body == null ? null : jsonEncode(body);
+    // The server drops requests over its size limit without a clear answer:
+    // catch oversized saves first, as the website does.
+    if (encoded != null && encoded.length > maxBodyLength) {
+      throw ApiException(_tooLarge, status: 413);
+    }
     final request = http.Request(method, Uri.parse('$baseUrl/api/v1$path'))
       ..headers.addAll({
         'Accept': 'application/json',
         if (body != null) 'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
       });
-    if (body != null) request.body = jsonEncode(body);
+    if (encoded != null) request.body = encoded;
     final http.Response response;
     try {
       response = await http.Response.fromStream(
@@ -221,9 +234,16 @@ class ApiClient {
     try {
       json = response.body.isEmpty ? null : jsonDecode(response.body);
     } on FormatException {
+      // A web page instead of an answer: after a large save that is the
+      // server's size limit (the website's "Unexpected token '<'").
+      final large =
+          response.statusCode == 413 || (encoded?.length ?? 0) > 1024 * 1024;
       throw ApiException(
-        'The server at $host did not answer like a 3DEEZI server '
-        '(HTTP ${response.statusCode}).',
+        large
+            ? 'The server sent an unexpected reply. If your design contains '
+                  'large images, make them smaller and try again.'
+            : 'The server at $host did not answer like a 3DEEZI server '
+                  '(HTTP ${response.statusCode}).',
         status: response.statusCode,
       );
     }
@@ -247,7 +267,7 @@ class ApiClient {
       final message = json['message'];
       if (message is String && message.isNotEmpty) return message;
     }
-    if (status == 413) return 'The design is too large for the server.';
+    if (status == 413) return _tooLarge;
     return 'The server could not complete the request (HTTP $status).';
   }
 }
