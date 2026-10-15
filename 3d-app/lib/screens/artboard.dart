@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
+import '../assist.dart';
 import '../export_service.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
@@ -23,6 +25,11 @@ class ArtboardScreen extends StatefulWidget {
 class _ArtboardScreenState extends State<ArtboardScreen> {
   ViewerHost? _host;
 
+  /// 3DEEZI ASSIST commands sent to the page, waiting for its answer.
+  final _assistWaiting = <int, Completer<String>>{};
+  int _assistId = 0;
+  late final AssistRunner _assistRunner = _assist;
+
   AppController get c => widget.c;
 
   @override
@@ -35,8 +42,32 @@ class _ArtboardScreenState extends State<ArtboardScreen> {
 
   @override
   void dispose() {
+    AssistBridge.unregister('artboard', _assistRunner);
+    for (final waiting in _assistWaiting.values) {
+      waiting.completeError(AssistError('The Artboard was closed.'));
+    }
     _host?.dispose();
     super.dispose();
+  }
+
+  /// Runs a 3DEEZI ASSIST command in the artboard page (show the grid, pick a
+  /// tool, select the text, …) and returns what it did.
+  Future<String> _assist(String action, String value) {
+    final id = ++_assistId, done = Completer<String>();
+    _assistWaiting[id] = done;
+    _host?.send(
+      jsonEncode({
+        'cmd': 'assistMsg',
+        'arg': {'id': id, 'action': action, 'value': value},
+      }),
+    );
+    return done.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        _assistWaiting.remove(id);
+        throw AssistError('The Artboard did not answer. Please try again.');
+      },
+    );
   }
 
   static String _dataUrl(Uint8List bytes) {
@@ -47,7 +78,17 @@ class _ArtboardScreenState extends State<ArtboardScreen> {
   Future<void> _onMessage(String message) async {
     final msg = jsonDecode(message) as Map<String, dynamic>;
     switch (msg['type']) {
+      case 'assist':
+        final waiting = _assistWaiting.remove((msg['id'] as num?)?.toInt());
+        final text = '${msg['text'] ?? ''}';
+        if (msg['ok'] == true) {
+          waiting?.complete(text);
+        } else {
+          waiting?.completeError(AssistError(text));
+        }
       case 'ready':
+        // 3DEEZI ASSIST can run commands here from now on.
+        AssistBridge.register('artboard', _assistRunner);
         // The user's logos and artwork appear in the artboard's Assets tab.
         final images = [...c.logos, ...c.uploads, ...c.artwork].take(16);
         _host?.send(

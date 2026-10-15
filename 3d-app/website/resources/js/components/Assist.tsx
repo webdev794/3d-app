@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronRight, Minus, X } from 'lucide-react';
+import { Check, ChevronRight, Info, Minus, TriangleAlert, X } from 'lucide-react';
 import { api } from '../api';
+import { assistHandler } from '../assistBridge';
 import '../../css/assist.css';
 
 /**
@@ -9,12 +10,30 @@ import '../../css/assist.css';
  * hides the chat; answers come from the server (/assist), which knows the website, its
  * tools, plans and FAQs. The conversation is kept for the browser tab, across pages.
  */
-interface Message { role: 'user' | 'assistant'; content: string; error?: boolean }
+interface Action { action: string; value: string }
+/** A command's result: done (ok), not done, or left as it was because it already was (info). */
+interface Done { ok: boolean; text: string; info?: boolean }
+interface Message { role: 'user' | 'assistant'; content: string; error?: boolean; id?: number; done?: Done[]; refresh?: boolean }
 
 const storeKey = '3deezi.assist';
 const greeting = "Hi! I'm 3DEEZI ASSIST.\nWhat would you like help with?";
 /** Pages a reply may link to (the server allows the same list). */
-const pages = ['/', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/pricing', '/studio', '/artboard'];
+const pages = ['/', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/orders', '/pricing', '/studio', '/artboard'];
+
+const pageNames: Record<string, string> = { '/': 'the home page', '/create/ai': 'AI Powered Sportswear', '/create/sport': 'Design Your Own', '/convert': 'Convert', '/projects': 'Projects', '/approved': 'Approved', '/assets': 'Assets', '/dashboard': 'the Dashboard', '/downloads': 'Downloads', '/orders': 'My orders', '/pricing': 'Plans', '/studio': 'the 3D Studio', '/artboard': 'the Artboard' };
+/** Commands run on the Artboard (in its frame) or on the Studio page; the rest open a page. */
+const artboardActions = ['grid', 'snap', 'rulers', 'snapTo', 'tool', 'select', 'arrange', 'align', 'mirror', 'group', 'duplicate', 'move', 'rotate', 'scale', 'size', 'fill', 'outline', 'menu', 'effect', 'add', 'zoom', 'pageSize', 'units', 'tab', 'help'];
+const studioActions = ['view', 'panel', 'garment', 'board', 'export', 'design', 'studioAi'];
+type ArtboardWindow = Window & { artboard?: { ready?: boolean; assist?: (action: string, value: string) => string } };
+/** This page's script file (main-<hash>.js): the server asks for a refresh when the website has a newer one. */
+const build = new URL(import.meta.url).pathname.split('/').pop() ?? '';
+const artboardWindow = () => document.querySelector<HTMLIFrameElement>('iframe.artboard-frame')?.contentWindow as ArtboardWindow | null | undefined;
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+/** Waits (up to 20 s) for something to become available, e.g. the Artboard after opening it. */
+async function waitFor<T>(get: () => T | undefined | null, what: string): Promise<T> {
+  for (let i = 0; i < 200; i++) { const v = get(); if (v) return v; await sleep(100); }
+  throw new Error(`${what} did not open in time. Please try again.`);
+}
 
 /** Quick questions for the page the visitor is on. */
 function suggestionsFor(path: string) {
@@ -47,6 +66,8 @@ export default function Assist() {
   const input = useRef<HTMLInputElement>(null);
   const { open, messages } = state;
   const tool = /^\/(studio|artboard|admin)/.test(location.pathname);
+  const path = useRef(location.pathname);
+  path.current = location.pathname;
 
   useEffect(() => { try { sessionStorage.setItem(storeKey, JSON.stringify({ open, messages: messages.slice(-40) })); } catch { /* Private mode: the chat still works. */ } }, [open, messages]);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' }); }, [messages, busy, open]);
@@ -65,24 +86,76 @@ export default function Assist() {
     setState(s => ({ ...s, open: true, messages: [...s.messages, { role: 'user', content: q }] }));
     setText(''); setBusy(true);
     try {
-      const r = await api<{ reply: string }>('/assist', { method: 'POST', body: JSON.stringify({ messages: history.slice(-12).map(({ role, content }) => ({ role, content })), page: location.pathname }) });
-      setState(s => ({ ...s, messages: [...s.messages, { role: 'assistant', content: r.reply }] }));
+      // On the Artboard: what is on the page and selected, so the answer fits it ("it already has a shadow").
+      let context: string | undefined;
+      try { context = artboardWindow()?.artboard?.assist?.('describe', ''); } catch { /* not ready */ }
+      const r = await api<{ reply: string; actions?: Action[]; outdated?: boolean }>('/assist', { method: 'POST', body: JSON.stringify({ messages: history.slice(-12).map(({ role, content }) => ({ role, content })), page: location.pathname, can: ['commands'], build, context }) });
+      const id = Date.now();
+      setState(s => ({ ...s, messages: [...s.messages, { role: 'assistant', content: r.reply, id, refresh: r.outdated }] }));
+      if (r.actions?.length) {
+        const done = await run(r.actions);
+        // The reply was written before the commands ran ("Done: …"): when nothing worked say so instead,
+        // and when only part worked say that first.
+        // "Already there" (info) is not a failure: the object was left as it was.
+        const failed = done.every(d => !d.ok && !d.info), partly = !failed && done.some(d => !d.ok && !d.info), already = done.some(d => d.info);
+        const content = (m: Message) => (failed ? "I couldn't do that:"
+          : partly ? `**Part of this didn't work (see below).**\n${m.content}`
+          : already ? "That's already there, so I left it as it is:" : m.content);
+        setState(s => ({ ...s, messages: s.messages.map(m => (m.id === id ? { ...m, done, content: content(m) } : m)) }));
+        // On small screens the chat covers the page: get out of the way to show what changed.
+        if (window.innerWidth < 900 && done.some(d => d.ok)) minimise();
+      }
     } catch (e) {
       const status = (e as { status?: number }).status;
-      const content = status === 429 ? "You're asking quickly. Please wait a moment and try again." : (e as Error).message;
+      // Never show a raw server error: only the messages written for visitors (wait, refresh, sign in …).
+      const content = status === 429 ? "You're asking quickly. Please wait a moment and try again."
+        : !status || status >= 500 ? '3DEEZI ASSIST had a problem answering. Please try again in a moment.'
+        : (e as Error).message;
       setState(s => ({ ...s, messages: [...s.messages, { role: 'assistant', content, error: true }] }));
     } finally { setBusy(false); }
+  }
+  /** Runs the assistant's commands in order, opening the Artboard or the Studio first when needed. */
+  async function run(actions: Action[]) {
+    const done: Done[] = [];
+    const go = async (page: string) => { if (path.current !== page) { navigate(page); await waitFor(() => path.current === page || undefined, 'The page'); } };
+    let unselected = false;
+    for (const { action, value } of actions) {
+      // The rest were planned for objects that could not be selected: don't apply them to whatever is selected now.
+      if (unselected) { done.push({ ok: false, text: 'Skipped: those objects could not be selected.' }); continue; }
+      try {
+        if (action === 'open') {
+          if (!pages.includes(value.split('#')[0] || '/')) throw new Error('That page is not available.');
+          follow(value);
+          done.push({ ok: true, text: `Opened ${pageNames[value.split('#')[0] || '/'] ?? 'the page'}` });
+        } else if (artboardActions.includes(action)) {
+          await go('/artboard');
+          const board = await waitFor(() => { const w = artboardWindow(); return w?.artboard?.ready && w.artboard.assist ? w.artboard : undefined; }, 'The Artboard');
+          done.push({ ok: true, text: board.assist!(action, value) });
+        } else if (studioActions.includes(action)) {
+          await go('/studio');
+          const handler = await waitFor(() => assistHandler('studio'), 'The Studio');
+          done.push({ ok: true, text: await handler(action, value) });
+        } else throw new Error('I can’t do that here.');
+      } catch (e) {
+        // "ALREADY: …": the object already had it and was left as it was (not a failure).
+        const text = (e as Error).message, already = text.startsWith('ALREADY: ');
+        done.push({ ok: false, info: already, text: already ? text.slice(9) : text });
+        unselected = action === 'select';
+      }
+    }
+    return done;
   }
   const toggle = () => setState(s => ({ ...s, open: !s.open }));
   const minimise = () => setState(s => ({ ...s, open: false }));
   const endChat = () => { setState({ open: false, messages: [] }); setText(''); };
   /**
-   * Follows a link from a reply: minimises the chat so the page shows, opens the page and scrolls to
-   * the section after a # (e.g. /#create-options); a link to the page already open scrolls to its top.
+   * Follows a link from a reply: opens the page and scrolls to the section after a # (e.g.
+   * /#create-options); a link to the page already open scrolls to its top. The chat stays open on
+   * computer screens; on small screens, where it covers the page, it minimises.
    */
   function follow(target: string) {
     const [path, hash] = target.split('#'), page = path || '/';
-    minimise();
+    if (window.innerWidth < 900) minimise();
     const scroll = () => { const section = hash && document.getElementById(hash); if (section) section.scrollIntoView({ behavior: 'smooth' }); else window.scrollTo({ top: 0, behavior: 'smooth' }); };
     if (page === location.pathname) { scroll(); return; }
     navigate(page);
@@ -90,7 +163,8 @@ export default function Assist() {
   }
 
   const artboard = location.pathname.startsWith('/artboard');
-  return <div className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${open ? 'is-open' : ''}`}>
+  const studio = location.pathname.startsWith('/studio');
+  return <div className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''}`}>
     {open && <section className="assist-panel" id="assist-panel" role="dialog" aria-label="3DEEZI ASSIST help chat">
       <header className="assist-head">
         <Sparkle size={30} />
@@ -103,7 +177,7 @@ export default function Assist() {
         <div className="assist-chips">{suggestionsFor(location.pathname).map(s => <button key={s} onClick={() => ask(s)} disabled={busy}><span>{s}</span><ChevronRight size={16} /></button>)}</div>
         {messages.map((m, i) => m.role === 'user'
           ? <div key={i} className="assist-row me"><div className="assist-bubble">{m.content}</div></div>
-          : <div key={i} className="assist-row bot"><span className="assist-avatar"><Sparkle size={18} /></span><div className={`assist-bubble ${m.error ? 'error' : ''}`}><Rich text={m.content} onLink={follow} /></div></div>)}
+          : <div key={i} className="assist-row bot"><span className="assist-avatar"><Sparkle size={18} /></span><div className={`assist-bubble ${m.error ? 'error' : ''}`}><Rich text={m.content} onLink={follow} />{m.refresh && <button className="assist-refresh" onClick={() => window.location.reload()}>Refresh now</button>}{m.done && <ul className="assist-done">{m.done.map((d, j) => <li key={j} className={d.ok ? 'ok' : d.info ? 'info' : 'failed'}>{d.ok ? <Check size={13} /> : d.info ? <Info size={13} /> : <TriangleAlert size={13} />}{d.text}</li>)}</ul>}</div></div>)}
         {busy && <div className="assist-row bot"><span className="assist-avatar"><Sparkle size={18} /></span><div className="assist-bubble assist-typing" aria-label="3DEEZI ASSIST is typing"><i /><i /><i /></div></div>}
       </div>
       <form className="assist-input" onSubmit={e => { e.preventDefault(); ask(text); }}>

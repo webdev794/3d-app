@@ -203,6 +203,14 @@ input[type=file]{display:none}
 .drop h5{margin:8px 10px 2px;font:600 10px Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 dialog.help{max-width:min(980px,94vw);background:#0b1622;color:#dbe6ef;border:1px solid #234257;border-radius:14px;padding:18px 22px;box-shadow:0 30px 80px #000c,var(--glow)}
 dialog.help::backdrop{background:#000a}
+dialog.corel{max-width:min(520px,92vw)}
+.corel-lead{font-size:14px;line-height:1.5;color:#dbe6ef;margin:0 0 10px}
+.corel-steps{margin:0 0 10px;padding-left:20px;font-size:13.5px;line-height:1.55;color:#b9c8d6}
+.corel-steps li{margin-bottom:6px}
+.corel-tip{font-size:12.5px;color:#8fa3b6;margin:0 0 14px}
+.corel-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.corel-actions button{height:38px;padding:0 18px;border-radius:20px;border:1.5px solid #ffffff2e;background:#071420;color:#dbe6ef;font-weight:700;cursor:pointer}
+.corel-actions button.grad{border:0;color:#02131c;background:linear-gradient(110deg,var(--cyan),var(--blue));box-shadow:0 0 18px rgba(18,225,240,.45)}
 dialog.help h3{display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;font-family:Rajdhani,Inter,sans-serif;font-size:22px}
 .help-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
 .help-cols h4{margin:6px 0;color:var(--cyan);font-size:13px;letter-spacing:.06em;text-transform:uppercase}

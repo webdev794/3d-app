@@ -238,6 +238,18 @@
   </footer>
 </div>
 <input type="file" id="fileImage" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,.cdr" multiple>
+<input type="file" id="fileExported" accept="image/svg+xml,.svg,image/png,.png" multiple>
+<dialog class="help corel" id="corelDialog">
+  <h3>Export from CorelDRAW first <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <p class="corel-lead"><b id="corelName">This file</b> is a CorelDRAW file (.cdr), which can't be opened here. Save a copy from CorelDRAW as SVG or PNG, then import that.</p>
+  <ol class="corel-steps">
+    <li>In CorelDRAW, open the design and choose <b>File › Export</b> (Ctrl+E).</li>
+    <li>Set <b>Save as type</b> to <b>SVG</b> to keep shapes and text editable here, or <b>PNG</b> for a picture (tick <b>Transparent background</b> for logos).</li>
+    <li>Click <b>Choose SVG or PNG</b> below and pick the exported file.</li>
+  </ol>
+  <p class="corel-tip">Text looks different after import? In CorelDRAW, convert the text to curves (Ctrl+Q) before exporting.</p>
+  <div class="corel-actions"><form method="dialog"><button>Close</button></form><button class="grad" id="corelPick">Choose SVG or PNG</button></div>
+</dialog>
 <div class="toast" id="toast" role="status"></div>
 <dialog class="help" id="helpDialog">
   <h3>Tools and shortcuts <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>

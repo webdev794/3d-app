@@ -24,6 +24,12 @@
 .assist-bubble ul{margin:6px 0 0;padding-left:18px}.assist-bubble li{margin:3px 0}
 .assist-bubble strong{color:#fff}
 .assist-bubble a{display:inline-flex;align-items:center;gap:2px;color:var(--assist-cyan);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.assist-done{list-style:none;margin:9px 0 0;padding:8px 0 0;border-top:1px solid #ffffff12;display:flex;flex-direction:column;gap:5px;font-size:12.5px}
+.assist-done li{display:flex;align-items:center;gap:6px;margin:0}
+.assist-done li.ok{color:#7fe9f5}.assist-done li.ok svg{color:var(--assist-cyan)}
+.assist-done li.failed{color:#ffc9a3}.assist-done li.failed svg{color:#ffa45c}
+.assist-done li.info{color:#c9dcef}.assist-done li.info svg{color:#8fb8e0}
+.assist-refresh{margin-top:9px;padding:7px 14px;border:0;border-radius:8px;background:linear-gradient(135deg,#3fd9f8,#1fb6ec);color:#03131f;font-weight:700;font-size:13px}
 .assist-bubble.error{border-color:#ff6b6b55;background:#2a1418;color:#ffd7d7}
 .assist-row.me .assist-bubble{max-width:85%;border:0;border-radius:10px 10px 3px 10px;background:linear-gradient(135deg,#3fd9f8,#1fb6ec);color:#03131f;font-weight:500;box-shadow:0 0 16px #00d9ed44}
 
@@ -45,12 +51,14 @@
 .assist-input button svg{fill:#03131f}
 .assist-input button:disabled{opacity:.45;box-shadow:none}
 
-/* Studio and Artboard: a compact round launcher that keeps out of the tools. */
+/* Studio, Artboard and admin: a smaller launcher that keeps out of the tools, still labelled. */
 .assist-tool{right:18px;bottom:18px}
-.assist-tool .assist-launcher{width:52px;height:52px;padding:0;justify-content:center;border-radius:50%}
-.assist-tool .assist-launcher span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.assist-tool .assist-launcher{height:44px;padding:0 16px 0 12px;gap:9px;font-size:14.5px;border-radius:13px}
+/* Studio on narrower screens: round, beside the "Ask 3DEEZI" bar. */
+@media (max-width:1400px){.assist-studio .assist-launcher{width:52px;height:52px;padding:0;justify-content:center;border-radius:50%}.assist-studio .assist-launcher span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
 /* Artboard: over the empty corner of the workspace, clear of the right panel, colour palette and status bar. */
 .assist-artboard{right:348px;bottom:84px}
+.assist-artboard .assist-panel{max-height:min(620px,calc(100dvh - 200px))}
 @media (max-width:900px){.assist-artboard{right:12px;bottom:112px}}
 
 @media (max-width:560px){

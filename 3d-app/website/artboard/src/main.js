@@ -1730,17 +1730,19 @@ function renderAssets() {
     box.append(b);
   }
 }
-/** CorelDRAW files are converted to SVG by the website's server, then come back through addImage as vectors. */
-async function importCorel(file) {
-  if (HOST !== 'web' || !embedded()) { toast('CorelDRAW files can be imported on the 3DEEZI website · or export SVG from CorelDRAW'); return; }
-  if (file.size > 20 * 1024 * 1024) { toast('Use CorelDRAW files under 20 MB'); return; }
-  post({ type: 'convertFile', format: 'cdr', name: file.name, data: await readFile(file) });
-  toast('Converting your CorelDRAW file…');
+/** CorelDRAW (.cdr) files can't be read here: show how to export them from CorelDRAW as SVG or PNG, with a button to pick that file. Nothing is uploaded. */
+function corelHelp(names) {
+  $('corelName').textContent = names.length > 1 ? `${names.length} files` : names[0];
+  if (!$('corelDialog').open) $('corelDialog').showModal();
 }
+$('corelPick').onclick = () => { $('corelDialog').close(); $('fileExported').click(); };
+$('fileExported').onchange = async (e) => { await importFiles([...e.target.files]); e.target.value = ''; };
 async function importFiles(files, at) {
   const added = [];
+  const corel = files.filter((file) => /\.cdr$/i.test(file.name)).map((file) => file.name);
+  if (corel.length) corelHelp(corel);
   for (const file of files) {
-    if (/\.cdr$/i.test(file.name)) { await importCorel(file); continue; }
+    if (/\.cdr$/i.test(file.name)) continue;
     if (file.size > 8 * 1024 * 1024) { toast('Use files under 8 MB'); continue; }
     if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) { added.push(await addSvg(await file.text(), file.name, at)); continue; }
     if (!file.type.startsWith('image/')) continue;
@@ -2799,7 +2801,420 @@ new ResizeObserver(() => resize()).observe(wrap);
 // ===================================================================
 // Host bridge
 // ===================================================================
+// 3DEEZI ASSIST, the website's help chat, can do simple things for the user: view settings, picking
+// a tool, selecting objects, arranging the selection (order, align, mirror, group, duplicate), zoom,
+// page size, units and the right-panel tabs. Nothing deletes artwork, and Undo reverses the rest.
+// Each command returns what it did (also shown as a toast), or throws why it can't.
+const onOff = (v) => { if (v !== 'on' && v !== 'off') throw new Error('Say "on" or "off".'); return v === 'on'; };
+/** The text an object shows: its own, the text it was made from (effects and Convert to curves
+ *  name the result after it: “YOUR TEAM” curves), or the text inside a group (contour, envelope …). */
+const textOf = (o) => {
+  if (isText(o)) return String(o.text ?? '');
+  const quoted = /^“(.+?)”/.exec(String(o.name ?? ''));
+  if (quoted) return quoted[1];
+  return o.type === 'group' ? o.getObjects().map(textOf).filter(Boolean).join(' ') : '';
+};
+/** What kind of object it is, in words the visitor might use ("rectangle", "logo", "line" …). */
+const KIND_WORDS = {
+  rectangle: ['rectangle', 'rect'], square: ['rectangle', 'rect'], circle: ['ellipse'], oval: ['ellipse'], ellipse: ['ellipse'],
+  line: ['line', 'curve', 'freehand', 'bézier', 'bezier', 'pen', 'polyline', 'spline'], curve: ['curve', 'freehand', 'bézier', 'bezier', 'spline', 'path'],
+  image: ['image', 'svg', 'traced'], picture: ['image'], photo: ['image'], logo: ['image', 'svg', 'traced'],
+  star: ['star'], polygon: ['polygon'], triangle: ['polygon', 'triangle'], spiral: ['spiral'], table: ['table'], group: ['group'],
+  shadow: ['shadow'], contour: ['contour'], powerclip: ['powerclip'], badge: ['badge', 'shape'],
+};
+/** Everything an object shows or is called, including the parts inside a group. */
+const describe = (o) => [textOf(o), o.name, o.toolName, o.type, ...(o.type === 'group' ? o.getObjects().map(describe) : [])].filter(Boolean).join(' ').toLowerCase();
+/** Whether the object is what the visitor named ("rectangle", "logo", "your team" …). */
+const matches = (o, words) => {
+  const want = words.replace(/s$/, ''), d = describe(o);
+  return d.includes(words) || (KIND_WORDS[want] ?? [want]).some((n) => d.includes(n));
+};
+/** A length such as 20mm, 3cm, 1.5in, 300px or 4grid (grid steps of 5 mm), in canvas units. */
+const LENGTH_UNITS = { mm: 1, cm: 10, in: 25.4, px: 25.4 / 300, grid: GRID / MM };
+function lengthOf(text) {
+  const m = /^(-?\d+(?:\.\d+)?)\s*(mm|cm|in|px|grid)?$/.exec(String(text).trim());
+  if (!m) throw new Error('Give a distance like 20mm, 3cm or 4grid (grid steps of 5 mm).');
+  return Number(m[1]) * LENGTH_UNITS[m[2] ?? 'mm'] * MM;
+}
+/** A colour (#hex, rgb(), or a name such as "dark blue" or "navy blue") as #rrggbb. */
+const COLOUR_NAMES = { 'navy blue': 'navy', 'sky blue': 'skyblue', 'royal blue': 'royalblue', 'baby blue': 'lightblue', 'neon green': 'lime', 'bottle green': '#006a4e', 'maroon red': 'maroon', 'off white': '#f4f1ea' };
+function colourOf(text) {
+  const g = document.createElement('canvas').getContext('2d'), name = String(text).trim().toLowerCase();
+  for (const tryName of [COLOUR_NAMES[name], name, name.replace(/[\s-]+/g, '')]) {
+    if (!tryName) continue;
+    g.fillStyle = '#010203'; g.fillStyle = tryName; const a = g.fillStyle;
+    g.fillStyle = '#040506'; g.fillStyle = tryName;
+    if (a === g.fillStyle) return a;   // both probes replaced: a real colour
+  }
+  throw new Error(`"${text}" is not a colour I know.`);
+}
+/** The selected object (or the multi-selection): moved, turned or resized as one. */
+const target = () => { needSelection(); return canvas.getActiveObject(); };
+const changed = (o) => { o.setCoords(); canvas.requestRenderAll(); canvas.fire('object:modified', { target: o }); syncProps(); };
+/** Menu items the assistant can run (File > Import needs the visitor's own click). */
+const menuLabel = (id) => {
+  // The item's own words, without its shortcut hint (Export PDF, not "Export PDF vector · Ctrl+E").
+  const b = document.querySelector(`.menus [data-action="${id}"]`);
+  return (b ? [...b.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('') : id).replace(/[\s…]+/g, ' ').trim() || id;
+};
+const needSelection = () => { if (!active().length) throw new Error('Nothing is selected: select something first (for example "select the text").'); };
+/**
+ * Effects the assistant can apply: it fills in the effect's settings on the property bar (the same
+ * boxes the visitor sees at the top) and presses Apply, or Remove.
+ */
+const EFFECTS = {
+  shadow: { label: 'Drop shadow', tool: 'shadow', apply: 'fxShadow', remove: 'fxShadowOff', inputs: { x: 'fxSX', y: 'fxSY', blur: 'fxSBlur', opacity: 'fxSOpacity', colour: 'fxSColour' } },
+  contour: { label: 'Contour', tool: 'contour', apply: 'fxContour', inputs: { dir: 'fxCDir', steps: 'fxCSteps', offset: 'fxCOffset', colour: 'fxCColour' } },
+  blockshadow: { label: 'Block shadow', tool: 'blockshadow', apply: 'fxBlock', remove: 'fxBlockOff', inputs: { x: 'fxBX', y: 'fxBY', colour: 'fxBColour' } },
+  extrude: { label: 'Extrude', tool: 'extrude', apply: 'fxExtrude', remove: 'fxExtrudeOff', inputs: { x: 'fxXX', y: 'fxXY', colour: 'fxXColour' } },
+  envelope: { label: 'Envelope', tool: 'envelope', apply: 'fxEnvelope', inputs: { preset: 'fxEPreset', amount: 'fxEAmount' } },
+  distort: { label: 'Distortion', tool: 'distort', apply: 'fxDistort', inputs: { mode: 'fxDMode', tooth: 'fxDZip', teeth: 'fxDTeeth', turn: 'fxDTwist', amount: 'fxDPush' } },
+  transparency: { label: 'Transparency', tool: 'transparency', apply: 'fxTransp', inputs: { type: 'fxTType', amount: 'fxTValue', angle: 'fxTAngle' } },
+  blend: { label: 'Blend', tool: 'blend', apply: 'fxBlend', inputs: { steps: 'fxSteps' } },
+  mesh: { label: 'Mesh fill', tool: 'meshfill', remove: 'fxMeshClear', inputs: {} },
+};
+
+/** The effects an object has, in words (for the assistant), e.g. "drop shadow x 5 mm, y 0 mm". */
+const mmOf = (n) => Math.round((n / MM) * 10) / 10;
+function effectsOf(o) {
+  const name = `${o.name ?? ''} ${o.toolName ?? ''}`.toLowerCase(), out = [];
+  if (o.shadow) out.push(`drop shadow x ${mmOf(o.shadow.offsetX)} mm, y ${mmOf(o.shadow.offsetY)} mm, blur ${mmOf(o.shadow.blur)} mm`);
+  if (o.fxSweep === 'blockshadow') out.push('block shadow');
+  if (o.fxSweep === 'extrude') out.push('extrude');
+  if (o.fxMesh) out.push('mesh fill');
+  if (/contour/.test(name)) out.push('contour');
+  if (/blend group/.test(name)) out.push('blend');
+  if (/envelope/.test(name)) out.push('envelope');
+  if (/distortion/.test(name)) out.push('distortion');
+  if (o.opacity < 1 || o.gradSpec?.fade) out.push(o.gradSpec?.fade ? 'transparency (fade)' : `transparency ${Math.round((1 - o.opacity) * 100)}%`);
+  return out;
+}
+/** Whether an object already has the effect the assistant was asked to apply. */
+const HAS_EFFECT = {
+  shadow: (o) => !!o.shadow, blockshadow: (o) => o.fxSweep === 'blockshadow', extrude: (o) => o.fxSweep === 'extrude',
+  contour: (o) => /contour/i.test(`${o.name} ${o.toolName}`), envelope: (o) => /envelope/i.test(o.name ?? ''),
+  distort: (o) => /distortion/i.test(o.name ?? ''), transparency: (o) => o.opacity < 1 || !!o.gradSpec?.fade, blend: () => false,
+};
+const objLabel = (o) => (textOf(o) ? `text “${textOf(o).slice(0, 30)}”` : o.name || o.toolName || o.type);
+
+const ASSIST = {
+  /** What is on the page and selected (sent with each question, so answers fit the page). */
+  describe: () => {
+    // Size and position in mm (from the page's top left), so answers can use them ("half its width").
+    const where = (o) => { const r = o.getBoundingRect(); return ` (${mmOf(r.width)} x ${mmOf(r.height)} mm at X ${mmOf(r.left)}, Y ${mmOf(r.top)})`; };
+    const line = (o) => { const fx = effectsOf(o); return `${objLabel(o)}${where(o)}${fx.length ? ` [${fx.join('; ')}]` : ''}${o.locked ? ' (locked)' : ''}${o.visible ? '' : ' (hidden)'}`; };
+    const objs = userObjects(), sel = active();
+    return `Selected: ${sel.length ? sel.map(line).join(' | ') : 'nothing'}. On the page (${objs.length}, top first): ${objs.slice().reverse().slice(0, 15).map(line).join(' | ')}${objs.length > 15 ? ' | …' : ''}. Tool: ${TOOLS[state.tool]?.label ?? state.tool}. Grid ${state.grid ? 'on' : 'off'}, snap ${state.snap ? 'on' : 'off'}.`;
+  },
+  grid: (v) => { state.grid = onOff(v); $('gridToggle').checked = state.grid; savePrefs(); canvas.requestRenderAll(); return `Grid ${v}`; },
+  snap: (v) => { state.snap = onOff(v); $('snapToggle').checked = state.snap; savePrefs(); return `Snap ${v}`; },
+  rulers: (v) => { document.body.classList.toggle('no-rulers', !onOff(v)); setTimeout(resize); return `Rulers ${v}`; },
+  snapTo: (v) => {
+    const [k, on] = v.split(':');
+    if (!SNAP_LABELS[k]) throw new Error(`Snap to can be: ${Object.keys(SNAP_LABELS).join(', ')}.`);
+    if (state.snapTo[k] !== onOff(on)) toggleSnapTo(k);
+    return `Snap to ${SNAP_LABELS[k].toLowerCase()} ${on}`;
+  },
+  tool: (v) => {
+    if (!TOOLS[v] || v === 'image') throw new Error(`There is no "${v}" tool here.`);
+    setTool(v);
+    return `${TOOLS[v].label} tool selected`;
+  },
+  select: (v) => {
+    const [kind, ...rest] = v.split(':'), words = rest.join(':').trim().toLowerCase();
+    const shown = userObjects().filter((o) => o.visible), all = shown.filter((o) => !o.locked);
+    const kinds = { all: () => all, text: () => all.filter((o) => textOf(o)), images: () => all.filter((o) => o.type === 'image'), shapes: () => all.filter((o) => !textOf(o) && o.type !== 'image'), none: () => [], type: () => all };
+    if (!kinds[kind]) throw new Error('Select can be: all, text, images, shapes, none, or type:<kind of object>.');
+    let objs = kinds[kind]();
+    if (kind === 'type') objs = objs.filter((o) => !isText(o) && matches(o, words));
+    else if (words) objs = objs.filter((o) => matches(o, words));
+    // "The text": editable text (on its own or inside an effect) comes before curves that were made
+    // from text earlier (convert to curves, envelope …), which are only picked when there is nothing else.
+    if (kind === 'text') {
+      const live = (o) => isText(o) || (o.type === 'group' && o.getObjects().some(live));
+      if (objs.some(live)) objs = objs.filter(live);
+    }
+    if (kind !== 'none' && !objs.length) {
+      // Say so when the only match is locked (locked objects can't be selected).
+      if (shown.some((o) => o.locked && (!words || matches(o, words)))) throw new Error(`The ${words || kind} is locked: unlock it first (Object > Lock / unlock).`);
+      throw new Error(words ? `Nothing on the page matches "${words}".` : `There is no ${kind === 'all' ? 'artwork' : kind} on the page.`);
+    }
+    setTool('select');
+    select(objs);
+    const what = kind === 'text' ? 'text' : kind === 'all' ? 'object' : kind === 'type' ? words.replace(/s$/, '') : kind.replace(/s$/, '');
+    // Name what was selected, so it is clear which objects the next command will change.
+    const names = objs.slice(0, 3).map((o) => (textOf(o) ? `“${textOf(o).slice(0, 24)}”` : o.name || o.toolName || o.type)).join(', ');
+    return kind === 'none' ? 'Selection cleared' : `Selected ${objs.length} ${what}${objs.length > 1 && kind !== 'text' ? 's' : ''}: ${names}${objs.length > 3 ? ' …' : ''}`;
+  },
+  arrange: (v) => {
+    const labels = { front: 'Moved to the front', back: 'Moved to the back', forward: 'Moved forward one', backward: 'Moved back one' };
+    if (!labels[v]) throw new Error('Arrange can be front, back, forward or backward.');
+    needSelection(); order(v);
+    return labels[v];
+  },
+  align: (v) => {
+    const how = { left: 'L', right: 'R', top: 'T', bottom: 'B', centre: 'C', middle: 'M', page: 'P' }[v];
+    if (!how) throw new Error('Align can be left, right, top, bottom, centre, middle or page.');
+    needSelection(); align(how);
+    const single = active().length === 1 && v !== 'page';
+    return v === 'page' ? 'Centred on the page' : `Aligned ${v === 'centre' ? 'centres horizontally' : v === 'middle' ? 'centres vertically' : v}${single ? ' to the page' : ''}`;
+  },
+  mirror: (v) => {
+    if (v !== 'horizontal' && v !== 'vertical') throw new Error('Mirror can be horizontal or vertical.');
+    needSelection(); $(v === 'horizontal' ? 'flipH' : 'flipV').click();
+    return `Mirrored ${v}ly`;
+  },
+  group: (v) => {
+    const sel = canvas.getActiveObject();
+    if (v === 'group') { if (sel?.type !== 'activeselection') throw new Error('Select two or more objects to group them.'); groupToggle('group'); return 'Grouped'; }
+    if (v === 'ungroup') { if (sel?.type !== 'group') throw new Error('Select a group to ungroup it.'); groupToggle('ungroup'); return 'Ungrouped'; }
+    throw new Error('Group can be group or ungroup.');
+  },
+  duplicate: () => { needSelection(); const n = active().length; duplicate(); return `Duplicated ${n} object${n > 1 ? 's' : ''}`; },
+  move: (v) => {
+    const [dir, amount = ''] = v.split(':'), d = lengthOf(amount);
+    const step = { left: [-d, 0], right: [d, 0], up: [0, -d], down: [0, d] }[dir];
+    if (!step) throw new Error('Move can be up, down, left or right, with a distance (for example up:20mm).');
+    const o = target();
+    o.set({ left: o.left + step[0], top: o.top + step[1] }); changed(o);
+    return `Moved ${dir} ${amount.replace(/grid$/, ' grid steps')}`;
+  },
+  rotate: (v) => {
+    const deg = Number(v); if (!Number.isFinite(deg)) throw new Error('Rotate needs an angle in degrees.');
+    const o = target(), c = o.getCenterPoint();
+    o.rotate(((o.angle || 0) + deg) % 360); o.setPositionByOrigin(c, 'center', 'center'); changed(o);
+    return `Rotated ${deg}°`;
+  },
+  scale: (v) => {
+    const pct = Number(v); if (!(pct > 0 && pct <= 2000)) throw new Error('Scale needs a size in % (for example 150 = 1.5 times bigger).');
+    const o = target(), c = o.getCenterPoint();
+    o.set({ scaleX: o.scaleX * pct / 100, scaleY: o.scaleY * pct / 100 }); o.setPositionByOrigin(c, 'center', 'center'); changed(o);
+    return `Resized to ${pct}%`;
+  },
+  size: (v) => {
+    const [side, amount = ''] = v.split(':'), want = lengthOf(amount);
+    if (side !== 'width' && side !== 'height') throw new Error('Size can be width or height, for example width:120mm.');
+    const o = target(), c = o.getCenterPoint(), now = side === 'width' ? o.getScaledWidth() : o.getScaledHeight();
+    if (!(want > 0) || !now) throw new Error('That size is not possible.');
+    const k = want / now;
+    o.set({ scaleX: o.scaleX * k, scaleY: o.scaleY * k }); o.setPositionByOrigin(c, 'center', 'center'); changed(o);
+    return `${side === 'width' ? 'Width' : 'Height'} ${amount} (in proportion)`;
+  },
+  fill: (v) => {
+    needSelection();
+    if (v === 'none') { applyToSelection((o) => { delete o.gradSpec; delete o.patSpec; return { fill: null }; }); return 'Fill removed'; }
+    const hex = colourOf(v);
+    for (const o of active()) paintObject(o, hex, false);
+    changed(canvas.getActiveObject());
+    return `Fill ${hex}`;
+  },
+  /**
+   * Adds an object by name: "rectangle", "circle", "star", "heart", "text" … Half the page by default
+   * (round shapes: half its shorter side), at its centre; or size=30% / width=120mm / height=…, at=top-left
+   * (or x / y = the centre in mm), fill / outline colours, text=…, sides / points. It ends up selected.
+   */
+  add: (v) => {
+    const i = v.indexOf(':'), kind = (i < 0 ? v : v.slice(0, i)).trim().toLowerCase();
+    const opts = Object.fromEntries((i < 0 ? '' : v.slice(i + 1)).split(',').map((x) => x.trim()).filter(Boolean)
+      .map((p) => { const k = p.indexOf('='); return k < 0 ? [p.toLowerCase(), ''] : [p.slice(0, k).trim().toLowerCase(), p.slice(k + 1).trim()]; }));
+    const SIDES = { triangle: 3, pentagon: 5, hexagon: 6, octagon: 8, polygon: Number(opts.sides) || state.shape.sides };
+    const shapeItem = Object.entries(V.SHAPE_SETS).flatMap(([set, s]) => s.items.map(([id, name]) => ({ set, id, name: name.toLowerCase() })))
+      .find((s) => s.id === kind || s.name === kind);
+    const known = ['rectangle', 'rect', 'square', 'ellipse', 'oval', 'circle', 'line', 'text', 'table', 'graph', 'grid', 'star', 'spiral', ...Object.keys(SIDES)];
+    if (!known.includes(kind) && !shapeItem) throw new Error(`I can add: rectangle, square, ellipse, circle, triangle, polygon, star, spiral, line, text, table, graph paper, or a shape such as heart, shield, crest, ribbon (asked for "${kind}").`);
+    // Size: half the page; round and regular shapes square, half the page's shorter side.
+    const pw = page.width, ph = page.height, even = ['square', 'circle', 'star', 'spiral', ...Object.keys(SIDES)].includes(kind) || !!shapeItem;
+    let w = even ? Math.min(pw, ph) / 2 : pw / 2, h = even ? w : ph / 2;
+    if (opts.size) {
+      if (/%$/.test(opts.size)) { const k = parseFloat(opts.size) / 100; w = (even ? Math.min(pw, ph) : pw) * k; h = even ? w : ph * k; }
+      else w = h = lengthOf(opts.size);
+    }
+    if (opts.width) { w = lengthOf(opts.width); if (even && !opts.height) h = w; }
+    if (opts.height) { h = lengthOf(opts.height); if (even && !opts.width) w = h; }
+    if (kind === 'line') h = 0;
+    if (!(w > 0) || (!(h > 0) && kind !== 'line')) throw new Error('That size is not possible.');
+    // Position: the page's centre, or at=top-left …, or x / y (the centre, in mm from the page's top left).
+    const AT = { center: [0.5, 0.5], centre: [0.5, 0.5], middle: [0.5, 0.5], top: [0.5, 0], bottom: [0.5, 1], left: [0, 0.5], right: [1, 0.5], 'top-left': [0, 0], 'top-right': [1, 0], 'bottom-left': [0, 1], 'bottom-right': [1, 1] };
+    const at = AT[(opts.at || 'center').toLowerCase().replace(/[\s_]+/g, '-')];
+    if (!at) throw new Error(`at can be: ${Object.keys(AT).join(', ')}.`);
+    const margin = Math.min(pw, ph) * 0.05;
+    let cx = margin + w / 2 + (pw - 2 * margin - w) * at[0], cy = margin + h / 2 + (ph - 2 * margin - h) * at[1];
+    if (opts.x) cx = lengthOf(opts.x);
+    if (opts.y) cy = lengthOf(opts.y);
+    const box = { x: cx - w / 2, y: cy - h / 2, w, h };
+    let o = null, label = kind;
+    if (kind === 'table') { addTable(box); o = canvas.getActiveObject(); label = 'table'; }
+    else if (kind === 'graph' || kind === 'grid') { addGraph(box); o = canvas.getActiveObject(); label = 'graph paper'; }
+    else {
+      if (['rectangle', 'rect', 'square'].includes(kind)) { o = paint(new Rect({ left: box.x, top: box.y, width: w, height: h, rx: state.shape.radiusRect ?? 0, ry: state.shape.radiusRect ?? 0, toolName: 'Rectangle' })); label = kind === 'square' ? 'square' : 'rectangle'; }
+      else if (['ellipse', 'oval', 'circle'].includes(kind)) { o = paint(new Ellipse({ left: box.x, top: box.y, rx: w / 2, ry: h / 2, toolName: 'Ellipse' })); label = kind === 'circle' ? 'circle' : 'ellipse'; }
+      else if (kind === 'line') o = paintLine(new Path(`M ${box.x} ${cy} L ${box.x + w} ${cy}`, { toolName: '2-Point Line' }));
+      else if (kind === 'text') {
+        // Text as wide as asked (half the page by default), but no taller than the box.
+        o = style(paint(new IText(opts.text || 'Your text', { left: cx, top: cy, ...state.text, fontSize: 20 * MM, originX: 'center', originY: 'center' })), { toolName: 'Text' });
+        o.set({ strokeWidth: 0, stroke: null });
+        o.set('fontSize', Math.max(2 * MM, Math.min(o.fontSize * (w / (o.width || 1)), (opts.height || opts.size ? h : ph * 0.3))));
+        o.initDimensions?.();
+        label = `text “${o.text}”`;
+      } else {
+        // Polygons, stars, spirals and the built-in shapes: drawn as by their tool, then kept editable.
+        const saved = { ...state.shape }, tool = shapeItem ? `shape:${shapeItem.set}` : SIDES[kind] ? 'polygon' : kind;
+        if (shapeItem) Object.assign(state.shape, { set: shapeItem.set, item: shapeItem.id });
+        if (tool === 'polygon') state.shape.sides = Math.max(3, Math.min(40, SIDES[kind]));
+        if (tool === 'star' && Number(opts.points)) state.shape.points = Math.max(3, Math.min(40, Number(opts.points)));
+        try {
+          o = new Path(V.boxD(unitFor(tool), box), { toolName: TOOLS[tool].label });
+          if (tool === 'spiral') paintLine(o); else paint(o);
+          o.shapeSpec = specFor(tool);
+        } finally { Object.assign(state.shape, saved); }
+        label = shapeItem ? shapeItem.name : kind;
+      }
+      if (kind !== 'text') style(o);
+      canvas.add(o);
+      setTool('select');
+      canvas.setActiveObject(o);
+    }
+    if (opts.fill) paintObject(o, colourOf(opts.fill), false);
+    if (opts.outline) paintObject(o, colourOf(opts.outline), true);
+    if (opts.fill || opts.outline) changed(o);
+    canvas.requestRenderAll();
+    const r = o.getBoundingRect();
+    return `Added ${label} (${mmOf(r.width)} x ${mmOf(r.height)} mm at X ${mmOf(r.left)}, Y ${mmOf(r.top)}), selected`;
+  },
+  outline: (v) => {
+    needSelection();
+    if (v === 'none') { applyToSelection({ stroke: null, strokeWidth: 0 }); return 'Outline removed'; }
+    const hex = colourOf(v);
+    for (const o of active()) paintObject(o, hex, true);
+    changed(canvas.getActiveObject());
+    return `Outline ${hex}`;
+  },
+  effect: (v) => {
+    const [name, args = ''] = v.split(':'), fx = EFFECTS[name];
+    if (!fx) throw new Error(`Effects are: ${Object.keys(EFFECTS).join(', ')}.`);
+    needSelection();
+    const keep = active().slice(), remove = args.trim() === 'remove';
+    // Already there: keep it and say so, unless the visitor asked to change it (replace=yes) or gave
+    // new values (numbers, such as x=10): then those settings replace the old ones.
+    const replace = /(^|,)\s*replace\s*=\s*yes/i.test(args) || /=\s*-?\d/.test(args);
+    if (!remove && !replace && keep.every((o) => HAS_EFFECT[name]?.(o))) {
+      const details = keep.flatMap(effectsOf).filter((e) => e.startsWith(fx.label.toLowerCase().split(' ')[0])).join('; ');
+      throw new Error(`ALREADY: ${keep.map(objLabel).join(', ')} already ${keep.length > 1 ? 'have' : 'has'} ${details || fx.label.toLowerCase()}, so I left it as it is. Ask me to change it to use new settings.`);
+    }
+    setTool(fx.tool);
+    if (!active().length) select(keep);
+    // Direction words instead of distances ("a shadow to the right"): a clearly visible 20 mm (never more
+    // than the object's own size, so a small object's shadow stays with it); "auto" softness about 5 %.
+    const b = canvas.getActiveObject().getBoundingRect(), size = Math.max(b.width, b.height) / MM;
+    const step = Math.min(20, Math.max(2, Math.round(size * 2) / 2)), soft = Math.min(15, Math.max(1, Math.round(size * 0.1) / 2));
+    const WORDS = { right: step, left: -step, down: step, up: -step, none: 0, auto: soft };
+    // Changing a shadow keeps the settings that weren't mentioned (blur, opacity, colour …).
+    const old = name === 'shadow' && keep.length === 1 ? keep[0].shadow : null;
+    if (!remove && old) {
+      const m = /rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)(?:\D+([\d.]+))?/.exec(String(old.color)) ?? [];
+      const hex = m[1] ? `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('')}` : null;
+      const current = { fxSX: mmOf(old.offsetX), fxSY: mmOf(old.offsetY), fxSBlur: mmOf(old.blur), fxSOpacity: m[4] !== undefined ? Math.round(Number(m[4]) * 100) : null, fxSColour: hex };
+      for (const [id, value] of Object.entries(current)) {
+        if (value === null || value === undefined) continue;
+        $(id).value = String(value);
+        $(id).dispatchEvent(new Event('input'));
+        $(id).dispatchEvent(new Event('change'));
+      }
+    }
+    if (!remove) {
+      for (const pair of args.split(',').map((x) => x.trim()).filter(Boolean)) {
+        // "x+=20" / "x-=5": more or less than now (the current settings are on the property bar).
+        const [rawKey, raw = ''] = pair.split('=').map((x) => x.trim()), delta = /[+-]$/.exec(rawKey)?.[0];
+        const key = delta ? rawKey.slice(0, -1).trim() : rawKey, id = fx.inputs[key];
+        if (key === 'replace') continue;
+        if (!id) throw new Error(`${fx.label} has no "${key}" setting (it has ${Object.keys(fx.inputs).join(', ') || 'none'}).`);
+        const el = $(id);
+        if (delta) {
+          const now = Number(el.value) || 0, by = Number(raw);
+          if (!Number.isFinite(by) || el.type === 'color' || el.tagName === 'SELECT') throw new Error(`${key} can't be increased by "${raw}".`);
+          el.value = String(Math.round((delta === '+' ? now + by : now - by) * 10) / 10);
+          el.dispatchEvent(new Event('input'));
+          el.dispatchEvent(new Event('change'));
+          continue;
+        }
+        let value = raw;
+        if (el.type === 'color') value = colourOf(raw);
+        else if (el.tagName === 'SELECT') {
+          const opt = [...el.options].find((o) => o.value.toLowerCase() === raw.toLowerCase() || o.textContent.toLowerCase().startsWith(raw.toLowerCase()));
+          if (!opt) throw new Error(`${key} can be: ${[...el.options].map((o) => o.value).join(', ')}.`);
+          value = opt.value;
+        } else if (Object.hasOwn(WORDS, raw.toLowerCase())) value = String(WORDS[raw.toLowerCase()]);
+        else if (/^-?\d+(\.\d+)?%$/.test(raw) && (key === 'x' || key === 'y')) {
+          // A share of the selection: x of its width, y of its height (x=50% is half the width).
+          value = String(Math.round((parseFloat(raw) / 100) * (key === 'x' ? b.width : b.height) / MM * 2) / 2);
+        }
+        else if (!Number.isFinite(Number(raw)) || raw === '') throw new Error(`${key} needs a number.`);
+        el.value = value;
+        el.dispatchEvent(new Event('input'));
+        el.dispatchEvent(new Event('change'));
+      }
+    }
+    const button = remove ? fx.remove : fx.apply;
+    if (!button) throw new Error(remove ? `${fx.label} can't be removed this way.` : `${fx.label} is added by clicking on the object with its tool.`);
+    // The effect reports problems in its own message (for example "Select two objects to blend").
+    const before = snapshot();
+    $('toast').textContent = '';
+    $(button).click();
+    const said = $('toast').textContent;
+    if (snapshot() === before) {
+      // Nothing changed: a problem ("Select … first"), or it was already exactly like that.
+      if (!said || /select|first|can.?t|cannot|could not|not |no /i.test(said)) throw new Error(said || `${fx.label} could not be applied to the selection.`);
+      return remove ? `${fx.label}: there was none to remove` : `${fx.label} was already applied with these settings (nothing changed)`;
+    }
+    const used = Object.entries(fx.inputs).filter(([k]) => new RegExp(`(^|,)\\s*${k}\\s*[+-]?=`).test(args)).map(([k, id]) => `${k} ${$(id).value}`).join(', ');
+    return remove ? `${fx.label} removed` : `${fx.label} applied${used ? ` (${used})` : ''}: its settings are on the property bar at the top`;
+  },
+  menu: (v) => {
+    if (v === 'open') throw new Error('File > Import needs your own click: choose File > Import.');
+    if (!Object.hasOwn(ACTIONS, v)) throw new Error(`There is no "${v}" menu item.`);
+    const label = menuLabel(v);
+    ACTIONS[v]();
+    return label;
+  },
+  zoom: (v) => {
+    if (v === 'in') ACTIONS.zoomIn(); else if (v === 'out') ACTIONS.zoomOut(); else if (v === 'fit') fit();
+    else { const pct = Number(v); if (!(pct >= 10 && pct <= 800)) throw new Error('Zoom can be in, out, fit or 10 to 800 (%).'); zoomAt(baseZoom() * pct / 100); }
+    return v === 'fit' ? 'Fit page' : /^\d/.test(v) ? `Zoom ${v}%` : `Zoomed ${v}`;
+  },
+  pageSize: (v) => {
+    const key = Object.keys(PAGES).find((k) => k.toLowerCase() === v.toLowerCase());
+    if (!key || !PAGES[key]) throw new Error(`Page size can be: ${Object.keys(PAGES).filter((k) => PAGES[k]).join(', ')}.`);
+    setPage(PAGES[key]);
+    return `Page size ${key}`;
+  },
+  units: (v) => {
+    if (!UNITS[v]) throw new Error('Units can be mm, cm, in or px.');
+    $('units').value = v; $('units').onchange({ target: $('units') });
+    return `Units ${UNITS[v].name}`;
+  },
+  tab: (v) => {
+    const names = { colour: 'Colour', props: 'Properties', layers: 'Layers', assets: 'Assets' };
+    if (!names[v]) throw new Error('The tabs are colour, props, layers and assets.');
+    openTab(v);
+    return `${names[v]} tab open`;
+  },
+  help: () => { ACTIONS.help(); return 'Tools and shortcuts open'; },
+};
+
 window.artboard = {
+  /** 3DEEZI ASSIST: runs one command (see ASSIST); returns what was done or throws why not. */
+  assist: (action, value) => {
+    if (!Object.hasOwn(ASSIST, action)) throw new Error(`Unknown command "${action}".`);
+    const done = ASSIST[action](String(value ?? '').trim());
+    // The page report is for the assistant only; everything else is shown as it happens.
+    if (action !== 'describe') toast(done);
+    return done;
+  },
+  /** The same over messages (the phone app): {id, action, value}; replies {type: 'assist', id, ok, text}. */
+  assistMsg: ({ id, action, value } = {}) => {
+    try { post({ type: 'assist', id, ok: true, text: window.artboard.assist(action, value) }); }
+    catch (e) { post({ type: 'assist', id, ok: false, text: e.message }); }
+  },
   setAssets: (list) => { for (const a of list ?? []) addAsset(a.src, a.name || 'Asset'); },
   addImage: ({ src, name }) => { addAsset(src, name || 'Image'); return addImage(src, name || 'Image'); },
   load: (json) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)); },
@@ -2842,5 +3257,6 @@ addEventListener('message', (e) => { if (e.source === window.parent && typeof e.
   syncProps();
   setTool('select');
   document.body.classList.add('ready');
+  window.artboard.ready = true;
   post({ type: 'ready' });
 })();

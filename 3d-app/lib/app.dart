@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app_controller.dart';
+import 'assist.dart';
 import 'screens/ai_designer.dart';
 import 'screens/artboard.dart';
 import 'screens/business.dart';
@@ -12,6 +13,7 @@ import 'screens/library.dart';
 import 'screens/onboarding.dart';
 import 'screens/showcase.dart';
 import 'screens/studio.dart';
+import 'widgets/assist_overlay.dart';
 import 'widgets/ui.dart';
 
 class ThreeDeeziApp extends StatefulWidget {
@@ -23,8 +25,10 @@ class ThreeDeeziApp extends StatefulWidget {
 
 class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
   late final AppController c = widget.controller ?? AppController();
+  late final AssistController assist = AssistController(c);
   @override
   void dispose() {
+    assist.dispose();
     if (widget.controller == null) c.dispose();
     super.dispose();
   }
@@ -81,19 +85,30 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
       dividerColor: Palette.border,
     ),
     home: AnimatedBuilder(
-      animation: c,
+      animation: Listenable.merge([c, assist]),
       builder: (context, _) => PopScope(
         canPop:
-            c.screen == AppScreen.home ||
-            c.screen == AppScreen.onboarding ||
-            c.screen == AppScreen.splash,
+            !assist.open &&
+            (c.screen == AppScreen.home ||
+                c.screen == AppScreen.onboarding ||
+                c.screen == AppScreen.splash),
         onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) c.back();
+          // Back closes the help chat first.
+          if (didPop) return;
+          if (assist.open) {
+            assist.minimise();
+          } else {
+            c.back();
+          }
         },
         child: LayoutBuilder(
           builder: (context, constraints) {
             final desktop = constraints.maxWidth >= 900;
-            final phone = _Phone(controller: c, framed: desktop);
+            final phone = _Phone(
+              controller: c,
+              assist: assist,
+              framed: desktop,
+            );
             return Scaffold(
               body: Container(
                 decoration: const BoxDecoration(
@@ -151,8 +166,13 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
 }
 
 class _Phone extends StatelessWidget {
-  const _Phone({required this.controller, required this.framed});
+  const _Phone({
+    required this.controller,
+    required this.assist,
+    required this.framed,
+  });
   final AppController controller;
+  final AssistController assist;
   final bool framed;
   @override
   Widget build(BuildContext context) => Container(
@@ -209,15 +229,22 @@ class _Phone extends StatelessWidget {
             ),
           ),
         Expanded(
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            body: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              child: KeyedSubtree(
-                key: ValueKey(controller.screen),
-                child: _screen(controller),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Scaffold(
+                backgroundColor: Colors.transparent,
+                body: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  child: KeyedSubtree(
+                    key: ValueKey(controller.screen),
+                    child: _screen(controller),
+                  ),
+                ),
               ),
-            ),
+              // 3DEEZI ASSIST, the help chat, over every screen.
+              AssistOverlay(assist),
+            ],
           ),
         ),
         if (framed || kIsWeb)

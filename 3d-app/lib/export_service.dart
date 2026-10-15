@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import 'app_controller.dart';
+import 'design_sheet.dart';
 import 'export_stub.dart'
     if (dart.library.io) 'export_native.dart'
     if (dart.library.js_interop) 'export_web.dart'
@@ -15,7 +16,7 @@ Future<String> shareImage(Uint8List bytes, String name, {Rect? origin}) =>
     platform.saveDownload(bytes, name, origin: origin);
 
 /// The rows of the Export screen.
-enum ExportKind { mockup, frontBack, hiRes, social, pack }
+enum ExportKind { mockup, frontBack, hiRes, social, pdf, pack }
 
 class ExportException implements Exception {
   ExportException(this.message);
@@ -94,6 +95,14 @@ Future<String> exportDesign(
         throw ExportException('Open the design in the 3D studio first.');
       final post = await socialImage(c, front);
       return platform.saveDownload(post, '$name-social.png', origin: origin);
+    case ExportKind.pdf:
+      if (front == null)
+        throw ExportException('Open the design in the 3D studio first.');
+      return platform.saveDownload(
+        await designSheetPdf(c),
+        '$name-design-sheet.pdf',
+        origin: origin,
+      );
     case ExportKind.pack:
       return platform.saveDownload(
         _zip(_pack(c)),

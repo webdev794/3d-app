@@ -248,6 +248,9 @@ class AppController extends ChangeNotifier {
   bool renderingBack = false;
   Uint8List? mockupFront, mockupBack, mockupSide;
 
+  /// The flat front / back print panels, captured for the PDF design sheet.
+  Uint8List? mockupPanels;
+
   /// Set by the live 3D viewer while it is on screen.
   Future<Uint8List?> Function(String view)? captureMockup;
 
@@ -673,7 +676,7 @@ class AppController extends ChangeNotifier {
     _redo.clear();
     change();
     saved = false;
-    mockupFront = mockupBack = mockupSide = null;
+    mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
   }
 
@@ -682,7 +685,7 @@ class AppController extends ChangeNotifier {
     _redo.add(kit);
     _restore(_undo.removeLast());
     saved = false;
-    mockupFront = mockupBack = mockupSide = null;
+    mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
   }
 
@@ -691,7 +694,7 @@ class AppController extends ChangeNotifier {
     _undo.add(kit);
     _restore(_redo.removeLast());
     saved = false;
-    mockupFront = mockupBack = mockupSide = null;
+    mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
   }
 
@@ -716,7 +719,7 @@ class AppController extends ChangeNotifier {
     _redo.clear();
     spec = null;
     renderFront = renderBack = null;
-    mockupFront = mockupBack = mockupSide = null;
+    mockupFront = mockupBack = mockupSide = mockupPanels = null;
     concepts = [];
     selectedConcept = 0;
     mockupImage = mockupError = null;
@@ -972,12 +975,17 @@ class AppController extends ChangeNotifier {
     go(AppScreen.studio);
   }
 
-  /// Captures the live 3D kit (front, back, side) for Save and Export.
-  Future<void> captureViews() async {
+  /// Captures the live 3D kit (front, back, side) for Save and Export, and
+  /// with [panels] the flat print panels for the PDF design sheet.
+  Future<void> captureViews({bool panels = false}) async {
     final capture = captureMockup;
     if (capture == null) return;
     mockupFront = await capture('Front') ?? mockupFront;
     mockupBack = await capture('Back') ?? mockupBack;
     mockupSide = await capture('Side') ?? mockupSide;
+    final board = captureBoard;
+    if (panels && board != null) {
+      mockupPanels = await board().catchError((_) => null) ?? mockupPanels;
+    }
   }
 }

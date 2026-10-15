@@ -385,6 +385,26 @@ class OpenAiDesigner
         return trim($this->outputText($json));
     }
 
+    /**
+     * A reply to a conversation as JSON following `$schema` (strict structured output).
+     *
+     * @param  array<int, array{role: string, content: string}>  $messages
+     * @param  array<string, mixed>  $schema
+     * @return array<string, mixed>
+     */
+    public function respondJson(string $instructions, array $messages, string $name, array $schema, int $maxTokens = 1500): array
+    {
+        $json = $this->post('/responses', [
+            'model' => config('services.openai.text_model'),
+            'instructions' => $instructions,
+            'input' => $messages,
+            'max_output_tokens' => $maxTokens,
+            'text' => ['format' => ['type' => 'json_schema', 'name' => $name, 'strict' => true, 'schema' => $schema]],
+        ]);
+
+        return json_decode($this->outputText($json), true) ?: throw new RuntimeException('The AI returned nothing. Please try again.');
+    }
+
     private function client()
     {
         return Http::withToken((string) config('services.openai.key'))->timeout(180)->acceptJson();
@@ -397,7 +417,9 @@ class OpenAiDesigner
 
     private function post(string $path, array $body): array
     {
-        return $this->send(fn () => $this->client()->post(self::BASE.$path, $body))->json();
+        // An empty or non-JSON answer is a failed request too (callers fall back or show a message).
+        return $this->send(fn () => $this->client()->post(self::BASE.$path, $body))->json()
+            ?? throw new RuntimeException('The AI service sent an unexpected reply. Please try again.');
     }
 
     /** Sends a request and turns failures into friendly messages. */

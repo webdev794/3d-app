@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../ai_service.dart';
 import '../app_controller.dart';
+import '../assist.dart';
+import '../design_document.dart' show studioPatterns;
 import '../export_service.dart';
+import '../project_sync.dart';
 import '../widgets/drag_tray.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/kit_viewer_3d.dart';
@@ -50,11 +53,161 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
 
   AppController get c => widget.c;
   bool get _live3d => c.show3d && KitViewer3D.supported;
+  late final AssistRunner _assistRunner = _assist;
+
+  @override
+  void initState() {
+    super.initState();
+    AssistBridge.register('studio', _assistRunner);
+  }
 
   @override
   void dispose() {
+    AssistBridge.unregister('studio', _assistRunner);
     _prompt.dispose();
     super.dispose();
+  }
+
+  /// 3DEEZI ASSIST commands: turn the kit, open a tool, switch the garment or
+  /// the 2D panels. Returns what was done.
+  Future<String> _assist(String action, String value) async {
+    switch (action) {
+      case 'view':
+        if (value == '360')
+          throw AssistError(
+            'The app has Front, Side and Back views (no 360° view).',
+          );
+        final view = const {
+          'front': 'Front',
+          'side': 'Side',
+          'back': 'Back',
+        }[value];
+        if (view == null)
+          throw AssistError('The views are front, side and back.');
+        if (c.boardMode) c.update(() => c.boardMode = false);
+        final error = await c.showView(view);
+        if (error != null) throw AssistError(error);
+        return '$view view';
+      case 'panel':
+        if (value == 'ai')
+          throw AssistError(
+            'Type your change in the "Ask 3DEEZI to change anything" bar.',
+          );
+        if (value == 'close') {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          return 'Panel closed';
+        }
+        final tool = const {
+          'colours': 'Colours',
+          'patterns': 'Patterns',
+          'logos': 'Artwork',
+          'text': 'Text',
+          'numbers': 'Text',
+          'garment': 'Garment',
+          'presets': 'Presets',
+        }[value];
+        if (tool == null) throw AssistError('There is no such Studio panel.');
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        _openTool(tool);
+        return '$tool panel open';
+      case 'garment':
+        final name = ProjectSync.garments.entries
+            .where((e) => e.value == value)
+            .firstOrNull
+            ?.key;
+        if (name == null) throw AssistError('That garment is not available.');
+        c.edit(() => c.garment = name);
+        return 'Garment: $name';
+      case 'board':
+        if (!KitViewer3D.supported)
+          throw AssistError('2D panels are not available here.');
+        c.update(() => c.boardMode = value == '2d');
+        return value == '2d' ? '2D print panels' : '3D view';
+      case 'export':
+        final kind = const {
+          'png': ExportKind.mockup,
+          'front-back': ExportKind.frontBack,
+          'pdf': ExportKind.pdf,
+        }[value];
+        if (kind == null) {
+          throw AssistError(
+            'The app exports the 3D mockup, Front & back, high resolution, social, '
+            'design pack and PDF design sheet from Export.',
+          );
+        }
+        await c.captureViews(panels: kind == ExportKind.pdf);
+        return exportDesign(c, kind);
+      case 'design':
+        // Direct edits, as in the tools: number, name, wordmark, colours, pattern.
+        final said = <String>[];
+        final changes = <VoidCallback>[];
+        for (final pair in value.split(',').map((x) => x.trim())) {
+          if (pair.isEmpty) continue;
+          final i = pair.indexOf('=');
+          final key = i < 0 ? pair : pair.substring(0, i);
+          final v = i < 0 ? '' : pair.substring(i + 1).trim();
+          switch (key) {
+            case 'number':
+              final n = v.replaceAll(RegExp(r'\D'), '');
+              if (n.isEmpty) throw AssistError('The number needs digits.');
+              final digits = n.substring(0, n.length.clamp(0, 3));
+              changes.add(() => c.number = digits);
+              said.add('number $digits');
+            case 'name':
+              final name = v.toUpperCase();
+              changes.add(() => c.backName = name);
+              said.add('name $name');
+            case 'wordmark':
+              final text = v.toUpperCase();
+              changes.add(() => c.logoText = text);
+              said.add('wordmark $text');
+            case 'main' || 'secondary' || 'accent':
+              final m = RegExp(r'^#?([0-9a-fA-F]{6})$').firstMatch(v);
+              if (m == null) throw AssistError('"$v" is not a colour I know.');
+              final colour = Color(0xff000000 | int.parse(m[1]!, radix: 16));
+              changes.add(
+                () => switch (key) {
+                  'main' => c.mainColor = colour,
+                  'secondary' => c.secondaryColor = colour,
+                  _ => c.accentColor = colour,
+                },
+              );
+              said.add('$key #${m[1]}');
+            case 'pattern':
+              final name = studioPatterns
+                  .where((p) => p.toLowerCase() == v.toLowerCase())
+                  .firstOrNull;
+              final pattern =
+                  name ?? (v.toLowerCase() == 'none' ? 'Solid' : null);
+              if (pattern == null) {
+                throw AssistError(
+                  'Patterns are: ${studioPatterns.join(', ')}.',
+                );
+              }
+              changes.add(() => c.pattern = pattern);
+              said.add('pattern $pattern');
+            case 'patternColor':
+              said.add('pattern colour (not in the app)');
+            default:
+              throw AssistError('I can\'t set "$key" here.');
+          }
+        }
+        if (changes.isEmpty) throw AssistError('Nothing to change.');
+        c.edit(() {
+          for (final change in changes) {
+            change();
+          }
+        });
+        return 'Changed ${said.join(', ')}';
+      case 'studioAi':
+        // Anything else about the kit's look: the Studio AI, as if typed in
+        // the "Ask 3DEEZI" bar.
+        if (!AiService.enabled) {
+          throw AssistError('AI is not set up in this build.');
+        }
+        return 'Studio AI: ${await c.askAi(value)}';
+    }
+    throw AssistError("The Studio can't do that.");
   }
 
   // ---------- AI
@@ -191,7 +344,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
   Future<void> _leave(AppScreen next) async {
     if (_live3d) {
       setState(() => _busy = 'Capturing your kit…');
-      await c.captureViews();
+      await c.captureViews(panels: next == AppScreen.saveProject);
       if (!mounted) return;
       setState(() => _busy = null);
     }
@@ -1389,6 +1542,12 @@ class _ExportScreenState extends State<ExportScreen> {
         Icons.photo_size_select_large_outlined,
         'Social Media Image',
         'Square / Story / Post',
+      ),
+      (
+        ExportKind.pdf,
+        Icons.picture_as_pdf_outlined,
+        'Design Sheet (PDF)',
+        'Front & back views, colours and details',
       ),
       (
         ExportKind.pack,

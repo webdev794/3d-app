@@ -10,11 +10,22 @@ import ColorWheel from '../components/ColorWheel';
 import { comingSoon, garmentArt } from './Create';
 import type { Draft } from '../App';
 import { ArtworkPanel, PresetPanel, patternNames, readAsset, type ArtworkDrop } from '../components/StudioArtwork';
+import { onAssist } from '../assistBridge';
 import '../../css/studio-tools.css';
 
 type Tool = 'ai' | 'garment' | 'colours' | 'patterns' | 'logos' | 'text' | 'numbers' | 'presets';
 type Message = { from: 'you' | '3deezi'; text: string };
 const tools = [{ id: 'ai', label: 'AI', icon: Sparkles }, { id: 'garment', label: 'Garment', icon: Shirt }, { id: 'colours', label: 'Colours', icon: Palette }, { id: 'patterns', label: 'Patterns', icon: Grid2X2 }, { id: 'logos', label: 'Artwork', icon: ImagePlus }, { id: 'text', label: 'Text', icon: Type }, { id: 'numbers', label: 'Numbers', icon: Hash }, { id: 'presets', label: 'Presets', icon: Layers }] as const;
+/** A colour (#hex, rgb() or a name such as "dark blue") as #rrggbb, or null. */
+function cssColour(text: string) {
+  const g = document.createElement('canvas').getContext('2d')!;
+  for (const tryName of [text.trim(), text.trim().replace(/[\s-]+/g, '')]) {
+    g.fillStyle = '#010203'; g.fillStyle = tryName; const a = g.fillStyle;
+    g.fillStyle = '#040506'; g.fillStyle = tryName;
+    if (a === g.fillStyle) return a;
+  }
+  return null;
+}
 const colourSlots = [{ key: 'main', label: 'Primary' }, { key: 'secondary', label: 'Secondary' }, { key: 'accent', label: 'Accent' }, { key: 'patternColor', label: 'Pattern' }] as const;
 const palettes = [['#0b1016', '#00c2cc', '#36e3ee'], ['#08233e', '#efb84a', '#ffffff'], ['#f2f4f6', '#0076cd', '#0b1830'], ['#261133', '#ad47da', '#fb92d3'], ['#0c2824', '#31c29a', '#ffffff'], ['#240c12', '#ec3e5b', '#f9e6d4']];
 const suggestions = ['Make it red and gold', 'Add bold chevrons', 'Darker body, brighter trims', 'Number 7 for SMITH', 'Give it a tribal shoulder print'];
@@ -51,6 +62,67 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const navigate = useNavigate();
   useEffect(() => { setBoard(initialBoard); if (initialBoard) setTool('logos'); }, [initialBoard]);
   function openBoard(on: boolean) { setBoard(on); if (on) setTool('logos'); setRotating(false); }
+  // 3DEEZI ASSIST can turn the kit, open a tool panel, switch the garment or the 2D panels, and export.
+  const readyNow = useRef(ready);
+  readyNow.current = ready;
+  useEffect(() => onAssist('studio', async (action, value) => {
+    const panels: Record<string, Tool> = { ai: 'ai', garment: 'garment', colours: 'colours', patterns: 'patterns', logos: 'logos', text: 'text', numbers: 'numbers', presets: 'presets' };
+    if (action === 'view') {
+      if (value === '360') { setRotating(true); return '360° rotation'; }
+      if (!['front', 'back', 'side'].includes(value)) throw new Error('The views are front, back, side and 360.');
+      setView(value as View); setRotating(false);
+      return `${value[0].toUpperCase()}${value.slice(1)} view`;
+    }
+    if (action === 'panel') {
+      if (value === 'close') { setTool(null); return 'Panel closed'; }
+      if (!panels[value]) throw new Error('There is no such Studio panel.');
+      setTool(panels[value]);
+      return `${tools.find(t => t.id === value)?.label ?? value} panel open`;
+    }
+    if (action === 'garment') {
+      const g = garments.find(item => item.id === value);
+      if (!g) throw new Error('That garment is not available.');
+      edit({ garment: g.id as Design['garment'] });
+      return `Garment: ${g.name}`;
+    }
+    if (action === 'board') { openBoard(value === '2d'); return value === '2d' ? '2D print panels' : '3D view'; }
+    if (action === 'export') {
+      const formats = { pdf: 'Design sheet (PDF)', png: '3D mockup (PNG)', 'front-back': 'Front & back (PNG)', artboard: 'Print panels (PNG)', json: 'Design specification (JSON)' } as const;
+      if (!(value in formats)) throw new Error('Exports are pdf, png, front-back, artboard and json.');
+      // Just opened: wait for the 3D viewer.
+      for (let i = 0; i < 150 && !readyNow.current; i++) await new Promise(r => setTimeout(r, 100));
+      if (!readyNow.current) throw new Error('The 3D viewer is still starting. Please try again.');
+      await exportDesign(value as keyof typeof formats);
+      return `${formats[value as keyof typeof formats]} downloaded`;
+    }
+    if (action === 'design') {
+      // Direct edits, as in the panels: number, name, wordmark, colours, pattern (one undo step).
+      const patch: Partial<Design> = {}, said: string[] = [];
+      for (const pair of value.split(',').map(x => x.trim()).filter(Boolean)) {
+        const [key, ...rest] = pair.split('='), v = rest.join('=').trim();
+        if (key === 'number') { const n = v.replace(/\D/g, '').slice(0, 3); if (!n) throw new Error('The number needs digits.'); patch.number = n; said.push(`number ${n}`); }
+        else if (key === 'name') { patch.backName = v.toUpperCase().slice(0, 20); said.push(`name ${patch.backName}`); }
+        else if (key === 'wordmark') { patch.logoText = v.toUpperCase().slice(0, 20); said.push(`wordmark ${patch.logoText}`); }
+        else if (['main', 'secondary', 'accent', 'patternColor'].includes(key)) {
+          const hex = cssColour(v); if (!hex) throw new Error(`"${v}" is not a colour I know.`);
+          patch[key as 'main' | 'secondary' | 'accent' | 'patternColor'] = hex; said.push(`${colourSlots.find(c => c.key === key)?.label ?? key} ${hex}`);
+        } else if (key === 'pattern') {
+          const name = patternNames.find(n => n.toLowerCase() === v.toLowerCase()); if (!name) throw new Error(`Patterns are: ${patternNames.join(', ')}.`);
+          Object.assign(patch, { pattern: name === 'None' ? 'Solid' : name, patternImage: null, zones: {} }); said.push(`pattern ${name}`);
+        } else throw new Error(`I can't set "${key}" here.`);
+      }
+      if (!said.length) throw new Error('Nothing to change.');
+      edit(patch);
+      return `Changed ${said.join(', ')}`;
+    }
+    if (action === 'studioAi') {
+      // Anything else about the kit's look: the Studio's own AI, as if typed in the Ask 3DEEZI bar.
+      if (!aiEnabled) throw new Error('AI is not connected on this server.');
+      if (!user) { requireAuth(() => void askAi(value)); throw new Error('Sign in first: the sign-in window is open, and the change is made after you sign in.'); }
+      return `Studio AI: ${await aiEdit(value)}`;
+    }
+    throw new Error('The Studio cannot do that.');
+  }));
 
   // A design from AI concepts, Convert or an AI edit arrives with a motif: generate its print.
   useEffect(() => {
@@ -128,6 +200,12 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     edit({ patternImage: null }, { patternMotif: motif.trim() }); setMotif('');
   }
   /** "Ask 3DEEZI to change anything." */
+  /** The Studio AI changes the kit from words (and an optional reference image); returns its reply. */
+  async function aiEdit(instruction: string, image: string | null = null) {
+    const r = await api<{ design: Partial<Design>; reply: string; motif: string | null }>('/ai/edit', { method: 'POST', body: JSON.stringify({ instruction, design: latest.current.design, image }) });
+    edit(r.motif ? { ...r.design, patternImage: null } : r.design, r.motif ? { patternMotif: r.motif } : {});
+    return r.reply + (r.motif ? ' Creating the new print now…' : '');
+  }
   async function askAi(text = ask) {
     const instruction = text.trim();
     if (!instruction || asking) return;
@@ -135,10 +213,9 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     setAsking(true); setAsk(''); setChat(c => [...c, { from: 'you', text: instruction }]);
     const image = askImage; setAskImage(null);
     try {
-      const r = await api<{ design: Partial<Design>; reply: string; motif: string | null }>('/ai/edit', { method: 'POST', body: JSON.stringify({ instruction, design: latest.current.design, image }) });
-      edit(r.motif ? { ...r.design, patternImage: null } : r.design, r.motif ? { patternMotif: r.motif } : {});
-      setChat(c => [...c, { from: '3deezi', text: r.reply + (r.motif ? ' Creating the new print now…' : '') }]);
-      if (tool !== 'ai') onNotice(r.reply);
+      const reply = await aiEdit(instruction, image);
+      setChat(c => [...c, { from: '3deezi', text: reply }]);
+      if (tool !== 'ai') onNotice(reply);
     } catch (e) { setChat(c => [...c, { from: '3deezi', text: `Sorry, that didn’t work: ${(e as Error).message}` }]); }
     finally { setAsking(false); }
   }

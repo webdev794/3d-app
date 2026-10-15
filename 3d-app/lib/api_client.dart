@@ -8,6 +8,10 @@ import 'package:http/http.dart' as http;
 /// `--dart-define=API_BASE_URL=https://test.example.com`.
 const _buildBaseUrl = String.fromEnvironment('API_BASE_URL');
 
+/// The test server the apps use when no other is set at build time, so testers
+/// never have to enter an address.
+const testServerUrl = 'https://testcaresortwork.co.in/3deez';
+
 class ApiException implements Exception {
   ApiException(this.message, {this.status});
   final String message;
@@ -35,6 +39,24 @@ class ApiUser {
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'email': email};
 }
 
+/// A 3DEEZI ASSIST answer: the text (light Markdown) and its commands.
+@immutable
+class AssistReply {
+  const AssistReply(this.reply, this.actions);
+
+  factory AssistReply.fromJson(Map<String, dynamic> j) =>
+      AssistReply(j['reply'] as String? ?? '', [
+        for (final a in (j['actions'] as List?) ?? const [])
+          if (a is Map)
+            ((a['action'] ?? '').toString(), (a['value'] ?? '').toString()),
+      ]);
+
+  final String reply;
+
+  /// (action, value) pairs, for example ('grid', 'on').
+  final List<(String, String)> actions;
+}
+
 /// The website's Laravel API (`/api/v1`, Sanctum bearer tokens): accounts
 /// and the projects saved in its database.
 class ApiClient {
@@ -53,7 +75,7 @@ class ApiClient {
     if (kIsWeb && (Uri.base.scheme == 'http' || Uri.base.scheme == 'https')) {
       return Uri.base.origin;
     }
-    return '';
+    return testServerUrl;
   }
 
   bool get configured => baseUrl.isNotEmpty;
@@ -136,6 +158,29 @@ class ApiClient {
 
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> body) async =>
       await _send('POST', '/orders', body: body) as Map<String, dynamic>;
+
+  /// 3DEEZI ASSIST, the help chat (no account needed): the answer to the
+  /// last question in [messages] and, when [can] includes `commands`, the
+  /// commands for the app to run (show the grid, pick a tool, …).
+  Future<AssistReply> assist(
+    List<Map<String, String>> messages, {
+    String? page,
+    List<String> can = const [],
+    String? context,
+  }) async {
+    final data = await _send(
+      'POST',
+      '/assist',
+      body: {
+        'messages': messages,
+        if (page != null) 'page': page,
+        'can': can,
+        'client': 'app',
+        if (context != null) 'context': context,
+      },
+    );
+    return AssistReply.fromJson(data as Map<String, dynamic>);
+  }
 
   /// Corporate Partner application (no account needed). Returns the reply.
   Future<String> applyPartner(Map<String, dynamic> body) async {
