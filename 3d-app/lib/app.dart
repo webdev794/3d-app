@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'app_controller.dart';
 import 'screens/ai_designer.dart';
 import 'screens/artboard.dart';
+import 'screens/business.dart';
 import 'screens/create_home.dart';
 import 'screens/library.dart';
 import 'screens/onboarding.dart';
@@ -250,6 +251,8 @@ class _Phone extends StatelessWidget {
     AppScreen.profile => ProfileScreen(c),
     AppScreen.showcase => ShowcaseScreen(c),
     AppScreen.artboard => ArtboardScreen(c),
+    AppScreen.pricing => PricingScreen(c),
+    AppScreen.orders => OrdersScreen(c),
   };
 }
 

@@ -59,6 +59,7 @@ class ProjectStore {
     'remoteId': p.remoteId,
     'remoteVersion': p.remoteVersion,
     'pendingUpload': p.pendingUpload,
+    'approved': p.approved,
     'kit': {
       'garment': p.kit.garment,
       'mainColor': p.kit.mainColor.toARGB32(),
@@ -97,6 +98,7 @@ class ProjectStore {
       remoteVersion: j['remoteVersion'] as int?,
       // Projects saved before accounts existed upload on the next sync.
       pendingUpload: j['pendingUpload'] as bool? ?? true,
+      approved: j['approved'] as bool? ?? false,
       kit: KitState(
         garment: k['garment'] as String,
         mainColor: Color(k['mainColor'] as int),

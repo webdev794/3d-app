@@ -29,6 +29,8 @@ enum AppScreen {
   profile,
   showcase,
   artboard,
+  pricing,
+  orders,
 }
 
 /// Everything about the kit that Undo/Redo restores.
@@ -91,6 +93,7 @@ class Project {
     this.remoteId,
     this.remoteVersion,
     this.pendingUpload = false,
+    this.approved = false,
   }) : id = id ?? 'p${DateTime.now().microsecondsSinceEpoch}';
 
   /// Stable id; samples use "sample-N", user projects a timestamp.
@@ -104,6 +107,9 @@ class Project {
 
   /// Saved on this device but not yet uploaded to the account.
   bool pendingUpload;
+
+  /// Approved for production by 3DEEZI (status set on the website).
+  bool approved;
 
   /// The last upload failed (shown on the project card).
   String? syncError;
@@ -344,6 +350,7 @@ class AppController extends ChangeNotifier {
   Future<void> signOut() async {
     await api.logout();
     user = null;
+    orders = [];
     syncMessage = null;
     await session.clearAccount().catchError((Object _) {});
     for (final p
@@ -400,6 +407,10 @@ class AppController extends ChangeNotifier {
             projects[i].remoteVersion != server.remoteVersion) {
           projects[i] = server;
           _persist(server);
+        } else if (projects[i].approved != server.approved) {
+          // Approval doesn't change the version, so copy it across.
+          projects[i].approved = server.approved;
+          _persist(projects[i]);
         }
       }
       projects.removeWhere((p) {
@@ -548,6 +559,38 @@ class AppController extends ChangeNotifier {
       logoImage: null,
       spec: null,
     );
+  }
+
+  // ---------- orders and partners
+  /// Orders a saved kit. It is uploaded to the account first if needed.
+  Future<Map<String, dynamic>> orderKit(
+    Project p,
+    Map<String, dynamic> details,
+  ) async {
+    if (!signedIn) throw ApiException('Sign in to order kits.');
+    if (p.asset != null && !p.persisted) {
+      throw ApiException(
+        'This is a sample design. Open it, then save it as your own project to order it.',
+      );
+    }
+    if (p.remoteId == null || p.pendingUpload) await syncProjects();
+    if (p.remoteId == null) {
+      throw ApiException(
+        p.syncError ??
+            'This project is not on your account yet. Check the connection and try again.',
+      );
+    }
+    final order = await api.createOrder({...details, 'project_id': p.remoteId});
+    orders = [order, ...orders];
+    notifyListeners();
+    return order;
+  }
+
+  /// The signed-in customer's orders (newest first).
+  List<Map<String, dynamic>> orders = [];
+  Future<void> loadOrders() async {
+    orders = await api.orders();
+    notifyListeners();
   }
 
   // ---------- navigation
@@ -701,6 +744,14 @@ class AppController extends ChangeNotifier {
     _resetDesign();
     mode = 'DYO';
     go(AppScreen.sport);
+  }
+
+  /// "Explore the 3D studio": straight into the studio with a fresh kit.
+  void exploreStudio() {
+    _resetDesign();
+    mode = 'DYO';
+    projectName = '$sport $garment';
+    go(AppScreen.studio);
   }
 
   /// Renders the HD presentation mockup for the brief in the background

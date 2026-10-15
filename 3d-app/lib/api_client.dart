@@ -130,6 +130,19 @@ class ApiClient {
 
   Future<void> deleteProject(int id) => _send('DELETE', '/projects/$id');
 
+  // ---------- orders and partners
+  Future<List<Map<String, dynamic>>> orders() async =>
+      (await _send('GET', '/orders') as List).cast<Map<String, dynamic>>();
+
+  Future<Map<String, dynamic>> createOrder(Map<String, dynamic> body) async =>
+      await _send('POST', '/orders', body: body) as Map<String, dynamic>;
+
+  /// Corporate Partner application (no account needed). Returns the reply.
+  Future<String> applyPartner(Map<String, dynamic> body) async {
+    final data = await _send('POST', '/partners/apply', body: body);
+    return (data as Map?)?['message'] as String? ?? 'Application sent.';
+  }
+
   // ---------- transport
   /// Sends a request and returns the response's `data`.
   Future<dynamic> _send(
