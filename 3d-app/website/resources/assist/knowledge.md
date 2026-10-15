@@ -73,23 +73,51 @@ an object), and a status bar (page size, units, grid, snap, zoom). Help > Tools 
 lists every shortcut. In the toolbox, click a tool button again (or right-click it) to open
 its flyout with the related tools.
 
+### Artboard toolbox layout (left side, top to bottom)
+
+The toolbox has four sections and 27 buttons. A button with a small triangle in its corner has a flyout: click the button again
+(or right-click it) to open it. A button shows the tool you used last from its flyout, so its name and icon can change (after
+using Impact, button 11 shows Impact instead of Polygon). The page report says what each button shows right now.
+
+- Select: 1 Pick (flyout: Pick, Freehand Pick, Free Transform); 2 Pan; 3 Artistic Media (flyout: Artistic Media, Painterly
+  Brush); 4 Shape (flyout: Shape, Smooth, Smear, Twirl, Attract, Repel, Smudge, Roughen); 5 Crop (flyout: Crop, Knife,
+  Virtual Segment Delete, Eraser); 6 Zoom.
+- Draw: 7 Freehand (flyout: Freehand, 2-Point Line, Bézier, Pen, B-Spline, Polyline, 3-Point Curve, Smart Drawing, LiveSketch);
+  8 Smart Fill.
+- Shapes & text: 9 Rectangle (flyout: Rectangle, 3-Point Rectangle); 10 Ellipse (flyout: Ellipse, 3-Point Ellipse);
+  11 Polygon (flyout: Polygon, Star, Complex Star, Graph Paper, Spiral, Impact); 12 Basic Shapes (flyout: Basic, Arrow, Banner,
+  Callout shapes, Sport Badges); 13 Text (flyout: Text, Paragraph Text); 14 Table; 15 Dimension (flyout: Parallel, Horizontal or
+  Vertical, Angular, Segment, 2-Leg Callout); 16 Import Image.
+- Effects: 17 Interactive Fill; 18 Mesh Fill; 19 Transparency; 20 Contour; 21 Blend; 22 Drop Shadow; 23 Block Shadow;
+  24 Extrude; 25 Distort; 26 Envelope; 27 Eyedropper (flyout: Colour Eyedropper, Attributes Eyedropper).
+On a small screen the lower buttons are reached by scrolling the toolbox. On phones and narrow windows (including the phone app)
+the toolbox runs along the bottom instead: the same buttons in the same order, counted from the left, and it scrolls sideways.
+
 ### Artboard tools, one by one
 
 Select and shape:
 - Pick (V): click to select, drag to move, drag the corner and side handles to resize, drag the round handle above the selection to rotate (or type the angle under Properties > Rotation). Shift+click adds to the selection; drag a box to select several.
+- Free Transform (button 1, Pick flyout): select items first, then press where the pivot point should be and drag. On the property bar choose Rotate (turns them round the pivot by the drag's angle), Reflect (mirrors them across the line you drag), Scale (resizes them from the pivot, as if pulling their far corner) or Skew (slants them along the drag). Shift keeps 15° steps or even scaling. Tick Apply to duplicate to transform a copy and keep the original (handy for mirrored left and right designs).
+- Freehand Pick (button 1, Pick flyout): draw a loop round the objects you want; everything whose centre is inside the loop is selected, and you are back on the Pick tool to move or change them. Handy for picking a few objects out of a busy design where a box would catch too much.
 - Shape (F10): edits the nodes of a curve. Click a curve to see its nodes; drag nodes, handles or segments. Double-click a curve to add a node, double-click a node to delete it. Drag a box to select nodes. The property bar has: add / delete node, join two end nodes, break curve, close curve, convert to line or to curve, cusp / smooth / symmetrical node, reverse direction, extract subpath, select all nodes. Shapes like rectangles become editable curves first (Convert to curves, Ctrl+Q).
 - Smooth (Shape flyout): drag along the outline of the selected objects to smooth out bumps and corners.
+- Smear (button 4, Shape flyout): select an item first (with Pick), then choose Smear and drag across its outline: the outline is pushed out or pulled in along your stroke, softly, like pushing wet paint. Good for flame tips, drips and organic bumps. The brush size is Nib size on the property bar.
+- Twirl (button 4, Shape flyout): select an item first (with Pick), then choose Twirl and hold the mouse down on its outline: the outline swirls around the brush, more the longer you hold. Direction (Clockwise or Counter-clockwise) and Nib size are on the property bar. Good for swirls, waves and flame curls.
+- Smudge (button 4, Shape flyout): select a shape (or not: it works on the shape under the stroke), then drag from inside it outwards to pull its outline out along your stroke (like smudging paint out), or drag from outside inwards to press a dent into it. The stroke is the nib wide and narrows towards its end; the shape becomes a curve.
 - Roughen (Shape flyout): drag across the outline of the selected objects to make it rough and jagged (a torn or brush edge).
 - Attract and Repel (Shape flyout): hold and drag near the selected objects to pull their nodes in (Attract) or push them away (Repel), for organic bulges and dents.
+- The shaping brushes (Smooth, Smear, Twirl, Attract, Repel, Roughen) work on the selected shapes and text, also text with a contour or block shadow (the text and its effect bend together and stay one item). Select the item first with Pick; picking a brush with nothing selected shows a reminder. They do not work on images (a picture has no outline): trace the image to vectors first (select it, Properties tab > Trace bitmap), then use the brush on the result. If a stroke changes nothing, put the brush circle over the edge of the shape or letters, or make Nib size bigger. Each stroke is one undo step.
+- Smudge and Eraser work out each stroke in the background, so the Artboard never freezes: if a stroke would take too long (a very complex shape), it is stopped with a message and nothing changes; use a shorter stroke, a smaller Nib size, or simplify the shape first (Object > Simplify). Slow strokes work as well as quick ones.
 
 Cut and erase:
 - Crop: drag a box over the area you want to keep. Vector shapes outside the box are removed; if an image is selected, the image is cropped to the box. Crop works on what is on the page, so use it to trim artwork or cut an image down to the part you need.
 - Knife (Crop flyout): drag a straight line across objects to cut them in two along that line (the selected objects, or everything the line crosses).
+- Virtual Segment Delete (button 5, Crop flyout): point at a line or outline: the part between two crossings (where it crosses itself or another object) turns red; click to delete just that part. A closed shape becomes an open line (no fill, an outline). Good for cleaning up overlapping lines in a logo or a hand-drawn design.
 - Eraser (X): drag over objects to rub parts out. Shapes are cut away along the eraser's path and images lose the pixels you drag over (the selected objects, or anything under the eraser).
 
 View:
-- Zoom (Z): click to zoom in, Alt+click to zoom out. Also Ctrl+mouse wheel, the zoom box in the status bar, and View > Fit page.
-- Pan (H): drag to move around the page. Also Space+drag or the middle mouse button.
+- Zoom (Z, button 6): click to zoom in, Alt+click to zoom out. Also Ctrl+mouse wheel, the zoom box in the status bar, and View > Fit page.
+- Pan (H, button 2, right below Pick): drag to move around the page (it moves the view, not the artwork). Also Space+drag or the middle mouse button.
 
 Lines and curves:
 - Freehand (F5): drag to draw a line that follows the mouse, like a pencil.
@@ -99,21 +127,30 @@ Lines and curves:
 - B-Spline: click control points and a smooth curve is pulled towards them (the curve does not pass through them); double-click or Enter to finish. Good for flowing swooshes.
 - Polyline: click to add points joined by straight lines; double-click or Enter to finish.
 - 3-Point Curve: drag from the start to the end point, release, then move the mouse to bend the curve and click.
+- Artistic Media (button 3, right below Pan): draw freehand and the stroke becomes a filled shape in the fill colour. Choose the mode on the property bar: Preset (a shape along the stroke: Tapered, Teardrop, Flare, Wedge, Round, Wave, Pinched), Brush (textured: Dry brush, Ribbon, Chalk, Ink splatter), Sprayer (objects scattered along the stroke: Stars, Dots, Sparkles, Hearts, Leaves, Lightning, Confetti; with Spacing, Size ± and Random turn, Follow the stroke or Upright), Calligraphic (a flat pen nib: Nib angle) or Expression (with a pen, pressing harder makes it wider; with a mouse, drawing faster makes it thinner). Width (Size for the Sprayer) and Smoothing set the stroke. With a stroke selected, changing any of these redraws it, so you can try styles on a stroke you like. The result is an ordinary shape (the Sprayer makes a group), so colours, effects and Send to 3D work on it. Great for flame tails, swooshes, brush lettering, confetti and sparkle trails on kits.
+- Painterly Brush (button 3, Artistic Media flyout): paint realistic brush strokes in the fill colour: Oil (streaky bristles), Watercolour (soft layered washes), Charcoal (grainy), Airbrush (soft spray) or Marker (even, see-through). Brush, Size and Flow are on the property bar. The stroke is a picture (bitmap), as in CorelDRAW; with it selected, a new brush, size, flow or fill colour repaints it (after erasing part of it, it stays as it is).
+- Smart Drawing (button 7, Freehand flyout): sketch a shape freehand and it becomes the clean shape it looks like: a straight line (level or upright when nearly so), rectangle or square (also tilted), ellipse or circle (also tilted), triangle, diamond or polygon; anything else becomes a smooth curve. Shape recognition (None, Low, Medium, High) and Smoothing are on the property bar; the note at the top says what it became.
+- LiveSketch (button 7, Freehand flyout): sketch with several quick strokes; when you pause (the Timer on the property bar, 1 s by default) they become one smooth curve. Start a stroke at the end of a LiveSketch curve to extend it (Join within sets how close, in screen pixels), or draw along part of it to reshape that part. Ends that meet make a closed, filled shape. Smoothing sets how smooth the curve is.
 - Smart Fill: click inside an area enclosed by overlapping shapes to make that area a new filled object, without changing the original shapes.
 
 Shapes:
 - Rectangle (F6): drag to draw; Shift for a square. Corner radius (rounded corners) is in Properties.
+- 3-Point Rectangle (button 9, Rectangle flyout): drag to draw the base line at any angle, release, then move the mouse to set the height and click. Makes a rectangle already tilted to match, for example, a slanted stripe.
 - Ellipse (F7): drag to draw; Shift for a circle.
+- 3-Point Ellipse (button 10, Ellipse flyout): drag to draw the ellipse's centre line at any angle, release, then move the mouse to set its width and click. Makes a tilted oval in one go.
 - Polygon (Y): drag to draw a polygon; Shift for equal sides; set Points / sides on the property bar.
 - Star (S) and Complex Star: drag to draw a star (Complex Star has crossing lines); set Points / sides and Sharpness on the property bar.
 - Graph Paper (D): drag to draw a grid of rectangles (a group); set Columns and Rows on the property bar.
 - Spiral (A): drag to draw a spiral; set Revolutions, Symmetrical or Logarithmic, and Expansion on the property bar.
+- Impact (button 11, the Polygon flyout, after Spiral): drag a box to draw comic-style action lines. Style on the property bar: Radial (a burst of wedges pointing at an empty centre, for a dramatic background behind a logo or number) or Parallel (speed lines). Lines sets how many; Empty centre (Reach in for parallel) sets the size of the empty middle; Shuffle gives new random lengths. The colour is the fill colour, and changing the settings with an Impact selected redraws it.
 - Basic Shapes, Arrow Shapes, Banner Shapes, Callout Shapes and Sport Badges: pick a shape on the property bar, then drag on the page. Sport badges are ready-made crest and badge outlines.
 
 Text and tables:
 - Text (F8): click on the page and type. Property bar: font, size (mm), bold, italic, underline, alignment. Properties: weight and letter spacing. Text menu: Fonts, Fit text to path (select text and a curve to run the text along it), Straighten text, Convert to curves (Ctrl+Q, makes the letters editable shapes).
+- Paragraph Text (button 13, Text flyout): drag a frame on the page, then type: the text wraps inside the frame, like a paragraph. Drag the frame's side handles to make it wider or narrower and the lines reflow. Use it for longer text such as a team motto or sponsor details; use the normal Text tool for names and numbers.
 - Table: drag to draw a table; set rows and columns on the property bar and type each cell's text in Properties. Fill and Outline colour the cells and lines; text colour and font are in the Table card.
-- Dimensions (Parallel, Horizontal or Vertical): drag between two points to add a measurement line with its length, for sizes on print layouts.
+- Dimensions (button 15): Parallel and Horizontal or Vertical: drag between two points to add a measurement line with its length. Angular: click the corner of an angle, then a point on each side, to show the angle in degrees. Segment: point at a side of a shape or a line: it lights up with its length; click to add the measurement, set off from the shape. It measures straight from node to node, as in CorelDRAW: on a rounded corner or a curve (a circle has four curved sides) that is the straight distance between its ends, and a rounded rectangle's side is measured between the corners' start points. Text is not measured: convert it to curves first (Ctrl+Q). For sizes and angles on print layouts.
+- 2-Leg Callout (button 15, Dimension flyout): click the point you want to label, click where the line should bend, click where the text goes, then type. The arrow line and text stay together as one item; double-click it to change the text.
 
 Effects (each has its own button in the toolbox on the left; select the object, click the effect's button, set the options on the property bar at the top of the screen under the menus, then press Apply there):
 - Transparency: makes objects see-through. Types: Uniform (the same amount everywhere) or Linear (fade, from solid to clear at an angle). Amount % (0% = solid).
@@ -200,11 +237,22 @@ File > Send to 3D Studio (or the button top right) places the artwork on the gar
 - Trim an image or artwork to one area: Crop. Cut a shape in two: Knife. Rub out part of a shape or image: Eraser.
 - Classic sports lettering with depth: Block Shadow or Extrude on the text.
 - Torn or rough edge: Roughen. Smooth a wobbly hand-drawn line: Smooth.
+- Flame tips, drips or organic bumps on a shape: Smear or Smudge. Swirl part of an outline: Twirl.
+- Comic burst or speed lines behind a logo or number: Impact.
+- Clean shapes from a quick sketch: Smart Drawing. A smooth flowing outline from rough strokes: LiveSketch. Paint-like strokes (oil, watercolour, charcoal): Painterly Brush.
+- Brush-style swoosh, flame tail or tapered stroke: Artistic Media (Preset or Brush). Calligraphy look: Artistic Media > Calligraphic. Sparkle or confetti trail: Artistic Media > Sprayer.
+- Rotate round a chosen point, mirror across a slanted line, or make a mirrored copy: Free Transform (Apply to duplicate).
+- Delete the part of a line between two crossings: Virtual Segment Delete.
+- Measure a side of a shape: Segment dimension. Measure an angle: Angular dimension. Label a part with a pointer line and text: 2-Leg Callout.
+- Tilted rectangle or oval in one go: 3-Point Rectangle or 3-Point Ellipse.
+- Select a few objects out of a busy design: Freehand Pick (draw a loop round them).
+- Longer text that wraps (motto, sponsor details): Paragraph Text.
 - Zigzag or sawtooth edge: Distort > Zipper. Swirl: Distort > Twister.
 - Fade a shape out: Transparency > Linear (fade).
 - Sharp logo from a picture: Import the image, then bitmap trace to vectors.
 - Remove a logo's background: select the image, background removal.
 - Put a photo or pattern inside a shape: PowerClip.
+- Attach one picture (or any object) onto another so they move together: place it, select both (click, Shift+click), then Group (Ctrl+G or Object > Group); Ctrl+U separates them. Blend is not for this: it makes in-between steps from one object to the other (a morph), which is why it asks for steps and mixes the colours.
 - Join shapes into one: Weld. Cut one shape with another: Trim. Keep the overlap: Intersect.
 - Copy colours from one object to another: Colour Eyedropper or Attributes Eyedropper.
 - Badge or crest: Shapes (sport badges, banners) plus text, or draw with the Pen / Bézier tools.

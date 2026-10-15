@@ -121,7 +121,7 @@ export default function Assist() {
     try {
       // On the Artboard: what is on the page and selected, so the answer fits it ("it already has a shadow").
       let context: string | undefined;
-      try { context = artboardWindow()?.artboard?.assist?.('describe', ''); } catch { /* not ready */ }
+      try { context = artboardWindow()?.artboard?.assist?.('describe', '')?.slice(0, 3000); } catch { /* not ready */ }
       const r = await api<{ reply: string; actions?: Action[]; outdated?: boolean }>('/assist', { method: 'POST', body: JSON.stringify({ messages: history.slice(-12).map(({ role, content }) => ({ role, content })), page: location.pathname, can: ['commands'], build, context }) });
       const id = Date.now();
       setState(s => ({ ...s, messages: [...s.messages, { role: 'assistant', content: r.reply, id, refresh: r.outdated }] }));

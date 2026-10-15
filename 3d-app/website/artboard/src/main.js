@@ -11,7 +11,7 @@
 //     {type:'saved', json} {type:'export', data, name}
 
 import {
-  Canvas, Rect, Ellipse, Path, IText, FabricImage, PencilBrush,
+  Canvas, Rect, Ellipse, Path, IText, Textbox, FabricImage, PencilBrush,
   ActiveSelection, Group, Gradient, Pattern, Point, Shadow, util, loadSVGFromString,
   FitContentLayout, LayoutManager, classRegistry,
 } from 'fabric';
@@ -23,6 +23,10 @@ import * as V from './vector.js';
 import { createNodeEditor } from './nodes.js';
 import { createGuides } from './guides.js';
 import * as B from './bitmaps.js';
+import * as G from './geomcore.js';
+import * as AM from './media.js';
+import * as SK from './sketch.js';
+import * as PB from './paint.js';
 
 // ===================================================================
 // Setup
@@ -92,17 +96,23 @@ const state = {
   // Text settings: used for the next text, and edited from the text bar.
   text: { fontFamily: 'Rajdhani', fontWeight: 700, fontStyle: 'normal', underline: false, textAlign: 'center', fontSize: 40 },
   // Tool settings from the context property bars.
-  shape: { sides: 6, points: 5, sharp: 53, cpoints: 9, csharp: 2, revs: 4, log: false, expand: 50, cols: 4, rows: 3, set: 'basic', item: 'triangle', radius: 8, eraser: 6, tRows: 4, tCols: 3 },
+  shape: { sides: 6, points: 5, sharp: 53, cpoints: 9, csharp: 2, revs: 4, log: false, expand: 50, cols: 4, rows: 3, set: 'basic', item: 'triangle', radius: 8, eraser: 6, tRows: 4, tCols: 3, twirl: 'cw', impactStyle: 'radial', impactLines: 36, impactInner: 45, impactSeed: 1, ftMode: 'rotate', ftDup: false },
+  // Artistic Media: used for the next stroke, and edited from its property bar (a selected stroke is redrawn).
+  // Smart Drawing, LiveSketch and Painterly Brush settings (their property bars).
+  smart: { level: 'medium', smooth: 50 },
+  live: { timer: 1, near: 15, smooth: 50 },
+  paint: { brush: 'oil', size: 10, flow: 80 },
+  media: { mode: 'preset', width: 6, smooth: 50, preset: 'taper', brush: 'dry', spray: 'stars', spacing: 12, sizeVar: 30, rotate: 'random', angle: 45 },
   fx: {
     blendSteps: 8, contourDir: 'outside', contourSteps: 1, contourOffset: 3, contourColour: '#000000', shadowX: 2, shadowY: 2, shadowBlur: 4, shadowColour: '#000000', shadowOpacity: 50, transp: 'uniform', transpValue: 50, transpAngle: 0,
     distort: 'zipper', zipSize: 2, zipTeeth: 30, twist: 90, push: 40, envelope: 'arcUp', envAmount: 20,
     extX: 6, extY: 6, extColour: '#1E7BFF', blockX: 3, blockY: 3, blockColour: '#000000', meshSize: 40, meshStrength: 85,
   },
 };
-try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
-const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx })); } catch { /* private mode */ } };
+try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
+const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint })); } catch { /* private mode */ } };
 
-const toast = (text) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2800); };
+const toast = (text, ms = 2800) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), ms); };
 const hint = (text) => { const h = $('hint'); h.textContent = text || ''; h.classList.toggle('show', !!text); };
 
 // ===================================================================
@@ -303,7 +313,7 @@ canvas.on('object:moving', (e) => {
 // ===================================================================
 // History (undo / redo) and autosave
 // ===================================================================
-const EXTRA = ['name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell', 'pcFrame'];
+const EXTRA = ['name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell', 'pcFrame', 'mediaSpec', 'liveSpec', 'paintSpec'];
 let history = [], future = [], restoring = false, muted = 0, saveTimer = null;
 const snapshot = () => JSON.stringify({ page: pageSize, guides: guides.get(), objects: userObjects().map((o) => o.toObject(EXTRA)) });
 function record() {
@@ -447,18 +457,21 @@ function objectAt(p) {
 // Tools: CorelDRAW toolbox groups and flyouts
 // ===================================================================
 const TOOL_GROUPS = [
-  ['pick', [['select', 'Pick', 'select', 'V']]],
-  ['shape', [['node', 'Shape', 'node', 'F10'], ['smoothb', 'Smooth', 'smoothb'], ['roughen', 'Roughen', 'roughen'], ['attract', 'Attract', 'attract'], ['repel', 'Repel', 'repel']]],
-  ['crop', [['crop', 'Crop', 'crop'], ['knife', 'Knife', 'knife'], ['eraser', 'Eraser', 'eraser', 'X']]],
-  ['zoom', [['zoom', 'Zoom', 'zoom', 'Z'], ['pan', 'Pan', 'pan', 'H']]],
-  ['curve', [['draw', 'Freehand', 'freehand', 'F5'], ['line', '2-Point Line', 'line'], ['bezier', 'Bézier', 'bezier'], ['pen', 'Pen', 'pen'], ['bspline', 'B-Spline', 'bspline'], ['polyline', 'Polyline', 'polyline'], ['curve3', '3-Point Curve', 'curve3']]],
+  ['pick', [['select', 'Pick', 'select', 'V'], ['lasso', 'Freehand Pick', 'lasso'], ['freetx', 'Free Transform', 'freetx']]],
+  // Pan has its own button below Pick (it moves the view, not the artwork).
+  ['pan', [['pan', 'Pan', 'pan', 'H']]],
+  ['shape', [['node', 'Shape', 'node', 'F10'], ['smoothb', 'Smooth', 'smoothb'], ['smear', 'Smear', 'smear'], ['twirl', 'Twirl', 'twirl'], ['attract', 'Attract', 'attract'], ['repel', 'Repel', 'repel'], ['smudge', 'Smudge', 'smudge'], ['roughen', 'Roughen', 'roughen']]],
+  ['crop', [['crop', 'Crop', 'crop'], ['knife', 'Knife', 'knife'], ['vsd', 'Virtual Segment Delete', 'vsd'], ['eraser', 'Eraser', 'eraser', 'X']]],
+  ['zoom', [['zoom', 'Zoom', 'zoom', 'Z']]],
+  ['curve', [['draw', 'Freehand', 'freehand', 'F5'], ['line', '2-Point Line', 'line'], ['bezier', 'Bézier', 'bezier'], ['pen', 'Pen', 'pen'], ['bspline', 'B-Spline', 'bspline'], ['polyline', 'Polyline', 'polyline'], ['curve3', '3-Point Curve', 'curve3'], ['smartdraw', 'Smart Drawing', 'smartdraw'], ['livesketch', 'LiveSketch', 'livesketch']]],
+  ['art', [['media', 'Artistic Media', 'media'], ['paint', 'Painterly Brush', 'paintbrush']]],
   ['smart', [['smartfill', 'Smart Fill', 'smartfill']]],
-  ['rect', [['rect', 'Rectangle', 'rect', 'F6']]],
-  ['ellipse', [['ellipse', 'Ellipse', 'ellipse', 'F7']]],
-  ['object', [['polygon', 'Polygon', 'polygon', 'Y'], ['star', 'Star', 'star', 'S'], ['cstar', 'Complex Star', 'cstar'], ['graph', 'Graph Paper', 'graph', 'D'], ['spiral', 'Spiral', 'spiral', 'A']]],
+  ['rect', [['rect', 'Rectangle', 'rect', 'F6'], ['rect3', '3-Point Rectangle', 'rect3']]],
+  ['ellipse', [['ellipse', 'Ellipse', 'ellipse', 'F7'], ['ellipse3', '3-Point Ellipse', 'ellipse3']]],
+  ['object', [['polygon', 'Polygon', 'polygon', 'Y'], ['star', 'Star', 'star', 'S'], ['cstar', 'Complex Star', 'cstar'], ['graph', 'Graph Paper', 'graph', 'D'], ['spiral', 'Spiral', 'spiral', 'A'], ['impact', 'Impact', 'impact']]],
   ['shapes', [['shape:basic', 'Basic Shapes', 'shapes'], ['shape:arrow', 'Arrow Shapes', 'arrowshape'], ['shape:banner', 'Banner Shapes', 'banner'], ['shape:callout', 'Callout Shapes', 'callout'], ['shape:badge', 'Sport Badges', 'badge']]],
-  ['text', [['text', 'Text', 'text', 'F8']]],
-  ['dim', [['dimP', 'Parallel Dimension', 'dimension'], ['dimHV', 'Horizontal or Vertical Dimension', 'dimhv']]],
+  ['text', [['text', 'Text', 'text', 'F8'], ['ptext', 'Paragraph Text', 'ptext']]],
+  ['dim', [['dimP', 'Parallel Dimension', 'dimension'], ['dimHV', 'Horizontal or Vertical Dimension', 'dimhv'], ['dimA', 'Angular Dimension', 'dimangle'], ['dimS', 'Segment Dimension', 'dimseg'], ['callout2', '2-Leg Callout', 'callout2']]],
   ['table', [['table', 'Table', 'table']]],
   // Each effect has its own always-visible button (client spec: Transparency and Contour must be visible).
   ['transparency', [['transparency', 'Transparency', 'transparency']]],
@@ -475,10 +488,11 @@ const TOOL_GROUPS = [
   ['import', [['image', 'Import Image', 'image', 'Ctrl+I']]],
 ];
 /** Shorter names where the full one doesn't fit the toolbox (flyouts show the full name). */
-const SHORT_LABEL = { dimP: 'Dimension', dimHV: 'H / V Dimension', eyedropper: 'Eyedropper', attrdrop: 'Attr. Eyedropper' };
+const SHORT_LABEL = { dimP: 'Dimension', dimHV: 'H / V Dimension', eyedropper: 'Eyedropper', attrdrop: 'Attr. Eyedropper', lasso: 'Freehand Pick', rect3: '3-Point Rect.', ellipse3: '3-Point Ellipse', ptext: 'Paragraph Text', freetx: 'Free Transform', vsd: 'Segment Delete', dimA: 'Angular Dim.', dimS: 'Segment Dim.', callout2: '2-Leg Callout' };
 /** Toolbox sections, top to bottom (groups with several tools open a flyout). */
 const TOOL_SECTIONS = [
-  ['Select', ['pick', 'shape', 'crop', 'zoom']],
+  // Artistic Media right below Pan (user 2026-10-15).
+  ['Select', ['pick', 'pan', 'art', 'shape', 'crop', 'zoom']],
   ['Draw', ['curve', 'smart']],
   ['Shapes & text', ['rect', 'ellipse', 'object', 'shapes', 'text', 'table', 'dim', 'import']],
   ['Effects', ['fill', 'meshfill', 'transparency', 'contour', 'blend', 'shadow', 'blockshadow', 'extrude', 'distort', 'envelope', 'eyedrop']],
@@ -487,10 +501,10 @@ const TOOLS = {};
 for (const [group, tools] of TOOL_GROUPS) for (const [id, label, ic, key] of tools) TOOLS[id] = { id, label, icon: ic, key, group };
 const groupCurrent = {};
 const PICK_LIKE = new Set(['select', 'blend', 'contour', 'shadow', 'transparency', 'distort', 'envelope', 'extrude', 'blockshadow']);
-const SCULPT = new Set(['smoothb', 'roughen', 'attract', 'repel']);
-const OWN_MOUSE = new Set(['node', 'pan', 'knife', 'eraser', ...SCULPT]);
+const SCULPT = new Set(['smoothb', 'smear', 'twirl', 'roughen', 'attract', 'repel']);
+const OWN_MOUSE = new Set(['node', 'pan', 'knife', 'eraser', 'smudge', 'lasso', 'freetx', 'vsd', 'media', 'smartdraw', 'livesketch', 'paint', ...SCULPT]);
 const PATH_TOOLS = new Set(['bezier', 'pen', 'polyline', 'bspline']);
-const BOX_TOOLS = new Set(['rect', 'ellipse', 'polygon', 'star', 'cstar', 'spiral', 'graph', 'table', 'line', 'crop', 'dimP', 'dimHV']);
+const BOX_TOOLS = new Set(['rect', 'ellipse', 'polygon', 'star', 'cstar', 'spiral', 'impact', 'graph', 'table', 'line', 'crop', 'dimP', 'dimHV', 'ptext']);
 const TOOL_HINTS = {
   select: '', node: 'Click a curve to see its nodes · drag nodes, handles or segments · double-click a curve to add a node, a node to delete it · drag a box to select nodes',
   smoothb: 'Drag along the outline of the selected objects to smooth it', roughen: 'Drag across the outline of the selected objects to roughen it',
@@ -516,6 +530,23 @@ const TOOL_HINTS = {
   extrude: 'Select shapes or text, set the depth (X, Y) and side colour, then Apply extrude',
   blockshadow: 'Select shapes or text, set the depth (X, Y) and colour, then Apply block shadow',
   meshfill: 'Click inside a shape or text to add a soft spot of the current colour · click again for more spots',
+  lasso: 'Freehand Pick: draw a loop round the objects to select them (those whose centre is inside the loop)',
+  smear: 'Select an item first, then drag across its outline to push it out or pull it in along your stroke',
+  twirl: 'Select an item first, then hold the mouse down on its outline to twirl it (longer = more turns) · Direction on the property bar',
+  smudge: 'Drag from inside a selected shape outwards to pull its outline out, or from outside inwards to press it in',
+  rect3: 'Drag to draw the base line (any angle), release, then move to set the height and click',
+  ellipse3: 'Drag to draw the centre line (any angle), release, then move to set the width and click',
+  ptext: 'Drag a frame on the page, then type: the text wraps inside the frame (drag its side handles to reflow)',
+  impact: 'Drag to draw comic-style action lines (radial burst or parallel speed lines) · settings on the property bar',
+  smartdraw: 'Sketch a shape freehand: it becomes a clean line, rectangle, ellipse, triangle, diamond or polygon (recognition and smoothing on the property bar)',
+  livesketch: 'Sketch with several strokes: when you pause they become one smooth curve · start at the end of a LiveSketch curve to extend it, draw along it to reshape it',
+  paint: 'Paint with realistic brushes (Oil, Watercolour, Charcoal, Airbrush, Marker) in the fill colour · the stroke is a picture (bitmap)',
+  media: 'Draw freehand: the stroke becomes a shape (Preset, Brush, Sprayer, Calligraphic or Expression on the property bar) · with a stroke selected, changing the settings redraws it',
+  freetx: 'Press where the pivot goes and drag: Rotate, Reflect, Scale or Skew (property bar) · Shift = 15° steps / even scaling',
+  vsd: 'Point at a line: the part between two crossings turns red · click to delete just that part',
+  dimA: 'Click the corner of the angle, then a point on each of its two sides',
+  dimS: 'Point at a side of a shape or a line: it lights up with its length · click to add the measurement (straight from node to node)',
+  callout2: 'Click the point to label, click where the line bends, click where the text goes, then type',
 };
 for (const k of ['shape:arrow', 'shape:banner', 'shape:callout', 'shape:badge']) TOOL_HINTS[k] = TOOL_HINTS['shape:basic'];
 
@@ -577,7 +608,7 @@ function applyToolFlags() {
 function setTool(tool) {
   if (!TOOLS[tool]) return;
   if (pcEdit && tool !== 'select') finishPowerClipEdit();
-  finishPath(); cancelCurve3(); attrSample = null; pickFrame = null;
+  finishPath(); cancelCurve3(); cancelTp(); cancelMulti(); dropVsdHover(); topSegment = null; if (tool !== 'livesketch') finishLive(); attrSample = null; pickFrame = null;
   if (tool === 'image') { $('fileImage').click(); return; }
   const prev = state.tool;
   // Brushes, knife and eraser work on the objects selected when the tool is picked.
@@ -600,19 +631,41 @@ function setTool(tool) {
   canvas.defaultCursor = toolCursor(tool);
   // Over objects the cursor still shows the tool (Pick-like tools show "move").
   canvas.hoverCursor = PICK_LIKE.has(tool) ? 'move' : canvas.defaultCursor;
-  nodes.setBrush(SCULPT.has(tool) ? { radius: state.shape.radius * MM } : tool === 'eraser' ? { radius: (state.shape.eraser * MM) / 2 } : null);
+  setBrushRing(SCULPT.has(tool) || tool === 'smudge' ? { radius: state.shape.radius * MM } : tool === 'eraser' ? { radius: (state.shape.eraser * MM) / 2 } : null);
   if (tool.startsWith('shape:')) state.shape.set = tool.split(':')[1];
   renderToolbox();
   syncContext();
   syncTextBar();
   canvas.requestRenderAll();
   hint(TOOL_HINTS[tool] ?? '');
+  // Tools that work on selected items say so straight away when nothing (or too little) is selected, so the
+  // Artboard never seems to have stopped working.
+  const notice = selectionNotice(tool);
+  if (notice) toast(notice, 5000);
 }
+/** What to select first, when the tool works on a selection and there is none (or too little). */
+function selectionNotice(tool) {
+  if (tool === 'freetx' && !toolTargets.length) return 'Select an item on the Artboard first (Pick tool), then choose Free Transform again';
+  if (SCULPT.has(tool) && !toolTargets.length) return `Select an item on the Artboard first (Pick tool), then choose ${TOOLS[tool].label} again`;
+  if (SCULPT.has(tool) && toolTargets.every((o) => o.type === 'image')) return `Images have no outline to bend. Trace the image to vectors first (select it, Properties tab > Trace bitmap), then use ${TOOLS[tool].label} on the result`;
+  if (NEEDS_SELECTION[tool] && canvas.getActiveObjects().length < (tool === 'blend' ? 2 : 1)) return NEEDS_SELECTION[tool];
+  return '';
+}
+const NEEDS_SELECTION = {
+  blend: 'Select two shapes on the Artboard first (click one, Shift+click the other), then set the steps and click Apply blend',
+  contour: 'Select a shape or text on the Artboard first, then set the contour and click Apply contour',
+  shadow: 'Select an item on the Artboard first, then set the shadow and click Apply',
+  transparency: 'Select an item on the Artboard first, then choose the transparency type and amount',
+  distort: 'Select a shape or text on the Artboard first, then choose the distortion and click Apply distortion',
+  envelope: 'Select a shape or text on the Artboard first, then choose an envelope and click Apply envelope',
+  extrude: 'Select a shape or text on the Artboard first, then set the depth and click Apply extrude',
+  blockshadow: 'Select a shape or text on the Artboard first, then set the depth and click Apply block shadow',
+};
 
 // ===================================================================
 // Drawing with the mouse
 // ===================================================================
-let drag = null, path = null, curve3 = null, erase = null, knife = null, attrSample = null, pickFrame = null;
+let drag = null, path = null, curve3 = null, erase = null, knife = null, attrSample = null, pickFrame = null, tp = null, lasso = null, smudge = null, ft = null, multi = null, vsdHover = null, media = null, sketchStroke = null;
 function helperPath(d, extra = {}) {
   const h = new Path(d || 'M 0 0', { fill: null, stroke: '#12E1F0', strokeWidth: 1.5 / canvas.getZoom(), strokeDashArray: [6 / canvas.getZoom(), 4 / canvas.getZoom()], selectable: false, evented: false, excludeFromExport: true, objectCaching: false, ...extra });
   h.isHelper = true;
@@ -629,13 +682,14 @@ const unitFor = (tool) => {
   if (tool === 'star') return V.starUnit(s.points, s.sharp);
   if (tool === 'cstar') return V.complexStarUnit(s.cpoints, s.csharp);
   if (tool === 'spiral') return V.spiralUnit(s.revs, s.log, s.expand);
+  if (tool === 'impact') return V.impactUnit(s.impactStyle, s.impactLines, s.impactInner, s.impactSeed);
   if (tool.startsWith('shape:')) { const set = V.SHAPE_SETS[s.set]; return (set.items.find(([id]) => id === s.item) ?? set.items[0])[2]; }
   return null;
 };
-const specFor = (tool) => { const s = state.shape; return tool === 'polygon' ? { tool, sides: s.sides } : tool === 'star' ? { tool, points: s.points, sharp: s.sharp } : tool === 'cstar' ? { tool, cpoints: s.cpoints, csharp: s.csharp } : tool === 'spiral' ? { tool, revs: s.revs, log: s.log, expand: s.expand } : { tool, set: s.set, item: s.item }; };
+const specFor = (tool) => { const s = state.shape; return tool === 'polygon' ? { tool, sides: s.sides } : tool === 'star' ? { tool, points: s.points, sharp: s.sharp } : tool === 'cstar' ? { tool, cpoints: s.cpoints, csharp: s.csharp } : tool === 'spiral' ? { tool, revs: s.revs, log: s.log, expand: s.expand } : tool === 'impact' ? { tool, style: s.impactStyle, lines: s.impactLines, inner: s.impactInner, seed: s.impactSeed } : { tool, set: s.set, item: s.item }; };
 
 /** Drawing clicks and dragged nodes snap to nodes, edges and guidelines when Snap is on. */
-const SNAP_TOOLS = new Set([...PATH_TOOLS, ...BOX_TOOLS, 'curve3', 'text']);
+const SNAP_TOOLS = new Set([...PATH_TOOLS, ...BOX_TOOLS, 'curve3', 'rect3', 'ellipse3', 'text', 'freetx', 'dimA', 'callout2']);
 function pointer(opt, tool) {
   const p = canvas.getScenePoint(opt.e);
   if (!state.snap) return p;
@@ -654,8 +708,28 @@ canvas.on('mouse:down', (opt) => {
   // Place inside: the frame can sit under the contents (a picture over text), so skip them.
   if (pickFrame) { placeInFrame(userObjects().slice().reverse().find((o) => !pickFrame.includes(o) && o.visible && !o.locked && o.containsPoint(new Point(p.x, p.y)))); return; }
   if (tool === 'node') { nodes.down(p, opt.e); return; }
-  if (SCULPT.has(tool)) { nodes.brushDown(tool === 'smoothb' ? 'smooth' : tool, toolTargets.filter((o) => canvas.getObjects().includes(o)), p, state.shape.radius * MM); return; }
-  if (tool === 'eraser') { erase = { points: [p], helper: helperPath(`M ${p.x} ${p.y}`, { stroke: 'rgba(255,80,80,.35)', strokeWidth: state.shape.eraser * MM, strokeDashArray: null, strokeLineCap: 'round', strokeLineJoin: 'round' }) }; return; }
+  if (SCULPT.has(tool)) { sculptDown(tool, p); return; }
+  if (tool === 'smudge') { smudgeDown(p); return; }
+  if (tool === 'smartdraw' || tool === 'livesketch' || tool === 'paint') {
+    sketchStroke = { tool, points: [{ x: p.x, y: p.y }] };
+    if (tool === 'livesketch') clearTimeout(liveTimer);
+    topStroke = { points: sketchStroke.points, width: tool === 'paint' ? Math.max(0.5, state.paint.size) * MM : 1.6 / canvas.getZoom(), colour: tool === 'paint' ? 'rgba(18,225,240,.35)' : '#12E1F0' };
+    drawTop(); return;
+  }
+  if (tool === 'media') {
+    media = { points: [{ x: p.x, y: p.y, t: performance.now(), pr: opt.e.pressure ?? 0.5, pen: opt.e.pointerType === 'pen' }] };
+    topStroke = { points: media.points, width: Math.max(0.5, state.media.width) * MM, colour: 'rgba(18,225,240,.45)' }; drawTop(); return;
+  }
+  if (tool === 'lasso') { lasso = { points: [p] }; topStroke = { points: lasso.points, loop: true }; drawTop(); return; }
+  if (tool === 'rect3' || tool === 'ellipse3') { tpDown(p); return; }
+  if (tool === 'freetx') { ftDown(p); return; }
+  if (tool === 'vsd') { vsdClick(p); return; }
+  if (tool === 'dimA' || tool === 'callout2') { multiDown(tool, p); return; }
+  if (tool === 'dimS') { segmentDimension(p); return; }
+  if (tool === 'eraser') {
+    if (geomBusy) { toast('Still working out the last stroke: one moment'); return; }
+    erase = { points: [p] }; topStroke = { points: erase.points, width: state.shape.eraser * MM, colour: 'rgba(255,80,80,.35)' }; drawTop(); return;
+  }
   if (tool === 'knife') { knife = { a: p, b: p, helper: helperPath(`M ${p.x} ${p.y} L ${p.x} ${p.y}`, { stroke: '#ff4d6d' }) }; return; }
   if (tool === 'zoom') { zoomAt(canvas.getZoom() * (opt.e.altKey ? 0.6 : 1.6), canvas.getViewportPoint(opt.e)); return; }
   if (tool === 'eyedropper') { eyedropClick(opt, target, p); return; }
@@ -676,8 +750,10 @@ canvas.on('mouse:down', (opt) => {
   if (tool === 'rect') o = paint(new Rect({ left: p.x, top: p.y, width: 1, height: 1, rx: state.shape.radiusRect ?? 0, ry: state.shape.radiusRect ?? 0, toolName: 'Rectangle' }));
   else if (tool === 'ellipse') o = paint(new Ellipse({ left: p.x, top: p.y, rx: 1, ry: 1, toolName: 'Ellipse' }));
   else if (tool === 'line' || tool === 'dimP' || tool === 'dimHV') o = paintLine(new Path(`M ${p.x} ${p.y} L ${p.x} ${p.y}`, { toolName: '2-Point Line' }));
-  else if (tool === 'crop' || tool === 'graph' || tool === 'table') { drag = { tool, start: p, helper: helperPath(`M ${p.x} ${p.y}`, { fill: 'rgba(18,225,240,.10)' }) }; return; }
+  else if (tool === 'crop' || tool === 'graph' || tool === 'table' || tool === 'ptext') { drag = { tool, start: p, helper: helperPath(`M ${p.x} ${p.y}`, { fill: 'rgba(18,225,240,.10)' }) }; return; }
   else {
+    // Each new Impact gets its own random line lengths.
+    if (tool === 'impact') state.shape.impactSeed = (state.shape.impactSeed % 99991) + 1;
     o = new Path(V.boxD(unitFor(tool), box), { toolName: TOOLS[tool].label });
     if (tool === 'spiral') paintLine(o); else paint(o);
     if (tool === 'cstar') o.set('fillRule', 'evenodd');
@@ -691,12 +767,20 @@ canvas.on('mouse:down', (opt) => {
 canvas.on('mouse:move', (opt) => {
   const tool = state.tool, p = pointer(opt, tool);
   if (tool === 'node') { nodes.move(p, opt.e); return; }
-  if (SCULPT.has(tool) || tool === 'eraser') { nodes.setBrush({ radius: tool === 'eraser' ? (state.shape.eraser * MM) / 2 : state.shape.radius * MM, at: p }); }
+  if (SCULPT.has(tool) || tool === 'eraser' || tool === 'smudge') setBrushRing({ radius: tool === 'eraser' ? (state.shape.eraser * MM) / 2 : state.shape.radius * MM, at: p });
   if (SCULPT.has(tool)) { if (opt.e.buttons & 1) nodes.brushStep(p); return; }
-  if (erase) { erase.points.push(p); setLive(erase.helper, `M ${erase.points.map((q) => `${q.x} ${q.y}`).join(' L ')}`); canvas.requestRenderAll(); return; }
+  if (erase) { addStrokePoint(erase.points, p); return; }
   if (knife) { knife.b = p; setLive(knife.helper, `M ${knife.a.x} ${knife.a.y} L ${p.x} ${p.y}`); canvas.requestRenderAll(); return; }
   if (path) { penMove(p, opt.e); return; }
   if (curve3) { curve3Move(p); return; }
+  if (ft) { ftMove(p, opt.e); return; }
+  if (multi) { multiMove(p); return; }
+  if (tool === 'vsd') { vsdHoverAt(p); return; }
+  if (tool === 'dimS') { segmentHover(p); return; }
+  if (tp) { tpMove(p); return; }
+  if (lasso || smudge) { addStrokePoint((lasso ?? smudge).points, p); return; }
+  if (sketchStroke) { addStrokePoint(sketchStroke.points, p); return; }
+  if (media) { addStrokePoint(media.points, { x: p.x, y: p.y, t: performance.now(), pr: opt.e.pressure ?? 0.5, pen: opt.e.pointerType === 'pen' }); return; }
   if (!drag) return;
   let w = p.x - drag.start.x, h = p.y - drag.start.y;
   const shift = opt.e.shiftKey;
@@ -713,7 +797,7 @@ canvas.on('mouse:move', (opt) => {
     }
     drag.end = q;
     setLive(o, `M ${drag.start.x} ${drag.start.y} L ${q.x} ${q.y}`);
-  } else if (drag.tool === 'crop' || drag.tool === 'graph' || drag.tool === 'table') setLive(drag.helper, `M ${box.x} ${box.y} h ${box.w} v ${box.h} h ${-box.w} Z`);
+  } else if (drag.tool === 'crop' || drag.tool === 'graph' || drag.tool === 'table' || drag.tool === 'ptext') setLive(drag.helper, `M ${box.x} ${box.y} h ${box.w} v ${box.h} h ${-box.w} Z`);
   else setLive(o, V.boxD(unitFor(drag.tool), box));
   drag.box = box;
   o?.setCoords();
@@ -723,16 +807,29 @@ canvas.on('mouse:up', (opt) => {
   const tool = state.tool, p = pointer(opt, tool);
   guides.forget();
   if (tool === 'node') { nodes.up(p); return; }
-  if (SCULPT.has(tool)) { nodes.brushUp(); return; }
-  if (erase) { const e = erase; erase = null; dropHelper(e.helper); applyEraser(e.points); return; }
+  if (SCULPT.has(tool)) { sculptUp(tool); return; }
+  if (erase) { const e = erase; erase = null; topStroke = null; drawTop(); applyEraser(e.points); return; }
   if (knife) { const k = knife; knife = null; dropHelper(k.helper); applyKnife(k.a, k.b); return; }
   if (path) { path.pressing = false; return; }
   if (curve3) { curve3Up(p); return; }
+  if (ft) { ftUp(); return; }
+  if (tp) { tpUp(p); return; }
+  if (lasso) { const l = lasso; lasso = null; topStroke = null; drawTop(); lassoSelect(l.points); return; }
+  if (smudge) { const sm = smudge; smudge = null; topStroke = null; drawTop(); applySmudge(sm); return; }
+  if (media) { const m = media; media = null; topStroke = null; drawTop(); finishMedia(m.points); return; }
+  if (sketchStroke) {
+    const st = sketchStroke; sketchStroke = null; topStroke = null;
+    if (st.tool === 'smartdraw') { drawTop(); finishSmart(st.points); }
+    else if (st.tool === 'paint') { drawTop(); finishPaint(st.points); }
+    else { livePending.push(st.points); drawTop(); clearTimeout(liveTimer); liveTimer = setTimeout(finishLive, Math.max(0, state.live.timer) * 1000); }
+    return;
+  }
   if (!drag) return;
   const d = drag; drag = null;
   if (d.tool === 'crop') { dropHelper(d.helper); applyCrop(d.box); return; }
   if (d.tool === 'graph') { dropHelper(d.helper); addGraph(d.box ?? { x: d.start.x - 40 * MM, y: d.start.y - 30 * MM, w: 80 * MM, h: 60 * MM }); return; }
   if (d.tool === 'table') { dropHelper(d.helper); addTable(d.box ?? { x: d.start.x - 60 * MM, y: d.start.y - 40 * MM, w: 0, h: 0 }); return; }
+  if (d.tool === 'ptext') { dropHelper(d.helper); addParagraph(d.box && d.box.w >= 3 ? d.box : { x: d.start.x, y: d.start.y, w: 0, h: 0 }); return; }
   const o = d.o;
   muted++; canvas.remove(o); muted--;
   if (d.tool === 'dimP' || d.tool === 'dimHV') { if (d.end && screenDist(d.start, d.end) > 6) addDimension(d.start, d.end, d.tool === 'dimHV'); setTool('select'); return; }
@@ -756,11 +853,138 @@ canvas.on('mouse:dblclick', (opt) => {
   if (state.tool === 'node') { nodes.dblclick(canvas.getScenePoint(opt.e)); return; }
   // PowerClip: double-click to move the contents; double-click outside them to finish.
   if (state.tool === 'select' && opt.target?.powerClip) { editPowerClip(opt.target); return; }
+  // A callout: double-click to change its text.
+  if (state.tool === 'select' && opt.target?.toolName === 'Callout') { editCallout(opt.target); return; }
   if (pcEdit && !opt.target) { finishPowerClipEdit(); return; }
   if (path) finishPath();
 });
 canvas.on('path:created', (e) => { style(e.path, { toolName: 'Freehand', strokeUniform: true }); e.path.name = `Freehand ${++counter}`; record(); refreshLayers(); });
-canvas.on('after:render', ({ ctx }) => { if (exporting) return; guides.draw(ctx); nodes.draw(ctx); drawToolOverlay(ctx); });
+// Overlays go on the main canvas only: Fabric fires after:render for its top layer too, which it does not clear
+// afterwards, so anything drawn there would stay on screen (a stale tool box after switching tools).
+canvas.on('after:render', ({ ctx }) => {
+  if (exporting) return;
+  if (ctx === canvas.contextTop) { if (topDrawn) drawTop(); return; }
+  guides.draw(ctx); nodes.draw(ctx); drawToolOverlay(ctx);
+  if (topDrawn) drawTop();
+});
+
+// The brush ring and the stroke being drawn (Smudge, Eraser, Freehand Pick) are drawn on Fabric's top canvas:
+// moving them doesn't redraw the page, so brushes stay smooth on pages with heavy artwork.
+let topStroke = null, brushRing = null, topSegment = null, topDrawn = false, livePending = [], liveTimer = 0;
+function setBrushRing(ring) { brushRing = ring; drawTop(); }
+/** Adds a point to a stroke being drawn (closer than a screen pixel to the last one: skipped) and redraws it. */
+function addStrokePoint(points, p) {
+  if (screenDist(p, points.at(-1)) >= 1) points.push(p);
+  drawTop();
+}
+function drawTop() {
+  const ctx = canvas.contextTop;
+  if (!ctx) return;
+  const ring = brushRing?.at ? brushRing : null;
+  if (!topStroke && !ring && !topSegment && !livePending.length) { if (topDrawn) { canvas.clearContext(ctx); topDrawn = false; } return; }
+  canvas.clearContext(ctx);
+  topDrawn = true;
+  const r = canvas.getRetinaScaling(), v = canvas.viewportTransform, s = topStroke;
+  if (livePending.length) {
+    // LiveSketch strokes waiting for the pause, thin and cyan.
+    ctx.save(); ctx.setTransform(r * v[0], 0, 0, r * v[3], r * v[4], r * v[5]);
+    ctx.lineWidth = 1.6 / v[0]; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#12E1F0';
+    for (const q of livePending) { ctx.beginPath(); q.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke(); }
+    ctx.restore();
+  }
+  if (s?.points.length) {
+    ctx.save();
+    ctx.setTransform(r * v[0], 0, 0, r * v[3], r * v[4], r * v[5]);
+    ctx.beginPath();
+    s.points.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+    if (s.loop) {
+      ctx.closePath(); ctx.fillStyle = 'rgba(18,225,240,.08)'; ctx.fill();
+      ctx.setLineDash([6 / v[0], 4 / v[0]]); ctx.lineWidth = 1.5 / v[0]; ctx.strokeStyle = '#12E1F0';
+    } else {
+      if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.01, s.points[0].y);
+      ctx.lineWidth = s.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = s.colour;
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (topSegment) {
+    // The side a Segment dimension would measure, with its length.
+    const [a, b, c2, d] = topSegment.pts.map((q) => ({ x: q.x * v[0] + v[4], y: q.y * v[3] + v[5] }));
+    ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
+    // A dark edge under the cyan line, so it shows on any fill colour.
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.bezierCurveTo(b.x, b.y, c2.x, c2.y, d.x, d.y);
+    ctx.strokeStyle = '#05121c'; ctx.lineWidth = 6; ctx.stroke();
+    ctx.strokeStyle = '#12E1F0'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = '600 12px Inter, sans-serif';
+    const mid = { x: (a.x + d.x) / 2, y: (a.y + d.y) / 2 }, w = ctx.measureText(topSegment.label).width + 12;
+    ctx.fillStyle = '#05121ce6'; ctx.fillRect(mid.x - w / 2, mid.y - 30, w, 20);
+    ctx.fillStyle = '#12E1F0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(topSegment.label, mid.x, mid.y - 20);
+    ctx.restore();
+  }
+  if (ring) {
+    ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
+    const c = { x: ring.at.x * v[0] + v[4], y: ring.at.y * v[3] + v[5] };
+    ctx.strokeStyle = '#12E1F0'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(c.x, c.y, ring.radius * v[0], 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// Smudge and Eraser strokes: the shape maths runs in a worker with a time limit, so a slow or stuck calculation
+// can never freeze the Artboard: it is stopped with a message instead. Without workers it runs on the page.
+let geomWorker = null, geomSeq = 0, geomBusy = 0, geomStarted = false, GEOM_LIMIT = 6000;
+const geomJobs = new Map();
+function stopGeom(err) {
+  if (geomWorker) geomWorker.terminate();
+  geomWorker = null;
+  for (const j of geomJobs.values()) { clearTimeout(j.timer); j.reject(err); }
+  geomJobs.clear();
+}
+function geomRun(job) {
+  if (geomWorker === null) {
+    try {
+      if (!window.__ABGEOM || typeof Worker !== 'function') throw new Error('no worker');
+      const w = new Worker(URL.createObjectURL(new Blob([window.__ABGEOM], { type: 'text/javascript' })));
+      w.onmessage = ({ data }) => {
+        geomStarted = true;
+        const j = geomJobs.get(data.id);
+        if (!j) return;
+        geomJobs.delete(data.id); clearTimeout(j.timer);
+        if (data.error) j.reject(new Error(data.error)); else j.resolve(data);
+      };
+      // The worker could not start here (a strict browser setting): run the jobs on the page from now on. A worker
+      // that worked before and then failed (out of memory on a huge job) is dropped with the job, never re-run on
+      // the page, which would freeze it; the next job starts a fresh worker.
+      w.onerror = (e) => {
+        e.preventDefault?.();
+        if (geomStarted) { stopGeom(new Error('failed')); return; }
+        w.terminate(); geomWorker = false;
+        for (const j of geomJobs.values()) { clearTimeout(j.timer); try { j.resolve(G.runGeom(j.job)); } catch (err) { j.reject(err); } }
+        geomJobs.clear();
+      };
+      geomWorker = w;
+    } catch { geomWorker = false; }
+  }
+  if (!geomWorker) { try { return Promise.resolve(G.runGeom(job)); } catch (e) { return Promise.reject(e); } }
+  return new Promise((resolve, reject) => {
+    const id = ++geomSeq, timer = setTimeout(() => stopGeom(new Error('timeout')), GEOM_LIMIT);
+    geomJobs.set(id, { resolve, reject, timer, job });
+    geomWorker.postMessage({ id, ...job });
+  });
+}
+const TOO_SLOW = (what) => `That ${what} took too long to work out, so it was stopped and nothing changed. Try a shorter stroke or a smaller Nib size, or simplify the shape first (Object > Simplify)`;
+/** Is the page point inside the filled area of the object (the browser's own test, quick on any shape)? */
+let hitCtx = null;
+function insideShape(o, p) {
+  const b = o.getBoundingRect();
+  if (p.x < b.left || p.x > b.left + b.width || p.y < b.top || p.y > b.top + b.height) return false;
+  try {
+    const d = worldD(o);
+    hitCtx ??= document.createElement('canvas').getContext('2d');
+    return !!d && hitCtx.isPointInPath(new Path2D(d), p.x, p.y, o.fillRule === 'evenodd' ? 'evenodd' : 'nonzero');
+  } catch { return false; }
+}
 
 /** Pen / Bézier nodes being drawn, and the objects a brush or cut works on. */
 function drawToolOverlay(ctx) {
@@ -890,6 +1114,557 @@ function curve3Up(p) {
 }
 function cancelCurve3() { if (curve3) { dropHelper(curve3.helper); curve3 = null; } }
 
+// 3-Point Rectangle / 3-Point Ellipse (CorelDRAW): drag the base line (the ellipse's centre line) at any
+// angle, release, then move to set the height (width) and click.
+function tpDown(p) {
+  if (!tp) { tp = { tool: state.tool, a: p, b: p, phase: 1, helper: helperPath(`M ${p.x} ${p.y}`) }; return; }
+  if (tp.phase === 2) finishTp(p);
+}
+function tpGeometry(t, p) {
+  const dx = t.b.x - t.a.x, dy = t.b.y - t.a.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+  return { L, ux, uy, nx, ny, h: (p.x - t.a.x) * nx + (p.y - t.a.y) * ny, angle: (Math.atan2(dy, dx) * 180) / Math.PI };
+}
+function tpOutline(t, p) {
+  const g = tpGeometry(t, p), { a, b } = t;
+  if (t.tool === 'rect3') return `M ${a.x} ${a.y} L ${b.x} ${b.y} L ${b.x + g.nx * g.h} ${b.y + g.ny * g.h} L ${a.x + g.nx * g.h} ${a.y + g.ny * g.h} Z`;
+  const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, rx = g.L / 2, ry = Math.abs(g.h);
+  let d = '';
+  for (let i = 0; i <= 48; i++) {
+    const u = (i / 48) * Math.PI * 2, c = Math.cos(u) * rx, s = Math.sin(u) * ry;
+    d += `${i ? ' L' : 'M'} ${m.x + g.ux * c + g.nx * s} ${m.y + g.uy * c + g.ny * s}`;
+  }
+  return `${d} Z`;
+}
+function tpMove(p) {
+  if (tp.phase === 1) { tp.b = p; setLive(tp.helper, `M ${tp.a.x} ${tp.a.y} L ${p.x} ${p.y}`); }
+  else setLive(tp.helper, tpOutline(tp, p));
+  canvas.requestRenderAll();
+}
+function tpUp(p) {
+  if (tp.phase !== 1) return;
+  if (screenDist(tp.a, p) < 6) { cancelTp(); return; }
+  tp.b = p; tp.phase = 2;
+}
+function finishTp(p) {
+  const t = tp, g = tpGeometry(t, p);
+  dropHelper(t.helper); tp = null;
+  // A click right on the line: a sensible height instead of a flat shape.
+  const h = Math.abs(g.h) < 2 ? g.L * (t.tool === 'rect3' ? 0.5 : 0.3) : Math.abs(g.h), side = g.h < 0 ? -1 : 1;
+  const mid = { x: (t.a.x + t.b.x) / 2, y: (t.a.y + t.b.y) / 2 };
+  const o = t.tool === 'rect3'
+    ? paint(new Rect({ left: mid.x + (g.nx * h * side) / 2, top: mid.y + (g.ny * h * side) / 2, width: g.L, height: h, angle: g.angle, originX: 'center', originY: 'center', rx: state.shape.radiusRect ?? 0, ry: state.shape.radiusRect ?? 0, toolName: 'Rectangle' }))
+    : paint(new Ellipse({ left: mid.x, top: mid.y, rx: g.L / 2, ry: h, angle: g.angle, originX: 'center', originY: 'center', toolName: 'Ellipse' }));
+  // Keep the usual top-left origin (as every other shape), without moving it.
+  const c = o.getCenterPoint();
+  o.set({ originX: 'left', originY: 'top' });
+  o.setPositionByOrigin(c, 'center', 'center');
+  style(o);
+  canvas.add(o);
+  setTool('select');
+  canvas.setActiveObject(o);
+  canvas.requestRenderAll();
+}
+function cancelTp() { if (tp) { dropHelper(tp.helper); tp = null; } }
+
+// Shaping brushes (Smooth, Smear, Twirl, Attract, Repel, Roughen) on the selected items. A group (text with a
+// contour, a block shadow …) is split for the stroke and grouped again afterwards, so all its parts bend
+// together; images have no outline to bend. Each stroke is one undo step.
+let sculptGroups = [], sculpting = false;
+function sculptDown(tool, p) {
+  const label = TOOLS[tool].label, live = toolTargets.filter((o) => canvas.getObjects().includes(o));
+  if (!live.length) { toast(`Select an item on the Artboard first (Pick tool), then choose ${label} again`, 5000); return; }
+  if (live.every((o) => o.type === 'image')) { toast(`Images have no outline to bend. Trace the image to vectors first (select it, Properties tab > Trace bitmap), then use ${label} on the result`, 6500); return; }
+  const targets = [];
+  sculptGroups = [];
+  muted++;
+  try {
+    for (const o of live) {
+      if (o.type === 'group' && !o.powerClip) {
+        const meta = {};
+        for (const k of [...EXTRA, 'opacity', 'shadow']) if (o[k] !== undefined && o[k] !== null) meta[k] = o[k];
+        const at = canvas.getObjects().indexOf(o), kids = o.removeAll();
+        canvas.remove(o);
+        kids.forEach((k, i) => canvas.insertAt(at + i, k));
+        sculptGroups.push({ group: o, meta, at, kids });
+        targets.push(...kids.filter((k) => k.type !== 'image' && V.canConvert(k)));
+      } else if (o.type !== 'image' && V.canConvert(o)) targets.push(o);
+    }
+    sculpting = targets.length > 0 && nodes.brushDown(tool === 'smoothb' ? 'smooth' : tool, targets, p, state.shape.radius * MM, { dir: state.shape.twirl });
+  } finally { muted--; }
+  if (!sculpting) { regroupAfterSculpt(new Map()); toast(`${label} works on shapes and text (for a PowerClip, double-click it and edit its contents)`, 5000); }
+}
+function sculptUp(tool) {
+  if (!sculpting) return;
+  sculpting = false;
+  muted++;
+  let res;
+  try { res = nodes.brushUp(); } finally { muted--; }
+  const swap = new Map(res?.pairs ?? []);
+  batch(() => regroupAfterSculpt(swap));
+  // The next stroke works on the curves (and regrouped groups) this one made.
+  toolTargets = toolTargets.map((o) => swap.get(o) ?? o).filter((o) => canvas.getObjects().includes(o));
+  if (res && !res.changed) toast(`${TOOLS[tool].label} works on the outline: put the brush circle over the edge of the shape or letters (a bigger Nib size on the top bar helps)`, 5000);
+}
+function regroupAfterSculpt(swap) {
+  for (const g of sculptGroups) {
+    const parts = g.kids.map((k) => {
+      const n = swap.get(k) ?? k;
+      if (n !== k) for (const key of ['fxPart', 'toolName']) if (k[key] !== undefined) n[key] = k[key];
+      return n;
+    }).filter((n) => canvas.getObjects().includes(n));
+    if (!parts.length) continue;
+    muted++;
+    try {
+      for (const n of parts) canvas.remove(n);
+      const grp = new Group(parts);
+      grp.set(g.meta);
+      style(grp);
+      canvas.insertAt(Math.min(Math.max(1, g.at), canvas.getObjects().length), grp);
+      swap.set(g.group, grp);
+    } finally { muted--; }
+  }
+  sculptGroups = [];
+  canvas.requestRenderAll();
+}
+
+// Free Transform (CorelDRAW): press where the pivot goes, then drag. Rotate (by the drag's angle), Reflect
+// (across the drag line), Scale (the corner farthest from the pivot follows the pointer) or Skew (along the
+// drag); Shift = 15° steps or even scaling. Apply to duplicate transforms a copy and keeps the original.
+function ftDown(p) {
+  const objs = toolTargets.filter((o) => canvas.getObjects().includes(o) && !o.locked);
+  if (!objs.length) { toast('Select an item on the Artboard first (Pick tool), then choose Free Transform again', 5000); return; }
+  const rs = objs.map((o) => o.getBoundingRect());
+  const r = { left: Math.min(...rs.map((b) => b.left)), top: Math.min(...rs.map((b) => b.top)), right: Math.max(...rs.map((b) => b.left + b.width)), bottom: Math.max(...rs.map((b) => b.top + b.height)) };
+  ft = { p0: p, objs, base: objs.map((o) => o.calcTransformMatrix()), r, moved: false, helper: helperPath(`M ${p.x} ${p.y}`) };
+}
+function ftMove(p, e) {
+  const { p0, r } = ft, mode = state.shape.ftMode, dx = p.x - p0.x, dy = p.y - p0.y;
+  if (screenDist(p, p0) < 3) return;
+  const step = Math.PI / 12, snapA = (t) => (e.shiftKey ? Math.round(t / step) * step : t);
+  let a = 1, b = 0, c = 0, d = 1;
+  if (mode === 'rotate') { const t = snapA(Math.atan2(dy, dx)); a = Math.cos(t); b = Math.sin(t); c = -b; d = a; }
+  else if (mode === 'reflect') { const t = snapA(Math.atan2(dy, dx)); a = Math.cos(2 * t); b = Math.sin(2 * t); c = b; d = -a; }
+  else if (mode === 'scale') {
+    const corners = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]];
+    const far = corners.reduce((m, q) => (Math.hypot(q[0] - p0.x, q[1] - p0.y) > Math.hypot(m[0] - p0.x, m[1] - p0.y) ? q : m));
+    const rx = far[0] - p0.x, ry = far[1] - p0.y;
+    let sx = Math.abs(rx) > 1 ? (rx + dx) / rx : 1, sy = Math.abs(ry) > 1 ? (ry + dy) / ry : 1;
+    if (e.shiftKey) { const k = Math.abs(sx) > Math.abs(sy) ? sx : sy; sx = k; sy = k; }
+    a = sx || 0.01; d = sy || 0.01;
+  } else if (Math.abs(dx) >= Math.abs(dy)) c = dx / Math.max(1, r.bottom - r.top);
+  else b = dy / Math.max(1, r.right - r.left);
+  const T = [a, b, c, d, p0.x - a * p0.x - c * p0.y, p0.y - b * p0.x - d * p0.y];
+  ft.objs.forEach((o, i) => { util.applyTransformToObject(o, util.multiplyTransformMatrices(T, ft.base[i])); o.setCoords(); });
+  const k = 6 / canvas.getZoom();
+  setLive(ft.helper, `M ${p0.x} ${p0.y} L ${p.x} ${p.y} M ${p0.x - k} ${p0.y} L ${p0.x + k} ${p0.y} M ${p0.x} ${p0.y - k} L ${p0.x} ${p0.y + k}`);
+  ft.moved = true;
+  canvas.requestRenderAll();
+}
+async function ftUp() {
+  const f = ft;
+  ft = null;
+  dropHelper(f.helper);
+  if (!f.moved) return;
+  if (!state.shape.ftDup) { batch(() => {}); return; }
+  const copies = await Promise.all(f.objs.map((o) => o.clone(EXTRA)));
+  batch(() => {
+    f.objs.forEach((o, i) => { util.applyTransformToObject(o, f.base[i]); o.setCoords(); });
+    copies.forEach((c, i) => { c.name = `${f.objs[i].name ?? 'Object'} copy`; style(c); canvas.add(c); });
+  });
+  // The next drag transforms the copies, as in CorelDRAW.
+  toolTargets = copies;
+  canvas.requestRenderAll();
+}
+
+// Virtual Segment Delete (CorelDRAW): the part of a line between two crossings (with itself or another object)
+// turns red under the pointer; a click deletes just that part. What is left is an open line.
+let vsdTime = 0;
+function vsdFind(p) {
+  const tol = 8 / canvas.getZoom(), objs = userObjects().filter((o) => o.visible && !o.locked && o.type !== 'image' && o.type !== 'group' && V.canConvert(o));
+  const near = (b, q) => q.x >= b.left - tol && q.x <= b.left + b.width + tol && q.y >= b.top - tol && q.y <= b.top + b.height + tol;
+  const touch = (a, b) => !(a.left > b.left + b.width || a.left + a.width < b.left || a.top > b.top + b.height || a.top + a.height < b.top);
+  for (const o of objs.slice().reverse()) {
+    const box = o.getBoundingRect();
+    if (!near(box, p)) continue;
+    let d;
+    try { d = worldD(o); } catch { continue; }
+    if (!d) continue;
+    const others = objs.filter((x) => x !== o && touch(x.getBoundingRect(), box)).map((x) => { try { return worldD(x); } catch { return ''; } }).filter(Boolean);
+    let res = null;
+    try { res = V.virtualSegment(d, others, p, tol); } catch { res = null; }
+    if (res) return { o, ...res };
+  }
+  return null;
+}
+function dropVsdHover() { if (vsdHover) { dropHelper(vsdHover); vsdHover = null; canvas.requestRenderAll(); } }
+function vsdHoverAt(p) {
+  const now = performance.now();
+  if (now - vsdTime < 60) return;
+  vsdTime = now;
+  const hit = vsdFind(p);
+  if (!hit) { dropVsdHover(); return; }
+  if (!vsdHover) vsdHover = helperPath(hit.cut, { stroke: '#ff4d6d', strokeWidth: 3 / canvas.getZoom(), strokeDashArray: null });
+  else setLive(vsdHover, hit.cut);
+  canvas.requestRenderAll();
+}
+function vsdClick(p) {
+  const hit = vsdFind(p);
+  dropVsdHover();
+  if (!hit) { toast('Click right on a line or outline: the part between two crossings is deleted', 4000); return; }
+  const { o, keep } = hit;
+  batch(() => {
+    if (!keep) { canvas.remove(o); return; }
+    const n = makePath(keep, o);
+    n.name = o.name;
+    // Open now: no fill, and an outline so it stays visible.
+    const lined = o.stroke && o.strokeWidth;
+    n.set({ fill: null, stroke: lined ? o.stroke : solid(o), strokeWidth: lined ? o.strokeWidth : Math.max(0.5 * MM, 1) });
+    replaceObject(o, n);
+  });
+}
+
+// Angular dimension and 2-Leg Callout: three clicks.
+function multiDown(tool, p) {
+  if (!multi) { multi = { tool, pts: [p], helper: helperPath(`M ${p.x} ${p.y}`) }; return; }
+  if (screenDist(p, multi.pts.at(-1)) < 4) return; // the second click of a double-click
+  multi.pts.push(p);
+  if (multi.pts.length < 3) return;
+  const m = multi;
+  multi = null;
+  dropHelper(m.helper);
+  if (m.tool === 'dimA') addAngular(...m.pts); else addCallout(...m.pts);
+}
+function multiMove(p) {
+  const q = [...multi.pts, p];
+  const d = multi.tool === 'dimA' && q.length === 3 ? `M ${q[1].x} ${q[1].y} L ${q[0].x} ${q[0].y} L ${q[2].x} ${q[2].y}` : `M ${q.map((z) => `${z.x} ${z.y}`).join(' L ')}`;
+  setLive(multi.helper, d);
+  canvas.requestRenderAll();
+}
+function cancelMulti() { if (multi) { dropHelper(multi.helper); multi = null; } }
+function addAngular(v, a, b) {
+  const t1 = Math.atan2(a.y - v.y, a.x - v.x), t2 = Math.atan2(b.y - v.y, b.x - v.x);
+  let sweep = t2 - t1;
+  while (sweep > Math.PI) sweep -= 2 * Math.PI;
+  while (sweep < -Math.PI) sweep += 2 * Math.PI;
+  const deg = (Math.abs(sweep) * 180) / Math.PI, col = '#111827', arrow = 2.2 * MM;
+  const R = Math.max(8 * MM, 0.55 * Math.min(Math.hypot(a.x - v.x, a.y - v.y), Math.hypot(b.x - v.x, b.y - v.y)));
+  const at = (t, r) => ({ x: v.x + Math.cos(t) * r, y: v.y + Math.sin(t) * r });
+  const s0 = at(t1, R), s1 = at(t1 + sweep, R), dir = Math.sign(sweep) || 1;
+  const line = (d) => new Path(d, { stroke: col, strokeWidth: 0.3 * MM, fill: null, strokeUniform: true });
+  // Arrows at the ends of the arc, pointing along it to the sides.
+  const head = (q, t, s) => {
+    const tx = -Math.sin(t) * dir * s, ty = Math.cos(t) * dir * s, nx = -ty, ny = tx;
+    return new Path(`M ${q.x} ${q.y} L ${q.x - tx * arrow + nx * arrow * 0.45} ${q.y - ty * arrow + ny * arrow * 0.45} L ${q.x - tx * arrow - nx * arrow * 0.45} ${q.y - ty * arrow - ny * arrow * 0.45} Z`, { fill: col, stroke: null });
+  };
+  const mid = at(t1 + sweep / 2, R + 6 * MM);
+  const label = new IText(`${deg.toFixed(1)}°`, { fontFamily: 'Inter', fontWeight: 400, fontSize: 6 * MM, fill: col, originX: 'center', originY: 'center', left: mid.x, top: mid.y });
+  const g = style(new Group([
+    line(`M ${v.x} ${v.y} L ${a.x} ${a.y}`), line(`M ${v.x} ${v.y} L ${b.x} ${b.y}`),
+    line(`M ${s0.x} ${s0.y} A ${R} ${R} 0 0 ${sweep > 0 ? 1 : 0} ${s1.x} ${s1.y}`),
+    head(s0, t1, -1), head(s1, t1 + sweep, 1), label,
+  ]), { toolName: 'Dimension' });
+  g.name = `Angle ${deg.toFixed(1)}°`;
+  canvas.add(g);
+  setTool('select');
+  canvas.setActiveObject(g);
+}
+// Segment dimension (CorelDRAW): the straight distance between the end nodes of the side under the pointer,
+// set off from the object. Pointing at a side shows it with its length first. Text is not measured (convert it to
+// curves first).
+/** The side (node to node) of a shape or line nearest the page point, within a few screen pixels: the nearest of all
+ *  objects, and on a tie the one in front. */
+function segmentAt(p) {
+  const tol = 10 / canvas.getZoom();
+  const objs = userObjects().filter((o) => o.visible && !o.locked && !isText(o) && o.type !== 'image' && o.type !== 'group' && V.canConvert(o));
+  let best = null;
+  objs.forEach((o, z) => {
+    const b = o.getBoundingRect();
+    if (p.x < b.left - tol || p.x > b.left + b.width + tol || p.y < b.top - tol || p.y > b.top + b.height + tol) return;
+    let model;
+    try { model = V.objectModel(o); } catch { return; }
+    for (const sp of model) {
+      const n = sp.nodes.length, segs = sp.closed ? n : n - 1;
+      for (let i = 0; i < segs; i++) {
+        const A = sp.nodes[i], B = sp.nodes[(i + 1) % n];
+        if (Math.hypot(B.x - A.x, B.y - A.y) < 1) continue;
+        const straight = !A.ho && !B.hi, hit = V.nearestOnSegment(V.segmentPoints(A, B), p, straight);
+        if (hit.dist > tol) continue;
+        if (!best || hit.dist < best.dist - 1e-6 || (hit.dist <= best.dist + 1e-6 && z > best.z)) best = { dist: hit.dist, z, o, A, B, straight };
+      }
+    }
+  });
+  return best;
+}
+let segHoverTime = 0;
+function segmentHover(p) {
+  const now = performance.now();
+  if (now - segHoverTime < 50) return;
+  segHoverTime = now;
+  const s = segmentAt(p);
+  topSegment = s ? { pts: V.segmentPoints(s.A, s.B), label: `${inUnits(Math.hypot(s.B.x - s.A.x, s.B.y - s.A.y))} ${unit().name}` } : null;
+  drawTop();
+}
+function segmentDimension(p) {
+  const s = segmentAt(p);
+  topSegment = null; drawTop();
+  if (!s) { toast('Point at a side of a shape or a line: it lights up with its length, then click to measure it', 4500); return; }
+  const { o, A, B } = s, c = o.getCenterPoint(), L = Math.hypot(B.x - A.x, B.y - A.y);
+  const nx = -(B.y - A.y) / L, ny = (B.x - A.x) / L, mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+  const away = (mx - c.x) * nx + (my - c.y) * ny >= 0 ? 1 : -1;
+  // A curved side: the measurement line goes beyond its bulge.
+  let bulge = 0;
+  if (!s.straight) { const pts = V.segmentPoints(A, B); for (let k = 1; k < 16; k++) { const q = V.bezierAt(pts, k / 16); bulge = Math.max(bulge, ((q.x - A.x) * nx + (q.y - A.y) * ny) * away); } }
+  addDimension({ x: A.x, y: A.y }, { x: B.x, y: B.y }, false, away * (8 * MM + bulge));
+}
+// 2-Leg Callout: a leader with an arrow and the text, kept together as one item; double-click it to change the text.
+function addCallout(t, e, n) {
+  const col = '#111827', arrow = 2.6 * MM, L = Math.hypot(t.x - e.x, t.y - e.y) || 1, ux = (t.x - e.x) / L, uy = (t.y - e.y) / L;
+  const leader = new Path(`M ${t.x} ${t.y} L ${e.x} ${e.y} L ${n.x} ${n.y}`, { stroke: col, strokeWidth: 0.35 * MM, fill: null, strokeUniform: true, strokeLineJoin: 'round', toolName: 'Callout line' });
+  const head = new Path(`M ${t.x} ${t.y} L ${t.x - ux * arrow - uy * arrow * 0.45} ${t.y - uy * arrow + ux * arrow * 0.45} L ${t.x - ux * arrow + uy * arrow * 0.45} ${t.y - uy * arrow - ux * arrow * 0.45} Z`, { fill: col, stroke: null, toolName: 'Callout arrow' });
+  const right = n.x >= e.x;
+  const label = new IText('Callout text', { fontFamily: 'Inter', fontWeight: 500, fontSize: 6 * MM, fill: col, originX: right ? 'left' : 'right', originY: 'center', left: n.x + (right ? 1.5 : -1.5) * MM, top: n.y, toolName: 'Callout text' });
+  const id = `callout-${Date.now().toString(36)}`;
+  for (const o of [leader, head, label]) { o.calloutId = id; style(o); }
+  batch(() => canvas.add(leader, head, label));
+  setTool('select');
+  canvas.setActiveObject(label);
+  label.enterEditing(); label.selectAll();
+  canvas.requestRenderAll();
+}
+function groupCallout(id) {
+  const parts = userObjects().filter((o) => o.calloutId === id);
+  if (parts.length < 2) return;
+  const text = parts.find(isText)?.text ?? '';
+  let g;
+  batch(() => {
+    for (const o of parts) { canvas.remove(o); delete o.calloutId; }
+    g = style(new Group(parts), { toolName: 'Callout' });
+    g.name = `Callout “${text.slice(0, 24)}”`;
+    canvas.add(g);
+  });
+  canvas.setActiveObject(g);
+  canvas.requestRenderAll();
+}
+function editCallout(g) {
+  const id = `callout-${Date.now().toString(36)}`;
+  let label;
+  muted++;
+  try {
+    const at = canvas.getObjects().indexOf(g), kids = g.removeAll();
+    canvas.remove(g);
+    kids.forEach((k, i) => { k.calloutId = id; canvas.insertAt(at + i, k); });
+    label = kids.find(isText);
+  } finally { muted--; }
+  if (!label) return;
+  canvas.setActiveObject(label);
+  label.enterEditing(); label.selectAll();
+  canvas.requestRenderAll();
+}
+canvas.on('text:editing:exited', ({ target }) => { if (target?.calloutId) setTimeout(() => groupCallout(target.calloutId)); });
+
+// Smart Drawing (CorelDRAW): a freehand sketch becomes the clean shape it looks like (see sketch.js), or a smooth
+// curve when it is not one of them. The new shape is drawn with the current fill and outline, like the shape tools.
+const SMART_NAMES = { line: 'a line', rect: 'a rectangle', ellipse: 'an ellipse', triangle: 'a triangle', diamond: 'a diamond', polygon: 'a polygon', curve: 'a smooth curve' };
+function smoothTol(level) { return (0.6 + (Math.max(0, Math.min(100, level)) / 100) * 7) / canvas.getZoom(); }
+function finishSmart(raw) {
+  const r = SK.recognize(raw, state.smart.level, canvas.getZoom());
+  if (!r || (r.kind === 'curve' && r.pts.length < 3)) { toast('Sketch a shape: drag to draw it'); return; }
+  let o;
+  if (r.kind === 'rect' || r.kind === 'ellipse') {
+    o = r.kind === 'rect'
+      ? paint(new Rect({ left: r.cx, top: r.cy, width: r.w, height: r.h, angle: r.angle, originX: 'center', originY: 'center', rx: state.shape.radiusRect ?? 0, ry: state.shape.radiusRect ?? 0, toolName: 'Rectangle' }))
+      : paint(new Ellipse({ left: r.cx, top: r.cy, rx: r.rx, ry: r.ry, angle: r.angle, originX: 'center', originY: 'center', toolName: 'Ellipse' }));
+    const c = o.getCenterPoint();
+    o.set({ originX: 'left', originY: 'top' });
+    o.setPositionByOrigin(c, 'center', 'center');
+    if (r.kind === 'rect' && r.w === r.h) o.toolName = 'Rectangle';
+  } else if (r.kind === 'line') o = paintLine(new Path(`M ${r.a.x} ${r.a.y} L ${r.b.x} ${r.b.y}`, { toolName: '2-Point Line' }));
+  else if (r.kind === 'curve') {
+    const d = V.fitPartsD([{ closed: r.closed, pts: SK.thin(r.pts, 1 / canvas.getZoom()) }], smoothTol(state.smart.smooth));
+    o = new Path(d, { toolName: 'Curve' });
+    if (r.closed) paint(o); else paintLine(o);
+  } else o = paint(new Path(`M ${r.pts.map((q) => `${q.x} ${q.y}`).join(' L ')} Z`, { toolName: r.kind === 'triangle' ? 'Triangle' : r.kind === 'diamond' ? 'Diamond' : 'Polygon' }));
+  style(o);
+  canvas.add(o);
+  canvas.setActiveObject(o);
+  canvas.requestRenderAll();
+  const what = r.kind === 'ellipse' && r.rx === r.ry ? 'a circle' : r.kind === 'rect' && r.w === r.h ? 'a square' : SMART_NAMES[r.kind];
+  toast(`Smart Drawing: ${what}`);
+}
+
+// LiveSketch (CorelDRAW): strokes become one smooth curve after a pause (the Timer); a stroke that starts or ends
+// at the end of a LiveSketch curve extends it, and one drawn along a curve reshapes that stretch. Each curve keeps
+// its sketched points (liveSpec) so later strokes can join it.
+function finishLive() {
+  clearTimeout(liveTimer);
+  if (!livePending.length) return;
+  const strokes = livePending.map((q) => SK.thin(q, 1.2 / canvas.getZoom())).filter((q) => q.length > 1);
+  livePending = [];
+  drawTop();
+  if (!strokes.length) return;
+  const near = Math.max(4, state.live.near) / canvas.getZoom(), tol = smoothTol(state.live.smooth);
+  // Chains: the LiveSketch curves already on the page (each may be extended or reshaped) and new ones.
+  const chains = userObjects().filter((o) => o.liveSpec?.pts && o.visible && !o.locked).map((o) => ({ o, pts: o.liveSpec.pts.map(([x, y]) => ({ x, y })), changed: false }));
+  for (const st of strokes) {
+    let done = false;
+    for (const c of chains) {
+      const j = SK.retrace(c.pts, st, near) ?? SK.joinEnds(c.pts, st, near);
+      if (j) { c.pts = j; c.changed = true; done = true; break; }
+    }
+    if (!done) chains.push({ o: null, pts: st, changed: true });
+  }
+  const made = [];
+  batch(() => {
+    for (const c of chains) {
+      if (!c.changed) continue;
+      const pts = SK.thin(c.pts, 1.2 / canvas.getZoom());
+      const closed = pts.length > 8 && Math.hypot(pts[0].x - pts.at(-1).x, pts[0].y - pts.at(-1).y) <= near;
+      const d = V.fitPartsD([{ closed, pts: closed ? pts.slice(0, -1) : pts }], tol);
+      const o = new Path(d, { toolName: 'LiveSketch' });
+      if (c.o) { copyStyle(c.o, o); if (closed && !c.o.fill) paint(o); o.name = c.o.name; replaceObject(c.o, o); }
+      else { if (closed) paint(o); else paintLine(o); o.name = `LiveSketch ${++counter}`; style(o); canvas.add(o); }
+      o.liveSpec = { pts: pts.map((q) => [Math.round(q.x * 10) / 10, Math.round(q.y * 10) / 10]) };
+      made.push(o);
+    }
+  });
+  if (made.length) { canvas.setActiveObject(made.at(-1)); canvas.requestRenderAll(); }
+}
+
+// Painterly Brush (CorelDRAW): a realistic brush stroke painted as a picture (see paint.js), placed on the page as an
+// image. The stroke and settings are kept (paintSpec), so a new brush, size, flow or fill colour repaints it.
+function paintedImage(spec) {
+  const out = PB.paintStroke(spec.pts.map(([x, y]) => ({ x, y })), { ...spec, pxPerUnit: 1.6 });
+  if (!out) return null;
+  return { el: out.canvas, left: out.left, top: out.top, scale: out.scale };
+}
+function finishPaint(raw) {
+  const pts = SK.thin(raw, 0.8 / canvas.getZoom(), 500);
+  if (pts.length < 2) { toast('Drag to paint a stroke'); return; }
+  const spec = { brush: state.paint.brush, size: Math.max(0.5, state.paint.size) * MM, flow: state.paint.flow / 100, colour: typeof state.fill === 'string' ? state.fill : '#000000', seed: Math.floor(Math.random() * 1e9) + 1, pts: pts.map((q) => [Math.round(q.x * 10) / 10, Math.round(q.y * 10) / 10]) };
+  const r = paintedImage(spec);
+  if (!r) return;
+  const img = new FabricImage(r.el, { left: r.left, top: r.top, scaleX: r.scale, scaleY: r.scale, originX: 'left', originY: 'top' });
+  img.paintSpec = spec;
+  style(img, { toolName: 'Painterly brush' });
+  img.name = `Painterly stroke ${++counter}`;
+  canvas.add(img);
+  canvas.setActiveObject(img);
+  syncContext();
+  canvas.requestRenderAll();
+}
+/** Repaints a painterly stroke with changed settings, keeping its place. */
+function repaint(o, changes) {
+  const spec = { ...o.paintSpec, ...changes }, r = paintedImage(spec);
+  if (!r) return;
+  o.setElement(r.el);
+  o.set({ left: r.left, top: r.top, scaleX: r.scale, scaleY: r.scale, angle: 0, flipX: false, flipY: false, cropX: 0, cropY: 0 });
+  o.paintSpec = spec;
+  o.setCoords();
+  canvas.requestRenderAll();
+}
+
+// Artistic Media (CorelDRAW): a freehand stroke becomes a filled shape (see media.js). The centre line is kept with
+// the stroke (mediaSpec), so it can be redrawn with other settings; the Sprayer makes a group of shapes.
+function mediaObject(spec, fill, from) {
+  const built = AM.buildMedia(spec), colour = fill || state.fill;
+  let o;
+  if (built.items) {
+    if (!built.items.length) return null;
+    o = new Group(built.items.map((it) => new Path(it.d, { fill: it.fill ?? colour, stroke: null, strokeWidth: 0, objectCaching: false })));
+  } else {
+    if (!built.d) return null;
+    o = new Path(built.d, { fill: colour, stroke: null, strokeWidth: 0, fillRule: 'nonzero' });
+  }
+  o.mediaSpec = spec;
+  style(o, { toolName: 'Artistic media' });
+  if (from) { o.name = from.name; o.set({ opacity: from.opacity, shadow: from.shadow ?? null }); } else o.name = `Artistic media ${++counter}`;
+  return o;
+}
+function finishMedia(raw) {
+  const m = state.media, W = Math.max(0.5, m.width) * MM;
+  if (raw.length < 2 || raw.every((q) => screenDist(q, raw[0]) < 2)) { toast('Drag to draw a stroke'); return; }
+  const spec = { ...mediaSettings(m), seed: Math.floor(Math.random() * 1e9) + 1, pts: AM.captureStroke(raw, canvas.getZoom(), Math.max(0.6, W / 6)) };
+  const o = mediaObject(spec, state.fill);
+  if (!o) { toast('That stroke is too short: drag a little further'); return; }
+  canvas.add(o);
+  canvas.setActiveObject(o);
+  syncContext();
+  canvas.requestRenderAll();
+}
+
+// Freehand Pick (CorelDRAW): a loop round the objects selects them (those whose centre is inside it).
+function lassoSelect(points) {
+  if (points.length < 3) { setTool('select'); return; }
+  const inside = (q) => {
+    let c = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const a = points[i], b = points[j];
+      if ((a.y > q.y) !== (b.y > q.y) && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c;
+    }
+    return c;
+  };
+  const hit = userObjects().filter((o) => o.visible && !o.locked && inside(o.getCenterPoint()));
+  setTool('select');
+  if (!hit.length) { toast('Nothing inside the loop: draw it round the objects to select them'); return; }
+  canvas.setActiveObject(hit.length === 1 ? hit[0] : new ActiveSelection(hit, { canvas }));
+  canvas.requestRenderAll();
+  toast(`${hit.length} object${hit.length > 1 ? 's' : ''} selected`);
+}
+
+// Smudge (CorelDRAW): drag from inside a selected shape outwards to pull its outline out along the stroke,
+// or from outside inwards to press it in. The stroke is the nib wide and narrows towards its end.
+function smudgeDown(p) {
+  if (geomBusy) { toast('Still working out the last stroke: one moment'); return; }
+  const live = toolTargets.filter((o) => canvas.getObjects().includes(o));
+  const pool = (live.length ? live : userObjects().filter((o) => o.visible && !o.locked)).filter((o) => V.canConvert(o) && o.type !== 'image' && closedish(o));
+  // Inside the shape itself (its outline, not its bounding box): pull out; otherwise press in.
+  const grow = pool.slice().reverse().find((o) => insideShape(o, p));
+  smudge = { points: [p], grow, pool };
+  topStroke = { points: smudge.points, width: state.shape.radius * MM * 2, colour: grow ? 'rgba(18,225,240,.35)' : 'rgba(255,80,80,.35)' };
+  drawTop();
+}
+async function applySmudge(sm) {
+  const w = state.shape.radius * MM * 2, pts = G.thinStroke(sm.points, w / 3);
+  const missed = 'Drag across the outline: from inside a selected shape to pull it out, from outside to press it in';
+  if (pts.length < 2) { toast(missed); return; }
+  const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+  const box = { left: Math.min(...xs) - w / 2, top: Math.min(...ys) - w / 2, right: Math.max(...xs) + w / 2, bottom: Math.max(...ys) + w / 2 };
+  const targets = (sm.grow ? [sm.grow] : sm.pool.filter((o) => { const r = o.getBoundingRect(); return !(r.left > box.right || r.left + r.width < box.left || r.top > box.bottom || r.top + r.height < box.top); }))
+    .filter((o) => canvas.getObjects().includes(o));
+  if (!targets.length) { toast(missed); return; }
+  const ds = targets.map((o) => { try { return worldD(o); } catch { return ''; } });
+  let res;
+  geomBusy++;
+  try { res = await geomRun({ points: pts, width: w, taper: 0.7, kind: sm.grow ? 'unite' : 'subtract', targets: ds }); }
+  catch (e) { toast(e.message === 'timeout' ? TOO_SLOW('smudge') : 'That smudge could not be worked out: please try again', 6500); return; }
+  finally { geomBusy--; }
+  const changed = [];
+  batch(() => {
+    targets.forEach((o, i) => {
+      const d = res.out[i];
+      if (d == null || !canvas.getObjects().includes(o)) return;
+      if (!d) { canvas.remove(o); return; }
+      const p = makePath(d, o, { toolName: 'Curve' }); p.name = o.name;
+      replaceObject(o, p); changed.push([o, p]);
+    });
+  });
+  toolTargets = toolTargets.map((o) => changed.find(([a]) => a === o)?.[1] ?? o).filter((o) => canvas.getObjects().includes(o));
+  if (!changed.length) toast(sm.grow ? 'Drag from inside the shape out across its outline' : 'Drag from outside a selected shape in across its outline');
+}
+// Paragraph text (CorelDRAW): text in a frame; it wraps at the frame's width.
+function addParagraph(box) {
+  const w = Math.max(box.w || 0, 60 * MM);
+  const t = style(paint(new Textbox('Type your paragraph text here. It wraps inside the frame: drag the side handles to change the width.', {
+    left: box.x, top: box.y, width: w, ...state.text, fontSize: Math.min(state.text.fontSize, 12) * MM, textAlign: 'left',
+  })), { toolName: 'Paragraph text' });
+  t.set({ strokeWidth: 0, stroke: null });
+  canvas.add(t);
+  setTool('select');
+  canvas.setActiveObject(t);
+  t.enterEditing(); t.selectAll();
+  canvas.requestRenderAll();
+}
+
 // Graph paper: a group of rectangles.
 function addGraph(box) {
   const { cols, rows } = state.shape, w = box.w / cols, h = box.h / rows, cells = [];
@@ -902,22 +1677,32 @@ function addGraph(box) {
   canvas.add(g); setTool('select'); canvas.setActiveObject(g);
 }
 // Dimension lines: line with end ticks, arrowheads and the measurement in mm.
-function addDimension(a, b, hv) {
-  const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+function addDimension(a, b, hv, offset = 0) {
   const tick = 3 * MM, arrow = 2.2 * MM, col = '#111827';
+  let dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
   const value = hv ? (Math.abs(dx) >= Math.abs(dy) ? Math.abs(dx) : Math.abs(dy)) : L;
+  // Away from the measured edge (segment dimension): extension lines out to the dimension line.
+  const ext = [];
+  if (offset) {
+    const a2 = { x: a.x + nx * offset, y: a.y + ny * offset }, b2 = { x: b.x + nx * offset, y: b.y + ny * offset }, over = Math.sign(offset) * 1.5 * MM;
+    ext.push(`M ${a.x} ${a.y} L ${a2.x + nx * over} ${a2.y + ny * over}`, `M ${b.x} ${b.y} L ${b2.x + nx * over} ${b2.y + ny * over}`);
+    a = a2; b = b2;
+  }
   const parts = [
     `M ${a.x} ${a.y} L ${b.x} ${b.y}`,
-    `M ${a.x + nx * tick} ${a.y + ny * tick} L ${a.x - nx * tick} ${a.y - ny * tick}`,
-    `M ${b.x + nx * tick} ${b.y + ny * tick} L ${b.x - nx * tick} ${b.y - ny * tick}`,
+    ...(offset ? ext : [`M ${a.x + nx * tick} ${a.y + ny * tick} L ${a.x - nx * tick} ${a.y - ny * tick}`, `M ${b.x + nx * tick} ${b.y + ny * tick} L ${b.x - nx * tick} ${b.y - ny * tick}`]),
   ].map((d) => new Path(d, { stroke: col, strokeWidth: 0.3 * MM, fill: null, strokeUniform: true }));
   const head = (p, s) => new Path(`M ${p.x} ${p.y} L ${p.x + s * ux * arrow + nx * arrow * 0.45} ${p.y + s * uy * arrow + ny * arrow * 0.45} L ${p.x + s * ux * arrow - nx * arrow * 0.45} ${p.y + s * uy * arrow - ny * arrow * 0.45} Z`, { fill: col, stroke: null });
   let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
   if (angle > 90 || angle < -90) angle += 180;
-  const label = new IText(`${inUnits(value)} ${unit().name}`, { fontFamily: 'Inter', fontWeight: 400, fontSize: 6 * MM, fill: col, originX: 'center', originY: 'bottom', angle, left: (a.x + b.x) / 2 - nx * 1.2 * MM * Math.sign(ny || 1), top: (a.y + b.y) / 2 - ny * 1.2 * MM * Math.sign(ny || 1) });
+  // The label sits just above the dimension line; set off from an edge (segment dimension), on the far side.
+  const label = offset
+    ? new IText(`${inUnits(value)} ${unit().name}`, { fontFamily: 'Inter', fontWeight: 400, fontSize: 6 * MM, fill: col, originX: 'center', originY: 'center', angle, left: (a.x + b.x) / 2 + Math.sign(offset) * nx * 4.2 * MM, top: (a.y + b.y) / 2 + Math.sign(offset) * ny * 4.2 * MM })
+    : new IText(`${inUnits(value)} ${unit().name}`, { fontFamily: 'Inter', fontWeight: 400, fontSize: 6 * MM, fill: col, originX: 'center', originY: 'bottom', angle, left: (a.x + b.x) / 2 - nx * 1.2 * MM * Math.sign(ny || 1), top: (a.y + b.y) / 2 - ny * 1.2 * MM * Math.sign(ny || 1) });
   const g = style(new Group([...parts, head(a, 1), head(b, -1), label]), { toolName: 'Dimension' });
   g.name = `Dimension ${inUnits(value)} ${unit().name}`;
   canvas.add(g); canvas.setActiveObject(g);
+  return g;
 }
 
 // Fill, colour eyedropper, attributes eyedropper.
@@ -1037,10 +1822,27 @@ function outlineToObject() {
   });
   select(out); toast('Outline converted to a filled object');
 }
-function smartFill(p) {
-  const shapes = userObjects().filter((o) => o.visible && V.canConvert(o) && closedish(o));
+/**
+ * Smart Fill (CorelDRAW): a new filled object from the area enclosed round the click. The area is worked out in the
+ * shape worker with a time limit, like Smudge and the Eraser, so very detailed artwork can't freeze the page. Earlier
+ * Smart Fill results are left out (their edges are copies of the shapes' own edges), and only shapes near the click
+ * are sent.
+ */
+async function smartFill(p) {
+  if (geomBusy) { toast('Still working out the last area: one moment'); return; }
+  const shapes = userObjects().filter((o) => o.visible && o.toolName !== 'Smart fill' && V.canConvert(o) && closedish(o));
+  const rect = (o) => o.getBoundingRect(), has = (b, q) => q.x >= b.left && q.x <= b.left + b.width && q.y >= b.top && q.y <= b.top + b.height;
+  const around = shapes.filter((o) => has(rect(o), p));
+  if (!around.length) { toast('Click inside an area enclosed by shapes'); return; }
+  // Only shapes overlapping the area the enclosing shapes share can cut into it.
+  const box = around.map(rect).reduce((a, b) => ({ left: Math.max(a.left, b.left), top: Math.max(a.top, b.top), right: Math.min(a.right, b.left + b.width), bottom: Math.min(a.bottom, b.top + b.height) }), { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity });
+  const near = shapes.filter((o) => { const b = rect(o); return has(b, p) || !(b.left > box.right || b.left + b.width < box.left || b.top > box.bottom || b.top + b.height < box.top); });
+  const ds = near.map((o) => { try { return worldD(o); } catch { return ''; } }).filter(Boolean);
   let d = '';
-  try { d = V.smartFillD(shapes.map(worldD), p); } catch { d = ''; }
+  geomBusy++;
+  try { d = (await geomRun({ op: 'smartfill', shapes: ds, p: { x: p.x, y: p.y } })).d; }
+  catch (e) { toast(e.message === 'timeout' ? 'That area took too long to work out (the artwork round it is very detailed), so nothing was added. Try a simpler area, or simplify the shapes first (Object > Simplify)' : 'That area could not be worked out: please try again', 6500); return; }
+  finally { geomBusy--; }
   if (!d) { toast('Click inside an area enclosed by shapes'); return; }
   const o = makePath(d, null, { toolName: 'Smart fill' });
   o.set({ fill: state.gradient ? null : state.fill, stroke: state.strokeWidth ? state.stroke : null, strokeWidth: state.strokeWidth * MM, strokeUniform: true });
@@ -1069,27 +1871,34 @@ function applyKnife(a, b) {
   toolTargets = toolTargets.filter((o) => canvas.getObjects().includes(o)).concat(toolTargets.length ? pieces : []);
   toast(cuts ? `Cut ${cuts} object${cuts > 1 ? 's' : ''} into ${pieces.length} pieces` : 'Drag the knife right across a shape to cut it');
 }
-function applyEraser(points) {
+async function applyEraser(points) {
   if (points.length < 1) return;
-  const w = state.shape.eraser * MM;
-  let region;
-  try { region = V.strokeRegionD(points.filter((q, i) => i === 0 || Math.hypot(q.x - points[i - 1].x, q.y - points[i - 1].y) > w / 6), w); } catch { return; }
-  const b = V.dBounds(region);
-  const targets = cutTargets({ left: b.left, top: b.top, right: b.left + b.width, bottom: b.top + b.height }).filter(shapeable);
-  const changed = [];
-  batch(() => {
-    for (const o of targets) {
-      let d;
-      try { d = V.boolean('subtract', worldD(o), region); } catch { continue; }
-      if (d === worldD(o)) continue;
-      if (!d) { canvas.remove(o); continue; }
-      const p = makePath(d, o); p.name = o.name; if (!closedish(o)) p.set('fill', null);
-      replaceObject(o, p); changed.push([o, p]);
+  const w = state.shape.eraser * MM, pts = G.thinStroke(points, w / 4), xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+  const bounds = { left: Math.min(...xs) - w / 2, top: Math.min(...ys) - w / 2, right: Math.max(...xs) + w / 2, bottom: Math.max(...ys) + w / 2 };
+  const targets = cutTargets(bounds).filter(shapeable), images = cutTargets(bounds).filter((x) => x.type === 'image');
+  if (targets.length) {
+    const ds = targets.map((o) => { try { return worldD(o); } catch { return ''; } });
+    let res = null;
+    geomBusy++;
+    try { res = await geomRun({ points: pts, width: w, kind: 'subtract', targets: ds }); }
+    catch (e) { toast(e.message === 'timeout' ? TOO_SLOW('erase') : 'That erase could not be worked out: please try again', 6500); }
+    finally { geomBusy--; }
+    if (res) {
+      const changed = [];
+      batch(() => {
+        targets.forEach((o, i) => {
+          const d = res.out[i];
+          if (d == null || !canvas.getObjects().includes(o)) return;
+          if (!d) { canvas.remove(o); return; }
+          const p = makePath(d, o); p.name = o.name; if (!closedish(o)) p.set('fill', null);
+          replaceObject(o, p); changed.push([o, p]);
+        });
+      });
+      toolTargets = toolTargets.map((o) => changed.find(([a]) => a === o)?.[1] ?? o).filter((o) => canvas.getObjects().includes(o));
     }
-  });
-  toolTargets = toolTargets.map((o) => changed.find(([a]) => a === o)?.[1] ?? o).filter((o) => canvas.getObjects().includes(o));
+  }
   // Images under the eraser lose those pixels (vectors above are cut as shapes).
-  for (const o of cutTargets({ left: b.left, top: b.top, right: b.left + b.width, bottom: b.top + b.height }).filter((x) => x.type === 'image')) erasePixels(o, points, w);
+  for (const o of images) if (canvas.getObjects().includes(o)) erasePixels(o, points, w);
 }
 /** Erases a stroke (page points, width in page units) from an image's pixels. */
 async function erasePixels(o, points, width) {
@@ -1798,6 +2607,7 @@ function paintParts(o) {
 }
 function applyProps(o, props) {
   const p = typeof props === 'function' ? props(o) : props;
+  if (o.paintSpec && typeof p.fill === 'string') { repaint(o, { colour: p.fill }); return; }
   if (o.type !== 'group' || !Object.keys(p).some((k) => PAINT_KEYS.has(k))) { o.set(p); return; }
   for (const part of paintParts(o)) {
     const q = typeof props === 'function' ? props(part) : props;
@@ -1919,6 +2729,7 @@ $('aReset').onclick = () => { showAdjust({ brightness: 0, contrast: 0, saturatio
 
 /** Replaces an image's pixels, keeping its size, position and adjustments on the page. */
 async function replacePixels(o, pic) {
+  delete o.paintSpec; // edited pixels: no longer repainted from its stroke
   const w = o.width * o.scaleX, h = o.height * o.scaleY, keep = o.filters;
   await o.setSrc(pic.canvas.toDataURL('image/png'));
   o.set({ cropX: 0, cropY: 0, scaleX: w / o.width, scaleY: h / o.height });
@@ -2065,7 +2876,26 @@ function syncContext() {
   show('ctx-node', t === 'node');
   show('ctx-shaping', pick && n >= 2);
   show('ctx-curves', pick && n >= 1 && sel.some(shapeable));
-  show('ctx-brush', SCULPT.has(t) || t === 'eraser');
+  show('ctx-brush', SCULPT.has(t) || t === 'eraser' || t === 'smudge');
+  show('twirlWrap', t === 'twirl'); $('cTwirlDir').value = state.shape.twirl;
+  show('ctx-freetx', t === 'freetx');
+  show('ctx-smart', t === 'smartdraw'); show('ctx-live', t === 'livesketch');
+  if (t === 'smartdraw') { $('sdLevel').value = state.smart.level; $('sdSmooth').value = String(state.smart.smooth); }
+  if (t === 'livesketch') { $('lsTimer').value = String(state.live.timer); $('lsNear').value = String(state.live.near); $('lsSmooth').value = String(state.live.smooth); }
+  const paintOn = t === 'paint' || (pick && n >= 1 && sel.every((x) => x.paintSpec));
+  show('ctx-paint', paintOn);
+  if (paintOn) { const ps = sel.find((x) => x.paintSpec)?.paintSpec, m = ps ? { brush: ps.brush, size: ps.size / MM, flow: Math.round(ps.flow * 100) } : state.paint; $('pbBrush').value = m.brush; $('pbSize').value = String(+m.size.toFixed(1)); $('pbFlow').value = String(m.flow); }
+  const mediaOn = t === 'media' || (pick && n >= 1 && sel.every((x) => x.mediaSpec));
+  show('ctx-media', mediaOn);
+  if (mediaOn) syncMediaBar(sel.find((x) => x.mediaSpec)?.mediaSpec);
+  document.querySelectorAll('[data-ft]').forEach((b) => b.classList.toggle('on', b.dataset.ft === state.shape.ftMode)); $('ftDup').checked = !!state.shape.ftDup;
+  const impactOn = t === 'impact' || (pick && o?.shapeSpec?.tool === 'impact');
+  show('ctx-impact', impactOn);
+  if (impactOn) {
+    const sp = pick && o?.shapeSpec?.tool === 'impact' ? o.shapeSpec : { style: state.shape.impactStyle, lines: state.shape.impactLines, inner: state.shape.impactInner };
+    $('cImpactStyle').value = sp.style; $('cImpactLines').value = String(sp.lines); $('cImpactInner').value = String(sp.inner);
+    $('cImpactInnerLabel').textContent = sp.style === 'parallel' ? 'Reach in' : 'Empty centre';
+  }
   const polyTool = ['polygon', 'star', 'cstar'].includes(t) ? t : pick && o?.shapeSpec && ['polygon', 'star', 'cstar'].includes(o.shapeSpec.tool) ? o.shapeSpec.tool : null;
   show('ctx-poly', !!polyTool);
   show('ctx-spiral', t === 'spiral' || (pick && o?.shapeSpec?.tool === 'spiral'));
@@ -2112,6 +2942,7 @@ function regenerateSelected() {
   for (const o of objs) {
     const tool = o.shapeSpec.tool, b = V.dBounds(worldD(o));
     if (tool.startsWith('shape:')) state.shape.set = o.shapeSpec.set ?? state.shape.set;
+    if (tool === 'impact') state.shape.impactSeed = o.shapeSpec.seed ?? state.shape.impactSeed;
     V.setWorldPath(o, V.boxD(unitFor(tool), { x: b.left, y: b.top, w: b.width, h: b.height }));
     o.shapeSpec = specFor(tool);
     refill(o);
@@ -2126,8 +2957,70 @@ bindNumber('cRevs', (v) => { state.shape.revs = Math.max(1, Math.min(40, Math.ro
 $('cSpiralType').onchange = (e) => { state.shape.log = e.target.value === 'log'; $('cExpandWrap').hidden = !state.shape.log; savePrefs(); regenerateSelected(); };
 bindNumber('cExpand', (v) => { state.shape.expand = Math.max(1, Math.min(100, v)); regenerateSelected(); });
 bindNumber('cCols', (v) => { state.shape.cols = Math.max(1, Math.min(50, Math.round(v))); });
+$('cTwirlDir').onchange = (e) => { state.shape.twirl = e.target.value; savePrefs(); };
+// Artistic Media property bar: the settings for the next stroke; a selected stroke is redrawn with them.
+$('mPreset').innerHTML = Object.entries(AM.PRESET_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+$('mBrush').innerHTML = Object.entries(AM.BRUSH_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+$('mSpray').innerHTML = Object.entries(AM.SPRAY_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+function syncMediaBar(spec) {
+  const m = spec ? { ...state.media, ...spec, width: spec.width / MM, spacing: spec.spacing / MM } : state.media;
+  document.querySelectorAll('[data-media]').forEach((b) => b.classList.toggle('on', b.dataset.media === m.mode));
+  $('mWidth').value = String(+m.width.toFixed(1)); $('mSmooth').value = String(m.smooth);
+  $('mPreset').value = m.preset; $('mBrush').value = m.brush; $('mSpray').value = m.spray;
+  $('mSpacing').value = String(+m.spacing.toFixed(1)); $('mSizeVar').value = String(m.sizeVar); $('mRotate').value = m.rotate; $('mAngle').value = String(m.angle);
+  $('mWidthLabel').textContent = m.mode === 'spray' ? 'Size' : 'Width';
+  show('mPresetWrap', m.mode === 'preset'); show('mBrushWrap', m.mode === 'brush'); show('mSprayWrap', m.mode === 'spray'); show('mAngleWrap', m.mode === 'calli');
+}
+function setMedia(changes) {
+  Object.assign(state.media, changes);
+  savePrefs();
+  const objs = canvas.getActiveObjects().filter((o) => o.mediaSpec);
+  if (objs.length) {
+    const out = [];
+    batch(() => { for (const o of objs) { const n = mediaObject({ ...o.mediaSpec, ...mediaSettings(changes) }, solid(o), o); replaceObject(o, n); out.push(n); } });
+    select(out);
+  }
+  syncContext();
+  if (changes.mode === 'expr') toast('Expression: with a pen, pressing harder makes the stroke wider; with a mouse, drawing faster makes it thinner', 5000);
+}
+/** Settings in page units, as stored with a stroke. */
+const mediaSettings = (m) => { const out = { ...m }; if (m.width !== undefined) out.width = Math.max(0.5, m.width) * MM; if (m.spacing !== undefined) out.spacing = Math.max(1, m.spacing) * MM; return out; };
+document.querySelectorAll('[data-media]').forEach((b) => (b.onclick = () => setMedia({ mode: b.dataset.media })));
+bindNumber('mWidth', (v) => setMedia({ width: Math.max(0.5, Math.min(200, v)) }));
+bindNumber('mSmooth', (v) => setMedia({ smooth: Math.max(0, Math.min(100, v)) }));
+bindNumber('mSpacing', (v) => setMedia({ spacing: Math.max(1, Math.min(200, v)) }));
+bindNumber('mSizeVar', (v) => setMedia({ sizeVar: Math.max(0, Math.min(90, v)) }));
+bindNumber('mAngle', (v) => setMedia({ angle: Math.max(-90, Math.min(90, v)) }));
+for (const [id, key] of [['mPreset', 'preset'], ['mBrush', 'brush'], ['mSpray', 'spray'], ['mRotate', 'rotate']]) $(id).onchange = (e) => setMedia({ [key]: e.target.value });
+// Smart Drawing, LiveSketch and Painterly Brush bars.
+$('sdLevel').onchange = (e) => { state.smart.level = e.target.value; savePrefs(); };
+bindNumber('sdSmooth', (v) => { state.smart.smooth = Math.max(0, Math.min(100, v)); });
+bindNumber('lsTimer', (v) => { state.live.timer = Math.max(0, Math.min(5, v)); });
+bindNumber('lsNear', (v) => { state.live.near = Math.max(4, Math.min(60, v)); });
+bindNumber('lsSmooth', (v) => { state.live.smooth = Math.max(0, Math.min(100, v)); });
+$('pbBrush').innerHTML = Object.entries(PB.PAINT_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+function setPaint(changes) {
+  Object.assign(state.paint, changes); savePrefs();
+  const objs = canvas.getActiveObjects().filter((o) => o.paintSpec);
+  for (const o of objs) repaint(o, { ...(changes.brush ? { brush: changes.brush } : {}), ...(changes.size !== undefined ? { size: Math.max(0.5, changes.size) * MM } : {}), ...(changes.flow !== undefined ? { flow: changes.flow / 100 } : {}) });
+  if (objs.length) canvas.fire('object:modified', { target: objs[0] });
+}
+$('pbBrush').onchange = (e) => setPaint({ brush: e.target.value });
+bindNumber('pbSize', (v) => setPaint({ size: Math.max(0.5, Math.min(200, v)) }));
+bindNumber('pbFlow', (v) => setPaint({ flow: Math.max(5, Math.min(100, v)) }));
+document.querySelectorAll('[data-ft]').forEach((b) => (b.onclick = () => { state.shape.ftMode = b.dataset.ft; savePrefs(); syncContext(); }));
+$('ftDup').onchange = (e) => { state.shape.ftDup = e.target.checked; savePrefs(); };
+$('cImpactStyle').onchange = (e) => { state.shape.impactStyle = e.target.value; savePrefs(); regenerateSelected(); syncContext(); };
+bindNumber('cImpactLines', (v) => { state.shape.impactLines = Math.max(3, Math.min(200, Math.round(v))); regenerateSelected(); });
+bindNumber('cImpactInner', (v) => { state.shape.impactInner = Math.max(0, Math.min(95, v)); regenerateSelected(); });
+$('cImpactShuffle').onclick = () => {
+  const objs = canvas.getActiveObjects().filter((o) => o.shapeSpec?.tool === 'impact');
+  for (const o of objs) o.shapeSpec.seed = state.shape.impactSeed = (state.shape.impactSeed % 99991) + 1;
+  if (objs.length) regenerateSelected(); else { state.shape.impactSeed = (state.shape.impactSeed % 99991) + 1; toast('The next Impact gets new line lengths'); }
+  savePrefs();
+};
 bindNumber('cRows', (v) => { state.shape.rows = Math.max(1, Math.min(50, Math.round(v))); });
-bindNumber('cRadius', (v) => { state.shape.radius = Math.max(1, Math.min(200, v)); state.shape.eraser = state.tool === 'eraser' ? Math.max(0.5, Math.min(200, v)) : state.shape.eraser; nodes.setBrush({ radius: (state.tool === 'eraser' ? state.shape.eraser / 2 : state.shape.radius) * MM }); });
+bindNumber('cRadius', (v) => { state.shape.radius = Math.max(1, Math.min(200, v)); state.shape.eraser = state.tool === 'eraser' ? Math.max(0.5, Math.min(200, v)) : state.shape.eraser; setBrushRing({ radius: (state.tool === 'eraser' ? state.shape.eraser / 2 : state.shape.radius) * MM, at: brushRing?.at }); });
 bindNumber('rectRadius', (v) => { state.shape.radiusRect = Math.max(0, v); const o = one(); if (o?.type === 'rect') applyToSelection({ rx: v * MM, ry: v * MM }); });
 bindNumber('fxSteps', (v) => { state.fx.blendSteps = Math.max(1, Math.min(60, Math.round(v))); });
 bindNumber('fxCSteps', (v) => { state.fx.contourSteps = Math.max(1, Math.min(20, Math.round(v))); });
@@ -2899,6 +3792,18 @@ const HAS_EFFECT = {
 };
 const objLabel = (o) => (textOf(o) ? `text “${textOf(o).slice(0, 30)}”` : o.name || o.toolName || o.type);
 
+/** The left toolbox as it is now, numbered from the top (each button shows the last tool used from its flyout). */
+function toolboxReport() {
+  let n = 0;
+  const parts = TOOL_SECTIONS.map(([section, gids]) => `${section}: ${gids.map((g) => {
+    const first = TOOLS[TOOL_GROUPS.find(([id]) => id === g)[1][0][0]], t = TOOLS[groupCurrent[g] ?? first.id];
+    // A button showing a flyout tool: name the flyout it belongs to (the first tool in it).
+    return `${++n} ${SHORT_LABEL[t.id] ?? t.label}${t !== first ? ` (${first.label} flyout)` : ''}`;
+  }).join(', ')}`);
+  return matchMedia('(max-width: 900px)').matches
+    ? `Toolbox buttons along the bottom now (phone layout), left to right: ${parts.join('; ')}.`
+    : `Toolbox buttons on the left now, top to bottom: ${parts.join('; ')}.`;
+}
 const ASSIST = {
   /** What is on the page and selected (sent with each question, so answers fit the page). */
   describe: () => {
@@ -2906,7 +3811,7 @@ const ASSIST = {
     const where = (o) => { const r = o.getBoundingRect(); return ` (${mmOf(r.width)} x ${mmOf(r.height)} mm at X ${mmOf(r.left)}, Y ${mmOf(r.top)})`; };
     const line = (o) => { const fx = effectsOf(o); return `${objLabel(o)}${where(o)}${fx.length ? ` [${fx.join('; ')}]` : ''}${o.locked ? ' (locked)' : ''}${o.visible ? '' : ' (hidden)'}`; };
     const objs = userObjects(), sel = active();
-    return `Selected: ${sel.length ? sel.map(line).join(' | ') : 'nothing'}. On the page (${objs.length}, top first): ${objs.slice().reverse().slice(0, 15).map(line).join(' | ')}${objs.length > 15 ? ' | …' : ''}. Tool: ${TOOLS[state.tool]?.label ?? state.tool}. Grid ${state.grid ? 'on' : 'off'}, snap ${state.snap ? 'on' : 'off'}.`;
+    return `Selected: ${sel.length ? sel.map(line).join(' | ') : 'nothing'}. On the page (${objs.length}, top first): ${objs.slice().reverse().slice(0, 15).map(line).join(' | ')}${objs.length > 15 ? ' | …' : ''}. Tool: ${TOOLS[state.tool]?.label ?? state.tool}. Grid ${state.grid ? 'on' : 'off'}, snap ${state.snap ? 'on' : 'off'}. ${toolboxReport()}`;
   },
   grid: (v) => { state.grid = onOff(v); $('gridToggle').checked = state.grid; savePrefs(); canvas.requestRenderAll(); return `Grid ${v}`; },
   snap: (v) => { state.snap = onOff(v); $('snapToggle').checked = state.snap; savePrefs(); return `Snap ${v}`; },
@@ -2920,7 +3825,12 @@ const ASSIST = {
   tool: (v) => {
     if (!TOOLS[v] || v === 'image') throw new Error(`There is no "${v}" tool here.`);
     setTool(v);
-    return `${TOOLS[v].label} tool selected`;
+    const b = document.querySelector(`.tool[data-group="${TOOLS[v].group}"]`);
+    if (b) { b.scrollIntoView({ block: 'nearest' }); b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 2400); }
+    const n = [...document.querySelectorAll('#tools .tool')].indexOf(b) + 1;
+    const notice = selectionNotice(v);
+    const where = matchMedia('(max-width: 900px)').matches ? 'from the left along the bottom' : 'from the top on the left';
+    return `${TOOLS[v].label} tool selected${n ? ` (button ${n} ${where})` : ''}${notice ? `. ${notice}` : ''}`;
   },
   select: (v) => {
     const [kind, ...rest] = v.split(':'), words = rest.join(':').trim().toLowerCase();
@@ -3022,10 +3932,10 @@ const ASSIST = {
     const SIDES = { triangle: 3, pentagon: 5, hexagon: 6, octagon: 8, polygon: Number(opts.sides) || state.shape.sides };
     const shapeItem = Object.entries(V.SHAPE_SETS).flatMap(([set, s]) => s.items.map(([id, name]) => ({ set, id, name: name.toLowerCase() })))
       .find((s) => s.id === kind || s.name === kind);
-    const known = ['rectangle', 'rect', 'square', 'ellipse', 'oval', 'circle', 'line', 'text', 'table', 'graph', 'grid', 'star', 'spiral', ...Object.keys(SIDES)];
-    if (!known.includes(kind) && !shapeItem) throw new Error(`I can add: rectangle, square, ellipse, circle, triangle, polygon, star, spiral, line, text, table, graph paper, or a shape such as heart, shield, crest, ribbon (asked for "${kind}").`);
+    const known = ['rectangle', 'rect', 'square', 'ellipse', 'oval', 'circle', 'line', 'text', 'paragraph', 'table', 'graph', 'grid', 'star', 'spiral', 'impact', ...Object.keys(SIDES)];
+    if (!known.includes(kind) && !shapeItem) throw new Error(`I can add: rectangle, square, ellipse, circle, triangle, polygon, star, spiral, impact, line, text, paragraph, table, graph paper, or a shape such as heart, shield, crest, ribbon (asked for "${kind}").`);
     // Size: half the page; round and regular shapes square, half the page's shorter side.
-    const pw = page.width, ph = page.height, even = ['square', 'circle', 'star', 'spiral', ...Object.keys(SIDES)].includes(kind) || !!shapeItem;
+    const pw = page.width, ph = page.height, even = ['square', 'circle', 'star', 'spiral', 'impact', ...Object.keys(SIDES)].includes(kind) || !!shapeItem;
     let w = even ? Math.min(pw, ph) / 2 : pw / 2, h = even ? w : ph / 2;
     if (opts.size) {
       if (/%$/.test(opts.size)) { const k = parseFloat(opts.size) / 100; w = (even ? Math.min(pw, ph) : pw) * k; h = even ? w : ph * k; }
@@ -3046,6 +3956,11 @@ const ASSIST = {
     const box = { x: cx - w / 2, y: cy - h / 2, w, h };
     let o = null, label = kind;
     if (kind === 'table') { addTable(box); o = canvas.getActiveObject(); label = 'table'; }
+    else if (kind === 'paragraph') {
+      addParagraph(box); o = canvas.getActiveObject(); o.exitEditing?.();
+      if (opts.text) { o.set('text', opts.text); o.initDimensions?.(); }
+      label = 'paragraph text';
+    }
     else if (kind === 'graph' || kind === 'grid') { addGraph(box); o = canvas.getActiveObject(); label = 'graph paper'; }
     else {
       if (['rectangle', 'rect', 'square'].includes(kind)) { o = paint(new Rect({ left: box.x, top: box.y, width: w, height: h, rx: state.shape.radiusRect ?? 0, ry: state.shape.radiusRect ?? 0, toolName: 'Rectangle' })); label = kind === 'square' ? 'square' : 'rectangle'; }
@@ -3064,6 +3979,11 @@ const ASSIST = {
         if (shapeItem) Object.assign(state.shape, { set: shapeItem.set, item: shapeItem.id });
         if (tool === 'polygon') state.shape.sides = Math.max(3, Math.min(40, SIDES[kind]));
         if (tool === 'star' && Number(opts.points)) state.shape.points = Math.max(3, Math.min(40, Number(opts.points)));
+        if (tool === 'impact') {
+          if (['radial', 'parallel'].includes(opts.style)) state.shape.impactStyle = opts.style;
+          if (Number(opts.lines)) state.shape.impactLines = Math.max(3, Math.min(200, Math.round(Number(opts.lines))));
+          state.shape.impactSeed = (state.shape.impactSeed % 99991) + 1; saved.impactSeed = state.shape.impactSeed;
+        }
         try {
           o = new Path(V.boxD(unitFor(tool), box), { toolName: TOOLS[tool].label });
           if (tool === 'spiral') paintLine(o); else paint(o);
@@ -3228,7 +4148,7 @@ window.artboard = {
   },
 };
 // Automated tests only (?debug): reach the canvas from the browser.
-if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, B, F: { Rect, IText, FabricImage, Group, Path } };
+if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, B, F: { Rect, IText, FabricImage, Group, Path }, geom: { mode: () => (geomWorker ? 'worker' : geomWorker === false ? 'page' : 'not started'), limit: (ms) => { GEOM_LIMIT = ms; }, stop: () => stopGeom(new Error('stopped')) } };
 addEventListener('message', (e) => { if (e.source === window.parent && typeof e.data === 'string') { try { window.artboard.receive(e.data); } catch { /* not for us */ } } });
 
 // ===================================================================

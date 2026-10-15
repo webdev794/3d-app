@@ -1,5 +1,5 @@
 // CorelDRAW-style Shape tool (F10): edit the nodes and Bézier handles of any
-// curve, plus the Smooth / Roughen / Attract / Repel brushes.
+// curve, plus the Smooth / Smear / Twirl / Attract / Repel / Roughen brushes.
 // Coordinates are page (world) units; hit testing is in screen pixels.
 
 import { modelToD, objectModel, setWorldPath, segmentPoints, splitBezier, nearestOnSegment, bezierAt, lerp, cloneModel } from './vector.js';
@@ -15,7 +15,7 @@ const len = (v) => Math.hypot(v.x, v.y);
 
 export function createNodeEditor(cfg) {
   const { canvas } = cfg;
-  let target = null, model = null, sel = new Set(), drag = null, marquee = null, brush = null;
+  let target = null, model = null, sel = new Set(), drag = null, marquee = null;
 
   const vpt = () => canvas.viewportTransform;
   const toScreen = (p) => ({ x: p.x * vpt()[0] + vpt()[4], y: p.y * vpt()[3] + vpt()[5] });
@@ -114,9 +114,8 @@ export function createNodeEditor(cfg) {
     marquee = { a: p, b: p, add: e.shiftKey };
   }
   function move(p, e) {
-    if (brush) brush.at = p;
     if (marquee) { marquee.b = p; canvas.requestRenderAll(); return; }
-    if (!drag) { if (brush) canvas.requestRenderAll(); return; }
+    if (!drag) return;
     if (drag.kind === 'handle') {
       const nd = model[drag.s].nodes[drag.n], other = drag.which === 'hi' ? 'ho' : 'hi';
       nd[drag.which] = { x: p.x, y: p.y };
@@ -323,17 +322,68 @@ export function createNodeEditor(cfg) {
   // Sculpting brushes (work on the selected objects)
   // -----------------------------------------------------------------
   let sculpt = null;
-  function brushDown(kind, objs, p, radius) {
-    const targets = objs.map((o) => cfg.toPath(o)).filter(Boolean).map((o) => ({ o, model: objectModel(o), touched: new Set() }));
-    if (!targets.length) { cfg.toast('Select the objects to shape first, then drag over their outlines'); return; }
-    sculpt = { kind, targets, radius, last: p };
+  /** Starts a stroke on the objects (each turned into a curve first). Returns false when none can be shaped. */
+  function brushDown(kind, objs, p, radius, opts = {}) {
+    const targets = objs.map((from) => { const o = cfg.toPath(from); return o && { o, from, model: objectModel(o), touched: new Set() }; }).filter(Boolean);
+    if (!targets.length) return false;
+    sculpt = { kind, targets, radius, last: p, dir: opts.dir === 'ccw' ? -1 : 1, changed: false };
+    // Twirl keeps turning while the mouse is held down, as in CorelDRAW.
+    if (kind === 'twirl') sculpt.timer = setInterval(() => brushStep(sculpt.last), 40);
     brushStep(p);
+    return true;
+  }
+  /** Splits a segment of a subpath at t (0-1) in place. */
+  function splitIn(sp, i, t) {
+    const [a, b] = segEnds(sp, i), straight = !a.ho && !b.hi;
+    let mid;
+    if (straight) mid = { ...lerp(a, b, t), hi: null, ho: null, type: 'cusp' };
+    else {
+      const [l, r] = splitBezier(segmentPoints(a, b), t);
+      a.ho = l[1]; b.hi = r[2];
+      mid = { x: l[3].x, y: l[3].y, hi: l[2], ho: r[1], type: 'smooth' };
+    }
+    sp.nodes.splice(i + 1, 0, mid);
+  }
+  /** More nodes on the segments under the brush, so Smear and Twirl bend the outline smoothly. */
+  function densify(model, p, R) {
+    for (const sp of model) {
+      for (let i = segCount(sp) - 1; i >= 0; i--) {
+        const [a, b] = segEnds(sp, i), pts = segmentPoints(a, b);
+        let near = Infinity, length = 0, prev = pts[0];
+        for (let j = 0; j <= 8; j++) { const q = bezierAt(pts, j / 8); near = Math.min(near, Math.hypot(q.x - p.x, q.y - p.y)); if (j) length += Math.hypot(q.x - prev.x, q.y - prev.y); prev = q; }
+        if (near > R || length <= R / 3) continue;
+        // Equal pieces: split off 1/k, then 1/(k-1) of the rest, and so on (the rest is always the next segment).
+        const k = Math.min(24, Math.ceil(length / (R / 4)));
+        for (let j = k, at = i; j >= 2; j--, at++) splitIn(sp, at, 1 / j);
+      }
+    }
   }
   function brushStep(p) {
     if (!sculpt) return;
     const { kind, radius: R } = sculpt;
+    const move = { x: p.x - sculpt.last.x, y: p.y - sculpt.last.y };
     for (const t of sculpt.targets) {
       let changed = false;
+      if (kind === 'smear' || kind === 'twirl') {
+        if (kind === 'smear' && !move.x && !move.y) continue;
+        densify(t.model, p, R);
+        for (const sp of t.model) for (const nd of sp.nodes) {
+          const d = Math.hypot(nd.x - p.x, nd.y - p.y);
+          if (d > R) continue;
+          const f = (1 - (d / R) ** 2) ** 2;
+          const shift = (q) => {
+            if (kind === 'smear') return { x: q.x + move.x * f, y: q.y + move.y * f };
+            const a = sculpt.dir * 0.07 * f, c = Math.cos(a), s = Math.sin(a), x = q.x - p.x, y = q.y - p.y;
+            return { x: p.x + x * c - y * s, y: p.y + x * s + y * c };
+          };
+          Object.assign(nd, shift(nd));
+          if (nd.hi) nd.hi = shift(nd.hi);
+          if (nd.ho) nd.ho = shift(nd.ho);
+          changed = true;
+        }
+        if (changed) { setWorldPath(t.o, modelToD(t.model)); cfg.refill?.(t.o); sculpt.changed = true; }
+        continue;
+      }
       t.model.forEach((sp, si) => {
         if (kind === 'roughen') {
           // Turn segments under the brush into a jagged edge (once per stroke).
@@ -377,29 +427,26 @@ export function createNodeEditor(cfg) {
           changed = true;
         }
       });
-      if (changed) { setWorldPath(t.o, modelToD(t.model)); cfg.refill?.(t.o); }
+      if (changed) { setWorldPath(t.o, modelToD(t.model)); cfg.refill?.(t.o); sculpt.changed = true; }
     }
+    sculpt.last = p;
     canvas.requestRenderAll();
   }
+  /** Ends the stroke: whether anything changed, and [object before, curve now] for each target. */
   function brushUp() {
-    if (!sculpt) return;
+    if (!sculpt) return null;
+    clearInterval(sculpt.timer);
     for (const t of sculpt.targets) cfg.commit(t.o);
+    const out = { changed: sculpt.changed, pairs: sculpt.targets.map((t) => [t.from, t.o]) };
     sculpt = null;
+    return out;
   }
-  function setBrush(b) { brush = b; canvas.requestRenderAll(); }
 
   // -----------------------------------------------------------------
   // Overlay
   // -----------------------------------------------------------------
   function draw(ctx) {
     const r = canvas.getRetinaScaling(), v = vpt();
-    if (brush?.at) {
-      ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
-      const c = toScreen(brush.at);
-      ctx.strokeStyle = '#12E1F0'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.arc(c.x, c.y, brush.radius * v[0], 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
     if (!target || !model) return;
     ctx.save();
     ctx.setTransform(r * v[0], 0, 0, r * v[3], r * v[4], r * v[5]);
@@ -431,7 +478,7 @@ export function createNodeEditor(cfg) {
 
   return {
     start, end, refresh, down, move, up, dblclick, op, nudge, draw,
-    brushDown, brushStep, brushUp, setBrush,
+    brushDown, brushStep, brushUp,
     get target() { return target; },
     get selectedCount() { return sel.size; },
     get nodeCount() { return model ? model.reduce((a, s) => a + s.nodes.length, 0) : 0; },
