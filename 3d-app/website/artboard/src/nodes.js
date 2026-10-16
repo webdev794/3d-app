@@ -24,8 +24,19 @@ export function createNodeEditor(cfg) {
   const segCount = (s) => (s.closed ? s.nodes.length : s.nodes.length - 1);
   const segEnds = (s, i) => [s.nodes[i], s.nodes[(i + 1) % s.nodes.length]];
 
+  // Node types (cusp, smooth, symmetrical) are not in the path data: the object keeps them (nodeTypes), so they
+  // survive the editor reading the curve again, Undo and a reload, and the property bar shows the type that was set.
+  const TYPE_CODE = { cusp: 'c', smooth: 's', symmetric: 'y' }, CODE_TYPE = { c: 'cusp', s: 'smooth', y: 'symmetric' };
+  function keepTypes(o, m) { if (o && m) o.nodeTypes = m.map((sp) => sp.nodes.map((nd) => TYPE_CODE[nd.type] ?? 'c').join('')); }
+  function applyTypes(o, m) {
+    const t = o?.nodeTypes;
+    if (!Array.isArray(t) || t.length !== m.length) return m;
+    m.forEach((sp, i) => { if (t[i]?.length === sp.nodes.length) sp.nodes.forEach((nd, j) => { nd.type = CODE_TYPE[t[i][j]] ?? nd.type; }); });
+    return m;
+  }
   function write() {
     if (!target) return;
+    keepTypes(target, model);
     const d = modelToD(model);
     if (!d) { const o = target; end(); cfg.remove(o); return; }
     setWorldPath(target, d);
@@ -40,7 +51,7 @@ export function createNodeEditor(cfg) {
     const path = cfg.toPath(o);
     if (!path) return false;
     target = path;
-    model = objectModel(path);
+    model = applyTypes(path, objectModel(path));
     setWorldPath(path, modelToD(model));
     sel = new Set();
     canvas.requestRenderAll();
@@ -49,7 +60,7 @@ export function createNodeEditor(cfg) {
   }
   function end() { target = null; model = null; sel = new Set(); drag = null; marquee = null; canvas.requestRenderAll(); cfg.changed?.(); }
   /** Re-read the target after an outside change (fill colour, undo, …). */
-  function refresh() { if (target && canvas.getObjects().includes(target)) model = objectModel(target); else if (target) end(); }
+  function refresh() { if (target && canvas.getObjects().includes(target)) model = applyTypes(target, objectModel(target)); else if (target) end(); }
 
   // -----------------------------------------------------------------
   // Hit testing
@@ -97,7 +108,7 @@ export function createNodeEditor(cfg) {
       const k = key(n.s, n.n);
       if (e.shiftKey) { if (sel.has(k)) sel.delete(k); else sel.add(k); }
       else if (!sel.has(k)) sel = new Set([k]);
-      drag = { kind: 'nodes', from: p, orig: cloneModel(model), moved: false };
+      drag = { kind: 'nodes', from: p, orig: cloneModel(model), moved: false, key: k, shift: e.shiftKey };
       cfg.changed?.(); canvas.requestRenderAll();
       return;
     }
@@ -169,6 +180,8 @@ export function createNodeEditor(cfg) {
       cfg.changed?.(); canvas.requestRenderAll();
       return;
     }
+    // A click (no drag) on one of several selected nodes picks just that node, as in CorelDRAW; dragging moves them all.
+    if (drag?.kind === 'nodes' && !drag.moved && !drag.shift && sel.size > 1) { sel = new Set([drag.key]); cfg.changed?.(); canvas.requestRenderAll(); }
     if (drag) { const moved = drag.kind === 'handle' || drag.moved; drag = null; if (moved) commit(); }
   }
   function dblclick(p) {
@@ -304,6 +317,11 @@ export function createNodeEditor(cfg) {
     write();
     commit();
     canvas.requestRenderAll();
+    // Some buttons change nothing you can see straight away: say what they did.
+    const count = [...by.values()].reduce((a, ns) => a + ns.length, 0), one = count === 1, n = one ? 'the node' : `${count} nodes`;
+    const said = { cusp: `Cusp: the handles of ${n} now move on their own`, smooth: `Smooth: the curve now runs smoothly through ${n}`, symmetric: `Symmetrical: ${n} now ${one ? 'has' : 'have'} equal, opposite handles`,
+      toCurve: 'Turned into a curve: drag the side or its handles to bend it', toLine: 'Turned into a straight line', close: 'Curve closed', reverse: 'Direction reversed' }[name];
+    if (said) cfg.toast(said, 2600);
   }
   function nudge(dx, dy) {
     if (!target || !sel.size) return false;

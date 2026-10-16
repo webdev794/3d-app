@@ -3,7 +3,7 @@
     <div class="brand"><img src="__LOGO__" alt="3DEEZI"><span>ARTBOARD</span></div>
     <nav class="menus" aria-label="Menu">
       <div class="menu"><button>File</button><div class="drop">
-        <button data-action="new">New page</button><button data-action="open">Import… <small>Ctrl+I · SVG, PNG, JPG, CDR</small></button><hr>
+        <button data-action="new">New document <small>clears every page</small></button><button data-action="open">Import… <small>Ctrl+I · SVG, PNG, JPG, CDR</small></button><hr>
         <button data-action="exportPdf">Export PDF <small>vector · Ctrl+E</small></button><button data-action="exportSvg">Export SVG <small>vector</small></button>
         <button data-action="exportPng">Export artwork <small>transparent PNG</small></button><button data-action="exportPage">Export page <small>PNG 300 DPI</small></button><hr>
         <button data-action="send">Send to 3D Studio</button></div></div>
@@ -13,9 +13,11 @@
         <button data-action="duplicate">Duplicate <small>Ctrl+D</small></button><button data-action="delete">Delete <small>Del</small></button><hr>
         <button data-action="selectAll">Select all <small>Ctrl+A</small></button></div></div>
       <div class="menu"><button>View</button><div class="drop">
-        <button data-action="zoomIn">Zoom in</button><button data-action="zoomOut">Zoom out</button><button data-action="fit">Fit page</button><hr>
+        <button data-action="zoomIn">Zoom in</button><button data-action="zoomOut">Zoom out</button><button data-action="fit">Fit page</button><button data-action="preview">Full-page preview <small>F9</small></button><hr>
         <button data-action="rulers">Rulers on / off</button><button data-action="grid">Grid on / off</button><button data-action="clearGuides">Clear guidelines <small>drag from a ruler to add</small></button><hr><button data-action="snap_grid">Snap to grid</button><button data-action="snap_guides">Snap to guidelines</button><button data-action="snap_objects">Snap to objects</button><button data-action="snap_nodes">Snap to nodes</button><button data-action="snap_page">Snap to page</button></div></div>
       <div class="menu"><button>Layout</button><div class="drop">
+        <button data-action="pageAdd">Insert page</button><button data-action="pageDup">Duplicate page</button><button data-action="pageRename">Rename page <small>double-click its tab</small></button><button data-action="pageDelete">Delete page</button><hr>
+        <button data-action="pagePrev">Previous page <small>PgUp</small></button><button data-action="pageNext">Next page <small>PgDn</small></button><hr>
         <button data-action="layout">Centre to page <small>P</small></button></div></div>
       <div class="menu"><button>Object</button><div class="drop wide">
         <button data-action="group">Group <small>Ctrl+G</small></button><button data-action="ungroup">Ungroup <small>Ctrl+U</small></button>
@@ -39,21 +41,34 @@
       <div class="menu"><button>Effects</button><div class="drop">
         <button data-action="blend">Blend</button><button data-action="contour">Contour</button><button data-action="shadow">Drop shadow</button><button data-action="transparency">Transparency</button><hr>
         <button data-action="distort">Distort</button><button data-action="envelope">Envelope</button><button data-action="extrude">Extrude</button><button data-action="blockshadow">Block shadow</button><button data-action="meshfill">Mesh fill <small>M</small></button></div></div>
-      <div class="menu"><button>Table</button><div class="drop"><button data-action="table">New table <small>drag on the page</small></button></div></div>
+      <div class="menu"><button>Bitmaps</button><div class="drop">
+        <button data-action="bitmap">Convert to bitmap <small>300 DPI</small></button><hr>
+        <button data-action="bmAdjust">Adjust… <small>brightness, contrast, blur</small></button><button data-action="bmGray">Grayscale on / off</button><button data-action="bmTint">Tint with the fill colour</button><button data-action="bmReset">Reset adjustments</button><hr>
+        <button data-action="bmBg">Remove plain background</button><button data-action="bmTrace">Trace bitmap <small>to vectors</small></button><button data-action="bmCrop">Crop bitmap <small>Crop tool</small></button></div></div>
       <div class="menu"><button>Text</button><div class="drop">
         <button data-action="text">Add text <small>F8</small></button><button data-action="fonts">Fonts…</button><hr>
         <button data-action="fitPath">Fit text to path</button><button data-action="straighten">Straighten text</button><hr>
         <button data-action="curves">Convert to curves <small>Ctrl+Q</small></button></div></div>
-      <div class="menu"><button>Help</button><div class="drop"><button data-action="help">Tools and shortcuts</button></div></div>
+      <div class="menu"><button>Table</button><div class="drop"><button data-action="table">New table <small>drag on the page</small></button></div></div>
+      <div class="menu"><button>Tools</button><div class="drop">
+        <h5>Units</h5><button data-action="units_mm">Millimetres</button><button data-action="units_cm">Centimetres</button><button data-action="units_in">Inches</button><button data-action="units_px">Pixels <small>300 DPI</small></button><hr>
+        <button data-action="snapToggle">Snap on / off</button><button data-action="snap_grid">Snap to grid</button><button data-action="snap_guides">Snap to guidelines</button><button data-action="snap_objects">Snap to objects</button><button data-action="snap_nodes">Snap to nodes</button><button data-action="snap_page">Snap to page</button><hr>
+        <button data-action="grid">Grid on / off</button><button data-action="rulers">Rulers on / off</button><button data-action="clearGuides">Clear guidelines</button><hr>
+        <button data-action="help">Keyboard shortcuts</button></div></div>
+      <div class="menu"><button>Window</button><div class="drop">
+        <h5>Dockers</h5><button data-action="dock_colour">Colour</button><button data-action="dock_props">Properties</button><button data-action="dock_layers">Layers <small>Object Manager</small></button><button data-action="dock_assets">Assets</button><hr>
+        <h5>Show</h5><button data-action="win_tools">Toolbox</button><button data-action="win_props">Property bar</button><button data-action="win_side">Dockers <small>right panel</small></button><button data-action="win_palette">Colour palette</button><button data-action="win_foot">Status bar</button><hr>
+        <button data-action="fullscreen">Full screen</button></div></div>
+      <div class="menu"><button>Help</button><div class="drop"><button data-action="help">Tools and shortcuts</button><button data-action="supportFile">Save page for support <small>a file to send us</small></button></div></div>
     </nav>
     <div class="top-actions">
       <button class="round" id="undo" title="Undo (Ctrl+Z)" data-icon="undo"></button>
       <button class="round" id="redo" title="Redo (Ctrl+Y)" data-icon="redo"></button>
-      <button class="btn" id="save" data-icon="save"><span class="lbl">Save</span></button>
-      <div class="menu"><button class="btn grad" data-icon="export"><span class="lbl">Export</span></button><div class="drop" style="right:0;left:auto">
+      <button class="btn" id="save" data-icon="save" title="Save"><span class="lbl">Save</span></button>
+      <div class="menu"><button class="btn grad" data-icon="export" title="Export"><span class="lbl">Export</span></button><div class="drop" style="right:0;left:auto">
         <button data-action="exportPdf">PDF <small>vector, print-ready</small></button><button data-action="exportSvg">SVG <small>vector</small></button>
         <button data-action="exportPng">Artwork <small>transparent PNG</small></button><button data-action="exportPage">Whole page <small>PNG 300 DPI</small></button></div></div>
-      <button class="btn send" id="sendBtn" data-icon="shirt"><span class="lbl">Send to 3D Studio</span></button>
+      <button class="btn send" id="sendBtn" data-icon="shirt" title="Send to 3D Studio"><span class="lbl">Send to 3D Studio</span></button>
       <button class="round mobile-only" id="panelBtn" title="Colour, properties, layers and assets" data-icon="panel"></button>
     </div>
   </header>
@@ -91,6 +106,10 @@
     <div class="ctx" id="ctx-smart" hidden><span class="sep"></span><label>Shape recognition</label><select id="sdLevel"><option value="off">None (smooth curve)</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><label>Smoothing</label><input id="sdSmooth" type="number" min="0" max="100" style="width:56px"></div>
     <div class="ctx" id="ctx-live" hidden><span class="sep"></span><label>Timer</label><input id="lsTimer" type="number" min="0" max="5" step="0.1" style="width:56px"><label>s</label><label>Join within</label><input id="lsNear" type="number" min="4" max="60" style="width:52px"><label>px</label><label>Smoothing</label><input id="lsSmooth" type="number" min="0" max="100" style="width:56px"></div>
     <div class="ctx" id="ctx-paint" hidden><span class="sep"></span><label>Brush</label><select id="pbBrush"></select><label>Size</label><input id="pbSize" type="number" min="0.5" max="200" step="0.5" style="width:60px"><label>mm</label><label>Flow</label><input id="pbFlow" type="number" min="5" max="100" style="width:52px"><label>%</label></div>
+    <div class="ctx" id="ctx-inner" hidden><span class="sep"></span><label>X</label><input id="fxIX" type="number" step="0.5" style="width:52px"><label>Y</label><input id="fxIY" type="number" step="0.5" style="width:52px"><label>Feather</label><input id="fxIBlur" type="number" min="0" step="0.5" style="width:52px"><label>Opacity %</label><input id="fxIOpacity" type="number" min="0" max="100" style="width:52px"><input id="fxIColour" type="color" title="Shadow colour"><label>Merge</label><select id="fxIMerge" title="Multiply darkens the colours under the shadow; Normal lays the shadow colour over them"><option value="multiply">Multiply</option><option value="normal">Normal</option></select><button class="btn small grad" id="fxInner">Apply</button><button class="btn small" id="fxInnerOff">Remove</button></div>
+    <div class="ctx" id="ctx-var" hidden><span class="sep"></span><label>Profile</label><select id="varProfile"><option value="custom">Custom</option><option value="uniform">Uniform</option><option value="taper">Taper both ends</option><option value="taper-start">Taper at the start</option><option value="taper-end">Taper at the end</option><option value="bulge">Bulge</option><option value="pinch">Pinch</option><option value="wave">Wave</option></select><label id="varWidthLabel">Width</label><input id="varWidth" type="number" min="0" max="150" step="0.5" style="width:58px"><label>mm</label><label>Ends</label><select id="varCap"><option value="round">Round</option><option value="butt">Flat</option></select><button class="btn small" id="varDelPoint" title="Delete the picked width point (pink)">Delete point</button><button class="btn small" id="varRemove" title="Back to an ordinary outline">Remove</button></div>
+    <div class="ctx" id="ctx-conn" hidden><span class="sep"></span><span id="connTypeWrap"><label>Type</label><select id="connType"><option value="straight">Straight</option><option value="right">Right-angle</option><option value="rounded">Rounded right-angle</option></select></span><span id="connRadiusWrap"><label>Corner radius</label><input id="connRadius" type="number" min="0" max="100" step="0.5" style="width:58px"><label>mm</label></span><label>Arrowheads</label><select id="connArrows"><option value="none">None</option><option value="end">At the end</option><option value="start">At the start</option><option value="both">At both ends</option></select></div>
+    <div class="ctx" id="ctx-anchor" hidden><span class="sep"></span><button class="btn small" id="anchorDel" title="Delete the anchor picked on the page (pink)">Delete anchor</button><button class="btn small" id="anchorReset" title="Give the object of the picked anchor its four default anchors again">Reset anchors</button></div>
     <div class="ctx" id="ctx-freetx" hidden><span class="sep"></span><button class="btn small" data-ft="rotate">Rotate</button><button class="btn small" data-ft="reflect">Reflect</button><button class="btn small" data-ft="scale">Scale</button><button class="btn small" data-ft="skew">Skew</button><label class="ft-dup"><input type="checkbox" id="ftDup"> Apply to duplicate</label></div>
     <div class="ctx" id="ctx-impact" hidden><span class="sep"></span><label>Style</label><select id="cImpactStyle"><option value="radial">Radial</option><option value="parallel">Parallel</option></select><label>Lines</label><input id="cImpactLines" type="number" min="3" max="200" style="width:58px"><label id="cImpactInnerLabel">Empty centre</label><input id="cImpactInner" type="number" min="0" max="95" style="width:58px"><label>%</label><button class="btn small" id="cImpactShuffle" title="New random line lengths">Shuffle</button></div>
     <div class="ctx" id="ctx-poly" hidden><span class="sep"></span><label>Points / sides</label><input id="cPoints" type="number" min="3" max="60" style="width:58px"><span id="cSharpWrap"><label>Sharpness</label><input id="cSharp" type="number" min="1" max="99" style="width:58px"></span></div>
@@ -99,9 +118,9 @@
     <div class="ctx" id="ctx-rect" hidden><span class="sep"></span><label>Corner radius</label><input id="rectRadius" type="number" min="0" step="0.5" style="width:62px"><label>mm</label></div>
     <div class="ctx shape-gallery" id="ctx-shapes" hidden><span class="sep"></span><div id="shapeGallery" class="gallery"></div></div>
     <div class="ctx" id="ctx-blend" hidden><span class="sep"></span><label>Steps</label><input id="fxSteps" type="number" min="1" max="60" style="width:58px"><button class="btn small grad" id="fxBlend">Apply blend</button></div>
-    <div class="ctx" id="ctx-contour" hidden><span class="sep"></span><select id="fxCDir"><option value="outside">Outside</option><option value="inside">Inside</option></select><label>Steps</label><input id="fxCSteps" type="number" min="1" max="20" style="width:52px"><label>Offset mm</label><input id="fxCOffset" type="number" min="0.1" step="0.5" style="width:58px"><label>Colour</label><input id="fxCColour" type="color"><button class="btn small grad" id="fxContour">Apply contour</button></div>
+    <div class="ctx" id="ctx-contour" hidden><span class="sep"></span><select id="fxCDir"><option value="outside">Outside</option><option value="inside">Inside</option><option value="centre">To centre</option></select><span id="fxCStepsWrap"><label>Steps</label><input id="fxCSteps" type="number" min="1" max="20" style="width:52px"></span><label>Offset mm</label><input id="fxCOffset" type="number" min="0.1" step="0.5" style="width:58px"><label>Colour</label><input id="fxCColour" type="color"><button class="btn small grad" id="fxContour">Apply contour</button><button class="btn small" id="fxContourOff" title="Take the contour off: the original object again">Remove</button><button class="btn small" id="fxContourBreak" title="Separate the contour steps from the object: each becomes a shape of its own">Break apart</button></div>
     <div class="ctx" id="ctx-shadow" hidden><span class="sep"></span><label>X</label><input id="fxSX" type="number" step="0.5" style="width:52px"><label>Y</label><input id="fxSY" type="number" step="0.5" style="width:52px"><label>Feather</label><input id="fxSBlur" type="number" min="0" step="0.5" style="width:52px"><label>Opacity %</label><input id="fxSOpacity" type="number" min="0" max="100" style="width:52px"><input id="fxSColour" type="color"><button class="btn small grad" id="fxShadow">Apply</button><button class="btn small" id="fxShadowOff">Remove</button></div>
-    <div class="ctx" id="ctx-transp" hidden><span class="sep"></span><select id="fxTType"><option value="none">No transparency</option><option value="uniform">Uniform</option><option value="linear">Linear (fade)</option></select><label>Amount %</label><input id="fxTValue" type="number" min="0" max="100" style="width:56px"><span id="fxTAngleWrap"><label>Angle</label><input id="fxTAngle" type="number" step="15" style="width:56px"></span><button class="btn small grad" id="fxTransp">Apply</button></div>
+    <div class="ctx" id="ctx-transp" hidden><span class="sep"></span><select id="fxTType"><option value="none">No transparency</option><option value="uniform">Uniform</option><option value="linear">Linear (fade)</option><option value="radial">Radial (fade from the centre)</option></select><label>Amount %</label><input id="fxTValue" type="number" min="0" max="100" style="width:56px"><span id="fxTAngleWrap"><label>Angle</label><input id="fxTAngle" type="number" step="15" style="width:56px"></span><label>Merge</label><select id="fxTMerge" title="How the object mixes with what is under it"><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option><option value="darken">Darken</option><option value="lighten">Lighten</option><option value="color-burn">Colour burn</option><option value="color-dodge">Colour dodge</option><option value="difference">Difference</option><option value="exclusion">Exclusion</option><option value="hue">Hue</option><option value="saturation">Saturation</option><option value="color">Colour</option><option value="luminosity">Luminosity</option></select><button class="btn small grad" id="fxTransp">Apply</button></div>
     <div class="ctx" id="ctx-distort" hidden><span class="sep"></span><select id="fxDMode" title="Distortion"><option value="zipper">Zipper</option><option value="twister">Twister</option><option value="push">Push and pull</option></select>
       <span id="fxDZipWrap"><label>Tooth mm</label><input id="fxDZip" type="number" step="0.5" min="-50" max="50" style="width:56px"><label>Teeth</label><input id="fxDTeeth" type="number" min="2" max="300" style="width:56px"></span>
       <span id="fxDTwistWrap"><label>Turn °</label><input id="fxDTwist" type="number" step="15" style="width:62px"></span>
@@ -130,11 +149,15 @@
     <div class="xywh"><span>X</span><input id="posX" title="X (mm)"><span>W</span><input id="sizeW" title="Width (mm)"><span>Y</span><input id="posY" title="Y (mm)"><span>H</span><input id="sizeH" title="Height (mm)"></div>
     <button class="ibtn on" id="ratio" title="Keep proportions" data-icon="ratio"></button>
     <span class="sep"></span>
+    <div class="quick" role="group" aria-label="Quick buttons, always here"><button class="ibtn" id="quickPick" data-icon="select" title="Pick (V): select, move and resize"></button><button class="ibtn" id="quickPan" data-icon="pan" title="Pan (H): drag to move around the page"></button><button class="ibtn" id="quickPreview" data-icon="eye" title="Full-page preview (F9): only the page, on the whole screen · click or press Esc to come back"></button><span id="quickPins" class="quick-pins"></span><button class="ibtn" id="quickAdd" data-icon="plus" title="Add your own buttons here: tools and commands you use often"></button></div>
+    <span class="sep"></span>
     <button class="ibtn" id="flipH" title="Mirror horizontally" data-icon="flipH"></button><button class="ibtn" id="flipV" title="Mirror vertically" data-icon="flipV"></button>
     <button class="ibtn lbtn" id="front" title="To front (Shift+PgUp)" data-icon="front"><span>To front</span></button><button class="ibtn lbtn" id="back" title="To back (Shift+PgDn)" data-icon="back"><span>To back</span></button>
     <button class="ibtn" id="group" title="Group / ungroup (Ctrl+G / Ctrl+U)" data-icon="group"></button><button class="ibtn" id="dup" title="Duplicate (Ctrl+D)" data-icon="dup"></button>
     <button class="ibtn" id="lock" title="Lock" data-icon="lock"></button><button class="ibtn" id="del" title="Delete" data-icon="trash"></button>
+    <button class="ibtn props-hide" id="propsHide" data-icon="up" title="Hide the property bar: more room for the page (the tab at the top of the page brings it back)"></button>
   </div>
+  <div class="quick-pop" id="quickPop" hidden><h4>Your buttons</h4><p>Tick the tools and commands you use often: they get a button on the property bar, next to Pick and Pan.</p><div class="qp-cols"><div><h5>Tools</h5><div id="qpTools"></div></div><div><h5>Commands</h5><div id="qpCmds"></div></div></div></div>
 
   <div class="fly font-fly" id="fontFly"><input id="fontSearch" placeholder="Search fonts" aria-label="Search fonts" autocomplete="off"><div id="fontList"></div></div>
   <div class="fly tool-fly" id="toolFly"></div>
@@ -144,6 +167,7 @@
     <nav class="tools" id="tools" aria-label="Toolbox"></nav>
 
     <main class="stage" id="stage">
+      <button class="props-show" id="propsShow" data-icon="down" title="Show the property bar"><span>Property bar</span></button>
       <div class="corner"></div><canvas class="ruler h" id="rulerH"></canvas><canvas class="ruler v" id="rulerV"></canvas>
       <div class="canvas-wrap" id="canvasWrap"><canvas id="board"></canvas></div>
       <div class="hint" id="hint"></div>
@@ -151,6 +175,7 @@
       <div class="palette" id="palette" aria-label="Colour palette">
         <button class="pc pal-x" id="palNone" title="No colour · click: no fill · right-click: no outline"></button>
         <span class="pal-sep"></span>
+        <span class="pal-group" id="palBrand" hidden><span class="pal-label" id="palBrandName"></span></span>
         <span class="pal-group" id="palDoc" hidden><span class="pal-label">Document</span></span>
         <span class="pal-group" id="palMain"></span>
       </div>
@@ -162,13 +187,13 @@
         <h3>Colour palette <button class="ibtn mobile-only" id="closeSide" data-icon="close"></button></h3>
         <div class="target"><button data-target="fill" class="on">Fill</button><button data-target="stroke">Outline</button></div>
         <select id="fillMode"><option value="solid">Uniform fill</option><option value="gradient">Linear gradient</option><option value="radial">Radial gradient</option><option value="pattern">Pattern fill</option></select>
-        <div class="grid2" id="gradRow" style="display:none"><label class="field">To colour<input type="color" id="gradTo" value="#7B4DFF"></label><label class="field">Angle<input type="number" id="gradAngle" value="0" step="15"></label></div>
+        <div class="grad" id="gradRow" style="display:none"><div class="grad-bar" id="gradBar" title="Click the strip to add a colour · drag a square to move it · double-click a square to remove it"><div class="grad-track" id="gradTrack"></div><div class="grad-stops" id="gradStops"></div></div><p class="grad-help">The small squares under the strip are its colours. Click the strip to add a colour · click a square to pick it, then choose its colour in the colour picker below · drag a square sideways to move it · double-click a square (or pick it and press Delete) to remove it</p><div class="grad-tools"><label class="field" title="Where the picked colour sits along the gradient">Position %<input type="number" id="gradPos" min="0" max="100" step="1"></label><label class="field" id="gradAngleBox" title="Direction: 0 = top to bottom, 90 = left to right">Angle °<input type="number" id="gradAngle" value="0" step="15"></label></div><div class="grad-btns"><button class="mini" id="gradRev" data-icon="flipH" title="Reverse the colours (first becomes last)">Reverse</button><button class="mini" id="gradEven" data-icon="even" title="Space the colours evenly along the gradient">Space evenly</button><button class="mini" id="gradDel" data-icon="trash" title="Remove the picked colour (a gradient keeps at least two)">Remove</button></div><div class="grad-presets" id="gradPresets"></div></div>
         <div class="grid3" id="patRow" style="display:none"><label class="field">Pattern<select id="patKind"><option value="stripes">Stripes</option><option value="hoops">Hoops</option><option value="diagonal">Diagonal</option><option value="dots">Dots</option><option value="checks">Checks</option><option value="chevron">Chevron</option></select></label><label class="field">Size (mm)<input type="number" id="patSize" value="10" min="2" max="100"></label><label class="field">Background<input type="color" id="patBg" value="#FFFFFF"></label></div>
         <div class="picker-row"><div class="sv" id="sv"><canvas id="svCanvas"></canvas><i id="svDot"></i></div><div class="hue" id="hue"><canvas id="hueCanvas"></canvas><i id="hueDot"></i></div></div>
         <div class="hexrow"><span class="chip" id="hexChip"></span><input id="hexIn" maxlength="7" aria-label="Hex colour"></div>
         <div class="cvals"><label>R<input id="cR" type="number" min="0" max="255"></label><label>G<input id="cG" type="number" min="0" max="255"></label><label>B<input id="cB" type="number" min="0" max="255"></label></div>
         <div class="cvals four"><label>C<input id="cC" type="number" min="0" max="100"></label><label>M<input id="cM" type="number" min="0" max="100"></label><label>Y<input id="cY" type="number" min="0" max="100"></label><label>K<input id="cK" type="number" min="0" max="100"></label></div>
-        <div class="swatches" id="brandSw"></div>
+        <h3>Palette <span class="pal-head"><select id="palPick" aria-label="Palette"></select><button class="ibtn" id="palRename" data-icon="draw" title="Rename this palette" hidden></button><button class="ibtn" id="palDelete" data-icon="trash" title="Delete this palette" hidden></button></span></h3><div class="pal-name" id="palNameRow" hidden><input id="palName" maxlength="40" placeholder="Palette name, e.g. Lions FC" aria-label="Palette name"><button class="btn small" id="palNameOk">Save</button><button class="btn small" id="palNameCancel">Cancel</button></div><div class="pal-name pal-ask" id="palAsk" hidden><span id="palAskText"></span><button class="btn small" id="palAskYes">Delete</button><button class="btn small" id="palAskNo">Cancel</button></div><div class="swatches" id="brandSw"></div>
         <h3>Recent colours</h3><div class="swatches" id="recentSw"></div>
         <h3>Colour harmony <select id="harmonyMode" style="width:auto"><option value="analogous">Analogous</option><option value="complementary">Complementary</option><option value="triadic">Triadic</option><option value="shades">Shades</option></select></h3>
         <div class="harmony" id="harmony"></div>
@@ -227,9 +252,10 @@
   </div>
 
   <footer class="foot">
-    <span class="page">Page 1</span>
+    <div class="page-nav"><button class="ptab-arrow" id="pageLeft" type="button" title="Show the page tabs to the left" hidden>‹</button><div class="page-tabs" id="pageTabs" aria-label="Pages"></div><button class="ptab-arrow" id="pageRight" type="button" title="Show the page tabs to the right" hidden>›</button><button class="ptab add" id="pageAddBtn" type="button" title="Insert a page after this one (Layout > Insert page)">+</button></div>
     <span class="hide-sm">RGB</span><span class="hide-sm">300 DPI</span>
     <select id="pageSize" title="Page size"></select><span id="customSize" class="custom-size" hidden><input id="pageW" type="number" min="0" step="any" aria-label="Page width"> x <input id="pageH" type="number" min="0" step="any" aria-label="Page height"> <span id="pageUnit">mm</span></span><span id="pageInfo" class="hide-sm"></span>
+    <button id="selInfo" class="sel-info" type="button" hidden title="ID of the selected item: click to copy it"></button>
     <select id="units" class="hide-sm" title="Units for the rulers, position, size and page"><option value="mm">mm</option><option value="cm">cm</option><option value="in">inches</option><option value="px">pixels (300 DPI)</option></select>
     <span class="spacer"></span>
     <span id="buildInfo" class="hide-sm build-info"></span>
@@ -257,12 +283,13 @@
   <div class="corel-actions"><form method="dialog"><button>Close</button></form><button class="grad" id="corelPick">Choose SVG or PNG</button></div>
 </dialog>
 <div class="toast" id="toast" role="status"></div>
+<div class="page-menu drop" id="pageMenu" hidden></div>
 <dialog class="help" id="helpDialog">
   <h3>Tools and shortcuts <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
   <div class="help-cols">
     <div><h4>Tools</h4>
       <p><b>Pick</b> V · <b>Shape</b> (nodes) F10 · <b>Freehand</b> F5 · <b>Rectangle</b> F6 · <b>Ellipse</b> F7 · <b>Text</b> F8 · <b>Polygon</b> Y · <b>Star</b> S · <b>Graph paper</b> D · <b>Spiral</b> A · <b>Eraser</b> X · <b>Zoom</b> Z · <b>Pan</b> H · <b>Interactive fill</b> G · <b>Mesh fill</b> M · <b>Eyedropper</b> I (click a colour, then click objects to fill them)</p>
-      <p>Artistic Media (Preset, Brush, Sprayer, Calligraphic, Expression; Painterly Brush in its flyout) is the third button, below Pan. Smart Drawing and LiveSketch are in the Freehand flyout. Click a toolbox button again (or right-click it) to open its flyout: Freehand Pick, Free Transform, Smooth, Smear, Twirl, Attract, Repel, Smudge, Roughen, Knife, Virtual Segment Delete, Bézier, Pen, B-Spline, Polyline, 3-Point Curve, 3-Point Rectangle, 3-Point Ellipse, Complex Star, Impact, basic shapes, Paragraph Text, dimensions (parallel, horizontal or vertical, angular, segment) and the 2-Leg Callout, Blend, Contour, Drop Shadow, Transparency and more.</p></div>
+      <p>Artistic Media (Preset, Brush, Sprayer, Calligraphic, Expression; Painterly Brush and Variable Outline in its flyout) is the third button, below Pan. Smart Drawing and LiveSketch are in the Freehand flyout. Click a toolbox button again (or right-click it) to open its flyout: Freehand Pick, Free Transform, Smooth, Smear, Twirl, Attract, Repel, Smudge, Roughen, Knife, Virtual Segment Delete, Bézier, Pen, B-Spline, Polyline, 3-Point Curve, 3-Point Rectangle, 3-Point Ellipse, Complex Star, Impact, basic shapes, Paragraph Text, dimensions (parallel, horizontal or vertical, angular, segment) and the 2-Leg Callout, connectors (straight, right-angle, rounded right-angle) and Anchor Editing, Blend, Contour, Drop Shadow, Transparency and more.</p></div>
     <div><h4>Curves and nodes</h4>
       <p><b>Convert to curves</b> Ctrl+Q · <b>Outline to object</b> Ctrl+Shift+Q · <b>Combine</b> Ctrl+L · <b>Break apart</b> Ctrl+K</p>
       <p>Shape tool: drag nodes, handles or segments · double-click a curve to add a node, a node to delete it · drag a box to select nodes · Shift+click adds · arrows nudge · Alt+drag a handle breaks symmetry.</p>

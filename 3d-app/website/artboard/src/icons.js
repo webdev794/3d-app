@@ -1,6 +1,7 @@
 // Outline icons (24px grid, Lucide-style paths).
 export const ICONS = {
   select: '<path d="M4 3l7.5 17 2.2-6.8L20.5 11z"/>',
+  even: '<path d="M4 5v14M12 5v14M20 5v14"/><path d="M6.5 12h3M14.5 12h3"/>',
   node: '<path d="M4 18c4-1 6-12 16-12"/><rect x="2" y="16" width="4" height="4"/><rect x="18" y="4" width="4" height="4"/><circle cx="10" cy="11" r="1.6"/>',
   crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
   zoom: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/>',
@@ -121,6 +122,12 @@ export const ICONS = {
   vsd: '<path d="M3 7h18M3 17h18M8 3v18" opacity=".55"/><path d="M8 7l8 0" stroke="#ff5d73" stroke-width="2.4"/><path d="M13 12l5 5M18 12l-5 5"/>',
   dimangle: '<path d="M4 20L20 20M4 20L15 6"/><path d="M11 20a7 7 0 0 0-2.6-5.4"/><path d="M15 16.5h3" opacity=".5"/>',
   dimseg: '<path d="M4 16l5-8h8l3 8"/><path d="M8 4h10M8 2.5v3M18 2.5v3" opacity=".7"/>',
+  innershadow: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M6.5 17V8.5a2 2 0 0 1 2-2H17" stroke-width="3.2" opacity=".5"/>',
+  varline: '<path d="M3 19C9 18 9.5 8 15 6.6c2-.5 4-.2 6-.6-1.5 1.6-3.6 2.8-6 3.2C10.5 10 10 17.5 3 19z" fill="currentColor" stroke="none"/><circle cx="12" cy="10.6" r="1.8"/>',
+  connstraight: '<rect x="2" y="15" width="7" height="7" rx="1.5"/><rect x="15" y="2" width="7" height="7" rx="1.5"/><path d="M9 15l6-6"/>',
+  connright: '<rect x="2" y="15" width="7" height="7" rx="1.5"/><rect x="15" y="2" width="7" height="7" rx="1.5"/><path d="M9 18.5h3.5v-13H15"/>',
+  connround: '<rect x="2" y="15" width="7" height="7" rx="1.5"/><rect x="15" y="2" width="7" height="7" rx="1.5"/><path d="M9 18.5h1a2.5 2.5 0 0 0 2.5-2.5V8A2.5 2.5 0 0 1 15 5.5"/>',
+  anchoredit: '<rect x="5" y="5" width="14" height="14" rx="1.5" opacity=".55"/><path d="M12 2.6l2.4 2.4-2.4 2.4-2.4-2.4zM19 9.6l2.4 2.4-2.4 2.4-2.4-2.4zM12 16.6l2.4 2.4-2.4 2.4-2.4-2.4zM5 9.6l2.4 2.4L5 14.4 2.6 12z" fill="currentColor"/>',
   callout2: '<path d="M4 20l6-8h10"/><path d="M4 20l1.2-3.6 2.4 1.8z" fill="currentColor"/><path d="M13 9h7" opacity=".55"/>',
   media: '<path d="M3 18c3.5-.5 4.5-6 8-6s4 4.5 7 4.5c1.6 0 2.6-1 3-2" stroke-width="3.2"/><path d="M3 18c3.5-.5 4.5-6 8-6s4 4.5 7 4.5" stroke="#061823" stroke-width="1" opacity=".6"/>',
   smartdraw: '<path d="M4 15c0-6 4-10 8-10s8 3 8 8-4 7-8 7c-2.5 0-4-1-4-2.5" stroke-dasharray="2.5 2"/><rect x="7" y="8" width="10" height="8" rx="1"/>',

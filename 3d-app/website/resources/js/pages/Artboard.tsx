@@ -6,7 +6,7 @@ import type { ArtworkLayer } from '../types';
 import { placements, readAsset, type LibraryAsset } from '../components/StudioArtwork';
 
 /** Bump when the editor (media/artboard/index.html) is rebuilt, so browsers load the new copy. */
-const EDITOR_VERSION = '2026-10-15-31';
+const EDITOR_VERSION = '2026-10-16-25';
 
 /**
  * The 3DEEZI Artboard (CorelDRAW-style artwork editor). The editor itself is
@@ -72,5 +72,5 @@ export default function ArtboardPage({ draft, onChange, user, onNotice, requireA
     return () => window.removeEventListener('message', onMessage);
   }, [navigate, onChange, onNotice, user, requireAuth]);
 
-  return <iframe ref={frame} className="artboard-frame" title="3DEEZI Artboard" src={`${baseUrl}/media/artboard/index.html?host=web&v=${EDITOR_VERSION}`} />;
+  return <iframe ref={frame} className="artboard-frame" title="3DEEZI Artboard" allow="fullscreen" allowFullScreen src={`${baseUrl}/media/artboard/index.html?host=web&v=${EDITOR_VERSION}`} />;
 }

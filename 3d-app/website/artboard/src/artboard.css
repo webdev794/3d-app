@@ -24,7 +24,12 @@ svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .drop button:hover{background:#0f2638;color:var(--cyan)}
 .drop button small{color:var(--muted)}
 .drop hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
-.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
+/* Twelve menus on medium screens: tighter menus, no wordmark, a smaller logo and icon-only buttons (their names on
+   hover), so Save, Export and Send stay on the screen. */
+@media(max-width:1640px) and (min-width:901px){.menu>button{padding:8px 7px}.brand span{display:none}}
+@media(max-width:1359px) and (min-width:901px){.top-actions .btn .lbl{display:none}.top-actions .btn{padding-left:10px;padding-right:10px}.menu>button{padding:8px 5px;font-size:13px}.menus{margin-left:2px}.top{gap:8px}.brand img{height:26px}}
+@media(max-width:1080px) and (min-width:901px){.menu>button{padding:6px 3px;font-size:12px}.top-actions{gap:4px}.top-actions .round{width:34px;height:34px}}
 .round{width:40px;height:40px;border-radius:50%;border:1.5px solid #ffffff26;display:grid;place-items:center;background:#071420}
 .round:hover:not(:disabled){border-color:var(--cyan);box-shadow:var(--glow)}
 .round:disabled{opacity:.35;cursor:default}
@@ -107,6 +112,40 @@ svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .hexrow{display:grid;grid-template-columns:34px 1fr;gap:8px;align-items:center}
 .hexrow .chip{width:34px;height:32px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* Gradient editor: the bar, its colour markers, position / angle, ready-made and saved gradients */
+.grad{display:flex;flex-direction:column;gap:10px}
+.grad-bar{position:relative;height:48px;margin:0 9px;touch-action:none;cursor:copy}
+.grad-track{position:absolute;left:0;right:0;top:0;height:24px;border-radius:6px;box-shadow:inset 0 0 0 1px #ffffff38,0 0 0 1px #0006}
+.grad-stops{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none}
+.grad-stop{position:absolute;top:29px;width:18px;height:18px;padding:0;transform:translateX(-50%);border-radius:5px;border:2px solid #fff;background:var(--c);box-shadow:0 0 0 1px #000b;cursor:ew-resize;pointer-events:auto}
+.grad-stop::before{content:"";position:absolute;left:50%;top:-8px;transform:translateX(-50%);border:5px solid transparent;border-top:0;border-bottom:6px solid #fff}
+.grad-stop.on{border-color:var(--cyan);box-shadow:0 0 0 1px #000b,0 0 10px #12e1f088;z-index:1}
+.grad-stop.on::before{border-bottom-color:var(--cyan)}
+.grad-stop.off{opacity:.3}
+.grad-stop:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.grad-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:end}
+.grad-tools input{width:100%;min-width:0}
+.grad-help{margin:-4px 0 0;font-size:11px;line-height:1.4;color:var(--muted)}
+.grad-tools .field[hidden]{display:none}
+.grad-btns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.grad-btns .mini{display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 3px;white-space:nowrap;min-width:0;overflow:hidden}
+.grad-btns .mini svg{width:14px;height:14px;flex:none}
+.grad-btns .mini:disabled{opacity:.4;cursor:default;border-color:#ffffff2e;color:inherit}
+.grad-presets{display:flex;flex-wrap:wrap;gap:6px}
+.grad-presets button{width:40px;height:22px;border-radius:6px;border:2px solid #ffffff22;box-shadow:inset 0 0 0 1px #0004}
+.grad-presets button:hover{border-color:#fff}
+.grad-presets .add{display:grid;place-items:center;background:#06101a;border:1.5px dashed #ffffff44;color:#c9d6e2}
+.grad-presets .add svg{width:14px;height:14px}
+/* Saved palettes */
+.pal-head{display:flex;align-items:center;gap:2px;min-width:0}
+.pal-head select{width:auto;max-width:170px;font-family:Inter,sans-serif;font-size:12px}
+.pal-head .ibtn{width:28px;height:28px}
+.pal-head .ibtn[hidden]{display:none}
+.pal-ask span{font-size:12px;line-height:1.35;color:#ffb3b3}
+#palAskYes{border-color:#ff5a5a;color:#ff8a8a}
+.pal-name{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
+.pal-name[hidden]{display:none}
+.pal-name input{min-width:0}
 .field{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted);letter-spacing:.04em}
 .field input,.field select{font-size:13px}
 .layers{display:flex;flex-direction:column;gap:4px}
@@ -128,7 +167,15 @@ svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .empty{color:var(--muted);font-size:12px;line-height:1.5}
 /* Footer */
 .foot{display:flex;align-items:center;gap:12px;padding:0 14px;background:#050c14;border-top:1px solid var(--line);color:#a9b8c6;font-size:12px}
-.foot .page{padding:5px 14px;border-radius:7px;background:#05202d;color:var(--cyan);border:1.5px solid var(--cyan)}
+.page-nav{display:flex;align-items:center;gap:4px;min-width:0;flex-shrink:1}
+.foot>span,#pageInfo{white-space:nowrap}
+.page-tabs{display:flex;align-items:center;gap:4px;max-width:30vw;overflow-x:auto;scrollbar-width:none;flex-shrink:1;min-width:60px;scroll-behavior:smooth}
+.ptab-arrow{padding:2px 7px;border-radius:6px;border:1px solid var(--line);color:var(--cyan);font-size:16px;line-height:1.1;background:#08131e}.ptab-arrow:disabled{opacity:.3}.ptab-arrow[hidden]{display:none}
+.ptab{padding:4px 11px;border-radius:7px;background:#08131e;color:#a9b8c6;border:1.5px solid var(--line);white-space:nowrap;font-size:12px}
+.ptab:hover{border-color:#3a5568;color:#e8f1f8}.ptab.on{background:#05202d;color:var(--cyan);border-color:var(--cyan)}
+.ptab.add{padding:4px 9px;font-weight:700;color:var(--cyan)}
+.ptab-edit{width:110px;padding:4px 8px;border-radius:7px;font-size:12px}
+.page-menu{position:fixed;display:block;z-index:95;min-width:200px}.page-menu[hidden]{display:none}
 .foot .spacer{flex:1}
 .foot label{display:flex;align-items:center;gap:6px}
 .foot input[type=checkbox]{accent-color:#12E1F0;width:15px;height:15px}
@@ -241,6 +288,28 @@ dialog.help h3{display:flex;justify-content:space-between;align-items:center;mar
 @media (min-width:901px) and (max-height:960px){.tool{height:27px}.tools{gap:1px;padding-top:2px}.tsec{padding:5px 8px 1px}}
 @media (min-width:901px) and (max-height:820px){.tool{height:24px}.tool .i{width:17px;height:17px}.tool .tl{font-size:12px}.tsec{display:none}.tools{padding-top:6px}}
 .build-info{opacity:.6;font-size:11px}
+@media(min-width:901px){.body>.tools{grid-column:1}.body>.stage{grid-column:2}.body>.side{grid-column:3}.hide-tools .tools,.hide-side .side,.hide-props .props,.hide-foot .foot{display:none}.hide-tools .body{grid-template-columns:0 1fr 330px}.hide-side .body{grid-template-columns:158px 1fr 0}.hide-tools.hide-side .body{grid-template-columns:0 1fr 0}.hide-props .app{grid-template-rows:62px 0 1fr 44px}.hide-foot .app{grid-template-rows:62px minmax(52px,auto) 1fr 0}.hide-props.hide-foot .app{grid-template-rows:62px 0 1fr 0}}
+.hide-palette #palette{display:none}
+.quick{display:flex;align-items:center;gap:4px;position:sticky;left:0;z-index:3;background:#07111b}
+.quick-pins{display:contents}
+/* Each part keeps its own row (and column), so a hidden one leaves its row empty instead of the page area moving into it. */
+.app>.top{grid-row:1}.app>.props{grid-row:2}.app>.body{grid-row:3}.app>.foot{grid-row:4}
+.props-hide{margin-left:auto}
+.props-show{display:none;position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:20;align-items:center;gap:6px;padding:2px 12px 4px;border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px;background:#07111bee;color:var(--cyan);font-size:12px}
+.props-show svg{width:16px;height:16px}
+@media(min-width:901px){.hide-props .props-show{display:flex}}
+@media(max-width:900px){.props-hide{display:none}}
+.quick-pop{position:fixed;z-index:80;width:min(560px,calc(100vw - 24px));max-height:min(70vh,560px);overflow:auto;background:#0b1622;border:1px solid #234257;border-radius:12px;box-shadow:0 18px 50px #000c,var(--glow);padding:12px 14px}
+.quick-pop h4{margin:0 0 4px;font-size:14px;color:var(--cyan)}.quick-pop p{margin:0 0 10px;color:var(--muted);font-size:12px}
+.qp-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}.qp-cols h5{margin:0 0 6px;font-size:12px;color:#cfdbe6;text-transform:uppercase;letter-spacing:.08em}
+.qp-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;font-size:13px;cursor:pointer}.qp-row:hover{background:#0f2638}.qp-row svg{width:16px;height:16px;flex:none}
+@media(max-width:600px){.qp-cols{grid-template-columns:1fr}}
+/* Full-page preview (F9): only the page, on the whole screen; a click or a key brings everything back. */
+.previewing .top,.previewing .props,.previewing .tools,.previewing .side,.previewing .foot,.previewing #palette,.previewing .ruler,.previewing .corner,.previewing .props-show,.previewing .quick-pop,.previewing #hint{display:none!important}
+.previewing .app{grid-template-rows:0 0 1fr 0!important}.previewing .body{grid-template-columns:0 1fr 0!important}
+.previewing .canvas-wrap{left:0!important;top:0!important;right:0!important;bottom:0!important;cursor:pointer}
+.sel-info{background:none;border:1px solid var(--line);border-radius:6px;color:var(--cyan);font:600 12px Inter,sans-serif;padding:3px 8px;cursor:pointer;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-info:hover{border-color:var(--cyan)}
 /* Property bar: object buttons on their own row; labelled To front / To back */
 .rowbreak{display:none}
 @media(min-width:901px){.props .rowbreak{display:block;flex-basis:100%;height:0}}
@@ -268,3 +337,6 @@ dialog.help h3{display:flex;justify-content:space-between;align-items:center;mar
 /* The palette sits under the drawing area (as CorelDRAW); the page, rulers and hints stay above it */
 .canvas-wrap{bottom:30px}.ruler.v{height:calc(100% - 54px)}.hint{bottom:44px}
 @media (max-width:900px){.palette{bottom:66px}.canvas-wrap{bottom:96px}.hint{bottom:110px}}
+/* Window > Colour palette off: the page area takes the palette's strip too. */
+.hide-palette .canvas-wrap{bottom:0}.hide-palette .ruler.v{height:calc(100% - 24px)}.hide-palette .hint{bottom:14px}
+@media (max-width:900px){.hide-palette .canvas-wrap{bottom:66px}.hide-palette .hint{bottom:80px}}

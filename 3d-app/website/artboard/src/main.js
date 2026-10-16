@@ -27,6 +27,7 @@ import * as G from './geomcore.js';
 import * as AM from './media.js';
 import * as SK from './sketch.js';
 import * as PB from './paint.js';
+import * as C from './connect.js';
 
 // ===================================================================
 // Setup
@@ -90,7 +91,7 @@ page.isPage = true;
 canvas.add(page);
 
 const state = {
-  tool: 'select', fill: '#12E1F0', stroke: '#000000', strokeWidth: 0, dash: 'solid', opacity: 1, target: 'fill', snap: true, grid: false, recent: [], saved: [], gradient: null, pattern: null, units: 'mm',
+  tool: 'select', fill: '#12E1F0', stroke: '#000000', strokeWidth: 0, dash: 'solid', opacity: 1, target: 'fill', snap: true, grid: false, recent: [], saved: [], palettes: [], palette: '', gradients: [], gradient: null, pattern: null, units: 'mm',
   // What Snap snaps to (the Snap tick-box in the status bar switches snapping on and off).
   snapTo: { grid: true, guides: true, objects: true, nodes: true, page: true },
   // Text settings: used for the next text, and edited from the text bar.
@@ -102,18 +103,70 @@ const state = {
   smart: { level: 'medium', smooth: 50 },
   live: { timer: 1, near: 15, smooth: 50 },
   paint: { brush: 'oil', size: 10, flow: 80 },
+  conn: { radius: 5, arrows: 'none' },
   media: { mode: 'preset', width: 6, smooth: 50, preset: 'taper', brush: 'dry', spray: 'stars', spacing: 12, sizeVar: 30, rotate: 'random', angle: 45 },
   fx: {
-    blendSteps: 8, contourDir: 'outside', contourSteps: 1, contourOffset: 3, contourColour: '#000000', shadowX: 2, shadowY: 2, shadowBlur: 4, shadowColour: '#000000', shadowOpacity: 50, transp: 'uniform', transpValue: 50, transpAngle: 0,
+    blendSteps: 8, contourDir: 'outside', contourSteps: 1, contourOffset: 3, contourColour: '#000000', shadowX: 2, shadowY: 2, shadowBlur: 4, shadowColour: '#000000', shadowOpacity: 50, transp: 'uniform', transpValue: 50, transpAngle: 0, transpMerge: 'normal',
     distort: 'zipper', zipSize: 2, zipTeeth: 30, twist: 90, push: 40, envelope: 'arcUp', envAmount: 20,
     extX: 6, extY: 6, extColour: '#1E7BFF', blockX: 3, blockY: 3, blockColour: '#000000', meshSize: 40, meshStrength: 85,
+    innerX: 2, innerY: 2, innerBlur: 3, innerOpacity: 60, innerColour: '#000000', innerMerge: 'multiply',
   },
 };
-try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
-const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint })); } catch { /* private mode */ } };
+try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
+const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, palettes: state.palettes, palette: state.palette, gradients: state.gradients, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint, conn: state.conn, ui: state.ui, quick: state.quick })); } catch { /* private mode */ } };
 
 const toast = (text, ms = 2800) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), ms); };
 const hint = (text) => { const h = $('hint'); h.textContent = text || ''; h.classList.toggle('show', !!text); };
+
+// ===================================================================
+// Drawing safety: one broken object must never stop the whole page drawing. A failure part-way through an object
+// (a gradient or picture with bad numbers) would also leave the drawing transformed, so everything after it looks
+// zoomed in and the page stops answering Zoom, Pan and Pick (until the object is fixed: even after a reload, since
+// the page is saved). Broken fills draw as their first colour; any other failure skips just that object.
+// ===================================================================
+let brokenToast = 0;
+function reportBroken(o, err) {
+  if (o) o.__broken = true;
+  console.warn('Artboard: an object could not be drawn', o?.num, o?.name, err);
+  if (Date.now() - brokenToast < 8000) return;
+  brokenToast = Date.now();
+  setTimeout(() => toast(`${o?.num != null ? `#${o.num} ` : ''}${o?.name ?? 'An object'} could not be drawn and was skipped: delete it or press Undo (Help > Save page for support sends it to us)`, 7000));
+}
+for (const K of [Gradient, Pattern]) {
+  const live = K.prototype.toLive;
+  K.prototype.toLive = function (ctx) {
+    try { return live.call(this, ctx); } catch (err) { console.warn('Artboard: a fill could not be drawn', err); return this.colorStops?.[0]?.color ?? 'rgba(0,0,0,0)'; }
+  };
+}
+{
+  const base = Object.getPrototypeOf(Rect.prototype), render = base.render;
+  base.render = function (ctx) {
+    const m = ctx.getTransform();
+    try { render.call(this, ctx); }
+    catch (err) {
+      // Undo whatever the broken drawing left behind (unmatched saves), then carry on with the next object.
+      for (let i = 0; i < 12; i++) { const t = ctx.getTransform(); if (t.a === m.a && t.b === m.b && t.c === m.c && t.d === m.d && t.e === m.e && t.f === m.f) break; ctx.restore(); }
+      reportBroken(this, err);
+    }
+  };
+}
+/** A page being opened: fills with bad numbers are made again from their settings (or become a plain colour). */
+function repairObject(o) {
+  let fixed = 0;
+  const walk = (x) => {
+    if (x.gradSpec && (x.gradSpec instanceof Gradient || ('type' in x.gradSpec && !x.gradSpec.kind)) && x.fill?.colorStops?.length >= 2) x.gradSpec = specFromFill(x.fill, x.width, x.height);
+    const g = x.fill;
+    if (g && typeof g === 'object' && g.coords && !Object.values(g.coords).every((v) => v == null || Number.isFinite(v))) {
+      try { x.set('fill', x.gradSpec ? gradientFor(x) : g.colorStops?.[0]?.color ?? '#999999'); } catch { x.set('fill', g.colorStops?.[0]?.color ?? '#999999'); }
+      if (x.fill?.coords && !Object.values(x.fill.coords).every((v) => v == null || Number.isFinite(v))) x.set('fill', x.gradSpec?.from ?? '#999999');
+      fixed++;
+    }
+    for (const k of ['left', 'top', 'scaleX', 'scaleY', 'angle']) if (x[k] != null && !Number.isFinite(x[k])) { x[k] = k.startsWith('scale') ? 1 : 0; fixed++; }
+    if (x.type === 'group') x.getObjects().forEach(walk);
+  };
+  walk(o);
+  return fixed;
+}
 
 // ===================================================================
 // Viewport: fit, zoom, pan, rulers, grid
@@ -126,16 +179,23 @@ function resize() {
 }
 function fit() {
   const pad = 40, w = wrap.clientWidth - pad * 2, h = wrap.clientHeight - pad * 2;
+  if (w < 20 || h < 20) return; // no room yet (the page area is being laid out)
   const z = Math.min(w / page.width, h / page.height);
   canvas.setViewportTransform([z, 0, 0, z, (wrap.clientWidth - page.width * z) / 2, (wrap.clientHeight - page.height * z) / 2]);
   afterZoom();
 }
 function zoomAt(z, point) {
+  // A view holding a bad number (it would stick for good) shows the whole page again; a bad zoom alone (0 / 0 from
+  // a pinch whose fingers start together) is ignored.
+  if (!canvas.viewportTransform.every(Number.isFinite) || !(canvas.getZoom() > 0)) { canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); fit(); return; }
+  if (!Number.isFinite(z) || z <= 0) return;
   z = Math.min(40, Math.max(0.05, z));
   canvas.zoomToPoint(point ?? new Point(wrap.clientWidth / 2, wrap.clientHeight / 2), z);
   afterZoom();
 }
 function afterZoom() {
+  // Should the view ever hold a bad number, show the whole page again instead of a broken view.
+  if (!canvas.viewportTransform.every(Number.isFinite) || !(canvas.getZoom() > 0)) { canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); fit(); return; }
   const pct = Math.round(canvas.getZoom() * 100 / baseZoom());
   $('zoomPct').value = String([25, 50, 75, 100, 150, 200, 400].includes(pct) ? pct : 'fit');
   $('zoomRange').value = String(Math.round(Math.log2(canvas.getZoom() / baseZoom()) * 100));
@@ -172,11 +232,14 @@ const pinchDist = () => { const [a, b] = [...touches.values()]; return Math.hypo
 addEventListener('pointermove', (e) => {
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (!panning) return;
+  // The mouse button was let go where the page didn't hear it (outside the window): stop panning.
+  if (e.pointerType === 'mouse' && e.buttons === 0 && !spaceDown && state.tool !== 'pan') { panning = null; canvas.selection = PICK_LIKE.has(state.tool); return; }
   const vpt = canvas.viewportTransform;
   if (touches.size === 2) {
     const [a, b] = [...touches.values()], mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     const r = wrap.getBoundingClientRect();
-    zoomAt(panning.zoom * pinchDist() / panning.dist, new Point(mid.x - r.left, mid.y - r.top));
+    if (panning.dist > 0) zoomAt(panning.zoom * pinchDist() / panning.dist, new Point(mid.x - r.left, mid.y - r.top));
+    else panning.dist = pinchDist(); // a second finger joined a pan: pinch from here
     vpt[4] += mid.x - panning.x; vpt[5] += mid.y - panning.y;
     panning.x = mid.x; panning.y = mid.y;
   } else {
@@ -202,10 +265,11 @@ function drawRulers() {
     const z = canvas.getZoom(), off = horizontal ? canvas.viewportTransform[4] : canvas.viewportTransform[5];
     // Numbers in the document units, with labelled ticks at least 40 px apart.
     const pxPerUnit = z * MM * unit().mm;
+    if (!(pxPerUnit > 0) || !Number.isFinite(off)) continue;
     const step = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000].find((s) => s * pxPerUnit >= 40) ?? 25000;
     const len = horizontal ? r.width : r.height;
     const first = Math.floor(-off / pxPerUnit / step) * step * 5;
-    for (let i = first / step; i * (step / 5) * pxPerUnit + off < len; i++) {
+    for (let i = first / step, n = 0; i * (step / 5) * pxPerUnit + off < len && n < 5000; i++, n++) {
       const v = i * (step / 5), p = v * pxPerUnit + off, major = i % 5 === 0;
       g.beginPath();
       if (horizontal) { g.moveTo(p, 24); g.lineTo(p, major ? 10 : 18); } else { g.moveTo(24, p); g.lineTo(major ? 10 : 18, p); }
@@ -220,13 +284,14 @@ function drawRulers() {
 }
 const GRID = 5 * MM;  // grid step: Snap to grid and the drawn grid
 let exporting = false;  // exports must not include the grid, guidelines or tool overlays
+let previewState = null; // Full-page preview (F9): set while only the page is shown
 // Optional grid: drawn as part of the white page, so it sits on the page and under the
 // artwork, and can't be clicked. 5 mm steps (what Snap to grid uses), stronger every 10 mm.
 page.objectCaching = false;
 const renderPage = page._render.bind(page);
 page._render = (ctx) => {
   renderPage(ctx);
-  if (!state.grid || exporting) return;
+  if (!state.grid || exporting || previewState) return;
   const z = canvas.getZoom(), w = page.width, h = page.height, fine = GRID * z >= 4;
   ctx.save();
   ctx.shadowColor = 'transparent';
@@ -260,7 +325,7 @@ function strokeDash(width) {
 function paint(o) {
   const w = state.strokeWidth * MM;
   o.set({ fill: state.fill, stroke: w ? state.stroke : null, strokeWidth: w, strokeDashArray: w ? strokeDash(w) : null, opacity: state.opacity, strokeUniform: true });
-  if (state.gradient) { o.gradSpec = { ...state.gradient }; o.set('fill', gradientFor(o)); }
+  if (state.gradient) { o.gradSpec = cloneGrad(state.gradient); o.set('fill', gradientFor(o)); }
   else if (state.pattern) { o.patSpec = { ...state.pattern, ink: state.fill }; o.set('fill', patternFor(o.patSpec)); }
   return o;
 }
@@ -286,12 +351,49 @@ function paintLine(o) {
   o.set({ fill: null, stroke: state.strokeWidth ? state.stroke : state.fill, strokeWidth: Math.max(0.25, state.strokeWidth || 1.5) * MM, strokeDashArray: null, opacity: state.opacity, strokeUniform: true, strokeLineCap: 'round', strokeLineJoin: 'round' });
   return o;
 }
+// Gradient settings (gradSpec) say linear or radial as "kind": saved as "type", Fabric would take them for one of its
+// own gradients when a page opens (or on Undo) and make them empty. Pages saved before are put right as they open.
+const gradKind = (spec) => ((spec?.kind ?? spec?.type) === 'radial' ? 'radial' : 'linear');
+/** Gradient settings worked out from the fill itself (settings saved before, made empty when the page opened). */
+function specFromFill(fill, w = 100, h = 100) {
+  const stops = fill.colorStops.map((s) => ({ offset: Number(s.offset) || 0, color: s.color })).sort((a, b) => a.offset - b.offset), c = fill.coords ?? {};
+  const kind = fill.type === 'radial' ? 'radial' : 'linear', fade = stops.length === 2 && /^rgba\(/i.test(stops[1].color) && !/^rgba\(/i.test(stops[0].color);
+  const angle = kind === 'linear' && w && h ? Math.round((Math.atan2((c.x2 - c.x1) / w, (c.y2 - c.y1) / h) * 180) / Math.PI) || 0 : 0;
+  return { from: stops[0].color, to: stops.at(-1).color, ...(fade ? {} : { stops }), angle, kind, ...(fade ? { fade: true } : {}) };
+}
+/** Saved objects (a page opening, Undo, another page): gradient settings saved with "type" get "kind" before the objects are made. */
+function fixGradJSON(list) {
+  const walk = (o) => {
+    if (!o || typeof o !== 'object') return;
+    const g = o.gradSpec;
+    if (g && typeof g === 'object') {
+      const f = o.fill;
+      if (Array.isArray(g.colorStops) && f && typeof f === 'object' && Array.isArray(f.colorStops) && f.colorStops.length >= 2) o.gradSpec = specFromFill(f, o.width, o.height);
+      else if ('type' in g) { g.kind ??= g.type === 'radial' ? 'radial' : 'linear'; delete g.type; }
+    }
+    if (Array.isArray(o.objects)) o.objects.forEach(walk);
+    if (o.clipPath) walk(o.clipPath);
+  };
+  (list ?? []).forEach(walk);
+  return list ?? [];
+}
+/** A gradient's colours as stops in order (offset 0 = start, 1 = end); gradients from before have just from and to. */
+function gradStops(spec) {
+  const s = Array.isArray(spec?.stops) && spec.stops.length >= 2 ? spec.stops : [{ offset: 0, color: spec?.from ?? '#000000' }, { offset: 1, color: spec?.to ?? '#FFFFFF' }];
+  return s.map((x) => ({ offset: Math.min(1, Math.max(0, Number(x.offset) || 0)), color: x.color })).sort((a, b) => a.offset - b.offset);
+}
+/** A copy of a gradient's settings with its own stops, so changing one object's gradient never changes another's. */
+function cloneGrad(spec) { return spec ? { ...spec, ...(Array.isArray(spec.stops) ? { stops: spec.stops.map((x) => ({ ...x })) } : {}) } : spec; }
+/** The stops as CSS ("#E10600 0%, #000000 100%"), for the gradient bar and chips. */
+const cssStops = (spec) => gradStops(spec).map((s) => `${s.color} ${+(s.offset * 100).toFixed(1)}%`).join(', ');
+/** A gradient in words for the assistant: "#E10600 0% → #FFB81C 40% → #000000 100%, 90°". */
+const gradText = (spec) => `${gradStops(spec).map((s) => `${hexOf(s.color) ?? s.color} ${Math.round(s.offset * 100)}%`).join(' → ')}${gradKind(spec) === 'radial' ? '' : `, ${spec.angle ?? 0}°`}`;
 function gradientFor(o, spec = o.gradSpec ?? state.gradient) {
-  const { from, to, angle, type } = spec;
+  const angle = spec.angle ?? 0, type = gradKind(spec), colorStops = gradStops(spec);
   const w = o.width || 100, h = o.height || 100;
-  if (type === 'radial') return new Gradient({ type: 'radial', gradientUnits: 'pixels', coords: { x1: w / 2, y1: h / 2, r1: 0, x2: w / 2, y2: h / 2, r2: Math.max(w, h) / 2 }, colorStops: [{ offset: 0, color: from }, { offset: 1, color: to }] });
+  if (type === 'radial') return new Gradient({ type: 'radial', gradientUnits: 'pixels', coords: { x1: w / 2, y1: h / 2, r1: 0, x2: w / 2, y2: h / 2, r2: Math.max(w, h) / 2 }, colorStops });
   const a = (angle * Math.PI) / 180;
-  return new Gradient({ type: 'linear', gradientUnits: 'pixels', coords: { x1: w / 2 - (Math.sin(a) * w) / 2, y1: h / 2 - (Math.cos(a) * h) / 2, x2: w / 2 + (Math.sin(a) * w) / 2, y2: h / 2 + (Math.cos(a) * h) / 2 }, colorStops: [{ offset: 0, color: from }, { offset: 1, color: to }] });
+  return new Gradient({ type: 'linear', gradientUnits: 'pixels', coords: { x1: w / 2 - (Math.sin(a) * w) / 2, y1: h / 2 - (Math.cos(a) * h) / 2, x2: w / 2 + (Math.sin(a) * w) / 2, y2: h / 2 + (Math.cos(a) * h) / 2 }, colorStops });
 }
 const refill = (o) => { if (o.gradSpec && o.fill && typeof o.fill === 'object') o.set('fill', gradientFor(o)); };
 const STYLE_KEYS = ['fill', 'stroke', 'strokeWidth', 'strokeDashArray', 'strokeLineCap', 'strokeLineJoin', 'opacity', 'shadow', 'gradSpec', 'visible'];
@@ -313,11 +415,14 @@ canvas.on('object:moving', (e) => {
 // ===================================================================
 // History (undo / redo) and autosave
 // ===================================================================
-const EXTRA = ['name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell', 'pcFrame', 'mediaSpec', 'liveSpec', 'paintSpec'];
+const EXTRA = ['name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell', 'pcFrame', 'mediaSpec', 'liveSpec', 'paintSpec', 'uid', 'connSpec', 'anchors', 'varSpec', 'num', 'fxInner', 'fxContour', 'fxStep', 'nodeTypes'];
 let history = [], future = [], restoring = false, muted = 0, saveTimer = null;
-const snapshot = () => JSON.stringify({ page: pageSize, guides: guides.get(), objects: userObjects().map((o) => o.toObject(EXTRA)) });
+let pages = [{ name: 'Page 1', objects: null }], pageIndex = 0, otherNums = new Set(); // see Pages below
+// objects: the page on screen; with more pages, pages holds every page's name and the others' objects.
+const snapshot = () => JSON.stringify({ page: pageSize, guides: guides.get(), objects: userObjects().map((o) => o.toObject(EXTRA)), ...(pages.length > 1 ? { pages: pages.map((p, i) => ({ name: p.name, objects: i === pageIndex ? null : p.objects })), current: pageIndex } : pages[0].name !== 'Page 1' ? { pageName: pages[0].name } : {}) });
 function record() {
   if (restoring || muted) return;
+  syncConnectors(); // connectors follow objects moved by any command
   const snap = snapshot();
   if (history.at(-1) === snap) return;
   history.push(snap);
@@ -336,12 +441,22 @@ async function restore(snap) {
   restoring = true;
   nodes.end(); toolTargets = [];
   const data = JSON.parse(snap);
+  // The selected objects stay selected (as in CorelDRAW), so the Colour and Properties tabs show them as they are now.
+  const keep = state.tool === 'select' ? canvas.getActiveObjects().map((o) => o.num).filter((n) => n != null) : [];
   for (const o of userObjects()) canvas.remove(o);
+  pages = Array.isArray(data.pages) && data.pages.length ? data.pages.map((p, i) => ({ name: String(p?.name || `Page ${i + 1}`), objects: p?.objects ?? [] })) : [{ name: data.pageName || 'Page 1', objects: null }];
+  pageIndex = Math.max(0, Math.min(pages.length - 1, Number(data.current) || 0));
+  pages[pageIndex].objects = null; // it is the page on screen
+  updateOtherNums(); renderPageTabs();
   setPage(data.page ?? pageSize, false);
   guides.set(data.guides);
-  const objects = await util.enlivenObjects(data.objects ?? []);
-  for (const o of objects) { pruneEmptyParts(o); fitPowerClips(o); style(o); canvas.add(o); }
+  const objects = await util.enlivenObjects(fixGradJSON(data.objects));
+  let repaired = 0;
+  for (const o of objects) { pruneEmptyParts(o); fitPowerClips(o); repaired += repairObject(o); style(o); canvas.add(o); }
+  if (repaired) setTimeout(() => toast(`${repaired} broken setting${repaired > 1 ? 's were' : ' was'} repaired on this page (a fill or position with bad numbers)`, 6000));
   canvas.discardActiveObject();
+  const again = keep.length ? userObjects().filter((o) => keep.includes(o.num) && o.selectable !== false && o.visible) : [];
+  if (again.length) canvas.setActiveObject(again.length > 1 ? new ActiveSelection(again, { canvas }) : again[0]);
   canvas.requestRenderAll();
   restoring = false;
   applyToolFlags();
@@ -359,7 +474,7 @@ function syncHistory() {
 }
 async function undo() { if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); }
 async function redo() { if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); }
-for (const ev of ['object:added', 'object:removed', 'object:modified']) canvas.on(ev, () => { if (muted) return; refreshLayers(); record(); });
+for (const ev of ['object:added', 'object:removed', 'object:modified']) canvas.on(ev, (e) => { if (ev === 'object:added' && e?.target) ownCopies(e.target); if (muted) return; refreshLayers(); record(); });
 
 const guides = createGuides({
   canvas, wrap, rulerH: $('rulerH'), rulerV: $('rulerV'), page,
@@ -374,6 +489,8 @@ const guides = createGuides({
 // ===================================================================
 function replaceObject(old, ...neu) {
   const i = canvas.getObjects().indexOf(old);
+  // The object that takes its place keeps its ID (#12) and stays attached to its connectors.
+  if (neu[0] && neu[0] !== old) { if (old.num != null && neu[0].num == null) neu[0].num = old.num; if (old.uid && !neu[0].uid) neu[0].uid = old.uid; }
   canvas.remove(old);
   canvas.insertAt(Math.max(1, i), ...neu);
 }
@@ -441,7 +558,8 @@ const nodes = createNodeEditor({
   toast,
   toPath: (o) => { const p = toPathObject(o); if (p) delete p.shapeSpec; return p; },
   objectAt: (p) => objectAt(p),
-  commit: (o) => { delete o.shapeSpec; canvas.fire('object:modified', { target: o }); },
+  // Edited nodes make a shape a plain curve (a connector too: it no longer follows its objects).
+  commit: (o) => { delete o.shapeSpec; delete o.connSpec; canvas.fire('object:modified', { target: o }); },
   remove: (o) => canvas.remove(o),
   refill,
   extract: (o, d) => { const p = makePath(d, o); p.name = `${o.name} part`; batch(() => canvas.insertAt(canvas.getObjects().indexOf(o) + 1, p)); },
@@ -464,7 +582,7 @@ const TOOL_GROUPS = [
   ['crop', [['crop', 'Crop', 'crop'], ['knife', 'Knife', 'knife'], ['vsd', 'Virtual Segment Delete', 'vsd'], ['eraser', 'Eraser', 'eraser', 'X']]],
   ['zoom', [['zoom', 'Zoom', 'zoom', 'Z']]],
   ['curve', [['draw', 'Freehand', 'freehand', 'F5'], ['line', '2-Point Line', 'line'], ['bezier', 'Bézier', 'bezier'], ['pen', 'Pen', 'pen'], ['bspline', 'B-Spline', 'bspline'], ['polyline', 'Polyline', 'polyline'], ['curve3', '3-Point Curve', 'curve3'], ['smartdraw', 'Smart Drawing', 'smartdraw'], ['livesketch', 'LiveSketch', 'livesketch']]],
-  ['art', [['media', 'Artistic Media', 'media'], ['paint', 'Painterly Brush', 'paintbrush']]],
+  ['art', [['media', 'Artistic Media', 'media'], ['paint', 'Painterly Brush', 'paintbrush'], ['varline', 'Variable Outline', 'varline']]],
   ['smart', [['smartfill', 'Smart Fill', 'smartfill']]],
   ['rect', [['rect', 'Rectangle', 'rect', 'F6'], ['rect3', '3-Point Rectangle', 'rect3']]],
   ['ellipse', [['ellipse', 'Ellipse', 'ellipse', 'F7'], ['ellipse3', '3-Point Ellipse', 'ellipse3']]],
@@ -472,12 +590,13 @@ const TOOL_GROUPS = [
   ['shapes', [['shape:basic', 'Basic Shapes', 'shapes'], ['shape:arrow', 'Arrow Shapes', 'arrowshape'], ['shape:banner', 'Banner Shapes', 'banner'], ['shape:callout', 'Callout Shapes', 'callout'], ['shape:badge', 'Sport Badges', 'badge']]],
   ['text', [['text', 'Text', 'text', 'F8'], ['ptext', 'Paragraph Text', 'ptext']]],
   ['dim', [['dimP', 'Parallel Dimension', 'dimension'], ['dimHV', 'Horizontal or Vertical Dimension', 'dimhv'], ['dimA', 'Angular Dimension', 'dimangle'], ['dimS', 'Segment Dimension', 'dimseg'], ['callout2', '2-Leg Callout', 'callout2']]],
+  ['conn', [['connS', 'Straight Line Connector', 'connstraight'], ['connR', 'Right-Angle Connector', 'connright'], ['connRR', 'Rounded Right-Angle Connector', 'connround'], ['anchor', 'Anchor Editing', 'anchoredit']]],
   ['table', [['table', 'Table', 'table']]],
   // Each effect has its own always-visible button (client spec: Transparency and Contour must be visible).
   ['transparency', [['transparency', 'Transparency', 'transparency']]],
   ['contour', [['contour', 'Contour', 'contour']]],
   ['blend', [['blend', 'Blend', 'blend']]],
-  ['shadow', [['shadow', 'Drop Shadow', 'shadow']]],
+  ['shadow', [['shadow', 'Drop Shadow', 'shadow'], ['inner', 'Inner Shadow', 'innershadow']]],
   ['distort', [['distort', 'Distort', 'distort']]],
   ['envelope', [['envelope', 'Envelope', 'envelope']]],
   ['extrude', [['extrude', 'Extrude', 'extrude']]],
@@ -488,21 +607,23 @@ const TOOL_GROUPS = [
   ['import', [['image', 'Import Image', 'image', 'Ctrl+I']]],
 ];
 /** Shorter names where the full one doesn't fit the toolbox (flyouts show the full name). */
-const SHORT_LABEL = { dimP: 'Dimension', dimHV: 'H / V Dimension', eyedropper: 'Eyedropper', attrdrop: 'Attr. Eyedropper', lasso: 'Freehand Pick', rect3: '3-Point Rect.', ellipse3: '3-Point Ellipse', ptext: 'Paragraph Text', freetx: 'Free Transform', vsd: 'Segment Delete', dimA: 'Angular Dim.', dimS: 'Segment Dim.', callout2: '2-Leg Callout' };
+const SHORT_LABEL = { dimP: 'Dimension', dimHV: 'H / V Dimension', eyedropper: 'Eyedropper', attrdrop: 'Attr. Eyedropper', lasso: 'Freehand Pick', rect3: '3-Point Rect.', ellipse3: '3-Point Ellipse', ptext: 'Paragraph Text', freetx: 'Free Transform', vsd: 'Segment Delete', dimA: 'Angular Dim.', dimS: 'Segment Dim.', callout2: '2-Leg Callout', connS: 'Connector', connR: 'Right-Angle', connRR: 'Rounded Conn.', anchor: 'Anchor Editing', varline: 'Var. Outline' };
 /** Toolbox sections, top to bottom (groups with several tools open a flyout). */
 const TOOL_SECTIONS = [
   // Artistic Media right below Pan (user 2026-10-15).
   ['Select', ['pick', 'pan', 'art', 'shape', 'crop', 'zoom']],
   ['Draw', ['curve', 'smart']],
-  ['Shapes & text', ['rect', 'ellipse', 'object', 'shapes', 'text', 'table', 'dim', 'import']],
+  ['Shapes & text', ['rect', 'ellipse', 'object', 'shapes', 'text', 'table', 'dim', 'conn', 'import']],
   ['Effects', ['fill', 'meshfill', 'transparency', 'contour', 'blend', 'shadow', 'blockshadow', 'extrude', 'distort', 'envelope', 'eyedrop']],
 ];
 const TOOLS = {};
 for (const [group, tools] of TOOL_GROUPS) for (const [id, label, ic, key] of tools) TOOLS[id] = { id, label, icon: ic, key, group };
 const groupCurrent = {};
-const PICK_LIKE = new Set(['select', 'blend', 'contour', 'shadow', 'transparency', 'distort', 'envelope', 'extrude', 'blockshadow']);
+const PICK_LIKE = new Set(['select', 'blend', 'contour', 'shadow', 'inner', 'transparency', 'distort', 'envelope', 'extrude', 'blockshadow']);
 const SCULPT = new Set(['smoothb', 'smear', 'twirl', 'roughen', 'attract', 'repel']);
-const OWN_MOUSE = new Set(['node', 'pan', 'knife', 'eraser', 'smudge', 'lasso', 'freetx', 'vsd', 'media', 'smartdraw', 'livesketch', 'paint', ...SCULPT]);
+const CONN_TOOLS = { connS: 'straight', connR: 'right', connRR: 'rounded' };
+const CONN_ALL = new Set([...Object.keys(CONN_TOOLS), 'anchor']);
+const OWN_MOUSE = new Set(['node', 'pan', 'knife', 'eraser', 'smudge', 'lasso', 'freetx', 'vsd', 'media', 'smartdraw', 'livesketch', 'paint', 'varline', ...SCULPT, ...CONN_ALL]);
 const PATH_TOOLS = new Set(['bezier', 'pen', 'polyline', 'bspline']);
 const BOX_TOOLS = new Set(['rect', 'ellipse', 'polygon', 'star', 'cstar', 'spiral', 'impact', 'graph', 'table', 'line', 'crop', 'dimP', 'dimHV', 'ptext']);
 const TOOL_HINTS = {
@@ -521,7 +642,7 @@ const TOOL_HINTS = {
   star: 'Drag to draw a star (Shift = equal sides)', cstar: 'Drag to draw a complex star', graph: 'Drag to draw graph paper (a group of rectangles)', spiral: 'Drag to draw a spiral',
   text: 'Click on the page to add text', dimP: 'Drag between two points to measure them', dimHV: 'Drag to add a horizontal or vertical dimension',
   blend: 'Select two shapes, set the steps, then Apply blend', contour: 'Select a shape or text, set the contour, then Apply contour',
-  shadow: 'Select objects, set the shadow, then Apply', transparency: 'Select objects, choose the transparency type and amount',
+  shadow: 'Select objects, set the shadow, then Apply', inner: 'Select objects, set the inner shadow (X, Y = which way it falls, Feather, Opacity, Colour), then Apply', transparency: 'Select objects, choose the transparency type and amount',
   eyedropper: 'Click any colour on the page to pick it (shapes, text or images), then click objects to fill them', attrdrop: 'Click an object to copy its fill, outline and effects, then click other objects to apply them · Esc to stop',
   fill: 'Click an object to fill it with the current colour or gradient', 'shape:basic': 'Pick a shape on the property bar, then drag on the page',
   table: 'Drag to draw a table (rows and columns on the property bar) · type the cell text in Properties',
@@ -547,10 +668,18 @@ const TOOL_HINTS = {
   dimA: 'Click the corner of the angle, then a point on each of its two sides',
   dimS: 'Point at a side of a shape or a line: it lights up with its length · click to add the measurement (straight from node to node)',
   callout2: 'Click the point to label, click where the line bends, click where the text goes, then type',
+  varline: 'Press on the outline of a shape or line and drag away from it to widen it there, towards it to narrow it · each press adds a width point · double-click a point to delete it · profiles on the property bar',
+  connS: 'Drag from an anchor of one object (the small diamonds) to another: the line stays attached when they move · ends off an anchor stay where you drop them',
+  connR: 'Drag from an anchor of one object to another: a line with right-angle bends that stays attached when they move',
+  connRR: 'Drag from an anchor of one object to another: right-angle bends with rounded corners (Corner radius on the property bar)',
+  anchor: 'Drag an anchor (diamond) to move it · double-click an object to add an anchor, an anchor to delete it · click a connector, then drag its purple end onto another anchor to re-attach it',
 };
 for (const k of ['shape:arrow', 'shape:banner', 'shape:callout', 'shape:badge']) TOOL_HINTS[k] = TOOL_HINTS['shape:basic'];
 
 function renderToolbox() {
+  // Pick and Pan are also on the property bar (after Keep proportions), always in reach.
+  $('quickPick').classList.toggle('on', state.tool === 'select'); $('quickPan').classList.toggle('on', state.tool === 'pan');
+  renderQuick();
   const nav = $('tools'), groups = new Map(TOOL_GROUPS);
   nav.innerHTML = '';
   for (const [section, gids] of TOOL_SECTIONS) {
@@ -560,6 +689,95 @@ function renderToolbox() {
     for (const gid of gids) nav.append(toolButton(gid, groups.get(gid)));
   }
 }
+// Full-page preview (CorelDRAW's Full-Screen Preview, F9): everything else hidden, the page fitted to the whole
+// screen; a click or any key brings the menus and settings back as they were.
+let previewEnding = 0;
+function startPreview() {
+  if (previewState) return;
+  closeMenus(); $('quickPop').hidden = true;
+  canvas.discardActiveObject();
+  previewState = { vpt: canvas.viewportTransform.slice() };
+  document.body.classList.add('previewing');
+  canvas.selection = false; canvas.skipTargetFind = true;
+  drawTop();
+  setTimeout(() => { resize(); fit(); }, 30);
+  // The whole screen where the browser allows it (the website's frame does; elsewhere the window is used).
+  document.documentElement.requestFullscreen?.().catch(() => {});
+  toast('Full-page preview · click anywhere or press any key to come back', 2600);
+}
+function endPreview() {
+  if (!previewState) return;
+  const s = previewState;
+  previewState = null;
+  previewEnding = Date.now();
+  document.body.classList.remove('previewing');
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  applyToolFlags();
+  setTimeout(() => { resize(); canvas.setViewportTransform(s.vpt); afterZoom(); canvas.requestRenderAll(); }, 30);
+}
+// A click while previewing only ends the preview (it doesn't reach the tools); so does the rest of that click.
+for (const ev of ['pointerdown', 'mousedown', 'click', 'touchstart']) document.addEventListener(ev, (e) => {
+  if (previewState) { e.preventDefault(); e.stopPropagation(); if (ev !== 'click') endPreview(); return; }
+  if (Date.now() - previewEnding < 500 && ev === 'click' && !e.target.closest?.('.top, .props, .tools, .side, .foot')) { e.preventDefault(); e.stopPropagation(); }
+}, true);
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && previewState) endPreview(); });
+
+// Your buttons: tools and commands added to the property bar next to Pick and Pan (remembered).
+const QUICK_CMDS = [
+  ['undo', 'Undo', 'undo'], ['redo', 'Redo', 'redo'], ['save', 'Save', 'save'], ['duplicate', 'Duplicate', 'dup'], ['delete', 'Delete', 'trash'],
+  ['group', 'Group', 'group'], ['ungroup', 'Ungroup', 'breakapart'], ['combine', 'Combine', 'combine'], ['breakApart', 'Break apart', 'breakapart'], ['curves', 'Convert to curves', 'tocurves'],
+  ['weld', 'Weld', 'weld'], ['trim', 'Trim', 'trim'], ['intersect', 'Intersect', 'intersect'], ['alignC', 'Align centres horizontally', 'alC'], ['alignM', 'Align centres vertically', 'alM'],
+  ['layout', 'Centre to page', 'fit'], ['front', 'To front', 'front'], ['back', 'To back', 'back'], ['flipH', 'Mirror horizontally', 'flipH'], ['flipV', 'Mirror vertically', 'flipV'],
+  ['lock', 'Lock / unlock', 'lock'], ['fit', 'Fit page', 'fit'], ['zoomIn', 'Zoom in', 'plus'], ['zoomOut', 'Zoom out', 'minus'], ['grid', 'Grid on / off', 'grid'],
+  ['bitmap', 'Convert to bitmap', 'image'], ['exportPdf', 'Export PDF', 'export'], ['send', 'Send to 3D Studio', 'shirt'],
+];
+const QUICK_CMD = Object.fromEntries(QUICK_CMDS.map(([id, label, ic]) => [id, { label, icon: ic }]));
+function quickDef(key) {
+  const [kind, id] = key.split(':');
+  if (kind === 'tool') return TOOLS[id] && id !== 'image' ? { label: TOOLS[id].label, icon: TOOLS[id].icon, run: () => setTool(id), tool: id } : null;
+  return QUICK_CMD[id] ? { ...QUICK_CMD[id], run: () => ACTIONS[id]?.() } : null;
+}
+function renderQuick() {
+  const box = $('quickPins');
+  box.innerHTML = '';
+  for (const key of state.quick ?? []) {
+    const d = quickDef(key);
+    if (!d) continue;
+    const b = document.createElement('button');
+    b.className = `ibtn${d.tool && state.tool === d.tool ? ' on' : ''}`;
+    b.title = `${d.label} (your button: remove it with +)`;
+    b.innerHTML = icon(d.icon);
+    b.onclick = () => { closeMenus(); d.run(); };
+    box.append(b);
+  }
+}
+function openQuickPop() {
+  const pop = $('quickPop');
+  if (!pop.hidden) { pop.hidden = true; return; }
+  closeMenus();
+  const pinned = new Set(state.quick ?? []);
+  const row = (key, label, ic) => `<label class="qp-row"><input type="checkbox" data-key="${key}"${pinned.has(key) ? ' checked' : ''}>${icon(ic)}<span>${label}</span></label>`;
+  const tools = [];
+  for (const [, gids] of TOOL_SECTIONS) for (const gid of gids) for (const [id, label, ic] of TOOL_GROUPS.find(([g]) => g === gid)[1]) if (id !== 'image' && id !== 'select' && id !== 'pan') tools.push(row(`tool:${id}`, label, ic));
+  $('qpTools').innerHTML = tools.join('');
+  $('qpCmds').innerHTML = QUICK_CMDS.map(([id, label, ic]) => row(`cmd:${id}`, label, ic)).join('');
+  pop.querySelectorAll('input[data-key]').forEach((cb) => (cb.onchange = () => {
+    const list = (state.quick ?? []).filter((k) => k !== cb.dataset.key);
+    if (cb.checked) list.push(cb.dataset.key);
+    state.quick = list; savePrefs(); renderQuick();
+  }));
+  const r = $('quickAdd').getBoundingClientRect();
+  pop.hidden = false;
+  pop.style.left = `${Math.max(12, Math.min(r.left, innerWidth - pop.offsetWidth - 12))}px`;
+  pop.style.top = `${r.bottom + 6}px`;
+}
+$('quickAdd').onclick = (e) => { e.stopPropagation(); openQuickPop(); };
+$('quickPreview').onclick = () => startPreview();
+document.addEventListener('pointerdown', (e) => { if (!$('quickPop').hidden && !e.target.closest('#quickPop, #quickAdd')) $('quickPop').hidden = true; });
+$('propsHide').onclick = () => toggleUi('props', false);
+$('propsShow').onclick = () => toggleUi('props', true);
+$('quickPick').onclick = () => { closeMenus(); setTool('select'); };
+$('quickPan').onclick = () => { closeMenus(); setTool('pan'); };
 function toolButton(gid, tools) {
   const cur = groupCurrent[gid] ?? tools[0][0], t = TOOLS[cur];
   const b = document.createElement('button');
@@ -608,7 +826,7 @@ function applyToolFlags() {
 function setTool(tool) {
   if (!TOOLS[tool]) return;
   if (pcEdit && tool !== 'select') finishPowerClipEdit();
-  finishPath(); cancelCurve3(); cancelTp(); cancelMulti(); dropVsdHover(); topSegment = null; if (tool !== 'livesketch') finishLive(); attrSample = null; pickFrame = null;
+  finishPath(); cancelCurve3(); cancelTp(); cancelMulti(); cancelConn(); cancelVar(); dropVsdHover(); topSegment = null; if (tool !== 'livesketch') finishLive(); attrSample = null; pickFrame = null;
   if (tool === 'image') { $('fileImage').click(); return; }
   const prev = state.tool;
   // Brushes, knife and eraser work on the objects selected when the tool is picked.
@@ -617,6 +835,7 @@ function setTool(tool) {
   const editFirst = tool === 'node' ? one() : null;
   if (prev === 'node' && tool !== 'node') nodes.end();
   state.tool = tool;
+  connView = CONN_ALL.has(tool) ? { hover: null, sel: null } : null;
   groupCurrent[TOOLS[tool].group] = tool;
   canvas.isDrawingMode = tool === 'draw';
   if (canvas.isDrawingMode) {
@@ -626,6 +845,7 @@ function setTool(tool) {
   }
   if (!PICK_LIKE.has(tool)) canvas.discardActiveObject();
   applyToolFlags();
+  syncProps(); // what counts as selected depends on the tool (Shape, Variable Outline)
   if (tool === 'node' && editFirst) nodes.start(editFirst);
   if (tool === 'eyedropper') eye.mode = 'pick';
   canvas.defaultCursor = toolCursor(tool);
@@ -655,6 +875,7 @@ const NEEDS_SELECTION = {
   blend: 'Select two shapes on the Artboard first (click one, Shift+click the other), then set the steps and click Apply blend',
   contour: 'Select a shape or text on the Artboard first, then set the contour and click Apply contour',
   shadow: 'Select an item on the Artboard first, then set the shadow and click Apply',
+  inner: 'Select an item on the Artboard first, then set the inner shadow and click Apply',
   transparency: 'Select an item on the Artboard first, then choose the transparency type and amount',
   distort: 'Select a shape or text on the Artboard first, then choose the distortion and click Apply distortion',
   envelope: 'Select a shape or text on the Artboard first, then choose an envelope and click Apply envelope',
@@ -726,6 +947,8 @@ canvas.on('mouse:down', (opt) => {
   if (tool === 'vsd') { vsdClick(p); return; }
   if (tool === 'dimA' || tool === 'callout2') { multiDown(tool, p); return; }
   if (tool === 'dimS') { segmentDimension(p); return; }
+  if (CONN_ALL.has(tool)) { connDown(tool, p); return; }
+  if (tool === 'varline') { varDown(p); return; }
   if (tool === 'eraser') {
     if (geomBusy) { toast('Still working out the last stroke: one moment'); return; }
     erase = { points: [p] }; topStroke = { points: erase.points, width: state.shape.eraser * MM, colour: 'rgba(255,80,80,.35)' }; drawTop(); return;
@@ -775,6 +998,8 @@ canvas.on('mouse:move', (opt) => {
   if (curve3) { curve3Move(p); return; }
   if (ft) { ftMove(p, opt.e); return; }
   if (multi) { multiMove(p); return; }
+  if (CONN_ALL.has(tool)) { connMove(p); return; }
+  if (tool === 'varline') { varMove(p); return; }
   if (tool === 'vsd') { vsdHoverAt(p); return; }
   if (tool === 'dimS') { segmentHover(p); return; }
   if (tp) { tpMove(p); return; }
@@ -813,6 +1038,8 @@ canvas.on('mouse:up', (opt) => {
   if (path) { path.pressing = false; return; }
   if (curve3) { curve3Up(p); return; }
   if (ft) { ftUp(); return; }
+  if (connDrag) { connUp(p); return; }
+  if (varDrag) { varUp(); return; }
   if (tp) { tpUp(p); return; }
   if (lasso) { const l = lasso; lasso = null; topStroke = null; drawTop(); lassoSelect(l.points); return; }
   if (smudge) { const sm = smudge; smudge = null; topStroke = null; drawTop(); applySmudge(sm); return; }
@@ -850,6 +1077,8 @@ canvas.on('mouse:up', (opt) => {
   canvas.requestRenderAll();
 });
 canvas.on('mouse:dblclick', (opt) => {
+  if (state.tool === 'anchor') { anchorDblclick(canvas.getScenePoint(opt.e)); return; }
+  if (state.tool === 'varline') { varDblclick(canvas.getScenePoint(opt.e)); return; }
   if (state.tool === 'node') { nodes.dblclick(canvas.getScenePoint(opt.e)); return; }
   // PowerClip: double-click to move the contents; double-click outside them to finish.
   if (state.tool === 'select' && opt.target?.powerClip) { editPowerClip(opt.target); return; }
@@ -862,7 +1091,7 @@ canvas.on('path:created', (e) => { style(e.path, { toolName: 'Freehand', strokeU
 // Overlays go on the main canvas only: Fabric fires after:render for its top layer too, which it does not clear
 // afterwards, so anything drawn there would stay on screen (a stale tool box after switching tools).
 canvas.on('after:render', ({ ctx }) => {
-  if (exporting) return;
+  if (exporting || previewState) return;
   if (ctx === canvas.contextTop) { if (topDrawn) drawTop(); return; }
   guides.draw(ctx); nodes.draw(ctx); drawToolOverlay(ctx);
   if (topDrawn) drawTop();
@@ -870,7 +1099,7 @@ canvas.on('after:render', ({ ctx }) => {
 
 // The brush ring and the stroke being drawn (Smudge, Eraser, Freehand Pick) are drawn on Fabric's top canvas:
 // moving them doesn't redraw the page, so brushes stay smooth on pages with heavy artwork.
-let topStroke = null, brushRing = null, topSegment = null, topDrawn = false, livePending = [], liveTimer = 0;
+let topStroke = null, brushRing = null, topSegment = null, topDrawn = false, livePending = [], liveTimer = 0, connDrag = null, connView = null, varEdit = null, varDrag = null, varView = null;
 function setBrushRing(ring) { brushRing = ring; drawTop(); }
 /** Adds a point to a stroke being drawn (closer than a screen pixel to the last one: skipped) and redraws it. */
 function addStrokePoint(points, p) {
@@ -880,8 +1109,9 @@ function addStrokePoint(points, p) {
 function drawTop() {
   const ctx = canvas.contextTop;
   if (!ctx) return;
+  if (previewState) { if (topDrawn) { canvas.clearContext(ctx); topDrawn = false; } return; }
   const ring = brushRing?.at ? brushRing : null;
-  if (!topStroke && !ring && !topSegment && !livePending.length) { if (topDrawn) { canvas.clearContext(ctx); topDrawn = false; } return; }
+  if (!topStroke && !ring && !topSegment && !livePending.length && !connView && !varView && !varEdit) { if (topDrawn) { canvas.clearContext(ctx); topDrawn = false; } return; }
   canvas.clearContext(ctx);
   topDrawn = true;
   const r = canvas.getRetinaScaling(), v = canvas.viewportTransform, s = topStroke;
@@ -922,6 +1152,8 @@ function drawTop() {
     ctx.fillStyle = '#12E1F0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(topSegment.label, mid.x, mid.y - 20);
     ctx.restore();
   }
+  if (connView) drawAnchors(ctx, r, v);
+  if (varView || varEdit) drawVar(ctx, r, v);
   if (ring) {
     ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
     const c = { x: ring.at.x * v[0] + v[4], y: ring.at.y * v[3] + v[5] };
@@ -1005,7 +1237,7 @@ function drawToolOverlay(ctx) {
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + w, a.y + h); ctx.moveTo(a.x + w, a.y); ctx.lineTo(a.x, a.y + h); ctx.stroke();
     ctx.setLineDash([]);
   }
-  if (toolTargets.length && OWN_MOUSE.has(state.tool) && state.tool !== 'node') {
+  if (toolTargets.length && OWN_MOUSE.has(state.tool) && state.tool !== 'node' && !CONN_ALL.has(state.tool)) {
     ctx.setLineDash([5, 4]); ctx.strokeStyle = '#7B4DFF';
     for (const o of toolTargets) { if (!canvas.getObjects().includes(o)) continue; const b = o.getBoundingRect(), a = S({ x: b.left, y: b.top }); ctx.strokeRect(a.x, a.y, b.width * v[0], b.height * v[3]); }
   }
@@ -1462,6 +1694,824 @@ function editCallout(g) {
 }
 canvas.on('text:editing:exited', ({ target }) => { if (target?.calloutId) setTimeout(() => groupCallout(target.calloutId)); });
 
+// ===================================================================
+// Connectors (CorelDRAW): Straight Line, Right-Angle and Rounded Right-Angle connectors join anchor points of
+// objects and stay attached when the objects move, turn or change size. Anchor Editing moves, adds and deletes
+// anchors and re-attaches connector ends. An end dropped away from an anchor stays where it is.
+// ===================================================================
+const CONN_LABEL = { straight: 'straight connector', right: 'right-angle connector', rounded: 'rounded right-angle connector' };
+const STUB = 5; // mm an attached right-angle connector runs straight out of its anchor
+const newUid = () => `o${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+const uidOf = (o) => (o.uid ??= newUid());
+const connectable = (o) => o.visible && !o.connSpec && !o.isPage && !o.isHelper;
+const eachPart = (o, fn) => { fn(o); if (o.type === 'group') o.getObjects().forEach((k) => eachPart(k, fn)); };
+/** An object by its id, also inside groups (connectors stay attached to grouped objects). */
+function findUid(uid) {
+  let hit = null;
+  if (uid) for (const o of userObjects()) { eachPart(o, (x) => { if (!hit && x.uid === uid) hit = x; }); if (hit) break; }
+  return hit;
+}
+/**
+ * Each item on the page has a short ID in the order items were made (#1, #2 …: the status bar shows it, the chat can
+ * use it). An item keeps its ID when an effect is added to it or it is grouped (the group takes the ID of what it was
+ * made from); a copy (duplicate, paste) gets the next ID, its own connector id while the original is on the page,
+ * and its own connector and anchor settings.
+ */
+function ownCopies(target) {
+  if (target.isHelper || target.isPage) return;
+  const inside = new Set(), nums = new Set();
+  let taken = null;
+  eachPart(target, (x) => inside.add(x));
+  for (const o of userObjects()) eachPart(o, (y) => { if (!inside.has(y) && y.num != null) nums.add(y.num); });
+  for (const n of otherNums) nums.add(n); // IDs on the other pages
+  if (target.num == null || nums.has(target.num)) {
+    let inherit = null, max = 0;
+    eachPart(target, (x) => { if (x === target || x.num == null) return; if (inherit == null && !nums.has(x.num)) inherit = x.num; max = Math.max(max, x.num); });
+    for (const n of nums) max = Math.max(max, n);
+    target.num = inherit ?? max + 1;
+  }
+  eachPart(target, (x) => {
+    // A connector is picked on its line only, not its whole box (which covers the objects it joins).
+    if (x.connSpec) { x.connSpec = { ...x.connSpec, ends: (x.connSpec.ends ?? [{}, {}]).map((e) => ({ ...e })) }; x.perPixelTargetFind = true; }
+    if (x.anchors) x.anchors = x.anchors.map((a) => ({ ...a }));
+    if (!x.uid) return;
+    if (!taken) { taken = new Set(); for (const o of userObjects()) eachPart(o, (y) => { if (!inside.has(y) && y.uid) taken.add(y.uid); }); }
+    if (taken.has(x.uid)) x.uid = newUid();
+  });
+}
+
+const anchorCache = new WeakMap();
+/**
+ * An object's anchors in its own units (centre at 0, 0): its own (Anchor Editing), or the four defaults, where
+ * its outline meets lines from the centre towards the middle of each side (the box sides for text, pictures
+ * and groups).
+ */
+function localAnchors(o) {
+  const w = o.width || 0, h = o.height || 0;
+  if (o.anchors) return o.anchors.map((a) => ({ id: a.id, x: a.u * w, y: a.v * h, side: null }));
+  const ref = o.path ?? o.points ?? null, key = `${o.type}|${w}|${h}|${o.rx}|${o.ry}|${ref?.length}`, hit = anchorCache.get(o);
+  if (hit && hit.key === key && hit.ref === ref) return hit.list;
+  let pts = null;
+  if (!isText(o) && o.type !== 'image' && o.type !== 'group' && V.canConvert(o)) {
+    try {
+      const inv = util.invertTransform(o.calcTransformMatrix()), loc = (q) => util.transformPoint(new Point(q.x, q.y), inv);
+      const polys = V.objectModel(o).map((sp) => {
+        const ns = sp.nodes, out = ns.length ? [loc(ns[0])] : [];
+        for (let i = 0; i < (sp.closed ? ns.length : ns.length - 1); i++) {
+          const A = ns[i], B = ns[(i + 1) % ns.length];
+          if (!A.ho && !B.hi) out.push(loc(B));
+          else { const seg = V.segmentPoints(A, B); for (let k = 1; k <= 8; k++) out.push(loc(V.bezierAt(seg, k / 8))); }
+        }
+        return out;
+      });
+      pts = C.outlineAnchors(polys, w, h);
+    } catch { pts = null; }
+  }
+  pts ??= { t: { x: 0, y: -h / 2 }, r: { x: w / 2, y: 0 }, b: { x: 0, y: h / 2 }, l: { x: -w / 2, y: 0 } };
+  const list = Object.entries(pts).map(([id, q]) => ({ id, x: q.x, y: q.y, side: id }));
+  anchorCache.set(o, { key, ref, list });
+  return list;
+}
+/** The anchors on the page, each with the way a line leaves it (outwards; none for one in the middle). */
+function worldAnchors(o) {
+  const m = o.calcTransformMatrix(), w = o.width || 1, h = o.height || 1;
+  return localAnchors(o).map((a) => {
+    const p = util.transformPoint(new Point(a.x, a.y), m);
+    const ld = a.side ? C.SIDES[a.side] : Math.hypot(a.x / w, a.y / h) < 0.08 ? null : C.snapAxis({ x: a.x / w, y: a.y / h });
+    return { id: a.id, o, x: p.x, y: p.y, dir: ld && C.snapAxis({ x: m[0] * ld.x + m[2] * ld.y, y: m[1] * ld.x + m[3] * ld.y }) };
+  });
+}
+const nearestAnchor = (list, p) => list.reduce((m, a) => (!m || Math.hypot(a.x - p.x, a.y - p.y) < Math.hypot(m.x - p.x, m.y - p.y) ? a : m), null);
+const pageAnchors = () => userObjects().filter(connectable).flatMap(worldAnchors);
+/** The anchor within a few screen pixels of the page point, or null. */
+function anchorAt(p, tol = 10) {
+  let best = null, bd = tol;
+  for (const a of pageAnchors()) { const d = screenDist(p, a); if (d <= bd) { bd = d; best = a; } }
+  return best;
+}
+/** Where a connector end at p attaches: the anchor near the pointer, else the nearest anchor of the object under it. */
+function attachAt(p) {
+  const a = anchorAt(p);
+  if (a) return a;
+  const o = userObjects().filter(connectable).reverse().find((x) => x.containsPoint(new Point(p.x, p.y)));
+  return o ? nearestAnchor(worldAnchors(o), p) : null;
+}
+
+/** The first or last point of a connector's line (the first part of its path; arrowheads come after it), on the page. */
+function lineEnd(c, i) {
+  let first = null, last = null;
+  for (const [j, cmd] of c.path.entries()) {
+    if (j > 0 && cmd[0] === 'M') break;
+    const n = cmd.length;
+    if (n >= 3) { const q = { x: cmd[n - 2], y: cmd[n - 1] }; first ??= q; last = q; }
+  }
+  const q = (i === 0 ? first : last) ?? { x: c.pathOffset.x, y: c.pathOffset.y };
+  return util.transformPoint(new Point(q.x - c.pathOffset.x, q.y - c.pathOffset.y), c.calcTransformMatrix());
+}
+const asEnd = (a, p) => (a ? { x: a.x, y: a.y, dir: a.dir, attached: true } : { x: p.x, y: p.y, dir: null, attached: false });
+/** Where a connector end is now: on its anchor (a deleted anchor: the nearest one left), or where the line ends when it is free. */
+function connEnd(c, i) {
+  const e = c.connSpec.ends?.[i], o = e?.uid ? findUid(e.uid) : null;
+  if (o) {
+    const list = worldAnchors(o), a = list.find((x) => x.id === e.anchor) ?? nearestAnchor(list, lineEnd(c, i));
+    if (a) return asEnd(a);
+  }
+  return asEnd(null, lineEnd(c, i));
+}
+/** Path data of a connector of this kind between two ends. */
+function routeD(kind, a, b, { radius = state.conn.radius, arrows = 'none', arrowSize = 2.4 * MM } = {}) {
+  const pts = kind === 'straight' ? [a, b] : C.orthoRoute(a, a.attached ? a.dir : null, b, b.attached ? b.dir : null, a.attached ? STUB * MM : 0, b.attached ? STUB * MM : 0);
+  return C.connectorD(pts, { rounded: kind === 'rounded', radius: radius * MM, arrows, arrowSize });
+}
+/** Redraws a connector between its ends (`at`: one end given instead, while it is dragged). False when nothing changed. */
+function routeConnector(c, at = null) {
+  if (!c?.connSpec || c.group) return false;
+  const s = c.connSpec, [a, b] = [0, 1].map((i) => (at && at.i === i ? at.end : connEnd(c, i)));
+  const d = routeD(s.kind, a, b, { radius: s.radius ?? state.conn.radius, arrows: s.arrows ?? 'none', arrowSize: Math.max(2.4 * MM, (c.strokeWidth || MM) * 4) });
+  const plain = !c.angle && c.scaleX === 1 && c.scaleY === 1 && !c.skewX && !c.skewY && !c.flipX && !c.flipY;
+  if (!d || (plain && d === c.connD)) return false;
+  c.set({ angle: 0, scaleX: 1, scaleY: 1, skewX: 0, skewY: 0, flipX: false, flipY: false });
+  setLive(c, d);
+  c.connD = d;
+  c.dirty = true;
+  return true;
+}
+/** Connectors attached to the changed object (to anything, when none is given) follow it. */
+function syncConnectors(changed) {
+  const conns = userObjects().filter((o) => o.connSpec);
+  if (!conns.length) return;
+  let ids = null;
+  if (changed) { ids = new Set(); const walk = (o) => { if (o.uid) ids.add(o.uid); if (o.type === 'group' || o.type === 'activeselection') o.getObjects().forEach(walk); }; walk(changed); }
+  let moved = false;
+  for (const c of conns) {
+    if (ids && c !== changed && !c.connSpec.ends?.some((e) => e?.uid && ids.has(e.uid))) continue;
+    if (routeConnector(c)) moved = true;
+  }
+  if (moved) canvas.requestRenderAll();
+}
+for (const ev of ['object:moving', 'object:scaling', 'object:rotating', 'object:skewing']) canvas.on(ev, (e) => syncConnectors(e.target));
+canvas.setTargetFindTolerance(5); // thin lines (connectors) are easier to click (also sizes Fabric's hit canvas)
+// Connectors selected together with other objects move with the selection; when it ends they join their anchors again.
+for (const ev of ['selection:cleared', 'selection:updated']) canvas.on(ev, () => syncConnectors());
+
+const connEndSpec = (a) => (a?.o ? { uid: uidOf(a.o), anchor: a.id } : {});
+function addConnector(kind, a, b) {
+  const c = new Path(`M ${a.x} ${a.y} L ${b.x} ${b.y}`, { fill: null, stroke: state.strokeWidth ? state.stroke : '#111827', strokeWidth: Math.max(0.25, state.strokeWidth || 0.5) * MM, strokeUniform: true, strokeLineCap: 'round', strokeLineJoin: 'round', opacity: state.opacity });
+  c.connSpec = { kind, radius: state.conn.radius, arrows: state.conn.arrows, ends: [connEndSpec(a), connEndSpec(b)] };
+  style(c, { toolName: 'Connector' });
+  routeConnector(c);
+  canvas.add(c);
+  canvas.requestRenderAll();
+  return c;
+}
+/** Joins two objects between their nearest anchors (the chat's "connect"). */
+function connectObjects(kind, o1, o2) {
+  let best = null;
+  for (const a of worldAnchors(o1)) for (const b of worldAnchors(o2)) { const d = Math.hypot(a.x - b.x, a.y - b.y); if (!best || d < best.d) best = { a, b, d }; }
+  canvas.discardActiveObject();
+  return addConnector(kind, best.a, best.b);
+}
+const lineConns = () => userObjects().filter((o) => o.connSpec && !o.group && o.visible);
+const attachedEnd = (c, i) => !!(c.connSpec.ends?.[i]?.uid && findUid(c.connSpec.ends[i].uid));
+/** A connector end within a few screen pixels of p ({ c, i }): any end of the picked connector, free ends of the
+ *  others (their attached ends sit on anchors, which are dragged first). */
+function connEndAt(p, picked = null, tol = 9) {
+  for (const c of lineConns().reverse()) for (const i of [0, 1]) {
+    if (c !== picked && attachedEnd(c, i)) continue;
+    if (screenDist(p, lineEnd(c, i)) <= tol) return { c, i };
+  }
+  return null;
+}
+/** Is p on the line of connector c (within a few screen pixels)? */
+function onConnector(c, p, tol = 6) {
+  const q = util.transformPoint(new Point(p.x, p.y), util.invertTransform(c.calcTransformMatrix()));
+  const x = q.x + c.pathOffset.x, y = q.y + c.pathOffset.y, lim = tol / canvas.getZoom();
+  const near = (ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy, t = L ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L)) : 0; return Math.hypot(ax + dx * t - x, ay + dy * t - y) <= lim; };
+  let px = 0, py = 0;
+  for (const cmd of c.path) {
+    if (cmd[0] === 'M') { [px, py] = [cmd[1], cmd[2]]; continue; }
+    if (cmd[0] === 'L') { if (near(px, py, cmd[1], cmd[2])) return true; [px, py] = [cmd[1], cmd[2]]; continue; }
+    if (cmd[0] !== 'C') continue;
+    let ax = px, ay = py;
+    for (let k = 1; k <= 8; k++) {
+      const t = k / 8, u = 1 - t, bx = u * u * u * px + 3 * u * u * t * cmd[1] + 3 * u * t * t * cmd[3] + t * t * t * cmd[5], by = u * u * u * py + 3 * u * u * t * cmd[2] + 3 * u * t * t * cmd[4] + t * t * t * cmd[6];
+      if (near(ax, ay, bx, by)) return true;
+      ax = bx; ay = by;
+    }
+    [px, py] = [cmd[5], cmd[6]];
+  }
+  return false;
+}
+/** The object's own anchor list (Anchor Editing), started from its default anchors the first time. */
+function ownAnchors(o) {
+  if (!o.anchors) o.anchors = localAnchors(o).map((a) => ({ id: a.id, u: o.width ? a.x / o.width : 0, v: o.height ? a.y / o.height : 0 }));
+  return o.anchors;
+}
+/** Connector ends on anchors of o that no longer exist move to its nearest anchor (free when it has none left). */
+function reattachEnds(o) {
+  const list = worldAnchors(o);
+  for (const c of userObjects().filter((x) => x.connSpec)) c.connSpec.ends.forEach((e, k) => {
+    if (!o.uid || e?.uid !== o.uid || list.some((a) => a.id === e.anchor)) return;
+    const near = nearestAnchor(list, lineEnd(c, k));
+    c.connSpec.ends[k] = near ? { uid: o.uid, anchor: near.id } : {};
+  });
+}
+
+// Connector tools: drag from an anchor of one object to another. Anchor Editing: drag anchors and connector ends.
+function connDown(tool, p) {
+  if (tool === 'anchor') {
+    // The picked connector's ends first, then anchors, then free connector ends; a click on a connector picks it.
+    const picked = connView.conn && lineConns().includes(connView.conn) ? connView.conn : null;
+    const mine = picked && connEndAt(p, picked);
+    const end = mine?.c === picked ? mine : null;
+    if (end) { connDrag = { mode: 'end', ...end, orig: connEnd(end.c, end.i) }; connView.sel = null; syncContext(); drawTop(); return; }
+    const a = anchorAt(p);
+    if (a) { connView.sel = { o: a.o, id: a.id }; connView.conn = null; connDrag = { mode: 'anchor', o: a.o, id: a.id, moved: false }; syncContext(); drawTop(); return; }
+    const free = connEndAt(p);
+    if (free) { connView.conn = free.c; connView.sel = null; connDrag = { mode: 'end', ...free, orig: connEnd(free.c, free.i) }; syncContext(); drawTop(); return; }
+    const c = lineConns().reverse().find((k) => onConnector(k, p)) ?? null;
+    connView.sel = null; connView.conn = c;
+    if (c) toast('Connector picked: drag one of its purple ends onto another anchor to re-attach it (or anywhere to leave it free)', 5000);
+    syncContext(); drawTop();
+    return;
+  }
+  const start = attachAt(p);
+  connDrag = { mode: 'new', kind: CONN_TOOLS[tool], a: start ?? { x: p.x, y: p.y }, helper: helperPath('', { strokeDashArray: null, stroke: '#12E1F0' }) };
+  connView.hover = start;
+  drawTop();
+}
+function connMove(p) {
+  const d = connDrag;
+  if (!d) {
+    connView.hover = state.tool === 'anchor' ? anchorAt(p) : attachAt(p);
+    drawTop();
+    return;
+  }
+  if (d.mode === 'new') {
+    const target = attachAt(p);
+    connView.hover = target;
+    setLive(d.helper, routeD(d.kind, asEnd(d.a.o ? d.a : null, d.a), asEnd(target, p), { arrows: state.conn.arrows }));
+    canvas.requestRenderAll(); drawTop();
+  } else if (d.mode === 'end') {
+    const target = attachAt(p);
+    connView.hover = target;
+    routeConnector(d.c, { i: d.i, end: asEnd(target, p) });
+    canvas.requestRenderAll(); drawTop();
+  } else if (d.mode === 'anchor') {
+    const o = d.o, a = ownAnchors(o).find((x) => x.id === d.id);
+    if (!a) return;
+    const q = util.transformPoint(new Point(p.x, p.y), util.invertTransform(o.calcTransformMatrix())), clamp = (x) => Math.max(-0.75, Math.min(0.75, x));
+    a.u = o.width ? clamp(q.x / o.width) : 0; a.v = o.height ? clamp(q.y / o.height) : 0;
+    d.moved = true;
+    syncConnectors(o);
+    canvas.requestRenderAll(); drawTop();
+  }
+}
+function connUp(p) {
+  const d = connDrag;
+  connDrag = null;
+  if (d.mode === 'new') {
+    dropHelper(d.helper);
+    const target = attachAt(p), b = target ?? { x: p.x, y: p.y };
+    if (screenDist(d.a, b) < 6 || (d.a.o && target && d.a.o === target.o && d.a.id === target.id)) { toast('Drag from an anchor of one object (the small diamonds) to an anchor of another to join them', 4500); drawTop(); return; }
+    addConnector(d.kind, d.a, b);
+    connView.hover = null; drawTop();
+    return;
+  }
+  if (d.mode === 'end') {
+    const target = attachAt(p);
+    d.c.connSpec.ends[d.i] = connEndSpec(target);
+    routeConnector(d.c, { i: d.i, end: asEnd(target, p) });
+    canvas.fire('object:modified', { target: d.c });
+    toast(target ? 'Connector end attached' : 'Connector end left free here: drop it on an anchor to attach it');
+    drawTop();
+    return;
+  }
+  if (d.mode === 'anchor' && d.moved) canvas.fire('object:modified', { target: d.o });
+  syncContext(); drawTop();
+}
+function cancelConn() {
+  const d = connDrag;
+  connDrag = null;
+  if (!d) return;
+  dropHelper(d.helper);
+  if (d.mode === 'end') routeConnector(d.c, { i: d.i, end: d.orig });
+}
+function anchorDblclick(p) {
+  const a = anchorAt(p);
+  if (a) { deleteAnchor({ o: a.o, id: a.id }); return; }
+  const o = userObjects().filter(connectable).reverse().find((x) => x.containsPoint(new Point(p.x, p.y)));
+  if (!o) { toast('Double-click an object to add an anchor there'); return; }
+  const q = util.transformPoint(new Point(p.x, p.y), util.invertTransform(o.calcTransformMatrix())), id = `a${Date.now().toString(36)}`;
+  ownAnchors(o).push({ id, u: o.width ? q.x / o.width : 0, v: o.height ? q.y / o.height : 0 });
+  connView.sel = { o, id };
+  canvas.fire('object:modified', { target: o });
+  syncContext(); drawTop();
+  toast('Anchor added: connectors can attach here now');
+}
+function deleteAnchor(sel) {
+  const list = ownAnchors(sel.o), i = list.findIndex((a) => a.id === sel.id);
+  if (i < 0) return;
+  list.splice(i, 1);
+  reattachEnds(sel.o);
+  connView.sel = null;
+  canvas.fire('object:modified', { target: sel.o });
+  syncContext(); drawTop();
+  toast(list.length ? 'Anchor deleted (connectors on it moved to the nearest anchor left)' : 'Anchor deleted: this object has no anchors left (Reset anchors brings back the four)', 4500);
+}
+/** Anchors on the top layer while a connector tool is on: hovered cyan, picked (Anchor Editing) pink; connector ends purple. */
+function drawAnchors(ctx, r, v) {
+  const S = (q) => ({ x: q.x * v[0] + v[4], y: q.y * v[3] + v[5] }), hov = connView.hover, sel = connView.sel;
+  ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
+  for (const a of pageAnchors()) {
+    const q = S(a), on = hov && hov.o === a.o && hov.id === a.id, picked = sel && sel.o === a.o && sel.id === a.id, s = on || picked ? 6 : 4;
+    ctx.beginPath(); ctx.moveTo(q.x, q.y - s); ctx.lineTo(q.x + s, q.y); ctx.lineTo(q.x, q.y + s); ctx.lineTo(q.x - s, q.y); ctx.closePath();
+    ctx.fillStyle = picked ? '#E6007E' : on ? '#12E1F0' : '#ffffff'; ctx.fill();
+    ctx.lineWidth = 1.2; ctx.strokeStyle = '#1E7BFF'; ctx.stroke();
+  }
+  if (state.tool === 'anchor') {
+    // The picked connector's ends (big) and free ends of the others: purple dots.
+    for (const c of lineConns()) for (const i of [0, 1]) {
+      const big = c === connView.conn;
+      if (!big && attachedEnd(c, i)) continue;
+      const q = S(lineEnd(c, i));
+      ctx.beginPath(); ctx.arc(q.x, q.y, big ? 6 : 4.5, 0, Math.PI * 2); ctx.fillStyle = '#7B4DFF'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+/** Property bar: the settings of the selected connectors (Pick tool), else the ones for new connectors. */
+function setConn(change) {
+  const sel = state.tool === 'select' ? canvas.getActiveObjects().filter((o) => o.connSpec) : [];
+  if (sel.length) {
+    for (const c of sel) { Object.assign(c.connSpec, change); c.connD = null; routeConnector(c); }
+    canvas.requestRenderAll();
+    canvas.fire('object:modified', { target: sel[0] });
+  } else { Object.assign(state.conn, change); savePrefs(); }
+  syncContext();
+}
+$('connType').onchange = (e) => setConn({ kind: e.target.value });
+$('connRadius').onchange = (e) => setConn({ radius: Math.max(0, Math.min(100, Number(e.target.value) || 0)) });
+$('connArrows').onchange = (e) => setConn({ arrows: e.target.value });
+$('anchorDel').onclick = () => { if (connView?.sel) deleteAnchor(connView.sel); };
+// ===================================================================
+// Variable Outline (CorelDRAW): an outline whose width changes along the line. The object keeps its shape; its
+// outline becomes a filled shape built along it, grouped with it, and the group keeps the widths (varSpec), so
+// they can be changed again: drag on the outline to set the width there, or pick a profile on the property bar.
+// Widths are in mm at the object's size when the outline was made, and grow or shrink with the object.
+// ===================================================================
+const VAR_PROFILES = {
+  uniform: () => [],
+  taper: (W) => [{ t: 0, w: 0 }, { t: 0.3, w: W }, { t: 0.7, w: W }, { t: 1, w: 0 }],
+  'taper-start': (W) => [{ t: 0, w: 0 }, { t: 0.45, w: W }],
+  'taper-end': (W) => [{ t: 0.55, w: W }, { t: 1, w: 0 }],
+  bulge: (W) => [{ t: 0, w: W * 0.35 }, { t: 0.5, w: W * 1.8 }, { t: 1, w: W * 0.35 }],
+  pinch: (W) => [{ t: 0, w: W * 1.6 }, { t: 0.5, w: W * 0.25 }, { t: 1, w: W * 1.6 }],
+  wave: (W) => Array.from({ length: 9 }, (_, i) => ({ t: i / 8, w: i % 2 ? W * 0.35 : W * 1.4 })),
+};
+const VAR_NAMES = { uniform: 'uniform', taper: 'tapered at both ends', 'taper-start': 'tapered at the start', 'taper-end': 'tapered at the end', bulge: 'bulging in the middle', pinch: 'pinched in the middle', wave: 'wavy', custom: 'custom' };
+// The curve the outline follows: the object itself, or for a picture the invisible outline of its visible shape.
+const varBase = (g) => g.getObjects().find((k) => k.fxPart === 'varbase') ?? g.getObjects().find((k) => k.fxPart !== 'varline') ?? g.getObjects()[0];
+const varPart = (g) => g.getObjects().find((k) => k.fxPart === 'varline');
+const varOk = (o) => !!o && (o.varSpec || o.type === 'image' || (o.type !== 'group' && !isText(o) && !o.connSpec && !o.isPage && !o.isHelper && V.canConvert(o)));
+const avgScale = (o) => { const m = o.calcTransformMatrix(); return Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2])) || 1; };
+
+const runsCache = new WeakMap();
+/**
+ * An object's outline as runs of points (page coordinates) about 1 mm apart: { pts, closed, len } per subpath,
+ * each point with its distance along the run (s) and direction (tx, ty); where the line turns sharply the point
+ * also has the incoming direction (tin), for a round join.
+ */
+function outlineRuns(o) {
+  const m = o.calcTransformMatrix(), ref = o.path ?? o.points ?? null, key = `${m.map((x) => x.toFixed(3)).join()}|${o.type}|${o.width}|${o.height}|${o.rx}|${o.ry}|${ref?.length}`;
+  const hit = runsCache.get(o);
+  if (hit && hit.key === key && hit.ref === ref) return hit.runs;
+  const step = MM, runs = [];
+  const at = (sg, t) => (sg.straight ? { x: sg.seg[0].x + (sg.seg[3].x - sg.seg[0].x) * t, y: sg.seg[0].y + (sg.seg[3].y - sg.seg[0].y) * t } : V.bezierAt(sg.seg, t));
+  const tan = (sg, t) => { const a = at(sg, Math.max(0, t - 0.01)), b = at(sg, Math.min(1, t + 0.01)), L = Math.hypot(b.x - a.x, b.y - a.y) || 1; return { x: (b.x - a.x) / L, y: (b.y - a.y) / L }; };
+  for (const sp of V.objectModel(o)) {
+    const ns = sp.nodes, count = sp.closed ? ns.length : ns.length - 1, segs = [];
+    for (let i = 0; i < count; i++) {
+      const A = ns[i], B = ns[(i + 1) % ns.length], sg = { seg: V.segmentPoints(A, B), straight: !A.ho && !B.hi, len: 0 };
+      let prev = A;
+      for (let k = 1; k <= 16; k++) { const q = at(sg, k / 16); sg.len += Math.hypot(q.x - prev.x, q.y - prev.y); prev = q; }
+      if (sg.len > 1e-6) segs.push(sg);
+    }
+    if (!segs.length) continue;
+    const pts = [];
+    let s = 0;
+    segs.forEach((sg, i) => {
+      const n = Math.max(1, Math.ceil(sg.len / step));
+      for (let k = 0; k < n; k++) {
+        const t = k / n, p = at(sg, t), tg = tan(sg, t), e = { x: p.x, y: p.y, s: s + sg.len * t, tx: tg.x, ty: tg.y };
+        if (k === 0 && (i > 0 || sp.closed)) { const tin = tan(segs[(i - 1 + segs.length) % segs.length], 1); if (tin.x * tg.x + tin.y * tg.y < 0.978) e.tin = tin; }
+        pts.push(e);
+      }
+      s += sg.len;
+    });
+    if (!sp.closed) { const sg = segs.at(-1), p = at(sg, 1), tg = tan(sg, 1); pts.push({ x: p.x, y: p.y, s, tx: tg.x, ty: tg.y }); }
+    runs.push({ pts, closed: !!sp.closed, len: s });
+  }
+  runsCache.set(o, { key, ref, runs });
+  return runs;
+}
+/** The width (mm) at t (0 to 1 along the whole outline): smooth between the width points; on one closed outline it also runs across the start. */
+function varWidthAt(pts, W, t, cyclic) {
+  if (!pts.length) return W;
+  if (pts.length === 1) return pts[0].w;
+  const sm = (a, b, u) => a + (b - a) * u * u * (3 - 2 * u), first = pts[0], last = pts.at(-1), span = 1 - last.t + first.t;
+  if (t <= first.t) return cyclic && span > 1e-6 ? sm(last.w, first.w, (t + 1 - last.t) / span) : first.w;
+  if (t >= last.t) return cyclic && span > 1e-6 ? sm(last.w, first.w, (t - last.t) / span) : last.w;
+  for (let i = 0; i + 1 < pts.length; i++) { const a = pts[i], b = pts[i + 1]; if (t <= b.t) return b.t > a.t ? sm(a.w, b.w, (t - a.t) / (b.t - a.t)) : b.w; }
+  return last.w;
+}
+/** Path data of the variable outline along the runs (page coordinates). */
+function varOutlineD(runs, spec, scale) {
+  const total = runs.reduce((a, r) => a + r.len, 0) || 1, cyclic = runs.length === 1 && runs[0].closed, pts = [...spec.pts].sort((a, b) => a.t - b.t);
+  const half = (t) => (Math.max(0, varWidthAt(pts, spec.width, t, cyclic)) * MM * scale) / 2, f = (n) => +n.toFixed(2);
+  const fan = (tin, tg) => {
+    const a0 = Math.atan2(tin.x, -tin.y), a1 = Math.atan2(tg.x, -tg.y);
+    let da = a1 - a0;
+    while (da > Math.PI) da -= 2 * Math.PI;
+    while (da < -Math.PI) da += 2 * Math.PI;
+    const n = Math.max(1, Math.ceil(Math.abs(da) / 0.26));
+    return Array.from({ length: n + 1 }, (_, i) => { const a = a0 + (da * i) / n; return { x: Math.cos(a), y: Math.sin(a) }; });
+  };
+  const arc = (c, from, h, dir) => {
+    // half a circle from the side `from` (a unit normal) round the end, on the side the line points to (dir)
+    const a0 = Math.atan2(from.y, from.x), sign = Math.sign(from.x * dir.y - from.y * dir.x) || 1, out = [];
+    for (let i = 1; i < 8; i++) { const a = a0 + (sign * Math.PI * i) / 8; out.push({ x: c.x + Math.cos(a) * h, y: c.y + Math.sin(a) * h }); }
+    return out;
+  };
+  const loop = (q) => ` M ${q.map((z) => `${f(z.x)} ${f(z.y)}`).join(' L ')} Z`;
+  let d = '', off = 0;
+  for (const run of runs) {
+    const L = [], R = [];
+    for (const p of run.pts) {
+      const h = half((off + p.s) / total), normals = p.tin ? fan(p.tin, { x: p.tx, y: p.ty }) : [{ x: -p.ty, y: p.tx }];
+      for (const nn of normals) { L.push({ x: p.x + nn.x * h, y: p.y + nn.y * h }); R.push({ x: p.x - nn.x * h, y: p.y - nn.y * h }); }
+    }
+    off += run.len;
+    if (run.closed) { d += loop(L) + loop(R.reverse()); continue; }
+    const s0 = run.pts[0], s1 = run.pts.at(-1), h0 = half((off - run.len) / total), h1 = half(off / total);
+    const endCap = spec.cap === 'round' && h1 > 0 ? arc(s1, { x: -s1.ty, y: s1.tx }, h1, { x: s1.tx, y: s1.ty }) : [];
+    const startCap = spec.cap === 'round' && h0 > 0 ? arc(s0, { x: s0.ty, y: -s0.tx }, h0, { x: -s0.tx, y: -s0.ty }) : [];
+    d += loop([...L, ...endCap, ...R.reverse(), ...startCap]);
+  }
+  return d.trim();
+}
+/** The outline shape of a variable outline group's object (page coordinates). */
+function varShape(base, spec) {
+  // Made without an outline from the start: changing the outline width afterwards would shift it.
+  const p = style(new Path(varOutlineD(outlineRuns(base), spec, avgScale(base) / (spec.unit || 1)) || 'M 0 0', { fill: spec.colour, stroke: null, strokeWidth: 0 }), { toolName: 'Variable outline' });
+  p.fxPart = 'varline';
+  return p;
+}
+/**
+ * A picture's visible shape (its solid pixels) as an invisible curve over it, in page coordinates: a photo gives its
+ * frame, a brush stroke or a cut-out logo its silhouette (holes included). Null when nothing in it is solid.
+ */
+function imageSilhouette(img) {
+  const pic = B.imagePixels(img, 600), w = pic.canvas.width, h = pic.canvas.height, pad = 2;
+  const src = pic.ctx.getImageData(0, 0, w, h).data, mask = document.createElement('canvas');
+  mask.width = w + pad * 2; mask.height = h + pad * 2;
+  const mctx = mask.getContext('2d', { willReadFrequently: true });
+  mctx.fillStyle = '#ffffff'; mctx.fillRect(0, 0, mask.width, mask.height);
+  const out = mctx.getImageData(pad, pad, w, h);
+  for (let i = 0; i < src.length; i += 4) { const v = src[i + 3] >= 128 ? 0 : 255; out.data[i] = out.data[i + 1] = out.data[i + 2] = v; out.data[i + 3] = 255; }
+  mctx.putImageData(out, pad, pad);
+  const svg = new DOMParser().parseFromString(B.traceSvg(mctx, mask.width, mask.height, { colours: 2, detail: 'medium' }), 'image/svg+xml');
+  const dark = (c) => { const m = String(c ?? '').match(/\d+/g); return !!m && m.length >= 3 && +m[0] + +m[1] + +m[2] < 384; };
+  const d = [...svg.querySelectorAll('path')].filter((el) => dark(el.getAttribute('fill')) && el.getAttribute('opacity') !== '0').map((el) => el.getAttribute('d')).join(' ').trim();
+  if (!d) return null;
+  // Trace pixels -> picture pixels -> page (as Trace bitmap places its result).
+  const p = new Path(d, { fill: null, stroke: null, strokeWidth: 0, objectCaching: false });
+  const c = p.getCenterPoint(), at = util.transformPoint(new Point((c.x - pad) / pic.kx - img.width / 2, (c.y - pad) / pic.ky - img.height / 2), img.calcTransformMatrix());
+  p.set({ scaleX: img.scaleX / pic.kx, scaleY: img.scaleY / pic.ky, angle: img.angle, flipX: img.flipX, flipY: img.flipY, skewX: img.skewX, skewY: img.skewY });
+  p.setPositionByOrigin(at, 'center', 'center'); p.setCoords();
+  p.fxPart = 'varbase';
+  return p;
+}
+/** A picture with a variable outline round its visible shape: the picture, that shape (invisible) and the outline. */
+function makeVarImageGroup(img) {
+  const sil = imageSilhouette(img);
+  if (!sil) return null;
+  const i = canvas.getObjects().indexOf(img);
+  const spec = { pts: [], width: Math.max(0.5, state.strokeWidth || 1), profile: 'uniform', cap: 'butt', unit: avgScale(sil), colour: (state.strokeWidth ? state.stroke : null) ?? '#000000', orig: null, picture: true };
+  const part = varShape(sil, spec);
+  canvas.remove(img);
+  const g = style(new Group([img, sil, part]), { toolName: 'Variable outline group' });
+  g.varSpec = spec; g.name = `${img.name || 'Image'} outlined`;
+  canvas.insertAt(Math.max(1, i), g);
+  return g;
+}
+/** Makes the object a variable outline group (its own outline off, the outline shape over it). */
+function makeVarGroup(o) {
+  if (o.type === 'image') return makeVarImageGroup(o);
+  const i = canvas.getObjects().indexOf(o), closed = V.objectModel(o).every((sp) => sp.closed);
+  const width = Math.max(0.5, o.strokeWidth ? (o.strokeWidth / MM) * (o.strokeUniform ? 1 : avgScale(o)) : state.strokeWidth || 1);
+  const spec = {
+    pts: [], width, profile: 'uniform', cap: closed ? 'butt' : 'round', unit: avgScale(o),
+    colour: (typeof o.stroke === 'string' && o.strokeWidth ? o.stroke : null) ?? (state.strokeWidth ? state.stroke : null) ?? '#000000',
+    orig: { stroke: o.stroke ?? null, strokeWidth: o.strokeWidth ?? 0, strokeDashArray: o.strokeDashArray ?? null, strokeLineCap: o.strokeLineCap, strokeLineJoin: o.strokeLineJoin },
+  };
+  // Its own outline goes; it keeps its centre (Fabric places shapes by their box including the outline).
+  const c = o.getCenterPoint();
+  o.set({ stroke: null, strokeWidth: 0, strokeDashArray: null });
+  o.setPositionByOrigin(c, 'center', 'center'); o.setCoords();
+  const part = varShape(o, spec);
+  canvas.remove(o);
+  const g = style(new Group([o, part]), { toolName: 'Variable outline group' });
+  g.varSpec = spec; g.name = `${o.name} variable outline`;
+  canvas.insertAt(Math.max(1, i), g);
+  return g;
+}
+/** Builds the outline shape again from the group's settings. */
+function refreshVar(g) {
+  const old = varPart(g), part = varShape(varBase(g), g.varSpec);
+  if (old) g.remove(old);
+  g.add(part);
+  g.setCoords(); g.dirty = true;
+}
+/** Back to an ordinary outline: the object on its own with the outline it had before. */
+function removeVar(g) {
+  const i = canvas.getObjects().indexOf(g), kids = g.removeAll();
+  if (g.varSpec.picture) {
+    // A picture: just the picture again (its outline and the shape it followed go).
+    const img = kids.find((k) => k.type === 'image') ?? kids[0];
+    canvas.remove(g); canvas.insertAt(Math.max(1, i), img);
+    return img;
+  }
+  const base = kids.find((k) => k.fxPart !== 'varline') ?? kids[0];
+  const c = base.getCenterPoint();
+  base.set({ ...g.varSpec.orig, stroke: g.varSpec.orig.stroke ?? g.varSpec.colour, strokeWidth: g.varSpec.orig.strokeWidth || g.varSpec.width * MM });
+  base.setPositionByOrigin(c, 'center', 'center'); base.setCoords();
+  canvas.remove(g);
+  canvas.insertAt(Math.max(1, i), base);
+  return base;
+}
+
+/** The nearest point on an outline to p: { d, t (0 to 1 along the whole outline), x, y, nx, ny }. */
+function nearestOnRuns(runs, p) {
+  const total = runs.reduce((a, r) => a + r.len, 0) || 1;
+  let best = null, off = 0;
+  for (const run of runs) {
+    const ps = run.pts, n = ps.length, segs = run.closed ? n : n - 1;
+    for (let i = 0; i < segs; i++) {
+      const a = ps[i], b = ps[(i + 1) % n], dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+      const u = L2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2)) : 0, x = a.x + dx * u, y = a.y + dy * u, d = Math.hypot(p.x - x, p.y - y);
+      if (best && d >= best.d) continue;
+      const sb = i + 1 < n ? b.s : run.len, L = Math.sqrt(L2) || 1;
+      best = { d, t: (off + a.s + (sb - a.s) * u) / total, x, y, nx: -dy / L, ny: dx / L };
+    }
+    off += run.len;
+  }
+  return best;
+}
+/** The point at t along the outline, with its normal. */
+function pointOnRuns(runs, t) {
+  const total = runs.reduce((a, r) => a + r.len, 0) || 1;
+  let want = Math.max(0, Math.min(1, t)) * total;
+  for (const run of runs) {
+    if (want > run.len + 1e-9) { want -= run.len; continue; }
+    const ps = run.pts, n = ps.length;
+    for (let i = 0; i < (run.closed ? n : n - 1); i++) {
+      const a = ps[i], b = ps[(i + 1) % n], sb = i + 1 < n ? b.s : run.len;
+      if (want <= sb + 1e-9) { const u = sb > a.s ? (want - a.s) / (sb - a.s) : 0, dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1; return { x: a.x + dx * u, y: a.y + dy * u, nx: -dy / L, ny: dx / L }; }
+    }
+    const z = ps.at(-1);
+    return { x: z.x, y: z.y, nx: -z.ty, ny: z.tx };
+  }
+  const z = runs.at(-1).pts.at(-1);
+  return { x: z.x, y: z.y, nx: -z.ty, ny: z.tx };
+}
+/** The outline under p (within a few screen pixels), top object first: { o, base, ...nearest point }. */
+function outlineAt(p, tol = 9) {
+  const lim = tol / canvas.getZoom();
+  for (const o of userObjects().slice().reverse()) {
+    if (!o.visible || o.locked || !varOk(o)) continue;
+    const b = o.getBoundingRect();
+    if (p.x < b.left - lim || p.x > b.left + b.width + lim || p.y < b.top - lim || p.y > b.top + b.height + lim) continue;
+    const base = o.varSpec ? varBase(o) : o;
+    let hit = null;
+    try { hit = nearestOnRuns(outlineRuns(base), p); } catch { hit = null; }
+    // On a variable outline anywhere across its width counts.
+    const reach = o.varSpec ? Math.max(lim, (varWidthAt([...o.varSpec.pts].sort((x, y) => x.t - y.t), o.varSpec.width, hit?.t ?? 0, false) * MM * avgScale(base)) / (o.varSpec.unit || 1) / 2 + lim) : lim;
+    if (hit && hit.d <= reach) return { o, base, ...hit };
+  }
+  return null;
+}
+/** The width point of the group under p (its middle or either end of its bar), or -1. */
+function varPointAt(g, p) {
+  const base = varBase(g), runs = outlineRuns(base), k = (avgScale(base) / (g.varSpec.unit || 1)) * MM;
+  const pts = g.varSpec.pts;
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const q = pointOnRuns(runs, pts[i].t), h = (pts[i].w * k) / 2;
+    for (const z of [q, { x: q.x + q.nx * h, y: q.y + q.ny * h }, { x: q.x - q.nx * h, y: q.y - q.ny * h }]) if (screenDist(p, z) <= 9) return i;
+  }
+  return -1;
+}
+const sortVar = (g, keep) => { const pts = g.varSpec.pts; pts.sort((a, b) => a.t - b.t); return keep ? pts.indexOf(keep) : -1; };
+
+function varDown(p) {
+  if (varEdit && !canvas.getObjects().includes(varEdit.g)) varEdit = null;
+  // A width point of the outline being edited: drag it.
+  const own = varEdit ? varPointAt(varEdit.g, p) : -1;
+  if (own >= 0) { varEdit.sel = own; startVarDrag(varEdit.g, own); return; }
+  const hit = outlineAt(p);
+  if (!hit) {
+    varEdit = null; syncContext(); syncProps(); drawTop();
+    const o = userObjects().slice().reverse().find((x) => x.visible && x.containsPoint(new Point(p.x, p.y)));
+    if (o && isText(o)) toast('Text has no outline to vary here: convert it to curves first (Ctrl+Q), then drag on its outline');
+    else if (o?.type === 'image') {
+      // A picture: first an outline round its visible shape (a photo: its frame); then drag on it like any outline.
+      let g = null;
+      batch(() => { g = makeVarImageGroup(o); });
+      if (!g) { toast('This picture is see-through all over: there is no shape to outline'); return; }
+      varEdit = { g, sel: null };
+      canvas.requestRenderAll(); syncProps(); syncContext(); drawTop();
+      toast('Outline added round the shape of the picture: now press on that outline and drag to change its width there (profiles on the property bar)', 6000);
+    }
+    else if (o?.type === 'group' && !o.varSpec) toast('This is a group (objects grouped or merged together): ungroup it first (Ctrl+U), then press on the outline of the part you want', 5000);
+    else if (o) toast('Press on the outline (the edge) of the shape or line, then drag away from it to make it wider');
+    return;
+  }
+  let g = hit.o;
+  if (!g.varSpec) { batch(() => { g = makeVarGroup(hit.o); }); toast('Variable outline: drag away from the line to widen it, towards it to narrow it · more points: press elsewhere on the outline', 5000); }
+  const i = varPointAt(g, p);
+  varEdit = { g, sel: i };
+  syncProps();
+  if (i >= 0) { startVarDrag(g, i); return; }
+  // A new width point where the outline was pressed, starting at the width it has there.
+  const spec = g.varSpec, sorted = [...spec.pts].sort((a, b) => a.t - b.t), runs = outlineRuns(varBase(g)), cyclic = runs.length === 1 && runs[0].closed;
+  const pt = { t: hit.t, w: varWidthAt(sorted, spec.width, hit.t, cyclic) };
+  // On an even outline the first drag changes the width round that spot only (as in CorelDRAW): two points at the
+  // normal width either side keep the rest as it was.
+  if (!spec.pts.length) {
+    const r = 0.18, near = [hit.t - r, hit.t + r].map((t) => (cyclic ? (t + 1) % 1 : t)).filter((t) => t > 0.001 && t < 0.999);
+    for (const t of near) spec.pts.push({ t, w: spec.width });
+  }
+  spec.pts.push(pt);
+  varEdit.sel = sortVar(g, pt);
+  startVarDrag(g, varEdit.sel, true);
+}
+function startVarDrag(g, i, added = false) {
+  const part = varPart(g);
+  if (part) { part.visible = false; g.dirty = true; }
+  varDrag = { g, i, added, moved: false };
+  varPreview();
+  canvas.requestRenderAll(); syncContext();
+}
+function varPreview() {
+  const g = varDrag?.g;
+  if (!g) return;
+  const base = varBase(g);
+  varView = { preview: varOutlineD(outlineRuns(base), g.varSpec, avgScale(base) / (g.varSpec.unit || 1)), colour: g.varSpec.colour };
+  drawTop();
+}
+function varMove(p) {
+  if (!varDrag) {
+    // Hover: where a press would set the width
+    const hit = outlineAt(p);
+    varView = hit ? { hover: hit } : null;
+    drawTop();
+    return;
+  }
+  const { g, i } = varDrag, base = varBase(g), runs = outlineRuns(base), pt = g.varSpec.pts[i], q = pointOnRuns(runs, pt.t);
+  const k = (avgScale(base) / (g.varSpec.unit || 1)) * MM;
+  pt.w = Math.min(150, Math.max(0, (2 * Math.abs((p.x - q.x) * q.nx + (p.y - q.y) * q.ny)) / k));
+  g.varSpec.profile = 'custom';
+  varDrag.moved = true;
+  varPreview();
+  syncVarBar();
+}
+function varUp() {
+  const d = varDrag;
+  varDrag = null; varView = null;
+  if (!d) return;
+  refreshVar(d.g);
+  canvas.requestRenderAll();
+  canvas.fire('object:modified', { target: d.g });
+  syncContext(); drawTop();
+}
+function cancelVar() {
+  if (varDrag) { const g = varDrag.g; varDrag = null; refreshVar(g); canvas.requestRenderAll(); }
+  const had = !!varEdit;
+  varEdit = null; varView = null;
+  if (had) syncProps();
+}
+function varDblclick(p) {
+  if (!varEdit) return;
+  const i = varPointAt(varEdit.g, p);
+  if (i >= 0) deleteVarPoint(i);
+}
+function deleteVarPoint(i = varEdit?.sel) {
+  const g = varEdit?.g;
+  if (!g || i == null || i < 0 || i >= g.varSpec.pts.length) return;
+  g.varSpec.pts.splice(i, 1);
+  g.varSpec.profile = g.varSpec.pts.length ? 'custom' : 'uniform';
+  varEdit.sel = null;
+  refreshVar(g);
+  canvas.requestRenderAll();
+  canvas.fire('object:modified', { target: g });
+  syncContext(); drawTop();
+  toast('Width point deleted');
+}
+/** The width points of the outline being edited (cyan, the picked one pink), a hover mark, and the outline while it is dragged. */
+function drawVar(ctx, r, v) {
+  const S = (q) => ({ x: q.x * v[0] + v[4], y: q.y * v[3] + v[5] });
+  if (varView?.preview) {
+    ctx.save(); ctx.setTransform(r * v[0], 0, 0, r * v[3], r * v[4], r * v[5]);
+    ctx.globalAlpha = 0.85; ctx.fillStyle = typeof varView.colour === 'string' ? varView.colour : '#000000';
+    ctx.fill(new Path2D(varView.preview));
+    ctx.restore();
+  }
+  ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
+  const g = varEdit?.g;
+  if (g && canvas.getObjects().includes(g)) {
+    const base = varBase(g), runs = outlineRuns(base), k = (avgScale(base) / (g.varSpec.unit || 1)) * MM;
+    g.varSpec.pts.forEach((pt, i) => {
+      const q = pointOnRuns(runs, pt.t), h = (pt.w * k) / 2, a = S({ x: q.x + q.nx * h, y: q.y + q.ny * h }), b = S({ x: q.x - q.nx * h, y: q.y - q.ny * h }), c = S(q), on = i === varEdit.sel;
+      ctx.strokeStyle = '#05121c'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.strokeStyle = on ? '#E6007E' : '#12E1F0'; ctx.lineWidth = 2; ctx.stroke();
+      for (const z of [a, b]) { ctx.beginPath(); ctx.arc(z.x, z.y, 3.5, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = on ? '#E6007E' : '#1E7BFF'; ctx.lineWidth = 1.2; ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(c.x, c.y, on ? 5.5 : 4.5, 0, Math.PI * 2); ctx.fillStyle = on ? '#E6007E' : '#12E1F0'; ctx.fill(); ctx.strokeStyle = '#05121c'; ctx.lineWidth = 1.2; ctx.stroke();
+    });
+  }
+  const hov = varView?.hover;
+  if (hov) {
+    const c = S(hov), a = S({ x: hov.x + hov.nx * 6 / v[0], y: hov.y + hov.ny * 6 / v[0] }), b = S({ x: hov.x - hov.nx * 6 / v[0], y: hov.y - hov.ny * 6 / v[0] });
+    ctx.strokeStyle = '#12E1F0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.beginPath(); ctx.arc(c.x, c.y, 4, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#1E7BFF'; ctx.stroke();
+  }
+  ctx.restore();
+}
+/** Variable outlines the property bar and the chat change: the one being edited, else the selected objects. */
+function varTargets() {
+  if (varEdit?.g && canvas.getObjects().includes(varEdit.g)) return [varEdit.g];
+  const sel = state.tool === 'varline' ? toolTargets.filter((o) => canvas.getObjects().includes(o)) : active();
+  return sel.filter(varOk);
+}
+/** A profile for the targets (made variable outlines first); width in mm (the widest part), or keep it. */
+function setVarProfile(name, width) {
+  const objs = varTargets();
+  if (!objs.length) throw new Error('Select shapes or lines first (or click an outline with the Variable Outline tool)');
+  const out = [];
+  canvas.discardActiveObject();
+  batch(() => {
+    for (const o of objs) {
+      if (name === 'remove') { out.push(o.varSpec ? removeVar(o) : o); continue; }
+      const g = o.varSpec ? o : makeVarGroup(o);
+      if (width > 0) g.varSpec.width = width;
+      g.varSpec.pts = VAR_PROFILES[name](g.varSpec.width);
+      g.varSpec.profile = name;
+      refreshVar(g);
+      out.push(g);
+    }
+  });
+  if (varEdit) { varEdit = name === 'remove' ? null : { g: out[0], sel: null }; }
+  if (state.tool === 'select') select(out);
+  canvas.requestRenderAll(); syncContext(); syncProps(); drawTop();
+  return out;
+}
+/** The width box: the picked width point's width, else the outline's width (all points change in proportion). */
+function setVarWidth(mm) {
+  const objs = varTargets().filter((o) => o.varSpec);
+  if (!objs.length) return;
+  for (const g of objs) {
+    const s = g.varSpec;
+    if (varEdit?.g === g && varEdit.sel != null && s.pts[varEdit.sel]) { s.pts[varEdit.sel].w = mm; s.profile = 'custom'; }
+    else { const f = s.width ? mm / s.width : 1; s.pts = s.pts.map((q) => ({ ...q, w: q.w * f })); s.width = mm; }
+    refreshVar(g);
+  }
+  canvas.requestRenderAll();
+  canvas.fire('object:modified', { target: objs[0] });
+  syncContext(); drawTop();
+}
+function syncVarBar() {
+  const g = varTargets().find((o) => o.varSpec), s = g?.varSpec, sel = g && varEdit?.g === g && varEdit.sel != null ? s.pts[varEdit.sel] : null;
+  $('varProfile').value = s ? (s.profile ?? 'custom') : 'uniform';
+  $('varWidthLabel').textContent = sel ? 'Point width' : 'Width';
+  $('varWidth').value = String(+(sel ? sel.w : s ? s.width : Math.max(0.5, state.strokeWidth || 1)).toFixed(2));
+  $('varCap').value = s?.cap ?? 'round';
+  $('varDelPoint').disabled = !sel; $('varRemove').disabled = !s;
+}
+$('varProfile').onchange = (e) => { if (e.target.value === 'custom') return; try { setVarProfile(e.target.value); } catch (err) { toast(err.message); syncContext(); } };
+$('varWidth').onchange = (e) => { const mm = Math.max(0, Math.min(150, Number(e.target.value) || 0)); setVarWidth(mm); };
+$('varCap').onchange = (e) => { const objs = varTargets().filter((o) => o.varSpec); for (const g of objs) { g.varSpec.cap = e.target.value; refreshVar(g); } if (objs.length) { canvas.requestRenderAll(); canvas.fire('object:modified', { target: objs[0] }); } };
+$('varDelPoint').onclick = () => deleteVarPoint();
+$('varRemove').onclick = () => { try { setVarProfile('remove'); toast('Back to an ordinary outline'); } catch (err) { toast(err.message); } };
+$('anchorReset').onclick = () => {
+  const sel = connView?.sel;
+  if (!sel) return;
+  delete sel.o.anchors;
+  reattachEnds(sel.o);
+  connView.sel = null;
+  canvas.fire('object:modified', { target: sel.o });
+  syncContext(); drawTop();
+  toast('Anchors back to the four defaults');
+};
+
 // Smart Drawing (CorelDRAW): a freehand sketch becomes the clean shape it looks like (see sketch.js), or a smooth
 // curve when it is not one of them. The new shape is drawn with the current fill and outline, like the shape tools.
 const SMART_NAMES = { line: 'a line', rect: 'a rectangle', ellipse: 'an ellipse', triangle: 'a triangle', diamond: 'a diamond', polygon: 'a polygon', curve: 'a smooth curve' };
@@ -1711,7 +2761,7 @@ function clickTool(tool, target) {
   if (tool === 'fill') {
     applyProps(target, (o) => {
       if (state.target !== 'fill') return { stroke: state.stroke, strokeWidth: o.strokeWidth || MM, strokeUniform: true };
-      if (state.gradient) { o.gradSpec = { ...state.gradient }; return { fill: gradientFor(o, state.gradient) }; }
+      if (state.gradient) { o.gradSpec = cloneGrad(state.gradient); return { fill: gradientFor(o, state.gradient) }; }
       delete o.gradSpec;
       return { fill: state.fill };
     });
@@ -1725,7 +2775,7 @@ function clickTool(tool, target) {
     applyProps(target, (o) => {
       const props = { ...sample };
       if (!isText(o)) { delete props.fontFamily; delete props.fontWeight; delete props.fontStyle; }
-      if (gradSpec) o.gradSpec = { ...gradSpec }; else delete o.gradSpec;
+      if (gradSpec) o.gradSpec = cloneGrad(gradSpec); else delete o.gradSpec;
       return props;
     });
     for (const o of paintParts(target)) refill(o);
@@ -1846,7 +2896,7 @@ async function smartFill(p) {
   if (!d) { toast('Click inside an area enclosed by shapes'); return; }
   const o = makePath(d, null, { toolName: 'Smart fill' });
   o.set({ fill: state.gradient ? null : state.fill, stroke: state.strokeWidth ? state.stroke : null, strokeWidth: state.strokeWidth * MM, strokeUniform: true });
-  if (state.gradient) { o.gradSpec = { ...state.gradient }; o.set('fill', gradientFor(o)); }
+  if (state.gradient) { o.gradSpec = cloneGrad(state.gradient); o.set('fill', gradientFor(o)); }
   canvas.add(o);
 }
 function cutTargets(bounds) {
@@ -1971,33 +3021,59 @@ function applyBlend() {
   batch(() => { for (const o of objs) canvas.remove(o); g = style(new Group([a, ...mids, b]), { toolName: 'Blend group' }); canvas.add(g); });
   select([g]); toast(`Blended in ${steps} steps (Ctrl+U ungroups)`);
 }
-function applyContour() {
-  const objs = active().filter(shapeable);
+// Contour (CorelDRAW): steps outside, inside or to the centre of the object, grouped with it. Applying again changes
+// the contour (it is made again from the original object, never stacked); Remove gives the original back; Break
+// apart leaves the object and its steps as separate shapes.
+const isContourGroup = (o) => o?.type === 'group' && (!!o.fxContour || o.toolName === 'Contour group');
+const contourBase = (g) => g.getObjects().find((k) => k.fxPart !== 'contour' && k.toolName !== 'Contour') ?? g.getObjects()[0];
+function applyContour(mode = 'apply') {
+  const objs = active().filter((o) => shapeable(o) || isContourGroup(o));
   if (!objs.length) { toast('Select a shape or text to contour'); return; }
-  const fx = state.fx, outside = fx.contourDir === 'outside', steps = Math.max(1, Math.min(20, fx.contourSteps));
+  const fx = state.fx, dir = fx.contourDir, outside = dir === 'outside', centre = dir === 'centre', steps = Math.max(1, Math.min(20, fx.contourSteps));
   canvas.discardActiveObject();
   const out = [];
   try {
     batch(() => {
-      for (const o of objs) {
-        const base = worldD(o), contours = [];
-        for (let i = 1; i <= steps; i++) {
+      for (let o of objs) {
+        if (isContourGroup(o)) {
+          if (mode === 'break') {
+            // The steps and the object stay where they are, each a shape of its own.
+            const i = canvas.getObjects().indexOf(o), kids = o.removeAll();
+            canvas.remove(o);
+            kids.forEach((k, j) => { delete k.fxPart; if (k.toolName === 'Contour') k.name ??= `Contour step ${j + 1}`; canvas.insertAt(Math.max(1, i + j), k); out.push(k); });
+            continue;
+          }
+          const kids = o.removeAll(), keep = contourBase({ getObjects: () => kids }) ?? kids[0];
+          replaceObject(o, keep); o = keep;
+        }
+        if (mode !== 'apply') { out.push(o); continue; }
+        const base = worldD(o), ds = [];
+        // To centre: inside steps until the shape is filled (at most 100).
+        for (let i = 1; i <= (centre ? 100 : steps); i++) {
           const d = V.offsetD(base, (outside ? 1 : -1) * fx.contourOffset * MM * i);
           if (!d) break;
-          const p = makePath(d, null, { toolName: 'Contour' });
-          p.set({ fill: mix(solid(o), fx.contourColour, i / steps), stroke: null, strokeWidth: 0, opacity: o.opacity });
-          contours.push(p);
+          ds.push(d);
         }
-        if (!contours.length) continue;
+        if (!ds.length) { out.push(o); continue; }
+        const contours = ds.map((d, i) => {
+          const p = makePath(d, null, { toolName: 'Contour' });
+          p.set({ fill: mix(solid(o), fx.contourColour, (i + 1) / ds.length), stroke: null, strokeWidth: 0, opacity: o.opacity });
+          p.fxPart = 'contour'; p.fxStep = i + 1; // its place from the object outwards (inwards), for re-colouring
+          return p;
+        });
+        const i = canvas.getObjects().indexOf(o);
         canvas.remove(o);
         const g = style(new Group(outside ? [...contours.reverse(), o] : [o, ...contours]), { toolName: 'Contour group' });
         g.name = `${o.name} contour`;
-        canvas.add(g); out.push(g);
+        g.fxContour = { dir, steps: ds.length, offset: fx.contourOffset, colour: fx.contourColour };
+        canvas.insertAt(Math.max(1, i), g); out.push(g);
       }
     });
   } catch { toast('That object could not be contoured'); return; }
   select(out);
-  if (out.length) toast(`Contour ${outside ? 'outside' : 'inside'} added (Ctrl+U ungroups)`);
+  if (mode === 'remove') toast('Contour removed: the original object again');
+  else if (mode === 'break') toast('Contour broken apart: the object and each step are separate shapes now');
+  else if (out.length) toast(`Contour ${centre ? 'to the centre' : outside ? 'outside' : 'inside'} added · change the settings and Apply again to adjust it · Remove takes it off`);
 }
 function applyShadow(remove = false) {
   const objs = active();
@@ -2005,16 +3081,81 @@ function applyShadow(remove = false) {
   const fx = state.fx, [r, g, b] = hexToRgb(fx.shadowColour);
   applyToSelection(remove ? { shadow: null } : { shadow: new Shadow({ color: `rgba(${r},${g},${b},${fx.shadowOpacity / 100})`, blur: fx.shadowBlur * MM, offsetX: fx.shadowX * MM, offsetY: fx.shadowY * MM }) }, remove ? 'Shadow removed' : 'Drop shadow applied');
 }
+// Inner Shadow (CorelDRAW): a soft shadow inside the object, along the edges the offset points away from, as if
+// the object were pressed into the page. Like CorelDRAW's it is a picture, made from the object's own shape and
+// kept inside it, grouped over the object (Multiply darkens the colours under it). Apply again changes it; Remove
+// takes it off. Works on shapes, text, groups and pictures (their visible pixels).
+function innerShadowImage(o, fx) {
+  const b = o.getBoundingRect(), k = Math.min(4, 2400 / (Math.max(b.width, b.height) || 1)); // pixels per page unit
+  const mask = o.toCanvasElement({ multiplier: k, enableRetinaScaling: false, withoutShadow: true });
+  const W = mask.width, H = mask.height;
+  if (!W || !H) return null;
+  const blur = Math.max(0, fx.innerBlur * MM * k), dx = fx.innerX * MM * k, dy = fx.innerY * MM * k;
+  const pad = Math.ceil(blur * 2 + Math.abs(dx) + Math.abs(dy)) + 2;
+  // 1. The shadow colour everywhere except under the object moved by the offset (where light gets in).
+  const s = document.createElement('canvas');
+  s.width = W + pad * 2; s.height = H + pad * 2;
+  const sc = s.getContext('2d');
+  sc.fillStyle = fx.innerColour; sc.fillRect(0, 0, s.width, s.height);
+  sc.globalCompositeOperation = 'destination-out'; sc.drawImage(mask, pad + dx, pad + dy);
+  // 2. Softened (drawn as the shadow of a copy far off to the left, which works in every browser), then 3. kept
+  // to the object's own shape.
+  const t = document.createElement('canvas');
+  t.width = W; t.height = H;
+  const tc = t.getContext('2d');
+  if (blur >= 0.5) { tc.shadowColor = fx.innerColour; tc.shadowBlur = blur; tc.shadowOffsetX = s.width + 20; tc.drawImage(s, -pad - s.width - 20, -pad); tc.shadowColor = 'transparent'; }
+  else tc.drawImage(s, -pad, -pad);
+  tc.globalCompositeOperation = 'destination-in'; tc.drawImage(mask, 0, 0);
+  const c = o.getCenterPoint();
+  const img = new FabricImage(t, { originX: 'center', originY: 'center', left: c.x, top: c.y, scaleX: b.width / W, scaleY: b.height / H, opacity: Math.max(0, Math.min(100, fx.innerOpacity)) / 100, globalCompositeOperation: fx.innerMerge === 'normal' ? 'source-over' : 'multiply' });
+  // toCanvasElement draws the object in the middle of a canvas of its box (rounded up), k pixels per unit.
+  img.set({ scaleX: 1 / k, scaleY: 1 / k });
+  style(img, { toolName: 'Inner shadow' });
+  img.fxPart = 'inner';
+  return img;
+}
+function applyInner(remove = false) {
+  const objs = active();
+  if (!objs.length) { toast(NEEDS_SELECTION.inner); return; }
+  const fx = state.fx, out = [];
+  canvas.discardActiveObject();
+  try {
+    batch(() => {
+      for (let o of objs) {
+        // Applying again replaces the old inner shadow instead of stacking another one.
+        if (o.fxInner) { const kids = o.removeAll(), keep = kids.find((x) => x.fxPart !== 'inner') ?? kids[0]; replaceObject(o, keep); o = keep; }
+        if (remove) { out.push(o); continue; }
+        const img = innerShadowImage(o, fx);
+        if (!img) { out.push(o); continue; }
+        const i = canvas.getObjects().indexOf(o);
+        canvas.remove(o);
+        const g = style(new Group([o, img]), { toolName: 'Inner shadow group' });
+        g.fxInner = { x: fx.innerX, y: fx.innerY, blur: fx.innerBlur, opacity: fx.innerOpacity, colour: fx.innerColour, merge: fx.innerMerge };
+        g.name = `${o.name} inner shadow`;
+        canvas.insertAt(Math.max(1, i), g);
+        out.push(g);
+      }
+    });
+  } catch (err) { console.warn(err); toast('Could not add the inner shadow to that object'); return; }
+  select(out);
+  toast(remove ? 'Inner shadow removed' : 'Inner shadow added · change the settings and Apply again to adjust it · Remove takes it off');
+}
 function applyTransparency() {
   const fx = state.fx;
   if (!active().length) { toast('Select objects first'); return; }
   if (fx.transp === 'none') applyToSelection((o) => { if (o.gradSpec?.fade) { const c = o.gradSpec.from; delete o.gradSpec; return { opacity: 1, fill: c }; } return { opacity: 1 }; }, 'Transparency removed');
   else if (fx.transp === 'uniform') applyToSelection({ opacity: 1 - fx.transpValue / 100 }, `Transparency ${fx.transpValue}%`);
   else applyToSelection((o) => {
-    const c = o.gradSpec?.fade ? o.gradSpec.from : solid(o), [r, g, b] = hexToRgb(c);
-    o.gradSpec = { from: c, to: `rgba(${r},${g},${b},${1 - fx.transpValue / 100})`, angle: fx.transpAngle, type: 'linear', fade: true };
+    // Linear: a fade along the angle; radial: solid in the middle, fading out to the edges.
+    const c = o.gradSpec?.fade ? o.gradSpec.from : o.gradSpec && o.fill && typeof o.fill === 'object' ? hexOf(gradStops(o.gradSpec)[0].color) ?? solid(o) : solid(o), [r, g, b] = hexToRgb(c);
+    o.gradSpec = { from: c, to: `rgba(${r},${g},${b},${1 - fx.transpValue / 100})`, angle: fx.transpAngle, kind: fx.transp === 'radial' ? 'radial' : 'linear', fade: true };
     return { fill: gradientFor(o), opacity: 1 };
-  }, 'Linear transparency applied');
+  }, fx.transp === 'radial' ? 'Radial transparency applied' : 'Linear transparency applied');
+  // Merge mode: how the objects mix with what is under them (CorelDRAW's transparency merge modes).
+  const merge = fx.transpMerge === 'normal' || !fx.transpMerge ? 'source-over' : fx.transpMerge;
+  for (const o of active()) o.set('globalCompositeOperation', merge);
+  canvas.requestRenderAll();
+  if (merge !== 'source-over') canvas.fire('object:modified', { target: active()[0] });
 }
 
 /** The area an object covers on the page, outline included (block shadows and extrusions follow it). */
@@ -2585,7 +3726,8 @@ wrap.addEventListener('drop', async (e) => {
 // ===================================================================
 // Property bar and Properties tab
 // ===================================================================
-const active = () => (state.tool === 'node' && nodes.target ? [nodes.target] : canvas.getActiveObjects());
+// The Shape tool's curve and the Variable Outline tool's outline count as selected (colours, outline width, Properties).
+const active = () => (state.tool === 'node' && nodes.target ? [nodes.target] : state.tool === 'varline' && varEdit?.g && canvas.getObjects().includes(varEdit.g) ? [varEdit.g] : canvas.getActiveObjects());
 const one = () => (active().length === 1 ? active()[0] : null);
 function applyToSelection(props, label) {
   const objs = active();
@@ -2607,22 +3749,89 @@ function paintParts(o) {
 }
 function applyProps(o, props) {
   const p = typeof props === 'function' ? props(o) : props;
+  if (o.varSpec && (p.stroke !== undefined || p.strokeWidth !== undefined)) {
+    // A variable outline: the outline colour is its outline shape's fill; a new width scales all its widths.
+    const s = o.varSpec, part = varPart(o);
+    if (p.stroke !== undefined) { s.colour = typeof p.stroke === 'string' ? p.stroke : null; part?.set('fill', s.colour); o.dirty = true; }
+    else if (p.strokeWidth > 0 && Math.abs(p.strokeWidth / MM - s.width) > 1e-6) { const f = p.strokeWidth / MM / s.width; s.pts = s.pts.map((q) => ({ ...q, w: q.w * f })); s.width = p.strokeWidth / MM; refreshVar(o); }
+    const rest = Object.fromEntries(Object.entries(p).filter(([k]) => !k.startsWith('stroke')));
+    if (Object.keys(rest).length) applyProps(o, rest);
+    return;
+  }
   if (o.paintSpec && typeof p.fill === 'string') { repaint(o, { colour: p.fill }); return; }
   if (o.type !== 'group' || !Object.keys(p).some((k) => PAINT_KEYS.has(k))) { o.set(p); return; }
+  const done = new Set();
   for (const part of paintParts(o)) {
     const q = typeof props === 'function' ? props(part) : props;
+    // A variable outline inside the group (grouped or merged with other objects) takes the settings itself, so a new
+    // outline colour colours its outline shape instead of giving the object under it an ordinary outline.
+    const vg = part.parent?.varSpec && part.parent !== o ? part.parent : null;
+    if (vg) { if (!done.has(vg)) { done.add(vg); applyProps(vg, q); } continue; }
     part.set(Object.fromEntries(Object.entries(q).filter(([k]) => PAINT_KEYS.has(k))));
   }
+  // A contour group: a new fill colour for the object blends its steps again, from that colour to the contour colour.
+  if (o.fxContour && typeof p.fill === 'string') for (const k of o.getObjects()) if (k.fxPart === 'contour') k.set('fill', k.fxStep ? mix(p.fill, o.fxContour.colour, k.fxStep / o.fxContour.steps) : p.fill);
   o.set({ ...Object.fromEntries(Object.entries(p).filter(([k]) => !PAINT_KEYS.has(k))), dirty: true });
 }
-/** A solid fill or outline colour (eyedropper, palette): outlines for open lines. */
+/**
+ * A picture "filled" with a colour (palette, chat, eyedropper): it has no fill, so it is tinted in that colour, keeping
+ * its light and shade (dark stays dark, highlights stay light), like a one-ink duotone in CorelDRAW. Undo restores it.
+ */
+async function tintImage(o, hex) {
+  const pic = B.imagePixels(o, 2048), w = pic.canvas.width, h = pic.canvas.height, d = pic.ctx.getImageData(0, 0, w, h), px = d.data, [r, g, b] = hexToRgb(hex);
+  for (let i = 0; i < px.length; i += 4) {
+    const L = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) / 255;
+    if (L < 0.5) { const t = L * 2; px[i] = r * t; px[i + 1] = g * t; px[i + 2] = b * t; }
+    else { const t = (L - 0.5) * 2; px[i] = r + (255 - r) * t; px[i + 1] = g + (255 - g) * t; px[i + 2] = b + (255 - b) * t; }
+  }
+  pic.ctx.putImageData(d, 0, 0);
+  await replacePixels(o, pic);
+}
+/** The pictures a fill colour tints: the picture itself, or those in a group with nothing else to fill. */
+const tintTargets = (o) => {
+  if (o.type === 'image') return o.paintSpec ? [] : [o];
+  const out = [];
+  if (o.type === 'group' && !paintParts(o).length) eachPart(o, (x) => { if (x.type === 'image' && !x.paintSpec) out.push(x); });
+  return out;
+};
+/** A solid fill or outline colour (eyedropper, palette): outlines for open lines; pictures are tinted. */
 function paintObject(o, hex, outline) {
+  if (!outline) { const pics = tintTargets(o); if (pics.length) { for (const x of pics) tintImage(x, hex); return; } }
   applyProps(o, (x) => {
     if (outline || x.type === 'line' || x.type === 'polyline' || (x.type === 'path' && !x.fill && x.stroke)) return { stroke: hex, strokeWidth: x.strokeWidth || MM / 2, strokeUniform: true };
     delete x.gradSpec; delete x.patSpec;
     return { fill: hex };
   });
 }
+/** The status bar shows the selection's IDs (#12; the name on hover): click to copy them for 3DEEZI ASSIST. */
+function syncSelInfo() {
+  const el = $('selInfo'), objs = active().filter((o) => o.num != null);
+  el.hidden = !objs.length;
+  if (!objs.length) return;
+  const label = (o) => (isText(o) ? `“${String(o.text).slice(0, 30)}”` : o.name || o.toolName || o.type);
+  el.textContent = `${objs.length > 1 ? 'IDs' : 'ID'}: ${objs.slice(0, 5).map((o) => `#${o.num}`).join(' ')}${objs.length > 5 ? ' …' : ''}`;
+  el.title = `${objs.slice(0, 5).map((o) => `#${o.num} ${label(o)}`).join(', ')}${objs.length > 5 ? ' …' : ''} · click to copy, then use it in 3DEEZI ASSIST (e.g. "make #${objs[0].num} red")`;
+}
+/** Pages with big ID numbers (made before IDs were tidied, or after many edits) get #1, #2 … again, in the same order. */
+function compactNums() {
+  if (pages.length > 1) return; // pages came after IDs were tidied: nothing to close up
+  const objs = userObjects(), withNum = objs.filter((o) => o.num != null).sort((a, b) => a.num - b.num), without = objs.filter((o) => o.num == null);
+  const max = withNum.reduce((m, o) => Math.max(m, o.num), 0);
+  if (!without.length && max <= objs.length * 1.5 + 10) return;
+  let n = 0;
+  for (const o of [...withNum, ...without]) {
+    const old = o.num;
+    o.num = ++n;
+    // Inside a group, the part it was made from shares its ID; other parts' old numbers go.
+    if (o.type === 'group') eachPart(o, (x) => { if (x === o) return; if (old != null && x.num === old) x.num = o.num; else delete x.num; });
+  }
+}
+$('selInfo').onclick = () => {
+  const list = active().filter((o) => o.num != null).map((o) => `#${o.num}`), ids = list.join(' ');
+  if (!ids) return;
+  navigator.clipboard?.writeText(ids).catch(() => {});
+  toast(`Copied ${list.length > 1 ? 'IDs' : 'ID'} ${ids}`);
+};
 function syncProps() {
   const o = one();
   const has = active().length > 0;
@@ -2631,12 +3840,14 @@ function syncProps() {
   // A group shows the colours of its parts (a table: its cells and lines).
   const p = o?.type === 'group' ? paintParts(o)[0] ?? o : o;
   const fill = p && typeof p.fill === 'string' ? p.fill : state.fill;
-  $('fillChip').style.background = (p ? p.fill : state.fill) ? (typeof (p?.fill ?? state.fill) === 'string' ? fill : 'linear-gradient(110deg,#12E1F0,#1E7BFF)') : '';
+  const gs = p ? (p.gradSpec && p.fill && typeof p.fill === 'object' ? p.gradSpec : null) : state.gradient;
+  $('fillChip').style.background = gs ? `linear-gradient(90deg, ${cssStops(gs)})` : (p ? p.fill : state.fill) ? (typeof (p?.fill ?? state.fill) === 'string' ? fill : 'linear-gradient(110deg,#12E1F0,#1E7BFF)') : '';
   $('fillChip').classList.toggle('none', !!p && !p.fill);
-  const stroke = p ? p.stroke : state.strokeWidth ? state.stroke : null;
+  syncSelInfo();
+  const vs = o?.varSpec ?? p?.parent?.varSpec, stroke = vs ? vs.colour : p ? p.stroke : state.strokeWidth ? state.stroke : null;
   $('strokeChip').style.background = stroke || '';
-  $('strokeChip').classList.toggle('none', !stroke || !(p ? p.strokeWidth : state.strokeWidth));
-  $('strokeWidth').value = String(p ? +(p.strokeWidth / MM).toFixed(2) : state.strokeWidth);
+  $('strokeChip').classList.toggle('none', !stroke || !(vs ? vs.width : p ? p.strokeWidth : state.strokeWidth));
+  $('strokeWidth').value = String(vs ? +vs.width.toFixed(2) : p ? +(p.strokeWidth / MM).toFixed(2) : state.strokeWidth);
   if (!$('strokeWidth').value) $('strokeWidth').value = '0';
   $('opacity').value = String(Math.round((o ? o.opacity : state.opacity) * 100));
   $('lock').classList.toggle('on', !!o?.locked);
@@ -2831,6 +4042,9 @@ async function duplicate(offset = 10 * MM, source = active()) {
   const clones = [];
   muted++;
   for (const o of source) { const c = await o.clone(EXTRA); c.set({ left: c.left + offset, top: c.top + offset }); c.name = `${o.name} copy`; style(c); canvas.add(c); clones.push(c); }
+  // Connectors copied together with their objects join the copies.
+  const copyOf = new Map(source.map((o, i) => [o.uid, clones[i].uid]).filter(([a, b]) => a && b && a !== b));
+  for (const c of clones) if (c.connSpec) c.connSpec.ends = c.connSpec.ends.map((e) => (e?.uid && copyOf.has(e.uid) ? { ...e, uid: copyOf.get(e.uid) } : e));
   muted--; refreshLayers(); record();
   select(clones);
 }
@@ -2879,6 +4093,18 @@ function syncContext() {
   show('ctx-brush', SCULPT.has(t) || t === 'eraser' || t === 'smudge');
   show('twirlWrap', t === 'twirl'); $('cTwirlDir').value = state.shape.twirl;
   show('ctx-freetx', t === 'freetx');
+  const connSel = pick && n >= 1 && sel.every((x) => x.connSpec), connOn = !!CONN_TOOLS[t] || connSel;
+  show('ctx-conn', connOn);
+  if (connOn) {
+    const cs = connSel ? sel[0].connSpec : { kind: CONN_TOOLS[t], radius: state.conn.radius, arrows: state.conn.arrows };
+    show('connTypeWrap', connSel); $('connType').value = cs.kind;
+    show('connRadiusWrap', cs.kind === 'rounded'); $('connRadius').value = String(cs.radius ?? state.conn.radius); $('connArrows').value = cs.arrows ?? 'none';
+  }
+  show('ctx-anchor', t === 'anchor');
+  const varOn = t === 'varline' || (pick && n === 1 && !!o?.varSpec);
+  show('ctx-var', varOn);
+  if (varOn) syncVarBar();
+  if (t === 'anchor') { $('anchorDel').disabled = !connView?.sel; $('anchorReset').disabled = !connView?.sel; }
   show('ctx-smart', t === 'smartdraw'); show('ctx-live', t === 'livesketch');
   if (t === 'smartdraw') { $('sdLevel').value = state.smart.level; $('sdSmooth').value = String(state.smart.smooth); }
   if (t === 'livesketch') { $('lsTimer').value = String(state.live.timer); $('lsNear').value = String(state.live.near); $('lsSmooth').value = String(state.live.smooth); }
@@ -2902,7 +4128,7 @@ function syncContext() {
   show('ctx-graph', t === 'graph');
   show('ctx-shapes', t.startsWith('shape:') || (pick && o?.shapeSpec?.tool?.startsWith('shape:')));
   show('ctx-rect', t === 'rect' || (pick && o?.type === 'rect'));
-  show('ctx-blend', t === 'blend'); show('ctx-contour', t === 'contour'); show('ctx-shadow', t === 'shadow'); show('ctx-transp', t === 'transparency');
+  show('ctx-blend', t === 'blend'); show('ctx-contour', t === 'contour'); show('ctx-shadow', t === 'shadow'); show('ctx-inner', t === 'inner'); show('ctx-transp', t === 'transparency');
   show('ctx-distort', t === 'distort'); show('ctx-envelope', t === 'envelope'); show('ctx-extrude', t === 'extrude'); show('ctx-block', t === 'blockshadow');
   show('ctx-mesh', t === 'meshfill' || (pick && !!o?.fxMesh));
   show('ctx-powerclip', !!pcEdit || (pick && !!o?.powerClip)); show('pcEditBtn', !pcEdit); show('pcFinishBtn', !!pcEdit); show('pcExtractBtn', !pcEdit); show('ctx-table', t === 'table'); show('ctx-eyedrop', t === 'eyedropper');
@@ -3025,11 +4251,12 @@ bindNumber('rectRadius', (v) => { state.shape.radiusRect = Math.max(0, v); const
 bindNumber('fxSteps', (v) => { state.fx.blendSteps = Math.max(1, Math.min(60, Math.round(v))); });
 bindNumber('fxCSteps', (v) => { state.fx.contourSteps = Math.max(1, Math.min(20, Math.round(v))); });
 bindNumber('fxCOffset', (v) => { state.fx.contourOffset = Math.max(0.1, Math.min(100, v)); });
-$('fxCDir').onchange = (e) => { state.fx.contourDir = e.target.value; savePrefs(); };
+$('fxCDir').onchange = (e) => { state.fx.contourDir = e.target.value; $('fxCStepsWrap').hidden = e.target.value === 'centre'; savePrefs(); };
 $('fxCColour').oninput = (e) => { state.fx.contourColour = e.target.value; savePrefs(); };
 for (const [id, k] of [['fxSX', 'shadowX'], ['fxSY', 'shadowY'], ['fxSBlur', 'shadowBlur'], ['fxSOpacity', 'shadowOpacity']]) bindNumber(id, (v) => { state.fx[k] = v; });
 $('fxSColour').oninput = (e) => { state.fx.shadowColour = e.target.value; savePrefs(); };
 $('fxTType').onchange = (e) => { state.fx.transp = e.target.value; $('fxTAngleWrap').hidden = e.target.value !== 'linear'; savePrefs(); };
+$('fxTMerge').onchange = (e) => { state.fx.transpMerge = e.target.value; savePrefs(); };
 bindNumber('fxTValue', (v) => { state.fx.transpValue = Math.max(0, Math.min(100, v)); });
 bindNumber('fxTAngle', (v) => { state.fx.transpAngle = v; });
 $('fxDMode').onchange = (e) => { state.fx.distort = e.target.value; savePrefs(); syncContext(); };
@@ -3059,8 +4286,12 @@ $('eyeTo').onchange = (e) => setTarget(e.target.value);
 // Table card (Properties tab): rows, columns and text size rebuild the table; each box edits one cell.
 for (const [id, key, lo, hi] of [['tbRows', 'rows', 1, 30], ['tbCols', 'cols', 1, 12]]) $(id).onchange = (e) => { const g = one(); if (g?.tableSpec) rebuildTable(g, { [key]: clampInt(Number(e.target.value), lo, hi) }); };
 $('tbSize').onchange = (e) => { const g = one(), mm = Number(e.target.value); if (g?.tableSpec && mm > 0) rebuildTable(g, { size: Math.min(200, mm) * MM }); };
-$('fxBlend').onclick = applyBlend; $('fxContour').onclick = applyContour;
+$('fxBlend').onclick = applyBlend; $('fxContour').onclick = () => applyContour('apply'); $('fxContourOff').onclick = () => applyContour('remove'); $('fxContourBreak').onclick = () => applyContour('break');
 $('fxShadow').onclick = () => applyShadow(false); $('fxShadowOff').onclick = () => applyShadow(true);
+$('fxInner').onclick = () => applyInner(false); $('fxInnerOff').onclick = () => applyInner(true);
+for (const [id, key] of [['fxIX', 'innerX'], ['fxIY', 'innerY'], ['fxIBlur', 'innerBlur'], ['fxIOpacity', 'innerOpacity']]) bindNumber(id, (v) => { state.fx[key] = key === 'innerBlur' ? Math.max(0, v) : key === 'innerOpacity' ? Math.max(0, Math.min(100, v)) : v; });
+$('fxIColour').oninput = (e) => { state.fx.innerColour = e.target.value; savePrefs(); };
+$('fxIMerge').onchange = (e) => { state.fx.innerMerge = e.target.value; savePrefs(); };
 $('fxTransp').onclick = applyTransparency;
 document.querySelectorAll('[data-node]').forEach((b) => (b.onclick = () => nodes.op(b.dataset.node)));
 document.querySelectorAll('[data-shaping]').forEach((b) => (b.onclick = () => shaping(b.dataset.shaping)));
@@ -3068,9 +4299,10 @@ function initContextValues() {
   const s = state.shape, f = state.fx;
   $('cRevs').value = String(s.revs); $('cSpiralType').value = s.log ? 'log' : 'sym'; $('cExpand').value = String(s.expand); $('cExpandWrap').hidden = !s.log;
   $('cCols').value = String(s.cols); $('cRows').value = String(s.rows); $('cRadius').value = String(s.radius);
-  $('fxSteps').value = String(f.blendSteps); $('fxCDir').value = f.contourDir; $('fxCSteps').value = String(f.contourSteps); $('fxCOffset').value = String(f.contourOffset); $('fxCColour').value = f.contourColour;
+  $('fxSteps').value = String(f.blendSteps); $('fxCDir').value = f.contourDir; $('fxCStepsWrap').hidden = f.contourDir === 'centre'; $('fxCSteps').value = String(f.contourSteps); $('fxCOffset').value = String(f.contourOffset); $('fxCColour').value = f.contourColour;
   $('fxSX').value = String(f.shadowX); $('fxSY').value = String(f.shadowY); $('fxSBlur').value = String(f.shadowBlur); $('fxSOpacity').value = String(f.shadowOpacity); $('fxSColour').value = f.shadowColour;
-  $('fxTType').value = f.transp; $('fxTValue').value = String(f.transpValue); $('fxTAngle').value = String(f.transpAngle); $('fxTAngleWrap').hidden = f.transp !== 'linear';
+  $('fxIX').value = String(f.innerX); $('fxIY').value = String(f.innerY); $('fxIBlur').value = String(f.innerBlur); $('fxIOpacity').value = String(f.innerOpacity); $('fxIColour').value = f.innerColour; $('fxIMerge').value = f.innerMerge;
+  $('fxTType').value = f.transp; $('fxTValue').value = String(f.transpValue); $('fxTAngle').value = String(f.transpAngle); $('fxTAngleWrap').hidden = f.transp !== 'linear'; $('fxTMerge').value = f.transpMerge ?? 'normal';
   $('fxDMode').value = f.distort; $('fxDZip').value = String(f.zipSize); $('fxDTeeth').value = String(f.zipTeeth); $('fxDTwist').value = String(f.twist); $('fxDPush').value = String(f.push);
   $('fxEPreset').value = f.envelope; $('fxEAmount').value = String(f.envAmount);
   $('fxXX').value = String(f.extX); $('fxXY').value = String(f.extY); $('fxXColour').value = f.extColour;
@@ -3148,11 +4380,11 @@ function setColour(hex, { recent = true, apply = true } = {}) {
   hsv = hexToHsv(hex);
   $('hexIn').value = hex; $('hexChip').style.background = hex; showValues(hex);
   drawPicker(); drawHarmony();
-  if (state.gradient && state.target === 'fill') state.gradient.from = hex;
+  if (state.gradient && state.target === 'fill') gradStopColour(hex);
   if (apply) {
     if (state.target === 'fill') applyToSelection((o) => {
       if (o.type === 'line' || o.type === 'polyline' || (o.type === 'path' && !o.fill && o.stroke)) return { stroke: hex };
-      if (state.gradient) { o.gradSpec = { ...state.gradient }; delete o.patSpec; return { fill: gradientFor(o) }; }
+      if (state.gradient) { o.gradSpec = cloneGrad(state.gradient); delete o.patSpec; return { fill: gradientFor(o) }; }
       if (state.pattern) { o.patSpec = { ...state.pattern, ink: hex }; delete o.gradSpec; return { fill: patternFor(o.patSpec) }; }
       delete o.gradSpec; delete o.patSpec;
       return { fill: hex };
@@ -3194,15 +4426,134 @@ function pickDrag(el, onMove) {
 pickDrag($('sv'), (x, y) => { hsv.s = x; hsv.v = 1 - y; setColour(hsvToHex(hsv), { recent: false }); });
 pickDrag($('hue'), (_, y) => { hsv.h = y * 360; setColour(hsvToHex(hsv), { recent: false }); });
 $('hexIn').onchange = (e) => { const v = e.target.value.trim().replace(/^#?/, '#'); if (/^#[0-9a-f]{6}$/i.test(v)) setColour(v); };
+/** The colour the picker shows (its hex box): what + adds. */
+const shownColour = () => { const v = $('hexIn').value.trim().toUpperCase(); return /^#[0-9A-F]{6}$/.test(v) ? v : current(); };
 function renderSwatches() {
-  const make = (box, colours, add) => {
-    box.innerHTML = '';
-    for (const c of colours) { const b = document.createElement('button'); b.className = 'sw'; b.style.background = c; b.title = c; b.onclick = () => setColour(c); box.append(b); }
-    if (add) { const b = document.createElement('button'); b.className = 'sw add'; b.title = 'Save current colour'; b.innerHTML = icon('plus'); b.onclick = () => { state.saved = [current(), ...state.saved.filter((c) => c !== current())].slice(0, 12); savePrefs(); renderSwatches(); }; box.append(b); }
+  const sw = (box, c, remove) => {
+    const b = document.createElement('button'); b.className = 'sw'; b.style.background = c; b.title = remove ? `${c} · right-click: remove it from this palette` : c; b.onclick = () => setColour(c);
+    if (remove) b.oncontextmenu = (e) => { e.preventDefault(); remove(c); };
+    box.append(b);
   };
-  make($('brandSw'), [...BRAND, ...state.saved], true);
-  make($('recentSw'), state.recent.length ? state.recent : ['#12E1F0', '#1E7BFF', '#7B4DFF', '#5D6B7B', '#000000', '#FFFFFF']);
+  const addBtn = (box, title, fn) => { const b = document.createElement('button'); b.className = 'sw add'; b.title = title; b.innerHTML = icon('plus'); b.onclick = fn; box.append(b); };
+  const brand = $('brandSw'), pal = currentPalette();
+  brand.innerHTML = '';
+  if (pal) {
+    for (const c of pal.colours) sw(brand, c, (x) => paletteRemoveColour(pal, x));
+    addBtn(brand, `Add the colour shown in the picker to ${pal.name}`, () => { const c = shownColour(); paletteAddColours(pal, [c]); toast(`${c} added to ${pal.name}`); });
+  } else {
+    for (const c of BRAND) sw(brand, c);
+    for (const c of state.saved) sw(brand, c, (x) => { state.saved = state.saved.filter((y) => y !== x); savePrefs(); renderSwatches(); toast(`${x} removed from your colours`); });
+    addBtn(brand, 'Save the colour shown in the picker', () => { const c = shownColour(); state.saved = [c, ...state.saved.filter((x) => x !== c)].slice(0, 12); savePrefs(); renderSwatches(); toast(`${c} saved in your colours`); });
+  }
+  const recent = $('recentSw');
+  recent.innerHTML = '';
+  for (const c of state.recent.length ? state.recent : ['#12E1F0', '#1E7BFF', '#7B4DFF', '#5D6B7B', '#000000', '#FFFFFF']) sw(recent, c);
 }
+// ===================================================================
+// Saved palettes (brand / team colours): named lists of colours, kept on this device for every design. The one
+// picked shows in the Colour tab and at the start of the bottom palette. Made from the current colour, the
+// selection's colours or every colour in the design; + adds a colour, right-click removes one.
+// ===================================================================
+state.palettes = (Array.isArray(state.palettes) ? state.palettes : []).filter((p) => p && typeof p.name === 'string' && p.name.trim() && Array.isArray(p.colours))
+  .map((p) => ({ name: p.name.trim().slice(0, 40), colours: [...new Set(p.colours.map(hexOf).filter(Boolean))] }));
+state.gradients = (Array.isArray(state.gradients) ? state.gradients : []).filter((g) => g && Array.isArray(g.stops) && g.stops.length >= 2);
+const findPalette = (name) => state.palettes.find((p) => p.name.toLowerCase() === String(name).trim().toLowerCase()) ?? null;
+const currentPalette = () => (state.palette ? findPalette(state.palette) : null);
+/** The fill (or gradient) and outline colours some objects use, most used first. */
+function coloursOf(objs) {
+  const count = new Map(), add = (c) => { const h = hexOf(c); if (h) count.set(h, (count.get(h) ?? 0) + 1); };
+  const walk = (o) => {
+    if (o.type === 'group') { o.getObjects().forEach(walk); return; }
+    if (o.type === 'image') return;
+    if (o.gradSpec && !o.gradSpec.fade && o.fill && typeof o.fill === 'object') gradStops(o.gradSpec).forEach((s) => add(s.color)); else add(o.fill);
+    if (o.strokeWidth) add(o.stroke);
+  };
+  objs.forEach(walk);
+  return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
+}
+function usePalette(name) { state.palette = name ? findPalette(name)?.name ?? '' : ''; savePrefs(); renderPalettes(); }
+/** Saves a palette under that name (a palette with the same name is replaced) and shows it. */
+function savePalette(name, colours) {
+  name = String(name).trim().slice(0, 40);
+  const cols = [...new Set(colours.map(hexOf).filter(Boolean))].slice(0, 40);
+  let p = findPalette(name);
+  if (p) p.colours = cols; else { p = { name, colours: cols }; state.palettes.push(p); }
+  state.palette = p.name; savePrefs(); renderPalettes();
+  return p;
+}
+function paletteAddColours(p, colours) { p.colours = [...new Set([...p.colours, ...colours.map(hexOf).filter(Boolean)])].slice(0, 40); savePrefs(); renderPalettes(); }
+function paletteRemoveColour(p, c) { p.colours = p.colours.filter((x) => x !== c); savePrefs(); renderPalettes(); toast(`${c} removed from ${p.name}`); }
+function renderPalPick() {
+  const sel = $('palPick'), cur = currentPalette();
+  sel.innerHTML = '';
+  const opt = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; sel.append(o); };
+  opt('', '3DEEZI + my colours');
+  for (const p of state.palettes) opt(`p:${p.name}`, `${p.name} (${p.colours.length})`);
+  opt('new', 'New palette…'); opt('doc', 'New palette from this design');
+  sel.value = cur ? `p:${cur.name}` : '';
+  $('palRename').hidden = $('palDelete').hidden = !cur;
+  $('palAsk').hidden = true;
+}
+/** The picked palette at the start of the bottom palette, with its name. */
+function renderBrandBar() {
+  const box = $('palBrand'), p = currentPalette();
+  box.querySelectorAll('.pc').forEach((b) => b.remove());
+  box.hidden = !p?.colours.length;
+  if (!p) return;
+  $('palBrandName').textContent = p.name;
+  for (const c of p.colours) box.append(paletteSwatch(`${p.name}:`, c));
+}
+function renderPalettes() { renderPalPick(); renderSwatches(); renderBrandBar(); }
+let palNaming = null;
+function askPalName(value) { $('palAsk').hidden = true; $('palNameRow').hidden = false; $('palNameRow').scrollIntoView({ block: 'nearest' }); const i = $('palName'); i.value = value; i.focus({ preventScroll: true }); i.select(); }
+function endPalName(ok) {
+  const n = palNaming, name = $('palName').value.trim().slice(0, 40);
+  palNaming = null; $('palNameRow').hidden = true;
+  if (ok && n && name) {
+    const p = currentPalette(), clash = findPalette(name);
+    if (n.mode === 'rename') {
+      if (clash && clash !== p) toast(`There is already a palette called ${clash.name}`);
+      else if (p) { p.name = name; state.palette = name; savePrefs(); toast(`Palette renamed ${name}`); }
+    } else {
+      const q = savePalette(name, n.colours);
+      toast(`${clash ? 'Palette replaced' : 'Palette saved'}: ${q.name}, ${q.colours.length} colour${q.colours.length > 1 ? 's' : ''} (also at the start of the bottom palette)`);
+    }
+  }
+  renderPalettes();
+}
+$('palPick').onchange = (e) => {
+  const v = e.target.value;
+  if (v === 'new' || v === 'doc') {
+    const cols = v === 'doc' ? coloursOf(userObjects()) : active().length ? coloursOf(active()) : [shownColour()];
+    if (!cols.length) { toast('There are no colours in this design yet'); renderPalPick(); return; }
+    palNaming = { mode: 'new', colours: cols };
+    let k = state.palettes.length + 1;
+    while (findPalette(`Palette ${k}`)) k++;
+    askPalName(v === 'doc' ? 'Design colours' : `Palette ${k}`);
+    return;
+  }
+  usePalette(v.startsWith('p:') ? v.slice(2) : '');
+};
+$('palName').onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') endPalName(true); else if (e.key === 'Escape') endPalName(false); };
+$('palNameOk').onclick = () => endPalName(true);
+$('palNameCancel').onclick = () => endPalName(false);
+$('palRename').onclick = () => { if (!currentPalette()) return; palNaming = { mode: 'rename' }; askPalName(currentPalette().name); };
+// Delete asks first in the panel, with Delete / Cancel (pop-up dialogs don't show in the phone app).
+$('palDelete').onclick = () => {
+  const p = currentPalette();
+  if (!p) return;
+  $('palNameRow').hidden = true; palNaming = null;
+  $('palAskText').textContent = `Delete the palette ${p.name}? Its colours stay on your objects.`;
+  $('palAsk').hidden = false;
+  $('palAsk').scrollIntoView({ block: 'nearest' });
+};
+$('palAskNo').onclick = () => { $('palAsk').hidden = true; };
+$('palAskYes').onclick = () => {
+  const p = currentPalette();
+  $('palAsk').hidden = true;
+  if (!p) return;
+  state.palettes = state.palettes.filter((x) => x !== p); state.palette = ''; savePrefs(); renderPalettes(); toast(`Palette ${p.name} deleted`);
+};
 // ===================================================================
 // Bottom colour palette (CorelDRAW): click = fill, right-click = outline, X = none,
 // drag a colour onto an object to fill it. "Document" shows the colours in use.
@@ -3253,6 +4604,7 @@ function renderDocPalette() {
   const walk = (o) => {
     if (o.type === 'group') { o.getObjects().forEach(walk); return; }
     for (const c of [o.fill, o.strokeWidth ? o.stroke : null]) { const h = hexOf(c); if (h) found.add(h); }
+    if (o.gradSpec && !o.gradSpec.fade && o.fill && typeof o.fill === 'object') for (const s of gradStops(o.gradSpec)) { const h = hexOf(s.color); if (h) found.add(h); }
   };
   userObjects().forEach(walk);
   const list = [...found].slice(0, 40), key = list.join();
@@ -3300,25 +4652,248 @@ function drawHarmony() {
   });
 }
 $('harmonyMode').onchange = drawHarmony;
-const gradientSpec = () => ({ from: state.fill, to: $('gradTo').value, angle: Number($('gradAngle').value), type: $('fillMode').value === 'radial' ? 'radial' : 'linear' });
+// ===================================================================
+// Gradients (Colour tab) with any number of colours. Click the bar to add a colour, drag a marker to move it, drag it
+// off the bar or double-click it to remove it; the colour picker colours the picked marker. Selecting an object with a
+// gradient shows its gradient here to edit (anything else, or nothing, puts back the fill mode you had). Ready-made
+// and saved gradients under the bar.
+// ===================================================================
+const GRAD_PRESETS = [
+  ['3DEEZI', ['#12E1F0', '#1E7BFF', '#7B4DFF']], ['Fire', ['#FFE100', '#FF6A13', '#E10600']], ['Ocean', ['#4AB3E6', '#1E4FD8', '#0B1F41']],
+  ['Sunset', ['#FFB81C', '#E6007E', '#5B2C8F']], ['Forest', ['#9ACD32', '#00843D', '#1F4D2B']],
+  ['Chrome', [['#36454F', 0], ['#E6E6E6', 0.4], ['#FFFFFF', 0.5], ['#999999', 0.62], ['#36454F', 1]]],
+  ['Gold', [['#7A5C12', 0], ['#FFE58A', 0.45], ['#C5B358', 0.6], ['#7A5C12', 1]]],
+  ['Rainbow', ['#E10600', '#FF6A13', '#FFE100', '#00843D', '#1E4FD8', '#5B2C8F']],
+];
+const evenStops = (cols) => cols.map((c, i) => (Array.isArray(c) ? { color: c[0], offset: c[1] } : { color: c, offset: cols.length > 1 ? i / (cols.length - 1) : 0 }));
+let gradActive = 0, gradDraft = null, gradHeld = null, gradDrag = null, gradLastDown = { t: 0 };
+/** The gradient for the fill mode chosen (its colours: the gradient being edited, or the last one). */
+const gradientSpec = () => {
+  const stops = gradStops(state.gradient ?? { stops: gradDraft ?? [{ offset: 0, color: state.fill }, { offset: 1, color: '#7B4DFF' }] });
+  return { from: stops[0].color, to: stops.at(-1).color, stops, angle: Number($('gradAngle').value) || 0, kind: $('fillMode').value === 'radial' ? 'radial' : 'linear' };
+};
+const gradAt = (e) => { const r = $('gradTrack').getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
+/** The colour the gradient has at a point (a new marker takes it, so the gradient looks the same). */
+function gradColourAt(stops, t) {
+  const j = stops.findIndex((s) => s.offset >= t);
+  if (j <= 0) return stops[j < 0 ? stops.length - 1 : 0].color;
+  const a = stops[j - 1], b = stops[j], A = hexOf(a.color), B = hexOf(b.color);
+  return A && B ? mix(A, B, b.offset > a.offset ? (t - a.offset) / (b.offset - a.offset) : 0).toUpperCase() : b.color;
+}
+function renderGradEditor() {
+  const g = state.gradient;
+  if (!g) return;
+  const d = gradDrag, stops = d?.stops ?? gradStops(g), on = d ? d.i : Math.max(0, Math.min(gradActive, stops.length - 1)), focused = document.activeElement?.classList.contains('grad-stop');
+  if (!d) gradActive = on;
+  $('gradTrack').style.background = `linear-gradient(90deg, ${cssStops(g)})`;
+  $('gradStops').replaceChildren(...stops.map((s, i) => {
+    const b = document.createElement('button'), hex = hexOf(s.color) ?? s.color, at = Math.round(s.offset * 100);
+    b.className = `grad-stop${i === on ? ' on' : ''}${d?.off && i === on ? ' off' : ''}`;
+    b.style.left = `${s.offset * 100}%`; b.style.setProperty('--c', s.color); b.dataset.i = String(i);
+    b.title = `Colour ${hex} at ${at}% · click to pick it · drag sideways to move it · double-click (or Delete) to remove it`;
+    b.setAttribute('aria-label', `Gradient colour ${i + 1} of ${stops.length}: ${hex} at ${at}%`);
+    return b;
+  }));
+  if (focused || d) $('gradStops').children[on]?.focus({ preventScroll: true });
+  if (document.activeElement !== $('gradPos')) $('gradPos').value = String(Math.round(stops[on].offset * 100));
+  if (document.activeElement !== $('gradAngle')) $('gradAngle').value = String(g.angle ?? 0);
+  $('gradDel').disabled = stops.length <= 2;
+  $('gradAngleBox').hidden = g.kind === 'radial';
+}
+/** The editor's gradient on the selected objects: only redrawn while dragging, one Undo step when it is let go. */
+function gradApply(commit) {
+  const objs = active();
+  if (!objs.length || !state.gradient) return;
+  for (const o of objs) { applyProps(o, (x) => { if (!fillable(x) || x.type === 'image') return {}; delete x.patSpec; x.gradSpec = cloneGrad(state.gradient); return { fill: gradientFor(x) }; }); o.setCoords(); }
+  canvas.requestRenderAll();
+  if (commit) canvas.fire('object:modified', { target: objs[0] });
+}
+/** New gradient colours (any order): sorted, shown, put on the selection; the colour at index `pick` stays picked. */
+function gradSet(stops, pick = gradActive, commit = true) {
+  const list = stops.map((s) => ({ offset: Math.round(Math.min(1, Math.max(0, s.offset)) * 1000) / 1000, color: s.color })), keep = list[pick];
+  list.sort((a, b) => a.offset - b.offset);
+  gradActive = Math.max(0, list.indexOf(keep));
+  state.gradient = { ...state.gradient, stops: list, from: list[0].color, to: list.at(-1).color };
+  gradDraft = list;
+  renderGradEditor();
+  gradApply(commit);
+}
+/** The picker colours the picked marker. */
+function gradStopColour(hex) {
+  const st = gradStops(state.gradient);
+  st[Math.min(gradActive, st.length - 1)].color = hex;
+  state.gradient = { ...state.gradient, stops: st, from: st[0].color, to: st.at(-1).color };
+  gradDraft = st;
+  renderGradEditor();
+}
+/** A colour shown in the picker only (the current colour stays as it is). */
+function showPicker(hex) { hsv = hexToHsv(hex); $('hexIn').value = hex; $('hexChip').style.background = hex; showValues(hex); drawPicker(); drawHarmony(); }
+/** Picks a marker: its colour shows in the picker (Fill), ready to change. */
+function pickStop(i) {
+  gradActive = i;
+  if (state.target !== 'fill') setTarget('fill');
+  const hex = hexOf(gradStops(state.gradient)[i]?.color);
+  if (hex) showPicker(hex);
+  renderGradEditor();
+}
+function gradRemove(i = gradActive) {
+  const st = gradStops(state.gradient);
+  if (st.length <= 2) { toast('A gradient needs at least two colours'); return; }
+  st.splice(i, 1);
+  gradSet(st, Math.min(i, st.length - 1));
+  pickStop(gradActive);
+  toast('Colour removed from the gradient');
+}
+// After a click on the colour strip (a colour square picked), Delete removes that colour, not the object, until you
+// click outside the Colour tab or select something else.
+let gradKeys = false;
+document.addEventListener('pointerdown', (e) => { const t = e.target; gradKeys = t.closest?.('#gradBar') ? true : t.closest?.('#pane-colour') ? gradKeys : false; }, true);
+$('gradBar').addEventListener('pointerdown', (e) => {
+  if (!state.gradient || e.button > 0) return;
+  e.preventDefault();
+  const hit = e.target.closest('.grad-stop'), stops = gradStops(state.gradient), now = Date.now();
+  let i;
+  if (hit) {
+    i = Number(hit.dataset.i);
+    // A second click on the same spot soon after (a double-click): remove that colour.
+    if (!gradLastDown.added && now - gradLastDown.t < 550 && Math.hypot(e.clientX - gradLastDown.x, e.clientY - gradLastDown.y) < 8) { gradLastDown = { t: 0 }; gradRemove(i); return; }
+    gradActive = i;
+  } else {
+    const t = gradAt(e), s = { offset: t, color: gradColourAt(stops, t) };
+    stops.push(s); stops.sort((a, b) => a.offset - b.offset); i = stops.indexOf(s);
+    gradSet(stops, i, false);
+  }
+  gradLastDown = { t: now, x: e.clientX, y: e.clientY, added: !hit };
+  pickStop(gradActive);
+  gradDrag = { stops: gradStops(state.gradient), i: gradActive, x: e.clientX, y: e.clientY, id: e.pointerId, moved: false, off: false, added: !hit };
+  $('gradBar').setPointerCapture(e.pointerId);
+  renderGradEditor();
+});
+$('gradBar').addEventListener('pointermove', (e) => {
+  const d = gradDrag;
+  if (!d || e.pointerId !== d.id || (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 3)) return;
+  d.moved = true;
+  const r = $('gradBar').getBoundingClientRect(), s = d.stops[d.i];
+  d.off = d.stops.length > 2 && (e.clientY < r.top - 28 || e.clientY > r.bottom + 28);
+  s.offset = gradAt(e);
+  d.stops.sort((a, b) => a.offset - b.offset); d.i = d.stops.indexOf(s);
+  const list = d.off ? d.stops.filter((x) => x !== s) : d.stops;
+  state.gradient = { ...state.gradient, stops: list.map((x) => ({ ...x })), from: list[0].color, to: list.at(-1).color };
+  gradActive = d.i;
+  renderGradEditor(); gradApply(false);
+  hint(d.off ? 'Let go to remove this colour from the gradient' : `Gradient colour at ${Math.round(s.offset * 100)}%`);
+});
+const gradUp = (e) => {
+  const d = gradDrag;
+  if (!d || e.pointerId !== d.id) return;
+  gradDrag = null; hint('');
+  if (d.off) { gradSet(d.stops, d.i, false); gradRemove(d.i); return; }
+  gradSet(d.stops, d.i, d.moved || d.added);
+};
+$('gradBar').addEventListener('pointerup', gradUp);
+$('gradBar').addEventListener('pointercancel', gradUp);
+$('gradStops').addEventListener('keydown', (e) => {
+  const b = e.target.closest('.grad-stop');
+  if (!b || !state.gradient) return;
+  const i = Number(b.dataset.i);
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); gradRemove(i); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault(); e.stopPropagation();
+    const st = gradStops(state.gradient);
+    st[i].offset += (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 0.1 : 0.01);
+    gradSet(st, i);
+  }
+});
+$('gradPos').onchange = () => { if (!state.gradient) return; const st = gradStops(state.gradient); st[Math.min(gradActive, st.length - 1)].offset = Math.min(100, Math.max(0, Number($('gradPos').value) || 0)) / 100; gradSet(st); };
+$('gradAngle').oninput = () => { if (!state.gradient) return; state.gradient = { ...state.gradient, angle: Number($('gradAngle').value) || 0 }; gradApply(false); };
+$('gradAngle').onchange = () => { if (state.gradient) gradApply(true); };
+for (const id of ['gradPos', 'gradAngle']) $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+$('gradRev').onclick = () => { if (!state.gradient) return; const st = gradStops(state.gradient).map((s) => ({ ...s, offset: 1 - s.offset })).reverse(); gradSet(st, st.length - 1 - Math.min(gradActive, st.length - 1)); pickStop(gradActive); toast('Gradient reversed'); };
+$('gradEven').onclick = () => { if (!state.gradient) return; const st = gradStops(state.gradient); st.forEach((s, k) => { s.offset = k / (st.length - 1); }); gradSet(st); toast('Colours spaced evenly'); };
+$('gradDel').onclick = () => gradRemove();
+/** A ready-made or saved gradient: used for the selection and new objects. */
+function useGradient(stops, name) {
+  if (!state.gradient) { $('fillMode').value = 'gradient'; state.gradient = gradientSpec(); state.pattern = null; gradHeld = null; showFillRows(); }
+  gradSet(stops.map((s) => ({ ...s })), 0);
+  pickStop(0);
+  toast(`Gradient: ${name}`);
+}
+function renderGradPresets() {
+  const box = $('gradPresets');
+  box.innerHTML = '';
+  const chip = (name, stops, saved) => {
+    const b = document.createElement('button');
+    b.style.background = `linear-gradient(90deg, ${cssStops({ stops })})`;
+    b.title = `${name} · click: use this gradient${saved ? ' · double-click or right-click: remove it' : ''}`;
+    b.onclick = () => useGradient(stops, name);
+    if (saved) b.oncontextmenu = b.ondblclick = (e) => { e.preventDefault(); state.gradients = state.gradients.filter((g) => g !== saved); savePrefs(); renderGradPresets(); toast(`${name} removed from your gradients (+ saves the gradient again)`); };
+    box.append(b);
+  };
+  for (const [name, cols] of GRAD_PRESETS) chip(name, evenStops(cols));
+  for (const g of state.gradients) chip(g.name, g.stops, g);
+  const add = document.createElement('button');
+  add.className = 'add'; add.innerHTML = icon('plus'); add.title = 'Save this gradient (double-click a saved one to remove it)';
+  add.onclick = () => {
+    if (!state.gradient) return;
+    let k = 1;
+    while (state.gradients.some((g) => g.name === `My gradient ${k}`)) k++;
+    state.gradients = [...state.gradients, { name: `My gradient ${k}`, stops: gradStops(state.gradient) }].slice(-12);
+    savePrefs(); renderGradPresets(); toast(`Saved as My gradient ${k}: it is with the ready-made gradients`);
+  };
+  box.append(add);
+}
+function showFillRows() {
+  $('gradRow').style.display = state.gradient ? 'flex' : 'none';
+  $('patRow').style.display = state.pattern ? 'grid' : 'none';
+  renderGradEditor();
+}
+/** The gradient of the (first) selected object, when it has one (not a transparency fade). */
+function selGradient() {
+  const o = active()[0], p = o ? (o.type === 'group' ? paintParts(o)[0] : o) : null;
+  return p?.gradSpec && !p.gradSpec.fade && p.fill && typeof p.fill === 'object' && p.fill.colorStops ? p.gradSpec : null;
+}
+function syncGradFromSelection() {
+  if (gradDrag) return;
+  gradKeys = false;
+  const spec = selGradient();
+  if (spec) {
+    gradHeld ??= { mode: $('fillMode').value, gradient: state.gradient, pattern: state.pattern, active: gradActive };
+    state.gradient = { ...cloneGrad(spec), stops: gradStops(spec), kind: gradKind(spec), angle: spec.angle ?? 0 };
+    delete state.gradient.type;
+    state.pattern = null; gradDraft = state.gradient.stops;
+    $('fillMode').value = state.gradient.kind === 'radial' ? 'radial' : 'gradient';
+    showFillRows();
+    const hex = state.target === 'fill' && hexOf(state.gradient.stops[gradActive]?.color);
+    if (hex) showPicker(hex);
+  } else if (gradHeld) {
+    const h = gradHeld;
+    gradHeld = null;
+    $('fillMode').value = h.mode; state.gradient = h.gradient; state.pattern = h.pattern; gradActive = h.active;
+    if (state.gradient) gradDraft = gradStops(state.gradient);
+    showFillRows();
+    showPicker(current());
+  }
+}
+for (const ev of ['selection:created', 'selection:updated', 'selection:cleared']) canvas.on(ev, syncGradFromSelection);
 const patternSpec = () => ({ kind: $('patKind').value, size: Math.max(2, Math.min(100, Number($('patSize').value) || 10)), bg: $('patBg').value });
 /** Fill for one object in the current fill mode (uniform, gradient or pattern). */
 function modeFill(o) {
   delete o.gradSpec; delete o.patSpec;
-  if (state.gradient) { o.gradSpec = { ...state.gradient }; return { fill: gradientFor(o) }; }
+  if (state.gradient) { o.gradSpec = cloneGrad(state.gradient); return { fill: gradientFor(o) }; }
   if (state.pattern) { o.patSpec = { ...state.pattern, ink: state.fill }; return { fill: patternFor(o.patSpec) }; }
   return { fill: state.fill };
 }
 const fillable = (o) => !(o.type === 'line' || o.type === 'polyline' || (o.type === 'path' && !o.fill && o.stroke));
 $('fillMode').onchange = (e) => {
   const mode = e.target.value;
+  gradHeld = null; // chosen here: it stays when the selection changes
+  if (state.gradient) gradDraft = gradStops(state.gradient);
   state.gradient = mode === 'gradient' || mode === 'radial' ? gradientSpec() : null;
   state.pattern = mode === 'pattern' ? patternSpec() : null;
-  $('gradRow').style.display = state.gradient ? 'grid' : 'none';
-  $('patRow').style.display = state.pattern ? 'grid' : 'none';
+  if (state.gradient) gradActive = Math.min(gradActive, state.gradient.stops.length - 1);
+  showFillRows();
   applyToSelection((o) => (fillable(o) ? modeFill(o) : {}));
 };
-for (const id of ['gradTo', 'gradAngle']) $(id).oninput = () => { if (!state.gradient) return; state.gradient = gradientSpec(); applyToSelection((o) => { o.gradSpec = { ...state.gradient }; return { fill: gradientFor(o) }; }); };
 for (const id of ['patKind', 'patSize', 'patBg']) $(id).onchange = () => { if (!state.pattern) return; state.pattern = patternSpec(); applyToSelection((o) => (fillable(o) ? modeFill(o) : {})); };
 
 // ===================================================================
@@ -3403,17 +4978,21 @@ async function exportSvg() {
 }
 async function exportPdf() {
   finishPowerClipEdit();
-  const [w, h] = pageSize;
-  toast('Making the PDF…');
-  const el = new DOMParser().parseFromString(await pageSvg(), 'image/svg+xml').documentElement;
-  el.style.position = 'fixed'; el.style.left = '-99999px';
-  document.body.append(el);
+  const [w, h] = pageSize, start = pageIndex, many = pages.length > 1, orientation = w > h ? 'landscape' : 'portrait';
+  toast(many ? `Making the PDF (${pages.length} pages)…` : 'Making the PDF…');
+  const doc = new jsPDF({ unit: 'mm', format: [w, h], orientation });
   try {
-    const doc = new jsPDF({ unit: 'mm', format: [w, h], orientation: w > h ? 'landscape' : 'portrait' });
-    await svg2pdf(el, doc, { x: 0, y: 0, width: w, height: h });
+    // Every page of the design, one PDF page each.
+    for (let i = 0; i < pages.length; i++) {
+      if (many) await gotoPage(i, { quiet: true });
+      const el = new DOMParser().parseFromString(await pageSvg(), 'image/svg+xml').documentElement;
+      el.style.position = 'fixed'; el.style.left = '-99999px';
+      document.body.append(el);
+      try { if (i > 0) doc.addPage([w, h], orientation); await svg2pdf(el, doc, { x: 0, y: 0, width: w, height: h }); } finally { el.remove(); }
+    }
     download(doc.output('datauristring'), '3deezi-artwork.pdf');
-    toast('Vector PDF exported (opens in CorelDRAW, Illustrator and print shops)');
-  } catch (err) { toast(`PDF export failed: ${err.message}`); } finally { el.remove(); }
+    toast(many ? `Vector PDF exported: ${pages.length} pages (opens in CorelDRAW, Illustrator and print shops)` : 'Vector PDF exported (opens in CorelDRAW, Illustrator and print shops)');
+  } catch (err) { toast(`PDF export failed: ${err.message}`); } finally { if (many && pageIndex !== start) await gotoPage(start, { quiet: true }); }
 }
 function sendToStudio() {
   finishPowerClipEdit();
@@ -3448,13 +5027,134 @@ for (const id of ['pageW', 'pageH']) $(id).onchange = () => {
 };
 
 // ===================================================================
+// Pages (CorelDRAW): a design can have several pages, all the same size. The page on screen lives on the canvas;
+// the others are kept as saved objects. Tabs in the status bar switch pages, the Layout menu inserts, duplicates,
+// renames and deletes them, PgUp / PgDn go to the previous / next page. Undo, the autosave and Export PDF cover every
+// page. IDs (#12) stay unique across the pages.
+// ===================================================================
+let pageBusy = false;
+const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+/** The IDs used on the pages not on screen. */
+function updateOtherNums() {
+  otherNums = new Set();
+  const walk = (o) => { if (o?.num != null) otherNums.add(o.num); (o?.objects ?? []).forEach(walk); };
+  pages.forEach((p, i) => { if (i !== pageIndex) (p.objects ?? []).forEach(walk); });
+}
+const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ } }, 600); };
+function nextPageName() { let n = pages.length + 1; while (pages.some((p) => p.name === `Page ${n}`)) n++; return `Page ${n}`; }
+/** Shows another page (it is not an undo step; the autosave keeps it open). */
+async function gotoPage(i, { quiet = false } = {}) {
+  if (!pages[i] || i === pageIndex || pageBusy) return;
+  pageBusy = true;
+  try {
+    finishPowerClipEdit(); nodes.end(); cancelConn(); cancelVar();
+    canvas.discardActiveObject();
+    pages[pageIndex].objects = userObjects().map((o) => o.toObject(EXTRA));
+    muted++;
+    try {
+      for (const o of userObjects()) canvas.remove(o);
+      pageIndex = i;
+      updateOtherNums();
+      const objs = await util.enlivenObjects(fixGradJSON(pages[i].objects));
+      pages[i].objects = null;
+      for (const o of objs) { pruneEmptyParts(o); fitPowerClips(o); repairObject(o); style(o); canvas.add(o); }
+    } finally { muted--; }
+    applyToolFlags(); refreshLayers(); syncProps(); renderPageTabs();
+    canvas.requestRenderAll();
+    saveSoon();
+    if (!quiet) toast(`${pages[i].name} (page ${i + 1} of ${pages.length})`, 1600);
+  } finally { pageBusy = false; }
+}
+async function insertPage() {
+  pages.splice(pageIndex + 1, 0, { name: nextPageName(), objects: [] });
+  await gotoPage(pageIndex + 1, { quiet: true });
+  record();
+  toast(`${pages[pageIndex].name} added after the page you were on`);
+}
+async function duplicatePage() {
+  pages.splice(pageIndex + 1, 0, { name: `${pages[pageIndex].name} copy`, objects: userObjects().map((o) => o.toObject(EXTRA)) });
+  await gotoPage(pageIndex + 1, { quiet: true }); // the copies get IDs of their own as they are added
+  record();
+  toast(`${pages[pageIndex].name}: a copy of the page, with everything on it`);
+}
+async function deletePage(i = pageIndex) {
+  if (pages.length < 2) { toast('A design has at least one page (File > New document clears it)'); return; }
+  const name = pages[i].name;
+  if (i === pageIndex) await gotoPage(i > 0 ? i - 1 : 1, { quiet: true });
+  pages.splice(i, 1);
+  if (pageIndex > i) pageIndex--;
+  updateOtherNums(); renderPageTabs(); record();
+  toast(`${name} deleted · Undo brings it back`);
+}
+function renamePage(i = pageIndex, name) {
+  const t = String(name ?? '').trim().slice(0, 40);
+  if (!t || !pages[i]) return;
+  pages[i].name = t;
+  renderPageTabs(); record();
+}
+/** Status bar tabs: click to open a page, double-click to rename it, right-click for more; + adds a page. */
+function renderPageTabs() {
+  const box = $('pageTabs');
+  box.innerHTML = pages.map((p, i) => `<button class="ptab${i === pageIndex ? ' on' : ''}" data-page="${i}" title="${escHtml(p.name)} · click to open · double-click to rename · right-click for more">${escHtml(p.name)}</button>`).join('');
+  box.querySelectorAll('[data-page]').forEach((b) => {
+    const i = Number(b.dataset.page);
+    b.onclick = () => gotoPage(i);
+    b.ondblclick = () => startRename(b, i);
+    b.oncontextmenu = (e) => { e.preventDefault(); openPageMenu(b, i); };
+  });
+  box.querySelector('.ptab.on')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  requestAnimationFrame(syncTabArrows);
+}
+/** ‹ › show when the tabs don't fit; + is always there. The mouse wheel over the tabs scrolls them too. */
+function syncTabArrows() {
+  const box = $('pageTabs'), over = box.scrollWidth > box.clientWidth + 1;
+  $('pageLeft').hidden = $('pageRight').hidden = !over;
+  $('pageLeft').disabled = box.scrollLeft <= 1;
+  $('pageRight').disabled = box.scrollLeft + box.clientWidth >= box.scrollWidth - 1;
+}
+$('pageAddBtn').onclick = () => insertPage();
+$('pageLeft').onclick = () => $('pageTabs').scrollBy({ left: -160, behavior: 'smooth' });
+$('pageRight').onclick = () => $('pageTabs').scrollBy({ left: 160, behavior: 'smooth' });
+$('pageTabs').addEventListener('scroll', syncTabArrows);
+$('pageTabs').addEventListener('wheel', (e) => { const b = $('pageTabs'); if (b.scrollWidth <= b.clientWidth) return; b.scrollLeft += e.deltaY || e.deltaX; e.preventDefault(); }, { passive: false });
+addEventListener('resize', () => syncTabArrows());
+function startRename(b, i) {
+  const input = document.createElement('input');
+  input.className = 'ptab-edit'; input.value = pages[i].name; input.maxLength = 40;
+  b.replaceWith(input); input.focus(); input.select();
+  let done = false;
+  const finish = (save) => { if (done) return; done = true; if (save) renamePage(i, input.value); renderPageTabs(); };
+  input.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); };
+  input.onblur = () => finish(true);
+}
+function openPageMenu(b, i) {
+  const m = $('pageMenu'), r = b.getBoundingClientRect();
+  m.innerHTML = `<button data-pm="open">Open ${escHtml(pages[i].name)}</button><button data-pm="rename">Rename…</button><button data-pm="dup">Duplicate page</button><button data-pm="add">Insert page after</button><button data-pm="delete"${pages.length < 2 ? ' disabled' : ''}>Delete page</button>`;
+  m.hidden = false;
+  m.style.left = `${Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8))}px`;
+  m.style.top = `${r.top - m.offsetHeight - 6}px`;
+  m.querySelectorAll('[data-pm]').forEach((x) => (x.onclick = async () => {
+    m.hidden = true;
+    const act = x.dataset.pm;
+    if (act === 'open') gotoPage(i);
+    else if (act === 'rename') { await gotoPage(i, { quiet: true }); const tab = $('pageTabs').querySelector(`[data-page="${i}"]`); if (tab) startRename(tab, i); }
+    else if (act === 'dup') { await gotoPage(i, { quiet: true }); duplicatePage(); }
+    else if (act === 'add') { await gotoPage(i, { quiet: true }); insertPage(); }
+    else if (act === 'delete') deletePage(i);
+  }));
+}
+document.addEventListener('pointerdown', (e) => { const m = $('pageMenu'); if (!m.hidden && !e.target.closest('#pageMenu')) m.hidden = true; });
+
+// ===================================================================
 // Menus, toolbar wiring, keyboard
 // ===================================================================
 /** View > Snap to: each target can be switched on or off; the status-bar Snap box switches all snapping. */
 const SNAP_LABELS = { grid: 'Grid (5 mm)', guides: 'Guidelines', objects: 'Objects', nodes: 'Nodes', page: 'Page' };
 const ACTIONS = {
   fonts: () => { if ($('textBar').hidden) setTool('text'); setTimeout(() => $('tFont').click()); },
-  new: async () => { finishPowerClipEdit(); if (userObjects().length && !confirm('Start a new page? Unsaved artwork will be cleared (Undo can restore it).')) return; batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); },
+  new: async () => { finishPowerClipEdit(); if ((userObjects().length || pages.length > 1) && !confirm('Start a new document? Every page is cleared (Undo can restore it).')) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); },
+  pageAdd: () => insertPage(), pageDup: () => duplicatePage(), pageDelete: () => deletePage(), pagePrev: () => gotoPage(pageIndex - 1), pageNext: () => gotoPage(pageIndex + 1),
+  pageRename: () => { const tab = $('pageTabs').querySelector(`[data-page="${pageIndex}"]`); if (tab) startRename(tab, pageIndex); },
   open: () => $('fileImage').click(),
   exportPng: () => exportPng(false), exportPage: () => exportPng(true), exportSvg, exportPdf,
   send: sendToStudio,
@@ -3480,7 +5180,73 @@ const ACTIONS = {
   distort: () => setTool('distort'), envelope: () => setTool('envelope'), extrude: () => setTool('extrude'), blockshadow: () => setTool('blockshadow'), meshfill: () => setTool('meshfill'),
   table: () => setTool('table'),
   help: () => { $('helpDialog').showModal(); },
+  // A copy of the page as a file, to send to 3DEEZI when something on it doesn't work.
+  supportFile: () => { download(`data:application/json;charset=utf-8,${encodeURIComponent(snapshot())}`, `3deezi-artboard-page-${new Date().toISOString().slice(0, 10)}.json`); toast('Page saved as a file: send it to 3DEEZI support if something on it does not work'); },
 };
+// Bitmaps, Tools and Window menus (CorelDRAW). Bitmaps work on the selected picture (imported images, Painterly
+// strokes, converted bitmaps); Window shows the dockers and shows or hides the parts of the screen (remembered).
+function needPicture() {
+  const o = one();
+  if (o?.type === 'image') return o;
+  toast('Select a picture first (an imported image, a Painterly stroke or a converted bitmap)');
+  return null;
+}
+/** Bitmaps > Convert to bitmap: the selection becomes one picture at 300 DPI in its place (Undo brings it back). */
+function convertToBitmap() {
+  const objs = canvas.getActiveObjects(), sel = canvas.getActiveObject();
+  if (!objs.length || !sel) { toast('Select the objects to turn into a picture first'); return; }
+  const b = sel.getBoundingRect(), k = Math.min(300 / 25.4 / MM, 4096 / (Math.max(b.width, b.height) || 1)); // pixels per page unit
+  const el = sel.toCanvasElement({ multiplier: k, enableRetinaScaling: false });
+  const c = sel.getCenterPoint();
+  const img = new FabricImage(el, { originX: 'center', originY: 'center', left: c.x, top: c.y, scaleX: 1 / k, scaleY: 1 / k });
+  style(img, { toolName: 'Bitmap' });
+  img.name = objs.length === 1 ? `${objs[0].name} bitmap` : `Bitmap of ${objs.length} objects`;
+  if (objs.length === 1) { img.num = objs[0].num; img.uid = objs[0].uid; } // it takes the object's place and ID
+  const at = Math.min(...objs.map((o) => canvas.getObjects().indexOf(o)));
+  canvas.discardActiveObject();
+  batch(() => { for (const o of objs) canvas.remove(o); canvas.insertAt(Math.max(1, at), img); });
+  select([img]);
+  toast(`Converted to a picture (300 DPI) · Undo brings back the ${objs.length > 1 ? 'objects' : 'object'}`);
+}
+const UI_PARTS = { tools: 'hide-tools', side: 'hide-side', props: 'hide-props', foot: 'hide-foot', palette: 'hide-palette' };
+const UI_LABELS = { tools: 'Toolbox', props: 'Property bar', side: 'Dockers <small>right panel</small>', palette: 'Colour palette', foot: 'Status bar' };
+const UNIT_LABELS = { mm: 'Millimetres', cm: 'Centimetres', in: 'Inches', px: 'Pixels <small>300 DPI</small>' };
+function toggleUi(part, show) {
+  const cls = UI_PARTS[part], hide = show === undefined ? !document.body.classList.contains(cls) : !show;
+  document.body.classList.toggle(cls, hide);
+  state.ui = { ...(state.ui ?? {}), [part]: !hide };
+  savePrefs(); syncMenus();
+  setTimeout(resize);
+}
+function showDocker(tab) { if (document.body.classList.contains('hide-side')) toggleUi('side', true); openTab(tab); }
+const tick = (on, html) => `${on ? '✓' : '<span style="visibility:hidden">✓</span>'} ${html}`;
+/** Tick marks on the Tools and Window menus. */
+function syncMenus() {
+  for (const [part, cls] of Object.entries(UI_PARTS)) { const b = document.querySelector(`[data-action="win_${part}"]`); if (b) b.innerHTML = tick(!document.body.classList.contains(cls), UI_LABELS[part]); }
+  for (const [u, label] of Object.entries(UNIT_LABELS)) { const b = document.querySelector(`[data-action="units_${u}"]`); if (b) b.innerHTML = tick(state.units === u, label); }
+  const sn = document.querySelector('[data-action="snapToggle"]');
+  if (sn) sn.innerHTML = tick(state.snap, 'Snap on / off');
+}
+function setUnits(u) { $('units').value = u; $('units').dispatchEvent(new Event('change')); syncMenus(); }
+for (const [part, cls] of Object.entries(UI_PARTS)) document.body.classList.toggle(cls, state.ui?.[part] === false);
+Object.assign(ACTIONS, {
+  bitmap: convertToBitmap,
+  bmAdjust: () => { if (needPicture()) { showDocker('props'); setTimeout(() => $('imgProps').scrollIntoView({ block: 'start', behavior: 'smooth' }), 60); } },
+  bmGray: () => { if (needPicture()) $('aGray').click(); },
+  bmTint: () => { const o = needPicture(); if (o) { const hex = typeof state.fill === 'string' ? state.fill : '#000000'; tintImage(o, hex); toast(`Picture tinted ${hex} (the fill colour), keeping its light and shade · Undo restores it`); } },
+  bmReset: () => { if (needPicture()) $('aReset').click(); },
+  bmBg: () => { if (needPicture()) $('bgRemove').click(); },
+  bmTrace: () => { if (needPicture()) $('trApply').click(); },
+  bmCrop: () => setTool('crop'),
+  units_mm: () => setUnits('mm'), units_cm: () => setUnits('cm'), units_in: () => setUnits('in'), units_px: () => setUnits('px'),
+  snapToggle: () => { $('snapToggle').click(); syncMenus(); },
+  dock_colour: () => showDocker('colour'), dock_props: () => showDocker('props'), dock_layers: () => showDocker('layers'), dock_assets: () => showDocker('assets'),
+  win_tools: () => toggleUi('tools'), win_props: () => toggleUi('props'), win_side: () => toggleUi('side'), win_palette: () => toggleUi('palette'), win_foot: () => toggleUi('foot'),
+  preview: () => startPreview(),
+  save: () => $('save').click(),
+  fullscreen: () => { const d = document; if (d.fullscreenElement) d.exitFullscreen?.(); else (d.documentElement.requestFullscreen?.() ?? Promise.reject()).catch(() => toast('Full screen is not allowed here: use your browser\'s full screen (F11)')); },
+});
+syncMenus();
 document.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => { closeMenus(); ACTIONS[b.dataset.action]?.(); }));
 function closeMenus() { document.querySelectorAll('.menu.open, .fly.open').forEach((m) => m.classList.remove('open')); endFontPreview(); }
 document.querySelectorAll('.menu>button').forEach((b) => b.addEventListener('click', (e) => { const m = b.parentElement, open = m.classList.contains('open'); closeMenus(); if (!open) m.classList.add('open'); e.stopPropagation(); }));
@@ -3534,8 +5300,7 @@ function toggleSnapTo(k) {
 }
 function showSnapMenu() {
   for (const [k, label] of Object.entries(SNAP_LABELS)) {
-    const b = document.querySelector(`[data-action="snap_${k}"]`);
-    if (b) b.innerHTML = `${state.snapTo[k] ? '✓' : '<span style="visibility:hidden">✓</span>'} Snap to ${label}`;
+    for (const b of document.querySelectorAll(`[data-action="snap_${k}"]`)) b.innerHTML = `${state.snapTo[k] ? '✓' : '<span style="visibility:hidden">✓</span>'} Snap to ${label}`;
   }
 }
 showSnapMenu();
@@ -3645,6 +5410,8 @@ for (const a of ['left', 'center', 'right']) $(`tAlign-${a}`).onclick = () => se
 const KEY_TOOLS = { f10: 'node', f5: 'draw', f6: 'rect', f7: 'ellipse', f8: 'text', y: 'polygon', s: 'star', d: 'graph', a: 'spiral', x: 'eraser', z: 'zoom', h: 'pan', g: 'fill', m: 'meshfill', i: 'eyedropper', v: 'select' };
 const KEY_ALIGN = { l: 'L', r: 'R', t: 'T', b: 'B', e: 'C', c: 'M', p: 'P' };
 addEventListener('keydown', (e) => {
+  if (previewState) { e.preventDefault(); endPreview(); return; }
+  if (e.key === 'F9') { e.preventDefault(); startPreview(); return; }
   if (e.target.matches('input, select, textarea')) return;
   const editing = canvas.getActiveObject()?.isEditing;
   const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
@@ -3670,8 +5437,18 @@ addEventListener('keydown', (e) => {
   else if (mod && k === 'k') { e.preventDefault(); breakApart(); }
   else if (mod && k === 'i') { e.preventDefault(); $('fileImage').click(); }
   else if (mod && k === 'e') { e.preventDefault(); exportPdf(); }
-  else if (k === 'pageup' || k === 'pagedown') { e.preventDefault(); order(k === 'pageup' ? (e.shiftKey ? 'front' : 'forward') : (e.shiftKey ? 'back' : 'backward')); }
-  else if (k === 'delete' || k === 'backspace') removeSelection();
+  else if (k === 'pageup' || k === 'pagedown') {
+    e.preventDefault();
+    // As in CorelDRAW: PgUp / PgDn change page; Ctrl moves the selection one step, Shift to the front / back.
+    if (e.shiftKey || mod) {
+      // The stacking order often changes nothing you can see (the object is already on top, or overlaps nothing): say what happened.
+      if (!active().length) { toast('Select something first: Shift+PgUp / PgDn put it in front of or behind everything, Ctrl+PgUp / PgDn one step'); return; }
+      const how = e.shiftKey ? (k === 'pageup' ? 'front' : 'back') : (k === 'pageup' ? 'forward' : 'backward');
+      order(how);
+      toast({ front: 'To the front of the page (Shift+PgUp)', back: 'To the back of the page (Shift+PgDn)', forward: 'Forward one (Ctrl+PgUp)', backward: 'Back one (Ctrl+PgDn)' }[how], 1800);
+    } else gotoPage(pageIndex + (k === 'pageup' ? -1 : 1));
+  }
+  else if (k === 'delete' || k === 'backspace') { if (gradKeys && state.gradient) gradRemove(); else if (state.tool === 'anchor' && connView?.sel) deleteAnchor(connView.sel); else if (state.tool === 'varline' && varEdit) { if (varEdit.sel != null) deleteVarPoint(); else toast('Click a width point (it turns pink) to delete it; switch to Pick to delete the whole object'); } else removeSelection(); }
   else if (k === 'escape') {
     if (pcEdit) { finishPowerClipEdit(); return; }
     if (pickFrame) { pickFrame = null; hint(''); canvas.defaultCursor = 'default'; return; }
@@ -3759,12 +5536,13 @@ const needSelection = () => { if (!active().length) throw new Error('Nothing is 
  */
 const EFFECTS = {
   shadow: { label: 'Drop shadow', tool: 'shadow', apply: 'fxShadow', remove: 'fxShadowOff', inputs: { x: 'fxSX', y: 'fxSY', blur: 'fxSBlur', opacity: 'fxSOpacity', colour: 'fxSColour' } },
-  contour: { label: 'Contour', tool: 'contour', apply: 'fxContour', inputs: { dir: 'fxCDir', steps: 'fxCSteps', offset: 'fxCOffset', colour: 'fxCColour' } },
+  inner: { label: 'Inner shadow', tool: 'inner', apply: 'fxInner', remove: 'fxInnerOff', inputs: { x: 'fxIX', y: 'fxIY', blur: 'fxIBlur', opacity: 'fxIOpacity', colour: 'fxIColour', merge: 'fxIMerge' } },
+  contour: { label: 'Contour', tool: 'contour', apply: 'fxContour', remove: 'fxContourOff', inputs: { dir: 'fxCDir', steps: 'fxCSteps', offset: 'fxCOffset', colour: 'fxCColour' } },
   blockshadow: { label: 'Block shadow', tool: 'blockshadow', apply: 'fxBlock', remove: 'fxBlockOff', inputs: { x: 'fxBX', y: 'fxBY', colour: 'fxBColour' } },
   extrude: { label: 'Extrude', tool: 'extrude', apply: 'fxExtrude', remove: 'fxExtrudeOff', inputs: { x: 'fxXX', y: 'fxXY', colour: 'fxXColour' } },
   envelope: { label: 'Envelope', tool: 'envelope', apply: 'fxEnvelope', inputs: { preset: 'fxEPreset', amount: 'fxEAmount' } },
   distort: { label: 'Distortion', tool: 'distort', apply: 'fxDistort', inputs: { mode: 'fxDMode', tooth: 'fxDZip', teeth: 'fxDTeeth', turn: 'fxDTwist', amount: 'fxDPush' } },
-  transparency: { label: 'Transparency', tool: 'transparency', apply: 'fxTransp', inputs: { type: 'fxTType', amount: 'fxTValue', angle: 'fxTAngle' } },
+  transparency: { label: 'Transparency', tool: 'transparency', apply: 'fxTransp', inputs: { type: 'fxTType', amount: 'fxTValue', angle: 'fxTAngle', merge: 'fxTMerge' } },
   blend: { label: 'Blend', tool: 'blend', apply: 'fxBlend', inputs: { steps: 'fxSteps' } },
   mesh: { label: 'Mesh fill', tool: 'meshfill', remove: 'fxMeshClear', inputs: {} },
 };
@@ -3777,6 +5555,11 @@ function effectsOf(o) {
   if (o.fxSweep === 'blockshadow') out.push('block shadow');
   if (o.fxSweep === 'extrude') out.push('extrude');
   if (o.fxMesh) out.push('mesh fill');
+  if (o.globalCompositeOperation && o.globalCompositeOperation !== 'source-over') out.push(`merge mode ${o.globalCompositeOperation}`);
+  if (o.fxInner) out.push(`inner shadow x ${o.fxInner.x} mm, y ${o.fxInner.y} mm, feather ${o.fxInner.blur} mm, ${o.fxInner.opacity}%`);
+  const gp = o.type === 'group' ? paintParts(o)[0] : o;
+  if (gp?.gradSpec && !gp.gradSpec.fade && gp.fill && typeof gp.fill === 'object') out.push(`${gradKind(gp.gradSpec)} gradient fill ${gradText(gp.gradSpec)}`);
+  if (o.varSpec) out.push(`variable outline (${VAR_NAMES[o.varSpec.profile] ?? 'custom'}, ${+o.varSpec.width.toFixed(1)} mm)`);
   if (/contour/.test(name)) out.push('contour');
   if (/blend group/.test(name)) out.push('blend');
   if (/envelope/.test(name)) out.push('envelope');
@@ -3786,7 +5569,7 @@ function effectsOf(o) {
 }
 /** Whether an object already has the effect the assistant was asked to apply. */
 const HAS_EFFECT = {
-  shadow: (o) => !!o.shadow, blockshadow: (o) => o.fxSweep === 'blockshadow', extrude: (o) => o.fxSweep === 'extrude',
+  shadow: (o) => !!o.shadow, inner: (o) => !!o.fxInner, blockshadow: (o) => o.fxSweep === 'blockshadow', extrude: (o) => o.fxSweep === 'extrude',
   contour: (o) => /contour/i.test(`${o.name} ${o.toolName}`), envelope: (o) => /envelope/i.test(o.name ?? ''),
   distort: (o) => /distortion/i.test(o.name ?? ''), transparency: (o) => o.opacity < 1 || !!o.gradSpec?.fade, blend: () => false,
 };
@@ -3809,9 +5592,10 @@ const ASSIST = {
   describe: () => {
     // Size and position in mm (from the page's top left), so answers can use them ("half its width").
     const where = (o) => { const r = o.getBoundingRect(); return ` (${mmOf(r.width)} x ${mmOf(r.height)} mm at X ${mmOf(r.left)}, Y ${mmOf(r.top)})`; };
-    const line = (o) => { const fx = effectsOf(o); return `${objLabel(o)}${where(o)}${fx.length ? ` [${fx.join('; ')}]` : ''}${o.locked ? ' (locked)' : ''}${o.visible ? '' : ' (hidden)'}`; };
+    const line = (o) => { const fx = effectsOf(o); return `${o.num != null ? `#${o.num} ` : ''}${objLabel(o)}${where(o)}${fx.length ? ` [${fx.join('; ')}]` : ''}${o.locked ? ' (locked)' : ''}${o.visible ? '' : ' (hidden)'}`; };
     const objs = userObjects(), sel = active();
-    return `Selected: ${sel.length ? sel.map(line).join(' | ') : 'nothing'}. On the page (${objs.length}, top first): ${objs.slice().reverse().slice(0, 15).map(line).join(' | ')}${objs.length > 15 ? ' | …' : ''}. Tool: ${TOOLS[state.tool]?.label ?? state.tool}. Grid ${state.grid ? 'on' : 'off'}, snap ${state.snap ? 'on' : 'off'}. ${toolboxReport()}`;
+    const pg = pages.length > 1 ? `Page ${pageIndex + 1} of ${pages.length} is open (${pages.map((p, i) => `${i + 1} “${p.name}”`).join(', ')}). ` : '';
+    return `${pg}Selected: ${sel.length ? sel.map(line).join(' | ') : 'nothing'}. On the page (${objs.length}, top first): ${objs.slice().reverse().slice(0, 15).map(line).join(' | ')}${objs.length > 15 ? ' | …' : ''}. Tool: ${TOOLS[state.tool]?.label ?? state.tool}. Grid ${state.grid ? 'on' : 'off'}, snap ${state.snap ? 'on' : 'off'}. ${toolboxReport()}`;
   },
   grid: (v) => { state.grid = onOff(v); $('gridToggle').checked = state.grid; savePrefs(); canvas.requestRenderAll(); return `Grid ${v}`; },
   snap: (v) => { state.snap = onOff(v); $('snapToggle').checked = state.snap; savePrefs(); return `Snap ${v}`; },
@@ -3832,9 +5616,55 @@ const ASSIST = {
     const where = matchMedia('(max-width: 900px)').matches ? 'from the left along the bottom' : 'from the top on the left';
     return `${TOOLS[v].label} tool selected${n ? ` (button ${n} ${where})` : ''}${notice ? `. ${notice}` : ''}`;
   },
+  /** Pages: add, duplicate, delete, next, previous, a page number, or rename:<name>. */
+  page: (v) => {
+    const s = String(v || '').trim(), n = Number(s);
+    if (s === 'add') { insertPage(); return `Page added after page ${pageIndex + 1}: it is open now (the tabs at the bottom left switch pages)`; }
+    if (s === 'duplicate') { duplicatePage(); return `Page ${pageIndex + 1} duplicated: the copy is open now`; }
+    if (s === 'delete') { if (pages.length < 2) throw new Error('The design has only one page: it cannot be deleted (File > New document clears it).'); deletePage(); return `Deleted ${pages[pageIndex].name} (Undo brings it back)`; }
+    if (s === 'next' || s === 'previous') { const i = pageIndex + (s === 'next' ? 1 : -1); if (!pages[i]) throw new Error(`There is no ${s} page (this is page ${pageIndex + 1} of ${pages.length}).`); gotoPage(i); return `Opened ${pages[i].name} (page ${i + 1} of ${pages.length})`; }
+    if (s.startsWith('rename:')) { renamePage(pageIndex, s.slice(7)); return `This page is now called ${pages[pageIndex].name}`; }
+    if (Number.isInteger(n) && n >= 1) { if (!pages[n - 1]) throw new Error(`There are ${pages.length} pages: there is no page ${n}.`); gotoPage(n - 1); return `Opened ${pages[n - 1].name} (page ${n} of ${pages.length})`; }
+    throw new Error('Page can be add, duplicate, delete, next, previous, a page number, or rename:<name>.');
+  },
+  /** A variable outline profile (optionally :width in mm) for the selected shapes and lines, or remove. */
+  varline: (v) => {
+    const [name, w] = String(v || '').split(':'), width = w ? parseFloat(w) : 0;
+    if (!VAR_PROFILES[name] && name !== 'remove') throw new Error('Variable outline can be uniform, taper, taper-start, taper-end, bulge, pinch, wave or remove, optionally with a width in mm (taper:4).');
+    const out = setVarProfile(name, width), n = `${out.length} object${out.length > 1 ? 's' : ''}`;
+    if (name === 'remove') return `Back to an ordinary outline on ${n}`;
+    return `Variable outline ${VAR_NAMES[name]}${width ? `, ${width} mm wide` : ''} on ${n}. Fine-tune it with the Variable Outline tool (button 3, Artistic Media flyout): drag on the outline to set the width there`;
+  },
+  /** Joins the two selected objects with a connector between their nearest anchors. */
+  connect: (v) => {
+    const kind = { straight: 'straight', right: 'right', 'right-angle': 'right', rounded: 'rounded' }[v || 'right'];
+    if (!kind) throw new Error('Connect can be straight, right-angle or rounded.');
+    const objs = canvas.getActiveObjects().filter(connectable);
+    if (objs.length !== 2) throw new Error('Select the two objects to connect first (click one, Shift+click the other), then ask again.');
+    const c = connectObjects(kind, objs[0], objs[1]);
+    return `Joined ${objLabel(objs[0])} and ${objLabel(objs[1])} with a ${CONN_LABEL[kind]} (${c.name}). It stays attached when they move; change it on the property bar (Pick tool) or with Anchor Editing`;
+  },
   select: (v) => {
     const [kind, ...rest] = v.split(':'), words = rest.join(':').trim().toLowerCase();
     const shown = userObjects().filter((o) => o.visible), all = shown.filter((o) => !o.locked);
+    if (kind === 'id') {
+      // By ID (#12, shown in the status bar): an object inside a group selects its group.
+      const want = (words.match(/\d+/g) ?? []).map(Number), found = [], inside = [];
+      if (!want.length) throw new Error('Give the ID number, e.g. id:12 (the status bar at the bottom shows the ID of the selected object).');
+      for (const n of want) {
+        const top = shown.find((o) => { let hit = false; eachPart(o, (x) => { if (x.num === n) hit = true; }); return hit; });
+        if (!top) {
+          const on = pages.findIndex((p, i) => i !== pageIndex && new RegExp(`.num.:${n}[,}]`).test(JSON.stringify(p.objects ?? [])));
+          throw new Error(on >= 0 ? `#${n} is on ${pages[on].name} (page ${on + 1}): open that page first.` : `There is no #${n} on the page.`);
+        }
+        if (top.locked) throw new Error(`#${n} is locked: unlock it first (Object > Lock / unlock).`);
+        if (top.num !== n) inside.push(`#${n} is part of #${top.num}`);
+        if (!found.includes(top)) found.push(top);
+      }
+      setTool('select');
+      select(found);
+      return `Selected ${found.map((o) => `#${o.num} ${objLabel(o)}`).join(', ')}${inside.length ? ` (${inside.join('; ')}, so all of it is selected)` : ''}`;
+    }
     const kinds = { all: () => all, text: () => all.filter((o) => textOf(o)), images: () => all.filter((o) => o.type === 'image'), shapes: () => all.filter((o) => !textOf(o) && o.type !== 'image'), none: () => [], type: () => all };
     if (!kinds[kind]) throw new Error('Select can be: all, text, images, shapes, none, or type:<kind of object>.');
     let objs = kinds[kind]();
@@ -3915,10 +5745,85 @@ const ASSIST = {
   fill: (v) => {
     needSelection();
     if (v === 'none') { applyToSelection((o) => { delete o.gradSpec; delete o.patSpec; return { fill: null }; }); return 'Fill removed'; }
-    const hex = colourOf(v);
-    for (const o of active()) paintObject(o, hex, false);
+    const hex = colourOf(v), objs = active();
+    const pics = objs.filter((o) => tintTargets(o).length), none = objs.filter((o) => !tintTargets(o).length && o.type === 'group' && !paintParts(o).length);
+    if (none.length === objs.length) throw new Error(`${objs.map((o) => (o.num != null ? `#${o.num}` : objLabel(o))).join(', ')} has nothing that takes a fill colour.`);
+    for (const o of objs) paintObject(o, hex, false);
     changed(canvas.getActiveObject());
-    return `Fill ${hex}`;
+    return pics.length === objs.length ? `Tinted ${pics.map((o) => `#${o.num}`).join(', ')} ${hex}: a picture has no fill, so it is recoloured in that colour, keeping its light and shade (Undo restores it)` : `Fill ${hex}${pics.length ? ` (the picture${pics.length > 1 ? 's are' : ' is'} tinted)` : ''}`;
+  },
+  /**
+   * A gradient fill with any number of colours: "linear:red,gold 40%,black,angle=90" (colours spread evenly unless a %
+   * is given), "radial:white,navy", a ready-made or saved gradient by name ("fire"), or none (a uniform fill again).
+   */
+  gradient: (v) => {
+    needSelection();
+    const raw = String(v).trim(), low = raw.toLowerCase(), objs = active();
+    const ids = objs.map((o) => (o.num != null ? `#${o.num}` : objLabel(o))).join(', ');
+    if (low === 'none') {
+      for (const o of objs) applyProps(o, (x) => { if (!x.gradSpec || x.gradSpec.fade) return {}; const c = hexOf(gradStops(x.gradSpec)[0].color) ?? '#888888'; delete x.gradSpec; return { fill: c }; });
+      changed(canvas.getActiveObject()); syncGradFromSelection();
+      return `Gradient removed from ${ids}: a uniform fill in its first colour`;
+    }
+    const preset = GRAD_PRESETS.find(([n]) => n.toLowerCase() === low), saved = state.gradients.find((g) => g.name.toLowerCase() === low);
+    let type = state.gradient ? gradKind(state.gradient) : 'linear', angle = state.gradient?.angle ?? 0, stops;
+    if (preset || saved) stops = preset ? evenStops(preset[1]) : saved.stops.map((s) => ({ ...s }));
+    else {
+      const m = raw.match(/^(linear|radial)\s*:\s*(.+)$/i);
+      if (!m) throw new Error(`A gradient is linear:<colours> or radial:<colours> (e.g. linear:red,gold 40%,black,angle=90), a ready-made one (${GRAD_PRESETS.map(([n]) => n).join(', ')}${state.gradients.length ? `, or saved: ${state.gradients.map((g) => g.name).join(', ')}` : ''}), or none.`);
+      type = m[1].toLowerCase();
+      const cols = [];
+      for (const it of m[2].split(',').map((x) => x.trim()).filter(Boolean)) {
+        const a = it.match(/^angle\s*=\s*(-?\d+(\.\d+)?)$/i);
+        if (a) { angle = Number(a[1]); continue; }
+        const p = it.match(/^(.*?)\s+(\d{1,3}(\.\d+)?)\s*%$/);
+        cols.push({ color: colourOf(p ? p[1] : it).toUpperCase(), at: p ? Math.min(100, Number(p[2])) / 100 : null });
+      }
+      if (cols.length < 2) throw new Error('A gradient needs at least two colours, e.g. linear:red,black.');
+      stops = cols.map((c, i) => ({ color: c.color, offset: c.at ?? i / (cols.length - 1) }));
+    }
+    const pics = objs.filter((o) => o.type === 'image' || (o.type === 'group' && !paintParts(o).length));
+    if (pics.length === objs.length) throw new Error(`${ids} ${objs.length > 1 ? 'are pictures' : 'is a picture'}: a picture has no fill to take a gradient (a uniform colour tints it).`);
+    const spec = { from: '', to: '', stops: gradStops({ stops }), angle, kind: type };
+    spec.from = spec.stops[0].color; spec.to = spec.stops.at(-1).color;
+    for (const o of objs) applyProps(o, (x) => { if (!fillable(x) || x.type === 'image') return {}; delete x.patSpec; x.gradSpec = cloneGrad(spec); return { fill: gradientFor(x) }; });
+    changed(canvas.getActiveObject()); syncGradFromSelection();
+    return `${type === 'radial' ? 'Radial' : 'Linear'} gradient on ${ids}: ${gradText(spec)}${pics.length ? ' (pictures have no fill and were left as they are)' : ''}`;
+  },
+  /**
+   * Saved colour palettes (Colour tab and the start of the bottom palette): list, use:<name> (use:3deezi for the
+   * built-in colours), save:<name>=<colours> (no colours: the selection's, or every colour in the design),
+   * add:<name>=<colours>, remove:<name>=<colours>, rename:<old>=<new>, delete:<name>.
+   */
+  palette: (v) => {
+    const raw = String(v).trim(), c = raw.indexOf(':'), op = (c < 0 ? raw : raw.slice(0, c)).trim().toLowerCase(), rest = c < 0 ? '' : raw.slice(c + 1).trim();
+    const eq = rest.indexOf('='), name = (eq < 0 ? rest : rest.slice(0, eq)).trim(), after = eq < 0 ? '' : rest.slice(eq + 1).trim();
+    const colours = () => after.split(',').map((x) => x.trim()).filter(Boolean).map((x) => colourOf(x).toUpperCase());
+    const list = (p) => `${p.name} (${p.colours.join(', ') || 'no colours'})`;
+    if (op === 'list') return state.palettes.length ? `Saved palettes: ${state.palettes.map(list).join('; ')}. Shown now: ${currentPalette()?.name ?? '3DEEZI + my colours'}.` : 'No saved palettes yet: the Colour tab shows the 3DEEZI colours and your saved colours.';
+    if (!['use', 'save', 'add', 'remove', 'rename', 'delete'].includes(op)) throw new Error('Palette commands: list, use:<name>, save:<name>=<colours>, add:<name>=<colours>, remove:<name>=<colours>, rename:<old>=<new>, delete:<name>.');
+    if (!name) throw new Error('Name the palette, e.g. save:Lions FC=navy,gold,white.');
+    if (op === 'use' && /^(3deezi|default|my colours|built-in)/i.test(name)) { usePalette(''); return 'The Colour tab shows the 3DEEZI colours and your saved colours again'; }
+    if (op === 'save') {
+      const cols = after ? colours() : coloursOf(active().length ? active() : userObjects());
+      if (!cols.length) throw new Error('There are no colours to save: name them, e.g. save:Lions FC=navy,gold,white.');
+      const had = !!findPalette(name), p = savePalette(name, cols);
+      return `${had ? 'Replaced' : 'Saved'} the palette ${list(p)}: it is shown in the Colour tab and at the start of the bottom palette`;
+    }
+    const p = findPalette(name);
+    if (!p) throw new Error(`There is no palette called “${name}”${state.palettes.length ? ` (saved: ${state.palettes.map((x) => x.name).join(', ')})` : ' (none saved yet)'}.`);
+    if (op === 'use') { usePalette(p.name); return `Showing the palette ${list(p)} in the Colour tab and at the start of the bottom palette`; }
+    if (op === 'add') { const cols = colours(); if (!cols.length) throw new Error('Name the colours to add, e.g. add:Lions FC=silver.'); paletteAddColours(p, cols); return `Added ${cols.join(', ')}: ${list(p)}`; }
+    if (op === 'remove') { const cols = colours(); p.colours = p.colours.filter((x) => !cols.includes(x)); savePrefs(); renderPalettes(); return `Removed ${cols.join(', ')}: ${list(p)}`; }
+    if (op === 'rename') {
+      const to = after.slice(0, 40);
+      if (!to) throw new Error('Give the new name, e.g. rename:Lions FC=Lions 2027.');
+      if (findPalette(to) && findPalette(to) !== p) throw new Error(`There is already a palette called ${to}.`);
+      const was = p.name; p.name = to; if (state.palette === was) state.palette = to; savePrefs(); renderPalettes();
+      return `Palette ${was} renamed ${to}`;
+    }
+    state.palettes = state.palettes.filter((x) => x !== p); if (state.palette === p.name) state.palette = ''; savePrefs(); renderPalettes();
+    return `Palette ${p.name} deleted (its colours stay on your objects)`;
   },
   /**
    * Adds an object by name: "rectangle", "circle", "star", "heart", "text" … Half the page by default
@@ -4094,8 +5999,12 @@ const ASSIST = {
   menu: (v) => {
     if (v === 'open') throw new Error('File > Import needs your own click: choose File > Import.');
     if (!Object.hasOwn(ACTIONS, v)) throw new Error(`There is no "${v}" menu item.`);
-    const label = menuLabel(v);
+    const label = menuLabel(v).replace(/^✓\s*/, '');
     ACTIONS[v]();
+    // Show / hide items say what they did (the tick on the menu shows the state before the click).
+    const part = v.startsWith('win_') ? v.slice(4) : null;
+    if (part && UI_PARTS[part]) return `${label} ${document.body.classList.contains(UI_PARTS[part]) ? 'hidden' : 'shown'}`;
+    if (v === 'snapToggle') return `Snap ${state.snap ? 'on' : 'off'}`;
     return label;
   },
   zoom: (v) => {
@@ -4139,7 +6048,7 @@ window.artboard = {
   },
   setAssets: (list) => { for (const a of list ?? []) addAsset(a.src, a.name || 'Asset'); },
   addImage: ({ src, name }) => { addAsset(src, name || 'Image'); return addImage(src, name || 'Image'); },
-  load: (json) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)); },
+  load: (json) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)).then((r) => { compactNums(); syncProps(); return r; }); },
   clear: () => ACTIONS.new(),
   toast: (text) => toast(String(text ?? '')),
   receive: (msg) => {
@@ -4160,7 +6069,8 @@ addEventListener('message', (e) => { if (e.source === window.parent && typeof e.
   await document.fonts.ready;
   resize();
   setTarget('fill');
-  renderSwatches();
+  renderPalettes();
+  renderGradPresets();
   renderAssets();
   initContextValues();
   renderToolbox();
@@ -4168,6 +6078,7 @@ addEventListener('message', (e) => { if (e.source === window.parent && typeof e.
   let saved = null;
   try { saved = localStorage.getItem(STORE); } catch { /* none */ }
   if (saved) await restore(saved).catch(() => {});
+  compactNums();
   if (!userObjects().length) {
     // A starter so the page isn't blank: editable 3DEEZI-style badge text.
     const t = style(new IText('YOUR TEAM', { left: page.width / 2, top: page.height / 2, originX: 'center', originY: 'center', fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 70 * MM, fill: '#1E7BFF', toolName: 'Text' }));
