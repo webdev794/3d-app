@@ -68,8 +68,17 @@ class AdminTest extends TestCase
             ->assertCreated()->assertJsonPath('data.quantity', 14)->assertJsonPath('data.status', 'pending')->assertJsonPath('data.total', null)->json('data');
         $this->assertSame(sprintf('3DZ-%05d', $order['id']), $order['number']);
         $this->getJson('/api/v1/orders')->assertJsonCount(1, 'data');
+        $this->getJson("/api/v1/admin/orders/{$order['id']}")->assertForbidden();
 
         $this->admin();
+        // The kit viewer: one order with its whole kit (design, AI brief, preview); the list shows the kit's picture.
+        $project->update(['thumbnail' => 'data:image/png;base64,AAAA', 'design' => ['main' => '#000000', 'prompt' => 'Navy and gold with chevrons']]);
+        $this->getJson("/api/v1/admin/orders/{$order['id']}")->assertOk()
+            ->assertJsonPath('data.project.name', 'Home kit')->assertJsonPath('data.project.design.prompt', 'Navy and gold with chevrons')
+            ->assertJsonPath('data.project.thumbnail', 'data:image/png;base64,AAAA')->assertJsonPath('data.phone', '0400 000 000')
+            ->assertJsonPath('data.user.email', $customer->email);
+        $this->getJson('/api/v1/admin/orders')->assertJsonPath('data.data.0.project.thumbnail', 'data:image/png;base64,AAAA')
+            ->assertJsonPath('data.data.0.project.status', 'draft');
         $this->patchJson("/api/v1/admin/orders/{$order['id']}", ['status' => 'confirmed', 'unit_price' => 45.5, 'sizes' => ['S' => 4, 'M' => 10, 'L' => 6]])
             ->assertOk()->assertJsonPath('data.quantity', 20)->assertJsonPath('data.total', '910.00')->assertJsonPath('data.user.email', $customer->email);
         $this->patchJson("/api/v1/admin/orders/{$order['id']}", ['status' => 'lost'])->assertUnprocessable();

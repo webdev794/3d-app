@@ -88,6 +88,7 @@ export default function App() {
       <Route path="/convert" element={<ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} />} />
       <Route path="/admin" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
+      <Route path="/admin/:section/:itemId" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/orders" element={protectedPage(<MyOrdersPage />)} />
       <Route path="/pricing" element={<PricingPage onStart={() => start('dyo')} />} />
       <Route path="/downloads" element={<DownloadsPage />} />

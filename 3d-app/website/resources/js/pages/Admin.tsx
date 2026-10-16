@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
-import { CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Trash2, TriangleAlert, Users, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, Eye, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, TriangleAlert, Users, X } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type User } from '../api';
+import { KitViewer, defaultDesign, type Design, type KitViewerHandle } from '../components/KitViewer';
 
 export interface AdminUser extends User { is_admin: boolean; projects_count?: number; orders_count?: number }
 export interface Order {
   id: number; number: string; user_id: number; project_id: number | null; status: string; sizes: Record<string, number>;
   quantity: number; unit_price: string | null; total: string | null; currency: string; contact_name: string; phone: string | null;
   shipping_address: string | null; notes: string | null; admin_notes?: string | null; created_at: string;
-  user?: { id: number; name: string; email: string }; project?: { id: number; name: string; sport: string; garment: string } | null;
+  user?: { id: number; name: string; email: string }; project?: { id: number; name: string; sport: string; garment: string; status?: string; version?: number; thumbnail?: string | null } | null;
 }
 interface AdminProject { id: number; name: string; sport: string; garment: string; mode: string; status: 'draft' | 'approved'; version: number; thumbnail: string | null; updated_at: string; orders_count: number; user?: { id: number; name: string; email: string } }
 interface Page<T> { data: T[]; current_page: number; last_page: number; total: number }
@@ -41,7 +42,7 @@ const sections = [
 
 /** The admin console: dashboard, API settings, users, projects, orders and database tools. */
 export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: User; onNotice: (text: string) => void; onLogout: () => void; catalog: Catalog | null }) {
-  const { section = 'dashboard' } = useParams();
+  const { section = 'dashboard', itemId } = useParams();
   const current = sections.find(s => s.id === section) ?? sections[0];
   const [stats, setStats] = useState<Stats | null>(null);
   const [apiState, setApiState] = useState<ApiSettings | null>(null);
@@ -58,7 +59,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
     <aside className="console-side">
       <Link to="/admin" className="console-brand"><img src={media('showroom/emblem-256.webp')} alt="" /><span><strong>3DEEZI</strong><small>ADMIN CONSOLE</small></span></Link>
       <span className="console-label">MAIN NAVIGATION</span>
-      <nav onClick={() => setMenu(false)}>{sections.map(s => <NavLink key={s.id} to={s.id === 'dashboard' ? '/admin' : `/admin/${s.id}`} end className={({ isActive }) => isActive || (s.id === 'dashboard' && section === 'dashboard') ? 'active' : ''}>
+      <nav onClick={() => setMenu(false)}>{sections.map(s => <NavLink key={s.id} to={s.id === 'dashboard' ? '/admin' : `/admin/${s.id}`} end className={({ isActive }) => isActive || s.id === section ? 'active' : ''}>
         <s.icon size={17} /><span>{s.label}</span>
         {s.id === 'settings' && apiState && !apiState.configured && <em className="setup">Setup</em>}
         {counts[s.id] !== undefined && <em>{counts[s.id]}</em>}
@@ -78,7 +79,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
       {error && <p className="error-message">{error}</p>}
       <div className="console-body">
         {section === 'users' ? <UsersPanel me={me} onNotice={onNotice} />
-          : section === 'orders' ? <OrdersPanel onNotice={onNotice} />
+          : section === 'orders' ? (itemId ? <OrderKit key={itemId} id={Number(itemId)} catalog={catalog} onNotice={onNotice} /> : <OrdersPanel onNotice={onNotice} />)
           : section === 'projects' ? <ProjectsPanel catalog={catalog} onNotice={onNotice} />
           : section === 'settings' ? <SettingsPanel state={apiState} onSaved={setApiState} onNotice={onNotice} />
           : section === 'partners' ? <PartnersPanel onNotice={onNotice} />
@@ -261,10 +262,10 @@ function Pager({ result, setPage }: { result: Page<unknown>; setPage: (n: number
   return <div className="pager"><button className="icon-button" disabled={result.current_page <= 1} onClick={() => setPage(result.current_page - 1)} aria-label="Previous page"><ChevronLeft size={16} /></button><span>Page {result.current_page} of {result.last_page}</span><button className="icon-button" disabled={result.current_page >= result.last_page} onClick={() => setPage(result.current_page + 1)} aria-label="Next page"><ChevronRight size={16} /></button></div>;
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { ref.current?.showModal(); }, []);
-  return <dialog ref={ref} className="modal compact-modal admin-modal" onCancel={onClose}><button className="icon-button modal-close" onClick={onClose} aria-label="Close"><X /></button><h2>{title}</h2>{children}</dialog>;
+  return <dialog ref={ref} className={`modal compact-modal admin-modal${wide ? ' wide' : ''}`} onCancel={onClose}><button className="icon-button modal-close" onClick={onClose} aria-label="Close"><X /></button><h2>{title}</h2>{children}</dialog>;
 }
 
 async function confirmDelete(what: string, run: () => Promise<unknown>, onDone: () => void, onError: (m: string) => void) {
@@ -317,6 +318,7 @@ function OrdersPanel({ onNotice }: { onNotice: (text: string) => void }) {
   const [status, setStatus] = useState('');
   const { result, error, setPage, reload } = usePaged<Order>('/admin/orders', { search: query, ...(status ? { status } : {}) });
   const [editing, setEditing] = useState<Order | 'new' | null>(null);
+  const navigate = useNavigate();
   async function quickStatus(order: Order, next: string) {
     try { await api(`/admin/orders/${order.id}`, { method: 'PATCH', body: JSON.stringify({ status: next }) }); onNotice(`${order.number} is now ${statusLabel(next).toLowerCase()}.`); reload(); }
     catch (e) { onNotice((e as Error).message); }
@@ -328,14 +330,144 @@ function OrdersPanel({ onNotice }: { onNotice: (text: string) => void }) {
       <button className="button button-gradient" onClick={() => setEditing('new')}><Plus size={16} /> Add order</button></div>
     {error && <p className="error-message">{error}</p>}
     {!result ? <div className="empty-state"><LoaderCircle className="spin" /></div> : <div className="table-wrap"><table className="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>Kit</th><th>Sizes</th><th>Total</th><th>Status</th><th>Date</th><th /></tr></thead><tbody>
-      {result.data.map(o => <tr key={o.id}><td><strong>{o.number}</strong></td><td>{o.user?.name}<small className="cell-sub">{o.user?.email}</small></td><td>{o.project?.name ?? <span className="muted">—</span>}</td><td>{o.quantity}<small className="cell-sub">{sizeSummary(o.sizes)}</small></td><td>{money(o.total, o.currency)}</td>
+      {result.data.map(o => <tr key={o.id}><td><strong>{o.number}</strong></td><td>{o.user?.name}<small className="cell-sub">{o.user?.email}</small></td><td>{o.project ? <div className="order-kit"><Link to={`/admin/orders/${o.id}`} className="order-kit-thumb" aria-label={`View the kit of ${o.number}`}>{o.project.thumbnail ? <img src={o.project.thumbnail} alt="" loading="lazy" /> : <Package size={20} />}</Link><div><strong>{o.project.name}</strong><Link className="order-kit-link" to={`/admin/orders/${o.id}`}>View kit</Link></div></div> : <span className="muted">No kit</span>}</td><td>{o.quantity}<small className="cell-sub">{sizeSummary(o.sizes)}</small></td><td>{money(o.total, o.currency)}</td>
         <td><select className={`status-select s-${o.status}`} value={o.status} onChange={e => quickStatus(o, e.target.value)} aria-label={`Status of ${o.number}`}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></td><td>{date(o.created_at)}</td>
-        <td className="row-actions"><button className="icon-button" onClick={() => setEditing(o)} aria-label={`Edit ${o.number}`}><Pencil size={15} /></button><button className="icon-button danger" aria-label={`Delete ${o.number}`} onClick={() => confirmDelete(`order ${o.number}`, () => api(`/admin/orders/${o.id}`, { method: 'DELETE' }), () => { onNotice('Order deleted.'); reload(); }, onNotice)}><Trash2 size={15} /></button></td></tr>)}
+        <td className="row-actions"><button className="icon-button" onClick={() => navigate(`/admin/orders/${o.id}`)} aria-label={`View the kit of ${o.number}`} title="View kit"><Eye size={15} /></button><button className="icon-button" onClick={() => setEditing(o)} aria-label={`Edit ${o.number}`}><Pencil size={15} /></button><button className="icon-button danger" aria-label={`Delete ${o.number}`} onClick={() => confirmDelete(`order ${o.number}`, () => api(`/admin/orders/${o.id}`, { method: 'DELETE' }), () => { onNotice('Order deleted.'); reload(); }, onNotice)}><Trash2 size={15} /></button></td></tr>)}
       {!result.data.length && <tr><td colSpan={8} className="muted">No orders found.</td></tr>}
     </tbody></table></div>}
     {result && <Pager result={result} setPage={setPage} />}
     {editing && <OrderForm order={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onNotice('Order saved.'); reload(); }} />}
   </section>;
+}
+
+/** A kit as saved: the design may also hold the AI brief (prompt) and AI photo renders. */
+type SavedDesign = Partial<Design> & { prompt?: string; renderFront?: string | null; renderBack?: string | null };
+interface KitProject { id: number; name: string; sport: string; garment: string; mode?: string; status?: string; version?: number; thumbnail?: string | null; design?: SavedDesign; updated_at?: string }
+interface KitOrder extends Omit<Order, 'project'> { project?: KitProject | null }
+const ZONE_NAMES: Record<string, string> = { body: 'Body', yoke: 'Yoke', sleeves: 'Sleeves', sides: 'Sides', hem: 'Hem' };
+const shownImage = (src?: string | null) => !!src && /^(data:image\/|https?:\/\/|\/)/.test(src);
+const fileType = (src: string) => (src.startsWith('data:image/jpeg') ? 'jpg' : 'png');
+
+/**
+ * One order's kit, for production: large Front / Back / Kit pictures (front and back drawn by the 3D viewer from the
+ * saved design, the kit picture is the 3D preview saved with it), the kit's details, colours with hex codes, pattern,
+ * front text, back name and number, the AI brief, every size and quantity, and the customer's contact details.
+ */
+function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | null; onNotice: (text: string) => void }) {
+  const [order, setOrder] = useState<KitOrder | null>(null);
+  const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [zoom, setZoom] = useState<{ label: string; src: string } | null>(null);
+  const [shots, setShots] = useState<{ front?: string; back?: string; side?: string; state: 'drawing' | 'done' | 'failed' }>({ state: 'drawing' });
+  const viewer = useRef<KitViewerHandle>(null);
+  const load = useCallback(() => { api<KitOrder>(`/admin/orders/${id}`).then(o => { setOrder(o); setError(''); }).catch(e => setError((e as Error).message)); }, [id]);
+  useEffect(load, [load]);
+  const project = order?.project ?? null, d: SavedDesign = project?.design ?? {};
+  // A different kit (or a newer save of it): draw its pictures again.
+  useEffect(() => { setShots({ state: 'drawing' }); }, [project?.id, project?.updated_at]);
+  const design = useMemo<Design | null>(() => (project ? { ...defaultDesign, ...project.design, garment: project.garment as Design['garment'] } : null), [project?.id, project?.updated_at]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function draw() {
+    try {
+      const front = await viewer.current!.capture('front'), back = await viewer.current!.capture('back');
+      const side = project?.thumbnail ? undefined : await viewer.current!.capture('side');
+      setShots({ front, back, side, state: 'done' });
+    } catch { setShots({ state: 'failed' }); }
+  }
+  async function setStatus(next: string) {
+    if (!order) return;
+    try { await api(`/admin/orders/${order.id}`, { method: 'PATCH', body: JSON.stringify({ status: next }) }); onNotice(`${order.number} is now ${statusLabel(next).toLowerCase()}.`); load(); }
+    catch (e) { onNotice((e as Error).message); }
+  }
+  const back = <Link to="/admin/orders" className="button button-outline"><ArrowLeft size={15} /> Back to orders</Link>;
+  if (error) return <section className="glow-panel admin-card">{back}<p className="error-message">{error}</p></section>;
+  if (!order) return <div className="empty-state"><LoaderCircle className="spin" /> Loading the order…</div>;
+  const sportName = project ? catalog?.sports.find(s => s.id === project.sport)?.name ?? project.sport : '';
+  const garmentName = project ? catalog?.garments.find(g => g.id === project.garment)?.name ?? project.garment : '';
+  const approved = project?.status === 'approved';
+  const pictures: [string, string | undefined | null][] = project ? [['Front', shots.front], ['Back', shots.back], ['Kit', project.thumbnail || shots.side]] : [];
+  if (shownImage(d.renderFront)) pictures.push(['AI front render', d.renderFront]);
+  if (shownImage(d.renderBack)) pictures.push(['AI back render', d.renderBack]);
+  const colours: [string, string | undefined][] = [['Main', d.main], ['Secondary', d.secondary], ['Accent', d.accent], ['Pattern colour', d.patternColor], ...(d.gradient ? [['Gradient from', d.gradient.from], ['Gradient to', d.gradient.to]] as [string, string][] : [])];
+  const zones = Object.entries(d.zones ?? {}).filter(([, v]) => v && v !== 'None');
+  const layers = d.layers ?? [];
+  const ordered = SIZES.filter(s => (order.sizes[s] ?? 0) > 0);
+  const editButton = <button className="button button-gradient" onClick={() => setEditing(true)}><Pencil size={15} /> Edit order, price or status</button>;
+
+  return <div className="kit-page">
+    <section className="glow-panel admin-card">
+      <div className="kit-head">
+        {back}
+        <h2>{order.number}</h2>
+        <span className={`status-pill s-${order.status}`}>{statusLabel(order.status)}</span>
+        <span className="muted">Placed {date(order.created_at)} · {order.quantity} garment{order.quantity === 1 ? '' : 's'} · {money(order.total, order.currency)}</span>
+        <div className="kit-head-actions">
+          <select className={`status-select s-${order.status}`} value={order.status} onChange={e => setStatus(e.target.value)} aria-label={`Status of ${order.number}`}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
+          {editButton}
+        </div>
+      </div>
+    </section>
+
+    {project ? <>
+      <section className="glow-panel admin-card">
+        <div className="card-head"><h2>{project.name}</h2><span className={`status-pill s-${approved ? 'delivered' : 'pending'}`}>{approved ? 'Approved' : 'Draft'}</span></div>
+        <div className="kit-shots">{pictures.map(([label, src]) => <figure key={label}>
+          {src ? <button className="kit-shot" onClick={() => setZoom({ label, src })} aria-label={`Show the ${label.toLowerCase()} picture larger`}><img src={src} alt={`${label} of ${project.name}`} /></button>
+            : shots.state === 'drawing' ? <div className="kit-shot wait"><LoaderCircle className="spin" /> Drawing the {label.toLowerCase()}…</div>
+            : <div className="kit-shot none">{shots.state === 'failed' ? 'The 3D picture could not be drawn on this computer.' : 'No picture saved.'}</div>}
+          <figcaption>{label}{src && <a className="icon-button" href={src} download={`${order.number}-${label.toLowerCase().replace(/\s+/g, '-')}.${fileType(src)}`} aria-label={`Download the ${label.toLowerCase()} picture`} title="Download"><Download size={14} /></a>}</figcaption>
+        </figure>)}</div>
+      </section>
+
+      <div className="admin-grid">
+        <section className="glow-panel admin-card"><h2>Kit details</h2><dl className="kit-dl">
+          <dt>Sport</dt><dd>{sportName}</dd>
+          <dt>Garment</dt><dd>{garmentName}</dd>
+          <dt>Version</dt><dd>v{project.version ?? 1}</dd>
+          <dt>Status</dt><dd>{approved ? 'Approved' : 'Draft'}</dd>
+          <dt>Designed with</dt><dd>{project.mode === 'ai' ? 'AI designer' : 'Design your own'}</dd>
+          {project.updated_at && <><dt>Last saved</dt><dd>{date(project.updated_at)}</dd></>}
+        </dl></section>
+        <section className="glow-panel admin-card"><h2>Colours</h2><ul className="kit-colours">
+          {colours.filter(([, c]) => c).map(([name, c]) => <li key={name}><i style={{ background: c }} /><span>{name}</span><code>{c!.toUpperCase()}</code></li>)}
+        </ul></section>
+        <section className="glow-panel admin-card"><h2>Pattern and text</h2><dl className="kit-dl">
+          <dt>Pattern</dt><dd>{d.pattern || '—'}{zones.length > 0 && <small>{zones.map(([z, p]) => `${ZONE_NAMES[z] ?? z}: ${p}`).join(' · ')}</small>}</dd>
+          {shownImage(d.patternImage) && <><dt>Print pattern</dt><dd><img className="kit-mini" src={d.patternImage!} alt="The kit's print pattern" /></dd></>}
+          <dt>Front text</dt><dd>{d.logoText || '—'}</dd>
+          {shownImage(d.logoImage) && <><dt>Logo</dt><dd><img className="kit-mini" src={d.logoImage!} alt="Logo" /></dd></>}
+          {shownImage(d.sponsorImage) && <><dt>Sponsor</dt><dd><img className="kit-mini" src={d.sponsorImage!} alt="Sponsor logo" /></dd></>}
+          <dt>Back name</dt><dd>{d.backName || '—'}</dd>
+          <dt>Back number</dt><dd>{d.number || '—'}</dd>
+          {layers.length > 0 && <><dt>Artwork</dt><dd>{layers.map(l => `${l.type === 'text' ? `“${l.text ?? ''}”` : l.name || (l.type === 'image' ? 'Picture' : 'Shape')} (${l.side}${l.part === 'shorts' ? ', shorts' : ''})`).join(' · ')}</dd></>}
+        </dl></section>
+        <section className="glow-panel admin-card"><h2><Sparkles size={18} /> AI brief</h2>
+          {d.prompt ? <p className="kit-brief">“{d.prompt}”</p> : <p className="muted">No AI brief: this kit was designed by hand.</p>}
+        </section>
+      </div>
+    </> : <section className="glow-panel admin-card"><h2>No kit</h2><p className="muted">No kit is linked to this order. Use “Edit order, price or status” to choose one of the customer's kits.</p></section>}
+
+    <div className="admin-grid">
+      <section className="glow-panel admin-card"><h2>Sizes and quantities</h2>
+        <table className="admin-table compact kit-sizes"><thead><tr><th>Size</th><th>Quantity</th></tr></thead>
+          <tbody>{ordered.map(s => <tr key={s}><td>{s}</td><td>{order.sizes[s]}</td></tr>)}</tbody>
+          <tfoot><tr><td>Total</td><td>{order.quantity}</td></tr><tr><td>Unit price</td><td>{money(order.unit_price, order.currency)}</td></tr><tr><td>Order total</td><td>{money(order.total, order.currency)}</td></tr></tfoot>
+        </table>
+      </section>
+      <section className="glow-panel admin-card"><h2>Customer</h2><dl className="kit-dl">
+        <dt>Account</dt><dd>{order.user?.name ?? '—'}{order.user?.email && <small><a href={`mailto:${order.user.email}`}>{order.user.email}</a></small>}</dd>
+        <dt>Contact</dt><dd>{order.contact_name}</dd>
+        <dt>Phone</dt><dd>{order.phone ? <a href={`tel:${order.phone.replace(/[^\d+]/g, '')}`}>{order.phone}</a> : '—'}</dd>
+        <dt>Delivery address</dt><dd className="kit-pre">{order.shipping_address || '—'}</dd>
+        <dt>Notes</dt><dd className="kit-pre">{order.notes || '—'}</dd>
+        {order.admin_notes && <><dt>Internal notes</dt><dd className="kit-pre">{order.admin_notes}</dd></>}
+      </dl></section>
+    </div>
+
+    <div className="kit-foot">{back}{editButton}</div>
+    {editing && <OrderForm order={order as Order} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); onNotice('Order saved.'); load(); }} />}
+    {zoom && <Modal title={`${order.number} · ${zoom.label}`} wide onClose={() => setZoom(null)}><div className="kit-zoom"><img src={zoom.src} alt={`${zoom.label} of ${project?.name ?? 'the kit'}`} /></div></Modal>}
+    {design && shots.state === 'drawing' && <div className="kit-capture" aria-hidden><KitViewer ref={viewer} design={design} onReady={draw} /></div>}
+  </div>;
 }
 
 function OrderForm({ order, onClose, onSaved }: { order: Order | null; onClose: () => void; onSaved: () => void }) {

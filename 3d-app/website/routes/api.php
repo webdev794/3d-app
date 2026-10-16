@@ -56,7 +56,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::prefix('admin')->name('admin.')->middleware('admin')->group(function () {
             Route::get('/stats', [Admin\OrderController::class, 'stats'])->name('stats');
             Route::apiResource('users', Admin\UserController::class)->whereNumber('user');
-            Route::apiResource('orders', Admin\OrderController::class)->except('show')->whereNumber('order');
+            Route::apiResource('orders', Admin\OrderController::class)->whereNumber('order');
             Route::apiResource('projects', Admin\ProjectController::class)->only(['index', 'update', 'destroy'])->whereNumber('project');
             Route::apiResource('partners', Admin\PartnerController::class)->only(['index', 'update', 'destroy'])->whereNumber('partner');
             Route::get('/settings', [Admin\SettingsController::class, 'show'])->name('settings');

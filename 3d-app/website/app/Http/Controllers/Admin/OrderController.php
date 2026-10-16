@@ -16,7 +16,8 @@ use Illuminate\Validation\Rule;
 /** Admin: every customer's orders, plus the overview numbers. */
 class OrderController extends Controller
 {
-    private const WITH = ['user:id,name,email', 'project:id,name,sport,garment'];
+    // The kit's picture (its saved 3D preview), status and version show in the orders list.
+    private const WITH = ['user:id,name,email', 'project:id,name,sport,garment,status,version,thumbnail'];
 
     public function index(Request $request): JsonResponse
     {
@@ -34,6 +35,12 @@ class OrderController extends Controller
             ->paginate(min(100, max(5, (int) $request->query('per_page', 20))));
 
         return response()->json(['data' => $orders]);
+    }
+
+    /** One order with its whole kit (design, preview, AI brief) for the admin kit viewer. */
+    public function show(Order $order): JsonResponse
+    {
+        return response()->json(['data' => $order->load(['user:id,name,email', 'project'])]);
     }
 
     public function store(OrderRequest $request): JsonResponse
