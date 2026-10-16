@@ -4426,11 +4426,18 @@ function pickDrag(el, onMove) {
 pickDrag($('sv'), (x, y) => { hsv.s = x; hsv.v = 1 - y; setColour(hsvToHex(hsv), { recent: false }); });
 pickDrag($('hue'), (_, y) => { hsv.h = y * 360; setColour(hsvToHex(hsv), { recent: false }); });
 $('hexIn').onchange = (e) => { const v = e.target.value.trim().replace(/^#?/, '#'); if (/^#[0-9a-f]{6}$/i.test(v)) setColour(v); };
+/** Briefly rings a colour in the Colour tab's palette: the one just added, or the one already there. */
+function flashSwatch(c) {
+  const b = [...$('brandSw').querySelectorAll('.sw[data-c]')].reverse().find((x) => x.dataset.c === c);
+  if (!b) return;
+  b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
+  b.scrollIntoView({ block: 'nearest' });
+}
 /** The colour the picker shows (its hex box): what + adds. */
 const shownColour = () => { const v = $('hexIn').value.trim().toUpperCase(); return /^#[0-9A-F]{6}$/.test(v) ? v : current(); };
 function renderSwatches() {
   const sw = (box, c, remove) => {
-    const b = document.createElement('button'); b.className = 'sw'; b.style.background = c; b.title = remove ? `${c} · right-click: remove it from this palette` : c; b.onclick = () => setColour(c);
+    const b = document.createElement('button'); b.className = 'sw'; b.style.background = c; b.dataset.c = c; b.title = remove ? `${c} · right-click: remove it from this palette` : c; b.onclick = () => setColour(c);
     if (remove) b.oncontextmenu = (e) => { e.preventDefault(); remove(c); };
     box.append(b);
   };
@@ -4439,11 +4446,22 @@ function renderSwatches() {
   brand.innerHTML = '';
   if (pal) {
     for (const c of pal.colours) sw(brand, c, (x) => paletteRemoveColour(pal, x));
-    addBtn(brand, `Add the colour shown in the picker to ${pal.name}`, () => { const c = shownColour(); paletteAddColours(pal, [c]); toast(`${c} added to ${pal.name}`); });
+    addBtn(brand, `Add the colour shown in the picker to ${pal.name} (it goes at the end)`, () => {
+      const c = shownColour(), had = pal.colours.includes(c);
+      if (!had && pal.colours.length >= 40) { toast('A palette holds up to 40 colours: right-click one to remove it first'); return; }
+      if (!had) paletteAddColours(pal, [c]);
+      flashSwatch(c);
+      toast(had ? `${c} is already in ${pal.name}` : `${c} added at the end of ${pal.name} (saved on this device)`);
+    });
   } else {
     for (const c of BRAND) sw(brand, c);
     for (const c of state.saved) sw(brand, c, (x) => { state.saved = state.saved.filter((y) => y !== x); savePrefs(); renderSwatches(); toast(`${x} removed from your colours`); });
-    addBtn(brand, 'Save the colour shown in the picker', () => { const c = shownColour(); state.saved = [c, ...state.saved.filter((x) => x !== c)].slice(0, 12); savePrefs(); renderSwatches(); toast(`${c} saved in your colours`); });
+    addBtn(brand, 'Save the colour shown in the picker (it goes at the end)', () => {
+      const c = shownColour(), had = BRAND.includes(c) || state.saved.includes(c);
+      if (!had) { state.saved = [...state.saved, c].slice(-24); savePrefs(); renderSwatches(); }
+      flashSwatch(c);
+      toast(had ? `${c} is already in this palette` : `${c} added at the end of your colours (saved on this device)`);
+    });
   }
   const recent = $('recentSw');
   recent.innerHTML = '';
@@ -4642,14 +4660,21 @@ $('tbFont').onchange = (e) => {
 };
 
 function drawHarmony() {
-  const base = hexToHsv(current()), box = $('harmony');
-  const mode = $('harmonyMode').value;
-  const shifts = { analogous: [-30, -15, 0, 15, 30], complementary: [0, 0, 180, 180, 0], triadic: [0, 120, 240, 120, 0], shades: [0, 0, 0, 0, 0] }[mode];
+  const base = hexToHsv(shownColour()), box = $('harmony'); // the colour the picker shows
+  const at = (dh, v = base.v) => hsvToHex({ ...base, h: (base.h + dh + 360) % 360, v: Math.max(0, Math.min(1, v)) });
+  const other = base.v < 0.5 ? base.v + (1 - base.v) * 0.55 : base.v * 0.65; // a lighter (dark colours) or darker version
+  const shades = [0, 1, 2, 3, 4].map((i) => hsvToHex({ ...base, v: Math.max(0.12, Math.min(1, 0.3 + i * 0.17)) }));
+  let mode = $('harmonyMode').value;
+  if (base.s < 0.08 && mode !== 'shades') mode = 'grey'; // grey, black and white have no hue to turn
+  const list = {
+    analogous: [-30, -15, 0, 15, 30].map((d) => at(d)), // neighbours on the colour wheel
+    complementary: [at(0), at(0, other), at(180), at(180, other)], // the colour and its opposite, each with a lighter or darker version
+    triadic: [at(0), at(120), at(240)], // three colours evenly spaced around the colour wheel
+    shades, grey: shades,
+  }[mode];
   box.innerHTML = '';
-  shifts.forEach((d, i) => {
-    const c = mode === 'shades' ? hsvToHex({ ...base, v: Math.max(0.12, Math.min(1, 0.3 + i * 0.17)) }) : hsvToHex({ ...base, h: (base.h + d + 360) % 360, v: mode === 'complementary' && i % 2 ? base.v * 0.7 : base.v });
-    const b = document.createElement('button'); b.style.background = c; b.title = c; b.onclick = () => setColour(c); box.append(b);
-  });
+  box.title = mode === 'grey' ? 'Grey, black and white have no hue: these are its shades' : '';
+  for (const c of list) { const b = document.createElement('button'); b.style.background = c; b.title = c; b.onclick = () => setColour(c); box.append(b); }
 }
 $('harmonyMode').onchange = drawHarmony;
 // ===================================================================
@@ -4976,24 +5001,38 @@ async function exportSvg() {
   download(`data:image/svg+xml;base64,${b64(await pageSvg())}`, '3deezi-artwork.svg');
   toast('SVG exported: vector curves, editable in CorelDRAW or Illustrator');
 }
-async function exportPdf() {
+/**
+ * Vector PDF. A design with several pages asks first: the page that is open, or every page (one PDF page each).
+ * `which`: 'this' | 'all' (from that question).
+ */
+async function exportPdf(which) {
   finishPowerClipEdit();
-  const [w, h] = pageSize, start = pageIndex, many = pages.length > 1, orientation = w > h ? 'landscape' : 'portrait';
-  toast(many ? `Making the PDF (${pages.length} pages)…` : 'Making the PDF…');
+  const mode = which === 'this' || which === 'all' ? which : null;
+  if (pages.length > 1 && !mode) {
+    $('pdfThis').textContent = `This page only (${pages[pageIndex].name})`;
+    $('pdfAll').textContent = `All pages (${pages.length})`;
+    $('pdfDialog').showModal();
+    return;
+  }
+  const [w, h] = pageSize, start = pageIndex, orientation = w > h ? 'landscape' : 'portrait';
+  const list = mode === 'all' ? pages.map((_, i) => i) : [pageIndex], many = list.length > 1;
+  toast(many ? `Making the PDF (${list.length} pages)…` : 'Making the PDF…');
   const doc = new jsPDF({ unit: 'mm', format: [w, h], orientation });
   try {
-    // Every page of the design, one PDF page each.
-    for (let i = 0; i < pages.length; i++) {
-      if (many) await gotoPage(i, { quiet: true });
+    for (const [k, i] of list.entries()) {
+      if (i !== pageIndex) await gotoPage(i, { quiet: true });
       const el = new DOMParser().parseFromString(await pageSvg(), 'image/svg+xml').documentElement;
       el.style.position = 'fixed'; el.style.left = '-99999px';
       document.body.append(el);
-      try { if (i > 0) doc.addPage([w, h], orientation); await svg2pdf(el, doc, { x: 0, y: 0, width: w, height: h }); } finally { el.remove(); }
+      try { if (k > 0) doc.addPage([w, h], orientation); await svg2pdf(el, doc, { x: 0, y: 0, width: w, height: h }); } finally { el.remove(); }
     }
-    download(doc.output('datauristring'), '3deezi-artwork.pdf');
-    toast(many ? `Vector PDF exported: ${pages.length} pages (opens in CorelDRAW, Illustrator and print shops)` : 'Vector PDF exported (opens in CorelDRAW, Illustrator and print shops)');
-  } catch (err) { toast(`PDF export failed: ${err.message}`); } finally { if (many && pageIndex !== start) await gotoPage(start, { quiet: true }); }
+    const name = pages.length > 1 && !many ? `3deezi-${pages[start].name.replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'page'}.pdf` : '3deezi-artwork.pdf';
+    download(doc.output('datauristring'), name);
+    toast(many ? `Vector PDF exported: all ${list.length} pages (opens in CorelDRAW, Illustrator and print shops)` : `Vector PDF exported${pages.length > 1 ? `: ${pages[start].name} only` : ''} (opens in CorelDRAW, Illustrator and print shops)`);
+  } catch (err) { toast(`PDF export failed: ${err.message}`); } finally { if (pageIndex !== start) await gotoPage(start, { quiet: true }); }
 }
+$('pdfThis').onclick = () => { $('pdfDialog').close(); exportPdf('this'); };
+$('pdfAll').onclick = () => { $('pdfDialog').close(); exportPdf('all'); };
 function sendToStudio() {
   finishPowerClipEdit();
   const data = renderPng({ maxPx: 2048 });
