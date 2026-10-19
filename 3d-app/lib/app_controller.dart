@@ -53,6 +53,7 @@ class KitState {
     this.layers = const [],
     this.zones = const {},
     this.gradient,
+    this.marks = const {},
   });
   final String garment, pattern, fabric, logoText, backName, number;
   final Color mainColor, secondaryColor, accentColor;
@@ -61,6 +62,7 @@ class KitState {
   final List<Map<String, dynamic>> layers;
   final Map<String, String> zones;
   final Map<String, dynamic>? gradient;
+  final Map<String, dynamic> marks;
 }
 
 /// One AI concept on the "Choose a design" screen.
@@ -167,10 +169,16 @@ class AppController extends ChangeNotifier {
   List<Map<String, dynamic>> layers = [];
   Map<String, String> zones = {};
   Map<String, dynamic>? gradient;
+
+  /// The wordmark, crest, sponsor, name and number as moved on the 2D panels.
+  Map<String, dynamic> marks = {};
   bool boardMode = false;
   String? selectedLayerId;
 
   Future<Uint8List?> Function()? captureBoard;
+
+  /// Zooms the 2D panels: 'in', 'out' or 'fit'.
+  void Function(String how)? zoomBoard;
   Future<String> Function(String src, {bool removeBg, String? tint})?
   processArtwork;
   Future<Map<String, dynamic>?> Function(double x, double y)? pickGarment;
@@ -645,6 +653,7 @@ class AppController extends ChangeNotifier {
     layers: copyLayers(layers),
     zones: copyZones(zones),
     gradient: copyGradient(gradient),
+    marks: copyMarks(marks),
   );
 
   void _restore(KitState k) {
@@ -664,6 +673,7 @@ class AppController extends ChangeNotifier {
     layers = copyLayers(k.layers);
     zones = copyZones(k.zones);
     gradient = copyGradient(k.gradient);
+    marks = copyMarks(k.marks);
     if (!layers.any((layer) => layer['id'] == selectedLayerId)) {
       selectedLayerId = null;
     }

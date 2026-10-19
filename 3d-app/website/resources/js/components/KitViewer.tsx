@@ -4,7 +4,7 @@ export type Garment = 'jersey' | 'tee' | 'polo' | 'singlet' | 'shorts' | 'fullki
 export type View = 'front' | 'side' | 'back';
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem';
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-14-8';
+const VIEWER_VERSION = '2026-10-19-2';
 
 export interface ArtworkLayer {
     id: string; name?: string; type: 'image' | 'text' | 'shape';
@@ -12,6 +12,11 @@ export interface ArtworkLayer {
     w?: number; h?: number; rot?: number; opacity?: number; src?: string;
     text?: string; size?: number; color?: string; shape?: 'rectangle' | 'ellipse' | 'triangle';
 }
+/**
+ * Where a fixed mark sits when it was moved, resized, turned or hidden on the 2D panels (default place otherwise).
+ * Keys: top_wordmark, top_sponsor, top_crest, top_name, top_number, shorts_crest, shorts_number, shorts_wordmark.
+ */
+export interface MarkPlace { side?: 'front' | 'back'; x?: number; y?: number; scale?: number; rot?: number; hidden?: boolean }
 export interface GarmentPoint { hit: boolean; part?: 'top' | 'shorts'; side?: 'front' | 'back'; x?: number; y?: number; zone?: Zone }
 
 /** Shared with the Flutter viewer. Persist this object as a project's design. */
@@ -34,6 +39,7 @@ export interface Design {
     gradient?: { from: string; to: string; angle: number } | null;
     zones?: Partial<Record<Zone, string>>;
     layers?: ArtworkLayer[];
+    marks?: Record<string, MarkPlace>;
 }
 
 export const defaultDesign: Design = {
@@ -57,6 +63,8 @@ export interface KitViewerHandle {
     pick: (x: number, y: number) => Promise<GarmentPoint>;
     processImage: (src: string, options: { removeBg?: boolean; tolerance?: number; tint?: string | null }) => Promise<string>;
     select: (id: string | null) => void;
+    /** Zooms the 2D panels. */
+    zoomBoard: (how: 'in' | 'out' | 'fit') => void;
 }
 
 export interface KitViewerProps {
@@ -67,6 +75,7 @@ export interface KitViewerProps {
     className?: string;
     board?: boolean;
     onLayers?: (layers: ArtworkLayer[]) => void;
+    onMarks?: (marks: Record<string, MarkPlace>) => void;
     onSelection?: (id: string | null) => void;
 }
 
@@ -82,7 +91,7 @@ const views: Record<View, string> = { front: 'Front', side: 'Side', back: 'Back'
 
 /** Hosts the same bundled Three.js garment renderer used by the mobile app. */
 export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function KitViewer(
-    { design, view = 'front', rotating = false, onReady, className = '', board = false, onLayers, onSelection }, ref,
+    { design, view = 'front', rotating = false, onReady, className = '', board = false, onLayers, onMarks, onSelection }, ref,
 ) {
     const host = `website-kit-${useId().replace(/:/g, '')}`;
     const appBase = document.querySelector('meta[name="app-base"]')?.getAttribute('content')?.replace(/\/$/, '') || '';
@@ -102,17 +111,19 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     const readyCallback = useRef(onReady);
     const boardMode = useRef(board);
     const layerCallback = useRef(onLayers);
+    const marksCallback = useRef(onMarks);
     const selectionCallback = useRef(onSelection);
     const requests = useRef(new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }>());
     const captureQueue = useRef<CaptureRequest[]>([]);
     const activeCapture = useRef<CaptureRequest | null>(null);
     const designTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const flushRef = useRef<() => void>(() => {});
-    latestDesign.current = JSON.stringify({ layers: [], zones: {}, gradient: null, ...design });
+    latestDesign.current = JSON.stringify({ layers: [], zones: {}, gradient: null, marks: {}, ...design });
     latestView.current = { view, rotating };
     readyCallback.current = onReady;
     boardMode.current = board;
     layerCallback.current = onLayers;
+    marksCallback.current = onMarks;
     selectionCallback.current = onSelection;
 
     const send = useCallback((cmd: string, arg: unknown) => {
@@ -178,9 +189,10 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         pick: (x, y) => request<GarmentPoint>('pick', { x, y }),
         processImage: (src, options) => request<string>('processImage', { src, ...options }),
         select: (id) => send('select', id),
+        zoomBoard: (how) => send('boardZoom', how),
         captureBoard: () => new Promise<string>((resolve, reject) => {
             if (!mounted.current || status === 'error') { reject(new Error('The design board is unavailable. Please retry.')); return; }
-            captureQueue.current.push({ view: 'front', kind: 'board', resolve, reject, timeout: setTimeout(() => fail('The artboard export timed out. Please retry.'), 30000) });
+            captureQueue.current.push({ view: 'front', kind: 'board', resolve, reject, timeout: setTimeout(() => fail('The 2D panels export timed out. Please retry.'), 30000) });
             flushRef.current();
         }),
         capture: (requestedView = latestView.current.view) => new Promise<string>((resolve, reject) => {
@@ -231,10 +243,11 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         const receive = (event: MessageEvent) => {
             if (event.origin !== window.location.origin || event.source !== iframe.current?.contentWindow) return;
             if (typeof event.data !== 'string') return;
-            let message: { host?: string; type?: string; view?: string; data?: string; id?: string; error?: string; layers?: ArtworkLayer[] };
+            let message: { host?: string; type?: string; view?: string; data?: string; id?: string; error?: string; layers?: ArtworkLayer[]; marks?: Record<string, MarkPlace> };
             try { message = JSON.parse(event.data); } catch { return; }
             if (!message || message.host !== host) return;
             if (message.type === 'layers' && Array.isArray(message.layers)) layerCallback.current?.(message.layers);
+            if (message.type === 'marks' && message.marks && typeof message.marks === 'object') marksCallback.current?.(message.marks);
             if (message.type === 'selection') selectionCallback.current?.(message.id || null);
             if (message.id && requests.current.has(message.id)) {
                 const pending = requests.current.get(message.id)!; requests.current.delete(message.id); clearTimeout(pending.timeout);

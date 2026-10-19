@@ -6,26 +6,30 @@ import type { ArtworkLayer } from '../types';
 import { placements, readAsset, type LibraryAsset } from '../components/StudioArtwork';
 
 /** Bump when the editor (media/artboard/index.html) is rebuilt, so browsers load the new copy. */
-const EDITOR_VERSION = '2026-10-19-4';
+const EDITOR_VERSION = '2026-10-19-15';
 
 /**
  * The 3DEEZI Artboard (CorelDRAW-style artwork editor). The editor itself is
  * the shared page in media/artboard, also used by the apps; this route hosts
  * it and sends finished artwork to the 3D studio.
  */
-export default function ArtboardPage({ draft, onChange, user, onNotice, requireAuth }: { draft: Draft; onChange: (draft: Draft) => void; user: User | null; onNotice: (text: string) => void; requireAuth: (action?: () => void) => void }) {
+export default function ArtboardPage({ draft, onChange, user, onNotice, requireAuth, onStart }: { draft: Draft; onChange: (draft: Draft) => void; user: User | null; onNotice: (text: string) => void; requireAuth: (action?: () => void) => void; onStart: (mode: 'ai' | 'dyo') => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const navigate = useNavigate();
   const latest = useRef(draft);
   latest.current = draft;
+  const startRef = useRef(onStart);
+  startRef.current = onStart;
 
   useEffect(() => {
     const send = (cmd: string, arg: unknown) => frame.current?.contentWindow?.postMessage(JSON.stringify({ cmd, arg }), window.location.origin);
     async function onMessage(event: MessageEvent) {
       if (event.source !== frame.current?.contentWindow || typeof event.data !== 'string') return;
-      let msg: { type?: string; host?: string; data?: string; name?: string; format?: string };
+      let msg: { type?: string; host?: string; data?: string; name?: string; format?: string; mode?: string };
       try { msg = JSON.parse(event.data); } catch { return; }
       if (msg.host !== 'web') return;
+      // AI / DYO quick access on the Artboard's top bar (the artwork is already saved there).
+      if (msg.type === 'start' && (msg.mode === 'ai' || msg.mode === 'dyo')) { startRef.current(msg.mode); return; }
       if (msg.type === 'convertFile' && msg.data && msg.format === 'cdr') {
         // The server converts CorelDRAW to SVG; the editor imports SVG as editable vectors.
         const data = msg.data, name = msg.name || 'artwork.cdr';

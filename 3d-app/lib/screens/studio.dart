@@ -487,6 +487,38 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                         })
                       : null,
                 ),
+                // On the 2D panels its own buttons come first, so they show on a
+                // phone without scrolling the row.
+                if (c.boardMode) ...[
+                  // Pinch or drag on the panels works too; these are the
+                  // same zoom steps as the website's buttons.
+                  const SizedBox(width: 8),
+                  ActionChipPill(
+                    'Zoom −',
+                    onTap: () => c.zoomBoard?.call('out'),
+                  ),
+                  const SizedBox(width: 8),
+                  ActionChipPill(
+                    'Zoom +',
+                    onTap: () => c.zoomBoard?.call('in'),
+                  ),
+                  const SizedBox(width: 8),
+                  ActionChipPill('Fit', onTap: () => c.zoomBoard?.call('fit')),
+                  if (c.marks.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    // The wordmark, crest, sponsor, name and number back in
+                    // their places (and shown again if removed).
+                    ActionChipPill(
+                      'Reset layout',
+                      onTap: () => c.edit(() => c.marks = {}),
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  ActionChipPill(
+                    'Export board',
+                    onTap: _busy == null ? _exportBoard : null,
+                  ),
+                ],
                 const SizedBox(width: 8),
                 ActionChipPill(
                   'Drag to kit',
@@ -497,13 +529,6 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                 ActionChipPill('Artwork', onTap: () => _openTool('Artwork')),
                 const SizedBox(width: 8),
                 ActionChipPill('Presets', onTap: () => _openTool('Presets')),
-                if (c.boardMode) ...[
-                  const SizedBox(width: 8),
-                  ActionChipPill(
-                    'Export board',
-                    onTap: _busy == null ? _exportBoard : null,
-                  ),
-                ],
               ],
             ),
           ),

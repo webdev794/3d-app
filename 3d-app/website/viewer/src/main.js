@@ -238,11 +238,20 @@ const board = createBoard({
   onLayers: (layers, final) => {
     design.layers = layers;
     if (final) post({ type: 'layers', layers });
-    if (boardPending) return;
-    boardPending = true;
-    enqueuePaint(async () => { boardPending = false; await paintAll(); }).catch(() => {});
+    repaintSoon();
+  },
+  // The fixed marks (wordmark, crest, sponsor, name, number) moved, resized, turned or hidden.
+  onMarks: (marks, final) => {
+    design.marks = marks;
+    if (final) post({ type: 'marks', marks });
+    repaintSoon();
   },
 });
+function repaintSoon() {
+  if (boardPending) return;
+  boardPending = true;
+  enqueuePaint(async () => { boardPending = false; await paintAll(); }).catch(() => {});
+}
 
 const raycaster = new THREE.Raycaster();
 /** Normalised screen point (0..1) -> where it lands on the kit. */
@@ -455,6 +464,10 @@ window.viewer = {
     post({ type: 'board', on: !!on });
   },
   select: (id) => board.select(id),
+  /** Zooms the design board: 'in', 'out' or 'fit'. */
+  boardZoom: (how) => board.zoom(how),
+  /** The design board's items and zoom (read only, for automated checks; not a host command). */
+  boardItems: () => board.inspect(),
   captureBoard: async ({ id } = {}) => {
     try { await paintQueue; post({ type: 'captureBoard', id, data: await board.capture() }); }
     catch (error) { post({ type: 'captureBoard', id, error: error.message }); }
@@ -463,7 +476,7 @@ window.viewer = {
   receive: (msg) => {
     try {
       const m = typeof msg === 'string' ? JSON.parse(msg) : msg;
-      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'captureBoard'];
+      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard'];
       if (m && allowed.includes(m.cmd)) Promise.resolve(window.viewer[m.cmd](m.arg)).catch((error) => post({ type: 'error', command: m.cmd, message: error.message }));
     } catch (error) { post({ type: 'error', message: error.message }); }
   },

@@ -73,6 +73,7 @@ class ProjectStore {
       'layers': copyLayers(p.kit.layers),
       'zones': copyZones(p.kit.zones),
       'gradient': copyGradient(p.kit.gradient),
+      'marks': copyMarks(p.kit.marks),
       'spec': p.kit.spec?.toJson(),
     },
   };
@@ -116,6 +117,7 @@ class ProjectStore {
         layers: copyLayers(k['layers']),
         zones: copyZones(k['zones']),
         gradient: copyGradient(k['gradient']),
+        marks: copyMarks(k['marks']),
       ),
     );
   }

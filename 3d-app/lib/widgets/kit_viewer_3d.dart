@@ -50,7 +50,10 @@ class KitViewer3DState extends State<KitViewer3D> {
     c.captureBoard = captureBoard;
     c.processArtwork = processArtwork;
     c.pickGarment = pickGarment;
+    c.zoomBoard = _zoomBoard;
   }
+
+  void _zoomBoard(String how) => _send('boardZoom', how);
 
   @override
   void dispose() {
@@ -59,6 +62,7 @@ class KitViewer3DState extends State<KitViewer3D> {
       c.removeListener(_sync);
       if (c.captureMockup == capture) c.captureMockup = null;
       if (c.captureBoard == captureBoard) c.captureBoard = null;
+      if (c.zoomBoard == _zoomBoard) c.zoomBoard = null;
       if (c.processArtwork == processArtwork) c.processArtwork = null;
       if (c.pickGarment == pickGarment) c.pickGarment = null;
       for (final pending in _captures.values) {
@@ -94,6 +98,8 @@ class KitViewer3DState extends State<KitViewer3D> {
             );
       case 'layers':
         c.edit(() => c.layers = copyLayers(msg['layers']));
+      case 'marks':
+        c.edit(() => c.marks = copyMarks(msg['marks']));
       case 'selection':
         if (c.selectedLayerId != msg['id']) {
           _sentSelection = msg['id'] as String?;
@@ -132,6 +138,7 @@ class KitViewer3DState extends State<KitViewer3D> {
       'layers': c.layers,
       'zones': c.zones,
       'gradient': c.gradient,
+      'marks': c.marks,
       'patternColor': _hex(
         Color.lerp(c.mainColor, c.secondaryColor, 0.55) ?? c.secondaryColor,
       ),

@@ -27,6 +27,7 @@ Garments: Jersey, Shorts, Training Tee, Singlet, Polo, Full Kit (jersey and shor
 - [Subscriptions / plans](/pricing): plans, AI credits and the Corporate Partner plan.
 - [3D Studio](/studio): design a kit on a rotating 3D garment.
 - [Artboard](/artboard): a professional vector editor (CorelDRAW-style) for logos, names, numbers and graphics.
+- Quick access: the AI and DYO buttons at the top right, next to Start a kit, open [AI Powered Sportswear](/create/ai) and [Design Your Own](/create/sport) from any page. On phones and narrower screens they are in the menu (the menu button at the top right) as AI Powered Sportswear and Design Your Own.
 - Sign in or create an account with the Sign in button at the top right. Saving, Projects, Assets and the Dashboard need an account; the Studio and the Artboard can be tried without one.
 - Mobile apps: 3DEEZI is also coming to the App Store and Google Play (badges on the home page).
 
@@ -55,10 +56,10 @@ previews; pick one and it opens in the 3D Studio, fully editable. Needs an accou
 - Ask 3DEEZI bar (bottom of the Studio): type a change in plain words and press send; the picture icon attaches a reference image, + adds your logo, the sliders icon opens the AI panel.
 - Preset designs panel (right): All designs, My designs (your saved projects), Favourites (click the star on a design to keep it there) and Search designs. Click a design to apply it.
 - Garment column (far right): Full Kit, Jersey, Shorts, Training Tee, Singlet, Polo.
-- Top bar: Project name box; Artboard (opens the Artboard to make artwork); 2D panels (switches to the flat front and back print panels, where added artwork can be dragged, resized and rotated precisely; click again to return to 3D); Undo / Redo; Save; Export; and More (the three dots): New AI design, Change sport, My projects, Order this kit, My orders, Photoreal showcase.
+- Top bar: Project name box; Artboard (opens the Artboard to make artwork); 2D panels (switches to the flat front and back print panels, where added artwork and the fixed wordmark, crest, sponsor, name and number can be dragged, resized with a corner, turned with the top handle or removed with the red x; scroll or pinch to zoom, or use the zoom buttons and Fit in the bar under the panels; drag empty space to move around; double-click or double-tap empty space to fit; Reset layout in that bar puts the wordmark, crest, sponsor, name and number back where they were and shows any you removed; click again to return to 3D). The Artwork panel's "Open 2D panels" button opens the same view. The 2D panels are part of the 3D Studio; the Artboard is a separate vector editor; Undo / Redo; Save; Export; and More (the three dots): New AI design, Change sport, My projects, Order this kit, My orders, Photoreal showcase.
 - Order this kit (More menu, needs a saved project): send an order request with contact name, phone, delivery address and notes; 3DEEZI confirms the price. Track it in [My orders](/orders).
 - Save: saves the project to your account (needs sign in). Undo / redo with Ctrl+Z / Ctrl+Y.
-- Export menu: 3D mockup (PNG), Front & back (PNG), Artboard panels (print panels, PNG), Design sheet (one-page PDF with front and back views, print panels, colours in HEX / RGB / CMYK and all details), Design specification (JSON).
+- Export menu: 3D mockup (PNG), Front & back (PNG), 2D print panels (front and back print panels, PNG), Design sheet (one-page PDF with front and back views, print panels, colours in HEX / RGB / CMYK and all details), Design specification (JSON).
 
 ## 3DEEZI Artboard (vector editor)
 
@@ -69,7 +70,8 @@ Layout: menus along the top (File, Edit, View, Layout, Object, Effects, Table, T
 property bar at the top of the screen just under the menus, which changes with the selected tool
 (tool and effect settings and their Apply buttons are there, not in the right panel), the toolbox on the left, Colour / Properties / Layers / Assets tabs on the right,
 a colour palette at the bottom (click a colour: fill, right-click: outline, drag a colour onto
-an object; a saved palette you picked in the Colour tab shows first, then the Document colours), and a status bar (page size, units, grid, snap, zoom). Help > Tools and shortcuts
+an object; a saved palette you picked in the Colour tab shows first, then the Document colours), and a status bar (page size, units, grid, snap, zoom).
+Right after the menus at the top are two quick-access tabs: AI opens AI Powered Sportswear and DYO opens Design Your Own (choose a sport and garment, then the 3D Studio). The artwork is saved on this device first and is still there when you come back to the Artboard. Help > Tools and shortcuts On phones and narrow windows the Artboard has no menu bar (File … Help are hidden), so the AI and DYO tabs sit right after the 3DEEZI logo at the top left. Phones and tablets have no right-click: tap the ⋯ button at the right end of the colour palette (it lights up and a tooltip explains it), then tap an item: an object on the page, a page tab, a tool or a colour. That tap opens the item's right-click menu (a colour becomes the outline; a tool opens its flyout; an empty part of the page opens the page menu with Open, Rename, Duplicate, Insert and Delete page). Tap ⋯ again to cancel. Holding a finger still on an item for half a second does the same; on the page this works only with the Pick tool, and never with a pen or a mouse, so drawing is not affected; dragging after the hold moves the object as usual. A right-click (or the ⋯ button) on an empty part of the page opens the page menu on computers too. The dark area around the white page is a work area, as in CorelDRAW: you can draw and keep things there. Export PDF, Export SVG and Export page (PNG) show only the white page; Export artwork (transparent PNG) and Send to 3D Studio include everything, also what is outside the page.
 lists every shortcut. In the toolbox, click a tool button again (or right-click it) to open
 its flyout with the related tools.
 

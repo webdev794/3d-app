@@ -5189,7 +5189,7 @@ function openPageMenu(b, i) {
   m.innerHTML = `<button data-pm="open">Open ${escHtml(pages[i].name)}</button><button data-pm="rename">Rename…</button><button data-pm="dup">Duplicate page</button><button data-pm="add">Insert page after</button><button data-pm="delete"${pages.length < 2 ? ' disabled' : ''}>Delete page</button>`;
   m.hidden = false;
   m.style.left = `${Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8))}px`;
-  m.style.top = `${r.top - m.offsetHeight - 6}px`;
+  m.style.top = `${Math.max(8, r.top - m.offsetHeight - 6)}px`;
   m.querySelectorAll('[data-pm]').forEach((x) => (x.onclick = async () => {
     m.hidden = true;
     const act = x.dataset.pm;
@@ -5311,6 +5311,16 @@ addEventListener('click', (e) => { if (!e.target.closest('.menu,.fly,.tool')) cl
 $('undo').onclick = undo; $('redo').onclick = redo;
 $('save').onclick = () => { finishPowerClipEdit(); try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ } post({ type: 'saved', json: snapshot() }); toast('Artboard saved on this device'); };
 $('sendBtn').onclick = sendToStudio;
+// AI / DYO quick access: save the artwork here first, then the website or app opens AI Powered Sportswear or
+// Design Your Own. Opened on its own (no 3DEEZI around it), go to the website's page instead.
+const startKit = (mode) => {
+  finishPowerClipEdit();
+  try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ }
+  if (embedded()) post({ type: 'start', mode });
+  else location.href = new URL(mode === 'ai' ? '../../create/ai' : '../../create/sport', location.href).href;
+};
+$('goAi').onclick = () => startKit('ai');
+$('goDyo').onclick = () => startKit('dyo');
 // Right-click menu: order (to front / back), duplicate, curves, lock, delete for the object under the pointer.
 const CTX_ITEMS = [
   ['front', 'To front', 'Shift+PgUp'], ['forward', 'Forward one', 'Ctrl+PgUp'], ['backward', 'Back one', 'Ctrl+PgDn'], ['back', 'To back', 'Shift+PgDn'], null,
@@ -5328,19 +5338,130 @@ function ctxItems() {
   }
   return [...items, ...CTX_ITEMS];
 }
+/** The right-click menu for the selection, at (x, y); `above` puts it above that point (the ⋯ button). */
+function showObjectMenu(x, y, above = false) {
+  const menu = $('ctxMenu');
+  menu.innerHTML = ctxItems().map((it) => (it ? `<button data-ctx="${it[0]}">${it[1]}${it[2] ? `<small>${it[2]}</small>` : ''}</button>` : '<hr>')).join('');
+  menu.querySelectorAll('[data-ctx]').forEach((b) => (b.onclick = () => { closeMenus(); ACTIONS[b.dataset.ctx]?.(); }));
+  closeMenus();
+  Object.assign(menu.style, { left: `${Math.max(8, Math.min(x, innerWidth - 230))}px`, top: `${y}px`, bottom: 'auto' });
+  menu.classList.add('open');
+  const top = above ? y - menu.offsetHeight - 6 : y;
+  menu.style.top = `${Math.max(8, Math.min(top, innerHeight - menu.offsetHeight - 8))}px`;
+}
+/** Somewhere on the screen, for menus that open next to an element. */
+const pointAnchor = (x, y) => ({ getBoundingClientRect: () => ({ left: x, top: y, right: x, bottom: y, width: 0, height: 0 }) });
 wrap.addEventListener('contextmenu', (e) => {
   e.preventDefault(); e.stopPropagation();
   const target = objectAt(canvas.getScenePoint(e));
   if (target && !canvas.getActiveObjects().includes(target)) { setTool('select'); canvas.setActiveObject(target); canvas.requestRenderAll(); syncProps(); }
-  const menu = $('ctxMenu');
-  if (!active().length) { closeMenus(); return; }
-  menu.innerHTML = ctxItems().map((it) => (it ? `<button data-ctx="${it[0]}">${it[1]}${it[2] ? `<small>${it[2]}</small>` : ''}</button>` : '<hr>')).join('');
-  menu.querySelectorAll('[data-ctx]').forEach((b) => (b.onclick = () => { closeMenus(); ACTIONS[b.dataset.ctx]?.(); }));
-  closeMenus();
-  Object.assign(menu.style, { left: `${Math.min(e.clientX, innerWidth - 230)}px`, top: `${e.clientY}px`, bottom: 'auto' });
-  menu.classList.add('open');
-  menu.style.top = `${Math.max(8, Math.min(e.clientY, innerHeight - menu.offsetHeight - 8))}px`;
+  // Nothing selected: the page's own menu (open, rename, duplicate, insert, delete).
+  if (!active().length) { closeMenus(); openPageMenu(pointAnchor(e.clientX, e.clientY), pageIndex); return; }
+  showObjectMenu(e.clientX, e.clientY);
 }, true);
+
+// ---------- right-click on touch screens (they have no right mouse button)
+// The ⋯ button at the end of the colour palette: tap it (it lights up and a tooltip says what to do), then tap an
+// item: an object on the page, a page tab, a tool or a colour. That tap opens the item's right-click menu instead of
+// its usual action (on an empty part of the page: the page's menu). Tap ⋯ again to cancel. A finger held still on an
+// item (long press) does the same in one go, but on the page only with the Pick tool, and never with a pen or a
+// mouse, so drawing and writing are not interrupted.
+let rightTap = false, swallowClick = false, swallowPointer = null, press = null, pressedAt = 0, pressOpened = null;
+/** The nearest element (from `el` up) that has a right-click action. */
+const rightClickable = (el) => { for (let n = el; n && n !== document.body; n = n.parentElement) if (n.oncontextmenu) return n; return null; };
+function rightClickAt(el, x, y) {
+  const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2, buttons: 2 });
+  el.dispatchEvent(ev);
+  return ev.defaultPrevented;
+}
+function placeRightTip() {
+  // At the top of the work area, clear of the chat buttons (website and app) and of the colours, tools and page
+  // tabs that the next tap is for.
+  const tip = $('rcTip'), st = $('stage').getBoundingClientRect();
+  tip.style.left = `${Math.max(8, Math.min(st.left + (st.width - tip.offsetWidth) / 2, innerWidth - tip.offsetWidth - 8))}px`;
+  tip.style.top = `${st.top + 10}px`;
+}
+function setRightTap(on) {
+  rightTap = on;
+  $('palMore').classList.toggle('on', on);
+  document.body.classList.toggle('right-tap', on);
+  $('rcTip').hidden = !on;
+  if (on) placeRightTip();
+}
+$('palMore').addEventListener('click', (e) => { e.stopPropagation(); closeMenus(); $('pageMenu').hidden = true; setRightTap(!rightTap); });
+$('rcCancel').onclick = () => setRightTap(false);
+addEventListener('resize', () => { if (rightTap) placeRightTip(); });
+addEventListener('keydown', (e) => { if (rightTap && e.key === 'Escape') setRightTap(false); });
+const cancelPress = () => { if (press) { clearTimeout(press.timer); press = null; } };
+document.addEventListener('pointerdown', (e) => {
+  swallowClick = false;
+  cancelPress();
+  const t = e.target;
+  if (t.closest('#palMore')) return;
+  if (rightTap) {
+    if (t.closest('#rcTip')) return;
+    // This tap is the right-click: the page, the tool or the colour under it does not also get a normal tap.
+    e.preventDefault(); e.stopImmediatePropagation();
+    swallowPointer = e.pointerId; swallowClick = true;
+    setRightTap(false);
+    const onPage = !!t.closest('#canvasWrap');
+    const el = onPage ? t : rightClickable(t);
+    if (!el || !rightClickAt(el, e.clientX, e.clientY)) toast('That has no right-click menu: tap ⋯, then an object, a page tab, a tool or a colour', 4000);
+    return;
+  }
+  if (t.closest('#ctxMenu, #pageMenu, .fly')) return;
+  // Long press: a finger only, held still; on the page only with the Pick tool.
+  const onPage = !!t.closest('#canvasWrap'), el = onPage ? t : rightClickable(t);
+  if (e.pointerType !== 'touch' || !e.isPrimary || !el || (onPage && state.tool !== 'select')) return;
+  if (t.closest('input, textarea, select, [contenteditable="true"]')) return;
+  // A colour that can be dragged onto an object (a phone starts that drag with a long press too) acts only when the
+  // finger lifts without moving; anything else opens its menu while the finger is still down.
+  press = { x: e.clientX, y: e.clientY, el, onLift: el.draggable === true, timer: setTimeout(() => {
+    if (!press) return;
+    press.held = true;
+    if (!press.onLift) longPress();
+  }, 550) };
+}, true);
+function longPress() {
+  const p = press;
+  press = null;
+  swallowClick = true;
+  pressedAt = performance.now();
+  pressOpened = { x: p.x, y: p.y };
+  rightClickAt(p.el, p.x, p.y);
+}
+document.addEventListener('pointermove', (e) => {
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress();
+  // Holding an object, then dragging it: the menu that opened closes again and the drag goes on as usual.
+  if (pressOpened && Math.hypot(e.clientX - pressOpened.x, e.clientY - pressOpened.y) > 12) {
+    pressOpened = null;
+    closeMenus();
+    $('pageMenu').hidden = true;
+  }
+}, true);
+for (const type of ['pointerup', 'pointercancel']) {
+  document.addEventListener(type, (e) => {
+    if (type === 'pointerup' && press?.held && press.onLift) longPress();
+    cancelPress();
+    pressOpened = null;
+    if (e.pointerId === swallowPointer) { swallowPointer = null; e.stopImmediatePropagation(); }
+  }, true);
+}
+// Android also sends its own long-press menu event: keep only one of the two.
+document.addEventListener('contextmenu', (e) => {
+  if (!e.isTrusted) return;
+  if (performance.now() - pressedAt < 1200) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (press) { cancelPress(); swallowClick = true; pressedAt = performance.now(); }
+}, true);
+// A tap outside the right-click menu closes it, and a tap on the page closes any open menu (a finger on the page gives
+// no click event, which is what closes them for a mouse).
+document.addEventListener('pointerdown', (e) => {
+  const m = $('ctxMenu');
+  if (m.classList.contains('open') && !e.target.closest('#ctxMenu')) m.classList.remove('open');
+  if (e.target.closest('#canvasWrap')) closeMenus();
+});
+// The finger lifting after a long press, or the tap that was a right-click, is not also a normal tap.
+document.addEventListener('click', (e) => { if (swallowClick) { swallowClick = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 const SNAP_HELP = {
   grid: 'objects and drawing move in 5 mm steps (View > Grid on / off shows the grid)',
   guides: 'edges and centres stick to guidelines',

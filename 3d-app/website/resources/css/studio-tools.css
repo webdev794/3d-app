@@ -69,7 +69,11 @@
 .studio-drop-target{position:absolute;inset:0;z-index:5;display:flex;align-items:flex-end;justify-content:center;padding:20px;background:#00c8d518;border:2px dashed #20e3ee;border-radius:14px}
 .studio-drop-target span{border:1px solid #1bd7e9;background:#031923eb;color:#cefbff;padding:12px 18px;border-radius:8px;font-size:12px;pointer-events:none}
 .artboard-controls{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;background:#05101bef;border-top:1px solid #22414f;color:#9bb6c6;font-size:10px}
-.artboard-controls>button{display:flex;align-items:center;gap:7px;border:1px solid #236476;background:#0c2936;color:#bbf9fc;border-radius:6px;padding:8px 12px;font-size:11px;white-space:nowrap}
+.artboard-controls button{display:flex;align-items:center;gap:7px;border:1px solid #236476;background:#0c2936;color:#bbf9fc;border-radius:6px;padding:8px 12px;font-size:11px;white-space:nowrap}
+.artboard-controls button:hover:not(:disabled){border-color:#00d9ed;color:#fff}.artboard-controls button:disabled{opacity:.45}
+.board-buttons{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+/* Phones: the board shows the hint itself, so this bar keeps only its buttons. */
+@media(max-width:700px){.artboard-controls{padding:8px 10px}.artboard-controls>span{display:none}.board-buttons{width:100%;justify-content:center}.artboard-controls button{padding:7px 10px}}
 .studio-extended.artboard-mode .stage-chips,.studio-extended.artboard-mode .view-controls{display:none}
 .studio-extended.artboard-mode .studio-presets-aside,.studio-extended.presets-in-panel .studio-presets-aside{display:none}
 .studio-extended.artboard-mode .dyo-body.panel-open,.studio-extended.presets-in-panel .dyo-body.panel-open{grid-template-columns:76px 300px minmax(280px,1fr) 96px}
@@ -86,8 +90,10 @@
 @media(max-width:520px){.studio-extended .dyo-top{padding:12px 10px}.studio-extended .dyo-actions{width:100%;justify-content:space-between}.studio-extended .dyo-actions>.button{font-size:11px;padding:9px 10px}.studio-extended .dyo-actions>.round-button{width:32px;height:32px}.studio-extended .dyo-name{max-width:none}.studio-extended .dyo-stage{min-height:380px;height:56vh}.studio-extended .studio-preset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.studio-extended .artboard-controls{padding:7px 9px}.artboard-controls>span{max-width:160px;line-height:1.5}.studio-extended .dyo-garments button{min-width:86px}.studio-extended .dyo-actions{gap:4px}}
 
 /* Preset designs: tabs, real 3D thumbnails, favourites */
-.preset-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:3px;border-radius:20px;border:1px solid #1c3344;background:#06101a;margin-bottom:10px}
-.preset-tabs button{border:0;background:none;border-radius:16px;padding:7px 2px;font-size:11px;font-weight:600;color:#9fb2c4;cursor:pointer;white-space:nowrap}
+.preset-tabs{display:grid;grid-template-columns:repeat(3,auto);gap:2px;padding:3px;border-radius:20px;border:1px solid #1c3344;background:#06101a;margin-bottom:10px;container-type:inline-size}
+.preset-tabs button{border:0;background:none;border-radius:16px;padding:7px 4px;font-size:11px;font-weight:600;color:#9fb2c4;cursor:pointer;white-space:nowrap}
+/* The narrow presets column (1251–1599 px screens): smaller labels, so Favourites stays inside its pill. */
+@container (max-width:215px){.preset-tabs button{font-size:10px;padding:7px 3px}}
 .preset-tabs button.on{color:#00e0e4;background:#05202d;box-shadow:inset 0 0 0 1.5px #00e0e4}
 .preset-card{position:relative;border:1px solid #243645;border-radius:9px;background:#040b12;overflow:hidden}
 .preset-card:hover{border-color:#39d0dc}

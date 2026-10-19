@@ -237,12 +237,12 @@
   .dyo-body,.dyo-body.panel-open{display:flex;flex-direction:column;padding:10px}
   .dyo-rail{flex-direction:row;overflow-x:auto;order:1}.dyo-rail button{min-width:74px;padding:9px 4px;font-size:11px}
   .dyo-stage{order:2;height:62vh;min-height:380px}.dyo-panel{order:3}.dyo-garments{order:4;flex-direction:row;overflow-x:auto}.dyo-garments button{min-width:96px}
-  .dyo-prompt{position:sticky;bottom:10px;z-index:20}
+  .dyo-prompt{position:sticky;bottom:10px;z-index:20;width:calc(100% - 94px);margin-left:14px;margin-right:auto}
   .convert-layout,.credit-table,.mockup-result{grid-template-columns:1fr}
   .carousel-arrow{top:auto;bottom:-6px;width:44px;height:44px}
 }
 @media(max-width:800px){.nav-mobile-only{display:flex!important}}
-@media(max-width:600px){.plan-grid{grid-template-columns:1fr}.carousel{height:360px}.carousel-item{--spread:92px;width:150px;margin-left:-75px}.carousel-item.is-active .carousel-label strong{font-size:18px}.showroom-head .back-link{position:static;margin-bottom:8px}.design-sport{min-width:0;width:100%}.garment-panel{padding:20px 16px}.garment-tiles{grid-template-columns:repeat(2,1fr)}.garment-actions .button{width:100%}.dyo-actions .button-outline{display:none}.loader-emblem{width:170px;height:170px}.dyo-prompt{width:calc(100% - 20px)}.dyo-prompt .round-button:nth-of-type(2){display:none}}
+@media(max-width:600px){.plan-grid{grid-template-columns:1fr}.carousel{height:360px}.carousel-item{--spread:92px;width:150px;margin-left:-75px}.carousel-item.is-active .carousel-label strong{font-size:18px}.showroom-head .back-link{position:static;margin-bottom:8px}.design-sport{min-width:0;width:100%}.garment-panel{padding:20px 16px}.garment-tiles{grid-template-columns:repeat(2,1fr)}.garment-actions .button{width:100%}.dyo-actions .button-outline{display:none}.loader-emblem{width:170px;height:170px}.dyo-prompt{width:calc(100% - 86px);margin-left:10px}.dyo-prompt .round-button:nth-of-type(2){display:none}}
 
 /* ---------- Admin panel and orders */
 .admin-page{padding:36px 0 70px}

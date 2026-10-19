@@ -33,6 +33,7 @@ export const ICONS = {
   export: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
   send: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   shirt: '<path d="M20.4 6.6L16 4a4 4 0 0 1-8 0L3.6 6.6a1 1 0 0 0-.4 1.3L5 11l2-1v10h10V10l2 1 1.8-3.1a1 1 0 0 0-.4-1.3z"/>',
+  spark: '<path d="M11 3l1.9 5.6L18.5 10.5l-5.6 1.9L11 18l-1.9-5.6L3.5 10.5l5.6-1.9z"/><path d="M19 3v4M17 5h4M18 16v4M16 18h4"/>',
   up: '<path d="M18 15l-6-6-6 6"/>',
   down: '<path d="M6 9l6 6 6-6"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>',

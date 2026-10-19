@@ -78,6 +78,11 @@ class _ArtboardScreenState extends State<ArtboardScreen> {
   Future<void> _onMessage(String message) async {
     final msg = jsonDecode(message) as Map<String, dynamic>;
     switch (msg['type']) {
+      case 'start':
+        // AI / DYO quick access on the Artboard's top bar (the artwork is
+        // already saved in the page).
+        if (msg['mode'] == 'ai') c.startAi();
+        if (msg['mode'] == 'dyo') c.startDyo();
       case 'assist':
         final waiting = _assistWaiting.remove((msg['id'] as num?)?.toInt());
         final text = '${msg['text'] ?? ''}';

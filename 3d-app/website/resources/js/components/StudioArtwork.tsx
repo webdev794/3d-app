@@ -47,7 +47,7 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
         const id = crypto.randomUUID();
         const { id: _placementId, label: _label, ...position } = at;
         edit({ layers: [...layers, { id, type: 'image', name, src, ...position }] }); onSelect(id); viewer.current?.select(id);
-        onNotice(`${name} placed on ${at.label.toLowerCase()}. Open Artboard to drag, resize and rotate it.`);
+        onNotice(`${name} placed on ${at.label.toLowerCase()}. Open 2D panels to drag, resize and rotate it.`);
     }
     async function load() { await task(async () => {
         const list = (await api<LibraryAsset[]>('/assets')).filter(item => ['logo', 'artwork', 'upload', 'pattern'].includes(item.type));
@@ -76,7 +76,7 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
         onSelect(id); viewer.current?.select(id);
     }
     return <div className="artwork-panel">
-        <p className="field-hint">Add a logo or artwork, then drag it onto your garment. Every layer stays editable in Artboard.</p>
+        <p className="field-hint">Add a logo or artwork, then drag it onto your garment. Every layer stays editable in the 2D panels.</p>
         <label className="field">New artwork placement<select value={at.id} onChange={e => setPlacement(e.target.value)}>{validPlacements.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
         <button className="logo-upload" disabled={busy} onClick={() => requireAuth(() => fileInput.current?.click())}><Upload size={22} /><strong>Upload logo or artwork</strong><span>PNG, JPG or WEBP · up to 2 MB</span></button>
         <input ref={fileInput} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />
@@ -96,7 +96,7 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
             {layer.type === 'image' ? <><div className="artwork-tint"><input type="color" aria-label="Artwork tint" value={tint} onChange={e => setTint(e.target.value)} /><button className="button button-secondary" disabled={!ready || busy} onClick={() => void process({ tint })}>Apply colour</button></div><button className="button button-secondary full-width" disabled={!ready || busy} onClick={() => void process({ removeBg: true })}><WandSparkles size={15} /> Remove plain background</button><p className="field-hint">Best for logos with a solid background. Use Undo to restore the original.</p></> : <label className="field">Fill colour<input type="color" value={layer.color || design.accent} onChange={e => patchLayer({ color: e.target.value })} /></label>}
             <div className="layer-actions"><button title="Bring forward" aria-label="Bring layer forward" onClick={() => reorder(1)} disabled={layers.at(-1)?.id === selected}><ArrowUp size={16} /></button><button title="Send backward" aria-label="Send layer backward" onClick={() => reorder(-1)} disabled={layers[0]?.id === selected}><ArrowDown size={16} /></button><button title="Duplicate" aria-label="Duplicate layer" onClick={duplicate} disabled={layers.length >= 40}><Copy size={16} /></button><button title="Delete" aria-label="Delete layer" onClick={() => { edit({ layers: layers.filter(item => item.id !== selected) }); onSelect(null); viewer.current?.select(null); }}><Trash2 size={16} /></button></div>
         </div>}
-        {!board && <button className="button button-outline full-width" onClick={onBoard}><Layers size={15} /> Open Artboard</button>}
+        {!board && <button className="button button-outline full-width" onClick={onBoard}><Layers size={15} /> Open 2D panels</button>}
         {error && <p className="error-message" role="alert">{error}</p>}
     </div>;
 }

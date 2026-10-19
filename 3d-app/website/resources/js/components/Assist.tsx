@@ -91,6 +91,28 @@ export default function Assist() {
   }, [location.pathname]);
   const path = useRef(location.pathname);
   path.current = location.pathname;
+  // Never over the footer, or the homepage's "Explore the apps" strip above it: as they scroll into view the
+  // button (and the open chat) rise with them, so they sit just above (--assist-lift, used in assist.css).
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const bottom = document.querySelector('.home-app-strip') ?? document.querySelector('.site-footer');
+      const lift = bottom ? Math.max(0, Math.round(window.innerHeight - bottom.getBoundingClientRect().top)) : 0;
+      root.current?.style.setProperty('--assist-lift', `${lift}px`);
+    };
+    const soon = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    // Again whenever the page's size changes (the new page rendering, fonts and pictures arriving), not only on
+    // scroll: a page that fits the window is never scrolled.
+    const grow = new ResizeObserver(soon);
+    grow.observe(document.body);
+    document.fonts?.ready.then(soon).catch(() => {});
+    window.addEventListener('scroll', soon, { passive: true });
+    window.addEventListener('resize', soon);
+    return () => { window.removeEventListener('scroll', soon); window.removeEventListener('resize', soon); grow.disconnect(); cancelAnimationFrame(frame); };
+  }, [location.pathname]);
 
   useEffect(() => { try { sessionStorage.setItem(storeKey, JSON.stringify({ open: open && !auto.current, messages: messages.slice(-40) })); } catch { /* Private mode: the chat still works. */ } }, [open, messages]);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' }); }, [messages, busy, open]);
@@ -199,7 +221,7 @@ export default function Assist() {
 
   const artboard = location.pathname.startsWith('/artboard');
   const studio = location.pathname.startsWith('/studio');
-  return <div className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${waiting && !open ? 'is-waiting' : ''}`}>
+  return <div ref={root} className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${waiting && !open ? 'is-waiting' : ''}`}>
     {open && <section className="assist-panel" id="assist-panel" role="dialog" aria-label="3DEEZI ASSIST help chat">
       <header className="assist-head">
         <Sparkle size={30} />

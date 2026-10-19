@@ -19,6 +19,18 @@ Map<String, String> copyZones(Object? value) => value is Map
       }
     : {};
 
+/// The fixed marks (wordmark, crest, sponsor, name, number) moved, resized,
+/// turned or hidden on the 2D panels, keyed `top_wordmark` and so on (the
+/// website's `design.marks`). The server sends `[]` when there are none.
+Map<String, dynamic> copyMarks(Object? value) => value is Map
+    ? {
+        for (final entry in value.entries)
+          if (entry.value is Map)
+            '${entry.key}': (jsonDecode(jsonEncode(entry.value)) as Map)
+                .cast<String, dynamic>(),
+      }
+    : {};
+
 Map<String, dynamic>? copyGradient(Object? value) => value is Map
     ? (jsonDecode(jsonEncode(value)) as Map).cast<String, dynamic>()
     : null;

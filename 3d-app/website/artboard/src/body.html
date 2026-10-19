@@ -61,6 +61,10 @@
         <button data-action="fullscreen">Full screen</button></div></div>
       <div class="menu"><button>Help</button><div class="drop"><button data-action="help">Tools and shortcuts</button><button data-action="supportFile">Save page for support <small>a file to send us</small></button></div></div>
     </nav>
+    <div class="go-tabs" role="group" aria-label="Start a new kit">
+      <button class="go-tab ai" id="goAi" data-icon="spark" title="AI Powered Sportswear: describe your kit and AI designs it (your artwork stays here)"><span>AI</span></button>
+      <button class="go-tab" id="goDyo" data-icon="shirt" title="Design Your Own: choose a sport and garment, then design it in the 3D Studio (your artwork stays here)"><span>DYO</span></button>
+    </div>
     <div class="top-actions">
       <button class="round" id="undo" title="Undo (Ctrl+Z)" data-icon="undo"></button>
       <button class="round" id="redo" title="Redo (Ctrl+Y)" data-icon="redo"></button>
@@ -199,6 +203,7 @@
         <span class="pal-group" id="palBrand" hidden><span class="pal-label" id="palBrandName"></span></span>
         <span class="pal-group" id="palDoc" hidden><span class="pal-label">Document</span></span>
         <span class="pal-group" id="palMain"></span>
+        <button class="pal-more" id="palMore" type="button" data-icon="more" aria-label="Right-click menu" title="Right-click menu: tap this, then tap an item (an object, a page tab, a tool or a colour) to open its menu"></button>
       </div>
     </main>
 
@@ -320,6 +325,7 @@
 </dialog>
 <div class="toast" id="toast" role="status"></div>
 <div class="page-menu drop" id="pageMenu" hidden></div>
+<div class="rc-tip" id="rcTip" role="tooltip" hidden><b>Right-click menu</b>Now tap an item: an object on the page, a page tab, a tool or a colour. Its right-click menu opens (on an empty part of the page: the page menu, to rename, duplicate or delete it).<small>On a phone or tablet you can also hold your finger on an item for a moment.</small><button type="button" id="rcCancel">Cancel</button></div>
 <dialog class="help" id="helpDialog">
   <h3>Tools and shortcuts <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
   <div class="help-cols">
