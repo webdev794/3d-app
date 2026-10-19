@@ -52,6 +52,7 @@ const fromUnits = (v) => Number(v) * unit().mm * MM;
 const $ = (id) => document.getElementById(id);
 const icon = (name) => `<svg class="i" viewBox="0 0 24 24">${ICONS[name] ?? ''}</svg>`;
 const isText = (o) => ['i-text', 'text', 'textbox'].includes(o?.type);
+const LINE_NORMAL = 1.16; // Fabric's normal line height: shown as 100 % line spacing
 
 // Embedded fonts: one copy, used by the canvas (FontFace) and Convert to curves (opentype.js).
 const fontLoads = [];
@@ -95,7 +96,7 @@ const state = {
   // What Snap snaps to (the Snap tick-box in the status bar switches snapping on and off).
   snapTo: { grid: true, guides: true, objects: true, nodes: true, page: true },
   // Text settings: used for the next text, and edited from the text bar.
-  text: { fontFamily: 'Rajdhani', fontWeight: 700, fontStyle: 'normal', underline: false, textAlign: 'center', fontSize: 40 },
+  text: { fontFamily: 'Rajdhani', fontWeight: 700, fontStyle: 'normal', underline: false, textAlign: 'center', fontSize: 40, charSpacing: 0, lineHeight: 1.16 },
   // Tool settings from the context property bars.
   shape: { sides: 6, points: 5, sharp: 53, cpoints: 9, csharp: 2, revs: 4, log: false, expand: 50, cols: 4, rows: 3, set: 'basic', item: 'triangle', radius: 8, eraser: 6, tRows: 4, tCols: 3, twirl: 'cw', impactStyle: 'radial', impactLines: 36, impactInner: 45, impactSeed: 1, ftMode: 'rotate', ftDup: false },
   // Artistic Media: used for the next stroke, and edited from its property bar (a selected stroke is redrawn).
@@ -415,7 +416,7 @@ canvas.on('object:moving', (e) => {
 // ===================================================================
 // History (undo / redo) and autosave
 // ===================================================================
-const EXTRA = ['name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell', 'pcFrame', 'mediaSpec', 'liveSpec', 'paintSpec', 'uid', 'connSpec', 'anchors', 'varSpec', 'num', 'fxInner', 'fxContour', 'fxStep', 'nodeTypes'];
+const EXTRA = ['textOutlines', 'pathGuide', 'pathDist', 'name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell', 'pcFrame', 'mediaSpec', 'liveSpec', 'paintSpec', 'uid', 'connSpec', 'anchors', 'varSpec', 'num', 'fxInner', 'fxContour', 'fxStep', 'nodeTypes'];
 let history = [], future = [], restoring = false, muted = 0, saveTimer = null;
 let pages = [{ name: 'Page 1', objects: null }], pageIndex = 0, otherNums = new Set(); // see Pages below
 // objects: the page on screen; with more pages, pages holds every page's name and the others' objects.
@@ -455,6 +456,7 @@ async function restore(snap) {
   for (const o of objects) { pruneEmptyParts(o); fitPowerClips(o); repaired += repairObject(o); style(o); canvas.add(o); }
   if (repaired) setTimeout(() => toast(`${repaired} broken setting${repaired > 1 ? 's were' : ' was'} repaired on this page (a fill or position with bad numbers)`, 6000));
   canvas.discardActiveObject();
+  checkFonts();
   const again = keep.length ? userObjects().filter((o) => keep.includes(o.num) && o.selectable !== false && o.visible) : [];
   if (again.length) canvas.setActiveObject(again.length > 1 ? new ActiveSelection(again, { canvas }) : again[0]);
   canvas.requestRenderAll();
@@ -515,6 +517,7 @@ function toPathObject(o, { quiet = false } = {}) {
   let d;
   try { d = V.modelToD(V.objectModel(o)); } catch (err) { toast(err.message); return null; }
   if (!d) { if (!quiet) toast('Nothing to convert: the text is empty'); return null; }
+  if (isText(o) && o.textOutlines?.length) { const g = outlinedTextCurves(o, d); batch(() => replaceObject(o, g)); return g; }
   const p = makePath(d, o);
   p.name = isText(o) ? `“${o.text.slice(0, 18)}” curves` : `${o.name} curves`;
   if (['line', 'polyline'].includes(o.type)) p.set('fill', null);
@@ -3609,9 +3612,14 @@ function fitTextToPath() {
   canvas.discardActiveObject();
   const d = V.modelToD(model), guide = new Path(d, { fill: null, stroke: null });
   const length = V.toPaper(d).length, tw = text.calcTextWidth();
-  text.set({ path: guide, angle: 0, scaleX: 1, scaleY: 1, skewX: 0, skewY: 0, originX: 'center', originY: 'center', pathAlign: 'baseline', textAlign: 'left',
+  text.pathGuide = d; text.pathDist = 0;
+  // A text resized with its handles keeps its size: the scale goes into the font size before it is reset.
+  const k = Math.abs(text.scaleY) || 1;
+  if (k !== 1) text.set({ fontSize: text.fontSize * k });
+  text.set({ path: guide, angle: 0, scaleX: 1, scaleY: 1, skewX: 0, skewY: 0, originX: 'center', originY: 'center', pathAlign: 'baseline', pathSide: 'left', textAlign: 'left',
     pathStartOffset: Math.max(0, sp.closed ? length / 4 - tw / 2 : (length - tw) / 2) });
   text.initDimensions();
+  if (text.textOutlines?.length) setTextOutlines(text, text.textOutlines);
   text.setPositionByOrigin(guide.getCenterPoint(), 'center', 'center');
   text.setCoords();
   canvas.setActiveObject(text);
@@ -3621,7 +3629,8 @@ function fitTextToPath() {
 function straightenText() {
   const t = active().filter(isText).filter((o) => o.path);
   if (!t.length) { toast('Select text that is on a path'); return; }
-  applyToSelection((o) => (isText(o) ? { path: null, pathStartOffset: 0 } : {}), 'Text straightened');
+  for (const o of t) { delete o.pathGuide; delete o.pathDist; }
+  applyToSelection((o) => (isText(o) ? { path: null, pathStartOffset: 0, pathSide: 'left', pathAlign: 'baseline' } : {}), 'Text straightened');
   for (const o of t) { o.initDimensions(); o.setCoords(); }
   canvas.requestRenderAll();
 }
@@ -3749,6 +3758,13 @@ function paintParts(o) {
 }
 function applyProps(o, props) {
   const p = typeof props === 'function' ? props(o) : props;
+  if (o.textOutlines?.length && Object.keys(p).some((k) => k.startsWith('stroke'))) {
+    if (typeof p.stroke === 'string') setTextOutlines(o, [{ ...o.textOutlines[0], c: p.stroke }, ...o.textOutlines.slice(1)]);
+    else if (p.stroke === null) setTextOutlines(o, []);
+    const rest = Object.fromEntries(Object.entries(p).filter(([k]) => !k.startsWith('stroke')));
+    if (Object.keys(rest).length) applyProps(o, rest);
+    return;
+  }
   if (o.varSpec && (p.stroke !== undefined || p.strokeWidth !== undefined)) {
     // A variable outline: the outline colour is its outline shape's fill; a new width scales all its widths.
     const s = o.varSpec, part = varPart(o);
@@ -3860,8 +3876,9 @@ function syncProps() {
   $('propsEmpty').style.display = o ? 'none' : 'block';
   $('propsBody').style.display = o ? 'flex' : 'none';
   $('textProps').style.display = o && isText(o) ? 'flex' : 'none';
+  if (o && isText(o)) syncOutlineFly();
   $('rectProps').style.display = o && o.type === 'rect' ? 'flex' : 'none';
-  $('outlineProps').style.display = o && o.type !== 'image' ? 'flex' : 'none';
+  $('outlineProps').style.display = o && o.type !== 'image' && !o.textOutlines?.length ? 'flex' : 'none';
   $('imgProps').style.display = o && o.type === 'image' ? 'flex' : 'none';
   if (o?.type === 'image') showAdjust(B.readAdjust(o));
   $('tableProps').style.display = o?.tableSpec ? 'flex' : 'none';
@@ -3869,7 +3886,7 @@ function syncProps() {
   if (o) {
     $('pName').value = o.name ?? '';
     $('pAngle').value = String(Math.round(o.angle || 0));
-    if (isText(o)) { $('pFont').value = o.fontFamily; $('pSize').value = String(Math.round(o.fontSize / MM)); $('pWeight').value = String(o.fontWeight); $('pSpacing').value = String(o.charSpacing || 0); }
+    if (isText(o)) { $('pFont').value = o.fontFamily; $('pSize').value = String(Math.round(o.fontSize / MM)); syncWeights(o.fontFamily, Number(o.fontWeight) || 400); $('pSpacing').value = String(Math.round((o.charSpacing || 0) / 10)); $('pLine').value = String(Math.round(((o.lineHeight || LINE_NORMAL) / LINE_NORMAL) * 100)); }
     if (o.type === 'rect') $('pRadius').value = String(+((o.rx || 0) / MM).toFixed(1));
     $('pCap').value = p.strokeLineCap || 'butt'; $('pJoin').value = p.strokeLineJoin || 'miter';
     const ow = p.stroke ? p.strokeWidth || 0 : 0, da = p.strokeDashArray;
@@ -3907,7 +3924,8 @@ $('pAngle').onchange = (e) => applyToSelection({ angle: Number(e.target.value) }
 $('pFont').onchange = (e) => applyToSelection({ fontFamily: e.target.value });
 $('pSize').onchange = (e) => applyToSelection({ fontSize: Number(e.target.value) * MM });
 $('pWeight').onchange = (e) => applyToSelection({ fontWeight: Number(e.target.value) });
-$('pSpacing').onchange = (e) => applyToSelection({ charSpacing: Number(e.target.value) });
+$('pSpacing').onchange = (e) => applyToSelection({ charSpacing: Math.max(-50, Math.min(500, Number(e.target.value) || 0)) * 10 });
+$('pLine').onchange = (e) => applyToSelection({ lineHeight: (Math.max(50, Math.min(400, Number(e.target.value) || 100)) / 100) * LINE_NORMAL });
 $('pRadius').onchange = (e) => applyToSelection({ rx: Number(e.target.value) * MM, ry: Number(e.target.value) * MM });
 // Outline pen: width, style and colour sit next to caps and corners (which only show on an outline).
 const needsOutline = () => { if (!active().some((o) => o.stroke && o.strokeWidth)) toast('Caps and corners show on the outline: set an outline width first'); };
@@ -4967,7 +4985,7 @@ function exportPng(whole) {
 const hasText = (o) => isText(o) || (o.type === 'group' && o.getObjects().some(hasText));
 /** A page-space copy of an object with every text turned into curves. */
 async function curvesCopy(o) {
-  if (isText(o)) return makePath(worldD(o), o);
+  if (isText(o)) return o.textOutlines?.length ? outlinedTextCurves(o, worldD(o)) : makePath(worldD(o), o);
   if (o.type === 'group' && hasText(o)) {
     const g = new Group(await Promise.all(o.getObjects().map(curvesCopy)));
     g.set({ opacity: o.opacity, shadow: o.shadow, visible: o.visible });
@@ -5371,6 +5389,167 @@ $('pFont').innerHTML = FONTS.map((x) => `<option>${x.family}</option>`).join('')
 function fontInfo(family) { return FONTS.find((x) => x.family === family) ?? { family, bold: false }; }
 /** The selected text objects, when the selection is only text. */
 function textTarget() { const all = canvas.getActiveObjects(), t = all.filter(isText); return t.length && t.length === all.length ? t : null; }
+// ===================================================================
+// Outlines for names and numbers: one or two outlines drawn behind the letters (outline 1 next to them, outline 2
+// around it), while the text stays editable. o.textOutlines = [{ w: mm, c: colour }, …]; the text's strokeWidth holds
+// twice their total (in its own units) and its stroke stays empty, so its box, alignment, snapping and exports
+// include the outlines.
+// ===================================================================
+{
+  let proto = IText.prototype;
+  while (proto && !Object.prototype.hasOwnProperty.call(proto, '_renderText')) proto = Object.getPrototypeOf(proto);
+  const base = proto._renderText;
+  proto._renderText = function (ctx) {
+    const outs = this.textOutlines;
+    if (!outs?.length || !this.strokeWidth) { base.call(this, ctx); return; }
+    let acc = 0;
+    const reach = outs.map((x) => (acc += x.w)), perMm = this.strokeWidth / 2 / acc;
+    const keep = [this.stroke, this.strokeWidth, this.strokeLineJoin, this.strokeDashArray], affect = this.shadow?.affectStroke;
+    try {
+      this.strokeLineJoin = 'round'; this.strokeDashArray = null;
+      if (this.shadow) this.shadow.affectStroke = true; // the shadow falls from the outer outline only
+      for (let i = outs.length - 1; i >= 0; i--) {
+        this.stroke = outs[i].c; this.strokeWidth = 2 * reach[i] * perMm;
+        this._renderTextStroke(ctx);
+        if (this.shadow) this._removeShadow(ctx);
+      }
+    } finally {
+      [this.stroke, this.strokeWidth, this.strokeLineJoin, this.strokeDashArray] = keep;
+      if (this.shadow) this.shadow.affectStroke = affect;
+    }
+    this._renderTextFill(ctx);
+  };
+}
+/** Gives a text its outlines (list of { w: mm, c }; widths 0 are left out); keeps its centre in place. */
+function setTextOutlines(o, list) {
+  const outs = (list ?? []).filter((x) => x && Number(x.w) > 0 && x.c).slice(0, 2).map((x) => ({ w: Math.min(50, Number(x.w)), c: String(x.c).toUpperCase() }));
+  const centre = o.getCenterPoint();
+  if (outs.length) {
+    o.textOutlines = outs;
+    o.set({ stroke: null, strokeWidth: (2 * outs.reduce((a, x) => a + x.w, 0) * MM) / avgScale(o), strokeUniform: false, strokeDashArray: null });
+  } else {
+    delete o.textOutlines;
+    o.set({ stroke: null, strokeWidth: 0 });
+  }
+  o.setPositionByOrigin(centre, 'center', 'center');
+  o.dirty = true; o.setCoords();
+}
+/** An outlined text as curves (Convert to curves, SVG / PDF): its outlines as outlined paths behind the letters, in a group. */
+function outlinedTextCurves(o, d) {
+  let acc = 0;
+  const reach = o.textOutlines.map((x) => (acc += x.w)), perMm = ((o.strokeWidth / 2) * avgScale(o)) / acc;
+  const parts = [];
+  for (let i = reach.length - 1; i >= 0; i--) parts.push(style(new Path(d, { fill: null, stroke: o.textOutlines[i].c, strokeWidth: 2 * reach[i] * perMm, strokeLineJoin: 'round', strokeUniform: true }), { toolName: 'Curve' }));
+  const letters = makePath(d, o);
+  letters.set({ stroke: null, strokeWidth: 0 });
+  parts.push(letters);
+  const g = style(new Group(parts), { toolName: 'Group' });
+  g.name = `“${String(o.text).slice(0, 18)}” curves with outlines`;
+  return g;
+}
+const outlineTexts = () => (textTarget() ?? []);
+/** The outlines of the selected text in both places they are set: the Outlines panel (text bar) and the Properties tab. */
+function syncOutlineFly() {
+  const o = outlineTexts()[0], outs = o?.textOutlines ?? [];
+  for (const p of ['ol', 'pol']) {
+    for (const i of [1, 2]) {
+      const w = $(`${p}${i}w`), c = $(`${p}${i}c`);
+      if (document.activeElement !== w) w.value = String(outs[i - 1]?.w ?? 0);
+      if (outs[i - 1] && document.activeElement !== c) c.value = outs[i - 1].c.toLowerCase();
+    }
+  }
+  $('tOutlineBtn').classList.toggle('on', !!outs.length);
+}
+function applyOutlineFly(commit, p = 'ol') {
+  const texts = outlineTexts();
+  if (!texts.length) return;
+  const list = [{ w: $(`${p}1w`).value, c: $(`${p}1c`).value }, { w: $(`${p}2w`).value, c: $(`${p}2c`).value }];
+  // An outer outline with no inner one: it becomes the first.
+  const use = Number(list[0].w) > 0 ? list : [list[1]];
+  for (const o of texts) setTextOutlines(o, use);
+  canvas.requestRenderAll(); syncOutlineFly();
+  if (commit) canvas.fire('object:modified', { target: texts[0] });
+}
+$('tOutlineBtn').onclick = (e) => {
+  const fly = $('outlineFly'), r = e.currentTarget.getBoundingClientRect(), open = !fly.classList.contains('open');
+  closeMenus();
+  if (!open) return;
+  if (!outlineTexts().length) { toast('Select a text first'); return; }
+  syncOutlineFly();
+  Object.assign(fly.style, { left: `${Math.max(8, Math.min(r.left, innerWidth - 310))}px`, top: `${r.bottom + 6}px`, bottom: 'auto' });
+  fly.classList.add('open');
+  e.stopPropagation();
+};
+for (const id of ['ol1w', 'ol2w']) { $(id).onchange = () => applyOutlineFly(true); $(id).onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Escape') closeMenus(); }; }
+for (const id of ['ol1c', 'ol2c']) { $(id).oninput = () => applyOutlineFly(false); $(id).onchange = () => applyOutlineFly(true); }
+for (const id of ['pol1w', 'pol2w']) $(id).onchange = () => applyOutlineFly(true, 'pol');
+for (const id of ['pol1c', 'pol2c']) { $(id).oninput = () => applyOutlineFly(false, 'pol'); $(id).onchange = () => applyOutlineFly(true, 'pol'); }
+$('polNone').onclick = () => $('olNone').onclick();
+$('olNone').onclick = () => { const texts = outlineTexts(); for (const o of texts) setTextOutlines(o, []); canvas.requestRenderAll(); syncOutlineFly(); if (texts[0]) canvas.fire('object:modified', { target: texts[0] }); closeMenus(); toast('Outlines removed'); };
+
+// Text on a path: settings on the text bar (along, distance, which part of the letters sits on it, side, centre).
+const pathText = () => { const t = textTarget(); return t?.length === 1 && t[0].path ? t[0] : null; };
+/** paper.js reads path data as a compound path: the measurements are on its (first) path. */
+const firstPath = (d) => { const p = V.toPaper(d); return p.children?.length ? p.children[0] : p; };
+/** The guide at a distance from the path, on the text's side (the original guide is kept with the text). */
+function guideAt(o, dist) {
+  const d0 = o.pathGuide;
+  if (!d0 || !dist) return d0;
+  const item = firstPath(d0), L = item.length, mid = item.getPointAt(L / 2), n = item.getNormalAt(L / 2);
+  // Fabric puts the letters on the left of the path's direction (above a path drawn left to right); "right": the other side.
+  const side = o.pathSide === 'right' ? -1 : 1, want = { x: n.x * side, y: n.y * side }; // paper's normal points to the letters' side
+  const toward = (d) => { const p = firstPath(d).getNearestPoint(mid); return (p.x - mid.x) * want.x + (p.y - mid.y) * want.y; };
+  const a = V.offsetD(d0, dist), b = V.offsetD(d0, -dist);
+  return (toward(a) > 0) === (dist > 0) ? a : b;
+}
+/** A new guide for a text on a path, keeping the letters where they are on the page. */
+function setGuide(o, d) {
+  const old = o.path.getCenterPoint(), g = new Path(d, { fill: null, stroke: null }), now = g.getCenterPoint();
+  const m = o.calcTransformMatrix(), shift = util.transformPoint(new Point(now.x - old.x, now.y - old.y), [m[0], m[1], m[2], m[3], 0, 0]);
+  const c = o.getCenterPoint();
+  o.set({ path: g });
+  o.initDimensions();
+  o.setPositionByOrigin(new Point(c.x + shift.x, c.y + shift.y), 'center', 'center');
+  o.setCoords();
+}
+function syncPathBar() {
+  const o = pathText(), sel = canvas.getActiveObjects();
+  $('pathBar').hidden = !o;
+  $('fitBar').hidden = !(sel.length === 2 && sel.filter(isText).length === 1 && sel.some((x) => !isText(x) && shapeable(x)));
+  if (!o) return;
+  if (document.activeElement !== $('tpOffset')) $('tpOffset').value = String(+((o.pathStartOffset || 0) / MM).toFixed(1));
+  if (document.activeElement !== $('tpDist')) $('tpDist').value = String(+(o.pathDist || 0).toFixed(1));
+  $('tpAlign').value = o.pathAlign || 'baseline';
+  $('tpSide').classList.toggle('on', o.pathSide === 'right');
+}
+function pathChange(fn, label) {
+  const o = pathText();
+  if (!o) return;
+  fn(o);
+  o.dirty = true; o.setCoords(); canvas.requestRenderAll();
+  canvas.fire('object:modified', { target: o }); syncPathBar();
+  if (label) toast(label);
+}
+$('tpOffset').onchange = (e) => pathChange((o) => { o.set({ pathStartOffset: Math.max(0, Number(e.target.value) || 0) * MM }); o.initDimensions(); });
+$('tpDist').onchange = (e) => pathChange((o) => {
+  if (!o.pathGuide) { toast('Fit the text to the path again to set its distance (it was fitted before this setting existed)'); return; }
+  const dist = Math.max(-200, Math.min(200, Number(e.target.value) || 0));
+  try { setGuide(o, guideAt(o, dist * MM) || o.pathGuide); o.pathDist = dist; } catch { toast('That distance does not work for this path'); }
+});
+$('tpAlign').onchange = (e) => pathChange((o) => { o.set({ pathAlign: e.target.value }); o.initDimensions(); });
+$('tpSide').onclick = () => pathChange((o) => {
+  o.set({ pathSide: o.pathSide === 'right' ? 'left' : 'right' });
+  if (o.pathGuide && o.pathDist) setGuide(o, guideAt(o, o.pathDist * MM));
+  o.initDimensions();
+}, 'Text placed on the other side of the path');
+$('tpCentre').onclick = () => pathChange((o) => {
+  const L = firstPath(o.pathGuide && o.pathDist ? guideAt(o, o.pathDist * MM) : o.pathGuide ?? V.modelToD(V.objectModel(o.path))).length;
+  const closed = /z\s*$/i.test((o.pathGuide ?? '').trim());
+  o.set({ pathStartOffset: Math.max(0, closed ? L / 4 - o.calcTextWidth() / 2 : (L - o.calcTextWidth()) / 2) }); o.initDimensions();
+}, 'Text centred along the path');
+$('tpStraight').onclick = () => straightenText();
+$('tpFit').onclick = () => fitTextToPath();
+
 function setText(props, label) {
   Object.assign(state.text, props);
   if (textTarget()) applyToSelection(props, label);
@@ -5379,9 +5558,9 @@ function setText(props, label) {
 function syncTextBar() {
   const t = textTarget(), bar = $('textBar');
   bar.hidden = !t && state.tool !== 'text';
-  if (bar.hidden) return;
+  if (bar.hidden) { syncPathBar(); return; }
   const o = t?.[0];
-  const v = o ? { fontFamily: o.fontFamily, fontWeight: o.fontWeight, fontStyle: o.fontStyle, underline: o.underline, textAlign: o.textAlign, fontSize: (o.fontSize * (o.scaleY || 1)) / MM } : state.text;
+  const v = o ? { fontFamily: o.fontFamily, fontWeight: o.fontWeight, fontStyle: o.fontStyle, underline: o.underline, textAlign: o.textAlign, fontSize: (o.fontSize * (o.scaleY || 1)) / MM, charSpacing: o.charSpacing || 0, lineHeight: o.lineHeight || LINE_NORMAL } : state.text;
   $('tFontName').textContent = v.fontFamily; $('tFontName').style.fontFamily = `'${v.fontFamily}'`;
   if (document.activeElement !== $('tSize')) $('tSize').value = String(Math.round(v.fontSize * 10) / 10);
   const canBold = fontInfo(v.fontFamily).bold;
@@ -5389,16 +5568,214 @@ function syncTextBar() {
   $('tBold').classList.toggle('on', canBold && Number(v.fontWeight) >= 600);
   $('tItalic').classList.toggle('on', v.fontStyle === 'italic');
   $('tUnder').classList.toggle('on', !!v.underline);
-  for (const a of ['left', 'center', 'right']) $(`tAlign-${a}`).classList.toggle('on', v.textAlign === a);
+  for (const a of ['left', 'center', 'right', 'justify']) $(`tAlign-${a}`).classList.toggle('on', v.textAlign === a);
+  syncPathBar(); $('tOutlineBtn').classList.toggle('on', !!o?.textOutlines?.length);
+  if (document.activeElement !== $('tLetter')) $('tLetter').value = String(Math.round((v.charSpacing || 0) / 10));
+  if (document.activeElement !== $('tLine')) $('tLine').value = String(Math.round(((v.lineHeight || LINE_NORMAL) / LINE_NORMAL) * 100));
 }
 function renderFontList(filter = '') {
   const q = filter.trim().toLowerCase(), cur = textTarget()?.[0].fontFamily ?? state.text.fontFamily;
   let html = '', group = '';
-  for (const x of FONTS.filter((x) => x.family.toLowerCase().includes(q))) {
-    if (x.group !== group) { group = x.group; html += `<h4>${group}</h4>`; }
-    html += `<button data-font="${x.family}" class="${x.family === cur ? 'on' : ''}" style="font-family:'${x.family}'">${x.family}</button>`;
+  // Your own fonts first ("My fonts"), each with a button to remove it from this device.
+  for (const x of [...FONTS.filter((f) => f.mine), ...FONTS.filter((f) => !f.mine)].filter((f) => f.family.toLowerCase().includes(q))) {
+    if (x.group !== group) { group = x.group; html += `<h4>${esc(group)}</h4>`; }
+    const btn = `<button data-font="${esc(x.family)}" class="${x.family === cur ? 'on' : ''}" style="font-family:'${esc(x.family)}'">${esc(x.family)}</button>`;
+    html += x.mine ? `<div class="font-row">${btn}<button class="font-del" data-del="${esc(x.family)}" title="Remove ${esc(x.family)} from this device" aria-label="Remove ${esc(x.family)}">×</button></div>` : btn;
   }
   $('fontList').innerHTML = html || '<p class="empty">No fonts match</p>';
+}
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// ===================================================================
+// Your own fonts (font list > Upload a font): TTF, OTF or WOFF, kept on this device (in the browser, or in the app)
+// and listed under My fonts. They work like the built-in fonts: on the page, in Convert to curves and in the PDF.
+// ===================================================================
+function fontsTx(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open('3deezi-artboard-fonts', 1);
+    open.onupgradeneeded = () => open.result.createObjectStore('fonts', { keyPath: 'family' });
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const tx = open.result.transaction('fonts', mode), req = fn(tx.objectStore('fonts'));
+      tx.oncomplete = () => { open.result.close(); resolve(req?.result); };
+      tx.onerror = () => { open.result.close(); reject(tx.error); };
+    };
+  });
+}
+const myFaces = new Map(); // family -> its FontFace objects
+function toB64(buffer) { const bytes = new Uint8Array(buffer); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
+const WEIGHT_NAMES = { 100: 'Thin', 200: 'ExtraLight', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black' };
+/** Weights from style names, most specific first ("ExtraLight" before "Light", "SemiBold" before "Bold"). */
+const NAME_WEIGHTS = [[/thin|hairline/i, 100], [/(extra|ultra)[\s-]*light/i, 200], [/light/i, 300], [/medium/i, 500], [/(semi|demi)[\s-]*bold/i, 600], [/(extra|ultra)[\s-]*bold/i, 800], [/black|heavy/i, 900], [/bold/i, 700], [/regular|normal|book|roman|italic|oblique/i, 400]];
+/** One font file: its family (the typographic family when the file has one), weight, italic, and a variable font's weight range. */
+function readFace({ name, buffer }) {
+  const font = V.parseFontFile(buffer.slice(0)), n = font.names ?? {}, os2 = font.tables?.os2;
+  const pick = (x) => (x ? x.en ?? Object.values(x)[0] ?? '' : '');
+  const family = String(pick(n.preferredFamily) || pick(n.fontFamily) || name.replace(/\.[^.]+$/, '')).replace(/[^\w\s().&-]/g, '').trim().slice(0, 60) || 'My font';
+  const sub = String(pick(n.preferredSubfamily) || pick(n.fontSubfamily));
+  const axis = font.tables?.fvar?.axes?.find((a) => a.tag === 'wght');
+  // The style's name gives the weight: the number in the file can't be trusted for light weights (DM Sans gives Thin and
+  // ExtraLight both 250, an old Windows workaround).
+  const named = NAME_WEIGHTS.find(([re]) => re.test(sub))?.[1];
+  return {
+    name, buffer, family, variable: !!axis, italic: !!(os2 && os2.fsSelection & 1) || /italic|oblique/i.test(sub),
+    weight: axis ? [Math.max(1, Math.round(axis.minValue)), Math.min(1000, Math.round(axis.maxValue))] : [named ?? Math.max(1, Math.min(1000, os2?.usWeightClass || 400))],
+  };
+}
+/** The font files in a .zip (stored or deflated; unpacked with the browser's own DecompressionStream). */
+async function unzipFonts(buffer) {
+  const u8 = new Uint8Array(buffer), v = new DataView(buffer), out = [];
+  let end = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (v.getUint32(i, true) === 0x06054b50) { end = i; break; }
+  if (end < 0) throw new Error('not a zip file');
+  let p = v.getUint32(end + 16, true);
+  const count = v.getUint16(end + 10, true), names = new TextDecoder();
+  for (let k = 0; k < count && v.getUint32(p, true) === 0x02014b50; k++) {
+    const method = v.getUint16(p + 10, true), size = v.getUint32(p + 20, true), nl = v.getUint16(p + 28, true), xl = v.getUint16(p + 30, true), cl = v.getUint16(p + 32, true), at = v.getUint32(p + 42, true);
+    const name = names.decode(u8.subarray(p + 46, p + 46 + nl));
+    p += 46 + nl + xl + cl;
+    if (!/\.(ttf|otf|woff)$/i.test(name) || /(^|\/)(__MACOSX\/|\._)/.test(name) || out.length >= 300) continue;
+    const start = at + 30 + v.getUint16(at + 26, true) + v.getUint16(at + 28, true), data = u8.subarray(start, start + size);
+    let bytes;
+    if (method === 0) bytes = data.slice();
+    else if (method === 8) bytes = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    else continue;
+    out.push({ name: name.split('/').pop(), buffer: bytes.buffer });
+  }
+  return out;
+}
+/** Files grouped by family: one per weight and style; a family's separate files rather than its variable file (Convert to curves needs them). */
+function groupFaces(faces) {
+  const fams = new Map();
+  for (const f of faces) { if (!fams.has(f.family)) fams.set(f.family, []); fams.get(f.family).push(f); }
+  for (const [fam, list] of fams) {
+    const statics = list.filter((f) => !f.variable), seen = new Set();
+    fams.set(fam, (statics.length ? statics : list).filter((f) => { const k = `${f.italic}:${f.weight.join('-')}`; if (seen.has(k)) return false; seen.add(k); return true; }));
+  }
+  return fams;
+}
+/** Weight ranges that cover 1–1000 without overlapping, so the canvas and Convert to curves always pick the same file. */
+function rangesFor(list) {
+  const s = [...list].sort((a, b) => a.weight[0] - b.weight[0]);
+  return s.map((f, i) => [f, f.variable ? `${f.weight[0]} ${f.weight[1]}` : `${i ? Math.floor((s[i - 1].weight[0] + f.weight[0]) / 2) + 1 : 1} ${i < s.length - 1 ? Math.floor((f.weight[0] + s[i + 1].weight[0]) / 2) : 1000}`]);
+}
+/** A family's files (base64, weight range, style) for the canvas, Convert to curves (opentype.js) and the font lists. */
+async function registerMyFamily(family, stored) {
+  window.__ABFONTS = window.__ABFONTS ?? {};
+  const tag = Math.random().toString(36).slice(2, 8), faces = [], italics = [], loaded = [];
+  for (const [i, f] of stored.entries()) {
+    const key = `my:${family}:${tag}:${i}`;
+    window.__ABFONTS[key] = f.data;
+    (f.style === 'italic' ? italics : faces).push([key, f.range]);
+    const face = new FontFace(family, Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0)).buffer, { weight: f.range, style: f.style });
+    await face.load();
+    document.fonts.add(face); loaded.push(face);
+  }
+  myFaces.set(family, loaded);
+  const all = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+  const weights = [...new Set(stored.filter((f) => f.style !== 'italic' || !faces.length).flatMap((f) => (f.variable ? all.filter((w) => w >= f.weight[0] && w <= f.weight[1]) : [f.weight[0]])))].sort((a, b) => a - b);
+  const entry = { family, group: 'My fonts', faces: faces.length ? faces : italics, italics, weights, bold: weights.some((w) => w >= 600), mine: true };
+  const at = FONTS.findIndex((x) => x.family === family && x.mine);
+  if (at >= 0) FONTS[at] = entry; else FONTS.push(entry);
+  refreshFontSelects();
+}
+/** Takes a family off the page's fonts (before it is uploaded again, or removed). */
+function forgetFamily(family) {
+  for (const face of myFaces.get(family) ?? []) document.fonts.delete(face);
+  myFaces.delete(family);
+  const i = FONTS.findIndex((f) => f.family === family && f.mine);
+  if (i >= 0) { for (const [key] of [...FONTS[i].faces, ...(FONTS[i].italics ?? [])]) delete window.__ABFONTS?.[key]; FONTS.splice(i, 1); }
+}
+async function addFamily(name, faces) {
+  const family = FONTS.some((f) => f.family === name && !f.mine) ? `${name} (mine)` : name;
+  const stored = [];
+  for (const style of ['normal', 'italic']) {
+    for (const [f, range] of rangesFor(faces.filter((x) => (x.italic ? 'italic' : 'normal') === style))) stored.push({ data: toB64(f.buffer), style, range, weight: f.weight, variable: f.variable, file: f.name });
+  }
+  if (myFaces.has(family)) forgetFamily(family); // an earlier upload of the same family is replaced
+  await registerMyFamily(family, stored);
+  let kept = true;
+  try { await fontsTx('readwrite', (st) => st.put({ family, faces: stored, added: Date.now() })); } catch { kept = false; }
+  return { family, kept, styles: stored.length };
+}
+async function loadMyFonts() {
+  let all = [];
+  try { all = (await fontsTx('readonly', (st) => st.getAll())) ?? []; } catch { return; } // private window: none kept
+  for (const f of all) {
+    const stored = f.faces ?? (f.data ? [{ data: f.data, style: 'normal', range: '1 1000', weight: [400], variable: false }] : []);
+    try { if (stored.length) await registerMyFamily(f.family, stored); } catch { /* a damaged file: skipped */ }
+  }
+}
+function refreshFontSelects() {
+  const opts = FONTS.map((x) => `<option>${esc(x.family)}</option>`).join('');
+  for (const id of ['pFont', 'tbFont']) { const el = $(id), v = el.value; el.innerHTML = opts; if (v) el.value = v; }
+  if ($('fontFly').classList.contains('open')) renderFontList($('fontSearch').value);
+}
+/** The Properties tab's Weight list: every weight an uploaded font has (Thin … Black); the built-in fonts: Regular, Bold, Black. */
+function syncWeights(family, weight) {
+  const f = FONTS.find((x) => x.family === family), list = f?.weights?.length > 1 ? f.weights : [400, 700, 900], el = $('pWeight');
+  if (el.dataset.list !== list.join()) { el.innerHTML = list.map((w) => `<option value="${w}">${WEIGHT_NAMES[w] ?? w}</option>`).join(''); el.dataset.list = list.join(); }
+  el.value = String(list.reduce((a, b) => (Math.abs(b - weight) < Math.abs(a - weight) ? b : a), list[0]));
+}
+/** When the files hold several families (Google's DM Sans zip: DM Sans and its 18 / 24 / 36 pt versions): which ones to add. */
+function chooseFamilies(fams) {
+  return new Promise((resolve) => {
+    const names = [...fams.keys()].sort((a, b) => a.length - b.length || a.localeCompare(b)), dlg = $('fontDialog');
+    $('fontChoices').innerHTML = names.map((n, i) => { const k = fams.get(n).length; return `<label><input type="checkbox" value="${esc(n)}"${i === 0 ? ' checked' : ''}><span>${esc(n)}</span><small>${k} style${k > 1 ? 's' : ''}</small></label>`; }).join('');
+    let answer = [];
+    $('fontDialogAdd').onclick = () => { answer = [...$('fontChoices').querySelectorAll('input:checked')].map((x) => x.value); dlg.close(); };
+    dlg.onclose = () => resolve(answer);
+    dlg.showModal();
+  });
+}
+$('fontUpload').onclick = () => $('fontFile').click();
+$('fontFile').onchange = async (e) => {
+  const files = [...(e.target.files ?? [])];
+  e.target.value = '';
+  if (!files.length) return;
+  try {
+    const entries = [];
+    for (const f of files) {
+      if (/\.zip$/i.test(f.name)) {
+        if (f.size > 60 * 1024 * 1024) throw new Error(`${f.name} is over 60 MB`);
+        try { entries.push(...(await unzipFonts(await f.arrayBuffer()))); } catch (err) { throw new Error(`${f.name} could not be opened (${err.message}): unzip it and choose its .ttf files`); }
+      } else if (/\.(ttf|otf|woff)$/i.test(f.name) && f.size <= 8 * 1024 * 1024) entries.push({ name: f.name, buffer: await f.arrayBuffer() });
+    }
+    if (!entries.length) throw new Error('There are no TTF, OTF or WOFF fonts in what you chose (a WOFF2 font: convert it to TTF first)');
+    const faces = [], bad = [];
+    for (const en of entries) { try { faces.push(readFace(en)); } catch { bad.push(en.name); } }
+    if (!faces.length) throw new Error('These files are not fonts the Artboard can read');
+    const fams = groupFaces(faces), chosen = fams.size > 1 ? await chooseFamilies(fams) : [...fams.keys()];
+    if (!chosen.length) return;
+    toast(`Adding ${chosen.length > 1 ? `${chosen.length} fonts` : `“${chosen[0]}”`}…`);
+    const added = [];
+    for (const fam of chosen) added.push(await addFamily(fam, fams.get(fam)));
+    const had = !!textTarget();
+    chooseFont(added[0].family);
+    toast(`${added.map((a) => `“${a.family}” (${a.styles} style${a.styles > 1 ? 's' : ''})`).join(', ')} added under My fonts${had ? `; the selected text uses “${added[0].family}”` : ''}${added.every((a) => a.kept) ? ' (kept on this device)' : ' (for now: this browser cannot keep fonts)'}${bad.length ? `; ${bad.length} file${bad.length > 1 ? 's' : ''} could not be read` : ''}`, 6000);
+  } catch (err) { toast(err.message, 6000); }
+};
+let fontAsk = null;
+$('fontAskNo').onclick = () => { fontAsk = null; $('fontAsk').hidden = true; };
+$('fontAskYes').onclick = async () => {
+  const family = fontAsk;
+  fontAsk = null; $('fontAsk').hidden = true;
+  if (!family) return;
+  try { await fontsTx('readwrite', (st) => st.delete(family)); } catch { /* not kept anyway */ }
+  forgetFamily(family);
+  refreshFontSelects(); renderFontList($('fontSearch').value);
+  canvas.getObjects().forEach((o) => { o.dirty = true; }); canvas.requestRenderAll();
+  toast(`Font “${family}” removed from this device: text that used it shows a standard font until you upload it again`, 5000);
+};
+/** A design using a font that isn't on this device (an uploaded font from another device): say so, once per font. */
+const fontsTold = new Set();
+function checkFonts() {
+  const missing = new Set();
+  const walk = (o) => { if (isText(o) && !FONTS.some((f) => f.family === o.fontFamily)) missing.add(o.fontFamily); if (o.type === 'group') o.getObjects().forEach(walk); };
+  userObjects().forEach(walk);
+  const news = [...missing].filter((f) => f && !fontsTold.has(f));
+  if (!news.length) return;
+  news.forEach((f) => fontsTold.add(f));
+  setTimeout(() => toast(`This design uses the font${news.length > 1 ? 's' : ''} ${news.map((f) => `“${f}”`).join(', ')}, not on this device: upload ${news.length > 1 ? 'them' : 'it'} (font list > Upload a font) to see ${news.length > 1 ? 'them' : 'it'}`, 7000), 300);
 }
 function chooseFont(family) { endFontPreview(); closeMenus(); setText({ fontFamily: family }); }
 // Hovering a font previews it on the selected text, as in CorelDRAW.
@@ -5433,7 +5810,11 @@ $('fontList').addEventListener('mouseover', (e) => {
   canvas.requestRenderAll();
 });
 $('fontList').addEventListener('mouseleave', endFontPreview);
-$('fontList').addEventListener('click', (e) => { const b = e.target.closest('[data-font]'); if (b) chooseFont(b.dataset.font); });
+$('fontList').addEventListener('click', (e) => {
+  const del = e.target.closest('[data-del]');
+  if (del) { fontAsk = del.dataset.del; $('fontAskText').textContent = `Remove “${fontAsk}” from this device?`; $('fontAsk').hidden = false; return; }
+  const b = e.target.closest('[data-font]'); if (b) chooseFont(b.dataset.font);
+});
 $('tSize').onchange = (e) => {
   const mm = Number(e.target.value);
   if (!(mm >= 1 && mm <= 1000)) { toast('Use a size between 1 and 1000 mm'); syncTextBar(); return; }
@@ -5443,7 +5824,10 @@ $('tSize').onchange = (e) => {
 $('tBold').onclick = () => setText({ fontWeight: $('tBold').classList.contains('on') ? 400 : 700 });
 $('tItalic').onclick = () => setText({ fontStyle: $('tItalic').classList.contains('on') ? 'normal' : 'italic' });
 $('tUnder').onclick = () => setText({ underline: !$('tUnder').classList.contains('on') });
-for (const a of ['left', 'center', 'right']) $(`tAlign-${a}`).onclick = () => setText({ textAlign: a });
+for (const a of ['left', 'center', 'right', 'justify']) $(`tAlign-${a}`).onclick = () => setText({ textAlign: a });
+/** Letter spacing in % of the font size (Fabric: thousandths of an em); line spacing in % of normal. */
+$('tLetter').onchange = (e) => { const n = Math.max(-50, Math.min(500, Number(e.target.value) || 0)); setText({ charSpacing: n * 10 }); };
+$('tLine').onchange = (e) => { const n = Math.max(50, Math.min(400, Number(e.target.value) || 100)); setText({ lineHeight: (n / 100) * LINE_NORMAL }); };
 
 // Keyboard: CorelDRAW shortcuts.
 const KEY_TOOLS = { f10: 'node', f5: 'draw', f6: 'rect', f7: 'ellipse', f8: 'text', y: 'polygon', s: 'star', d: 'graph', a: 'spiral', x: 'eraser', z: 'zoom', h: 'pan', g: 'fill', m: 'meshfill', i: 'eyedropper', v: 'select' };
@@ -5489,6 +5873,7 @@ addEventListener('keydown', (e) => {
   }
   else if (k === 'delete' || k === 'backspace') { if (gradKeys && state.gradient) gradRemove(); else if (state.tool === 'anchor' && connView?.sel) deleteAnchor(connView.sel); else if (state.tool === 'varline' && varEdit) { if (varEdit.sel != null) deleteVarPoint(); else toast('Click a width point (it turns pink) to delete it; switch to Pick to delete the whole object'); } else removeSelection(); }
   else if (k === 'escape') {
+    if (document.querySelector('.menu.open, .fly.open')) { closeMenus(); return; } // an open menu or list closes first
     if (pcEdit) { finishPowerClipEdit(); return; }
     if (pickFrame) { pickFrame = null; hint(''); canvas.defaultCursor = 'default'; return; }
     if (path) { finishPath(); return; }
@@ -5598,6 +5983,8 @@ function effectsOf(o) {
   if (o.fxInner) out.push(`inner shadow x ${o.fxInner.x} mm, y ${o.fxInner.y} mm, feather ${o.fxInner.blur} mm, ${o.fxInner.opacity}%`);
   const gp = o.type === 'group' ? paintParts(o)[0] : o;
   if (gp?.gradSpec && !gp.gradSpec.fade && gp.fill && typeof gp.fill === 'object') out.push(`${gradKind(gp.gradSpec)} gradient fill ${gradText(gp.gradSpec)}`);
+  if (o.textOutlines?.length) out.push(`name / number outlines ${o.textOutlines.map((x) => `${x.w} mm ${x.c}`).join(' + ')}`);
+  if (isText(o) && o.path) out.push(`on a path${o.pathDist ? `, ${o.pathDist} mm from it` : ''}`);
   if (o.varSpec) out.push(`variable outline (${VAR_NAMES[o.varSpec.profile] ?? 'custom'}, ${+o.varSpec.width.toFixed(1)} mm)`);
   if (/contour/.test(name)) out.push('contour');
   if (/blend group/.test(name)) out.push('blend');
@@ -5865,6 +6252,54 @@ const ASSIST = {
     return `Palette ${p.name} deleted (its colours stay on your objects)`;
   },
   /**
+   * Text settings for the selected text: font=<name>, size=<mm>, letter=<% of the font size>, line=<% of normal>,
+   * align=left|center|right|justify, bold / italic / underline=on|off.
+   */
+  textStyle: (v) => {
+    needSelection();
+    const texts = active().flatMap((o) => (isText(o) ? [o] : o.type === 'group' ? o.getObjects().filter(isText) : []));
+    if (!texts.length) {
+      const o = active()[0], what = o ? `${o.num != null ? `#${o.num} ` : ''}${objLabel(o)}` : 'it';
+      // Text converted to curves looks like text but is a shape now: say so.
+      if (o && (/curves/i.test(o.name ?? '') || o.type === 'path')) throw new Error(`${o.num != null ? `#${o.num} ` : ''}${o.name || 'The selected shape'} is not text any more (it was converted to curves), so text settings and name outlines don't apply to it. Type the text again with the Text tool (or ask me to add it), or give the curves an outline with the Outline pen.`);
+      throw new Error(`Select a text first (the Text tool or the Pick tool)${o ? `: ${what} is not a text` : ''}.`);
+    }
+    const opts = Object.fromEntries(String(v).split(',').map((x) => x.trim()).filter(Boolean).map((x) => { const k = x.indexOf('='); return k < 0 ? [x.toLowerCase(), ''] : [x.slice(0, k).trim().toLowerCase(), x.slice(k + 1).trim()]; }));
+    const props = {}, said = [], onOff = (x) => /^(on|yes|true|1)$/i.test(x);
+    if (opts.font != null) {
+      const f = FONTS.find((x) => x.family.toLowerCase() === opts.font.toLowerCase()) ?? FONTS.find((x) => x.family.toLowerCase().startsWith(opts.font.toLowerCase()));
+      if (!f) throw new Error(`There is no font “${opts.font}” here. Fonts: ${FONTS.map((x) => x.family).join(', ')} (or upload one: font list > Upload a font).`);
+      props.fontFamily = f.family; said.push(`font ${f.family}`);
+    }
+    if (opts.letter != null) { const n = Math.max(-50, Math.min(500, parseFloat(opts.letter) || 0)); props.charSpacing = n * 10; said.push(`letter spacing ${n}%`); }
+    if (opts.line != null) { const n = Math.max(50, Math.min(400, parseFloat(opts.line) || 100)); props.lineHeight = (n / 100) * LINE_NORMAL; said.push(`line spacing ${n}%`); }
+    if (opts.align != null) {
+      const a = { centre: 'center', middle: 'center' }[opts.align.toLowerCase()] ?? opts.align.toLowerCase();
+      if (!['left', 'center', 'right', 'justify'].includes(a)) throw new Error('align can be left, center, right or justify.');
+      props.textAlign = a; said.push(a === 'justify' ? 'justified' : `aligned ${a}`);
+    }
+    if (opts.bold != null) { props.fontWeight = onOff(opts.bold) ? 700 : 400; said.push(onOff(opts.bold) ? 'bold' : 'not bold'); }
+    if (opts.italic != null) { props.fontStyle = onOff(opts.italic) ? 'italic' : 'normal'; said.push(onOff(opts.italic) ? 'italic' : 'not italic'); }
+    if (opts.underline != null) { props.underline = onOff(opts.underline); said.push(onOff(opts.underline) ? 'underlined' : 'not underlined'); }
+    let outlines = null;
+    if (opts.outline != null || opts.outline2 != null) {
+      const read = (v) => { if (v == null) return null; if (/^(none|off|0)$/i.test(v)) return { w: 0 }; const m = v.match(/^\s*([\d.]+)\s*(?:mm)?\s*[:\s]\s*(.+)$/i); if (!m) throw new Error('An outline is <mm>:<colour>, e.g. outline=2:navy (or outline=none).'); return { w: Math.min(50, parseFloat(m[1])), c: colourOf(m[2]).toUpperCase() }; };
+      outlines = [read(opts.outline), read(opts.outline2)];
+      said.push(outlines[0]?.w === 0 && !outlines[1]?.w ? 'outlines removed' : `outlines ${outlines.filter((x) => x?.w).map((x) => `${x.w} mm ${x.c}`).join(' + ')}`);
+    }
+    const mm = opts.size != null ? parseFloat(opts.size) : null;
+    if (mm != null && !(mm >= 1 && mm <= 1000)) throw new Error('size is in mm, between 1 and 1000.');
+    if (!Object.keys(props).length && mm == null && !outlines) throw new Error('Say what to change: font, size, letter, line, align, bold, italic, underline, outline or outline2.');
+    for (const t of texts) {
+      t.set({ ...props, ...(mm != null ? { fontSize: (mm * MM) / (t.scaleY || 1) } : {}) }); t.initDimensions?.(); t.setCoords(); t.group?.set('dirty', true);
+      if (outlines) { const cur = t.textOutlines ?? []; const next = [0, 1].map((i) => outlines[i] ?? cur[i]).filter((x) => x?.w > 0); setTextOutlines(t, outlines[0]?.w === 0 && !outlines[1] ? [] : next); }
+    }
+    if (mm != null) said.push(`${mm} mm`);
+    Object.assign(state.text, props);
+    changed(canvas.getActiveObject()); syncTextBar();
+    return `Text ${texts.map((t) => (t.num != null ? `#${t.num}` : `“${String(t.text).slice(0, 20)}”`)).join(', ')}: ${said.join(', ')}`;
+  },
+  /**
    * Adds an object by name: "rectangle", "circle", "star", "heart", "text" … Half the page by default
    * (round shapes: half its shorter side), at its centre; or size=30% / width=120mm / height=…, at=top-left
    * (or x / y = the centre in mm), fill / outline colours, text=…, sides / points. It ends up selected.
@@ -6105,6 +6540,7 @@ addEventListener('message', (e) => { if (e.source === window.parent && typeof e.
 (async () => {
   // Load the embedded fonts before any text is measured.
   await Promise.all(fontLoads);
+  await loadMyFonts();
   await document.fonts.ready;
   resize();
   setTarget('fill');

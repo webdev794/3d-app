@@ -46,6 +46,7 @@ class SiteAssistant
         'scale' => 'percent of the current size, e.g. 150 (bigger) or 50 (half)',
         'size' => '<width | height>:<length>, e.g. width:120mm; resizes the selection in proportion',
         'fill' => 'a colour (name or #hex) or none: the fill of the selection',
+        'textStyle' => 'any of font=<font name>, size=<mm>, letter=<letter spacing in % of the font size, 0 = normal>, line=<line spacing in % of normal, 100 = normal>, align=left|center|right|justify, bold=on|off, italic=on|off, underline=on|off, outline=<mm>:<colour> (the outline next to the letters, behind them; the text stays editable), outline2=<mm>:<colour> (a second outline around it), outline=none (removes them), comma separated: changes the selected Artboard text, e.g. font=Bebas Neue,letter=15 or outline=2:navy,outline2=1.5:gold for a player number; select the text first',
         'gradient' => 'linear:<colours> | radial:<colours> | a ready-made gradient (3deezi, fire, ocean, sunset, forest, chrome, gold, rainbow) or a saved one by name | none: a gradient fill on the selection. '
             .'Colours are names or #hex, spread evenly unless one has a position (e.g. gold 40%); a linear one takes angle=<degrees> (0 = top to bottom, 90 = left to right), '
             .'e.g. linear:red,gold 40%,black,angle=90 or radial:white,navy; none = back to a uniform fill in its first colour; select the objects first',
@@ -114,7 +115,17 @@ class SiteAssistant
                 $out = $this->ai->respondJson($this->instructions($page, $commands, $app, $context), array_slice($messages, -12), 'assist_reply', $this->schema());
                 $reply = trim((string) ($out['reply'] ?? ''));
                 if ($reply !== '') {
-                    return ['reply' => $reply, 'actions' => $commands ? $this->checkActions($out['actions'] ?? []) : [], 'source' => 'ai'];
+                    $actions = $commands ? $this->checkActions($out['actions'] ?? []) : [];
+                    // A command the checks refused never runs: don't let the reply say it was done.
+                    $asked = $commands && is_array($out['actions'] ?? null) ? count(array_slice($out['actions'], 0, 6)) : 0;
+                    if (count($actions) < $asked) {
+                        Log::info('3DEEZI ASSIST refused a command', ['actions' => $out['actions']]);
+                        $reply = $actions
+                            ? $reply."\n\n(One of those changes could not be made: please say it another way.)"
+                            : "Sorry, I couldn't make that change. Please say it another way, or use the controls on the page.";
+                    }
+
+                    return ['reply' => $reply, 'actions' => $actions, 'source' => 'ai'];
                 }
             } catch (Throwable $e) {
                 // The AI service failed, or something unexpected went wrong here: never show that to the
@@ -169,6 +180,7 @@ class SiteAssistant
             'size' => '/^(width|height):\\d+(\\.\\d+)?(mm|cm|in|px)?$/',
             'fill' => '/^(none|#[0-9a-fA-F]{3,8}|[a-zA-Z ]{3,30})$/',
             'outline' => '/^(none|#[0-9a-fA-F]{3,8}|[a-zA-Z ]{3,30})$/',
+            'textStyle' => '/^[a-z][a-z0-9]*=[^,=]{1,40}(,[a-z][a-z0-9]*=[^,=]{1,40}){0,9}$/u',
             'gradient' => '/^(none|[a-zA-Z0-9 ]{3,30}|(linear|radial):[-#a-zA-Z0-9 .%=,]{3,300})$/u',
             'palette' => '/^(list|(use|save|add|remove|delete|rename):[^=:]{1,40}(=[^=:]{1,400})?)$/u',
             'menu' => fn ($v) => in_array($v, $this->menuIds(), true),

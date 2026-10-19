@@ -139,8 +139,21 @@
       <button class="fontpick" id="tFont" title="Font"><span id="tFontName">Rajdhani</span><svg class="i" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
       <div class="prop tsize"><input id="tSize" type="number" min="1" max="1000" step="1" title="Font size (mm)" aria-label="Font size in mm"><label for="tSize">mm</label></div>
       <button class="ibtn tstyle" id="tBold" title="Bold (Ctrl+B)"><b>B</b></button><button class="ibtn tstyle" id="tItalic" title="Italic (Ctrl+I)"><i>I</i></button><button class="ibtn tstyle" id="tUnder" title="Underline (Ctrl+U)"><u>U</u></button>
-      <button class="ibtn" id="tAlign-left" title="Align text left" data-icon="textL"></button><button class="ibtn" id="tAlign-center" title="Centre text" data-icon="textC"></button><button class="ibtn" id="tAlign-right" title="Align text right" data-icon="textR"></button>
+      <button class="ibtn" id="tAlign-left" title="Align text left" data-icon="textL"></button><button class="ibtn" id="tAlign-center" title="Centre text" data-icon="textC"></button><button class="ibtn" id="tAlign-right" title="Align text right" data-icon="textR"></button><button class="ibtn" id="tAlign-justify" title="Justify: each line fills the width (paragraph text and text with several lines)" data-icon="textJ"></button>
+      <span class="sep"></span>
+      <div class="prop tspace" title="Letter spacing: % of the font size (0 = normal, more spreads the letters out, less brings them closer)"><span class="ti" data-icon="letterSp"></span><input id="tLetter" type="number" step="5" min="-50" max="500" aria-label="Letter spacing in %"><label for="tLetter">%</label></div>
+      <div class="prop tspace" title="Line spacing: % of normal (100 = normal) for text with several lines"><span class="ti" data-icon="lineSp"></span><input id="tLine" type="number" step="10" min="50" max="400" aria-label="Line spacing in %"><label for="tLine">%</label></div>
+      <span class="sep"></span>
+      <button class="mini tout" id="tOutlineBtn" title="Outlines for names and numbers: one or two outlines behind the letters (the text stays editable)" data-icon="textOut">Outlines</button>
     </div>
+    <span class="pathbar" id="pathBar" hidden><span class="sep"></span><span class="ti" data-icon="textPath" title="Text on a path"></span>
+        <div class="prop tpnum" title="Where the text starts along the path"><label for="tpOffset">Along</label><input id="tpOffset" type="number" step="5"><label>mm</label></div>
+        <div class="prop tpnum" title="Distance from the path: more lifts the text away from it, minus brings it closer"><label for="tpDist">Distance</label><input id="tpDist" type="number" step="1"><label>mm</label></div>
+        <select id="tpAlign" title="Which part of the letters sits on the path"><option value="baseline">Letters on the path</option><option value="center">Middle on the path</option><option value="ascender">Tops on the path</option><option value="descender">Bottoms on the path</option></select>
+        <button class="ibtn" id="tpSide" title="Place the text on the other side of the path" data-icon="flipV"></button>
+        <button class="mini" id="tpCentre" title="Centre the text along the path">Centre</button><button class="mini" id="tpStraight" title="Take the text off the path">Straighten</button>
+      </span>
+    <span class="fitbar" id="fitBar" hidden><span class="sep"></span><button class="mini" id="tpFit" title="Run the selected text along the selected curve or shape">Fit text to path</button></span>
     <!-- Object buttons always start the second row, in the same place for images, shapes and text. -->
     <span class="rowbreak" aria-hidden="true"></span>
     <button class="ibtn" id="alL" title="Align left (L)" data-icon="alL"></button><button class="ibtn" id="alC" title="Align centres horizontally (E): lines centres up in a column" data-icon="alC"></button><button class="ibtn" id="alR" title="Align right (R)" data-icon="alR"></button>
@@ -159,7 +172,15 @@
   </div>
   <div class="quick-pop" id="quickPop" hidden><h4>Your buttons</h4><p>Tick the tools and commands you use often: they get a button on the property bar, next to Pick and Pan.</p><div class="qp-cols"><div><h5>Tools</h5><div id="qpTools"></div></div><div><h5>Commands</h5><div id="qpCmds"></div></div></div></div>
 
-  <div class="fly font-fly" id="fontFly"><input id="fontSearch" placeholder="Search fonts" aria-label="Search fonts" autocomplete="off"><div id="fontList"></div></div>
+  <div class="fly outline-fly" id="outlineFly">
+    <b>Outlines behind the letters</b>
+    <div class="ol-row"><span>Outline 1</span><input id="ol1w" type="number" min="0" max="50" step="0.5" aria-label="Outline 1 width in mm"><label>mm</label><input id="ol1c" type="color" value="#000000" aria-label="Outline 1 colour"></div>
+    <div class="ol-row"><span>Outline 2</span><input id="ol2w" type="number" min="0" max="50" step="0.5" aria-label="Outline 2 width in mm"><label>mm</label><input id="ol2c" type="color" value="#FFFFFF" aria-label="Outline 2 colour"></div>
+    <p class="ol-note">Outline 1 is next to the letters, outline 2 around it; 0 mm = none. The text stays editable: double-click it to change the name or number.</p>
+    <button id="olNone" type="button">Remove the outlines</button>
+  </div>
+  <div class="fly font-fly" id="fontFly"><input id="fontSearch" placeholder="Search fonts" aria-label="Search fonts" autocomplete="off"><button class="mini font-up" id="fontUpload" type="button" title="Add your own fonts: a .zip as downloaded (for example from Google Fonts) or TTF, OTF or WOFF files (choose several for all the weights). They are kept on this device, under My fonts">Upload fonts… <small>.zip, TTF, OTF, WOFF</small></button><div id="fontList"></div><div class="font-ask" id="fontAsk" hidden><span id="fontAskText"></span><button class="btn small" id="fontAskYes">Remove</button><button class="btn small" id="fontAskNo">Cancel</button></div></div>
+  <input type="file" id="fontFile" multiple accept=".zip,.ttf,.otf,.woff,application/zip,font/ttf,font/otf,font/woff" hidden>
   <div class="fly tool-fly" id="toolFly"></div>
 <div class="fly ctx-menu" id="ctxMenu" role="menu"></div>
 
@@ -207,7 +228,11 @@
           <div id="textProps" class="card" style="display:none">
             <label class="field">Font<select id="pFont"></select></label>
             <div class="grid2"><label class="field">Size (mm)<input id="pSize" type="number" min="2"></label><label class="field">Weight<select id="pWeight"><option value="400">Regular</option><option value="700">Bold</option><option value="900">Black</option></select></label></div>
-            <label class="field">Letter spacing<input id="pSpacing" type="number" step="20"></label>
+            <div class="grid2"><label class="field">Letter spacing (%)<input id="pSpacing" type="number" step="5" min="-50" max="500"></label><label class="field">Line spacing (%)<input id="pLine" type="number" step="10" min="50" max="400"></label></div>
+            <div class="ol-card"><b>Outlines for names and numbers</b><span class="ol-note">Behind the letters; the text stays editable. Outline 1 is next to the letters, outline 2 around it; 0 mm = none.</span>
+              <div class="ol-row"><span>Outline 1</span><input id="pol1w" type="number" min="0" max="50" step="0.5" aria-label="Outline 1 width in mm"><label>mm</label><input id="pol1c" type="color" value="#000000" aria-label="Outline 1 colour"></div>
+              <div class="ol-row"><span>Outline 2</span><input id="pol2w" type="number" min="0" max="50" step="0.5" aria-label="Outline 2 width in mm"><label>mm</label><input id="pol2c" type="color" value="#ffffff" aria-label="Outline 2 colour"></div>
+              <button class="mini" id="polNone" type="button">Remove the outlines</button></div>
             <button class="mini" data-action="curves" type="button">Convert to curves (Ctrl+Q)</button>
           </div>
           <div id="rectProps" class="card" style="display:none"><label class="field">Corner radius (mm)<input id="pRadius" type="number" min="0" step="0.5"></label></div>
@@ -286,6 +311,12 @@
   <h3>Export PDF <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
   <p class="corel-lead">This design has more than one page. Which pages go in the PDF?</p>
   <div class="corel-actions"><form method="dialog"><button>Cancel</button></form><button id="pdfAll">All pages</button><button class="grad" id="pdfThis">This page only</button></div>
+</dialog>
+<dialog class="help corel" id="fontDialog">
+  <h3>Add fonts <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <p class="corel-lead">These files hold more than one font family. Tick the ones to add:</p>
+  <div class="font-choices" id="fontChoices"></div>
+  <div class="corel-actions"><form method="dialog"><button>Cancel</button></form><button class="grad" id="fontDialogAdd">Add fonts</button></div>
 </dialog>
 <div class="toast" id="toast" role="status"></div>
 <div class="page-menu drop" id="pageMenu" hidden></div>

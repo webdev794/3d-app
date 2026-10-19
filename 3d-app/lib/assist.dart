@@ -73,6 +73,7 @@ class AssistController extends ChangeNotifier {
     'page',
     'gradient',
     'palette',
+    'textStyle',
     'move',
     'rotate',
     'scale',

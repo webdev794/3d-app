@@ -22,7 +22,7 @@ const pages = ['/', '/create/ai', '/create/sport', '/convert', '/projects', '/ap
 
 const pageNames: Record<string, string> = { '/': 'the home page', '/create/ai': 'AI Powered Sportswear', '/create/sport': 'Design Your Own', '/convert': 'Convert', '/projects': 'Projects', '/approved': 'Approved', '/assets': 'Assets', '/dashboard': 'the Dashboard', '/downloads': 'Downloads', '/orders': 'My orders', '/pricing': 'Plans', '/studio': 'the 3D Studio', '/artboard': 'the Artboard' };
 /** Commands run on the Artboard (in its frame) or on the Studio page; the rest open a page. */
-const artboardActions = ['grid', 'snap', 'rulers', 'snapTo', 'tool', 'select', 'arrange', 'align', 'mirror', 'group', 'duplicate', 'connect', 'varline', 'page', 'gradient', 'palette', 'move', 'rotate', 'scale', 'size', 'fill', 'outline', 'menu', 'effect', 'add', 'zoom', 'pageSize', 'units', 'tab', 'help'];
+const artboardActions = ['grid', 'snap', 'rulers', 'snapTo', 'tool', 'select', 'arrange', 'align', 'mirror', 'group', 'duplicate', 'connect', 'varline', 'page', 'gradient', 'palette', 'textStyle', 'move', 'rotate', 'scale', 'size', 'fill', 'outline', 'menu', 'effect', 'add', 'zoom', 'pageSize', 'units', 'tab', 'help'];
 const studioActions = ['view', 'panel', 'garment', 'board', 'export', 'design', 'studioAi'];
 type ArtboardWindow = Window & { artboard?: { ready?: boolean; assist?: (action: string, value: string) => string } };
 /** This page's script file (main-<hash>.js): the server asks for a refresh when the website has a newer one. */

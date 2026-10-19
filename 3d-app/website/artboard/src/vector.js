@@ -11,7 +11,7 @@ import { Point, util } from 'fabric';
 import paper from 'paper';
 import { PaperOffset } from 'paperjs-offset';
 import { parse as parseFont } from 'opentype.js';
-import { faceFor } from './fonts.mjs';
+import { faceFor, hasItalicFace } from './fonts.mjs';
 
 const KAPPA = 0.5522847498;
 const r3 = (n) => Math.round(n * 1000) / 1000;
@@ -164,8 +164,8 @@ export function setWorldPath(o, d) {
 // Text -> curves (opentype.js, laid out exactly like Fabric draws it)
 // ===================================================================
 const fontCache = new Map();
-export function getFont(family, weight) {
-  const file = faceFor(family, weight);
+export function getFont(family, weight, style = 'normal') {
+  const file = faceFor(family, weight, style);
   const data = file && window.__ABFONTS?.[file];
   if (!data) return null;
   if (!fontCache.has(file)) {
@@ -175,6 +175,8 @@ export function getFont(family, weight) {
   return fontCache.get(file);
 }
 export const fontAvailable = (family) => !!faceFor(family, 400);
+/** An uploaded font file (TTF, OTF or WOFF) read by opentype.js: throws when it is not a font it can read. */
+export const parseFontFile = (buffer) => parseFont(buffer);
 
 function textModel(o) {
   const m = o.calcTransformMatrix(), W = (p) => util.transformPoint(new Point(p.x, p.y), m);
@@ -192,9 +194,9 @@ function textModel(o) {
       const style = o.getCompleteStyleDeclaration(li, ci);
       x += box.kernedWidth - box.width;
       if (ch.trim()) {
-        const font = getFont(style.fontFamily, style.fontWeight);
+        const font = getFont(style.fontFamily, style.fontWeight, style.fontStyle);
         if (!font) throw new Error(`The font “${style.fontFamily}” can't be converted to curves. Choose a font from the Artboard list.`);
-        const size = style.fontSize, italic = style.fontStyle === 'italic' && !/italic/i.test(style.fontFamily);
+        const size = style.fontSize, italic = style.fontStyle === 'italic' && !/italic/i.test(style.fontFamily) && !hasItalicFace(style.fontFamily);
         // Glyph outline at the origin (baseline y = 0), then placed like Fabric.
         const place = onPath
           ? (p) => { const a = box.angle, px = p.x - box.width / 2, c = Math.cos(a), s = Math.sin(a); return W({ x: box.renderLeft + px * c - p.y * s, y: box.renderTop + px * s + p.y * c }); }

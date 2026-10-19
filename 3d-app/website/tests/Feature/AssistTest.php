@@ -60,8 +60,11 @@ class AssistTest extends TestCase
             ]])]],
         ]]])]);
 
+        // One command was refused, so the reply says so instead of claiming everything was done.
         $this->ask('add grid view and select the text')->assertOk()
-            ->assertJsonPath('data.reply', 'Done: the grid is on and the text is selected.')
+            ->assertJsonPath('data.reply', "Done: the grid is on and the text is selected.
+
+(One of those changes could not be made: please say it another way.)")
             ->assertJsonPath('data.actions', [
                 ['action' => 'grid', 'value' => 'on'],
                 ['action' => 'select', 'value' => 'text:your team'],
@@ -76,6 +79,21 @@ class AssistTest extends TestCase
             ['action' => 'zoom', 'value' => 'fit'], ['action' => 'snapTo', 'value' => 'objects:on'], ['action' => 'units', 'value' => 'feet'],
         ]);
         $this->assertSame([['action' => 'open', 'value' => '/artboard'], ['action' => 'zoom', 'value' => 'fit'], ['action' => 'snapTo', 'value' => 'objects:on']], $checked);
+    }
+
+    public function test_a_reply_never_claims_a_change_that_was_refused(): void
+    {
+        config(['services.openai.key' => 'sk-test']);
+        Http::fake(['api.openai.com/v1/responses' => Http::response(['output' => [[
+            'type' => 'message',
+            'content' => [['type' => 'output_text', 'text' => json_encode(['reply' => 'Done: the selected text now has a navy outline.', 'actions' => [
+                ['action' => 'formatDisk', 'value' => 'all'],
+            ]])]],
+        ]]])]);
+
+        $this->ask('give it a navy outline')->assertOk()
+            ->assertJsonPath('data.reply', "Sorry, I couldn't make that change. Please say it another way, or use the controls on the page.")
+            ->assertJsonPath('data.actions', []);
     }
 
     public function test_editing_menu_and_export_commands_are_checked(): void
@@ -96,6 +114,12 @@ class AssistTest extends TestCase
             ['action' => 'move', 'value' => 'up:5km'], ['action' => 'fill', 'value' => 'url(javascript:x)'], ['action' => 'export', 'value' => 'docx'],
         ];
         $this->assertSame([], $assistant->checkActions($bad));
+        // The newer Artboard commands, including setting names with a digit (outline2).
+        $newer = [
+            ['action' => 'textStyle', 'value' => 'outline=2:navy,outline2=1.5:gold'], ['action' => 'textStyle', 'value' => 'font=Bebas Neue,letter=15,line=120'],
+            ['action' => 'gradient', 'value' => 'linear:red,gold 40%,black,angle=90'], ['action' => 'palette', 'value' => 'save:Lions FC=navy,gold,white'],
+        ];
+        $this->assertSame($newer, $assistant->checkActions($newer));
         $this->assertStringContainsString('exportPdf=Export PDF', $assistant->instructions('/artboard', true));
         $this->assertStringNotContainsString('open=Import', $assistant->instructions('/artboard', true));
     }
