@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, LoaderCircle, LogOut, Menu, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
+import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, LoaderCircle, LogOut, Menu, Shirt, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
 import { api, getToken, media, setToken, type Catalog, type Project, type User } from './api';
 import { defaultDesign, type Design } from './types';
 import { AiDesigner, ConvertPage, GarmentSelection, SportSelection } from './pages/Create';
@@ -75,9 +75,10 @@ export default function App() {
     {!studio && <header className={`site-header ${location.pathname === '/' ? 'is-home' : ''}`}><div className="header-inner">
       <Link to="/" className="brand" aria-label="3DEEZI home"><img src={media('images/brand-final.png')} alt="3DEEZI" /><span>AI SPORTSWEAR DESIGNER</span></Link>
       <nav className={`main-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
-        <NavLink to="/" end>Create</NavLink><NavLink to="/convert">Convert</NavLink><NavLink to="/projects">Projects</NavLink><NavLink to="/approved">Approved</NavLink><NavLink to="/assets">Assets</NavLink><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>
+        <NavLink to="/" end>Create</NavLink><NavLink to="/convert">Convert</NavLink><NavLink to="/projects">Projects</NavLink><NavLink to="/approved">Approved</NavLink><NavLink to="/assets">Assets</NavLink><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}
+        <button className="nav-quick" onClick={() => { setMenuOpen(false); start('ai'); }}><Sparkles size={15} /> AI Powered Sportswear</button><button className="nav-quick" onClick={() => { setMenuOpen(false); start('dyo'); }}><Shirt size={15} /> Design Your Own</button>
       </nav>
-      <div className="header-actions">{user?.is_admin && <Link className="button button-outline admin-link" to="/admin"><ShieldCheck size={15} /> Admin</Link>}{user ? <Link className="account-link" to="/profile"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span>{user.name.split(' ')[0]}</span></Link> : <button className="button button-quiet" onClick={() => requireAuth()}>Sign in</button>}<button className="button button-primary header-cta" onClick={() => { navigate('/'); setTimeout(() => document.getElementById('create-options')?.scrollIntoView({ behavior: 'smooth' }), 50); }}>Start a kit <ArrowRight size={15} /></button><button className="icon-button mobile-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>{menuOpen ? <X /> : <Menu />}</button></div>
+      <div className="header-actions">{user?.is_admin && <Link className="button button-outline admin-link" to="/admin" title="Admin"><ShieldCheck size={15} /><span className="admin-text">Admin</span></Link>}{user ? <Link className="account-link" to="/profile"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span>{user.name.split(' ')[0]}</span></Link> : <button className="button button-quiet" onClick={() => requireAuth()}>Sign in</button>}<button className="button button-primary header-cta" onClick={() => { navigate('/'); setTimeout(() => document.getElementById('create-options')?.scrollIntoView({ behavior: 'smooth' }), 50); }}>Start a kit <ArrowRight size={15} /></button><span className="quick-tabs" role="group" aria-label="Quick start"><button className="quick-tab is-ai" title="AI Powered Sportswear: describe your kit and AI designs it" onClick={() => start('ai')}><Sparkles size={13} /> AI</button><button className="quick-tab" title="Design Your Own: choose a sport and garment, then design it in 3D" onClick={() => start('dyo')}><Shirt size={13} /> DYO</button></span><button className="icon-button mobile-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>{menuOpen ? <X /> : <Menu />}</button></div>
     </div></header>}
     {catalogError && <div className="server-banner" role="alert">{catalogError} <button onClick={loadCatalog}>Retry connection</button></div>}
     <main><Routes>
@@ -92,7 +93,7 @@ export default function App() {
       <Route path="/orders" element={protectedPage(<MyOrdersPage />)} />
       <Route path="/pricing" element={<PricingPage onStart={() => start('dyo')} />} />
       <Route path="/downloads" element={<DownloadsPage />} />
-      <Route path="/artboard" element={<ArtboardPage draft={draft} onChange={setDraft} user={user} onNotice={setNotice} requireAuth={requireAuth} />} />
+      <Route path="/artboard" element={<ArtboardPage draft={draft} onChange={setDraft} user={user} onNotice={setNotice} requireAuth={requireAuth} onStart={start} />} />
       <Route path="/studio" element={<Studio draft={draft} onChange={setDraft} catalog={catalog} requireAuth={requireAuth} onNotice={setNotice} user={user} />} />
       <Route path="/projects" element={protectedPage(<ProjectsPage onOpen={openProject} onCreate={() => start('dyo')} />)} />
       <Route path="/approved" element={protectedPage(<ProjectsPage approvedOnly onOpen={openProject} onCreate={() => start('dyo')} />)} />

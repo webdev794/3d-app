@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -24,6 +25,7 @@ class OrderController extends Controller
         $request->validate(['status' => ['sometimes', 'nullable', Rule::in(Order::STATUSES)]]);
         $search = trim((string) $request->query('search', ''));
         $orders = Order::query()
+            ->withoutKit()
             ->with(self::WITH)
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('user_id'), fn ($q, $id) => $q->where('user_id', $id))
@@ -37,26 +39,38 @@ class OrderController extends Controller
         return response()->json(['data' => $orders]);
     }
 
-    /** One order with its whole kit (design, preview, AI brief) for the admin kit viewer. */
+    /**
+     * One order with its whole kit (design, preview, AI brief) for the admin kit viewer, and the kit as it was
+     * ordered (design_snapshot, project_version).
+     */
     public function show(Order $order): JsonResponse
     {
-        return response()->json(['data' => $order->load(['user:id,name,email', 'project'])]);
+        return response()->json(['data' => $order->load(['user:id,name,email', 'project'])->makeVisible('design_snapshot')]);
     }
 
     public function store(OrderRequest $request): JsonResponse
     {
-        $data = $request->validated();
+        $data = Arr::except($request->validated(), 'design_final');
         $this->checkProject($data);
-        $order = Order::create($data);
+        $order = new Order($data);
+        if (! empty($data['project_id'])) {
+            $order->keepKit(Project::find($data['project_id']));
+        }
+        $order->save();
 
         return response()->json(['data' => $order->refresh()->load(self::WITH)], 201);
     }
 
     public function update(OrderRequest $request, Order $order): JsonResponse
     {
-        $data = $request->validated();
+        $data = Arr::except($request->validated(), 'design_final');
         $this->checkProject($data + ['user_id' => $order->user_id]);
-        $order->update($data);
+        $order->fill($data);
+        // Another kit on the order: keep that one as it is now.
+        if ($order->isDirty('project_id')) {
+            $order->keepKit($order->project_id ? Project::find($order->project_id) : null);
+        }
+        $order->save();
 
         return response()->json(['data' => $order->refresh()->load(self::WITH)]);
     }
@@ -99,7 +113,7 @@ class OrderController extends Controller
             'garments' => (int) Order::where('status', '!=', 'cancelled')->sum('quantity'),
             'revenue' => (float) Order::whereNotIn('status', ['cancelled', 'pending'])->sum('total'),
             'by_status' => Order::select('status', DB::raw('count(*) as count'))->groupBy('status')->pluck('count', 'status'),
-            'recent' => Order::with('user:id,name,email')->latest()->limit(6)->get(),
+            'recent' => Order::withoutKit()->with('user:id,name,email')->latest()->limit(6)->get(),
             'statuses' => Order::STATUSES,
             'sizes' => Order::SIZES,
         ]]);

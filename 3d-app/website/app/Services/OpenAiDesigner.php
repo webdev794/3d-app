@@ -225,6 +225,85 @@ class OpenAiDesigner
         return base64_decode($this->firstImage($response->json()), true) ?: throw new RuntimeException('The AI returned an unreadable image.');
     }
 
+    /** Output sizes the image model can make. */
+    public const EDIT_SIZES = ['auto', '1024x1024', '1536x1024', '1024x1536'];
+
+    /**
+     * The image editor's "Describe edits", like ChatGPT's image editor: the
+     * picture changed only where and as the client asks. A mask (transparent
+     * where the AI may change the picture), a copy of the picture with the
+     * client's marks and numbered notes show where. A PNG picture comes back
+     * as a PNG (it may be see-through), any other as a JPEG.
+     *
+     * @param  array<int, array{text: string, x: float|int|string, y: float|int|string}>  $notes  x and y from 0 to 1
+     * @return array{0: string, 1: string} mime type and raw bytes
+     */
+    public function editImage(string $image, string $instruction, ?string $mask = null, ?string $marked = null, array $notes = [], ?string $size = null): array
+    {
+        [$mime, $bytes] = $this->decodeDataUrl($image);
+        $dimensions = @getimagesizefromstring($bytes) ?: [1024, 1024];
+        $ratio = $dimensions[0] / max(1, $dimensions[1]);
+        $size = in_array($size, self::EDIT_SIZES, true) ? $size
+            : ($ratio > 1.2 ? '1536x1024' : ($ratio < 0.83 ? '1024x1536' : '1024x1024'));
+        $png = $mime === 'image/png';
+
+        $prompt = 'Edit this picture exactly as the client asks. Change only what the client asks for and keep everything else the same: '
+            .'the garment design, colours, panels, logos, lettering and numbers, the camera angle, the lighting and the background, unless the client asks to change them. '
+            .'Spell any text exactly as written.';
+        if ($mask) {
+            $prompt .= ' The mask shows the area to change (its transparent part): fill and change that area as asked, and leave the rest of the picture as it is.';
+        }
+        if ($marked) {
+            $prompt .= ' The second image is a copy of the picture with the client\'s marks on it: red brush strokes and circles show where to change, and numbered pins show where each note applies. '
+                .'Use it only to find those places. Never draw the marks, pins or numbers in the result.';
+        }
+        if ($notes) {
+            $prompt .= "\nThe client's notes on the picture:";
+            foreach (array_values($notes) as $i => $note) {
+                $prompt .= "\n".($i + 1).' ('.$this->place((float) $note['x'], (float) $note['y']).'): '.trim($note['text']);
+            }
+        }
+        if (filled($instruction)) {
+            $prompt .= "\nClient request: ".trim($instruction);
+        }
+        $prompt .= "\nPhotoreal where the picture is photoreal. No watermarks, no extra logos, no UI.";
+
+        $request = $this->client()->timeout(300)
+            ->attach('image[]', $bytes, 'picture.'.explode('/', $mime)[1], ['Content-Type' => $mime]);
+        if ($marked) {
+            [$markedMime, $markedBytes] = $this->decodeDataUrl($marked);
+            $request = $request->attach('image[]', $markedBytes, 'marks.'.explode('/', $markedMime)[1], ['Content-Type' => $markedMime]);
+        }
+        if ($mask) {
+            $request = $request->attach('mask', $this->decodeDataUrl($mask)[1], 'mask.png', ['Content-Type' => 'image/png']);
+        }
+
+        $response = $this->send(fn () => $request->post(self::BASE.'/images/edits', [
+            'model' => config('services.openai.image_model'),
+            'prompt' => $prompt,
+            'size' => $size,
+            // HD pictures (mockups, showcases) stay HD; smaller ones are edited faster.
+            'quality' => max($dimensions[0], $dimensions[1]) >= 1400 ? 'high' : 'medium',
+            'output_format' => $png ? 'png' : 'jpeg',
+            ...($png ? [] : ['output_compression' => '90']),
+        ]));
+
+        return [
+            $png ? 'image/png' : 'image/jpeg',
+            base64_decode($this->firstImage($response->json()), true) ?: throw new RuntimeException('The AI returned an unreadable image.'),
+        ];
+    }
+
+    /** Where a note sits on the picture, in words the image model follows. */
+    private function place(float $x, float $y): string
+    {
+        $row = $y < 0.34 ? 'top' : ($y > 0.66 ? 'bottom' : '');
+        $column = $x < 0.34 ? 'left' : ($x > 0.66 ? 'right' : '');
+
+        return sprintf('%s, %d%% from the left and %d%% from the top',
+            trim("{$row} {$column}") ?: 'centre', round($x * 100), round($y * 100));
+    }
+
     /**
      * Applies a plain-language instruction ("make it red and gold", "add
      * stripes", "number 7 for SMITH") to the current design. An attached image

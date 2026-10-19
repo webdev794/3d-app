@@ -3,6 +3,7 @@
 // is drawn in garment coordinates (metres), so placement is exact.
 
 import { zoneRects } from './zones.js';
+import { RAGLAN, raglanSeam } from './layout-warp.js';
 
 const loadImage = (src) =>
   new Promise((resolve, reject) => {
@@ -71,13 +72,10 @@ export class KitPainter {
     return s;
   }
 
-  /** Upright text at garment point (x, y), `size` in metres. */
-  text(back, str, x, y, size, color, { maxWidth = 0.3, outline } = {}) {
+  /** Text centred on (0, 0) of the current frame (y down), `size` in metres, squeezed to `maxWidth`. Returns its size. */
+  centredText(str, size, color, maxWidth, outline) {
     const g = this.ctx;
-    this.side(back);
     g.save();
-    g.translate(x, y);
-    g.scale(back ? -1 : 1, -1);
     g.font = `700 ${size}px Rajdhani, Inter, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
@@ -92,6 +90,58 @@ export class KitPainter {
     g.fillStyle = color;
     g.fillText(str, 0, 0);
     g.restore();
+    return { w: Math.min(w, maxWidth), h: size };
+  }
+
+  /**
+   * One fixed mark (wordmark, sponsor, crest, name, number): drawn at its usual place `def` ({side, x, y}) unless
+   * it was moved, resized, turned or hidden on the design board (design.marks, keyed `${part}_${name}`).
+   * `draw(g)` paints it centred on (0, 0), y down, at its usual size and returns that size in metres; each mark
+   * drawn is listed in `this.marks` so the board can select it.
+   */
+  mark(design, name, def, draw) {
+    const key = `${this.partName}_${name}`, o = design.marks?.[key] ?? {};
+    if (o.hidden === true) return;
+    const num = (v, d) => (Number.isFinite(v) ? v : d);
+    const back = (o.side === 'front' || o.side === 'back' ? o.side : def.side) === 'back';
+    const g = this.ctx;
+    g.save();
+    this.clipOutline(back);
+    g.translate(num(o.x, def.x), num(o.y, def.y));
+    g.scale(back ? -1 : 1, -1);
+    g.rotate((num(o.rot, 0) * Math.PI) / 180);
+    const scale = num(o.scale, 1);
+    g.scale(scale, scale);
+    const size = draw(g);
+    g.restore();
+    if (size) this.marks.push({ key, name, def, w0: size.w, h0: size.h });
+  }
+
+  markText(design, name, def, str, size, color, maxWidth, outline) {
+    if (str) this.mark(design, name, def, () => this.centredText(str, size, color, maxWidth, outline));
+  }
+
+  /** An image mark fitted into boxW x boxH metres. */
+  markImage(design, name, def, img, boxW, boxH) {
+    this.mark(design, name, def, (g) => {
+      const k = Math.min(boxW / img.width, boxH / img.height), w = img.width * k, h = img.height * k;
+      g.drawImage(img, -w / 2, -h / 2, w, h);
+      return { w, h };
+    });
+  }
+
+  /** The 3DEEZI shield with "3D" on it, until the club has a logo; `pts` are its corners (metres, y up). */
+  markShield(design, name, def, pts, textSize, textMax) {
+    this.mark(design, name, def, (g) => {
+      g.fillStyle = design.accent;
+      g.beginPath();
+      pts.forEach(([x, y], i) => (i ? g.lineTo(x, -y) : g.moveTo(x, -y)));
+      g.closePath();
+      g.fill();
+      this.centredText('3D', textSize, design.main, textMax);
+      const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+      return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    });
   }
 
   /**
@@ -101,7 +151,8 @@ export class KitPainter {
    * hem turned up inside). Shared by the painted stitches and the relief map.
    */
   tailoring(back) {
-    const shorts = this.kind === 'shorts', sleeves = ['jersey', 'tee', 'polo'].includes(this.kind);
+    const shorts = this.kind === 'shorts', sleeves = ['jersey', 'tee', 'raglan', 'polo'].includes(this.kind);
+    const raglan = this.kind === 'raglan';
     const stitches = [], seams = [], folds = [];
     const along = (points) => (c) => points.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
     // Hems and sleeve ends: two rows of cover-stitch and the turned-up edge inside, each an even
@@ -110,27 +161,35 @@ export class KitPainter {
       stitches.push(along(this.inset(points, .0115)), along(this.inset(points, .0147)));
       folds.push(along(this.inset(points, .019, .006)));
     }
+    // Shorts: where the waistband is sewn on, just below it (the waist's own height: the drawn outline bulges a
+    // little above it at the corners).
+    // A deep gathered band (training shorts): the stitching runs right along its foot, where the gathers end.
+    const deepBand = (this.rimWidth ?? 0.026) >= 0.035;
+    const waistSeam = (this.points?.CF?.[1] ?? 0.42) - (this.rimWidth ?? 0.026) - (deepBand ? 0.0012 : 0.006);
     for (const inset of [0, .0032]) {
-      if (shorts) { stitches.push((c) => { c.moveTo(-.3, .388 - inset); c.lineTo(.3, .388 - inset); }); continue; }
+      if (shorts) { stitches.push((c) => { c.moveTo(-.4, waistSeam - inset); c.lineTo(.4, waistSeam - inset); }); continue; }
       for (const dir of [-1, 1]) {
-        stitches.push((c) => { c.moveTo(dir * (.105 + inset), .718); c.quadraticCurveTo(dir * .235, .691 - inset, dir * .395, .548 - inset); });
+        // Raglan: the seam from the neck down to the underarm, stitched on the body side; otherwise along the shoulder.
+        if (raglan) stitches.push(along(raglanSeam([dir * RAGLAN.neck, .728], dir).map(([x, y]) => ({ x: x - dir * (0.004 + inset), y: y - 0.004 - inset }))));
+        else stitches.push((c) => { c.moveTo(dir * (.105 + inset), .718); c.quadraticCurveTo(dir * .235, .691 - inset, dir * .395, .548 - inset); });
         stitches.push((c) => { c.moveTo(dir * (.235 - inset), .035); c.quadraticCurveTo(dir * (.21 - inset), .29, dir * (.234 - inset), .496); });
       }
     }
     if (!shorts) {
       for (const dir of [-1, 1]) {
-        seams.push((c) => { c.moveTo(dir * .1066, .718); c.quadraticCurveTo(dir * .235, .6894, dir * .395, .5464); });
+        if (raglan) seams.push(along(raglanSeam([dir * RAGLAN.neck, .728], dir).map(([x, y]) => ({ x, y }))));
+        else seams.push((c) => { c.moveTo(dir * .1066, .718); c.quadraticCurveTo(dir * .235, .6894, dir * .395, .5464); });
         seams.push((c) => { c.moveTo(dir * .2334, .035); c.quadraticCurveTo(dir * .2084, .29, dir * .2324, .496); });
       }
       // Collar: joined just below the neck trim, with two rows of stitching under it.
-      const crew = this.kind === 'tee' || this.kind === 'polo';
+      const crew = this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo';
       const neckline = (drop, inset) => (crew
         ? (c) => { c.moveTo(-.09 + inset, .745 - drop); c.quadraticCurveTo(0, (back ? .73 : .66) - drop, .09 - inset, .745 - drop); }
         : (c) => { c.moveTo(-.089 + inset, .745 - drop); c.lineTo(0, (back ? .69 : .668) - drop); c.lineTo(.089 - inset, .745 - drop); });
       seams.push(neckline(.0095, 0));
       for (const drop of [.0125, .0165]) stitches.push(neckline(drop, 0));
     }
-    if (sleeves) {
+    if (sleeves && !raglan) {
       // Set-in sleeves: the armhole seam from the shoulder down to the underarm, stitched on the body side.
       for (const dir of [-1, 1]) {
         seams.push((c) => { c.moveTo(dir * .257, .687); c.quadraticCurveTo(dir * .273, .61, dir * .261, .531); });
@@ -223,13 +282,18 @@ export class KitPainter {
   edges() {
     if (this._edges) return this._edges;
     const poly = this.outline, n = poly.length, shorts = this.kind === 'shorts';
-    const sleeves = ['jersey', 'tee', 'polo'].includes(this.kind);
-    const a = { x: 0.418, y: 0.566 }, b = { x: 0.372, y: 0.476 }, dx = b.x - a.x, dy = b.y - a.y;
+    const sleeves = ['jersey', 'tee', 'raglan', 'polo'].includes(this.kind);
+    // The cuff's corners: the garment's own (the raglan's, garment.js points) or the tee's.
+    const [ax, ay] = this.points?.CT ?? [0.418, 0.566], [bx, by] = this.points?.CB ?? [0.372, 0.476];
+    const a = { x: ax, y: ay }, b = { x: bx, y: by }, dx = b.x - a.x, dy = b.y - a.y;
     const onCuff = (p) => {
       const x = Math.abs(p.x), t = ((x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy);
       return t >= 0 && t <= 1 && Math.hypot(x - a.x - dx * t, p.y - a.y - dy * t) < 0.006;
     };
-    const kinds = poly.map((p) => (p.y < 0.03 && (!shorts || Math.abs(p.x) > 0.035) ? 'hem' : sleeves && onCuff(p) ? 'cuff' : null));
+    // Shorts made with their finished edges marked (legs with side splits) take those: the hem curves up into the split.
+    const kinds = shorts && this.edgeMask
+      ? poly.map((p, i) => (this.edgeMask[i] && p.y < this.frame.maxY - 0.05 ? 'hem' : null))
+      : poly.map((p) => (p.y < 0.03 && (!shorts || Math.abs(p.x) > 0.035) ? 'hem' : sleeves && onCuff(p) ? 'cuff' : null));
     const runs = [], start = kinds.findIndex((k, i) => k !== kinds[(i - 1 + n) % n]);
     for (let i = Math.max(0, start), seen = 0; start >= 0 && seen < n;) {
       const kind = kinds[i], points = [];
@@ -347,6 +411,23 @@ export class KitPainter {
   async paint(design) {
     const g = this.ctx;
     g.setTransform(1, 0, 0, 1, 0, 0);
+    // A factory print layout: its panels are the print (warped into layoutBase by layout-warp.js); only the
+    // sewing and the user's own artwork go on top.
+    if (design.layout && this.layoutBase) {
+      g.fillStyle = this.layoutFill ?? design.main;
+      g.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      g.drawImage(this.layoutBase, 0, 0, this.canvas.width, this.canvas.height);
+      for (const back of [false, true]) {
+        g.save();
+        this.clipOutline(back);
+        this.stitches(back, this.tailoring(back).stitches);
+        g.restore();
+      }
+      this.marks = [];
+      await this.paintLayers(design);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      return this.canvas;
+    }
     g.fillStyle = design.main;
     g.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -367,7 +448,7 @@ export class KitPainter {
       this.proceduralPattern(design);
 
       const shorts = this.kind === 'shorts';
-      const sleeves = ['jersey', 'tee', 'polo'].includes(this.kind);
+      const sleeves = ['jersey', 'tee', 'raglan', 'polo'].includes(this.kind);
       g.fillStyle = design.secondary;
       for (const dir of [-1, 1]) {
         g.beginPath();
@@ -390,7 +471,7 @@ export class KitPainter {
       // Bands an even width all the way round: the cuffs, the hem (leg hems on shorts), and
       // the waistband. Each reaches a little past the edge so the rolled hem is banded too.
       for (const run of this.edges()) this.band(run.points, run.kind === 'cuff' ? CUFF_BAND : HEM_BAND);
-      if (shorts) g.fillRect(-0.3, 0.395, 0.6, 0.03);
+      if (shorts) g.fillRect(-0.4, (this.points?.CF?.[1] ?? 0.42) - 0.025, 0.8, 0.03);
 
       // AI pattern across the shoulders and sleeves (the yoke), fading out.
       if (this._stencil) {
@@ -427,7 +508,7 @@ export class KitPainter {
       this.side(back);
       g.strokeStyle = design.secondary;
       g.lineWidth = 0.018;
-      if (this.kind === 'tee' || this.kind === 'polo') {
+      if (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo') {
         g.beginPath();
         g.moveTo(-0.092, 0.745);
         g.quadraticCurveTo(0, back ? 0.73 : 0.66, 0.092, 0.745);
@@ -455,9 +536,11 @@ export class KitPainter {
       g.restore();
     }
 
-    // Front: wordmark and crest. Back: name and number.
+    // The fixed marks: wordmark, sponsor and crest on the front, name and number on the back (shorts: crest,
+    // number and a small wordmark). Each can be moved, resized, turned or hidden on the design board.
     const logo = (design.logoText || '').toUpperCase();
     const textOutline = mix(design.main, '#000000', 0.5);
+    this.marks = [];
     if (this.kind === 'shorts') {
       await this.paintShortsMarks(design, logo, textOutline);
       await this.paintLayers(design);
@@ -465,26 +548,16 @@ export class KitPainter {
       return this.canvas;
     }
     const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text');
-    this.text(false, logo, 0, 0.47, 0.085, design.accent, { maxWidth: 0.3, outline: textOutline });
+    this.markText(design, 'wordmark', { side: 'front', x: 0, y: 0.47 }, logo, 0.085, design.accent, 0.3, textOutline);
     // Sponsor logo: front, centred below the wordmark, fitted into 17 x 6.5 cm.
     if (design.sponsorImage) {
       if (design.sponsorImage !== this._sponsorKey) {
         this._sponsor = await loadImage(design.sponsorImage).catch(() => null);
         this._sponsorKey = design.sponsorImage;
       }
-      if (this._sponsor) {
-        const k = Math.min(0.17 / this._sponsor.width, 0.065 / this._sponsor.height);
-        const w = this._sponsor.width * k, h = this._sponsor.height * k;
-        this.side(false);
-        g.save();
-        g.translate(0, 0.335);
-        g.scale(1, -1);
-        g.drawImage(this._sponsor, -w / 2, -h / 2, w, h);
-        g.restore();
-      }
+      if (this._sponsor) this.markImage(design, 'sponsor', { side: 'front', x: 0, y: 0.335 }, this._sponsor, 0.17, 0.065);
     }
     if (design.logoImage) {
-      // Uploaded club logo on the chest, fitted into a 7 cm box.
       if (design.logoImage !== this._logoKey) {
         this._logo = await loadImage(design.logoImage).catch(() => null);
         this._logoKey = design.logoImage;
@@ -493,35 +566,14 @@ export class KitPainter {
       this._logo = null;
       this._logoKey = null;
     }
-    this.side(false);
-    g.save();
-    g.translate(0.105, 0.6);
-    if (ownArt && !this._logo) {
-      // No default crest: the user's own artwork is on the kit.
-    } else if (this._logo) {
-      const box = 0.07, k = box / Math.max(this._logo.width, this._logo.height);
-      g.scale(1, -1);
-      g.drawImage(this._logo, (-this._logo.width * k) / 2, (-this._logo.height * k) / 2, this._logo.width * k, this._logo.height * k);
-    } else {
-      g.fillStyle = design.accent;
-      g.beginPath();
-      g.moveTo(0, 0.034);
-      g.lineTo(0.028, 0.018);
-      g.lineTo(0.022, -0.02);
-      g.lineTo(0, -0.036);
-      g.lineTo(-0.022, -0.02);
-      g.lineTo(-0.028, 0.018);
-      g.closePath();
-      g.fill();
-    }
-    g.restore();
-    if (!this._logo && !ownArt) this.text(false, '3D', 0.105, 0.6, 0.03, design.main, { maxWidth: 0.04 });
+    // Uploaded club logo on the chest, fitted into a 7 cm box; else the 3DEEZI shield (none when the user's own
+    // artwork is on the kit).
+    const crest = { side: 'front', x: 0.105, y: 0.6 };
+    if (this._logo) this.markImage(design, 'crest', crest, this._logo, 0.07, 0.07);
+    else if (!ownArt) this.markShield(design, 'crest', crest, [[0, 0.034], [0.028, 0.018], [0.022, -0.02], [0, -0.036], [-0.022, -0.02], [-0.028, 0.018]], 0.03, 0.04);
     const backName = (design.backName || logo).toUpperCase();
-    this.text(true, backName, 0, 0.6, 0.06, design.accent, { maxWidth: 0.28, outline: textOutline });
-    this.text(true, String(design.number ?? '23'), 0, 0.38, 0.24, design.accent, {
-      maxWidth: 0.3,
-      outline: textOutline,
-    });
+    this.markText(design, 'name', { side: 'back', x: 0, y: 0.6 }, backName, 0.06, design.accent, 0.28, textOutline);
+    this.markText(design, 'number', { side: 'back', x: 0, y: 0.38 }, String(design.number ?? '23'), 0.24, design.accent, 0.3, textOutline);
     await this.paintLayers(design);
     g.setTransform(1, 0, 0, 1, 0, 0);
     return this.canvas;
@@ -667,34 +719,11 @@ export class KitPainter {
       this._logo = crest ? await loadImage(crest).catch(() => null) : null;
       this._logoKey = crest;
     }
-    this.side(false);
-    g.save();
-    g.translate(0.15, 0.13);
-    if (this._logo) {
-      const box = 0.055, k = box / Math.max(this._logo.width, this._logo.height);
-      g.scale(1, -1);
-      g.drawImage(this._logo, (-this._logo.width * k) / 2, (-this._logo.height * k) / 2, this._logo.width * k, this._logo.height * k);
-    } else if (ownArt) {
-      // No default crest: the user's own artwork is on the shorts.
-    } else {
-      g.fillStyle = design.accent;
-      g.beginPath();
-      g.moveTo(0, 0.026);
-      g.lineTo(0.022, 0.014);
-      g.lineTo(0.017, -0.016);
-      g.lineTo(0, -0.028);
-      g.lineTo(-0.017, -0.016);
-      g.lineTo(-0.022, 0.014);
-      g.closePath();
-      g.fill();
-    }
-    g.restore();
-    if (!this._logo && !ownArt) this.text(false, '3D', 0.15, 0.13, 0.024, design.main, { maxWidth: 0.032 });
-    this.text(false, String(design.number ?? '23'), -0.15, 0.12, 0.075, design.accent, {
-      maxWidth: 0.12,
-      outline: textOutline,
-    });
-    this.text(true, logo, 0, 0.33, 0.04, design.accent, { maxWidth: 0.2, outline: textOutline });
+    const crestAt = { side: 'front', x: 0.15, y: 0.13 };
+    if (this._logo) this.markImage(design, 'crest', crestAt, this._logo, 0.055, 0.055);
+    else if (!ownArt) this.markShield(design, 'crest', crestAt, [[0, 0.026], [0.022, 0.014], [0.017, -0.016], [0, -0.028], [-0.017, -0.016], [-0.022, 0.014]], 0.024, 0.032);
+    this.markText(design, 'number', { side: 'front', x: -0.15, y: 0.12 }, String(design.number ?? '23'), 0.075, design.accent, 0.12, textOutline);
+    this.markText(design, 'wordmark', { side: 'back', x: 0, y: 0.33 }, logo, 0.04, design.accent, 0.2, textOutline);
     g.setTransform(1, 0, 0, 1, 0, 0);
     return this.canvas;
   }

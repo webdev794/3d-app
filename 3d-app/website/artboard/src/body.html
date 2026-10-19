@@ -3,7 +3,9 @@
     <div class="brand"><img src="__LOGO__" alt="3DEEZI"><span>ARTBOARD</span></div>
     <nav class="menus" aria-label="Menu">
       <div class="menu"><button>File</button><div class="drop">
-        <button data-action="new">New document <small>clears every page</small></button><button data-action="open">Import… <small>Ctrl+I · SVG, PNG, JPG, CDR</small></button><hr>
+        <button data-action="new">New document <small>clears every page</small></button><button data-action="templateNew">New from template… <small>starter layouts and yours</small></button><button data-action="docOpen">Open from my account… <small>Ctrl+O</small></button><hr>
+        <button data-action="docSave">Save to my account <small>Ctrl+S</small></button><button data-action="docSaveAs">Save as… <small>a new copy · Ctrl+Shift+S</small></button><button data-action="templateSave">Save as template… <small>reuse the layout</small></button><hr>
+        <button data-action="open">Import… <small>Ctrl+I · SVG, PNG, JPG, CDR</small></button><hr>
         <button data-action="exportPdf">Export PDF <small>vector · Ctrl+E</small></button><button data-action="exportSvg">Export SVG <small>vector</small></button>
         <button data-action="exportPng">Export artwork <small>transparent PNG</small></button><button data-action="exportPage">Export page <small>PNG 300 DPI</small></button><hr>
         <button data-action="send">Send to 3D Studio</button></div></div>
@@ -61,6 +63,10 @@
         <button data-action="fullscreen">Full screen</button></div></div>
       <div class="menu"><button>Help</button><div class="drop"><button data-action="help">Tools and shortcuts</button><button data-action="supportFile">Save page for support <small>a file to send us</small></button></div></div>
     </nav>
+    <div class="go-tabs" role="group" aria-label="Start a new kit">
+      <button class="go-tab ai" id="goAi" data-icon="spark" title="AI Powered Sportswear: describe your kit and AI designs it (your artwork stays here)"><span>AI</span></button>
+      <button class="go-tab" id="goDyo" data-icon="shirt" title="Design Your Own: choose a sport and garment, then design it in the 3D Studio (your artwork stays here)"><span>DYO</span></button>
+    </div>
     <div class="top-actions">
       <button class="round" id="undo" title="Undo (Ctrl+Z)" data-icon="undo"></button>
       <button class="round" id="redo" title="Redo (Ctrl+Y)" data-icon="redo"></button>
@@ -199,6 +205,7 @@
         <span class="pal-group" id="palBrand" hidden><span class="pal-label" id="palBrandName"></span></span>
         <span class="pal-group" id="palDoc" hidden><span class="pal-label">Document</span></span>
         <span class="pal-group" id="palMain"></span>
+        <button class="pal-more" id="palMore" type="button" data-icon="more" aria-label="Right-click menu" title="Right-click menu: tap this, then tap an item (an object, a page tab, a tool or a colour) to open its menu"></button>
       </div>
     </main>
 
@@ -278,6 +285,7 @@
 
   <footer class="foot">
     <div class="page-nav"><button class="ptab-arrow" id="pageLeft" type="button" title="Show the page tabs to the left" hidden>‹</button><div class="page-tabs" id="pageTabs" aria-label="Pages"></div><button class="ptab-arrow" id="pageRight" type="button" title="Show the page tabs to the right" hidden>›</button><button class="ptab add" id="pageAddBtn" type="button" title="Insert a page after this one (Layout > Insert page)">+</button></div>
+    <button id="docName" class="doc-name hide-sm" type="button" hidden></button>
     <span class="hide-sm">RGB</span><span class="hide-sm">300 DPI</span>
     <select id="pageSize" title="Page size"></select><span id="customSize" class="custom-size" hidden><input id="pageW" type="number" min="0" step="any" aria-label="Page width"> x <input id="pageH" type="number" min="0" step="any" aria-label="Page height"> <span id="pageUnit">mm</span></span><span id="pageInfo" class="hide-sm"></span>
     <button id="selInfo" class="sel-info" type="button" hidden title="ID of the selected item: click to copy it"></button>
@@ -312,6 +320,37 @@
   <p class="corel-lead">This design has more than one page. Which pages go in the PDF?</p>
   <div class="corel-actions"><form method="dialog"><button>Cancel</button></form><button id="pdfAll">All pages</button><button class="grad" id="pdfThis">This page only</button></div>
 </dialog>
+<dialog class="help docs" id="docsDialog">
+  <h3><span id="docsTitle">Open from my account</span> <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <div class="docs-bar"><div class="docs-tabs" role="tablist"><button type="button" data-docs-tab="designs" class="on">My designs</button><button type="button" data-docs-tab="templates">Templates</button></div><input id="docsFind" placeholder="Find by name" aria-label="Find by name" autocomplete="off"></div>
+  <div class="docs-grid" id="docsGrid"></div>
+  <p class="docs-note" id="docsNote"></p>
+</dialog>
+<dialog class="help corel" id="saveDialog">
+  <h3><span id="saveTitle">Save to my account</span> <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <p class="corel-lead" id="saveLead"></p>
+  <label class="save-field">Name<input id="saveName" maxlength="120" autocomplete="off"></label>
+  <p class="save-error" id="saveError" role="alert"></p>
+  <div class="corel-actions"><form method="dialog"><button>Cancel</button></form><button class="grad" id="saveOk">Save</button></div>
+</dialog>
+<dialog class="help corel send-dialog" id="sendDialog">
+  <h3>Send to 3D Studio <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <div class="send-top"><span class="send-pic"><img id="sendImg" alt="The artwork to send"></span>
+    <fieldset class="send-to"><legend>Put the artwork on</legend>
+      <label><input type="radio" name="sendTo" value="current" checked><span>The kit in the 3D Studio<small id="sendKitName"></small></span></label>
+      <label id="sendGarmentRow"><input type="radio" name="sendTo" value="garment"><span>A new kit<select id="sendGarment" aria-label="Garment for the new kit"></select><small>replaces the kit open in the Studio</small></span></label>
+      <label><input type="radio" name="sendTo" value="project"><span>One of my projects<select id="sendProject" aria-label="Project"></select><small>opens it in the Studio</small></span></label>
+    </fieldset></div>
+  <label class="save-field" id="sendPlaceRow">Place on<select id="sendPlace"></select></label>
+  <p class="send-update" id="sendUpdate" hidden>This design is already on that kit: its artwork there is updated in place (same position and size).</p>
+  <label class="save-field" id="sendNameRow">Design name <small>kept in your account, so you can change it later: Edit in Artboard in the Studio</small><input id="sendName" maxlength="120" autocomplete="off"></label>
+  <p class="corel-tip" id="sendSignIn" hidden>Only the picture is sent. <button type="button" class="mini">Sign in</button> to keep the editable design with it (Edit in Artboard in the Studio).</p>
+  <div class="corel-actions"><form method="dialog"><button>Cancel</button></form><button class="grad" id="sendOk">Send to 3D Studio</button></div>
+</dialog>
+<dialog class="help corel" id="askDialog">
+  <p class="corel-lead" id="askText"></p>
+  <div class="corel-actions"><button type="button" id="askNo">Cancel</button><button type="button" class="grad" id="askYes">OK</button></div>
+</dialog>
 <dialog class="help corel" id="fontDialog">
   <h3>Add fonts <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
   <p class="corel-lead">These files hold more than one font family. Tick the ones to add:</p>
@@ -320,6 +359,7 @@
 </dialog>
 <div class="toast" id="toast" role="status"></div>
 <div class="page-menu drop" id="pageMenu" hidden></div>
+<div class="rc-tip" id="rcTip" role="tooltip" hidden><b>Right-click menu</b>Now tap an item: an object on the page, a page tab, a tool or a colour. Its right-click menu opens (on an empty part of the page: the page menu, to rename, duplicate or delete it).<small>On a phone or tablet you can also hold your finger on an item for a moment.</small><button type="button" id="rcCancel">Cancel</button></div>
 <dialog class="help" id="helpDialog">
   <h3>Tools and shortcuts <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
   <div class="help-cols">

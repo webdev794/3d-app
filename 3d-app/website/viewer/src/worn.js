@@ -25,6 +25,8 @@ function wrap(x, half, k, back) {
   const a = (4 * half) / (Math.PI * ellipseF(k)), th = (THREE.MathUtils.clamp(Math.abs(x) / half, 0, 1) * Math.PI) / 2;
   return { x: Math.sign(x) * a * Math.sin(th), z: (back ? -1 : 1) * k * a * Math.cos(th), a, th };
 }
+/** max(0, x) with its corner rounded over about `k`. */
+const softPlus = (x, k) => (x > 8 * k ? x : x < -8 * k ? 0 : k * Math.log1p(Math.exp(x / k)));
 /** A rounded swelling: 1 in the middle, easing to 0 at radius 1 (u, v in radii). */
 const pillow = (u, v, inner) => { const r = Math.hypot(u, v); return r >= 1 ? 0 : 1 - ramp(inner, 1, r); };
 const groove = (d, w) => Math.exp(-(d * d) / (2 * w * w));
@@ -70,14 +72,20 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   }
   const inSleeve = (p) => sleeved && half(p.y) - Math.abs(p.x) < 0 && p.y > 0.44 && p.y < 0.7;
   // Depth / width of the body: fuller at the chest, a little less at the waist, thin
-  // across the shoulders (wide but shallow).
-  const depthRatio = (y) => 0.66 + 0.06 * ramp(0.25, 0.45, y) - 0.2 * ramp(0.56, 0.74, y);
+  // across the shoulders (wide but shallow). A loose top hangs straight down from the chest,
+  // standing off the stomach instead of following it in.
+  const depthRatio = spec.loose
+    ? (y) => 0.715 + 0.01 * ramp(0.25, 0.45, y) - 0.2 * ramp(0.56, 0.74, y)
+    : (y) => 0.66 + 0.06 * ramp(0.25, 0.45, y) - 0.2 * ramp(0.56, 0.74, y);
   // Over the shoulders the panel narrows fast towards the neck. Wrapping each height on its
   // own would drag the shoulder seam in towards the neck, so the shoulders keep most of the
   // width below them (the seam stays on top: see topSeam).
   const wrapHalf = (y) => (y <= TOP ? half(y) : half(TOP) - 0.75 * (half(TOP) - half(y)));
-  // A slight athletic V: the waist a little narrower than the chest.
-  const taper = (y) => 1 - 0.045 * ramp(0.5, 0.3, y) + 0.015 * ramp(0.25, 0.05, y);
+  // A slight athletic V: the waist a little narrower than the chest. Loose: no waist, a little
+  // fuller towards the hem.
+  const taper = spec.loose
+    ? (y) => 1 + 0.03 * ramp(0.34, 0.04, y)
+    : (y) => 1 - 0.045 * ramp(0.5, 0.3, y) + 0.015 * ramp(0.25, 0.05, y);
   // Crew necks: the front neckline is a round U (the flat pattern's is nearly straight-sided).
   const neckCurve = spec.half.slice(0, 3), [neckX, neckTop] = neckCurve[2], neckLow = neckCurve[0][1];
   const neckDrop = (ax) => (ax >= neckX ? 0 : neckTop - (neckTop - neckLow) * Math.sqrt(1 - (ax / neckX) ** 2) - along(neckCurve, ax));
@@ -112,6 +120,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     if (!back) {
       const v = y - 0.565 - 0.1 * (ax - 0.09);
       let h = 0.006 * pillow((ax - 0.09) / 0.1, v / (v > 0 ? 0.075 : 0.06), 0.15);
+      // A loose top falls from the chest: none of the stomach shows through.
+      if (spec.loose) return 0.7 * h;
       // A faint hint of abs: three soft bands, just enough for a little shadow between them.
       for (const row of [0.447, 0.372, 0.297]) h += 0.0026 * pillow(ax / 0.082, (y - row) / 0.036, 0.3);
       return h - 0.0011 * groove(ax, 0.006) * ramp(0.26, 0.3, y) * ramp(0.49, 0.46, y);
@@ -123,7 +133,9 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
 
   // Sleeves. In the flat pattern a sleeve runs from the armhole edge (x ≈ 0.258) to the
   // cuff: s along it, t across it (+ towards the top seam).
-  const m0 = new THREE.Vector2(0.258, (PIT + TOP) / 2), m1 = new THREE.Vector2(0.395, 0.521);
+  // m1: the middle of the cuff (a cut with its own cuff corners, as the raglan's, says where).
+  const own = spec.points?.CT && spec.points?.CB ? [(spec.points.CT[0] + spec.points.CB[0]) / 2, (spec.points.CT[1] + spec.points.CB[1]) / 2] : [0.395, 0.521];
+  const m0 = new THREE.Vector2(0.258, (PIT + TOP) / 2), m1 = new THREE.Vector2(own[0], own[1]);
   const d2 = m1.clone().sub(m0).normalize(), n2 = new THREE.Vector2(-d2.y, d2.x);
   const flat = (x, y) => { const qx = x - m0.x, qy = y - m0.y; return [qx * d2.x + qy * d2.y, qx * n2.x + qy * n2.y]; };
   const c = -d2.y / n2.y;                       // s + c·t = 0 along the armhole edge
@@ -176,7 +188,9 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     const rN = THREE.MathUtils.lerp(rN0, r1, ramp(-0.01, 0.07, a)) + 0.007 * Math.max(0, sin) * deltoid(a) + band;
     const rB = THREE.MathUtils.lerp(rB0, r1, ramp(0, 0.08, a)) + 0.004 * deltoid(a) + band;
     const y = A.y + Math.cos(th) * rN * sin;
-    return new THREE.Vector3(A.x + Math.sin(th) * rN * sin, y, sg * rB * Math.cos(phi) + 0.08 * Math.max(0, PIT - y));
+    // Below the armpit the arm comes a little forward: eased in (a sharp start would put a kink in every ring
+    // round a sleeve end at that height, bending its bands and stripes).
+    return new THREE.Vector3(A.x + Math.sin(th) * rN * sin, y, sg * rB * Math.cos(phi) + 0.08 * softPlus(PIT - y, 0.02));
   };
   /** Where along the arm the armhole is at angle phi: the arm cut by the body's side. */
   const cut = (phi, sg) => {
@@ -203,7 +217,10 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     const k = q.clone().sub(ca).dot(cuffDir) / cuffDir.lengthSq();
     return k > 0 && k < 1 && q.distanceTo(ca.clone().addScaledVector(cuffDir, k)) < 0.006;
   };
-  const cuffAt = [ca, cb, ...outline.filter((q) => q.x > 0.3 && onCuffEdge(q))].map((q) => {
+  // Taken along the straight line between the cuff's corners (the drawn outline bows a little off it), so lines
+  // parallel to the cuff, such as a printed band's edges, go round the arm as flat rings.
+  const cuffLine = Array.from({ length: 25 }, (_, k) => ca.clone().lerp(cb, k / 24));
+  const cuffAt = cuffLine.map((q) => {
     const [s, t] = flat(q.x, q.y), phi = phiAt(s, t);
     return [phi, s + c * hw0 * ((2 * phi) / Math.PI)];
   }).sort((p, q) => p[0] - q[0]);
@@ -219,8 +236,10 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     const sg = back ? -1 : 1, [s, t] = flat(Math.abs(p.x), p.y), phi = phiAt(s, t);
     const l = s + c * hw0 * ((2 * phi) / Math.PI);  // distance from the armhole along the sleeve
     // The last few centimetres (the hem band) keep their flat length, so the band is even all
-    // round; the rest of the sleeve takes up the difference between top and underside.
-    const a0 = rootAt(phi, sg), lc = cuffL(phi), keep = Math.min(0.035, lc * 0.4);
+    // round; the rest of the sleeve takes up the difference between top and underside. Printed
+    // cuff bands (print layouts) can be taller: up to 7 cm is kept.
+    const a0 = rootAt(phi, sg), lc = cuffL(phi);
+    const keep = spec.cuffKeep ? Math.min(spec.cuffKeep, lc * 0.6, Math.max(0.035, (aCuff - a0) * 0.7)) : Math.min(0.035, lc * 0.4);
     const a = l > lc - keep ? aCuff - (lc - l) : a0 + ((aCuff - keep - a0) * l) / (lc - keep);
     const out = surface(a, phi, sg, 0.0016 * ramp(lc - 0.021, lc - 0.017, l));
     if (p.x < 0) out.x = -out.x;
@@ -252,13 +271,19 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
 /**
  * Shorts, worn: hips round an ellipse, each leg round a thigh, fuller towards the top, the two
  * meeting at the crotch; above it the front scoops in between the legs (the V) and rises to the
- * hips. Behind, the seat is rounded and the waistband rises a little over it.
+ * hips. Behind, the seat is rounded and the waistband rises a little over it. `spec.worn` gives a
+ * cut its own measurements (training shorts: roomy hips flaring to short, wide legs).
  */
-export function wornShorts() {
-  const sideSeam = [[0.02, 0.272], [0.16, 0.25], [0.32, 0.232], [0.42, 0.215]];
-  const inner = [[0.02, 0.05], [0.15, 0.012], [0.17, 0]];
-  const CROTCH = 0.17;
-  const hips = (p, back) => { const w = wrap(p.x, along(sideSeam, p.y), 0.72, back); return new THREE.Vector3(w.x, p.y, w.z); };
+export function wornShorts(spec = {}) {
+  const m = spec.worn ?? {};
+  const sideSeam = m.sideSeam ?? [[0.02, 0.272], [0.16, 0.25], [0.32, 0.232], [0.42, 0.215]];
+  const inner = m.inner ?? [[0.02, 0.05], [0.15, 0.012], [0.17, 0]];
+  const CROTCH = m.crotch ?? 0.17, TOP = sideSeam.at(-1)[0];
+  const [blendLo, blendHi] = m.blend ?? [0.16, 0.3];
+  const [inLo, inHi] = m.legIn ?? [0.03, 0.004], [outLo, outHi] = m.legOut ?? [0.202, 0.184], [depthLo, depthHi] = m.legDepth ?? [0.064, 0.097];
+  // How much of the body shows through (loose cuts: little; behind, the seat hardly at all).
+  const reliefScale = m.relief ?? 1, seatScale = m.seat ?? reliefScale;
+  const hips = (p, back) => { const w = wrap(p.x, along(sideSeam, p.y), m.hipDepth ?? 0.72, back); return new THREE.Vector3(w.x, p.y, w.z); };
   const leg = (p, back) => {
     const xi = along(inner, p.y), xo = along(sideSeam, p.y);
     const u = THREE.MathUtils.clamp((Math.abs(p.x) - xi) / (xo - xi), 0, 1), phi = (u - 0.5) * Math.PI;
@@ -266,41 +291,44 @@ export function wornShorts() {
     // and flaring a little from the hips to a wide opening; fuller towards the crotch (thigh and
     // seat), where the legs meet in the middle.
     const top = ramp(0.02, CROTCH, p.y);
-    const xIn = THREE.MathUtils.lerp(0.03, 0.004, top), xOut = THREE.MathUtils.lerp(0.202, 0.184, top);
-    const rx = (xOut - xIn) / 2, xc = (xOut + xIn) / 2, rz = THREE.MathUtils.lerp(0.064, 0.097, top), zc = 0.012 * top;
+    const xIn = THREE.MathUtils.lerp(inLo, inHi, top), xOut = THREE.MathUtils.lerp(outLo, outHi, top);
+    const rx = (xOut - xIn) / 2, xc = (xOut + xIn) / 2, rz = THREE.MathUtils.lerp(depthLo, depthHi, top), zc = 0.012 * top;
     // Evenly spaced round the oval, so prints on the legs keep their proportions.
     const e = (rx - rz) / (rx + rz), psi = phi, at = psi - (e / 2) * Math.sin(2 * psi);
     return new THREE.Vector3(Math.sign(p.x || 1) * (xc + rx * Math.sin(at)), p.y, zc + (back ? -1 : 1) * rz * Math.cos(at));
   };
   /** Behind, the waistband rises a little towards the middle, over the seat. */
-  const rise = (p, back) => (back ? 0.012 * ramp(0.25, 0.42, p.y) * Math.cos((Math.PI / 2) * Math.min(1, Math.abs(p.x) / 0.2)) ** 2 : 0);
+  const rise = (p, back) => (back ? 0.012 * ramp(TOP - 0.17, TOP, p.y) * Math.cos((Math.PI / 2) * Math.min(1, Math.abs(p.x) / 0.2)) ** 2 : 0);
   /**
    * The body under the fabric (metres, + out). In front, a soft fullness above the crotch and the
    * creases where the thighs meet it, running from the crotch up and out to the hips. Behind, the
-   * seat: two rounded glutes either side of the centre seam, a crease under each.
+   * seat: two rounded glutes either side of the centre seam, a crease under each. Loose cuts show
+   * less of it.
    */
   const relief = (p, back) => {
     const ax = Math.abs(p.x), y = p.y;
     if (!back) {
-      const v = line(ax, y, [0.01, 0.178], [0.17, 0.28]);
-      return 0.0035 * pillow(ax / 0.07, (y - 0.25) / 0.07, 0.3)
-        - 0.0018 * groove(v.d, 0.012) * ramp(-0.05, 0.15, v.t) * ramp(1.1, 0.7, v.t);
+      const v = line(ax, y, [0.01, CROTCH + 0.008], [0.17, CROTCH + 0.11]);
+      return reliefScale * (0.0035 * pillow(ax / 0.07, (y - CROTCH - 0.08) / 0.07, 0.3)
+        - 0.0018 * groove(v.d, 0.012) * ramp(-0.05, 0.15, v.t) * ramp(1.1, 0.7, v.t));
     }
-    const fold = y - (0.165 + 0.035 * ramp(0.04, 0.2, ax));
-    return 0.013 * pillow((ax - 0.095) / 0.105, (y - 0.255) / 0.1, 0.2)
-      - 0.004 * groove(ax, 0.009) * ramp(0.17, 0.22, y) * ramp(0.4, 0.3, y)
-      - 0.0025 * groove(fold, 0.01) * ramp(0.02, 0.06, ax) * ramp(0.22, 0.17, ax);
+    const fold = y - (CROTCH - 0.005 + 0.035 * ramp(0.04, 0.2, ax));
+    return seatScale * (0.013 * pillow((ax - 0.095) / 0.105, (y - CROTCH - 0.085) / 0.1, 0.2)
+      - 0.004 * groove(ax, 0.009) * ramp(CROTCH, CROTCH + 0.05, y) * ramp(CROTCH + 0.23, CROTCH + 0.13, y)
+      - 0.0025 * groove(fold, 0.01) * ramp(0.02, 0.06, ax) * ramp(0.22, 0.17, ax));
   };
   /** Baked shadow: deep in the crotch, and the inner thighs where they face each other. */
   const shade = (p) => {
     const ax = Math.abs(p.x), y = p.y;
-    const crotch = Math.exp(-(ax ** 2 + (y - 0.178) ** 2) / 0.0016);
-    const inside = y < 0.2 ? Math.exp(-((ax - along(inner, y)) ** 2) / 0.0014) * ramp(0, 0.13, y) : 0;
-    return 1 - 0.34 * crotch - 0.22 * inside * (1 - crotch);
+    const crotch = Math.exp(-(ax ** 2 + (y - CROTCH - 0.008) ** 2) / 0.0016);
+    const inside = y < CROTCH + 0.03 ? Math.exp(-((ax - along(inner, y)) ** 2) / 0.0014) * ramp(0, CROTCH - 0.04, y) : 0;
+    // Loose cuts (training shorts) hang away from the body: a lighter, smaller shadow there.
+    const deep = Math.min(1, reliefScale + 0.2);
+    return 1 - 0.34 * deep * crotch ** (2 - deep) - 0.22 * deep * inside * (1 - crotch);
   };
   return {
     at(p, back) {
-      const t = ramp(0.16, 0.3, p.y);
+      const t = ramp(blendLo, blendHi, p.y);
       const out = t >= 1 ? hips(p, back) : t <= 0 ? leg(p, back) : leg(p, back).lerp(hips(p, back), t);
       out.y += rise(p, back);
       return out;

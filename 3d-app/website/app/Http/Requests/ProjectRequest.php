@@ -24,7 +24,7 @@ class ProjectRequest extends FormRequest
             'garment' => [$required, Rule::in(array_column(config('catalog.garments'), 'id'))],
             'mode' => ['sometimes', Rule::in(['ai', 'dyo'])],
             'status' => ['sometimes', Rule::in(['draft', 'approved'])],
-            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,zones,layers,presetId'],
+            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,zones,layers,marks,layout,presetId'],
             'design.garment' => ['sometimes', Rule::in(array_column(config('catalog.garments'), 'id'))],
             'design.main' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.secondary' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
@@ -37,8 +37,31 @@ class ProjectRequest extends FormRequest
             'design.gradient.angle' => ['sometimes', 'numeric', 'between:-360,360'],
             'design.zones' => ['sometimes', 'array:body,yoke,sleeves,sides,hem'],
             'design.zones.*' => ['string', Rule::in([...$patterns, 'None'])],
+            // The fixed marks moved, resized, turned or hidden on the 2D panels.
+            'design.marks' => ['sometimes', 'array:top_wordmark,top_sponsor,top_crest,top_name,top_number,shorts_crest,shorts_number,shorts_wordmark'],
+            'design.marks.*' => ['array:side,x,y,scale,rot,hidden'],
+            'design.marks.*.side' => ['sometimes', Rule::in(['front', 'back'])],
+            'design.marks.*.x' => ['sometimes', 'numeric', 'between:-1,1'],
+            'design.marks.*.y' => ['sometimes', 'numeric', 'between:-0.5,1.5'],
+            'design.marks.*.scale' => ['sometimes', 'numeric', 'between:0.1,6'],
+            'design.marks.*.rot' => ['sometimes', 'numeric', 'between:-360,360'],
+            'design.marks.*.hidden' => ['sometimes', 'boolean'],
+            // A factory print layout on the kit: the file (one of the user's assets), the part each panel found in it
+            // is (in the order they are found), whether the plain strip under the body panels is the hem fold, and
+            // whether the white lines across the sleeves are joined up (left out, as in the mock-ups).
+            'design.layout' => ['sometimes', 'nullable', 'array:asset,name,roles,hemFold,joinLines,parts'],
+            'design.layout.asset' => ['required_with:design.layout', 'integer', Rule::exists('assets', 'id')->where('user_id', $this->user()?->id)],
+            'design.layout.name' => ['required_with:design.layout', 'string', 'max:160'],
+            'design.layout.roles' => ['required_with:design.layout', 'array', 'max:60'],
+            'design.layout.roles.*' => [Rule::in(['front', 'back', 'sleeveL', 'sleeveR', 'neck', 'legL', 'legR', 'none'])],
+            'design.layout.hemFold' => ['sometimes', 'boolean'],
+            'design.layout.joinLines' => ['sometimes', 'boolean'],
+            'design.layout.parts' => ['sometimes', 'array', 'max:2'],
+            'design.layout.parts.*' => [Rule::in(['raglan', 'shorts'])],
             'design.layers' => ['sometimes', 'array', 'max:40'],
-            'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape'],
+            'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape,artboard'],
+            // Artwork sent from the Artboard: the id of the design it came from (Edit in Artboard opens it again).
+            'design.layers.*.artboard' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'design.layers.*.id' => ['required', 'string', 'max:80', 'distinct:strict'],
             'design.layers.*.name' => ['sometimes', 'string', 'max:120'],
             'design.layers.*.type' => ['required', Rule::in(['image', 'text', 'shape'])],
@@ -71,6 +94,13 @@ class ProjectRequest extends FormRequest
             'thumbnail' => ['sometimes', 'nullable', 'string', 'max:4000000', $this->imageSourceRule()],
             'design.prompt' => ['sometimes', 'nullable', 'string', 'max:1500'],
             'expected_version' => ['sometimes', 'integer', 'min:1'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'design.layout.asset.exists' => 'The print layout file is no longer in your saved assets: remove the print layout (Artwork, Factory print layout) or upload it again.',
         ];
     }
 

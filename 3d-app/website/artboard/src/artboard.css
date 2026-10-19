@@ -25,11 +25,27 @@ svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .drop button small{color:var(--muted)}
 .drop hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 .top-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
-/* Twelve menus on medium screens: tighter menus, no wordmark, a smaller logo and icon-only buttons (their names on
-   hover), so Save, Export and Send stay on the screen. */
-@media(max-width:1640px) and (min-width:901px){.menu>button{padding:8px 7px}.brand span{display:none}}
+/* Quick access to AI Powered Sportswear and Design Your Own, after the menus. */
+.go-tabs{display:flex;gap:6px;align-items:center;flex-shrink:0;padding-left:10px;border-left:1px solid #ffffff1f}
+.go-tab{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;border:1.5px solid #12e1f066;color:#cfeff3;background:#06192a;font-family:Rajdhani,Inter,sans-serif;font-weight:700;font-size:15px;letter-spacing:.06em}
+.go-tab .i{width:15px;height:15px}
+.go-tab:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:var(--glow)}
+.go-tab.ai{border-color:transparent;color:#02131c;background:linear-gradient(110deg,var(--cyan),#7560ff)}
+.go-tab.ai:hover{color:#02131c;box-shadow:0 0 16px rgba(18,225,240,.55)}
+@media(max-width:1540px) and (min-width:901px){.go-tabs{padding-left:6px;gap:4px}.go-tab{padding:0 9px}.go-tab .i{display:none}}
+@media(max-width:1120px) and (min-width:901px){.go-tab{padding:0 8px;font-size:14px}}
+@media(max-width:900px){.go-tabs{padding-left:0;border-left:0;gap:4px}.go-tab{height:30px;padding:0 8px;font-size:13px}.go-tab .i{display:none}}
+/* Twelve menus and the AI / DYO tabs on medium screens: tighter menus, no wordmark, a smaller logo and icon-only
+   buttons (their names on hover), so Save, Export and Send stay on the screen. */
+@media(max-width:1880px) and (min-width:901px){.brand span{display:none}}
+@media(max-width:1640px) and (min-width:901px){.menu>button{padding:8px 7px}}
+@media(max-width:1540px) and (min-width:1360px){#save .lbl,.top-actions .menu>.btn .lbl{display:none}#save,.top-actions .menu>.btn{padding-left:10px;padding-right:10px}.top .brand img{height:30px}}
+@media(max-width:1000px) and (min-width:901px){#redo{display:none}.top .brand img{height:22px}.menus .menu>button{padding:6px 2px}.menus{margin-left:0}.app .top{gap:6px}.go-tabs{padding-left:0;border-left:0}}
+@media(max-width:480px){.top .brand img{height:16px}.app .top{gap:6px}.app .top-actions{gap:4px}.go-tab{padding:0 7px;font-size:12px}}
+@media(max-width:400px){.go-tab{padding:0 6px}.app .top{padding:0 6px}}
+@media(max-width:370px){.top .brand{display:none}}
 @media(max-width:1359px) and (min-width:901px){.top-actions .btn .lbl{display:none}.top-actions .btn{padding-left:10px;padding-right:10px}.menu>button{padding:8px 5px;font-size:13px}.menus{margin-left:2px}.top{gap:8px}.brand img{height:26px}}
-@media(max-width:1080px) and (min-width:901px){.menu>button{padding:6px 3px;font-size:12px}.top-actions{gap:4px}.top-actions .round{width:34px;height:34px}}
+@media(max-width:1120px) and (min-width:901px){.menu>button{padding:6px 3px;font-size:12px}.top-actions{gap:4px}.top-actions .round{width:34px;height:34px}}
 .round{width:40px;height:40px;border-radius:50%;border:1.5px solid #ffffff26;display:grid;place-items:center;background:#071420}
 .round:hover:not(:disabled){border-color:var(--cyan);box-shadow:var(--glow)}
 .round:disabled{opacity:.35;cursor:default}
@@ -378,3 +394,92 @@ dialog.help h3{display:flex;justify-content:space-between;align-items:center;mar
 /* Window > Colour palette off: the page area takes the palette's strip too. */
 .hide-palette .canvas-wrap{bottom:0}.hide-palette .ruler.v{height:calc(100% - 24px)}.hide-palette .hint{bottom:14px}
 @media (max-width:900px){.hide-palette .canvas-wrap{bottom:66px}.hide-palette .hint{bottom:80px}}
+/* Phones and tablets: the status bar never overlaps itself. Its items keep their size on one row (the page size box
+   takes the room that is left); when they still do not fit (several pages, a custom page size, a selection ID), the
+   bar scrolls sideways. */
+@media(max-width:900px){
+  .foot{overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  .foot::-webkit-scrollbar{display:none}
+  .foot>*{flex-shrink:0}
+  .page-nav{flex:none}
+  .page-tabs{max-width:150px}
+  #pageSize{max-width:150px}
+}
+@media(max-width:560px){
+  .foot{gap:6px;padding:0 6px}
+  .foot>.spacer{display:none}
+  .foot>label:not(.hide-sm){margin-left:auto}
+  .page-tabs{max-width:76px;min-width:56px}
+  #pageSize{flex:1 1 0;width:0;min-width:52px}
+  .custom-size input{width:44px}
+  .sel-info{max-width:64px;padding:3px 5px}
+}
+@media(max-width:400px){#zoomLabel{display:none}}
+@media(max-width:350px){#zoomMinus,#zoomPlus{display:none}}
+/* Right-click for touch screens: the ⋯ button at the end of the colour palette (always in view while the colours
+   scroll) and its tooltip. */
+.pal-more{position:sticky;right:0;margin-left:auto;flex:none;display:grid;place-items:center;width:32px;height:22px;padding:0;border-radius:6px;border:1px solid #12e1f066;background:#06192a;color:#cfeff3;box-shadow:-10px 0 8px #050c14;z-index:1}
+.pal-more .i{width:16px;height:16px}
+.pal-more:hover,.pal-more.on{border-color:var(--cyan);color:var(--cyan)}
+.pal-more.on{background:#05202d;box-shadow:-10px 0 8px #050c14,var(--glow)}
+body.right-tap #canvasWrap,body.right-tap .tool,body.right-tap .pc,body.right-tap .ptab{cursor:context-menu}
+.rc-tip{position:fixed;z-index:90;width:min(290px,calc(100vw - 16px));padding:10px 12px;border-radius:10px;background:#0b1622;border:1px solid var(--cyan);box-shadow:0 14px 40px #000c,var(--glow);color:#d8e3ec;font-size:12.5px;line-height:1.45}
+.rc-tip[hidden]{display:none}
+.rc-tip b{display:block;margin-bottom:3px;color:var(--cyan);font-size:13px}
+.rc-tip small{display:block;margin-top:5px;color:var(--muted)}
+#rcCancel{display:block;margin:8px 0 0 auto;padding:5px 14px;border-radius:14px;border:1px solid #12e1f066;background:#06192a;color:#cfeff3;font-weight:700}
+#rcCancel:hover{border-color:var(--cyan);color:var(--cyan)}
+/* No phone pop-ups (save image, select text) during a long press. */
+.app{-webkit-touch-callout:none}
+.page-tabs:empty{min-width:0}
+/* Projects: the design's name on the status bar, Open from my account / New from template, Save, Send to 3D Studio. */
+.doc-name{background:none;border:1px solid transparent;border-radius:6px;color:#cfdbe6;font:600 12px Inter,sans-serif;padding:3px 8px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1;min-width:0}
+.doc-name:hover{border-color:var(--line);color:var(--cyan)}
+.doc-name.dirty{color:#ffd27a}
+.doc-name[hidden]{display:none}
+dialog.docs{width:min(780px,94vw)}
+.docs-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 12px}
+.docs-tabs{display:flex;gap:4px;padding:3px;border:1px solid var(--line);border-radius:10px;background:#06101a}
+.docs-tabs button{padding:6px 14px;border-radius:7px;color:#b9c8d6;font-weight:600}
+.docs-tabs button.on{background:#0f2638;color:var(--cyan)}
+.docs-bar input{flex:1;min-width:160px;height:34px}
+.docs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;max-height:min(56vh,520px);overflow:auto;padding:2px}
+.doc-card{position:relative;border:1px solid #234257;border-radius:10px;background:#071420;min-width:0}
+.doc-card:hover{border-color:var(--cyan);box-shadow:var(--glow)}
+.doc-card[hidden]{display:none}
+.doc-open{display:flex;flex-direction:column;gap:3px;width:100%;padding:8px;text-align:left;color:#dbe6ef}
+.doc-thumb{display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;background:#0e1c29;border-radius:6px;overflow:hidden;margin-bottom:4px}
+.doc-thumb img{max-width:100%;max-height:100%;object-fit:contain}
+.doc-open b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-open small{color:#8fa3b6;font-size:11.5px;line-height:1.35}
+.doc-del{position:absolute;top:6px;right:6px;width:30px;height:30px;display:grid;place-items:center;border-radius:8px;background:#071420e6;border:1px solid #234257;color:#c9d6e2}
+.doc-del:hover{border-color:#ff6b6b;color:#ff8a8a}
+.doc-del .i{width:16px;height:16px}
+.doc-badge{display:inline-block;vertical-align:1px;font:700 9px Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase;background:var(--cyan);color:#02131c;border-radius:4px;padding:1px 5px}
+.docs-wait{grid-column:1/-1;color:#8fa3b6;font-size:13px;margin:18px 4px}
+.docs-note{font-size:12.5px;color:#8fa3b6;margin:12px 0 0;line-height:1.5}
+.docs-note:empty{display:none}
+.docs-note .mini{margin-left:6px;color:var(--cyan)}
+.save-field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#b9c8d6;margin:0 0 12px}
+.save-field small{color:#8fa3b6;font-size:11.5px}
+.save-field input,.save-field select{height:38px;font-size:14px}
+.save-field[hidden]{display:none}
+.save-error{color:#ff8a8a;font-size:12.5px;margin:-4px 0 10px;min-height:0}
+.save-error:empty{display:none}
+dialog.send-dialog{max-width:min(600px,94vw)}
+.send-top{display:flex;gap:16px;align-items:flex-start;margin:4px 0 14px}
+.send-pic{flex:none;width:120px;height:120px;display:grid;place-items:center;border-radius:10px;border:1px solid #234257;background:#e9eef2 repeating-conic-gradient(#d7dee4 0 25%,transparent 0 50%) 0 0/16px 16px;overflow:hidden}
+.send-pic img{max-width:100%;max-height:100%;object-fit:contain}
+.send-to{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:9px;min-width:0;flex:1}
+.send-to legend{padding:0;margin-bottom:6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.send-to label{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:#dbe6ef;cursor:pointer}
+.send-to label[hidden]{display:none}
+.send-to input[type=radio]{width:17px;height:17px;margin:2px 0 0;accent-color:var(--cyan);flex:none}
+.send-to label>span{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.send-to small{color:#8fa3b6;font-size:11.5px}
+.send-to select{height:32px;max-width:100%}
+.send-update{font-size:13px;color:#9ff3f8;background:#06232c;border:1px solid #12e1f055;border-radius:8px;padding:8px 10px;margin:0 0 12px}
+.send-update[hidden]{display:none}
+#sendSignIn .mini{color:var(--cyan)}
+#sendSignIn[hidden]{display:none}
+@media (max-width:600px){.send-top{flex-direction:column}.send-pic{width:100%;height:110px}}

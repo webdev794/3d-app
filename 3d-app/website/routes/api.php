@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\AiController;
+use App\Http\Controllers\ArtboardDocumentController;
 use App\Http\Controllers\AssistController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AuthController;
@@ -42,12 +43,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/assets', [AssetController::class, 'store'])->middleware('throttle:uploads');
         Route::get('/assets/{asset}/file', [AssetController::class, 'file'])->whereNumber('asset')->name('assets.file');
         Route::delete('/assets/{asset}', [AssetController::class, 'destroy'])->whereNumber('asset');
+        // The Artboard's designs and templates (File > Save to my account, Open from my account, templates).
+        Route::get('/artboards', [ArtboardDocumentController::class, 'index']);
+        Route::post('/artboards', [ArtboardDocumentController::class, 'store'])->middleware('throttle:uploads');
+        Route::get('/artboards/{artboard}', [ArtboardDocumentController::class, 'show'])->whereNumber('artboard');
+        Route::patch('/artboards/{artboard}', [ArtboardDocumentController::class, 'update'])->whereNumber('artboard')->middleware('throttle:uploads');
+        Route::delete('/artboards/{artboard}', [ArtboardDocumentController::class, 'destroy'])->whereNumber('artboard');
         Route::post('/concepts', [ConceptController::class, 'store'])->middleware('throttle:concepts');
         Route::post('/convert/cdr', [ConvertController::class, 'cdr'])->middleware('throttle:uploads');
         Route::post('/ai/pattern', [AiController::class, 'pattern'])->middleware('throttle:concepts');
         Route::post('/ai/showcase', [AiController::class, 'showcase'])->middleware('throttle:concepts');
         Route::post('/ai/mockup', [AiController::class, 'mockup'])->middleware('throttle:concepts');
         Route::post('/ai/edit', [AiController::class, 'edit'])->middleware('throttle:concepts');
+        Route::post('/ai/image-edit', [AiController::class, 'imageEdit'])->middleware('throttle:concepts');
         Route::post('/ai/convert', [AiController::class, 'convert'])->middleware('throttle:concepts');
         Route::get('/orders', [OrderController::class, 'index']);
         Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:uploads');

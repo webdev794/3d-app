@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, Eye, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, TriangleAlert, Users, X } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type User } from '../api';
 import { KitViewer, defaultDesign, type Design, type KitViewerHandle } from '../components/KitViewer';
+import '../../css/orders.css';
 
 export interface AdminUser extends User { is_admin: boolean; projects_count?: number; orders_count?: number }
 export interface Order {
@@ -10,7 +11,12 @@ export interface Order {
   quantity: number; unit_price: string | null; total: string | null; currency: string; contact_name: string; phone: string | null;
   shipping_address: string | null; notes: string | null; admin_notes?: string | null; created_at: string;
   user?: { id: number; name: string; email: string }; project?: { id: number; name: string; sport: string; garment: string; status?: string; version?: number; thumbnail?: string | null } | null;
+  /** Names and numbers on the back: the same on every shirt (players holds the one), a list (one per player) or none. */
+  names?: BackNames | null; players?: Player[] | null; /** The kit's version when it was ordered. */ project_version?: number | null;
 }
+export type BackNames = 'same' | 'list' | 'none';
+/** One shirt's back: a list row has its size. */
+export interface Player { name: string; number: string; size?: string }
 interface AdminProject { id: number; name: string; sport: string; garment: string; mode: string; status: 'draft' | 'approved'; version: number; thumbnail: string | null; updated_at: string; orders_count: number; user?: { id: number; name: string; email: string } }
 interface Page<T> { data: T[]; current_page: number; last_page: number; total: number }
 interface TrendPoint { day: string; kits: number; orders: number }
@@ -330,7 +336,7 @@ function OrdersPanel({ onNotice }: { onNotice: (text: string) => void }) {
       <button className="button button-gradient" onClick={() => setEditing('new')}><Plus size={16} /> Add order</button></div>
     {error && <p className="error-message">{error}</p>}
     {!result ? <div className="empty-state"><LoaderCircle className="spin" /></div> : <div className="table-wrap"><table className="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>Kit</th><th>Sizes</th><th>Total</th><th>Status</th><th>Date</th><th /></tr></thead><tbody>
-      {result.data.map(o => <tr key={o.id}><td><strong>{o.number}</strong></td><td>{o.user?.name}<small className="cell-sub">{o.user?.email}</small></td><td>{o.project ? <div className="order-kit"><Link to={`/admin/orders/${o.id}`} className="order-kit-thumb" aria-label={`View the kit of ${o.number}`}>{o.project.thumbnail ? <img src={o.project.thumbnail} alt="" loading="lazy" /> : <Package size={20} />}</Link><div><strong>{o.project.name}</strong><Link className="order-kit-link" to={`/admin/orders/${o.id}`}>View kit</Link></div></div> : <span className="muted">No kit</span>}</td><td>{o.quantity}<small className="cell-sub">{sizeSummary(o.sizes)}</small></td><td>{money(o.total, o.currency)}</td>
+      {result.data.map(o => <tr key={o.id}><td><strong>{o.number}</strong></td><td>{o.user?.name}<small className="cell-sub">{o.user?.email}</small></td><td>{o.project ? <div className="order-kit"><Link to={`/admin/orders/${o.id}`} className="order-kit-thumb" aria-label={`View the kit of ${o.number}`}>{o.project.thumbnail ? <img src={o.project.thumbnail} alt="" loading="lazy" /> : <Package size={20} />}</Link><div><strong>{o.project.name}</strong><Link className="order-kit-link" to={`/admin/orders/${o.id}`}>View kit</Link></div></div> : <span className="muted">No kit</span>}</td><td>{o.quantity}<small className="cell-sub">{sizeSummary(o.sizes)}</small>{o.names === 'list' && o.players?.length ? <small className="cell-sub">{o.players.length} player{o.players.length === 1 ? '' : 's'}</small> : null}</td><td>{money(o.total, o.currency)}</td>
         <td><select className={`status-select s-${o.status}`} value={o.status} onChange={e => quickStatus(o, e.target.value)} aria-label={`Status of ${o.number}`}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></td><td>{date(o.created_at)}</td>
         <td className="row-actions"><button className="icon-button" onClick={() => navigate(`/admin/orders/${o.id}`)} aria-label={`View the kit of ${o.number}`} title="View kit"><Eye size={15} /></button><button className="icon-button" onClick={() => setEditing(o)} aria-label={`Edit ${o.number}`}><Pencil size={15} /></button><button className="icon-button danger" aria-label={`Delete ${o.number}`} onClick={() => confirmDelete(`order ${o.number}`, () => api(`/admin/orders/${o.id}`, { method: 'DELETE' }), () => { onNotice('Order deleted.'); reload(); }, onNotice)}><Trash2 size={15} /></button></td></tr>)}
       {!result.data.length && <tr><td colSpan={8} className="muted">No orders found.</td></tr>}
@@ -343,7 +349,14 @@ function OrdersPanel({ onNotice }: { onNotice: (text: string) => void }) {
 /** A kit as saved: the design may also hold the AI brief (prompt) and AI photo renders. */
 type SavedDesign = Partial<Design> & { prompt?: string; renderFront?: string | null; renderBack?: string | null };
 interface KitProject { id: number; name: string; sport: string; garment: string; mode?: string; status?: string; version?: number; thumbnail?: string | null; design?: SavedDesign; updated_at?: string }
-interface KitOrder extends Omit<Order, 'project'> { project?: KitProject | null }
+interface KitOrder extends Omit<Order, 'project'> { project?: KitProject | null; /** The kit as it was ordered. */ design_snapshot?: Pick<KitProject, 'name' | 'sport' | 'garment' | 'mode' | 'design' | 'thumbnail'> | null }
+/** The back as printed for this order, for its pictures: the same name and number (or a list's first player), or none. */
+function printedBack(order: KitOrder, d: SavedDesign): Partial<Design> {
+  const mark = (key: string, hide: boolean) => ({ ...d.marks?.[key], hidden: hide || !!d.marks?.[key]?.hidden });
+  const first = order.names === 'same' || order.names === 'list' ? order.players?.[0] : undefined;
+  if (order.names === 'none') return { marks: { ...d.marks, top_name: mark('top_name', true), top_number: mark('top_number', true) } };
+  return first ? { backName: first.name, number: first.number, marks: { ...d.marks, top_name: mark('top_name', !first.name), top_number: mark('top_number', !first.number) } } : {};
+}
 const ZONE_NAMES: Record<string, string> = { body: 'Body', yoke: 'Yoke', sleeves: 'Sleeves', sides: 'Sides', hem: 'Hem' };
 const shownImage = (src?: string | null) => !!src && /^(data:image\/|https?:\/\/|\/)/.test(src);
 const fileType = (src: string) => (src.startsWith('data:image/jpeg') ? 'jpg' : 'png');
@@ -362,16 +375,24 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
   const viewer = useRef<KitViewerHandle>(null);
   const load = useCallback(() => { api<KitOrder>(`/admin/orders/${id}`).then(o => { setOrder(o); setError(''); }).catch(e => setError((e as Error).message)); }, [id]);
   useEffect(load, [load]);
-  const project = order?.project ?? null, d: SavedDesign = project?.design ?? {};
+  // The kit as ordered (kept with the order, so later edits don't change it); older orders show the kit as it is now.
+  const current = order?.project ?? null, kept = order?.design_snapshot ?? null;
+  const project: KitProject | null = kept ? { ...current, ...kept, id: current?.id ?? 0, version: order?.project_version ?? current?.version, updated_at: current?.updated_at } : current;
+  const d: SavedDesign = project?.design ?? {};
   // A different kit (or a newer save of it): draw its pictures again.
   useEffect(() => { setShots({ state: 'drawing' }); }, [project?.id, project?.updated_at]);
-  const design = useMemo<Design | null>(() => (project ? { ...defaultDesign, ...project.design, garment: project.garment as Design['garment'] } : null), [project?.id, project?.updated_at]); // eslint-disable-line react-hooks/exhaustive-deps
+  const design = useMemo<Design | null>(() => (project && order ? { ...defaultDesign, ...project.design, garment: project.garment as Design['garment'], ...printedBack(order, project.design ?? {}) } : null), [project?.id, project?.updated_at]); // eslint-disable-line react-hooks/exhaustive-deps
   async function draw() {
     try {
       const front = await viewer.current!.capture('front'), back = await viewer.current!.capture('back');
       const side = project?.thumbnail ? undefined : await viewer.current!.capture('side');
       setShots({ front, back, side, state: 'done' });
     } catch { setShots({ state: 'failed' }); }
+  }
+  /** The customer's factory print layout file, as they uploaded it. */
+  async function downloadLayout(layout: NonNullable<Design['layout']>) {
+    try { saveBlob(await fetchFile(`/assets/${layout.asset}/file`), layout.name); }
+    catch (e) { onNotice((e as Error).message); }
   }
   async function setStatus(next: string) {
     if (!order) return;
@@ -384,6 +405,10 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
   const sportName = project ? catalog?.sports.find(s => s.id === project.sport)?.name ?? project.sport : '';
   const garmentName = project ? catalog?.garments.find(g => g.id === project.garment)?.name ?? project.garment : '';
   const approved = project?.status === 'approved';
+  // Changed after ordering: the project is at a newer version than the one ordered.
+  const changed = !!(kept && current && order.project_version && (current.version ?? 0) > order.project_version);
+  const sameBack = order.names === 'same' ? order.players?.[0] : undefined;
+  const backText = (designed?: string, printed?: string) => order.names === 'none' ? 'None' : order.names === 'list' ? 'One for each player (see Names and numbers)' : (order.names === 'same' ? printed : designed) || '—';
   const pictures: [string, string | undefined | null][] = project ? [['Front', shots.front], ['Back', shots.back], ['Kit', project.thumbnail || shots.side]] : [];
   if (shownImage(d.renderFront)) pictures.push(['AI front render', d.renderFront]);
   if (shownImage(d.renderBack)) pictures.push(['AI back render', d.renderBack]);
@@ -409,7 +434,9 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
 
     {project ? <>
       <section className="glow-panel admin-card">
-        <div className="card-head"><h2>{project.name}</h2><span className={`status-pill s-${approved ? 'delivered' : 'pending'}`}>{approved ? 'Approved' : 'Draft'}</span></div>
+        <div className="card-head"><h2>{project.name}</h2>{current ? <span className={`status-pill s-${approved ? 'delivered' : 'pending'}`}>{approved ? 'Approved' : 'Draft'}</span> : <span className="status-pill s-cancelled">Project deleted</span>}</div>
+        {changed && <p className="kit-note"><TriangleAlert size={16} /> The customer changed this kit after ordering (it is now v{current!.version}). This page shows v{order.project_version}, as ordered.</p>}
+        {kept && !current && <p className="kit-note"><TriangleAlert size={16} /> The customer deleted this kit after ordering. This page shows it as ordered.</p>}
         <div className="kit-shots">{pictures.map(([label, src]) => <figure key={label}>
           {src ? <button className="kit-shot" onClick={() => setZoom({ label, src })} aria-label={`Show the ${label.toLowerCase()} picture larger`}><img src={src} alt={`${label} of ${project.name}`} /></button>
             : shots.state === 'drawing' ? <div className="kit-shot wait"><LoaderCircle className="spin" /> Drawing the {label.toLowerCase()}…</div>
@@ -421,8 +448,9 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
       <div className="admin-grid">
         <section className="glow-panel admin-card"><h2>Kit details</h2><dl className="kit-dl">
           <dt>Sport</dt><dd>{sportName}</dd>
-          <dt>Garment</dt><dd>{garmentName}</dd>
-          <dt>Version</dt><dd>v{project.version ?? 1}</dd>
+          <dt>Garment</dt><dd>{d.layout ? (d.layout.parts ?? ['raglan']).map(p => p === 'shorts' ? 'Shorts' : 'Raglan top').join(' and ') : garmentName}</dd>
+          {d.layout && <><dt>Print layout</dt><dd>{d.layout.name} <button className="icon-button" onClick={() => void downloadLayout(d.layout!)} aria-label={`Download the print layout ${d.layout.name}`} title="Download the print layout"><Download size={14} /></button><small>{d.layout.roles.filter(r => r !== 'none').length} panels on the kit{d.layout.hemFold !== false ? ' · hem folds sewn inside' : ''}</small></dd></>}
+          <dt>Version</dt><dd>{order.project_version ? <>Ordered version v{order.project_version}{changed && <small>Changed after ordering: now v{current!.version}</small>}</> : `v${project.version ?? 1}`}</dd>
           <dt>Status</dt><dd>{approved ? 'Approved' : 'Draft'}</dd>
           <dt>Designed with</dt><dd>{project.mode === 'ai' ? 'AI designer' : 'Design your own'}</dd>
           {project.updated_at && <><dt>Last saved</dt><dd>{date(project.updated_at)}</dd></>}
@@ -436,8 +464,8 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
           <dt>Front text</dt><dd>{d.logoText || '—'}</dd>
           {shownImage(d.logoImage) && <><dt>Logo</dt><dd><img className="kit-mini" src={d.logoImage!} alt="Logo" /></dd></>}
           {shownImage(d.sponsorImage) && <><dt>Sponsor</dt><dd><img className="kit-mini" src={d.sponsorImage!} alt="Sponsor logo" /></dd></>}
-          <dt>Back name</dt><dd>{d.backName || '—'}</dd>
-          <dt>Back number</dt><dd>{d.number || '—'}</dd>
+          <dt>Back name</dt><dd>{backText(d.backName, sameBack?.name)}</dd>
+          <dt>Back number</dt><dd>{backText(d.number, sameBack?.number)}</dd>
           {layers.length > 0 && <><dt>Artwork</dt><dd>{layers.map(l => `${l.type === 'text' ? `“${l.text ?? ''}”` : l.name || (l.type === 'image' ? 'Picture' : 'Shape')} (${l.side}${l.part === 'shorts' ? ', shorts' : ''})`).join(' · ')}</dd></>}
         </dl></section>
         <section className="glow-panel admin-card"><h2><Sparkles size={18} /> AI brief</h2>
@@ -462,6 +490,16 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
         {order.admin_notes && <><dt>Internal notes</dt><dd className="kit-pre">{order.admin_notes}</dd></>}
       </dl></section>
     </div>
+
+    <section className="glow-panel admin-card"><h2>Names and numbers</h2>
+      {order.names === 'list' && order.players ? <>
+        <p className="muted">A different name and number for each player · {order.players.length} player{order.players.length === 1 ? '' : 's'}</p>
+        <div className="table-wrap"><table className="admin-table compact kit-players"><thead><tr><th>#</th><th>Name</th><th>Number</th><th>Size</th></tr></thead>
+          <tbody>{order.players.map((p, i) => <tr key={i}><td>{i + 1}</td><td>{p.name || '—'}</td><td>{p.number || '—'}</td><td>{p.size}</td></tr>)}</tbody></table></div>
+      </> : order.names === 'same' ? <dl className="kit-dl"><dt>Choice</dt><dd>The same on every shirt</dd><dt>Name</dt><dd>{sameBack?.name || '—'}</dd><dt>Number</dt><dd>{sameBack?.number || '—'}</dd></dl>
+        : order.names === 'none' ? <p>No name or number on the back.</p>
+        : <p className="muted">Not given with this order. Check the notes.</p>}
+    </section>
 
     <div className="kit-foot">{back}{editButton}</div>
     {editing && <OrderForm order={order as Order} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); onNotice('Order saved.'); load(); }} />}
@@ -492,7 +530,7 @@ function OrderForm({ order, onClose, onSaved }: { order: Order | null; onClose: 
     {order ? <p className="muted">Customer: <strong>{order.user?.name}</strong> ({order.user?.email})</p> : <div className="field-row"><label className="field">Find customer<input value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} placeholder="Name or email" /></label><label className="field">Customer<select required value={userId} onChange={e => { setUserId(e.target.value ? Number(e.target.value) : ''); setForm(f => ({ ...f, project_id: '' })); }}><option value="">Choose…</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name} · {c.email}</option>)}</select></label></div>}
     <div className="field-row"><label className="field">Kit (project)<select value={form.project_id} onChange={e => setForm({ ...form, project_id: e.target.value ? Number(e.target.value) : '' })}><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
       <label className="field">Status<select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label></div>
-    <fieldset className="size-grid"><legend>Quantities by size · {quantity} total</legend>{SIZES.map(s => <label key={s}><span>{s}</span><input type="number" min={0} max={10000} value={sizes[s] || ''} placeholder="0" onChange={e => setSizes({ ...sizes, [s]: Math.max(0, Number(e.target.value) || 0) })} /></label>)}</fieldset>
+    <fieldset className="size-grid" disabled={order?.names === 'list'}><legend>Quantities by size · {quantity} total{order?.names === 'list' ? ' · counted from the players list' : ''}</legend>{SIZES.map(s => <label key={s}><span>{s}</span><input type="number" min={0} max={10000} value={sizes[s] || ''} placeholder="0" onChange={e => setSizes({ ...sizes, [s]: Math.max(0, Number(e.target.value) || 0) })} /></label>)}</fieldset>
     <div className="field-row"><label className="field">Unit price (AUD)<input type="number" min={0} step="0.01" value={form.unit_price} onChange={e => setForm({ ...form, unit_price: e.target.value })} placeholder="Quote pending" /></label><label className="field">Total<input readOnly value={form.unit_price === '' ? 'Quote pending' : money(Number(form.unit_price) * quantity)} /></label></div>
     <div className="field-row"><label className="field">Contact name<input required maxLength={120} value={form.contact_name} onChange={e => setForm({ ...form, contact_name: e.target.value })} /></label><label className="field">Phone<input maxLength={40} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></label></div>
     <label className="field">Shipping address<textarea rows={2} maxLength={1000} value={form.shipping_address} onChange={e => setForm({ ...form, shipping_address: e.target.value })} /></label>

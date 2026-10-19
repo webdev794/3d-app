@@ -9,6 +9,8 @@
 //     setAssets [{name, src}]   addImage {src, name}   load <json>   clear
 //   artboard -> host: {type:'ready'} {type:'artwork', data, name}
 //     {type:'saved', json} {type:'export', data, name}
+//   Designs in the account, templates and Send to 3D Studio linked to the design: see projects.js
+//     (host {docs, signedIn, …}, docsReply, openDoc; {type:'docs'}, {type:'signin'}, artwork with target).
 
 import {
   Canvas, Rect, Ellipse, Path, IText, Textbox, FabricImage, PencilBrush,
@@ -28,13 +30,17 @@ import * as AM from './media.js';
 import * as SK from './sketch.js';
 import * as PB from './paint.js';
 import * as C from './connect.js';
+import { autosave, createProjects, loadLocal, saveNow } from './projects.js';
 
 // ===================================================================
 // Setup
 // ===================================================================
 const params = new URLSearchParams(location.search);
 const HOST = params.get('host');
-const STORE = `3deezi.artboard.${HOST || 'web'}`;
+// The Flutter web app names each Artboard it opens 3deezi-artboard-0, -1 …: one store for all of them, so the design
+// comes back every time (it was kept under the first name before).
+const STORE = `3deezi.artboard.${/^3deezi-artboard-\d+$/.test(HOST ?? '') ? 'app' : HOST || 'web'}`;
+const OLD_STORE = STORE === '3deezi.artboard.app' ? '3deezi.artboard.3deezi-artboard-0' : null;
 const MM = 2;                       // world units per millimetre
 const BRAND = ['#12E1F0', '#1E7BFF', '#7B4DFF', '#E8EDF2', '#5D6B7B', '#000000'];
 const ISO = { A5: [148, 210], A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841] };
@@ -113,7 +119,7 @@ const state = {
     innerX: 2, innerY: 2, innerBlur: 3, innerOpacity: 60, innerColour: '#000000', innerMerge: 'multiply',
   },
 };
-try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
+try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || (OLD_STORE && localStorage.getItem(`${OLD_STORE}.prefs`)) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
 const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, palettes: state.palettes, palette: state.palette, gradients: state.gradients, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint, conn: state.conn, ui: state.ui, quick: state.quick })); } catch { /* private mode */ } };
 
 const toast = (text, ms = 2800) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), ms); };
@@ -417,7 +423,7 @@ canvas.on('object:moving', (e) => {
 // History (undo / redo) and autosave
 // ===================================================================
 const EXTRA = ['textOutlines', 'pathGuide', 'pathDist', 'name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell', 'pcFrame', 'mediaSpec', 'liveSpec', 'paintSpec', 'uid', 'connSpec', 'anchors', 'varSpec', 'num', 'fxInner', 'fxContour', 'fxStep', 'nodeTypes'];
-let history = [], future = [], restoring = false, muted = 0, saveTimer = null;
+let history = [], future = [], restoring = false, muted = 0;
 let pages = [{ name: 'Page 1', objects: null }], pageIndex = 0, otherNums = new Set(); // see Pages below
 // objects: the page on screen; with more pages, pages holds every page's name and the others' objects.
 const snapshot = () => JSON.stringify({ page: pageSize, guides: guides.get(), objects: userObjects().map((o) => o.toObject(EXTRA)), ...(pages.length > 1 ? { pages: pages.map((p, i) => ({ name: p.name, objects: i === pageIndex ? null : p.objects })), current: pageIndex } : pages[0].name !== 'Page 1' ? { pageName: pages[0].name } : {}) });
@@ -430,8 +436,7 @@ function record() {
   if (history.length > 80) history.shift();
   future = [];
   syncHistory();
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { try { localStorage.setItem(STORE, snap); } catch { /* too big for storage */ } }, 600);
+  autosave(STORE, snap); // kept on this device a moment later (projects.js)
 }
 /** Several canvas changes as one undo step. */
 function batch(fn) {
@@ -474,8 +479,8 @@ function syncHistory() {
   $('undo').disabled = history.length < 2;
   $('redo').disabled = !future.length;
 }
-async function undo() { if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); }
-async function redo() { if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); }
+async function undo() { if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); autosave(STORE, history.at(-1)); }
+async function redo() { if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); autosave(STORE, s); }
 for (const ev of ['object:added', 'object:removed', 'object:modified']) canvas.on(ev, (e) => { if (ev === 'object:added' && e?.target) ownCopies(e.target); if (muted) return; refreshLayers(); record(); });
 
 const guides = createGuides({
@@ -4942,17 +4947,29 @@ for (const id of ['patKind', 'patSize', 'patBg']) $(id).onchange = () => { if (!
 // ===================================================================
 // Export, send to studio, pages
 // ===================================================================
-function contentBounds() {
-  const objs = userObjects().filter((o) => o.visible);
-  if (!objs.length) return null;
-  const rects = objs.map((o) => o.getBoundingRect());
+/**
+ * The box around the artwork. `onPage`: only what is on the page, cut at its edges (drawings left on the work
+ * area around it are not part of the design).
+ */
+function contentBounds({ onPage = false } = {}) {
+  let rects = userObjects().filter((o) => o.visible).map((o) => o.getBoundingRect());
+  if (onPage) {
+    rects = rects.map((r) => {
+      const left = Math.max(0, r.left), top = Math.max(0, r.top);
+      const right = Math.min(page.width, r.left + r.width), bottom = Math.min(page.height, r.top + r.height);
+      return right > left && bottom > top ? { left, top, width: right - left, height: bottom - top } : null;
+    }).filter(Boolean);
+  }
+  if (!rects.length) return null;
   const left = Math.min(...rects.map((r) => r.left)), top = Math.min(...rects.map((r) => r.top));
   return { left, top, width: Math.max(...rects.map((r) => r.left + r.width)) - left, height: Math.max(...rects.map((r) => r.top + r.height)) - top };
 }
-/** PNG of the artwork. `whole` = the full page at 300 DPI (capped), otherwise trimmed to the artwork. */
+/** Why there is nothing to export or send: an empty page, or artwork only on the work area around it. */
+const nothingOnPage = (empty) => (contentBounds() ? 'Nothing is on the page: move the artwork onto the white page first' : empty);
+/** PNG of the artwork. `whole` = the full page at 300 DPI (capped), otherwise trimmed to the artwork on the page. */
 function renderPng({ whole = false, maxPx = 2048, background = null } = {}) {
   canvas.discardActiveObject();
-  const box = whole ? { left: 0, top: 0, width: page.width, height: page.height } : contentBounds();
+  const box = whole ? { left: 0, top: 0, width: page.width, height: page.height } : contentBounds({ onPage: true });
   if (!box) return null;
   const dpiPx = (box.width / MM / 25.4) * 300; // 300 DPI width in pixels
   const multiplier = Math.min(dpiPx, maxPx) / box.width;
@@ -4977,7 +4994,7 @@ function download(data, name) {
 function exportPng(whole) {
   finishPowerClipEdit();
   const data = renderPng({ whole, maxPx: whole ? 4096 : 3000, background: whole ? '#ffffff' : null });
-  if (!data) { toast('The page is empty'); return; }
+  if (!data) { toast(nothingOnPage('The page is empty')); return; }
   download(data, whole ? '3deezi-artboard-page.png' : '3deezi-artwork.png');
   toast(whole ? 'Page exported (white background, 300 DPI up to 4096 px)' : 'Artwork exported (transparent PNG)');
 }
@@ -5054,9 +5071,11 @@ $('pdfAll').onclick = () => { $('pdfDialog').close(); exportPdf('all'); };
 function sendToStudio() {
   finishPowerClipEdit();
   const data = renderPng({ maxPx: 2048 });
-  if (!data) { toast('Add some artwork first'); return; }
+  if (!data) { toast(nothingOnPage('Add some artwork first')); return; }
   const name = (userObjects().find(isText)?.text || 'Artboard design').slice(0, 40);
-  if (embedded()) { post({ type: 'artwork', data, name }); toast('Sent to the 3D studio'); }
+  // The website and the app ask where it goes and keep the design with it (projects.js); other hosts get the picture.
+  if (projects.hosted()) projects.send(data, name);
+  else if (embedded()) { post({ type: 'artwork', data, name }); toast('Sent to the 3D studio'); }
   else download(data, '3deezi-artwork.png');
 }
 function setPage([w, h], record_ = true) {
@@ -5097,7 +5116,7 @@ function updateOtherNums() {
   const walk = (o) => { if (o?.num != null) otherNums.add(o.num); (o?.objects ?? []).forEach(walk); };
   pages.forEach((p, i) => { if (i !== pageIndex) (p.objects ?? []).forEach(walk); });
 }
-const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ } }, 600); };
+const saveSoon = () => autosave(STORE, snapshot, false); // another page opened: kept, but nothing in the design changed
 function nextPageName() { let n = pages.length + 1; while (pages.some((p) => p.name === `Page ${n}`)) n++; return `Page ${n}`; }
 /** Shows another page (it is not an undo step; the autosave keeps it open). */
 async function gotoPage(i, { quiet = false } = {}) {
@@ -5189,7 +5208,7 @@ function openPageMenu(b, i) {
   m.innerHTML = `<button data-pm="open">Open ${escHtml(pages[i].name)}</button><button data-pm="rename">Rename…</button><button data-pm="dup">Duplicate page</button><button data-pm="add">Insert page after</button><button data-pm="delete"${pages.length < 2 ? ' disabled' : ''}>Delete page</button>`;
   m.hidden = false;
   m.style.left = `${Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8))}px`;
-  m.style.top = `${r.top - m.offsetHeight - 6}px`;
+  m.style.top = `${Math.max(8, r.top - m.offsetHeight - 6)}px`;
   m.querySelectorAll('[data-pm]').forEach((x) => (x.onclick = async () => {
     m.hidden = true;
     const act = x.dataset.pm;
@@ -5209,7 +5228,7 @@ document.addEventListener('pointerdown', (e) => { const m = $('pageMenu'); if (!
 const SNAP_LABELS = { grid: 'Grid (5 mm)', guides: 'Guidelines', objects: 'Objects', nodes: 'Nodes', page: 'Page' };
 const ACTIONS = {
   fonts: () => { if ($('textBar').hidden) setTool('text'); setTimeout(() => $('tFont').click()); },
-  new: async () => { finishPowerClipEdit(); if ((userObjects().length || pages.length > 1) && !confirm('Start a new document? Every page is cleared (Undo can restore it).')) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); },
+  new: async () => { finishPowerClipEdit(); if ((userObjects().length || pages.length > 1) && !confirm('Start a new document? Every page is cleared (Undo can restore it).')) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); projects.cleared(); },
   pageAdd: () => insertPage(), pageDup: () => duplicatePage(), pageDelete: () => deletePage(), pagePrev: () => gotoPage(pageIndex - 1), pageNext: () => gotoPage(pageIndex + 1),
   pageRename: () => { const tab = $('pageTabs').querySelector(`[data-page="${pageIndex}"]`); if (tab) startRename(tab, pageIndex); },
   open: () => $('fileImage').click(),
@@ -5309,8 +5328,41 @@ function closeMenus() { document.querySelectorAll('.menu.open, .fly.open').forEa
 document.querySelectorAll('.menu>button').forEach((b) => b.addEventListener('click', (e) => { const m = b.parentElement, open = m.classList.contains('open'); closeMenus(); if (!open) m.classList.add('open'); e.stopPropagation(); }));
 addEventListener('click', (e) => { if (!e.target.closest('.menu,.fly,.tool')) closeMenus(); });
 $('undo').onclick = undo; $('redo').onclick = redo;
-$('save').onclick = () => { finishPowerClipEdit(); try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ } post({ type: 'saved', json: snapshot() }); toast('Artboard saved on this device'); };
+$('save').onclick = () => projects.saveButton(); // on this device, and in the account when signed in
 $('sendBtn').onclick = sendToStudio;
+// AI / DYO quick access: save the artwork here first, then the website or app opens AI Powered Sportswear or
+// Design Your Own. Opened on its own (no 3DEEZI around it), go to the website's page instead.
+const startKit = (mode) => {
+  finishPowerClipEdit();
+  saveNow(STORE, snapshot());
+  if (embedded()) post({ type: 'start', mode });
+  else location.href = new URL(mode === 'ai' ? '../../create/ai' : '../../create/sport', location.href).href;
+};
+$('goAi').onclick = () => startKit('ai');
+$('goDyo').onclick = () => startKit('dyo');
+// Projects (projects.js): the design kept on this device and in the account (File > Save to my account, Open from my
+// account), templates, and Send to 3D Studio with the design linked to the artwork on the kit.
+/** Opens a whole design in place of the one on the page (from the account or a template): its own Undo starts. */
+async function openDocument(json) {
+  await window.artboard.load(json);
+  history = [snapshot()]; future = []; syncHistory();
+  saveNow(STORE, history[0]);
+}
+/** A picture of the page on screen (white page), for the account's lists; the selection stays selected. */
+function pagePreview() {
+  const keep = canvas.getActiveObjects(), editing = canvas.getActiveObject()?.isEditing;
+  const data = renderPng({ whole: true, maxPx: 480, background: '#ffffff' });
+  if (keep.length && !editing) select(keep);
+  return data;
+}
+let starter = null; // the YOUR TEAM text a new page starts with (see Start): untouched, the page counts as blank
+const projects = createProjects({
+  $, toast, post, icon, escHtml, store: STORE, snapshot, open: openDocument, preview: pagePreview,
+  blank: () => (!userObjects().length || (history.length < 2 && userObjects().length === 1 && userObjects()[0] === starter)) && pages.every((p, i) => i === pageIndex || !p.objects?.length),
+  firstText: () => String(userObjects().find(isText)?.text ?? '').trim().slice(0, 60),
+  finish: () => finishPowerClipEdit(), sendAgain: () => sendToStudio(),
+});
+Object.assign(ACTIONS, projects.actions);
 // Right-click menu: order (to front / back), duplicate, curves, lock, delete for the object under the pointer.
 const CTX_ITEMS = [
   ['front', 'To front', 'Shift+PgUp'], ['forward', 'Forward one', 'Ctrl+PgUp'], ['backward', 'Back one', 'Ctrl+PgDn'], ['back', 'To back', 'Shift+PgDn'], null,
@@ -5328,19 +5380,130 @@ function ctxItems() {
   }
   return [...items, ...CTX_ITEMS];
 }
+/** The right-click menu for the selection, at (x, y); `above` puts it above that point (the ⋯ button). */
+function showObjectMenu(x, y, above = false) {
+  const menu = $('ctxMenu');
+  menu.innerHTML = ctxItems().map((it) => (it ? `<button data-ctx="${it[0]}">${it[1]}${it[2] ? `<small>${it[2]}</small>` : ''}</button>` : '<hr>')).join('');
+  menu.querySelectorAll('[data-ctx]').forEach((b) => (b.onclick = () => { closeMenus(); ACTIONS[b.dataset.ctx]?.(); }));
+  closeMenus();
+  Object.assign(menu.style, { left: `${Math.max(8, Math.min(x, innerWidth - 230))}px`, top: `${y}px`, bottom: 'auto' });
+  menu.classList.add('open');
+  const top = above ? y - menu.offsetHeight - 6 : y;
+  menu.style.top = `${Math.max(8, Math.min(top, innerHeight - menu.offsetHeight - 8))}px`;
+}
+/** Somewhere on the screen, for menus that open next to an element. */
+const pointAnchor = (x, y) => ({ getBoundingClientRect: () => ({ left: x, top: y, right: x, bottom: y, width: 0, height: 0 }) });
 wrap.addEventListener('contextmenu', (e) => {
   e.preventDefault(); e.stopPropagation();
   const target = objectAt(canvas.getScenePoint(e));
   if (target && !canvas.getActiveObjects().includes(target)) { setTool('select'); canvas.setActiveObject(target); canvas.requestRenderAll(); syncProps(); }
-  const menu = $('ctxMenu');
-  if (!active().length) { closeMenus(); return; }
-  menu.innerHTML = ctxItems().map((it) => (it ? `<button data-ctx="${it[0]}">${it[1]}${it[2] ? `<small>${it[2]}</small>` : ''}</button>` : '<hr>')).join('');
-  menu.querySelectorAll('[data-ctx]').forEach((b) => (b.onclick = () => { closeMenus(); ACTIONS[b.dataset.ctx]?.(); }));
-  closeMenus();
-  Object.assign(menu.style, { left: `${Math.min(e.clientX, innerWidth - 230)}px`, top: `${e.clientY}px`, bottom: 'auto' });
-  menu.classList.add('open');
-  menu.style.top = `${Math.max(8, Math.min(e.clientY, innerHeight - menu.offsetHeight - 8))}px`;
+  // Nothing selected: the page's own menu (open, rename, duplicate, insert, delete).
+  if (!active().length) { closeMenus(); openPageMenu(pointAnchor(e.clientX, e.clientY), pageIndex); return; }
+  showObjectMenu(e.clientX, e.clientY);
 }, true);
+
+// ---------- right-click on touch screens (they have no right mouse button)
+// The ⋯ button at the end of the colour palette: tap it (it lights up and a tooltip says what to do), then tap an
+// item: an object on the page, a page tab, a tool or a colour. That tap opens the item's right-click menu instead of
+// its usual action (on an empty part of the page: the page's menu). Tap ⋯ again to cancel. A finger held still on an
+// item (long press) does the same in one go, but on the page only with the Pick tool, and never with a pen or a
+// mouse, so drawing and writing are not interrupted.
+let rightTap = false, swallowClick = false, swallowPointer = null, press = null, pressedAt = 0, pressOpened = null;
+/** The nearest element (from `el` up) that has a right-click action. */
+const rightClickable = (el) => { for (let n = el; n && n !== document.body; n = n.parentElement) if (n.oncontextmenu) return n; return null; };
+function rightClickAt(el, x, y) {
+  const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2, buttons: 2 });
+  el.dispatchEvent(ev);
+  return ev.defaultPrevented;
+}
+function placeRightTip() {
+  // At the top of the work area, clear of the chat buttons (website and app) and of the colours, tools and page
+  // tabs that the next tap is for.
+  const tip = $('rcTip'), st = $('stage').getBoundingClientRect();
+  tip.style.left = `${Math.max(8, Math.min(st.left + (st.width - tip.offsetWidth) / 2, innerWidth - tip.offsetWidth - 8))}px`;
+  tip.style.top = `${st.top + 10}px`;
+}
+function setRightTap(on) {
+  rightTap = on;
+  $('palMore').classList.toggle('on', on);
+  document.body.classList.toggle('right-tap', on);
+  $('rcTip').hidden = !on;
+  if (on) placeRightTip();
+}
+$('palMore').addEventListener('click', (e) => { e.stopPropagation(); closeMenus(); $('pageMenu').hidden = true; setRightTap(!rightTap); });
+$('rcCancel').onclick = () => setRightTap(false);
+addEventListener('resize', () => { if (rightTap) placeRightTip(); });
+addEventListener('keydown', (e) => { if (rightTap && e.key === 'Escape') setRightTap(false); });
+const cancelPress = () => { if (press) { clearTimeout(press.timer); press = null; } };
+document.addEventListener('pointerdown', (e) => {
+  swallowClick = false;
+  cancelPress();
+  const t = e.target;
+  if (t.closest('#palMore')) return;
+  if (rightTap) {
+    if (t.closest('#rcTip')) return;
+    // This tap is the right-click: the page, the tool or the colour under it does not also get a normal tap.
+    e.preventDefault(); e.stopImmediatePropagation();
+    swallowPointer = e.pointerId; swallowClick = true;
+    setRightTap(false);
+    const onPage = !!t.closest('#canvasWrap');
+    const el = onPage ? t : rightClickable(t);
+    if (!el || !rightClickAt(el, e.clientX, e.clientY)) toast('That has no right-click menu: tap ⋯, then an object, a page tab, a tool or a colour', 4000);
+    return;
+  }
+  if (t.closest('#ctxMenu, #pageMenu, .fly')) return;
+  // Long press: a finger only, held still; on the page only with the Pick tool.
+  const onPage = !!t.closest('#canvasWrap'), el = onPage ? t : rightClickable(t);
+  if (e.pointerType !== 'touch' || !e.isPrimary || !el || (onPage && state.tool !== 'select')) return;
+  if (t.closest('input, textarea, select, [contenteditable="true"]')) return;
+  // A colour that can be dragged onto an object (a phone starts that drag with a long press too) acts only when the
+  // finger lifts without moving; anything else opens its menu while the finger is still down.
+  press = { x: e.clientX, y: e.clientY, el, onLift: el.draggable === true, timer: setTimeout(() => {
+    if (!press) return;
+    press.held = true;
+    if (!press.onLift) longPress();
+  }, 550) };
+}, true);
+function longPress() {
+  const p = press;
+  press = null;
+  swallowClick = true;
+  pressedAt = performance.now();
+  pressOpened = { x: p.x, y: p.y };
+  rightClickAt(p.el, p.x, p.y);
+}
+document.addEventListener('pointermove', (e) => {
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress();
+  // Holding an object, then dragging it: the menu that opened closes again and the drag goes on as usual.
+  if (pressOpened && Math.hypot(e.clientX - pressOpened.x, e.clientY - pressOpened.y) > 12) {
+    pressOpened = null;
+    closeMenus();
+    $('pageMenu').hidden = true;
+  }
+}, true);
+for (const type of ['pointerup', 'pointercancel']) {
+  document.addEventListener(type, (e) => {
+    if (type === 'pointerup' && press?.held && press.onLift) longPress();
+    cancelPress();
+    pressOpened = null;
+    if (e.pointerId === swallowPointer) { swallowPointer = null; e.stopImmediatePropagation(); }
+  }, true);
+}
+// Android also sends its own long-press menu event: keep only one of the two.
+document.addEventListener('contextmenu', (e) => {
+  if (!e.isTrusted) return;
+  if (performance.now() - pressedAt < 1200) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (press) { cancelPress(); swallowClick = true; pressedAt = performance.now(); }
+}, true);
+// A tap outside the right-click menu closes it, and a tap on the page closes any open menu (a finger on the page gives
+// no click event, which is what closes them for a mouse).
+document.addEventListener('pointerdown', (e) => {
+  const m = $('ctxMenu');
+  if (m.classList.contains('open') && !e.target.closest('#ctxMenu')) m.classList.remove('open');
+  if (e.target.closest('#canvasWrap')) closeMenus();
+});
+// The finger lifting after a long press, or the tap that was a right-click, is not also a normal tap.
+document.addEventListener('click', (e) => { if (swallowClick) { swallowClick = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 const SNAP_HELP = {
   grid: 'objects and drawing move in 5 mm steps (View > Grid on / off shows the grid)',
   guides: 'edges and centres stick to guidelines',
@@ -6021,7 +6184,7 @@ const ASSIST = {
     const line = (o) => { const fx = effectsOf(o); return `${o.num != null ? `#${o.num} ` : ''}${objLabel(o)}${where(o)}${fx.length ? ` [${fx.join('; ')}]` : ''}${o.locked ? ' (locked)' : ''}${o.visible ? '' : ' (hidden)'}`; };
     const objs = userObjects(), sel = active();
     const pg = pages.length > 1 ? `Page ${pageIndex + 1} of ${pages.length} is open (${pages.map((p, i) => `${i + 1} “${p.name}”`).join(', ')}). ` : '';
-    return `${pg}Selected: ${sel.length ? sel.map(line).join(' | ') : 'nothing'}. On the page (${objs.length}, top first): ${objs.slice().reverse().slice(0, 15).map(line).join(' | ')}${objs.length > 15 ? ' | …' : ''}. Tool: ${TOOLS[state.tool]?.label ?? state.tool}. Grid ${state.grid ? 'on' : 'off'}, snap ${state.snap ? 'on' : 'off'}. ${toolboxReport()}`;
+    return `${projects.describe()}${pg}Selected: ${sel.length ? sel.map(line).join(' | ') : 'nothing'}. On the page (${objs.length}, top first): ${objs.slice().reverse().slice(0, 15).map(line).join(' | ')}${objs.length > 15 ? ' | …' : ''}. Tool: ${TOOLS[state.tool]?.label ?? state.tool}. Grid ${state.grid ? 'on' : 'off'}, snap ${state.snap ? 'on' : 'off'}. ${toolboxReport()}`;
   },
   grid: (v) => { state.grid = onOff(v); $('gridToggle').checked = state.grid; savePrefs(); canvas.requestRenderAll(); return `Grid ${v}`; },
   snap: (v) => { state.snap = onOff(v); $('snapToggle').checked = state.snap; savePrefs(); return `Snap ${v}`; },
@@ -6530,8 +6693,10 @@ window.artboard = {
     if (m && m.cmd !== 'receive' && typeof window.artboard[m.cmd] === 'function') window.artboard[m.cmd](m.arg);
   },
 };
+// The account (projects.js): host {docs, signedIn, kit, garments, placements}, docsReply {id, ok, data}, openDoc {id}.
+Object.assign(window.artboard, projects.bridge);
 // Automated tests only (?debug): reach the canvas from the browser.
-if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, B, F: { Rect, IText, FabricImage, Group, Path }, geom: { mode: () => (geomWorker ? 'worker' : geomWorker === false ? 'page' : 'not started'), limit: (ms) => { GEOM_LIMIT = ms; }, stop: () => stopGeom(new Error('stopped')) } };
+if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, B, F: { Rect, IText, FabricImage, Group, Path }, geom: { mode: () => (geomWorker ? 'worker' : geomWorker === false ? 'page' : 'not started'), limit: (ms) => { GEOM_LIMIT = ms; }, stop: () => stopGeom(new Error('stopped')) }, projects };
 addEventListener('message', (e) => { if (e.source === window.parent && typeof e.data === 'string') { try { window.artboard.receive(e.data); } catch { /* not for us */ } } });
 
 // ===================================================================
@@ -6550,14 +6715,16 @@ addEventListener('message', (e) => { if (e.source === window.parent && typeof e.
   initContextValues();
   renderToolbox();
   showPageInfo();
-  let saved = null;
-  try { saved = localStorage.getItem(STORE); } catch { /* none */ }
+  // The design kept on this device (projects.js: a big one is in the browser's database).
+  const saved = await loadLocal(STORE, OLD_STORE);
   if (saved) await restore(saved).catch(() => {});
+  projects.started(!!saved);
   compactNums();
   if (!userObjects().length) {
     // A starter so the page isn't blank: editable 3DEEZI-style badge text.
     const t = style(new IText('YOUR TEAM', { left: page.width / 2, top: page.height / 2, originX: 'center', originY: 'center', fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 70 * MM, fill: '#1E7BFF', toolName: 'Text' }));
     canvas.add(t);
+    starter = t;
   }
   history = [snapshot()];
   syncHistory();

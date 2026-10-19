@@ -68,6 +68,55 @@ export const SPECS = {
   },
 };
 
+// The places on the shorts a print layout's leg pieces are matched to (layout-warp.js): the waist at the centre
+// and at the side, the side seam's lower end (the top of the split, or the hem's outer corner), the inner hem
+// corner and the crotch.
+SPECS.shorts.points = { CF: [0, 0.42], OT: [0.215, 0.42], ST: [0.272, 0.02], IB: [0.05, 0.02], CR: [0, 0.17] };
+
+/**
+ * Training shorts, as factory print layouts cut them (the proportions of the Leopards pattern): a short inside
+ * leg, legs that flare loosely from the hips, a split at each side of the hem (the hem curves up into it) and a
+ * deep elastic waistband with a drawstring.
+ */
+SPECS.trainingShorts = {
+  // The split as the pattern's notch: about 4 cm high, curving into the hem over about 3 cm.
+  half: [
+    [0, 0.35], [0.215, 0.35], [0.236, 0.27], [0.262, 0.17], [0.286, 0.095], [0.3, 0.04],
+    [0.296, 0.025], [0.286, 0.012], [0.27, 0.004], [0.2, 0], [0.12, 0.001], [0.045, 0.01],
+    [0.022, 0.035], [0.008, 0.06], [0, 0.072],
+  ],
+  neck: { drop: 0.012, half: 0.4 },
+  rim: { drop: 0.015, half: 0.4, radius: 0.012, width: 0.04 },
+  legs: true,
+  loose: true,
+  // The side seam stops at the top of the split; below it the edge is finished like the hem.
+  split: { x: 0.3, top: 0.04 },
+  depth: 0.16,
+  chest: false,
+  // SH: where the split's edge meets the hem.
+  points: { CF: [0, 0.35], OT: [0.215, 0.35], ST: [0.3, 0.04], SH: [0.27, 0.004], IB: [0.045, 0.01], CR: [0, 0.072] },
+  // How they are worn (worn.js): roomy hips that flare to the hem, short wide legs.
+  worn: {
+    sideSeam: [[0, 0.302], [0.04, 0.3], [0.095, 0.286], [0.17, 0.262], [0.27, 0.236], [0.35, 0.215]],
+    inner: [[0.01, 0.045], [0.035, 0.022], [0.06, 0.008], [0.072, 0]],
+    crotch: 0.072,
+    blend: [0.05, 0.17],
+    hipDepth: 0.62,
+    legIn: [0.01, 0.002],
+    legOut: [0.25, 0.228],
+    // Flatter behind than a round tube (the client's shorts hang flat over the seat).
+    legDepth: [0.078, 0.086],
+    relief: 0.45,
+    // Loose behind: they hang straight down from the waistband over the seat.
+    seat: 0.1,
+  },
+};
+
+// A raglan top has the tee's shape; only its sewing differs (raglan seams from the neck to the underarms instead of
+// set-in sleeves). Print layouts use it (layout-warp.js), as a loose training tee: it hangs from the chest in soft
+// folds instead of fitting the waist.
+SPECS.raglan = { ...SPECS.tee, loose: true, cuffKeep: 0.07 };
+
 /** Smooth closed outline sampled every `step` metres. */
 function outline(kind, step) {
   const half = (SPECS[kind] ?? SPECS.jersey).half;
@@ -126,6 +175,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
     if (p.y < minY + 0.03 && (!spec.legs || ax > 0.035)) return true;
     if (p.y > maxY - spec.neck.drop && ax < spec.neck.half) return true;
     if (spec.armholes && ax > 0.15 && p.y > 0.5 && ax < 0.24) return true;
+    if (spec.split && ax > spec.split.x - 0.075 && p.y < spec.split.top - 0.001) return true;
     if (cuff) {
       const a = cuff[0], b = cuff[1], q = new THREE.Vector2(ax, p.y);
       const ab = b.clone().sub(a), t = THREE.MathUtils.clamp(q.clone().sub(a).dot(ab) / ab.lengthSq(), 0, 1);
@@ -138,9 +188,11 @@ export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
   // Boundary first (shared seam), then an even interior grid, twice as dense
   // where small creases form (the sides, round the armpits and the armholes).
   const fine = step * 0.5;
+  // Shorts: the crotch and the waist (the drawn outline bulges a little above the waist at its corners).
+  const crotchY = spec.points?.CR?.[1] ?? 0.17, waist = spec.points?.CF?.[1] ?? maxY;
   const fineZone = (p) => {
     const ax = Math.abs(p.x);
-    if (spec.legs) return (ax > 0.14 && p.y < 0.37) || p.y > 0.31 || Math.hypot(ax, p.y - 0.17) < 0.13;
+    if (spec.legs) return (ax > 0.14 && p.y < waist - 0.05) || p.y > waist - 0.11 || Math.hypot(ax, p.y - crotchY) < 0.13;
     return spec.chest && ((ax > 0.15 && ax < 0.3 && p.y > 0.02 && p.y < 0.58) || Math.hypot(ax - 0.255, p.y - 0.53) < 0.11);
   };
   const points = [...poly];
@@ -177,7 +229,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
   const hemDistance = (p) => distanceToOutline(p, poly, hemMask);
   const worn = spec.chest
     ? wornTop(spec, { topSeam: (p) => distanceToOutline(p, poly, topMask), outline: poly, hemDist: hemDistance })
-    : wornShorts();
+    : wornShorts(spec);
   const hemDist = points.map(hemDistance);
   const sleeveAt = points.map((p) => worn.sleeve(p));
   /** Drape folds fanning out from the armpit along rays, about 3 cm apart. */
@@ -197,7 +249,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
     if (spec.legs) return 0;
     const ax = Math.abs(p.x), ph = back ? 2.1 : 0;
     const band = ramp(0.02, 0.036, hemDist[i]);   // the hem band itself stays smooth and even
-    const drape = Math.sin(p.x * 66 + ph + 1.3 * Math.sin(p.x * 17 + ph)) * ramp(0.2, 0, p.y);
+    // Not on a loose tee: the client's photo shows no upright waves above its hem.
+    const drape = spec.loose ? 0 : Math.sin(p.x * 66 + ph + 1.3 * Math.sin(p.x * 17 + ph)) * ramp(0.2, 0, p.y);
     const slant = Math.sin((p.y + 0.45 * p.x) * 150 + ph + 1.8 * Math.sin(p.x * 11 + ph)) * ramp(0.11, 0.04, p.y) * (0.45 + 0.55 * ramp(0.04, 0.2, ax));
     return band * (0.0024 * drape + 0.0016 * slant);
   };
@@ -220,17 +273,97 @@ export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
   /** Shorts: drag folds where they pull between the legs, fanning from the crotch sideways and
    *  down across the thighs in front, under and beside the seat behind; and the fabric gathered
    *  by the elastic just under the waistband. */
+  const band = spec.rim.width ?? 0.026;
   const shortsFolds = (p, back) => {
     if (!spec.legs) return 0;
-    const ax = Math.abs(p.x), vy = p.y - 0.17, rho = Math.hypot(ax, vy), ang = Math.atan2(vy, ax), ph = back ? 1.3 : 0;
+    const ax = Math.abs(p.x), vy = p.y - crotchY, rho = Math.hypot(ax, vy), ang = Math.atan2(vy, ax), ph = back ? 1.3 : 0;
     const fan = back ? ramp(-0.9, -0.3, ang) * ramp(0.95, 0.4, ang) : ramp(-1.15, -0.8, ang) * ramp(0.3, 0.02, ang);
-    const drag = rho > 0.17 ? 0 : fan * ramp(0.012, 0.04, rho) * ramp(0.17, 0.07, rho) * Math.sin(ang * 10 + ph + 0.6 * Math.sin(rho * 40));
-    const gather = Math.sin(p.x * 300 + ph + 1.5 * Math.sin(p.x * 31)) * (0.6 + 0.4 * Math.sin(p.x * 23 + 0.7)) * ramp(0.33, 0.386, p.y) * ramp(0.396, 0.388, p.y);
-    return 0.003 * drag + 0.0013 * gather;
+    // Loose shorts pull in longer drag folds, fanning from the crotch out to the hips.
+    const reach = spec.loose ? 0.24 : 0.17;
+    const drag = rho > reach ? 0 : fan * ramp(0.012, 0.04, rho) * ramp(reach, reach * 0.42, rho) * Math.sin(ang * 10 + ph + 0.6 * Math.sin(rho * 40));
+    // The fabric gathered by the elastic just under the waistband.
+    const under = waist - band;
+    const gather = Math.sin(p.x * 300 + ph + 1.5 * Math.sin(p.x * 31)) * (0.6 + 0.4 * Math.sin(p.x * 23 + 0.7)) * ramp(under - 0.064, under - 0.008, p.y) * ramp(under + 0.002, under - 0.006, p.y);
+    // Under a deep gathered waistband (training shorts) the cloth falls from the elastic in many soft folds, about
+    // 2.5 cm apart, deepest just under the band and fading out over about 6 cm in front, 4.5 cm behind.
+    const fall = spec.loose
+      ? Math.sin(p.x * 250 + ph + 1.6 * Math.sin(p.x * 37 + ph)) * (0.65 + 0.35 * Math.sin(p.x * 19 + 0.4)) * ramp(under - (back ? 0.045 : 0.065), under - 0.006, p.y) * ramp(under + 0.002, under - 0.003, p.y)
+      : 0;
+    // Loose shorts: the drag folds fade out above the hem band too, and there are none behind (the client's shorts
+    // are smooth there).
+    return (spec.loose ? (back ? 0 : 0.0038) * ramp(0.035, 0.07, p.y) : 0.003) * drag + (spec.loose ? 0 : 0.0013) * gather + 0.0055 * fall;
+  };
+  /**
+   * Loose garments hang in soft folds: on a training tee from under the chest down to the hem, fuller towards the
+   * sides; on loose shorts down the legs from the hips to the hem. Slow waves that wander a little, so they read
+   * as cloth rather than ribs.
+   */
+  const drapeFolds = (p, back, i) => {
+    if (!spec.loose || sleeveAt[i]) return 0;
+    const ax = Math.abs(p.x), ph = back ? 2.2 : 0.5;
+    if (spec.legs) {
+      // Only the folds the client's shorts show (front and back differ). The hem band stays smooth and straight (it is
+      // stiffer): the folds fade out above it.
+      const hang = ramp(waist - 0.055, 0.04, p.y) * ramp(0.03, 0.065, hemDist[i]);
+      const lean = p.x * (1 + 0.6 * ramp(0.2, 0.02, p.y));
+      const broad = Math.sin(lean * 72 + ph + 1.3 * Math.sin(p.x * 17 + p.y * 11 + ph));
+      if (!back) {
+        // In front, as on the client's shorts: only a few short folds down each leg (every other broad fold, over
+        // the thigh only), and a few short creases across the thighs, rising a little to the side, that cut them.
+        const few = Math.max(0, Math.sin(p.x * 36 + 0.9)) ** 2;
+        const short = ramp(0.045, 0.09, p.y) * ramp(0.22, 0.15, p.y);
+        const across = Math.sin((p.y - 0.2 * ax) * 95 + 1.2 * Math.sin(ax * 21)) * (0.6 + 0.4 * Math.sin(ax * 31 + p.y * 20))
+          * ramp(0.03, 0.07, ax) * ramp(0.2, 0.14, ax) * ramp(0.075, 0.11, p.y) * ramp(0.24, 0.18, p.y);
+        return hang * 0.0058 * few * short * broad + 0.0065 * across;
+      }
+      // Behind, as on the client's shorts: a few soft upright folds near the middle (the seat's fullness either side
+      // of the centre seam) and short level creases at the sides, with their shadows; the rest smooth.
+      const keep = ramp(0.03, 0.065, hemDist[i]);
+      // The upright fold: thin, widest under the waistband and narrowing to nothing towards the crotch (no round end).
+      const upper = ramp(0.09, waist - 0.06, p.y);
+      const foldW = 0.005 + 0.013 * upper, foldX = 0.028 + 0.012 * upper;
+      const middle = Math.exp(-(((ax - foldX) / foldW) ** 2)) * upper ** 0.8 * ramp(waist - 0.045, waist - 0.08, p.y);
+      const sides = Math.sin(p.y * 80 + 0.7 * Math.sin(ax * 23)) * (0.65 + 0.35 * Math.sin(ax * 40 + p.y * 9))
+        * ramp(0.15, 0.19, ax) * ramp(0.12, 0.16, p.y) * ramp(waist - 0.055, waist - 0.09, p.y);
+      return keep * (0.0052 * middle + 0.006 * sides);
+    }
+    // Only the folds the client's photo shows. In front: under the chest a fold each side runs down and out to the
+    // side, and a few soft horizontal folds sag across the stomach from the sides towards the middle. Behind: folds
+    // run in and down from the sides (under the lettering, from the raglan seams) towards the middle. Each is a ridge
+    // with its shadowed valley just below. As in the photo a fold is widest and deepest where it starts (its first
+    // point: a seam, or under the chest) and narrows and shallows along its length to a point: no round ends.
+    // Lines: right half [|x|, y].
+    const lines = back
+      ? [[[0.25, 0.56], [0.235, 0.55], [0.17, 0.515], [0.09, 0.47], [0.04, 0.44]], [[0.25, 0.52], [0.235, 0.51], [0.16, 0.46], [0.08, 0.41], [0.035, 0.385]],
+        [[0.25, 0.31], [0.235, 0.3], [0.15, 0.24], [0.06, 0.195], [0.03, 0.18]], [[0.25, 0.21], [0.235, 0.2], [0.14, 0.145], [0.05, 0.115], [0.025, 0.105]],
+        [[0.25, 0.104], [0.22, 0.1], [0.1, 0.075], [0, 0.07]]]
+      : [[[0.095, 0.42], [0.15, 0.33], [0.2, 0.25]], [[0.07, 0.36], [0.1, 0.24], [0.16, 0.19], [0.23, 0.165]],
+        [[0.25, 0.152], [0.23, 0.15], [0.17, 0.14], [0.09, 0.13], [0.04, 0.155]], [[0.25, 0.092], [0.23, 0.09], [0.14, 0.08], [0.07, 0.055], [0, 0.06]]];
+    let h = 0;
+    for (const pts of lines) {
+      let total = 0, run = 0, best = Infinity, sd = 0, along = 0;
+      for (let k = 1; k < pts.length; k++) total += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
+      for (let k = 1; k < pts.length; k++) {
+        const [x0, y0] = pts[k - 1], dx = pts[k][0] - x0, dy = pts[k][1] - y0, len = Math.hypot(dx, dy);
+        // Before its start the line runs on (the fold fades in there), so it has no round end at either end.
+        const t = THREE.MathUtils.clamp(((ax - x0) * dx + (p.y - y0) * dy) / (len * len), k === 1 ? -Infinity : 0, 1);
+        const qx = x0 + dx * t, qy = y0 + dy * t, d = Math.hypot(ax - qx, p.y - qy);
+        // Signed: + on the upper side of the line.
+        if (d < best) { const s = dx < 0 ? -1 : 1; best = d; sd = s * ((ax - qx) * -dy + (p.y - qy) * dx) / len; along = run + t * len; }
+        run += len;
+      }
+      // From start to end: half-width 2 cm narrowing to 0.6 cm, the depth fading to nothing.
+      // Long thin ridges, as in the photo: 1.3 to 1.5 cm wide where they start, thinning to a point.
+      const f = THREE.MathUtils.clamp(along / total, 0, 1), w = (back ? 0.013 : 0.015) * (1 - 0.62 * f), g = (u) => Math.exp(-((u / w) ** 2));
+      h += ramp(-0.015, 0.02, along) * (1 - f) ** 0.8 * (g(sd) - 0.85 * g(sd + 1.2 * w));
+    }
+    // The front's folds are deeper (the photo's stomach folds stand out more than the back's).
+    // The upper back's V folds (under the lettering) are the deepest, as clear as in the photo.
+    return (back ? 0.0034 * (1 + 0.3 * ramp(0.33, 0.4, p.y)) : 0.0042) * h * ramp(0.012, 0.03, hemDist[i]);
   };
   const seamDist = points.map((p, i) => (i < nb && seam[i] ? 0 : distanceToOutline(p, poly, seam)));
   /** Crease height in metres (+ out, - in), pushed out along the body's surface. */
-  const crease = (p, back, i) => ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back) + shortsFolds(p, back));
+  const crease = (p, back, i) => ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back) + shortsFolds(p, back) + drapeFolds(p, back, i));
   const neckEdge = poly.filter((q, i) => !seam[i] && q.y > maxY - spec.neck.drop && Math.abs(q.x) < spec.neck.half);
   const nearNeck = (p) => neckEdge.reduce((d, q) => Math.min(d, Math.hypot(p.x - q.x, p.y - q.y)), Infinity);
   /** The body under the fabric (worn.js), kept off the seams and the neckline so those stay even. */
@@ -246,22 +379,25 @@ export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
   // round the armpit (the body just below it and the sleeve's underside facing it) and just
   // under the collar (or the shorts' waistband).
   const shade = (p, i, back) => {
-    const valley = 1 - 0.16 * Math.min(1, Math.max(0, -crease(p, back, i) / 0.003));
+    // A loose tee's back: soft valleys (a gentle shadow, not a dark cut).
+    const valley = 1 - (spec.loose ? (spec.legs ? 0.3 : back ? 0.18 : 0.22) : 0.16) * Math.min(1, Math.max(0, -crease(p, back, i) / (spec.loose ? (back && !spec.legs ? 0.007 : 0.004) : 0.003)));
+    // A loose top's fold ridges catch the light, as in the client's photo (the only shading above 1).
+    const ridge = spec.loose && !spec.legs ? 1 + (back ? 0.26 : 0.14) * Math.min(1, Math.max(0, crease(p, back, i) / 0.004)) : 1;
     const muscles = 1 - 0.5 * THREE.MathUtils.clamp(hollow(p, back) / 0.006, 0, 1);
     let under = 1;
     if (worn.pit) {
       const sl = sleeveAt[i], near = Math.exp(-((Math.abs(p.x) - worn.pit.x) ** 2 + (p.y - worn.pit.y + 0.012) ** 2) / 0.0022);
       under = 1 - 0.3 * near - (sl ? 0.2 * ramp(-0.2, -1, Math.sin(sl.phi)) * ramp(0.08, 0, sl.l) : 0);
     }
-    const collar = 1 - 0.24 * Math.exp(-(Math.max(0, nearNeck(p) - (spec.legs ? 0.024 : 0)) ** 2) / 0.0004);
-    return THREE.MathUtils.clamp(valley * muscles * under * collar * (worn.shade?.(p, back) ?? 1), 0.4, 1);
+    const collar = 1 - 0.24 * Math.exp(-(Math.max(0, nearNeck(p) - (spec.legs ? band - 0.002 : 0)) ** 2) / 0.0004);
+    return THREE.MathUtils.clamp(valley * ridge * muscles * under * collar * (worn.shade?.(p, back) ?? 1), 0.4, ridge);
   };
   const positions = new Float32Array(n * 2 * 3);
   const uvs = new Float32Array(n * 2 * 2);
   const colours = new Float32Array(n * 2 * 3);
   const backHeight = (p) => {
     if (!spec.chest || Math.abs(p.x) > .112 || p.y < .62) return p.y;
-    const neckLine = kind === 'tee' || kind === 'polo' ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
+    const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
     const weight = Math.exp(-((p.y - neckLine) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
     return p.y + Math.max(0, .752 - p.y) * weight;
   };
@@ -386,35 +522,193 @@ export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
     geometry,
     frame: { minX, maxX, minY, maxY, span },
     outline: poly,
+    // Which outline points are finished edges (hems, leg openings with their splits, sleeve ends).
+    edges: edge,
+    points: spec.points,
     neck,
     rimRadius: spec.rim.radius,
+    rimWidth: spec.rim.width ?? (spec.legs ? 0.026 : 0.011),
+    drawstring: !!spec.legs,
+    /** Where a flat panel point sits on the worn garment (before creases). */
+    at: (x, y, back = false) => worn.at(new THREE.Vector2(x, y), back),
   };
+}
+
+/**
+ * The shorts' drawstring: two eyelets in the front of the waistband, either side of the middle, and the cord's two
+ * ends coming out of them and hanging down over the front, each finished with a tip. Returns the parts and their
+ * two materials (cord; eyelets and tips), coloured by the kit.
+ */
+export function buildDrawstring(garment) {
+  const front = garment.neck.filter((p) => p.z > 0).sort((a, b) => a.x - b.x);
+  const near = (x) => front.reduce((best, p) => (Math.abs(p.x - x) < Math.abs(best.x - x) ? p : best), front[0]);
+  const width = garment.rimWidth, edge = near(0).y;
+  // How far in front of the body the cord hangs: clear of the fabric and its folds.
+  const surface = (x, y) => garment.at(x * 0.9, y, false).z + 0.0065;
+  const cord = new THREE.MeshStandardMaterial({ color: 0x1d2346, roughness: 0.82 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0x00a5c8, roughness: 0.32, metalness: 0.35 });
+  const group = new THREE.Group();
+  // Where the cord lies: just in front of the fabric under the band (k = 0: at the eyelet itself).
+  const at = (x, y, lift = 0) => new THREE.Vector3(x, y, Math.max(near(x).z + 0.004, surface(x, y)) + lift);
+  const rope = (points) => {
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 40, 0.0023, 8, false), cord);
+    tube.castShadow = true;
+    group.add(tube);
+    return tube.geometry.parameters.path;
+  };
+  const y = edge - width * 0.5, knot = at(0, y - 0.024, 0.004);
+  // On a deep gathered band the face stands further out (its bulge and its flare at that height).
+  const face = width >= 0.035 ? 0.0012 + 0.0026 + width * 0.5 * 0.26 + 0.0012 : 0.0034;
+  for (const dir of [-1, 1]) {
+    const x = dir * 0.014, z = near(x).z + face;
+    // Eyelet: a ring set in the band, facing out.
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0042, 0.0012, 8, 24), metal);
+    ring.position.set(x, y, z);
+    ring.lookAt(x * 1.3, y, z + 1);
+    group.add(ring);
+    // Out through the eyelet and down to the knot.
+    rope([new THREE.Vector3(x, y, z + 0.0012), at(x * 0.8, y - 0.01, 0.002), at(dir * 0.004, y - 0.02, 0.004), knot]);
+    // A loop of the bow, out to the side and back.
+    rope([knot, at(dir * 0.014, y - 0.028, 0.004), at(dir * 0.024, y - 0.042, 0.003), at(dir * 0.016, y - 0.056, 0.003), at(dir * 0.005, y - 0.04, 0.004), knot]);
+    // An end hanging down, finished with a tip.
+    const path = rope([knot, at(dir * 0.004, y - 0.05, 0.003), at(dir * 0.007, y - 0.085, 0.002), at(dir * 0.006, y - 0.115, 0.002)]);
+    const end = path.getPoint(1), dirEnd = path.getTangent(1).normalize();
+    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.0031, 0.0028, 0.017, 14), metal);
+    tip.position.copy(end).addScaledVector(dirEnd, 0.0075);
+    tip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirEnd);
+    tip.castShadow = true;
+    group.add(tip);
+  }
+  // The knot.
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.0048, 16, 12), cord);
+  ball.position.copy(knot);
+  ball.scale.set(1.25, 0.9, 0.8);
+  group.add(ball);
+  return { group, cord, metal };
 }
 
 /**
  * Rib-knit collar (or waistband): an even band sewn round the opening and folded inwards,
  * so its rounded top edge shows outside and, through the opening, its inside face.
  */
-export function buildCollar(neck, shorts = false) {
+export function buildCollar(neck, shorts = false, width = shorts ? 0.026 : 0.011) {
+  // A deep elastic waistband (training shorts): three gathered channels (gatheredBand).
+  if (shorts && width >= 0.035) return gatheredBand(neck, width);
   const curve = new THREE.CatmullRomCurve3(neck, true);
-  const points = curve.getSpacedPoints(160);
+  const gathered = false, count = 160;
+  const points = curve.getSpacedPoints(count);
+  const along = curve.getLength();
   const positions = [], uvs = [], indices = [];
-  const width = shorts ? 0.026 : 0.011, fold = shorts ? 0.0026 : 0.0019, top = width * 0.25;
+  const fold = shorts ? 0.0026 : 0.0019, top = width * 0.25;
   // Cross-section from the outside face, over the folded top edge, down the inside face:
-  // [outward, up] in metres from the neck edge.
+  // [outward, up] in metres from the neck edge. Gathered: each channel bulges between its stitch lines.
   const profile = [];
-  for (let r = 0; r <= 5; r++) { const s = r / 5; profile.push([0.0012 + 0.0011 * Math.sin(Math.PI * s), -width + (width + top) * s]); }
+  for (let r = 0; r <= 5; r++) { const s = r / 5; profile.push([0.0012 + (gathered ? 0.0026 : 0.0011) * Math.sin(Math.PI * s), -width + (width + top) * s]); }
   for (let r = 1; r <= 6; r++) { const a = (Math.PI * r) / 6; profile.push([0.0012 - fold + fold * Math.cos(a), top + fold * Math.sin(a)]); }
   for (let r = 1; r <= 3; r++) { const s = r / 3; profile.push([0.0012 - 2 * fold - 0.001 * s, top - width * 0.95 * s]); }
   const rows = profile.length - 1;
   points.forEach((point, index) => {
     const out = new THREE.Vector3(point.x * 0.35, 0, point.z).normalize();
+    // Gathered: the outside face ripples in and out (deepest across the middle of the band), as elastic does.
+    // Only ever outwards, so the gathers never dip into the shorts under the band.
+    const ripple = gathered ? 0.0018 * (0.5 + 0.5 * Math.sin((index / count) * along * ((2 * Math.PI) / 0.011))) * (0.7 + 0.3 * Math.sin(index * 0.37)) : 0;
     profile.forEach(([o, h], r) => {
-      positions.push(point.x + out.x * o, point.y + h, point.z + out.z * o);
-      uvs.push(index / 160, r / rows);
+      const face = r <= 5 ? Math.sin((Math.PI * r) / 5) : 0;
+      // Three channels, stitched between: the face dips in at a third and two thirds of the band.
+      const channel = gathered && (r === 2 || r === 4) ? -0.0026 : 0;
+      // A deep band follows the shorts as they widen below the waist (else their fabric shows through at its foot).
+      const flare = gathered && r <= 5 && h < 0 ? -h * 0.26 : 0;
+      positions.push(point.x + out.x * (o + ripple * face + channel + flare), point.y + h, point.z + out.z * (o + ripple * face + channel + flare));
+      uvs.push(index / count, r / rows);
     });
-    if (index < 160) for (let r = 0; r < rows; r++) {
+    if (index < count) for (let r = 0; r < rows; r++) {
       const a = index * (rows + 1) + r, c = a + rows + 1;
+      indices.push(a, c, a + 1, a + 1, c, c + 1);
+    }
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
+ * A deep elastic waistband (training shorts), as factories sew them: three channels stitched across it (about 27 %,
+ * 46 % and 27 % of its height from the foot; the drawstring's eyelets sit in the wide middle one), each puffing out a
+ * little and tightly gathered into small upright folds about 5 mm apart that the stitch lines pinch flat; rounded over
+ * at the top, its foot on the waist's stitching. It widens with the shorts below the waist, so they never show through.
+ */
+function gatheredBand(neck, width) {
+  const curve = new THREE.CatmullRomCurve3(neck, true), along = curve.getLength();
+  const count = Math.round(along / 0.00085), points = curve.getSpacedPoints(count), step = along / count;
+  // The waist edge bulges a little at the corners: the band's top follows it smoothed, its foot the edge's lowest
+  // line nearby (the shorts are stitched 1.2 mm under that, texture.js), so no shorts fabric shows above the stitching.
+  const at = (i) => points[((i % count) + count) % count];
+  const reach = (d) => Math.round(d / step);
+  const topY = [], footY = [];
+  for (let i = 0; i <= count; i++) {
+    let sum = 0, low = Infinity;
+    for (let k = -reach(0.04); k <= reach(0.04); k++) sum += at(i + k).y;
+    for (let k = -reach(0.06); k <= reach(0.06); k++) low = Math.min(low, at(i + k).y);
+    topY.push(sum / (2 * reach(0.04) + 1) + width * 0.25);
+    footY.push(low - width - 0.0016);
+  }
+  // The foot's line smoothed too (no steps where the lowest point changes).
+  const footLine = footY.slice(0, count);
+  for (let i = 0; i <= count; i++) {
+    let sum = 0;
+    for (let k = -reach(0.03); k <= reach(0.03); k++) sum += footLine[(((i + k) % count) + count) % count];
+    footY[i] = sum / (2 * reach(0.03) + 1);
+  }
+  // Folds all round (a whole number, so they meet where the loop closes), wandering a little; each channel its own.
+  const folds = Math.round(along / 0.005);
+  const gather = (i, c) => {
+    const t = i / count, w = 2 * Math.PI * t;
+    const phase = t * folds + 0.42 * Math.sin(w * 7 + c * 2.1) + 0.27 * Math.sin(w * 19 + c * 1.3) + c * 0.37;
+    const f = phase - Math.floor(phase);
+    // Rounded crests, sharp creases between them.
+    return Math.pow(Math.sin(Math.PI * f), 0.6) * (0.8 + 0.2 * Math.sin(w * 31 + c * 4.1));
+  };
+  // Cross-section rows: up the outside (per channel: [from, to] as parts of the band's height, rows, puff, folds
+  // depth), over the rounded top, down the inside.
+  const channels = [[0, 0.27, 9, 0.0016, 0.0015], [0.27, 0.73, 13, 0.0022, 0.0017], [0.73, 1, 9, 0.0018, 0.0015]];
+  const rows = [];
+  channels.forEach(([from, to, n, puff, depth], c) => {
+    for (let k = c ? 1 : 0; k <= n; k++) rows.push({ c, part: from + ((to - from) * k) / n, s: k / n, puff, depth });
+  });
+  const outside = rows.length, fold = 0.0026;
+  for (let r = 1; r <= 6; r++) rows.push({ a: (Math.PI * r) / 6 });
+  for (let r = 1; r <= 3; r++) rows.push({ inside: r / 3 });
+  const total = rows.length - 1;
+  const positions = [], uvs = [], indices = [];
+  points.forEach((point, index) => {
+    const out = new THREE.Vector3(point.x * 0.35, 0, point.z).normalize();
+    const y0 = footY[index], y1 = topY[index];
+    const topFolds = gather(index, 2);
+    rows.forEach((row, r) => {
+      let o, y;
+      if (r < outside) {
+        y = y0 + (y1 - y0) * row.part;
+        const h = y - point.y;
+        // Follows the shorts widening below the waist (a little more at the foot, over their side seams).
+        const flare = Math.max(0, -h) * 0.26 + 0.0014 * THREE.MathUtils.clamp((-h - 0.03) / 0.012, 0, 1);
+        const across = Math.sin(Math.PI * row.s);
+        o = 0.0012 + flare + row.puff * Math.pow(across, 0.7) + row.depth * Math.pow(across, 0.45) * gather(index, row.c);
+      } else if (row.a !== undefined) {
+        // The rounded top: the top channel's folds carry on over it.
+        o = 0.0012 - fold + fold * Math.cos(row.a) + 0.0011 * topFolds * Math.max(0, Math.cos(row.a * 0.5));
+        y = y1 + fold * Math.sin(row.a);
+      } else {
+        o = 0.0012 - 2 * fold - 0.001 * row.inside;
+        y = y1 - width * 0.95 * row.inside;
+      }
+      positions.push(point.x + out.x * o, y, point.z + out.z * o);
+      uvs.push(index / count, r / total);
+    });
+    if (index < count) for (let r = 0; r < total; r++) {
+      const a = index * (total + 1) + r, c = a + total + 1;
       indices.push(a, c, a + 1, a + 1, c, c + 1);
     }
   });

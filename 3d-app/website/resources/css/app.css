@@ -35,3 +35,18 @@
 .showcase-strip img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block}
 .showcase-actions{display:flex;gap:10px;flex-wrap:wrap}
 .prompt-chips button.selected{border-color:#00dbea;color:#00dbea}
+/* Quick access to AI Powered Sportswear and Design Your Own beside Start a kit (in the menu on phones). */
+.quick-tabs{display:flex;gap:6px;align-items:center}
+.quick-tab{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:999px;border:1px solid #00d9ed55;background:#06121b;color:#cfeff3;font-family:var(--heading);font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;transition:border-color .2s,box-shadow .2s,color .2s}
+.quick-tab:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 12px #00d9ed55}
+.quick-tab.is-ai{border-color:transparent;color:#02131c;background:linear-gradient(110deg,var(--cyan),#7a5cff)}
+.quick-tab.is-ai:hover{color:#02131c;box-shadow:0 0 16px #00d9ed88}
+.nav-quick{display:none}
+@media(max-width:800px){.quick-tabs{display:none}.main-nav .nav-quick{display:flex;align-items:center;gap:9px;height:45px;padding:0;background:none;border:0;color:var(--cyan);font-family:var(--heading);font-size:15px;font-weight:700;text-transform:uppercase;text-align:left;cursor:pointer}.main-nav .nav-quick:first-of-type{border-top:1px solid #00d9ed22;margin-top:6px}}
+/* 801–1100 px: the eight links do not fit beside the logo and buttons, so they open from the menu button as on phones. */
+@media(max-width:1100px) and (min-width:801px){.site-header .mobile-toggle{display:flex}.site-header .main-nav{display:none;position:absolute;left:0;right:0;top:100%;height:auto;flex-direction:column;align-items:stretch;padding:14px 30px 20px;background:#07101bf7;border-bottom:1px solid #00d9ed33;backdrop-filter:blur(20px);gap:0}.site-header .main-nav.is-open{display:flex}.site-header .main-nav a{height:45px;font-size:15px}.site-header .main-nav a.active:after{bottom:7px;right:auto;width:28px}}
+/* Phones: the Admin button moves into the menu, so it never covers the logo. */
+.main-nav .nav-admin{display:none}
+@media(max-width:800px){.header-actions .admin-link{display:none}.main-nav .nav-admin{display:flex;align-items:center;gap:9px}}
+/* 801–1440 px signed in: the Admin button shows its shield only and the account its initial, so AI and DYO fit. */
+@media(max-width:1440px) and (min-width:801px){.header-actions .admin-link{width:38px;padding:0!important;justify-content:center}.header-actions .admin-link .admin-text{display:none}.header-actions .account-link>span:last-child{display:none}}
