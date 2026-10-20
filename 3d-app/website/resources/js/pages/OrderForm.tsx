@@ -13,6 +13,7 @@ import { ArrowRight, Check, ChevronDown, ClipboardPaste, CreditCard, Info, Loade
 import { api, ApiError, media, type Catalog, type Project, type User } from '../api';
 import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type OrderDetail, type OrderFile, type Payment } from '../orderApi';
 import { AssistCard, ContactDetailsCard, FileDropBox, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSummaryCard, checkFiles, emptyContact, formatBytes, type ContactDetails, type SummaryRow, type UploadItem } from '../components/OrderPageParts';
+import { PriceBreakdown, PricingChoices, type Quote as PayQuote } from '../components/OrderPayment';
 import '../../css/order-form.css';
 
 /* ================================================================================================ API shapes */
@@ -995,47 +996,13 @@ function Review({ form, options, projects, files, quote, pricingOptions, submitE
       <p className="of-review-notes">{form.notes.trim() || 'None.'}</p>
     </OrderSection>
     <OrderSection number={4} title="Price" className="of-price-card">
-      {pricingOptions && <PriceChoices options={pricingOptions} value={form.pricing} quote={quote.data} onChange={onPricing} />}
-      <PriceTable quote={quote.data} loading={quote.loading} error={quote.error} />
+      {/* The same price choices and breakdown as Upload Your Order (components/OrderPayment). */}
+      {pricingOptions && <PricingChoices value={form.pricing} onChange={onPricing} />}
+      {quote.data || quote.loading
+        ? <PriceBreakdown quote={quote.data as unknown as PayQuote | null} loading={quote.loading} error={quote.error} />
+        : <p className="of-price-note"><Info size={16} /> {quote.error ? `The price couldn’t be worked out (${quote.error}). ` : ''}Price confirmed by 3DEEZI after review.</p>}
     </OrderSection>
   </>;
-}
-
-function PriceChoices({ options, value, quote, onChange }: { options: PricingOptions; value: PricingChoice; quote: Quote | null; onChange: (p: PricingChoice) => void }) {
-  const [code, setCode] = useState(value.discount_code ?? '');
-  const optional = options.extras.filter(x => !x.auto);
-  return <div className="of-price-choices">
-    {options.destinations.length > 1 && <OrderField label="Deliver to"><select className="op-input" value={value.destination ?? options.default_destination} onChange={e => onChange({ ...value, destination: e.target.value })}>{options.destinations.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}</select></OrderField>}
-    {optional.length > 0 && <fieldset className="of-extras"><legend>Extras</legend>{optional.map(x => <label key={x.code}><input type="checkbox" checked={!!value.extras?.includes(x.code)} onChange={e => onChange({ ...value, extras: e.target.checked ? [...(value.extras ?? []), x.code] : (value.extras ?? []).filter(c => c !== x.code) })} /><span>{x.name}</span><small>+{money(x.unit_price, options.currency)}{x.unit === 'garment' ? ' a garment' : x.unit === 'player' ? ' a player' : ''}</small></label>)}</fieldset>}
-    {options.discount_codes && <form className="of-discount" onSubmit={e => { e.preventDefault(); onChange({ ...value, discount_code: code.trim() || undefined }); }}>
-      <OrderField label="Discount code" error={quote?.discount_code && !quote.discount_code.valid ? quote.discount_code.message || 'This code isn’t valid.' : undefined} hint={quote?.discount_code?.valid ? `${quote.discount_code.code} applied.` : undefined}>
-        <span className="of-discount-row"><input className="op-input" value={code} maxLength={40} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="Code" /><button type="submit" className="of-btn">Apply</button></span>
-      </OrderField>
-    </form>}
-  </div>;
-}
-
-function PriceTable({ quote, loading, error }: { quote: Quote | null; loading: boolean; error: string }) {
-  if (loading && !quote) return <p className="of-price-wait"><LoaderCircle className="spin" size={16} /> Working out your price…</p>;
-  if (!quote) return <p className="of-price-note"><Info size={16} /> {error ? `The price couldn’t be worked out (${error}). ` : ''}Price confirmed by 3DEEZI after review.</p>;
-  const m = (v: string | null | undefined) => money(v, quote.currency);
-  const lines = [...quote.lines, ...(quote.extras ?? [])];
-  return <div className={`of-price${loading ? ' is-loading' : ''}`}>
-    <table>
-      <thead><tr><th>Item</th><th>Qty</th><th>Each</th><th>Amount</th></tr></thead>
-      <tbody>
-        {lines.map(l => <tr key={l.key}><td>{l.name}</td><td>{l.quantity}</td><td>{l.priced ? m(l.unit_price) : 'To confirm'}</td><td>{l.priced ? m(l.total) : '—'}</td></tr>)}
-        {quote.shipping && <tr><td>Shipping · {quote.shipping.name}</td><td /><td /><td>{quote.shipping.priced ? m(quote.shipping.amount) : 'To confirm'}</td></tr>}
-        {(quote.discounts ?? []).map(d => <tr key={d.name} className="is-discount"><td>{d.name}</td><td /><td /><td>−{m(d.amount)}</td></tr>)}
-      </tbody>
-      <tfoot>
-        {quote.subtotal !== null && <tr><th colSpan={3}>Subtotal</th><td>{m(quote.subtotal)}</td></tr>}
-        {quote.tax?.applies && <tr><th colSpan={3}>{quote.tax.name} {Number(quote.tax.rate)}%{quote.tax.included ? ' (included)' : ''}</th><td>{m(quote.tax.amount)}</td></tr>}
-        <tr className="of-price-total"><th colSpan={3}>Total ({quote.currency})</th><td>{quote.total !== null ? m(quote.total) : 'To confirm'}</td></tr>
-      </tfoot>
-    </table>
-    {quote.status === 'quote_required' && <p className="of-price-note"><Info size={16} /> The price will be confirmed by 3DEEZI. {(quote.reasons ?? []).map(r => r.message).join(' ')}</p>}
-  </div>;
 }
 
 function Placed({ order, onAnother }: { order: OrderDetail; onAnother: () => void }) {

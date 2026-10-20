@@ -71,7 +71,9 @@ class Order extends Model
     protected function casts(): array
     {
         return ['sizes' => 'array', 'quantity' => 'integer', 'unit_price' => 'decimal:2', 'total' => 'decimal:2', 'players' => 'array', 'design_snapshot' => 'array', 'project_version' => 'integer',
-            'items' => 'array', 'needed_by' => 'date:Y-m-d', 'due_date' => 'date:Y-m-d', 'assigned_to' => 'integer', 'status_changed_at' => 'datetime'];
+            'items' => 'array', 'needed_by' => 'date:Y-m-d', 'due_date' => 'date:Y-m-d', 'assigned_to' => 'integer', 'status_changed_at' => 'datetime',
+            // The customer's price choices (destination, extras, discount code), kept as JSON for the invoice.
+            'pricing' => 'array'];
     }
 
     protected static function booted(): void

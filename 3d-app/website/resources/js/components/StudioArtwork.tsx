@@ -138,7 +138,7 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
         <input ref={fileInput} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />
         <div className="print-layout">
             <strong>MY DESIGN PICTURE</strong>
-            <p className="field-hint">A finished picture of your design: the front and back of the garment drawn flat, side by side (a tech flat or a designer’s mock-up). It goes onto the 3D kit exactly as drawn: the whole pattern, your logos in their places. Basketball singlets for now.</p>
+            <p className="field-hint">A finished picture of your design: the front and back of the garment drawn flat, side by side (a tech flat or a designer’s mock-up). It goes onto the 3D kit exactly as drawn: the whole pattern, your logos in their places, on a singlet, jersey, training tee or polo.</p>
             {layout?.kind === 'drawing'
                 ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · on the 3D kit as drawn</p><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Design picture removed: back to your designed kit. The picture stays in your saved assets.'); }}>Remove design picture</button></>
                 : <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => drawingInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <ImagePlus size={15} />} Upload my design picture</button>}

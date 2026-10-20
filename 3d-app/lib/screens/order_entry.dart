@@ -53,11 +53,94 @@ class _PriceBoxState extends State<PriceBox> {
           for (final l in lines)
             Row(children: [Expanded(child: Text('${l['name']} x ${l['quantity']}', style: const TextStyle(fontSize: 13))), Text(_money(l['total'], q['currency']), style: const TextStyle(fontSize: 13))]),
           if (shipping != null)
-            Row(children: [const Expanded(child: Text('Shipping', style: TextStyle(fontSize: 13))), Text(_money(shipping, q['currency']), style: const TextStyle(fontSize: 13))]),
+            Row(children: [Expanded(child: Text('Shipping${(q['shipping'] as Map?)?['name'] != null ? ' · ${(q['shipping'] as Map)['name']}' : ''}', style: const TextStyle(fontSize: 13))), Text(_money(shipping, q['currency']), style: const TextStyle(fontSize: 13))]),
+          for (final d in ((q['discounts'] as List?) ?? const []).cast<Map<String, dynamic>>())
+            Row(children: [Expanded(child: Text('${d['name']}', style: const TextStyle(fontSize: 13, color: Color(0xff3ddc84)))), Text('-${_money(d['amount'], q['currency'])}', style: const TextStyle(fontSize: 13, color: Color(0xff3ddc84)))]),
           if (tax?['amount'] != null)
             Row(children: [Expanded(child: Text('${tax?['name'] ?? 'Tax'}', style: const TextStyle(fontSize: 13))), Text(_money(tax?['amount'], q['currency']), style: const TextStyle(fontSize: 13))]),
           const Divider(),
           Row(children: [const Expanded(child: Text('TOTAL', style: TextStyle(fontWeight: FontWeight.w800))), Text(_money(q['total'], q['currency']), key: const Key('quote-total'), style: const TextStyle(fontWeight: FontWeight.w800, color: Palette.cyan))]),
+          if ((q['discount_code'] as Map?)?['valid'] == false)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('${(q['discount_code'] as Map)['message'] ?? 'This code isn’t valid.'}', key: const Key('code-error'), style: const TextStyle(color: Color(0xffff8a8a), fontSize: 12)),
+            ),
+        ],
+      );
+    },
+  );
+}
+
+/// The review's price choices (payments-api.md R3): delivery destination, extras and a discount code with Apply.
+/// Each change goes to [onChanged], which asks for the price again.
+class PriceChoices extends StatefulWidget {
+  const PriceChoices(this.c, this.value, this.onChanged, {super.key});
+  final AppController c;
+  final Map<String, dynamic> value;
+  final ValueChanged<Map<String, dynamic>> onChanged;
+  @override
+  State<PriceChoices> createState() => _PriceChoicesState();
+}
+
+class _PriceChoicesState extends State<PriceChoices> {
+  late final Future<Map<String, dynamic>> _options = widget.c.api.pricingOptions();
+  late final _code = TextEditingController(text: '${widget.value['discount_code'] ?? ''}');
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  void _set(String key, Object? value) {
+    final next = {...widget.value};
+    if (value == null || (value is List && value.isEmpty) || value == '') {
+      next.remove(key);
+    } else {
+      next[key] = value;
+    }
+    widget.onChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
+    future: _options,
+    builder: (context, snap) {
+      final o = snap.data;
+      if (o == null) return const SizedBox.shrink();
+      final destinations = ((o['destinations'] as List?) ?? const []).cast<Map<String, dynamic>>();
+      final extras = ((o['extras'] as List?) ?? const []).cast<Map<String, dynamic>>().where((e) => e['auto'] != true).toList();
+      final chosen = {...((widget.value['extras'] as List?) ?? const []).map((e) => '$e')};
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (destinations.isNotEmpty)
+            DropdownButtonFormField<String>(
+              key: const Key('price-destination'),
+              isExpanded: true,
+              initialValue: '${widget.value['destination'] ?? o['default_destination'] ?? destinations.first['code']}',
+              decoration: const InputDecoration(labelText: 'Delivery to', isDense: true),
+              items: [for (final d in destinations) DropdownMenuItem(value: '${d['code']}', child: Text('${d['name']}'))],
+              onChanged: (v) => _set('destination', v),
+            ),
+          for (final e in extras)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              value: chosen.contains('${e['code']}'),
+              title: Text('${e['name']}'),
+              subtitle: Text('${_money(e['unit_price'], o['currency'])} ${e['unit'] == 'order' ? 'per order' : e['unit'] == 'player' ? 'per name / number' : 'per garment'}', style: const TextStyle(fontSize: 11)),
+              onChanged: (on) => _set('extras', [...chosen.where((x) => x != '${e['code']}'), if (on == true) '${e['code']}']),
+            ),
+          if (o['discount_codes'] == true)
+            Row(
+              children: [
+                Expanded(child: TextField(key: const Key('price-code'), controller: _code, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Discount code', isDense: true))),
+                const SizedBox(width: 8),
+                OutlinedButton(onPressed: () => _set('discount_code', _code.text.trim().toUpperCase()), child: const Text('Apply')),
+              ],
+            ),
+          const SizedBox(height: 10),
         ],
       );
     },
@@ -377,6 +460,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   String get kind => 'form';
   final rows = <_Row>[_Row()];
   final help = TextEditingController();
+  Map<String, dynamic> pricing = {};
   String? helped;
 
   @override
@@ -399,6 +483,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     'team_name': team.text.trim(),
     'notes': notes.text.trim(),
     'items': [for (final r in rows) if (r.total > 0) r.toJson()],
+    if (pricing.isNotEmpty) 'pricing': pricing,
   };
 
   int get total => rows.fold(0, (a, r) => a + r.total);
@@ -593,7 +678,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
       if (uploads.isNotEmpty) Text('${uploads.where((u) => u.file != null).length} artwork file(s)', style: const TextStyle(color: Palette.muted)),
       if (notes.text.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('“${notes.text.trim()}”')),
       _section('Price'),
-      PriceBox(c, {'items': fields()['items']}),
+      PriceChoices(c, pricing, (next) => setState(() => pricing = next)),
+      PriceBox(c, {'items': fields()['items'], 'pricing': pricing}, key: ValueKey(jsonEncode(pricing))),
       errorText(),
       const SizedBox(height: 16),
       GradientButton(label: busy ? 'SENDING…' : 'CONFIRM ORDER', onPressed: busy ? null : () => confirm()),
@@ -616,6 +702,7 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
   @override
   String get kind => 'upload';
   bool editContact = false, correct = false;
+  Map<String, dynamic> pricing = {};
 
   @override
   void initState() {
@@ -631,6 +718,7 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
     'phone': phone.text.trim(),
     'team_name': team.text.trim(),
     'notes': notes.text.trim(),
+    if (pricing.isNotEmpty) 'pricing': pricing,
   };
 
   _Upload? get form => uploads.where((u) => u.kind == 'order_form').firstOrNull;
@@ -734,7 +822,8 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
           const Text('Sizes and quantities will be confirmed during review.', style: TextStyle(color: Palette.muted)),
         if (notes.text.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('“${notes.text.trim()}”')),
         _section('Price'),
-        PriceBox(c, {'items': correct ? items : const []}, key: ValueKey(correct)),
+        PriceChoices(c, pricing, (next) => setState(() => pricing = next)),
+        PriceBox(c, {'items': correct ? items : const [], 'pricing': pricing}, key: ValueKey('$correct${jsonEncode(pricing)}')),
         errorText(),
         const SizedBox(height: 16),
         GradientButton(

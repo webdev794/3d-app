@@ -293,6 +293,7 @@ void main() {
       ),
     );
     await tester.enterText(find.byType(TextField).first, 'CLUB');
+    await tester.ensureVisible(find.byTooltip('Add text layer'));
     await tester.tap(find.byTooltip('Add text layer'));
     await tester.pump();
     expect(c.layers.single['text'], 'CLUB');

@@ -17,7 +17,38 @@ import 'features_test.dart' show FakeStore;
 class OrdersServer {
   final requests = <http.Request>[];
   final submitted = <Map<String, dynamic>>[];
+  final quotes = <Map<String, dynamic>>[];
   var approval = 'review';
+
+  /// Jerseys $50, shorts $30; express $150 an order; shipping AU $100, NZ $250; TEAM10 takes 10% off; GST 10%.
+  Map<String, dynamic> quote(List items, Map<String, dynamic> pricing) {
+    final lines = [
+      for (final i in items.cast<Map>())
+        () {
+          final qty = (i['sizes'] as Map).values.fold<int>(0, (a, b) => a + (b as num).toInt());
+          final unit = i['garment'] == 'shorts' ? 30 : 50;
+          return {'name': i['garment'] == 'shorts' ? 'Shorts' : 'Jersey', 'quantity': qty, 'total': (qty * unit).toStringAsFixed(2)};
+        }(),
+    ];
+    final garments = lines.fold<double>(0, (a, l) => a + double.parse('${l['total']}'));
+    final express = ((pricing['extras'] as List?) ?? const []).contains('express');
+    final extras = express ? 150.0 : 0.0;
+    final nz = pricing['destination'] == 'NZ';
+    final shipping = nz ? 250.0 : 100.0;
+    final code = pricing['discount_code'];
+    final good = code == 'TEAM10';
+    final discount = good ? (garments + extras) * .1 : 0.0;
+    final subtotal = garments + extras + shipping - discount;
+    return {
+      'status': 'priced', 'currency': 'AUD', 'lines': lines,
+      'extras': [if (express) {'name': 'Express production', 'quantity': 1, 'total': '150.00'}],
+      'shipping': {'name': nz ? 'New Zealand' : 'Australia', 'amount': shipping.toStringAsFixed(2)},
+      'discounts': [if (good) {'name': 'Team 10%', 'amount': discount.toStringAsFixed(2)}],
+      'tax': {'name': 'GST', 'amount': (subtotal * .1).toStringAsFixed(2)},
+      'total': (subtotal * 1.1).toStringAsFixed(2), 'reasons': [],
+      'discount_code': code == null ? null : {'code': code, 'valid': good, 'message': good ? null : 'This code isn’t valid.'},
+    };
+  }
 
   Map<String, dynamic> card(int id, String status, String stage, String label, Map<String, String> sub) => {
     'id': id, 'number': '3DZ-0000$id', 'name': id == 1 ? 'MANTIS Rugby League' : 'Club Hoodies', 'status': status, 'stage': stage,
@@ -30,7 +61,9 @@ class OrdersServer {
   late final client = MockClient((r) async {
     requests.add(r);
     final path = r.url.path.replaceFirst('/api/v1', '');
-    http.Response ok(Object data, [int status = 200]) => http.Response(jsonEncode({'data': data}), status);
+    // UTF-8, as the server sends it (messages use typographic apostrophes).
+    http.Response ok(Object data, [int status = 200]) =>
+        http.Response.bytes(utf8.encode(jsonEncode({'data': data})), status, headers: {'content-type': 'application/json; charset=utf-8'});
     if (r.headers['Authorization'] != 'Bearer tok') return http.Response('{"message":"Unauthenticated."}', 401);
     if (path == '/orders/board') {
       return ok({
@@ -70,16 +103,28 @@ class OrdersServer {
     }
     if (path == '/order-drafts/7/submit') {
       submitted.add({...jsonDecode(r.body) as Map<String, dynamic>, 'key': r.headers['Idempotency-Key']});
-      final priced = (submitted.last['items'] as List?)?.isNotEmpty ?? false;
-      return ok({'id': 12, 'number': '3DZ-00012', 'status': 'pending', 'invoice': priced
-          ? {'invoice_number': 'INV-1001', 'status': 'awaiting_payment', 'label': 'Awaiting payment', 'tone': 'amber', 'currency': 'AUD', 'total': '1870.00', 'amount_due': '1870.00', 'can_pay': true}
+      final items = (submitted.last['items'] as List?) ?? const [];
+      // Invoiced at the price of the choices sent, as the payments feature does.
+      final total = items.isEmpty ? null : quote(items, (submitted.last['pricing'] as Map?)?.cast<String, dynamic>() ?? const {})['total'];
+      return ok({'id': 12, 'number': '3DZ-00012', 'status': 'pending', 'invoice': total != null
+          ? {'invoice_number': 'INV-1001', 'status': 'awaiting_payment', 'label': 'Awaiting payment', 'tone': 'amber', 'currency': 'AUD', 'total': total, 'amount_due': total, 'can_pay': true}
           : null}, 201);
     }
+    if (path == '/pricing/options') {
+      return ok({
+        'currency': 'AUD', 'default_destination': 'AU', 'discount_codes': true,
+        'destinations': [{'code': 'AU', 'name': 'Australia'}, {'code': 'NZ', 'name': 'New Zealand'}],
+        'extras': [{'code': 'names_numbers', 'name': 'Names & numbers printing', 'unit': 'player', 'unit_price': '5.00', 'auto': true},
+          {'code': 'express', 'name': 'Express production', 'unit': 'order', 'unit_price': '150.00', 'auto': false}],
+      });
+    }
     if (path == '/pricing/quote') {
-      final items = (jsonDecode(r.body)['items'] as List?) ?? const [];
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      final items = (body['items'] as List?) ?? const [];
+      quotes.add(body);
       return ok(items.isEmpty
           ? {'status': 'quote_required', 'currency': 'AUD', 'lines': [], 'total': null, 'reasons': [{'code': 'no_items', 'message': 'We price uploaded order forms after checking them.'}]}
-          : {'status': 'priced', 'currency': 'AUD', 'lines': [{'name': 'Jersey', 'quantity': 12, 'total': '600.00'}, {'name': 'Shorts', 'quantity': 12, 'total': '360.00'}], 'extras': [], 'shipping': {'amount': '100.00'}, 'tax': {'name': 'GST', 'amount': '106.00'}, 'total': '1166.00', 'reasons': []});
+          : quote(items, (body['pricing'] as Map?)?.cast<String, dynamic>() ?? const {}));
     }
     if (path == '/invoices/INV-1001/link') return ok({'url': 'https://test.example/invoices/INV-1001?key=abc', 'expires_at': '2026-10-20T15:00:00Z'});
     return http.Response('{"message":"Not found."}', 404);
@@ -163,6 +208,41 @@ void main() {
     addTearDown(() => openPayPage = (context, url, title) async {});
     await tap(tester, find.text('PAY NOW'));
     expect(opened, ['https://test.example/invoices/INV-1001?key=abc']);
+  });
+
+  testWidgets('Review price choices: destination, extras and discount code reprice; the invoice matches', (tester) async {
+    final server = OrdersServer();
+    await mount(tester, OrderFormScreen(signedIn(server)));
+    await tester.enterText(find.widgetWithText(TextField, 'Team / organisation'), 'MANTIS Rugby League');
+    await tester.enterText(find.widgetWithText(TextField, '12 jerseys M, 12 shorts L, 6 hoodies XL'), '12 jerseys M, 12 shorts L');
+    await tap(tester, find.text('Help me add sizes').last);
+    await tap(tester, find.text('REVIEW ORDER'));
+    // Australia by default: 960 + 100 shipping, GST 106.
+    expect(find.text('AUD 1166.00'), findsOneWidget);
+    // To New Zealand: shipping and GST change.
+    await tap(tester, find.byKey(const Key('price-destination')));
+    await tap(tester, find.text('New Zealand').last);
+    expect(find.text('Shipping · New Zealand'), findsOneWidget);
+    expect(find.text('AUD 1331.00'), findsOneWidget);
+    // An extra.
+    await tap(tester, find.text('Express production'));
+    expect(find.text('Express production x 1'), findsOneWidget);
+    expect(find.text('AUD 1496.00'), findsOneWidget);
+    // A wrong code is named; a good one takes 10% off garments and extras.
+    await tester.enterText(find.byKey(const Key('price-code')), 'NOPE');
+    await tap(tester, find.text('Apply'));
+    await tester.scrollUntilVisible(find.byKey(const Key('code-error')), 200, scrollable: find.byType(Scrollable).first);
+    expect(find.byKey(const Key('code-error')), findsOneWidget);
+    expect(find.text('AUD 1496.00'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('price-code')), 'team10');
+    await tap(tester, find.text('Apply'));
+    expect(find.text('Team 10%'), findsOneWidget);
+    expect(find.text('AUD 1373.90'), findsOneWidget);
+    expect(server.quotes.last['pricing'], {'destination': 'NZ', 'extras': ['express'], 'discount_code': 'TEAM10'});
+    // Confirmed with those choices: the invoice is the reviewed total.
+    await tap(tester, find.text('CONFIRM ORDER'));
+    expect(server.submitted.single['pricing'], {'destination': 'NZ', 'extras': ['express'], 'discount_code': 'TEAM10'});
+    expect(find.text('Invoice INV-1001: AUD 1373.90'), findsOneWidget);
   });
 
   testWidgets('AI designer results: a reference picture can go on the 3D kit (guests sign in first)', (tester) async {

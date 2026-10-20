@@ -298,6 +298,10 @@ class ApiClient {
         as Map<String, dynamic>;
   }
 
+  /// The price choices offered (payments): destinations, extras, discount codes (public).
+  Future<Map<String, dynamic>> pricingOptions() async =>
+      await _send('GET', '/pricing/options') as Map<String, dynamic>;
+
   /// The review step's price (payments): a quote for these order fields.
   Future<Map<String, dynamic>> pricingQuote(Map<String, dynamic> body) async =>
       await _send('POST', '/pricing/quote', body: body) as Map<String, dynamic>;

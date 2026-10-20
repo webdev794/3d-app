@@ -13,7 +13,7 @@ import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt } from './zones.js';
 import { readLayout, findPanels, confirmPanels, hemFold, joinLines, drawPockets, ROLE_NAMES } from './layout.js';
-import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut } from './layout-warp.js';
+import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, sleevedShape } from './layout-warp.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent) || params.has('mobile');
@@ -311,8 +311,8 @@ async function readLayoutFile(src, drawing = false) {
 }
 /** A drawing's shape is a garment: not a detail panel or photo (frame), upright, its neck, straps and underarms found. */
 function garmentShape(p) {
-  const w = p.x1 - p.x0, h = p.y1 - p.y0;
-  return !p.frame && h > 0.75 * w && h < 2.4 * w && drawingSides(p.outline).found;
+  const w = p.x1 - p.x0, h = p.y1 - p.y0, sleeved = sleevedShape(p.outline);
+  return !p.frame && h > (sleeved ? 0.5 : 0.75) * w && h < 2.4 * w && drawingSides(p.outline, sleeved).found;
 }
 /** The key a file read is kept by (a drawing is read differently from a print layout). */
 const fileKey = (asset, drawing) => (drawing ? `drawing:${asset}` : asset);
@@ -405,7 +405,7 @@ function warpParts() {
     // A drawing's collar: the colour of its neckline's trim, just in from the edge.
     if (layout.drawing && main) {
       const w = main.x1 - main.x0, middle = [(main.x0 + main.x1) / 2, (main.y0 + main.y1) / 2];
-      part.layoutRim = lineColour(layout.image, drawingSides(main.outline).sides[0], middle, Math.max(4, 0.012 * w));
+      part.layoutRim = lineColour(layout.image, drawingSides(main.outline, !!DRAWN[layout.garment]?.CT).sides[0], middle, Math.max(4, 0.012 * w));
     }
     // The trim colour (the neck trim's), for the shorts' eyelets and cord tips.
     part.layoutAccent = byRole.neck ? panelColour(layout.image, byRole.neck) : null;
@@ -435,11 +435,15 @@ async function checkLayout({ id, src, name = 'Print layout', asset = null, drawi
       const big = Math.max(0, ...file.found.filter((_, i) => usable[i]).map((p) => (p.x1 - p.x0) * (p.y1 - p.y0)));
       const many = file.found.filter((p, i) => usable[i] && (p.x1 - p.x0) * (p.y1 - p.y0) > 0.5 * big).length > 2;
       const named = file.found.filter((p) => p.role === 'front' || p.role === 'back').length;
+      // The garment it is, from its shape: sleeves make it a jersey, tee or polo (the one asked for, else a jersey).
+      const main = file.found.find((p) => p.role === 'front') ?? file.found.find((p) => p.role === 'back');
+      const sleeved = main ? sleevedShape(main.outline) : false;
+      const guess = sleeved ? (['jersey', 'tee', 'polo'].includes(garment) ? garment : ['jersey', 'tee', 'polo'].includes(design.garment) ? design.garment : 'jersey') : 'singlet';
       options = {
         drawing: true,
         garments: Object.fromEntries(Object.keys(DRAWN).map((g) => [g, DRAWN_NAMES[g] ?? g])),
-        garment: drawnGarment(garment, design.garment),
-        dots: file.found.map((p, i) => (usable[i] ? Object.values(drawingSides(p.outline).corners).map((k) => p.outline[k]) : [])),
+        garment: guess,
+        dots: file.found.map((p, i) => (usable[i] ? Object.values(drawingSides(p.outline, sleevedShape(p.outline)).corners).map((k) => p.outline[k]) : [])),
         usable,
         warning: !named || many ? 'This looks like a photo or presentation mockup. Use your flat design (front and back drawn side by side), or choose the front and back below.' : '',
         remark: file.found.plain === false ? 'This picture is a photo mockup: its lighting and folds are printed onto the 3D kit as they are (a flat drawing gives the cleanest kit).' : '',

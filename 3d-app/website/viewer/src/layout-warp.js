@@ -156,7 +156,31 @@ function corner(o, a, b, reach, margin, keep = () => true) {
  */
 export const DRAWN = {
   singlet: { N: [0.095, 0.738], S: [0.152, 0.738], U: [0.236, 0.505], H: [0.254, 0.03], T: [0, 0.64] },
+  // Sleeved tops (garment.js TOP_BODY): the neck's end (N) and tip (T), the cuff's top and bottom corners (CT, CB),
+  // the underarm (U) and the hem's corner (H).
+  jersey: { N: [0.088, 0.738], T: [0, 0.672], CT: [0.418, 0.566], CB: [0.372, 0.476], U: [0.258, 0.53], H: [0.258, 0.03] },
+  tee: { N: [0.086, 0.738], T: [0, 0.7], CT: [0.418, 0.566], CB: [0.372, 0.476], U: [0.258, 0.53], H: [0.258, 0.03] },
+  polo: { N: [0.082, 0.742], T: [0, 0.712], CT: [0.418, 0.566], CB: [0.372, 0.476], U: [0.258, 0.53], H: [0.258, 0.03] },
 };
+
+/** Whether a garment drawing's shape has sleeves: much wider across its top part than near its hem. */
+export function sleevedShape(o) {
+  const ys = o.map((p) => p[1]), y0 = Math.min(...ys), y1 = Math.max(...ys), H = y1 - y0;
+  // The shape's width at a height: from its leftmost to its rightmost crossing of that line (the outline's points are
+  // sparse along straight edges, so its edges are crossed, not its points taken).
+  const width = (f) => {
+    const y = y0 + f * H;
+    let lo = Infinity, hi = -Infinity;
+    o.forEach((a, i) => {
+      const b = o[(i + 1) % o.length];
+      if ((a[1] <= y) === (b[1] <= y)) return;
+      const x = a[0] + ((y - a[1]) * (b[0] - a[0])) / (b[1] - a[1]);
+      lo = Math.min(lo, x); hi = Math.max(hi, x);
+    });
+    return hi > lo ? hi - lo : 0;
+  };
+  return Math.max(...[0.15, 0.2, 0.25, 0.3, 0.35, 0.4].map(width)) > 1.2 * Math.max(width(0.8), width(0.85));
+}
 
 /**
  * A sleeveless top drawn flat (a singlet's front or back, as seen from that side), outline clockwise on screen: its
@@ -165,7 +189,8 @@ export const DRAWN = {
  * left side, left armhole, left strap top. Corners that cannot be told apart fall back to the singlet's own places in
  * the drawing's box.
  */
-export function drawingSides(o) {
+export function drawingSides(o, sleeved = false) {
+  if (sleeved) return sleevedSides(o);
   const xs = o.map((p) => p[0]), ys = o.map((p) => p[1]), n = o.length;
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const W = x1 - x0, H = y1 - y0, cx = (x0 + x1) / 2;
@@ -216,6 +241,63 @@ export function drawingSides(o) {
   c.T = farthest(o, c.Nl, c.Nr);
   const sides = order.map((k, i) => path(o, c[k], c[order[(i + 1) % order.length]]));
   return { corners: c, sides, found: inOrder, neckDepth: neck ? neck.depth / H : 0 };
+}
+
+/**
+ * A sleeved top drawn flat (a jersey's, tee's or polo's front or back, as seen from that side): its corners ({Nl, Nr,
+ * T, CTr, CBr, Ur, Hr, Hl, Ul, CBl, CTl}: indices into the outline; see DRAWN) and its ten sides clockwise from the left
+ * end of the neck: neck, right shoulder and sleeve top, right cuff, right sleeve's underside, right side, hem, left
+ * side, left sleeve's underside, left cuff, left shoulder and sleeve top. The underarm is the deepest dip down each
+ * side; the cuff's corners are the two sharpest outward turns between the neck and the underarm. Corners that cannot
+ * be told apart fall back to the tee's own places in the drawing's box.
+ */
+function sleevedSides(o) {
+  const xs = o.map((p) => p[0]), ys = o.map((p) => p[1]), n = o.length;
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const W = x1 - x0, H = y1 - y0, cx = (x0 + x1) / 2;
+  const on = (k, a, b) => (k - a + n) % n <= (b - a + n) % n;
+  const dips = pockets(o);
+  const c = {};
+  const neck = dips.filter((p) => p.depth > 0.008 * H && p.midY < y0 + 0.3 * H && Math.abs(p.midX - cx) < 0.2 * W).sort((a, b) => Math.abs(a.midX - cx) - Math.abs(b.midX - cx))[0];
+  if (neck) {
+    const [a, b] = [o[neck.i], o[neck.j]], l = len(a, b) || 1;
+    const below = (k) => Math.abs((o[k][0] - a[0]) * (b[1] - a[1]) - (o[k][1] - a[1]) * (b[0] - a[0])) / l;
+    c.Nl = neck.i; c.Nr = neck.j;
+    for (let k = neck.i; k !== neck.deep && below(k) <= 0.012 * H; k = (k + 1) % n) c.Nl = k;
+    for (let k = neck.j; k !== neck.deep && below(k) <= 0.012 * H; k = (k - 1 + n) % n) c.Nr = k;
+  }
+  c.Hr = argMax(o, (p) => p[0] + p[1]);
+  c.Hl = argMax(o, (p) => -p[0] + p[1]);
+  if (neck) {
+    const deepest = (a, b) => dips.filter((p) => p !== neck && on(p.i, a, b) && on(p.j, a, b)).sort((m, q) => q.depth - m.depth)[0];
+    const right = deepest(c.Nr, c.Hr), left = deepest(c.Hl, c.Nl);
+    if (right && left) {
+      c.Ur = right.deep;
+      c.Ul = left.deep;
+      const reach = 0.02 * H, margin = 0.03 * H;
+      const two = (a, b) => {
+        const k1 = corner(o, a, b, reach, margin);
+        const k2 = corner(o, a, b, reach, margin, (p) => len(p, o[k1]) > 0.06 * H);
+        return [k1, k2].sort((m, q) => ((m - a + n) % n) - ((q - a + n) % n));
+      };
+      [c.CTr, c.CBr] = two(c.Nr, c.Ur);
+      [c.CBl, c.CTl] = two(c.Ul, c.Nl);
+    }
+  }
+  const order = ['Nl', 'Nr', 'CTr', 'CBr', 'Ur', 'Hr', 'Hl', 'Ul', 'CBl', 'CTl'];
+  const at = (k, f, lo, hi) => (o[c[k]][f] - (f ? y0 : x0)) / (f ? H : W) >= lo && (o[c[k]][f] - (f ? y0 : x0)) / (f ? H : W) <= hi;
+  const found = order.every((k) => c[k] != null) && order.every((k, i) => i === 0 || (c[k] - c.Nl + n) % n > (c[order[i - 1]] - c.Nl + n) % n)
+    && ['Nl', 'Nr'].every((k) => at(k, 1, 0, 0.2)) && ['Hl', 'Hr'].every((k) => at(k, 1, 0.8, 1)) && ['Ul', 'Ur'].every((k) => at(k, 1, 0.1, 0.6))
+    && ['CTl', 'CBl', 'CTr', 'CBr'].every((k) => at(k, 1, 0.02, 0.65)) && at('Ur', 0, 0.55, 0.95) && at('Ul', 0, 0.05, 0.45)
+    && o[c.CTr][0] > o[c.Ur][0] && o[c.CBr][0] > o[c.Ur][0] && o[c.CTl][0] < o[c.Ul][0] && o[c.CBl][0] < o[c.Ul][0];
+  if (!found) {
+    const g = DRAWN.tee, half = g.CT[0], top = g.N[1];
+    const near = ([gx, gy], dir) => argMax(o, (p) => -Math.hypot(p[0] - (cx + (dir * gx * W) / (2 * half)), p[1] - (y0 + ((top - gy) / top) * H)));
+    Object.assign(c, { Nl: near(g.N, -1), Nr: near(g.N, 1), CTr: near(g.CT, 1), CBr: near(g.CB, 1), Ur: near(g.U, 1), Hr: near(g.H, 1), Hl: near(g.H, -1), Ul: near(g.U, -1), CBl: near(g.CB, -1), CTl: near(g.CT, -1) });
+  }
+  c.T = farthest(o, c.Nl, c.Nr);
+  const sides = order.map((k, i) => path(o, c[k], c[order[(i + 1) % order.length]]));
+  return { corners: c, sides, found, neckDepth: neck ? neck.depth / H : 0 };
 }
 
 /**
@@ -326,6 +408,23 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
     const at = painter.points?.N ? painter.points : DRAWN[painter.kind];
     if (!at) return out;
     const both = ([x, y]) => ({ 1: g.near(x, y), [-1]: g.near(-x, y) });
+    // Shapes are kept round on the front as worn (chest logos, seen as you turn to them), and on the back as laid flat:
+    // the wrap is made so flat widths come back in the back view, where a big crest or number is looked at straight on.
+    const shape = (back) => (painter.surface && !back ? ([x, y]) => { const p = painter.fromCanvas(x, y); return painter.surface(p.x, p.y, back); } : null);
+    if (at.CT) {
+      // A sleeved top: neck, shoulder and sleeve top, cuff, sleeve's underside, side and hem, corner to corner (all held).
+      const N = both(at.N), CT = both(at.CT), CB = both(at.CB), U = both(at.U), H = both(at.H), T = g.near(...at.T);
+      const sides = (l, r) => [g.edge(N[l], N[r]), g.edge(N[r], CT[r]), g.edge(CT[r], CB[r]), g.edge(CB[r], U[r]), g.edge(U[r], H[r]), g.edge(H[r], H[l]), g.edge(H[l], U[l]), g.edge(U[l], CB[l]), g.edge(CB[l], CT[l]), g.edge(CT[l], N[l])];
+      for (const [role, back, l, r] of [['front', false, -1, 1], ['back', true, 1, -1]]) {
+        const panel = byRole[role];
+        if (!panel) continue;
+        const drawn = drawingSides(panel.outline, true), o = panel.outline, c = drawn.corners;
+        const region = { back, inset: Math.max(3, 0.005 * (panel.x1 - panel.x0)), conform: true, surface: shape(back) };
+        if (back) out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: [0] });
+        else out.push({ ...region, sides: [g.edge(N[l], T), g.edge(T, N[r]), ...sides(l, r).slice(1)].map(px(back)), target: [path(o, c.Nl, c.T), path(o, c.T, c.Nr), ...drawn.sides.slice(1)] });
+      }
+      return out;
+    }
     const N = both(at.N), S = both(at.S), U = both(at.U), H = both(at.H), T = g.near(...at.T);
     // From the viewer's left: the front as seen from the front (the wearer's right, x < 0, first), the back from behind.
     const sides = (l, r) => [g.edge(N[l], N[r]), g.edge(N[r], S[r]), g.edge(S[r], U[r]), g.edge(U[r], H[r]), g.edge(H[r], H[l]), g.edge(H[l], U[l]), g.edge(U[l], S[l]), g.edge(S[l], N[l])];
@@ -336,8 +435,7 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
       // Sampled a little in from the drawing's edge, past the outline drawn round it. The map keeps shapes (conform)
       // with the underarms and the hem's corners held, the other edge points sliding along the drawing's edge.
       // Shapes are kept on the fabric as worn (`surface`: atlas pixels to 3D), as they are seen on the 3D kit.
-      const surface = painter.surface ? ([x, y]) => { const p = painter.fromCanvas(x, y); return painter.surface(p.x, p.y, back); } : null;
-      const region = { back, inset: Math.max(3, 0.005 * (panel.x1 - panel.x0)), conform: true, surface };
+      const region = { back, inset: Math.max(3, 0.005 * (panel.x1 - panel.x0)), conform: true, surface: shape(back) };
       if (back) {
         // The garment's back neck is cut as deep as its front (its 3D back neckline is raised, garment.js): it cuts
         // into a drawing's shallower back neck instead of squeezing the print under it.

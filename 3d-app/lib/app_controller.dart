@@ -429,7 +429,14 @@ class AppController extends ChangeNotifier {
         name,
         asset,
         drawing: true,
-        garment: 'singlet',
+        // The garment it most likely is (the check screen also reads it
+        // from the drawing's shape, and the user can change it there).
+        garment: switch (garment) {
+          'Training Tee' => 'tee',
+          'Polo' => 'polo',
+          'Jersey' => 'jersey',
+          _ => 'singlet',
+        },
       );
     } on Object {
       forget();
@@ -440,14 +447,21 @@ class AppController extends ChangeNotifier {
       forget();
       return null;
     }
+    final parts = result['parts'];
+    final top = parts is List && parts.isNotEmpty ? '${parts.first}' : 'singlet';
     edit(() {
-      garment = 'Singlet';
+      garment = switch (top) {
+        'jersey' => 'Jersey',
+        'tee' => 'Training Tee',
+        'polo' => 'Polo',
+        _ => 'Singlet',
+      };
       layout = copyLayout({
         'asset': asset,
         'name': name.length > 160 ? name.substring(0, 160) : name,
         'roles': roles,
         'kind': 'drawing',
-        'parts': const ['singlet'],
+        'parts': [top],
       });
     });
     return 'Your design is on the 3D kit as drawn ($name). '

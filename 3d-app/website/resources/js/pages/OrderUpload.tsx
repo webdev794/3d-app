@@ -5,6 +5,7 @@ import { api, ApiError, getToken, type User } from '../api';
 import { askAssist, provideAssistContext } from '../assistBridge';
 import { AssistCard, AssistSparkle, ContactDetailsCard, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSummaryCard, fileExtension, formatBytes, type ContactDetails } from '../components/OrderPageParts';
 import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type OrderDetail, type OrderFields, type OrderFile, type OrderItem, type OrderOptions, type Payment, type Suggested } from '../orderApi';
+import { PriceBreakdown, PricingChoices, type PricingChoice, type Quote as PayQuote } from '../components/OrderPayment';
 import '../../css/order-upload.css';
 
 /** The two kinds of file this page uploads. */
@@ -24,7 +25,12 @@ export interface Quote {
   subtotal: string | null; tax?: { name: string; amount: string | null; included?: boolean; applies?: boolean } | null; total: string | null;
   reasons?: { code: string; message: string }[];
 }
-const quoteFor = (items: OrderItem[]) => api<Quote>('/pricing/quote', { method: 'POST', body: JSON.stringify({ items }) });
+const quoteFor = (items: OrderItem[], pricing: PricingChoice) => api<Quote>('/pricing/quote', { method: 'POST', body: JSON.stringify({ items, pricing }) });
+/** Only the price choices given (an empty choice is the server's defaults). */
+const cleanPricing = (p: PricingChoice): PricingChoice | undefined => {
+  const kept = Object.fromEntries(Object.entries(p).filter(([, v]) => (Array.isArray(v) ? v.length > 0 : !!v)));
+  return Object.keys(kept).length ? kept as PricingChoice : undefined;
+};
 /** Payments are paused for the 2026-10-20 checkpoint: no prices are asked for; the review says 3DEEZI confirms the price.
     Set to true once /pricing is live, to quote the confirmed rows. ("Pay now" shows only if a submit reply has an invoice.) */
 const PRICES_LIVE = true;
@@ -172,6 +178,10 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   const itemsConfirmedRef = useLatest(itemsConfirmed);
   const [confirmTried, setConfirmTried] = useState(false);
   const [quote, setQuote] = useState<{ state: 'required' | 'loading' | 'ready'; quote?: Quote }>({ state: 'required' });
+  // The review's price choices: delivery destination, extras and a discount code (payments-api.md R3), sent with the order.
+  const [pricing, setPricing] = useState<PricingChoice>({});
+  const pricingRef = useRef(pricing);
+  pricingRef.current = pricing;
   const [submitError, setSubmitError] = useState('');
   const [placed, setPlaced] = useState<OrderDetail | null>(null);
   const [assistOpen, setAssistOpen] = useState(false);
@@ -203,6 +213,8 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     const f = fieldsRef.current, list = itemsRef.current;
     const data: DraftData = { contact_name: f.contact_name.trim(), contact_email: f.contact_email.trim(), phone: f.phone.trim(), team_name: f.team_name.trim(), notes: f.notes.trim() };
     if (list?.length) { data.items = list; data.items_confirmed = itemsConfirmedRef.current; }
+    const chosen = cleanPricing(pricingRef.current);
+    if (chosen) data.pricing = chosen;
     return data;
   };
 
@@ -553,11 +565,13 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     let live = true;
     setQuote({ state: 'loading' });
     const timer = setTimeout(() => {
-      quoteFor(items).then(q => { if (live) setQuote(q?.status === 'priced' && q.total !== null ? { state: 'ready', quote: q } : { state: 'required', quote: q }); })
+      quoteFor(items, cleanPricing(pricing) ?? {}).then(q => { if (live) setQuote(q?.status === 'priced' && q.total !== null ? { state: 'ready', quote: q } : { state: 'required', quote: q }); })
         .catch(() => { if (live) setQuote({ state: 'required' }); });
     }, 300);
     return () => { live = false; clearTimeout(timer); };
-  }, [step, items, itemsConfirmed]);
+    // Again whenever a price choice changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, items, itemsConfirmed, JSON.stringify(pricing)]);
 
   async function submit() {
     if (submitting.current || step !== 'review') return;
@@ -679,7 +693,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     </OrderSection>
   </> : <>
     {submitError && <p className="ou-alert ou-submit-error" role="alert"><CircleAlert size={16} /> {submitError}</p>}
-    <ReviewView fields={fields} forms={formsDone} art={artDone} items={items} unread={unread} confirmed={itemsConfirmed} confirmTried={confirmTried} quote={quote}
+    <ReviewView fields={fields} forms={formsDone} art={artDone} items={items} unread={unread} confirmed={itemsConfirmed} confirmTried={confirmTried} quote={quote} pricing={pricing} onPricing={setPricing}
       onConfirm={v => { setItemsConfirmed(v); setConfirmTried(false); }} onItem={setItem} onRemoveItem={removeItem} onEdit={editAgain} onDownload={download} />
   </>;
 
@@ -805,8 +819,9 @@ function AssistToggle({ open, onToggle, children }: { open: boolean; onToggle: (
 }
 
 /** The review: everything read only with Edit, the rows read from the order form to check, and the price. */
-function ReviewView({ fields, forms, art, items, unread, confirmed, confirmTried, quote, onConfirm, onItem, onRemoveItem, onEdit, onDownload }: {
+function ReviewView({ fields, forms, art, items, unread, confirmed, confirmTried, quote, pricing, onPricing, onConfirm, onItem, onRemoveItem, onEdit, onDownload }: {
   fields: UploadFields; forms: Row[]; art: Row[]; items: OrderItem[] | null; unread: string[]; confirmed: boolean; confirmTried: boolean; quote: { state: 'required' | 'loading' | 'ready'; quote?: Quote };
+  pricing: PricingChoice; onPricing: (next: PricingChoice) => void;
   onConfirm: (value: boolean) => void; onItem: (index: number, size: string, value: string) => void; onRemoveItem: (index: number) => void; onEdit: (target: 'contact' | 'files' | 'notes') => void; onDownload: (file: OrderFile) => void;
 }) {
   const edit = (target: 'contact' | 'files' | 'notes', what: string) => <button type="button" className="op-link" onClick={() => onEdit(target)} aria-label={`Edit ${what}`}><Pencil size={15} /> Edit</button>;
@@ -844,6 +859,7 @@ function ReviewView({ fields, forms, art, items, unread, confirmed, confirmTried
       </dl>
     </OrderSection>
     <OrderSection number={++n} id="ou-review-price" title="Price" className="ou-review">
+      <PricingChoices value={pricing} onChange={onPricing} />
       <PriceBox quote={quote} waitingForTick={PRICES_LIVE && !!items?.length && !confirmed} />
     </OrderSection>
   </>;
@@ -855,18 +871,10 @@ function ReviewView({ fields, forms, art, items, unread, confirmed, confirmTried
  * this when it lands.
  */
 function PriceBox({ quote, waitingForTick }: { quote: { state: 'required' | 'loading' | 'ready'; quote?: Quote }; waitingForTick: boolean }) {
-  if (quote.state === 'loading') return <p className="ou-quote-required"><LoaderCircle className="spin" size={18} /> Working out the price…</p>;
+  if (quote.state === 'loading' && !quote.quote) return <p className="ou-quote-required"><LoaderCircle className="spin" size={18} /> Working out the price…</p>;
   const q = quote.quote;
-  if (quote.state === 'ready' && q) return <ul className="ou-quote" data-testid="quote">
-    {[...q.lines, ...(q.extras ?? [])].map((l, i) => <li key={l.key ?? i}><span>{l.name} × {l.quantity}</span><span>{money(l.total, q.currency)}</span></li>)}
-    {q.shipping && <li><span>Shipping{q.shipping.name ? ` (${q.shipping.name})` : ''}</span><span>{money(q.shipping.amount, q.currency)}</span></li>}
-    {(q.discounts ?? []).map((d, i) => <li key={`d${i}`}><span>{d.name}</span><span>−{money(d.amount, q.currency)}</span></li>)}
-    {q.subtotal !== null && <li className="is-sub"><span>Subtotal</span><span>{money(q.subtotal, q.currency)}</span></li>}
-    {q.tax && q.tax.applies !== false && q.tax.amount !== null && <li><span>{q.tax.name}{q.tax.included ? ' (included)' : ''}</span><span>{money(q.tax.amount, q.currency)}</span></li>}
-    <li className="is-total"><span>Total</span><span>{money(q.total, q.currency)}</span></li>
-  </ul>;
+  if (q) return <div data-testid={q.status === 'priced' ? 'quote' : 'quote-required'}><PriceBreakdown quote={q as unknown as PayQuote} loading={quote.state === 'loading'} /></div>;
   return <div className="ou-quote-required" data-testid="quote-required"><Info size={18} /><div>
     <p><b>Price confirmed by 3DEEZI after review (Quote Required).</b>{waitingForTick ? ' Tick “These details are correct” above to see a price now.' : ' You see the price before you pay anything.'}</p>
-    {q?.reasons?.length ? <ul>{q.reasons.map(r => <li key={`${r.code}${r.message}`}>{r.message}</li>)}</ul> : null}
   </div></div>;
 }

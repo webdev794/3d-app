@@ -138,7 +138,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: 
   }
   const customize = (concept: Concept) => { onChange({ ...draft, name: concept.name, design: concept.design, mode: 'ai', patternMotif: concept.motif }); onStudio(); };
   /** The attached picture itself on the 3D kit (no AI): the Studio checks it, then puts it on exactly as drawn. */
-  const putDrawing = (picture: Reference) => { onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: 'singlet', mode: 'ai', design: { ...(concepts[selected]?.design ?? draft.design), garment: 'singlet', layout: null }, patternMotif: undefined, pendingDrawing: { asset: picture.id, name: picture.name } }); onStudio(); };
+  const putDrawing = (picture: Reference) => { const top = (['singlet', 'jersey', 'tee', 'polo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment']; onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'ai', design: { ...(concepts[selected]?.design ?? draft.design), garment: top, layout: null }, patternMotif: undefined, pendingDrawing: { asset: picture.id, name: picture.name } }); onStudio(); };
 
   if (busy) return <Loader seconds={isAi ? 28 : 3} steps={references.length ? ['Understanding your brief', 'Analysing your references', 'Creating design concepts', 'Preparing 3D garment'] : ['Understanding your brief', 'Choosing colours and patterns', 'Creating design concepts', 'Preparing 3D garment']} />;
 
@@ -146,7 +146,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: 
     {mockup && <section className="mockup-result glow-panel"><div className="mockup-copy"><span className="eyebrow"><Sparkles size={14} /> ONE PROMPT · HD MOCKUP</span><h2>Your design, <span>presented.</span></h2><p className="muted">“{prompt}”</p>{mockup.image && <div className="mockup-actions"><button className="button button-gradient" onClick={async () => saveBlob(await (await fetch(mockup.image!)).blob(), '3deezi-mockup.jpg')}><Download size={17} /> Download HD mockup</button><EditImageButton className="button button-outline" src={mockup.image} title="HD mockup" fileName="3deezi-mockup" ai={isAi} requireAuth={requireAuth} keepAs="AI mockup (edited)" onUse={image => setMockup(m => m && { ...m, image })} /><span className="field-hint">Also saved in your Assets.</span></div>}{mockup.error && <p className="error-message" role="alert">Mockup not created: {mockup.error}</p>}</div>
       <div className="mockup-frame">{mockup.image ? <img src={mockup.image} alt="AI presentation mockup of your design" /> : mockup.busy ? <Loader overlay={false} title="Rendering your HD mockup…" subtitle="Photoreal front, back and detail views · about a minute." steps={['Reading your brief and logos', 'Designing front and back', 'Adding fabric and details', 'Finishing the presentation']} seconds={70} /> : null}</div>
     </section>}
-    {references.length > 0 && <div className="flow-actions"><p className="muted">Already have the finished design? Put your attached picture on the 3D kit exactly as drawn: its front and back edge to edge, the whole pattern and your logos in place (basketball singlet).</p>{references.map(r => <button key={r.id} className="button button-gradient" onClick={() => putDrawing(r)} title={`Put ${r.name} on the 3D kit`}><img src={r.preview} alt="" style={{ width: 26, height: 26, objectFit: 'cover', borderRadius: 4 }} /> PUT MY DESIGN ON THE 3D KIT <ArrowRight size={18} /></button>)}</div>}
+    {references.length > 0 && <div className="flow-actions"><p className="muted">Already have the finished design? Put your attached picture on the 3D kit exactly as drawn: its front and back edge to edge, the whole pattern and your logos in place (singlet, jersey, tee or polo).</p>{references.map(r => <button key={r.id} className="button button-gradient" onClick={() => putDrawing(r)} title={`Put ${r.name} on the 3D kit`}><img src={r.preview} alt="" style={{ width: 26, height: 26, objectFit: 'cover', borderRadius: 4 }} /> PUT MY DESIGN ON THE 3D KIT <ArrowRight size={18} /></button>)}</div>}
     <div className="page-heading"><span className="eyebrow">MAKE IT EDITABLE IN 3D</span><h1>Find your <span>starting point.</span></h1><p>Choose a direction to customise on the live 3D kit. Every colour, pattern, and detail is editable.</p></div>
     <div className="concept-grid">{concepts.map((concept, index) => <div className="concept-cell" key={concept.id}><button className={`concept-card panel ${selected === index ? 'selected' : ''}`} onClick={() => setSelected(index)} onDoubleClick={() => customize(concept)} aria-pressed={selected === index}><span className="concept-index">CONCEPT 0{index + 1}</span><span className="selection-indicator">{selected === index && <Check size={14} />}</span>{concept.preview ? <img className="concept-preview" src={concept.preview} alt={`${concept.name} AI concept render`} /> : <DesignThumbnail design={concept.design} />}<div className="concept-copy"><h3>{concept.name}</h3><p>{concept.description}</p><div className="palette-dots">{[concept.design.main, concept.design.secondary, concept.design.accent].map((c, i) => <span key={i} style={{ background: c }} />)}</div></div></button>
       {concept.preview && <EditImageButton className="image-edit-chip" label="Edit" iconSize={13} src={concept.preview} title={`Concept 0${index + 1} · ${concept.name}`} fileName={`3deezi-concept-${index + 1}`} ai={isAi} requireAuth={requireAuth} onUse={image => setConcepts(list => list.map((c, i) => i === index ? { ...c, preview: image } : c))} />}</div>)}</div>
@@ -190,6 +190,21 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const open = () => { if (!result) return; onChange({ ...draft, id: undefined, version: undefined, name: result.name, sport: result.sport, garment: result.garment, mode: 'ai', design: { ...draft.design, ...result.design, patternImage: null }, patternMotif: result.motif || undefined }); onStudio(); };
+  const [placing, setPlacing] = useState(false);
+  /** The picture itself on the 3D kit (no AI): kept as a saved asset, checked in the Studio, put on exactly as drawn. */
+  async function putDrawing() {
+    if (!image) return;
+    setPlacing(true); setError('');
+    try {
+      const blob = await (await fetch(image)).blob();
+      const type = ['image/png', 'image/jpeg', 'image/webp'].includes(blob.type) ? blob.type : 'image/png';
+      const form = new FormData(); form.append('file', new File([blob], `My design.${type === 'image/jpeg' ? 'jpg' : type.slice(6)}`, { type })); form.append('type', 'reference'); form.append('name', 'My design');
+      const saved = await api<{ id: number; name: string }>('/assets', { method: 'POST', body: form });
+      const top = (['singlet', 'jersey', 'tee', 'polo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment'];
+      onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'dyo', design: { ...draft.design, garment: top, layout: null }, patternMotif: undefined, pendingDrawing: { asset: saved.id, name: saved.name || 'My design' } });
+      onStudio();
+    } catch (e) { setError((e as Error).message); } finally { setPlacing(false); }
+  }
 
   if (busy) return <Loader title="Converting your design…" subtitle="Reading colours, patterns and lettering from your image." steps={['Reading the image', 'Finding colours', 'Matching pattern and lettering', 'Preparing 3D garment']} seconds={18} />;
   return <div className="page-shell creation-page convert-page">
@@ -210,6 +225,7 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
           {!isAi && <p className="field-hint">Conversion needs AI to be connected on the server.</p>}
           {error && <p className="error-message" role="alert">{error}</p>}
           <button className="button button-gradient full-width" disabled={!image || !isAi} onClick={() => requireAuth(convert)}><WandSparkles size={18} /> CONVERT TO 3D</button></>}
+        {image && <><button className="button button-outline full-width" disabled={placing || busy} onClick={() => requireAuth(() => void putDrawing())}>{placing ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />} PUT MY DESIGN ON THE 3D KIT</button><p className="field-hint">Already the finished design, front and back drawn side by side? Put it on the 3D kit exactly as drawn, no AI needed.</p></>}
       </div>
     </div>
   </div>;

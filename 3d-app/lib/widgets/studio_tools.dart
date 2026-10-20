@@ -198,7 +198,7 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
           'A finished picture of your design: the front and back of the '
           'garment drawn flat, side by side. It goes onto the 3D kit exactly '
           'as drawn: the whole pattern, your logos in their places. '
-          'Basketball singlets for now.',
+          'Singlets, jerseys, training tees and polos.',
           style: TextStyle(color: Palette.muted, fontSize: 12),
         ),
         const SizedBox(height: 8),
