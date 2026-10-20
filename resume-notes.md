@@ -3,8 +3,8 @@
 Updated 2026-10-20, about 17:15 (session at about 90%). Finished work is in tasks.md and task-done-today.md; this file keeps only what is needed to continue.
 
 ## Where things are
-- **Live:** upload `D:\3d-app\deploy-zips\3deez-update-2026-10-20-e.tar.gz`, or a newer letter if one is made later. Packages are cumulative since the live 2026-10-19 version, so the latest one alone is enough. Each includes our database with both live test logins (admin@3deezi.com, admin@example.test). Extract in the 3deez folder; nothing else is needed.
-- **GitHub main:** c773459 (the database backup after c0a458a), with the website and our app work. Local branch v6 is still at ec79628, with all of today's work uncommitted (many new files untracked). Push through a temporary index (SP\final-push.sh), so v6 stays untouched.
+- **Live:** upload `D:\3d-app\deploy-zips\3deez-update-2026-10-20-g.tar.gz`, or a newer letter if one is made later. Packages are cumulative since the live 2026-10-19 version, so the latest one alone is enough. Each includes our database with both live test logins (admin@3deezi.com, admin@example.test). Extract in the 3deez folder; nothing else is needed.
+- **GitHub main:** 9685a77, with the website, our app work and the notes files (the user asked to push all changes on 2026-10-20). Local branch v6 is still at ec79628, with all of today's work uncommitted (many new files untracked). Push through a temporary index (SP\final-push.sh), so v6 stays untouched.
 - **Versions:** viewer 2026-10-20-5, Artboard editor 2026-10-20-10.
 - **Unfinished agent work** is only in scratchpad copies, never in project files. SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`.
 - **Check first:**
