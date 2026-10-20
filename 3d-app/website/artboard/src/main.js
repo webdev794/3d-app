@@ -2118,13 +2118,16 @@ function outlineRuns(o) {
       const A = ns[i], B = ns[(i + 1) % ns.length], sg = { seg: V.segmentPoints(A, B), straight: !A.ho && !B.hi, len: 0 };
       let prev = A;
       for (let k = 1; k <= 16; k++) { const q = at(sg, k / 16); sg.len += Math.hypot(q.x - prev.x, q.y - prev.y); prev = q; }
-      if (sg.len > 1e-6) segs.push(sg);
+      if (sg.len > 1e-6 && Number.isFinite(sg.len)) segs.push(sg);
     }
     if (!segs.length) continue;
     const pts = [];
     let s = 0;
+    // A point every mm, but at most about 20 000 on one outline: a huge shape (junk from an old page) must not
+    // freeze the page while the pointer moves over it.
+    const each = Math.max(step, segs.reduce((a, sg) => a + sg.len, 0) / 20000);
     segs.forEach((sg, i) => {
-      const n = Math.max(1, Math.ceil(sg.len / step));
+      const n = Math.max(1, Math.ceil(sg.len / each));
       for (let k = 0; k < n; k++) {
         const t = k / n, p = at(sg, t), tg = tan(sg, t), e = { x: p.x, y: p.y, s: s + sg.len * t, tx: tg.x, ty: tg.y };
         if (k === 0 && (i > 0 || sp.closed)) { const tin = tan(segs[(i - 1 + segs.length) % segs.length], 1); if (tin.x * tg.x + tin.y * tg.y < 0.978) e.tin = tin; }
@@ -3213,11 +3216,11 @@ canvas.on('object:modified', ({ target: g }) => {
 // drag draws a selection box; Esc cancels.
 let ctDrag = null;
 function contourDown(opt, p) {
-  const tr = canvas._currentTransform;
-  if (opt.e.button || tr?.corner || !opt.target || opt.target.isPage || opt.target.isHelper) return false;
+  // As in CorelDRAW the Contour tool has no sizing handles: a drag from the object (its edge too) makes the contour.
+  if (opt.e.button || !opt.target || opt.target.isPage || opt.target.isHelper) return false;
   const objs = canvas.getActiveObjects();
   if (!objs.length) return false;
-  canvas._currentTransform = null; // the drag makes the contour: the object doesn't move
+  canvas._currentTransform = null; // the object doesn't move or resize
   const targets = objs.filter(contourable);
   if (!targets.length) { toast('Images have no outline to contour. Trace the image to vectors first (select it, Properties tab > Trace bitmap), then contour the result', 5000); return true; }
   const boxes = targets.map((o) => o.getBoundingRect()), l = Math.min(...boxes.map((b) => b.left)), t = Math.min(...boxes.map((b) => b.top));
@@ -4346,7 +4349,10 @@ function syncContext() {
   show('ctx-graph', t === 'graph');
   show('ctx-shapes', t.startsWith('shape:') || (pick && o?.shapeSpec?.tool?.startsWith('shape:')));
   show('ctx-rect', t === 'rect' || (pick && o?.type === 'rect'));
-  show('ctx-blend', t === 'blend'); show('ctx-contour', t === 'contour'); show('ctx-shadow', t === 'shadow'); show('ctx-inner', t === 'inner'); show('ctx-transp', t === 'transparency');
+  // A selected contour shows its own settings (with the Contour tool, or Pick), and follows changes to them.
+  const ctSel = n > 0 && sel.every(isContourGroup);
+  if (ctSel && (t === 'contour' || pick) && !ctDrag) contourToBar(contourSpec(sel[0]));
+  show('ctx-blend', t === 'blend'); show('ctx-contour', t === 'contour' || (pick && ctSel)); show('ctx-shadow', t === 'shadow'); show('ctx-inner', t === 'inner'); show('ctx-transp', t === 'transparency');
   show('ctx-distort', t === 'distort'); show('ctx-envelope', t === 'envelope'); show('ctx-extrude', t === 'extrude'); show('ctx-block', t === 'blockshadow');
   show('ctx-mesh', t === 'meshfill' || (pick && !!o?.fxMesh));
   show('ctx-powerclip', !!pcEdit || (pick && !!o?.powerClip)); show('pcEditBtn', !pcEdit); show('pcFinishBtn', !!pcEdit); show('pcExtractBtn', !pcEdit); show('ctx-table', t === 'table'); show('ctx-eyedrop', t === 'eyedropper');
@@ -4467,10 +4473,14 @@ bindNumber('cRows', (v) => { state.shape.rows = Math.max(1, Math.min(50, Math.ro
 bindNumber('cRadius', (v) => { state.shape.radius = Math.max(1, Math.min(200, v)); state.shape.eraser = state.tool === 'eraser' ? Math.max(0.5, Math.min(200, v)) : state.shape.eraser; setBrushRing({ radius: (state.tool === 'eraser' ? state.shape.eraser / 2 : state.shape.radius) * MM, at: brushRing?.at }); });
 bindNumber('rectRadius', (v) => { state.shape.radiusRect = Math.max(0, v); const o = one(); if (o?.type === 'rect') applyToSelection({ rx: v * MM, ry: v * MM }); });
 bindNumber('fxSteps', (v) => { state.fx.blendSteps = Math.max(1, Math.min(60, Math.round(v))); });
-bindNumber('fxCSteps', (v) => { state.fx.contourSteps = Math.max(1, Math.min(20, Math.round(v))); });
-bindNumber('fxCOffset', (v) => { state.fx.contourOffset = Math.max(0.1, Math.min(100, v)); });
-$('fxCDir').onchange = (e) => { state.fx.contourDir = e.target.value; $('fxCStepsWrap').hidden = e.target.value === 'centre'; savePrefs(); };
-$('fxCColour').oninput = (e) => { state.fx.contourColour = e.target.value; savePrefs(); };
+// Contour bar: a selected contour follows each change at once (colours just blend its steps again).
+bindNumber('fxCSteps', (v) => { state.fx.contourSteps = Math.max(1, Math.min(20, Math.round(v))); $('fxCSteps').value = String(state.fx.contourSteps); contourBar({ steps: state.fx.contourSteps }); });
+bindNumber('fxCOffset', (v) => { state.fx.contourOffset = Math.max(0.1, Math.min(100, v)); $('fxCOffset').value = String(state.fx.contourOffset); contourBar({ offset: state.fx.contourOffset }); });
+$('fxCDir').onchange = (e) => { const dir = e.target.value; state.fx.contourDir = dir; $('fxCStepsWrap').hidden = dir === 'centre'; savePrefs(); contourBar(dir === 'centre' ? { dir } : { dir, steps: state.fx.contourSteps }); };
+$('fxCJoin').onchange = (e) => { state.fx.contourJoin = e.target.value; savePrefs(); contourBar({ join: state.fx.contourJoin }); };
+$('fxCColour').oninput = (e) => { state.fx.contourColour = e.target.value; savePrefs(); contourColours(false); };
+$('fxCOutline').oninput = (e) => { state.fx.contourOutline = e.target.value; savePrefs(); contourColours(false); };
+for (const id of ['fxCColour', 'fxCOutline']) $(id).onchange = () => contourColours(true);
 for (const [id, k] of [['fxSX', 'shadowX'], ['fxSY', 'shadowY'], ['fxSBlur', 'shadowBlur'], ['fxSOpacity', 'shadowOpacity']]) bindNumber(id, (v) => { state.fx[k] = v; });
 $('fxSColour').oninput = (e) => { state.fx.shadowColour = e.target.value; savePrefs(); };
 $('fxTType').onchange = (e) => { state.fx.transp = e.target.value; $('fxTAngleWrap').hidden = e.target.value !== 'linear'; savePrefs(); };
@@ -4517,7 +4527,7 @@ function initContextValues() {
   const s = state.shape, f = state.fx;
   $('cRevs').value = String(s.revs); $('cSpiralType').value = s.log ? 'log' : 'sym'; $('cExpand').value = String(s.expand); $('cExpandWrap').hidden = !s.log;
   $('cCols').value = String(s.cols); $('cRows').value = String(s.rows); $('cRadius').value = String(s.radius);
-  $('fxSteps').value = String(f.blendSteps); $('fxCDir').value = f.contourDir; $('fxCStepsWrap').hidden = f.contourDir === 'centre'; $('fxCSteps').value = String(f.contourSteps); $('fxCOffset').value = String(f.contourOffset); $('fxCColour').value = f.contourColour;
+  $('fxSteps').value = String(f.blendSteps); $('fxCDir').value = f.contourDir; $('fxCStepsWrap').hidden = f.contourDir === 'centre'; $('fxCSteps').value = String(f.contourSteps); $('fxCOffset').value = String(f.contourOffset); $('fxCColour').value = f.contourColour; $('fxCOutline').value = f.contourOutline; $('fxCJoin').value = f.contourJoin;
   $('fxSX').value = String(f.shadowX); $('fxSY').value = String(f.shadowY); $('fxSBlur').value = String(f.shadowBlur); $('fxSOpacity').value = String(f.shadowOpacity); $('fxSColour').value = f.shadowColour;
   $('fxIX').value = String(f.innerX); $('fxIY').value = String(f.innerY); $('fxIBlur').value = String(f.innerBlur); $('fxIOpacity').value = String(f.innerOpacity); $('fxIColour').value = f.innerColour; $('fxIMerge').value = f.innerMerge;
   $('fxTType').value = f.transp; $('fxTValue').value = String(f.transpValue); $('fxTAngle').value = String(f.transpAngle); $('fxTAngleWrap').hidden = f.transp !== 'linear'; $('fxTMerge').value = f.transpMerge ?? 'normal';
@@ -4695,12 +4705,14 @@ state.palettes = (Array.isArray(state.palettes) ? state.palettes : []).filter((p
 state.gradients = (Array.isArray(state.gradients) ? state.gradients : []).filter((g) => g && Array.isArray(g.stops) && g.stops.length >= 2);
 const findPalette = (name) => state.palettes.find((p) => p.name.toLowerCase() === String(name).trim().toLowerCase()) ?? null;
 const currentPalette = () => (state.palette ? findPalette(state.palette) : null);
+/** Colours an effect works out between the chosen ones (contour steps before the last, blend steps): not the user's. */
+const inBetween = (o) => (o.fxPart === 'contour' && o.fxStep !== o.group?.fxContour?.steps) || o.toolName === 'Blend step';
 /** The fill (or gradient) and outline colours some objects use, most used first. */
 function coloursOf(objs) {
   const count = new Map(), add = (c) => { const h = hexOf(c); if (h) count.set(h, (count.get(h) ?? 0) + 1); };
   const walk = (o) => {
     if (o.type === 'group') { o.getObjects().forEach(walk); return; }
-    if (o.type === 'image') return;
+    if (o.type === 'image' || inBetween(o)) return;
     if (o.gradSpec && !o.gradSpec.fade && o.fill && typeof o.fill === 'object') gradStops(o.gradSpec).forEach((s) => add(s.color)); else add(o.fill);
     if (o.strokeWidth) add(o.stroke);
   };
@@ -4839,6 +4851,7 @@ function renderDocPalette() {
   const found = new Set();
   const walk = (o) => {
     if (o.type === 'group') { o.getObjects().forEach(walk); return; }
+    if (inBetween(o)) return; // a contour's or blend's in-between colours were not picked by the user
     for (const c of [o.fill, o.strokeWidth ? o.stroke : null]) { const h = hexOf(c); if (h) found.add(h); }
     if (o.gradSpec && !o.gradSpec.fade && o.fill && typeof o.fill === 'object') for (const s of gradStops(o.gradSpec)) { const h = hexOf(s.color); if (h) found.add(h); }
   };
@@ -6367,7 +6380,7 @@ const needSelection = () => { if (!active().length) throw new Error('Nothing is 
 const EFFECTS = {
   shadow: { label: 'Drop shadow', tool: 'shadow', apply: 'fxShadow', remove: 'fxShadowOff', inputs: { x: 'fxSX', y: 'fxSY', blur: 'fxSBlur', opacity: 'fxSOpacity', colour: 'fxSColour' } },
   inner: { label: 'Inner shadow', tool: 'inner', apply: 'fxInner', remove: 'fxInnerOff', inputs: { x: 'fxIX', y: 'fxIY', blur: 'fxIBlur', opacity: 'fxIOpacity', colour: 'fxIColour', merge: 'fxIMerge' } },
-  contour: { label: 'Contour', tool: 'contour', apply: 'fxContour', remove: 'fxContourOff', inputs: { dir: 'fxCDir', steps: 'fxCSteps', offset: 'fxCOffset', colour: 'fxCColour' } },
+  contour: { label: 'Contour', tool: 'contour', apply: 'fxContour', remove: 'fxContourOff', inputs: { dir: 'fxCDir', steps: 'fxCSteps', offset: 'fxCOffset', colour: 'fxCColour', outline: 'fxCOutline', corners: 'fxCJoin' } },
   blockshadow: { label: 'Block shadow', tool: 'blockshadow', apply: 'fxBlock', remove: 'fxBlockOff', inputs: { x: 'fxBX', y: 'fxBY', colour: 'fxBColour' } },
   extrude: { label: 'Extrude', tool: 'extrude', apply: 'fxExtrude', remove: 'fxExtrudeOff', inputs: { x: 'fxXX', y: 'fxXY', colour: 'fxXColour' } },
   envelope: { label: 'Envelope', tool: 'envelope', apply: 'fxEnvelope', inputs: { preset: 'fxEPreset', amount: 'fxEAmount' } },
@@ -6392,7 +6405,7 @@ function effectsOf(o) {
   if (o.textOutlines?.length) out.push(`name / number outlines ${o.textOutlines.map((x) => `${x.w} mm ${x.c}`).join(' + ')}`);
   if (isText(o) && o.path) out.push(`on a path${o.pathDist ? `, ${o.pathDist} mm from it` : ''}`);
   if (o.varSpec) out.push(`variable outline (${VAR_NAMES[o.varSpec.profile] ?? 'custom'}, ${+o.varSpec.width.toFixed(1)} mm)`);
-  if (/contour/.test(name)) out.push('contour');
+  if (isContourGroup(o)) { const s = contourSpec(o); out.push(`contour ${s.dir === 'centre' ? 'to centre' : s.dir}, ${s.steps} step${s.steps > 1 ? 's' : ''} ${s.offset} mm apart, ${s.join} corners, colour ${s.colour}`); }
   if (/blend group/.test(name)) out.push('blend');
   if (/envelope/.test(name)) out.push('envelope');
   if (/distortion/.test(name)) out.push('distortion');
@@ -6402,7 +6415,7 @@ function effectsOf(o) {
 /** Whether an object already has the effect the assistant was asked to apply. */
 const HAS_EFFECT = {
   shadow: (o) => !!o.shadow, inner: (o) => !!o.fxInner, blockshadow: (o) => o.fxSweep === 'blockshadow', extrude: (o) => o.fxSweep === 'extrude',
-  contour: (o) => /contour/i.test(`${o.name} ${o.toolName}`), envelope: (o) => /envelope/i.test(o.name ?? ''),
+  contour: (o) => isContourGroup(o), envelope: (o) => /envelope/i.test(o.name ?? ''),
   distort: (o) => /distortion/i.test(o.name ?? ''), transparency: (o) => o.opacity < 1 || !!o.gradSpec?.fade, blend: () => false,
 };
 const objLabel = (o) => (textOf(o) ? `text “${textOf(o).slice(0, 30)}”` : o.name || o.toolName || o.type);
@@ -6817,6 +6830,8 @@ const ASSIST = {
     const WORDS = { right: step, left: -step, down: step, up: -step, none: 0, auto: soft };
     // Changing a shadow keeps the settings that weren't mentioned (blur, opacity, colour …).
     const old = name === 'shadow' && keep.length === 1 ? keep[0].shadow : null;
+    barQuiet++; // filling in the bar: the selection follows when Apply is pressed below (one undo step)
+    try {
     if (!remove && old) {
       const m = /rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)(?:\D+([\d.]+))?/.exec(String(old.color)) ?? [];
       const hex = m[1] ? `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('')}` : null;
@@ -6861,6 +6876,7 @@ const ASSIST = {
         el.dispatchEvent(new Event('change'));
       }
     }
+    } finally { barQuiet--; }
     const button = remove ? fx.remove : fx.apply;
     if (!button) throw new Error(remove ? `${fx.label} can't be removed this way.` : `${fx.label} is added by clicking on the object with its tool.`);
     // The effect reports problems in its own message (for example "Select two objects to blend").

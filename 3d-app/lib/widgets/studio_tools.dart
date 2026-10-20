@@ -25,29 +25,33 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
   bool _processing = false;
   AppController get c => widget.c;
 
-  /// A factory print layout: kept with the saved assets, checked in the 3D
-  /// view (this sheet closes for it), then put on the kit.
-  Future<void> _uploadLayout() async {
+  /// A factory print layout, or a design picture ([picture]: the finished
+  /// design's front and back drawn flat): kept with the saved assets, checked
+  /// in the 3D view (this sheet closes for it), then put on the kit.
+  Future<void> _uploadLayout({bool picture = false}) async {
     if (!c.signedIn) {
       showToast(
         context,
-        'Sign in to use print layouts: the file is kept with your saved assets.',
+        picture
+            ? 'Sign in to use your design picture: it is kept with your saved assets.'
+            : 'Sign in to use print layouts: the file is kept with your saved assets.',
       );
       c.go(AppScreen.auth);
       return;
     }
     final file = await openFile(
-      acceptedTypeGroups: const [
+      acceptedTypeGroups: [
         XTypeGroup(
-          label: 'Print layouts',
-          extensions: ['pdf', 'svg', 'png', 'jpg', 'jpeg'],
+          label: picture ? 'Design pictures' : 'Print layouts',
+          extensions: ['pdf', 'svg', 'png', 'jpg', 'jpeg', if (picture) 'webp'],
           mimeTypes: [
             'application/pdf',
             'image/svg+xml',
             'image/png',
             'image/jpeg',
+            if (picture) 'image/webp',
           ],
-          uniformTypeIdentifiers: [
+          uniformTypeIdentifiers: const [
             'com.adobe.pdf',
             'public.svg-image',
             'public.png',
@@ -74,10 +78,10 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
     if (ModalRoute.of(context) is PopupRoute) Navigator.of(context).pop();
     say('Reading ${file.name}…');
     try {
-      final message = await c.importPrintLayout(
-        file.name,
-        await file.readAsBytes(),
-      );
+      final bytes = await file.readAsBytes();
+      final message = picture
+          ? await c.importDesignPicture(file.name, bytes)
+          : await c.importPrintLayout(file.name, bytes);
       if (message != null) say(message);
     } on Object catch (error) {
       say('$error');
@@ -189,6 +193,51 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
           icon: Icons.upload,
           onPressed: _processing ? null : _upload,
         ),
+        const SectionLabel('My design picture'),
+        const Text(
+          'A finished picture of your design: the front and back of the '
+          'garment drawn flat, side by side. It goes onto the 3D kit exactly '
+          'as drawn: the whole pattern, your logos in their places. '
+          'Basketball singlets for now.',
+          style: TextStyle(color: Palette.muted, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        if (c.layout case final layout? when layout['kind'] == 'drawing') ...[
+          Row(
+            children: [
+              const Icon(Icons.check_circle, size: 16, color: Palette.cyan),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${layout['name']} · on the 3D kit as drawn',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SecondaryButton(
+            label: 'REMOVE DESIGN PICTURE',
+            icon: Icons.layers_clear_outlined,
+            onPressed: () {
+              c.edit(() => c.layout = null);
+              showToast(
+                context,
+                'Design picture removed: back to your designed kit. The '
+                'picture stays in your saved assets.',
+              );
+            },
+          ),
+        ] else
+          SecondaryButton(
+            label: 'UPLOAD MY DESIGN PICTURE',
+            icon: Icons.add_photo_alternate_outlined,
+            onPressed: c.checkLayout == null
+                ? null
+                : () => _uploadLayout(picture: true),
+          ),
         const SectionLabel('Factory print layout'),
         const Text(
           'The finished print file from the factory (PDF, SVG or PNG with the '
@@ -197,7 +246,7 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
           style: TextStyle(color: Palette.muted, fontSize: 12),
         ),
         const SizedBox(height: 8),
-        if (c.layout case final layout?) ...[
+        if (c.layout case final layout? when layout['kind'] != 'drawing') ...[
           Row(
             children: [
               const Icon(Icons.check_circle, size: 16, color: Palette.cyan),

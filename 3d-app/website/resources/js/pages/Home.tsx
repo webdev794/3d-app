@@ -1,4 +1,4 @@
-import { ArrowRight, BatteryFull, Box, ChevronLeft, ChevronRight, Layers, Monitor, MousePointer2, Palette, PenTool, Signal, Smartphone, Sparkles, Type, Wifi } from 'lucide-react';
+import { ArrowRight, BatteryFull, Box, ChevronLeft, ChevronRight, Layers, Monitor, MousePointer2, Palette, PenTool, Signal, Sparkles, Type, Wifi } from 'lucide-react';
 import { useEffect, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { media } from '../api';
@@ -56,7 +56,6 @@ export default function Home({onStart}:{onStart:(mode:'ai'|'dyo')=>void}) {
     <OrderNow/>
     {/* 3DEEZI Rewards (coming soon): keep below the Orders section */}
     <RewardsBanner/>
-    <section className="home-app-strip"><div><Smartphone size={21}/><span>On your desktop. On your team’s next adventure.</span></div><Link to="/downloads">EXPLORE THE APPS <ArrowRight size={15}/></Link></section>
   </div>;
 }
 

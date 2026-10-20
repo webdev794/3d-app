@@ -5,6 +5,10 @@ import { api, fetchFile, media, saveBlob, type Catalog, type User } from '../api
 import { KitViewer, defaultDesign, type Design, type KitViewerHandle } from '../components/KitViewer';
 import { Columns3 } from 'lucide-react';
 import AdminOrderBoard from './AdminOrderBoard';
+import SupportPanel from './AdminSupport';
+import { LifeBuoy } from 'lucide-react';
+import { InvoicesAdmin, PricingAdmin } from './AdminPricing';
+import { BadgeDollarSign, Receipt } from 'lucide-react';
 import '../../css/orders.css';
 
 export interface AdminUser extends User { is_admin: boolean; projects_count?: number; orders_count?: number }
@@ -45,7 +49,10 @@ const sections = [
   { id: 'projects', label: 'Projects', icon: FolderOpen, title: 'Projects', sub: 'Every kit designed on the platform.' },
   { id: 'orders', label: 'Orders', icon: Package, title: 'Orders', sub: 'Quotes, production and delivery.' },
   { id: 'board', label: 'Order board', icon: Columns3, title: 'Order board', sub: 'Every order by stage: drag to move, post updates, proofs and tracking.' },
+  { id: 'invoices', label: 'Invoices', icon: Receipt, title: 'Invoices', sub: 'Quotes to price, invoices, payments, refunds.' },
+  { id: 'pricing', label: 'Pricing', icon: BadgeDollarSign, title: 'Pricing', sub: 'The price list, business details on invoices, tax and online payments.' },
   { id: 'partners', label: 'Partners', icon: Handshake, title: 'Corporate partners', sub: 'Companies applying to bring 3DEEZI to their website.' },
+  { id: 'support', label: 'Support', icon: LifeBuoy, title: 'Support messages', sub: 'Messages sent with the contact form on the Support page.' },
   { id: 'database', label: 'Database Tools', icon: Database, title: 'Database tools', sub: 'Backups, housekeeping and health.' },
 ] as const;
 
@@ -90,9 +97,12 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
         {section === 'users' ? <UsersPanel me={me} onNotice={onNotice} />
           : section === 'orders' ? (itemId ? <OrderKit key={itemId} id={Number(itemId)} catalog={catalog} onNotice={onNotice} /> : <OrdersPanel onNotice={onNotice} />)
           : section === 'board' ? <AdminOrderBoard onNotice={onNotice} />
+          : section === 'invoices' ? <InvoicesAdmin onNotice={onNotice} />
+          : section === 'pricing' ? <PricingAdmin onNotice={onNotice} />
           : section === 'projects' ? <ProjectsPanel catalog={catalog} onNotice={onNotice} />
           : section === 'settings' ? <SettingsPanel state={apiState} onSaved={setApiState} onNotice={onNotice} />
           : section === 'partners' ? <PartnersPanel onNotice={onNotice} />
+          : section === 'support' ? <SupportPanel onNotice={onNotice} />
           : section === 'database' ? <DatabasePanel onNotice={onNotice} />
           : <Dashboard stats={stats} apiState={apiState} />}
       </div>

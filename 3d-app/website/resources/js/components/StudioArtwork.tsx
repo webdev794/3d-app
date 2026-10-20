@@ -25,6 +25,16 @@ export type ArtboardLayer = ArtworkLayer & { artboard?: number };
 export const artboardOf = (layer?: ArtworkLayer | null) => { const id = (layer as ArtboardLayer | null | undefined)?.artboard; return typeof id === 'number' && id > 0 ? id : undefined; };
 export function readImage(blob: Blob) { return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Unable to read this image.')); reader.readAsDataURL(blob); }); }
 export async function readAsset(asset: LibraryAsset) { return asset.src || readImage(await fetchFile(`/assets/${asset.id}/file`)); }
+/**
+ * A design picture (the finished garment's front and back drawn flat, saved as asset `asset`): checked in the 3D
+ * viewer, then the design change that puts it on the kit exactly as drawn (null when the check was cancelled).
+ */
+export async function checkDrawing(viewer: KitViewerHandle, src: string, name: string, asset: number, garment: string): Promise<Partial<Design> | null> {
+    const result = await viewer.checkLayout(src, name, asset, { drawing: true, garment });
+    if (result.cancelled || !result.roles) return null;
+    const top = (result.parts?.[0] ?? 'singlet') as Design['garment'];
+    return { garment: top, layout: { asset, name: name.slice(0, 160), roles: result.roles, kind: 'drawing', parts: [top] } };
+}
 
 interface ArtworkProps {
     design: Design; edit: (patch: Partial<Design>) => void;
@@ -42,6 +52,7 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
     const navigate = useNavigate();
     const fileInput = useRef<HTMLInputElement>(null);
     const layoutInput = useRef<HTMLInputElement>(null);
+    const drawingInput = useRef<HTMLInputElement>(null);
     const layers = design.layers || [];
     const layer = layers.find(item => item.id === selected);
     const layout = design.layout;
@@ -97,6 +108,21 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
         edit({ garment, layout: { asset: saved.id, name: file.name.slice(0, 160), roles: result.roles, hemFold: result.hemFold !== false, joinLines: result.joinLines === true, parts: result.parts } });
         onNotice(`Print layout on the 3D kit: ${result.panels?.length ?? 0} panels from ${file.name}. Save the project to keep it.`);
     }); }
+    /** My design picture: the finished design's front and back drawn flat, put on the 3D kit exactly as drawn. */
+    async function importDrawing(file: File) { await task(async () => {
+        if (!/\.(pdf|svg|png|jpe?g|webp)$/i.test(file.name)) throw new Error('Choose a PNG, JPG, WEBP, PDF or SVG picture of your design.');
+        if (file.size > 30 * 1024 * 1024) throw new Error('Choose a picture smaller than 30 MB.');
+        if (!viewer.current) throw new Error('The 3D kit is still starting. Please try again.');
+        const kind = /\.pdf$/i.test(file.name) ? 'application/pdf' : /\.svg$/i.test(file.name) ? 'image/svg+xml' : /\.png$/i.test(file.name) ? 'image/png' : /\.webp$/i.test(file.name) ? 'image/webp' : 'image/jpeg';
+        const data = await readImage(file);
+        const form = new FormData(); form.append('file', file); form.append('name', file.name.slice(0, 120)); form.append('type', 'layout');
+        const saved = await api<LibraryAsset>('/assets', { method: 'POST', body: form });
+        const forget = () => api(`/assets/${saved.id}`, { method: 'DELETE' }).catch(() => undefined);
+        const patch = await checkDrawing(viewer.current, `data:${kind};base64,${data.slice(data.indexOf(',') + 1)}`, file.name, saved.id, design.garment).catch(async (error) => { await forget(); throw error; });
+        if (!patch) { await forget(); return; }
+        edit(patch);
+        onNotice(`Your design is on the 3D kit as drawn (${file.name}). Save the project to keep it.`);
+    }); }
     function duplicate() { if (!layer || layers.length >= 40) return; const id = crypto.randomUUID(); edit({ layers: [...layers, { ...layer, id, name: `${layer.name || layer.type} copy`.slice(0, 120), x: Math.min(1, layer.x + 0.025), y: Math.max(-0.5, layer.y - 0.025) }] }); onSelect(id); viewer.current?.select(id); }
     function reorder(direction: number) { const index = layers.findIndex(item => item.id === selected); const to = index + direction; if (index < 0 || to < 0 || to >= layers.length) return; const result = [...layers]; [result[index], result[to]] = [result[to], result[index]]; edit({ layers: result }); }
     function newLayer(type: 'text' | 'shape', shape?: ArtworkLayer['shape']) {
@@ -111,9 +137,17 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
         <button className="logo-upload" disabled={busy} onClick={() => requireAuth(() => fileInput.current?.click())}><Upload size={22} /><strong>Upload logo or artwork</strong><span>PNG, JPG or WEBP · up to 2 MB</span></button>
         <input ref={fileInput} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />
         <div className="print-layout">
+            <strong>MY DESIGN PICTURE</strong>
+            <p className="field-hint">A finished picture of your design: the front and back of the garment drawn flat, side by side (a tech flat or a designer’s mock-up). It goes onto the 3D kit exactly as drawn: the whole pattern, your logos in their places. Basketball singlets for now.</p>
+            {layout?.kind === 'drawing'
+                ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · on the 3D kit as drawn</p><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Design picture removed: back to your designed kit. The picture stays in your saved assets.'); }}>Remove design picture</button></>
+                : <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => drawingInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <ImagePlus size={15} />} Upload my design picture</button>}
+            <input ref={drawingInput} hidden type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.svg,image/png,image/jpeg,image/webp,application/pdf,image/svg+xml" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importDrawing(file); }} />
+        </div>
+        <div className="print-layout">
             <strong>FACTORY PRINT LAYOUT</strong>
             <p className="field-hint">The finished print file from the factory (PDF, SVG or PNG with the cut panels laid flat and named FRONT BODY, LEFT SLEEVE …): each panel goes onto the 3D kit, the same way every time.</p>
-            {layout
+            {layout && layout.kind !== 'drawing'
                 ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · {layout.roles.filter(role => role !== 'none').length} panels on the kit</p>
                     <label className="print-layout-join"><input type="checkbox" checked={layout.joinLines !== false} onChange={e => edit({ layout: { ...layout, joinLines: e.target.checked } })} /> Join the sleeve bands to the sleeves (no white line between them)</label><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Print layout removed: back to your designed kit. The file stays in your saved assets.'); }}>Remove print layout</button></>
                 : <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => layoutInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <FileUp size={15} />} Upload print layout</button>}

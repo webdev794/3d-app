@@ -1,13 +1,12 @@
 /* 3DEEZI Rewards, coming soon (client design 2026-10-20): a wide dark card with a thin glowing cyan border, faint
    stars and light waves; the glowing gift, a line, the 3DEEZI wordmark with REWARDS and its line under them, and the
    COMING SOON pill (not a link yet). Sizes follow the card's own width (container units): one row on computers,
-   a tighter row on tablets, stacked and centred on phones. On tablets and phones the space under the card is where
-   3DEEZI ASSIST's button rests at the bottom of the page (it rises above the "Explore the apps" strip), so it never
-   sits on the card. */
+   a tighter row on tablets, stacked and centred on phones. Below the card there is room for 3DEEZI ASSIST's button
+   while it rises with the footer, before it settles into the footer's 3DEEZI ASSIST place. */
 .rewards{container:rewards/inline-size;position:relative;z-index:2;width:calc(100% - 64px);margin:clamp(34px,3.6vw,64px) auto 92px}
-/* Computers: 3DEEZI ASSIST opens by itself on the homepage, bottom right, so the banner lines up with the creation
-   cards and leaves the chat its column, as they do (.creation-paths in home.css; --bu is their --u). */
-@media(min-width:1200px){.rewards{--bu:min(100% / 1600,1.2px);width:min(calc(1122 * var(--bu)),calc(100% - 24px - 344px * var(--assist-scale,1) - 113 * var(--bu)));margin:calc(40 * var(--bu)) 0 calc(60 * var(--bu)) calc(max(0px,(100% - 1920px) / 2) + 95 * var(--bu))}}
+/* Full page width, the same width as the ORDER NOW tiles above it on every screen (order-now.css .on-inner);
+   3DEEZI ASSIST folds into its button before it gets here (Assist.tsx), so the banner no longer leaves it a column. */
+@media(min-width:900px){.rewards{--bu:min(100% / 1600,1.2px);width:min(calc(100% - 48px),calc(1440 * var(--bu)));margin:clamp(34px,calc(40 * var(--bu)),64px) auto max(84px,calc(70 * var(--bu)))}}
 .rewards-card{--k:clamp(.8px,calc(100cqw / 1392),1.08px);position:relative;isolation:isolate;overflow:hidden;display:flex;align-items:center;min-height:calc(178 * var(--k));padding:calc(20 * var(--k)) calc(90 * var(--k)) calc(20 * var(--k)) calc(100 * var(--k));border:1px solid #52d4ecd9;border-radius:calc(14 * var(--k));color:#f4f8fc;
   background:radial-gradient(ellipse 34% 120% at 0 100%,#0f3d7a59,transparent 70%),radial-gradient(ellipse 30% 110% at 100% 100%,#1b3f8f4d,transparent 70%),linear-gradient(180deg,#04111f,#020a14);
   box-shadow:0 0 0 1px #00d9ed14,0 0 14px #00d9ed4d,0 0 40px #00a8e824,inset 0 0 24px #00d9ed12}
@@ -58,7 +57,7 @@
   .rewards-soon{align-self:stretch;width:auto;height:52px;margin:20px 0 0;font-size:19px}
   .rewards-waves{height:55%}
 }
-/* Tablets and phones: in line with the creation cards (32 px and 18 px from the edges); 3DEEZI ASSIST's button is
-   56 px tall here, 48 px on phones. */
-@media(max-width:759px){.rewards{width:calc(100% - 36px)}}
+/* Tablets and phones: in line with the ORDER NOW tiles (20 px and 16 px from the edges). */
+@media(max-width:899px){.rewards{width:calc(100% - 40px)}}
+@media(max-width:600px){.rewards{width:calc(100% - 32px)}}
 @media(max-width:560px){.rewards{margin-bottom:72px}}

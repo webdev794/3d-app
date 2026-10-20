@@ -7,9 +7,8 @@
   radial-gradient(ellipse 55% 22% at 50% 100%,#1366c42e,transparent 75%),
   radial-gradient(ellipse 40% 30% at 50% 18%,#0e2c4f40,transparent 70%)}
 .on-inner{--hu:min(calc(100cqw / 1600),1.2px);--w:min(calc(100cqw - 48px),calc(1440 * var(--hu)));--u:calc(var(--w) / 1440);position:relative;width:var(--w);margin:0 auto;padding:calc(70 * var(--u)) 0 calc(44 * var(--u))}
-/* Computers: 3DEEZI ASSIST opens in a right-hand column here, so the section lines up with the creation cards above
-   (their left edge and width, see home.css .creation-paths) and stays clear of it. */
-@media(min-width:1200px){.on-inner{--w:min(calc(1122 * var(--hu)),calc(100cqw - 24px - 344px * var(--assist-scale,1) - 113 * var(--hu)));margin-left:calc((100cqw - 1600 * var(--hu)) / 2 + 95 * var(--hu))}}
+/* Full page width on every screen (2026-10-20): 3DEEZI ASSIST folds into its button when this section scrolls into
+   view (Assist.tsx, data-assist-fold), so the section no longer leaves the chat a column. */
 .on-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 .on-title{margin:0;text-align:center;font-family:var(--heading);font-weight:700;font-size:max(30px,calc(70 * var(--u)));line-height:1;letter-spacing:.04em;color:#f4f8fc;

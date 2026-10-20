@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Box, Check, Package, Download, Expand, Grid2X2, Hash, ImagePlus, Layers, LoaderCircle, Maximize, MoreVertical, Palette, Plus, Redo2, RotateCcw, Save, SendHorizontal, Shirt, SlidersHorizontal, Sparkles, Type, Undo2, WandSparkles, X, PenTool, FileText, ZoomIn, ZoomOut } from 'lucide-react';
-import { api, media, saveBlob, type Catalog, type Project, type User } from '../api';
+import { api, fetchFile, media, saveBlob, type Catalog, type Project, type User } from '../api';
 import { OrderKitDialog } from './Orders';
 import { designSheetPdf } from '../designSheet';
 import { type Design, type View, type Zone, type ArtworkLayer } from '../types';
@@ -9,7 +9,7 @@ import KitViewer, { type KitViewerHandle } from '../components/KitViewer';
 import ColorWheel from '../components/ColorWheel';
 import { comingSoon, garmentArt } from './Create';
 import type { Draft } from '../App';
-import { ArtworkPanel, PresetPanel, patternNames, readAsset, type ArtworkDrop } from '../components/StudioArtwork';
+import { ArtworkPanel, PresetPanel, checkDrawing, patternNames, readAsset, readImage, type ArtworkDrop } from '../components/StudioArtwork';
 import { onAssist } from '../assistBridge';
 import { EditImageButton } from '../components/ImageEditor';
 import '../../css/studio-tools.css';
@@ -148,6 +148,22 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const dialog = useRef<HTMLDialogElement>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   useEffect(() => { if (modal) dialog.current?.showModal(); }, [modal]);
+  // A design picture sent from the AI designer: checked in the 3D view, then on the kit exactly as drawn.
+  const drawingStarted = useRef<number | null>(null);
+  useEffect(() => {
+    const pending = draft.pendingDrawing;
+    if (!pending || !ready || !viewer.current || drawingStarted.current === pending.asset) return;
+    drawingStarted.current = pending.asset;
+    void (async () => {
+      try {
+        const src = await readImage(await fetchFile(`/assets/${pending.asset}/file`));
+        const patch = await checkDrawing(viewer.current!, src, pending.name, pending.asset, latest.current.design.garment);
+        if (patch) { edit(patch, { pendingDrawing: undefined }); onNotice('Your design is on the 3D kit as drawn. Save the project to keep it.'); }
+        else onChange({ ...latest.current, pendingDrawing: undefined });
+      } catch (e) { onChange({ ...latest.current, pendingDrawing: undefined }); onNotice(`Design picture: ${(e as Error).message}`); }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.pendingDrawing, ready]);
   useEffect(() => { chatEnd.current?.scrollIntoView({ block: 'nearest' }); }, [chat, asking]);
   useEffect(() => { const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault(); }; window.addEventListener('beforeunload', beforeUnload); return () => window.removeEventListener('beforeunload', beforeUnload); }, [dirty]);
 
@@ -331,7 +347,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
         <KitViewer ref={viewer} design={draft.design} view={view} rotating={rotating} board={board} onLayers={layers => edit({ layers })} onMarks={marks => edit({ marks })} onModal={setViewerModal} onLayoutError={message => onNotice(`Print layout: ${message} The kit is shown without it (Artwork › Factory print layout).`)} onSelection={setSelectedLayer} onReady={() => setReady(true)} className="studio-viewer" />
         {dragging && <div className="studio-drop-target" onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }} onDrop={dropArtwork}><span>Drop {dragging.pattern ? `${dragging.pattern} on an area` : 'artwork onto your garment'}</span></div>}
         {board && <div className="artboard-controls"><span>Drag anything to move it · corners resize · top handle rotates · scroll or pinch to zoom</span><div className="board-buttons"><button disabled={!ready} onClick={() => viewer.current?.zoomBoard('out')} aria-label="Zoom out" title="Zoom out"><ZoomOut size={15} /></button><button disabled={!ready} onClick={() => viewer.current?.zoomBoard('in')} aria-label="Zoom in" title="Zoom in"><ZoomIn size={15} /></button><button disabled={!ready} onClick={() => viewer.current?.zoomBoard('fit')} title="Show the whole board"><Maximize size={14} /> Fit</button>{Object.keys(draft.design.marks ?? {}).length > 0 && <button onClick={() => edit({ marks: {} })} title="Put the wordmark, crest, sponsor, name and number back where they were (shows any you removed)"><RotateCcw size={14} /> Reset layout</button>}<button disabled={!ready || busy} onClick={() => void exportDesign('artboard')}><Download size={14} /> Export board</button></div></div>}
-        <div className="stage-chips">{patternBusy && <span><LoaderCircle className="spin" size={13} /> Creating AI print…</span>}<span>{catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport} · {draft.design.layout ? `Print layout · ${draft.design.layout.name}` : catalog?.garments.find(g => g.id === draft.garment)?.name || draft.garment}</span></div>
+        <div className="stage-chips">{patternBusy && <span><LoaderCircle className="spin" size={13} /> Creating AI print…</span>}<span>{catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport} · {draft.design.layout ? `${draft.design.layout.kind === 'drawing' ? 'Design picture' : 'Print layout'} · ${draft.design.layout.name}` : catalog?.garments.find(g => g.id === draft.garment)?.name || draft.garment}</span></div>
         <div className="view-controls">{(['front', 'back', 'side'] as View[]).map(v => <button key={v} className={view === v && !rotating ? 'active' : ''} onClick={() => { setView(v); setRotating(false); }}>{v}</button>)}<button className={rotating ? 'active' : ''} onClick={() => setRotating(r => !r)} aria-pressed={rotating}><RotateCcw size={14} /> 360°</button><button className="fullscreen" aria-label="Fullscreen preview" onClick={() => { stage.current?.requestFullscreen?.().catch(() => onNotice('Fullscreen is unavailable in this browser.')); }}><Expand size={16} /></button></div>
       </div>
 

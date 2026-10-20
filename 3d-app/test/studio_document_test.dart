@@ -296,6 +296,7 @@ void main() {
     await tester.tap(find.byTooltip('Add text layer'));
     await tester.pump();
     expect(c.layers.single['text'], 'CLUB');
+    await tester.ensureVisible(find.text('ellipse').first);
     await tester.tap(find.text('ellipse').first);
     await tester.pump();
     expect(c.layers, hasLength(2));

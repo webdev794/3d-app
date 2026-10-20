@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Check, ChevronRight, Info, Minus, TriangleAlert, X } from 'lucide-react';
 import { api } from '../api';
@@ -18,9 +19,9 @@ interface Message { role: 'user' | 'assistant'; content: string; error?: boolean
 const storeKey = '3deezi.assist';
 const greeting = "Hi! I'm 3DEEZI ASSIST.\nWhat would you like help with?";
 /** Pages a reply may link to (the server allows the same list). */
-const pages = ['/', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/orders', '/pricing', '/studio', '/artboard'];
+const pages = ['/', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/orders', '/orders/new', '/orders/upload', '/pricing', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms'];
 
-const pageNames: Record<string, string> = { '/': 'the home page', '/create/ai': 'AI Powered Sportswear', '/create/sport': 'Design Your Own', '/convert': 'Convert', '/projects': 'Projects', '/approved': 'Approved', '/assets': 'Assets', '/dashboard': 'the Dashboard', '/downloads': 'Downloads', '/orders': 'My orders', '/pricing': 'Plans', '/studio': 'the 3D Studio', '/artboard': 'the Artboard' };
+const pageNames: Record<string, string> = { '/': 'the home page', '/create/ai': 'AI Powered Sportswear', '/create/sport': 'Design Your Own', '/convert': 'Convert', '/projects': 'Projects', '/approved': 'Approved', '/assets': 'Assets', '/dashboard': 'the Dashboard', '/downloads': 'Downloads', '/orders': 'My orders', '/orders/new': 'the Create Order Form', '/orders/upload': 'Upload Your Order', '/pricing': 'Plans', '/studio': 'the 3D Studio', '/artboard': 'the Artboard', '/about': 'About 3DEEZI', '/support': 'Support', '/privacy': 'the Privacy Policy', '/terms': 'the Terms of Use' };
 /** Commands run on the Artboard (in its frame) or on the Studio page; the rest open a page. */
 const artboardActions = ['grid', 'snap', 'rulers', 'snapTo', 'tool', 'select', 'arrange', 'align', 'mirror', 'group', 'duplicate', 'connect', 'varline', 'page', 'gradient', 'palette', 'textStyle', 'move', 'rotate', 'scale', 'size', 'fill', 'outline', 'menu', 'effect', 'add', 'zoom', 'pageSize', 'units', 'tab', 'help'];
 const studioActions = ['view', 'panel', 'garment', 'board', 'export', 'design', 'studioAi'];
@@ -51,6 +52,9 @@ function load(): { open: boolean; messages: Message[] } {
 
 /** The homepage design shows the chat open (2026-10-15): it opens by itself there on computer screens. */
 const opensOn = (page: string) => page === '/' && window.matchMedia('(min-width: 1200px)').matches;
+
+/** Opens the chat from a page's own button (e.g. the Support page's "Open 3DEEZI ASSIST"). */
+export const openAssist = () => { window.dispatchEvent(new Event('assist-open')); };
 
 /** The 3DEEZI four-point sparkle. */
 export function Sparkle({ size = 24 }: { size?: number }) {
@@ -91,17 +95,57 @@ export default function Assist() {
   }, [location.pathname]);
   const path = useRef(location.pathname);
   path.current = location.pathname;
-  // Never over the footer, or the homepage's "Explore the apps" strip above it: as they scroll into view the
-  // button (and the open chat) rise with them, so they sit just above (--assist-lift, used in assist.css).
+  // Never over the footer, or a page's own bar along the bottom (the order pages' Save draft / Review order): as they
+  // scroll into view the button (and the open chat) rise with them, so they sit just above (--assist-lift, used in
+  // assist.css). Once the footer's 3DEEZI ASSIST place ([data-assist-dock]) is wholly on screen, the button settles
+  // into it (drawn there with a portal, so it scrolls with the page) and the open chat stays above the footer.
   const root = useRef<HTMLDivElement>(null);
+  const launcher = useRef<HTMLButtonElement>(null);
+  const [dock, setDock] = useState<HTMLElement | null>(null);
+  const docked = useRef<HTMLElement | null>(null);
+  /** Where the button was before it moved between the corner and the footer (it glides from there). */
+  const from = useRef<DOMRect | null>(null);
+  const isOpen = useRef(open);
+  isOpen.current = open;
+  // Homepage: when "ORDER NOW WITH 3DEEZI" ([data-assist-fold]) scrolls into view with the chat open, the chat folds into
+  // its button so it doesn't cover those sections, and on computers it opens again by itself back at the top, where the
+  // creation cards keep its column. Opened there by the visitor, it stays open (no more folding this visit); closed by
+  // the visitor, it stays closed and the cards use the full width (data-assist-closed on <html>, see home.css).
+  const fold = useRef({ below: false, folded: false, keep: false });
+  const [folded, setFolded] = useState(false);
+  /** Opened by itself again: the keyboard focus stays on the page. */
+  const quiet = useRef(false);
   useEffect(() => {
     let frame = 0;
+    fold.current = { below: false, folded: false, keep: false };
+    setFolded(false);
     const update = () => {
       frame = 0;
-      // A page's own bar along the bottom (the order pages' Save draft / Review order) comes first.
-      const bottom = document.querySelector('[data-assist-above]') ?? document.querySelector('.home-app-strip') ?? document.querySelector('.site-footer');
-      const lift = bottom ? Math.max(0, Math.round(window.innerHeight - bottom.getBoundingClientRect().top)) : 0;
-      root.current?.style.setProperty('--assist-lift', `${lift}px`);
+      const h = window.innerHeight;
+      const footer = document.querySelector('.site-footer');
+      const liftOf = (el: Element | null) => (el ? Math.max(0, Math.round(h - el.getBoundingClientRect().top)) : 0);
+      root.current?.style.setProperty('--assist-lift', `${Math.max(liftOf(document.querySelector('[data-assist-above]')), liftOf(footer))}px`);
+      const place = footer?.querySelector<HTMLElement>('[data-assist-dock]') ?? null;
+      const box = place?.getBoundingClientRect();
+      const next = place && box && box.width > 0 && box.top >= 0 && box.bottom <= h ? place : null;
+      if (next !== docked.current) {
+        from.current = launcher.current?.getBoundingClientRect() ?? null;
+        docked.current = next;
+        setDock(next);
+      }
+      const section = document.querySelector('[data-assist-fold]');
+      const sectionTop = section ? section.getBoundingClientRect().top : Infinity, f = fold.current;
+      if (!f.below && sectionTop < h - 120) {
+        f.below = true;
+        if (isOpen.current && !f.keep) { f.folded = true; setFolded(true); setState(s => ({ ...s, open: false })); }
+      } else if (f.below && sectionTop > h - 40) {
+        f.below = false;
+        if (f.folded) {
+          f.folded = false;
+          setFolded(false);
+          if (!isOpen.current && window.matchMedia('(min-width: 1200px)').matches) { quiet.current = true; setState(s => ({ ...s, open: true })); }
+        }
+      }
     };
     const soon = () => { if (!frame) frame = requestAnimationFrame(update); };
     update();
@@ -117,9 +161,12 @@ export default function Assist() {
 
   useEffect(() => { try { sessionStorage.setItem(storeKey, JSON.stringify({ open: open && !auto.current, messages: messages.slice(-40) })); } catch { /* Private mode: the chat still works. */ } }, [open, messages]);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' }); }, [messages, busy, open]);
-  useEffect(() => { if (open && !auto.current) input.current?.focus({ preventScroll: true }); }, [open]);
-  // Every visit to the homepage opens the chat; leaving it closes a chat that opened by itself, unused.
-  useEffect(() => {
+  useEffect(() => { if (open && !auto.current && !quiet.current) input.current?.focus({ preventScroll: true }); quiet.current = false; }, [open]);
+  // The homepage keeps a column for the chat beside its creation cards unless the visitor closed it (home.css).
+  useLayoutEffect(() => { document.documentElement.toggleAttribute('data-assist-closed', !open && !folded); }, [open, folded]);
+  // Every visit to the homepage opens the chat; leaving it closes a chat that opened by itself, unused. (Before the
+  // page is painted, so the homepage's cards appear with the chat's column straight away.)
+  useLayoutEffect(() => {
     if (opensOn(location.pathname)) {
       if (!state.open) { auto.current = true; setState(s => ({ ...s, open: true })); }
     } else if (auto.current) {
@@ -203,8 +250,23 @@ export default function Assist() {
     }
     return done;
   }
-  /** Opened or closed by the visitor (not by itself). */
-  function show(value: boolean) { auto.current = false; setState(s => ({ ...s, open: value })); }
+  /** Opened or closed by the visitor (not by itself). Opened beside the homepage's order sections, it stays open there. */
+  function show(value: boolean) {
+    auto.current = false;
+    if (value && fold.current.below) fold.current.keep = true;
+    fold.current.folded = false;
+    setFolded(false);
+    setState(s => ({ ...s, open: value }));
+  }
+  // The button glides between the corner and the footer instead of jumping (no movement when motion is reduced).
+  useLayoutEffect(() => {
+    const el = launcher.current, start = from.current;
+    from.current = null;
+    if (!el || !start || !start.width || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const end = el.getBoundingClientRect(), k = end.width / (el.offsetWidth || end.width) || 1;
+    const dx = (start.left - end.left) / k, dy = (start.top - end.top) / k;
+    if (Math.abs(dx) + Math.abs(dy) > 2) el.animate?.([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  }, [dock]);
   const toggle = () => show(!open);
   const minimise = () => show(false);
   const endChat = () => { auto.current = false; setState({ open: false, messages: [] }); setText(''); };
@@ -212,13 +274,15 @@ export default function Assist() {
    * A question from the page itself (askAssist(), e.g. the order form's "Ask for help" box): opens the chat and asks
    * it; while an answer is still coming, it waits in the chat's box to be sent.
    */
-  function askFromPage(question: string) { if (busy) { setText(question); show(true); } else ask(question); }
+  function askFromPage(question: string) { if (!question) show(true); else if (busy) { setText(question); show(true); } else ask(question); }
   const fromPage = useRef(askFromPage);
   fromPage.current = askFromPage;
   useEffect(() => {
     const listen = (e: Event) => { const q = String((e as CustomEvent<string>).detail ?? '').trim().slice(0, 600); if (q) fromPage.current(q); };
+    const opened = () => fromPage.current('');
     window.addEventListener('assist-ask', listen);
-    return () => window.removeEventListener('assist-ask', listen);
+    window.addEventListener('assist-open', opened);
+    return () => { window.removeEventListener('assist-ask', listen); window.removeEventListener('assist-open', opened); };
   }, []);
   /**
    * Follows a link from a reply: opens the page and scrolls to the section after a # (e.g.
@@ -236,7 +300,10 @@ export default function Assist() {
 
   const artboard = location.pathname.startsWith('/artboard');
   const studio = location.pathname.startsWith('/studio');
-  return <div ref={root} className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${waiting && !open ? 'is-waiting' : ''}`}>
+  const button = <button ref={launcher} className="assist-launcher" onClick={toggle} aria-expanded={open} aria-controls="assist-panel" title={open ? 'Hide 3DEEZI ASSIST' : 'Ask 3DEEZI ASSIST'}>
+    <Sparkle size={tool ? 24 : 26} /><span>3DEEZI ASSIST</span>
+  </button>;
+  return <div ref={root} className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${dock ? 'is-docked' : ''} ${waiting && !open && !dock ? 'is-waiting' : ''}`}>
     {open && <section className="assist-panel" id="assist-panel" role="dialog" aria-label="3DEEZI ASSIST help chat">
       <header className="assist-head">
         <Sparkle size={30} />
@@ -257,9 +324,8 @@ export default function Assist() {
         <button type="submit" disabled={busy || !text.trim()} aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3.5 21 12 4 20.5l3-8.5-3-8.5Z" /></svg></button>
       </form>
     </section>}
-    <button className="assist-launcher" onClick={toggle} aria-expanded={open} aria-controls="assist-panel" title={open ? 'Hide 3DEEZI ASSIST' : 'Ask 3DEEZI ASSIST'}>
-      <Sparkle size={tool ? 24 : 26} /><span>3DEEZI ASSIST</span>
-    </button>
+    {/* In the footer's 3DEEZI ASSIST place while it is on screen, otherwise in the bottom-right corner. */}
+    {dock ? createPortal(button, dock) : button}
   </div>;
 }
 

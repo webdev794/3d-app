@@ -27,7 +27,7 @@ export interface Quote {
 const quoteFor = (items: OrderItem[]) => api<Quote>('/pricing/quote', { method: 'POST', body: JSON.stringify({ items }) });
 /** Payments are paused for the 2026-10-20 checkpoint: no prices are asked for; the review says 3DEEZI confirms the price.
     Set to true once /pricing is live, to quote the confirmed rows. ("Pay now" shows only if a submit reply has an invoice.) */
-const PRICES_LIVE = false;
+const PRICES_LIVE = true;
 /** The order's invoice can be paid now (payments-api.md section 2), with where to pay it. */
 const payable = (p?: Payment | null): boolean => !!p && p.can_pay && !!(p.invoice_number || p.pay_url);
 

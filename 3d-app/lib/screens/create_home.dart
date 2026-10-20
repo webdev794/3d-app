@@ -7,6 +7,7 @@ import '../widgets/flow_ui.dart';
 import '../widgets/rewards_card.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
+import 'order_entry.dart' show OrderNowSection;
 
 /// 4 · Create home, as the website: a stadium hero, then three glowing
 /// paths (AI Powered, Design Your Own, Artboard).
@@ -95,6 +96,9 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
                         icon: Icons.workspace_premium_outlined,
                         onPressed: () => c.go(AppScreen.pricing),
                       ),
+                      // ORDER NOW WITH 3DEEZI, as on the website's homepage.
+                      const SizedBox(height: 24),
+                      OrderNowSection(c),
                       // 3DEEZI Rewards (coming soon): keep it last on the home
                       // screen. The space under it is where the round 3DEEZI
                       // ASSIST button rests at the end of the scroll.

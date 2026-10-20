@@ -14,6 +14,7 @@ use App\Http\Controllers\OrderDraftController;
 use App\Http\Controllers\OrderFileController;
 use App\Http\Controllers\PartnerApplicationController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\SupportMessageController;
 use App\Services\OpenAiDesigner;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +31,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::get('/convert/formats', [ConvertController::class, 'formats']);
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:auth');
     Route::post('/partners/apply', [PartnerApplicationController::class, 'store'])->middleware('throttle:auth');
+    // The Support page's contact form (/support): open to visitors; saved for Admin > Support and emailed to the team.
+    Route::post('/support', [SupportMessageController::class, 'store'])->middleware('throttle:auth');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
     // 3DEEZI ASSIST, the help chat on every page: open to visitors too.
     Route::post('/assist', [AssistController::class, 'chat'])->middleware('throttle:assist');
@@ -96,6 +99,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::apiResource('orders', Admin\OrderController::class)->whereNumber('order');
             Route::apiResource('projects', Admin\ProjectController::class)->only(['index', 'update', 'destroy'])->whereNumber('project');
             Route::apiResource('partners', Admin\PartnerController::class)->only(['index', 'update', 'destroy'])->whereNumber('partner');
+            Route::apiResource('support-messages', Admin\SupportMessageController::class)->only(['index', 'update', 'destroy'])->whereNumber('support_message');
             Route::get('/settings', [Admin\SettingsController::class, 'show'])->name('settings');
             Route::put('/settings', [Admin\SettingsController::class, 'update'])->name('settings.update');
             Route::post('/settings/test', [Admin\SettingsController::class, 'test'])->name('settings.test');

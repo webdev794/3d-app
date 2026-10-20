@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../ai_service.dart';
+import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
 import '../export_service.dart';
 import '../widgets/flow_ui.dart';
@@ -676,6 +677,73 @@ class _AiGeneratingScreenState extends State<AiGeneratingScreen>
   }
 }
 
+/// The attached reference pictures, each with "Put my design on the 3D kit": the Studio opens and the picture goes
+/// on the kit as drawn (AppController.importDesignPicture).
+class _ReferencesToKit extends StatelessWidget {
+  const _ReferencesToKit(this.c);
+  final AppController c;
+
+  static String _name(Uint8List b, int i) {
+    final ext = b.length > 3 && b[0] == 0x89 && b[1] == 0x50
+        ? 'png'
+        : b.length > 11 && b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50
+        ? 'webp'
+        : 'jpg';
+    return 'design-picture-${i + 1}.$ext';
+  }
+
+  Future<void> _toKit(BuildContext context, int i) async {
+    final messenger = ScaffoldMessenger.of(context);
+    void say(String text) => messenger.showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating, backgroundColor: Palette.surface2));
+    if (!c.signedIn) {
+      say('Sign in to put your design on the 3D kit: the picture is kept with your saved assets.');
+      c.go(AppScreen.auth);
+      return;
+    }
+    final bytes = c.references[i];
+    c.go(AppScreen.studio);
+    // The Studio's 3D kit starts first.
+    for (var t = 0; t < 100 && c.checkLayout == null; t++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    try {
+      final done = await c.importDesignPicture(_name(bytes, i), bytes);
+      if (done != null) say(done);
+    } on Object catch (e) {
+      say(e is ApiException ? e.message : 'That picture could not go on the 3D kit.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Your pictures', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        for (final (i, bytes) in c.references.indexed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                SizedBox(width: 56, height: 56, child: ClipRRect(borderRadius: BorderRadius.circular(8), child: artImage(bytes: bytes))),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _toKit(context, i),
+                    icon: const Icon(Icons.view_in_ar_outlined, size: 18),
+                    label: const Text('Put my design on the 3D kit'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
 /// 7 · Choose one of the four AI concepts.
 class ConceptsScreen extends StatelessWidget {
   const ConceptsScreen(this.c, {super.key});
@@ -736,6 +804,9 @@ class ConceptsScreen extends StatelessWidget {
                   c.mockupImage != null ||
                   c.mockupError != null)
                 SliverToBoxAdapter(child: _MockupCard(c)),
+              // Each attached reference picture can go straight onto the 3D kit, as on the website.
+              if (c.references.isNotEmpty)
+                SliverToBoxAdapter(child: _ReferencesToKit(c)),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 sliver: SliverGrid.builder(

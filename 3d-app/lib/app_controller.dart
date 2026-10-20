@@ -182,9 +182,18 @@ class AppController extends ChangeNotifier {
   Map<String, dynamic>? layout;
 
   /// Shows a new print layout's panels for checking in the 3D view (set by
-  /// the viewer): the data URL of the file, its name and its saved asset id.
-  /// Answers {roles, hemFold, parts, panels}, {cancelled: true} or null.
-  Future<Map<String, dynamic>?> Function(String src, String name, int asset)?
+  /// the viewer): the data URL of the file, its name and its saved asset id;
+  /// a design picture ([drawing]: front and back drawn flat) with the
+  /// garment it most likely is. Answers {roles, hemFold, parts, panels}
+  /// ({kind: 'drawing', roles, parts} for a picture), {cancelled: true} or
+  /// null.
+  Future<Map<String, dynamic>?> Function(
+    String src,
+    String name,
+    int asset, {
+    bool drawing,
+    String? garment,
+  })?
   checkLayout;
 
   /// The 3D view shows a screen of its own (the print layout check): what
@@ -375,6 +384,73 @@ class AppController extends ChangeNotifier {
     });
     final panels = (result['panels'] as List?)?.length ?? 0;
     return 'Print layout on the 3D kit: $panels panels from $name. '
+        'Save the project to keep it.';
+  }
+
+  /// My design picture: the finished design's front and back drawn flat (a
+  /// PNG, JPG, WebP, PDF or SVG), kept with the saved assets, checked in the
+  /// 3D view, then on the kit exactly as drawn (a singlet) as one undo step.
+  /// Answers what to tell the user, or null when the check was cancelled.
+  Future<String?> importDesignPicture(String name, Uint8List bytes) async {
+    final lower = name.toLowerCase();
+    final type = lower.endsWith('.pdf')
+        ? 'application/pdf'
+        : lower.endsWith('.svg')
+        ? 'image/svg+xml'
+        : lower.endsWith('.png')
+        ? 'image/png'
+        : lower.endsWith('.webp')
+        ? 'image/webp'
+        : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
+        ? 'image/jpeg'
+        : null;
+    if (type == null) {
+      throw ApiException('Choose a PNG, JPG, WebP, PDF or SVG picture.');
+    }
+    if (bytes.length > 30 * 1024 * 1024) {
+      throw ApiException('Choose a picture smaller than 30 MB.');
+    }
+    final check = checkLayout;
+    if (check == null) {
+      throw ApiException('The 3D kit is still starting. Please try again.');
+    }
+    final asset = await api.uploadAsset(
+      bytes,
+      filename: name,
+      type: 'layout',
+      contentType: type,
+    );
+    void forget() =>
+        unawaited(api.deleteAsset(asset).catchError((Object _) {}));
+    final Map<String, dynamic>? result;
+    try {
+      result = await check(
+        'data:$type;base64,${base64Encode(bytes)}',
+        name,
+        asset,
+        drawing: true,
+        garment: 'singlet',
+      );
+    } on Object {
+      forget();
+      rethrow;
+    }
+    final roles = result?['roles'];
+    if (result == null || result['cancelled'] == true || roles is! List) {
+      forget();
+      return null;
+    }
+    edit(() {
+      garment = 'Singlet';
+      layout = copyLayout({
+        'asset': asset,
+        'name': name.length > 160 ? name.substring(0, 160) : name,
+        'roles': roles,
+        'kind': 'drawing',
+        'parts': const ['singlet'],
+      });
+    });
+    return 'Your design is on the 3D kit as drawn ($name). '
         'Save the project to keep it.';
   }
 

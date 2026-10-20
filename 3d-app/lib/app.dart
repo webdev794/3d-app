@@ -10,6 +10,7 @@ import 'screens/artboard.dart';
 import 'screens/business.dart';
 import 'screens/create_home.dart';
 import 'screens/library.dart';
+import 'screens/orders_board.dart';
 import 'screens/onboarding.dart';
 import 'screens/showcase.dart';
 import 'screens/studio.dart';
@@ -279,7 +280,7 @@ class _Phone extends StatelessWidget {
     AppScreen.showcase => ShowcaseScreen(c),
     AppScreen.artboard => ArtboardScreen(c),
     AppScreen.pricing => PricingScreen(c),
-    AppScreen.orders => OrdersScreen(c),
+    AppScreen.orders => OrdersBoardScreen(c),
   };
 }
 

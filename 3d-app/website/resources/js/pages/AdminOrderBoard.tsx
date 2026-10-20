@@ -210,9 +210,17 @@ function OrderPanel({ id, onClose, onNotice }: { id: number; onClose: () => void
           <span><strong>{u.text}</strong>{u.message && u.message !== u.text && <q>{u.message}</q>}<small>{u.user?.name ?? (u.author === 'system' ? '3DEEZI' : u.author)} · {u.visibility === 'internal' ? 'Internal only' : 'Customer-visible'}</small></span>
         </li>)}</ol>
       </section>
-      <p className="muted"><ExternalLink size={13} /> Prices and invoices: Admin › Invoices.</p>
+      <BillingSlot orderId={order.id} onNotice={onNotice} onChange={load} />
+      <p className="muted"><ExternalLink size={13} /> All invoices and prices: Admin › Invoices and Admin › Pricing.</p>
     </>}
   </dialog>;
+}
+
+/** The payments feature's invoice panel (pages/AdminPricing.tsx), loaded with the order view. */
+function BillingSlot(props: { orderId: number; onNotice: (text: string) => void; onChange: () => void }) {
+  const [Panel, setPanel] = useState<null | typeof import('./AdminPricing').AdminOrderBilling>(null);
+  useEffect(() => { void import('./AdminPricing').then(m => setPanel(() => m.AdminOrderBilling)); }, []);
+  return Panel ? <Panel {...props} /> : null;
 }
 
 /** The sub-statuses staff choose in each stage (Design & Approval follows the approval). */

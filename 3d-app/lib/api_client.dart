@@ -160,6 +160,168 @@ class ApiClient {
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> body) async =>
       await _send('POST', '/orders', body: body) as Map<String, dynamic>;
 
+  /// 3DEEZI Orders: my orders by stage (`current` or `completed`), with a
+  /// search by reference, name or garment, and my saved drafts.
+  Future<Map<String, dynamic>> ordersBoard({
+    String view = 'current',
+    String search = '',
+  }) async =>
+      await _send(
+            'GET',
+            '/orders/board?view=$view'
+                '${search.isEmpty ? '' : '&search=${Uri.encodeQueryComponent(search)}'}',
+          )
+          as Map<String, dynamic>;
+
+  /// One of my orders: garments, files, design proofs, updates, tracking.
+  Future<Map<String, dynamic>> order(int id) async =>
+      await _send('GET', '/orders/$id') as Map<String, dynamic>;
+
+  /// Approves the waiting design proof, or asks for changes (with a note).
+  Future<Map<String, dynamic>> answerProof(
+    int orderId, {
+    required bool approve,
+    int? proofId,
+    String? message,
+  }) async =>
+      await _send(
+            'POST',
+            '/orders/$orderId/approval',
+            body: {
+              'decision': approve ? 'approve' : 'changes',
+              'proof_id': proofId,
+              'message': message,
+            },
+          )
+          as Map<String, dynamic>;
+
+  /// Notifications about my orders (approval needed, updates, shipped).
+  Future<Map<String, dynamic>> notifications() async =>
+      await _send('GET', '/notifications') as Map<String, dynamic>;
+
+  Future<void> readNotifications() async {
+    await _send('POST', '/notifications/read', body: const {});
+  }
+
+  /// The order forms' choices: garments, sports, fits, sizes (public).
+  Future<Map<String, dynamic>> orderOptions() async =>
+      await _send('GET', '/orders/options') as Map<String, dynamic>;
+
+  /// "Help me add sizes": garment rows read from a plain description.
+  Future<Map<String, dynamic>> orderAssist(String text) async =>
+      await _send('POST', '/orders/assist', body: {'text': text})
+          as Map<String, dynamic>;
+
+  /// A saved, not submitted order form or upload (kind `form` / `upload`).
+  Future<Map<String, dynamic>> createOrderDraft(
+    String kind,
+    Map<String, dynamic> data,
+  ) async =>
+      await _send('POST', '/order-drafts', body: {'kind': kind, 'data': data})
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> saveOrderDraft(
+    int id,
+    Map<String, dynamic> data,
+  ) async =>
+      await _send('PATCH', '/order-drafts/$id', body: {'data': data})
+          as Map<String, dynamic>;
+
+  Future<void> removeOrderDraftFile(int draftId, int fileId) async {
+    await _send('DELETE', '/order-drafts/$draftId/files/$fileId');
+  }
+
+  /// Submits a draft as one order; the same [key] again (a retry) gives the
+  /// same order, never a second one.
+  Future<Map<String, dynamic>> submitOrderDraft(
+    int id,
+    String key,
+    Map<String, dynamic> fields,
+  ) async =>
+      await _send(
+            'POST',
+            '/order-drafts/$id/submit',
+            body: fields,
+            headers: {'Idempotency-Key': key},
+          )
+          as Map<String, dynamic>;
+
+  /// Uploads an order form or artwork file to a draft, reporting progress
+  /// (0..1) as the bytes go out.
+  Future<Map<String, dynamic>> uploadOrderFile(
+    int draftId,
+    Uint8List bytes, {
+    required String filename,
+    required String kind,
+    void Function(double sent)? onProgress,
+  }) async {
+    if (!configured) {
+      throw ApiException('No 3DEEZI server is set. Add it under Server.');
+    }
+    final multipart =
+        http.MultipartRequest(
+            'POST',
+            Uri.parse('$baseUrl/api/v1/order-drafts/$draftId/files'),
+          )
+          ..fields['kind'] = kind
+          ..files.add(
+            http.MultipartFile.fromBytes('file', bytes, filename: filename),
+          );
+    final total = multipart.contentLength;
+    var sent = 0;
+    final body = multipart.finalize().map((chunk) {
+      sent += chunk.length;
+      onProgress?.call(total == 0 ? 1 : (sent / total).clamp(0, 1).toDouble());
+      return chunk;
+    });
+    final request =
+        http.StreamedRequest(
+            'POST',
+            Uri.parse('$baseUrl/api/v1/order-drafts/$draftId/files'),
+          )
+          ..contentLength = total
+          ..headers.addAll({
+            ...multipart.headers,
+            'Accept': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          });
+    body.listen(
+      request.sink.add,
+      onDone: request.sink.close,
+      onError: request.sink.addError,
+    );
+    return await _receive(
+          () => _client.send(request),
+          long: true,
+          sent: bytes.length,
+        )
+        as Map<String, dynamic>;
+  }
+
+  /// The review step's price (payments): a quote for these order fields.
+  Future<Map<String, dynamic>> pricingQuote(Map<String, dynamic> body) async =>
+      await _send('POST', '/pricing/quote', body: body) as Map<String, dynamic>;
+
+  /// A 2-hour link to pay an invoice (no sign-in needed on the pay page).
+  Future<String> invoicePayLink(String number) async =>
+      '${(await _send('POST', '/invoices/${Uri.encodeComponent(number)}/link') as Map)['url']}';
+
+  /// A file kept with one of my orders (an order form, artwork, a proof).
+  Future<Uint8List> downloadOrderFile(int id) async {
+    final request = http.Request('GET', Uri.parse('$baseUrl/api/v1/order-files/$id'))
+      ..headers.addAll({if (token != null) 'Authorization': 'Bearer $token'});
+    final response = await http.Response.fromStream(await _client.send(request));
+    if (response.statusCode != 200) {
+      throw ApiException('That file could not be downloaded.', status: response.statusCode);
+    }
+    return response.bodyBytes;
+  }
+
+  /// A website page, opened signed in: the token goes in the address's
+  /// #fragment, which browsers never send to a server.
+  String sitePage(String path) =>
+      '$baseUrl$path${token == null ? '' : '#app-token=${Uri.encodeComponent(token!)}'}';
+
   /// 3DEEZI ASSIST, the help chat (no account needed): the answer to the
   /// last question in [messages] and, when [can] includes `commands`, the
   /// commands for the app to run (show the grid, pick a tool, …).
@@ -376,6 +538,7 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool long = false,
+    Map<String, String> headers = const {},
   }) async {
     if (!configured) {
       throw ApiException('No 3DEEZI server is set. Add it under Server.');
@@ -391,6 +554,7 @@ class ApiClient {
         'Accept': 'application/json',
         if (body != null) 'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
+        ...headers,
       });
     if (encoded != null) request.body = encoded;
     return _receive(

@@ -50,6 +50,8 @@ Map<String, dynamic>? copyLayout(Object? value) {
       if (parts is List)
         for (final part in parts) '$part',
     ],
+    // A design picture (the garment's front and back drawn flat).
+    if (value['kind'] == 'drawing') 'kind': 'drawing',
   };
 }
 

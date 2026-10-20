@@ -135,7 +135,7 @@ function check(L, r, w, join, side) {
   }
   return true;
 }
-const exactBand = (L, w) => strips(polyOf(L.path, Math.max(L.step, w / 3)), w, L.closed);
+const exactBand = (L, w) => strips(polyOf(L.path, Math.max(L.step, w / 2)), w, L.closed);
 /** The loop's area eroded by w (null when nothing is left). */
 function shrink(L, w, join) {
   const g = gridOf(L);

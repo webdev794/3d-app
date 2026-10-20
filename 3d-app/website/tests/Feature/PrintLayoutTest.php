@@ -76,6 +76,21 @@ class PrintLayoutTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors(['design.layout', 'design.layout.roles.1', 'design.layout.parts.0']);
     }
 
+    public function test_a_design_picture_is_kept_with_the_project_as_a_drawing_on_a_singlet(): void
+    {
+        Storage::fake('local');
+        Sanctum::actingAs(User::factory()->create());
+        $asset = $this->postJson('/api/v1/assets', ['name' => '94', 'type' => 'layout', 'file' => UploadedFile::fake()->image('94.webp', 40, 30)])
+            ->assertCreated()->json('data.id');
+        $layout = ['asset' => $asset, 'name' => '94.webp', 'roles' => ['back', 'front'], 'kind' => 'drawing', 'parts' => ['singlet']];
+        $project = $this->project($layout);
+        $project['garment'] = 'singlet';
+        $id = $this->postJson('/api/v1/projects', $project)->assertCreated()->json('data.id');
+        $this->getJson('/api/v1/projects/'.$id)->assertOk()->assertJsonPath('data.design.layout', $layout);
+        $this->postJson('/api/v1/projects', $this->project([...$layout, 'kind' => 'photo']))
+            ->assertUnprocessable()->assertJsonValidationErrors('design.layout.kind');
+    }
+
     public function test_administrators_can_read_any_file_others_cannot(): void
     {
         Storage::fake('local');

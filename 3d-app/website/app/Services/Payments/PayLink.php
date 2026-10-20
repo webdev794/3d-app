@@ -25,7 +25,7 @@ final class PayLink
             return false;
         }
 
-        return (int) $m[1] >= time() && hash_equals(self::sign($invoice, (int) $m[1]), $m[2]);
+        return (int) $m[1] >= now()->getTimestamp() && hash_equals(self::sign($invoice, (int) $m[1]), $m[2]);
     }
 
     private static function sign(Invoice $invoice, int $expires): string

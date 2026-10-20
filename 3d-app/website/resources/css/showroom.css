@@ -14,7 +14,7 @@
 .flow-steps>div.current>span,.flow-steps>div.complete>span{border-width:1.5px;border-color:var(--glow);box-shadow:0 0 8px #00d9ed88}
 .glow-panel{position:relative;border:1.5px solid #00d9ed66;border-radius:16px;background:linear-gradient(180deg,#071623e6,#050d16f2);box-shadow:0 0 0 1px #00d9ed14,0 0 26px #00d9ed26,inset 0 0 30px #00d9ed0d}
 .nav-mobile-only{display:none!important}
-.footer-link{color:#9fb2c4}.footer-link:hover{color:var(--cyan)}
+
 
 /* ---------- Loader: spinning emblem with orbits */
 .loader-overlay{min-height:calc(100dvh - 84px);display:grid;place-items:center;padding:40px 20px;background:radial-gradient(ellipse at 50% 40%,#0a2c3e 0,#040b14 62%)}

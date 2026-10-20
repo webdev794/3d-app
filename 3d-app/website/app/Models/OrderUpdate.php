@@ -16,7 +16,8 @@ use Throwable;
  */
 class OrderUpdate extends Model
 {
-    public const KINDS = ['submitted', 'stage', 'step', 'approval', 'tracking', 'note', 'file', 'edit'];
+    /** "payment" (invoice issued, payment received, refund, cancelled) is written by the payments feature: shown to the customer, never emailed (it sends its own emails). */
+    public const KINDS = ['submitted', 'stage', 'step', 'approval', 'tracking', 'note', 'file', 'edit', 'payment'];
 
     protected $fillable = ['user_id', 'kind', 'visibility', 'from_status', 'to_status', 'step', 'approval', 'message', 'order_file_id', 'data'];
 

@@ -5,7 +5,7 @@ export type Garment = 'jersey' | 'tee' | 'polo' | 'singlet' | 'shorts' | 'fullki
 export type View = 'front' | 'side' | 'back';
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem';
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-19-19';
+const VIEWER_VERSION = '2026-10-20-1';
 
 export interface ArtworkLayer {
     id: string; name?: string; type: 'image' | 'text' | 'shape';
@@ -24,7 +24,7 @@ export interface GarmentPoint { hit: boolean; part?: 'top' | 'shorts'; side?: 'f
  * found ('none' = not used), whether the plain strip under the body panels is the hem fold, whether the white lines
  * across the sleeves are joined up (left out), and the parts it makes.
  */
-export interface DesignLayout { asset: number; name: string; roles: string[]; hemFold?: boolean; joinLines?: boolean; parts?: string[] }
+export interface DesignLayout { asset: number; name: string; roles: string[]; hemFold?: boolean; joinLines?: boolean; parts?: string[]; /** 'drawing': the finished garment's front and back drawn flat (a design picture), put on the garment in parts[0]. */ kind?: 'drawing' }
 
 /** Shared with the Flutter viewer. Persist this object as a project's design. */
 export interface Design {
@@ -77,9 +77,9 @@ export interface KitViewerHandle {
      * A new factory print layout (data URL of a PDF, SVG or picture, saved as asset `asset`): its panels are found and
      * checked on screen. Put it on the kit with the design's `layout` ({asset, name, roles, hemFold, parts}).
      */
-    checkLayout: (src: string, name: string, asset: number) => Promise<LayoutCheck>;
+    checkLayout: (src: string, name: string, asset: number, options?: { drawing?: boolean; garment?: string }) => Promise<LayoutCheck>;
 }
-export interface LayoutCheck { cancelled?: boolean; roles?: string[]; hemFold?: boolean; joinLines?: boolean; parts?: string[]; panels?: { role: string; label: string }[] }
+export interface LayoutCheck { cancelled?: boolean; roles?: string[]; hemFold?: boolean; joinLines?: boolean; parts?: string[]; kind?: 'drawing'; panels?: { role: string; label: string }[] }
 
 export interface KitViewerProps {
     design: Design;
@@ -227,9 +227,9 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         select: (id) => send('select', id),
         zoomBoard: (how) => send('boardZoom', how),
         // The visitor checks the panels in the viewer first: allow them time.
-        checkLayout: (src, name, asset) => {
+        checkLayout: (src, name, asset, options = {}) => {
             layoutSources.current = new Map([[asset, src]]);
-            return request<LayoutCheck>('checkLayout', { src, name, asset }, 30 * 60 * 1000);
+            return request<LayoutCheck>('checkLayout', { src, name, asset, ...options }, 30 * 60 * 1000);
         },
         captureBoard: () => new Promise<string>((resolve, reject) => {
             if (!mounted.current || status === 'error') { reject(new Error('The design board is unavailable. Please retry.')); return; }

@@ -49,7 +49,10 @@ class ProjectRequest extends FormRequest
             // A factory print layout on the kit: the file (one of the user's assets), the part each panel found in it
             // is (in the order they are found), whether the plain strip under the body panels is the hem fold, and
             // whether the white lines across the sleeves are joined up (left out, as in the mock-ups).
-            'design.layout' => ['sometimes', 'nullable', 'array:asset,name,roles,hemFold,joinLines,parts'],
+            // kind 'drawing': a design picture (the finished garment's front and back drawn flat) put on the garment in
+            // parts (a singlet), exactly as drawn.
+            'design.layout' => ['sometimes', 'nullable', 'array:asset,name,roles,hemFold,joinLines,parts,kind'],
+            'design.layout.kind' => ['sometimes', 'nullable', Rule::in(['drawing'])],
             'design.layout.asset' => ['required_with:design.layout', 'integer', Rule::exists('assets', 'id')->where('user_id', $this->user()?->id)],
             'design.layout.name' => ['required_with:design.layout', 'string', 'max:160'],
             'design.layout.roles' => ['required_with:design.layout', 'array', 'max:60'],
@@ -57,7 +60,7 @@ class ProjectRequest extends FormRequest
             'design.layout.hemFold' => ['sometimes', 'boolean'],
             'design.layout.joinLines' => ['sometimes', 'boolean'],
             'design.layout.parts' => ['sometimes', 'array', 'max:2'],
-            'design.layout.parts.*' => [Rule::in(['raglan', 'shorts'])],
+            'design.layout.parts.*' => [Rule::in(['raglan', 'shorts', 'singlet'])],
             'design.layers' => ['sometimes', 'array', 'max:40'],
             'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape,artboard'],
             // Artwork sent from the Artboard: the id of the design it came from (Edit in Artboard opens it again).

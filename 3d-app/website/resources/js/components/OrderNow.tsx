@@ -10,8 +10,8 @@ import '../../css/order-now.css';
  * SVG), not images, so they stay sharp and fit every screen.
  */
 export default function OrderNow() {
-  // On computers it lines up with the creation cards, clear of 3DEEZI ASSIST's column (see order-now.css).
-  return <section className="order-now" id="order-now" aria-labelledby="order-now-title">
+  // Full page width: 3DEEZI ASSIST folds into its button when this section scrolls into view (data-assist-fold, Assist.tsx).
+  return <section className="order-now" id="order-now" aria-labelledby="order-now-title" data-assist-fold="">
     <div className="on-haze" aria-hidden="true" />
     <div className="on-inner">
       <h2 id="order-now-title" className="on-title">ORDER NOW WITH <span className="on-wordmark-glow" aria-hidden="true"><span className="on-wordmark" /></span><span className="on-sr">3DEEZI</span></h2>

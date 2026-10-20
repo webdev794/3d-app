@@ -6,6 +6,8 @@ use App\Models\Invoice;
 use App\Models\Order;
 use App\Services\Pricing\BillingSettings;
 use App\Services\Pricing\Money;
+use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 /**
  * The rule for paying before Production (Admin > Pricing > Payments): the whole invoice (the default: the client's
@@ -16,10 +18,25 @@ final class PaymentRules
     /** Whether the order's invoice is paid in full (false with no invoice, a quote still to price, or a cancelled one). */
     public static function paidInFull(Order $order): bool
     {
-        $invoice = $order->invoices()->where('status', '!=', 'cancelled')->latest('id')->first();
+        $invoice = self::current($order);
 
         return $invoice !== null && $invoice->total_cents !== null
             && ($invoice->status === 'paid' || ($invoice->status === 'part_paid' && $invoice->paid_cents >= $invoice->total_cents));
+    }
+
+    /** The order's invoice that counts (not cancelled); null without one, or before the payments migration ran. */
+    public static function current(Order $order): ?Invoice
+    {
+        static $table;
+        try {
+            if (! ($table ??= Schema::hasTable('invoices'))) {
+                return null;
+            }
+
+            return $order->invoices()->where('status', '!=', 'cancelled')->latest('id')->first();
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     /** The rule an invoice was issued under, else the current one: {rule, deposit_percent}. */
@@ -54,7 +71,7 @@ final class PaymentRules
     /** Null when the order may go into Production; else why not (for staff to confirm, like a missing approval). */
     public static function productionWarning(Order $order): ?string
     {
-        $invoice = $order->invoices()->where('status', '!=', 'cancelled')->latest('id')->first();
+        $invoice = self::current($order);
         if (self::met($invoice)) {
             return null;
         }

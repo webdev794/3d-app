@@ -15,7 +15,7 @@ use Throwable;
 class SiteAssistant
 {
     /** Site pages the assistant may link to; any other link is dropped by the chat window too. */
-    public const PAGES = ['/', '/#create-options', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/orders', '/pricing', '/studio', '/artboard'];
+    public const PAGES = ['/', '/#create-options', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/orders', '/orders/new', '/orders/upload', '/pricing', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms'];
 
     /**
      * Commands the chat window can run, with the values each accepts. Artboard commands open the

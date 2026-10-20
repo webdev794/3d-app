@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/site_page_stub.dart'
+    if (dart.library.js_interop) '../widgets/site_page_web.dart'
+    if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/ui.dart';
 import 'business.dart';
 import 'image_editor.dart';
@@ -637,6 +640,19 @@ class ProfileScreen extends StatelessWidget {
               'Plans & pricing',
               () => c.go(AppScreen.pricing),
             ),
+            const SizedBox(height: 22),
+            // The website's footer pages, opened signed in (same as the site's footer links).
+            for (final (icon, label, path) in const [
+              (Icons.info_outline, 'About', '/about'),
+              (Icons.support_agent_outlined, 'Support', '/support'),
+              (Icons.privacy_tip_outlined, 'Privacy', '/privacy'),
+              (Icons.description_outlined, 'Terms', '/terms'),
+            ])
+              _row(
+                icon,
+                label,
+                () => openSitePage(context, c.api.sitePage(path), label),
+              ),
             const SizedBox(height: 22),
             _row(
               Icons.dns_outlined,

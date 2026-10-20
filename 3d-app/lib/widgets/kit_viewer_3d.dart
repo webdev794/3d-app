@@ -220,12 +220,16 @@ class KitViewer3DState extends State<KitViewer3D> {
   Future<Map<String, dynamic>?> _checkLayout(
     String src,
     String name,
-    int asset,
-  ) async {
+    int asset, {
+    bool drawing = false,
+    String? garment,
+  }) async {
     final result = await _request('checkLayout', {
       'src': src,
       'name': name,
       'asset': asset,
+      if (drawing) 'drawing': true,
+      'garment': ?garment,
     }, wait: const Duration(minutes: 30));
     if (result?['error'] case final String error) throw ApiException(error);
     return result;
