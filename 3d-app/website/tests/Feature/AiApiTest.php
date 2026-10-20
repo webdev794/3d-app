@@ -137,6 +137,10 @@ public function test_mockup_edit_and_convert(): void
             ->assertCreated()->assertJsonPath('data.asset.type', 'mockup');
         // The client logo and the 3DEEZI logo both went to the image model.
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/images/edits') && substr_count($r->body(), 'name="image[]"') === 2);
+        // An attached picture may be the client's finished design: then it is rendered as it is, in the brief's layout.
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/images/edits')
+            && str_contains($r->body(), 'If one of them shows a complete garment design, make the garment exactly that design')
+            && str_contains($r->body(), 'different layout, angle or background'));
 
         $this->postJson('/api/v1/ai/edit', ['instruction' => 'red and gold, number 7 for smith', 'design' => ['main' => '#000000', 'pattern' => 'Chevron']])
             ->assertOk()

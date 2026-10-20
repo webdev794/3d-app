@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Events\OrderSubmitted;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OrderRequest;
 use App\Models\Order;
+use App\Support\OrderGate;
+use App\Support\OrderView;
 use App\Models\PartnerApplication;
 use App\Models\Project;
 use App\Models\User;
@@ -32,6 +35,7 @@ class OrderController extends Controller
             ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q
                 ->where('number', 'like', "%{$search}%")
                 ->orWhere('contact_name', 'like', "%{$search}%")
+                ->orWhere('team_name', 'like', "%{$search}%")
                 ->orWhereHas('user', fn ($u) => $u->where('email', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"))))
             ->latest()
             ->paginate(min(100, max(5, (int) $request->query('per_page', 20))));
@@ -45,32 +49,46 @@ class OrderController extends Controller
      */
     public function show(Order $order): JsonResponse
     {
-        return response()->json(['data' => $order->load(['user:id,name,email', 'project'])->makeVisible('design_snapshot')]);
+        // The board's view of it too: stage, sub-status, garments, files (also internal) and the whole history.
+        $order->load(['user:id,name,email', 'project'])->makeVisible('design_snapshot');
+
+        return response()->json(['data' => array_merge(OrderView::detail($order, true), [
+            'project' => $order->project?->toArray(),
+            'user' => $order->user?->only(['id', 'name', 'email']),
+        ])]);
     }
 
     public function store(OrderRequest $request): JsonResponse
     {
-        $data = Arr::except($request->validated(), 'design_final');
+        $data = Arr::except($request->validated(), ['design_final', 'confirm_without_approval', 'confirm_unpaid', 'override_reason']);
         $this->checkProject($data);
         $order = new Order($data);
+        $order->source = 'admin';
         if (! empty($data['project_id'])) {
             $order->keepKit(Project::find($data['project_id']));
         }
         $order->save();
+        OrderSubmitted::dispatch($order);
 
         return response()->json(['data' => $order->refresh()->load(self::WITH)], 201);
     }
 
     public function update(OrderRequest $request, Order $order): JsonResponse
     {
-        $data = Arr::except($request->validated(), 'design_final');
+        $data = Arr::except($request->validated(), ['design_final', 'confirm_without_approval', 'confirm_unpaid', 'override_reason']);
         $this->checkProject($data + ['user_id' => $order->user_id]);
+        $approval = array_key_exists('approval', $data) && $data['approval'] !== $order->approval ? $data['approval'] : null;
         $order->fill($data);
         // Another kit on the order: keep that one as it is now.
         if ($order->isDirty('project_id')) {
             $order->keepKit($order->project_id ? Project::find($order->project_id) : null);
         }
+        // Into Production without the customer's approval or full payment: staff confirm it first (see OrderGate).
+        $order->activity = OrderGate::check($order, $request->boolean('confirm_without_approval'), $request->boolean('confirm_unpaid'), $request->input('override_reason'));
         $order->save();
+        if ($approval) {
+            $order->record('approval', ['approval' => $approval]);
+        }
 
         return response()->json(['data' => $order->refresh()->load(self::WITH)]);
     }

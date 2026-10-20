@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Check, ChevronRight, Info, Minus, TriangleAlert, X } from 'lucide-react';
 import { api } from '../api';
-import { assistHandler } from '../assistBridge';
+import { assistContext, assistHandler } from '../assistBridge';
 import '../../css/assist.css';
 
 /**
@@ -98,7 +98,8 @@ export default function Assist() {
     let frame = 0;
     const update = () => {
       frame = 0;
-      const bottom = document.querySelector('.home-app-strip') ?? document.querySelector('.site-footer');
+      // A page's own bar along the bottom (the order pages' Save draft / Review order) comes first.
+      const bottom = document.querySelector('[data-assist-above]') ?? document.querySelector('.home-app-strip') ?? document.querySelector('.site-footer');
       const lift = bottom ? Math.max(0, Math.round(window.innerHeight - bottom.getBoundingClientRect().top)) : 0;
       root.current?.style.setProperty('--assist-lift', `${lift}px`);
     };
@@ -144,6 +145,8 @@ export default function Assist() {
       // On the Artboard: what is on the page and selected, so the answer fits it ("it already has a shadow").
       let context: string | undefined;
       try { context = artboardWindow()?.artboard?.assist?.('describe', '')?.slice(0, 3000); } catch { /* not ready */ }
+      // Elsewhere: what the page itself reports (e.g. the order form's garments and sizes).
+      context ??= assistContext()?.slice(0, 3000);
       const r = await api<{ reply: string; actions?: Action[]; outdated?: boolean }>('/assist', { method: 'POST', body: JSON.stringify({ messages: history.slice(-12).map(({ role, content }) => ({ role, content })), page: location.pathname, can: ['commands'], build, context }) });
       const id = Date.now();
       setState(s => ({ ...s, messages: [...s.messages, { role: 'assistant', content: r.reply, id, refresh: r.outdated }] }));
@@ -205,6 +208,18 @@ export default function Assist() {
   const toggle = () => show(!open);
   const minimise = () => show(false);
   const endChat = () => { auto.current = false; setState({ open: false, messages: [] }); setText(''); };
+  /**
+   * A question from the page itself (askAssist(), e.g. the order form's "Ask for help" box): opens the chat and asks
+   * it; while an answer is still coming, it waits in the chat's box to be sent.
+   */
+  function askFromPage(question: string) { if (busy) { setText(question); show(true); } else ask(question); }
+  const fromPage = useRef(askFromPage);
+  fromPage.current = askFromPage;
+  useEffect(() => {
+    const listen = (e: Event) => { const q = String((e as CustomEvent<string>).detail ?? '').trim().slice(0, 600); if (q) fromPage.current(q); };
+    window.addEventListener('assist-ask', listen);
+    return () => window.removeEventListener('assist-ask', listen);
+  }, []);
   /**
    * Follows a link from a reply: opens the page and scrolls to the section after a # (e.g.
    * /#create-options); a link to the page already open scrolls to its top. The chat stays open on

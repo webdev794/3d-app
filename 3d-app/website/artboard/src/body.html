@@ -63,9 +63,10 @@
         <button data-action="fullscreen">Full screen</button></div></div>
       <div class="menu"><button>Help</button><div class="drop"><button data-action="help">Tools and shortcuts</button><button data-action="supportFile">Save page for support <small>a file to send us</small></button></div></div>
     </nav>
-    <div class="go-tabs" role="group" aria-label="Start a new kit">
-      <button class="go-tab ai" id="goAi" data-icon="spark" title="AI Powered Sportswear: describe your kit and AI designs it (your artwork stays here)"><span>AI</span></button>
-      <button class="go-tab" id="goDyo" data-icon="shirt" title="Design Your Own: choose a sport and garment, then design it in the 3D Studio (your artwork stays here)"><span>DYO</span></button>
+    <div class="go-tabs" role="group" aria-label="Quick access">
+      <button class="go-tab ai" id="goAi" data-icon="qaAi" title="AI Powered Sportswear: describe your kit and AI designs it (your artwork stays here)"><span>AI</span></button>
+      <button class="go-tab" id="goDyo" data-icon="qaTee" title="Design Your Own: choose a sport and garment, then design it in the 3D Studio (your artwork stays here)"><span>DYO</span></button>
+      <button class="go-tab" id="goHome" data-icon="qaHome" title="Home: the 3DEEZI home page (your artwork stays here)"><span>HOME</span></button>
     </div>
     <div class="top-actions">
       <button class="round" id="undo" title="Undo (Ctrl+Z)" data-icon="undo"></button>
@@ -365,12 +366,13 @@
   <div class="help-cols">
     <div><h4>Tools</h4>
       <p><b>Pick</b> V · <b>Shape</b> (nodes) F10 · <b>Freehand</b> F5 · <b>Rectangle</b> F6 · <b>Ellipse</b> F7 · <b>Text</b> F8 · <b>Polygon</b> Y · <b>Star</b> S · <b>Graph paper</b> D · <b>Spiral</b> A · <b>Eraser</b> X · <b>Zoom</b> Z · <b>Pan</b> H · <b>Interactive fill</b> G · <b>Mesh fill</b> M · <b>Eyedropper</b> I (click a colour, then click objects to fill them)</p>
-      <p>Artistic Media (Preset, Brush, Sprayer, Calligraphic, Expression; Painterly Brush and Variable Outline in its flyout) is the third button, below Pan. Smart Drawing and LiveSketch are in the Freehand flyout. Click a toolbox button again (or right-click it) to open its flyout: Freehand Pick, Free Transform, Smooth, Smear, Twirl, Attract, Repel, Smudge, Roughen, Knife, Virtual Segment Delete, Bézier, Pen, B-Spline, Polyline, 3-Point Curve, 3-Point Rectangle, 3-Point Ellipse, Complex Star, Impact, basic shapes, Paragraph Text, dimensions (parallel, horizontal or vertical, angular, segment) and the 2-Leg Callout, connectors (straight, right-angle, rounded right-angle) and Anchor Editing, Blend, Contour, Drop Shadow, Transparency and more.</p></div>
+      <p>Artistic Media (Preset, Brush, Sprayer, Calligraphic, Expression; Painterly Brush and Variable Outline in its flyout) is the third button, below Pan. Smart Drawing and LiveSketch are in the Freehand flyout. A button with a small triangle has a flyout: click the button again, click the triangle or right-click it (on a phone, hold a finger on it); the button then shows the tool you used last. The Rectangle flyout has every shape tool: Rectangle, 3-Point Rectangle, Ellipse, 3-Point Ellipse, Polygon, Star, Complex Star, Graph Paper, Spiral, Impact and the basic, arrow, banner, callout and badge shapes. Interactive Fill, Mesh Fill and Smart Fill share one flyout; Contour, Blend, Drop Shadow, Inner Shadow, Block Shadow, Extrude, Distort and Envelope share another (Transparency and the Eyedropper have their own buttons). The other flyouts: Freehand Pick, Free Transform, Smooth, Smear, Twirl, Attract, Repel, Smudge, Roughen, Knife, Virtual Segment Delete, Bézier, Pen, B-Spline, Polyline, 3-Point Curve, Paragraph Text, dimensions (parallel, horizontal or vertical, angular, segment) and the 2-Leg Callout, connectors (straight, right-angle, rounded right-angle) and Anchor Editing.</p></div>
     <div><h4>Curves and nodes</h4>
       <p><b>Convert to curves</b> Ctrl+Q · <b>Outline to object</b> Ctrl+Shift+Q · <b>Combine</b> Ctrl+L · <b>Break apart</b> Ctrl+K</p>
       <p>Shape tool: drag nodes, handles or segments · double-click a curve to add a node, a node to delete it · drag a box to select nodes · Shift+click adds · arrows nudge · Alt+drag a handle breaks symmetry.</p>
       <p>Bézier / Pen: click for corner nodes, click-drag for smooth nodes, click the first node to close.</p></div>
     <div><h4>Arrange</h4>
+      <p><b>Size, rotate, slant</b> (Pick): one click on an object shows its 8 sizing handles. Click it again for the rotate and slant handles: drag a curved corner arrow to rotate (Ctrl or Shift: 15° steps), a side arrow to slant, the circle to move the centre of rotation; click again for the sizing handles. Dragging the object moves it in both. Double-click a text to type in it.</p>
       <p><b>Group</b> Ctrl+G · <b>Ungroup</b> Ctrl+U · <b>Duplicate</b> Ctrl+D · <b>Copy / paste</b> Ctrl+C / Ctrl+V</p>
       <p><b>Align</b> L R T B, E (centres horizontally), C (centres vertically), P (centre to page) · <b>Order</b> Shift+PgUp / Shift+PgDn, Ctrl+PgUp / Ctrl+PgDn</p>
       <p><b>Pan</b> Space+drag or middle mouse · <b>Zoom</b> Ctrl+wheel · <b>Import</b> Ctrl+I · <b>Export PDF</b> Ctrl+E</p></div>

@@ -1,0 +1,179 @@
+/* Upload Your Order (/orders/upload, pages/OrderUpload.tsx): only what this page adds to the shared order page parts
+   (order-pages.css): the compact contact details, the upload areas and their files, the collapsed 3DEEZI Assist bar,
+   the review and the confirmation. Colours follow order-pages.css. */
+.ou-page{--ou-green:#38e3a6;--ou-red:#ff9bb0;--ou-amber:#ffc27a}
+
+/* Signed out, and notes about the draft */
+.ou-signin{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:-6px 0 14px;padding:12px 16px;border:1px solid #5cc8ec66;border-radius:8px;background:#06202cb3;color:#d5eef6;font-size:13.5px}
+.ou-signin>svg{color:var(--op-cyan)}
+.ou-signin p{flex:1;min-width:220px;margin:0;line-height:1.45}
+.ou-banner{display:flex;gap:9px;align-items:flex-start;margin:-6px 0 14px;padding:10px 8px 10px 14px;border-radius:8px;border:1px solid #ffbc7555;background:#ffbc750d;color:#ffd7a8;font-size:13px;line-height:1.5}
+.ou-banner>svg{flex:none;margin-top:3px}
+.ou-banner span{flex:1}
+.ou-alert{display:flex;gap:7px;align-items:flex-start;flex-wrap:wrap;margin:10px 0 0;font-size:12.5px;color:var(--ou-red);line-height:1.45}
+.ou-alert svg{flex:none;margin-top:1px}
+.ou-submit-error{margin:0;padding:11px 14px;border:1px solid #f1648255;border-radius:8px;background:#f164820f;font-size:13px}
+
+/* 1. Contact & team details, shown compactly; Edit opens the shared fields. */
+.ou-contact{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 22px;margin:0}
+.ou-contact div{min-width:0}
+.ou-contact dt{margin-bottom:4px;font-size:12px;color:var(--op-muted)}
+.ou-contact dd{margin:0;font-size:14.5px;color:var(--op-text);overflow-wrap:anywhere}
+.ou-contact dd.is-empty{color:#8293a6}
+.ou-contact dd.is-missing{color:var(--ou-amber)}
+.ou-add{padding:0;border:0;background:none;color:var(--ou-amber);font-size:inherit;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.ou-add:hover{color:#ffe0b8}
+.ou-contact-note{display:flex;gap:7px;align-items:center;margin:12px 0 0;font-size:12px;color:var(--op-muted)}
+.ou-contact-note svg{flex:none;color:var(--op-cyan)}
+.ou-contact-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}
+
+/* 2. The order form's large upload area; 3. the compact artwork one. */
+.ou-drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:196px;padding:22px 18px 18px;border:1.5px dashed #9fc6e5a6;border-radius:6px;background:#030a14;text-align:center;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s}
+.ou-drop:hover{border-color:#cfe6ffcc}
+.ou-drop.is-over{border-style:solid;border-color:var(--op-cyan);background:#00d9ed10;box-shadow:0 0 22px #00d9ed33}
+.ou-drop.is-invalid{border-color:#f16482}
+.ou-drop-icon{flex:none;color:#2fc4f2;filter:drop-shadow(0 0 8px #1fb4ff66)}
+.ou-drop:not(.is-compact) .ou-drop-icon{margin-bottom:8px}
+.ou-drop-title{font-size:18px;font-weight:600;color:#fff;line-height:1.3}
+.ou-or{display:flex;align-items:center;gap:12px;width:min(270px,80%);margin:4px 0 9px;font-size:13px;color:#dbe6f2}
+.ou-or::before,.ou-or::after{content:'';flex:1;height:1px;background:#4b6787}
+.ou-touch{display:none}
+@media(hover:none) and (pointer:coarse){.ou-touch{display:inline}.ou-mouse{display:none}.ou-drop-title{margin-bottom:12px}}
+.ou-pill{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:196px;height:40px;padding:0 24px;border:0;border-radius:999px;background:#050b1a;color:#fff;font:700 15px/1 var(--heading);letter-spacing:.09em;text-transform:uppercase;white-space:nowrap;isolation:isolate;box-shadow:0 0 16px #5a6cff33;transition:box-shadow .15s,transform .15s}
+.ou-pill::before{content:'';position:absolute;inset:0;z-index:-1;padding:1.5px;border-radius:inherit;background:linear-gradient(90deg,#1fb4ff,#5a6cff 60%,#b46bff);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.ou-pill:not(:disabled):hover{box-shadow:0 0 22px #5a6cff66;transform:translateY(-1px)}
+.ou-pill.is-small{min-width:136px;height:30px;padding:0 18px;font-size:13px}
+.ou-rules{margin:12px 0 0;font-size:12px;color:#aebdcc;line-height:1.5}
+.ou-rules b{font-weight:600;color:#e3eef8}
+.ou-rules small{display:block;font-size:11px;color:#7d8fa3;letter-spacing:.02em}
+.ou-drop.is-compact{flex-direction:row;gap:20px;min-height:80px;padding:12px 18px}
+.ou-drop.is-compact .ou-drop-icon{color:#5fb3f5;transform:rotate(-8deg);filter:none}
+.ou-drop-copy{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
+.ou-drop-copy strong{font-size:14px;font-weight:500;color:#f1f6fb}
+.ou-drop.is-compact .ou-rules{margin-top:0}
+
+/* The files under an upload area */
+.ou-files{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.ou-file{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px 16px;min-height:58px;padding:9px 10px 9px 16px;border:1px solid #2a5170;border-radius:6px;background:#050f1b}
+.ou-file.is-error{border-color:#f1648277;background:#1a0b14b3}
+.ou-file-icon{display:grid;place-items:center;width:32px;min-height:38px;color:#bcd6ef}
+.ou-file-icon img{width:42px;height:42px;object-fit:cover;border-radius:6px;border:1px solid #ffffff22;background:#0b1a2b}
+.ou-file-main{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ou-file-name{font-size:15px;font-weight:500;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ou-file-meta{font-size:11.5px;color:var(--op-muted)}
+.ou-file-meta.is-waiting{color:var(--ou-amber)}
+.ou-file-error{font-size:12.5px;color:var(--ou-red);line-height:1.4;overflow-wrap:anywhere}
+.ou-file-side{display:flex;align-items:center;gap:6px}
+.ou-done{display:inline-flex;align-items:center;gap:8px;margin-right:4px;padding-right:12px;border-right:1px solid #2f4d6b;color:var(--ou-green);font-size:14px;font-weight:500;white-space:nowrap}
+.ou-done svg{color:#04211a;fill:var(--ou-green)}
+.ou-text-button{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid #2a5170;border-radius:6px;background:#071628;color:#d3e6f8;font-size:12px;font-weight:600;white-space:nowrap}
+.ou-text-button:not(:disabled):hover{border-color:var(--op-cyan);color:#fff}
+.ou-icon{display:grid;place-items:center;width:34px;height:34px;flex:none;padding:0;border:0;border-radius:7px;background:none;color:#a4c1e3}
+.ou-icon:not(:disabled):hover{background:#ffffff10;color:#fff}
+.ou-progress{position:relative;display:block;height:5px;margin-top:3px;border-radius:9px;background:#13283d;overflow:hidden}
+.ou-progress i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:var(--op-grad);transition:width .2s}
+.ou-progress.is-busy i{width:35%!important;animation:ou-busy 1.1s ease-in-out infinite}
+@keyframes ou-busy{from{left:-35%}to{left:100%}}
+
+.ou-art{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);gap:14px 26px;align-items:start}
+.ou-art-files{display:flex;flex-direction:column;gap:6px;min-width:0}
+.ou-optional{color:#aebdcc;font-weight:400}
+.ou-art .ou-file{min-height:52px;padding:7px 8px 7px 10px;gap:4px 12px}
+.ou-art .ou-file-name{font-size:13.5px}
+.ou-art .ou-done{font-size:12.5px;padding-right:8px}
+textarea.op-input.ou-notes{min-height:80px}
+
+/* The summary's save line, and the collapsed 3DEEZI Assist bar */
+.ou-quiet{color:#8293a6;font-weight:500}
+.ou-saved{margin:12px 0 0;font-size:12px;color:var(--op-muted);line-height:1.45}
+.ou-saved.is-error{color:var(--ou-amber)}
+.ou-bar-error{color:var(--ou-amber)}
+.ou-assist-bar{display:flex;align-items:center;gap:14px;width:100%;min-height:50px;padding:0 18px 0 16px;color:#fff;font:700 18px/1 var(--heading);letter-spacing:.11em;text-transform:uppercase;text-align:left;cursor:pointer}
+.ou-assist-bar span{flex:1}
+.ou-assist-bar>svg:last-child{color:#cfe6ff}
+.ou-assist-bar:hover{border-color:#5cc8ec}
+.ou-assist{position:relative}
+.ou-assist-hide{position:absolute;top:9px;right:12px;display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:7px;background:none;color:#cfe6ff}
+.ou-assist-hide:hover{background:#ffffff12;color:#fff}
+.ou-answer{font-size:13px;line-height:1.55;color:#dbe6f2}
+.ou-answer p{margin:0 0 8px}
+.ou-answer ul{margin:0 0 8px;padding-left:18px}
+.ou-answer li{margin:2px 0}
+.ou-answer .ou-pill{margin-top:4px;min-width:0}
+.ou-answer .op-link{min-height:28px;font-size:13.5px}
+
+/* This page has its own 3DEEZI ASSIST (the bar above; as on My Orders, it replaces the floating button, which would
+   cover the card's "Ask for help" box). The chat itself still opens from the card and keeps its own close buttons. */
+body:has(.ou-page) .assist-launcher{display:none}
+
+/* Review */
+.ou-pairs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px;margin:0}
+.ou-pairs>div{min-width:0}
+.ou-pairs dt{margin-bottom:3px;font-size:12px;color:var(--op-muted)}
+.ou-pairs dd{margin:0;font-size:14.5px;color:var(--op-text);overflow-wrap:anywhere;white-space:pre-wrap}
+.ou-pairs dd.is-empty{color:#8293a6}
+.ou-review .ou-files{margin:0}
+.ou-lead{margin:0 0 12px;font-size:14px;color:#c6d7e8;line-height:1.5}
+.ou-thumbs{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 0;padding:0;list-style:none;white-space:normal}
+.ou-thumbs li{display:flex;align-items:center;gap:10px;max-width:100%;padding:5px 12px 5px 5px;border:1px solid #2a5170;border-radius:7px;background:#050f1b;font-size:13px;color:#dbe6f2}
+.ou-thumbs li>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ou-thumbs .ou-file-icon{width:40px;min-height:40px}
+.ou-thumbs .ou-file-icon img{width:40px;height:40px}
+.ou-table{overflow-x:auto;margin:0 -4px;padding:0 4px}
+.ou-rows{width:100%;border-collapse:collapse;font-size:13.5px}
+.ou-rows th{padding:6px 6px 8px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--op-muted);border-bottom:1px solid #24384b}
+.ou-rows td{padding:8px 6px;border-bottom:1px solid #1a2d40;color:var(--op-text);vertical-align:middle}
+.ou-rows td.is-num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.ou-sizes{display:flex;flex-wrap:wrap;gap:6px}
+.ou-sizes label{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--op-muted)}
+.ou-sizes input{width:46px;height:30px;padding:0 4px;border:1px solid var(--op-input-line);border-radius:5px;background:var(--op-input);color:#fff;font-size:13px;text-align:center;outline:none}
+.ou-sizes input:focus{border-color:var(--op-cyan);box-shadow:0 0 0 3px #00d9ed24}
+.ou-unread{display:flex;gap:8px;align-items:flex-start;margin:10px 0 0;font-size:12.5px;color:var(--ou-amber);line-height:1.45}
+.ou-unread svg{flex:none;margin-top:2px}
+.ou-confirm{display:flex;gap:11px;align-items:flex-start;margin:14px 0 0;padding:12px 14px;border:1.5px solid #5fc4dc77;border-radius:8px;background:#04141f;font-size:14px;color:#e6f3fb;line-height:1.4;cursor:pointer}
+.ou-confirm input{flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:#2fc4f2}
+.ou-confirm small{display:block;margin-top:3px;font-size:12px;color:var(--op-muted)}
+.ou-confirm.is-invalid{border-color:#f16482}
+.ou-quote{margin:0;padding:0;list-style:none;font-size:14px}
+.ou-quote li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #1a2d40;color:#dbe6f2}
+.ou-quote li.is-sub{color:#fff}
+.ou-quote li.is-total{border-bottom:0;font-size:16px;font-weight:700;color:#fff}
+.ou-quote-required{display:flex;gap:10px;align-items:flex-start;margin:0;font-size:14px;color:#dbe6f2;line-height:1.5}
+.ou-quote-required p{margin:0}
+.ou-quote-required ul{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--op-muted)}
+.ou-quote-required b{color:#fff;font-weight:600}
+.ou-quote-required>svg{flex:none;margin-top:2px;color:var(--op-cyan)}
+
+/* Sent */
+.ou-sent{max-width:720px;width:100%;margin:6px auto 40px;padding:34px 34px 30px;text-align:center}
+.ou-sent-icon{display:grid;place-items:center;width:70px;height:70px;margin:0 auto 16px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#45f2c4,#0b9a78 75%);color:#04261d;box-shadow:0 0 30px #38e3a666}
+.ou-sent h2{margin:0 0 8px;font:700 30px/1.1 var(--heading);letter-spacing:.06em;text-transform:uppercase;color:#fff}
+.ou-sent>p{max-width:540px;margin:0 auto 14px;font-size:15px;color:#c6d7e8;line-height:1.55}
+.ou-ref{display:inline-flex;flex-direction:column;gap:5px;margin:6px 0 20px;padding:12px 28px;border:1.5px solid #5fc4dc;border-radius:10px;background:#04141f;box-shadow:0 0 18px #00d9ed33}
+.ou-ref small{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#a9c7e2}
+.ou-ref strong{font:700 34px/1 var(--heading);letter-spacing:.06em;color:#fff}
+.ou-sent-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:12px}
+.op-bar-primary.ou-sent-main{min-width:260px}
+.ou-sent-actions .ou-pill{height:44px}
+.ou-sent-price{display:flex;justify-content:center;gap:8px;max-width:540px;margin:14px auto 0;font-size:13px;color:var(--op-muted);line-height:1.5}
+.ou-sent-price svg{flex:none;margin-top:2px;color:var(--op-cyan)}
+.ou-sent-more{margin:18px 0 0;font-size:13px}
+.ou-sent-more button{padding:0;border:0;background:none;color:#b7d0ef;text-decoration:underline;text-underline-offset:3px}
+.ou-loading{display:flex;align-items:center;justify-content:center;gap:10px;min-height:320px;color:var(--op-muted)}
+
+@media(max-width:1279px){.ou-contact{grid-template-columns:repeat(2,minmax(0,1fr))}.ou-art{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:1099px){.ou-art{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:700px){.ou-art,.ou-pairs{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:640px){
+  .ou-drop{min-height:168px;padding:18px 12px 14px}
+  .ou-drop-title{font-size:16.5px}
+  .ou-pill{min-width:180px}
+  .ou-drop.is-compact{flex-direction:column;gap:8px}
+  .ou-file{grid-template-columns:auto minmax(0,1fr);gap:6px 12px;padding:9px 8px 9px 12px}
+  .ou-file-side{grid-column:1/-1;justify-content:flex-end;flex-wrap:wrap}
+  .ou-sent{padding:26px 16px 22px}
+  .ou-ref strong{font-size:28px}
+  .op-bar-primary.ou-sent-main{min-width:0;width:100%}
+}
+@media(max-width:380px){.ou-contact{grid-template-columns:minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.ou-progress.is-busy i{animation:none}.ou-pill{transition:none}}

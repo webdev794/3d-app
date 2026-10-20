@@ -247,7 +247,9 @@ class AiService {
     if (refs.isNotEmpty) {
       text.writeln(
         'Reference images are attached. Take colours, motifs and mood from '
-        'them, adapted to the garment.',
+        'them, adapted to the garment. If one shows the client\'s own finished '
+        'garment design, make concept 1 follow it closely (its colours, '
+        'pattern and lettering).',
       );
     }
     if (current != null && change != null) {
@@ -420,8 +422,9 @@ class AiService {
       'You are a world-class sportswear designer making a client '
       'presentation mockup.\nSport: $sport. Garment: $garment.\n'
       'Client brief: $brief\n\n'
-      'Unless the brief asks for a different layout, make one landscape '
-      'presentation sheet: the garment shown flat-front on the left and from '
+      'Unless the brief asks for a different layout, angle or background, '
+      'make one landscape presentation sheet: the garment shown flat-front on '
+      'the left and from '
       'the back in the centre, on invisible ghost mannequins against a soft '
       'light-grey seamless studio background with gentle shadows, plus a '
       'column of 4 square close-up detail panels on the right (for example '
@@ -433,11 +436,19 @@ class AiService {
     );
     prompt.write(
       count > 0
-          ? 'The first $count attached image(s) are the client\'s logos or '
-                'references: reproduce any logos faithfully and place them '
-                'where the brief says (or in sensible positions). The last '
-                'attached image is the 3DEEZI logo: use it only for the small '
-                'neck label, unless the brief asks for 3DEEZI branding.'
+          ? 'The first $count attached image(s) come from the client: logos, '
+                'references, or the client\'s own finished garment design (flat '
+                'artwork, a sketch, a snapshot or a photo). If one of them shows '
+                'a complete garment design, make the garment exactly that '
+                'design: the same colours, pattern, panels, collar, trims, '
+                'logos, text and numbers, front and back as shown; do not '
+                'redesign or simplify it, just turn it into a real 3D garment '
+                'presented as the brief asks. Reproduce any logos faithfully '
+                'and place them where the brief says, where the design shows '
+                'them, or in sensible positions. The last attached image is the '
+                '3DEEZI logo: use it only for the small neck label, unless the '
+                'brief asks for 3DEEZI branding; leave it out when the '
+                'client\'s design carries its own brand.'
           : 'The attached image is the 3DEEZI logo (emblem and wordmark). If '
                 'the brief gives any wordmark, team, club or brand name, use '
                 'exactly that text where the brief says and do NOT put 3DEEZI '

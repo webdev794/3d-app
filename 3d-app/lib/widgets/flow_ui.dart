@@ -184,6 +184,57 @@ class GlowCard extends StatelessWidget {
   );
 }
 
+/// A row of chips that stays inside the screen: a few chips shrink a little
+/// when they are slightly too wide for a phone; more than [scrollAbove] chips
+/// scroll sideways instead, fading out at the edge instead of being cut by it.
+class ChipRow extends StatelessWidget {
+  const ChipRow({
+    super.key,
+    required this.children,
+    this.padding = const EdgeInsets.symmetric(horizontal: 12),
+    this.scrollAbove = 6,
+  });
+  final List<Widget> children;
+  final EdgeInsets padding;
+  final int scrollAbove;
+
+  @override
+  Widget build(BuildContext context) {
+    final spaced = [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0) const SizedBox(width: 8),
+        children[i],
+      ],
+    ];
+    if (children.length <= scrollAbove) {
+      return Padding(
+        padding: padding,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(children: spaced),
+          ),
+        ),
+      );
+    }
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (rect) => LinearGradient(
+        colors: [Colors.white, Colors.white, Colors.white.withValues(alpha: 0)],
+        stops: [0, (rect.width - 36) / rect.width, 1],
+      ).createShader(rect),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        // Room to scroll the last chip clear of the fade.
+        padding: padding.copyWith(right: padding.right + 30),
+        children: spaced,
+      ),
+    );
+  }
+}
+
 /// Pill chip used for quick actions ("Inspire", "Make it black").
 class ActionChipPill extends StatelessWidget {
   const ActionChipPill(

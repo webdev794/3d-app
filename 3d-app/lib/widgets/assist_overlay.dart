@@ -56,7 +56,9 @@ class _AssistOverlayState extends State<AssistOverlay> {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: Listenable.merge([a, a.app]),
     builder: (context, _) {
-      if (AssistController.hiddenOn.contains(a.app.screen))
+      // Also out of the way of the 3D view's own screens (the print layout
+      // check).
+      if (AssistController.hiddenOn.contains(a.app.screen) || a.app.viewerModal)
         return const SizedBox.shrink();
       // A round button above the full-width buttons most screens end with;
       // on the Studio and Artboard above their tool bars, over the stage.

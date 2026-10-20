@@ -63,7 +63,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     // Sleeveless: worn on the same body. Below the armholes the panel's own side seam;
     // above, the armholes open round the arms instead of narrowing the body.
     const pairs = spec.half.filter(([x, y]) => x > 0.12 && y < 0.745).map(([x, y]) => [y, x]).sort((p, q) => p[0] - q[0]);
-    const [pitY, pitX] = pairs.filter(([, x]) => x >= 0.23).at(-1);
+    // The underarm: the spec's own (a cut from a drawing says where), else the highest point out at the side.
+    const [pitY, pitX] = spec.pit ? [spec.pit[1], spec.pit[0]] : pairs.filter(([, x]) => x >= 0.23).at(-1);
     half = (y) => {
       const own = along(pairs, y);
       return y <= pitY ? own : THREE.MathUtils.lerp(own, Math.max(bodyHalf(y, [0.088, 0.738]), own + 0.006), ramp(pitY, pitY + 0.06, y));
@@ -82,9 +83,9 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // width below them (the seam stays on top: see topSeam).
   const wrapHalf = (y) => (y <= TOP ? half(y) : half(TOP) - 0.75 * (half(TOP) - half(y)));
   // A slight athletic V: the waist a little narrower than the chest. Loose: no waist, a little
-  // fuller towards the hem.
+  // fuller towards the hem (`hemFlare`: fuller still, as when it hangs over a full kit's shorts).
   const taper = spec.loose
-    ? (y) => 1 + 0.03 * ramp(0.34, 0.04, y)
+    ? (y) => 1 + (spec.hemFlare ?? 0.03) * ramp(0.34, 0.04, y)
     : (y) => 1 - 0.045 * ramp(0.5, 0.3, y) + 0.015 * ramp(0.25, 0.05, y);
   // Crew necks: the front neckline is a round U (the flat pattern's is nearly straight-sided).
   const neckCurve = spec.half.slice(0, 3), [neckX, neckTop] = neckCurve[2], neckLow = neckCurve[0][1];

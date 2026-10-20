@@ -34,6 +34,12 @@ class User extends Authenticatable
         return $this->hasMany(Order::class);
     }
 
+    /** Saved order forms and uploads, not submitted yet. */
+    public function orderDrafts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(OrderDraft::class);
+    }
+
     /**
      * The attributes that are mass assignable.
      *

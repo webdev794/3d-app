@@ -4,6 +4,7 @@ import '../ai_service.dart';
 import '../app_controller.dart';
 import '../project_sync.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/rewards_card.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
 
@@ -94,6 +95,12 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
                         icon: Icons.workspace_premium_outlined,
                         onPressed: () => c.go(AppScreen.pricing),
                       ),
+                      // 3DEEZI Rewards (coming soon): keep it last on the home
+                      // screen. The space under it is where the round 3DEEZI
+                      // ASSIST button rests at the end of the scroll.
+                      const SizedBox(height: 24),
+                      const RewardsComingSoonCard(),
+                      const SizedBox(height: 66),
                     ],
                   ),
                 ),

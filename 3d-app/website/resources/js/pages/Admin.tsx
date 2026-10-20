@@ -3,6 +3,8 @@ import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, Eye, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, TriangleAlert, Users, X } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type User } from '../api';
 import { KitViewer, defaultDesign, type Design, type KitViewerHandle } from '../components/KitViewer';
+import { Columns3 } from 'lucide-react';
+import AdminOrderBoard from './AdminOrderBoard';
 import '../../css/orders.css';
 
 export interface AdminUser extends User { is_admin: boolean; projects_count?: number; orders_count?: number }
@@ -42,6 +44,7 @@ const sections = [
   { id: 'users', label: 'Users', icon: Users, title: 'Users', sub: 'Add, edit and remove accounts and administrators.' },
   { id: 'projects', label: 'Projects', icon: FolderOpen, title: 'Projects', sub: 'Every kit designed on the platform.' },
   { id: 'orders', label: 'Orders', icon: Package, title: 'Orders', sub: 'Quotes, production and delivery.' },
+  { id: 'board', label: 'Order board', icon: Columns3, title: 'Order board', sub: 'Every order by stage: drag to move, post updates, proofs and tracking.' },
   { id: 'partners', label: 'Partners', icon: Handshake, title: 'Corporate partners', sub: 'Companies applying to bring 3DEEZI to their website.' },
   { id: 'database', label: 'Database Tools', icon: Database, title: 'Database tools', sub: 'Backups, housekeeping and health.' },
 ] as const;
@@ -86,6 +89,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
       <div className="console-body">
         {section === 'users' ? <UsersPanel me={me} onNotice={onNotice} />
           : section === 'orders' ? (itemId ? <OrderKit key={itemId} id={Number(itemId)} catalog={catalog} onNotice={onNotice} /> : <OrdersPanel onNotice={onNotice} />)
+          : section === 'board' ? <AdminOrderBoard onNotice={onNotice} />
           : section === 'projects' ? <ProjectsPanel catalog={catalog} onNotice={onNotice} />
           : section === 'settings' ? <SettingsPanel state={apiState} onSaved={setApiState} onNotice={onNotice} />
           : section === 'partners' ? <PartnersPanel onNotice={onNotice} />

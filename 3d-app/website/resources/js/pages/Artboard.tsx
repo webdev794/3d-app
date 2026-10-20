@@ -6,7 +6,7 @@ import { defaultDesign, type ArtworkLayer, type Design } from '../types';
 import { artboardOf, placements, readAsset, type ArtboardLayer, type LibraryAsset } from '../components/StudioArtwork';
 
 /** Bump when the editor (media/artboard/index.html) is rebuilt, so browsers load the new copy. */
-const EDITOR_VERSION = '2026-10-19-17';
+const EDITOR_VERSION = '2026-10-20-8';
 
 /** The garments artwork can be sent to (config/catalog.php), in the Studio's order, and the parts each has. */
 const GARMENTS: { id: Design['garment']; name: string }[] = [{ id: 'fullkit', name: 'Full Kit' }, { id: 'jersey', name: 'Jersey' }, { id: 'shorts', name: 'Shorts' }, { id: 'tee', name: 'Training Tee' }, { id: 'singlet', name: 'Singlet' }, { id: 'polo', name: 'Polo' }];
@@ -27,7 +27,7 @@ type Message = {
  * studio (linked to the design: the Studio's Edit in Artboard opens it again
  * with /artboard?doc=ID, and sending again updates that artwork in place).
  */
-export default function ArtboardPage({ draft, onChange, user, onNotice, requireAuth, onStart }: { draft: Draft; onChange: (draft: Draft) => void; user: User | null; onNotice: (text: string) => void; requireAuth: (action?: () => void) => void; onStart: (mode: 'ai' | 'dyo') => void }) {
+export default function ArtboardPage({ draft, onChange, user, onNotice, requireAuth, onStart }: { draft: Draft; onChange: (draft: Draft) => void; user: User | null; onNotice: (text: string) => void; requireAuth: (action?: () => void) => void; onStart: (mode: 'ai' | 'dyo' | 'home') => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -120,7 +120,7 @@ export default function ArtboardPage({ draft, onChange, user, onNotice, requireA
       try { msg = JSON.parse(event.data); } catch { return; }
       if (msg.host !== 'web') return;
       // AI / DYO quick access on the Artboard's top bar (the artwork is already saved there).
-      if (msg.type === 'start' && (msg.mode === 'ai' || msg.mode === 'dyo')) { startRef.current(msg.mode); return; }
+      if (msg.type === 'start' && (msg.mode === 'ai' || msg.mode === 'dyo' || msg.mode === 'home')) { startRef.current(msg.mode); return; }
       if (msg.type === 'docs' && typeof msg.id === 'number') { await docs(msg); return; }
       if (msg.type === 'signin') { requireAuth(); return; }
       if (msg.type === 'convertFile' && msg.data && msg.format === 'cdr') {

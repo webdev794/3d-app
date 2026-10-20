@@ -77,6 +77,19 @@ export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: {
 
 type Reference = { id: number; name: string; preview: string };
 
+/** A pasted or dropped picture the server takes (PNG, JPG or WebP); any other picture is redrawn as a PNG. */
+async function uploadable(file: File): Promise<File> {
+  const name = file.name && file.name !== 'image.png' ? file.name : 'Pasted image.png';
+  if (['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) return name === file.name ? file : new File([file], name, { type: file.type });
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width; canvas.height = bitmap.height;
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('This picture could not be read.');
+  return new File([blob], name.replace(/\.[^.]+$/, '') + '.png', { type: 'image/png' });
+}
+
 /** The AI designer: one brief gives an HD presentation mockup (like ChatGPT) and four editable 3D concepts. */
 export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: { catalog: Catalog | null; draft: Draft; onChange: (draft: Draft) => void; requireAuth: (action?: () => void) => void; onStudio: () => void }) {
   const [prompt, setPrompt] = useState('');
@@ -88,6 +101,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: 
   const [uploading, setUploading] = useState(false);
   const [wantMockup, setWantMockup] = useState(true);
   const [mockup, setMockup] = useState<{ image?: string; error?: string; busy: boolean } | null>(null);
+  const [dropping, setDropping] = useState(false);
   const upload = useRef<HTMLInputElement>(null);
   const isAi = !!catalog?.provider.is_ai;
 
@@ -109,6 +123,19 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: 
     try { const data = new FormData(); data.append('file', file); data.append('name', file.name); data.append('type', 'reference'); const result = await api<{ id: number; name: string }>('/assets', { method: 'POST', body: data }); setReferences(old => [...old, { ...result, preview: URL.createObjectURL(file) }]); }
     catch (e) { setError((e as Error).message); } finally { setUploading(false); }
   }
+  /** Pictures pasted or dropped into the brief, or picked, join the attachments: up to 4 in all. */
+  function addFiles(list: File[]) {
+    const images = list.filter(f => f.type.startsWith('image/'));
+    if (!images.length) return;
+    const room = 4 - references.length;
+    if (room <= 0) { setError('Up to 4 images: remove one first.'); return; }
+    requireAuth(() => void (async () => {
+      for (const file of images.slice(0, room)) {
+        try { await addReference(await uploadable(file)); } catch { setError('Use a PNG, JPG or WebP picture.'); return; }
+      }
+      if (images.length > room) setError(`Only ${room} more image${room === 1 ? '' : 's'} could be added: up to 4 in all.`);
+    })());
+  }
   const customize = (concept: Concept) => { onChange({ ...draft, name: concept.name, design: concept.design, mode: 'ai', patternMotif: concept.motif }); onStudio(); };
 
   if (busy) return <Loader seconds={isAi ? 28 : 3} steps={references.length ? ['Understanding your brief', 'Analysing your references', 'Creating design concepts', 'Preparing 3D garment'] : ['Understanding your brief', 'Choosing colours and patterns', 'Creating design concepts', 'Preparing 3D garment']} />;
@@ -122,13 +149,16 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: 
       {concept.preview && <EditImageButton className="image-edit-chip" label="Edit" iconSize={13} src={concept.preview} title={`Concept 0${index + 1} · ${concept.name}`} fileName={`3deezi-concept-${index + 1}`} ai={isAi} requireAuth={requireAuth} onUse={image => setConcepts(list => list.map((c, i) => i === index ? { ...c, preview: image } : c))} />}</div>)}</div>
     <div className="flow-actions"><p className="muted">Your brief: “{prompt}”</p><button className="button button-gradient" onClick={() => customize(concepts[selected])}>CUSTOMISE IN 3D STUDIO <ArrowRight size={19} /></button></div></div>;
 
-  return <div className="page-shell creation-page"><Link className="back-link" to="/"><ArrowLeft size={16} /> Back to create</Link><FlowSteps step={0} ai /><div className="ai-layout"><div className="ai-brief"><span className="eyebrow"><Sparkles size={14} /> THE AI DESIGNER</span><h1>One prompt.<br /><span>A finished design.</span></h1><p className="intro-copy">Describe it like you would to ChatGPT: the garment, colours, collar, logos and where they go. Attach your logos and we’ll place them for you.</p>
-    <form className="brief-form" onSubmit={e => { e.preventDefault(); requireAuth(generate); }}>
+  return <div className="page-shell creation-page"><Link className="back-link" to="/"><ArrowLeft size={16} /> Back to create</Link><FlowSteps step={0} ai /><div className="ai-layout"><div className="ai-brief"><span className="eyebrow"><Sparkles size={14} /> THE AI DESIGNER</span><h1>One prompt.<br /><span>A finished design.</span></h1><p className="intro-copy">Describe it like you would to ChatGPT: the garment, colours, collar, logos and where they go. Paste or attach your logos, or a design you already have: we’ll place the logos, or turn your design into 3D.</p>
+    <form className={`brief-form${dropping ? ' dropping' : ''}`} onSubmit={e => { e.preventDefault(); requireAuth(generate); }}
+      onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropping(true); } }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false); }}
+      onDrop={e => { setDropping(false); if (!e.dataTransfer.files.length) return; e.preventDefault(); addFiles([...e.dataTransfer.files]); }}>
       <div className="field-row"><label className="field">Sport<select value={draft.sport} onChange={e => onChange({ ...draft, sport: e.target.value })}>{catalog?.sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="field">Garment<select value={draft.garment} onChange={e => onChange({ ...draft, garment: e.target.value, design: { ...draft.design, garment: e.target.value as Design['garment'] } })}>{catalog?.garments.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label></div>
-      <label className="field">Your design brief<textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="A grey oversized polo with a black half-zip collar, white shoulder panels and black cuffs. MANTIS wordmark across the chest in raised silicone, the club crest on the right chest, league badge on the left, 1992 on the back of the collar and SEAGULLS script across the back yoke…" required minLength={10} maxLength={2000} rows={6} /><span className="field-hint">Be specific about colours, collar, logos and placement. {prompt.length}/2000</span></label>
-      <div className="prompt-chips"><button type="button" onClick={() => setPrompt('A black and cyan rugby league jersey with aggressive tribal geometric shoulder panels, a cyan V collar and the 3DEEZI wordmark across the chest.')}>Electric cyan</button><button type="button" onClick={() => setPrompt('A grey oversized polo with a black half-zip collar with white tipping, white shoulder panels, black cuffs and hem, raised silicone wordmark across the chest and a crest on the right chest. Premium cotton fabric.')}>Club polo</button><button type="button" onClick={() => setPrompt('A navy and gold football kit with classic vertical stripes, elegant and confident, gold crew collar.')}>Classic club</button></div>
-      <div className="reference-heading"><span>YOUR LOGOS & REFERENCES <span className="muted">/ optional</span></span><span>{references.length}/4</span></div>
-      <div className="reference-list">{references.map(r => <div className="reference-item" key={r.id}><img src={r.preview} alt={r.name} /><button className="icon-button" type="button" aria-label={`Remove ${r.name}`} onClick={() => setReferences(items => items.filter(item => item.id !== r.id))}><X size={13} /></button></div>)}{references.length < 4 && <button className="reference-upload" type="button" disabled={uploading} onClick={() => requireAuth(() => upload.current?.click())}>{uploading ? <LoaderCircle className="spin" size={20} /> : <Plus size={22} />}<span>Add logo</span></button>}<input ref={upload} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={e => { const file = e.target.files?.[0]; if (file) void addReference(file); e.target.value = ''; }} /></div>
+      <label className="field">Your design brief<textarea value={prompt} onChange={e => setPrompt(e.target.value)} onPaste={e => { const files = [...e.clipboardData.files]; if (!files.some(f => f.type.startsWith('image/'))) return; if (!e.clipboardData.getData('text/plain')) e.preventDefault(); addFiles(files); }} placeholder="A grey oversized polo with a black half-zip collar, white shoulder panels and black cuffs. MANTIS wordmark across the chest in raised silicone, the club crest on the right chest, league badge on the left, 1992 on the back of the collar and SEAGULLS script across the back yoke…" required minLength={10} maxLength={2000} rows={6} /><span className="field-hint">Be specific about colours, collar, logos and placement. Paste (Ctrl+V) or drop pictures here too. {prompt.length}/2000</span></label>
+      <div className="prompt-chips"><button type="button" onClick={() => setPrompt('A black and cyan rugby league jersey with aggressive tribal geometric shoulder panels, a cyan V collar and the 3DEEZI wordmark across the chest.')}>Electric cyan</button><button type="button" onClick={() => setPrompt('A grey oversized polo with a black half-zip collar with white tipping, white shoulder panels, black cuffs and hem, raised silicone wordmark across the chest and a crest on the right chest. Premium cotton fabric.')}>Club polo</button><button type="button" onClick={() => setPrompt('A navy and gold football kit with classic vertical stripes, elegant and confident, gold crew collar.')}>Classic club</button><button type="button" onClick={() => setPrompt('Create a 3D version of my attached design. Make the front a hero image, slightly turned one way, with the back smaller behind it. Create a nice background.')}>My design in 3D</button></div>
+      <div className="reference-heading"><span>YOUR LOGOS, DESIGNS & REFERENCES <span className="muted">/ optional</span></span><span>{references.length}/4</span></div>
+      <div className="reference-list">{references.map(r => <div className="reference-item" key={r.id}><img src={r.preview} alt={r.name} /><button className="icon-button" type="button" aria-label={`Remove ${r.name}`} onClick={() => setReferences(items => items.filter(item => item.id !== r.id))}><X size={13} /></button></div>)}{references.length < 4 && <button className="reference-upload" type="button" disabled={uploading} onClick={() => requireAuth(() => upload.current?.click())}>{uploading ? <LoaderCircle className="spin" size={20} /> : <Plus size={22} />}<span>Add image</span></button>}<input ref={upload} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple hidden onChange={e => { addFiles([...(e.target.files ?? [])]); e.target.value = ''; }} /></div>
       {isAi && <label className="toggle-row"><input type="checkbox" checked={wantMockup} onChange={e => setWantMockup(e.target.checked)} /><span><strong>Create an HD presentation mockup</strong><small>Photoreal front, back and close-up details, like ChatGPT · about a minute</small></span></label>}
       {!isAi && <p className="field-hint">Preview mode: AI is not connected on this server, so concepts are built from your wording.</p>}
       {error && <p role="alert" className="error-message">{error}</p>}

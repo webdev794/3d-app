@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
@@ -23,6 +24,65 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
   final _text = TextEditingController();
   bool _processing = false;
   AppController get c => widget.c;
+
+  /// A factory print layout: kept with the saved assets, checked in the 3D
+  /// view (this sheet closes for it), then put on the kit.
+  Future<void> _uploadLayout() async {
+    if (!c.signedIn) {
+      showToast(
+        context,
+        'Sign in to use print layouts: the file is kept with your saved assets.',
+      );
+      c.go(AppScreen.auth);
+      return;
+    }
+    final file = await openFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(
+          label: 'Print layouts',
+          extensions: ['pdf', 'svg', 'png', 'jpg', 'jpeg'],
+          mimeTypes: [
+            'application/pdf',
+            'image/svg+xml',
+            'image/png',
+            'image/jpeg',
+          ],
+          uniformTypeIdentifiers: [
+            'com.adobe.pdf',
+            'public.svg-image',
+            'public.png',
+            'public.jpeg',
+          ],
+        ),
+      ],
+    );
+    if (file == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    void say(String text) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(text),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Palette.surface2,
+          showCloseIcon: true,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+
+    if (ModalRoute.of(context) is PopupRoute) Navigator.of(context).pop();
+    say('Reading ${file.name}…');
+    try {
+      final message = await c.importPrintLayout(
+        file.name,
+        await file.readAsBytes(),
+      );
+      if (message != null) say(message);
+    } on Object catch (error) {
+      say('$error');
+    }
+  }
 
   void _add(Map<String, dynamic> layer) {
     if (c.layers.length >= 40) {
@@ -129,6 +189,62 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
           icon: Icons.upload,
           onPressed: _processing ? null : _upload,
         ),
+        const SectionLabel('Factory print layout'),
+        const Text(
+          'The finished print file from the factory (PDF, SVG or PNG with the '
+          'cut panels laid flat and named FRONT BODY, LEFT SLEEVE …): each '
+          'panel goes onto the 3D kit, the same way every time.',
+          style: TextStyle(color: Palette.muted, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        if (c.layout case final layout?) ...[
+          Row(
+            children: [
+              const Icon(Icons.check_circle, size: 16, color: Palette.cyan),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${layout['name']} · '
+                  '${(layout['roles'] as List).where((role) => role != 'none').length}'
+                  ' panels on the kit',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+              ),
+            ],
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: layout['joinLines'] != false,
+            onChanged: (on) =>
+                c.edit(() => c.layout = {...layout, 'joinLines': on ?? true}),
+            title: const Text(
+              'Join the sleeve bands to the sleeves (no white line between them)',
+              style: TextStyle(fontSize: 12.5),
+            ),
+          ),
+          const SizedBox(height: 4),
+          SecondaryButton(
+            label: 'REMOVE PRINT LAYOUT',
+            icon: Icons.layers_clear_outlined,
+            onPressed: () {
+              c.edit(() => c.layout = null);
+              showToast(
+                context,
+                'Print layout removed: back to your designed kit. The file '
+                'stays in your saved assets.',
+              );
+            },
+          ),
+        ] else
+          SecondaryButton(
+            label: 'UPLOAD PRINT LAYOUT',
+            icon: Icons.upload_file,
+            onPressed: c.checkLayout == null ? null : _uploadLayout,
+          ),
         const SizedBox(height: 10),
         Row(
           children: [
@@ -205,6 +321,21 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
           ),
         if (layer != null) ...[
           const SectionLabel('Selected artwork'),
+          // Made in the Artboard: open the same design, change it and send it
+          // again to update this artwork in place.
+          if (layer['artboard'] case final num doc) ...[
+            SecondaryButton(
+              label: 'EDIT IN ARTBOARD',
+              icon: Icons.draw_outlined,
+              onPressed: () {
+                if (ModalRoute.of(context) is PopupRoute) {
+                  Navigator.of(context).pop();
+                }
+                c.editInArtboard(doc.toInt());
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
           Wrap(
             spacing: 8,
             runSpacing: 4,

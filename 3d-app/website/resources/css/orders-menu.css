@@ -1,0 +1,82 @@
+/* "Orders" in the site header and its menu (client design, 2026-10-20): Create Order Form, Upload Your Order,
+   My Orders. Desktop: a dark navy dropdown with a thin cyan border, a soft glow and a small pointer under
+   "Orders". At 1160 px and below, where the header folds its links into the menu button, an expandable group.
+   This file loads before app.css, so its selectors are one class stronger than the header's own rules. */
+.nav-orders{position:relative;height:100%;display:flex;align-items:stretch}
+.main-nav .nav-orders-trigger{position:relative;height:100%;display:flex;align-items:center;gap:4px;padding:0;border:0;background:none;color:#a8b1bf;font-family:var(--heading);font-size:13px;font-weight:700;text-transform:uppercase;white-space:nowrap;cursor:pointer;transition:color .15s}
+.main-nav .nav-orders-trigger>svg{margin-top:-1px}
+.main-nav .nav-orders-trigger:hover,.main-nav .nav-orders-trigger.is-active,.main-nav .nav-orders-trigger[aria-expanded=true]{color:var(--cyan)}
+/* Cyan underline (as on the other links) while the menu is open or an orders page is showing. */
+.main-nav .nav-orders-trigger.is-active::after,.main-nav .nav-orders-trigger[aria-expanded=true]::after{content:'';position:absolute;left:0;right:0;bottom:18px;height:3px;border-radius:3px;background:var(--cyan);box-shadow:0 0 8px #00d9ed,0 0 18px #00d9edaa}
+
+/* --tip: where the pointer sits in the panel; the panel is placed so it is under the word "Orders". */
+.nav-orders-panel{--tip:58px;position:absolute;z-index:5;top:calc(100% + 10px);left:calc(50% - 9px - var(--tip));width:320px;padding:8px;display:flex;flex-direction:column;gap:3px;border:1px solid #00d9ed85;border-radius:14px;background:linear-gradient(180deg,#0d1a2b,#08111d);box-shadow:0 0 0 1px #00d9ed14,0 0 26px #00d9ed38,0 24px 50px #000000c2;opacity:0;visibility:hidden;transform:translateY(6px);pointer-events:none;transition:opacity .16s ease,transform .16s ease,visibility 0s linear .16s}
+.nav-orders.is-open .nav-orders-panel{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:opacity .16s ease,transform .16s ease}
+/* The gap under the header belongs to the menu, so the pointer can cross it without the menu closing. */
+.nav-orders-panel::before{content:'';position:absolute;left:0;right:0;bottom:100%;height:16px}
+.nav-orders-panel::after{content:'';position:absolute;bottom:100%;left:var(--tip);margin-left:-6px;border:6px solid transparent;border-top:0;border-bottom:7px solid var(--cyan);filter:drop-shadow(0 0 5px #00d9edcc)}
+.main-nav .nav-orders-panel .nav-orders-item{position:relative;height:auto;display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center;column-gap:15px;padding:12px 14px;border:1px solid transparent;border-radius:10px;color:#f3f7fb;font-family:Inter,Arial,sans-serif;font-size:14px;font-weight:600;line-height:1.3;text-transform:none;white-space:normal;text-align:left;transition:background-color .15s,border-color .15s,box-shadow .15s}
+.main-nav .nav-orders-panel .nav-orders-item+.nav-orders-item::before{content:'';position:absolute;left:14px;right:14px;top:-2px;height:1px;background:#ffffff14;transition:opacity .15s}
+/* The hovered or focused row: a lighter navy fill with a cyan edge. */
+.main-nav .nav-orders-panel .nav-orders-item:is(:hover,:focus-visible){background:linear-gradient(180deg,#13304a,#0d2438);border-color:#00d9ed75;box-shadow:inset 0 0 18px #00d9ed12,0 0 12px #00d9ed1c;outline:none}
+.main-nav .nav-orders-panel .nav-orders-item:is(:hover,:focus-visible)::before,.main-nav .nav-orders-panel .nav-orders-item:is(:hover,:focus-visible)+.nav-orders-item::before{opacity:0}
+/* With the pointer on a row only that row is lit, not also the one the keyboard focused. */
+.main-nav .nav-orders-panel:has(.nav-orders-item:hover) .nav-orders-item:focus-visible:not(:hover){background:none;border-color:transparent;box-shadow:none}
+.main-nav .nav-orders-item>svg{width:28px;height:28px;color:var(--cyan);filter:drop-shadow(0 0 5px #00d9ed5c)}
+.nav-orders-title{display:block;font-size:14.5px;font-weight:600;letter-spacing:.005em;color:#f3f7fb}
+.nav-orders-text{display:block;margin-top:3px;font-size:12px;font-weight:400;line-height:1.35;color:#8e9bb0}
+.nav-orders-item:is(:hover,:focus-visible) .nav-orders-text{color:#7cd2e6}
+.nav-orders-item[aria-current=page] .nav-orders-title{color:var(--cyan)}
+
+/* Room for the ninth link. Nothing changes where the header has room (1384 px and up): there the links stay
+   28 px apart. Narrower, the gaps between the links close up (to 14 px at the least), measured on the header's
+   real width; and the header's two breakpoints move up by about the width Orders adds: its smaller look
+   (155 px logo, 12 px links) starts at 1279 px instead of 1200 px, and the links fold into the menu button at
+   1160 px instead of 1100 px. The numbers are the widths of the logo, links and buttons when signed in as an
+   admin (the widest header): 1146 = 84 padding + 181 logo + 32 + 513 links + 332 buttons + 4 spare;
+   1030 = 60 + 155 + 32 + 475 + 304 + 4 in the smaller look. */
+@media(min-width:1161px){
+  .site-header{container-type:inline-size}
+  .site-header .header-inner{gap:16px}
+  .site-header .main-nav{gap:clamp(14px,calc((100cqw - 1030px) / 8),19px)}
+}
+@media(min-width:1280px){.site-header .main-nav{gap:clamp(14px,calc((100cqw - 1146px) / 8),28px)}}
+/* Above 1440 px an admin's buttons show "Admin" and the first name (100 px wider) while the header stays 1440 px. */
+@media(min-width:1441px){.site-header:has(.admin-link) .main-nav{gap:clamp(14px,calc((min(100cqw, 1440px) - 1246px) / 8),28px)}}
+@media(min-width:1201px) and (max-width:1279px){
+  .site-header .header-inner{padding:0 30px}
+  .site-header .brand,.site-header .brand img{width:155px}
+  .site-header .brand>span{font-size:6.5px}
+  .site-header .main-nav a,.site-header .main-nav .nav-orders-trigger{font-size:12px}
+  .site-header .header-actions{gap:4px}
+  .site-header .header-cta{padding:11px 12px}
+}
+@media(max-width:1200px){.main-nav .nav-orders-trigger{font-size:12px}}
+/* 1101–1160 px folds like 801–1100 px (app.css). */
+@media(min-width:1101px) and (max-width:1160px){
+  .site-header .mobile-toggle{display:flex}
+  .site-header .main-nav{display:none;position:absolute;left:0;right:0;top:100%;height:auto;flex-direction:column;align-items:stretch;padding:14px 30px 20px;background:#07101bf7;border-bottom:1px solid #00d9ed33;backdrop-filter:blur(20px);gap:0}
+  .site-header .main-nav.is-open{display:flex}
+  .site-header .main-nav a{height:45px;font-size:15px}
+  .site-header .main-nav a.active:after{bottom:7px;right:auto;width:28px}
+}
+
+/* Tablets and phones: Orders is a row of the header menu and its three links open under it as an indented group. */
+@media(max-width:1160px){
+  .site-header .main-nav .nav-orders{height:auto;flex-direction:column}
+  .site-header .main-nav .nav-orders-trigger{width:100%;height:45px;justify-content:flex-start;gap:6px;font-size:15px}
+  .site-header .main-nav .nav-orders-trigger>svg{transition:transform .2s}
+  .site-header .main-nav .nav-orders-trigger[aria-expanded=true]>svg{transform:rotate(180deg)}
+  .site-header .main-nav .nav-orders-trigger[aria-expanded=true]::after{content:none}
+  .site-header .main-nav .nav-orders-trigger.is-active::after{content:'';bottom:7px;right:auto;width:28px}
+  .site-header .main-nav .nav-orders-panel{position:static;width:auto;margin:0 0 10px 14px;padding:6px;display:none;opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:none;border-color:#00d9ed47;background:#0a1522;box-shadow:inset 0 0 18px #00d9ed0a}
+  .site-header .main-nav .nav-orders.is-open .nav-orders-panel{display:flex}
+  .site-header .main-nav .nav-orders-panel::before,.site-header .main-nav .nav-orders-panel::after{content:none}
+  .site-header .main-nav .nav-orders-panel .nav-orders-item{grid-template-columns:24px minmax(0,1fr);column-gap:13px;min-height:52px;padding:10px 12px}
+  .site-header .main-nav .nav-orders-panel .nav-orders-item>svg{width:24px;height:24px}
+  /* The menu grows with the group: on short screens it scrolls inside instead of running off the screen, and
+     while it is open it sits above the floating 3DEEZI ASSIST button, which would otherwise cover its last rows. */
+  .site-header .main-nav.is-open{max-height:calc(100vh - 100%);max-height:calc(100dvh - 100%);overflow-y:auto;overscroll-behavior:contain}
+  .site-header .main-nav.is-open>*{flex-shrink:0}
+  .site-header:has(.main-nav.is-open){z-index:950}
+}

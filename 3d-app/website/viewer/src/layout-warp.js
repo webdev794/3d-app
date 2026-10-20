@@ -128,8 +128,153 @@ function legPanel(o) {
   };
 }
 
+// ---------- garment drawings (the finished garment's front and back drawn flat, layout.js findPanels `drawing`)
+/**
+ * The point on the outline path a → b (indices) where it turns most sharply outwards (a corner of the shape: the
+ * outline runs clockwise on screen), at least `margin` pixels from the path's ends; each turn is measured from the
+ * direction `reach` pixels before the point to the direction `reach` pixels after it.
+ */
+function corner(o, a, b, reach, margin, keep = () => true) {
+  const line = path(o, a, b), cum = [0];
+  for (let k = 1; k < line.length; k++) cum.push(cum[k - 1] + len(line[k - 1], line[k]));
+  const total = cum.at(-1);
+  let best = -1, most = -Infinity;
+  for (let k = 1; k < line.length - 1; k++) {
+    if (cum[k] < margin || total - cum[k] < margin || !keep(line[k])) continue;
+    const p = along(line, Math.max(0, cum[k] - reach) / total), q = line[k], r = along(line, Math.min(total, cum[k] + reach) / total);
+    const ax = q[0] - p[0], ay = q[1] - p[1], bx = r[0] - q[0], by = r[1] - q[1];
+    const turn = Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
+    if (turn > most) { most = turn; best = k; }
+  }
+  return best < 0 ? farthest(o, a, b) : (a + best) % o.length;
+}
+
+/**
+ * Where each corner of a garment drawing goes on the 3D garment (garment metres, the wearer's left side; the right is
+ * mirrored). A singlet: the neck's end at the top of the strap (N), the strap's outer top corner (S), the underarm
+ * (U) and the hem's corner (H), as garment.js draws it.
+ */
+export const DRAWN = {
+  singlet: { N: [0.095, 0.738], S: [0.152, 0.738], U: [0.236, 0.505], H: [0.254, 0.03], T: [0, 0.64] },
+};
+
+/**
+ * A sleeveless top drawn flat (a singlet's front or back, as seen from that side), outline clockwise on screen: its
+ * corners on the viewer's left and right ({Nl, Nr, Sl, Sr, Ul, Ur, Hl, Hr}: indices into the outline; see DRAWN) and
+ * its eight sides clockwise from the left end of the neck: neck, right strap top, right armhole, right side, hem,
+ * left side, left armhole, left strap top. Corners that cannot be told apart fall back to the singlet's own places in
+ * the drawing's box.
+ */
+export function drawingSides(o) {
+  const xs = o.map((p) => p[0]), ys = o.map((p) => p[1]), n = o.length;
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const W = x1 - x0, H = y1 - y0, cx = (x0 + x1) / 2;
+  const on = (k, a, b) => (k - a + n) % n <= (b - a + n) % n;   // index k is on the path a → b
+  const dips = pockets(o);
+  const c = {};
+  // The neck: the dip at the top nearest the middle; its ends are the top of the straps. Level strap tops lie on the
+  // line the dip spans (from one strap's outer corner to the other's): the neck starts where the outline drops away.
+  const neck = dips.filter((p) => p.depth > 0.015 * H && p.midY < y0 + 0.3 * H).sort((a, b) => Math.abs(a.midX - cx) - Math.abs(b.midX - cx))[0];
+  if (neck) {
+    const [a, b] = [o[neck.i], o[neck.j]], l = len(a, b) || 1;
+    const below = (k) => Math.abs((o[k][0] - a[0]) * (b[1] - a[1]) - (o[k][1] - a[1]) * (b[0] - a[0])) / l;
+    c.Nl = neck.i; c.Nr = neck.j;
+    for (let k = neck.i; k !== neck.deep && below(k) <= 0.012 * H; k = (k + 1) % n) c.Nl = k;
+    for (let k = neck.j; k !== neck.deep && below(k) <= 0.012 * H; k = (k - 1 + n) % n) c.Nr = k;
+  }
+  c.Hr = argMax(o, (p) => p[0] + p[1]);
+  c.Hl = argMax(o, (p) => -p[0] + p[1]);
+  if (neck) {
+    // The armholes: the deepest dip down each side. A strap's outer corner is the sharpest outward turn between the
+    // neck and the armhole's deepest point; the underarm is the sharpest between the strap and the hem.
+    const deepest = (a, b) => dips.filter((p) => p !== neck && on(p.i, a, b) && on(p.j, a, b)).sort((m, q) => q.depth - m.depth)[0];
+    const right = deepest(c.Nr, c.Hr), left = deepest(c.Hl, c.Nl);
+    const reach = 0.025 * H, margin = 0.03 * H;
+    if (right && left) {
+      c.Sr = corner(o, c.Nr, right.deep, reach, margin);
+      c.Sl = corner(o, left.deep, c.Nl, reach, margin);
+      // The underarm is in the upper part of the garment (a gently drawn one turns less than the hem's corners).
+      const upper = (p) => p[1] > y0 + 0.15 * H && p[1] < y0 + 0.6 * H;
+      c.Ur = corner(o, c.Sr, c.Hr, reach, margin, upper);
+      c.Ul = corner(o, c.Hl, c.Sl, reach, margin, upper);
+    }
+  }
+  const order = ['Nl', 'Nr', 'Sr', 'Ur', 'Hr', 'Hl', 'Ul', 'Sl'];
+  const inOrder = order.every((k) => c[k] != null) && order.every((k, i) => i === 0 || (c[k] - c.Nl + n) % n > (c[order[i - 1]] - c.Nl + n) % n);
+  if (!inOrder) {
+    // The singlet's own corners in the drawing's box, each at the nearest point of the outline.
+    const at = DRAWN.singlet, half = at.H[0], top = at.N[1];
+    const near = ([gx, gy], dir) => argMax(o, (p) => -Math.hypot(p[0] - (cx + (dir * gx * W) / (2 * half)), p[1] - (y0 + ((top - gy) / top) * H)));
+    Object.assign(c, { Nl: near(at.N, -1), Nr: near(at.N, 1), Sr: near(at.S, 1), Ur: near(at.U, 1), Hr: near(at.H, 1), Hl: near(at.H, -1), Ul: near(at.U, -1), Sl: near(at.S, -1) });
+  }
+  // The neck's tip: its deepest point (a V's point).
+  c.T = farthest(o, c.Nl, c.Nr);
+  const sides = order.map((k, i) => path(o, c[k], c[order[(i + 1) % order.length]]));
+  return { corners: c, sides, found: inOrder, neckDepth: neck ? neck.depth / H : 0 };
+}
+
+/**
+ * A singlet cut like a garment drawing (`panel`: its front): its straps, armholes and sides as drawn (left and right
+ * averaged), at the 3D singlet's size (the neck's ends at the top of its straps, the hem's corners where its are),
+ * with the singlet's own neck and hem (`base`: garment.js SPECS.singlet). Returns that spec with where its corners
+ * are (`points`, for regionsFor), or null when the drawing's corners were not found or its cut is far from a
+ * singlet's (the 3D singlet keeps its own cut then).
+ */
+export function drawnCut(panel, base) {
+  const o = panel.outline, d = drawingSides(o), at = DRAWN.singlet;
+  if (!d.found || !base) return null;
+  const c = d.corners, P = (k) => o[c[k]];
+  const top = (P('Nl')[1] + P('Nr')[1]) / 2, bottom = (P('Hl')[1] + P('Hr')[1]) / 2;
+  if (bottom - top < 1) return null;
+  const s = (at.N[1] - at.H[1]) / (bottom - top), cx = (P('Hl')[0] + P('Hr')[0] + P('Ul')[0] + P('Ur')[0]) / 4;
+  const part = (a, b, n, mirror) => resample(path(o, c[a], c[b]), n).map(([x, y]) => [(mirror ? cx - x : x - cx) * s, at.N[1] - (y - top) * s]);
+  const mean = (a, b) => a.map((p, i) => [(p[0] + b[i][0]) / 2, (p[1] + b[i][1]) / 2]);
+  const arm = mean(part('Sr', 'Ur', 6, false), part('Ul', 'Sl', 6, true).reverse());
+  const side = mean(part('Ur', 'Hr', 5, false), part('Hl', 'Ul', 5, true).reverse());
+  const S = arm[0], U = arm.at(-1), H = [side.at(-1)[0], at.H[1]];
+  const ok = S[0] > 0.11 && S[0] < 0.2 && S[1] > 0.64 && S[1] < at.N[1] + 0.005 && U[0] > 0.2 && U[0] < 0.3 && U[1] > 0.38 && U[1] < 0.6 && H[0] > 0.2 && H[0] < 0.31
+    && arm.every(([x, y], i) => i === 0 || (y < arm[i - 1][1] + 0.002 && x > S[0] - 0.02)) && side.every(([, y], i) => i === 0 || y < side[i - 1][1]);
+  if (!ok) return null;
+  S[1] = Math.min(S[1], at.N[1]);
+  const hem = base.half.slice(-3).map(([x, y]) => [(x * H[0]) / at.H[0], y]);
+  const half = [...base.half.slice(0, 3), ...arm, ...side.slice(1, -1), H, ...hem];
+  return { ...base, half, armhole: { x0: S[0] - 0.003, y0: U[1] - 0.005, x1: U[0] + 0.004 }, pit: [...U], points: { N: at.N, S: [...S], U: [...U], H, T: at.T } };
+}
+
+/** A garment drawing's front and back the right way round: the front's neck opening is the deeper one. */
+export function orderDrawing(panels) {
+  const front = panels.find((p) => p.role === 'front'), back = panels.find((p) => p.role === 'back');
+  if (front && back && drawingSides(back.outline).neckDepth > 1.5 * drawingSides(front.outline).neckDepth + 0.02) {
+    front.role = 'back';
+    back.role = 'front';
+  }
+  return panels;
+}
+
+/** The colour along a line of the page (the middle value of each channel), each point taken `inset` pixels in towards `towards`. */
+export function lineColour(image, line, towards, inset) {
+  const pts = resample(line, 48).map(([x, y]) => {
+    const l = Math.hypot(towards[0] - x, towards[1] - y) || 1;
+    return [Math.round(x + ((towards[0] - x) * inset) / l), Math.round(y + ((towards[1] - y) * inset) / l)];
+  });
+  const x0 = Math.max(0, Math.min(...pts.map((p) => p[0]))), y0 = Math.max(0, Math.min(...pts.map((p) => p[1])));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.min(image.width, Math.max(...pts.map((p) => p[0])) + 1) - x0);
+  c.height = Math.max(1, Math.min(image.height, Math.max(...pts.map((p) => p[1])) + 1) - y0);
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(image, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  const channels = [[], [], []];
+  for (const [x, y] of pts) {
+    const i = (Math.min(c.height - 1, Math.max(0, y - y0)) * c.width + Math.min(c.width - 1, Math.max(0, x - x0))) * 4;
+    for (let k = 0; k < 3; k++) channels[k].push(d[i + k]);
+  }
+  return `#${channels.map((v) => v.sort((a, b) => a - b)[v.length >> 1].toString(16).padStart(2, '0')).join('')}`;
+}
+
 /** A panel's sides as matched to the garment (for checking the corners by eye). */
-export function panelSides(panel) {
+export function panelSides(panel, drawing = false) {
+  if (drawing && (panel.role === 'front' || panel.role === 'back')) return { body: drawingSides(panel.outline).sides };
   if (panel.role === 'front' || panel.role === 'back') return { body: bodyPanel(panel.outline) };
   if (panel.role === 'sleeveL' || panel.role === 'sleeveR') return sleevePanel(panel.outline);
   if (panel.role === 'legL' || panel.role === 'legR') return legPanel(panel.outline);
@@ -166,10 +311,40 @@ function garment(painter) {
  * The regions of the garment's print atlas each print panel goes to: for each, the garment's side lines (in atlas
  * pixels) and the panel's matching side lines (in page pixels).
  */
-export function regionsFor(painter, panels, image = null) {
+export function regionsFor(painter, panels, image = null, { drawing = false } = {}) {
   const g = garment(painter), out = [];
   const px = (back) => (line) => line.map(([x, y]) => { const c = painter.toCanvas(back, x, y); return [c.x, c.y]; });
   const byRole = Object.fromEntries(panels.filter((p) => p.role !== 'none').map((p) => [p.role, p]));
+  if (drawing) {
+    // A garment drawing: its front onto the garment's front, its back onto the back, corner to corner (the corners of
+    // a singlet cut like the drawing, drawnCut, else DRAWN).
+    const at = painter.points?.N ? painter.points : DRAWN[painter.kind];
+    if (!at) return out;
+    const both = ([x, y]) => ({ 1: g.near(x, y), [-1]: g.near(-x, y) });
+    const N = both(at.N), S = both(at.S), U = both(at.U), H = both(at.H), T = g.near(...at.T);
+    // From the viewer's left: the front as seen from the front (the wearer's right, x < 0, first), the back from behind.
+    const sides = (l, r) => [g.edge(N[l], N[r]), g.edge(N[r], S[r]), g.edge(S[r], U[r]), g.edge(U[r], H[r]), g.edge(H[r], H[l]), g.edge(H[l], U[l]), g.edge(U[l], S[l]), g.edge(S[l], N[l])];
+    for (const [role, back, l, r] of [['front', false, -1, 1], ['back', true, 1, -1]]) {
+      const panel = byRole[role];
+      if (!panel) continue;
+      const drawn = drawingSides(panel.outline), o = panel.outline, c = drawn.corners;
+      // Sampled a little in from the drawing's edge, past the outline drawn round it. The map keeps shapes (conform)
+      // with the underarms and the hem's corners held, the other edge points sliding along the drawing's edge.
+      // Shapes are kept on the fabric as worn (`surface`: atlas pixels to 3D), as they are seen on the 3D kit.
+      const surface = painter.surface ? ([x, y]) => { const p = painter.fromCanvas(x, y); return painter.surface(p.x, p.y, back); } : null;
+      const region = { back, inset: Math.max(3, 0.005 * (panel.x1 - panel.x0)), conform: true, surface };
+      if (back) {
+        // The garment's back neck is cut as deep as its front (its 3D back neckline is raised, garment.js): it cuts
+        // into a drawing's shallower back neck instead of squeezing the print under it.
+        out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: [0], pins: [3, 4, 5, 6] });
+      } else {
+        // The front's neck in two at its tip, held there and at its ends too, so a V's trim stays where it is.
+        const gs = sides(l, r);
+        out.push({ ...region, sides: [g.edge(N[l], T), g.edge(T, N[r]), ...gs.slice(1)].map(px(back)), target: [path(o, c.Nl, c.T), path(o, c.T, c.Nr), ...drawn.sides.slice(1)], pins: [0, 1, 2, 4, 5, 6, 7] });
+      }
+    }
+    return out;
+  }
   if (painter.kind === 'shorts') {
     const pt = (x, y) => g.near(x, y);
     // CF / OT: the waist at the centre and at the side; ST: the side seam's lower end (the top of the split on
@@ -449,8 +624,180 @@ function hemStripMap(g, t, scale, zoneG, inside) {
   };
 }
 
+/** The closest point to `q` on a line of points with its running lengths `cum`: its distance along the line. */
+function project(line, cum, q) {
+  let best = Infinity, at = 0;
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1], b = line[i], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+    const k = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / l2));
+    const d = Math.hypot(q[0] - a[0] - dx * k, q[1] - a[1] - dy * k);
+    if (d < best) { best = d; at = cum[i - 1] + k * (cum[i] - cum[i - 1]); }
+  }
+  return at;
+}
+/** The point a distance `s` along a line of points with its running lengths `cum`, and the line's direction there. */
+function pointAt(line, cum, s) {
+  let i = 1;
+  while (i < line.length - 1 && cum[i] < s) i++;
+  const a = line[i - 1], b = line[i], l = cum[i] - cum[i - 1] || 1, f = Math.max(0, Math.min(1, (s - cum[i - 1]) / l));
+  return { p: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], t: [(b[0] - a[0]) / l, (b[1] - a[1]) / l] };
+}
+
+/**
+ * A garment drawing's mesh made as near to conformal as it can be: everywhere only turned and evenly scaled, never
+ * sheared, so a round logo stays round and lettering keeps its proportions, while the edge stays on the drawing's
+ * edge. Least squares of the Cauchy–Riemann equations over the triangles (the mesh's page positions as unknowns), the
+ * edge points free to slide along their side of the drawing (each a few times: solved along its direction there,
+ * then put back on the side, in order), the corners and `fixed` points held. Starts from `targets` (the mean value
+ * map) and refines them in place; left as they were if any triangle would turn over.
+ * `points`: atlas positions, the first `edge.length` the edge in order round it; `edge[i]`: {side, fixed};
+ * `sides[k]`: the page line its points slide on. `surface` (atlas point to its 3D place on the worn garment): shapes
+ * are kept there instead of on the flat atlas (each triangle measured in its own plane).
+ */
+function conformalTargets(points, targets, index, edge, sides, surface = null) {
+  const n = points.length, nb = edge.length, ni = n - nb;
+  const lines = sides.map((line) => { const cum = [0]; for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + len(line[i - 1], line[i])); return { line, cum }; });
+  const worn = surface ? points.map(surface) : null;
+  // Each triangle's basis gradients (atlas pixels, or metres on the worn fabric laid in the triangle's plane, the
+  // same way round as on the atlas), weighted by the square root of its area. Slivers (three edge points in a row
+  // along a curve) are left out: they have no shape to keep.
+  const tris = [];
+  for (let t = 0; t < index.length; t += 3) {
+    const v = [index[t], index[t + 1], index[t + 2]];
+    let [p0, p1, p2] = v.map((i) => points[i]);
+    const flat = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0]);
+    if (worn && flat) {
+      const [a, b, c] = v.map((i) => worn[i]), e1 = b.clone().sub(a), e2 = c.clone().sub(a), l1 = e1.length();
+      const u = e1.clone().divideScalar(l1 || 1), x2 = e2.dot(u), y2 = Math.sqrt(Math.max(0, e2.lengthSq() - x2 * x2));
+      const q = [[0, 0], [l1, 0], [x2, flat < 0 ? -y2 : y2]];
+      // How much the worn shape differs from the flat one (long / short axis of flat to worn): the body's wrap is
+      // kept; where the fabric turns sharply (over the shoulder, the raised back neck) the flat shape is.
+      const f1 = [p1[0] - p0[0], p1[1] - p0[1]], f2 = [p2[0] - p0[0], p2[1] - p0[1]];
+      const m = [[(q[1][0] * f2[1] - q[2][0] * f1[1]) / flat, (q[2][0] * f1[0] - q[1][0] * f2[0]) / flat], [(q[1][1] * f2[1] - q[2][1] * f1[1]) / flat, (q[2][1] * f1[0] - q[1][1] * f2[0]) / flat]];
+      const tr = m[0][0] ** 2 + m[0][1] ** 2 + m[1][0] ** 2 + m[1][1] ** 2, det = Math.abs(m[0][0] * m[1][1] - m[0][1] * m[1][0]);
+      const big = Math.sqrt((tr + Math.sqrt(Math.max(0, tr * tr - 4 * det * det))) / 2);
+      if (det && big * big / det < 1.3) [p0, p1, p2] = q;
+    }
+    const a2 = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0]);
+    const longest = Math.max(len(p0, p1), len(p1, p2), len(p2, p0));
+    if (Math.abs(a2) < 0.1 * longest * longest || Math.sign(a2) !== Math.sign(flat)) continue;
+    const w = Math.sqrt(Math.abs(a2) / 2) / a2;
+    tris.push({ v, gx: [(p1[1] - p2[1]) * w, (p2[1] - p0[1]) * w, (p0[1] - p1[1]) * w], gy: [(p2[0] - p1[0]) * w, (p0[0] - p2[0]) * w, (p1[0] - p0[0]) * w] });
+  }
+  const slot = new Int32Array(nb).fill(-1);
+  let slides = 0;
+  edge.forEach((e, i) => { if (!e.fixed) slot[i] = 2 * ni + slides++; });
+  const m = 2 * ni + slides, damping = Math.sqrt(0.05);
+  const at = targets.map((p) => [...p]);
+  const along = new Float64Array(nb);
+  edge.forEach((e, i) => { if (!e.fixed) along[i] = project(lines[e.side].line, lines[e.side].cum, at[i]); });
+  const iterations = [];
+  // Rows: two per triangle (u_x - v_y, u_y + v_x; up to six terms each), then one per sliding point (damping).
+  const R = 2 * tris.length, rowStart = new Int32Array(R + 1), cols = new Int32Array(6 * R), vals = new Float64Array(6 * R);
+  const rhs = new Float64Array(R + slides), z = new Float64Array(m), g = new Float64Array(m), p = new Float64Array(m);
+  const r = new Float64Array(R + slides), q = new Float64Array(R + slides);
+  const times = (x, out) => {
+    for (let i = 0; i < R; i++) { let s = 0; for (let k = rowStart[i]; k < rowStart[i + 1]; k++) s += vals[k] * x[cols[k]]; out[i] = s; }
+    for (let s = 0; s < slides; s++) out[R + s] = damping * x[2 * ni + s];
+  };
+  const timesT = (y, out) => {
+    out.fill(0);
+    for (let i = 0; i < R; i++) { const v = y[i]; if (v) for (let k = rowStart[i]; k < rowStart[i + 1]; k++) out[cols[k]] += vals[k] * v; }
+    for (let s = 0; s < slides; s++) out[2 * ni + s] += damping * y[R + s];
+  };
+  const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
+  for (let round = 0; round < 3; round++) {
+    // Each edge point's direction along its line.
+    const dir = edge.map((e, i) => (e.fixed ? null : pointAt(lines[e.side].line, lines[e.side].cum, along[i]).t));
+    let nz = 0;
+    tris.forEach(({ v, gx, gy }, t) => {
+      const r1 = 2 * t, r2 = r1 + 1;
+      let b1 = 0, b2 = 0;
+      const one = [], two = [];
+      v.forEach((j, s) => {
+        if (j >= nb) { const cu = 2 * (j - nb); one.push(cu, gx[s], cu + 1, -gy[s]); two.push(cu, gy[s], cu + 1, gx[s]); return; }
+        const at0 = at[j];
+        b1 += gx[s] * at0[0] - gy[s] * at0[1];
+        b2 += gy[s] * at0[0] + gx[s] * at0[1];
+        if (slot[j] >= 0) { const [tx, ty] = dir[j]; one.push(slot[j], gx[s] * tx - gy[s] * ty); two.push(slot[j], gy[s] * tx + gx[s] * ty); }
+      });
+      rowStart[r1] = nz;
+      for (let k = 0; k < one.length; k += 2) { cols[nz] = one[k]; vals[nz++] = one[k + 1]; }
+      rowStart[r2] = nz;
+      for (let k = 0; k < two.length; k += 2) { cols[nz] = two[k]; vals[nz++] = two[k + 1]; }
+      rhs[r1] = -b1; rhs[r2] = -b2;
+    });
+    rowStart[R] = nz;
+    // Least squares (CGLS) from where the points are now.
+    z.fill(0);
+    for (let i = 0; i < ni; i++) { z[2 * i] = at[nb + i][0]; z[2 * i + 1] = at[nb + i][1]; }
+    times(z, q);
+    for (let i = 0; i < r.length; i++) r[i] = rhs[i] - q[i];
+    timesT(r, g);
+    p.set(g);
+    let gamma = dot(g, g), it = 0;
+    const stop = gamma * 1e-12;
+    for (; it < 2000 && gamma > stop; it++) {
+      times(p, q);
+      const qq = dot(q, q);
+      if (!qq) break;
+      const alpha = gamma / qq;
+      for (let i = 0; i < m; i++) z[i] += alpha * p[i];
+      for (let i = 0; i < r.length; i++) r[i] -= alpha * q[i];
+      timesT(r, g);
+      const next = dot(g, g), beta = next / gamma;
+      gamma = next;
+      for (let i = 0; i < m; i++) p[i] = g[i] + beta * p[i];
+    }
+    iterations.push(it);
+    for (let i = 0; i < ni; i++) at[nb + i] = [z[2 * i], z[2 * i + 1]];
+    // The edge points moved along their lines, back onto them, still in order along each: each run of sliding
+    // points from the held point before it (the start of its line) to the end of its line (the next held point).
+    edge.forEach((e, i) => {
+      if (e.fixed) return;
+      const d = z[slot[i]], q0 = at[i];
+      along[i] = project(lines[e.side].line, lines[e.side].cum, [q0[0] + dir[i][0] * d, q0[1] + dir[i][1] * d]);
+    });
+    const start = edge.findIndex((e) => e.fixed);
+    for (let s = 1; start >= 0 && s <= nb;) {
+      const i = (start + s) % nb;
+      if (edge[i].fixed) { s++; continue; }
+      const run = [];
+      while (s <= nb && !edge[(start + s) % nb].fixed && edge[(start + s) % nb].side === edge[i].side) run.push((start + s++) % nb);
+      const { line, cum } = lines[edge[i].side], before = (run[0] - 1 + nb) % nb, gap = cum.at(-1) / (8 * (run.length + 2));
+      let lo = edge[before].side === edge[i].side ? project(line, cum, at[before]) : 0;
+      for (const k of run) { along[k] = Math.max(along[k], lo + gap); lo = along[k]; }
+      let hi = cum.at(-1);
+      for (let k = run.length - 1; k >= 0; k--) { along[run[k]] = Math.min(along[run[k]], hi - gap); hi = along[run[k]]; }
+      for (const k of run) at[k] = pointAt(line, cum, along[k]).p;
+    }
+  }
+  // Every triangle the same way round as on the garment, or the mean value map is kept (three edge points in a row
+  // round a corner make a sliver too small to see).
+  const flipped = tris.filter(({ v }) => v.some((i) => i >= nb)).filter(({ v }) => {
+    const [a, b, c] = v.map((i) => points[i]), [A, B, C] = v.map((i) => at[i]);
+    return Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) !== Math.sign((B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]));
+  });
+  if (!flipped.length) at.forEach((p, i) => { targets[i] = p; });
+  return { kept: !flipped.length, flipped: flipped.length, iterations };
+}
+
+/** The scale and shift (no turn) that best take points `a` onto points `b` (least squares), as a function of a point. */
+function fitScale(a, b) {
+  const mean = (pts) => [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+  const ma = mean(a), mb = mean(b);
+  let num = 0, den = 0;
+  a.forEach((p, i) => {
+    const ax = p[0] - ma[0], ay = p[1] - ma[1];
+    num += ax * (b[i][0] - mb[0]) + ay * (b[i][1] - mb[1]);
+    den += ax * ax + ay * ay;
+  });
+  const s = den ? num / den : 1;
+  return ([x, y]) => [mb[0] + s * (x - ma[0]), mb[1] + s * (y - ma[1])];
+}
+
 /** A triangle mesh over one region: atlas positions, page coordinates for each. */
-function regionMesh(region, spacing) {
+export function regionMesh(region, spacing) {
   const P = [], T = [], n = region.sides.length;
   let band = region.band;
   if (band?.straight) {
@@ -459,14 +806,34 @@ function regionMesh(region, spacing) {
     const chord = (k) => ({ g: [region.sides[k][0], region.sides[k].at(-1)], t: [region.target[k][0], region.target[k].at(-1)] });
     band = { ...band, chords: { before: chord(band.side), after: chord(band.last ?? band.side) }, inside: { g: centroid(region.sides), t: centroid(region.target) } };
   }
-  region.sides.forEach((side, k) => {
+  const samples = region.sides.map((side, k) => {
     const before = band && k === (band.side - 1 + n) % n, after = band && k === ((band.last ?? band.side) + 1) % n;
     const [a, b] = sideSamples(side, region.target[k], before || after ? band : null, before);
-    P.push(...a.slice(0, -1));
     // Along a piece's cut edge, sample a few pixels in from it, so the white page round the piece never shows
-    // at a seam (the straight lines between a piece's halves are inside it and stay as they are).
-    T.push(...(region.target[k].length > 2 ? inset(b, centroid(region.target), 6) : b).slice(0, -1));
+    // at a seam (the straight lines between a piece's halves are inside it and stay as they are). A region with its
+    // own `inset` (a garment drawing: every side is its edge) is sampled that far in all round.
+    return [a, region.inset != null || region.target[k].length > 2 ? inset(b, centroid(region.target), region.inset ?? 6) : b];
   });
+  // `loose` sides (a garment drawing's back neck: the garment's is deeper than drawn) are not stretched to the
+  // drawing's edge where the drawing reaches past them: the garment's edge cuts into it there, at the scale that best
+  // fits the corners (so the print under it keeps its shape), easing back to the corners over their ends.
+  const held = new Set();
+  if (region.loose?.length) {
+    const rigid = fitScale(region.sides.map((s) => s[0]), region.target.map((t) => t[0]));
+    const edge = samples.flatMap(([, t]) => t.slice(0, -1));
+    for (const k of region.loose) {
+      const [a, t] = samples[k], r = a.map(rigid), L = lineLength(a);
+      if (!r.every(([x, y]) => insidePoly(edge, x, y))) continue;
+      held.add(k);
+      let run = 0;
+      samples[k][1] = t.map((p, i) => {
+        if (i) run += len(a[i - 1], a[i]);
+        const e = Math.max(0, Math.min(1, Math.min(run, L - run) / (0.2 * L))), w = e * e * (3 - 2 * e);
+        return [p[0] + (r[i][0] - p[0]) * w, p[1] + (r[i][1] - p[1]) * w];
+      });
+    }
+  }
+  for (const [a, t] of samples) { P.push(...a.slice(0, -1)); T.push(...t.slice(0, -1)); }
   const points = [...P], targets = [...T];
   const strip = band?.strip != null ? stripMap(region.sides[band.strip], region.target[band.strip], band.stripScale ?? band.scale, band.zone * band.scale, centroid(region.target)) : null;
   const hemStrip = band?.hemStrip != null ? hemStripMap(region.sides[band.hemStrip], region.target[band.hemStrip], band.stripScale ?? band.scale, band.zone * band.scale, centroid(region.target)) : null;
@@ -492,6 +859,26 @@ function regionMesh(region, spacing) {
     const a = points[tri[i]], b = points[tri[i + 1]], c = points[tri[i + 2]];
     if (insidePoly(P, (a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3)) index.push(tri[i], tri[i + 1], tri[i + 2]);
   }
+  // A garment drawing: shapes kept (conformalTargets). Held: the corners in `pins` (each a side's first point; all
+  // when not given), a loose side cut in, and the points next to it. Every other edge point slides along the
+  // drawing's edge, past corners not held: from one held point to the next is one line on the page.
+  if (region.conform) {
+    const count = region.sides.length, pins = new Set(region.pins ?? region.sides.map((_, k) => k));
+    const heldStart = (k) => pins.has(k) || held.has(k) || held.has((k - 1 + count) % count);
+    const first = region.sides.findIndex((_, k) => heldStart(k));
+    const group = [], lines = [], centre = centroid(region.target);
+    for (let s = 0, gi = -1; s < count; s++) {
+      const k = (Math.max(0, first) + s) % count;
+      if (heldStart(k) || gi < 0) gi++;
+      group[k] = gi;
+      (lines[gi] ??= []).push(...inset(resample(region.target[k], 4 * S), centre, region.inset ?? 6));
+    }
+    const edge = samples.flatMap(([a], k) => a.slice(0, -1).map((_, i) => ({ side: group[k], fixed: held.has(k) || (i === 0 && heldStart(k)) })));
+    // On the fabric as worn; if that would turn a triangle over, on the flat garment.
+    let result = conformalTargets(points, targets, index, edge, lines, region.surface);
+    if (!result.kept && region.surface) result = { ...conformalTargets(points, targets, index, edge, lines, null), flat: true };
+    return { points, targets, index, conformal: result };
+  }
   return { points, targets, index };
 }
 
@@ -510,7 +897,8 @@ export function warpLayout(renderer, image, regions, width, height) {
   const material = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, toneMapped: false });
   const geometries = [];
   for (const region of regions) {
-    const mesh = regionMesh(region, Math.max(8, height / 90));
+    // A garment drawing's map is smooth (conformal): a coarser mesh draws it as well, and is quicker to solve.
+    const mesh = regionMesh(region, Math.max(8, height / (region.conform ? 64 : 90)));
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(mesh.points.flatMap(([x, y]) => [x, y, 0]), 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(mesh.targets.flatMap(([x, y]) => [x / image.width, y / image.height]), 2));

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:three_deezi/app_controller.dart';
+import 'package:three_deezi/design_document.dart';
 import 'package:three_deezi/project_store.dart';
 import 'package:three_deezi/project_sync.dart';
 import 'package:three_deezi/widgets/studio_tools.dart';
@@ -108,6 +109,135 @@ void main() {
     expect(c.layers, isEmpty);
     expect(c.zones, isEmpty);
     expect(c.gradient, isNull);
+  });
+
+  test('a print layout undoes, saves, syncs and leaves with a new kit', () {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    final layout = {
+      'asset': 41,
+      'name': 'LEOPARDS NEW.pdf',
+      'roles': ['neck', 'back', 'front', 'sleeveL', 'sleeveR', 'legR', 'legL'],
+      'hemFold': true,
+      'joinLines': true,
+      'parts': ['shorts', 'raglan'],
+    };
+    c.edit(() => c.layout = copyLayout(layout));
+    c.undo();
+    expect(c.layout, isNull);
+    c.redo();
+    expect(c.layout, layout);
+    final project = Project(
+      title: 'Leopards',
+      sport: 'Rugby League',
+      garment: 'Full Kit',
+      mode: 'DYO',
+      kit: c.kit,
+      updated: DateTime.now(),
+    );
+    final body = jsonDecode(jsonEncode(ProjectSync.toServer(project)));
+    expect(body['design']['layout'], layout);
+    final disk = ProjectStore.decode(
+      jsonDecode(jsonEncode(ProjectStore.encode(project))),
+      {},
+    );
+    final server = ProjectSync.fromServer({...body, 'id': 19, 'version': 1});
+    for (final restored in [disk, server]) {
+      expect(restored.kit.layout, layout);
+    }
+    // No layout: the field is left out (older servers refuse it) and comes
+    // back as null, as do the website's removed layouts.
+    c.edit(() => c.layout = null);
+    final plain = ProjectSync.toServer(
+      Project(
+        title: 'Plain',
+        sport: 'Rugby League',
+        garment: 'Jersey',
+        mode: 'DYO',
+        kit: c.kit,
+        updated: DateTime.now(),
+      ),
+    );
+    expect((plain['design'] as Map).containsKey('layout'), isFalse);
+    expect(
+      ProjectSync.fromServer({
+        'id': 3,
+        'name': 'Removed',
+        'design': {'layout': null},
+      }).kit.layout,
+      isNull,
+    );
+    // Not a layout: no file or no panel names.
+    expect(copyLayout({'name': 'x.pdf', 'roles': []}), isNull);
+    expect(copyLayout({'asset': 4, 'name': 'x.pdf'}), isNull);
+    c.loadProject(server);
+    expect(c.layout?['asset'], 41);
+    c.startDyo();
+    expect(c.layout, isNull);
+  });
+
+  test('marks moved on the 2D panels undo, save, sync and reset', () {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    final moved = {
+      'top_wordmark': {
+        'side': 'front',
+        'x': 0.02,
+        'y': 0.52,
+        'scale': 1.4,
+        'rot': -8,
+      },
+      'top_crest': {'hidden': true},
+    };
+    c.edit(() => c.marks = copyMarks(moved));
+    c.undo();
+    expect(c.marks, isEmpty);
+    c.redo();
+    expect(c.marks['top_wordmark']['scale'], 1.4);
+    final project = Project(
+      title: 'Marks',
+      sport: 'Rugby League',
+      garment: 'Jersey',
+      mode: 'DYO',
+      kit: c.kit,
+      updated: DateTime.now(),
+    );
+    final disk = ProjectStore.decode(
+      jsonDecode(jsonEncode(ProjectStore.encode(project))),
+      {},
+    );
+    final server = ProjectSync.fromServer({
+      ...jsonDecode(jsonEncode(ProjectSync.toServer(project))),
+      'id': 18,
+      'version': 1,
+    });
+    for (final restored in [disk, server]) {
+      expect(restored.kit.marks, moved);
+    }
+    // The server sends [] for "no marks"; older projects have none at all.
+    expect(
+      ProjectSync.fromServer({
+        'id': 1,
+        'name': 'Old',
+        'design': {'marks': []},
+      }).kit.marks,
+      isEmpty,
+    );
+    expect(
+      ProjectSync.fromServer({
+        'id': 2,
+        'name': 'Older',
+        'design': {},
+      }).kit.marks,
+      isEmpty,
+    );
+    // Reset layout, and a new kit, start with none.
+    c.edit(() => c.marks = {});
+    expect(c.marks, isEmpty);
+    c.loadProject(server);
+    expect(c.marks['top_crest']['hidden'], true);
+    c.startDyo();
+    expect(c.marks, isEmpty);
   });
 
   test(

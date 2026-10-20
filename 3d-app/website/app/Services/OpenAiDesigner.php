@@ -57,7 +57,7 @@ class OpenAiDesigner
             .'Create exactly 4 clearly different concept directions: 1) bold and aggressive, 2) classic and clean, '
             .'3) heritage or pattern-led, 4) modern minimal. Keep the team name consistent across all four.';
         if ($references) {
-            $text .= "\nReference images are attached. Take colours, motifs and mood from them.";
+            $text .= "\nReference images are attached. Take colours, motifs and mood from them. If one shows the client's own finished garment design, make concept 1 follow it closely (its colours, pattern and lettering).";
         }
         $content = [['type' => 'input_text', 'text' => $text]];
         foreach (array_slice($references, 0, 3) as $reference) {
@@ -193,14 +193,17 @@ class OpenAiDesigner
         $count = count($references);
         $prompt = "You are a world-class sportswear designer making a client presentation mockup.\n"
             ."Sport: {$sport}. Garment: {$garment}.\nClient brief: {$brief}\n\n"
-            .'Unless the brief asks for a different layout, make one landscape presentation sheet: the garment shown flat-front on the left and from the back in the centre, '
+            .'Unless the brief asks for a different layout, angle or background, make one landscape presentation sheet: the garment shown flat-front on the left and from the back in the centre, '
             .'on invisible ghost mannequins against a soft light-grey seamless studio background with gentle shadows, plus a column of 4 square close-up detail panels on the right '
             .'(for example collar, raised logo, crest and fabric) each with a short uppercase caption underneath. '
             .'Photorealistic commercial product photography: real fabric with fine knit texture, natural folds, flatlock stitching, ribbed trims, crisp printed and raised logos. '
             .'All text must be spelled exactly as written in the brief. ';
         $prompt .= $count
-            ? "The first {$count} attached image(s) are the client's logos or references: reproduce any logos faithfully and place them where the brief says (or in sensible positions). "
-                .'The last attached image is the 3DEEZI logo: use it only for the small neck label, unless the brief asks for 3DEEZI branding.'
+            ? "The first {$count} attached image(s) come from the client: logos, references, or the client's own finished garment design (flat artwork, a sketch, a snapshot or a photo). "
+                .'If one of them shows a complete garment design, make the garment exactly that design: the same colours, pattern, panels, collar, trims, logos, text and numbers, front and back as shown; '
+                .'do not redesign or simplify it, just turn it into a real 3D garment presented as the brief asks. '
+                .'Reproduce any logos faithfully and place them where the brief says, where the design shows them, or in sensible positions. '
+                .'The last attached image is the 3DEEZI logo: use it only for the small neck label, unless the brief asks for 3DEEZI branding; leave it out when the client\'s design carries its own brand.'
             : 'The attached image is the 3DEEZI logo (emblem and wordmark). '
                 .'If the brief gives any wordmark, team, club or brand name, use exactly that text where the brief says and do NOT put 3DEEZI on the chest; then use the 3DEEZI emblem only on the small neck label. '
                 .'Only if the brief names no wordmark or brand at all, put the 3DEEZI wordmark across the chest and the 3DEEZI emblem as the crest, exactly as in the logo.';

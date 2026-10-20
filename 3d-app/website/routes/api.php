@@ -8,7 +8,10 @@ use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ConceptController;
 use App\Http\Controllers\ConvertController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderDraftController;
+use App\Http\Controllers\OrderFileController;
 use App\Http\Controllers\PartnerApplicationController;
 use App\Http\Controllers\ProjectController;
 use App\Services\OpenAiDesigner;
@@ -30,6 +33,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
     // 3DEEZI ASSIST, the help chat on every page: open to visitors too.
     Route::post('/assist', [AssistController::class, 'chat'])->middleware('throttle:assist');
+    // 3DEEZI Orders: the order forms' choices, and "Help me add sizes" (open to visitors, who fill the form before signing in).
+    Route::get('/orders/options', [OrderController::class, 'options']);
+    Route::post('/orders/assist', [OrderController::class, 'assist'])->middleware('throttle:assist');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
@@ -59,11 +65,34 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/ai/convert', [AiController::class, 'convert'])->middleware('throttle:concepts');
         Route::get('/orders', [OrderController::class, 'index']);
         Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:uploads');
+        // 3DEEZI Orders: my board, one order, design approval; drafts with their files; file downloads; notifications.
+        Route::get('/orders/board', [OrderController::class, 'board']);
+        Route::get('/orders/{order}', [OrderController::class, 'show'])->whereNumber('order');
+        Route::post('/orders/{order}/approval', [OrderController::class, 'approval'])->whereNumber('order');
+        Route::get('/order-drafts', [OrderDraftController::class, 'index']);
+        Route::post('/order-drafts', [OrderDraftController::class, 'store']);
+        Route::get('/order-drafts/{draft}', [OrderDraftController::class, 'show'])->whereNumber('draft');
+        Route::patch('/order-drafts/{draft}', [OrderDraftController::class, 'update'])->whereNumber('draft');
+        Route::delete('/order-drafts/{draft}', [OrderDraftController::class, 'destroy'])->whereNumber('draft');
+        Route::post('/order-drafts/{draft}/submit', [OrderDraftController::class, 'submit'])->whereNumber('draft')->middleware('throttle:uploads')->name('order-drafts.submit');
+        Route::get('/order-drafts/{draft}/files', [OrderDraftController::class, 'files'])->whereNumber('draft');
+        Route::post('/order-drafts/{draft}/files', [OrderDraftController::class, 'storeFile'])->whereNumber('draft')->middleware('throttle:uploads');
+        Route::delete('/order-drafts/{draft}/files/{file}', [OrderDraftController::class, 'destroyFile'])->whereNumber(['draft', 'file']);
+        Route::get('/order-files/{file}', [OrderFileController::class, 'show'])->whereNumber('file');
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::post('/notifications/read', [NotificationController::class, 'read']);
 
         // The admin panel.
         Route::prefix('admin')->name('admin.')->middleware('admin')->group(function () {
             Route::get('/stats', [Admin\OrderController::class, 'stats'])->name('stats');
             Route::apiResource('users', Admin\UserController::class)->whereNumber('user');
+            // The order board (before the orders resource, so "board" and "staff" are not read as an order).
+            Route::get('/orders/board', [Admin\OrderBoardController::class, 'board'])->name('orders.board');
+            Route::get('/orders/staff', [Admin\OrderBoardController::class, 'staff'])->name('orders.staff');
+            Route::patch('/orders/{order}/stage', [Admin\OrderBoardController::class, 'stage'])->whereNumber('order')->name('orders.stage');
+            Route::post('/orders/{order}/updates', [Admin\OrderBoardController::class, 'post'])->whereNumber('order')->name('orders.updates');
+            Route::post('/orders/{order}/files', [Admin\OrderBoardController::class, 'storeFile'])->whereNumber('order')->middleware('throttle:uploads')->name('orders.files');
+            Route::delete('/orders/{order}/files/{file}', [Admin\OrderBoardController::class, 'destroyFile'])->whereNumber(['order', 'file'])->name('orders.files.destroy');
             Route::apiResource('orders', Admin\OrderController::class)->whereNumber('order');
             Route::apiResource('projects', Admin\ProjectController::class)->only(['index', 'update', 'destroy'])->whereNumber('project');
             Route::apiResource('partners', Admin\PartnerController::class)->only(['index', 'update', 'destroy'])->whereNumber('partner');

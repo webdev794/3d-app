@@ -50,3 +50,6 @@
 @media(max-width:800px){.header-actions .admin-link{display:none}.main-nav .nav-admin{display:flex;align-items:center;gap:9px}}
 /* 801–1440 px signed in: the Admin button shows its shield only and the account its initial, so AI and DYO fit. */
 @media(max-width:1440px) and (min-width:801px){.header-actions .admin-link{width:38px;padding:0!important;justify-content:center}.header-actions .admin-link .admin-text{display:none}.header-actions .account-link>span:last-child{display:none}}
+
+/* The AI brief: pictures dragged over it (they are attached when dropped). */
+.brief-form.dropping textarea{border-color:var(--cyan);box-shadow:0 0 0 3px #00d9ed22}.brief-form.dropping .reference-upload{border-style:solid;background:#00d9ed12}

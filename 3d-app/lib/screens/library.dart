@@ -5,6 +5,7 @@ import '../app_controller.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
 import 'business.dart';
+import 'image_editor.dart';
 import 'onboarding.dart' show editServer;
 
 class _Tabs extends StatelessWidget {
@@ -388,6 +389,11 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 title: const Text('Use as AI reference'),
                 onTap: () => Navigator.pop(sheet, 'reference'),
               ),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit image'),
+                onTap: () => Navigator.pop(sheet, 'edit'),
+              ),
             ],
           ),
         ),
@@ -405,6 +411,21 @@ class _AssetsScreenState extends State<AssetsScreen> {
       case 'reference':
         c.startAi();
         c.update(() => c.references.add(data));
+      case 'edit':
+        // The image editor; Save keeps the chosen version as a new picture.
+        if (!mounted) return;
+        final tab = _tab, list = _items;
+        final edited = await openImageEditor(
+          context,
+          c,
+          bytes: data,
+          title: tab,
+          fileName: '3deezi-${tab.toLowerCase()}',
+          useLabel: 'Save',
+        );
+        if (edited == null || !mounted) return;
+        setState(() => list.add(edited));
+        showToast(context, 'Saved as a new picture in $tab.');
     }
   }
 

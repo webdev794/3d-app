@@ -32,6 +32,12 @@ export const ICONS = {
   save: '<path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9z"/>',
   export: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
   send: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  // The quick-access buttons' icons (AI, DYO, HOME), drawn after the client's picture: a large sparkle with two
+  // small ones, a T-shirt outline, and a roof line over a solid house with its door cut out. Drawn 1.2 times larger
+  // than the other icons (filling their box, as the client's do), with lines that keep their width (artboard.css).
+  qaAi: '<g transform="matrix(1.2 0 0 1.2 -2.4 -2.4)"><path d="M9.5 4.5C9.5 9.4 11.6 12 16.5 12C11.6 12 9.5 14.6 9.5 19.5C9.5 14.6 7.4 12 2.5 12C7.4 12 9.5 9.4 9.5 4.5Z"/><path d="M18 2.3C18 4.2 18.9 5.2 20.8 5.2C18.9 5.2 18 6.2 18 8.1C18 6.2 17.1 5.2 15.2 5.2C17.1 5.2 18 4.2 18 2.3Z"/><path d="M18 15.1C18 17 18.9 18 20.8 18C18.9 18 18 19 18 20.9C18 19 17.1 18 15.2 18C17.1 18 18 17 18 15.1Z"/></g>',
+  qaTee: '<g transform="matrix(1.2 0 0 1.2 -2.4 -2.4)"><path d="M8.7 3.7L4.1 5.9L2.7 10.1L6.4 11.1V20.4H17.6V11.1L21.3 10.1L19.9 5.9L15.3 3.7C14.7 5.3 13.5 6.1 12 6.1C10.5 6.1 9.3 5.3 8.7 3.7Z"/></g>',
+  qaHome: '<g transform="matrix(1.2 0 0 1.2 -2.4 -2.4)"><path d="M2.4 11.6L12 3.6L21.6 11.6" stroke-width="2.3"/><path fill="currentColor" stroke="none" d="M5.6 12.4L12 7.1L18.4 12.4V20.6H14.3V15.4H9.7V20.6H5.6Z"/></g>',
   shirt: '<path d="M20.4 6.6L16 4a4 4 0 0 1-8 0L3.6 6.6a1 1 0 0 0-.4 1.3L5 11l2-1v10h10V10l2 1 1.8-3.1a1 1 0 0 0-.4-1.3z"/>',
   spark: '<path d="M11 3l1.9 5.6L18.5 10.5l-5.6 1.9L11 18l-1.9-5.6L3.5 10.5l5.6-1.9z"/><path d="M19 3v4M17 5h4M18 16v4M16 18h4"/>',
   up: '<path d="M18 15l-6-6-6 6"/>',

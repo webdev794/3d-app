@@ -184,11 +184,77 @@ function simplify(points, eps) {
 const area2 = (pts) => pts.reduce((s, p, i) => { const q = pts[(i + 1) % pts.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0);
 
 /**
+ * A garment drawing's front often shows the inside of the back through its neck opening, drawn white: a hole in the
+ * shape just under its top edge (under the back's neckline). That hole is opened up to the top, so the outline runs
+ * down round the front's neckline as the garment's does. `p`: the shape's box in the mask (`w` pixels wide).
+ */
+function openNeck(mask, w, p) {
+  const bw = p.x1 - p.x0 + 1, bh = p.y1 - p.y0 + 1, at = (x, y) => (p.y0 + y) * w + p.x0 + x;
+  // Background reached from the edge of the box (4 neighbours) is outside (-1); any other background is a hole (1, 2 …).
+  const label = new Int32Array(bw * bh);
+  const fill = (start, id) => {
+    const stack = [start], box = { id, n: 0, x0: bw, x1: -1, y0: bh, y1: -1 };
+    label[start] = id;
+    while (stack.length) {
+      const q = stack.pop(), x = q % bw, y = (q - x) / bw;
+      box.n++;
+      box.x0 = Math.min(box.x0, x); box.x1 = Math.max(box.x1, x); box.y0 = Math.min(box.y0, y); box.y1 = Math.max(box.y1, y);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, r = ny * bw + nx;
+        if (nx >= 0 && ny >= 0 && nx < bw && ny < bh && !label[r] && !mask[at(nx, ny)]) { label[r] = id; stack.push(r); }
+      }
+    }
+    return box;
+  };
+  for (let x = 0; x < bw; x++) for (const y of [0, bh - 1]) if (!label[y * bw + x] && !mask[at(x, y)]) fill(y * bw + x, -1);
+  for (let y = 0; y < bh; y++) for (const x of [0, bw - 1]) if (!label[y * bw + x] && !mask[at(x, y)]) fill(y * bw + x, -1);
+  // The neck: the biggest hole near the top middle, with only a thin line (the back's neckline) above it.
+  let neck = null;
+  for (let q = 0, id = 0; q < bw * bh; q++) {
+    if (label[q] || mask[at(q % bw, Math.floor(q / bw))]) continue;
+    const box = fill(q, ++id), cx = Math.round((box.x0 + box.x1) / 2);
+    if (box.n < 0.002 * bw * bh || box.y0 > 0.25 * bh || cx < 0.3 * bw || cx > 0.7 * bw) continue;
+    let above = 0;
+    for (let y = 0; y < box.y0; y++) if (mask[at(cx, y)]) above++;
+    if (above <= 0.06 * bh && (!neck || box.n > neck.n)) neck = box;
+  }
+  if (!neck) return;
+  for (let x = neck.x0; x <= neck.x1; x++) {
+    let top = -1;
+    for (let y = neck.y0; y <= neck.y1 && top < 0; y++) if (label[y * bw + x] === neck.id) top = y;
+    for (let y = 0; y < top; y++) mask[at(x, y)] = 0;
+  }
+  // Only the shape itself is kept (not a scrap of the line cut off above the opening).
+  const piece = new Int32Array(bw * bh);
+  let best = 0, bestSize = 0;
+  for (let q = 0, id = 0; q < bw * bh; q++) {
+    if (piece[q] || !mask[at(q % bw, Math.floor(q / bw))]) continue;
+    const stack = [q];
+    piece[q] = ++id;
+    let size = 0;
+    while (stack.length) {
+      const r = stack.pop(), x = r % bw, y = (r - x) / bw;
+      size++;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy, s = ny * bw + nx;
+        if (nx >= 0 && ny >= 0 && nx < bw && ny < bh && !piece[s] && mask[at(nx, ny)]) { piece[s] = id; stack.push(s); }
+      }
+    }
+    if (size > bestSize) { best = id; bestSize = size; }
+  }
+  for (let q = 0; q < bw * bh; q++) if (piece[q] && piece[q] !== best) mask[at(q % bw, Math.floor(q / bw))] = 0;
+}
+
+/**
  * The panels on the page: each separate shape on the plain background; a strip split off by a thin line (a cuff
  * or hem band under its sleeve or leg) joins the panel it belongs to; each is named by the nearest label. Outlines
  * are in the picture's pixels, running clockwise on screen.
+ * `drawing`: the page is a drawing of the finished garment (its front and back drawn flat, as on a tech sheet or a
+ * mock-up) instead of cut panels: the two big shapes are the front and the back (named by labels when there are
+ * any, else in reading order: the front first), the front's neck opening is opened up (openNeck), and small shapes
+ * beside them (a logo, a note) are left out.
  */
-export function findPanels(image, labels = []) {
+export function findPanels(image, labels = [], { drawing = false } = {}) {
   const W = image.width, H = image.height;
   const k = Math.min(1, 1200 / Math.max(W, H));
   const w = Math.max(1, Math.round(W * k)), h = Math.max(1, Math.round(H * k));
@@ -243,6 +309,10 @@ export function findPanels(image, labels = []) {
     parts.push({ ids: [id], area, x0, y0, x1, y1, role: null, label: '' });
   }
   parts = parts.filter((p) => p.area >= w * h * 0.0003);
+  if (drawing) {
+    const most = Math.max(0, ...parts.map((p) => p.area));
+    parts = parts.filter((p) => p.area >= most * 0.05);
+  }
   // Each name goes to the nearest shape (the nearer name wins when two point at one shape).
   const gap = (l, p) => {
     const cx = (l.x + l.w / 2) * k, cy = (l.y + l.h / 2) * k;
@@ -258,8 +328,20 @@ export function findPanels(image, labels = []) {
     p.label = l.text;
     usedLabels.add(l);
   }
+  if (drawing) {
+    // The front and the back: named by their labels, else the two biggest shapes in reading order.
+    for (const p of parts) if (p.role !== 'front' && p.role !== 'back') { p.role = null; p.label = ''; }
+    const [a, b] = [...parts].sort((m, n) => n.area - m.area).slice(0, 2);
+    const sideBySide = a && b && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0.5 * Math.min(a.y1 - a.y0, b.y1 - b.y0);
+    const order = [a, b].filter(Boolean).sort((m, n) => (sideBySide ? m.x0 - n.x0 : m.y0 - n.y0));
+    for (const role of ['front', 'back']) {
+      if (parts.some((p) => p.role === role)) continue;
+      const free = order.find((p) => !p.role);
+      if (free) free.role = role;
+    }
+  }
   // An unnamed strip just above or below a named panel, as wide as most of it, belongs to that panel.
-  for (const u of [...parts].filter((p) => !p.role).sort((a, b) => b.area - a.area)) {
+  for (const u of drawing ? [] : [...parts].filter((p) => !p.role).sort((a, b) => b.area - a.area)) {
     let best = null, bestGap = h * 0.03;
     for (const p of parts) {
       if (!p.role || p === u) continue;
@@ -283,8 +365,10 @@ export function findPanels(image, labels = []) {
     const ids = new Set(p.ids);
     for (let y = p.y0; y <= p.y1; y++) for (let x = p.x0; x <= p.x1; x++) if (ids.has(comp[y * w + x])) mask[y * w + x] = 1;
     // Close thin gaps across the panel (a white line above a cuff or hem band, whether it cuts the panel in two or
-    // stops just short of one edge), so the outline runs round the outside and not into the gap.
-    {
+    // stops just short of one edge), so the outline runs round the outside and not into the gap. A drawing has no
+    // such lines: its front's neck opening is opened instead.
+    if (drawing) openNeck(mask, w, p);
+    else {
       const most = Math.ceil(h * 0.03);
       for (let x = p.x0; x <= p.x1; x++) {
         let first = -1, last = -1;
@@ -583,6 +667,7 @@ function addStyles() {
 .lay-card.none{opacity:.6}.lay-card.dup select{border-color:#e5484d}
 .lay-note{margin:0 16px;color:#ffb4a8;min-height:16px;font-size:12px}
 .lay-fold{display:flex;gap:8px;align-items:flex-start;margin:0 16px 6px;color:#cfe3ee;font-size:12.5px;line-height:1.4}.lay-fold[hidden]{display:none}.lay-fold input{margin-top:2px;accent-color:#12e1f0}
+.lay-garment{align-items:center}.lay-garment select{padding:6px 8px;border-radius:7px;border:1px solid #23506a;background:#06192a;color:#e8f4fb;font:inherit}
 .lay-buttons{display:flex;gap:10px;justify-content:flex-end;padding:10px 16px 14px;border-top:1px solid #1d3a4c}
 .lay-buttons button{padding:9px 16px;border-radius:20px;border:1px solid #23506a;background:#06192a;color:#dbe7f0;font:600 13px Inter,system-ui,sans-serif;cursor:pointer}
 .lay-buttons .go{border:0;color:#02131c;background:linear-gradient(110deg,#12e1f0,#2f80ff)}
@@ -590,8 +675,8 @@ function addStyles() {
   document.head.append(s);
 }
 
-/** A panel cut out of the page, on white, `size` pixels on its longer side. */
-function thumbnail(image, panel, size = 220) {
+/** A panel cut out of the page, on white, `size` pixels on its longer side; `dots`: points (page pixels) marked on it. */
+function thumbnail(image, panel, size = 220, dots = []) {
   const w = panel.x1 - panel.x0, h = panel.y1 - panel.y0, k = size / Math.max(w, h);
   const c = makeCanvas(w * k, h * k);
   const g = c.getContext('2d');
@@ -604,34 +689,47 @@ function thumbnail(image, panel, size = 220) {
   panel.outline.forEach(([x, y], i) => (i ? g.lineTo((x - panel.x0) * k, (y - panel.y0) * k) : g.moveTo((x - panel.x0) * k, (y - panel.y0) * k)));
   g.closePath();
   g.stroke();
+  g.fillStyle = '#ffd400';
+  for (const [x, y] of dots) { g.beginPath(); g.arc((x - panel.x0) * k, (y - panel.y0) * k, 3.5, 0, Math.PI * 2); g.fill(); g.stroke(); }
   return c;
 }
+
+/** The parts of a garment drawing (layout.js findPanels `drawing`). */
+export const DRAWING_ROLES = { front: 'Front', back: 'Back', none: 'Not used' };
 
 /**
  * The check screen over the 3D view: each panel found, named from its label; any name can be changed. Resolves with
  * {roles: each panel's name in the order found, fold: the hem fold strips are cut off, join: the white lines across
  * the sleeves are joined up}, or null when cancelled.
+ * A garment drawing (`drawing`): its front and back are checked instead, with the garment it is ({value: name} in
+ * `garments`, `garment` chosen first) and its corners (`dots`: each panel's, page pixels) marked; resolves with
+ * {roles, garment}.
  */
-export function confirmPanels(image, panels, fileName = 'Print layout') {
+export function confirmPanels(image, panels, fileName = 'Print layout', { drawing = false, garments = {}, garment = null, dots = [] } = {}) {
   addStyles();
   // Which panels end in a hem fold strip, and which have a white line across (each choice is shown while a panel
   // it applies to has one).
-  const folds = panels.map((p) => hemFold(image, p) != null);
-  const lines = panels.map((p) => whiteLines(image, p).length > 0);
+  const folds = panels.map((p) => !drawing && hemFold(image, p) != null);
+  const lines = panels.map((p) => !drawing && whiteLines(image, p).length > 0);
+  const names = drawing ? DRAWING_ROLES : ROLE_NAMES, safe = (s) => String(s).replace(/[<>&"]/g, '');
+  const intro = drawing
+    ? `<b>DESIGN PICTURE · ${safe(fileName)}</b><p>Your design goes onto the 3D kit exactly as drawn: the front onto the front, the back onto the back, edge to edge. Check which is which and the garment, then put it on. The same picture always gives the same kit.</p>`
+    : `<b>PRINT LAYOUT · ${safe(fileName)}</b><p>${panels.length} panel${panels.length === 1 ? '' : 's'} found. Check what each one is, then put the layout on the 3D kit. The same file always gives the same kit.</p>`;
+  const choice = drawing ? `<label class="lay-fold lay-garment">Garment <select>${Object.entries(garments).map(([v, n]) => `<option value="${safe(v)}"${v === garment ? ' selected' : ''}>${safe(n)}</option>`).join('')}</select></label>` : '';
   return new Promise((resolve) => {
     const box = document.createElement('div');
     box.className = 'lay-check';
     box.setAttribute('role', 'dialog');
-    box.innerHTML = `<div class="lay-head"><b>PRINT LAYOUT · ${fileName.replace(/[<>&"]/g, '')}</b><p>${panels.length} panel${panels.length === 1 ? '' : 's'} found. Check what each one is, then put the layout on the 3D kit. The same file always gives the same kit.</p></div><div class="lay-grid"></div><label class="lay-fold" hidden><input type="checkbox" checked> The plain strip along the bottom of the body panels is the hem fold (sewn inside, so it does not show)</label><label class="lay-fold lay-lines" hidden><input type="checkbox" checked> Join the sleeve bands to the sleeves (leave out the white line between them)</label><p class="lay-note"></p><div class="lay-buttons"><button type="button" class="no">Cancel</button><button type="button" class="go">Put on the 3D kit</button></div>`;
-    const grid = box.querySelector('.lay-grid'), note = box.querySelector('.lay-note'), go = box.querySelector('.go'), fold = box.querySelector('.lay-fold'), join = box.querySelector('.lay-lines');
-    const selects = panels.map((p) => {
+    box.innerHTML = `<div class="lay-head">${intro}</div><div class="lay-grid"></div>${choice}<label class="lay-fold" hidden><input type="checkbox" checked> The plain strip along the bottom of the body panels is the hem fold (sewn inside, so it does not show)</label><label class="lay-fold lay-lines" hidden><input type="checkbox" checked> Join the sleeve bands to the sleeves (leave out the white line between them)</label><p class="lay-note"></p><div class="lay-buttons"><button type="button" class="no">Cancel</button><button type="button" class="go">Put on the 3D kit</button></div>`;
+    const grid = box.querySelector('.lay-grid'), note = box.querySelector('.lay-note'), go = box.querySelector('.go'), fold = box.querySelector('.lay-fold:not(.lay-garment)'), join = box.querySelector('.lay-lines');
+    const selects = panels.map((p, i) => {
       const card = document.createElement('div');
       card.className = 'lay-card';
-      card.append(thumbnail(image, p));
+      card.append(thumbnail(image, p, 220, dots[i] ?? []));
       const small = document.createElement('small');
-      small.textContent = p.label ? `Label: ${p.label}` : 'No label found';
+      small.textContent = drawing ? (p.role === 'none' ? 'Not part of the garment?' : `The ${p.role} of the garment`) : p.label ? `Label: ${p.label}` : 'No label found';
       const sel = document.createElement('select');
-      sel.innerHTML = Object.entries(ROLE_NAMES).map(([v, n]) => `<option value="${v}"${v === p.role ? ' selected' : ''}>${n}</option>`).join('');
+      sel.innerHTML = Object.entries(names).map(([v, n]) => `<option value="${v}"${v === p.role ? ' selected' : ''}>${n}</option>`).join('');
       card.append(small, sel);
       grid.append(card);
       return { sel, card };
@@ -647,7 +745,8 @@ export function confirmPanels(image, panels, fileName = 'Print layout') {
         card.classList.toggle('none', sel.value === 'none');
       }
       const top = counts.front || counts.back, legs = counts.legL || counts.legR;
-      note.textContent = dup ? 'Two panels have the same name: each part can have one panel only.' : !top && !legs ? 'Name at least one panel (a body panel or a shorts leg).' : '';
+      note.textContent = dup ? (drawing ? 'Two pictures are named the same: one front and one back.' : 'Two panels have the same name: each part can have one panel only.')
+        : !top && !legs ? (drawing ? 'Name the front or the back of the garment.' : 'Name at least one panel (a body panel or a shorts leg).') : '';
       go.disabled = dup || (!top && !legs);
       fold.hidden = !selects.some(({ sel }, i) => (sel.value === 'front' || sel.value === 'back') && folds[i]);
       join.hidden = !selects.some(({ sel }, i) => (sel.value === 'sleeveL' || sel.value === 'sleeveR') && lines[i]);
@@ -656,7 +755,9 @@ export function confirmPanels(image, panels, fileName = 'Print layout') {
     check();
     const done = (value) => { box.remove(); resolve(value); };
     box.querySelector('.no').onclick = () => done(null);
-    go.onclick = () => done({ roles: selects.map(({ sel }) => sel.value), fold: fold.querySelector('input').checked, join: !join.hidden && join.querySelector('input').checked });
+    go.onclick = () => done(drawing
+      ? { roles: selects.map(({ sel }) => sel.value), garment: box.querySelector('.lay-garment select')?.value ?? garment }
+      : { roles: selects.map(({ sel }) => sel.value), fold: fold.querySelector('input').checked, join: !join.hidden && join.querySelector('input').checked });
     document.body.append(box);
   });
 }

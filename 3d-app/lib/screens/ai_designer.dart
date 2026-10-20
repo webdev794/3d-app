@@ -11,6 +11,7 @@ import '../export_service.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
+import 'image_editor.dart';
 
 const _sampleBriefs = [
   'Create a black and cyan rugby league jersey with Maori inspired patterns.',
@@ -86,6 +87,22 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
         c.uploads.add(bytes);
       });
     }
+  }
+
+  /// A picture pasted into the brief (from the keyboard's clipboard): a logo,
+  /// a reference or a finished design to turn into 3D.
+  void _insertPicture(KeyboardInsertedContent content) {
+    final bytes = content.data;
+    if (bytes == null || bytes.isEmpty) return;
+    if (c.references.length >= 3) {
+      showToast(context, 'Up to 3 reference images. Remove one first.');
+      return;
+    }
+    c.update(() {
+      c.references.add(bytes);
+      c.uploads.add(bytes);
+    });
+    showToast(context, 'Picture added to your references.');
   }
 
   Future<void> _pickSample() async {
@@ -335,6 +352,16 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                   maxLines: 4,
                   enabled: !_busy,
                   textCapitalization: TextCapitalization.sentences,
+                  // Pictures pasted from the keyboard's clipboard join the
+                  // references, as with the add button.
+                  contentInsertionConfiguration: ContentInsertionConfiguration(
+                    allowedMimeTypes: const [
+                      'image/png',
+                      'image/jpeg',
+                      'image/webp',
+                    ],
+                    onContentInserted: _insertPicture,
+                  ),
                   style: const TextStyle(fontSize: 13),
                   decoration: const InputDecoration(
                     hintText: 'Ask 3DEEZI anything…',
@@ -668,6 +695,22 @@ class ConceptsScreen extends StatelessWidget {
     }
   }
 
+  /// The image editor on a concept's picture; Use replaces the picture.
+  Future<void> _edit(BuildContext context, int index) async {
+    final concept = c.concepts[index];
+    final edited = await openImageEditor(
+      context,
+      c,
+      bytes: concept.image,
+      asset: concept.asset,
+      title: 'Concept ${index + 1} · ${concept.spec.designName}',
+      fileName: '3deezi-concept-${index + 1}',
+    );
+    if (edited == null) return;
+    c.update(() => concept.image = edited);
+    if (context.mounted) showToast(context, 'Concept picture updated.');
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = c.concepts.isEmpty
@@ -758,6 +801,14 @@ class ConceptsScreen extends StatelessWidget {
                                 Icons.check_circle_rounded,
                                 color: Palette.cyan,
                                 size: 22,
+                              ),
+                            ),
+                          if (concept.image != null || concept.asset != null)
+                            Positioned(
+                              top: 6,
+                              left: 6,
+                              child: EditImageChip(
+                                onTap: () => _edit(context, i),
                               ),
                             ),
                         ],
@@ -881,6 +932,31 @@ class _MockupCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (image != null)
+                    TextButton.icon(
+                      onPressed: () async {
+                        final edited = await openImageEditor(
+                          context,
+                          c,
+                          bytes: image,
+                          title: 'HD mockup',
+                          fileName: '3deezi-mockup',
+                        );
+                        if (edited == null) return;
+                        c.update(() {
+                          c.mockupImage = edited;
+                          c.artwork.add(edited);
+                        });
+                        if (context.mounted) {
+                          showToast(
+                            context,
+                            'Mockup updated · also saved in Assets › Artwork.',
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.edit_outlined, size: 17),
+                      label: const Text('Edit'),
+                    ),
                   if (image != null)
                     TextButton.icon(
                       onPressed: () async {

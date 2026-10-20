@@ -117,9 +117,9 @@ SPECS.trainingShorts = {
 // folds instead of fitting the waist.
 SPECS.raglan = { ...SPECS.tee, loose: true, cuffKeep: 0.07 };
 
-/** Smooth closed outline sampled every `step` metres. */
-function outline(kind, step) {
-  const half = (SPECS[kind] ?? SPECS.jersey).half;
+/** Smooth closed outline of a garment spec sampled every `step` metres. */
+function outline(spec, step) {
+  const half = spec.half;
   const pts = [
     ...half.map(([x, y]) => new THREE.Vector2(x, y)),
     ...half
@@ -159,9 +159,10 @@ function distanceToOutline(p, poly, seam) {
  * Builds the garment mesh. Returns the geometry plus the 2D frame the texture
  * compositor needs to paint in garment coordinates.
  */
-export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
-  const spec = SPECS[kind] ?? SPECS.jersey;
-  const poly = outline(kind, step);
+export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null } = {}) {
+  // `cut`: a spec of this kind cut otherwise (a singlet cut like a garment drawing, layout-warp.js drawnCut).
+  const spec = cut ?? SPECS[kind] ?? SPECS.jersey;
+  const poly = outline(spec, step);
   const minX = Math.min(...poly.map((p) => p.x)), maxX = -minX;
   const minY = Math.min(...poly.map((p) => p.y));
   const maxY = Math.max(...poly.map((p) => p.y));
@@ -174,7 +175,9 @@ export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
     const ax = Math.abs(p.x);
     if (p.y < minY + 0.03 && (!spec.legs || ax > 0.035)) return true;
     if (p.y > maxY - spec.neck.drop && ax < spec.neck.half) return true;
-    if (spec.armholes && ax > 0.15 && p.y > 0.5 && ax < 0.24) return true;
+    // The armhole edge: between the strap's outer corner and the underarm (the singlet's own, unless cut otherwise).
+    const hole = spec.armhole ?? { x0: 0.15, y0: 0.5, x1: 0.24 };
+    if (spec.armholes && ax > hole.x0 && p.y > hole.y0 && ax < hole.x1) return true;
     if (spec.split && ax > spec.split.x - 0.075 && p.y < spec.split.top - 0.001) return true;
     if (cuff) {
       const a = cuff[0], b = cuff[1], q = new THREE.Vector2(ax, p.y);
@@ -531,6 +534,12 @@ export function buildGarment(kind = 'jersey', { step = 0.0085 } = {}) {
     drawstring: !!spec.legs,
     /** Where a flat panel point sits on the worn garment (before creases). */
     at: (x, y, back = false) => worn.at(new THREE.Vector2(x, y), back),
+    /** The same with the back's raised neckline: the fabric's shape as worn (a garment drawing's map keeps shapes on it). */
+    surface: (x, y, back = false) => {
+      const p = new THREE.Vector2(x, y), v = worn.at(p, back);
+      if (back) v.y += backHeight(p) - p.y;
+      return v;
+    },
   };
 }
 
