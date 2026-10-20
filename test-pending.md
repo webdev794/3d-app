@@ -134,6 +134,11 @@ In the Studio, with the Leopards print layout on (Artwork → Factory print layo
 2. On a computer (window 1200 px or wider) the chat opens by itself at the top. Scroll down to ORDER NOW: the chat folds into its button. Scroll back up: it opens again.
 3. The three creation cards always use the full width, with the chat open or closed; the open chat floats over the right card.
 
+### 15b. Header AI and DYO buttons
+1. At the top right, next to **Start a kit**: **AI** and **DYO** are equal pills in the cyan-to-violet gradient, with the icon on the left, as tall as Start a kit (like the Artboard's buttons).
+2. Hover: the gradient moves, the pill glows and the icon turns slightly.
+3. Make the window narrower: the pills shrink and never overlap the menu; below 800 px they are in the menu.
+
 ### 22. New footer and pages
 1. At the bottom of the homepage (and other pages, but not the Studio, Artboard or Admin):
    - a cyan line;
