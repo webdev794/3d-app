@@ -246,6 +246,46 @@ function openNeck(mask, w, p) {
 }
 
 /**
+ * A garment drawing's background: a smooth wash fitted to the picture's edge (a quadratic per colour, refitted
+ * without the edge points far from it, such as a garment touching the edge), so a photo mock-up's grey gradient or
+ * vignette is background too, not only a white page. Returns its colour at a pixel, how far a pixel may differ from
+ * it and still be background, and whether it is a plain white page.
+ */
+function backgroundModel(px, w, h) {
+  const all = [];
+  const add = (x, y) => { const i = (y * w + x) * 4; all.push([x / w, y / h, px[i], px[i + 1], px[i + 2]]); };
+  for (let x = 0; x < w; x += 2) { add(x, 0); add(x, h - 1); }
+  for (let y = 0; y < h; y += 2) { add(0, y); add(w - 1, y); }
+  const basis = (u, v) => [1, u, v, u * u, v * v, u * v];
+  const solve = (pts, c) => {
+    const A = Array.from({ length: 6 }, () => new Float64Array(7));
+    for (const s of pts) { const b = basis(s[0], s[1]); for (let i = 0; i < 6; i++) { for (let j = 0; j < 6; j++) A[i][j] += b[i] * b[j]; A[i][6] += b[i] * s[c]; } }
+    for (let i = 0; i < 6; i++) A[i][i] += 1e-6;
+    for (let i = 0; i < 6; i++) {
+      let p = i;
+      for (let r = i + 1; r < 6; r++) if (Math.abs(A[r][i]) > Math.abs(A[p][i])) p = r;
+      [A[i], A[p]] = [A[p], A[i]];
+      for (let r = 0; r < 6; r++) if (r !== i) { const f = A[r][i] / A[i][i]; for (let k = i; k < 7; k++) A[r][k] -= f * A[i][k]; }
+    }
+    return A.map((row, i) => row[6] / row[i]);
+  };
+  const colour = (fit, u, v) => { const b = basis(u, v); return fit.map((f) => f.reduce((s, q, i) => s + q * b[i], 0)); };
+  let use = all, fit = null, rms = 0;
+  for (let pass = 0; pass < 3; pass++) {
+    fit = [2, 3, 4].map((c) => solve(use, c));
+    const err = all.map((s) => { const m = colour(fit, s[0], s[1]); return Math.max(Math.abs(s[2] - m[0]), Math.abs(s[3] - m[1]), Math.abs(s[4] - m[2])); });
+    const median = [...err].sort((a, b) => a - b)[err.length >> 1], limit = Math.max(6, 2.5 * median);
+    const kept = all.filter((_, i) => err[i] <= limit), near = err.filter((e) => e <= limit);
+    rms = Math.sqrt(near.reduce((s, e) => s + e * e, 0) / Math.max(1, near.length));
+    if (kept.length < 24) break;
+    use = kept;
+  }
+  const spots = [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0.5]].map(([u, v]) => colour(fit, u, v));
+  const plain = spots.every((c) => c.every((v) => v > 245));
+  return { at: (x, y) => colour(fit, x / w, y / h), tol: Math.max(24, 3 * rms), plain };
+}
+
+/**
  * The panels on the page: each separate shape on the plain background; a strip split off by a thin line (a cuff
  * or hem band under its sleeve or leg) joins the panel it belongs to; each is named by the nearest label. Outlines
  * are in the picture's pixels, running clockwise on screen.
@@ -264,11 +304,18 @@ export function findPanels(image, labels = [], { drawing = false } = {}) {
   const px = sg.getImageData(0, 0, w, h).data;
   const bg = edgeColour(px, w, h);
   const clear = bg[3] < 128;
+  // A garment drawing on a white page or a photo mock-up's backdrop: the background fitted to the picture's edge.
+  const model = drawing && !clear ? backgroundModel(px, w, h) : null;
   const ink = new Uint8Array(w * h);
   for (let i = 0, j = 0; j < w * h; i += 4, j++) {
     const a = px[i + 3];
     if (a < 96) continue;
-    if (clear || Math.max(Math.abs(px[i] - bg[0]), Math.abs(px[i + 1] - bg[1]), Math.abs(px[i + 2] - bg[2])) > 24) ink[j] = 1;
+    if (model) {
+      const x = j % w, m = model.at(x, (j - x) / w);
+      // On a photo's backdrop, greys a little darker than it are its shadows (under a garment, inside its neck).
+      const grey = !model.plain && Math.max(px[i], px[i + 1], px[i + 2]) - Math.min(px[i], px[i + 1], px[i + 2]) < 22 && px[i] + px[i + 1] + px[i + 2] > 0.55 * (m[0] + m[1] + m[2]);
+      if (!grey && Math.max(Math.abs(px[i] - m[0]), Math.abs(px[i + 1] - m[1]), Math.abs(px[i + 2] - m[2])) > model.tol) ink[j] = 1;
+    } else if (clear || Math.max(Math.abs(px[i] - bg[0]), Math.abs(px[i + 1] - bg[1]), Math.abs(px[i + 2] - bg[2])) > 24) ink[j] = 1;
   }
   // Panel names written beside the panels are not panels.
   const named = labels.map((l) => ({ ...l, role: roleOf(l.text) })).filter((l) => l.role);
@@ -329,9 +376,22 @@ export function findPanels(image, labels = [], { drawing = false } = {}) {
     usedLabels.add(l);
   }
   if (drawing) {
-    // The front and the back: named by their labels, else the two biggest shapes in reading order.
+    // How much of its box each shape fills, holes included (row by row, first to last pixel): a garment's armholes
+    // and neck leave its box's corners empty; a close-up or a photo in a frame (a mock-up's detail panels) fills it.
+    for (const p of parts) {
+      const ids = new Set(p.ids);
+      let filled = 0;
+      for (let y = p.y0; y <= p.y1; y++) {
+        let first = -1, last = -1;
+        for (let x = p.x0; x <= p.x1; x++) if (ids.has(comp[y * w + x])) { if (first < 0) first = x; last = x; }
+        if (first >= 0) filled += last - first + 1;
+      }
+      p.fill = filled / ((p.x1 - p.x0 + 1) * (p.y1 - p.y0 + 1));
+      p.frame = p.fill > 0.92;
+    }
+    // The front and the back: named by their labels, else the two biggest garment-like shapes in reading order.
     for (const p of parts) if (p.role !== 'front' && p.role !== 'back') { p.role = null; p.label = ''; }
-    const [a, b] = [...parts].sort((m, n) => n.area - m.area).slice(0, 2);
+    const [a, b] = parts.filter((p) => !p.frame).sort((m, n) => n.area - m.area).slice(0, 2);
     const sideBySide = a && b && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0.5 * Math.min(a.y1 - a.y0, b.y1 - b.y0);
     const order = [a, b].filter(Boolean).sort((m, n) => (sideBySide ? m.x0 - n.x0 : m.y0 - n.y0));
     for (const role of ['front', 'back']) {
@@ -360,7 +420,7 @@ export function findPanels(image, labels = [], { drawing = false } = {}) {
   parts = parts.filter((p) => !p.merged);
   // Each panel's outline: the outer edge of its shapes, joined across the thin lines between them.
   const mask = new Uint8Array(w * h);
-  return parts.map((p, n) => {
+  const panels = parts.map((p, n) => {
     mask.fill(0);
     const ids = new Set(p.ids);
     for (let y = p.y0; y <= p.y1; y++) for (let x = p.x0; x <= p.x1; x++) if (ids.has(comp[y * w + x])) mask[y * w + x] = 1;
@@ -386,8 +446,12 @@ export function findPanels(image, labels = [], { drawing = false } = {}) {
     for (let y = p.y0; y <= p.y1 && sy < 0; y++) for (let x = p.x0; x <= p.x1; x++) if (mask[y * w + x]) { sx = x; sy = y; break; }
     let outline = simplify(trace(mask, w, h, sx, sy), 0.7).map(([x, y]) => [(x + 0.5) / k, (y + 0.5) / k]);
     if (area2(outline) < 0) outline = outline.reverse();
-    return { id: `p${n}`, role: p.role ?? 'none', label: p.label, x0: p.x0 / k, y0: p.y0 / k, x1: (p.x1 + 1) / k, y1: (p.y1 + 1) / k, outline };
+    // A drawing's shape that fills its box (`frame`: a detail panel or a photo, not a garment).
+    return { id: `p${n}`, role: p.role ?? 'none', label: p.label, x0: p.x0 / k, y0: p.y0 / k, x1: (p.x1 + 1) / k, y1: (p.y1 + 1) / k, outline, ...(drawing ? { frame: !!p.frame } : {}) };
   });
+  // A drawing on a plain white page, or a photo mock-up (its lighting and folds are part of the print it gives).
+  if (model) panels.plain = model.plain;
+  return panels;
 }
 
 /**
@@ -667,7 +731,7 @@ function addStyles() {
 .lay-card.none{opacity:.6}.lay-card.dup select{border-color:#e5484d}
 .lay-note{margin:0 16px;color:#ffb4a8;min-height:16px;font-size:12px}
 .lay-fold{display:flex;gap:8px;align-items:flex-start;margin:0 16px 6px;color:#cfe3ee;font-size:12.5px;line-height:1.4}.lay-fold[hidden]{display:none}.lay-fold input{margin-top:2px;accent-color:#12e1f0}
-.lay-garment{align-items:center}.lay-garment select{padding:6px 8px;border-radius:7px;border:1px solid #23506a;background:#06192a;color:#e8f4fb;font:inherit}
+.lay-warn{color:#ffd28a!important;font-weight:600}.lay-garment{align-items:center}.lay-garment select{padding:6px 8px;border-radius:7px;border:1px solid #23506a;background:#06192a;color:#e8f4fb;font:inherit}
 .lay-buttons{display:flex;gap:10px;justify-content:flex-end;padding:10px 16px 14px;border-top:1px solid #1d3a4c}
 .lay-buttons button{padding:9px 16px;border-radius:20px;border:1px solid #23506a;background:#06192a;color:#dbe7f0;font:600 13px Inter,system-ui,sans-serif;cursor:pointer}
 .lay-buttons .go{border:0;color:#02131c;background:linear-gradient(110deg,#12e1f0,#2f80ff)}
@@ -705,7 +769,7 @@ export const DRAWING_ROLES = { front: 'Front', back: 'Back', none: 'Not used' };
  * `garments`, `garment` chosen first) and its corners (`dots`: each panel's, page pixels) marked; resolves with
  * {roles, garment}.
  */
-export function confirmPanels(image, panels, fileName = 'Print layout', { drawing = false, garments = {}, garment = null, dots = [] } = {}) {
+export function confirmPanels(image, panels, fileName = 'Print layout', { drawing = false, garments = {}, garment = null, dots = [], usable = [], warning = '', remark = '' } = {}) {
   addStyles();
   // Which panels end in a hem fold strip, and which have a white line across (each choice is shown while a panel
   // it applies to has one).
@@ -713,7 +777,7 @@ export function confirmPanels(image, panels, fileName = 'Print layout', { drawin
   const lines = panels.map((p) => !drawing && whiteLines(image, p).length > 0);
   const names = drawing ? DRAWING_ROLES : ROLE_NAMES, safe = (s) => String(s).replace(/[<>&"]/g, '');
   const intro = drawing
-    ? `<b>DESIGN PICTURE · ${safe(fileName)}</b><p>Your design goes onto the 3D kit exactly as drawn: the front onto the front, the back onto the back, edge to edge. Check which is which and the garment, then put it on. The same picture always gives the same kit.</p>`
+    ? `<b>DESIGN PICTURE · ${safe(fileName)}</b>${warning ? `<p class="lay-warn">${safe(warning)}</p>` : ''}<p>Your design goes onto the 3D kit exactly as drawn: the front onto the front, the back onto the back, edge to edge. Check which is which and the garment, then put it on. The same picture always gives the same kit.${remark ? ` ${safe(remark)}` : ''}</p>`
     : `<b>PRINT LAYOUT · ${safe(fileName)}</b><p>${panels.length} panel${panels.length === 1 ? '' : 's'} found. Check what each one is, then put the layout on the 3D kit. The same file always gives the same kit.</p>`;
   const choice = drawing ? `<label class="lay-fold lay-garment">Garment <select>${Object.entries(garments).map(([v, n]) => `<option value="${safe(v)}"${v === garment ? ' selected' : ''}>${safe(n)}</option>`).join('')}</select></label>` : '';
   return new Promise((resolve) => {
@@ -727,7 +791,7 @@ export function confirmPanels(image, panels, fileName = 'Print layout', { drawin
       card.className = 'lay-card';
       card.append(thumbnail(image, p, 220, dots[i] ?? []));
       const small = document.createElement('small');
-      small.textContent = drawing ? (p.role === 'none' ? 'Not part of the garment?' : `The ${p.role} of the garment`) : p.label ? `Label: ${p.label}` : 'No label found';
+      small.textContent = drawing ? (usable[i] === false ? 'Not a garment shape' : p.role === 'none' ? 'Not part of the garment?' : `The ${p.role} of the garment`) : p.label ? `Label: ${p.label}` : 'No label found';
       const sel = document.createElement('select');
       sel.innerHTML = Object.entries(names).map(([v, n]) => `<option value="${v}"${v === p.role ? ' selected' : ''}>${n}</option>`).join('');
       card.append(small, sel);
@@ -745,9 +809,12 @@ export function confirmPanels(image, panels, fileName = 'Print layout', { drawin
         card.classList.toggle('none', sel.value === 'none');
       }
       const top = counts.front || counts.back, legs = counts.legL || counts.legR;
+      // A drawing's front and back must be garment shapes (not a detail panel, a photo or the background).
+      const odd = drawing && selects.some(({ sel }, i) => (sel.value === 'front' || sel.value === 'back') && usable[i] === false);
       note.textContent = dup ? (drawing ? 'Two pictures are named the same: one front and one back.' : 'Two panels have the same name: each part can have one panel only.')
-        : !top && !legs ? (drawing ? 'Name the front or the back of the garment.' : 'Name at least one panel (a body panel or a shorts leg).') : '';
-      go.disabled = dup || (!top && !legs);
+        : !top && !legs ? (drawing ? 'Name the front or the back of the garment.' : 'Name at least one panel (a body panel or a shorts leg).')
+          : odd ? 'A shape named front or back is not a garment shape: name only the garment’s front and back.' : '';
+      go.disabled = dup || (!top && !legs) || odd;
       fold.hidden = !selects.some(({ sel }, i) => (sel.value === 'front' || sel.value === 'back') && folds[i]);
       join.hidden = !selects.some(({ sel }, i) => (sel.value === 'sleeveL' || sel.value === 'sleeveR') && lines[i]);
     };

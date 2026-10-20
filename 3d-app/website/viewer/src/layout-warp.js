@@ -174,7 +174,7 @@ export function drawingSides(o) {
   const c = {};
   // The neck: the dip at the top nearest the middle; its ends are the top of the straps. Level strap tops lie on the
   // line the dip spans (from one strap's outer corner to the other's): the neck starts where the outline drops away.
-  const neck = dips.filter((p) => p.depth > 0.015 * H && p.midY < y0 + 0.3 * H).sort((a, b) => Math.abs(a.midX - cx) - Math.abs(b.midX - cx))[0];
+  const neck = dips.filter((p) => p.depth > 0.008 * H && p.midY < y0 + 0.3 * H && Math.abs(p.midX - cx) < 0.25 * W).sort((a, b) => Math.abs(a.midX - cx) - Math.abs(b.midX - cx))[0];
   if (neck) {
     const [a, b] = [o[neck.i], o[neck.j]], l = len(a, b) || 1;
     const below = (k) => Math.abs((o[k][0] - a[0]) * (b[1] - a[1]) - (o[k][1] - a[1]) * (b[0] - a[0])) / l;
@@ -200,7 +200,12 @@ export function drawingSides(o) {
     }
   }
   const order = ['Nl', 'Nr', 'Sr', 'Ur', 'Hr', 'Hl', 'Ul', 'Sl'];
-  const inOrder = order.every((k) => c[k] != null) && order.every((k, i) => i === 0 || (c[k] - c.Nl + n) % n > (c[order[i - 1]] - c.Nl + n) % n);
+  // Each corner where a garment's is: in order round the outline, the neck and straps at the top, the underarms
+  // between, the hem's corners at the bottom, the left ones left of the right ones.
+  const at = (k, f, lo, hi) => (o[c[k]][f] - (f ? y0 : x0)) / (f ? H : W) >= lo && (o[c[k]][f] - (f ? y0 : x0)) / (f ? H : W) <= hi;
+  const inOrder = order.every((k) => c[k] != null) && order.every((k, i) => i === 0 || (c[k] - c.Nl + n) % n > (c[order[i - 1]] - c.Nl + n) % n)
+    && ['Nl', 'Nr'].every((k) => at(k, 1, 0, 0.2)) && ['Sl', 'Sr'].every((k) => at(k, 1, 0, 0.35)) && ['Ul', 'Ur'].every((k) => at(k, 1, 0.15, 0.65))
+    && ['Hl', 'Hr'].every((k) => at(k, 1, 0.8, 1)) && at('Sl', 0, 0, 0.5) && at('Sr', 0, 0.5, 1) && at('Ul', 0, 0, 0.35) && at('Ur', 0, 0.65, 1);
   if (!inOrder) {
     // The singlet's own corners in the drawing's box, each at the nearest point of the outline.
     const at = DRAWN.singlet, half = at.H[0], top = at.N[1];

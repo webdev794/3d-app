@@ -309,6 +309,11 @@ async function readLayoutFile(src, drawing = false) {
   if (drawing) orderDrawing(found);
   return { image, found };
 }
+/** A drawing's shape is a garment: not a detail panel or photo (frame), upright, its neck, straps and underarms found. */
+function garmentShape(p) {
+  const w = p.x1 - p.x0, h = p.y1 - p.y0;
+  return !p.frame && h > 0.75 * w && h < 2.4 * w && drawingSides(p.outline).found;
+}
 /** The key a file read is kept by (a drawing is read differently from a print layout). */
 const fileKey = (asset, drawing) => (drawing ? `drawing:${asset}` : asset);
 /** The garments a drawing can go on, as the hosts name them. */
@@ -421,12 +426,25 @@ async function checkLayout({ id, src, name = 'Print layout', asset = null, drawi
     if (asset != null) { keepFile(fileKey(asset, drawing), file); layoutMissing.delete(asset); }
     // The host hides its own buttons over the 3D view while the check screen is open.
     post({ type: 'modal', open: true });
-    const options = drawing ? {
-      drawing: true,
-      garments: Object.fromEntries(Object.keys(DRAWN).map((g) => [g, DRAWN_NAMES[g] ?? g])),
-      garment: drawnGarment(garment, design.garment),
-      dots: file.found.map((p) => Object.values(drawingSides(p.outline).corners).map((k) => p.outline[k])),
-    } : {};
+    let options = {};
+    if (drawing) {
+      // Only garment shapes are named front and back (a mock-up's detail panels, a photo's shapes are not); with no
+      // clean pair the person is told, and chooses (the check screen will not put a non-garment shape on the kit).
+      const usable = file.found.map(garmentShape);
+      file.found.forEach((p, i) => { if (!usable[i]) p.role = 'none'; });
+      const big = Math.max(0, ...file.found.filter((_, i) => usable[i]).map((p) => (p.x1 - p.x0) * (p.y1 - p.y0)));
+      const many = file.found.filter((p, i) => usable[i] && (p.x1 - p.x0) * (p.y1 - p.y0) > 0.5 * big).length > 2;
+      const named = file.found.filter((p) => p.role === 'front' || p.role === 'back').length;
+      options = {
+        drawing: true,
+        garments: Object.fromEntries(Object.keys(DRAWN).map((g) => [g, DRAWN_NAMES[g] ?? g])),
+        garment: drawnGarment(garment, design.garment),
+        dots: file.found.map((p, i) => (usable[i] ? Object.values(drawingSides(p.outline).corners).map((k) => p.outline[k]) : [])),
+        usable,
+        warning: !named || many ? 'This looks like a photo or presentation mockup. Use your flat design (front and back drawn side by side), or choose the front and back below.' : '',
+        remark: file.found.plain === false ? 'This picture is a photo mockup: its lighting and folds are printed onto the 3D kit as they are (a flat drawing gives the cleanest kit).' : '',
+      };
+    }
     const choice = await confirmPanels(file.image, file.found, name, options).finally(() => post({ type: 'modal', open: false }));
     if (!choice) { post({ type: 'layout', id, cancelled: true }); return; }
     const used = namePanels(file.image, file.found, choice.roles, !drawing && choice.fold);
