@@ -2,6 +2,7 @@ import { ArrowRight, Box, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GarmentIcon from './GarmentIcon';
 import { Sparkle } from './Assist';
+import { media } from '../api';
 import '../../css/order-now.css';
 
 /**
@@ -14,7 +15,7 @@ export default function OrderNow() {
   return <section className="order-now" id="order-now" aria-labelledby="order-now-title" data-assist-fold="">
     <div className="on-haze" aria-hidden="true" />
     <div className="on-inner">
-      <h2 id="order-now-title" className="on-title">ORDER NOW WITH <span className="on-wordmark-glow" aria-hidden="true"><span className="on-wordmark" /></span><span className="on-sr">3DEEZI</span></h2>
+      <h2 id="order-now-title" className="on-title">ORDER NOW WITH <span className="on-wordmark-glow"><img className="on-wordmark" src={media('images/brand-wordmark.png')} alt="3DEEZI" width={1628} height={233} decoding="async" /></span></h2>
       <p className="on-sub">Start an order. Upload your details. Follow its progress.</p>
       <div className="on-tiles">
         <Link to="/orders/new" className="on-tile on-tile-form" aria-label="Create order form: let 3DEEZI Assist help build your order form">

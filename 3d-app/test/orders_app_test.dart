@@ -259,7 +259,8 @@ void main() {
     final server = OrdersServer();
     final c = signedIn(server);
     await mount(tester, ListView(children: [OrderNowSection(c)]));
-    expect(find.text('ORDER NOW WITH 3DEEZI'), findsOneWidget);
+    expect(find.text('ORDER NOW WITH'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '3DEEZI'), findsOneWidget);
     await tap(tester, find.text('VIEW MY ORDERS →'));
     expect(c.screen, AppScreen.orders);
     c.user = null;

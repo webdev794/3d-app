@@ -132,7 +132,7 @@ In the Studio, with the Leopards print layout on (Artwork → Factory print layo
 ### 15. 3DEEZI Rewards banner and the chat on the homepage
 1. At the bottom of the homepage: a gift box, 3DEEZI REWARDS, "Something rewarding is on the way." and a **COMING SOON** pill (not clickable). It and ORDER NOW are full width.
 2. On a computer (window 1200 px or wider) the chat opens by itself at the top. Scroll down to ORDER NOW: the chat folds into its button. Scroll back up: it opens again.
-3. Close the chat yourself at the top: it stays closed, and the three creation cards stretch to the full width.
+3. The three creation cards always use the full width, with the chat open or closed; the open chat floats over the right card.
 
 ### 22. New footer and pages
 1. At the bottom of the homepage (and other pages, but not the Studio, Artboard or Admin):

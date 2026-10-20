@@ -885,7 +885,20 @@ class OrderNowSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('ORDER NOW WITH 3DEEZI', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: 1)),
+        // 3DEEZI as the logo (white 3D, cyan-blue EEZI), as on the website's homepage.
+        Semantics(
+          label: 'ORDER NOW WITH 3DEEZI',
+          excludeSemantics: true,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            children: [
+              const Text('ORDER NOW WITH', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: 1)),
+              Image.asset('assets/images/brand-wordmark.png', height: 16, semanticLabel: '3DEEZI'),
+            ],
+          ),
+        ),
         const SizedBox(height: 4),
         const Text('Start an order. Upload your details. Follow its progress.', textAlign: TextAlign.center, style: TextStyle(color: Palette.muted, fontSize: 12.5)),
         const SizedBox(height: 14),
