@@ -36,11 +36,11 @@
 .showcase-actions{display:flex;gap:10px;flex-wrap:wrap}
 .prompt-chips button.selected{border-color:#00dbea;color:#00dbea}
 /* Quick access to AI Powered Sportswear and Design Your Own beside Start a kit (in the menu on phones). */
-.quick-tabs{display:flex;gap:6px;align-items:center}
-.quick-tab{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 11px;border-radius:999px;border:1px solid #00d9ed55;background:#06121b;color:#cfeff3;font-family:var(--heading);font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;transition:border-color .2s,box-shadow .2s,color .2s}
-.quick-tab:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 12px #00d9ed55}
-.quick-tab.is-ai{border-color:transparent;color:#02131c;background:linear-gradient(110deg,var(--cyan),#7a5cff)}
-.quick-tab.is-ai:hover{color:#02131c;box-shadow:0 0 16px #00d9ed88}
+/* AI and DYO, as the Artboard quick-access pills (client design): equal gradient pills, icon left, as tall as Start a kit; they scale with the window so the header never overlaps. */ .quick-tabs{display:flex;gap:clamp(5px,.45vw,8px);align-items:center}
+.quick-tab{display:inline-flex;align-items:center;justify-content:flex-start;white-space:nowrap;gap:clamp(5px,.5vw,9px);height:clamp(34px,3vw,41px);min-width:clamp(64px,5.6vw,112px);padding:0 clamp(9px,.9vw,16px);border:0;border-radius:999px;color:#fff;background:linear-gradient(100deg,#1fd8f3 0%,#6c63f6 50%,#1fd8f3 100%);background-size:200% 100%;background-position:0 0;box-shadow:inset 0 0 0 1px #ffffff33;font-family:var(--heading);font-size:clamp(11px,.95vw,15px);font-weight:700;letter-spacing:.05em;cursor:pointer;transition:background-position .45s ease,transform .2s ease,box-shadow .2s ease} .quick-tab svg{width:1.3em;height:1.3em;flex:none;transition:transform .25s ease}
+.quick-tab:hover{color:#fff;background-position:100% 0;transform:translateY(-1px) scale(1.04);box-shadow:inset 0 0 0 1px #ffffff55,0 0 16px #12e1f0aa,0 0 26px #7560ff77} .quick-tab:hover svg{transform:rotate(-12deg) scale(1.15)}
+
+
 .nav-quick{display:none}
 @media(max-width:800px){.quick-tabs{display:none}.main-nav .nav-quick{display:flex;align-items:center;gap:9px;height:45px;padding:0;background:none;border:0;color:var(--cyan);font-family:var(--heading);font-size:15px;font-weight:700;text-transform:uppercase;text-align:left;cursor:pointer}.main-nav .nav-quick:first-of-type{border-top:1px solid #00d9ed22;margin-top:6px}}
 /* 801–1100 px: the eight links do not fit beside the logo and buttons, so they open from the menu button as on phones. */
