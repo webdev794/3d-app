@@ -328,6 +328,52 @@ export function drawnCut(panel, base) {
   return { ...base, half, armhole: { x0: S[0] - 0.003, y0: U[1] - 0.005, x1: U[0] + 0.004 }, pit: [...U], points: { N: at.N, S: [...S], U: [...U], H, T: at.T } };
 }
 
+/** A sleeved top's arm (worn.js): from the middle of its armhole towards the middle of its cuff (garment metres). */
+const ARMHOLE = [0.258, 0.609];
+
+/**
+ * A sleeved top (`base`: its garment.js spec, `kind`: jersey, tee or polo) with sleeves `f` times as long: each sleeve
+ * point moved along the arm by its distance from the armhole, so the cuff keeps its width and slant. With where its
+ * corners are (`points`, for regionsFor and texture.js).
+ */
+export function sleeveCut(base, kind, f) {
+  const at = DRAWN[kind], mid = [(at.CT[0] + at.CB[0]) / 2, (at.CT[1] + at.CB[1]) / 2];
+  const l = Math.hypot(mid[0] - ARMHOLE[0], mid[1] - ARMHOLE[1]), dx = (mid[0] - ARMHOLE[0]) / l, dy = (mid[1] - ARMHOLE[1]) / l;
+  const move = ([x, y]) => {
+    if (x <= at.U[0] + 1e-6) return [x, y];
+    const t = (x - ARMHOLE[0]) * dx + (y - ARMHOLE[1]) * dy;
+    return [x + (f - 1) * t * dx, y + (f - 1) * t * dy];
+  };
+  const CT = move(at.CT), CB = move(at.CB);
+  return { ...base, half: base.half.map(move), cuff: [CT, CB], points: { ...at, CT, CB } };
+}
+
+/**
+ * A sleeved top cut like a garment drawing (`panel`: its front): its sleeves as long as drawn, measured along the 3D
+ * sleeve's arm at the garment's size (the neck's ends at the top, the hem's corners at the bottom), within what the
+ * 3D arm takes (half to 1.3 times its own). Null when the drawing's sleeves are its own length (within 6 %) or its
+ * corners were not found: the 3D garment stays as it is. `sleeve`: {drawn, made} lengths, as parts of the 3D one's.
+ */
+export function drawnSleeves(panel, kind, base) {
+  const at = DRAWN[kind];
+  if (!at?.CT || !base) return null;
+  const o = panel.outline, d = drawingSides(o, true);
+  if (!d.found) return null;
+  const c = d.corners, P = (k) => o[c[k]];
+  const top = (P('Nl')[1] + P('Nr')[1]) / 2, bottom = (P('Hl')[1] + P('Hr')[1]) / 2;
+  if (bottom - top < 1) return null;
+  const s = (at.N[1] - at.H[1]) / (bottom - top), centre = (P('Hl')[0] + P('Hr')[0] + P('Ul')[0] + P('Ur')[0]) / 4;
+  const toG = ([x, y], mirror) => [(mirror ? centre - x : x - centre) * s, at.N[1] - (y - top) * s];
+  const cuffMid = (a, b, mirror) => toG([(P(a)[0] + P(b)[0]) / 2, (P(a)[1] + P(b)[1]) / 2], mirror);
+  const mid = [(at.CT[0] + at.CB[0]) / 2, (at.CT[1] + at.CB[1]) / 2];
+  const l = Math.hypot(mid[0] - ARMHOLE[0], mid[1] - ARMHOLE[1]), dx = (mid[0] - ARMHOLE[0]) / l, dy = (mid[1] - ARMHOLE[1]) / l;
+  const along = ([x, y]) => (x - ARMHOLE[0]) * dx + (y - ARMHOLE[1]) * dy;
+  const f = (along(cuffMid('CTr', 'CBr', false)) + along(cuffMid('CTl', 'CBl', true))) / (2 * l);
+  if (!(f > 0) || Math.abs(f - 1) < 0.06) return null;
+  const made = Math.max(0.5, Math.min(1.3, f));
+  return { ...sleeveCut(base, kind, made), sleeve: { drawn: f, made } };
+}
+
 /** A garment drawing's front and back the right way round: the front's neck opening is the deeper one. */
 export function orderDrawing(panels) {
   const front = panels.find((p) => p.role === 'front'), back = panels.find((p) => p.role === 'back');

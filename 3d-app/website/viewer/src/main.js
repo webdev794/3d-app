@@ -13,7 +13,7 @@ import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt } from './zones.js';
 import { readLayout, findPanels, confirmPanels, hemFold, joinLines, drawPockets, ROLE_NAMES } from './layout.js';
-import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, sleevedShape } from './layout-warp.js';
+import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, drawnSleeves, sleevedShape } from './layout-warp.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent) || params.has('mobile');
@@ -370,7 +370,8 @@ async function prepareLayout() {
   if (drawing) {
     // A singlet is cut like the drawing (its straps, armholes and sides), so the print goes on with its shapes kept.
     const front = panels.find((p) => p.role === 'front') ?? panels.find((p) => p.role === 'back');
-    const cut = garment === 'singlet' && front ? drawnCut(front, SPECS.singlet) : null;
+    // A jersey, tee or polo takes the drawing's sleeve length.
+    const cut = !front ? null : garment === 'singlet' ? drawnCut(front, SPECS.singlet) : DRAWN[garment]?.CT ? drawnSleeves(front, garment, SPECS[garment]) : null;
     layout = { key, image: file.image, panels, drawing: true, garment, cut };
     document.body.dataset.layout = String(want.asset);
     return;
