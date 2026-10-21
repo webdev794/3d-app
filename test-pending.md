@@ -71,7 +71,26 @@ Finished work that I have checked myself, with how to test each item. When somet
 - **On this computer (test mode, no keys):** a customer's unpaid invoice → **Pay now** → the TEST form → **Approve**: Paid with a receipt; **Decline** on another: "Payment failed", and trying again works. **(admin)** Admin › Pricing › Online payments shows "Test mode" and the Airwallex webhook address with a copy button.
 - **With the client's demo keys (later):** Admin › Pricing › Online payments shows "Airwallex connected (demo)". Pay an invoice: Airwallex's page opens (our page shows an AIRWALLEX DEMO banner); pay with an Airwallex test card → back on the invoice: "Confirming your payment…", then **Paid** with the card's last 4 digits and a receipt. Also: a declined test card; Back on Airwallex's page ("The payment wasn't completed"); **(admin)** Admin › Invoices › Refund → Refunded, and the refund shows in Airwallex; in the app, Pay now → pay → the order shows Paid.
 
+### 7d. App: Pay now in the phone's browser (2026-10-21, needs an app build on a phone)
+1. App → Orders → an order with an unpaid invoice → **PAY NOW**: the phone's browser (Chrome or Safari) opens the pay page, already signed in.
+2. Test mode: **Approve** → "Payment received" → switch back to the app: the order shows **Paid** within a moment.
+3. With Airwallex demo keys: Airwallex's page shows Card, plus Google Pay (Android) or Apple Pay (iPhone with a card in Wallet).
+4. Switch back without paying: still Awaiting payment, and Pay now works again.
+5. In the web app preview (http://127.0.0.1:8088), Pay now opens a new tab as before.
+
 ## Website: 3D and design
+
+### 8. AI designer page, new design (2026-10-21)
+1. Click the cyan **AI** button at the top right (or http://127.0.0.1:8000/create/ai). You see the big 3DEEZI logo, "DESIGN WITHOUT LIMITS", one bar "Describe your design..." and a row of sport photos.
+2. Click **Basketball**: it gets a teal frame and the page stays put (click again to clear it).
+3. The picture button in the bar: choose a logo; a small copy appears inside the bar.
+4. Type a brief and press the round teal arrow (signed out: sign in, then it starts by itself with your text, logo and sport).
+5. On the results, **Refine your brief**: your text, logo and sport are still there.
+6. Choose **Fishing**, type a brief without a garment: buttons ask which garment; tap one and it starts.
+7. **+** in the bar: "Attach logos or artwork" and suggestions such as "Club polo".
+8. Paste a very long text: it is kept up to 4,000 characters, with a counter near the end and no error.
+9. While it generates, the "Creating your design…" circle shows the spinning 3DEEZI emblem; with the HD mockup on, the "Rendering your HD mockup…" circle shows the same small glowing emblem inside the circle, with no grey square.
+10. On a phone the bar stays in the middle and the sports row swipes. **App:** AI Designer shows the same; tap Netball, type, tap the arrow, choose the garment.
 
 ### 8a. AI designer like ChatGPT, and MAKE IT 3D (2026-10-21) (AI credit)
 1. Header **AI** → Training, Singlet. Brief: "Create a cool training singlets using this for the theme and main logo"; attach the BLITZ logo; HD mockup ticked → CREATE.
@@ -79,6 +98,14 @@ Finished work that I have checked myself, with how to test each item. When somet
 3. **MAKE IT 3D** (about a minute): a flat front and back sheet appears (also in Assets), the Studio's check screen, then the design on the 3D singlet.
 4. The same in the app (AI designer → mockup card → MAKE IT 3D).
 5. A brief asking for a white studio background gets one; an attached complete design is kept exactly.
+
+### 8c. MAKE IT 3D and the AI designer fixes (testing round, 2026-10-21) (AI credit)
+1. Generate with the HD mockup on, then **MAKE IT 3D**: while it draws, CUSTOMISE IN 3D STUDIO is greyed out. About a minute later the Studio opens with the check screen; put it on: your design is on the kit. No "3D preview could not load", no "Creating AI print".
+2. Press MAKE IT 3D, then at once "Refine your brief" (or another page): you stay where you are; the sheet waits in Assets.
+3. Generate with the mockup on, Refine, switch the mockup off and generate a new brief: the old mockup does not appear.
+4. Fight Wear tile, a brief without a garment, pick Shorts; then the Fishing tile and a brief without a garment: the Fishing garment chips appear.
+5. Convert: PUT MY DESIGN ON THE 3D KIT, then Convert again → CONVERT TO 3D → OPEN IN 3D STUDIO: the Studio shows the converted kit, not the old picture.
+6. **App:** concepts → MAKE IT 3D → Back: you stay on the brief and see "Your print sheet is ready in Assets › Artwork."
 
 ### 8b. Design your own: "Choose your sport" tiles (2026-10-21)
 1. Home → **START DESIGNING** (or the **DYO** pill in the header). Under the heading: **ALL · SPORTS · APPAREL** and one row of tiles, with RUGBY LEAGUE glowing.
@@ -127,6 +154,16 @@ Studio → Artwork → **MY DESIGN PICTURE** → upload the AI HD mockup (3deezi
 2. Drag the kit round slowly, then click Front, Back, Side and 360°: nothing in the background slides, tilts or jumps; only the kit turns.
 3. Zoom in and out and drag up and down: still no hard line.
 4. The same on a phone, in the app, on the AI designer results and on Convert.
+
+### 9e. Presets and a design picture (testing round, 2026-10-21)
+1. AI → MAKE IT 3D (or Artwork → My design picture), so the kit shows your design picture.
+2. Click any **Preset design**: the 3D kit changes to the preset and a notice says it replaced your design picture. Click another preset: it changes again.
+3. Undo twice: the first preset, then the design picture come back. Or Artwork → My design picture → **Put my design picture back**.
+4. The same with a factory print layout (Leopards PDF): **Put the print layout back**.
+5. With a design picture on, click a pattern, a palette or CHOOSE GRADIENT: the change shows, the picture comes off with a notice, Undo brings it back. Typing a player number or switching to Jersey keeps the picture on.
+6. Set a Secondary gradient, then choose a preset: no gradient is left and the preset shows its tick.
+7. **App:** add a text or logo, then choose a preset: the text or logo stays.
+8. **Phone (390 px):** the Ask bar reads "Ask 3DEEZI…" and scrolling shows the Colours tabs above it.
 
 ### 9b. My design picture for jersey, tee and polo, and Convert
 1. Studio → Artwork → My design picture: upload a flat **jersey** drawing (front and back side by side). The check screen says Garment: Jersey, with front and back named. Click Put on the 3D kit. Check front, back and side: the pattern, the logos, the sleeves and round crests.
@@ -192,6 +229,13 @@ In the Studio, with the Leopards print layout on (Artwork → Factory print layo
 5. Over the rulers, toolbox, menus, bars and panels: the arrow; in boxes you type in (X, Y, sizes): the text cursor.
 6. Other tools keep their own cursors (crosshair for shapes, hand for Pan, zoom glass, eyedropper).
 
+### 14d. Artboard ↔ 3D Studio round trip (QA, 2026-10-21; automated in the QA tests, no code change needed)
+1. Sign in, open the Artboard, draw a shape and add a text. Rename the shape, use the eye, lock and Bring forward in Layers, then Undo and Redo: the Layers list follows each step.
+2. **File › Save to my account**: the name shows on the status bar.
+3. **Send to 3D Studio › Send**: the Studio opens with the artwork on the left chest.
+4. In the Studio, select that layer › **Edit in Artboard**: the same design opens. Change a colour › Send again: the button reads "Update on the kit" and the same layer updates (no second layer).
+5. The AI, DYO and HOME pills on the Artboard top bar open the right pages; back on the Artboard the design is still there.
+
 ## Homepage
 
 ### 15. 3DEEZI Rewards banner and the chat on the homepage
@@ -203,6 +247,11 @@ In the Studio, with the Leopards print layout on (Artwork → Factory print layo
 1. At the top right, next to **Start a kit**: **AI** and **DYO** are equal pills in the cyan-to-violet gradient, with the icon on the left, as tall as Start a kit (like the Artboard's buttons).
 2. Hover: the gradient moves, the pill glows and the icon turns slightly.
 3. Make the window narrower: the pills shrink and never overlap the menu; below 800 px they are in the menu.
+
+### 15c. Fixes from the testing round (2026-10-21)
+1. **Homepage chat:** on a 1440×900 screen the chat is open at the top; scroll down to ORDER NOW and it folds; scroll back up and it opens again. On a large monitor (2560 wide) it is open at load.
+2. **ORDER NOW on a phone** (or a window 390 / 600 px wide): "Create order form" and "Upload your order" show their pictures full width.
+3. **App Profile:** signed out it shows "Guest" (not "Alex Morgan"); signed in, your own name.
 
 ### 22. New footer and pages
 1. At the bottom of the homepage (and other pages, but not the Studio, Artboard or Admin):

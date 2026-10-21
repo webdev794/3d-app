@@ -53,6 +53,7 @@ Customers pay on Airwallex's secure payment page (card, Apple Pay, Google Pay); 
    Copy the webhook's **secret** into `AIRWALLEX_WEBHOOK_SECRET`.
 4. **Payment methods:** Payments › Settings: make sure cards, **Apple Pay** and **Google Pay** are on. Apple Pay needs no domain check with Airwallex's payment page.
 5. **Currencies:** AUD (prices and invoices are in AUD with 10% GST for Australia). The Airwallex account is in New Zealand: check that it may take AUD card payments and which wallet the money settles into.
+   - **Decide before launch: selling in New Zealand?** Today the whole site uses one currency (AUD) and one tax rate (Australian GST 10%). If the client also sells to New Zealand customers in NZD with NZ GST (15%), the site needs a currency and tax rate per delivery country (a small change); Airwallex itself already takes NZD.
 6. **Test in demo:** pay an invoice with an Airwallex test card; it shows Paid, the receipt arrives, and the webhook shows delivered in Airwallex. Try a declined test card and a refund too.
 7. **Go live:** in the **live** account, create live API keys and the same webhook (its own secret), then set them in the live `.env` with `AIRWALLEX_ENV=prod`. Admin › Pricing › Online payments then says "Airwallex connected (live)".
 

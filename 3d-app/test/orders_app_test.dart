@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/screens/ai_designer.dart';
+import 'package:three_deezi/screens/library.dart' show ProfileScreen;
 import 'package:three_deezi/screens/order_entry.dart';
 import 'package:three_deezi/screens/orders_board.dart';
 
@@ -290,5 +291,23 @@ void main() {
     final sent = server.submitted.single;
     expect(sent['team_name'], 'Lions FC');
     expect((sent['items'] as List).single['sizes'], {'M': 10});
+  });
+
+  testWidgets('Profile: a guest is "Guest", never the demo name; signed in it is the account name', (tester) async {
+    // QA 2026-10-21 (from D): the profile showed "Alex Morgan" (AppController.name's demo default) to everyone.
+    final c = AppController(store: FakeStore());
+    await mount(tester, ProfileScreen(c));
+    expect(find.text('Guest'), findsOneWidget);
+    expect(find.text('Alex Morgan'), findsNothing);
+    expect(find.text('Guest · projects stay on this device'), findsOneWidget);
+    c.user = const ApiUser(id: 1, name: 'Fabian Soutar', email: 'fab@example.test');
+    await mount(tester, ProfileScreen(c));
+    expect(find.text('Fabian Soutar'), findsOneWidget);
+    expect(find.text('fab@example.test'), findsOneWidget);
+    expect(find.text('Alex Morgan'), findsNothing);
+    // An account without a name shows its email.
+    c.user = const ApiUser(id: 2, name: ' ', email: 'noname@example.test');
+    await mount(tester, ProfileScreen(c));
+    expect(find.text('noname@example.test'), findsNWidgets(2));
   });
 }

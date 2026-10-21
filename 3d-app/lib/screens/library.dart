@@ -585,8 +585,14 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            // The account's own name (its email when it has none); a guest is
+            // "Guest", never the demo name in AppController.name.
             Text(
-              c.name,
+              c.signedIn
+                  ? (c.user!.name.trim().isNotEmpty
+                        ? c.user!.name.trim()
+                        : c.user!.email)
+                  : 'Guest',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
             ),

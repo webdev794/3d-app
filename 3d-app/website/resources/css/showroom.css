@@ -200,7 +200,7 @@
 .mockup-result h2{font-family:var(--heading);font-size:34px;margin:10px 0}.mockup-result h2 span{color:var(--cyan)}
 .mockup-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
 .mockup-frame{aspect-ratio:3/2;border-radius:12px;overflow:hidden;background:#05090d;border:1px solid #00d9ed44}
-.mockup-frame img{width:100%;height:100%;object-fit:contain;background:#d9dadc}
+.mockup-frame>img{width:100%;height:100%;object-fit:contain;background:#d9dadc}
 .convert-layout{display:grid;grid-template-columns:1.4fr 1fr;gap:24px}
 .convert-drop{min-height:440px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#c9d6e2;cursor:pointer;padding:20px;border-style:dashed!important}
 .convert-drop svg{color:var(--cyan)}.convert-drop span{color:#8d9fb3;font-size:12px}

@@ -153,6 +153,10 @@ class AppController extends ChangeNotifier {
   String mode = 'AI';
   String brief = '';
   final List<Uint8List> references = [];
+
+  /// The sport and garment chosen on the AI Designer (a sports tile, the
+  /// brief's own words or a garment chip), or null to let the AI pick.
+  String? aiSport, aiGarment;
   BriefMode? briefMode;
   List<Concept> concepts = [];
   int selectedConcept = 0;
@@ -476,20 +480,50 @@ class AppController extends ChangeNotifier {
         'Save the project to keep it.';
   }
 
-  /// Replaces styling as one undo step; artwork is preserved when absent.
+  /// Replaces the look (colours, pattern, gradients, area patterns) as one
+  /// undo step. It also takes off an AI print and a design picture or print
+  /// layout, which would hide it ([shelvedLayouts] keeps them to put back);
+  /// the artwork layers, logos and player details stay, as on the website.
   void applyPreset(Map<String, dynamic> design) => edit(() {
     if (design['main'] != null) mainColor = ProjectSync.color(design['main']);
     if (design['secondary'] != null) {
       secondaryColor = ProjectSync.color(design['secondary']);
     }
-    if (design['accent'] != null)
+    if (design['accent'] != null) {
       accentColor = ProjectSync.color(design['accent']);
+    }
     if (design['pattern'] is String) pattern = design['pattern'] as String;
     gradient = copyGradient(design['gradient']);
     gradients = copyGradient(design['gradients']);
     zones = copyZones(design['zones']);
-    if (design.containsKey('layers')) layers = copyLayers(design['layers']);
+    patternTile = null;
+    layout = copyLayout(design['layout']);
   });
+
+  /// The last design picture ('drawing') and print layout ('print') on the
+  /// kit in this visit, with the garment they were on: a preset or Remove
+  /// takes them off, and the Artwork tool puts them back.
+  final Map<String, ({Map<String, dynamic> layout, String garment})>
+  shelvedLayouts = {};
+  void _shelveLayout() {
+    final on = copyLayout(layout);
+    if (on == null) return;
+    shelvedLayouts[on['kind'] == 'drawing' ? 'drawing' : 'print'] = (
+      layout: on,
+      garment: garment,
+    );
+  }
+
+  /// Puts the shelved design picture or print layout ([kind] 'drawing' or
+  /// 'print') back on the kit as one undo step.
+  void putLayoutBack(String kind) {
+    final back = shelvedLayouts[kind];
+    if (back == null) return;
+    edit(() {
+      garment = back.garment;
+      layout = copyLayout(back.layout);
+    });
+  }
 
   // ---------- renders and the studio
   Uint8List? renderFront, renderBack;
@@ -888,8 +922,37 @@ class AppController extends ChangeNotifier {
   }
 
   void update(VoidCallback change) {
+    final uncover = _coverCheck();
     change();
+    uncover?.call();
     notifyListeners();
+  }
+
+  /// The colours, pattern, AI print and gradients: what a design picture or
+  /// print layout hides.
+  String get _look => jsonEncode([
+    ProjectSync.hex(mainColor),
+    ProjectSync.hex(secondaryColor),
+    ProjectSync.hex(accentColor),
+    pattern,
+    identityHashCode(patternTile),
+    zones,
+    gradient,
+    gradients,
+  ]);
+
+  /// A design picture or print layout is painted instead of the colours,
+  /// pattern and gradients: a change to them takes it off so the change
+  /// shows ([shelvedLayouts] and Undo put it back). Taken before a change;
+  /// the answer, called after it, does that (null without a layout).
+  VoidCallback? _coverCheck() {
+    if (layout == null) return null;
+    final look = _look, was = jsonEncode(layout);
+    return () {
+      if (layout != null && jsonEncode(layout) == was && _look != look) {
+        layout = null;
+      }
+    };
   }
 
   // ---------- kit edits with Undo/Redo
@@ -939,6 +1002,7 @@ class AppController extends ChangeNotifier {
     gradients = copyGradient(k.gradients);
     marks = copyMarks(k.marks);
     layout = copyLayout(k.layout);
+    _shelveLayout();
     if (!layers.any((layer) => layer['id'] == selectedLayerId)) {
       selectedLayerId = null;
     }
@@ -946,10 +1010,14 @@ class AppController extends ChangeNotifier {
 
   /// Changes the kit and records the previous state for Undo.
   void edit(VoidCallback change) {
+    _shelveLayout();
     _undo.add(kit);
     if (_undo.length > 50) _undo.removeAt(0);
     _redo.clear();
+    final uncover = _coverCheck();
     change();
+    uncover?.call();
+    _shelveLayout();
     saved = false;
     mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
@@ -987,6 +1055,7 @@ class AppController extends ChangeNotifier {
   // ---------- starting points
   void _resetDesign() {
     _restore(_sampleKit(1, 'Jersey'));
+    shelvedLayouts.clear();
     logoText = backName = 'MANTIS';
     number = '23';
     mainColor = const Color(0xff0b1016);
@@ -1015,6 +1084,7 @@ class AppController extends ChangeNotifier {
     brief = '';
     references.clear();
     briefMode = null;
+    aiSport = aiGarment = null;
     go(AppScreen.aiDesigner);
   }
 

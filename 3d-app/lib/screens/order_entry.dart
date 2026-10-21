@@ -17,8 +17,9 @@ import 'orders_board.dart';
 // the same API as the website (drafts, file uploads with progress, one
 // idempotent submit). See orders-api.md.
 
-/// Opens the pay page (replaced in tests).
-Future<void> Function(BuildContext context, String url, String title) openPayPage = openSitePage;
+/// Opens the pay page: in the phone's own browser (Apple Pay, Google Pay), back
+/// here when the app resumes; inside the app only if no browser opens. (Replaced in tests.)
+Future<void> Function(BuildContext context, String url, String title) openPayPage = openPayLink;
 
 String _money(Object? amount, Object? currency) => amount == null ? '' : '${currency ?? 'AUD'} ${double.tryParse('$amount')?.toStringAsFixed(2) ?? amount}';
 
@@ -147,7 +148,7 @@ class _PriceChoicesState extends State<PriceChoices> {
   );
 }
 
-/// The payment pill and, for an unpaid invoice, Pay now (a 2-hour pay link); [onBack] refreshes afterwards.
+/// The payment pill and, for an unpaid invoice, Pay now (a 2-hour pay link, in the phone's browser); [onBack] refreshes afterwards.
 class PaymentStrip extends StatelessWidget {
   const PaymentStrip(this.c, this.payment, {super.key, this.onBack});
   final AppController c;
@@ -179,7 +180,8 @@ class PaymentStrip extends StatelessWidget {
                   final url = await c.api.invoicePayLink('${p['invoice_number']}');
                   if (!context.mounted) return;
                   await openPayPage(context, url, 'Pay now');
-                  onBack?.call();
+                  // Back in the app: read the invoice again (the pay page has checked the payment by then).
+                  if (context.mounted) onBack?.call();
                 } on ApiException catch (e) {
                   if (context.mounted) showToast(context, e.message);
                 }

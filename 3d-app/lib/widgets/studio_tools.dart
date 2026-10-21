@@ -227,12 +227,26 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
               c.edit(() => c.layout = null);
               showToast(
                 context,
-                'Design picture removed: back to your designed kit. The '
-                'picture stays in your saved assets.',
+                'Design picture removed: back to your designed kit. Put my '
+                'design picture back (here) or Undo returns it.',
               );
             },
           ),
-        ] else
+        ] else ...[
+          if (c.shelvedLayouts['drawing'] case final back?) ...[
+            SecondaryButton(
+              label: 'PUT MY DESIGN PICTURE BACK',
+              icon: Icons.undo,
+              onPressed: () {
+                c.putLayoutBack('drawing');
+                showToast(
+                  context,
+                  '${back.layout['name']} is back on the 3D kit as drawn.',
+                );
+              },
+            ),
+            const SizedBox(height: 6),
+          ],
           SecondaryButton(
             label: 'UPLOAD MY DESIGN PICTURE',
             icon: Icons.add_photo_alternate_outlined,
@@ -240,6 +254,7 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
                 ? null
                 : () => _uploadLayout(picture: true),
           ),
+        ],
         const SectionLabel('Factory print layout'),
         const Text(
           'The finished print file from the factory (PDF, SVG or PNG with the '
@@ -285,17 +300,29 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
               c.edit(() => c.layout = null);
               showToast(
                 context,
-                'Print layout removed: back to your designed kit. The file '
-                'stays in your saved assets.',
+                'Print layout removed: back to your designed kit. Put the '
+                'print layout back (here) or Undo returns it.',
               );
             },
           ),
-        ] else
+        ] else ...[
+          if (c.shelvedLayouts['print'] case final back?) ...[
+            SecondaryButton(
+              label: 'PUT THE PRINT LAYOUT BACK',
+              icon: Icons.undo,
+              onPressed: () {
+                c.putLayoutBack('print');
+                showToast(context, '${back.layout['name']} is back on the 3D kit.');
+              },
+            ),
+            const SizedBox(height: 6),
+          ],
           SecondaryButton(
             label: 'UPLOAD PRINT LAYOUT',
             icon: Icons.upload_file,
             onPressed: c.checkLayout == null ? null : _uploadLayout,
           ),
+        ],
         const SizedBox(height: 10),
         Row(
           children: [
@@ -1013,8 +1040,21 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
   }
 
   void _apply(String name, Map<String, dynamic> design) {
+    final on = c.layout;
+    final replaced = on == null
+        ? null
+        : on['kind'] == 'drawing'
+        ? 'design picture'
+        : 'print layout';
     c.applyPreset(design);
-    showToast(context, '$name applied. Undo restores your previous style.');
+    showToast(
+      context,
+      replaced == null
+          ? '$name applied. Your logos and player details are preserved.'
+          : '$name applied in place of your $replaced: Undo, or Artwork › '
+                '${replaced == 'design picture' ? 'My design picture' : 'Factory print layout'}, '
+                'puts it back.',
+    );
   }
 
   Widget _card({

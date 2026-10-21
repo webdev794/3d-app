@@ -9,6 +9,7 @@ import '../ai_service.dart';
 import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
 import '../export_service.dart';
+import '../widgets/ai_stage.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
@@ -35,6 +36,11 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
   );
   bool _busy = false;
 
+  /// The sports tile chosen (optional), the garment picked from the quick
+  /// chips, and whether the chips are asking for it.
+  String? _tile, _garment;
+  bool _askGarment = false;
+
   AppController get c => widget.c;
 
   @override
@@ -43,45 +49,84 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
     super.dispose();
   }
 
-  Future<void> _addReference() async {
-    if (c.references.length >= 3) {
-      showToast(context, 'Up to 3 reference images. Remove one first.');
-      return;
-    }
+  /// (+): attach a picture (gallery, camera or a sample), or let the AI help
+  /// with the brief (the chips that used to sit under the composer).
+  Future<void> _openPlus() async {
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Palette.surface,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheet) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Upload image'),
-              subtitle: const Text('Logo, design, pattern or example'),
-              onTap: () => Navigator.pop(sheet, 'gallery'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Camera'),
-              onTap: () => Navigator.pop(sheet, 'camera'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.collections_outlined),
-              title: const Text('Sample references'),
-              onTap: () => Navigator.pop(sheet, 'samples'),
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Upload image'),
+                subtitle: const Text('Logo, design, pattern or example'),
+                onTap: () => Navigator.pop(sheet, 'gallery'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Camera'),
+                onTap: () => Navigator.pop(sheet, 'camera'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.collections_outlined),
+                title: const Text('Sample references'),
+                onTap: () => Navigator.pop(sheet, 'samples'),
+              ),
+              const Divider(height: 1),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 2),
+                child: Text(
+                  'LET AI HELP WITH YOUR BRIEF',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    letterSpacing: 1.6,
+                    fontWeight: FontWeight.w700,
+                    color: Palette.muted,
+                  ),
+                ),
+              ),
+              for (final mode in BriefMode.values)
+                ListTile(
+                  leading: Icon(_icon(mode), color: Palette.cyan),
+                  title: Text(_label(mode)),
+                  subtitle: Text(_hint(mode)),
+                  trailing: c.briefMode == mode
+                      ? const Icon(Icons.check, color: Palette.cyan)
+                      : null,
+                  onTap: () => Navigator.pop(sheet, mode.name),
+                ),
+            ],
+          ),
         ),
       ),
     );
     if (!mounted || choice == null) return;
+    final mode = BriefMode.values.where((m) => m.name == choice).firstOrNull;
+    if (mode != null) return _chip(mode);
+    if (c.references.length >= 3) {
+      showToast(context, 'Up to 3 reference images. Remove one first.');
+      return;
+    }
     if (choice == 'samples') return _pickSample();
-    final bytes = await pickPhoto(
-      context,
-      source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+    return _pickImage(
+      choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
     );
+  }
+
+  /// The picture button in the bar (and Upload image / Camera in (+)).
+  Future<void> _pickImage(ImageSource source) async {
+    if (c.references.length >= 3) {
+      showToast(context, 'Up to 3 reference images. Remove one first.');
+      return;
+    }
+    final bytes = await pickPhoto(context, source: source);
     if (bytes != null) {
       c.update(() {
         c.references.add(bytes);
@@ -89,6 +134,20 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
       });
     }
   }
+
+  IconData _icon(BriefMode m) => switch (m) {
+    BriefMode.inspire => Icons.auto_awesome,
+    BriefMode.modify => Icons.tune,
+    BriefMode.match => Icons.compare_outlined,
+    BriefMode.improve => Icons.auto_fix_high,
+  };
+
+  String _hint(BriefMode m) => switch (m) {
+    BriefMode.inspire => 'Write a brief for me',
+    BriefMode.modify => 'Keep my reference, change the details',
+    BriefMode.match => 'Match my reference closely',
+    BriefMode.improve => 'Polish what I typed',
+  };
 
   /// A picture pasted into the brief (from the keyboard's clipboard): a logo,
   /// a reference or a finished design to turn into 3D.
@@ -173,244 +232,330 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
     BriefMode.improve => 'Improve',
   };
 
-  void _generate() {
+  /// Generate: the sport from the tile (or the brief), the garment from the
+  /// brief or a quick chip (asked only when the brief names none).
+  void _generate([String? garmentChoice]) {
     final text = _text.text.trim();
     if (text.isEmpty && c.references.isEmpty) {
       showToast(context, 'Describe your kit or add a reference image.');
       return;
     }
+    final tile =
+        aiQuickSports.where((s) => s.id == _tile).firstOrNull ??
+        sportInBrief(text);
+    final garment = garmentChoice ?? garmentInBrief(text) ?? _garment;
+    if (garment == null) {
+      setState(() => _askGarment = true);
+      return;
+    }
+    var brief = text.isEmpty
+        ? 'Create a design from my attached artwork.'
+        : text;
+    final category = tile?.brief;
+    if (category != null &&
+        !brief.toLowerCase().contains(
+          category.split(' ').first.toLowerCase(),
+        )) {
+      brief = '$category: $brief';
+    }
     FocusScope.of(context).unfocus();
-    c.update(() => c.brief = text);
+    setState(() {
+      _askGarment = false;
+      if (garmentChoice != null) _garment = garmentChoice;
+    });
+    c.update(() {
+      c.brief = brief;
+      c.aiSport = tile?.sport;
+      c.aiGarment = garment;
+      if (tile != null) c.sport = tile.sport;
+      c.garment = garment;
+    });
     c.go(AppScreen.generating);
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      TopBar(
-        onBack: c.back,
-        center: const Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) {
+    final chosen = aiQuickSports.where((s) => s.id == _tile).firstOrNull;
+    final width = MediaQuery.sizeOf(context).width;
+    final garments =
+        (chosen ?? sportInBrief(_text.text))?.garments ?? aiAllGarments;
+    return Stack(
+      children: [
+        const Positioned.fill(child: AiStageBackdrop()),
+        Column(
           children: [
-            BrandLogo(width: 120),
-            SizedBox(height: 3),
-            Caption('AI Designer'),
-          ],
-        ),
-      ),
-      Expanded(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
-          children: [
-            // The brief, as a chat bubble from the user.
-            Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: Palette.surface,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                    bottomLeft: Radius.circular(16),
-                    bottomRight: Radius.circular(4),
-                  ),
-                  border: Border.all(color: Palette.border),
-                ),
-                child: ValueListenableBuilder(
-                  valueListenable: _text,
-                  builder: (context, value, _) => Text(
-                    value.text.trim().isEmpty
-                        ? 'Describe the kit you want, e.g. "${_sampleBriefs.first}"'
-                        : value.text,
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      height: 1.5,
-                      color: value.text.trim().isEmpty
-                          ? Palette.muted
-                          : Palette.text,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            const SectionLabel('References', trailing: 'Up to 3'),
-            Row(
-              children: [
-                for (var i = 0; i < 3; i++) ...[
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: i < c.references.length
-                          ? Stack(
-                              fit: StackFit.expand,
+            TopBar(onBack: c.back, center: const SizedBox.shrink()),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, box) => SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: box.maxHeight - 24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        BrandLogo(width: math.min(320, width * .7)),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'AI SPORTSWEAR DESIGNER',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Rajdhani',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 4,
+                            color: Color(0xfff3f7fb),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'DESIGN WITHOUT LIMITS',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Rajdhani',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 5,
+                            color: Color(0xffe8eef5),
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 680),
+                            child: _bar(chosen),
+                          ),
+                        ),
+                        if (_askGarment)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: Wrap(
+                              alignment: WrapAlignment.center,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              runSpacing: 8,
                               children: [
-                                GlowCard(
-                                  radius: 12,
-                                  glow: false,
-                                  child: artImage(bytes: c.references[i]),
+                                Text(
+                                  'What are we designing${chosen == null ? '' : ' for ${chosen.label}'}?',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                                Positioned(
-                                  top: 4,
-                                  right: 4,
-                                  child: GestureDetector(
-                                    onTap: () => c.update(
-                                      () => c.references.removeAt(i),
-                                    ),
-                                    child: const CircleAvatar(
-                                      radius: 11,
-                                      backgroundColor: Colors.black87,
-                                      child: Icon(Icons.close, size: 14),
-                                    ),
+                                for (final g in garments)
+                                  ActionChipPill(g, onTap: () => _generate(g)),
+                              ],
+                            ),
+                          ),
+                        if (AiService.enabled)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Transform.scale(
+                                  scale: .75,
+                                  child: Switch.adaptive(
+                                    value: c.wantMockup,
+                                    activeTrackColor: Palette.cyan,
+                                    onChanged: (v) =>
+                                        c.update(() => c.wantMockup = v),
+                                  ),
+                                ),
+                                const Text(
+                                  'HD presentation mockup',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: Color(0xffb9c7d4),
                                   ),
                                 ),
                               ],
-                            )
-                          : i == c.references.length
-                          ? GlowCard(
-                              radius: 12,
-                              glow: false,
-                              onTap: _addReference,
-                              child: const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.add,
-                                    color: Palette.cyan,
-                                    size: 30,
-                                  ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    'Add image',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Palette.muted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Palette.border.withValues(alpha: .5),
-                                ),
-                              ),
                             ),
+                          ),
+                        const SizedBox(height: 18),
+                        AiSportRow(
+                          selected: _tile,
+                          onSelect: (id) => setState(() {
+                            _tile = _tile == id ? null : id;
+                            _askGarment = false;
+                          }),
+                        ),
+                      ],
                     ),
-                  ),
-                  if (i < 2) const SizedBox(width: 10),
-                ],
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Logo, design, pattern or example',
-              style: TextStyle(color: Palette.muted, fontSize: 11),
-            ),
-          ],
-        ),
-      ),
-      if (AiService.enabled)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 2),
-          child: SwitchListTile.adaptive(
-            dense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-            value: c.wantMockup,
-            activeTrackColor: Palette.cyan,
-            onChanged: (v) => c.update(() => c.wantMockup = v),
-            title: const Text(
-              'HD presentation mockup',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-            subtitle: const Text(
-              'Bold design from your logo, front and back, like ChatGPT',
-              style: TextStyle(fontSize: 11, color: Palette.muted),
-            ),
-          ),
-        ),
-      // Composer + quick chips.
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 2, 6, 2),
-          decoration: BoxDecoration(
-            color: Palette.surface,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Palette.cyan.withValues(alpha: .45)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.person_outline, size: 18, color: Palette.muted),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _text,
-                  minLines: 1,
-                  maxLines: 4,
-                  enabled: !_busy,
-                  textCapitalization: TextCapitalization.sentences,
-                  // Pictures pasted from the keyboard's clipboard join the
-                  // references, as with the add button.
-                  contentInsertionConfiguration: ContentInsertionConfiguration(
-                    allowedMimeTypes: const [
-                      'image/png',
-                      'image/jpeg',
-                      'image/webp',
-                    ],
-                    onContentInserted: _insertPicture,
-                  ),
-                  style: const TextStyle(fontSize: 13),
-                  decoration: const InputDecoration(
-                    hintText: 'Ask 3DEEZI anything…',
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    filled: false,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
               ),
-              _busy
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : IconButton.filled(
-                      tooltip: 'Generate designs',
-                      onPressed: _generate,
-                      style: IconButton.styleFrom(
-                        backgroundColor: Palette.cyan,
-                        foregroundColor: Colors.black,
-                      ),
-                      icon: const Icon(Icons.send_rounded, size: 19),
-                    ),
-            ],
-          ),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            for (final mode in BriefMode.values)
-              ActionChipPill(
-                _label(mode),
-                selected: c.briefMode == mode,
-                onTap: _busy ? null : () => _chip(mode),
-              ),
+            ),
           ],
         ),
-      ),
-    ],
+      ],
+    );
+  }
+
+  /// The prompt bar: (+), the brief, the picture button and Generate; the
+  /// attached pictures sit above the text. (No voice input: the app has no
+  /// speech package.)
+  Widget _bar(AiQuickSport? chosen) => Container(
+    padding: const EdgeInsets.all(6),
+    decoration: BoxDecoration(
+      color: const Color(0xd9061019),
+      borderRadius: BorderRadius.circular(c.references.isEmpty ? 30 : 22),
+      border: Border.all(color: Palette.cyan.withValues(alpha: .8), width: 1.4),
+      boxShadow: [
+        BoxShadow(color: Palette.cyan.withValues(alpha: .22), blurRadius: 18),
+      ],
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (c.references.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
+            child: Row(
+              children: [
+                for (var i = 0; i < c.references.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(9),
+                            child: artImage(bytes: c.references[i]),
+                          ),
+                          Positioned(
+                            top: 2,
+                            right: 2,
+                            child: Semantics(
+                              button: true,
+                              label: 'Remove picture ${i + 1}',
+                              child: GestureDetector(
+                                onTap: () =>
+                                    c.update(() => c.references.removeAt(i)),
+                                child: const CircleAvatar(
+                                  radius: 9,
+                                  backgroundColor: Colors.black87,
+                                  child: Icon(Icons.close, size: 12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            IconButton(
+              tooltip: 'Attach and suggestions',
+              onPressed: _busy ? null : _openPlus,
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xff0e1b27),
+                side: const BorderSide(color: Color(0x33ffffff)),
+                fixedSize: const Size(42, 42),
+              ),
+              icon: const Icon(Icons.add, size: 22),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: TextField(
+                controller: _text,
+                minLines: 1,
+                maxLines: 5,
+                enabled: !_busy,
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: (_) => setState(() {}),
+                inputFormatters: [
+                  BriefLimit(() {
+                    if (mounted) {
+                      showToast(
+                        context,
+                        'Your brief was shortened to ${formatCount(maxBrief)} characters.',
+                      );
+                    }
+                  }),
+                ],
+                // Pictures pasted from the keyboard's clipboard join the
+                // references, as with the picture button.
+                contentInsertionConfiguration: ContentInsertionConfiguration(
+                  allowedMimeTypes: const [
+                    'image/png',
+                    'image/jpeg',
+                    'image/webp',
+                  ],
+                  onContentInserted: _insertPicture,
+                ),
+                style: const TextStyle(fontSize: 14.5),
+                decoration: InputDecoration(
+                  hintText: chosen == null
+                      ? 'Describe your design...'
+                      : 'Describe your ${chosen.label} design...',
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  filled: false,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Upload a reference image',
+              onPressed: _busy ? null : () => _pickImage(ImageSource.gallery),
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 22),
+            ),
+            _busy
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : IconButton.filled(
+                    tooltip: 'Generate designs',
+                    onPressed: () => _generate(),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Palette.cyan,
+                      foregroundColor: Colors.black,
+                      fixedSize: const Size(44, 44),
+                    ),
+                    icon: const Icon(Icons.arrow_upward_rounded, size: 22),
+                  ),
+          ],
+        ),
+        // Over 3,500 characters: a small counter (the limit in amber).
+        if (_text.text.length > maxBrief - 500)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 0, 56, 4),
+              child: Text(
+                '${formatCount(_text.text.length)} / ${formatCount(maxBrief)}',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: _text.text.length >= maxBrief
+                      ? const Color(0xffffc46b)
+                      : Palette.muted,
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
   );
 }
 
@@ -473,6 +618,8 @@ class _AiGeneratingScreenState extends State<AiGeneratingScreen>
         brief: c.brief,
         references: c.references,
         mode: c.briefMode,
+        sport: c.aiSport,
+        garment: c.aiGarment,
       );
       if (!_alive(run)) return;
       c.concepts = specs.map(Concept.new).toList();
@@ -686,7 +833,11 @@ class _ReferencesToKit extends StatelessWidget {
   static String _name(Uint8List b, int i) {
     final ext = b.length > 3 && b[0] == 0x89 && b[1] == 0x50
         ? 'png'
-        : b.length > 11 && b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50
+        : b.length > 11 &&
+              b[8] == 0x57 &&
+              b[9] == 0x45 &&
+              b[10] == 0x42 &&
+              b[11] == 0x50
         ? 'webp'
         : 'jpg';
     return 'design-picture-${i + 1}.$ext';
@@ -694,9 +845,17 @@ class _ReferencesToKit extends StatelessWidget {
 
   Future<void> _toKit(BuildContext context, int i) async {
     final messenger = ScaffoldMessenger.of(context);
-    void say(String text) => messenger.showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating, backgroundColor: Palette.surface2));
+    void say(String text) => messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Palette.surface2,
+      ),
+    );
     if (!c.signedIn) {
-      say('Sign in to put your design on the 3D kit: the picture is kept with your saved assets.');
+      say(
+        'Sign in to put your design on the 3D kit: the picture is kept with your saved assets.',
+      );
       c.go(AppScreen.auth);
       return;
     }
@@ -710,7 +869,11 @@ class _ReferencesToKit extends StatelessWidget {
       final done = await c.importDesignPicture(_name(bytes, i), bytes);
       if (done != null) say(done);
     } on Object catch (e) {
-      say(e is ApiException ? e.message : 'That picture could not go on the 3D kit.');
+      say(
+        e is ApiException
+            ? e.message
+            : 'That picture could not go on the 3D kit.',
+      );
     }
   }
 
@@ -720,14 +883,24 @@ class _ReferencesToKit extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Your pictures', style: TextStyle(fontWeight: FontWeight.w700)),
+        const Text(
+          'Your pictures',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 8),
         for (final (i, bytes) in c.references.indexed)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
               children: [
-                SizedBox(width: 56, height: 56, child: ClipRRect(borderRadius: BorderRadius.circular(8), child: artImage(bytes: bytes))),
+                SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: artImage(bytes: bytes),
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
@@ -758,7 +931,10 @@ class ConceptsScreen extends StatelessWidget {
     if (AiService.enabled && spec.patternMotif.isNotEmpty) {
       c.ai.generatePattern(spec.patternMotif).then((tile) {
         c.aiPatterns.add(tile);
-        if (identical(c.spec, spec)) c.update(() => c.patternTile = tile);
+        // A design picture put on meanwhile stays as drawn, without it.
+        if (identical(c.spec, spec) && c.layout?['kind'] != 'drawing') {
+          c.update(() => c.patternTile = tile);
+        }
       }, onError: (_) {});
     }
   }
@@ -911,7 +1087,11 @@ class ConceptsScreen extends StatelessWidget {
           child: GradientButton(
             label: 'OPEN IN DESIGN STUDIO',
             icon: Icons.arrow_forward_rounded,
-            onPressed: selected == null ? null : () => _open(context),
+            // Not while MAKE IT 3D is drawing: it opens the Studio by itself
+            // with the print sheet (the concept would start its own print).
+            onPressed: selected == null || c.sheetBusy
+                ? null
+                : () => _open(context),
           ),
         ),
       ],
@@ -947,7 +1127,13 @@ class _MockupCard extends StatelessWidget {
     try {
       sheet = await c.mockupPrintSheet();
     } on AiException catch (e) {
-      say('Make it 3D: ${e.message}');
+      if (c.screen == AppScreen.concepts) say('Make it 3D: ${e.message}');
+      return;
+    }
+    // Back to the brief (or new concepts) meanwhile: the user stays where
+    // they went; the print sheet is kept in Artwork.
+    if (c.screen != AppScreen.concepts) {
+      say('Your print sheet is ready in Assets › Artwork.');
       return;
     }
     c.go(AppScreen.studio);

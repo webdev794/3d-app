@@ -9,7 +9,7 @@ import KitViewer, { type KitViewerHandle } from '../components/KitViewer';
 import ColorWheel from '../components/ColorWheel';
 import { comingSoon, garmentArt } from './Create';
 import type { Draft } from '../App';
-import { ArtworkPanel, PresetPanel, checkDrawing, patternNames, readAsset, readImage, type ArtworkDrop } from '../components/StudioArtwork';
+import { ArtworkPanel, PresetPanel, checkDrawing, patternNames, readAsset, readImage, type ArtworkDrop, type ShelvedLayouts } from '../components/StudioArtwork';
 import { onAssist } from '../assistBridge';
 import { EditImageButton } from '../components/ImageEditor';
 import GradientFlyout, { gradientOf, gradientPatch, makeGradient, stopsOf, cssGradient, type GradientSlot } from '../components/GradientFlyout';
@@ -29,6 +29,8 @@ function cssColour(text: string) {
   }
   return null;
 }
+/** The design keys a design picture or print layout hides (Studio uncover). */
+const lookKeys = ['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones'] as const;
 const colourSlots = [{ key: 'main', label: 'Primary' }, { key: 'secondary', label: 'Secondary' }, { key: 'accent', label: 'Accent' }, { key: 'patternColor', label: 'Pattern' }] as const;
 const palettes = [['#0b1016', '#00c2cc', '#36e3ee'], ['#08233e', '#efb84a', '#ffffff'], ['#f2f4f6', '#0076cd', '#0b1830'], ['#261133', '#ad47da', '#fb92d3'], ['#0c2824', '#31c29a', '#ffffff'], ['#240c12', '#ec3e5b', '#f9e6d4']];
 const suggestions = ['Make it red and gold', 'Add bold chevrons', 'Darker body, brighter trims', 'Number 7 for SMITH', 'Give it a tribal shoulder print'];
@@ -69,6 +71,8 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   latest.current = draft;
   const liveBase = useRef<Design | null>(null);
   const aiEnabled = !!catalog?.provider.is_ai;
+  // Phones: the Ask bar's input is narrow, so its hint is short (not cut off).
+  const narrow = window.matchMedia?.('(max-width: 600px)').matches ?? false;
   const navigate = useNavigate();
   useEffect(() => { setBoard(initialBoard); if (initialBoard) setTool('logos'); }, [initialBoard]);
   function openBoard(on: boolean) { setBoard(on); if (on) setTool('logos'); setRotating(false); }
@@ -135,15 +139,25 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   }));
 
   // A design from AI concepts, Convert or an AI edit arrives with a motif: generate its print.
+  // Never for a design picture (MAKE IT 3D, Put my design on the 3D kit): the picture is the whole design.
+  const isDrawing = (d: Draft) => !!d.pendingDrawing || d.design.layout?.kind === 'drawing';
+  const drawing = isDrawing(draft);
   useEffect(() => {
-    if (!draft.patternMotif || !aiEnabled || draft.design.patternImage || patternBusy) return;
+    if (!draft.patternMotif) return;
+    if (drawing) { onChange({ ...latest.current, patternMotif: undefined }); return; }
+    if (!aiEnabled || draft.design.patternImage || patternBusy) return;
     setPatternBusy(true);
     api<{ patternImage: string }>('/ai/pattern', { method: 'POST', body: JSON.stringify({ motif: draft.patternMotif }) })
-      .then(({ patternImage }) => { const current = latest.current; onChange({ ...current, patternMotif: undefined, design: { ...current.design, patternImage } }); onNotice('AI print pattern applied to your kit.'); })
-      .catch(e => { onChange({ ...latest.current, patternMotif: undefined }); onNotice(`Pattern not generated: ${(e as Error).message}`); })
+      .then(({ patternImage }) => {
+        const current = latest.current;
+        // A design picture arrived meanwhile: it stays as drawn, without this print.
+        if (isDrawing(current)) { onChange({ ...current, patternMotif: undefined }); return; }
+        onChange({ ...current, patternMotif: undefined, design: { ...current.design, patternImage } }); onNotice('AI print pattern applied to your kit.');
+      })
+      .catch(e => { onChange({ ...latest.current, patternMotif: undefined }); if (!isDrawing(latest.current)) onNotice(`Pattern not generated: ${(e as Error).message}`); })
       .finally(() => setPatternBusy(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.patternMotif, aiEnabled]);
+  }, [draft.patternMotif, aiEnabled, drawing]);
   const [name, setName] = useState(draft.name === 'Untitled kit' ? '' : draft.name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -170,18 +184,33 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.pendingDrawing, ready]);
+  // The last design picture and print layout on the kit this visit: a preset or Remove takes them off, Artwork puts them back.
+  const [shelved, setShelved] = useState<ShelvedLayouts>({});
+  useEffect(() => { const on = draft.design.layout; if (on) setShelved(s => ({ ...s, [on.kind === 'drawing' ? 'drawing' : 'print']: { layout: on, garment: draft.design.garment } })); }, [draft.design.layout, draft.design.garment]);
   useEffect(() => { chatEnd.current?.scrollIntoView({ block: 'nearest' }); }, [chat, asking]);
   useEffect(() => { const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault(); }; window.addEventListener('beforeunload', beforeUnload); return () => window.removeEventListener('beforeunload', beforeUnload); }, [dirty]);
 
+  /**
+   * A design picture or print layout is painted instead of the colours, pattern and gradients: a change to them takes it
+   * off, so the change shows (Undo, or Artwork, puts it back).
+   */
+  function uncover(patch: Partial<Design>, design: Design): Partial<Design> {
+    const on = design.layout;
+    if (!on || 'layout' in patch || !lookKeys.some(key => key in patch)) return patch;
+    const picture = on.kind === 'drawing';
+    onNotice(`${picture ? 'Design picture' : 'Print layout'} taken off so your change shows: Undo, or Artwork › ${picture ? 'My design picture' : 'Factory print layout'}, puts it back.`);
+    return { ...patch, layout: null };
+  }
   /** One undoable change. */
   function edit(patch: Partial<Design>, extra: Partial<Draft> = {}) {
     const current = latest.current;
     setPast(history => [...history.slice(-39), liveBase.current ?? { ...current.design }]); liveBase.current = null; setFuture([]);
+    patch = uncover(patch, current.design);
     const design = { ...current.design, ...patch };
     onChange({ ...current, ...extra, design, garment: design.garment }); setDirty(true);
   }
   /** Live updates while dragging the colour wheel; `commit` makes them one undo step. */
-  function preview(patch: Partial<Design>) { const current = latest.current; liveBase.current ??= { ...current.design }; onChange({ ...current, design: { ...current.design, ...patch } }); setDirty(true); }
+  function preview(patch: Partial<Design>) { const current = latest.current; liveBase.current ??= { ...current.design }; onChange({ ...current, design: { ...current.design, ...uncover(patch, current.design) } }); setDirty(true); }
   function commit() { if (!liveBase.current) return; const base = liveBase.current; liveBase.current = null; setPast(history => [...history.slice(-39), base]); setFuture([]); }
   function undo() { const previous = past.at(-1); if (!previous) return; setFuture(items => [draft.design, ...items]); setPast(items => items.slice(0, -1)); onChange({ ...draft, design: previous, garment: previous.garment }); setDirty(true); }
   function redo() { const next = future[0]; if (!next) return; setPast(items => [...items, draft.design]); setFuture(items => items.slice(1)); onChange({ ...draft, design: next, garment: next.garment }); setDirty(true); }
@@ -335,7 +364,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             {aiEnabled && <div className="ai-pattern"><h4>AI PRINT FROM WORDS</h4><div className="inline-field"><input value={motif} onChange={e => setMotif(e.target.value)} onKeyDown={e => e.key === 'Enter' && aiPattern()} placeholder="e.g. Maori-inspired koru waves" maxLength={200} /><button className="button button-gradient" disabled={patternBusy || motif.trim().length < 3} onClick={aiPattern}>{patternBusy ? <LoaderCircle className="spin" size={16} /> : <WandSparkles size={16} />}</button></div>{draft.design.patternImage && <button className="button button-secondary full-width" onClick={() => edit({ patternImage: null })}><X size={14} /> Remove AI print</button>}</div>}
             <label className="field">Pattern coverage<input type="range" min="0" max="1" step="0.05" value={draft.design.patternBody ?? 0.1} onChange={e => preview({ patternBody: Number(e.target.value) })} onPointerUp={commit} /><span className="field-hint">Shoulders → Full body</span></label>
           </>}
-          {tool === 'logos' && <><ArtworkPanel design={draft.design} edit={edit} viewer={viewer} selected={selectedLayer} onSelect={setSelectedLayer} requireAuth={requireAuth} onNotice={onNotice} onDrag={setDragging} ready={ready} board={board} onBoard={() => openBoard(true)} />
+          {tool === 'logos' && <><ArtworkPanel design={draft.design} edit={edit} shelved={shelved} viewer={viewer} selected={selectedLayer} onSelect={setSelectedLayer} requireAuth={requireAuth} onNotice={onNotice} onDrag={setDragging} ready={ready} board={board} onBoard={() => openBoard(true)} />
             {(draft.design.logoImage || draft.design.sponsorImage) && <h4>EXISTING FIXED LOGOS</h4>}
             {draft.design.logoImage && <div className="applied-logo"><img src={draft.design.logoImage} alt="Existing team logo" /><span>Chest crest</span><button className="icon-button" aria-label="Remove existing team logo" onClick={() => edit({ logoImage: null })}><X size={16} /></button></div>}
             {draft.design.sponsorImage && <div className="applied-logo"><img src={draft.design.sponsorImage} alt="Existing sponsor" /><span>Sponsor</span><button className="icon-button" aria-label="Remove existing sponsor" onClick={() => edit({ sponsorImage: null })}><X size={16} /></button></div>}
@@ -382,7 +411,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       <button type="button" className="round-button" aria-label="Attach a reference image" title="Attach a reference image" onClick={() => askUpload.current?.click()}><ImagePlus size={18} /></button>
       <button type="button" className="round-button" aria-label="Add your logo" title="Add your logo" onClick={() => setTool('logos')}><Plus size={18} /></button>
       {askImage && <span className="ask-image"><img src={askImage} alt="Reference" /><button type="button" onClick={() => setAskImage(null)} aria-label="Remove image"><X size={12} /></button></span>}
-      <input value={ask} onChange={e => setAsk(e.target.value)} placeholder={aiEnabled ? 'Ask 3DEEZI to change anything…' : 'AI is not connected on this server'} disabled={!aiEnabled || asking} maxLength={600} aria-label="Ask 3DEEZI to change anything" />
+      <input value={ask} onChange={e => setAsk(e.target.value)} placeholder={aiEnabled ? (narrow ? 'Ask 3DEEZI…' : 'Ask 3DEEZI to change anything…') : (narrow ? 'AI not connected' : 'AI is not connected on this server')} disabled={!aiEnabled || asking} maxLength={600} aria-label="Ask 3DEEZI to change anything" />
       <button className="send-button" disabled={!aiEnabled || asking || !ask.trim()} aria-label="Send">{asking ? <LoaderCircle className="spin" size={18} /> : <SendHorizontal size={18} />}</button>
       <button type="button" className="round-button" aria-label="Open the AI panel" title="AI panel" onClick={() => setTool('ai')}><SlidersHorizontal size={18} /></button>
     </form>

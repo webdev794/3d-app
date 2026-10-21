@@ -110,7 +110,8 @@
   .on-wordmark{height:clamp(30px,9vw,40px)}
   .on-sub{font-size:14px;letter-spacing:.03em}
   .on-tile{display:flex;padding:20px 18px 18px}
-  .on-visual{height:min(64vw,250px);margin:14px 0 18px}
+  /* Full width again: the 899 px rule's align-self:center shrank the pictures (all absolutely placed) to 0 px here. */
+  .on-visual{align-self:stretch;height:min(64vw,250px);margin:14px 0 18px}
   .on-button{margin-top:auto}
   .on-head h3{font-size:22px}
   .on-head h3 span{font-size:15px}

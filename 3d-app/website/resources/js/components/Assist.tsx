@@ -135,10 +135,13 @@ export default function Assist() {
       }
       const section = document.querySelector('[data-assist-fold]');
       const sectionTop = section ? section.getBoundingClientRect().top : Infinity, f = fold.current;
-      if (!f.below && sectionTop < h - 120) {
+      // The very top of the page always counts as "back at the top": on some windows ORDER NOW already shows there
+      // (e.g. 1440 x 900, 2560 x 1440), and its top could never pass h - 40 again, so the chat stayed folded.
+      const atTop = window.scrollY < 4;
+      if (!f.below && !atTop && sectionTop < h - 120) {
         f.below = true;
         if (isOpen.current && !f.keep) { f.folded = true; setFolded(true); setState(s => ({ ...s, open: false })); }
-      } else if (f.below && sectionTop > h - 40) {
+      } else if (f.below && (atTop || sectionTop > h - 40)) {
         f.below = false;
         if (f.folded) {
           f.folded = false;

@@ -68,7 +68,7 @@ class AiController extends Controller
     public function mockup(Request $request, OpenAiDesigner $designer): JsonResponse
     {
         $data = $request->validate([
-            'prompt' => ['required', 'string', 'min:8', 'max:2000'],
+            'prompt' => ['required', 'string', 'min:8', 'max:4000'],
             'sport' => ['required', Rule::in(array_column(config('catalog.sports'), 'id'))],
             'garment' => ['required', Rule::in(array_column(config('catalog.garments'), 'id'))],
             'reference_ids' => ['sometimes', 'array', 'max:4'],
