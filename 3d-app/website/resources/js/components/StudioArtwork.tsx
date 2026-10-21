@@ -187,8 +187,16 @@ type Tab = 'all' | 'mine' | 'favourites';
 const FAVOURITES = '3deezi.favouritePresets';
 const readFavourites = (): string[] => { try { return JSON.parse(localStorage.getItem(FAVOURITES) || '[]'); } catch { return []; } };
 
-/** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites). */
-export function PresetPanel({ design, edit, onNotice }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void }) {
+/** The user's own design in this Studio (before the first preset, and as changed after it is chosen again), with a still of it. */
+export type OwnDesign = { design: Design; thumb?: string | null };
+/** The keys that make a design what it is (YOUR DESIGN compares them). */
+const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks'] as const;
+export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys.map(key => key === 'zones' ? areas(d.zones) : key === 'layers' ? d.layers ?? [] : key === 'marks' ? d.marks ?? {} : d[key] ?? null));
+/** The whole design back, as one change (keys it lacks are cleared). */
+export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, ...d, zones: areas(d.zones) });
+
+/** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites); YOUR DESIGN first. */
+export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void; own?: OwnDesign | null; onOwn?: () => void; beforePreset?: () => Promise<void> }) {
     const [presets, setPresets] = useState<Preset[]>([]);
     const [mine, setMine] = useState<Project[] | null>(null);
     const [error, setError] = useState('');
@@ -204,7 +212,8 @@ export function PresetPanel({ design, edit, onNotice }: { design: Design; edit: 
     // The presets file comes through PHP, which turns an empty {} into []: area patterns compare as {}.
     const same = (key: keyof Design, value: unknown) => JSON.stringify(key === 'zones' ? areas(value) : value) === JSON.stringify(key === 'zones' ? areas(design.zones) : design[key]);
     function matches(preset: Preset) { return (['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternBody', 'gradient', 'zones'] as const).every(key => preset.design[key] === undefined || same(key, preset.design[key])) && !design.patternImage && !design.gradients && !design.layout; }
-    function apply(name: string, source: Partial<Design>) {
+    async function apply(name: string, source: Partial<Design>) {
+        await beforePreset?.().catch(() => undefined);
         const { layers: _layers, garment: _garment, logoText: _wordmark, number: _number, backName: _name, logoImage: _logo, sponsorImage: _sponsor, marks: _marks, ...style } = source;
         // The whole look: it replaces an AI print, the Secondary and Pattern gradients and a design picture or print
         // layout on the kit (these hide the colours and pattern); keys older saves lack are cleared so the look matches.
@@ -220,19 +229,24 @@ export function PresetPanel({ design, edit, onNotice }: { design: Design; edit: 
     const q = filter.toLowerCase();
     const shownPresets = presets.filter(p => (tab === 'all' || favourites.includes(p.id)) && `${p.name} ${p.description} ${p.design.pattern}`.toLowerCase().includes(q));
     const shownMine = (mine ?? []).filter(p => p.name.toLowerCase().includes(q));
+    const ownOn = !!own && designSignature(own.design) === designSignature(design);
+    const ownCard = own && tab !== 'favourites' && (!q || 'your design'.includes(q)) ? <div className={`preset-card own-design ${ownOn ? 'selected' : ''}`}>
+        <button className="preset-apply" onClick={onOwn} title="Back to your own design: its picture or layout, colours, patterns, gradients, artwork and garment" aria-pressed={ownOn}>{own!.thumb ? <img className="preset-thumb" src={own!.thumb} alt="" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${own!.design.main},${own!.design.secondary})` }} />}<strong>YOUR DESIGN</strong><small>{own!.design.layout ? (own!.design.layout.kind === 'drawing' ? 'Design picture' : 'Print layout') : 'Your own kit'}</small></button>
+        {ownOn && <Check className="preset-check" size={15} />}
+    </div> : null;
     return <div className="studio-presets">
         <div className="preset-heading"><div><span className="eyebrow">READY TO USE</span><h2>Preset designs</h2></div><span>{presets.length}</span></div>
         <div className="preset-tabs" role="tablist">{([['all', 'All designs'], ['mine', 'My designs'], ['favourites', 'Favourites']] as const).map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>
         <label className="artwork-search"><Search size={14} /><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search designs" aria-label="Search designs" /></label>
         {tab === 'mine' ? (
-            !getToken() ? <p className="muted">Sign in to see your saved designs here.</p>
-            : !mine ? <p className="muted"><LoaderCircle size={14} className="spin" /> Loading your designs…</p>
-            : !shownMine.length ? <p className="muted">No saved designs yet. Save a kit and it appears here.</p>
-            : <div className="studio-preset-grid">{shownMine.map(p => <button key={p.id} onClick={() => apply(p.name, p.design)} title={`Apply the look of ${p.name}`}>{p.thumbnail ? <img className="preset-thumb" src={p.thumbnail} alt="" loading="lazy" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${p.design.main},${p.design.secondary})` }} />}<strong>{p.name}</strong><small>Version {p.version}</small></button>)}</div>
+            !getToken() ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted">Sign in to see your saved designs here.</p></>
+            : !mine ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted"><LoaderCircle size={14} className="spin" /> Loading your designs…</p></>
+            : !shownMine.length ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted">No saved designs yet. Save a kit and it appears here.</p></>
+            : <div className="studio-preset-grid">{ownCard}{shownMine.map(p => <button key={p.id} onClick={() => apply(p.name, p.design)} title={`Apply the look of ${p.name}`}>{p.thumbnail ? <img className="preset-thumb" src={p.thumbnail} alt="" loading="lazy" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${p.design.main},${p.design.secondary})` }} />}<strong>{p.name}</strong><small>Version {p.version}</small></button>)}</div>
         ) : error ? <div><p className="error-message" role="alert">{error}</p><button className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Retry presets</button></div>
         : !presets.length ? <p className="muted"><LoaderCircle size={14} className="spin" /> Loading designs…</p>
         : !shownPresets.length ? <p className="muted">{tab === 'favourites' ? 'Tap the star on any design to keep it here.' : 'No designs match your search.'}</p>
-        : <div className="studio-preset-grid">{shownPresets.map(preset => <div key={preset.id} className={`preset-card ${matches(preset) ? 'selected' : ''}`}>
+        : <div className="studio-preset-grid">{ownCard}{shownPresets.map(preset => <div key={preset.id} className={`preset-card ${matches(preset) ? 'selected' : ''}`}>
             <button className="preset-apply" onClick={() => apply(preset.name, preset.design)} title={preset.description} aria-pressed={matches(preset)}><img className="preset-thumb" src={media(`presets/${preset.id}.webp`)} alt="" loading="lazy" /><strong>{preset.name}</strong><small>{preset.design.pattern}</small></button>
             <button className={`preset-star ${favourites.includes(preset.id) ? 'on' : ''}`} onClick={() => toggleFavourite(preset.id)} aria-label={favourites.includes(preset.id) ? `Remove ${preset.name} from favourites` : `Add ${preset.name} to favourites`}><Star size={14} /></button>
             {matches(preset) && <Check className="preset-check" size={15} />}

@@ -409,6 +409,75 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
   });
 
+  test('YOUR DESIGN keeps the kit from before the first preset and follows '
+      'changes after it is chosen again', () {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    c.startDyo();
+    // A fresh kit that starts from a preset has none.
+    c.applyPreset({'main': '#ff0000', 'pattern': 'Hoops'});
+    expect(c.ownKit, isNull);
+    c.startDyo();
+    c.edit(() {
+      c.mainColor = const Color(0xff123456);
+      c.layout = copyLayout({
+        'asset': 9,
+        'name': 'Net Breaker',
+        'roles': ['front', 'back'],
+        'kind': 'drawing',
+        'parts': ['tee'],
+      });
+      c.garment = 'Training Tee';
+    });
+    expect(c.ownOn, isTrue);
+    c.applyPreset({'main': '#09152b', 'pattern': 'Stripes'});
+    c.applyPreset({'main': '#ffffff', 'pattern': 'Dots'});
+    expect(c.ownOn, isFalse);
+    expect(c.layout, isNull);
+    c.restoreOwn();
+    expect(c.layout?['name'], 'Net Breaker');
+    expect(c.mainColor, const Color(0xff123456));
+    expect(c.garment, 'Training Tee');
+    expect(c.ownOn, isTrue);
+    c.undo();
+    expect(c.pattern, 'Dots', reason: 'one undo step');
+    c.redo();
+    c.edit(() => c.number = '7');
+    c.applyPreset({'main': '#ffffff', 'pattern': 'Dots'});
+    c.restoreOwn();
+    expect(c.number, '7', reason: 'changes after restoring are kept');
+  });
+
+  testWidgets('Preset designs shows YOUR DESIGN first and restores it', (
+    tester,
+  ) async {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    c.edit(() => c.pattern = 'Camo');
+    c.applyPreset({'main': '#ff0000', 'pattern': 'Hoops'});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AnimatedBuilder(
+            animation: c,
+            builder: (_, _) =>
+                SingleChildScrollView(child: StudioPresetsTool(c)),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pumpAndSettle();
+    final own = find.text('YOUR DESIGN');
+    expect(own, findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+    await tester.tap(own);
+    await tester.pump();
+    expect(c.pattern, 'Camo');
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('artwork tools add editable shapes and text on a phone', (
     tester,
   ) async {

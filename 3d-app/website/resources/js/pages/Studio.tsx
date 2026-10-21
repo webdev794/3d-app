@@ -9,7 +9,8 @@ import KitViewer, { type KitViewerHandle } from '../components/KitViewer';
 import ColorWheel from '../components/ColorWheel';
 import { comingSoon, garmentArt } from './Create';
 import type { Draft } from '../App';
-import { ArtworkPanel, PresetPanel, checkDrawing, patternNames, readAsset, readImage, type ArtworkDrop, type ShelvedLayouts } from '../components/StudioArtwork';
+import { ArtworkPanel, PresetPanel, checkDrawing, designSignature, ownPatch, patternNames, readAsset, readImage, type ArtworkDrop, type OwnDesign, type ShelvedLayouts } from '../components/StudioArtwork';
+import { defaultDesign } from '../types';
 import { onAssist } from '../assistBridge';
 import { EditImageButton } from '../components/ImageEditor';
 import GradientFlyout, { gradientOf, gradientPatch, makeGradient, stopsOf, cssGradient, type GradientSlot } from '../components/GradientFlyout';
@@ -187,6 +188,36 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   // The last design picture and print layout on the kit this visit: a preset or Remove takes them off, Artwork puts them back.
   const [shelved, setShelved] = useState<ShelvedLayouts>({});
   useEffect(() => { const on = draft.design.layout; if (on) setShelved(s => ({ ...s, [on.kind === 'drawing' ? 'drawing' : 'print']: { layout: on, garment: draft.design.garment } })); }, [draft.design.layout, draft.design.garment]);
+  // YOUR DESIGN (Preset designs): the user's own design before the first preset, kept with the kit in this browser.
+  const ownKey = `3deezi.own.${draft.id ?? 'new'}`;
+  const readOwn = (key: string): { own: OwnDesign | null; preset: boolean } => { try { return JSON.parse(localStorage.getItem(key) || 'null') ?? { own: null, preset: false }; } catch { return { own: null, preset: false }; } };
+  const [ownState, setOwnState] = useState(() => readOwn(ownKey));
+  const ownLoaded = useRef(ownKey);
+  useEffect(() => { if (ownLoaded.current === ownKey) return; ownLoaded.current = ownKey; const kept = readOwn(ownKey); if (kept.own || ownState.own === null) setOwnState(kept); }, [ownKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { try { if (ownState.own) localStorage.setItem(ownKey, JSON.stringify(ownState)); } catch { /* full or private: kept for this visit */ } }, [ownState, ownKey]);
+  // While the kit is the user's own (not a preset), YOUR DESIGN follows it; a fresh kit untouched since it started has none.
+  useEffect(() => {
+    const now = designSignature(draft.design), own = ownState.own;
+    if (own && designSignature(own.design) === now) { if (ownState.preset) setOwnState(s => ({ ...s, preset: false })); return; }
+    if (ownState.preset) return;
+    if (!own && now === designSignature({ ...defaultDesign, garment: draft.design.garment })) return;
+    setOwnState(s => ({ own: { design: draft.design, thumb: s.own?.thumb }, preset: false }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.design]);
+  /** A preset is about to replace the kit: keep the user's own design (with a still of it) for YOUR DESIGN. */
+  async function beforePreset() {
+    if (ownState.preset) return;
+    // A fresh kit that starts from a preset has no design of its own.
+    if (!ownState.own) { setOwnState({ own: null, preset: true }); return; }
+    let thumb: string | null | undefined = ownState.own.thumb;
+    try { thumb = await captureThumbnail(240); } catch { /* the swatch shows */ }
+    setOwnState({ own: { design: latest.current.design, thumb }, preset: true });
+  }
+  function restoreOwn() {
+    const own = ownState.own; if (!own) return;
+    edit(ownPatch(own.design)); setOwnState(s => ({ ...s, preset: false }));
+    onNotice('Your design is back on the kit. Undo returns to the preset.');
+  }
   useEffect(() => { chatEnd.current?.scrollIntoView({ block: 'nearest' }); }, [chat, asking]);
   useEffect(() => { const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault(); }; window.addEventListener('beforeunload', beforeUnload); return () => window.removeEventListener('beforeunload', beforeUnload); }, [dirty]);
 
@@ -234,19 +265,19 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   }
   useEffect(() => { const key = (e: KeyboardEvent) => { if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement).matches('input,textarea')) return; if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); } if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key); });
 
-  async function captureThumbnail() {
+  async function captureThumbnail(size = 800) {
     if (!ready || !viewer.current) return undefined;
     const source = await viewer.current.capture('front');
     const image = await new Promise<HTMLImageElement>((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = source; });
     const canvas = document.createElement('canvas');
-    const scale = Math.min(1, 800 / image.width, 800 / image.height);
+    const scale = Math.min(1, size / image.width, size / image.height);
     canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
     canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/jpeg', 0.82);
   }
   async function save(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError('');
-    try { const thumbnail = await captureThumbnail(); const project = await api<Project>(draft.id ? `/projects/${draft.id}` : '/projects', { method: draft.id ? 'PATCH' : 'POST', body: JSON.stringify({ name: name.trim(), sport: draft.sport, garment: draft.garment, mode: draft.mode, design: draft.design, status: 'draft', ...(thumbnail ? { thumbnail } : {}), ...(draft.id ? { expected_version: draft.version } : {}) }) }); onChange({ ...project }); setDirty(false); setModal(null); onNotice(`${project.name} saved · Version ${project.version}`); }
+    try { const thumbnail = await captureThumbnail(); const project = await api<Project>(draft.id ? `/projects/${draft.id}` : '/projects', { method: draft.id ? 'PATCH' : 'POST', body: JSON.stringify({ name: name.trim(), sport: draft.sport, garment: draft.garment, mode: draft.mode, design: draft.design, status: 'draft', ...(thumbnail ? { thumbnail } : {}), ...(draft.id ? { expected_version: draft.version } : {}) }) }); try { if (ownState.own) localStorage.setItem(`3deezi.own.${project.id}`, JSON.stringify(ownState)); } catch { /* full */ } ownLoaded.current = `3deezi.own.${project.id}`; onChange({ ...project }); setDirty(false); setModal(null); onNotice(`${project.name} saved · Version ${project.version}`); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   function blobData(blob: Blob) { return new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(new Error('Unable to read this image.')); r.readAsDataURL(blob); }); }
@@ -381,7 +412,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             <button className="button button-secondary full-width" onClick={() => { setView('back'); setRotating(false); }}>View the back <ArrowRight size={16} /></button>
           </>}
           {tool === 'garment' && <div className="panel-garments">{garments.map(g => <button key={g.id} className={draft.design.garment === g.id ? 'selected' : ''} onClick={() => edit({ garment: g.id as Design['garment'] })}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span>{draft.design.garment === g.id && <Check size={15} />}</button>)}</div>}
-          {tool === 'presets' && <PresetPanel design={draft.design} edit={edit} onNotice={onNotice} />}
+          {tool === 'presets' && <PresetPanel design={draft.design} edit={edit} onNotice={onNotice} own={ownState.own} onOwn={restoreOwn} beforePreset={beforePreset} />}
           {tool === 'ai' && <div className="ai-chat">
             {!aiEnabled && <p className="muted">AI is not connected on this server.</p>}
             {chat.length === 0 && <div className="ai-hello"><Sparkles size={20} /><p>Tell me what to change, like you would in ChatGPT. Colours, patterns, names, numbers. Attach an image to match its style.</p></div>}
@@ -403,7 +434,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
         <div className="view-controls">{(['front', 'back', 'side'] as View[]).map(v => <button key={v} className={view === v && !rotating ? 'active' : ''} onClick={() => { setView(v); setRotating(false); }}>{v}</button>)}<button className={rotating ? 'active' : ''} onClick={() => setRotating(r => !r)} aria-pressed={rotating}><RotateCcw size={14} /> 360°</button><button className="fullscreen" aria-label="Fullscreen preview" onClick={() => { stage.current?.requestFullscreen?.().catch(() => onNotice('Fullscreen is unavailable in this browser.')); }}><Expand size={16} /></button></div>
       </div>
 
-      <aside className="studio-presets-aside" aria-label="Ready to use designs"><PresetPanel design={draft.design} edit={edit} onNotice={onNotice} /></aside>
+      <aside className="studio-presets-aside" aria-label="Ready to use designs"><PresetPanel design={draft.design} edit={edit} onNotice={onNotice} own={ownState.own} onOwn={restoreOwn} beforePreset={beforePreset} /></aside>
       <aside className="dyo-garments" aria-label="Garments">{garments.map(g => <button key={g.id} className={draft.design.garment === g.id ? 'selected' : ''} onClick={() => edit({ garment: g.id as Design['garment'] })} aria-pressed={draft.design.garment === g.id}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span></button>)}{comingSoon.map(g => <button key={g.id} className="soon" disabled title="Coming soon"><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span><small>SOON</small></button>)}</aside>
     </div>
 

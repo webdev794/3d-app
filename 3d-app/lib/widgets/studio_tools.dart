@@ -1039,7 +1039,9 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
         .catchError((Object _) => false);
   }
 
-  void _apply(String name, Map<String, dynamic> design) {
+  Future<void> _apply(String name, Map<String, dynamic> design) async {
+    await c.captureOwnThumb();
+    if (!mounted) return;
     final on = c.layout;
     final replaced = on == null
         ? null
@@ -1055,6 +1057,51 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                 '${replaced == 'design picture' ? 'My design picture' : 'Factory print layout'}, '
                 'puts it back.',
     );
+  }
+
+  /// YOUR DESIGN, first in All designs and My designs.
+  List<Widget> _own() {
+    final own = c.ownKit;
+    if (own == null || !'your design'.contains(_query.toLowerCase())) {
+      return const [];
+    }
+    final thumb = c.ownThumb;
+    return [
+      Stack(
+        children: [
+          _card(
+            image: thumb != null
+                ? Image.memory(thumb, fit: BoxFit.cover)
+                : DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [own.mainColor, own.secondaryColor],
+                      ),
+                    ),
+                  ),
+            title: 'YOUR DESIGN',
+            subtitle: own.layout == null
+                ? 'Your own kit'
+                : own.layout!['kind'] == 'drawing'
+                ? 'Design picture'
+                : 'Print layout',
+            onTap: () {
+              c.restoreOwn();
+              showToast(
+                context,
+                'Your design is back on the kit. Undo returns to the preset.',
+              );
+            },
+          ),
+          if (c.ownOn)
+            const Positioned(
+              right: 6,
+              top: 6,
+              child: Icon(Icons.check_circle, color: Palette.cyan, size: 18),
+            ),
+        ],
+      ),
+    ];
   }
 
   Widget _card({
@@ -1179,12 +1226,19 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                   .where((p) => p.title.toLowerCase().contains(q))
                   .toList();
               if (mine.isEmpty) {
-                return const Text(
-                  'No saved designs yet. Save a kit and it appears here.',
-                  style: TextStyle(color: Palette.muted),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (c.ownKit != null) _grid(_own()),
+                    const Text(
+                      'No saved designs yet. Save a kit and it appears here.',
+                      style: TextStyle(color: Palette.muted),
+                    ),
+                  ],
                 );
               }
               return _grid([
+                ..._own(),
                 for (final p in mine)
                   _card(
                     image: p.thumbnail != null || p.asset != null
@@ -1235,6 +1289,7 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                 );
               }
               return _grid([
+                if (_tab == 0) ..._own(),
                 for (final preset in shown)
                   _card(
                     image: Image.asset(

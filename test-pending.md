@@ -165,6 +165,13 @@ Studio → Artwork → **MY DESIGN PICTURE** → upload the AI HD mockup (3deezi
 7. **App:** add a text or logo, then choose a preset: the text or logo stays.
 8. **Phone (390 px):** the Ask bar reads "Ask 3DEEZI…" and scrolling shows the Colours tabs above it.
 
+### 9f. YOUR DESIGN card (2026-10-21)
+1. AI → MAKE IT 3D (or Artwork → My design picture), then click two Preset designs.
+2. The first card in Preset designs is **YOUR DESIGN**, with a picture of your kit. Click it: your design is back and the card is ticked. Undo goes back to the preset.
+3. **My designs** also starts with YOUR DESIGN, then your saved projects.
+4. Save, open My projects, open the kit: YOUR DESIGN is still offered (website: same browser; app: until the app is closed).
+5. A colour-only design: pick a palette, then two presets: YOUR DESIGN brings your colours back. A brand-new kit that only tried presets shows no YOUR DESIGN card.
+
 ### 9b. My design picture for jersey, tee and polo, and Convert
 1. Studio → Artwork → My design picture: upload a flat **jersey** drawing (front and back side by side). The check screen says Garment: Jersey, with front and back named. Click Put on the 3D kit. Check front, back and side: the pattern, the logos, the sleeves and round crests.
 2. On the check screen, change the garment to Training Tee, then to Polo: the kit changes garment and the drawing goes onto it.

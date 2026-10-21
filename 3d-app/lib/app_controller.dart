@@ -484,7 +484,84 @@ class AppController extends ChangeNotifier {
   /// undo step. It also takes off an AI print and a design picture or print
   /// layout, which would hide it ([shelvedLayouts] keeps them to put back);
   /// the artwork layers, logos and player details stay, as on the website.
-  void applyPreset(Map<String, dynamic> design) => edit(() {
+  void applyPreset(Map<String, dynamic> design) {
+    _keepOwn();
+    _applyPreset(design);
+  }
+
+  // ---------- YOUR DESIGN (Preset designs)
+  /// The user's own kit before the first preset (and as changed after it is
+  /// chosen again), with a 3D still; null for a fresh kit that started from a
+  /// preset. Kept per project for this app session.
+  KitState? ownKit;
+  Uint8List? ownThumb;
+  bool _onPreset = false;
+  String? _freshLook;
+  final Map<String, (KitState?, Uint8List?, bool)> _ownByProject = {};
+
+  String _signature(KitState k) => jsonEncode([
+    k.garment,
+    ProjectSync.hex(k.mainColor),
+    ProjectSync.hex(k.secondaryColor),
+    ProjectSync.hex(k.accentColor),
+    k.pattern,
+    identityHashCode(k.patternTile),
+    identityHashCode(k.logoImage),
+    identityHashCode(k.sponsorImage),
+    k.logoText,
+    k.backName,
+    k.number,
+    k.layers,
+    k.zones,
+    k.gradient,
+    k.gradients,
+    k.marks,
+    k.layout,
+  ]);
+
+  /// YOUR DESIGN is on the kit now.
+  bool get ownOn => ownKit != null && _signature(ownKit!) == _signature(kit);
+
+  /// While the kit is the user's own (not a preset), YOUR DESIGN follows it.
+  void _followOwn() {
+    final now = _signature(kit);
+    if (ownKit != null && _signature(ownKit!) == now) {
+      _onPreset = false;
+      return;
+    }
+    if (_onPreset || (ownKit == null && now == _freshLook)) return;
+    ownKit = kit;
+  }
+
+  void _keepOwn() {
+    if (_onPreset) return;
+    if (ownKit != null || _signature(kit) != _freshLook) ownKit = kit;
+    _onPreset = true;
+  }
+
+  /// A 3D still of the user's own kit for the YOUR DESIGN card, taken just
+  /// before a preset replaces it.
+  Future<void> captureOwnThumb() async {
+    if (_onPreset) return;
+    final capture = captureMockup;
+    if (capture == null) return;
+    try {
+      ownThumb = await capture('Front') ?? ownThumb;
+    } on Object {
+      // The swatch shows.
+    }
+  }
+
+  /// YOUR DESIGN back on the kit (its picture or layout, colours, patterns,
+  /// gradients, artwork and garment) as one undo step.
+  void restoreOwn() {
+    final own = ownKit;
+    if (own == null) return;
+    edit(() => _restore(own));
+    _onPreset = false;
+  }
+
+  void _applyPreset(Map<String, dynamic> design) => edit(() {
     if (design['main'] != null) mainColor = ProjectSync.color(design['main']);
     if (design['secondary'] != null) {
       secondaryColor = ProjectSync.color(design['secondary']);
@@ -1018,6 +1095,7 @@ class AppController extends ChangeNotifier {
     change();
     uncover?.call();
     _shelveLayout();
+    _followOwn();
     saved = false;
     mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
@@ -1027,6 +1105,7 @@ class AppController extends ChangeNotifier {
     if (_undo.isEmpty) return;
     _redo.add(kit);
     _restore(_undo.removeLast());
+    _followOwn();
     saved = false;
     mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
@@ -1036,6 +1115,7 @@ class AppController extends ChangeNotifier {
     if (_redo.isEmpty) return;
     _undo.add(kit);
     _restore(_redo.removeLast());
+    _followOwn();
     saved = false;
     mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
@@ -1056,9 +1136,12 @@ class AppController extends ChangeNotifier {
   void _resetDesign() {
     _restore(_sampleKit(1, 'Jersey'));
     shelvedLayouts.clear();
+    ownKit = ownThumb = null;
+    _onPreset = false;
     logoText = backName = 'MANTIS';
     number = '23';
     mainColor = const Color(0xff0b1016);
+    _freshLook = _signature(kit);
     _undo.clear();
     _redo.clear();
     spec = null;
@@ -1306,6 +1389,7 @@ class AppController extends ChangeNotifier {
     }
     projects.insert(0, project);
     selectedProject = 0;
+    _ownByProject[project.id] = (ownKit, ownThumb, _onPreset);
     projectName = project.title;
     saved = false;
     saveError = null;
@@ -1343,6 +1427,13 @@ class AppController extends ChangeNotifier {
     renderFront = project.renderFront;
     renderBack = project.renderBack;
     selectedProject = projects.indexOf(project);
+    // An opened project is the user's own; YOUR DESIGN as it was when saved.
+    _freshLook = null;
+    if (_ownByProject[project.id] case (final own, final thumb, final preset)) {
+      ownKit = own;
+      ownThumb = thumb;
+      _onPreset = preset;
+    }
     projectName = project.title;
     saved = true;
     go(AppScreen.studio);
