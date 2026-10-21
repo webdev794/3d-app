@@ -87,6 +87,13 @@ Finished work that I have checked myself, with how to test each item. When somet
 7. **Photo-style mockups** (like the AI HD mockup on a grey background) work too. The check screen notes that the photo's lighting is printed onto the kit. A flat drawing gives the cleanest result.
 8. Try a random photo (e.g. a stadium picture): the check screen says it looks like a photo or mockup and **Put on the 3D kit** stays disabled. Each shape card has Front / Back / Not used if you want to choose by hand.
 
+### 9a. The AI mockup on the singlet, first round of fixes (2026-10-21)
+Studio → Artwork → **MY DESIGN PICTURE** → upload the AI HD mockup (3deezi-mockup.jpg) → **Put on the 3D kit** (Ctrl+F5 first).
+- **Back:** the whole 818 INK ring shows; nothing cut off at the top.
+- **Front:** the crest is nearer the middle than before, and the red centre line is straighter. Both are not perfect yet; a second round is running.
+- **Neck:** no black lump on the right strap.
+- Your flat 818 INK drawing looks exactly as before.
+
 ### 9b. My design picture for jersey, tee and polo, and Convert
 1. Studio → Artwork → My design picture: upload a flat **jersey** drawing (front and back side by side). The check screen says Garment: Jersey, with front and back named. Click Put on the 3D kit. Check front, back and side: the pattern, the logos, the sleeves and round crests.
 2. On the check screen, change the garment to Training Tee, then to Polo: the kit changes garment and the drawing goes onto it.
@@ -126,6 +133,14 @@ In the Studio, with the Leopards print layout on (Artwork → Factory print layo
 ### 14. Two fixes from your test
 1. **Variable Outline** (Artistic Media flyout): move over a shape and drag on its outline. It responds at once (it used to freeze).
 2. **Palette:** make a To centre contour on green text. The DOCUMENT swatches at the bottom show just the text colour and the contour colour, with no run of greens.
+
+### 14b. The Artboard feels smooth again (2026-10-21)
+1. Open the Artboard (Ctrl+F5 once). The status bar shows build **2026-10-21-1**.
+2. **File → New from template → Back name and number.** Add about 30 shapes (draw some rectangles and ellipses, then Ctrl+D a few times) and 2–3 photos (**File → Import**).
+3. Drag a shape around quickly: it follows the mouse smoothly. **Ctrl+A**, then drag everything: still smooth.
+4. Click objects one after another and press the arrow keys: each responds at once.
+5. **Layers** tab: selecting, renaming, the eye and lock buttons, ↑/↓, delete and **Undo** show in the list as before.
+6. Click different tools and open a few flyouts: no delay. Make the window narrower and wider: the page, rulers and the AI / DYO / HOME pills adjust smoothly.
 
 ## Homepage
 
@@ -198,5 +213,6 @@ In the Studio, Artwork → Factory print layout → upload the LEOPARDS PDF. On 
 - the front and back folds;
 - the tee's folds, including the upper-back V;
 - shorts and Full Kit from the Garment buttons.
+- **new (2026-10-21):** the sleeves. Turn the kit to the side and zoom in on a sleeve: the cuff band's rows run straight and level round the arm, the band is the same height at the top of the arm and underneath, and there is no V where front and back meet. Check from the front and back too.
 
 ---

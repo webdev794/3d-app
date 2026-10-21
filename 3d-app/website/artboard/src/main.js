@@ -184,7 +184,9 @@ function repairObject(o) {
 // ===================================================================
 // Viewport: fit, zoom, pan, rulers, grid
 // ===================================================================
+let sizedAt = ''; // the canvas size last set (see resizeIfChanged)
 function resize() {
+  sizedAt = `${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}`;
   canvas.setDimensions({ width: wrap.clientWidth, height: wrap.clientHeight });
   drawRulers();
   // Resizing clears the canvas: draw it again straight away.
@@ -209,11 +211,11 @@ function zoomAt(z, point) {
 function afterZoom() {
   // Should the view ever hold a bad number, show the whole page again instead of a broken view.
   if (!canvas.viewportTransform.every(Number.isFinite) || !(canvas.getZoom() > 0)) { canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); fit(); return; }
+  drawRulers(); // first: it reads the rulers' sizes, before the zoom boxes below change
   const pct = Math.round(canvas.getZoom() * 100 / baseZoom());
   $('zoomPct').value = String([25, 50, 75, 100, 150, 200, 400].includes(pct) ? pct : 'fit');
   $('zoomRange').value = String(Math.round(Math.log2(canvas.getZoom() / baseZoom()) * 100));
   $('zoomLabel').textContent = `${pct}%`;
-  drawRulers();
   canvas.requestRenderAll();
 }
 /** Zoom at which the page is shown at "100%" (fits the window). */
@@ -267,12 +269,15 @@ addEventListener('pointerup', endPan);
 addEventListener('pointercancel', endPan);
 
 function drawRulers() {
-  for (const [id, horizontal] of [['rulerH', true], ['rulerV', false]]) {
-    const c = $(id), r = c.getBoundingClientRect(), d = devicePixelRatio || 1;
+  // Both sizes read before either ruler is drawn, and a ruler's bitmap is made again only when its size changed
+  // (the rulers are drawn on every pan and zoom step).
+  const rulers = [['rulerH', true], ['rulerV', false]].map(([id, horizontal]) => { const c = $(id); return { c, horizontal, r: c.getBoundingClientRect() }; });
+  for (const { c, horizontal, r } of rulers) {
+    const d = devicePixelRatio || 1;
     if (!r.width) continue;
-    c.width = r.width * d; c.height = r.height * d;
     const g = c.getContext('2d');
-    g.scale(d, d);
+    if (c.width !== Math.floor(r.width * d) || c.height !== Math.floor(r.height * d)) { c.width = r.width * d; c.height = r.height * d; }
+    g.setTransform(d, 0, 0, d, 0, 0);
     g.fillStyle = '#0a141e'; g.fillRect(0, 0, r.width, r.height);
     g.strokeStyle = '#3a5568'; g.fillStyle = '#7f93a6'; g.font = '10px Inter, sans-serif';
     const z = canvas.getZoom(), off = horizontal ? canvas.viewportTransform[4] : canvas.viewportTransform[5];
@@ -4051,7 +4056,9 @@ $('selInfo').onclick = () => {
   navigator.clipboard?.writeText(ids).catch(() => {});
   toast(`Copied ${list.length > 1 ? 'IDs' : 'ID'} ${ids}`);
 };
-function syncProps() {
+/** The property bar, Properties and Layers tabs for the selection. `live`: while it is being moved, scaled or rotated
+ *  (positions and sizes change, the Layers list and the page's colours don't: they follow when it is let go). */
+function syncProps(live = false) {
   const o = one();
   const has = active().length > 0;
   for (const id of ['del', 'dup', 'front', 'back', 'lock', 'alL', 'alC', 'alR', 'alT', 'alM', 'alB', 'flipH', 'flipV']) $(id).disabled = !has;
@@ -4098,11 +4105,11 @@ function syncProps() {
     $('pOC').value = typeof p.stroke === 'string' && /^#[0-9a-f]{6}$/i.test(p.stroke) ? p.stroke : state.stroke;
     $('pONote').hidden = ow > 0;
   }
-  refreshLayers();
+  if (!live) refreshLayers();
   syncTextBar();
   syncContext();
 }
-for (const ev of ['selection:created', 'selection:updated', 'selection:cleared', 'object:modified', 'object:scaling', 'object:moving', 'object:rotating']) canvas.on(ev, () => { if (state.tool === 'node' && ev === 'object:modified') nodes.refresh(); syncProps(); });
+for (const ev of ['selection:created', 'selection:updated', 'selection:cleared', 'object:modified', 'object:scaling', 'object:moving', 'object:rotating']) canvas.on(ev, () => { if (state.tool === 'node' && ev === 'object:modified') nodes.refresh(); syncProps(ev === 'object:scaling' || ev === 'object:moving' || ev === 'object:rotating'); });
 
 $('strokeWidth').onchange = (e) => {
   state.strokeWidth = Number(e.target.value);
@@ -4542,6 +4549,10 @@ function initContextValues() {
 // ===================================================================
 // Layers tab
 // ===================================================================
+// Each object's row is kept and made again only when what it shows changes (selected, shown, locked, name or text,
+// colour, picture): rebuilding the whole list on every change, tool switch and selection made big pages laggy (a
+// photo's row put its whole picture data into the page each time, a painted stroke's was made from scratch).
+const layerRows = new WeakMap();
 function refreshLayers() {
   const list = $('layerList');
   if (!list || restoring || muted) return;
@@ -4550,27 +4561,36 @@ function refreshLayers() {
   $('layersEmpty').style.display = objs.length ? 'none' : 'block';
   $('layerCount').textContent = String(objs.length);
   const selected = new Set(active());
-  list.innerHTML = '';
-  for (const o of objs) {
-    const row = document.createElement('div');
-    row.className = `layer ${selected.has(o) ? 'on' : ''}`;
-    const thumb = o.type === 'image' ? `<img src="${o.getSrc()}" alt="">` : isText(o) ? '<b style="color:#000">T</b>' : `<span style="width:16px;height:16px;border-radius:${o.type === 'ellipse' ? '50%' : '3px'};background:${typeof o.fill === 'string' ? o.fill : o.stroke || '#12E1F0'}"></span>`;
-    row.innerHTML = `<span class="thumb">${thumb}</span><span class="name"></span><span class="acts"><button data-a="up" title="Bring forward">${icon('up')}</button><button data-a="down" title="Send backward">${icon('down')}</button><button data-a="vis" title="Show / hide">${icon(o.visible ? 'eye' : 'eyeOff')}</button><button data-a="lock" title="Lock">${icon(o.locked ? 'lock' : 'unlock')}</button><button data-a="del" title="Delete">${icon('trash')}</button></span>`;
-    row.querySelector('.name').textContent = isText(o) ? `“${o.text}”` : o.name;
-    row.onclick = (e) => {
-      const a = e.target.closest('button')?.dataset.a;
-      if (a === 'up') canvas.bringObjectForward(o);
-      else if (a === 'down') { if (canvas.getObjects().indexOf(o) > 1) canvas.sendObjectBackwards(o); }
-      else if (a === 'vis') o.visible = !o.visible;
-      else if (a === 'lock') setLocked(o, !o.locked);
-      else if (a === 'del') { canvas.remove(o); return; }
-      else if (o.visible && !o.locked) { if (state.tool === 'node') nodes.start(o); else { if (!PICK_LIKE.has(state.tool)) setTool('select'); canvas.setActiveObject(o); } }
-      canvas.requestRenderAll();
-      if (a) canvas.fire('object:modified', { target: o });
-      refreshLayers();
-    };
-    list.append(row);
-  }
+  const rows = objs.map((o) => layerRow(o, selected.has(o)));
+  const kids = list.children;
+  if (kids.length === rows.length && rows.every((r, i) => kids[i] === r)) return;
+  list.replaceChildren(...rows);
+}
+function layerRow(o, on) {
+  // A picture's row: the same image or canvas (a painted stroke gets a new one when repainted) and the same address.
+  const pic = o.type === 'image' ? o._originalElement ?? o._element ?? null : null, src = pic?.tagName === 'IMG' ? pic.src : '';
+  const key = `${on ? 1 : 0}|${o.visible ? 1 : 0}|${o.locked ? 1 : 0}|${o.type}|${isText(o) ? `T${o.text}` : `N${o.name}`}|${o.type === 'image' || isText(o) ? '' : typeof o.fill === 'string' ? o.fill : o.stroke || ''}`;
+  const kept = layerRows.get(o);
+  if (kept && kept.key === key && kept.pic === pic && kept.src === src) return kept.row;
+  const row = kept?.row ?? document.createElement('div');
+  layerRows.set(o, { row, key, pic, src });
+  row.className = `layer ${on ? 'on' : ''}`;
+  const thumb = o.type === 'image' ? `<img src="${o.getSrc()}" alt="">` : isText(o) ? '<b style="color:#000">T</b>' : `<span style="width:16px;height:16px;border-radius:${o.type === 'ellipse' ? '50%' : '3px'};background:${typeof o.fill === 'string' ? o.fill : o.stroke || '#12E1F0'}"></span>`;
+  row.innerHTML = `<span class="thumb">${thumb}</span><span class="name"></span><span class="acts"><button data-a="up" title="Bring forward">${icon('up')}</button><button data-a="down" title="Send backward">${icon('down')}</button><button data-a="vis" title="Show / hide">${icon(o.visible ? 'eye' : 'eyeOff')}</button><button data-a="lock" title="Lock">${icon(o.locked ? 'lock' : 'unlock')}</button><button data-a="del" title="Delete">${icon('trash')}</button></span>`;
+  row.querySelector('.name').textContent = isText(o) ? `“${o.text}”` : o.name;
+  row.onclick = (e) => {
+    const a = e.target.closest('button')?.dataset.a;
+    if (a === 'up') canvas.bringObjectForward(o);
+    else if (a === 'down') { if (canvas.getObjects().indexOf(o) > 1) canvas.sendObjectBackwards(o); }
+    else if (a === 'vis') o.visible = !o.visible;
+    else if (a === 'lock') setLocked(o, !o.locked);
+    else if (a === 'del') { canvas.remove(o); return; }
+    else if (o.visible && !o.locked) { if (state.tool === 'node') nodes.start(o); else { if (!PICK_LIKE.has(state.tool)) setTool('select'); canvas.setActiveObject(o); } }
+    canvas.requestRenderAll();
+    if (a) canvas.fire('object:modified', { target: o });
+    refreshLayers();
+  };
+  return row;
 }
 
 // ===================================================================
@@ -5552,7 +5572,7 @@ $('goHome').onclick = () => startKit('home');
 // The pills show as much as the top bar has room for (not by screen width alone, so the icons stay whenever they
 // fit): icon and word at full size, then step by step smaller, words only, HOME as its house only, smallest, and last
 // no HOME (classes f1…f8, see artboard.css). Checked again whenever the bar or its buttons change size.
-const goTabs = document.querySelector('.go-tabs'), topBar = document.querySelector('.top');
+const goTabs = document.querySelector('.go-tabs'), topBar = document.querySelector('.top'), topActions = document.querySelector('.top-actions');
 const barSpills = () => {
   if (topBar.scrollWidth > topBar.clientWidth || goTabs.scrollWidth > goTabs.clientWidth) return true;
   const shown = [...document.querySelectorAll('.top-actions > *')].filter((e) => e.offsetParent);
@@ -5577,8 +5597,11 @@ function placeInPills() {
     pill.style.gap = `${(start - left - iw).toFixed(1)}px`;
   }
 }
+let goFitAt = ''; // the widths of the bar and its buttons when the pills were last fitted
+const goFitKey = () => `${topBar.getBoundingClientRect().width}|${topActions.getBoundingClientRect().width}`;
 function fitGoTabs() {
   if (!topBar.offsetParent) return; // hidden (full-page preview): fitted again when it comes back
+  goFitAt = goFitKey();
   for (const pill of goTabs.children) { pill.style.removeProperty('padding-left'); pill.style.removeProperty('gap'); }
   for (let level = 0; level <= 8; level++) {
     const steps = Array.from({ length: level }, (_, i) => ` f${i + 1}`).join('');
@@ -5592,8 +5615,9 @@ function fitGoTabs() {
   }
   placeInPills();
 }
-new ResizeObserver(fitGoTabs).observe(topBar);
-new ResizeObserver(fitGoTabs).observe(document.querySelector('.top-actions'));
+// One observer for both (once when both change together), and only when a width changed: the pills fit across.
+const goFit = new ResizeObserver(() => { if (goFitKey() !== goFitAt) fitGoTabs(); });
+goFit.observe(topBar); goFit.observe(topActions);
 document.fonts.ready.then(fitGoTabs);
 // Projects (projects.js): the design kept on this device and in the account (File > Save to my account, Open from my
 // account), templates, and Send to 3D Studio with the design linked to the artwork on the kit.
@@ -6309,9 +6333,12 @@ addEventListener('keydown', (e) => {
   else if (!mod && !e.altKey && KEY_TOOLS[k]) setTool(KEY_TOOLS[k]);
 });
 addEventListener('keyup', (e) => { if (e.key === ' ') { spaceDown = false; canvas.defaultCursor = toolCursor(state.tool); } });
-addEventListener('resize', () => { resize(); });
+// The window and the page area both say when it changes size: the canvas is sized (and so cleared and drawn again)
+// once, and not at all when its size stayed the same.
+const resizeIfChanged = () => { if (`${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}` !== sizedAt) resize(); };
+addEventListener('resize', resizeIfChanged);
 // The canvas also follows the property bar growing to two rows.
-new ResizeObserver(() => resize()).observe(wrap);
+new ResizeObserver(resizeIfChanged).observe(wrap);
 
 // ===================================================================
 // Host bridge

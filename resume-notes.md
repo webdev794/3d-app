@@ -68,3 +68,10 @@ Updated 2026-10-20, about 17:15 (session at about 90%). Finished work is in task
 - **test-pending.md:** every finished task goes in with its test steps.
 
 Agent IDs from this session (resumable only in this session): mockup a620c1b862a0f7aa2, cuff a9a4b1d756d8a5c51, polo collar a7b8460ad3c3a2c99.
+
+## 2026-10-21 wave 1 (started about 10:05)
+- AI mockup fixes (back crest, front crest, centre line, right strap bulge): agent a620c1b862a0f7aa2, 45 min, viewer-protocol.
+- Leopards cuff rows, finish try5: agent a9a4b1d756d8a5c51, 40 min, viewer-protocol.
+- Artboard speed (5.130): agent ad421acabbec317ce, 45 min, artboard/src only; builds both copies, EDITOR_VERSION 2026-10-21-1, vite + flutter builds.
+- After the wave: checks, tar 3deez-update-2026-10-21.tar.gz (cumulative since ec79628; use SP/final-pack.sh with the new name), push (SP/final-push.sh plus root notes and 3d-app/assets/images/brand-wordmark.png).
+- User (10:10): finish only yesterday's tasks (the three running); don't start old pending work (polo collar 9.60b, jersey/tee neck 9.60a) - later. New tasks for today are coming.

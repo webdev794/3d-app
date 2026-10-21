@@ -6,7 +6,7 @@ import { defaultDesign, type ArtworkLayer, type Design } from '../types';
 import { artboardOf, placements, readAsset, type ArtboardLayer, type LibraryAsset } from '../components/StudioArtwork';
 
 /** Bump when the editor (media/artboard/index.html) is rebuilt, so browsers load the new copy. */
-const EDITOR_VERSION = '2026-10-20-10';
+const EDITOR_VERSION = '2026-10-21-1';
 
 /** The garments artwork can be sent to (config/catalog.php), in the Studio's order, and the parts each has. */
 const GARMENTS: { id: Design['garment']; name: string }[] = [{ id: 'fullkit', name: 'Full Kit' }, { id: 'jersey', name: 'Jersey' }, { id: 'shorts', name: 'Shorts' }, { id: 'tee', name: 'Training Tee' }, { id: 'singlet', name: 'Singlet' }, { id: 'polo', name: 'Polo' }];

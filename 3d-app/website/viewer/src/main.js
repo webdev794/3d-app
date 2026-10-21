@@ -13,7 +13,7 @@ import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt } from './zones.js';
 import { readLayout, findPanels, confirmPanels, hemFold, joinLines, drawPockets, ROLE_NAMES } from './layout.js';
-import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, drawnSleeves, sleevedShape } from './layout-warp.js';
+import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, drawnSleeves, sleevedShape, unprojectPhoto } from './layout-warp.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent) || params.has('mobile');
@@ -303,10 +303,13 @@ function keepFile(asset, file) {
  */
 async function readLayoutFile(src, drawing = false) {
   const long = Math.min(mobile ? 3000 : 4800, renderer.capabilities.maxTextureSize);
-  const { image, labels } = await readLayout(String(src ?? ''), { long });
-  const found = findPanels(image, labels, { drawing });
+  const read = await readLayout(String(src ?? ''), { long });
+  let image = read.image;
+  const found = findPanels(image, read.labels, { drawing });
   if (!found.length) throw new Error(drawing ? 'No garment was found in this picture: it needs the garment on a plain background.' : 'No garment panels were found in this file.');
   if (drawing) orderDrawing(found);
+  // A photo mock-up: its garments laid flat (their sides are foreshortened in the photo, the garment a little turned).
+  if (drawing && found.plain === false) image = unprojectPhoto(image, found);
   return { image, found };
 }
 /** A drawing's shape is a garment: not a detail panel or photo (frame), upright, its neck, straps and underarms found. */

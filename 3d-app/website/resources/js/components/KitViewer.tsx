@@ -5,7 +5,7 @@ export type Garment = 'jersey' | 'tee' | 'polo' | 'singlet' | 'shorts' | 'fullki
 export type View = 'front' | 'side' | 'back';
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem';
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-5';
+const VIEWER_VERSION = '2026-10-20-7';
 
 export interface ArtworkLayer {
     id: string; name?: string; type: 'image' | 'text' | 'shape';

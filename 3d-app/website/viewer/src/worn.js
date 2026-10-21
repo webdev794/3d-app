@@ -241,7 +241,19 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     // cuff bands (print layouts) can be taller: up to 7 cm is kept.
     const a0 = rootAt(phi, sg), lc = cuffL(phi);
     const keep = spec.cuffKeep ? Math.min(spec.cuffKeep, lc * 0.6, Math.max(0.035, (aCuff - a0) * 0.7)) : Math.min(0.035, lc * 0.4);
-    const a = l > lc - keep ? aCuff - (lc - l) : a0 + ((aCuff - keep - a0) * l) / (lc - keep);
+    // A printed cuff band (cuffKeep cuts) keeps its depth as printed, square to the cuff's line, so each of its rows
+    // goes round the arm as one ring; eased back to the depth along the sleeve over the top fifth of the kept part.
+    let D = lc - l;
+    if (spec.cuffKeep && D < keep) {
+      // Signed: + towards the armhole (m0's side of the cuff's line), - past the line (where the drawn edge bows out).
+      const cross = (v) => v.x * cuffDir.y - v.y * cuffDir.x, inSide = Math.sign(cross(m0.clone().sub(ca))) || 1;
+      const q = new THREE.Vector2(Math.abs(p.x), p.y).sub(ca), square = (inSide * cross(q)) / cuffDir.length();
+      // The drawn edge's bow past the line (the smooth outline overshoots it either side of each corner) is pressed
+      // almost onto the cuff's ring, so the sleeve ends level, with no notch where front and back meet.
+      const level = square < 0 ? 0.15 * square : square;
+      D = level + (D - level) * ramp(0.92 * keep, keep, D) * ramp(0.05, 0.065, D);
+    }
+    const a = D < keep ? aCuff - D : a0 + ((aCuff - keep - a0) * l) / (lc - keep);
     const out = surface(a, phi, sg, 0.0016 * ramp(lc - 0.021, lc - 0.017, l));
     if (p.x < 0) out.x = -out.x;
     return { out, phi, l };

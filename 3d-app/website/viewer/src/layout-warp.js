@@ -190,6 +190,12 @@ export function sleevedShape(o) {
  * the drawing's box.
  */
 export function drawingSides(o, sleeved = false) {
+  // A photo mock-up laid flat keeps the corners found on it as photographed (unprojectPhoto).
+  if (o.corners) {
+    const { c, found, neckDepth, sleeved: own } = o.corners;
+    const order = own ? ['Nl', 'Nr', 'CTr', 'CBr', 'Ur', 'Hr', 'Hl', 'Ul', 'CBl', 'CTl'] : ['Nl', 'Nr', 'Sr', 'Ur', 'Hr', 'Hl', 'Ul', 'Sl'];
+    return { corners: c, sides: order.map((k, i) => path(o, c[k], c[order[(i + 1) % order.length]])), found, neckDepth };
+  }
   if (sleeved) return sleevedSides(o);
   const xs = o.map((p) => p[0]), ys = o.map((p) => p[1]), n = o.length;
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
@@ -374,6 +380,82 @@ export function drawnSleeves(panel, kind, base) {
   return { ...sleeveCut(base, kind, made), sleeve: { drawn: f, made } };
 }
 
+/**
+ * A photo mock-up's garments laid flat. A photo shows each garment round a body, turned a little: its centre line
+ * (from the neck's tip down) is off the middle, and a point a part t of the way from it to a side shows only
+ * sin(t·90°) of the way (the far side most foreshortened). Row by row, each side is taken back to flat between the
+ * centre line and that side's edge at the body (above the underarms, the underarms' width), so the centre line runs
+ * straight down and the print sits where it does on the garment. The panels' outlines move with it, keeping the
+ * corners found on the photo (straps, armholes, neck). Returns the page laid flat; the panels are changed in place.
+ */
+export function unprojectPhoto(image, panels) {
+  const W = image.width, H = image.height, out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const sd = image.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+  const g = out.getContext('2d', { willReadFrequently: true });
+  g.drawImage(image, 0, 0);
+  const od = g.getImageData(0, 0, W, H);
+  const crossing = (o, y) => {
+    let lo = Infinity, hi = -Infinity;
+    o.forEach((a, i) => {
+      const b = o[(i + 1) % o.length];
+      if ((a[1] <= y) === (b[1] <= y)) return;
+      const x = a[0] + ((y - a[1]) * (b[0] - a[0])) / (b[1] - a[1]);
+      lo = Math.min(lo, x); hi = Math.max(hi, x);
+    });
+    return hi > lo ? [lo, hi] : null;
+  };
+  for (const p of panels) {
+    // The front (photographed turned, for a hero view); a back is shown straight on.
+    if (p.frame || p.role !== 'front') continue;
+    const sleeved = sleevedShape(p.outline), d = drawingSides(p.outline, sleeved);
+    if (!d.found) continue;
+    const o = p.outline, c = { ...d.corners }, at = (k) => o[c[k]];
+    // A turned garment's V: its tip is the neck's lowest point (the point farthest from the slanted line between the
+    // neck's ends lies on the inside of the neck seen through it).
+    for (let k = c.Nl, best = -Infinity; ; k = (k + 1) % o.length) {
+      if (o[k][1] > best) { best = o[k][1]; c.T = k; }
+      if (k === c.Nr) break;
+    }
+    const uy = (at('Ul')[1] + at('Ur')[1]) / 2;
+    // The garment round the body turned by an angle: its centre line (the V's tip) is off the middle by sin(turn) of
+    // the half-width at the underarms; a point at angle θ round the body shows at middle + half·sin(θ + turn).
+    const midU = (at('Ul')[0] + at('Ur')[0]) / 2, halfU = (at('Ur')[0] - at('Ul')[0]) / 2;
+    const turn = Math.asin(Math.max(-0.5, Math.min(0.5, (at('T')[0] - midU) / halfU)));
+    // Per row: the body's middle and half-width (the underarms' above them).
+    const row = (y) => {
+      const span = y > uy ? crossing(o, y) : null;
+      const left = span ? span[0] : at('Ul')[0], right = span ? span[1] : at('Ur')[0];
+      return { mid: (left + right) / 2, half: (right - left) / 2 };
+    };
+    // Photo to flat (the outline's points), and flat to photo (the page's pixels): the flat row runs θ from -90° to 90°.
+    const flat = (x, r) => {
+      const t = (x - r.mid) / r.half;
+      if (!(r.half > 4) || Math.abs(t) > 1) return x;
+      const f = Math.max(-1, Math.min(1, (Math.asin(t) - turn) / (Math.PI / 2)));
+      return r.mid + r.half * f;
+    };
+    const y0 = Math.max(0, Math.floor(p.y0)), y1 = Math.min(H - 1, Math.ceil(p.y1));
+    for (let y = y0; y <= y1; y++) {
+      const r = row(y + 0.5);
+      if (!(r.half > 4)) continue;
+      for (let x = Math.max(0, Math.floor(r.mid - r.half)); x <= Math.min(W - 2, Math.ceil(r.mid + r.half)); x++) {
+        const f = (x - r.mid) / r.half;
+        if (Math.abs(f) >= 1) continue;
+        const xo = r.mid + r.half * Math.sin(Math.max(-Math.PI / 2, Math.min(Math.PI / 2, (f * Math.PI) / 2 + turn)));
+        const xa = Math.max(0, Math.min(W - 2, Math.floor(xo))), fr = xo - xa;
+        const i = (y * W + x) * 4, a = (y * W + xa) * 4;
+        for (let k = 0; k < 4; k++) od.data[i + k] = sd[a + k] * (1 - fr) + sd[a + 4 + k] * fr;
+      }
+    }
+    const moved = o.map(([x, y]) => [flat(x, row(y)), y]);
+    moved.corners = { c, found: d.found, neckDepth: d.neckDepth, sleeved };
+    p.outline = moved;
+  }
+  g.putImageData(od, 0, 0);
+  return out;
+}
+
 /** A garment drawing's front and back the right way round: the front's neck opening is the deeper one. */
 export function orderDrawing(panels) {
   const front = panels.find((p) => p.role === 'front'), back = panels.find((p) => p.role === 'back');
@@ -456,6 +538,12 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
     const both = ([x, y]) => ({ 1: g.near(x, y), [-1]: g.near(-x, y) });
     // Shapes are kept round on the front as worn (chest logos, seen as you turn to them), and on the back as laid flat:
     // the wrap is made so flat widths come back in the back view, where a big crest or number is looked at straight on.
+    // A back point where it shows as worn: the back's neckline is raised (garment.js backHeight), so the print is placed
+    // by that height and a crest just under the drawn neckline is not cut off.
+    const raised = painter.surface ? ([x, y]) => {
+      const q = painter.fromCanvas(x, y), up = q.y > 0.5 ? painter.surface(q.x, q.y, true).y - q.y : 0, c = painter.toCanvas(true, q.x, q.y + up);
+      return [c.x, c.y];
+    } : null;
     const shape = (back) => (painter.surface && !back ? ([x, y]) => { const p = painter.fromCanvas(x, y); return painter.surface(p.x, p.y, back); } : null);
     if (at.CT) {
       // A sleeved top: neck, shoulder and sleeve top, cuff, sleeve's underside, side and hem, corner to corner (all held).
@@ -485,7 +573,7 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
       if (back) {
         // The garment's back neck is cut as deep as its front (its 3D back neckline is raised, garment.js): it cuts
         // into a drawing's shallower back neck instead of squeezing the print under it.
-        out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: [0], pins: [3, 4, 5, 6] });
+        out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: [0], pins: [3, 4, 5, 6], lift: raised });
       } else {
         // The front's neck in two at its tip, held there and at its ends too, so a V's trim stays where it is.
         const gs = sides(l, r);
@@ -577,6 +665,8 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
       straight: true,
       scale: lineLength(px(false)(half1(dir)[1])) / lineLength(halves.left[1]),
       zone: 0.85 * Math.min(depth(halves.left[3].at(-1), cuffChord, centre), depth(halves.right[2][0], cuffChord, centre)),
+      // Every row of the printed band at its own depth from the cuff, square to it, at the band's scale (regionMesh).
+      cuffDepth: true,
     };
     // The cuff band's rows run straight round the arm: the cuff is straight (garment.js) and the band rule keeps its
     // depth. (Mapping it as a strip, stripMap with band.strip, tore its rows: off until redone.)
@@ -968,11 +1058,13 @@ export function regionMesh(region, spacing) {
   // fits the corners (so the print under it keeps its shape), easing back to the corners over their ends.
   const held = new Set();
   if (region.loose?.length) {
-    const rigid = fitScale(region.sides.map((s) => s[0]), region.target.map((t) => t[0]));
-    const edge = samples.flatMap(([, t]) => t.slice(0, -1));
+    // Placed by where the garment's points show as worn (`lift`: a back's neckline is raised there), else as laid flat.
+    const edge = samples.flatMap(([, t]) => t.slice(0, -1)), inside = (pts) => pts.every(([x, y]) => insidePoly(edge, x, y));
+    const place = (lift) => { const fit = fitScale(region.sides.map((s) => lift(s[0])), region.target.map((t) => t[0])); return (p) => fit(lift(p)); };
+    const rigids = region.lift ? [place(region.lift), place((p) => p)] : [place((p) => p)];
     for (const k of region.loose) {
-      const [a, t] = samples[k], r = a.map(rigid), L = lineLength(a);
-      if (!r.every(([x, y]) => insidePoly(edge, x, y))) continue;
+      const [a, t] = samples[k], L = lineLength(a), r = rigids.map((rigid) => a.map(rigid)).find(inside);
+      if (!r) continue;
       held.add(k);
       let run = 0;
       samples[k][1] = t.map((p, i) => {
@@ -1000,6 +1092,30 @@ export function regionMesh(region, spacing) {
       if (hemStrip) [tx, ty] = hemStrip([x, y], [tx, ty]);
       points.push([x, y]);
       targets.push([tx, ty]);
+    }
+  }
+  // A sleeve's cuff band (band.cuffDepth): each point's print depth (square to the print's cuff line) set from its own
+  // depth on the garment (square to the garment's cuff line) at the band's scale, from the same 6 pixels in as the edge
+  // samples, so each row of the band is one straight line along the cuff at one height. Only the depth is moved (never
+  // along the cuff), over the band and a little above it, easing back to the general mapping below the zone's top;
+  // the cuff line's bulge past its chord keeps the general mapping.
+  if (band?.cuffDepth) {
+    const k = band.side, gc = [region.sides[k][0], region.sides[k].at(-1)], tc = [region.target[k][0], region.target[k].at(-1)];
+    const inward = ([a, b], inside) => {
+      let nx = -(b[1] - a[1]), ny = b[0] - a[0];
+      const l = Math.hypot(nx, ny) || 1;
+      nx /= l; ny /= l;
+      return (inside[0] - a[0]) * nx + (inside[1] - a[1]) * ny < 0 ? [-nx, -ny] : [nx, ny];
+    };
+    const ng = inward(gc, centroid(region.sides)), nt = inward(tc, centroid(region.target));
+    const smooth = (e0, e1, v) => { const s = Math.max(0, Math.min(1, (v - e0) / (e1 - e0))); return s * s * (3 - 2 * s); };
+    const full = 0.66 * band.zone;
+    for (let i = 0; i < points.length; i++) {
+      const q = points[i], dg = ((q[0] - gc[0][0]) * ng[0] + (q[1] - gc[0][1]) * ng[1]) / band.scale;
+      const w = smooth(-0.5, 3, dg) * (1 - smooth(full, band.zone, dg));
+      if (w <= 0) continue;
+      const p = targets[i], dt = (p[0] - tc[0][0]) * nt[0] + (p[1] - tc[0][1]) * nt[1], shift = (6 * Math.max(0, 1 - dg / band.zone) + dg - dt) * w;
+      targets[i] = [p[0] + nt[0] * shift, p[1] + nt[1] * shift];
     }
   }
   const tri = Delaunator.from(points).triangles;
