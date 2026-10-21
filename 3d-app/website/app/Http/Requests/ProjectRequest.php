@@ -113,7 +113,7 @@ class ProjectRequest extends FormRequest
             'design.renderBack' => ['sometimes', 'nullable', 'string', 'max:4000000', $this->imageSourceRule()],
             'design.app' => ['sometimes', 'nullable', 'array'],
             'thumbnail' => ['sometimes', 'nullable', 'string', 'max:4000000', $this->imageSourceRule()],
-            'design.prompt' => ['sometimes', 'nullable', 'string', 'max:1500'],
+            'design.prompt' => ['sometimes', 'nullable', 'string', 'max:4000'],
             'expected_version' => ['sometimes', 'integer', 'min:1'],
         ];
     }

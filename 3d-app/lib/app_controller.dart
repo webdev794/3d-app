@@ -153,6 +153,10 @@ class AppController extends ChangeNotifier {
   String mode = 'AI';
   String brief = '';
   final List<Uint8List> references = [];
+
+  /// The sport and garment chosen on the AI Designer (a sports tile, the
+  /// brief's own words or a garment chip), or null to let the AI pick.
+  String? aiSport, aiGarment;
   BriefMode? briefMode;
   List<Concept> concepts = [];
   int selectedConcept = 0;
@@ -1015,6 +1019,7 @@ class AppController extends ChangeNotifier {
     brief = '';
     references.clear();
     briefMode = null;
+    aiSport = aiGarment = null;
     go(AppScreen.aiDesigner);
   }
 

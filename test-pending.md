@@ -71,7 +71,26 @@ Finished work that I have checked myself, with how to test each item. When somet
 - **On this computer (test mode, no keys):** a customer's unpaid invoice → **Pay now** → the TEST form → **Approve**: Paid with a receipt; **Decline** on another: "Payment failed", and trying again works. **(admin)** Admin › Pricing › Online payments shows "Test mode" and the Airwallex webhook address with a copy button.
 - **With the client's demo keys (later):** Admin › Pricing › Online payments shows "Airwallex connected (demo)". Pay an invoice: Airwallex's page opens (our page shows an AIRWALLEX DEMO banner); pay with an Airwallex test card → back on the invoice: "Confirming your payment…", then **Paid** with the card's last 4 digits and a receipt. Also: a declined test card; Back on Airwallex's page ("The payment wasn't completed"); **(admin)** Admin › Invoices › Refund → Refunded, and the refund shows in Airwallex; in the app, Pay now → pay → the order shows Paid.
 
+### 7d. App: Pay now in the phone's browser (2026-10-21, needs an app build on a phone)
+1. App → Orders → an order with an unpaid invoice → **PAY NOW**: the phone's browser (Chrome or Safari) opens the pay page, already signed in.
+2. Test mode: **Approve** → "Payment received" → switch back to the app: the order shows **Paid** within a moment.
+3. With Airwallex demo keys: Airwallex's page shows Card, plus Google Pay (Android) or Apple Pay (iPhone with a card in Wallet).
+4. Switch back without paying: still Awaiting payment, and Pay now works again.
+5. In the web app preview (http://127.0.0.1:8088), Pay now opens a new tab as before.
+
 ## Website: 3D and design
+
+### 8. AI designer page, new design (2026-10-21)
+1. Click the cyan **AI** button at the top right (or http://127.0.0.1:8000/create/ai). You see the big 3DEEZI logo, "DESIGN WITHOUT LIMITS", one bar "Describe your design..." and a row of sport photos.
+2. Click **Basketball**: it gets a teal frame and the page stays put (click again to clear it).
+3. The picture button in the bar: choose a logo; a small copy appears inside the bar.
+4. Type a brief and press the round teal arrow (signed out: sign in, then it starts by itself with your text, logo and sport).
+5. On the results, **Refine your brief**: your text, logo and sport are still there.
+6. Choose **Fishing**, type a brief without a garment: buttons ask which garment; tap one and it starts.
+7. **+** in the bar: "Attach logos or artwork" and suggestions such as "Club polo".
+8. Paste a very long text: it is kept up to 4,000 characters, with a counter near the end and no error.
+9. While it generates, the "Creating your design…" circle shows the spinning 3DEEZI emblem.
+10. On a phone the bar stays in the middle and the sports row swipes. **App:** AI Designer shows the same; tap Netball, type, tap the arrow, choose the garment.
 
 ### 8a. AI designer like ChatGPT, and MAKE IT 3D (2026-10-21) (AI credit)
 1. Header **AI** → Training, Singlet. Brief: "Create a cool training singlets using this for the theme and main logo"; attach the BLITZ logo; HD mockup ticked → CREATE.

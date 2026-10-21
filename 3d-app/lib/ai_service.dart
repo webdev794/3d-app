@@ -293,9 +293,15 @@ class AiService {
     required String brief,
     List<Uint8List> references = const [],
     BriefMode? mode,
+    String? sport,
+    String? garment,
   }) async {
     final text = StringBuffer()
-      ..writeln('Client brief: ${brief.trim().isEmpty ? '(none)' : brief}')
+      ..writeln('Client brief: ${brief.trim().isEmpty ? '(none)' : brief}');
+    // Chosen on the AI Designer (a sports tile or a garment chip): keep to it.
+    if (sport != null) text.writeln('Sport chosen by the client: $sport.');
+    if (garment != null) text.writeln('Garment chosen by the client: $garment.');
+    text
       ..writeln(
         'Create exactly 4 clearly different concept directions for this '
         'kit, each designed the way a top custom sublimation sportswear brand '

@@ -139,9 +139,14 @@ void main() {
 
     await tapText(tester, 'START WITH AI');
     expect(c.screen, AppScreen.aiDesigner);
+    // The brief helpers now live in the (+) sheet of the prompt bar.
+    await tester.tap(find.byTooltip('Attach and suggestions'));
+    await tester.pumpAndSettle();
     for (final chip in ['Inspire', 'Modify', 'Match', 'Improve']) {
       expect(find.text(chip), findsOneWidget);
     }
+    await tester.tapAt(const Offset(187, 40));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextField),
       'Black and cyan rugby league jersey with a Mantis logo',
