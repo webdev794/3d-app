@@ -407,7 +407,9 @@ export function unprojectPhoto(image, panels) {
   };
   for (const p of panels) {
     // The front (photographed turned, for a hero view); a back is shown straight on.
-    if (p.frame || p.role !== 'front') continue;
+    if (p.frame || (p.role !== 'front' && p.role !== 'back')) continue;
+    // The back: photographed straight on (its sides foreshortened alike), no turn to find.
+    const back = p.role === 'back';
     const sleeved = sleevedShape(p.outline), d = drawingSides(p.outline, sleeved);
     if (!d.found) continue;
     const o = p.outline, c = { ...d.corners }, at = (k) => o[c[k]];
@@ -418,22 +420,63 @@ export function unprojectPhoto(image, panels) {
       if (k === c.Nr) break;
     }
     const uy = (at('Ul')[1] + at('Ur')[1]) / 2;
-    // The garment round the body turned by an angle: its centre line (the V's tip) is off the middle by sin(turn) of
-    // the half-width at the underarms; a point at angle θ round the body shows at middle + half·sin(θ + turn).
-    const midU = (at('Ul')[0] + at('Ur')[0]) / 2, halfU = (at('Ur')[0] - at('Ul')[0]) / 2;
-    const turn = Math.asin(Math.max(-0.5, Math.min(0.5, (at('T')[0] - midU) / halfU)));
     // Per row: the body's middle and half-width (the underarms' above them).
     const row = (y) => {
       const span = y > uy ? crossing(o, y) : null;
       const left = span ? span[0] : at('Ul')[0], right = span ? span[1] : at('Ur')[0];
       return { mid: (left + right) / 2, half: (right - left) / 2 };
     };
+    // The garment round the body turned by an angle: a point at angle θ round the body shows at middle + half·sin(θ + turn).
+    // The turn is the one that makes the print mirror itself best about the centre line (θ and -θ alike) on the rows below
+    // the underarms (the logos are higher up), measured on three bands down the body that should agree.
+    const hy = (at('Hl')[1] + at('Hr')[1]) / 2, rows = [];
+    for (let k = 0; k < 36; k++) {
+      const y = uy + (hy - uy) * (0.06 + (0.88 * k) / 35), r = row(y);
+      if (r.half > 8) rows.push({ y: Math.round(y), ...r });
+    }
+    // Each band's print profile across the body (the colour's strength from the cloth's own, averaged down the band, so
+    // fine detail and the photo's light matter little), compared with its mirror image.
+    const ink = (x, y) => {
+      let v = 0;
+      for (let d = -1; d <= 1; d++) {
+        const i = (y * W + Math.max(0, Math.min(W - 1, Math.round(x) + d))) * 4;
+        v += Math.max(sd[i], sd[i + 1], sd[i + 2]) - Math.min(sd[i], sd[i + 1], sd[i + 2]) + 0.5 * (sd[i] + sd[i + 1] + sd[i + 2]) / 3;
+      }
+      return v / 3;
+    };
+    const mismatch = (turn, list) => {
+      let sum = 0, n = 0;
+      for (let j = 0; j <= 40; j++) {
+        const f = 0.02 + (0.73 * j) / 40, ap = (f * Math.PI) / 2 + turn, an = (-f * Math.PI) / 2 + turn;
+        if (Math.abs(ap) > 1.45 || Math.abs(an) > 1.45) continue;
+        let u = 0, v = 0;
+        for (const r of list) { u += ink(r.mid + r.half * Math.sin(ap), r.y); v += ink(r.mid + r.half * Math.sin(an), r.y); }
+        sum += Math.abs(u - v) / list.length; n++;
+      }
+      return n > 20 ? sum / n : Infinity;
+    };
+    const best = (list) => {
+      let at0 = mismatch(0, list), t = 0, m = at0;
+      for (let d = -30; d <= 30; d++) { const v = mismatch((d * Math.PI) / 180, list); if (v < m) { m = v; t = (d * Math.PI) / 180; } }
+      for (let d = -0.9; d <= 0.9; d += 0.1) { const v = mismatch(t + (d * Math.PI) / 180, list); if (v < m - 1e-9) { m = v; t += (d * Math.PI) / 180; } }
+      return { t, m, at0 };
+    };
+    const bands = [0, 1, 2].map((k) => best(rows.slice(Math.round((k * rows.length) / 3), Math.round(((k + 1) * rows.length) / 3))));
+    const ts = bands.map((b) => b.t).sort((a, b) => a - b);
+    // A plain or one-sided print gives no clear answer (or bands that disagree): then the photo is taken as straight on.
+    const clear = rows.length >= 12 && ts[2] - ts[0] < 0.105 && bands.every((b) => b.m < 0.9 * b.at0);
+    const turn = clear && !back ? ts[1] : 0, s = Math.sign(turn) || 1;
+    // The receding side's last strip (its side seam) is out of sight: the flat row is the visible one, its last part
+    // (past the knee) spread over the hidden strip; the same map for the page's pixels and the outline.
+    const fE = 1 - Math.abs(turn) / (Math.PI / 2), fK = Math.min(0.5, fE - 0.25);
+    const toTrue = (f) => (s * f > fK ? s * (fK + ((s * f - fK) * (fE - fK)) / (1 - fK)) : f);
+    const toFlat = (f) => (s * f > fK ? s * (fK + ((s * f - fK) * (1 - fK)) / (fE - fK)) : f);
     // Photo to flat (the outline's points), and flat to photo (the page's pixels): the flat row runs θ from -90° to 90°.
     const flat = (x, r) => {
       const t = (x - r.mid) / r.half;
       if (!(r.half > 4) || Math.abs(t) > 1) return x;
-      const f = Math.max(-1, Math.min(1, (Math.asin(t) - turn) / (Math.PI / 2)));
-      return r.mid + r.half * f;
+      const f = Math.max(s > 0 ? -1 : -fE, Math.min(s > 0 ? fE : 1, (Math.asin(t) - turn) / (Math.PI / 2)));
+      return r.mid + r.half * toFlat(f);
     };
     const y0 = Math.max(0, Math.floor(p.y0)), y1 = Math.min(H - 1, Math.ceil(p.y1));
     for (let y = y0; y <= y1; y++) {
@@ -442,14 +485,91 @@ export function unprojectPhoto(image, panels) {
       for (let x = Math.max(0, Math.floor(r.mid - r.half)); x <= Math.min(W - 2, Math.ceil(r.mid + r.half)); x++) {
         const f = (x - r.mid) / r.half;
         if (Math.abs(f) >= 1) continue;
-        const xo = r.mid + r.half * Math.sin(Math.max(-Math.PI / 2, Math.min(Math.PI / 2, (f * Math.PI) / 2 + turn)));
+        const xo = r.mid + r.half * Math.sin(Math.max(-Math.PI / 2, Math.min(Math.PI / 2, (toTrue(f) * Math.PI) / 2 + turn)));
         const xa = Math.max(0, Math.min(W - 2, Math.floor(xo))), fr = xo - xa;
         const i = (y * W + x) * 4, a = (y * W + xa) * 4;
         for (let k = 0; k < 4; k++) od.data[i + k] = sd[a + k] * (1 - fr) + sd[a + 4 + k] * fr;
       }
     }
-    const moved = o.map(([x, y]) => [flat(x, row(y)), y]);
-    moved.corners = { c, found: d.found, neckDepth: d.neckDepth, sleeved };
+    let moved = o.map(([x, y]) => [flat(x, row(y)), y]), mc = c;
+    // A garment is cut the same both sides, but the photo's receding side (its strap, the neck seen through the V) and
+    // the V's tip (hidden by the inside of the back) are unreliable: the flat outline is its near half, mirrored about
+    // the centre line, with the V's tip on that line where the inside seen through the neck ends.
+    if (!sleeved) {
+      const cm = (y) => row(y).mid, mirror = ([x, y]) => [2 * cm(y) - x, y], near = s > 0 ? moved : moved.map(mirror);
+      const grey = (x, y) => { const i = (y * W + Math.round(x)) * 4, l = (sd[i] + sd[i + 1] + sd[i + 2]) / 3; return l > 120 && Math.max(sd[i], sd[i + 1], sd[i + 2]) - Math.min(sd[i], sd[i + 1], sd[i + 2]) < 40; };
+      let yT = null, seen = false;
+      for (let y = Math.round(Math.min(at('Nl')[1], at('Nr')[1])), miss = 0; !back && y < uy; y++) {
+        const r = row(y), g = grey(r.mid + r.half * Math.sin(turn), y);
+        if (g) { seen = true; miss = 0; } else if (seen && ++miss >= 3) { yT = y - 2; break; }
+      }
+      const Ty = Math.max(at('T')[1], yT ?? at('T')[1]);
+      const fwd = (a, b) => { const out = []; for (let k = a; ; k = (k + 1) % o.length) { out.push(k); if (k === b) break; } return out; };
+      // The near half, forwards from the hem's middle (left of the centre line) to the neck, up to the V's tip.
+      const NL = s > 0 ? 'Nl' : 'Nr', HL = s > 0 ? 'Hl' : 'Hr', HR = s > 0 ? 'Hr' : 'Hl';
+      const step = s > 0 ? fwd : (a, b) => fwd(b, a).reverse();
+      const hem = step(c[HR], c[HL]), start = hem.findIndex((k) => near[k][0] < cm(near[k][1]));
+      const keys = [...hem.slice(Math.max(0, start)), ...step(c[HL], c[NL]).slice(1), ...step(c[NL], c.T).slice(1)]
+        .filter((k, i, all) => all.indexOf(k) === i && (i < 2 || near[k][0] < cm(near[k][1]) - 1));
+      if (start >= 0 && keys.length > 12 && Ty > at('T')[1] - 1) {
+        const L = keys.map((k) => near[k]), n = L.length, tip = [cm(Ty), Ty];
+        const half = [...L, tip, ...L.slice().reverse().map(mirror)];
+        const idx = (key) => keys.indexOf(c[key]);
+        const sideL = s > 0 ? ['Nl', 'Sl', 'Ul', 'Hl'] : ['Nr', 'Sr', 'Ur', 'Hr'], sideR = s > 0 ? ['Nr', 'Sr', 'Ur', 'Hr'] : ['Nl', 'Sl', 'Ul', 'Hl'];
+        if (sideL.every((k) => idx(k) >= 0)) {
+          mc = { ...c, T: n };
+          sideL.forEach((k, j) => { mc[k] = idx(k); mc[sideR[j]] = 2 * n - idx(k); });
+          const was = moved;
+          moved = s > 0 ? half : half.map(mirror).reverse();
+          // What the mirrored outline takes in beyond the photo's own (the receding strap is narrower in the photo): the
+          // near side's print, mirrored.
+          for (let y = Math.max(0, Math.floor(p.y0)); y <= Math.min(H - 1, Math.ceil(p.y1)); y++) {
+            const r = row(y + 0.5);
+            if (!(r.half > 4)) continue;
+            for (let x = Math.max(0, Math.floor(r.mid - r.half - 4)); x <= Math.min(W - 1, Math.ceil(r.mid + r.half + 4)); x++) {
+              if (s * (x - r.mid) <= 0 || insidePoly(was, x + 0.5, y + 0.5) || !insidePoly(moved, x + 0.5, y + 0.5)) continue;
+              const xm = Math.max(0, Math.min(W - 1, Math.round(2 * r.mid - x))), i = (y * W + x) * 4, j = (y * W + xm) * 4;
+              for (let k = 0; k < 4; k++) od.data[i + k] = od.data[j + k];
+            }
+          }
+          if (s < 0) for (const k of Object.keys(mc)) mc[k] = moved.length - 1 - mc[k];
+        }
+      }
+    }
+    if (back && !sleeved && mc !== c) {
+      // Its almost level top edge has no clear corners: the neck's ends and the straps' outer tops are taken where the
+      // garment has them (DRAWN), as parts of the underarms' half-width, on the top edge of the (mirrored) outline.
+      const n = mc.T, at2 = DRAWN.singlet, cx0 = moved[n][0], ux = moved[mc.Ul][0] - cx0, top0 = Math.min(...moved.map((q) => q[1]));
+      const band = top0 + 0.25 * (moved[mc.Ul][1] - top0);
+      const pick = (f) => {
+        let bi = -1, bd = Infinity;
+        // The top edge there: the highest point near that x (the armhole below it reaches the same x).
+        for (let i = mc.Ul; i < n; i++) if (moved[i][1] < band) { const dd = Math.max(0, Math.abs(moved[i][0] - (cx0 + f * ux)) - 6) * 100 + moved[i][1]; if (dd < bd) { bd = dd; bi = i; } }
+        return bi;
+      };
+      const iS = pick(at2.S[0] / at2.U[0]), iN = pick(at2.N[0] / at2.U[0]);
+      if (iS > mc.Ul && iN > iS && iN < n) Object.assign(mc, { Sl: iS, Nl: iN, Sr: 2 * n - iS, Nr: 2 * n - iN });
+    }
+    if (back && !sleeved && mc !== c) {
+      // The photo's straps end level with its back neck; the 3D back's straps rise about 0.09 of its height (neck to
+      // hem) above the neck's middle. What is above a line just under the straps' tops moves up by that, a short band
+      // under it drawn out to meet it (the page and the outline alike), so the print below keeps its place under the neck.
+      const hem = (moved[mc.Hl][1] + moved[mc.Hr][1]) / 2, sy = Math.max(moved[mc.Sl][1], moved[mc.Sr][1]);
+      const L = hem - sy, yN = sy + 0.02 * L, band = 0.04 * L, lift = Math.min(0.09 * L, Math.min(...moved.map((q) => q[1])) - 1);
+      if (lift > 2 && L > 50) {
+        const up = (y) => (y >= yN ? y : y >= yN - band ? yN - ((yN - y) * (band + lift)) / band : y - lift);
+        const down = (y) => (y >= yN ? y : y >= yN - band - lift ? yN - ((yN - y) * band) / (band + lift) : y + lift);
+        const xs = moved.map((q) => q[0]), x0 = Math.max(0, Math.floor(Math.min(...xs)) - 2), x1 = Math.min(W - 1, Math.ceil(Math.max(...xs)) + 2);
+        const y0 = Math.max(0, Math.floor(Math.min(...moved.map((q) => q[1])) - lift - 1));
+        for (let y = y0; y <= Math.floor(yN); y++) {
+          const ys = Math.max(0, Math.min(H - 1, Math.round(down(y))));
+          for (let x = x0; x <= x1; x++) { const i = (y * W + x) * 4, j = (ys * W + x) * 4; for (let q = 0; q < 4; q++) od.data[i + q] = od.data[j + q]; }
+        }
+        moved = moved.map(([x, y]) => [x, up(y)]);
+        p.y0 = Math.min(p.y0, y0);
+      }
+    }
+    moved.corners = { c: mc, found: d.found, neckDepth: d.neckDepth, sleeved };
     p.outline = moved;
   }
   g.putImageData(od, 0, 0);

@@ -91,9 +91,13 @@ const canvas = new Canvas($('board'), {
   fireRightClick: false,
   stopContextMenu: true,
   enableRetinaScaling: true,
+  // The Pick tool's pointer is the normal arrow, over objects and while moving them too (as in CorelDRAW; Fabric's
+  // default is the four-way "move" arrows); the handles keep their resize, rotate and slant cursors.
+  hoverCursor: 'default',
+  moveCursor: 'default',
 });
 const handleStyle = { borderColor: '#1E7BFF', cornerColor: '#ffffff', cornerStrokeColor: '#1E7BFF', cornerStyle: 'rect', cornerSize: 9, transparentCorners: false, borderScaleFactor: 1.2, padding: 2 };
-// CorelDRAW handles (handles.js): one click shows the 8 sizing handles, a click on the selected object again the
+// CorelDRAW handles (handles.js): one click shows the 6 sizing handles, a click on the selected object again the
 // rotate and slant handles with a centre of rotation; only with the Pick tool, not while Space is held (panning) and
 // not for the tap that opened a right-click menu (⋯ on phones).
 const handles = createHandles({ canvas, enabled: () => state.tool === 'select' && !pickFrame && !spaceDown && !$('ctxMenu').classList.contains('open'), hint: (t) => hint(t), hintEl: $('hint'), style: handleStyle });
@@ -874,8 +878,8 @@ function setTool(tool) {
   if (tool === 'node' && editFirst) nodes.start(editFirst);
   if (tool === 'eyedropper') eye.mode = 'pick';
   canvas.defaultCursor = toolCursor(tool);
-  // Over objects the cursor still shows the tool (Pick-like tools show "move").
-  canvas.hoverCursor = PICK_LIKE.has(tool) ? 'move' : canvas.defaultCursor;
+  // Over objects the cursor still shows the tool (Pick-like tools: the arrow).
+  canvas.hoverCursor = PICK_LIKE.has(tool) ? 'default' : canvas.defaultCursor;
   setBrushRing(SCULPT.has(tool) || tool === 'smudge' ? { radius: state.shape.radius * MM } : tool === 'eraser' ? { radius: (state.shape.eraser * MM) / 2 } : null);
   if (tool.startsWith('shape:')) state.shape.set = tool.split(':')[1];
   renderToolbox();
@@ -6287,7 +6291,8 @@ addEventListener('keydown', (e) => {
     return;
   }
   if (editing) return;
-  if (k === ' ') { spaceDown = true; canvas.defaultCursor = 'grab'; e.preventDefault(); return; }
+  // Space held: the hand (panning) on the page and over objects alike.
+  if (k === ' ') { spaceDown = true; canvas.defaultCursor = canvas.hoverCursor = 'grab'; canvas.setCursor('grab'); e.preventDefault(); return; }
   if (/^f\d+$/.test(k)) e.preventDefault();
   if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if (mod && k === 'y') { e.preventDefault(); redo(); }
@@ -6332,7 +6337,13 @@ addEventListener('keydown', (e) => {
   else if (!mod && !e.altKey && KEY_ALIGN[k] && canvas.getActiveObjects().length && state.tool === 'select') align(KEY_ALIGN[k]);
   else if (!mod && !e.altKey && KEY_TOOLS[k]) setTool(KEY_TOOLS[k]);
 });
-addEventListener('keyup', (e) => { if (e.key === ' ') { spaceDown = false; canvas.defaultCursor = toolCursor(state.tool); } });
+addEventListener('keyup', (e) => {
+  if (e.key !== ' ' || !spaceDown) return;
+  spaceDown = false;
+  canvas.defaultCursor = toolCursor(state.tool);
+  canvas.hoverCursor = PICK_LIKE.has(state.tool) ? 'default' : canvas.defaultCursor;
+  canvas.setCursor(canvas.defaultCursor);
+});
 // The window and the page area both say when it changes size: the canvas is sized (and so cleared and drawn again)
 // once, and not at all when its size stayed the same.
 const resizeIfChanged = () => { if (`${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}` !== sizedAt) resize(); };

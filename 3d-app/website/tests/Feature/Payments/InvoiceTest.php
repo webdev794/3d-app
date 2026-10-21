@@ -216,7 +216,7 @@ class InvoiceTest extends TestCase
         $this->app['auth']->forgetGuards();
         $key = substr($link, strpos($link, 'key=') + 4);
         $this->getJson('/api/v1/invoices/INV-1001?key='.$key)->assertOk()->assertJsonPath('data.viewer', 'link');
-        $this->getJson('/api/v1/invoices/INV-1001?key='.substr($key, 0, -1).'0')->assertNotFound();
+        $this->getJson('/api/v1/invoices/INV-1001?key='.substr($key, 0, -1).(str_ends_with($key, '0') ? '1' : '0'))->assertNotFound();
         $other = $this->submit($this->formOrder($this->customer('Other Club')));
         $this->getJson('/api/v1/invoices/'.$other->number.'?key='.$key)->assertNotFound();
         $this->travel(3)->hours();

@@ -63,6 +63,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/ai/pattern', [AiController::class, 'pattern'])->middleware('throttle:concepts');
         Route::post('/ai/showcase', [AiController::class, 'showcase'])->middleware('throttle:concepts');
         Route::post('/ai/mockup', [AiController::class, 'mockup'])->middleware('throttle:concepts');
+        Route::post('/ai/print-sheet', [AiController::class, 'printSheet'])->middleware('throttle:concepts');
         Route::post('/ai/edit', [AiController::class, 'edit'])->middleware('throttle:concepts');
         Route::post('/ai/image-edit', [AiController::class, 'imageEdit'])->middleware('throttle:concepts');
         Route::post('/ai/convert', [AiController::class, 'convert'])->middleware('throttle:concepts');

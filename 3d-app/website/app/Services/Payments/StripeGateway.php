@@ -76,6 +76,12 @@ final class StripeGateway implements PaymentGateway
         }
     }
 
+    /** Stripe refunds are made in Stripe's dashboard; its charge.refunded webhook records them here. */
+    public function refund(Payment $payment, int $cents): ?array
+    {
+        return null;
+    }
+
     private function check(Response $response, string $what): void
     {
         if ($response->successful()) {

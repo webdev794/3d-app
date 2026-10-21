@@ -7,8 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One payment towards an invoice: a Stripe PaymentIntent, a test payment (test mode), or one staff recorded (a bank
- * transfer). Card details are never here: Stripe keeps them; at most the card brand and last 4 digits.
+ * One payment towards an invoice: an Airwallex or Stripe PaymentIntent, a test payment (test mode), or one staff recorded (a bank
+ * transfer). Card details are never here: the provider keeps them; at most the card brand and last 4 digits.
  */
 class Payment extends Model
 {

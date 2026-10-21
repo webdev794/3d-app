@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\InvoiceAdminController;
 use App\Http\Controllers\Admin\PricingAdminController;
+use App\Http\Controllers\AirwallexWebhookController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\StripeWebhookController;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('api/v1')->middleware('api')->group(function () {
     // Stripe -> us. No sign-in, CSRF or rate limit: the Stripe-Signature header proves it is Stripe.
     Route::post('/payments/stripe/webhook', StripeWebhookController::class)->name('payments.stripe.webhook');
+    // Airwallex -> us: the x-signature header (with x-timestamp) proves it is Airwallex.
+    Route::post('/payments/airwallex/webhook', AirwallexWebhookController::class)->name('payments.airwallex.webhook');
 
     Route::middleware('throttle:api')->group(function () {
         // The order form's prices and the review step's breakdown (open to visitors).

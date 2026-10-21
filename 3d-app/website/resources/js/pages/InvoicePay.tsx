@@ -1,8 +1,10 @@
 /**
  * REVIEW & PAY (/invoices/INV-1048): the invoice as agreed and paying it, desktop and phone (payments-api.md 4-5).
- * Card numbers never touch our page or server: Stripe.js draws the card fields (iframes) and confirms the payment
- * with Stripe; wallets (Apple Pay / Google Pay) come through Stripe's Payment Request button where the device has one.
- * Without Stripe keys on a developer's computer, a clearly labelled TEST form pays through the same server path.
+ * Card numbers never touch our page or server. With Airwallex (the default provider) the customer pays on Airwallex's
+ * Hosted Payment Page (Airwallex.js redirectToCheckout: card, Apple Pay, Google Pay) and comes back here, where the
+ * payment is checked with Airwallex. With Stripe, Stripe.js draws the card fields (iframes) and confirms the payment;
+ * wallets come through Stripe's Payment Request button. Without provider keys on a developer's computer, a clearly
+ * labelled TEST form pays through the same server path.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -10,7 +12,7 @@ import { ArrowLeft, ArrowRight, ChevronDown, CircleCheck, CreditCard, FileText, 
 import { api, ApiError, getToken, type User } from '../api';
 import { PaymentStatusPill, amountOnly, downloadInvoice, money, type PaymentSummary, type Quote } from '../components/OrderPayment';
 
-interface InvoicePayment { id: number; provider: 'stripe' | 'test' | 'manual'; kind: string; method: string | null; status: string; amount: string; currency: string; message: string | null; card: { brand: string | null; last4: string } | null; paid_at: string | null; created_at: string | null }
+interface InvoicePayment { id: number; provider: 'airwallex' | 'stripe' | 'test' | 'manual'; kind: string; method: string | null; status: string; amount: string; currency: string; message: string | null; card: { brand: string | null; last4: string } | null; paid_at: string | null; created_at: string | null }
 interface InvoiceData extends PaymentSummary {
   id: number; number: string; viewer: 'owner' | 'link' | 'staff';
   order: { id: number | null; number: string | null; name: string | null; status: string | null; approval: string | null; quantity: number; summary: string | null };
@@ -18,7 +20,7 @@ interface InvoiceData extends PaymentSummary {
   seller: { name: string; abn: string; email: string; logo: string | null };
   quote: Quote; payments: InvoicePayment[];
   receipt: { number: string; amount: string; paid_at: string | null; method: string | null; card: { brand: string | null; last4: string } | null } | null;
-  gateway: { provider: 'stripe' | 'test' | 'none'; publishable_key: string | null; test_mode: boolean; banner: string | null; wallets: boolean; bank_details: string | null };
+  gateway: { provider: 'airwallex' | 'stripe' | 'test' | 'none'; publishable_key: string | null; environment: 'demo' | 'prod' | null; country: string | null; test_mode: boolean; banner: string | null; wallets: boolean; bank_details: string | null };
   payment_rule: { rule: 'none' | 'deposit' | 'full'; deposit_percent: number };
   notes: string | null;
 }
@@ -32,7 +34,29 @@ interface StripeJs {
   confirmCardPayment: (secret: string, data?: Record<string, unknown>, options?: Record<string, unknown>) => Promise<{ error?: { message?: string }; paymentIntent?: { status: string } }>;
   paymentRequest: (options: Record<string, unknown>) => StripePaymentRequest;
 }
-declare global { interface Window { Stripe?: (key: string) => StripeJs } }
+/* Airwallex.js, loaded from static.airwallex.com when Airwallex is set up (no npm package). */
+interface AirwallexPayments { redirectToCheckout: (options: Record<string, unknown>) => unknown }
+interface AirwallexSdk { init: (options: Record<string, unknown>) => Promise<{ payments?: AirwallexPayments }> }
+declare global { interface Window { Stripe?: (key: string) => StripeJs; AirwallexComponentsSDK?: AirwallexSdk } }
+let airwallexSdk: Promise<AirwallexPayments> | null = null;
+function loadAirwallex(env: 'demo' | 'prod'): Promise<AirwallexPayments> {
+  airwallexSdk ??= new Promise<void>((resolve, reject) => {
+    if (window.AirwallexComponentsSDK) return resolve();
+    const script = document.createElement('script');
+    script.src = 'https://static.airwallex.com/components/sdk/v1/index.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('The secure payment page could not load. Check your connection and try again.'));
+    document.head.append(script);
+  }).then(async () => {
+    if (!window.AirwallexComponentsSDK) throw new Error('The secure payment page could not load.');
+    const { payments } = await window.AirwallexComponentsSDK.init({ env, enabledElements: ['payments'], locale: 'en' });
+    if (!payments) throw new Error('The secure payment page could not load.');
+    return payments;
+  });
+  airwallexSdk.catch(() => { airwallexSdk = null; });
+  return airwallexSdk;
+}
 let stripeScript: Promise<void> | null = null;
 function loadStripe(key: string): Promise<StripeJs> {
   stripeScript ??= new Promise((resolve, reject) => {
@@ -67,6 +91,9 @@ export default function InvoicePayPage({ user, checking, requireAuth }: { user: 
   const [error, setError] = useState<{ status: number; message: string } | null>(null);
   const suffix = key ? `?key=${encodeURIComponent(key)}` : '';
   const path = `/invoices/${encodeURIComponent(number.toUpperCase())}`;
+  const returned = /^\d+$/.test(search.get('payment') ?? '') ? search.get('payment') : null;
+  const leftCheckout = !!search.get('cancelled');
+  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(() => {
     api<InvoiceData>(`${path}${suffix}`).then(data => { setInvoice(data); setError(null); })
@@ -74,6 +101,26 @@ export default function InvoicePayPage({ user, checking, requireAuth }: { user: 
   }, [path, suffix]);
   const signedIn = !!user || !!getToken();
   useEffect(() => { if (key || (signedIn && !checking)) load(); }, [load, key, signedIn, checking]);
+  // Back from Airwallex's payment page: check the payment with Airwallex (its webhook may come a little later).
+  useEffect(() => {
+    if (!returned || !(key || (signedIn && !checking))) return;
+    let stopped = false;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setConfirming(true);
+    const check = async () => {
+      try {
+        const data = await api<InvoiceData>(`/payments/${returned}/sync${suffix}`, { method: 'POST' });
+        if (stopped) return;
+        setInvoice(data); setError(null);
+        if (data.status === 'paid' || data.status === 'part_paid' || !data.can_pay) { setConfirming(false); return; }
+      } catch { if (stopped) return; }
+      if (++tries >= 12) { setConfirming(false); return; }
+      timer = setTimeout(check, 4000);
+    };
+    void check();
+    return () => { stopped = true; if (timer) clearTimeout(timer); };
+  }, [returned, key, signedIn, checking, suffix]);
   // A card payment still processing: look again for a while.
   useEffect(() => {
     if (invoice?.last_attempt?.status !== 'processing') return;
@@ -101,6 +148,8 @@ export default function InvoicePayPage({ user, checking, requireAuth }: { user: 
     {invoice.gateway.banner && <div className="pay-test-banner" role="note"><TriangleAlert size={16} /> {invoice.gateway.banner}</div>}
     {phone ? <PhoneHead invoice={invoice} />
       : <header className="pay-head"><h1>{head.title}</h1><p>{head.sub}</p></header>}
+    {confirming && !paid && <p className="pay-message is-info" role="status"><LoaderCircle className="spin" size={16} /> Confirming your payment with Airwallex… This page updates by itself.</p>}
+    {leftCheckout && !confirming && !paid && !closed && <p className="pay-message is-info" role="status"><Info size={16} /> The payment wasn’t completed, so nothing was charged. You can pay below when you’re ready.</p>}
     <div className="pay-grid">
       {phone ? <details className="pay-details glow-panel"><summary><FileText size={18} /> View invoice details <ChevronDown size={18} className="pay-chevron" /></summary><InvoiceCard invoice={invoice} keyParam={key} bare /></details>
         : <InvoiceCard invoice={invoice} keyParam={key} />}
@@ -219,7 +268,7 @@ function PaymentCard({ invoice, keyParam, phone, onChange }: { invoice: InvoiceD
   }, [gateway.provider, gateway.publishable_key, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Starts the payment on the server: the open payment for this amount, or a new one. */
-  const start = useCallback(async () => api<{ payment: InvoicePayment & { client_secret: string | null }; invoice: InvoiceData }>(`/invoices/${invoice.number}/pay${suffix}`, { method: 'POST', body: JSON.stringify({ amount }) }), [invoice.number, suffix, amount]);
+  const start = useCallback(async () => api<{ payment: InvoicePayment & { client_secret: string | null; intent_id?: string | null }; invoice: InvoiceData }>(`/invoices/${invoice.number}/pay${suffix}`, { method: 'POST', body: JSON.stringify({ amount }) }), [invoice.number, suffix, amount]);
   const finish = useCallback(async (paymentId: number) => { onChange(await api<InvoiceData>(`/payments/${paymentId}/sync${suffix}`, { method: 'POST' })); }, [onChange, suffix]);
 
   // Apple Pay / Google Pay through Stripe's Payment Request button.
@@ -252,6 +301,32 @@ function PaymentCard({ invoice, keyParam, phone, onChange }: { invoice: InvoiceD
     return () => { cancelled = true; element?.destroy(); };
   }, [gateway.provider, gateway.publishable_key, tab, due, invoice.currency, invoice.number, start, finish]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Airwallex: start the payment, then go to Airwallex's secure page; it sends the customer back here. */
+  async function payAirwallex() {
+    if (staff || busy) return;
+    setBusy(true); setMessage(null);
+    try {
+      const { payment } = await start();
+      if (!payment.client_secret || !payment.intent_id) throw new Error('The secure payment page could not be opened. Please try again.');
+      const payments = await loadAirwallex(gateway.environment === 'prod' ? 'prod' : 'demo');
+      const here = `${window.location.origin}/invoices/${encodeURIComponent(invoice.number)}?${keyParam ? `key=${encodeURIComponent(keyParam)}&` : ''}`;
+      await Promise.resolve(payments.redirectToCheckout({
+        intent_id: payment.intent_id,
+        client_secret: payment.client_secret,
+        currency: invoice.currency,
+        country_code: gateway.country ?? 'AU',
+        successUrl: `${here}payment=${payment.id}`,
+        cancelUrl: `${here}cancelled=${payment.id}`,
+        methods: ['card', 'applepay', 'googlepay'],
+        appearance: { mode: 'dark', variables: { colorBrand: '#00d9ed' } },
+        locale: 'en',
+      }));
+    } catch (e) {
+      setMessage({ tone: 'error', text: (e as Error).message });
+      setBusy(false);
+    }
+  }
+
   async function pay(method: 'card' | 'wallet' = 'card') {
     if (staff || busy) return;
     setBusy(true); setMessage(null);
@@ -274,6 +349,7 @@ function PaymentCard({ invoice, keyParam, phone, onChange }: { invoice: InvoiceD
   const stripeField = (ref: React.RefObject<HTMLDivElement | null>, label: string) => <div ref={ref} className="pay-input is-stripe" aria-label={label} />;
   const payLabel = phone ? 'PAY NOW' : `PAY ${money(due, invoice.currency).toUpperCase()}`;
   const none = gateway.provider === 'none';
+  const airwallex = gateway.provider === 'airwallex';
 
   return <section className="pay-card pay-payment glow-panel" aria-label="Payment">
     <h2>Payment</h2>
@@ -288,6 +364,11 @@ function PaymentCard({ invoice, keyParam, phone, onChange }: { invoice: InvoiceD
       <p><strong>Online payment isn’t available yet.</strong> Please pay by bank transfer using your invoice number as the reference, or contact us.</p>
       {gateway.bank_details && <p className="pay-bank">{gateway.bank_details}<br />Reference: {invoice.number}</p>}
     </div> : <>
+      {airwallex ? <div className="pay-form pay-hosted">
+        <p className="pay-hosted-note"><ShieldCheck size={18} /> <span>You’ll pay on <b>Airwallex’s secure payment page</b> by card, Apple Pay or Google Pay (where your phone or browser has it), then come back here.</span></p>
+        <button type="button" className="pay-button" disabled={busy || staff || !invoice.can_pay} onClick={() => void payAirwallex()}>{busy ? <LoaderCircle className="spin" size={20} /> : null}{payLabel} <ArrowRight size={22} /></button>
+        <p className="pay-hosted-methods"><CreditCard size={16} /> Card <Wallet size={16} /> Apple Pay · Google Pay</p>
+      </div> : <>
       <div className="pay-tabs" role="tablist">
         <button type="button" role="tab" aria-selected={tab === 'card'} className={tab === 'card' ? 'is-on' : ''} onClick={() => setTab('card')}><CreditCard size={19} /> Card</button>
         <button type="button" role="tab" aria-selected={tab === 'wallet'} className={tab === 'wallet' ? 'is-on' : ''} onClick={() => setTab('wallet')}><Wallet size={19} /> Wallet</button>
@@ -314,6 +395,7 @@ function PaymentCard({ invoice, keyParam, phone, onChange }: { invoice: InvoiceD
           {walletReady === false && <p className="muted">Apple Pay or Google Pay isn’t available on this device or browser. Pay by card instead.</p>}
         </>}
       </div>}
+      </>}
       {staff && <p className="pay-message is-info"><Info size={16} /> Staff view: only the customer can pay. Use Admin › Invoices › Mark paid for a payment received another way.</p>}
       <p className="pay-secure"><Lock size={16} /> Secure payment</p>
       <p className="pay-status-note">Payment status updates after confirmation.</p>

@@ -3,7 +3,12 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#04090f;color:var(--ink);font:13px Inter,system-ui,sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 button,input,select{font:inherit;color:inherit}
-button{cursor:pointer;background:none;border:0;padding:0}
+/* The normal arrow over the whole editor (buttons, toolbox, bars, menus, panels and their words), as in CorelDRAW;
+   boxes you type in keep the text cursor. */
+html,body{cursor:default}
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),textarea,[contenteditable=true]{cursor:text}
+input:disabled{cursor:default}
+button{cursor:default;background:none;border:0;padding:0}
 input,select{background:#06101a;border:1px solid var(--line);border-radius:7px;padding:6px 8px;color:#fff;min-width:0}
 input:focus,select:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
 svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -143,7 +148,7 @@ svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .sv canvas,.hue canvas{width:100%;height:100%;display:block}
 .sv i,.hue i{position:absolute;width:14px;height:14px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 0 1px #0008;transform:translate(-50%,-50%);pointer-events:none}
 .picker-row{display:grid;grid-template-columns:1fr 18px;gap:10px}
-.hue{position:relative;border-radius:6px;overflow:hidden;cursor:pointer;touch-action:none}
+.hue{position:relative;border-radius:6px;overflow:hidden;cursor:default;touch-action:none}
 .hue i{left:50%!important}
 .swatches{display:flex;flex-wrap:wrap;gap:8px}
 .sw{width:30px;height:30px;border-radius:7px;border:2px solid #ffffff22;box-shadow:inset 0 0 0 1px #0004}
@@ -199,7 +204,7 @@ svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .field{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted);letter-spacing:.04em}
 .field input,.field select{font-size:13px}
 .layers{display:flex;flex-direction:column;gap:4px}
-.layer{display:grid;grid-template-columns:30px 1fr auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;border:1px solid transparent;background:#08131e;cursor:pointer}
+.layer{display:grid;grid-template-columns:30px 1fr auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;border:1px solid transparent;background:#08131e;cursor:default}
 .layer:hover{border-color:#234257}
 .layer.on{border-color:var(--cyan);box-shadow:var(--glow)}
 .layer .thumb{width:30px;height:30px;border-radius:5px;background:#fff;display:grid;place-items:center;overflow:hidden}
@@ -212,7 +217,7 @@ svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .assets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .asset{aspect-ratio:1;border-radius:10px;border:1px solid var(--line);background:#fff center/contain no-repeat;cursor:grab;position:relative}
 .asset:hover{border-color:var(--cyan);box-shadow:var(--glow)}
-.drop-zone{border:1.5px dashed #2b4b61;border-radius:12px;padding:18px;text-align:center;color:#9fb2c4;cursor:pointer}
+.drop-zone{border:1.5px dashed #2b4b61;border-radius:12px;padding:18px;text-align:center;color:#9fb2c4;cursor:default}
 .drop-zone:hover{border-color:var(--cyan);color:var(--cyan)}
 .empty{color:var(--muted);font-size:12px;line-height:1.5}
 /* Footer */
@@ -291,7 +296,7 @@ input[type=file]{display:none}
 .font-ask{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
 .font-ask[hidden]{display:none}
 .font-choices{display:flex;flex-direction:column;gap:10px;margin:0 0 16px;max-height:50vh;overflow:auto}
-.font-choices label{display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:10px;font-size:15px;color:#dbe6ef;cursor:pointer}
+.font-choices label{display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:10px;font-size:15px;color:#dbe6ef;cursor:default}
 .font-choices input{width:18px;height:18px;accent-color:var(--cyan)}
 .font-choices small{color:#8fa3b6;font-size:12px}
 .font-ask span{font-size:12px;color:#ffb3b3;line-height:1.35}
@@ -341,7 +346,7 @@ dialog.corel{max-width:min(520px,92vw)}
 .corel-steps li{margin-bottom:6px}
 .corel-tip{font-size:12.5px;color:#8fa3b6;margin:0 0 14px}
 .corel-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
-.corel-actions button{height:38px;padding:0 18px;border-radius:20px;border:1.5px solid #ffffff2e;background:#071420;color:#dbe6ef;font-weight:700;cursor:pointer}
+.corel-actions button{height:38px;padding:0 18px;border-radius:20px;border:1.5px solid #ffffff2e;background:#071420;color:#dbe6ef;font-weight:700;cursor:default}
 .corel-actions button.grad{border:0;color:#02131c;background:linear-gradient(110deg,var(--cyan),var(--blue));box-shadow:0 0 18px rgba(18,225,240,.45)}
 dialog.help h3{display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;font-family:Rajdhani,Inter,sans-serif;font-size:22px}
 .help-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
@@ -382,13 +387,13 @@ dialog.help h3{display:flex;justify-content:space-between;align-items:center;mar
 .quick-pop{position:fixed;z-index:80;width:min(560px,calc(100vw - 24px));max-height:min(70vh,560px);overflow:auto;background:#0b1622;border:1px solid #234257;border-radius:12px;box-shadow:0 18px 50px #000c,var(--glow);padding:12px 14px}
 .quick-pop h4{margin:0 0 4px;font-size:14px;color:var(--cyan)}.quick-pop p{margin:0 0 10px;color:var(--muted);font-size:12px}
 .qp-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}.qp-cols h5{margin:0 0 6px;font-size:12px;color:#cfdbe6;text-transform:uppercase;letter-spacing:.08em}
-.qp-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;font-size:13px;cursor:pointer}.qp-row:hover{background:#0f2638}.qp-row svg{width:16px;height:16px;flex:none}
+.qp-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;font-size:13px;cursor:default}.qp-row:hover{background:#0f2638}.qp-row svg{width:16px;height:16px;flex:none}
 @media(max-width:600px){.qp-cols{grid-template-columns:1fr}}
 /* Full-page preview (F9): only the page, on the whole screen; a click or a key brings everything back. */
 .previewing .top,.previewing .props,.previewing .tools,.previewing .side,.previewing .foot,.previewing #palette,.previewing .ruler,.previewing .corner,.previewing .props-show,.previewing .quick-pop,.previewing #hint{display:none!important}
 .previewing .app{grid-template-rows:0 0 1fr 0!important}.previewing .body{grid-template-columns:0 1fr 0!important}
 .previewing .canvas-wrap{left:0!important;top:0!important;right:0!important;bottom:0!important;cursor:pointer}
-.sel-info{background:none;border:1px solid var(--line);border-radius:6px;color:var(--cyan);font:600 12px Inter,sans-serif;padding:3px 8px;cursor:pointer;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-info{background:none;border:1px solid var(--line);border-radius:6px;color:var(--cyan);font:600 12px Inter,sans-serif;padding:3px 8px;cursor:default;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sel-info:hover{border-color:var(--cyan)}
 /* Property bar: object buttons on their own row; labelled To front / To back */
 .rowbreak{display:none}
@@ -408,7 +413,7 @@ dialog.help h3{display:flex;justify-content:space-between;align-items:center;mar
 .pal-group{display:flex;align-items:center;gap:3px;flex:none}
 .pal-group[hidden]{display:none}
 .pal-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 4px 0 2px}
-.pc{flex:none;width:22px;height:20px;border-radius:4px;border:1px solid #00000080;box-shadow:inset 0 0 0 1px #ffffff1f;padding:0;cursor:pointer}
+.pc{flex:none;width:22px;height:20px;border-radius:4px;border:1px solid #00000080;box-shadow:inset 0 0 0 1px #ffffff1f;padding:0;cursor:default}
 .pc:hover{outline:2px solid #fff;outline-offset:1px;position:relative;z-index:1}
 .pal-x{position:relative;overflow:hidden;background:#fff}
 .pal-x:after{content:"";position:absolute;left:-4px;right:-4px;top:50%;height:2px;background:#e5484d;transform:rotate(-38deg)}
@@ -498,7 +503,7 @@ dialog.send-dialog{max-width:min(600px,94vw)}
 .send-pic img{max-width:100%;max-height:100%;object-fit:contain}
 .send-to{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:9px;min-width:0;flex:1}
 .send-to legend{padding:0;margin-bottom:6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.send-to label{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:#dbe6ef;cursor:pointer}
+.send-to label{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:#dbe6ef;cursor:default}
 .send-to label[hidden]{display:none}
 .send-to input[type=radio]{width:17px;height:17px;margin:2px 0 0;accent-color:var(--cyan);flex:none}
 .send-to label>span{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}

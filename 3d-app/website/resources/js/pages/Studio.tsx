@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Box, Check, Package, Download, Expand, Grid2X2, Hash, ImagePlus, Layers, LoaderCircle, Maximize, MoreVertical, Palette, Plus, Redo2, RotateCcw, Save, SendHorizontal, Shirt, SlidersHorizontal, Sparkles, Type, Undo2, WandSparkles, X, PenTool, FileText, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowRight, Box, Check, ChevronRight, Package, Download, Expand, Grid2X2, Hash, ImagePlus, Layers, LoaderCircle, Maximize, MoreVertical, Palette, Plus, Redo2, RotateCcw, Save, SendHorizontal, Shirt, SlidersHorizontal, Sparkles, Type, Undo2, WandSparkles, X, PenTool, FileText, ZoomIn, ZoomOut } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type Project, type User } from '../api';
 import { OrderKitDialog } from './Orders';
 import { designSheetPdf } from '../designSheet';
@@ -12,6 +12,8 @@ import type { Draft } from '../App';
 import { ArtworkPanel, PresetPanel, checkDrawing, patternNames, readAsset, readImage, type ArtworkDrop } from '../components/StudioArtwork';
 import { onAssist } from '../assistBridge';
 import { EditImageButton } from '../components/ImageEditor';
+import GradientFlyout, { gradientOf, gradientPatch, makeGradient, stopsOf, cssGradient, type GradientSlot } from '../components/GradientFlyout';
+import type { Gradient } from '../components/KitViewer';
 import '../../css/studio-tools.css';
 
 type Tool = 'ai' | 'garment' | 'colours' | 'patterns' | 'logos' | 'text' | 'numbers' | 'presets';
@@ -41,6 +43,10 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const [dragging, setDragging] = useState<ArtworkDrop | null>(null);
   const [zone, setZone] = useState<Zone | 'all'>('all');
   const [slot, setSlot] = useState<(typeof colourSlots)[number]['key']>('main');
+  // GRADIENT PRESETS, the flyout beside the Colours panel.
+  const [gradientOpen, setGradientOpen] = useState(false);
+  const colourPanel = useRef<HTMLElement>(null);
+  const gradientButton = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<View>('front');
   const [rotating, setRotating] = useState(false);
   const [ready, setReady] = useState(false);
@@ -273,8 +279,16 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     } catch (e) { setError((e as Error).message || 'Export failed. Please try again.'); } finally { setBusy(false); }
   }
   const garments = [...(catalog?.garments ?? [])].sort((a, b) => ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'polo'].indexOf(a.id) - ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'polo'].indexOf(b.id));
-  const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); };
+  const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); setGradientOpen(false); };
   const colourValue = slot === 'patternColor' ? (draft.design.patternColor || draft.design.secondary) : draft.design[slot];
+  // The selected colour zone's gradient (Accent stays solid: names, numbers and the wordmark).
+  const gradientSlot: GradientSlot | null = slot === 'accent' ? null : slot;
+  const zoneGradient = gradientSlot ? gradientOf(draft.design, gradientSlot) : null;
+  const zoneStops = zoneGradient ? stopsOf(zoneGradient) : null;
+  const applyGradient = (g: Gradient | null) => { if (gradientSlot) edit(gradientPatch(latest.current.design, gradientSlot, g)); };
+  const previewGradient = (g: Gradient) => { if (gradientSlot) preview(gradientPatch(latest.current.design, gradientSlot, g)); };
+  /** From or To changed: the first or last stop; the stops between are kept. */
+  const gradientEnd = (end: 'from' | 'to', hex: string) => { if (!zoneGradient || !zoneStops) return; const stops = zoneStops.map((s, i) => (end === 'from' ? i === 0 : i === zoneStops.length - 1) ? { ...s, color: hex } : s); previewGradient(makeGradient(stops, zoneGradient.angle, null)); };
 
   return <div className={`dyo studio-extended ${board ? 'artboard-mode' : ''} ${tool === 'presets' ? 'presets-in-panel' : ''}`}>
     <header className="dyo-top">
@@ -296,14 +310,23 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     <div className={`dyo-body ${tool ? 'panel-open' : ''}`}>
       <nav className="dyo-rail" aria-label="Design tools">{tools.map(t => <button key={t.id} className={tool === t.id ? 'active' : ''} onClick={() => pick(t.id)} aria-pressed={tool === t.id}><t.icon size={22} /><span>{t.label}</span></button>)}</nav>
 
-      {tool && <section className="dyo-panel" aria-label={tools.find(t => t.id === tool)?.label}>
+      {tool && <section className="dyo-panel" ref={colourPanel} aria-label={tools.find(t => t.id === tool)?.label}>
         <div className="panel-head"><h2>{tools.find(t => t.id === tool)?.label}</h2><button className="icon-button" onClick={() => setTool(null)} aria-label="Close panel"><X size={18} /></button></div>
         <div className="panel-body">
           {tool === 'colours' && <>
             <div className="slot-tabs" role="tablist">{colourSlots.map(s => <button key={s.key} role="tab" aria-selected={slot === s.key} className={slot === s.key ? 'active' : ''} onClick={() => setSlot(s.key)}>{s.label}</button>)}</div>
             <ColorWheel value={colourValue} onChange={hex => preview({ [slot]: hex })} onCommit={commit} />
             <h4>READY-MADE PALETTES</h4><div className="preset-palettes">{palettes.map((palette, index) => <button key={index} aria-label={`Apply palette ${index + 1}`} onClick={() => edit({ main: palette[0], secondary: palette[1], accent: palette[2], patternColor: palette[1] })}>{palette.map((c, i) => <span key={i} style={{ background: c }} />)}</button>)}</div>
-            <div className="gradient-controls"><h4>GRADIENT FILL</h4><label className="gradient-toggle"><input type="checkbox" checked={!!draft.design.gradient} onChange={e => edit({ gradient: e.target.checked ? { from: draft.design.main, to: draft.design.secondary, angle: 0 } : null })} /> Blend two colours</label>{draft.design.gradient && <><div className="gradient-colours"><label>From<input aria-label="Gradient start colour" type="color" value={draft.design.gradient.from} onChange={e => edit({ gradient: { ...draft.design.gradient!, from: e.target.value } })} /></label><label>To<input aria-label="Gradient end colour" type="color" value={draft.design.gradient.to} onChange={e => edit({ gradient: { ...draft.design.gradient!, to: e.target.value } })} /></label></div><label className="field">Angle · {draft.design.gradient.angle}°<input type="range" min={0} max={360} step={5} value={draft.design.gradient.angle} onChange={e => preview({ gradient: { ...draft.design.gradient!, angle: Number(e.target.value) } })} onPointerUp={commit} onKeyUp={commit} /></label></>}</div>
+            <div className="gradient-controls"><h4>GRADIENT FILL</h4>{gradientSlot ? <>
+              <button ref={gradientButton} type="button" className="gradient-choose" aria-expanded={gradientOpen} onClick={() => setGradientOpen(o => !o)}>CHOOSE GRADIENT <ChevronRight size={17} /></button>
+              {zoneGradient && zoneStops ? <>
+                <div className="gradient-colours"><label>From<input aria-label="Gradient start colour" type="color" value={zoneStops[0].color} onChange={e => gradientEnd('from', e.target.value)} onBlur={commit} /></label><label>To<input aria-label="Gradient end colour" type="color" value={zoneStops[zoneStops.length - 1].color} onChange={e => gradientEnd('to', e.target.value)} onBlur={commit} /></label></div>
+                {zoneStops.length > 2 && <div className="gradient-stops-preview" style={{ background: cssGradient(zoneStops, 90) }} title={`${zoneStops.length} colours: ${zoneStops.map(s => s.color.toUpperCase()).join(', ')}`}><span>{zoneStops.length} COLOURS</span></div>}
+                <label className="field">Angle · {zoneGradient.angle}°<input type="range" min={0} max={360} step={5} value={zoneGradient.angle} onChange={e => previewGradient({ ...zoneGradient, angle: Number(e.target.value) })} onPointerUp={commit} onKeyUp={commit} aria-label="Gradient angle" /></label>
+                <button type="button" className="gradient-off" onClick={() => applyGradient(null)}><X size={14} /> Turn gradient off · solid colour</button>
+              </> : <p className="field-hint">Solid colour. Choose a gradient to blend colours across this zone.</p>}
+            </> : <p className="field-hint">Names, numbers and the wordmark stay a solid colour. Choose Primary, Secondary or Pattern for a gradient fill.</p>}</div>
+            {gradientOpen && gradientSlot && <GradientFlyout slot={gradientSlot} slotLabel={colourSlots.find(c => c.key === gradientSlot)?.label.toUpperCase() ?? ''} gradient={zoneGradient} base={colourValue} fallback={gradientSlot === 'main' ? draft.design.secondary : draft.design.main} apply={applyGradient} preview={previewGradient} commit={commit} onClose={() => setGradientOpen(false)} anchor={colourPanel} opener={gradientButton} />}
           </>}
           {tool === 'patterns' && <>
             <label className="field">Apply to area<select value={zone} onChange={e => setZone(e.target.value as Zone | 'all')}><option value="all">Whole garment</option><option value="body">Chest & body</option><option value="yoke">Shoulders</option><option value="sleeves">Sleeves</option><option value="sides">Side panels</option><option value="hem">Hem</option></select></label>

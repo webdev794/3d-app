@@ -7,6 +7,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import gsap from 'gsap';
 import { buildGarment, buildCollar, buildDrawstring, SPECS } from './garment.js';
+import { buildLabel, paintLabel, mainColour } from './label.js';
 import { KitPainter, knitNormalMap } from './texture.js';
 import { createStudio } from './studio.js';
 import { createBoard } from './board.js';
@@ -166,7 +167,7 @@ function buildKit(kind) {
   if (key === currentKind) return;
   currentKind = key;
   const geometries = new Set();
-  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); o.material.dispose(); } });
+  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); o.material.map?.dispose(); o.material.dispose(); } });
   geometries.forEach((geometry) => geometry.dispose());
   parts.forEach((part) => part.texture.dispose());
   kit.clear();
@@ -193,9 +194,9 @@ function buildKit(kind) {
     partMaterial.map = texture;
     addRelief(partMaterial, painter);
     const group = new THREE.Group();
-    // The inside of the fabric, seen through the neck, hem and cuffs: the same print in
-    // shade (sublimated prints show through), not a black hole.
-    group.add(new THREE.Mesh(garment.geometry, new THREE.MeshStandardMaterial({ map: texture, color: 0x5a6068, roughness: 0.95, vertexColors: true, side: THREE.BackSide })));
+    // The inside of the fabric, seen through the neck, hem and cuffs: the garment's own colour in shade (paintAll).
+    const inside = new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.95, vertexColors: true, side: THREE.BackSide });
+    group.add(new THREE.Mesh(garment.geometry, inside));
     const fabric = new THREE.Mesh(garment.geometry, partMaterial);
     fabric.userData.part = parts.length;
     fabric.castShadow = true;
@@ -207,6 +208,8 @@ function buildKit(kind) {
       new THREE.MeshPhysicalMaterial({ roughness: 0.9, reflectivity: .2, sheen: 0.15, side: THREE.DoubleSide, sheenColor: new THREE.Color(0x7092a4), normalMap: knit, normalScale: new THREE.Vector2(.17, .17) }),
     );
     group.add(rim);
+    // Tops: the 3DEEZI neck label inside the back neck (label.js).
+    const label = partKind === 'shorts' ? null : buildLabel(garment);
     // Shorts: the drawstring out of the front of the waistband.
     const cord = garment.drawstring ? buildDrawstring(garment) : null;
     if (cord) group.add(cord.group);
@@ -218,9 +221,11 @@ function buildKit(kind) {
     group.position.y = base;
     base += partKind === 'shorts' ? garment.frame.maxY * stretch - 0.06 : 0;
     kit.add(group);
-    parts.push({ painter, texture, rim, cord, garment, material: partMaterial });
+    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label });
   }
   frameKit();
+  // The labels after framing (the camera frames the kit as it is without them).
+  parts.forEach((part) => { if (part.label) part.rim.parent.add(part.label); });
 }
 
 /** Re-centres the camera on whatever is on the podium. */
@@ -245,6 +250,9 @@ async function paintAll() {
     await part.painter.paint(design);
     part.texture.needsUpdate = true;
     part.rim.material.color.set(layout && part.layoutRim ? part.layoutRim : design.secondary);
+    // The inside: the print's (or the kit's) main colour, a little darker for shade; the label shows the kit's size.
+    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(0.72);
+    if (part.label) paintLabel(part.label, design.size || 'L');
     // The drawstring: the cord darker than the waistband it comes out of, eyelets and tips in the trim colour.
     if (part.cord) {
       part.cord.cord.color.set(layout && part.layoutRim ? part.layoutRim : design.main).multiplyScalar(0.82);
@@ -411,6 +419,8 @@ function warpParts() {
       const w = main.x1 - main.x0, middle = [(main.x0 + main.x1) / 2, (main.y0 + main.y1) / 2];
       part.layoutRim = lineColour(layout.image, drawingSides(main.outline, !!DRAWN[layout.garment]?.CT).sides[0], middle, Math.max(4, 0.012 * w));
     }
+    // The inside's colour: the print's commonest colour (label.js).
+    part.layoutInside = main ? mainColour(layout.image, main) : null;
     // The trim colour (the neck trim's), for the shorts' eyelets and cord tips.
     part.layoutAccent = byRole.neck ? panelColour(layout.image, byRole.neck) : null;
   }

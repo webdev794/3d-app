@@ -56,7 +56,10 @@ class InvoiceController extends Controller
         ]);
     }
 
-    /** Starts the card payment (or picks up the open one): Stripe's client secret, or a test payment. */
+    /**
+     * Starts the card payment (or picks up the open one): the PaymentIntent's client secret (Stripe.js, or
+     * Airwallex's Hosted Payment Page with the intent id), or a test payment.
+     */
     public function pay(Request $request, string $number, PaymentService $payments): JsonResponse
     {
         $data = $request->validate(['amount' => ['sometimes', Rule::in(['full', 'deposit'])]]);
@@ -64,12 +67,15 @@ class InvoiceController extends Controller
         $payment = $payments->start($invoice, $invoice->user ?? $request->user('sanctum'), $data['amount'] ?? 'full');
 
         return response()->json(['data' => [
-            'payment' => $payment->present() + ['client_secret' => $payment->provider === 'stripe' ? $payment->client_secret : null],
+            'payment' => $payment->present() + [
+                'client_secret' => in_array($payment->provider, ['stripe', 'airwallex'], true) ? $payment->client_secret : null,
+                'intent_id' => $payment->provider === 'airwallex' ? $payment->provider_id : null,
+            ],
             'invoice' => self::present($invoice->refresh(), $viewer),
         ]]);
     }
 
-    /** After the browser confirmed a card payment: ask Stripe how it stands (the webhook may come later). */
+    /** After the browser confirmed a card payment, or the customer is back from Airwallex: ask the provider how it stands (the webhook may come later). */
     public function sync(Request $request, Payment $payment, PaymentService $payments): JsonResponse
     {
         [$invoice, $viewer] = $this->find($request, (string) $payment->invoice?->number, true);

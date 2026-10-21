@@ -1,5 +1,7 @@
 // Selection handles as in CorelDRAW (Pick tool).
-// One click on an object: the 8 sizing handles (the corners and the middle of each side; no rotation stick).
+// One click on an object: the 6 sizing handles the client asked for (2026-10-21): the 4 corners and the middle of the
+// left and right sides; no handle at the middle of the top and bottom, no rotation stick. The height alone changes with
+// the H box on the property bar (Keep proportions off) or Shift + a corner drag (free resize).
 // A click on the selected object again (a click, not a drag): the rotate and slant handles. Curved arrows at the
 // corners turn it round the centre of rotation (the circle, in the middle at first: drag it anywhere), straight arrows
 // at the middle of the sides slant it (top and bottom: sideways, left and right: up and down). The next click brings
@@ -8,6 +10,11 @@ import { ActiveSelection, Control, Point, controlsUtils, util } from 'fabric';
 
 const BLUE = '#1E7BFF', HALO = '#ffffff';
 const OUT = 9; // the rotate and slant arrows sit this far (screen pixels) outside the corners and sides
+// Which handles show. Sizing (one click): 6, the corners and the left and right middles (corners resize, the side ones
+// stretch the width); the top and bottom middles are hidden, so they cannot be grabbed either. Rotating (a second
+// click): 8 arrows (4 corners turn, 4 sides slant) and the centre of rotation.
+const SIZING = { tl: true, tr: true, bl: true, br: true, ml: true, mr: true, mt: false, mb: false, mtr: false };
+const ROTATING = { tl: true, tr: true, bl: true, br: true, ml: true, mr: true, mt: true, mb: true, mtr: false };
 const rad = (d) => (d * Math.PI) / 180;
 const svgCursor = (body, fallback) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-width="4">${body}</g><g stroke="#000" stroke-width="1.6">${body}</g></svg>`)}") 12 12, ${fallback}`;
 const ROTATE_CURSOR = svgCursor('<path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M17.6 3.4v4.2h-4.2"/>', 'crosshair');
@@ -168,6 +175,7 @@ export function createHandles({ canvas, enabled, hint, hintEl, style }) {
     xf = { o, local: new Point(0, 0), saved: o.controls };
     // The centre of rotation is last: it is picked before the others where they overlap (small objects).
     o.controls = { tl: turnControl(-0.5, -0.5, 180), tr: turnControl(0.5, -0.5, 270), br: turnControl(0.5, 0.5, 0), bl: turnControl(-0.5, 0.5, 90), mt: slantControl('mt'), mb: slantControl('mb'), ml: slantControl('ml'), mr: slantControl('mr'), pivot: pivotControl() };
+    o.setControlsVisibility(ROTATING); // all 8 arrows: the top and bottom ones too (hidden while sizing)
     o.setCoords();
     say(modeHint());
     canvas.requestRenderAll();
@@ -177,14 +185,15 @@ export function createHandles({ canvas, enabled, hint, hintEl, style }) {
     const { o, saved } = xf;
     xf = null;
     o.controls = saved;
+    o.setControlsVisibility(SIZING);
     o.setCoords();
     unsay();
     canvas.requestRenderAll();
   }
-  /** One click on an object: the corners and the middle of every side, no rotation stick (rotating is a click away). */
+  /** One click on an object: the corners and the middle of the left and right sides, no rotation stick (rotating is a click away). */
   function sizing(o) {
     if (!o) return;
-    o.setControlsVisibility({ tl: true, tr: true, bl: true, br: true, ml: true, mr: true, mt: true, mb: true, mtr: false });
+    o.setControlsVisibility(SIZING);
     if (o instanceof ActiveSelection && style) o.set(style);
   }
   /** Typing in a text from a double-click (a double tap on phones): the cursor goes where it was clicked. */
@@ -233,7 +242,7 @@ export function createHandles({ canvas, enabled, hint, hintEl, style }) {
   });
 
   return {
-    /** 'size' (the 8 sizing handles) or 'rotate' (rotate and slant handles). */
+    /** 'size' (the 6 sizing handles) or 'rotate' (rotate and slant handles). */
     mode: () => (xf ? 'rotate' : 'size'),
     /** Switches the handles of the selected object, as a second click on it does. */
     toggle: () => { const o = canvas.getActiveObject(); if (!o || o.locked) return; if (xf?.o === o) off(); else on(o); },

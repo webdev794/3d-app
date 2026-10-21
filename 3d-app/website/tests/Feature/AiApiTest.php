@@ -44,6 +44,120 @@ class AiApiTest extends TestCase
         ]);
     }
 
+    private function direction(): array
+    {
+        return ['output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => json_encode([
+            'summary' => "I'll create a BLITZ training singlet in electric blue, black and white.",
+            'ownDesign' => false, 'teamName' => 'BLITZ', 'palette' => 'electric blue #1E5BFF, black #0A0C12, white #FFFFFF',
+            'theme' => 'speed and lightning', 'front' => 'Black body, the mascot logo large on the chest, blue lightning shards up the sides.',
+            'back' => 'BLITZ over a big 01.', 'graphics' => 'jagged lightning bolts with halftone fades', 'trims' => 'electric blue binding',
+            'presentation' => 'night stadium, blue haze',
+        ])]]]]];
+    }
+
+    public function test_mockup_follows_an_art_direction_with_the_logo_as_a_real_image_input(): void
+    {
+        Storage::fake('local');
+        config(['services.openai.key' => 'sk-test']);
+        Http::fake([
+            'api.openai.com/v1/responses' => Http::response($this->direction()),
+            'api.openai.com/v1/images/*' => Http::response(['data' => [['b64_json' => self::PNG]]]),
+        ]);
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        Storage::disk('local')->put('assets/'.$user->id.'/blitz.png', base64_decode(self::PNG));
+        $logo = $user->assets()->create(['name' => 'BLITZ', 'type' => 'reference', 'path' => 'assets/'.$user->id.'/blitz.png', 'mime_type' => 'image/png', 'size' => 68]);
+
+        $this->postJson('/api/v1/ai/mockup', ['prompt' => 'Create a cool training singlets using this for the theme and main logo', 'sport' => 'rugby-league', 'garment' => 'singlet', 'reference_ids' => [$logo->id]])
+            ->assertCreated()->assertJsonPath('data.direction', "I'll create a BLITZ training singlet in electric blue, black and white.");
+
+        // The art director saw the logo itself.
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/responses')
+            && str_contains(json_encode($r->data(), JSON_UNESCAPED_SLASHES), 'data:image/png;base64,')
+            && str_contains(json_encode($r->data()), 'art_direction'));
+        // The render follows the direction: bold sublimation, logo centrepiece, name and number, dark presentation, high fidelity.
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/images/edits')
+            && substr_count($r->body(), 'name="image[]"') === 2
+            && str_contains($r->body(), '- Front: Black body, the mascot logo large on the chest')
+            && str_contains($r->body(), 'fully sublimated all-over design')
+            && str_contains($r->body(), 'Never a plain template with flat colour blocks')
+            && str_contains($r->body(), 'large centrepiece on the front, reproduced faithfully')
+            && str_contains($r->body(), 'large player number')
+            && str_contains($r->body(), 'dramatic dark setting')
+            && str_contains($r->body(), 'only for the small neck label')
+            && str_contains($r->body(), 'name="input_fidelity"')
+            // Colours: dark body for a bold brief with a logo, readable white numbers, no skin tones.
+            && str_contains($r->body(), 'prefer a dark body (black or deep navy)')
+            && str_contains($r->body(), 'white with an outline in the accent colour')
+            && str_contains($r->body(), 'never from skin tones or tiny logo details'));
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/responses')
+            && str_contains(json_encode($r->data()), 'prefer a dark body (black or deep navy)')
+            && str_contains(json_encode($r->data()), 'large white player number'));
+    }
+
+    public function test_mockup_renders_without_a_direction_and_retries_without_input_fidelity(): void
+    {
+        Storage::fake('local');
+        config(['services.openai.key' => 'sk-test']);
+        Http::fake([
+            'api.openai.com/v1/responses' => Http::response(['error' => ['message' => 'Server busy']], 500),
+            'api.openai.com/v1/images/*' => Http::sequence()
+                ->push(['error' => ['message' => "Unknown parameter: 'input_fidelity'.", 'param' => 'input_fidelity']], 400)
+                ->push(['data' => [['b64_json' => self::PNG]]]),
+        ]);
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson('/api/v1/ai/mockup', ['prompt' => 'A navy MANTIS rugby jersey', 'sport' => 'rugby-league', 'garment' => 'jersey'])
+            ->assertCreated()->assertJsonPath('data.direction', null);
+        $edits = Http::recorded(fn (Request $r) => str_ends_with($r->url(), '/images/edits'))->values();
+        $this->assertCount(2, $edits);
+        $this->assertStringContainsString('name="input_fidelity"', $edits[0][0]->body());
+        $this->assertStringNotContainsString('name="input_fidelity"', $edits[1][0]->body());
+        $this->assertStringNotContainsString('Creative direction', $edits[1][0]->body());
+        $this->assertStringContainsString('do NOT put 3DEEZI on the chest', $edits[1][0]->body());
+    }
+
+    public function test_make_it_3d_redraws_the_mockup_as_a_flat_print_sheet(): void
+    {
+        Storage::fake('local');
+        config(['services.openai.key' => 'sk-test']);
+        Http::fake(['api.openai.com/v1/images/*' => Http::response(['data' => [['b64_json' => self::PNG]]])]);
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        Storage::disk('local')->put('assets/'.$user->id.'/blitz.png', base64_decode(self::PNG));
+        $logo = $user->assets()->create(['name' => 'BLITZ', 'type' => 'reference', 'path' => 'assets/'.$user->id.'/blitz.png', 'mime_type' => 'image/png', 'size' => 68]);
+
+        $sheet = $this->postJson('/api/v1/ai/print-sheet', ['image' => 'data:image/jpeg;base64,'.self::PNG, 'sport' => 'rugby-league', 'garment' => 'singlet', 'reference_ids' => [$logo->id], 'name' => 'Blitz'])
+            ->assertCreated()->assertJsonPath('data.asset.type', 'reference')->assertJsonPath('data.asset.name', 'Print sheet · Blitz');
+        Storage::disk('local')->assertExists($user->assets()->find($sheet->json('data.asset.id'))->path);
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/images/edits')
+            && substr_count($r->body(), 'name="image[]"') === 2
+            && str_contains($r->body(), 'flat print artwork sheet')
+            && str_contains($r->body(), 'front on the left and its back on the right')
+            && str_contains($r->body(), 'plain pure white background')
+            && str_contains($r->body(), 'reproduce them faithfully'));
+
+        $this->postJson('/api/v1/ai/print-sheet', ['image' => 'not a picture', 'sport' => 'rugby-league', 'garment' => 'singlet'])->assertUnprocessable();
+    }
+
+    public function test_concept_previews_carry_the_client_logo_and_free_design(): void
+    {
+        Storage::fake('local');
+        $this->fakeOpenAi();
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        Storage::disk('local')->put('assets/'.$user->id.'/blitz.png', base64_decode(self::PNG));
+        $logo = $user->assets()->create(['name' => 'BLITZ', 'type' => 'reference', 'path' => 'assets/'.$user->id.'/blitz.png', 'mime_type' => 'image/png', 'size' => 68]);
+
+        $this->postJson('/api/v1/concepts', ['prompt' => 'Cool training singlets using this logo', 'sport' => 'rugby-league', 'garment' => 'singlet', 'reference_ids' => [$logo->id]])->assertOk();
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/responses') && str_contains(json_encode($r->data()), 'nearest built-in pattern for the editable 3D kit')
+            && str_contains(json_encode($r->data()), 'never from skin tones'));
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/images/edits')
+            && substr_count($r->body(), 'name="image[]"') === 2
+            && str_contains($r->body(), 'large chest centrepiece')
+            && str_contains($r->body(), 'neck label'));
+    }
+
     public function test_concepts_use_openai_when_configured_and_analyse_references(): void
     {
         Storage::fake('local');
@@ -118,6 +232,7 @@ public function test_mockup_edit_and_convert(): void
         Http::fake([
             'api.openai.com/v1/images/*' => Http::response(['data' => [['b64_json' => self::PNG]]]),
             'api.openai.com/v1/responses' => Http::sequence()
+                ->push($this->direction())
                 ->push(['output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => json_encode([
                     'main' => '#aa0000', 'secondary' => '#ffd700', 'accent' => '#ffffff', 'patternColor' => '#ffd700', 'pattern' => 'Stripes',
                     'logoText' => 'mantis', 'backName' => 'smith', 'number' => '#7', 'newPatternMotif' => null, 'reply' => 'Red and gold, number 7 for Smith.',
@@ -134,7 +249,8 @@ public function test_mockup_edit_and_convert(): void
         $crest = $user->assets()->create(['name' => 'Crest', 'type' => 'reference', 'path' => 'assets/'.$user->id.'/crest.png', 'mime_type' => 'image/png', 'size' => 68]);
 
         $this->postJson('/api/v1/ai/mockup', ['prompt' => 'A grey oversized polo with a MANTIS wordmark', 'sport' => 'rugby-league', 'garment' => 'polo', 'reference_ids' => [$crest->id]])
-            ->assertCreated()->assertJsonPath('data.asset.type', 'mockup');
+            ->assertCreated()->assertJsonPath('data.asset.type', 'mockup')
+            ->assertJsonPath('data.direction', "I'll create a BLITZ training singlet in electric blue, black and white.");
         // The client logo and the 3DEEZI logo both went to the image model.
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/images/edits') && substr_count($r->body(), 'name="image[]"') === 2);
         // An attached picture may be the client's finished design: then it is rendered as it is, in the brief's layout.

@@ -54,6 +54,7 @@ class KitState {
     this.layers = const [],
     this.zones = const {},
     this.gradient,
+    this.gradients,
     this.marks = const {},
     this.layout,
   });
@@ -64,6 +65,9 @@ class KitState {
   final List<Map<String, dynamic>> layers;
   final Map<String, String> zones;
   final Map<String, dynamic>? gradient;
+
+  /// The other colour zones' gradient fills (secondary, patternColor); [gradient] is the primary zone's.
+  final Map<String, dynamic>? gradients;
   final Map<String, dynamic> marks;
 
   /// The factory print layout on the kit (see [copyLayout]), or null.
@@ -153,10 +157,11 @@ class AppController extends ChangeNotifier {
   List<Concept> concepts = [];
   int selectedConcept = 0;
 
-  /// The one-prompt HD presentation mockup (front, back, details).
-  bool wantMockup = true, mockupBusy = false;
+  /// The one-prompt HD presentation mockup (front and back), with the art
+  /// direction's one-line summary, and "Make it 3D" drawing its print sheet.
+  bool wantMockup = true, mockupBusy = false, sheetBusy = false;
   Uint8List? mockupImage;
-  String? mockupError;
+  String? mockupError, mockupDirection;
 
   /// A custom AI print is being generated for the kit.
   bool printBusy = false;
@@ -174,6 +179,9 @@ class AppController extends ChangeNotifier {
   List<Map<String, dynamic>> layers = [];
   Map<String, String> zones = {};
   Map<String, dynamic>? gradient;
+
+  /// Gradient fills of the secondary and pattern zones (see gradient_presets.dart); [gradient] is the primary's.
+  Map<String, dynamic>? gradients;
 
   /// The wordmark, crest, sponsor, name and number as moved on the 2D panels.
   Map<String, dynamic> marks = {};
@@ -478,6 +486,7 @@ class AppController extends ChangeNotifier {
       accentColor = ProjectSync.color(design['accent']);
     if (design['pattern'] is String) pattern = design['pattern'] as String;
     gradient = copyGradient(design['gradient']);
+    gradients = copyGradient(design['gradients']);
     zones = copyZones(design['zones']);
     if (design.containsKey('layers')) layers = copyLayers(design['layers']);
   });
@@ -905,6 +914,7 @@ class AppController extends ChangeNotifier {
     layers: copyLayers(layers),
     zones: copyZones(zones),
     gradient: copyGradient(gradient),
+    gradients: copyGradient(gradients),
     marks: copyMarks(marks),
     layout: copyLayout(layout),
   );
@@ -926,6 +936,7 @@ class AppController extends ChangeNotifier {
     layers = copyLayers(k.layers);
     zones = copyZones(k.zones);
     gradient = copyGradient(k.gradient);
+    gradients = copyGradient(k.gradients);
     marks = copyMarks(k.marks);
     layout = copyLayout(k.layout);
     if (!layers.any((layer) => layer['id'] == selectedLayerId)) {
@@ -986,7 +997,7 @@ class AppController extends ChangeNotifier {
     mockupFront = mockupBack = mockupSide = mockupPanels = null;
     concepts = [];
     selectedConcept = 0;
-    mockupImage = mockupError = null;
+    mockupImage = mockupError = mockupDirection = null;
     mockupBusy = false;
     view = 'Front';
     show3d = true;
@@ -1026,7 +1037,7 @@ class AppController extends ChangeNotifier {
   Future<void> startMockup() async {
     if (!AiService.enabled || !wantMockup || brief.trim().isEmpty) return;
     mockupBusy = true;
-    mockupImage = mockupError = null;
+    mockupImage = mockupError = mockupDirection = null;
     notifyListeners();
     final forBrief = brief;
     try {
@@ -1035,6 +1046,11 @@ class AppController extends ChangeNotifier {
         sport: sport,
         garment: garment,
         logos: references,
+        onDirection: (summary) {
+          if (forBrief != brief) return;
+          mockupDirection = summary;
+          notifyListeners();
+        },
       );
       if (forBrief != brief) return;
       mockupImage = image;
@@ -1043,6 +1059,29 @@ class AppController extends ChangeNotifier {
       if (forBrief == brief) mockupError = e.message;
     } finally {
       if (forBrief == brief) mockupBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// "Make it 3D": the same AI redraws the mockup as a flat front and back
+  /// print sheet (kept in Artwork); the caller puts it on the 3D kit with
+  /// [importDesignPicture].
+  Future<Uint8List> mockupPrintSheet() async {
+    final image = mockupImage;
+    if (image == null) throw AiException('Create the HD mockup first.');
+    sheetBusy = true;
+    notifyListeners();
+    try {
+      final sheet = await ai.printSheet(
+        image,
+        sport: sport,
+        garment: garment,
+        logos: references,
+      );
+      artwork.add(sheet);
+      return sheet;
+    } finally {
+      sheetBusy = false;
       notifyListeners();
     }
   }

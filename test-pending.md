@@ -67,7 +67,27 @@ Finished work that I have checked myself, with how to test each item. When somet
 7. **Upload Your Order**: the same, after ticking **These details are correct**.
 8. **App:** Create order form and Upload order give the same choices and totals; after Confirm, the invoice matches.
 
+### 7c. Payments through Airwallex (2026-10-21)
+- **On this computer (test mode, no keys):** a customer's unpaid invoice → **Pay now** → the TEST form → **Approve**: Paid with a receipt; **Decline** on another: "Payment failed", and trying again works. **(admin)** Admin › Pricing › Online payments shows "Test mode" and the Airwallex webhook address with a copy button.
+- **With the client's demo keys (later):** Admin › Pricing › Online payments shows "Airwallex connected (demo)". Pay an invoice: Airwallex's page opens (our page shows an AIRWALLEX DEMO banner); pay with an Airwallex test card → back on the invoice: "Confirming your payment…", then **Paid** with the card's last 4 digits and a receipt. Also: a declined test card; Back on Airwallex's page ("The payment wasn't completed"); **(admin)** Admin › Invoices › Refund → Refunded, and the refund shows in Airwallex; in the app, Pay now → pay → the order shows Paid.
+
 ## Website: 3D and design
+
+### 8a. AI designer like ChatGPT, and MAKE IT 3D (2026-10-21) (AI credit)
+1. Header **AI** → Training, Singlet. Brief: "Create a cool training singlets using this for the theme and main logo"; attach the BLITZ logo; HD mockup ticked → CREATE.
+2. A one-line art direction shows above the mockup. The mockup: a bold sublimated singlet, the logo large on the front, BLITZ over a number on the back, front and back in a dark stadium, the small 3DEEZI neck label. The 4 concepts show the BLITZ logo on the chest.
+3. **MAKE IT 3D** (about a minute): a flat front and back sheet appears (also in Assets), the Studio's check screen, then the design on the 3D singlet.
+4. The same in the app (AI designer → mockup card → MAKE IT 3D).
+5. A brief asking for a white studio background gets one; an attached complete design is kept exactly.
+
+### 8b. Design your own: "Choose your sport" tiles (2026-10-21)
+1. Home → **START DESIGNING** (or the **DYO** pill in the header). Under the heading: **ALL · SPORTS · APPAREL** and one row of tiles, with RUGBY LEAGUE glowing.
+2. Click **BASKETBALL**: the basketball kit comes to the front and the button says **DESIGN BASKETBALL**; you stay on the page.
+3. Click the big arrow beside the kits a few times: the glowing tile follows the kit in front.
+4. **SPORTS**: Training disappears. **APPAREL**: only TRAINING shows and its kit comes to the front.
+5. On a narrow window, the small arrows beside the row show more tiles; on a phone, swipe the row.
+6. **DESIGN …** opens the garment step for that sport.
+7. **App:** Create → START DESIGNING: the same filters and tiles; tap NETBALL → DESIGN NETBALL; swipe the kits and the glowing tile follows.
 
 ### 8. AI designer: pictures in the brief (header **AI** button)
 1. Copy a picture and press Ctrl+V in **Your design brief**. It appears under **YOUR LOGOS, DESIGNS & REFERENCES**. Dragging a file onto the brief also works (cyan highlight); **Add image** takes several. Up to 4 pictures.
@@ -87,12 +107,26 @@ Finished work that I have checked myself, with how to test each item. When somet
 7. **Photo-style mockups** (like the AI HD mockup on a grey background) work too. The check screen notes that the photo's lighting is printed onto the kit. A flat drawing gives the cleanest result.
 8. Try a random photo (e.g. a stadium picture): the check screen says it looks like a photo or mockup and **Put on the 3D kit** stays disabled. Each shape card has Front / Back / Not used if you want to choose by hand.
 
-### 9a. The AI mockup on the singlet, first round of fixes (2026-10-21)
+### 9a. The AI mockup on the singlet (2026-10-21, viewer 2026-10-20-10)
 Studio → Artwork → **MY DESIGN PICTURE** → upload the AI HD mockup (3deezi-mockup.jpg) → **Put on the 3D kit** (Ctrl+F5 first).
 - **Back:** the whole 818 INK ring shows; nothing cut off at the top.
-- **Front:** the crest is nearer the middle than before, and the red centre line is straighter. Both are not perfect yet; a second round is running.
+- **Front (round 2):** the red centre line runs straight down the middle from the V to the hem; the crest sits by the pattern's middle, as on the mockup; the V is the same depth and strap width on both sides.
+- **Back (round 3):** turn the kit round. There is red pattern between the neckline and the top of the big crest (a little less than on the mockup); the crest is round, centred and about as wide as on the mockup; the neckline is a clean, even black band.
 - **Neck:** no black lump on the right strap.
 - Your flat 818 INK drawing looks exactly as before.
+
+### 9c. Neck label and inside colour (2026-10-21)
+1. Studio: pick a dark Jersey and turn the 3D kit to the front. Look into the neck opening: a light label with **3DEEZI**, "AI SPORTSWEAR DESIGNER" and a big **L**; the inside is dark like the shirt.
+2. Turn to the back: the label doesn't show through.
+3. A white or yellow kit: the inside is light.
+4. Try Singlet, Training Tee and Polo, then your 818 INK design picture: black inside with the label. Shorts have no label.
+5. The same in the app.
+
+### 9d. No moving line behind the kit (2026-10-21)
+1. Open the DYO Studio (any kit). At the kit's waist height there is no straight dark line across the stadium; the stands run softly into the wet floor.
+2. Drag the kit round slowly, then click Front, Back, Side and 360°: nothing in the background slides, tilts or jumps; only the kit turns.
+3. Zoom in and out and drag up and down: still no hard line.
+4. The same on a phone, in the app, on the AI designer results and on Convert.
 
 ### 9b. My design picture for jersey, tee and polo, and Convert
 1. Studio → Artwork → My design picture: upload a flat **jersey** drawing (front and back side by side). The check screen says Garment: Jersey, with front and back named. Click Put on the 3D kit. Check front, back and side: the pattern, the logos, the sleeves and round crests.
@@ -104,6 +138,15 @@ Studio → Artwork → **MY DESIGN PICTURE** → upload the AI HD mockup (3deezi
 ### 10. Print-layout shorts scaled evenly
 In the Studio, with the Leopards print layout on (Artwork → Factory print layout), choose Garment **Shorts** or **Full Kit**. The shorts are 12% bigger in all directions; the logos keep their shape and the waistband stays under the tee.
 
+### 10b. Gradient Presets (DYO Studio > Colours) (2026-10-21)
+1. Studio → **Colours** → **GRADIENT FILL** → **CHOOSE GRADIENT ›**: "GRADIENT PRESETS" opens beside the Colours panel; the kit stays the same size.
+2. Click each of the 8 presets: the kit changes at once, the chosen one gets a cyan outline and tick, From / To follow; SUNSET shows "3 COLOURS".
+3. **CREATE CUSTOM GRADIENT**: Add stop, type a HEX colour (e.g. FFD400), move Position: the kit updates live.
+4. Close with X, Esc, or a click on the 3D kit: the gradient stays. Undo / Redo at the top work.
+5. **SECONDARY** → BLACK / GOLD: only the trims change. **Turn gradient off · solid colour**: back to solid.
+6. Back, Side, 360°: right all round. Export → 2D panels and Design sheet show it.
+7. Save, reopen from My projects: still there. On a phone: a small sheet at the bottom. **App:** Colours → CHOOSE GRADIENT, the same.
+
 ## Artboard
 
 ### 11. Toolbox flyouts (17 buttons)
@@ -113,14 +156,13 @@ In the Studio, with the Leopards print layout on (Artwork → Factory print layo
 4. **Contour** holds Blend, Drop Shadow, Inner Shadow, Block Shadow, Extrude, Distort and Envelope.
 5. Shortcuts still work: F6 rectangle, F7 ellipse, Y polygon.
 
-### 12. Selection handles, as in CorelDRAW
-1. Draw a rectangle, press V, click the empty page, then click the rectangle: **8 small squares** for sizing.
-2. Click it again:
-   - **curved arrows** at the corners rotate it;
-   - **straight arrows** on the sides slant it;
-   - the **circle** in the middle is the centre of rotation, and you can drag it.
-3. Click again: back to the squares.
-4. Text: a second click shows the rotate handles. **Double-click** a text to type in it (two quick taps on a phone).
+### 12. Selection handles, as in the client's picture (build 2026-10-21-3)
+1. Open the Artboard (Ctrl+F5 once). Draw a rectangle, press V, click the empty page, then click the rectangle: **6 small squares**, at the 4 corners and the middle of the left and right sides; nothing at the middle of the top or bottom.
+2. Drag a corner: the shape grows or shrinks evenly. Drag the left or right middle: only the width changes.
+3. Click it again: **curved arrows** at the corners rotate it, **straight arrows** at the middle of all 4 sides slant it, and the **circle** in the middle is the centre of rotation (you can drag it).
+4. Click again: the 6 squares come back.
+5. To change only the height: turn off **Keep proportions** on the top bar and type the height in the **H** box, or hold **Shift** and drag a corner straight down.
+6. The same on a text, a picture, a group and two objects selected with Shift+click. Text: a double-click lets you type in it (two quick taps on a phone).
 
 ### 13. Contour tool
 1. Type a word (F8), then pick **Contour** (Contour flyout). Drag outwards from a letter: dashed steps show while you drag; let go to apply.
@@ -141,6 +183,14 @@ In the Studio, with the Leopards print layout on (Artwork → Factory print layo
 4. Click objects one after another and press the arrow keys: each responds at once.
 5. **Layers** tab: selecting, renaming, the eye and lock buttons, ↑/↓, delete and **Undo** show in the list as before.
 6. Click different tools and open a few flyouts: no delay. Make the window narrower and wider: the page, rulers and the AI / DYO / HOME pills adjust smoothly.
+
+### 14c. Artboard: the mouse pointer is an arrow (2026-10-21)
+1. Open the Artboard (Ctrl+F5 once). The status bar shows build **2026-10-21-2** or later.
+2. With the Pick tool, move over the empty page and over shapes and texts: the normal arrow, no four-way arrows. Drag a shape: the arrow stays.
+3. The small squares round a selected shape show double arrows; click the shape again: the corners show the turning cursor, the circle in the middle a crosshair.
+4. Hold the **Space bar**: the hand shows and dragging moves the view; let go and the arrow is back.
+5. Over the rulers, toolbox, menus, bars and panels: the arrow; in boxes you type in (X, Y, sizes): the text cursor.
+6. Other tools keep their own cursors (crosshair for shapes, hand for Pan, zoom glass, eyedropper).
 
 ## Homepage
 

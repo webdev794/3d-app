@@ -10,7 +10,7 @@ const plans = [
 ];
 const partnerPerks = ['Website integration', 'Your branding & garments', 'Team-led onboarding', 'Training & setup', 'Annual AI credit allowance', 'Priority partner support'];
 const partnerSteps = [['Apply', ClipboardList], ['Consultation', MessagesSquare], ['Onboarding', Handshake], ['Launch', Rocket]] as const;
-const costs = [['AI edit in the studio (“Ask 3DEEZI”)', 1], ['Convert an image to 3D', 1], ['Four AI concepts with previews', 2], ['AI print pattern', 3], ['Photoreal showcase image', 5], ['HD presentation mockup (one prompt)', 10]] as const;
+const costs = [['AI edit in the studio (“Ask 3DEEZI”)', 1], ['Convert an image to 3D', 1], ['Four AI concepts with previews', 2], ['AI print pattern', 3], ['Photoreal showcase image', 5], ['HD presentation mockup (one prompt)', 10], ['Make it 3D (AI print sheet on the 3D kit)', 10]] as const;
 
 /** Proposed subscription structure (credits, like current AI platforms). Payments are not live yet. */
 export default function PricingPage({ onStart }: { onStart: () => void }) {

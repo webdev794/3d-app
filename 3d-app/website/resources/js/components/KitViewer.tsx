@@ -5,7 +5,7 @@ export type Garment = 'jersey' | 'tee' | 'polo' | 'singlet' | 'shorts' | 'fullki
 export type View = 'front' | 'side' | 'back';
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem';
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-7';
+const VIEWER_VERSION = '2026-10-20-12';
 
 export interface ArtworkLayer {
     id: string; name?: string; type: 'image' | 'text' | 'shape';
@@ -27,6 +27,12 @@ export interface GarmentPoint { hit: boolean; part?: 'top' | 'shorts'; side?: 'f
 export interface DesignLayout { asset: number; name: string; roles: string[]; hemFold?: boolean; joinLines?: boolean; parts?: string[]; /** 'drawing': the finished garment's front and back drawn flat (a design picture), put on the garment in parts[0]. */ kind?: 'drawing' }
 
 /** Shared with the Flutter viewer. Persist this object as a project's design. */
+/** A gradient colour stop: `at` runs 0 (start) to 1 (end). */
+export type GradientStop = { color: string; at: number };
+/** A colour zone's gradient fill: from, to and angle (0 = top to bottom); `stops` has every colour when there are more
+ * than two (Sunset: orange, pink, purple); `preset` names the ready-made gradient it came from. */
+export type Gradient = { from: string; to: string; angle: number; stops?: GradientStop[]; preset?: string | null };
+
 export interface Design {
     garment: Garment;
     main: string;
@@ -43,7 +49,9 @@ export interface Design {
     patternColor?: string;
     patternBody?: number;
     patternScale?: number;
-    gradient?: { from: string; to: string; angle: number } | null;
+    /** The Primary zone's gradient fill (the body); `gradients` holds the Secondary and Pattern zones' fills. */
+    gradient?: Gradient | null;
+    gradients?: Partial<Record<'secondary' | 'patternColor', Gradient>> | null;
     zones?: Partial<Record<Zone, string>>;
     layers?: ArtworkLayer[];
     marks?: Record<string, MarkPlace>;
@@ -152,7 +160,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     const activeCapture = useRef<CaptureRequest | null>(null);
     const designTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const flushRef = useRef<() => void>(() => {});
-    latestDesign.current = JSON.stringify({ layers: [], zones: {}, gradient: null, marks: {}, layout: null, ...design });
+    latestDesign.current = JSON.stringify({ layers: [], zones: {}, gradient: null, gradients: null, marks: {}, layout: null, ...design });
     latestView.current = { view, rotating };
     readyCallback.current = onReady;
     boardMode.current = board;

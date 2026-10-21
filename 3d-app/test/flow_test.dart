@@ -82,13 +82,13 @@ void main() {
     await tapText(tester, 'START DESIGNING');
     expect(c.screen, AppScreen.sport);
     expect(c.mode, 'DYO');
-    expect(find.text('RUGBY LEAGUE'), findsOneWidget);
+    expect(find.text('DESIGN RUGBY LEAGUE'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.chevron_right_rounded));
     await tester.pumpAndSettle();
-    expect(find.text('BASKETBALL'), findsOneWidget);
+    expect(find.text('DESIGN BASKETBALL'), findsOneWidget);
 
-    await tapText(tester, 'DESIGN THIS SPORT');
+    await tapText(tester, 'DESIGN BASKETBALL');
     expect(c.sport, 'Basketball');
     expect(c.screen, AppScreen.garment);
 

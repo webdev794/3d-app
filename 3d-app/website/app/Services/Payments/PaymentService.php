@@ -14,8 +14,8 @@ use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * Paying invoices: starting a card payment (a Stripe PaymentIntent, or a test payment), and applying what the
- * provider reports (Stripe's webhook, a check after the browser confirms, or the TEST form) through one path.
+ * Paying invoices: starting a card payment (an Airwallex or Stripe PaymentIntent, or a test payment), and applying
+ * what the provider reports (its webhook, a check after the customer comes back, or the TEST form) through one path.
  * Each provider event is handled once; an invoice is marked paid once; a failed or cancelled attempt leaves it
  * awaiting payment, ready to try again.
  */
@@ -38,7 +38,9 @@ class PaymentService
             $kind = $kind === 'deposit' ? 'deposit' : ($invoice->paid_cents > 0 ? 'balance' : 'full');
             $open = $invoice->payments()->where('provider', $gateway->name())->whereIn('status', ['pending', 'failed'])->orderByDesc('id')->get();
             // The same amount again (a retry, a reload): the same payment, so it can only be paid once.
-            $same = $open->first(fn (Payment $p) => $p->amount_cents === $amount && $p->provider_id && ($p->provider === 'test' || $p->client_secret));
+            // (Airwallex's client secret is short-lived: an older Airwallex payment is replaced by a new one.)
+            $same = $open->first(fn (Payment $p) => $p->amount_cents === $amount && $p->provider_id && ($p->provider === 'test' || $p->client_secret)
+                && ! ($p->provider === 'airwallex' && $p->created_at?->lt(now()->subMinutes(AirwallexGateway::REUSE_MINUTES))));
             if ($same) {
                 return [$same, false, collect()];
             }
@@ -68,7 +70,8 @@ class PaymentService
     }
 
     /**
-     * A provider event (Stripe's webhook, or a test payment's result). The same event id twice changes nothing.
+     * A provider event (Stripe's or Airwallex's webhook, or a test payment's result): {id, type, data: {object}}
+     * (Airwallex's event name is passed as type). The same event id twice changes nothing.
      * Returns handled, duplicate, unknown (not one of our payments) or ignored.
      */
     public function handleEvent(array $event, string $provider = 'stripe'): string
@@ -83,6 +86,7 @@ class PaymentService
             return DB::transaction(function () use ($id, $type, $object, $provider) {
                 $record = PaymentEvent::query()->create(['provider' => $provider, 'event_id' => $id, 'type' => $type]);
                 $paymentId = match (true) {
+                    $provider === 'airwallex' => AirwallexGateway::intentIdOf($type, $object),
                     str_starts_with($type, 'payment_intent.') => (string) ($object['id'] ?? ''),
                     $type === 'charge.refunded' => (string) ($object['payment_intent'] ?? ''),
                     default => null,
@@ -95,13 +99,29 @@ class PaymentService
                     return 'unknown';
                 }
                 $record->forceFill(['payment_id' => $payment->id])->save();
-                $type === 'charge.refunded' ? $this->refunded($payment, $object) : $this->apply($payment, $object);
+                match (true) {
+                    $provider === 'airwallex' => $this->applyAirwallex($payment, $type, $object),
+                    $type === 'charge.refunded' => $this->refunded($payment, $object),
+                    default => $this->apply($payment, $object),
+                };
 
                 return 'handled';
             });
         } catch (UniqueConstraintViolationException) {
             return 'duplicate';
         }
+    }
+
+    /** An Airwallex event: the PaymentIntent's state, a failed attempt, or a refund (made here or in Airwallex). */
+    private function applyAirwallex(Payment $payment, string $type, array $object): void
+    {
+        match (true) {
+            str_starts_with($type, 'payment_intent.') => $this->apply($payment, AirwallexGateway::intentState($object)),
+            in_array($type, AirwallexGateway::ATTEMPT_FAILURES, true) => $this->apply($payment, AirwallexGateway::attemptFailure($object)),
+            in_array($type, ['refund.accepted', 'refund.settled'], true) => $this->providerRefund($payment, (string) ($object['id'] ?? ''), AirwallexGateway::cents($object['amount'] ?? 0)),
+            $type === 'refund.failed' => $this->providerRefundFailed($payment, (string) ($object['id'] ?? ''), (string) ($object['failure_reason'] ?? $object['failure_code'] ?? '')),
+            default => null,
+        };
     }
 
     /** Applies a PaymentIntent's state to our payment. */
@@ -179,23 +199,78 @@ class PaymentService
     {
         DB::transaction(function () use ($payment, $charge) {
             $payment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
-            $invoice = Invoice::query()->lockForUpdate()->findOrFail($payment->invoice_id);
-            $before = (int) ($payment->details['refunded_cents'] ?? 0);
             $total = min($payment->amount_cents, (int) ($charge['amount_refunded'] ?? 0));
-            if ($total <= $before) {
-                return;
-            }
-            $payment->forceFill(['details' => array_merge($payment->details ?? [], ['refunded_cents' => $total]),
-                'status' => ! empty($charge['refunded']) || $total >= $payment->amount_cents ? 'refunded' : $payment->status])->save();
-            $invoice->refunded_cents += $total - $before;
-            if ($invoice->paid_cents > 0 && $invoice->refunded_cents >= $invoice->paid_cents) {
-                $invoice->forceFill(['status' => 'refunded', 'refunded_at' => now()]);
-            }
-            $invoice->save();
+            $this->recordRefunded($payment, $total, ! empty($charge['refunded']));
         });
     }
 
-    /** Asks the provider how a payment stands (after the browser confirms it), then applies it. */
+    /**
+     * A refund through a provider's API (Airwallex): each refund id counts once, whether it comes from our refund
+     * request or from its webhooks (refund.accepted, then refund.settled), or was made in Airwallex's web app.
+     */
+    public function providerRefund(Payment $payment, string $refundId, int $cents): void
+    {
+        if ($refundId === '' || $cents <= 0) {
+            return;
+        }
+        DB::transaction(function () use ($payment, $refundId, $cents) {
+            $payment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
+            $refunds = (array) ($payment->details['refunds'] ?? []);
+            if (array_key_exists($refundId, $refunds)) {
+                return;
+            }
+            $refunds[$refundId] = $cents;
+            $payment->details = array_merge($payment->details ?? [], ['refunds' => $refunds]);
+            $this->recordRefunded($payment, min($payment->amount_cents, (int) array_sum($refunds)), false);
+        });
+    }
+
+    /** Airwallex's refund.failed: a refund counted already is taken back off, so the invoice shows the money as paid. */
+    private function providerRefundFailed(Payment $payment, string $refundId, string $reason): void
+    {
+        Log::warning('Airwallex refund failed', ['payment' => $payment->id, 'refund' => $refundId, 'reason' => mb_substr($reason, 0, 200)]);
+        DB::transaction(function () use ($payment, $refundId, $reason) {
+            $payment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
+            $invoice = Invoice::query()->lockForUpdate()->findOrFail($payment->invoice_id);
+            $refunds = (array) ($payment->details['refunds'] ?? []);
+            $cents = (int) ($refunds[$refundId] ?? 0);
+            unset($refunds[$refundId]);
+            $details = array_merge($payment->details ?? [], ['refunds' => $refunds, 'refunded_cents' => min($payment->amount_cents, (int) array_sum($refunds)),
+                'refund_failed' => ['id' => $refundId, 'reason' => mb_substr($reason, 0, 200) ?: null, 'at' => now()->toIso8601String()]]);
+            $payment->forceFill(['details' => $details, 'status' => $payment->status === 'refunded' && $details['refunded_cents'] < $payment->amount_cents ? 'succeeded' : $payment->status])->save();
+            if ($cents > 0) {
+                $invoice->refunded_cents = max(0, $invoice->refunded_cents - $cents);
+                if ($invoice->status === 'refunded' && $invoice->refunded_cents < $invoice->paid_cents) {
+                    $full = $invoice->total_cents !== null && $invoice->paid_cents >= $invoice->total_cents;
+                    $invoice->forceFill(['status' => $full ? 'paid' : 'part_paid', 'refunded_at' => null]);
+                }
+                $invoice->forceFill(['last_attempt' => ['status' => 'refund_failed', 'message' => 'A refund failed in Airwallex'.($reason !== '' ? ': '.mb_substr($reason, 0, 200) : '.'), 'at' => now()->toIso8601String()]])->save();
+            }
+        });
+    }
+
+    /** Records that $total cents of a (locked) payment are refunded now, and adds the difference to its invoice. */
+    private function recordRefunded(Payment $payment, int $total, bool $full): void
+    {
+        $invoice = Invoice::query()->lockForUpdate()->findOrFail($payment->invoice_id);
+        $before = (int) ($payment->details['refunded_cents'] ?? 0);
+        if ($total <= $before) {
+            if ($payment->isDirty()) {
+                $payment->save();
+            }
+
+            return;
+        }
+        $payment->forceFill(['details' => array_merge($payment->details ?? [], ['refunded_cents' => $total]),
+            'status' => $full || $total >= $payment->amount_cents ? 'refunded' : $payment->status])->save();
+        $invoice->refunded_cents += $total - $before;
+        if ($invoice->paid_cents > 0 && $invoice->refunded_cents >= $invoice->paid_cents) {
+            $invoice->forceFill(['status' => 'refunded', 'refunded_at' => $invoice->refunded_at ?? now()]);
+        }
+        $invoice->save();
+    }
+
+    /** Asks the provider how a payment stands (after the browser confirms it, or the customer is back from Airwallex), then applies it. */
     public function sync(Payment $payment): void
     {
         if (in_array($payment->status, ['succeeded', 'refunded', 'cancelled'], true)) {
@@ -256,7 +331,7 @@ class PaymentService
         return $payment->refresh();
     }
 
-    /** The card's brand and last 4 digits, and the wallet (Apple Pay, Google Pay), when Stripe sends them. */
+    /** The card's brand and last 4 digits, and the wallet (Apple Pay, Google Pay), when the provider sends them. */
     private function cardDetails(array $intent): array
     {
         $method = $intent['payment_method'] ?? null;

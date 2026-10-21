@@ -67,6 +67,7 @@ const _costs = [
   ('AI print pattern', 3),
   ('Photoreal showcase image', 5),
   ('HD presentation mockup (one prompt)', 10),
+  ('Make it 3D (AI print sheet on the 3D kit)', 10),
 ];
 const _perks = [
   'Website integration',

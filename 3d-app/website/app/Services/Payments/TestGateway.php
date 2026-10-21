@@ -28,4 +28,10 @@ final class TestGateway implements PaymentGateway
     }
 
     public function cancel(Payment $payment): void {}
+
+    /** Test payments move no money: the refund is only recorded. */
+    public function refund(Payment $payment, int $cents): ?array
+    {
+        return null;
+    }
 }

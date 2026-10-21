@@ -1038,7 +1038,7 @@ class _ColoursToolState extends State<_ColoursTool> {
             ),
         ],
       ),
-      StudioGradientTool(c),
+      StudioGradientTool(c, slot: _slot),
     ],
   );
 }

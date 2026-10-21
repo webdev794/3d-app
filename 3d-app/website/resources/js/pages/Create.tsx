@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Download, ImageUp, LoaderCircle, Plus, Sparkles, WandSparkles, X } from 'lucide-react';
-import { api, media, saveBlob, type Catalog, type Concept } from '../api';
+import { api, media, saveBlob, type Catalog, type CatalogItem, type Concept } from '../api';
 import type { Draft } from '../App';
 import type { Design } from '../types';
 import { DesignThumbnail } from './Library';
 import Loader from '../components/Loader';
 import { EditImageButton } from '../components/ImageEditor';
+import { CategoryIcon } from '../components/GarmentIcon';
 
 export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
 export const garmentArt = (garment: string) => media(`showroom/garment-${garment}.webp`);
@@ -27,11 +28,11 @@ export function SportSelection({ catalog, selected, onSelect, onNext }: { catalo
   useEffect(() => { const i = sports.findIndex(s => s.id === selected); if (i >= 0) setActive(i); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalog]);
   const rotate = useCallback((step: number) => { if (!sports.length) return; setActive(a => { const next = (a + step + sports.length) % sports.length; onSelect(sports[next].id); return next; }); }, [sports, onSelect]);
-  useEffect(() => { const key = (e: KeyboardEvent) => { if (e.key === 'ArrowLeft') rotate(-1); if (e.key === 'ArrowRight') rotate(1); if (e.key === 'Enter' && sports.length) onNext(); }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key); }, [rotate, onNext, sports.length]);
+  useEffect(() => { const key = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; if (t && (t.isContentEditable || t.closest('input, textarea, select'))) return; if (e.key === 'ArrowLeft') rotate(-1); if (e.key === 'ArrowRight') rotate(1); if (e.key === 'Enter' && sports.length && !t?.closest('button, a')) onNext(); }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key); }, [rotate, onNext, sports.length]);
   const offset = (i: number) => { const n = sports.length; let o = i - active; if (o > n / 2) o -= n; if (o < -n / 2) o += n; return o; };
   const sport = sports[active];
 
-  return <section className="showroom" onPointerDown={e => { dragStart.current = e.clientX; }} onPointerUp={e => { if (dragStart.current !== null && Math.abs(e.clientX - dragStart.current) > 50) rotate(e.clientX < dragStart.current ? 1 : -1); dragStart.current = null; }} onWheel={e => { const now = Date.now(); if (Math.abs(e.deltaX) > 20 && now - wheelLock.current > 350) { wheelLock.current = now; rotate(e.deltaX > 0 ? 1 : -1); } }}>
+  return <section className="showroom sport-step" onPointerDown={e => { dragStart.current = e.clientX; }} onPointerUp={e => { if (dragStart.current !== null && Math.abs(e.clientX - dragStart.current) > 50) rotate(e.clientX < dragStart.current ? 1 : -1); dragStart.current = null; }} onWheel={e => { const now = Date.now(); if (Math.abs(e.deltaX) > 20 && now - wheelLock.current > 350) { wheelLock.current = now; rotate(e.deltaX > 0 ? 1 : -1); } }}>
     <div className="showroom-bg" style={{ backgroundImage: `url(${media('showroom/stadium-stage.webp')})` }} />
     <div className="showroom-head">
       <Link className="back-link" to="/"><ArrowLeft size={16} /> Back to create</Link>
@@ -40,6 +41,7 @@ export function SportSelection({ catalog, selected, onSelect, onNext }: { catalo
       <p>Choose your sport and start designing. Rotate to explore.</p>
     </div>
     {!catalog ? <div className="empty-state"><LoaderCircle className="spin" /> Loading sports…</div> : <>
+      <CategoryShortcuts sports={sports} active={active} onPick={i => rotate(offset(i))} />
       <div className="carousel" aria-roledescription="carousel" aria-label="Sports">
         {sports.map((s, i) => { const o = offset(i), a = Math.abs(o); return <button key={s.id} className={`carousel-item ${o === 0 ? 'is-active' : ''}`} style={{ '--o': o, '--a': a, zIndex: 20 - a, opacity: a > 4 ? 0 : 1 } as React.CSSProperties} onClick={() => o === 0 ? onNext() : rotate(o)} aria-label={o === 0 ? `Design ${s.name}` : `Rotate to ${s.name}`} aria-current={o === 0} tabIndex={a > 4 ? -1 : 0}>
           <img src={kitArt(s.id)} alt={`${s.name} kit`} draggable={false} />
@@ -53,6 +55,54 @@ export function SportSelection({ catalog, selected, onSelect, onNext }: { catalo
       <button className="button button-gradient design-sport" onClick={onNext} disabled={!sport}>DESIGN {sport ? sport.name.toUpperCase() : 'THIS SPORT'} <ArrowRight size={19} /></button>
     </>}
   </section>;
+}
+
+type TileFilter = 'all' | 'sports' | 'apparel';
+const tileFilters: { id: TileFilter; label: string }[] = [{ id: 'all', label: 'All' }, { id: 'sports', label: 'Sports' }, { id: 'apparel', label: 'Apparel' }];
+const groupOf = (s: CatalogItem) => s.group === 'apparel' ? 'apparel' : 'sports';
+
+/**
+ * The quick-access row over the stage (client visual): one 2D tile per catalogue category, filtered by ALL · SPORTS ·
+ * APPAREL. A tile turns the stage to its kit (the page stays); turning the stage lights its tile and brings it into view.
+ * One row only: the arrows page it on desktop, phones swipe it.
+ */
+function CategoryShortcuts({ sports, active, onPick }: { sports: CatalogItem[]; active: number; onPick: (index: number) => void }) {
+  const [filter, setFilter] = useState<TileFilter>('all');
+  const [more, setMore] = useState({ prev: false, next: false });
+  const strip = useRef<HTMLDivElement>(null);
+  const shown = sports.map((s, i) => ({ s, i })).filter(({ s }) => filter === 'all' || groupOf(s) === filter);
+  const measure = useCallback(() => {
+    const el = strip.current; if (!el) return;
+    const prev = el.scrollLeft > 2, next = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setMore(m => m.prev === prev && m.next === next ? m : { prev, next });
+  }, []);
+  // The stage turned to a category outside the filter: show them all, so its tile can light up.
+  useEffect(() => { if (filter !== 'all' && sports[active] && groupOf(sports[active]) !== filter) setFilter('all'); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+  // Keep the lit tile in view: scrolls the row only, never the page.
+  useEffect(() => {
+    const el = strip.current, tile = el?.querySelector<HTMLElement>(`[data-index="${active}"]`);
+    if (el && tile && (tile.offsetLeft < el.scrollLeft || tile.offsetLeft + tile.offsetWidth > el.scrollLeft + el.clientWidth))
+      el.scrollTo({ left: tile.offsetLeft - (el.clientWidth - tile.offsetWidth) / 2, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    measure();
+  }, [active, filter, measure]);
+  useEffect(() => { const el = strip.current; if (!el) return; const ro = new ResizeObserver(measure); ro.observe(el); return () => ro.disconnect(); }, [measure]);
+  /** About one page of tiles, keeping one in view for context. */
+  const page = (dir: number) => { const el = strip.current; if (!el) return; const w = el.querySelector<HTMLElement>('.sport-tile')?.offsetWidth ?? 120; el.scrollBy({ left: dir * Math.max(el.clientWidth - w, w), behavior: 'smooth' }); };
+  /** A filter that hides the chosen category turns the stage to its first one, so a tile is always lit. */
+  const choose = (f: TileFilter) => { setFilter(f); const first = sports.findIndex(s => groupOf(s) === f); if (f !== 'all' && first >= 0 && sports[active] && groupOf(sports[active]) !== f) onPick(first); };
+  const filters = tileFilters.filter(f => f.id === 'all' || sports.some(s => groupOf(s) === f.id));
+  // Own pointer and wheel: swiping or scrolling the row must not turn the stage behind it.
+  return <div className="sport-shortcuts" onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
+    <div className="sport-filter" role="group" aria-label="Show categories">{filters.map(f => <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => choose(f.id)}>{f.label}</button>)}</div>
+    <div className={`sport-strip${more.prev || more.next ? '' : ' fits'}`}>
+      <button type="button" className="sport-strip-arrow" onClick={() => page(-1)} disabled={!more.prev} aria-label="Previous categories"><ChevronLeft size={20} /></button>
+      <div ref={strip} className={`sport-tiles${more.prev ? ' more-prev' : ''}${more.next ? ' more-next' : ''}`} onScroll={measure} role="group" aria-label="Categories">
+        {shown.map(({ s, i }) => <button key={s.id} type="button" data-index={i} className="sport-tile" aria-pressed={i === active} onClick={() => onPick(i)} title={s.name}><CategoryIcon category={s.id} /><strong>{s.name}</strong></button>)}
+      </div>
+      <button type="button" className="sport-strip-arrow" onClick={() => page(1)} disabled={!more.next} aria-label="More categories"><ChevronRight size={20} /></button>
+    </div>
+  </div>;
 }
 
 /** Step 2: choose the garment for the sport. */
@@ -100,7 +150,8 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: 
   const [references, setReferences] = useState<Reference[]>([]);
   const [uploading, setUploading] = useState(false);
   const [wantMockup, setWantMockup] = useState(true);
-  const [mockup, setMockup] = useState<{ image?: string; error?: string; busy: boolean } | null>(null);
+  const [mockup, setMockup] = useState<{ image?: string; error?: string; busy: boolean; direction?: string | null } | null>(null);
+  const [making3d, setMaking3d] = useState(false);
   const [dropping, setDropping] = useState(false);
   const upload = useRef<HTMLInputElement>(null);
   const isAi = !!catalog?.provider.is_ai;
@@ -111,8 +162,8 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: 
     const body = { prompt, sport: draft.sport, garment: draft.garment, reference_ids: references.map(r => r.id) };
     if (isAi && wantMockup) {
       setMockup({ busy: true });
-      api<{ image: string }>('/ai/mockup', { method: 'POST', body: JSON.stringify(body) })
-        .then(r => setMockup({ busy: false, image: r.image }))
+      api<{ image: string; direction?: string | null }>('/ai/mockup', { method: 'POST', body: JSON.stringify(body) })
+        .then(r => setMockup({ busy: false, image: r.image, direction: r.direction }))
         .catch(e => setMockup({ busy: false, error: (e as Error).message }));
     } else setMockup(null);
     try { const result = await api<{ concepts: Concept[] }>('/concepts', { method: 'POST', body: JSON.stringify(body) }); setConcepts(result.concepts); setSelected(0); }
@@ -138,13 +189,22 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: 
   }
   const customize = (concept: Concept) => { onChange({ ...draft, name: concept.name, design: concept.design, mode: 'ai', patternMotif: concept.motif }); onStudio(); };
   /** The attached picture itself on the 3D kit (no AI): the Studio checks it, then puts it on exactly as drawn. */
+  /** "Make it 3D": the mockup redrawn by the same AI as a flat front and back print sheet, then put on the 3D kit like a design picture. */
+  async function makeIt3d() {
+    if (!mockup?.image) return;
+    setMaking3d(true); setError('');
+    try {
+      const sheet = await api<{ asset: { id: number; name: string }; image: string }>('/ai/print-sheet', { method: 'POST', body: JSON.stringify({ image: mockup.image, sport: draft.sport, garment: draft.garment, reference_ids: references.map(r => r.id), name: concepts[selected]?.name ?? '' }) });
+      putDrawing({ id: sheet.asset.id, name: sheet.asset.name, preview: sheet.image });
+    } catch (e) { setError(`Make it 3D: ${(e as Error).message}`); } finally { setMaking3d(false); }
+  }
   const putDrawing = (picture: Reference) => { const top = (['singlet', 'jersey', 'tee', 'polo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment']; onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'ai', design: { ...(concepts[selected]?.design ?? draft.design), garment: top, layout: null }, patternMotif: undefined, pendingDrawing: { asset: picture.id, name: picture.name } }); onStudio(); };
 
   if (busy) return <Loader seconds={isAi ? 28 : 3} steps={references.length ? ['Understanding your brief', 'Analysing your references', 'Creating design concepts', 'Preparing 3D garment'] : ['Understanding your brief', 'Choosing colours and patterns', 'Creating design concepts', 'Preparing 3D garment']} />;
 
   if (concepts.length) return <div className="page-shell creation-page"><button className="back-link" onClick={() => { setConcepts([]); setMockup(null); }}><ArrowLeft size={16} /> Refine your brief</button><FlowSteps step={1} ai />
-    {mockup && <section className="mockup-result glow-panel"><div className="mockup-copy"><span className="eyebrow"><Sparkles size={14} /> ONE PROMPT · HD MOCKUP</span><h2>Your design, <span>presented.</span></h2><p className="muted">“{prompt}”</p>{mockup.image && <div className="mockup-actions"><button className="button button-gradient" onClick={async () => saveBlob(await (await fetch(mockup.image!)).blob(), '3deezi-mockup.jpg')}><Download size={17} /> Download HD mockup</button><EditImageButton className="button button-outline" src={mockup.image} title="HD mockup" fileName="3deezi-mockup" ai={isAi} requireAuth={requireAuth} keepAs="AI mockup (edited)" onUse={image => setMockup(m => m && { ...m, image })} /><span className="field-hint">Also saved in your Assets.</span></div>}{mockup.error && <p className="error-message" role="alert">Mockup not created: {mockup.error}</p>}</div>
-      <div className="mockup-frame">{mockup.image ? <img src={mockup.image} alt="AI presentation mockup of your design" /> : mockup.busy ? <Loader overlay={false} title="Rendering your HD mockup…" subtitle="Photoreal front, back and detail views · about a minute." steps={['Reading your brief and logos', 'Designing front and back', 'Adding fabric and details', 'Finishing the presentation']} seconds={70} /> : null}</div>
+    {mockup && <section className="mockup-result glow-panel"><div className="mockup-copy"><span className="eyebrow"><Sparkles size={14} /> ONE PROMPT · HD MOCKUP</span><h2>Your design, <span>presented.</span></h2><p className="muted">“{prompt}”</p>{mockup.direction && <p>{mockup.direction}</p>}{mockup.image && <div className="mockup-actions"><button className="button button-gradient" disabled={making3d} onClick={() => requireAuth(() => void makeIt3d())} title="The same design drawn flat, front and back, then put on the live 3D kit">{making3d ? <LoaderCircle className="spin" size={17} /> : <WandSparkles size={17} />} {making3d ? 'Drawing the print sheet… about a minute' : 'MAKE IT 3D'}</button><button className="button button-outline" onClick={async () => saveBlob(await (await fetch(mockup.image!)).blob(), '3deezi-mockup.jpg')}><Download size={17} /> Download HD mockup</button><EditImageButton className="button button-outline" src={mockup.image} title="HD mockup" fileName="3deezi-mockup" ai={isAi} requireAuth={requireAuth} keepAs="AI mockup (edited)" onUse={image => setMockup(m => m && { ...m, image })} /><span className="field-hint">Also saved in your Assets. MAKE IT 3D draws the same design flat (front and back) and puts it on the 3D kit (singlet, jersey, tee or polo).</span></div>}{error && mockup.image && <p className="error-message" role="alert">{error}</p>}{mockup.error && <p className="error-message" role="alert">Mockup not created: {mockup.error}</p>}</div>
+      <div className="mockup-frame">{mockup.image ? <img src={mockup.image} alt="AI presentation mockup of your design" /> : mockup.busy ? <Loader overlay={false} title="Rendering your HD mockup…" subtitle="Art direction from your logo, then a photoreal front and back · about a minute." steps={['Reading your brief and logos', 'Art direction: palette, theme, graphics', 'Designing front and back', 'Finishing the presentation']} seconds={80} /> : null}</div>
     </section>}
     {references.length > 0 && <div className="flow-actions"><p className="muted">Already have the finished design? Put your attached picture on the 3D kit exactly as drawn: its front and back edge to edge, the whole pattern and your logos in place (singlet, jersey, tee or polo).</p>{references.map(r => <button key={r.id} className="button button-gradient" onClick={() => putDrawing(r)} title={`Put ${r.name} on the 3D kit`}><img src={r.preview} alt="" style={{ width: 26, height: 26, objectFit: 'cover', borderRadius: 4 }} /> PUT MY DESIGN ON THE 3D KIT <ArrowRight size={18} /></button>)}</div>}
     <div className="page-heading"><span className="eyebrow">MAKE IT EDITABLE IN 3D</span><h1>Find your <span>starting point.</span></h1><p>Choose a direction to customise on the live 3D kit. Every colour, pattern, and detail is editable.</p></div>
@@ -162,7 +222,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio }: 
       <div className="prompt-chips"><button type="button" onClick={() => setPrompt('A black and cyan rugby league jersey with aggressive tribal geometric shoulder panels, a cyan V collar and the 3DEEZI wordmark across the chest.')}>Electric cyan</button><button type="button" onClick={() => setPrompt('A grey oversized polo with a black half-zip collar with white tipping, white shoulder panels, black cuffs and hem, raised silicone wordmark across the chest and a crest on the right chest. Premium cotton fabric.')}>Club polo</button><button type="button" onClick={() => setPrompt('A navy and gold football kit with classic vertical stripes, elegant and confident, gold crew collar.')}>Classic club</button><button type="button" onClick={() => setPrompt('Create a 3D version of my attached design. Make the front a hero image, slightly turned one way, with the back smaller behind it. Create a nice background.')}>My design in 3D</button></div>
       <div className="reference-heading"><span>YOUR LOGOS, DESIGNS & REFERENCES <span className="muted">/ optional</span></span><span>{references.length}/4</span></div>
       <div className="reference-list">{references.map(r => <div className="reference-item" key={r.id}><img src={r.preview} alt={r.name} /><button className="icon-button" type="button" aria-label={`Remove ${r.name}`} onClick={() => setReferences(items => items.filter(item => item.id !== r.id))}><X size={13} /></button></div>)}{references.length < 4 && <button className="reference-upload" type="button" disabled={uploading} onClick={() => requireAuth(() => upload.current?.click())}>{uploading ? <LoaderCircle className="spin" size={20} /> : <Plus size={22} />}<span>Add image</span></button>}<input ref={upload} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple hidden onChange={e => { addFiles([...(e.target.files ?? [])]); e.target.value = ''; }} /></div>
-      {isAi && <label className="toggle-row"><input type="checkbox" checked={wantMockup} onChange={e => setWantMockup(e.target.checked)} /><span><strong>Create an HD presentation mockup</strong><small>Photoreal front, back and close-up details, like ChatGPT · about a minute</small></span></label>}
+      {isAi && <label className="toggle-row"><input type="checkbox" checked={wantMockup} onChange={e => setWantMockup(e.target.checked)} /><span><strong>Create an HD presentation mockup</strong><small>A bold sublimated design from your logo, front and back in a dramatic photoreal presentation, like ChatGPT · about a minute</small></span></label>}
       {!isAi && <p className="field-hint">Preview mode: AI is not connected on this server, so concepts are built from your wording.</p>}
       {error && <p role="alert" className="error-message">{error}</p>}
       <button className="button button-gradient full-width" disabled={!catalog}><WandSparkles size={20} />CREATE MY DESIGN<ArrowRight size={19} /></button>

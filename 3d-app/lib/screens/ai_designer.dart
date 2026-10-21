@@ -327,7 +327,7 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             subtitle: const Text(
-              'Photoreal front, back and details, like ChatGPT',
+              'Bold design from your logo, front and back, like ChatGPT',
               style: TextStyle(fontSize: 11, color: Palette.muted),
             ),
           ),
@@ -924,6 +924,49 @@ class _MockupCard extends StatelessWidget {
   const _MockupCard(this.c);
   final AppController c;
 
+  /// "Make it 3D": the mockup drawn flat (front and back) by the same AI,
+  /// then on the 3D kit through the design-picture check, in one tap.
+  Future<void> _makeIt3d(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    void say(String text) => messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Palette.surface2,
+      ),
+    );
+    if (!c.signedIn) {
+      say(
+        'Sign in to make it 3D: the print sheet is kept with your saved '
+        'assets.',
+      );
+      c.go(AppScreen.auth);
+      return;
+    }
+    final Uint8List sheet;
+    try {
+      sheet = await c.mockupPrintSheet();
+    } on AiException catch (e) {
+      say('Make it 3D: ${e.message}');
+      return;
+    }
+    c.go(AppScreen.studio);
+    // The Studio's 3D kit starts first.
+    for (var t = 0; t < 100 && c.checkLayout == null; t++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    try {
+      final done = await c.importDesignPicture('ai-print-sheet.jpg', sheet);
+      if (done != null) say(done);
+    } on Object catch (e) {
+      say(
+        e is ApiException
+            ? e.message
+            : 'The print sheet could not go on the 3D kit.',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final image = c.mockupImage;
@@ -1047,6 +1090,33 @@ class _MockupCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (c.mockupDirection != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: Text(
+                  c.mockupDirection!,
+                  style: const TextStyle(fontSize: 12.5, height: 1.35),
+                ),
+              ),
+            if (image != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: FilledButton.icon(
+                  onPressed: c.sheetBusy ? null : () => _makeIt3d(context),
+                  icon: c.sheetBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.view_in_ar_outlined, size: 18),
+                  label: Text(
+                    c.sheetBusy
+                        ? 'Drawing the print sheet… about a minute'
+                        : 'MAKE IT 3D',
+                  ),
+                ),
+              ),
           ],
         ),
       ),

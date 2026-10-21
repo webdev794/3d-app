@@ -1,15 +1,16 @@
 <?php
 
 return [
+    // DYO categories, in carousel order. 'group' sorts the quick-access tiles on Choose your sport (ALL / SPORTS / APPAREL).
     'sports' => [
-        ['id' => 'rugby-league', 'name' => 'Rugby League', 'description' => 'Made for every tackle. Built for your team.'],
-        ['id' => 'rugby-union', 'name' => 'Rugby Union', 'description' => 'A proud tradition. A kit of your own.'],
-        ['id' => 'football', 'name' => 'Football', 'description' => 'Own the pitch, from first whistle to last.'],
-        ['id' => 'basketball', 'name' => 'Basketball', 'description' => 'Court-ready looks for a different kind of game.'],
-        ['id' => 'netball', 'name' => 'Netball', 'description' => 'Move together. Stand out together.'],
-        ['id' => 'afl', 'name' => 'AFL', 'description' => 'A new look for your next big mark.'],
-        ['id' => 'hockey', 'name' => 'Hockey', 'description' => 'Fast play. Unmistakable team identity.'],
-        ['id' => 'training', 'name' => 'Training', 'description' => 'Everyday performance, your way.'],
+        ['id' => 'rugby-league', 'name' => 'Rugby League', 'description' => 'Made for every tackle. Built for your team.', 'group' => 'sports'],
+        ['id' => 'rugby-union', 'name' => 'Rugby Union', 'description' => 'A proud tradition. A kit of your own.', 'group' => 'sports'],
+        ['id' => 'football', 'name' => 'Football', 'description' => 'Own the pitch, from first whistle to last.', 'group' => 'sports'],
+        ['id' => 'basketball', 'name' => 'Basketball', 'description' => 'Court-ready looks for a different kind of game.', 'group' => 'sports'],
+        ['id' => 'netball', 'name' => 'Netball', 'description' => 'Move together. Stand out together.', 'group' => 'sports'],
+        ['id' => 'afl', 'name' => 'AFL', 'description' => 'A new look for your next big mark.', 'group' => 'sports'],
+        ['id' => 'hockey', 'name' => 'Hockey', 'description' => 'Fast play. Unmistakable team identity.', 'group' => 'sports'],
+        ['id' => 'training', 'name' => 'Training', 'description' => 'Everyday performance, your way.', 'group' => 'apparel'],
     ],
     'garments' => [
         ['id' => 'jersey', 'name' => 'Jersey', 'description' => 'Your match-day essential.'],

@@ -155,6 +155,7 @@ class KitViewer3DState extends State<KitViewer3D> {
       'layers': c.layers,
       'zones': c.zones,
       'gradient': c.gradient,
+      'gradients': c.gradients,
       'marks': c.marks,
       'layout': c.layout,
       'patternColor': _hex(

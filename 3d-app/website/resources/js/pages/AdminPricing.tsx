@@ -14,7 +14,9 @@ type Kind = 'garment' | 'extra' | 'shipping' | 'discount';
 interface Rule { id: number; kind: Kind; code: string | null; sport: string | null; name: string; price: string; per_item: string; percent: string | null; unit: 'garment' | 'player' | 'order' | null; auto: boolean; min_quantity: number | null; taxable: boolean; active: boolean; sort: number }
 interface Settings { business_name: string; abn: string; address: string; email: string; phone: string; website: string; logo: string | null; logo_url: string | null; currency: string; tax_name: string; tax_rate: string; default_destination: string; invoice_start: number; due_days: number; invoice_note: string; bank_details: string; payment_rule: 'none' | 'deposit' | 'full'; deposit_percent: number }
 interface PricingState { rules: Rule[]; settings: Settings; garments: { id: string; name: string }[]; sports: { id: string; name: string }[]; currencies: string[];
-  gateway: { mode: 'stripe' | 'test' | 'none'; stripe_key: boolean; stripe_secret: boolean; webhook_secret: boolean; live: boolean; webhook_url: string; events: string[]; environment: string } }
+  gateway: { mode: 'airwallex' | 'stripe' | 'test' | 'none'; provider_setting: string | null;
+    airwallex: { client_id: boolean; api_key: boolean; webhook_secret: boolean; account_id: boolean; env: 'demo' | 'prod'; ready: boolean; webhook_url: string; events: string[] };
+    stripe_key: boolean; stripe_secret: boolean; webhook_secret: boolean; live: boolean; webhook_url: string; events: string[]; environment: string } }
 interface InvoiceRow extends PaymentSummary { id: number; order: { id: number; number: string; name: string; status: string } | null; customer: { id: number; name: string; email: string } | null; created_at: string; emailed_at: string | null }
 interface StaffPayment { id: number; provider: string; kind: string; method: string | null; status: string; amount: string; currency: string; message: string | null; reference: string | null; card: { brand: string | null; last4: string } | null; paid_at: string | null; created_at: string; by: string | null }
 interface InvoiceDetail extends InvoiceRow { number: string | null; quote: Quote; staff_notes: string | null; notes: string | null; account: { id: number; name: string; email: string } | null;
@@ -189,20 +191,38 @@ function BusinessSettings({ state, onSaved, onNotice }: { state: PricingState; o
 
 function PaymentsSetup({ state, onNotice }: { state: PricingState; onNotice: (t: string) => void }) {
   const g = state.gateway;
-  const status = g.mode === 'stripe' ? { ok: true, title: `Stripe connected (${g.live ? 'live' : 'test'} keys)`, text: 'Customers pay by card, Apple Pay or Google Pay on the Review & Pay page.' }
-    : g.mode === 'test' ? { ok: false, title: 'Test mode: payments are simulated', text: 'No Stripe keys on this server. The pay page shows a TEST form; nothing is charged.' }
-    : { ok: false, title: 'Online payment is off', text: 'Add the Stripe keys to the server’s .env. Customers see the bank details meanwhile.' };
+  const a = g.airwallex;
+  const set = (on: boolean) => on ? 'set' : 'not set';
+  const copy = (url: string) => { void navigator.clipboard?.writeText(url); onNotice('Webhook address copied.'); };
+  const status = g.mode === 'airwallex' ? { ok: true, title: `Airwallex connected (${a.env === 'prod' ? 'live' : 'demo'})`, text: a.env === 'prod' ? 'Customers pay by card, Apple Pay or Google Pay on Airwallex’s secure page from the Review & Pay page.' : 'Demo (sandbox): Airwallex test cards only, no real money. Set AIRWALLEX_ENV=prod with live keys to take payments.' }
+    : g.mode === 'stripe' ? { ok: true, title: `Stripe connected (${g.live ? 'live' : 'test'} keys)`, text: 'Customers pay by card, Apple Pay or Google Pay on the Review & Pay page.' }
+    : g.mode === 'test' ? { ok: false, title: 'Test mode: payments are simulated', text: 'No Airwallex or Stripe keys on this server. The pay page shows a TEST form; nothing is charged.' }
+    : { ok: false, title: 'Online payment is off', text: g.provider_setting ? `PAYMENTS_PROVIDER is ${g.provider_setting}, but its keys are not in the server’s .env. Customers see the bank details meanwhile.` : 'Add the Airwallex keys to the server’s .env. Customers see the bank details meanwhile.' };
+  const showStripe = g.mode === 'stripe' || g.stripe_key || g.stripe_secret;
   return <div className="admin-grid">
     <section className="glow-panel admin-card"><h2><CreditCard size={18} /> Card payments</h2>
       <div className={`connection ${status.ok ? 'ok' : 'off'}`}>{status.ok ? <CheckCircle2 size={20} /> : <TriangleAlert size={20} />}<div><strong>{status.title}</strong><span>{status.text}</span></div></div>
-      <dl className="kv"><dt>STRIPE_KEY</dt><dd>{g.stripe_key ? 'set' : 'not set'}</dd><dt>STRIPE_SECRET</dt><dd>{g.stripe_secret ? 'set' : 'not set'}</dd><dt>STRIPE_WEBHOOK_SECRET</dt><dd>{g.webhook_secret ? 'set' : 'not set'}</dd><dt>Environment</dt><dd>{g.environment}</dd></dl>
-      <p className="field-hint">Keys live in the server’s .env file (never here). Stripe › Developers › API keys.</p>
+      <dl className="kv">
+        <dt>Provider</dt><dd>{g.mode === 'none' ? 'none' : g.mode}{g.provider_setting ? ' (PAYMENTS_PROVIDER)' : ''}</dd>
+        <dt>AIRWALLEX_CLIENT_ID</dt><dd>{set(a.client_id)}</dd><dt>AIRWALLEX_API_KEY</dt><dd>{set(a.api_key)}</dd>
+        <dt>AIRWALLEX_WEBHOOK_SECRET</dt><dd>{set(a.webhook_secret)}</dd><dt>AIRWALLEX_ENV</dt><dd>{a.env === 'prod' ? 'prod (live)' : 'demo (sandbox)'}</dd>
+        {a.account_id && <><dt>AIRWALLEX_ACCOUNT_ID</dt><dd>set</dd></>}
+        {showStripe && <><dt>STRIPE_KEY</dt><dd>{set(g.stripe_key)}</dd><dt>STRIPE_SECRET</dt><dd>{set(g.stripe_secret)}</dd><dt>STRIPE_WEBHOOK_SECRET</dt><dd>{set(g.webhook_secret)}</dd></>}
+        <dt>Environment</dt><dd>{g.environment}</dd>
+      </dl>
+      <p className="field-hint">Keys live in the server’s .env file (never here). Airwallex › Settings › Developer › API keys.</p>
     </section>
-    <section className="glow-panel admin-card"><h2>Stripe webhook</h2>
+    <section className="glow-panel admin-card"><h2>Airwallex webhook</h2>
+      <p className="muted">In Airwallex › Settings › Developer › Webhooks, add this notification URL (in the {a.env === 'prod' ? 'live' : 'demo'} account), tick the events below, and copy its secret into AIRWALLEX_WEBHOOK_SECRET.</p>
+      <div className="pa-copy"><code>{a.webhook_url}</code><button type="button" className="icon-button" aria-label="Copy the Airwallex webhook address" onClick={() => copy(a.webhook_url)}><Copy size={15} /></button></div>
+      <p className="muted">Events: {a.events.join(', ')}</p>
+      {!a.webhook_secret && a.ready && <p className="field-hint">Without the webhook secret, payments are still checked when the customer comes back from Airwallex, but a closed browser tab is only caught by the webhook.</p>}
+    </section>
+    {showStripe && <section className="glow-panel admin-card"><h2>Stripe webhook</h2>
       <p className="muted">In Stripe › Developers › Webhooks, add this endpoint and copy its signing secret into STRIPE_WEBHOOK_SECRET.</p>
-      <div className="pa-copy"><code>{g.webhook_url}</code><button type="button" className="icon-button" aria-label="Copy the webhook address" onClick={() => { void navigator.clipboard?.writeText(g.webhook_url); onNotice('Webhook address copied.'); }}><Copy size={15} /></button></div>
+      <div className="pa-copy"><code>{g.webhook_url}</code><button type="button" className="icon-button" aria-label="Copy the Stripe webhook address" onClick={() => copy(g.webhook_url)}><Copy size={15} /></button></div>
       <p className="muted">Events: {g.events.join(', ')}</p>
-    </section>
+    </section>}
   </div>;
 }
 
@@ -297,7 +317,7 @@ function InvoiceActions({ inv, onChanged, onNotice }: { inv: InvoiceDetail; onCh
       </section>
       <section className="admin-card pa-box"><h3>Payments</h3>
         {inv.payments.length ? <ul className="pa-payments">{inv.payments.map(p => <li key={p.id}><strong>{money(p.amount, p.currency)}</strong> <span className={`pa-pstatus s-${p.status}`}>{p.status}</span>
-          <small>{p.provider === 'manual' ? `${METHODS.find(([m]) => m === p.method)?.[1] ?? p.method} · recorded by ${p.by ?? 'staff'}${p.reference ? ` · ${p.reference}` : ''}` : `${p.provider === 'test' ? 'Test' : 'Stripe'} ${p.method === 'wallet' ? 'wallet' : 'card'}${p.card ? ` ${p.card.brand ?? ''} •••• ${p.card.last4}` : ''}`} · {date(p.paid_at ?? p.created_at)}{p.message ? ` · ${p.message}` : ''}</small></li>)}</ul>
+          <small>{p.provider === 'manual' ? `${METHODS.find(([m]) => m === p.method)?.[1] ?? p.method} · recorded by ${p.by ?? 'staff'}${p.reference ? ` · ${p.reference}` : ''}` : `${p.provider === 'test' ? 'Test' : p.provider === 'airwallex' ? 'Airwallex' : 'Stripe'} ${p.method === 'wallet' ? 'wallet' : 'card'}${p.card ? ` ${p.card.brand ?? ''} •••• ${p.card.last4}` : ''}`} · {date(p.paid_at ?? p.created_at)}{p.message ? ` · ${p.message}` : ''}</small></li>)}</ul>
           : <p className="muted">No payments yet.</p>}
         {payable && <form className="admin-form pa-markpaid" onSubmit={e => { e.preventDefault(); void run('paid', 'mark-paid', { method: paid.method, reference: paid.reference || null, amount: paid.amount || null }, 'Marked paid: the receipt is emailed.'); }}>
           <h4>Mark paid (received another way)</h4>
@@ -309,7 +329,7 @@ function InvoiceActions({ inv, onChanged, onNotice }: { inv: InvoiceDetail; onCh
         {(payable || paidSome) && <div className="pa-danger">
           <label className="field">Note (kept on the invoice)<input maxLength={500} value={note} onChange={e => setNote(e.target.value)} placeholder={paidSome ? 'Why it was refunded' : 'Why it was cancelled'} /></label>
           <div className="project-actions">
-            {paidSome && <button className="button button-outline" disabled={!!busy} onClick={() => window.confirm('Record that the payment was refunded? Refund card payments in Stripe first (Stripe tells us by itself).') && void run('refund', 'refund', { note }, 'Refund recorded.')}><RotateCcw size={15} /> Record refund</button>}
+            {paidSome && <button className="button button-outline" disabled={!!busy} onClick={() => window.confirm('Refund this invoice? Airwallex card payments are refunded through Airwallex now. Bank transfers: pay the money back yourself; Stripe card payments: refund them in Stripe first.') && void run('refund', 'refund', { note }, 'Refund recorded.')}><RotateCcw size={15} /> Record refund</button>}
             {payable && !paidSome && <button className="button button-outline danger" disabled={!!busy} onClick={() => window.confirm('Cancel this invoice? The customer can no longer pay it.') && void run('cancel', 'cancel', { note }, 'Invoice cancelled.')}><Ban size={15} /> Cancel invoice</button>}
           </div>
         </div>}

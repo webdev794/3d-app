@@ -213,13 +213,40 @@ class InvoiceService
         return $invoice;
     }
 
-    /** Records that what was paid has been refunded (a bank transfer back, or a refund made in Stripe). */
+    /**
+     * Refunds what was paid: Airwallex card payments are refunded through Airwallex's API first (its refund
+     * webhooks then change nothing more); everything else is recorded (a bank transfer back, or a refund made in
+     * Stripe's dashboard).
+     */
     public function refund(Invoice $invoice, ?string $note = null): Invoice
     {
-        DB::transaction(function () use ($invoice, $note) {
+        $fresh = $invoice->fresh();
+        abort_if(! $fresh || $fresh->paid_cents <= 0, 409, 'Nothing was paid on this invoice.');
+        abort_if($fresh->status === 'refunded', 409, 'This invoice is already refunded.');
+        $viaProvider = false;
+        foreach ($fresh->payments()->where('status', 'succeeded')->where('provider', 'airwallex')->get() as $payment) {
+            $remaining = $payment->amount_cents - (int) ($payment->details['refunded_cents'] ?? 0);
+            $gateway = Gateways::for($payment->provider);
+            if ($remaining <= 0 || ! $gateway) {
+                abort_if($remaining > 0, 409, 'Airwallex is not set up on this server, so this card payment cannot be refunded from here. Refund it in Airwallex first.');
+
+                continue;
+            }
+            try {
+                $refund = $gateway->refund($payment, $remaining);
+            } catch (Throwable $e) {
+                report($e);
+                abort(502, 'Airwallex did not accept the refund: '.mb_substr(preg_replace('/^Airwallex: /', '', $e->getMessage()), 0, 200));
+            }
+            if ($refund) {
+                app(PaymentService::class)->providerRefund($payment, $refund['id'], $remaining);
+                $viaProvider = true;
+            }
+        }
+        DB::transaction(function () use ($invoice, $note, $viaProvider) {
             $locked = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
             abort_if($locked->paid_cents <= 0, 409, 'Nothing was paid on this invoice.');
-            abort_if($locked->status === 'refunded', 409, 'This invoice is already refunded.');
+            abort_if($locked->status === 'refunded' && ! $viaProvider, 409, 'This invoice is already refunded.');
             $locked->forceFill(['status' => 'refunded', 'refunded_cents' => $locked->paid_cents, 'refunded_at' => now(), 'notes' => $this->withNote($locked->notes, $note)])->save();
             $locked->payments()->where('status', 'succeeded')->update(['status' => 'refunded']);
         });

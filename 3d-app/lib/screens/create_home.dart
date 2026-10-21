@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../ai_service.dart';
 import '../app_controller.dart';
 import '../project_sync.dart';
+import '../widgets/category_icon.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/rewards_card.dart';
 import '../widgets/showroom.dart';
@@ -489,16 +490,18 @@ class _MiniArtboard extends StatelessWidget {
   );
 }
 
-/// The sports offered in Design Your Own, with their artwork and kit line.
-const dyoSports = <(String, String, String)>[
-  ('Rugby League', 'sport_rugby_league', 'Jersey + Shorts'),
-  ('Basketball', 'sport_basketball', 'Singlet + Shorts'),
-  ('Soccer', 'sport_soccer', 'Jersey + Shorts'),
-  ('AFL', 'sport_afl', 'Guernsey + Shorts'),
-  ('Netball', 'sport_netball', 'Dress + Bodysuit'),
-  ('Rugby Union', 'sport_rugby_union', 'Jersey + Shorts'),
-  ('Ice Hockey', 'sport_ice_hockey', 'Jersey + Socks'),
-  ('Training / Gym', 'sport_training', 'Tee + Hoodie'),
+/// The sports offered in Design Your Own, with their artwork, kit line and
+/// quick-access group (the ALL / SPORTS / APPAREL filters; as the website's
+/// catalogue).
+const dyoSports = <(String, String, String, String)>[
+  ('Rugby League', 'sport_rugby_league', 'Jersey + Shorts', 'sports'),
+  ('Basketball', 'sport_basketball', 'Singlet + Shorts', 'sports'),
+  ('Soccer', 'sport_soccer', 'Jersey + Shorts', 'sports'),
+  ('AFL', 'sport_afl', 'Guernsey + Shorts', 'sports'),
+  ('Netball', 'sport_netball', 'Dress + Bodysuit', 'sports'),
+  ('Rugby Union', 'sport_rugby_union', 'Jersey + Shorts', 'sports'),
+  ('Ice Hockey', 'sport_ice_hockey', 'Jersey + Socks', 'sports'),
+  ('Training / Gym', 'sport_training', 'Tee + Hoodie', 'apparel'),
 ];
 
 /// 8 · DYO sport selection: the kits rotate on a floodlit stadium stage.
@@ -519,11 +522,74 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     viewportFraction: .42,
     initialPage: _n * 500 + _index,
   );
+  final _tiles = ScrollController();
+
+  /// The quick-access filter: 'all', 'sports' or 'apparel'.
+  String _filter = 'all';
+  static const _tileWidth = 92.0, _tileGap = 10.0;
 
   @override
   void dispose() {
     _pages.dispose();
+    _tiles.dispose();
     super.dispose();
+  }
+
+  List<int> get _shown => [
+    for (var i = 0; i < _n; i++)
+      if (_filter == 'all' || dyoSports[i].$4 == _filter) i,
+  ];
+
+  /// A tile turns the stage the short way round to its kit (the screen stays).
+  void _goTo(int i) {
+    final page = (_pages.page ?? _pages.initialPage.toDouble()).round();
+    var step = (i - page % _n) % _n;
+    if (step > _n / 2) step -= _n;
+    if (step != 0) _step(step);
+  }
+
+  /// The stage turned: light its tile (showing all when the filter hides
+  /// it) and bring the tile into view.
+  void _turned(int i) {
+    setState(() {
+      _index = i;
+      if (_filter != 'all' && dyoSports[i].$4 != _filter) _filter = 'all';
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealTile());
+  }
+
+  void _revealTile() {
+    if (!mounted || !_tiles.hasClients) return;
+    final at = _shown.indexOf(_index);
+    if (at < 0) return;
+    final p = _tiles.position;
+    final left = 16 + at * (_tileWidth + _tileGap);
+    if (left >= p.pixels &&
+        left + _tileWidth <= p.pixels + p.viewportDimension) {
+      return;
+    }
+    _tiles.animateTo(
+      (left - (p.viewportDimension - _tileWidth) / 2).clamp(
+        0,
+        p.maxScrollExtent,
+      ),
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  /// A filter that hides the chosen category turns the stage to its first
+  /// one, so a tile is always lit.
+  void _chooseFilter(String f) {
+    setState(() => _filter = f);
+    if (f != 'all' && dyoSports[_index].$4 != f) {
+      final first = dyoSports.indexWhere((s) => s.$4 == f);
+      if (first >= 0) _goTo(first);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_tiles.hasClients) _tiles.jumpTo(0);
+      _revealTile();
+    });
   }
 
   void _step(int delta) => _pages.animateToPage(
@@ -559,6 +625,37 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
             'Choose your sport. Swipe to rotate.',
             style: TextStyle(color: Color(0xffc4d2df), fontSize: 12),
           ),
+          const SizedBox(height: 8),
+          _CategoryFilters(
+            groups: [
+              'all',
+              for (final g in const ['sports', 'apparel'])
+                if (dyoSports.any((s) => s.$4 == g)) g,
+            ],
+            value: _filter,
+            onChanged: _chooseFilter,
+          ),
+          SizedBox(
+            height: 92,
+            child: ListView.separated(
+              key: const ValueKey('dyo-tiles'),
+              controller: _tiles,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+              itemCount: _shown.length,
+              separatorBuilder: (_, _) => const SizedBox(width: _tileGap),
+              itemBuilder: (context, k) {
+                final i = _shown[k];
+                return _CategoryTile(
+                  name: dyoSports[i].$1,
+                  category: ProjectSync.sports[dyoSports[i].$1] ?? '',
+                  width: _tileWidth,
+                  selected: i == _index,
+                  onTap: () => _goTo(i),
+                );
+              },
+            ),
+          ),
           Expanded(
             child: Stack(
               alignment: Alignment.center,
@@ -589,7 +686,7 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
                 ),
                 PageView.builder(
                   controller: _pages,
-                  onPageChanged: (i) => setState(() => _index = i % _n),
+                  onPageChanged: (i) => _turned(i % _n),
                   itemBuilder: (context, i) => AnimatedBuilder(
                     animation: _pages,
                     builder: (context, child) {
@@ -677,7 +774,7 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
             child: GradientButton(
-              label: 'DESIGN THIS SPORT',
+              label: 'DESIGN ${sport.$1.toUpperCase()}',
               icon: Icons.arrow_forward_rounded,
               onPressed: _design,
             ),
@@ -691,6 +788,141 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     widget.c.update(() => widget.c.sport = dyoSports[_index].$1);
     widget.c.go(AppScreen.garment);
   }
+}
+
+/// ALL · SPORTS · APPAREL over the quick-access tiles: the chosen one cyan
+/// and underlined.
+class _CategoryFilters extends StatelessWidget {
+  const _CategoryFilters({
+    required this.groups,
+    required this.value,
+    required this.onChanged,
+  });
+  final List<String> groups;
+  final String value;
+  final ValueChanged<String> onChanged;
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: Color(0x22ffffff))),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final g in groups)
+          Semantics(
+            button: true,
+            selected: g == value,
+            child: InkWell(
+              onTap: () => onChanged(g),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 6, 14, 7),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: g == value ? Palette.cyan : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  g.toUpperCase(),
+                  style: TextStyle(
+                    fontFamily: 'Rajdhani',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                    letterSpacing: 1.8,
+                    color: g == value ? Palette.cyan : const Color(0xffe9f1f7),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+/// One quick-access tile: the category's 2D outline symbol and its name.
+class _CategoryTile extends StatelessWidget {
+  const _CategoryTile({
+    required this.name,
+    required this.category,
+    required this.width,
+    required this.selected,
+    required this.onTap,
+  });
+  final String name, category;
+  final double width;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: name,
+    onTap: onTap,
+    excludeSemantics: true,
+    child: GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: width,
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(11),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: selected
+                ? const [Color(0xf20c2a3a), Color(0xf506131d)]
+                : const [Color(0xeb0a1b28), Color(0xf2050d16)],
+          ),
+          border: Border.all(
+            color: selected
+                ? const Color(0xff38f3ff)
+                : Palette.cyan.withValues(alpha: .33),
+            width: selected ? 2 : 1.5,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Palette.cyan.withValues(alpha: .55),
+                    blurRadius: 12,
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CategoryIcon(
+              category,
+              size: 34,
+              color: selected
+                  ? const Color(0xff5ff6ff)
+                  : const Color(0xff19e3f2),
+            ),
+            const SizedBox(height: 5),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                name.toUpperCase(),
+                maxLines: 1,
+                style: const TextStyle(
+                  fontFamily: 'Rajdhani',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5,
+                  letterSpacing: .5,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _ArrowButton extends StatelessWidget {

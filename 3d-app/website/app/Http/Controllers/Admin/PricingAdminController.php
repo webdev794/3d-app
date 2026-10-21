@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\PriceRule;
+use App\Services\Payments\AirwallexGateway;
 use App\Services\Payments\Gateways;
 use App\Services\Pricing\BillingSettings;
 use App\Services\Pricing\Money;
@@ -17,7 +18,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * Admin > Pricing: the price list (garments, extras, shipping destinations, discounts), tax and currency, the seller
  * details printed on invoices (business name, ABN, address, email, logo), payment terms, and the online payment
- * setup (Stripe keys are in .env; shown here as set or not).
+ * setup (Airwallex or Stripe keys are in .env; shown here as set or not, never their values).
  */
 class PricingAdminController extends Controller
 {
@@ -206,7 +207,19 @@ class PricingAdminController extends Controller
             'sports' => collect(config('catalog.sports', []))->map(fn ($s) => ['id' => $s['id'], 'name' => $s['name']])->values(),
             'currencies' => Money::CURRENCIES,
             'gateway' => [
+                // The provider taking payments now: airwallex, stripe, test or none.
                 'mode' => $mode,
+                'provider_setting' => filled(config('payments.provider')) ? strtolower((string) config('payments.provider')) : null,
+                'airwallex' => [
+                    'client_id' => filled(config('payments.airwallex.client_id')),
+                    'api_key' => filled(config('payments.airwallex.api_key')),
+                    'webhook_secret' => filled(config('payments.airwallex.webhook_secret')),
+                    'account_id' => filled(config('payments.airwallex.account_id')),
+                    'env' => Gateways::airwallexEnv(),
+                    'ready' => Gateways::airwallexReady(),
+                    'webhook_url' => url('/api/v1/payments/airwallex/webhook'),
+                    'events' => AirwallexGateway::EVENTS,
+                ],
                 'stripe_key' => filled(config('payments.stripe.key')),
                 'stripe_secret' => filled(config('payments.stripe.secret')),
                 'webhook_secret' => filled(config('payments.stripe.webhook_secret')),

@@ -50,6 +50,28 @@ const mix = (a, b, t) => {
  *  (and leg hems) and round the sleeve ends, and even all the way round. */
 const HEM_BAND = 0.009, CUFF_BAND = 0.009;
 
+
+const HEX = /^#[0-9a-f]{6}$/i;
+/**
+ * A colour zone's gradient fill, or null when the zone is a solid colour. The Primary zone keeps the original
+ * `design.gradient` ({ from, to, angle }); Secondary and Pattern use `design.gradients[slot]`. Any gradient may carry
+ * `stops` ([{ color, at 0..1 }], two or more, e.g. Sunset's orange, pink and purple); without them it runs from `from`
+ * to `to`.
+ */
+export function zoneGradient(design, slot) {
+  const gradient = slot === 'main' ? design.gradient : design.gradients?.[slot];
+  if (!gradient || typeof gradient !== 'object') return null;
+  let stops = Array.isArray(gradient.stops)
+    ? gradient.stops.filter((s) => s && HEX.test(s.color)).map((s) => ({ color: s.color, at: Math.min(1, Math.max(0, Number(s.at) || 0)) }))
+    : [];
+  if (stops.length < 2) {
+    if (!HEX.test(gradient.from ?? '') || !HEX.test(gradient.to ?? '')) return null;
+    stops = [{ color: gradient.from, at: 0 }, { color: gradient.to, at: 1 }];
+  }
+  stops.sort((a, b) => a.at - b.at);
+  return { stops, angle: Number(gradient.angle) || 0 };
+}
+
 export class KitPainter {
   constructor(frame, outline, size = 2048, kind = 'jersey') {
     this.kind = kind;
@@ -444,12 +466,17 @@ export class KitPainter {
     for (const back of [false, true]) {
       g.save();
       this.clipOutline(back);
-      if (design.gradient) this.gradientFill(design.gradient);
-      this.proceduralPattern(design);
+      // Gradient fills, one per colour zone (zoneGradient): the body (Primary), the pattern's ink (Pattern) and
+      // the trims (Secondary: side panels, bands, collar, placket, area blocks).
+      const body = zoneGradient(design, 'main');
+      if (body) this.gradientFill(body);
+      const ink = zoneGradient(design, 'patternColor');
+      this.proceduralPattern(design, design.pattern, ink ? this.gradientStyle(ink) : undefined);
+      const trim = this.zoneFill(design, 'secondary');
 
       const shorts = this.kind === 'shorts';
       const sleeves = ['jersey', 'tee', 'raglan', 'polo'].includes(this.kind);
-      g.fillStyle = design.secondary;
+      g.fillStyle = trim;
       for (const dir of [-1, 1]) {
         g.beginPath();
         if (shorts) {
@@ -506,7 +533,7 @@ export class KitPainter {
 
       // Collar trim: V-neck for jerseys and singlets, crew for tee and polo.
       this.side(back);
-      g.strokeStyle = design.secondary;
+      g.strokeStyle = trim;
       g.lineWidth = 0.018;
       if (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo') {
         g.beginPath();
@@ -522,7 +549,7 @@ export class KitPainter {
       }
       // Polo button placket.
       if (this.kind === 'polo' && !back) {
-        g.fillStyle = design.secondary;
+        g.fillStyle = trim;
         g.fillRect(-0.02, 0.57, 0.04, 0.15);
         g.fillStyle = design.accent;
         for (const y of [0.6, 0.64, 0.68]) {
@@ -579,16 +606,27 @@ export class KitPainter {
     return this.canvas;
   }
 
-  /** Two-colour gradient across the body; angle 0 runs top to bottom. */
-  gradientFill({ from, to, angle = 0 }) {
+  /** A gradient across the body, in panel metres (any number of stops); angle 0 runs top to bottom. */
+  gradientStyle({ stops, angle = 0 }) {
     const g = this.ctx;
     const a = (angle * Math.PI) / 180, cx = 0, cy = 0.38, r = 0.42;
     const dx = Math.sin(a) * r, dy = -Math.cos(a) * r;
     const grad = g.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
-    grad.addColorStop(0, from);
-    grad.addColorStop(1, to);
-    g.fillStyle = grad;
+    for (const s of stops) grad.addColorStop(s.at, s.color);
+    return grad;
+  }
+
+  /** Fills the whole panel with a gradient (the body's Primary zone). */
+  gradientFill(gradient) {
+    const g = this.ctx;
+    g.fillStyle = this.gradientStyle(gradient);
     g.fillRect(-0.6, -0.1, 1.2, 1);
+  }
+
+  /** A colour zone's paint: its gradient when it has one, else its solid colour. */
+  zoneFill(design, slot) {
+    const gradient = zoneGradient(design, slot);
+    return gradient ? this.gradientStyle(gradient) : design[slot];
   }
 
   /** Patterns or colour blocks dropped onto areas (sleeves, shoulders, ...). */
@@ -602,10 +640,10 @@ export class KitPainter {
       for (const [x0, y0, x1, y1] of zoneRects(this.kind, zone)) g.rect(x0, y0, x1 - x0, y1 - y0);
       g.clip();
       if (name === 'Solid') {
-        g.fillStyle = design.secondary;
+        g.fillStyle = this.zoneFill(design, 'secondary');
         g.fillRect(-0.6, -0.1, 1.2, 1);
       } else {
-        this.proceduralPattern(design, name, design.secondary);
+        this.proceduralPattern(design, name, this.zoneFill(design, 'secondary'));
       }
       g.restore();
     }

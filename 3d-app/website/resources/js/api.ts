@@ -2,7 +2,7 @@ import type { Design } from './types';
 
 export interface User { id: number; name: string; email: string; is_admin?: boolean; created_at?: string }
 export interface Project { id: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; status: 'draft' | 'approved'; design: Design; thumbnail?: string | null; version: number; created_at: string; updated_at: string }
-export interface CatalogItem { id: string; name: string; description: string }
+export interface CatalogItem { id: string; name: string; description: string; /** Sports only: which DYO filter it sits under. */ group?: 'sports' | 'apparel' }
 export interface Catalog { sports: CatalogItem[]; garments: CatalogItem[]; provider: {id: string; name: string; is_ai: boolean; available: boolean}; showcase_scenes?: string[] }
 export interface Concept { id: string; name: string; description: string; design: Design; preview?: string | null; motif?: string }
 export class ApiError extends Error {
