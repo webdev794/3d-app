@@ -112,6 +112,13 @@ export async function designSheetPdf(info: SheetInfo): Promise<Blob> {
         const stops = g.stops && g.stops.length >= 2 ? g.stops : [{ color: g.from, at: 0 }, { color: g.to, at: 1 }];
         row(`${label} gradient`, `${stops.map(s => `${s.color.toUpperCase()} ${Math.round(s.at * 100)}%`).join(' > ')}, ${g.angle}°`);
     }
+    // A hoodie's own colour areas (the Studio's HOODIE AREAS); unset ones follow the body and Secondary colours.
+    const areas = Object.entries(d.zoneColors ?? {}).filter((e): e is [string, string] => typeof e[1] === 'string' && !!e[1]);
+    if (areas.length) {
+        heading('HOODIE AREAS');
+        const names: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Rib cuffs', pocket: 'Pocket', zip: 'Zip' };
+        for (const [area, hex] of areas) row(names[area] ?? title(area), `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}`);
+    }
     heading('PATTERN');
     row('Style', d.pattern);
     if (d.patternScale) row('Size', `${Math.round(d.patternScale * 100)}%`);

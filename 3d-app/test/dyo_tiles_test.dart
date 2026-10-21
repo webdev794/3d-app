@@ -103,19 +103,25 @@ void main() {
       expect(find.text('DESIGN TRAINING / GYM'), findsOneWidget);
       expect(litTile('Training / Gym'), findsOneWidget);
 
-      // Turning the stage to a sport goes back to ALL so its tile can light up.
-      await tester.tap(find.byIcon(Icons.chevron_right_rounded));
+      // Turning the stage to a sport goes back to ALL so its tile can light up
+      // (the last sport, Esports, sits just before Training / Gym).
+      await tester.tap(find.byIcon(Icons.chevron_left_rounded));
       await tester.pumpAndSettle();
-      expect(litTile('Rugby League'), findsOneWidget);
+      expect(find.text('DESIGN ESPORTS'), findsOneWidget);
+      expect(litTile('Esports'), findsOneWidget);
       expect(
-        find.descendant(of: row, matching: find.text('SOCCER')),
+        find.descendant(of: row, matching: find.text('ESPORTS')).hitTestable(),
         findsOneWidget,
       );
 
-      // The Design button continues into the garment step.
-      await tapText(tester, 'DESIGN RUGBY LEAGUE');
-      expect(c.sport, 'Rugby League');
+      // The Design button continues into the garment step, with the sport's
+      // garments (2026-10-21: 29 categories, each with its own garments).
+      await tapText(tester, 'DESIGN ESPORTS');
+      expect(c.sport, 'Esports');
       expect(c.screen, AppScreen.garment);
+      expect(['Jersey', 'Training Tee', 'Polo'], contains(c.garment));
+      expect(find.text('SHOW ALL GARMENTS'), findsOneWidget);
+      expect(find.text('Full Kit'), findsNothing);
     },
   );
 }

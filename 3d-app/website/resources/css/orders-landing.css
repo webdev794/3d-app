@@ -1,0 +1,35 @@
+/* The Orders page (/order-now, pages/OrdersLanding.tsx, client design 2026-10-21): the homepage's "ORDER NOW WITH
+   3DEEZI" (OrderNow.tsx, order-now.css) larger, on the dark studio with a glowing "AI" emblem on the right.
+   On computers the heading and the three cards fit the screen under the header, with room under the cards for the
+   3DEEZI ASSIST button; tablets and phones use the homepage section's own layouts. */
+.order-now.is-page{min-height:calc(100vh - 82px);min-height:calc(100svh - 82px);background:#020810 var(--on-backdrop,none) center 62%/cover no-repeat}
+.order-now.is-page .on-haze{background:
+  linear-gradient(180deg,#020810f2 0%,#020810b3 30%,#0208104d 62%,#020810cc 100%),
+  radial-gradient(ellipse 30% 55% at 0% 58%,#1f6fd245,transparent 72%),
+  radial-gradient(ellipse 34% 60% at 100% 40%,#1f6fd250,transparent 72%),
+  radial-gradient(ellipse 55% 22% at 50% 100%,#1366c438,transparent 75%)}
+/* --u scales the section (1 px at 1440 px of cards). Here the cards take about three quarters of the width (as in
+   the design) and never more than the screen's height allows: 846 u is the heading plus the cards, 82 px the
+   header and 118 px the room left under them for 3DEEZI ASSIST. */
+@media(min-width:900px){
+  .order-now.is-page .on-inner{--u:max(.68px,min(calc(100cqw * .000525),calc((100vh - 200px) / 846),1.06px));--w:min(calc(1440 * var(--u)),calc(100cqw - 48px));padding:calc(46 * var(--u)) 0 118px}
+  .order-now.is-page .on-title{font-size:max(30px,calc(74 * var(--u)))}
+  .order-now.is-page .on-tiles{margin-top:calc(40 * var(--u));gap:calc(26 * var(--u))}
+}
+.order-now.is-page .on-tile{background:radial-gradient(ellipse 80% 45% at 50% 62%,#0b2a4a59,transparent 72%),linear-gradient(180deg,#081a2df2,#04101cf2);backdrop-filter:blur(3px)}
+
+/* The glowing "AI" (drawn, not an image): blue glass letters with a cyan rim, behind the heading on the right. */
+.on-emblem{position:absolute;top:calc(2% + 10px);right:max(2.5%,calc(50% - 900px));z-index:0;pointer-events:none;user-select:none;transform:skewX(-14deg);opacity:.9}
+.on-emblem span{display:block;font-family:var(--heading);font-weight:700;font-style:italic;font-size:clamp(200px,23cqw,440px);line-height:.86;letter-spacing:-.02em;color:transparent;
+  background:radial-gradient(circle at 30% 30%,#2a8dff59 0 1.5px,transparent 2px) 0 0/14px 14px,linear-gradient(160deg,#0a3a8ccc,#071a44b3 55%,#0a2f78cc);-webkit-background-clip:text;background-clip:text;
+  -webkit-text-stroke:3px #3fb4ff;filter:drop-shadow(0 0 6px #2fa8ff) drop-shadow(0 0 22px #1f7dffaa) drop-shadow(0 0 60px #1258ff66)}
+.order-now.is-page .on-inner{z-index:1}
+.order-now.is-page .on-card small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Tablets and phones: the homepage layouts, the emblem faint behind the heading. */
+@media(max-width:899px){
+  .order-now.is-page{min-height:0}
+  .order-now.is-page .on-inner{padding-bottom:84px}
+  .on-emblem{top:8px;right:-10px;opacity:.38}
+  .on-emblem span{font-size:clamp(140px,34cqw,260px);-webkit-text-stroke-width:2px}
+}

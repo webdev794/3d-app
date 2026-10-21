@@ -269,6 +269,14 @@ class InvoiceService
         $this->history($invoice->order, 'Payment received: '.Money::format($payment->amount_cents, $payment->currency)
             .($invoice->status === 'paid' ? " (invoice {$invoice->number} paid in full)." : " towards invoice {$invoice->number}."));
         SendBillingEmail::dispatchAfterResponse($invoice->id, 'receipt', $payment->id);
+        // A 3DEEZI TEAM design request's invoice: paid in full, the request starts.
+        if ($invoice->team_request_id ?? null) {
+            try {
+                app(\App\Services\Team\TeamService::class)->invoicePaid($invoice);
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
     }
 
     /** The invoice with its PDF and pay link, by email (sent after the response, so mail never slows or breaks it). */

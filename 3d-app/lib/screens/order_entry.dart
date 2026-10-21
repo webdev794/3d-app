@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
+import '../project_sync.dart';
 import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
@@ -217,6 +218,15 @@ const _garments = {
   'jersey': 'Jersey', 'shorts': 'Shorts', 'tee': 'Training tee', 'singlet': 'Singlet', 'polo': 'Polo', 'hoodie': 'Hoodie',
   'jacket': 'Jacket', 'warmup': 'Warm-up top', 'pants': 'Track pants', 'socks': 'Socks', 'cap': 'Cap', 'other': 'Other',
 };
+/// The order row for a saved design's garment (the Studio's name or id): a
+/// full kit starts as its jersey, a zip hoodie is a hoodie, the pocket polo a
+/// polo, as on the website's order form.
+String orderGarmentFor(String garment) {
+  final id = ProjectSync.garments[garment] ?? garment.toLowerCase();
+  final row = const {'fullkit': 'jersey', 'ziphoodie': 'hoodie', 'pocketpolo': 'polo'}[id] ?? id;
+  return _garments.containsKey(row) ? row : 'jersey';
+}
+
 const _fits = {'mens': 'Mens', 'womens': 'Womens', 'youth': 'Youth', 'unisex': 'Unisex'};
 const _maxBytes = 25 * 1024 * 1024;
 
@@ -569,6 +579,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
+                          // A saved design sets the garment: show it.
+                          key: ValueKey('garment-${identityHashCode(r)}-${r.garment}'),
                           isExpanded: true,
                           initialValue: r.garment,
                           decoration: const InputDecoration(labelText: 'Garment', isDense: true),
@@ -595,7 +607,11 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                       initialValue: r.project,
                       decoration: const InputDecoration(labelText: 'Design', isDense: true),
                       items: [const DropdownMenuItem<int?>(value: null, child: Text('No saved design')), for (final p in designs) DropdownMenuItem<int?>(value: p.remoteId, child: Text(p.title))],
-                      onChanged: (v) => setState(() => r.project = v),
+                      onChanged: (v) => setState(() {
+                        r.project = v;
+                        final p = designs.where((p) => p.remoteId == v).firstOrNull;
+                        if (p != null) r.garment = orderGarmentFor(p.kit.garment);
+                      }),
                     ),
                   const SizedBox(height: 10),
                   Wrap(
@@ -838,16 +854,47 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
   }
 }
 
-/// The app home's "Order now with 3DEEZI" (as on the website's homepage): Create Order Form, Upload Your Order,
-/// My Orders. Signing in comes first where needed.
+/// One column of the Orders screen's mini board: the stage, its count and up to two orders.
+typedef MiniColumn = ({String name, int count, List<({String name, String ref, bool hot})> cards});
+
+/// The first three stages of the customer's own board (`/orders/board`), as the Orders screen's My Orders card shows
+/// them; null when there are no orders in them.
+List<MiniColumn>? miniBoard(Map<String, dynamic>? board) {
+  const names = {'received': 'Received', 'design': 'Design', 'production': 'Production'};
+  final stages = ((board?['stages'] as List?) ?? const []).whereType<Map>().where((s) => names.containsKey(s['key'])).toList();
+  final List<MiniColumn> columns = [
+    for (final s in stages)
+      (
+        name: names[s['key']]!,
+        count: (s['count'] as num?)?.toInt() ?? ((s['orders'] as List?) ?? const []).length,
+        cards: [
+          for (final o in ((s['orders'] as List?) ?? const []).whereType<Map>().take(2))
+            (name: '${o['name'] ?? 'Order'}', ref: '#${o['number'] ?? o['id']}', hot: o['action'] == 'review_design' || o['approval'] == 'review'),
+        ],
+      ),
+  ];
+  return columns.any((c) => c.count > 0) ? columns : null;
+}
+
+/// "Order now with 3DEEZI" (as on the website): Create Order Form, Upload Your Order, My Orders. Signing in comes first
+/// where needed. On the app home (tapping its heading opens the Orders screen) and, larger, as the Orders screen
+/// ([page]; the website's /order-now), where [board] is the customer's own orders for the My Orders card.
 class OrderNowSection extends StatelessWidget {
-  const OrderNowSection(this.c, {super.key});
+  const OrderNowSection(this.c, {super.key, this.page = false, this.board});
   final AppController c;
+  final bool page;
+  final List<MiniColumn>? board;
+
+  /// Back to the app's own screen first (the Orders screen is opened on top of it), then [screen].
+  void _go(BuildContext context, AppScreen screen) {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    c.go(screen);
+  }
 
   void _open(BuildContext context, Widget Function() screen) {
     if (!c.signedIn) {
       showToast(context, 'Sign in to place an order.');
-      c.go(AppScreen.auth);
+      _go(context, AppScreen.auth);
       return;
     }
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen()));
@@ -855,8 +902,9 @@ class OrderNowSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget tile(IconData icon, String title, String label, String body, String action, VoidCallback onTap) => Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    final big = page ? 1.18 : 1.0;
+    Widget tile(IconData icon, String title, String label, String body, String action, VoidCallback onTap, {Widget? extra}) => Padding(
+      padding: EdgeInsets.only(bottom: page ? 16 : 12),
       child: SurfaceCard(
         onTap: onTap,
         child: Column(
@@ -868,46 +916,199 @@ class OrderNowSection extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
-                      Text(label, style: const TextStyle(color: Palette.cyan, fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: .8)),
+                      Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17 * big)),
+                      Text(label, style: TextStyle(color: Palette.cyan, fontWeight: FontWeight.w800, fontSize: 13 * big, letterSpacing: .8)),
                     ],
                   ),
                 ),
-                Icon(icon, color: Palette.cyan, size: 30),
+                Icon(icon, color: Palette.cyan, size: 30 * big),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(body, style: const TextStyle(color: Palette.muted, fontSize: 13)),
-            const SizedBox(height: 10),
-            GradientButton(label: action, compact: true, onPressed: onTap),
+            SizedBox(height: page ? 8 : 6),
+            Text(body, style: TextStyle(color: Palette.muted, fontSize: 13 * big)),
+            if (extra != null) ...[const SizedBox(height: 12), extra],
+            SizedBox(height: page ? 14 : 10),
+            GradientButton(label: action, compact: !page, onPressed: onTap),
           ],
         ),
+      ),
+    );
+    final heading = Semantics(
+      label: 'ORDER NOW WITH 3DEEZI',
+      header: true,
+      excludeSemantics: true,
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        children: [
+          Text('ORDER NOW WITH', style: TextStyle(fontWeight: FontWeight.w800, fontSize: page ? 26 : 20, letterSpacing: 1)),
+          Image.asset('assets/images/brand-wordmark.png', height: page ? 21 : 16, semanticLabel: '3DEEZI'),
+          if (!page) const Icon(Icons.chevron_right, color: Palette.cyan, size: 22),
+        ],
       ),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 3DEEZI as the logo (white 3D, cyan-blue EEZI), as on the website's homepage.
-        Semantics(
-          label: 'ORDER NOW WITH 3DEEZI',
-          excludeSemantics: true,
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            children: [
-              const Text('ORDER NOW WITH', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: 1)),
-              Image.asset('assets/images/brand-wordmark.png', height: 16, semanticLabel: '3DEEZI'),
-            ],
+        // 3DEEZI as the logo (white 3D, cyan-blue EEZI), as on the website. On the home it opens the Orders screen.
+        if (page)
+          heading
+        else
+          Semantics(
+            button: true,
+            label: 'Open the Orders page',
+            child: InkWell(
+              key: const ValueKey('order-now-open'),
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => OrderNowScreen(c))),
+              child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: heading),
+            ),
           ),
-        ),
         const SizedBox(height: 4),
-        const Text('Start an order. Upload your details. Follow its progress.', textAlign: TextAlign.center, style: TextStyle(color: Palette.muted, fontSize: 12.5)),
-        const SizedBox(height: 14),
+        Text('Start an order. Upload your details. Follow its progress.', textAlign: TextAlign.center, style: TextStyle(color: page ? Palette.text : Palette.muted, fontSize: page ? 14.5 : 12.5)),
+        SizedBox(height: page ? 20 : 14),
         tile(Icons.auto_awesome, 'NEED HELP ORDERING?', 'CREATE ORDER FORM', 'Let 3DEEZI Assist help build your order form.', 'CREATE ORDER FORM →', () => _open(context, () => OrderFormScreen(c))),
         tile(Icons.upload_file, 'ORDER READY TO GO?', 'UPLOAD YOUR ORDER', 'Upload your completed order form and artwork.', 'UPLOAD YOUR ORDER →', () => _open(context, () => OrderUploadScreen(c))),
-        tile(Icons.view_kanban_outlined, 'MY ORDERS', 'YOUR ORDERS. ONE PLACE.', 'View your current orders and follow their progress.', 'VIEW MY ORDERS →', () => c.go(AppScreen.orders)),
+        tile(Icons.view_kanban_outlined, 'MY ORDERS', 'YOUR ORDERS. ONE PLACE.', 'View your current orders and follow their progress.', 'VIEW MY ORDERS →', () => _go(context, AppScreen.orders),
+            extra: page && board != null ? _MiniBoard(board!) : null),
       ],
     );
   }
+}
+
+/// The My Orders card's small board: Received, Design and Production with their counts and first orders.
+class _MiniBoard extends StatelessWidget {
+  const _MiniBoard(this.columns);
+  final List<MiniColumn> columns;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (final (i, col) in columns.indexed) ...[
+        if (i > 0) const SizedBox(width: 6),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: const Color(0xff06111d), borderRadius: BorderRadius.circular(9), border: Border.all(color: const Color(0x17ffffff))),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  Expanded(child: Text(col.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700))),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(color: const Color(0x14ffffff), borderRadius: BorderRadius.circular(5)),
+                    child: Text('${col.count}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
+                ]),
+                for (final card in col.cards)
+                  Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xff0b1828),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: card.hot ? Palette.cyan : const Color(0x12ffffff)),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(card.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                      Text(card.ref, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: Palette.muted)),
+                    ]),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ],
+  );
+}
+
+/// The Orders screen (the website's /order-now; ORDERS in the website's header): "ORDER NOW WITH 3DEEZI", larger, on
+/// the dark stadium with a glowing "AI". Signed in, the My Orders card shows the customer's own orders. Opened from the
+/// home's ORDER NOW heading and the profile menu's Orders.
+class OrderNowScreen extends StatefulWidget {
+  const OrderNowScreen(this.c, {super.key});
+  final AppController c;
+  @override
+  State<OrderNowScreen> createState() => _OrderNowScreenState();
+}
+
+class _OrderNowScreenState extends State<OrderNowScreen> {
+  List<MiniColumn>? board;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.c.signedIn) _loadBoard();
+  }
+
+  Future<void> _loadBoard() async {
+    try {
+      final b = await widget.c.api.ordersBoard();
+      if (mounted) setState(() => board = miniBoard(b));
+    } catch (_) {
+      // The cards work without the board.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Palette.bg,
+    appBar: AppBar(backgroundColor: Palette.bg, title: const Text('Orders')),
+    body: Stack(
+      children: [
+        Positioned.fill(
+          child: Opacity(
+            opacity: .5,
+            child: Image.asset('assets/images/showroom/stadium-stage.webp', fit: BoxFit.cover, alignment: const Alignment(0, .3), errorBuilder: (_, _, _) => const SizedBox()),
+          ),
+        ),
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xf205090d), Color(0x9905090d), Color(0xe605090d)])),
+          ),
+        ),
+        // The glowing "AI" of the design, faint behind the heading on the right.
+        Positioned(
+          top: -8,
+          right: 6,
+          child: IgnorePointer(
+            child: ExcludeSemantics(
+              child: Transform(
+                transform: Matrix4.skewX(-.24),
+                child: Text(
+                  'AI',
+                  style: TextStyle(
+                    fontFamily: 'Rajdhani',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 170,
+                    height: 1,
+                    foreground: Paint()
+                      ..style = PaintingStyle.stroke
+                      ..strokeWidth = 2.5
+                      ..color = const Color(0x8c3fb4ff),
+                    shadows: const [Shadow(color: Color(0xaa1f7dff), blurRadius: 24)],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        ListView(
+          padding: const EdgeInsets.fromLTRB(18, 22, 18, 88),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: OrderNowSection(widget.c, page: true, board: board),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 }

@@ -16,6 +16,14 @@ Finished work that I have checked myself, with how to test each item. When somet
 
 
 
+### 3b. Orders page (ORDERS in the top menu, 2026-10-21)
+1. Click **ORDERS**: the Orders page opens (ORDERS underlined): "ORDER NOW WITH 3DEEZI" and three large cards on a dark studio with a glowing "AI".
+2. Hover over ORDERS, or click the small arrow next to it: the dropdown with Create Order Form, Upload Your Order and My Orders opens.
+3. The three card buttons open their pages; signed out, each asks you to sign in. Signed in with orders, the My Orders card shows your own counts.
+4. Phone: ☰ → Orders opens the page; the three links are listed under it.
+5. ORDERS stays underlined on the order pages. The homepage ORDER NOW section looks as before.
+6. **App:** tap "ORDER NOW WITH 3DEEZI ›" on the home, or Profile › Orders: the Orders screen opens and its three buttons work.
+
 ### 4. Upload Your Order (Orders → Upload Your Order)
 1. Your contact details are already filled in; **Edit** changes them.
 2. Drag an Excel, CSV or PDF order form into the big box, or use **BROWSE FILES**. You see a progress bar, then **✓ Uploaded**, plus **Replace** and ✕.
@@ -92,12 +100,35 @@ Finished work that I have checked myself, with how to test each item. When somet
 9. While it generates, the "Creating your design…" circle shows the spinning 3DEEZI emblem; with the HD mockup on, the "Rendering your HD mockup…" circle shows the same small glowing emblem inside the circle, with no grey square.
 10. On a phone the bar stays in the middle and the sports row swipes. **App:** AI Designer shows the same; tap Netball, type, tap the arrow, choose the garment.
 
+### 8e. AI designer results: PRIMARY + 3 options (2026-10-21) (AI credit, about $0.35 per Generate)
+1. http://127.0.0.1:8000/create/ai: type a brief, attach your logo, press the round arrow. The big PRIMARY DESIGN panel shows a loader; the three small cards on the right show spinners. The big picture comes first, the three small ones a little later.
+2. The big panel is exactly as wide as the prompt bar under it, the three cards are on its right. On a phone: the big picture, a swipe row of three, then the bar.
+3. Tap card 3 (or ⋮ → Make primary): it moves into the big panel at once.
+4. ⋮ → **Make HD** (10 credits): the card turns HD after about a minute. ⋮ → Edit image opens the editor; ⋮ → Download saves it; the big Download saves the primary.
+5. ⋮ → **Customise in 3D Studio**: the Studio opens with that design. **Open in 3D Designer**: the Studio puts the design on the 3D kit.
+6. Change the brief in the bottom bar → arrow: all four are replaced. **← Back to create**: brief, logo, sport tile and the HD primary switch are kept.
+7. **(admin)** Admin › Settings: new **Planning model** and **HD image model** boxes (empty = use the text / image model).
+9. The three option cards each show one shirt from the front and look clearly different: one in another main colour (e.g. white), one with another layout (panels, sash or hoops), one bolder or simpler; your logo is the same on all. Make an option primary, then Open in 3D Designer: the Studio gets a back that matches the front.
+10. Pricing page and the app's Business screen: "Four AI designs · 2 credits" and "Make HD (an HD front and back presentation) · 10 credits".
+8. **App** (http://127.0.0.1:8088): the AI designer results show the PRIMARY card, a row of three options with ⋮ menus and the refine bar.
+
+### 8f. Bigger loader emblem (2026-10-21)
+On /convert (upload a picture, Convert) and on the AI designer (Generate): the spinning 3DEEZI emblem fills about two-thirds of the circle, stays inside the inner ring, keeps its glow and spin; desktop and phone.
+
 ### 8a. AI designer like ChatGPT, and MAKE IT 3D (2026-10-21) (AI credit)
 1. Header **AI** → Training, Singlet. Brief: "Create a cool training singlets using this for the theme and main logo"; attach the BLITZ logo; HD mockup ticked → CREATE.
 2. A one-line art direction shows above the mockup. The mockup: a bold sublimated singlet, the logo large on the front, BLITZ over a number on the back, front and back in a dark stadium, the small 3DEEZI neck label. The 4 concepts show the BLITZ logo on the chest.
 3. **MAKE IT 3D** (about a minute): a flat front and back sheet appears (also in Assets), the Studio's check screen, then the design on the 3D singlet.
 4. The same in the app (AI designer → mockup card → MAKE IT 3D).
 5. A brief asking for a white studio background gets one; an attached complete design is kept exactly.
+
+### 8g. Many more sports (29 categories, 2026-10-21)
+1. /create/ai: the sports row has 29 tiles (American Football, Golf, Tennis, Athletics, Swimming, Darts & Pool and more); the arrows page it; the pictures look right.
+2. Pick Golf, type a brief, Generate (AI credit): golf polos. Darts & Pool offers "Polo with pocket" first. Fight Wear / Fishing / Workwear still work.
+3. /create/sport: ALL / SPORTS / APPAREL filter the 29 tiles; a tile turns the stage; the count shows "n / 29"; each kit picture loads.
+4. DESIGN GOLF → the garment step shows Polo + Training Tee (Polo chosen); "Show all garments" shows the rest; Continue → the Studio opens a Golf polo.
+5. Orders: the sport choice lists the new sports; a new sport's garment uses the default garment price. ASSIST: "which sports can I design for?" lists them.
+6. **App:** the same tiles, stage (count under it), garment step and AI designer row. An old Rugby League / Netball project opens as before.
 
 ### 8c. MAKE IT 3D and the AI designer fixes (testing round, 2026-10-21) (AI credit)
 1. Generate with the HD mockup on, then **MAKE IT 3D**: while it draws, CUSTOMISE IN 3D STUDIO is greyed out. About a minute later the Studio opens with the check screen; put it on: your design is on the kit. No "3D preview could not load", no "Creating AI print".
@@ -107,6 +138,14 @@ Finished work that I have checked myself, with how to test each item. When somet
 5. Convert: PUT MY DESIGN ON THE 3D KIT, then Convert again → CONVERT TO 3D → OPEN IN 3D STUDIO: the Studio shows the converted kit, not the old picture.
 6. **App:** concepts → MAKE IT 3D → Back: you stay on the brief and see "Your print sheet is ready in Assets › Artwork."
 
+### 8d. New AI models (2026-10-21)
+Admin › Settings: image gpt-image-2.5-flare, HD image gpt-image-2.5-sunburst, text gpt-6-luna (planning uses it too; gpt-6.1-sol was tried and dropped the client's logo).
+1. **(admin)** Admin › Settings: the models are listed; **Test connection** says all the models are available.
+2. AI designer with a brief and a logo (AI credit): the designs keep your logo as the centrepiece.
+3. Make HD: an HD picture in about 40 s. Open in 3D Designer: the print sheet goes onto the 3D kit (about 25 s).
+4. Edit image, "change the number to 07": only the number changes.
+5. Studio: AI pattern, Showcase and "Ask 3DEEZI" each work. Convert a kit photo: an editable design. 3DEEZI ASSIST answers.
+
 ### 8b. Design your own: "Choose your sport" tiles (2026-10-21)
 1. Home → **START DESIGNING** (or the **DYO** pill in the header). Under the heading: **ALL · SPORTS · APPAREL** and one row of tiles, with RUGBY LEAGUE glowing.
 2. Click **BASKETBALL**: the basketball kit comes to the front and the button says **DESIGN BASKETBALL**; you stay on the page.
@@ -115,6 +154,7 @@ Finished work that I have checked myself, with how to test each item. When somet
 5. On a narrow window, the small arrows beside the row show more tiles; on a phone, swipe the row.
 6. **DESIGN …** opens the garment step for that sport.
 7. **App:** Create → START DESIGNING: the same filters and tiles; tap NETBALL → DESIGN NETBALL; swipe the kits and the glowing tile follows.
+8. Scroll all the way down: the DESIGN button stops under the kits, above the footer, and never covers the logo or the About / Support / Privacy / Terms links. On a phone it sits just above the 3DEEZI ASSIST button, not under it.
 
 ### 8. AI designer: pictures in the brief (header **AI** button)
 1. Copy a picture and press Ctrl+V in **Your design brief**. It appears under **YOUR LOGOS, DESIGNS & REFERENCES**. Dragging a file onto the brief also works (cyan highlight); **Add image** takes several. Up to 4 pictures.
@@ -181,6 +221,24 @@ Studio → Artwork → **MY DESIGN PICTURE** → upload the AI HD mockup (3deezi
 
 ### 10. Print-layout shorts scaled evenly
 In the Studio, with the Leopards print layout on (Artwork → Factory print layout), choose Garment **Shorts** or **Full Kit**. The shorts are 12% bigger in all directions; the logos keep their shape and the waistband stays under the tee.
+
+### 10d. Hoodies (2026-10-21)
+1. Studio → garment rail → **Hoodie**: turn it. The hood lies on the back with its lining showing inside at the front; drawstring cords with aglets; the kangaroo pocket's hand openings; long sleeves to the rib cuffs.
+2. Colours → **HOODIE AREAS**: change the Hood lining, Cuffs & waistband and Pocket colours (reset puts each back). CHOOSE GRADIENT → any preset: body and hood follow it.
+3. Patterns → Apply to area → **Hood** → Hoops; **Kangaroo pocket** → Solid.
+4. Artwork → 2D panels: text on the hood piece above the back panel, and on a sleeve. Numbers: the name and number show on the back below the hood.
+5. Save, reopen from Projects: kept. Presets recolour it; YOUR DESIGN brings your colours back. Exports work.
+6. **Zip hoodie:** the zip with its slider at the neck, a split pocket, and a Zip area in Colours.
+7. **App:** Studio → Garment → Hoodie / Zip hoodie shows the 3D hoodie; Patterns shows the Hood option and "Hoodie area colours".
+
+### 10c. Polo with pocket (Darts and Pool, 2026-10-21)
+1. Create → Darts & Pool → **Polo with pocket** → Studio: a polo with a stitched chest pocket on the wearer's left chest, the crest on the pocket, the team name small on the other side.
+2. Turn the kit: the back shows the player name across the shoulders and the number under it; a sponsor logo sits low on the back.
+3. Zoom into the pocket: raised edge, double stitching, top hem, a dark gap at the open top.
+4. Patterns → Apply to area → **Chest pocket** → Solid: the pocket takes the trim colour; Colours → Secondary → CHOOSE GRADIENT: the pocket takes the gradient; Chevron: the pattern on the pocket only.
+5. 2D panels: drag the crest above the pocket; add your own picture onto the pocket: both show in 3D.
+6. Save, reopen: kept. Exports (2D panels, PNG, Design sheet PDF) include the pocket. Switch to Polo: the plain polo looks exactly as before.
+7. **App:** Studio → Garment → Polo with pocket; Patterns by garment area lists Chest pocket only for this garment.
 
 ### 10b. Gradient Presets (DYO Studio > Colours) (2026-10-21)
 1. Studio → **Colours** → **GRADIENT FILL** → **CHOOSE GRADIENT ›**: "GRADIENT PRESETS" opens beside the Colours panel; the kit stays the same size.
@@ -273,6 +331,37 @@ In the Studio, with the Leopards print layout on (Artwork → Factory print layo
 3. On Support, send the contact form (name, email, message, optional order reference). It shows a thank-you. Locally the email goes to the log.
 4. **(admin)** **Admin → Support** lists the message. Try the status (new / answered / closed), search and delete.
 5. **App:** Profile menu → About, Support, Privacy, Terms open those pages.
+
+### 15d. 3DEEZI TEAM (2026-10-21)
+Use test accounts only. The designer side needs an account ticked "3DEEZI TEAM designer" in Admin › Users.
+1. **Homepage:** four equal tiles (one row on a wide screen, 2×2 on a tablet, stacked on a phone); GET A DESIGNER opens /team. The header shows 3DEEZI TEAM between ORDERS and DASHBOARD (also in the phone ☰ menu).
+2. **Request:** signed out, fill the /team form and SEND: sign-in opens. Signed in: choose a sport, a garment, a description, two colours, a logo and a PDF, then SEND TO 3DEEZI TEAM: a TEAM-… reference shows. On a plan with nothing included the price shows and REVIEW & PAY opens the invoice page.
+3. **Admin › 3DEEZI TEAM:** the request is on the board; assign it to the designer.
+4. **Designer:** sign in as the designer: the header shows Designer → /designer with only their requests; upload a design for review.
+5. **Customer:** My design requests → the request: Ready for review, V1/V2 switch; send a message with a file; Request revisions; after the next version, Approve: the final design shows and is in My assets.
+6. Open in 3D Designer opens the Studio's design-picture step; Order this design opens the order form filled in.
+7. **App:** the home tile and Profile › 3DEEZI TEAM open the TEAM screen; REQUEST A DESIGNER sends a request; open it to approve, ask for revisions or chat; Open in 3D Designer puts the design on the kit; the bell on My orders opens TEAM news.
+
+### 15e. 3DEEZI TEAM: the client's answers (website, 2026-10-21)
+1. **/team** (signed out): "First design within 3 business days" under the title. "Good to know" shows A$99 / A$79 / A$69 / A$49 incl. GST, Premium 2 and Business 6 a month (no carry-over), revisions 2/3/3/5, extra round A$25 incl. GST, and the refund policy.
+2. **Home:** the AI, DYO and Artboard tile texts read as in the client's picture.
+3. **Admin › 3DEEZI TEAM › Plans & allowances:** prices say incl. GST. Set Default designer = yourself and Save. A new request is assigned to you at once, with a due date 3 business days out, and you get an "assigned" notification.
+4. **Paid request (Free plan):** the invoice is A$99.00 (A$90.00 + A$9.00 GST). After paying in test mode it is assigned to you.
+5. **Extra revision:** set "Revisions allowed" to 0, send a draft. As the customer, EXTRA REVISION A$25 → the A$25.00 invoice → pay → Revisions requested, due 2 business days out. Next time, the admin's "Waive the extra revision fee" cancels the invoice and starts the revision.
+6. **Refund:** pay a request, cancel it as the customer before any draft. The admin sees REFUND DUE on the board and the detail; tick Refunded: the invoice shows Refunded (no money moves).
+7. The "Assigned to me" toggle filters the board; a designer account still sees only its own requests.
+
+### 10e. Hoodies and pocket polo on linked pages (2026-10-21)
+1. **Order form:** Orders › Create Order Form › "Use one of my saved designs" › a zip hoodie design: the row reads Hoodie (not Jersey), with the hoodie picture. A pocket polo design gives a Polo row. The list names "Zip hoodie" and "Polo with pocket".
+2. **My projects:** hoodie, zip hoodie and pocket polo cards have proper names; the drawing shows the hood or pocket; searching "zip hoodie" finds it.
+3. **Studio › ⋮ › Order this kit** on a zip hoodie: the My Orders card says "Zip hoodie".
+4. **Admin › Orders › kit page** of that order: the Colours card lists Hood, Hood lining and the other hoodie areas with hex codes.
+5. **AI designer › Darts & Pool:** chips Polo with pocket, Polo, Training tee; choose Polo with pocket → Open in 3D Designer: lands on the pocket polo with its pocket.
+6. **AI designer › Training › Zip hoodie** → Open in 3D Designer: the zip hoodie opens with the design's colours and the note "Hoodies take your design's colours and logo; full print designs on hoodies are coming."
+7. A brief "A black club hoodie with a gold crest" (no tile) designs a Hoodie.
+8. ASSIST in the Studio: "switch to the zip hoodie" changes the garment.
+9. Studio on a hoodie with a Hood colour › Export › Design sheet: the PDF has a HOODIE AREAS section.
+10. **App:** AI designer with Zip hoodie → Open in 3D Designer opens the zip hoodie with the note; the order form's Design picker sets the garment row.
 
 ## App (http://127.0.0.1:8088)
 

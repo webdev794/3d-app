@@ -71,11 +71,21 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     };
     pit = new THREE.Vector2(pitX, pitY);
   }
-  const inSleeve = (p) => sleeved && half(p.y) - Math.abs(p.x) < 0 && p.y > 0.44 && p.y < 0.7;
+  // A long sleeve (hoodies) runs down past the body's side: below the armpit a point is on the sleeve past halfway
+  // across the gap between the body's side and the sleeve's underside (the line from the armpit to the cuff's lower
+  // corner).
+  const longCut = spec.long ? spec.cuff[1] : null;
+  const underX = (y) => 0.258 + ((PIT - y) * (longCut[0] - 0.258)) / (PIT - longCut[1]);
+  const inSleeve = spec.long
+    ? (p) => p.y < 0.7 && (p.y >= PIT ? half(p.y) - Math.abs(p.x) < 0 : Math.abs(p.x) > (half(p.y) + underX(p.y)) / 2)
+    : (p) => sleeved && half(p.y) - Math.abs(p.x) < 0 && p.y > 0.44 && p.y < 0.7;
   // Depth / width of the body: fuller at the chest, a little less at the waist, thin
   // across the shoulders (wide but shallow). A loose top hangs straight down from the chest,
   // standing off the stomach instead of following it in.
-  const depthRatio = spec.loose
+  // Fleece (hoodies): a fuller, rounder body (the heavy fabric stands off it).
+  const depthRatio = spec.fleece
+    ? (y) => 0.72 + 0.04 * ramp(0.25, 0.45, y) - 0.2 * ramp(0.56, 0.74, y)
+    : spec.loose
     ? (y) => 0.715 + 0.01 * ramp(0.25, 0.45, y) - 0.2 * ramp(0.56, 0.74, y)
     : (y) => 0.66 + 0.06 * ramp(0.25, 0.45, y) - 0.2 * ramp(0.56, 0.74, y);
   // Over the shoulders the panel narrows fast towards the neck. Wrapping each height on its
@@ -84,7 +94,10 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const wrapHalf = (y) => (y <= TOP ? half(y) : half(TOP) - 0.75 * (half(TOP) - half(y)));
   // A slight athletic V: the waist a little narrower than the chest. Loose: no waist, a little
   // fuller towards the hem (`hemFlare`: fuller still, as when it hangs over a full kit's shorts).
-  const taper = spec.loose
+  // Fleece: straight down, a little fuller over the waistband, then gathered into it (its rib pulls the hem in).
+  const taper = spec.fleece
+    ? (y) => 1 + 0.025 * ramp(0.3, 0.1, y) - spec.fleece.hemIn * ramp(0.06, 0, y)
+    : spec.loose
     ? (y) => 1 + (spec.hemFlare ?? 0.03) * ramp(0.34, 0.04, y)
     : (y) => 1 - 0.045 * ramp(0.5, 0.3, y) + 0.015 * ramp(0.25, 0.05, y);
   // Crew necks: the front neckline is a round U (the flat pattern's is nearly straight-sided).
@@ -121,13 +134,14 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     if (!back) {
       const v = y - 0.565 - 0.1 * (ax - 0.09);
       let h = 0.006 * pillow((ax - 0.09) / 0.1, v / (v > 0 ? 0.075 : 0.06), 0.15);
-      // A loose top falls from the chest: none of the stomach shows through.
+      // A loose top falls from the chest: none of the stomach shows through. Heavy fleece hides the body more.
+      if (spec.fleece) return 0.5 * h;
       if (spec.loose) return 0.7 * h;
       // A faint hint of abs: three soft bands, just enough for a little shadow between them.
       for (const row of [0.447, 0.372, 0.297]) h += 0.0026 * pillow(ax / 0.082, (y - row) / 0.036, 0.3);
       return h - 0.0011 * groove(ax, 0.006) * ramp(0.26, 0.3, y) * ramp(0.49, 0.46, y);
     }
-    return 0.004 * pillow((ax - 0.095) / 0.07, (y - 0.555) / 0.09, 0.2)
+    return (spec.fleece ? 0.5 : 1) * 0.004 * pillow((ax - 0.095) / 0.07, (y - 0.555) / 0.09, 0.2)
       - 0.0018 * groove(ax, 0.012) * ramp(0.1, 0.2, y) * ramp(0.66, 0.56, y);
   };
   if (!sleeved) return { at: torso, sleeve: () => null, relief, pit };
@@ -151,6 +165,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const edges = { top: [flat(0.258, TOP), flat(ca.x, ca.y)], under: [flat(0.258, PIT), flat(cb.x, cb.y)] };
   outline.forEach((q) => {
     if (q.x < 0.26 || !offCuff(q)) return;
+    // A long sleeve's outline only (not the hem's corner below it).
+    if (spec.long && !inSleeve(q)) return;
     const st = flat(q.x, q.y);
     (st[1] > 0 ? edges.top : edges.under).push(st);
   });
@@ -173,7 +189,9 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const xP = torso(new THREE.Vector2(0.258, PIT), false).x, xS = torso(new THREE.Vector2(0.258, TOP), false).x;
   const C0 = new THREE.Vector2((xP + xS) / 2, (PIT + TOP) / 2), lean = (xS - xP) / (TOP - PIT);
   const th0 = THREE.MathUtils.degToRad(25), th1 = THREE.MathUtils.degToRad(80), R = 0.085, Lb = R * (th1 - th0);
-  const rB0 = 0.056, r1 = 0.05;   // arm depth at the armhole; arm radius down the sleeve
+  const rB0 = 0.056;   // arm depth at the armhole
+  // The arm's radius down the sleeve; a long sleeve (spec.long) narrows from the upper arm to the wrist.
+  const r1 = spec.long ? (a) => THREE.MathUtils.lerp(spec.long.upper, spec.long.wrist, ramp(0.1, spec.long.length, a)) : () => 0.05;
   let rN0 = 0.075;                 // arm height at the armhole (solved below)
   const angle = (a) => THREE.MathUtils.clamp(th0 + a / R, th0, th1);
   /** Point on the arm's axis, a metres along it from the armhole. */
@@ -186,8 +204,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   /** Point on a sleeve: a along the arm, phi round it, sg +1 front / -1 back, band: hem band thickness. */
   const surface = (a, phi, sg, band = 0) => {
     const th = angle(a), A = axis(a), sin = Math.sin(phi);
-    const rN = THREE.MathUtils.lerp(rN0, r1, ramp(-0.01, 0.07, a)) + 0.007 * Math.max(0, sin) * deltoid(a) + band;
-    const rB = THREE.MathUtils.lerp(rB0, r1, ramp(0, 0.08, a)) + 0.004 * deltoid(a) + band;
+    const rN = THREE.MathUtils.lerp(rN0, r1(a), ramp(-0.01, 0.07, a)) + 0.007 * Math.max(0, sin) * deltoid(a) + band;
+    const rB = THREE.MathUtils.lerp(rB0, r1(a), ramp(0, 0.08, a)) + 0.004 * deltoid(a) + band;
     const y = A.y + Math.cos(th) * rN * sin;
     // Below the armpit the arm comes a little forward: eased in (a sharp start would put a kink in every ring
     // round a sleeve end at that height, bending its bands and stripes).
@@ -227,7 +245,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   }).sort((p, q) => p[0] - q[0]);
   const cuffL = (phi) => along(cuffAt, phi);
   let aCuff = rootAt(Math.PI / 2, 1);
-  for (let walked = 0, prev = surface(aCuff, Math.PI / 2, 1); walked < cuffL(Math.PI / 2) * 1.15 && aCuff < 0.5;) {
+  // Short sleeves sit a little stretched over the arm; a long sleeve keeps its length (to the wrist).
+  for (let walked = 0, prev = surface(aCuff, Math.PI / 2, 1); walked < cuffL(Math.PI / 2) * (spec.long ? 1 : 1.15) && aCuff < (spec.long ? 1 : 0.5);) {
     aCuff += 0.001;
     const next = surface(aCuff, Math.PI / 2, 1);
     walked += next.distanceTo(prev);

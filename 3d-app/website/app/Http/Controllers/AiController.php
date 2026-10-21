@@ -78,7 +78,7 @@ class AiController extends Controller
         // The art direction (up to 90 s) and the HD render (up to 300 s).
         set_time_limit(420);
         $references = $this->references($request, $data['reference_ids'] ?? []);
-        $sport = collect(config('catalog.sports'))->firstWhere('id', $data['sport'])['name'];
+        $sport = self::sportForAi($data['sport']);
         $garment = collect(config('catalog.garments'))->firstWhere('id', $data['garment'])['name'];
         try {
             $plan = $designer->mockupPlan($data['prompt'], $sport, $garment, $references);
@@ -95,6 +95,100 @@ class AiController extends Controller
     }
 
     /**
+     * The AI designer's Generate, step 1 (client visual 2026-10-21, images/138.jpg): four design directions for the
+     * brief from one planning call, best first. #1 is the PRIMARY; each carries its 3D kit spec for the Studio.
+     */
+    public function designs(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $data = $request->validate($this->briefRules($request));
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        set_time_limit(180);
+        [$sport, $garment] = $this->names($data);
+        try {
+            $directions = $designer->designDirections($data['prompt'], $sport, $garment, $this->references($request, $data['reference_ids'] ?? []));
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+        // The designer gets the garment's display name; saved designs need the catalog id.
+        $directions = array_map(fn (array $d) => array_replace_recursive($d, ['design' => ['garment' => $data['garment']]]), $directions);
+
+        return response()->json(['data' => ['directions' => $directions, 'summary' => $directions[0]['description'] ?? null, 'planned' => $directions[0]['planned'] ?? false]]);
+    }
+
+    /**
+     * Step 2, one call per design so each card fills in as it arrives: the direction rendered as the presentation
+     * mockup with the client's logos as real image inputs. The PRIMARY (rank 1) and "Make HD" are high quality and
+     * kept in Assets; the three options are medium-quality previews.
+     */
+    public function renderDesign(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $text = ['nullable', 'string', 'max:1500'];
+        $data = $request->validate([
+            ...$this->briefRules($request),
+            'rank' => ['required', 'integer', 'between:1,4'],
+            'quality' => ['nullable', Rule::in(['high', 'medium'])],
+            // front: one garment for the option cards; presentation: front and back (the PRIMARY, Make HD).
+            'view' => ['nullable', Rule::in(['presentation', 'front'])],
+            'name' => ['nullable', 'string', 'max:80'],
+            'direction' => ['required', 'array'],
+            ...collect(['summary', 'teamName', 'palette', 'theme', 'front', 'back', 'graphics', 'trims', 'presentation', 'body', 'layout'])->mapWithKeys(fn ($k) => ["direction.{$k}" => $text])->all(),
+            'direction.ownDesign' => ['sometimes', 'boolean'],
+        ]);
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        $quality = $data['quality'] ?? 'medium';
+        $view = $data['view'] ?? ($quality === 'high' || (int) $data['rank'] === 1 ? 'presentation' : 'front');
+        set_time_limit(330);
+        [$sport, $garment] = $this->names($data);
+        try {
+            $jpeg = $designer->renderDirection($data['prompt'], $sport, $garment, $data['direction'], $this->references($request, $data['reference_ids'] ?? []), $quality, $view);
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+        $name = (($data['name'] ?? null) ?: 'AI design').' · '.mb_substr($data['prompt'], 0, 70);
+
+        return response()->json(['data' => [
+            ...($quality === 'high'
+                ? $this->store($request, $jpeg, 'mockup', 'AI mockup · '.$name)
+                : ['asset' => null, 'image' => 'data:image/jpeg;base64,'.base64_encode($jpeg)]),
+            'quality' => $quality,
+            'view' => $view,
+            'rank' => (int) $data['rank'],
+        ]], 201);
+    }
+
+    private function briefRules(Request $request): array
+    {
+        return [
+            'prompt' => ['required', 'string', 'min:8', 'max:4000'],
+            'sport' => ['required', Rule::in(array_column(config('catalog.sports'), 'id'))],
+            'garment' => ['required', Rule::in(array_column(config('catalog.garments'), 'id'))],
+            'reference_ids' => ['sometimes', 'array', 'max:4'],
+            'reference_ids.*' => ['required', 'integer', 'distinct', Rule::exists('assets', 'id')->where('user_id', $request->user()->id)],
+        ];
+    }
+
+    /** @return array{0: string, 1: string} the sport (with its style hint) and the garment, as the AI gets them */
+    private function names(array $data): array
+    {
+        return [
+            self::sportForAi($data['sport']),
+            collect(config('catalog.garments'))->firstWhere('id', $data['garment'])['name'],
+        ];
+    }
+
+    /**
+     * The sport's name for the planning and image prompts, with its catalogue style hint when it has one
+     * ("Golf (golf: a premium fitted performance polo, ...)"); sports without a hint read as before.
+     */
+    public static function sportForAi(string $id): string
+    {
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $id);
+        $hint = trim((string) ($sport['prompt'] ?? ''));
+
+        return $hint === '' ? $sport['name'] : "{$sport['name']} ({$hint})";
+    }
+
+    /**
      * "Make it 3D": the mockup redrawn as a flat front and back print sheet,
      * kept in Assets; the Studio's "My design picture" puts it on the 3D kit.
      */
@@ -107,18 +201,20 @@ class AiController extends Controller
             'reference_ids' => ['sometimes', 'array', 'max:4'],
             'reference_ids.*' => ['required', 'integer', 'distinct', Rule::exists('assets', 'id')->where('user_id', $request->user()->id)],
             'name' => ['nullable', 'string', 'max:80'],
+            // The picture shows the front only (an option card made primary): the back is designed to match.
+            'front_only' => ['sometimes', 'boolean'],
         ]);
         abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
         set_time_limit(330);
         $sport = collect(config('catalog.sports'))->firstWhere('id', $data['sport'])['name'];
         $garment = collect(config('catalog.garments'))->firstWhere('id', $data['garment'])['name'];
         try {
-            $jpeg = $designer->printSheet($data['image'], $sport, $garment, $this->references($request, $data['reference_ids'] ?? []));
+            $jpeg = $designer->printSheet($data['image'], $sport, $garment, $this->references($request, $data['reference_ids'] ?? []), (bool) ($data['front_only'] ?? false));
         } catch (RuntimeException $e) {
             abort(502, $e->getMessage());
         }
 
-        return response()->json(['data' => $this->store($request, $jpeg, 'reference', 'Print sheet · '.($data['name'] ?: 'AI design'))], 201);
+        return response()->json(['data' => $this->store($request, $jpeg, 'reference', 'Print sheet · '.(($data['name'] ?? null) ?: 'AI design'))], 201);
     }
 
     /** The user's own saved pictures as data URLs, in the order asked. */

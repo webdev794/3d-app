@@ -10,8 +10,10 @@ import { LifeBuoy } from 'lucide-react';
 import { InvoicesAdmin, PricingAdmin } from './AdminPricing';
 import { BadgeDollarSign, Receipt } from 'lucide-react';
 import '../../css/orders.css';
+import AdminTeam from './AdminTeam';
+import { Palette } from 'lucide-react';
 
-export interface AdminUser extends User { is_admin: boolean; projects_count?: number; orders_count?: number }
+export interface AdminUser extends User { is_admin: boolean; is_designer?: boolean; designer_all?: boolean; projects_count?: number; orders_count?: number }
 export interface Order {
   id: number; number: string; user_id: number; project_id: number | null; status: string; sizes: Record<string, number>;
   quantity: number; unit_price: string | null; total: string | null; currency: string; contact_name: string; phone: string | null;
@@ -29,7 +31,7 @@ interface TrendPoint { day: string; kits: number; orders: number }
 interface Stats { partners: number; new_partners: number; users: number; admins: number; projects: number; orders: number; approved: number; quotes: number; garments: number; revenue: number; by_status: Record<string, number>; recent: Order[]; trend: TrendPoint[]; sports: { sport: string; count: number }[] }
 interface Partner { id: number; company: string; name: string; email: string; phone: string | null; website: string | null; message: string | null; status: string; created_at: string }
 const PARTNER_STATUSES = ['new', 'contacted', 'onboarding', 'live', 'declined'];
-interface ApiSettings { configured: boolean; source: string; masked_key: string | null; text_model: string; image_model: string }
+interface ApiSettings { configured: boolean; source: string; masked_key: string | null; text_model: string; image_model: string; planning_model?: string | null; hd_image_model?: string | null }
 interface DbInfo { driver: string; size: number | null; uploads: number; tables: { name: string; rows: number }[]; expired_tokens: number; php: string; laravel: string; backup: boolean }
 
 export const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
@@ -52,6 +54,7 @@ const sections = [
   { id: 'invoices', label: 'Invoices', icon: Receipt, title: 'Invoices', sub: 'Quotes to price, invoices, payments, refunds.' },
   { id: 'pricing', label: 'Pricing', icon: BadgeDollarSign, title: 'Pricing', sub: 'The price list, business details on invoices, tax and online payments.' },
   { id: 'partners', label: 'Partners', icon: Handshake, title: 'Corporate partners', sub: 'Companies applying to bring 3DEEZI to their website.' },
+  { id: 'team', label: '3DEEZI TEAM', icon: Palette, title: '3DEEZI TEAM', sub: 'Design requests for our designers: assign, design, review and the allowances.' },
   { id: 'support', label: 'Support', icon: LifeBuoy, title: 'Support messages', sub: 'Messages sent with the contact form on the Support page.' },
   { id: 'database', label: 'Database Tools', icon: Database, title: 'Database tools', sub: 'Backups, housekeeping and health.' },
 ] as const;
@@ -102,6 +105,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
           : section === 'projects' ? <ProjectsPanel catalog={catalog} onNotice={onNotice} />
           : section === 'settings' ? <SettingsPanel state={apiState} onSaved={setApiState} onNotice={onNotice} />
           : section === 'partners' ? <PartnersPanel onNotice={onNotice} />
+          : section === 'team' ? <AdminTeam mode="admin" itemId={itemId} onNotice={onNotice} />
           : section === 'support' ? <SupportPanel onNotice={onNotice} />
           : section === 'database' ? <DatabasePanel onNotice={onNotice} />
           : <Dashboard stats={stats} apiState={apiState} />}
@@ -212,10 +216,13 @@ function SettingsPanel({ state, onSaved, onNotice }: { state: ApiSettings | null
   const [key, setKey] = useState('');
   const [text, setText] = useState('');
   const [image, setImage] = useState('');
+  /** Empty: design planning uses the text model, HD renders the image model. */
+  const [planning, setPlanning] = useState('');
+  const [hdImage, setHdImage] = useState('');
   const [busy, setBusy] = useState<'save' | 'test' | null>(null);
   const [error, setError] = useState('');
   const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
-  useEffect(() => { if (state) { setText(state.text_model); setImage(state.image_model); } }, [state]);
+  useEffect(() => { if (state) { setText(state.text_model); setImage(state.image_model); setPlanning(state.planning_model ?? ''); setHdImage(state.hd_image_model ?? ''); } }, [state]);
   async function save(body: Record<string, unknown>, message: string) {
     setBusy('save'); setError(''); setTest(null);
     try { onSaved(await api<ApiSettings>('/admin/settings', { method: 'PUT', body: JSON.stringify(body) })); setKey(''); onNotice(message); }
@@ -226,15 +233,16 @@ function SettingsPanel({ state, onSaved, onNotice }: { state: ApiSettings | null
   return <div className="admin-grid">
     <section className="glow-panel admin-card"><h2><PlugZap size={18} /> OpenAI connection</h2>
       <div className={`connection ${state.configured ? 'ok' : 'off'}`}>{state.configured ? <CheckCircle2 size={20} /> : <TriangleAlert size={20} />}<div><strong>{state.configured ? 'Key configured' : 'Not configured: AI features are off'}</strong><span>{state.configured ? `${state.masked_key} · from the ${state.source}` : 'The website falls back to simple non-AI designs.'}</span></div></div>
-      <dl className="kv"><dt>Text model</dt><dd>{state.text_model}</dd><dt>Image model</dt><dd>{state.image_model}</dd></dl>
+      <dl className="kv"><dt>Text model</dt><dd>{state.text_model}</dd><dt>Planning model</dt><dd>{state.planning_model || `${state.text_model} (text model)`}</dd><dt>Image model</dt><dd>{state.image_model}</dd><dt>HD image model</dt><dd>{state.hd_image_model || `${state.image_model} (image model)`}</dd></dl>
       <div className="project-actions"><button className="button button-gradient" disabled={!state.configured || busy !== null} onClick={runTest}>{busy === 'test' ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />} Test connection</button>
         {state.source === 'admin panel' && <button className="button button-outline" disabled={busy !== null} onClick={() => window.confirm('Remove the key saved in the admin panel? The .env key (if any) is used instead.') && save({ clear_key: true }, 'Saved key removed.')}><Trash2 size={15} /> Remove saved key</button>}</div>
       {test && <p className={test.ok ? 'success-message' : 'error-message'}>{test.message}</p>}
     </section>
     <section className="glow-panel admin-card"><h2><KeyRound size={18} /> Update settings</h2>
-      <form className="admin-form" onSubmit={e => { e.preventDefault(); void save({ ...(key.trim() ? { openai_key: key.trim() } : {}), openai_text_model: text.trim(), openai_image_model: image.trim() }, 'API settings saved.'); }}>
+      <form className="admin-form" onSubmit={e => { e.preventDefault(); void save({ ...(key.trim() ? { openai_key: key.trim() } : {}), openai_text_model: text.trim(), openai_image_model: image.trim(), openai_planning_model: planning.trim(), openai_hd_image_model: hdImage.trim() }, 'API settings saved.'); }}>
         <label className="field">New OpenAI API key<input type="password" autoComplete="off" value={key} onChange={e => setKey(e.target.value)} placeholder={state.configured ? 'Leave blank to keep the current key' : 'sk-…'} /><span className="field-hint">Stored encrypted on the server. It overrides the key in the .env file.</span></label>
-        <div className="field-row"><label className="field">Text model<input value={text} onChange={e => setText(e.target.value)} /></label><label className="field">Image model<input value={image} onChange={e => setImage(e.target.value)} /></label></div>
+        <div className="field-row"><label className="field">Text model<input value={text} onChange={e => setText(e.target.value)} /><span className="field-hint">3DEEZI ASSIST and quick edits.</span></label><label className="field">Planning model<input value={planning} onChange={e => setPlanning(e.target.value)} placeholder={`Same as the text model (${text || 'text model'})`} /><span className="field-hint">Plans the AI designer's four designs and the art direction.</span></label></div>
+        <div className="field-row"><label className="field">Image model<input value={image} onChange={e => setImage(e.target.value)} /><span className="field-hint">The four designs and print sheets.</span></label><label className="field">HD image model<input value={hdImage} onChange={e => setHdImage(e.target.value)} placeholder={`Same as the image model (${image || 'image model'})`} /><span className="field-hint">HD primary, Make HD and the image editor.</span></label></div>
         {error && <p className="error-message">{error}</p>}
         <button className="button button-gradient full-width" disabled={busy !== null}>{busy === 'save' && <LoaderCircle className="spin" size={15} />}SAVE SETTINGS</button>
       </form>
@@ -304,7 +312,7 @@ function UsersPanel({ me, onNotice }: { me: User; onNotice: (text: string) => vo
       <button className="button button-gradient" onClick={() => setEditing('new')}><Plus size={16} /> Add user</button></div>
     {error && <p className="error-message">{error}</p>}
     {!result ? <div className="empty-state"><LoaderCircle className="spin" /></div> : <div className="table-wrap"><table className="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Projects</th><th>Orders</th><th>Joined</th><th /></tr></thead><tbody>
-      {result.data.map(u => <tr key={u.id}><td><strong>{u.name}</strong></td><td>{u.email}</td><td>{u.is_admin ? <span className="status-pill s-confirmed">Admin</span> : <span className="muted">Customer</span>}</td><td>{u.projects_count}</td><td>{u.orders_count}</td><td>{u.created_at ? date(u.created_at) : ''}</td>
+      {result.data.map(u => <tr key={u.id}><td><strong>{u.name}</strong></td><td>{u.email}</td><td>{u.is_admin ? <span className="status-pill s-confirmed">Admin</span> : u.is_designer ? <span className="status-pill s-in_production">Designer</span> : <span className="muted">Customer</span>}{u.is_admin && u.is_designer && <> <span className="status-pill s-in_production">Designer</span></>}</td><td>{u.projects_count}</td><td>{u.orders_count}</td><td>{u.created_at ? date(u.created_at) : ''}</td>
         <td className="row-actions"><button className="icon-button" onClick={() => setEditing(u)} aria-label={`Edit ${u.name}`}><Pencil size={15} /></button>{u.id !== me.id && <button className="icon-button danger" aria-label={`Delete ${u.name}`} onClick={() => confirmDelete(`${u.name} and all their projects and orders`, () => api(`/admin/users/${u.id}`, { method: 'DELETE' }), () => { onNotice('User deleted.'); reload(); }, onNotice)}><Trash2 size={15} /></button>}</td></tr>)}
       {!result.data.length && <tr><td colSpan={7} className="muted">No users found.</td></tr>}
     </tbody></table></div>}
@@ -314,7 +322,7 @@ function UsersPanel({ me, onNotice }: { me: User; onNotice: (text: string) => vo
 }
 
 function UserForm({ user, isMe, onClose, onSaved }: { user: AdminUser | null; isMe: boolean; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ name: user?.name ?? '', email: user?.email ?? '', password: '', is_admin: user?.is_admin ?? false });
+  const [form, setForm] = useState({ name: user?.name ?? '', email: user?.email ?? '', password: '', is_admin: user?.is_admin ?? false, is_designer: user?.is_designer ?? false, designer_all: user?.designer_all ?? false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function submit(e: React.FormEvent) {
@@ -327,6 +335,8 @@ function UserForm({ user, isMe, onClose, onSaved }: { user: AdminUser | null; is
     <label className="field">Email<input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
     <label className="field">{user ? 'New password (leave blank to keep)' : 'Password'}<input type="password" minLength={8} required={!user} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
     <label className="toggle-row"><input type="checkbox" checked={form.is_admin} disabled={isMe} onChange={e => setForm({ ...form, is_admin: e.target.checked })} /><span><strong>Administrator</strong><small>{isMe ? 'You cannot remove your own admin access.' : 'Can open this admin panel and manage everything.'}</small></span></label>
+    <label className="toggle-row"><input type="checkbox" checked={form.is_designer} onChange={e => setForm({ ...form, is_designer: e.target.checked, designer_all: e.target.checked && form.designer_all })} /><span><strong>3DEEZI TEAM designer</strong><small>Works on design requests assigned to them (Admin › 3DEEZI TEAM, or /designer for non-admins).</small></span></label>
+    {form.is_designer && <label className="toggle-row"><input type="checkbox" checked={form.designer_all} onChange={e => setForm({ ...form, designer_all: e.target.checked })} /><span><strong>Sees every design request</strong><small>Off: only the requests assigned to them.</small></span></label>}
     {error && <p className="error-message">{error}</p>}
     <button className="button button-gradient full-width" disabled={busy}>{busy && <LoaderCircle className="spin" size={16} />}{user ? 'SAVE CHANGES' : 'ADD USER'}</button>
   </form></Modal>;
@@ -371,7 +381,9 @@ function printedBack(order: KitOrder, d: SavedDesign): Partial<Design> {
   if (order.names === 'none') return { marks: { ...d.marks, top_name: mark('top_name', true), top_number: mark('top_number', true) } };
   return first ? { backName: first.name, number: first.number, marks: { ...d.marks, top_name: mark('top_name', !first.name), top_number: mark('top_number', !first.number) } } : {};
 }
-const ZONE_NAMES: Record<string, string> = { body: 'Body', yoke: 'Yoke', sleeves: 'Sleeves', sides: 'Sides', hem: 'Hem' };
+const ZONE_NAMES: Record<string, string> = { body: 'Body', yoke: 'Yoke', sleeves: 'Sleeves', sides: 'Sides', hem: 'Hem', pocket: 'Pocket', hood: 'Hood' };
+/** A hoodie's own colour areas (design.zoneColors), as the Studio's HOODIE AREAS names them. */
+const AREA_NAMES: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Cuffs & waistband', pocket: 'Pocket', zip: 'Zip' };
 const shownImage = (src?: string | null) => !!src && /^(data:image\/|https?:\/\/|\/)/.test(src);
 const fileType = (src: string) => (src.startsWith('data:image/jpeg') ? 'jpg' : 'png');
 
@@ -426,7 +438,8 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
   const pictures: [string, string | undefined | null][] = project ? [['Front', shots.front], ['Back', shots.back], ['Kit', project.thumbnail || shots.side]] : [];
   if (shownImage(d.renderFront)) pictures.push(['AI front render', d.renderFront]);
   if (shownImage(d.renderBack)) pictures.push(['AI back render', d.renderBack]);
-  const colours: [string, string | undefined][] = [['Main', d.main], ['Secondary', d.secondary], ['Accent', d.accent], ['Pattern colour', d.patternColor], ...(d.gradient ? [['Gradient from', d.gradient.from], ['Gradient to', d.gradient.to]] as [string, string][] : [])];
+  const colours: [string, string | undefined][] = [['Main', d.main], ['Secondary', d.secondary], ['Accent', d.accent], ['Pattern colour', d.patternColor], ...(d.gradient ? [['Gradient from', d.gradient.from], ['Gradient to', d.gradient.to]] as [string, string][] : []),
+    ...Object.entries(d.zoneColors ?? {}).filter(([, c]) => typeof c === 'string' && c).map(([area, c]) => [AREA_NAMES[area] ?? area, c] as [string, string])];
   const zones = Object.entries(d.zones ?? {}).filter(([, v]) => v && v !== 'None');
   const layers = d.layers ?? [];
   const ordered = SIZES.filter(s => (order.sizes[s] ?? 0) > 0);

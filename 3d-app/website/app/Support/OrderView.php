@@ -177,9 +177,12 @@ final class OrderView
                 ['garment' => 'shorts', 'name' => 'Shorts', 'quantity' => (int) $order->quantity, 'thumbnail' => null],
             ];
         }
-        $known = $garment && array_key_exists($garment, Order::GARMENTS);
+        // The Studio's own garments that the order form lists under another row: a zip hoodie is a hoodie, the pocket polo a polo.
+        $row = Order::PROJECT_ROWS[(string) $garment] ?? $garment;
+        $known = $row && array_key_exists($row, Order::GARMENTS);
+        $name = $row !== $garment ? collect(config('catalog.garments'))->firstWhere('id', $garment)['name'] ?? Order::GARMENTS[$row] : ($known ? Order::GARMENTS[$row] : 'Kit');
 
-        return [['garment' => $known ? $garment : 'jersey', 'name' => $known ? Order::GARMENTS[$garment] : 'Kit', 'quantity' => (int) $order->quantity, 'thumbnail' => $thumbnail]];
+        return [['garment' => $known ? $row : 'jersey', 'name' => $known ? $name : 'Kit', 'quantity' => (int) $order->quantity, 'thumbnail' => $thumbnail]];
     }
 
     /**

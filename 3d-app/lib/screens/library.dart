@@ -10,6 +10,8 @@ import '../widgets/ui.dart';
 import 'business.dart';
 import 'image_editor.dart';
 import 'onboarding.dart' show editServer;
+import 'order_entry.dart' show OrderNowScreen;
+import 'team.dart' show TeamScreen;
 
 class _Tabs extends StatelessWidget {
   const _Tabs({
@@ -636,10 +638,22 @@ class ProfileScreen extends StatelessWidget {
               'Asset library',
               () => c.go(AppScreen.assets),
             ),
+            // Orders (as ORDERS on the website): the three ways to order.
+            _row(
+              Icons.receipt_long_outlined,
+              'Orders',
+              () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => OrderNowScreen(c))),
+            ),
             _row(
               Icons.local_shipping_outlined,
               'My orders',
               () => c.go(AppScreen.orders),
+            ),
+            // 3DEEZI TEAM (as on the website's menu): request a designer, my design requests.
+            _row(
+              Icons.groups_outlined,
+              '3DEEZI TEAM',
+              () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => TeamScreen(c))),
             ),
             _row(
               Icons.workspace_premium_outlined,

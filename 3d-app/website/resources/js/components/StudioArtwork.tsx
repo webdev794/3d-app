@@ -190,10 +190,10 @@ const readFavourites = (): string[] => { try { return JSON.parse(localStorage.ge
 /** The user's own design in this Studio (before the first preset, and as changed after it is chosen again), with a still of it. */
 export type OwnDesign = { design: Design; thumb?: string | null };
 /** The keys that make a design what it is (YOUR DESIGN compares them). */
-const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks'] as const;
-export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys.map(key => key === 'zones' ? areas(d.zones) : key === 'layers' ? d.layers ?? [] : key === 'marks' ? d.marks ?? {} : d[key] ?? null));
+const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks'] as const;
+export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys.map(key => key === 'zones' ? areas(d.zones) : key === 'layers' ? d.layers ?? [] : key === 'marks' ? d.marks ?? {} : key === 'zoneColors' ? (Object.keys(d.zoneColors ?? {}).length ? d.zoneColors : null) : d[key] ?? null));
 /** The whole design back, as one change (keys it lacks are cleared). */
-export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, ...d, zones: areas(d.zones) });
+export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, zoneColors: null, ...d, zones: areas(d.zones) });
 
 /** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites); YOUR DESIGN first. */
 export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void; own?: OwnDesign | null; onOwn?: () => void; beforePreset?: () => Promise<void> }) {
@@ -218,7 +218,8 @@ export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }
         // The whole look: it replaces an AI print, the Secondary and Pattern gradients and a design picture or print
         // layout on the kit (these hide the colours and pattern); keys older saves lack are cleared so the look matches.
         const replaced = design.layout ? (design.layout.kind === 'drawing' ? 'design picture' : 'print layout') : null;
-        edit({ gradient: null, gradients: null, ...style, zones: areas(style.zones), patternImage: style.patternImage ?? null, layout: style.layout ?? null });
+        // A hoodie's own area colours go too: its lining, rib and zip then follow the preset's colours.
+        edit({ gradient: null, gradients: null, zoneColors: null, ...style, zones: areas(style.zones), patternImage: style.patternImage ?? null, layout: style.layout ?? null });
         onNotice(replaced ? `${name} applied in place of your ${replaced}: Undo, or Artwork › ${replaced === 'design picture' ? 'My design picture' : 'Factory print layout'}, puts it back.` : `${name} applied. Your logos and player details are preserved.`);
     }
     function toggleFavourite(id: string) {

@@ -960,7 +960,9 @@ class StudioZoneTool extends StatelessWidget {
     children: [
       const SectionLabel('Patterns by garment area'),
       for (final zone in garmentZones.entries)
-        if (c.garment != 'Shorts' || !['sleeves', 'yoke'].contains(zone.key))
+        if ((c.garment != 'Shorts' || !['sleeves', 'yoke'].contains(zone.key)) &&
+            (zone.key != 'pocket' || c.garment == 'Polo with pocket' || isHoodie(c.garment)) &&
+            (zone.key != 'hood' || isHoodie(c.garment)))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: DropdownButtonFormField<String>(
@@ -989,6 +991,37 @@ class StudioZoneTool extends StatelessWidget {
               }),
             ),
           ),
+      // Hoodies: each area's own colour, from the kit's colours (or back to them).
+      if (isHoodie(c.garment)) ...[
+        const SectionLabel('Hoodie area colours'),
+        for (final area in hoodieAreas.entries)
+          if (area.key != 'zip' || c.garment == 'Zip hoodie')
+            Row(
+              key: ValueKey('area-${area.key}'),
+              children: [
+                Expanded(child: Text(area.value, style: const TextStyle(fontSize: 12))),
+                for (final color in {c.mainColor, c.secondaryColor, c.accentColor, Colors.white, Colors.black})
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '${area.value}: ${ProjectSync.hex(color)}',
+                    icon: Icon(
+                      c.zoneColors[area.key] == ProjectSync.hex(color) ? Icons.check_circle : Icons.circle,
+                      color: color,
+                      size: 20,
+                    ),
+                    onPressed: () => c.edit(() => c.zoneColors = {...c.zoneColors, area.key: ProjectSync.hex(color)}),
+                  ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: '${area.value}: back to the kit colours',
+                  icon: const Icon(Icons.restart_alt, size: 18),
+                  onPressed: c.zoneColors.containsKey(area.key)
+                      ? () => c.edit(() => c.zoneColors = {...c.zoneColors}..remove(area.key))
+                      : null,
+                ),
+              ],
+            ),
+      ],
     ],
   );
 }

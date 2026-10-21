@@ -63,10 +63,10 @@ const _plans = [
 const _costs = [
   ('AI edit in the studio (“Ask 3DEEZI”)', 1),
   ('Convert an image to 3D', 1),
-  ('Four AI concepts with previews', 2),
+  ('Four AI designs', 2),
   ('AI print pattern', 3),
   ('Photoreal showcase image', 5),
-  ('HD presentation mockup (one prompt)', 10),
+  ('Make HD (an HD front and back presentation)', 10),
   ('Make it 3D (AI print sheet on the 3D kit)', 10),
 ];
 const _perks = [

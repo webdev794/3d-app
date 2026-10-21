@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import Delaunator from 'delaunator';
 import { wornTop, wornShorts } from './worn.js';
+import { POCKET, isHoodie } from './zones.js';
+import { panelSampler, buildHood, buildKangaroo, buildRib, buildZip } from './hoodie.js';
 
 // Garment outlines (right half, metres, y up, hem at 0). The left half is
 // mirrored. Each garment is a sewn front + back panel "inflated" into a
@@ -111,6 +113,32 @@ SPECS.trainingShorts = {
     seat: 0.1,
   },
 };
+
+// The pocket polo (pool and darts shirts): the polo with a stitched patch pocket on the wearer's left chest (zones.js
+// POCKET), modelled as its own raised piece of fabric (buildPocket).
+SPECS.pocketpolo = { ...SPECS.polo, pocket: POCKET };
+
+/**
+ * Hoodies (fleece): long set-in sleeves angled down to the wrist (the cuff's corners CT / CB; worn.js `long`: the arm's
+ * radius from the upper arm to the wrist, and the top seam's length), a lined hood lying down behind the neck
+ * (hoodie.js), a kangaroo pocket, rib cuffs and a rib waistband (the hem gathered into it: `fleece.hemIn`). The zip
+ * hoodie adds the full-length front zip, its pocket split either side of it.
+ */
+const HOOD_SLEEVE = [[0.258, 0.688], [0.3, 0.65], [0.47, 0.476], [0.682, 0.264], [0.615, 0.197], [0.44, 0.36], [0.31, 0.485], [0.258, 0.53]];
+SPECS.hoodie = {
+  half: [[0, 0.69], [0.055, 0.716], [0.098, 0.738], [0.19, 0.716], ...HOOD_SLEEVE, [0.25, 0.42], [0.244, 0.3], [0.25, 0.16], [0.258, 0.03], [0.2, 0.012], [0.1, 0.002], [0, 0]],
+  neck: { drop: 0.055, half: 0.1 },
+  rim: { drop: 0.06, half: 0.11, radius: 0.009 },
+  cuff: [[0.682, 0.264], [0.615, 0.197]],
+  points: { CT: [0.682, 0.264], CB: [0.615, 0.197] },
+  depth: 0.2,
+  chest: true,
+  crew: true,
+  long: { upper: 0.054, wrist: 0.039, length: 0.6 },
+  fleece: { hemIn: 0.05 },
+  hood: true,
+};
+SPECS.ziphoodie = { ...SPECS.hoodie, zip: true };
 
 // A raglan top has the tee's shape; only its sewing differs (raglan seams from the neck to the underarms instead of
 // set-in sleeves). Print layouts use it (layout-warp.js), as a loose training tee: it hangs from the chest in soft
@@ -249,7 +277,12 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null 
   /** Soft folds just above the hem band: gentle waves where it hangs, and a few slanted folds
    *  a few centimetres apart that fade out upwards, more towards the sides. */
   const hemFolds = (p, back, i) => {
-    if (spec.legs) return 0;
+    if (spec.legs || sleeveAt[i]) return 0;
+    // Fleece: no hem band; the body gathers into its rib waistband in soft upright folds just above it.
+    if (spec.fleece) {
+      const ph = back ? 1.9 : 0.3;
+      return 0.0034 * Math.sin(p.x * 70 + ph + 1.4 * Math.sin(p.x * 19 + ph)) * ramp(0.1, 0.02, p.y) * ramp(0, 0.012, hemDist[i]);
+    }
     const ax = Math.abs(p.x), ph = back ? 2.1 : 0;
     const band = ramp(0.02, 0.036, hemDist[i]);   // the hem band itself stays smooth and even
     // Not on a loose tee: the client's photo shows no upright waves above its hem.
@@ -259,6 +292,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null 
   };
   /** Faint, wide stretch ripples along the sides (or the shorts' legs). */
   const sideRipple = (p, back) => {
+    if (spec.fleece) return 0;
     const ax = Math.abs(p.x), ph = back ? 2.6 : 0;
     const sides = spec.chest
       ? ramp(0.17, 0.22, ax) * ramp(0.5, 0.42, p.y) * ramp(0.03, 0.08, p.y)
@@ -267,9 +301,11 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null 
   };
   /** The back of a worn top: soft folds where the fabric gathers over the small of the back,
    *  rising from the middle towards the sides. */
-  const backFolds = (p, back) => {
-    if (!back || !spec.chest) return 0;
+  const backFolds = (p, back, i) => {
+    if (!back || !spec.chest || sleeveAt[i]) return 0;
     const ax = Math.abs(p.x);
+    // Fleece: a few broad soft folds over the small of the back.
+    if (spec.fleece) return 0.0026 * Math.sin((p.y - 0.25 * ax) * 55 + 1.1 * Math.sin(ax * 9)) * ramp(0.3, 0.12, p.y) * ramp(0.04, 0.08, p.y);
     const rise = Math.sin((p.y - 0.42 * ax) * 105 + 1.2 * Math.sin(ax * 14)) * ramp(0.32, 0.12, p.y) * ramp(0.03, 0.07, p.y);
     return 0.0028 * rise * (0.5 + 0.5 * ramp(0.02, 0.12, ax));
   };
@@ -364,9 +400,25 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null 
     // The upper back's V folds (under the lettering) are the deepest, as clear as in the photo.
     return (back ? 0.0034 * (1 + 0.3 * ramp(0.33, 0.4, p.y)) : 0.0042) * h * ramp(0.012, 0.03, hemDist[i]);
   };
+  /**
+   * Long sleeves (hoodies): the fleece bunches in soft rings above the rib cuff, folds across the inside of the elbow,
+   * and lies in long soft twists down the arm.
+   */
+  const cuffA = spec.long ? new THREE.Vector2(...spec.cuff[0]) : null, cuffB = spec.long ? new THREE.Vector2(...spec.cuff[1]) : null;
+  const sleeveFolds = (p, back, i) => {
+    const sl = sleeveAt[i];
+    if (!spec.long || !sl) return 0;
+    const q = new THREE.Vector2(Math.abs(p.x), p.y), ab = cuffB.clone().sub(cuffA);
+    const t = THREE.MathUtils.clamp(q.clone().sub(cuffA).dot(ab) / ab.lengthSq(), 0, 1), d = q.distanceTo(cuffA.clone().addScaledVector(ab, t));
+    const ph = back ? 1.7 : 0;
+    const bunch = Math.sin(d * 190 + ph + 1.6 * Math.sin(sl.phi * 2.3 + ph)) * ramp(0.16, 0.04, d) * ramp(0.006, 0.02, d);
+    const elbow = Math.sin((d - 0.26) * 120 + 2.2 * sl.phi + ph) * Math.exp(-(((d - 0.27) / 0.05) ** 2)) * ramp(0.4, -0.6, Math.sin(sl.phi));
+    const twist = Math.sin(sl.l * 22 + sl.phi * 1.6 + ph) * ramp(0.06, 0.15, sl.l) * ramp(0.06, 0.18, d);
+    return 0.0036 * bunch + 0.0032 * elbow + 0.0014 * twist;
+  };
   const seamDist = points.map((p, i) => (i < nb && seam[i] ? 0 : distanceToOutline(p, poly, seam)));
   /** Crease height in metres (+ out, - in), pushed out along the body's surface. */
-  const crease = (p, back, i) => ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back) + shortsFolds(p, back) + drapeFolds(p, back, i));
+  const crease = (p, back, i) => ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back, i) + shortsFolds(p, back) + drapeFolds(p, back, i) + sleeveFolds(p, back, i));
   const neckEdge = poly.filter((q, i) => !seam[i] && q.y > maxY - spec.neck.drop && Math.abs(q.x) < spec.neck.half);
   const nearNeck = (p) => neckEdge.reduce((d, q) => Math.min(d, Math.hypot(p.x - q.x, p.y - q.y)), Infinity);
   /** The body under the fabric (worn.js), kept off the seams and the neckline so those stay even. */
@@ -400,7 +452,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null 
   const colours = new Float32Array(n * 2 * 3);
   const backHeight = (p) => {
     if (!spec.chest || Math.abs(p.x) > .112 || p.y < .62) return p.y;
-    const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
+    const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' || kind === 'pocketpolo' || isHoodie(kind) ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
     const weight = Math.exp(-((p.y - neckLine) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
     return p.y + Math.max(0, .752 - p.y) * weight;
   };
@@ -520,9 +572,18 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null 
   neckIdx.sort((a, b) => poly[a].x - poly[b].x);
   const vertex = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
   const neck = [...neckIdx.map((i) => vertex(i)), ...neckIdx.slice().reverse().map((i) => vertex(n + i))];
+  const uvAt = (x, y) => [(0.5 * (x - minX)) / span, (y - minY) / span];
+  const hoodie = spec.hood ? buildHoodieParts(spec, { poly, seam, points, faces, positions, normals, colours, n, nb, maxY, minY, neck: spec.neck, uvAt,
+    uvBack: (x, y) => [0.5 + (0.5 * (maxX - x)) / span, (y - minY) / span],
+    surface: (x, y, back) => { const p = new THREE.Vector2(x, y), v = worn.at(p, back); if (back) v.y += backHeight(p) - p.y; return v; },
+    at: (x, y, back) => worn.at(new THREE.Vector2(x, y), back) }) : null;
   return {
+    // Hoodies: the hood (and its atlas piece), kangaroo pocket, rib cuffs and waistband, zip (hoodie.js).
+    hoodie,
     kind,
     geometry,
+    // The chest pocket's own mesh, on the front panel as made (its creases), printed from the same atlas.
+    pocket: spec.pocket ? buildPocket(spec.pocket, { points, faces, positions, normals, colours, uvAt }) : null,
     frame: { minX, maxX, minY, maxY, span },
     outline: poly,
     // Which outline points are finished edges (hems, leg openings with their splits, sleeve ends).
@@ -541,6 +602,144 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null 
       return v;
     },
   };
+}
+
+/** A hoodie's extra pieces on the made garment (hoodie.js). */
+function buildHoodieParts(spec, ctx) {
+  const { poly, seam, positions, n, minY } = ctx;
+  const sampleFront = panelSampler(ctx, false);
+  const full = { ...ctx, sampleFront };
+  const hood = buildHood(full, { zip: !!spec.zip });
+  const vtx = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
+  // The waistband along the hem (split at the zip), the cuffs along each sleeve end.
+  const hemIdx = poly.map((_, i) => i).filter((i) => !seam[i] && poly[i].y < minY + 0.03);
+  const byX = (a, b) => poly[a].x - poly[b].x;
+  let hemLoop, hemOpen = false;
+  if (spec.zip) {
+    const g = 0.0125;
+    const right = hemIdx.filter((i) => poly[i].x >= g).sort(byX), left = hemIdx.filter((i) => poly[i].x <= -g).sort(byX);
+    hemLoop = [...right.map(vtx), ...hemIdx.slice().sort(byX).reverse().map((i) => vtx(n + i)), ...left.map(vtx)];
+    hemOpen = true;
+  } else {
+    hemLoop = [...hemIdx.slice().sort(byX).map(vtx), ...hemIdx.slice().sort(byX).reverse().map((i) => vtx(n + i))];
+  }
+  const ribs = [buildRib(hemLoop, { dir: new THREE.Vector3(0, -1, 0), length: 0.065, squeeze: 0.03, open: hemOpen })];
+  const [ca, cb] = spec.cuff.map(([x, y]) => new THREE.Vector2(x, y)), ab = cb.clone().sub(ca);
+  const mid = ca.clone().lerp(cb, 0.5), inward = new THREE.Vector2(ab.y, -ab.x).normalize();
+  if (inward.dot(new THREE.Vector2(0.258, 0.61).sub(mid)) < 0) inward.negate();
+  for (const sgn of [1, -1]) {
+    const idx = poly.map((_, i) => i).filter((i) => {
+      if (seam[i] || Math.sign(poly[i].x) !== sgn) return false;
+      const q = new THREE.Vector2(Math.abs(poly[i].x), poly[i].y), t = THREE.MathUtils.clamp(q.clone().sub(ca).dot(ab) / ab.lengthSq(), 0, 1);
+      return q.distanceTo(ca.clone().addScaledVector(ab, t)) < 0.012;
+    });
+    const along = (i) => new THREE.Vector2(Math.abs(poly[i].x), poly[i].y).sub(ca).dot(ab);
+    idx.sort((a, b) => along(a) - along(b));
+    const loop = [...idx.map(vtx), ...idx.slice().reverse().map((i) => vtx(n + i))];
+    const m = new THREE.Vector2(sgn * mid.x, mid.y), inn = new THREE.Vector2(sgn * inward.x, inward.y);
+    const dir = ctx.at(m.x, m.y, false).sub(ctx.at(m.x + inn.x * 0.03, m.y + inn.y * 0.03, false)).normalize();
+    ribs.push(buildRib(loop, { dir, length: 0.062, squeeze: 0.12 }));
+  }
+  const pocket = buildKangaroo(full, { zip: !!spec.zip });
+  // The zip: down the centre front from the waistband's foot to the neck.
+  let zip = null;
+  if (spec.zip) {
+    const top = spec.half[0][1] - 0.003, base = sampleFront(0, 0.004);
+    const path = (y) => {
+      if (y >= 0.004) { const s = sampleFront(0, Math.min(y, top)); return { p: s.p.clone().addScaledVector(s.n, 0.0004), n: s.n }; }
+      // Over the waistband: its face, drawn in a little towards its foot.
+      const k = (0.004 - y) / 0.069, p = base.p.clone();
+      p.y += y - 0.004;
+      p.z = base.p.z * (1 - 0.03 * k) + 0.0016;
+      return { p, n: new THREE.Vector3(0, 0, 1) };
+    };
+    zip = buildZip(path, { bottom: -0.062, top });
+  }
+  return { hood, ribs, pocket, zip, sampleFront };
+}
+
+/**
+ * A stitched patch pocket on the front panel (`P`: zones.js POCKET, garment metres): a second layer of fabric that
+ * follows the made front (its creases and the body under it, from the panel's own triangles), standing off it about
+ * 2 mm, a little fuller in the middle, with a doubled top hem (a soft ridge where it is turned in), rounded bottom
+ * corners and its cut edges turned under in a small rounded wall down to the shirt. Its top stays open: a shadowed
+ * gap. Its UVs are those of the front under it, so its print is the atlas's pocket area (texture.js).
+ */
+function buildPocket(P, { points, faces, positions, normals, colours, uvAt }) {
+  // The made front at a panel point: position, normal and shade, from the front triangle it falls in.
+  const near = faces.filter((f) => f.some((i) => points[i].x > P.x0 - 0.03 && points[i].x < P.x1 + 0.03 && points[i].y > P.bottom - 0.03 && points[i].y < P.top + 0.03));
+  const sample = (x, y) => {
+    let best = null;
+    for (const [a, b, c] of near) {
+      const A = points[a], B = points[b], C = points[c];
+      const d = (B.y - C.y) * (A.x - C.x) + (C.x - B.x) * (A.y - C.y);
+      const wa = ((B.y - C.y) * (x - C.x) + (C.x - B.x) * (y - C.y)) / d, wb = ((C.y - A.y) * (x - C.x) + (A.x - C.x) * (y - C.y)) / d;
+      const w = [[a, wa], [b, wb], [c, 1 - wa - wb]], worst = Math.min(wa, wb, 1 - wa - wb);
+      if (!best || worst > best.worst) best = { worst, w };
+      if (worst >= 0) break;
+    }
+    const p = new THREE.Vector3(), nrm = new THREE.Vector3();
+    let shade = 0;
+    for (const [i, w] of best.w) {
+      p.x += positions[i * 3] * w; p.y += positions[i * 3 + 1] * w; p.z += positions[i * 3 + 2] * w;
+      nrm.x += normals[i * 3] * w; nrm.y += normals[i * 3 + 1] * w; nrm.z += normals[i * 3 + 2] * w;
+      shade += colours[i * 3] * w;
+    }
+    return { p, n: nrm.normalize(), shade };
+  };
+  const r = P.corner, W = P.x1 - P.x0, H = P.top - P.bottom, cols = 34, rows = 40;
+  const ramp = (a, b, v) => { const t = THREE.MathUtils.clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  // Row j from the top (0) to the bottom; across, the rounded corners pull the bottom rows in.
+  const rowY = (j) => P.top - (H * j) / rows;
+  const inset = (y) => (y < P.bottom + r ? r - Math.sqrt(Math.max(0, r * r - (P.bottom + r - y) ** 2)) : 0);
+  const at = (i, j) => { const y = rowY(j), a = P.x0 + inset(y), b = P.x1 - inset(y); return [a + ((b - a) * i) / cols, y]; };
+  // How far the pocket stands off the shirt: 0.7 mm at its sewn edges rising to about 2 mm inside, fuller in the
+  // middle; the top hem doubled (a little higher, with a soft ridge where it is turned in).
+  const lift = (x, y) => {
+    const edge = Math.min(x - P.x0 - inset(y), P.x1 - inset(y) - x, y - P.bottom);
+    const fill = 0.0007 + 0.0013 * ramp(0, 0.006, edge) + 0.0009 * Math.sin((Math.PI * (x - P.x0)) / W) * Math.sin((Math.PI * (y - P.bottom)) / H);
+    const hem = 0.0005 * ramp(P.top - P.hem - 0.002, P.top - P.hem + 0.001, y) + 0.0004 * Math.exp(-(((y - (P.top - 0.002)) / 0.0025) ** 2));
+    return fill + hem;
+  };
+  const pos = [], uv = [], col = [], idx = [];
+  const put = (v, x, y, c) => { pos.push(v.x, v.y, v.z); uv.push(...uvAt(x, y)); col.push(c, c, c); return pos.length / 3 - 1; };
+  const grid = [], under = new Map();
+  for (let j = 0; j <= rows; j++) {
+    const row = [];
+    for (let i = 0; i <= cols; i++) {
+      const [x, y] = at(i, j), s = sample(x, y);
+      // The turned-in top hem's foot a touch darker.
+      const c = s.shade * (1 - 0.08 * Math.exp(-(((y - (P.top - P.hem)) / 0.002) ** 2)));
+      const k = put(s.p.clone().addScaledVector(s.n, lift(x, y)), x, y, c);
+      if (j === 0 || j === rows || i === 0 || i === cols) under.set(k, { s, x, y });
+      row.push(k);
+    }
+    grid.push(row);
+  }
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const a = grid[j][i], b = grid[j][i + 1], c = grid[j + 1][i], d = grid[j + 1][i + 1];
+    idx.push(a, c, b, b, c, d);
+  }
+  // Walls from the pocket's edge down into the shirt: the turned-under sides and bottom (shaded towards the shirt),
+  // and at the open top the inside of the pocket in deep shadow. `list` runs so the wall faces outwards.
+  const wall = (list, foot, depth) => {
+    const feet = list.map((k) => {
+      const { s, x, y } = under.get(k), f = s.p.clone().addScaledVector(s.n, -depth);
+      return put(f, x, y, s.shade * foot);
+    });
+    for (let k = 0; k < list.length - 1; k++) idx.push(list[k], feet[k], list[k + 1], list[k + 1], feet[k], feet[k + 1]);
+  };
+  // Clockwise seen from the front: down the outer side, along the bottom, up the inner side.
+  wall([...grid.map((row) => row[cols]), ...grid[rows].slice(0, cols).reverse(), ...grid.slice(0, rows).reverse().map((row) => row[0])], 0.55, 0.0004);
+  wall(grid[0].slice(), 0.2, 0.0002);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geometry.setIndex(idx);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  return geometry;
 }
 
 /**

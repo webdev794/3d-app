@@ -28,6 +28,13 @@ void main() {
     expect(garmentInBrief('Rugby jersey and shorts'), 'Full Kit');
     expect(garmentInBrief('A netball dress in teal'), 'Singlet');
     expect(garmentInBrief('Black and gold with stripes'), isNull);
+    // Hoodies and the pocket polo are garments of their own (2026-10-21).
+    expect(garmentInBrief('Navy club hoodie with a gold crest'), 'Hoodie');
+    expect(garmentInBrief('A zip-up hoodie for the coaches'), 'Zip hoodie');
+    expect(garmentInBrief('Full zip hoodies for the bench'), 'Zip hoodie');
+    expect(garmentInBrief('A darts pocket polo'), 'Polo with pocket');
+    expect(garmentInBrief('A fishing shirt with a hood'), 'Jersey');
+    expect(garmentInBrief('Colours from my childhood club'), isNull);
     expect(sportInBrief('soccer home kit')?.sport, 'Soccer');
     expect(sportInBrief('boxing club gear')?.id, 'fight-wear');
     expect(sportInBrief('something plain'), isNull);
@@ -117,7 +124,8 @@ void main() {
     await tester.tap(find.byTooltip('Generate designs'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.generating);
-    expect(c.aiSport, 'Training / Gym');
+    // Its own category since 2026-10-21 (it was Training / Gym).
+    expect(c.aiSport, 'Workwear');
     expect(c.aiGarment, 'Polo');
     expect(c.brief, startsWith('Workwear: '));
     await tester.pump(const Duration(seconds: 5));
@@ -125,8 +133,8 @@ void main() {
   });
 
   // QA 2026-10-21: while MAKE IT 3D draws the print sheet it opens the Studio
-  // by itself; a concept opened meanwhile would start its own AI print.
-  testWidgets('OPEN IN DESIGN STUDIO waits while MAKE IT 3D draws', (
+  // by itself; Open in 3D Designer waits meanwhile.
+  testWidgets('Open in 3D Designer waits while MAKE IT 3D draws', (
     tester,
   ) async {
     final c = AppController()..screen = AppScreen.home;
@@ -146,21 +154,20 @@ void main() {
       'assets/images/reference_1.png',
     )).buffer.asUint8List();
     c.update(() {
-      c.mockupImage = png;
+      c.concepts.first.image = png;
       c.sheetBusy = true;
     });
     await tester.pump();
-    expect(find.text('Drawing the print sheet… about a minute'), findsOneWidget);
-    await tester.ensureVisible(find.text('OPEN IN DESIGN STUDIO'));
-    await tester.tap(find.text('OPEN IN DESIGN STUDIO'), warnIfMissed: false);
+    expect(find.text('Drawing the print sheet…'), findsOneWidget);
+    await tester.tap(find.text('Drawing the print sheet…'), warnIfMissed: false);
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.concepts, reason: 'disabled while drawing');
     c.update(() => c.sheetBusy = false);
     await tester.pump();
-    expect(find.text('MAKE IT 3D'), findsOneWidget);
-    await tester.tap(find.text('OPEN IN DESIGN STUDIO'));
+    // A guest signs in first (the print sheet is kept in their assets).
+    await tester.tap(find.text('Open in 3D Designer'));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(c.screen, AppScreen.studio);
+    expect(c.screen, AppScreen.auth);
   });
 
   // QA 2026-10-21: back to the brief while MAKE IT 3D draws; the late print
@@ -185,10 +192,9 @@ void main() {
     final png = (await rootBundle.load(
       'assets/images/reference_1.png',
     )).buffer.asUint8List();
-    c.update(() => c.mockupImage = png);
+    c.update(() => c.concepts.first.image = png);
     await tester.pump();
-    await tester.ensureVisible(find.text('MAKE IT 3D'));
-    await tester.tap(find.text('MAKE IT 3D'));
+    await tester.tap(find.text('Open in 3D Designer'));
     await tester.pump();
     expect(c.sheetBusy, isTrue);
     await tester.tap(find.byTooltip('Back'));
@@ -207,7 +213,7 @@ void main() {
 class _SlowSheet extends AppController {
   final sheet = Completer<Uint8List>();
   @override
-  Future<Uint8List> mockupPrintSheet() async {
+  Future<Uint8List> mockupPrintSheet({bool frontOnly = false}) async {
     update(() => sheetBusy = true);
     try {
       return await sheet.future;

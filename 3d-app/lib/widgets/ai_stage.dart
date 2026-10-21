@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../sports_catalog.dart';
 import 'ui.dart';
 
 /// A quick pick on the AI Designer's sports row (as the website's
-/// AiStage.tsx). [sport] is the app's sport name the AI designs for;
-/// categories without their own sport (fight wear, fishing, workwear) design
-/// as Training / Gym apparel and name themselves in the brief ([brief]).
+/// AiStage.tsx). [sport] is the app's sport name the AI designs for (since
+/// 2026-10-21 fight wear, fishing and workwear are categories of their own;
+/// they still name themselves in the brief, [brief]).
 /// [garments]: the garment chips offered when the brief names none.
 class AiQuickSport {
   const AiQuickSport(
@@ -31,51 +32,41 @@ const aiAllGarments = [
   'Polo',
 ];
 
-const aiQuickSports = [
-  AiQuickSport('rugby-league', 'Rugby League', 'Rugby League'),
-  AiQuickSport('rugby-union', 'Rugby Union', 'Rugby Union'),
-  AiQuickSport(
-    'netball',
-    'Netball',
-    'Netball',
-    garments: ['Singlet', 'Shorts', 'Training Tee', 'Polo'],
-  ),
-  AiQuickSport('football', 'Soccer', 'Soccer'),
-  AiQuickSport(
-    'basketball',
-    'Basketball',
-    'Basketball',
-    garments: ['Singlet', 'Full Kit', 'Shorts', 'Training Tee', 'Polo'],
-  ),
-  AiQuickSport(
-    'fight-wear',
-    'Fight Wear',
-    'Training / Gym',
-    brief: 'Fight wear',
-    garments: ['Training Tee', 'Shorts', 'Singlet'],
-  ),
-  AiQuickSport(
-    'fishing',
-    'Fishing',
-    'Training / Gym',
-    brief: 'Fishing apparel',
-    garments: ['Jersey', 'Polo', 'Training Tee'],
-  ),
-  AiQuickSport(
-    'workwear',
-    'Workwear',
-    'Training / Gym',
-    brief: 'Workwear',
-    garments: ['Polo', 'Training Tee', 'Jersey'],
-  ),
-  AiQuickSport('afl', 'AFL', 'AFL'),
-  AiQuickSport('hockey', 'Hockey', 'Ice Hockey'),
-  AiQuickSport(
-    'training',
-    'Training',
-    'Training / Gym',
-    garments: ['Training Tee', 'Singlet', 'Shorts', 'Polo', 'Jersey'],
-  ),
+/// The row's first eleven (the client's order), then every other category of
+/// lib/sports_catalog.dart in its order; garments come from the catalogue.
+const _aiFirst = [
+  'rugby-league',
+  'rugby-union',
+  'netball',
+  'football',
+  'basketball',
+  'fight-wear',
+  'fishing',
+  'workwear',
+  'afl',
+  'hockey',
+  'training',
+];
+
+/// Categories that also name themselves at the start of the brief.
+const _aiBriefs = {
+  'fight-wear': 'Fight wear',
+  'fishing': 'Fishing apparel',
+  'workwear': 'Workwear',
+};
+
+AiQuickSport _aiTile(SportCategory s) => AiQuickSport(
+  s.id,
+  s.aiLabel ?? s.name,
+  s.name,
+  brief: _aiBriefs[s.id],
+  garments: s.garments,
+);
+
+final aiQuickSports = <AiQuickSport>[
+  for (final id in _aiFirst) _aiTile(sportWithId(id)!),
+  for (final s in sportCategories)
+    if (!_aiFirst.contains(s.id)) _aiTile(s),
 ];
 
 /// The longest brief the AI Designer takes (as the website).
@@ -122,11 +113,16 @@ String? garmentInBrief(String text) {
       (top && shorts)) {
     return 'Full Kit';
   }
+  // Hoodies are 3D garments of their own (a zip one too); "hood" alone
+  // (a fishing shirt's hood, "childhood") is not one.
+  if (has(r'\bzip(?:ped)?[- ]?(?:up[- ]?|through[- ]?)?hood(?:ie|y)s?\b|\bfull[- ]zip hood(?:ie|y)s?\b')) return 'Zip hoodie';
+  if (has(r'\bhood(?:ie|y)s?\b|\bhooded (?:jumpers?|sweat\w*|tops?|pullovers?)\b')) return 'Hoodie';
+  if (has(r'\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b')) return 'Polo with pocket';
   if (has(r'\bpolos?\b')) return 'Polo';
   if (has(r'\bsinglets?\b|\bvests?\b|\btank tops?\b|\bdress(es)?\b|\bbodysuits?\b')) {
     return 'Singlet';
   }
-  if (has(r'\bt-?shirts?\b|\btees?\b|\bhoodies?\b|\bjackets?\b|\bhi-?vis\b|\brash ?guards?\b')) {
+  if (has(r'\bt-?shirts?\b|\btees?\b|\bjackets?\b|\bhi-?vis\b|\brash ?guards?\b')) {
     return 'Training Tee';
   }
   if (shorts) return 'Shorts';
@@ -143,12 +139,37 @@ AiQuickSport? sportInBrief(String text) {
     (r'\brugby\b', 'rugby-league'),
     (r'netball', 'netball'),
     (r'basketball', 'basketball'),
+    // Before soccer, which also says "football".
+    (r'american football|gridiron|\bnfl\b', 'american-football'),
+    (
+      r'touch football|\btouch (?:kit|team|club|jersey|tee|shirt|singlet|shorts)|oztag',
+      'touch',
+    ),
     (r'soccer|\bfootball\b|\bfc\b', 'football'),
     (r'\bafl\b|aussie rules|australian rules|guernsey', 'afl'),
     (r'hockey', 'hockey'),
     (r'boxing|\bmma\b|fight ?wear|martial arts|jiu.?jitsu|muay thai', 'fight-wear'),
     (r'fishing|angler', 'fishing'),
     (r'workwear|hi-?vis|tradie', 'workwear'),
+    (r'\bgolf', 'golf'),
+    (r'tennis', 'tennis'),
+    (
+      r'athletics|\brunning (?:club|team|kit|singlet)|track (?:and|&) field|cross[- ]country|marathon',
+      'athletics',
+    ),
+    (r'swim|water ?polo|surf life', 'swimming'),
+    (r'darts|billiards|snooker|\bpool (?:shirt|team|player|league|club)', 'darts'),
+    (r'cricket', 'cricket'),
+    (r'softball|baseball', 'softball'),
+    (r'volleyball', 'volleyball'),
+    (r'lacrosse', 'lacrosse'),
+    (r'\bbmx\b|motocross|\bmx\b', 'bmx'),
+    (r'cycling|cyclist|\bbike\b|bicycle', 'cycling'),
+    (r'lawn bowls|\bbowls\b', 'lawn-bowls'),
+    (r'e-?sports|gaming|\bgamers?\b', 'esports'),
+    (r'school leavers|\bleavers\b|graduat', 'school-leavers'),
+    (r'club casual|teamwear|clubwear|\bsupporters?\b', 'teamwear'),
+    (r'gymwear|fitness|crossfit', 'gymwear'),
     (r'training|\bgym\b', 'training'),
   ];
   for (final (pattern, id) in words) {

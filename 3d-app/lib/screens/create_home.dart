@@ -1,17 +1,21 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../ai_service.dart';
 import '../app_controller.dart';
 import '../project_sync.dart';
+import '../sports_catalog.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/rewards_card.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
 import 'order_entry.dart' show OrderNowSection;
+import 'team.dart' show TeamScreen;
 
-/// 4 · Create home, as the website: a stadium hero, then three glowing
-/// paths (AI Powered, Design Your Own, Artboard).
+/// 4 · Create home, as the website: a stadium hero, then four glowing
+/// paths (AI Powered, Design Your Own, Artboard, 3DEEZI TEAM).
 class CreateHomeScreen extends StatefulWidget {
   const CreateHomeScreen(this.c, {super.key});
   final AppController c;
@@ -84,6 +88,21 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
                             'Arrange logos, shapes, and artwork.\nBring your composition into the 3D kit.',
                         action: 'OPEN ARTBOARD',
                         onTap: () => c.go(AppScreen.artboard),
+                      ),
+                      const SizedBox(height: 16),
+                      // 3DEEZI TEAM (client brief 2026-10-21): real designers
+                      // create it for you, as the website's fourth tile.
+                      _PathCard(
+                        art: 'assets/images/art/home_team.webp',
+                        icon: Icons.groups_outlined,
+                        title: '3DEEZI',
+                        sub: 'TEAM',
+                        body:
+                            'Real designers. Real results.\nOur design team creates it for you.',
+                        action: 'GET A DESIGNER',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(builder: (_) => TeamScreen(c)),
+                        ),
                       ),
                       const SizedBox(height: 18),
                       SecondaryButton(
@@ -490,18 +509,11 @@ class _MiniArtboard extends StatelessWidget {
   );
 }
 
-/// The sports offered in Design Your Own, with their artwork, kit line and
-/// quick-access group (the ALL / SPORTS / APPAREL filters; as the website's
-/// catalogue).
-const dyoSports = <(String, String, String, String)>[
-  ('Rugby League', 'sport_rugby_league', 'Jersey + Shorts', 'sports'),
-  ('Basketball', 'sport_basketball', 'Singlet + Shorts', 'sports'),
-  ('Soccer', 'sport_soccer', 'Jersey + Shorts', 'sports'),
-  ('AFL', 'sport_afl', 'Guernsey + Shorts', 'sports'),
-  ('Netball', 'sport_netball', 'Dress + Bodysuit', 'sports'),
-  ('Rugby Union', 'sport_rugby_union', 'Jersey + Shorts', 'sports'),
-  ('Ice Hockey', 'sport_ice_hockey', 'Jersey + Socks', 'sports'),
-  ('Training / Gym', 'sport_training', 'Tee + Hoodie', 'apparel'),
+/// The sports offered in Design Your Own: (name, catalogue id, kit line,
+/// quick-access group for the ALL / SPORTS / APPAREL filters), from
+/// lib/sports_catalog.dart (as the website's catalogue).
+final dyoSports = <(String, String, String, String)>[
+  for (final s in sportCategories) (s.name, s.id, s.kit, s.group),
 ];
 
 /// 8 · DYO sport selection: the kits rotate on a floodlit stadium stage.
@@ -555,10 +567,15 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       _index = i;
       if (_filter != 'all' && dyoSports[i].$4 != _filter) _filter = 'all';
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _revealTile());
+    // The page turns during a frame: this setState builds the row in the
+    // next one (with 29 tiles, a filter change makes it longer), so reveal
+    // after that frame.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => WidgetsBinding.instance.addPostFrameCallback((_) => _revealTile()),
+    );
   }
 
-  void _revealTile() {
+  void _revealTile([int hops = 0]) {
     if (!mounted || !_tiles.hasClients) return;
     final at = _shown.indexOf(_index);
     if (at < 0) return;
@@ -568,11 +585,28 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
         left + _tileWidth <= p.pixels + p.viewportDimension) {
       return;
     }
+    // The row's full width from the tiles shown. The lazy row only knows its
+    // extent as far as it has built tiles (29 of them since 2026-10-21), so
+    // a far tile is reached in hops: to the known end, then on.
+    final n = _shown.length;
+    final end = math.max(
+      0.0,
+      32 + n * _tileWidth + (n - 1) * _tileGap - p.viewportDimension,
+    );
+    final target = (left - (p.viewportDimension - _tileWidth) / 2).clamp(
+      0.0,
+      end,
+    );
+    if (target > p.maxScrollExtent + 1 && hops < 8) {
+      _tiles.jumpTo(p.maxScrollExtent);
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _revealTile(hops + 1),
+      );
+      WidgetsBinding.instance.scheduleFrame();
+      return;
+    }
     _tiles.animateTo(
-      (left - (p.viewportDimension - _tileWidth) / 2).clamp(
-        0,
-        p.maxScrollExtent,
-      ),
+      target,
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
     );
@@ -770,7 +804,19 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          PageDots(count: _n, index: _index),
+          // A dot each fits a dozen; more show as a count (the tiles pick any).
+          if (_n <= 12)
+            PageDots(count: _n, index: _index)
+          else
+            Text(
+              '${_index + 1} / $_n',
+              style: const TextStyle(
+                color: Color(0xffc4d2df),
+                fontSize: 12,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
             child: GradientButton(
@@ -785,7 +831,15 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   }
 
   void _design() {
-    widget.c.update(() => widget.c.sport = dyoSports[_index].$1);
+    final garments = sportNamed(dyoSports[_index].$1)?.garments ?? const [];
+    GarmentScreen.showAll.value = false;
+    widget.c.update(() {
+      widget.c.sport = dyoSports[_index].$1;
+      // A garment this sport does not offer gives way to its first one.
+      if (garments.isNotEmpty && !garments.contains(widget.c.garment)) {
+        widget.c.garment = garments.first;
+      }
+    });
     widget.c.go(AppScreen.garment);
   }
 }
@@ -956,6 +1010,9 @@ const garmentTiles = <(String, String)>[
   ('Training Tee', 'tee'),
   ('Singlet', 'singlet'),
   ('Polo', 'polo'),
+  ('Polo with pocket', 'pocketpolo'),
+  ('Hoodie', 'hoodie'),
+  ('Zip hoodie', 'ziphoodie'),
 ];
 
 /// Shown with the garments; not yet available in 3D.
@@ -968,6 +1025,21 @@ const comingSoonGarments = <(String, String)>[
 class GarmentScreen extends StatelessWidget {
   const GarmentScreen(this.c, {super.key});
   final AppController c;
+
+  /// "Show all garments": the sport's garments only until it is tapped (the
+  /// sport chooser resets it).
+  static final showAll = ValueNotifier(false);
+
+  /// The garment tiles for [sport]: its garments (lib/sports_catalog.dart)
+  /// in its order, or all of them.
+  static List<(String, String)> tilesFor(String sport, {bool all = false}) {
+    final suited = sportNamed(sport)?.garments ?? const <String>[];
+    if (all || suited.isEmpty) return garmentTiles;
+    return [
+      for (final name in suited)
+        ...garmentTiles.where((g) => g.$1 == name),
+    ];
+  }
 
   Widget _tile(
     String name,
@@ -989,6 +1061,11 @@ class GarmentScreen extends StatelessWidget {
             child: Image.asset(
               'assets/images/showroom/garment-$art.webp',
               fit: BoxFit.contain,
+              // A garment without its picture yet shows its nearest one.
+              errorBuilder: (_, _, _) => Image.asset(
+                'assets/images/showroom/garment-${art.contains('polo') ? 'polo' : 'jersey'}.webp',
+                fit: BoxFit.contain,
+              ),
             ),
           ),
           Align(
@@ -1099,29 +1176,55 @@ class GarmentScreen extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: GridView.count(
-            crossAxisCount: 2,
-            padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
-            mainAxisSpacing: 14,
-            crossAxisSpacing: 14,
-            childAspectRatio: .9,
-            children: [
-              for (final (name, art) in garmentTiles)
-                _tile(
-                  name,
-                  art,
-                  selected: c.garment == name,
-                  onTap: () => c.update(() => c.garment = name),
-                ),
-              for (final (name, art) in comingSoonGarments)
-                _tile(
-                  name,
-                  art,
-                  soon: true,
-                  onTap: () =>
-                      showToast(context, '$name are coming soon in 3D.'),
-                ),
-            ],
+          child: ValueListenableBuilder(
+            valueListenable: showAll,
+            builder: (context, all, _) {
+              final tiles = tilesFor(c.sport, all: all);
+              final more = tilesFor(c.sport).length < garmentTiles.length;
+              return GridView.count(
+                crossAxisCount: 2,
+                padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: .9,
+                children: [
+                  for (final (name, art) in tiles)
+                    _tile(
+                      name,
+                      art,
+                      selected: c.garment == name,
+                      onTap: () => c.update(() => c.garment = name),
+                    ),
+                  for (final (name, art) in comingSoonGarments)
+                    _tile(
+                      name,
+                      art,
+                      soon: true,
+                      onTap: () =>
+                          showToast(context, '$name are coming soon in 3D.'),
+                    ),
+                  // The sport's garments first; this shows the rest too.
+                  if (more)
+                    GlowCard(
+                      onTap: () => showAll.value = !all,
+                      child: Center(
+                        child: Text(
+                          all
+                              ? 'ONLY ${c.sport.toUpperCase()} GARMENTS'
+                              : 'SHOW ALL GARMENTS',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Palette.cyan,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
         Padding(

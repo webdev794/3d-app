@@ -162,6 +162,8 @@ export const DRAWN = {
   tee: { N: [0.086, 0.738], T: [0, 0.7], CT: [0.418, 0.566], CB: [0.372, 0.476], U: [0.258, 0.53], H: [0.258, 0.03] },
   polo: { N: [0.082, 0.742], T: [0, 0.712], CT: [0.418, 0.566], CB: [0.372, 0.476], U: [0.258, 0.53], H: [0.258, 0.03] },
 };
+// The pocket polo is the polo's body with a chest pocket sewn on (garment.js SPECS.pocketpolo): the same corners.
+DRAWN.pocketpolo = DRAWN.polo;
 
 /** Whether a garment drawing's shape has sleeves: much wider across its top part than near its hem. */
 export function sleevedShape(o) {

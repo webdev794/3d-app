@@ -15,9 +15,63 @@ const SHORTS = {
   body: [[-0.2, 0.1, 0.2, 0.44]],
 };
 
-export const ZONE_NAMES = { body: 'Chest & body', yoke: 'Shoulders', sleeves: 'Sleeves', sides: 'Side panels', hem: 'Hem' };
+export const ZONE_NAMES = { body: 'Chest & body', yoke: 'Shoulders', sleeves: 'Sleeves', sides: 'Side panels', hem: 'Hem', pocket: 'Chest pocket', hood: 'Hood' };
 
-const table = (kind) => (kind === 'shorts' ? SHORTS : TOP);
+/**
+ * The pocket polo's chest pocket (pool and darts shirts): a patch pocket sewn on the wearer's left chest (+x on the
+ * front), in garment metres: its sides, top and bottom, the bottom corners' radius and the depth of its top hem.
+ * The 3D pocket (garment.js), its print and stitching (texture.js) and its colour zone all use it.
+ */
+export const POCKET = { x0: 0.055, x1: 0.167, top: 0.6, bottom: 0.462, corner: 0.014, hem: 0.022 };
+
+/** The garments with a chest pocket. */
+export const hasPocket = (kind) => kind === 'pocketpolo';
+
+/** Whether a garment point (front side) is on the pocket. */
+export function onPocket(x, y) {
+  const { x0, x1, top, bottom, corner: r } = POCKET;
+  if (x < x0 || x > x1 || y < bottom || y > top) return false;
+  const cx = Math.min(Math.max(x, x0 + r), x1 - r), cy = Math.max(y, bottom + r);
+  return Math.hypot(x - cx, y - cy) <= r || y >= bottom + r;
+}
+
+/** Hoodies (pull-over and full zip). */
+export const isHoodie = (kind) => kind === 'hoodie' || kind === 'ziphoodie';
+
+/**
+ * A hoodie's kangaroo pocket, in garment metres on the front: its top (sewn) and foot (sewn, just above the
+ * waistband), the top's half-width, the widest half-width (its lower sides, sewn), where the curved hand opening
+ * ends at each side, and the gap either side of a zip (the zip hoodie's pocket is split, each half sewn along it).
+ */
+export const KANGAROO = { top: 0.3, bottom: 0.035, topHalf: 0.1, half: 0.172, openBottom: 0.12, zipGap: 0.013 };
+/** The kangaroo pocket's half-width at height y: its sewn lower sides, then the hand opening curving in to the top. */
+export function kangarooEdge(y) {
+  const K = KANGAROO;
+  if (y <= K.openBottom) return K.half;
+  const t = Math.min(1, (y - K.openBottom) / (K.top - K.openBottom));
+  return K.topHalf + (K.half - K.topHalf) * Math.cos((t * Math.PI) / 2);
+}
+/** Whether a front point is on a hoodie's kangaroo pocket (`zip`: split by the zip). */
+export function onKangaroo(x, y, zip = false) {
+  const K = KANGAROO;
+  return y >= K.bottom && y <= K.top && Math.abs(x) <= kangarooEdge(y) && (!zip || Math.abs(x) >= K.zipGap);
+}
+/**
+ * The hood's own piece on the print atlas: on the back side above the back panel, the neck seam along its top at
+ * HOOD_TOP, the hood (laid open, its centre seam down the middle) hanging below it (hoodie.js buildHood).
+ */
+export const HOOD_TOP = 1.2;
+const HOODIE = {
+  ...TOP,
+  // A long sleeve: past the shoulder seam, down to the wrist.
+  sleeves: [[0.262, 0.15, 0.75, 0.76]],
+  yoke: [[-0.26, 0.56, 0.26, 0.8]],
+  sides: [[0.2, 0, 0.26, 0.55]],
+  // The hood's piece, as its patterns are drawn: moved up onto it (texture.js paintZones).
+  hood: [[-0.7, 0, 0.7, 0.8]],
+};
+
+const table = (kind) => (kind === 'shorts' ? SHORTS : isHoodie(kind) ? HOODIE : TOP);
 
 /** Rectangles [x0, y0, x1, y1] for a zone, mirrored to both sides of the body. */
 export function zoneRects(kind, zone) {
@@ -25,8 +79,13 @@ export function zoneRects(kind, zone) {
   return rects.flatMap(([x0, y0, x1, y1]) => (x0 >= 0 ? [[x0, y0, x1, y1], [-x1, y0, -x0, y1]] : [[x0, y0, x1, y1]]));
 }
 
-/** Which zone a garment point falls in (first match wins). */
-export function zoneAt(kind, x, y) {
+/** Which zone a garment point falls in (first match wins); `side` front or back (the pocket is only in front). */
+export function zoneAt(kind, x, y, side) {
+  if (hasPocket(kind) && side !== 'back' && onPocket(x, y)) return 'pocket';
+  if (isHoodie(kind)) {
+    if (side === 'back' && y > 0.8) return 'hood';
+    if (side !== 'back' && onKangaroo(x, y, kind === 'ziphoodie')) return 'pocket';
+  }
   const order = kind === 'shorts' ? ['sides', 'hem', 'body'] : ['sleeves', 'yoke', 'sides', 'hem', 'body'];
   for (const zone of order) {
     if (zoneRects(kind, zone).some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)) return zone;

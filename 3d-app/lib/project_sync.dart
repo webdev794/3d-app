@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'ai_service.dart';
 import 'app_controller.dart';
 import 'design_document.dart';
+import 'sports_catalog.dart';
 
 /// Converts projects between the app and the website's database, which
 /// stores a kit as `design` (hex colours, pattern, text and image data
@@ -13,22 +14,17 @@ import 'design_document.dart';
 /// `design.app`, so a project made on the website opens in the app and the
 /// other way round.
 class ProjectSync {
-  static const sports = {
-    'Rugby League': 'rugby-league',
-    'Rugby Union': 'rugby-union',
-    'Soccer': 'football',
-    'Basketball': 'basketball',
-    'Netball': 'netball',
-    'AFL': 'afl',
-    'Ice Hockey': 'hockey',
-    'Training / Gym': 'training',
-  };
+  /// App sport name → the website's catalogue id (lib/sports_catalog.dart).
+  static final sports = {for (final s in sportCategories) s.name: s.id};
   static const garments = {
     'Jersey': 'jersey',
     'Shorts': 'shorts',
     'Training Tee': 'tee',
     'Singlet': 'singlet',
     'Polo': 'polo',
+    'Polo with pocket': 'pocketpolo',
+    'Hoodie': 'hoodie',
+    'Zip hoodie': 'ziphoodie',
     'Full Kit': 'fullkit',
   };
 
@@ -56,6 +52,8 @@ class ProjectSync {
         'sponsorImage': dataUrl(k.sponsorImage),
         'layers': copyLayers(k.layers),
         'zones': copyZones(k.zones),
+        // Only when set (hoodies): servers older than 2026-10-21 refuse the field.
+        if (k.zoneColors.isNotEmpty) 'zoneColors': copyZones(k.zoneColors),
         'gradient': copyGradient(k.gradient),
         // Only when set: servers older than 2026-10-21 refuse the field.
         if (k.gradients != null) 'gradients': copyGradient(k.gradients),
@@ -126,6 +124,7 @@ class ProjectSync {
         spec: spec == null ? null : DesignSpec.fromJson(spec),
         layers: copyLayers(d['layers']),
         zones: copyZones(d['zones']),
+        zoneColors: copyZones(d['zoneColors']),
         gradient: copyGradient(d['gradient']),
         gradients: copyGradient(d['gradients']),
         marks: copyMarks(d['marks']),

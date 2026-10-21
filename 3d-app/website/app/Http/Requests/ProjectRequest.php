@@ -24,7 +24,7 @@ class ProjectRequest extends FormRequest
             'garment' => [$required, Rule::in(array_column(config('catalog.garments'), 'id'))],
             'mode' => ['sometimes', Rule::in(['ai', 'dyo'])],
             'status' => ['sometimes', Rule::in(['draft', 'approved'])],
-            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,gradients,zones,layers,marks,layout,presetId'],
+            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,gradients,zones,zoneColors,layers,marks,layout,presetId'],
             'design.garment' => ['sometimes', Rule::in(array_column(config('catalog.garments'), 'id'))],
             'design.main' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.secondary' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
@@ -53,8 +53,11 @@ class ProjectRequest extends FormRequest
             'design.gradients.*.stops.*.color' => ['required', $color],
             'design.gradients.*.stops.*.at' => ['required', 'numeric', 'between:0,1'],
             'design.gradients.*.preset' => ['sometimes', 'nullable', 'string', 'max:40'],
-            'design.zones' => ['sometimes', 'array:body,yoke,sleeves,sides,hem'],
+            'design.zones' => ['sometimes', 'array:body,yoke,sleeves,sides,hem,pocket,hood'],
             'design.zones.*' => ['string', Rule::in([...$patterns, 'None'])],
+            // Hoodies: each area's own colour (the hood, its lining, the rib cuffs and waistband, the pocket, the zip).
+            'design.zoneColors' => ['sometimes', 'nullable', 'array:hood,lining,rib,pocket,zip'],
+            'design.zoneColors.*' => ['nullable', $color],
             // The fixed marks moved, resized, turned or hidden on the 2D panels.
             'design.marks' => ['sometimes', 'array:top_wordmark,top_sponsor,top_crest,top_name,top_number,shorts_crest,shorts_number,shorts_wordmark'],
             'design.marks.*' => ['array:side,x,y,scale,rot,hidden'],

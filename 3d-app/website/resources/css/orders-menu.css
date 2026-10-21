@@ -4,10 +4,16 @@
    This file loads before app.css, so its selectors are one class stronger than the header's own rules. */
 .nav-orders{position:relative;height:100%;display:flex;align-items:stretch}
 .main-nav .nav-orders-trigger{position:relative;height:100%;display:flex;align-items:center;gap:4px;padding:0;border:0;background:none;color:#a8b1bf;font-family:var(--heading);font-size:13px;font-weight:700;text-transform:uppercase;white-space:nowrap;cursor:pointer;transition:color .15s}
-.main-nav .nav-orders-trigger>svg{margin-top:-1px}
-.main-nav .nav-orders-trigger:hover,.main-nav .nav-orders-trigger.is-active,.main-nav .nav-orders-trigger[aria-expanded=true]{color:var(--cyan)}
-/* Cyan underline (as on the other links) while the menu is open or an orders page is showing. */
-.main-nav .nav-orders-trigger.is-active::after,.main-nav .nav-orders-trigger[aria-expanded=true]::after{content:'';position:absolute;left:0;right:0;bottom:18px;height:3px;border-radius:3px;background:var(--cyan);box-shadow:0 0 8px #00d9ed,0 0 18px #00d9edaa}
+.main-nav .nav-orders-trigger:hover,.main-nav .nav-orders-trigger.is-active,.main-nav .nav-orders-trigger.is-open{color:var(--cyan)}
+/* Cyan underline (as on the other links) while the menu is open or the Orders page or an order page is showing.
+   It runs under the word and the chevron. */
+.main-nav .nav-orders-trigger.is-active::after,.main-nav .nav-orders-trigger.is-open::after{content:'';position:absolute;left:0;right:-18px;bottom:18px;height:3px;border-radius:3px;background:var(--cyan);box-shadow:0 0 8px #00d9ed,0 0 18px #00d9edaa}
+/* "Orders" opens the Orders page; the small chevron next to it opens the dropdown (as does hovering). */
+.main-nav .nav-orders-toggle{display:grid;place-items:center;width:18px;height:28px;margin:auto 0 auto 0;padding:0;border:0;border-radius:6px;background:none;color:#a8b1bf;cursor:pointer;transition:color .15s,background-color .15s}
+.main-nav .nav-orders-toggle>svg{margin-top:-1px;transition:transform .2s}
+.main-nav .nav-orders-toggle:hover,.main-nav .nav-orders-toggle.is-open,.main-nav .nav-orders-trigger.is-active+.nav-orders-toggle,.main-nav .nav-orders-trigger:hover+.nav-orders-toggle{color:var(--cyan)}
+.main-nav .nav-orders-toggle.is-open>svg{transform:rotate(180deg)}
+.main-nav .nav-orders-toggle:focus-visible{outline:2px solid var(--cyan);outline-offset:1px}
 
 /* --tip: where the pointer sits in the panel; the panel is placed so it is under the word "Orders". */
 .nav-orders-panel{--tip:58px;position:absolute;z-index:5;top:calc(100% + 10px);left:calc(50% - 9px - var(--tip));width:320px;padding:8px;display:flex;flex-direction:column;gap:3px;border:1px solid #00d9ed85;border-radius:14px;background:linear-gradient(180deg,#0d1a2b,#08111d);box-shadow:0 0 0 1px #00d9ed14,0 0 26px #00d9ed38,0 24px 50px #000000c2;opacity:0;visibility:hidden;transform:translateY(6px);pointer-events:none;transition:opacity .16s ease,transform .16s ease,visibility 0s linear .16s}
@@ -61,13 +67,11 @@
   .site-header .main-nav a.active:after{bottom:7px;right:auto;width:28px}
 }
 
-/* Tablets and phones: Orders is a row of the header menu and its three links open under it as an indented group. */
+/* Tablets and phones: Orders is a row of the header menu (it opens the Orders page) with its three links always
+   listed under it as an indented group. */
 @media(max-width:1160px){
   .site-header .main-nav .nav-orders{height:auto;flex-direction:column}
   .site-header .main-nav .nav-orders-trigger{width:100%;height:45px;justify-content:flex-start;gap:6px;font-size:15px}
-  .site-header .main-nav .nav-orders-trigger>svg{transition:transform .2s}
-  .site-header .main-nav .nav-orders-trigger[aria-expanded=true]>svg{transform:rotate(180deg)}
-  .site-header .main-nav .nav-orders-trigger[aria-expanded=true]::after{content:none}
   .site-header .main-nav .nav-orders-trigger.is-active::after{content:'';bottom:7px;right:auto;width:28px}
   .site-header .main-nav .nav-orders-panel{position:static;width:auto;margin:0 0 10px 14px;padding:6px;display:none;opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:none;border-color:#00d9ed47;background:#0a1522;box-shadow:inset 0 0 18px #00d9ed0a}
   .site-header .main-nav .nav-orders.is-open .nav-orders-panel{display:flex}

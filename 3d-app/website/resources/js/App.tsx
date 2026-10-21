@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, LoaderCircle, LogOut, Menu, Shirt, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
+import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, LoaderCircle, LogOut, Menu, PenTool, Shirt, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
 import { api, getToken, media, setToken, type Catalog, type Project, type User } from './api';
 import { defaultDesign, type Design } from './types';
 import { AiDesigner, ConvertPage, GarmentSelection, SportSelection } from './pages/Create';
@@ -9,6 +9,7 @@ import AdminPage from './pages/Admin';
 import OrdersBoardPage from './pages/OrdersBoard';
 import OrderUploadPage from './pages/OrderUpload';
 import OrderFormPage from './pages/OrderForm';
+import OrdersLandingPage from './pages/OrdersLanding';
 import InvoicePayPage from './pages/InvoicePay';
 import Studio from './pages/Studio';
 import ArtboardPage from './pages/Artboard';
@@ -18,10 +19,13 @@ import Assist from './components/Assist';
 import { AboutPage, PrivacyPage, SupportPage, TermsPage } from './pages/InfoPages';
 import '../css/site-footer.css';
 import OrdersMenu from './components/OrdersMenu';
+import { TeamPage, TeamRequestPage, TeamRequestsPage } from './pages/Team';
+import '../css/team-header.css';
+import { DesignerPage } from './pages/AdminTeam';
 
 export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string; /** A design picture (a saved asset) the Studio puts on the 3D kit when it opens (checked on screen first). */ pendingDrawing?: { asset: number; name: string } }
 export const newDraft = (): Draft => ({ name: 'Untitled kit', sport: 'rugby-league', garment: 'jersey', mode: 'dyo', design: { ...defaultDesign } });
-const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', polo: 'polo', fullkit: 'fullkit', 'full kit': 'fullkit' };
+const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', polo: 'polo', pocketpolo: 'pocketpolo', 'polo with pocket': 'pocketpolo', hoodie: 'hoodie', ziphoodie: 'ziphoodie', 'zip hoodie': 'ziphoodie', fullkit: 'fullkit', 'full kit': 'fullkit' };
 /** Seeded projects can store a null garment and older AI concepts a display name ("Jersey"); every draft gets a valid id so it stays saveable. */
 function normalizeDraft(draft: Draft): Draft {
   const pick = (g?: string | null) => (g ? garmentIds[String(g).toLowerCase()] : undefined);
@@ -67,6 +71,13 @@ export default function App() {
   function requireAuth(action?: () => void) { if (user) action?.(); else { afterAuth.current = action || null; setAuthOpen(true); } }
   function start(mode: 'ai' | 'dyo') { setDraft({ ...newDraft(), mode }); navigate(mode === 'ai' ? '/create/ai' : '/create/sport'); }
   function openProject(project: Project) { setDraft({ ...project, design: { ...defaultDesign, ...project.design } }); navigate('/studio'); }
+  /** A saved design picture (an asset) onto the 3D kit: the Studio checks it, then puts it on as drawn (as the AI designer's "MAKE IT 3D"). */
+  function openDesignPicture(picture: { asset: number; name: string; garment: string; sport: string }) {
+    const top = (['singlet', 'jersey', 'tee', 'polo'].includes(picture.garment) ? picture.garment : 'singlet') as Design['garment'];
+    const base = newDraft();
+    setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: top, mode: 'dyo', design: { ...base.design, garment: top, layout: null }, pendingDrawing: { asset: picture.asset, name: picture.name } });
+    navigate('/studio');
+  }
   async function logout() {
     try { await api('/auth/logout', { method: 'POST' }); } catch { /* Clear local credentials even when a session has already expired. */ }
     setToken(null); setUser(null); setDraft(newDraft()); navigate('/'); setNotice('You have signed out.');
@@ -81,26 +92,35 @@ export default function App() {
     {!studio && <header className={`site-header ${location.pathname === '/' ? 'is-home' : ''}`}><div className="header-inner">
       <Link to="/" className="brand" aria-label="3DEEZI home"><img src={media('images/brand-final.png')} alt="3DEEZI" /><span>AI SPORTSWEAR DESIGNER</span></Link>
       <nav className={`main-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
-        <NavLink to="/" end>Create</NavLink><NavLink to="/convert">Convert</NavLink><NavLink to="/projects">Projects</NavLink><NavLink to="/approved">Approved</NavLink><NavLink to="/assets">Assets</NavLink><OrdersMenu onNavigate={() => setMenuOpen(false)} /><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}
+        <NavLink to="/" end>Create</NavLink><NavLink to="/convert">Convert</NavLink><NavLink to="/projects">Projects</NavLink><NavLink to="/approved">Approved</NavLink><NavLink to="/assets">Assets</NavLink><OrdersMenu onNavigate={() => setMenuOpen(false)} /><NavLink to="/team" className="nav-team">3DEEZI Team</NavLink><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}{user?.is_designer && !user.is_admin && <NavLink className="nav-admin" to="/designer"><PenTool size={15} /> Designer</NavLink>}
         <button className="nav-quick" onClick={() => { setMenuOpen(false); start('ai'); }}><Sparkles size={15} /> AI Powered Sportswear</button><button className="nav-quick" onClick={() => { setMenuOpen(false); start('dyo'); }}><Shirt size={15} /> Design Your Own</button>
       </nav>
-      <div className="header-actions">{user?.is_admin && <Link className="button button-outline admin-link" to="/admin" title="Admin"><ShieldCheck size={15} /><span className="admin-text">Admin</span></Link>}{user ? <Link className="account-link" to="/profile"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span>{user.name.split(' ')[0]}</span></Link> : <button className="button button-quiet" onClick={() => requireAuth()}>Sign in</button>}<button className="button button-primary header-cta" onClick={() => { navigate('/'); setTimeout(() => document.getElementById('create-options')?.scrollIntoView({ behavior: 'smooth' }), 50); }}>Start a kit <ArrowRight size={15} /></button><span className="quick-tabs" role="group" aria-label="Quick start"><button className="quick-tab is-ai" title="AI Powered Sportswear: describe your kit and AI designs it" onClick={() => start('ai')}><Sparkles size={13} /> AI</button><button className="quick-tab" title="Design Your Own: choose a sport and garment, then design it in 3D" onClick={() => start('dyo')}><Shirt size={13} /> DYO</button></span><button className="icon-button mobile-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>{menuOpen ? <X /> : <Menu />}</button></div>
+      <div className="header-actions">{user?.is_admin && <Link className="button button-outline admin-link" to="/admin" title="Admin"><ShieldCheck size={15} /><span className="admin-text">Admin</span></Link>}{user?.is_designer && !user.is_admin && <Link className="button button-outline admin-link designer-link" to="/designer" title="3DEEZI TEAM designer: my design requests"><PenTool size={15} /><span className="admin-text">Designer</span></Link>}{user ? <Link className="account-link" to="/profile"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span>{user.name.split(' ')[0]}</span></Link> : <button className="button button-quiet" onClick={() => requireAuth()}>Sign in</button>}<button className="button button-primary header-cta" onClick={() => { navigate('/'); setTimeout(() => document.getElementById('create-options')?.scrollIntoView({ behavior: 'smooth' }), 50); }}>Start a kit <ArrowRight size={15} /></button><span className="quick-tabs" role="group" aria-label="Quick start"><button className="quick-tab is-ai" title="AI Powered Sportswear: describe your kit and AI designs it" onClick={() => start('ai')}><Sparkles size={13} /> AI</button><button className="quick-tab" title="Design Your Own: choose a sport and garment, then design it in 3D" onClick={() => start('dyo')}><Shirt size={13} /> DYO</button></span><button className="icon-button mobile-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>{menuOpen ? <X /> : <Menu />}</button></div>
     </div></header>}
     {catalogError && <div className="server-banner" role="alert">{catalogError} <button onClick={loadCatalog}>Retry connection</button></div>}
     <main><Routes>
       <Route path="/" element={<Home onStart={start} />} />
-      <Route path="/create/ai" element={<AiDesigner catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} />} />
+      <Route path="/create/ai" element={<AiDesigner catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} onNotice={setNotice} />} />
       <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={sport => setDraft(d => ({ ...d, sport, mode: 'dyo' }))} onNext={() => navigate('/create/garment')} />} />
       <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={garment => setDraft(d => ({ ...d, garment, design: { ...d.design, garment: garment as Design['garment'] } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport')} />} />
       <Route path="/convert" element={<ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} />} />
       <Route path="/admin" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section/:itemId" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
+      {/* 3DEEZI TEAM designers (non-admins): the requests assigned to them (AdminTeam.tsx). */}
+      <Route path="/designer" element={protectedPage(user && <DesignerPage user={user} onNotice={setNotice} />)} />
+      <Route path="/designer/:itemId" element={protectedPage(user && <DesignerPage user={user} onNotice={setNotice} />)} />
+      {/* ORDERS in the header opens the Orders page (OrdersMenu.tsx ORDERS_PAGE); /orders stays My Orders. */}
+      <Route path="/order-now" element={<OrdersLandingPage user={user} />} />
       <Route path="/orders" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
       <Route path="/orders/:orderId" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
       <Route path="/orders/upload" element={<OrderUploadPage user={user} checking={checkingSession} requireAuth={requireAuth} onNotice={setNotice} />} />
       <Route path="/orders/new" element={<OrderFormPage user={user} restoring={checkingSession} requireAuth={requireAuth} catalog={catalog} onNotice={setNotice} />} />
       <Route path="/invoices/:number" element={<InvoicePayPage user={user} checking={checkingSession} requireAuth={requireAuth} />} />
+      {/* 3DEEZI TEAM (human designers): the page and form, My design requests, one request. */}
+      <Route path="/team" element={<TeamPage user={user} requireAuth={requireAuth} catalog={catalog} />} />
+      <Route path="/team/requests" element={protectedPage(<TeamRequestsPage />)} />
+      <Route path="/team/requests/:requestId" element={protectedPage(<TeamRequestPage onNotice={setNotice} onStudio={openDesignPicture} />)} />
       <Route path="/pricing" element={<PricingPage onStart={() => start('dyo')} />} />
       <Route path="/downloads" element={<DownloadsPage />} />
       <Route path="/about" element={<AboutPage />} />

@@ -24,25 +24,31 @@ const FOLDED = '(max-width: 1160px)';
 const OPEN_DELAY = 120;
 const CLOSE_DELAY = 260;
 
+/** The Orders page (client design 2026-10-21): "ORDER NOW WITH 3DEEZI" with the three ways to order. */
+export const ORDERS_PAGE = '/order-now';
+
 /**
  * "Orders" in the site header with its menu: Create Order Form, Upload Your Order and My Orders.
- * Desktop: a dropdown that opens on hover (after a short delay) or on click/tap and closes on an outside click,
- * Escape or a choice. Folded header (tablets and phones): an expandable group in the header menu.
- * Keyboard: Enter, Space or the arrow keys open it; Tab and the arrow keys move through the items; Enter opens one.
+ * The word "Orders" opens the Orders page (/order-now, client 2026-10-21). Desktop: the dropdown opens on hover
+ * (after a short delay) or with the small chevron next to the word, and closes on an outside click, Escape or a
+ * choice. Folded header (tablets and phones): Orders is a row of the header menu with the three links listed under it.
+ * Keyboard: the arrow keys on "Orders", or Enter/Space on the chevron, open the dropdown; Tab and the arrow keys move
+ * through the items; Enter opens one.
  */
 export default function OrdersMenu({ onNavigate }: { onNavigate?: () => void }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [folded, setFolded] = useState(() => window.matchMedia(FOLDED).matches);
   const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
+  const trigger = useRef<HTMLAnchorElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
   const links = useRef<(HTMLAnchorElement | null)[]>([]);
   const timer = useRef(0);
   /** Opened by a click, tap or key (not by hover): it stays open when the pointer leaves. */
   const pinned = useRef(false);
   const focusOnOpen = useRef<number | null>(null);
   const id = useId();
-  const active = pathname === '/orders' || pathname.startsWith('/orders/');
+  const active = pathname === ORDERS_PAGE || pathname === '/orders' || pathname.startsWith('/orders/');
   const isCurrent = (to: string) => to === '/orders'
     ? active && !items.some(item => item.to !== to && pathname.startsWith(item.to))
     : pathname === to || pathname.startsWith(`${to}/`);
@@ -78,9 +84,8 @@ export default function OrdersMenu({ onNavigate }: { onNavigate?: () => void }) 
       if (e.key !== 'Escape') return;
       const hadFocus = !!root.current?.contains(document.activeElement);
       close();
-      if (hadFocus) trigger.current?.focus();
+      if (hadFocus) (toggle.current ?? trigger.current)?.focus();
     };
-    // Inside the folded header menu the group stays open until Orders is pressed again.
     const onPointerDown = (e: globalThis.PointerEvent) => { if (!folded && !root.current?.contains(e.target as Node)) close(); };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPointerDown);
@@ -97,14 +102,15 @@ export default function OrdersMenu({ onNavigate }: { onNavigate?: () => void }) 
     clearTimer();
     if (open && !pinned.current) timer.current = window.setTimeout(() => setOpen(false), CLOSE_DELAY);
   }
-  function onTriggerClick(e: MouseEvent) {
+  /** The chevron (desktop): opens or shuts the dropdown. */
+  function onToggleClick(e: MouseEvent) {
     const byKey = e.detail === 0; // Enter or Space
-    if (!open) openPinned(byKey && !folded ? 0 : null);
-    else if (!folded && !pinned.current) { if (byKey) openPinned(0); } // the hover opened it: a click keeps it open
+    if (!open) openPinned(byKey ? 0 : null);
+    else if (!pinned.current) { if (byKey) openPinned(0); } // the hover opened it: a click keeps it open
     else close();
   }
   function onTriggerKeyDown(e: KeyboardEvent) {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (folded || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
     e.preventDefault();
     openPinned(e.key === 'ArrowDown' ? 0 : -1);
   }
@@ -124,12 +130,15 @@ export default function OrdersMenu({ onNavigate }: { onNavigate?: () => void }) 
   }
   function choose() { close(); onNavigate?.(); }
 
-  return <div ref={root} className={`nav-orders${open ? ' is-open' : ''}`} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave} onBlur={onBlur}>
-    <button ref={trigger} type="button" id={`${id}-button`} className={`nav-orders-trigger${active ? ' is-active' : ''}`} aria-haspopup="menu" aria-expanded={open} aria-controls={`${id}-menu`} onClick={onTriggerClick} onKeyDown={onTriggerKeyDown}>
-      Orders<ChevronDown size={14} strokeWidth={2.4} aria-hidden="true" />
-    </button>
-    <div className="nav-orders-panel" id={`${id}-menu`} role="menu" aria-labelledby={`${id}-button`} onKeyDown={onMenuKeyDown}>
-      {items.map(({ to, title, text, Icon }, index) => <Link key={to} ref={link => { links.current[index] = link; }} to={to} role="menuitem" className="nav-orders-item" aria-current={isCurrent(to) ? 'page' : undefined} aria-labelledby={`${id}-title-${index}`} aria-describedby={`${id}-text-${index}`} onClick={choose}>
+  // Folded (tablets and phones) the three links are always listed under Orders, as a plain list.
+  const menu = !folded;
+  return <div ref={root} className={`nav-orders${open || folded ? ' is-open' : ''}${folded ? ' is-folded' : ''}`} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave} onBlur={onBlur}>
+    <Link ref={trigger} to={ORDERS_PAGE} id={`${id}-button`} className={`nav-orders-trigger${active ? ' is-active' : ''}${open ? ' is-open' : ''}`} aria-current={pathname === ORDERS_PAGE ? 'page' : undefined} onClick={choose} onKeyDown={onTriggerKeyDown}>Orders</Link>
+    {menu && <button ref={toggle} type="button" className={`nav-orders-toggle${open ? ' is-open' : ''}`} aria-label="Orders menu" aria-haspopup="menu" aria-expanded={open} aria-controls={`${id}-menu`} onClick={onToggleClick} onKeyDown={onTriggerKeyDown}>
+      <ChevronDown size={14} strokeWidth={2.4} aria-hidden="true" />
+    </button>}
+    <div className="nav-orders-panel" id={`${id}-menu`} role={menu ? 'menu' : undefined} aria-label="Orders" onKeyDown={menu ? onMenuKeyDown : undefined}>
+      {items.map(({ to, title, text, Icon }, index) => <Link key={to} ref={link => { links.current[index] = link; }} to={to} role={menu ? 'menuitem' : undefined} className="nav-orders-item" aria-current={isCurrent(to) ? 'page' : undefined} aria-labelledby={`${id}-title-${index}`} aria-describedby={`${id}-text-${index}`} onClick={choose}>
         <Icon />
         <span><span className="nav-orders-title" id={`${id}-title-${index}`}>{title}</span><span className="nav-orders-text" id={`${id}-text-${index}`}>{text}</span></span>
       </Link>)}

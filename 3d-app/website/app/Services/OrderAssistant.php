@@ -37,9 +37,15 @@ class OrderAssistant
     ];
 
     private const SPORT_WORDS = [
+        // Before 'football' and 'league' (the first match wins); the new categories of 2026-10-21 (task 9.79).
+        'american football' => 'american-football', 'gridiron' => 'american-football', 'touch football' => 'touch', 'oztag' => 'touch',
+        'school leavers' => 'school-leavers', 'lawn bowls' => 'lawn-bowls', 'fight wear' => 'fight-wear', 'fightwear' => 'fight-wear', 'club casual' => 'teamwear',
         'rugby league' => 'rugby-league', 'league' => 'rugby-league', 'nrl' => 'rugby-league', 'rugby union' => 'rugby-union', 'union' => 'rugby-union',
         'rugby' => 'rugby-union', 'football' => 'football', 'soccer' => 'football', 'basketball' => 'basketball', 'netball' => 'netball',
         'aussie rules' => 'afl', 'afl' => 'afl', 'footy' => 'afl', 'hockey' => 'hockey', 'training' => 'training',
+        'golf' => 'golf', 'tennis' => 'tennis', 'athletics' => 'athletics', 'swimming' => 'swimming', 'darts' => 'darts', 'cricket' => 'cricket',
+        'softball' => 'softball', 'baseball' => 'softball', 'volleyball' => 'volleyball', 'lacrosse' => 'lacrosse', 'cycling' => 'cycling', 'bmx' => 'bmx',
+        'esports' => 'esports', 'fishing' => 'fishing', 'workwear' => 'workwear', 'hi vis' => 'workwear', 'gymwear' => 'gymwear', 'teamwear' => 'teamwear',
     ];
 
     private const SIZE_WORDS = [

@@ -14,6 +14,8 @@ type ProjectVersion = { id: number; version: number; design: Project['design']; 
 type Dashboard = { projects: number; drafts: number; approved: number; assets: number; recent_projects: Project[] };
 
 function message(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please try again.'; }
+/** The Studio's garment names ("Zip hoodie", "Polo with pocket"); others are title-cased ids. */
+const GARMENT_NAMES: Record<string, string> = { fullkit: 'Full kit', tee: 'Training tee', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie' };
 function title(value: string) { return value.replaceAll('-', ' ').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function date(value: string) { return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
 function bytes(value: number) { return value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / 1024 / 1024).toFixed(1)} MB`; }
@@ -48,8 +50,12 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
     const shorts = project.garment === 'shorts';
     const singlet = project.garment === 'singlet';
     const fullkit = project.garment === 'fullkit';
-    const crewNeck = project.garment === 'tee' || project.garment === 'polo';
-    const outline = shorts ? 'M99 71H221L230 229H169L160 158L151 229H90Z' : singlet ? 'M117 55L139 48Q160 75 181 48L203 55L195 108L207 242H113L125 108Z' : 'M107 67L138 49Q160 70 182 49L213 67L256 119L221 144L204 125L209 242H111L116 125L99 144L64 119Z';
+    const polo = project.garment === 'polo' || project.garment === 'pocketpolo';
+    const hoodie = project.garment === 'hoodie' || project.garment === 'ziphoodie';
+    const crewNeck = project.garment === 'tee' || polo || hoodie;
+    const zones = (design.zoneColors ?? {}) as Partial<Record<'hood' | 'lining' | 'rib' | 'pocket' | 'zip', string>>;
+    // A hoodie has long sleeves to the wrist.
+    const outline = shorts ? 'M99 71H221L230 229H169L160 158L151 229H90Z' : singlet ? 'M117 55L139 48Q160 75 181 48L203 55L195 108L207 242H113L125 108Z' : hoodie ? 'M107 67L138 49Q160 70 182 49L213 67L246 196L222 203L204 125L209 242H111L116 125L98 203L74 196Z' : 'M107 67L138 49Q160 70 182 49L213 67L256 119L221 144L204 125L209 242H111L116 125L99 144L64 119Z';
     return <svg className="lib-kit-svg" viewBox={fullkit ? '0 0 320 420' : '0 0 320 280'} role="img" aria-label={`${project.name} front design illustration`}>
         <defs>
             <linearGradient id={`${id}-shine`} x1="0" x2="1" y1="0" y2="1"><stop stopColor="white" stopOpacity=".2" /><stop offset=".4" stopColor="white" stopOpacity="0" /><stop offset="1" stopColor="black" stopOpacity=".42" /></linearGradient>
@@ -61,6 +67,7 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
         <ellipse cx="160" cy="145" rx="146" ry="134" fill={`url(#${id}-glow)`} />
         <ellipse cx="160" cy={fullkit ? 403 : 256} rx="83" ry="7" fill="black" opacity=".45" />
         <ellipse cx="160" cy={fullkit ? 405 : 258} rx="78" ry="3" fill={secondary} opacity=".24" />
+        {hoodie && <path d="M128 56Q124 18 160 14Q196 18 192 56Q176 44 160 44Q144 44 128 56Z" fill={zones.hood || main} stroke={secondary} strokeOpacity=".55" strokeWidth="1.5" />}
         <path d={outline} fill={main} stroke={secondary} strokeOpacity=".55" strokeWidth="1.5" />
         <g clipPath={`url(#${id}-clip)`}>
             {pattern === 'stripes' && <g stroke={secondary} strokeWidth="2" opacity=".45"><path d="M106 50V245M124 50V245M142 50V245M160 50V245M178 50V245M196 50V245M214 50V245" /></g>}
@@ -69,7 +76,10 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
             {!shorts && <><path d="M79 89L113 77L130 241H112L116 125L100 145Z" fill={secondary} opacity=".72" /><path d="M241 89L207 77L190 241H208L204 125L220 145Z" fill={secondary} opacity=".72" /></>}
             <path d={outline} fill={`url(#${id}-shine)`} />
         </g>
-        {!shorts && <><path d={crewNeck ? 'M136 49Q160 82 184 49L179 46Q160 70 141 46Z' : 'M136 49L160 78L184 49L179 46L160 67L141 46Z'} fill={secondary} />{project.garment === 'polo' && <><path d="M155 62H165V104H155Z" fill={secondary} /><circle cx="160" cy="79" r="1.5" fill={accent} /><circle cx="160" cy="89" r="1.5" fill={accent} /><circle cx="160" cy="99" r="1.5" fill={accent} /></>}{design.logoImage?.startsWith('data:image/') ? <image href={design.logoImage} x="177" y="95" width="20" height="22" preserveAspectRatio="xMidYMid meet" /> : <><path d="M186 96L196 101L194 113L186 117L178 113L176 101Z" fill={accent} /><text x="186" y="109" fill={main} fontSize="7" textAnchor="middle" fontWeight="800">3D</text></>}<text x="160" y="147" fill={accent} textAnchor="middle" fontSize="18" fontWeight="800" fontFamily="Rajdhani, Inter, sans-serif" fontStyle="italic">{(design.logoText ?? '3DEEZI').toUpperCase().slice(0, 16)}</text></>}
+        {!shorts && <><path d={crewNeck ? 'M136 49Q160 82 184 49L179 46Q160 70 141 46Z' : 'M136 49L160 78L184 49L179 46L160 67L141 46Z'} fill={secondary} />{polo && <><path d="M155 62H165V104H155Z" fill={secondary} /><circle cx="160" cy="79" r="1.5" fill={accent} /><circle cx="160" cy="89" r="1.5" fill={accent} /><circle cx="160" cy="99" r="1.5" fill={accent} /></>}{design.logoImage?.startsWith('data:image/') ? <image href={design.logoImage} x="177" y="95" width="20" height="22" preserveAspectRatio="xMidYMid meet" /> : <><path d="M186 96L196 101L194 113L186 117L178 113L176 101Z" fill={accent} /><text x="186" y="109" fill={main} fontSize="7" textAnchor="middle" fontWeight="800">3D</text></>}<text x="160" y="147" fill={accent} textAnchor="middle" fontSize="18" fontWeight="800" fontFamily="Rajdhani, Inter, sans-serif" fontStyle="italic">{(design.logoText ?? '3DEEZI').toUpperCase().slice(0, 16)}</text></>}
+        {hoodie && <><path d="M138 49Q160 30 182 49Q160 62 138 49Z" fill={zones.lining || secondary} /><path d="M111 232H209M98 197L74 190M222 197L246 190" stroke={zones.rib || secondary} strokeWidth="6" />
+            {project.garment === 'ziphoodie' ? <><path d="M160 58V236" stroke={zones.zip || secondary} strokeWidth="3" /><path d="M122 178L146 172V214H118ZM198 178L174 172V214H202Z" fill={zones.pocket || main} stroke={secondary} strokeOpacity=".6" /></> : <path d="M126 176H194L204 214H116Z" fill={zones.pocket || main} stroke={secondary} strokeOpacity=".6" />}</>}
+        {project.garment === 'pocketpolo' && <path d="M171 121H201V146Q186 151 171 146Z" fill={zones.pocket || main} stroke={accent} strokeOpacity=".8" strokeWidth="1.5" />}
         {shorts && <><path d="M99 75H221" stroke={secondary} strokeWidth="9" /><text x="126" y="182" fill={accent} textAnchor="middle" fontSize="23" fontWeight="800">{design.number ?? ''}</text></>}
         <path d={shorts ? 'M100 230H149M171 230H220' : 'M112 238H209'} stroke={secondary} strokeWidth="3" />
         {fullkit && <><path d="M111 258H209L216 388H169L160 327L151 388H104Z" fill={main} stroke={secondary} strokeOpacity=".6" /><path d="M111 263H209" stroke={secondary} strokeWidth="8" /><path d="M111 268L104 388H115L121 268M209 268L216 388H205L199 268" fill={secondary} /><text x="134" y="345" fill={accent} fontWeight="800" textAnchor="middle" fontSize="20">{design.number ?? ''}</text></>}
@@ -90,7 +100,7 @@ function ProjectCard({ project, onOpen, onDelete, onApprove, onHistory, busy, hi
             {hasCapture ? <img className="lib-captured-preview" src={thumbnail!} alt={`${project.name} 3D preview`} loading="lazy" onError={() => setFailedThumbnail(thumbnail!)} /> : <><ProjectThumbnail project={project} /><span className="lib-illustration-caption">Design illustration</span></>}
             <span className="lib-open-overlay">Open in studio <ArrowRight size={16} /></span>
         </button>
-        <div className="lib-project-info"><h3 className="lib-project-title"><button className="lib-title-link" onClick={() => onOpen(project)}>{project.name}</button></h3><p>{title(project.sport)} <span>·</span> {title(project.garment)}</p>
+        <div className="lib-project-info"><h3 className="lib-project-title"><button className="lib-title-link" onClick={() => onOpen(project)}>{project.name}</button></h3><p>{title(project.sport)} <span>·</span> {GARMENT_NAMES[project.garment] ?? title(project.garment)}</p>
             <div className="lib-project-footer"><span>V{project.version} <span>·</span> {date(project.updated_at)}</span><div className="lib-card-actions">
                 {onApprove && <button className={`lib-small-button ${project.status === 'approved' ? 'is-approved' : ''}`} disabled={busy} onClick={() => onApprove(project)} title={project.status === 'approved' ? 'Return to draft' : 'Approve design'} aria-label={`${project.status === 'approved' ? 'Return to draft' : 'Approve'} ${project.name}`}><ShieldCheck size={15} /></button>}
                 {onHistory && <button className="lib-small-button" onClick={() => onHistory(project)} title="Version history" aria-label={`Version history for ${project.name}`}><History size={15} /></button>}
@@ -121,7 +131,7 @@ export function ProjectsPage({ onOpen, onCreate, approvedOnly = false }: PageAct
     const [busy, setBusy] = useState<number | null>(null);
     const [actionError, setActionError] = useState('');
     const available = (data || []).filter((project) => !approvedOnly || project.status === 'approved');
-    const projects = available.filter((project) => (filter === 'all' || (filter === 'draft' ? project.status === 'draft' : project.mode === filter)) && `${project.name} ${project.sport} ${project.garment}`.toLowerCase().includes(search.toLowerCase()));
+    const projects = available.filter((project) => (filter === 'all' || (filter === 'draft' ? project.status === 'draft' : project.mode === filter)) && `${project.name} ${project.sport} ${project.garment} ${GARMENT_NAMES[project.garment] ?? ''}`.toLowerCase().includes(search.toLowerCase()));
     async function deleteProject() {
         if (!deleting) return;
         setBusy(deleting.id); setActionError('');

@@ -53,6 +53,7 @@ class KitState {
     this.sponsorImage,
     this.layers = const [],
     this.zones = const {},
+    this.zoneColors = const {},
     this.gradient,
     this.gradients,
     this.marks = const {},
@@ -64,6 +65,9 @@ class KitState {
   final DesignSpec? spec;
   final List<Map<String, dynamic>> layers;
   final Map<String, String> zones;
+
+  /// Hoodies: each area's own colour (hood, lining, rib, pocket, zip: hex).
+  final Map<String, String> zoneColors;
   final Map<String, dynamic>? gradient;
 
   /// The other colour zones' gradient fills (secondary, patternColor); [gradient] is the primary zone's.
@@ -74,12 +78,24 @@ class KitState {
   final Map<String, dynamic>? layout;
 }
 
-/// One AI concept on the "Choose a design" screen.
+/// One design on the AI designer's results (concepts[0] is the PRIMARY,
+/// [1..3] the options): its 3D kit spec, its direction for the picture and
+/// the picture itself, which fills in when it arrives.
 class Concept {
-  Concept(this.spec);
-  final DesignSpec spec;
+  Concept(this.spec, {this.direction});
+  DesignSpec spec;
   Uint8List? image;
   String? error;
+
+  /// The creative direction its picture is rendered from (null: none).
+  Map<String, dynamic>? direction;
+
+  /// Rendering now; [pending] the quality asked, [quality] the picture's.
+  bool busy = false;
+  String? pending, quality;
+
+  /// 'presentation' (front and back) or 'front' (one garment, the options).
+  String? view;
 
   /// Bundled sample image (demo mode, no API key).
   String? asset;
@@ -163,7 +179,14 @@ class AppController extends ChangeNotifier {
 
   /// The one-prompt HD presentation mockup (front and back), with the art
   /// direction's one-line summary, and "Make it 3D" drawing its print sheet.
-  bool wantMockup = true, mockupBusy = false, sheetBusy = false;
+  /// "HD primary" (off by default: fast and low cost first, client
+  /// 2026-10-21); any design can be made HD later from its menu.
+  bool wantMockup = false, mockupBusy = false, sheetBusy = false;
+
+  /// The AI designer's current Generate: a new brief or Back to create ends
+  /// it, so late pictures from an older brief are dropped.
+  int resultsRun = 0;
+  String? planError;
   Uint8List? mockupImage;
   String? mockupError, mockupDirection;
 
@@ -182,6 +205,9 @@ class AppController extends ChangeNotifier {
   DesignSpec? spec;
   List<Map<String, dynamic>> layers = [];
   Map<String, String> zones = {};
+
+  /// Hoodies: each area's own colour (hood, lining, rib, pocket, zip: hex); unset areas follow the kit colours.
+  Map<String, String> zoneColors = {};
   Map<String, dynamic>? gradient;
 
   /// Gradient fills of the secondary and pattern zones (see gradient_presets.dart); [gradient] is the primary's.
@@ -446,6 +472,9 @@ class AppController extends ChangeNotifier {
         garment: switch (garment) {
           'Training Tee' => 'tee',
           'Polo' => 'polo',
+          'Polo with pocket' => 'pocketpolo',
+          // Hoodies are long-sleeved: a drawing of one is read as a sleeved top.
+          'Hoodie' || 'Zip hoodie' => 'jersey',
           'Jersey' => 'jersey',
           _ => 'singlet',
         },
@@ -466,6 +495,7 @@ class AppController extends ChangeNotifier {
         'jersey' => 'Jersey',
         'tee' => 'Training Tee',
         'polo' => 'Polo',
+        'pocketpolo' => 'Polo with pocket',
         _ => 'Singlet',
       };
       layout = copyLayout({
@@ -513,6 +543,7 @@ class AppController extends ChangeNotifier {
     k.number,
     k.layers,
     k.zones,
+    k.zoneColors,
     k.gradient,
     k.gradients,
     k.marks,
@@ -573,6 +604,7 @@ class AppController extends ChangeNotifier {
     gradient = copyGradient(design['gradient']);
     gradients = copyGradient(design['gradients']);
     zones = copyZones(design['zones']);
+    zoneColors = copyZones(design['zoneColors']);
     patternTile = null;
     layout = copyLayout(design['layout']);
   });
@@ -1014,6 +1046,7 @@ class AppController extends ChangeNotifier {
     pattern,
     identityHashCode(patternTile),
     zones,
+    zoneColors,
     gradient,
     gradients,
   ]);
@@ -1053,6 +1086,7 @@ class AppController extends ChangeNotifier {
     spec: spec,
     layers: copyLayers(layers),
     zones: copyZones(zones),
+    zoneColors: copyZones(zoneColors),
     gradient: copyGradient(gradient),
     gradients: copyGradient(gradients),
     marks: copyMarks(marks),
@@ -1075,6 +1109,7 @@ class AppController extends ChangeNotifier {
     spec = k.spec;
     layers = copyLayers(k.layers);
     zones = copyZones(k.zones);
+    zoneColors = copyZones(k.zoneColors);
     gradient = copyGradient(k.gradient);
     gradients = copyGradient(k.gradients);
     marks = copyMarks(k.marks);
@@ -1219,7 +1254,7 @@ class AppController extends ChangeNotifier {
   /// "Make it 3D": the same AI redraws the mockup as a flat front and back
   /// print sheet (kept in Artwork); the caller puts it on the 3D kit with
   /// [importDesignPicture].
-  Future<Uint8List> mockupPrintSheet() async {
+  Future<Uint8List> mockupPrintSheet({bool frontOnly = false}) async {
     final image = mockupImage;
     if (image == null) throw AiException('Create the HD mockup first.');
     sheetBusy = true;
@@ -1230,6 +1265,7 @@ class AppController extends ChangeNotifier {
         sport: sport,
         garment: garment,
         logos: references,
+        frontOnly: frontOnly,
       );
       artwork.add(sheet);
       return sheet;

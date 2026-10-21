@@ -434,6 +434,15 @@ class OrderBoardTest extends TestCase
         $this->patchJson("/api/v1/admin/orders/{$id}/stage", ['status' => 'in_production', 'confirm_unpaid' => true, 'override_reason' => 'Paid in cash at the club'])->assertOk();
     }
 
+    public function test_a_studio_order_of_a_zip_hoodie_or_pocket_polo_shows_that_garment(): void
+    {
+        foreach ([['ziphoodie', 'hoodie', 'Zip hoodie'], ['pocketpolo', 'polo', 'Polo with pocket'], ['hoodie', 'hoodie', 'Hoodie'], ['polo', 'polo', 'Polo']] as $i => [$garment, $row, $name]) {
+            $project = $this->customer->projects()->create(['name' => "Kit $i", 'sport' => 'training', 'garment' => $garment, 'design' => []]);
+            $this->postJson('/api/v1/orders', ['project_id' => $project->id, 'contact_name' => 'Fab', 'design_final' => true, 'names' => 'none', 'sizes' => ['M' => 2]], ['Idempotency-Key' => "studio-hoodie-$i"])
+                ->assertCreated()->assertJsonPath('data.garments.0.garment', $row)->assertJsonPath('data.garments.0.name', $name)->assertJsonCount(1, 'data.garments');
+        }
+    }
+
     public function test_an_order_paid_in_full_moves_into_production_and_an_unpaid_invoice_is_named(): void
     {
         if (! class_exists(\App\Models\Invoice::class) || ! \Illuminate\Support\Facades\Schema::hasTable('invoices')) {

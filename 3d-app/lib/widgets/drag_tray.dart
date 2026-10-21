@@ -159,6 +159,7 @@ class DragTray extends StatelessWidget {
     'sleeves': 'sleeves',
     'sides': 'side panels',
     'hem': 'hem',
+    'pocket': 'chest pocket',
   };
 }
 

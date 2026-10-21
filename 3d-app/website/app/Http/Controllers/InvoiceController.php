@@ -29,7 +29,9 @@ class InvoiceController extends Controller
         $invoices = Invoice::query()->where('user_id', $request->user()->id)->whereNotNull('number')->with('order')->orderByDesc('id')->get();
 
         return response()->json(['data' => $invoices->map(fn (Invoice $i) => Invoice::summary($i) + [
-            'order' => $i->order ? ['id' => $i->order->id, 'number' => $i->order->number, 'name' => $i->snapshot['order']['name'] ?? $i->order->number] : null,
+            'order' => $i->order ? ['id' => $i->order->id, 'number' => $i->order->number, 'name' => $i->snapshot['order']['name'] ?? $i->order->number]
+                // A 3DEEZI TEAM design request's invoice (no order).
+                : ($i->team_request_id ? ['id' => null, 'team_request_id' => $i->team_request_id, 'number' => $i->snapshot['order']['number'] ?? null, 'name' => $i->snapshot['order']['name'] ?? null] : null),
         ])->values()]);
     }
 

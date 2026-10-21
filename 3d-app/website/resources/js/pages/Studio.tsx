@@ -5,7 +5,7 @@ import { api, fetchFile, media, saveBlob, type Catalog, type Project, type User 
 import { OrderKitDialog } from './Orders';
 import { designSheetPdf } from '../designSheet';
 import { type Design, type View, type Zone, type ArtworkLayer } from '../types';
-import KitViewer, { type KitViewerHandle } from '../components/KitViewer';
+import KitViewer, { type KitViewerHandle, type HoodieArea, isHoodie } from '../components/KitViewer';
 import ColorWheel from '../components/ColorWheel';
 import { comingSoon, garmentArt } from './Create';
 import type { Draft } from '../App';
@@ -32,6 +32,8 @@ function cssColour(text: string) {
 }
 /** The design keys a design picture or print layout hides (Studio uncover). */
 const lookKeys = ['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones'] as const;
+/** A hoodie's own colour areas in the Colours panel (the zip only on the zip hoodie). */
+const hoodieAreas: { key: HoodieArea; label: string }[] = [{ key: 'hood', label: 'Hood' }, { key: 'lining', label: 'Hood lining' }, { key: 'rib', label: 'Cuffs & waistband' }, { key: 'pocket', label: 'Pocket' }, { key: 'zip', label: 'Zip' }];
 const colourSlots = [{ key: 'main', label: 'Primary' }, { key: 'secondary', label: 'Secondary' }, { key: 'accent', label: 'Accent' }, { key: 'patternColor', label: 'Pattern' }] as const;
 const palettes = [['#0b1016', '#00c2cc', '#36e3ee'], ['#08233e', '#efb84a', '#ffffff'], ['#f2f4f6', '#0076cd', '#0b1830'], ['#261133', '#ad47da', '#fb92d3'], ['#0c2824', '#31c29a', '#ffffff'], ['#240c12', '#ec3e5b', '#f9e6d4']];
 const suggestions = ['Make it red and gold', 'Add bold chevrons', 'Darker body, brighter trims', 'Number 7 for SMITH', 'Give it a tribal shoulder print'];
@@ -338,7 +340,8 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       onNotice('Your design export is ready.');
     } catch (e) { setError((e as Error).message || 'Export failed. Please try again.'); } finally { setBusy(false); }
   }
-  const garments = [...(catalog?.garments ?? [])].sort((a, b) => ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'polo'].indexOf(a.id) - ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'polo'].indexOf(b.id));
+  const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie'];
+  const garments = [...(catalog?.garments ?? [])].sort((a, b) => garmentOrder.indexOf(a.id) - garmentOrder.indexOf(b.id));
   const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); setGradientOpen(false); };
   const colourValue = slot === 'patternColor' ? (draft.design.patternColor || draft.design.secondary) : draft.design[slot];
   // The selected colour zone's gradient (Accent stays solid: names, numbers and the wordmark).
@@ -377,6 +380,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             <div className="slot-tabs" role="tablist">{colourSlots.map(s => <button key={s.key} role="tab" aria-selected={slot === s.key} className={slot === s.key ? 'active' : ''} onClick={() => setSlot(s.key)}>{s.label}</button>)}</div>
             <ColorWheel value={colourValue} onChange={hex => preview({ [slot]: hex })} onCommit={commit} />
             <h4>READY-MADE PALETTES</h4><div className="preset-palettes">{palettes.map((palette, index) => <button key={index} aria-label={`Apply palette ${index + 1}`} onClick={() => edit({ main: palette[0], secondary: palette[1], accent: palette[2], patternColor: palette[1] })}>{palette.map((c, i) => <span key={i} style={{ background: c }} />)}</button>)}</div>
+            {isHoodie(draft.design.garment) && <div className="hoodie-areas"><h4>HOODIE AREAS</h4>{hoodieAreas.filter(a => a.key !== 'zip' || draft.design.garment === 'ziphoodie').map(a => { const own = draft.design.zoneColors?.[a.key]; const fallback = a.key === 'lining' || a.key === 'zip' ? draft.design.secondary : draft.design.main; return <label key={a.key} className="hoodie-area"><input type="color" aria-label={`${a.label} colour`} value={own || fallback} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{a.label}</span>{own ? <button type="button" className="icon-button" aria-label={`${a.label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.key === 'lining' || a.key === 'zip' ? 'Secondary' : 'Primary'}</small>}</label>; })}</div>}
             <div className="gradient-controls"><h4>GRADIENT FILL</h4>{gradientSlot ? <>
               <button ref={gradientButton} type="button" className="gradient-choose" aria-expanded={gradientOpen} onClick={() => setGradientOpen(o => !o)}>CHOOSE GRADIENT <ChevronRight size={17} /></button>
               {zoneGradient && zoneStops ? <>
@@ -389,7 +393,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             {gradientOpen && gradientSlot && <GradientFlyout slot={gradientSlot} slotLabel={colourSlots.find(c => c.key === gradientSlot)?.label.toUpperCase() ?? ''} gradient={zoneGradient} base={colourValue} fallback={gradientSlot === 'main' ? draft.design.secondary : draft.design.main} apply={applyGradient} preview={previewGradient} commit={commit} onClose={() => setGradientOpen(false)} anchor={colourPanel} opener={gradientButton} />}
           </>}
           {tool === 'patterns' && <>
-            <label className="field">Apply to area<select value={zone} onChange={e => setZone(e.target.value as Zone | 'all')}><option value="all">Whole garment</option><option value="body">Chest & body</option><option value="yoke">Shoulders</option><option value="sleeves">Sleeves</option><option value="sides">Side panels</option><option value="hem">Hem</option></select></label>
+            <label className="field">Apply to area<select value={zone} onChange={e => setZone(e.target.value as Zone | 'all')}><option value="all">Whole garment</option><option value="body">Chest & body</option><option value="yoke">Shoulders</option><option value="sleeves">Sleeves</option><option value="sides">Side panels</option><option value="hem">Hem</option>{draft.design.garment === 'pocketpolo' && <option value="pocket">Chest pocket</option>}{isHoodie(draft.design.garment) && <><option value="pocket">Kangaroo pocket</option><option value="hood">Hood</option></>}</select></label>
             <p className="field-hint">Choose a pattern for this area, or drag a pattern directly onto the garment.</p>
             <div className="pattern-grid">{patternNames.map(pattern => { const active = (zone === 'all' ? draft.design.pattern : draft.design.zones?.[zone]) === pattern && (zone !== 'all' || !draft.design.patternImage); return <button className={active ? 'selected' : ''} key={pattern} draggable onDragStart={e => { e.dataTransfer.setData('text/plain', pattern); e.dataTransfer.effectAllowed = 'copy'; setDragging({ pattern }); }} onDragEnd={() => setDragging(null)} onClick={() => applyPattern(pattern)}><span className={`pattern-preview pattern-${pattern.toLowerCase()}`} style={{ '--pattern-color': draft.design.patternColor || draft.design.secondary } as React.CSSProperties} /><span>{pattern}{active && <Check size={14} />}</span></button>; })}</div>
             {aiEnabled && <div className="ai-pattern"><h4>AI PRINT FROM WORDS</h4><div className="inline-field"><input value={motif} onChange={e => setMotif(e.target.value)} onKeyDown={e => e.key === 'Enter' && aiPattern()} placeholder="e.g. Maori-inspired koru waves" maxLength={200} /><button className="button button-gradient" disabled={patternBusy || motif.trim().length < 3} onClick={aiPattern}>{patternBusy ? <LoaderCircle className="spin" size={16} /> : <WandSparkles size={16} />}</button></div>{draft.design.patternImage && <button className="button button-secondary full-width" onClick={() => edit({ patternImage: null })}><X size={14} /> Remove AI print</button>}</div>}
