@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -267,6 +268,215 @@ void main() {
       expect(c.gradient, isNull);
     },
   );
+
+  // QA 2026-10-21: presets did nothing while a design picture (AI, MAKE IT
+  // 3D) was on the kit, because the picture stayed on and hid the new look.
+  test('a preset replaces a design picture as one undo step, and it can be '
+      'put back from Artwork', () {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    c.addLayer({'type': 'text', 'text': 'CLUB'});
+    c.edit(() {
+      c.garment = 'Training Tee';
+      c.patternTile = Uint8List.fromList([1, 2, 3]);
+      c.gradients = {
+        'secondary': {'from': '#ff0000', 'to': '#000000', 'angle': 0},
+      };
+      c.layout = copyLayout({
+        'asset': 9,
+        'name': 'Print sheet · Net Breaker',
+        'roles': ['front', 'back'],
+        'kind': 'drawing',
+        'parts': ['tee'],
+      });
+    });
+    c.applyPreset({
+      'main': '#09152b',
+      'secondary': '#2962ff',
+      'accent': '#ffffff',
+      'pattern': 'Stripes',
+      'gradient': null,
+      'zones': {'yoke': 'Solid'},
+      'layers': [],
+    });
+    expect(c.layout, isNull, reason: 'the preset shows instead of the picture');
+    expect(c.patternTile, isNull, reason: 'no AI print over the preset');
+    expect(c.gradients, isNull, reason: 'no Secondary gradient left over');
+    expect(c.pattern, 'Stripes');
+    expect(c.zones, {'yoke': 'Solid'});
+    expect(c.layers.single['text'], 'CLUB', reason: 'artwork stays');
+    expect(c.shelvedLayouts['drawing']?.layout['asset'], 9);
+    c.undo();
+    expect(c.layout?['kind'], 'drawing');
+    expect(c.patternTile, isNotNull);
+    c.redo();
+    expect(c.layout, isNull);
+    c.edit(() => c.garment = 'Jersey');
+    c.putLayoutBack('drawing');
+    expect(c.layout?['name'], 'Print sheet · Net Breaker');
+    expect(c.garment, 'Training Tee');
+    c.undo();
+    expect(c.layout, isNull);
+    // A print layout is taken off by a preset too, and shelved apart.
+    c.edit(
+      () => c.layout = copyLayout({
+        'asset': 11,
+        'name': 'LEOPARDS NEW.pdf',
+        'roles': ['front', 'back', 'sleeveL', 'sleeveR'],
+        'parts': ['raglan'],
+      }),
+    );
+    c.applyPreset({'main': '#0b1016', 'pattern': 'Chevron'});
+    expect(c.layout, isNull);
+    expect(c.shelvedLayouts['print']?.layout['asset'], 11);
+    expect(c.shelvedLayouts['drawing']?.layout['asset'], 9);
+    // Another kit starts with nothing to put back.
+    c.startDyo();
+    expect(c.shelvedLayouts, isEmpty);
+  });
+
+  test('a colour, pattern or gradient change takes a covering design '
+      'picture off; the garment and the number do not', () {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    final picture = {
+      'asset': 9,
+      'name': 'Net Breaker',
+      'roles': ['front', 'back'],
+      'kind': 'drawing',
+      'parts': ['tee'],
+    };
+    c.edit(() => c.layout = copyLayout(picture));
+    c.edit(() => c.garment = 'Jersey');
+    c.edit(() => c.number = '7');
+    expect(c.layout, isNotNull, reason: 'garment and number keep it');
+    // The colour wheel: one undo step, then live changes.
+    c.edit(() {});
+    c.update(() => c.mainColor = const Color(0xffff0000));
+    expect(c.layout, isNull, reason: 'the colour shows');
+    c.undo();
+    expect(c.layout?['kind'], 'drawing');
+    c.edit(() => c.pattern = 'Hoops');
+    expect(c.layout, isNull);
+    c.undo();
+    c.edit(
+      () => c.gradient = {'from': '#ff0000', 'to': '#000000', 'angle': 0},
+    );
+    expect(c.layout, isNull);
+    c.putLayoutBack('drawing');
+    expect(c.layout?['name'], 'Net Breaker');
+    // A new picture in the same edit as a colour change stays on.
+    c.edit(() {
+      c.accentColor = const Color(0xff00ff00);
+      c.layout = copyLayout({...picture, 'asset': 10});
+    });
+    expect(c.layout?['asset'], 10);
+  });
+
+  testWidgets('Artwork offers to put the design picture back after a preset', (
+    tester,
+  ) async {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    c.edit(
+      () => c.layout = copyLayout({
+        'asset': 9,
+        'name': 'Net Breaker',
+        'roles': ['front', 'back'],
+        'kind': 'drawing',
+        'parts': ['tee'],
+      }),
+    );
+    c.applyPreset({'main': '#ff0000', 'pattern': 'Hoops'});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AnimatedBuilder(
+            animation: c,
+            builder: (_, _) =>
+                SingleChildScrollView(child: StudioArtworkTool(c)),
+          ),
+        ),
+      ),
+    );
+    final back = find.text('PUT MY DESIGN PICTURE BACK');
+    expect(back, findsOneWidget);
+    await tester.ensureVisible(back);
+    await tester.tap(back);
+    await tester.pump();
+    expect(c.layout?['name'], 'Net Breaker');
+    expect(find.text('REMOVE DESIGN PICTURE'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  test('YOUR DESIGN keeps the kit from before the first preset and follows '
+      'changes after it is chosen again', () {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    c.startDyo();
+    // A fresh kit that starts from a preset has none.
+    c.applyPreset({'main': '#ff0000', 'pattern': 'Hoops'});
+    expect(c.ownKit, isNull);
+    c.startDyo();
+    c.edit(() {
+      c.mainColor = const Color(0xff123456);
+      c.layout = copyLayout({
+        'asset': 9,
+        'name': 'Net Breaker',
+        'roles': ['front', 'back'],
+        'kind': 'drawing',
+        'parts': ['tee'],
+      });
+      c.garment = 'Training Tee';
+    });
+    expect(c.ownOn, isTrue);
+    c.applyPreset({'main': '#09152b', 'pattern': 'Stripes'});
+    c.applyPreset({'main': '#ffffff', 'pattern': 'Dots'});
+    expect(c.ownOn, isFalse);
+    expect(c.layout, isNull);
+    c.restoreOwn();
+    expect(c.layout?['name'], 'Net Breaker');
+    expect(c.mainColor, const Color(0xff123456));
+    expect(c.garment, 'Training Tee');
+    expect(c.ownOn, isTrue);
+    c.undo();
+    expect(c.pattern, 'Dots', reason: 'one undo step');
+    c.redo();
+    c.edit(() => c.number = '7');
+    c.applyPreset({'main': '#ffffff', 'pattern': 'Dots'});
+    c.restoreOwn();
+    expect(c.number, '7', reason: 'changes after restoring are kept');
+  });
+
+  testWidgets('Preset designs shows YOUR DESIGN first and restores it', (
+    tester,
+  ) async {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    c.edit(() => c.pattern = 'Camo');
+    c.applyPreset({'main': '#ff0000', 'pattern': 'Hoops'});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AnimatedBuilder(
+            animation: c,
+            builder: (_, _) =>
+                SingleChildScrollView(child: StudioPresetsTool(c)),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pumpAndSettle();
+    final own = find.text('YOUR DESIGN');
+    expect(own, findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+    await tester.tap(own);
+    await tester.pump();
+    expect(c.pattern, 'Camo');
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
 
   testWidgets('artwork tools add editable shapes and text on a phone', (
     tester,

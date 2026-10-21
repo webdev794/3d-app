@@ -1,0 +1,29 @@
+/* The header with 3DEEZI TEAM (client brief 2026-10-21): ten links between ORDERS and DASHBOARD, so the links, the
+   AI / DYO pills and Start a kit get a little tighter instead of overlapping. Loaded after orders-menu.css.
+   Measured with every width from 1024 to 1920 (signed out, signed in, admin): no overlap, no wrap, no sideways scroll.
+   - Above 1440 px the header may grow to 1600 px, so wide screens keep the roomy look.
+   - 1161-1440 px: 12 px links (11 px up to 1279 px) and a gap that shrinks with the window. 1160 px and less: the menu. */
+@media(min-width:1441px){
+  .site-header .header-inner{max-width:1600px}
+  .site-header .main-nav{gap:clamp(14px,calc((min(100cqw, 1600px) - 1330px) / 9),28px)}
+  .site-header:has(.admin-link) .main-nav{gap:clamp(14px,calc((min(100cqw, 1600px) - 1430px) / 9),28px)}
+}
+@media(min-width:1280px) and (max-width:1440px){
+  .site-header .header-inner{padding:0 30px;gap:14px}
+  .site-header .brand,.site-header .brand img{width:165px}
+  .site-header .brand>span{font-size:6.8px}
+  .site-header .main-nav a,.site-header .main-nav .nav-orders-trigger{font-size:12px}
+  .site-header .main-nav{gap:clamp(10px,calc((100cqw - 1170px) / 9),24px)}
+  .site-header .header-actions{gap:4px}
+}
+@media(min-width:1161px) and (max-width:1279px){
+  .site-header .header-inner{padding:0 20px;gap:12px}
+  .site-header .brand,.site-header .brand img{width:140px}
+  .site-header .brand>span{font-size:5.8px}
+  .site-header .main-nav a,.site-header .main-nav .nav-orders-trigger{font-size:11px}
+  .site-header .main-nav{gap:clamp(9px,calc((100cqw - 1080px) / 9),16px)}
+  .site-header .header-actions{gap:3px}
+  .site-header .header-cta{padding:10px 10px;gap:8px}
+}
+/* The underline under ORDERS stops at its arrow; 3DEEZI TEAM uses the standard active underline (showroom.css). */
+.main-nav .nav-team{letter-spacing:.01em}

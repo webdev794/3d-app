@@ -121,3 +121,65 @@
   .aid-field textarea::placeholder{font-size:14.5px}
 }
 @media(prefers-reduced-motion:reduce){.aid-tile,.aid-tile img,.aid-go,.aid-menu,.aid-ask{transition:none;animation:none}.aid-icon.is-on{animation:none}}
+
+/* The results (client visual 2026-10-21, images/138.jpg): the PRIMARY DESIGN panel and the prompt bar share one centred column
+   of the same width, the three options a narrower column on its right; the panel takes most of the screen height. */
+.aid-results-stage{align-items:flex-start;padding:clamp(12px,2vh,26px) 24px clamp(22px,3.4vh,36px)}
+.aid-results-stage::before{background:linear-gradient(180deg,#02060ba6,#02060b59 30%,#02060b66 70%,#02060b)}
+.aid-results{--col:min(50vw,980px);--side:clamp(180px,17vw,320px);--h:clamp(360px,min(70vh,calc(100svh - 262px)),900px);width:100%;display:grid;grid-template-columns:minmax(0,1fr) var(--col) minmax(0,1fr);grid-template-areas:". back ." ". primary options" ". bar .";column-gap:20px;row-gap:12px;align-items:start}
+.aid-back{grid-area:back;justify-self:start;display:inline-flex;align-items:center;gap:10px;min-height:36px;padding:4px 2px;border:0;background:none;color:#eef6fc;font-size:16px;font-weight:500;text-shadow:0 2px 10px #000}
+.aid-back:hover{color:#3fe6f5}
+.aid-primary{grid-area:primary;position:relative;display:flex;flex-direction:column;height:var(--h);min-width:0;padding:14px;border:1.5px solid #19d6ea80;border-radius:18px;background:linear-gradient(180deg,#06111ccc,#030a12e6);box-shadow:0 0 0 1px #00d9ed1a,0 0 26px #00d9ed33,inset 0 0 24px #00d9ed12;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.aid-badge{position:absolute;z-index:3;top:24px;left:24px;display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border:1px solid #3d9bff66;border-radius:999px;background:linear-gradient(90deg,#0b4c99e6,#0a2c5ce6);color:#eaf6ff;font:700 13px/1 var(--heading,Inter),Inter,sans-serif;letter-spacing:.05em;box-shadow:0 4px 18px #0008}
+.aid-badge svg{color:#3fe6f5}
+.aid-kebab-wrap{position:absolute;z-index:4;top:22px;right:22px}
+.aid-kebab{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid #ffffff26;border-radius:50%;background:#02060bb3;color:#eef6fc;transition:background .2s,border-color .2s}
+.aid-kebab:hover,.aid-kebab[aria-expanded=true]{border-color:#19d6ea;background:#0b2636}
+.aid-menu.aid-kebab-menu{left:auto;right:0;top:calc(100% + 6px);min-width:236px}
+.aid-primary-art{position:relative;flex:1;min-height:0;display:grid;place-items:center;border-radius:12px;overflow:hidden;background:#02070d}
+.aid-art-blur{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(26px) brightness(.5);transform:scale(1.12)}
+.aid-art-img{position:relative;width:100%;height:100%;object-fit:contain}
+.aid-art-busy{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#02060b8c;color:#3fe6f5;font-size:13px}
+.aid-art-wait{display:grid;place-items:center;gap:6px;color:#3fe6f5}
+.aid-art-wait small{max-width:90%;color:#9fb0c2;font-size:12px;text-align:center}
+.aid-art-error{display:grid;justify-items:center;gap:10px;padding:16px;color:#ffd7d7;text-align:center}
+.aid-art-error p{margin:0;font-size:13.5px}
+.aid-primary-art .lib-design-thumbnail,.aid-option-art .lib-design-thumbnail{width:100%;height:100%}
+.aid-primary-actions{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+.aid-primary-actions .button{min-height:50px;font-size:15px;gap:10px}
+.aid-option-list{grid-area:options;justify-self:start;display:grid;grid-template-rows:repeat(3,minmax(0,1fr));gap:12px;width:var(--side);height:var(--h)}
+.aid-option{position:relative;min-height:0;padding:0;border:1.5px solid #19d6ea59;border-radius:14px;overflow:visible;background:#040b13cc;box-shadow:0 0 18px #00d9ed1f}
+.aid-option-art{position:relative;display:grid;place-items:center;width:100%;height:100%;padding:0;border:0;border-radius:12.5px;overflow:hidden;background:#02070d;cursor:pointer}
+.aid-option-art:disabled{cursor:default}
+.aid-option-art .aid-art-img{object-fit:cover}
+.aid-option-art:not(:disabled):hover .aid-art-img{transform:scale(1.03)}
+.aid-option-art .aid-art-img{transition:transform .3s}
+.aid-option-art:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.aid-num{position:absolute;z-index:3;top:9px;left:9px;display:grid;place-items:center;width:30px;height:30px;border:1.5px solid #3fe6f5;border-radius:50%;background:#02060bb3;color:#3fe6f5;font-size:14px;font-weight:600;pointer-events:none}
+.aid-option .aid-kebab-wrap{top:7px;right:7px}
+.aid-option .aid-kebab{width:32px;height:32px}
+.aid-option.is-busy{border-color:#19d6ea33}
+.aid-results-bar{grid-area:bar;min-width:0;display:flex;flex-direction:column;align-items:center}
+.aid-results-bar .aid-prompt{width:100%}
+/* Tablets and small laptops: the column and the options fill the width together. */
+@media(max-width:1179px){
+  .aid-results{--side:clamp(150px,26vw,240px);grid-template-columns:minmax(0,1fr) var(--side);grid-template-areas:"back back" "primary options" "bar .";column-gap:14px}
+  .aid-primary-actions .button{font-size:14px}
+}
+/* Phones: the PRIMARY at full width, the options a swipe row under it, then the prompt bar (clear of the ASSIST button). */
+@media(max-width:759px){
+  .aid-results-stage{padding:10px 16px 92px}
+  .aid-results{grid-template-columns:minmax(0,1fr);grid-template-areas:"back" "primary" "options" "bar";row-gap:12px}
+  .aid-primary{height:auto;padding:10px;border-radius:16px}
+  .aid-primary-art{flex:none;aspect-ratio:3/2}
+  .aid-primary-art:has(.loader-inline){aspect-ratio:auto;min-height:400px}
+  .aid-badge{top:18px;left:18px;padding:6px 12px;font-size:11.5px}
+  .aid-kebab-wrap{top:16px;right:16px}
+  .aid-primary-actions{gap:8px;margin-top:10px}
+  .aid-primary-actions .button{min-height:46px;padding:10px 8px;font-size:13px;gap:6px}
+  .aid-option-list{display:flex;justify-self:stretch;min-width:0;width:auto;height:auto;margin:0 -16px;padding:2px 16px 6px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 16px;scrollbar-width:none}
+  .aid-option-list::-webkit-scrollbar{display:none}
+  .aid-option{flex:0 0 min(62vw,260px);aspect-ratio:3/2;scroll-snap-align:start}
+  .aid-option .aid-kebab-menu{position:fixed;left:16px;right:16px;top:auto;bottom:96px;min-width:0}
+}
+@media(prefers-reduced-motion:reduce){.aid-option-art .aid-art-img{transition:none}}

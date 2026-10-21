@@ -9,6 +9,7 @@ import '../widgets/site_page_stub.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/ui.dart';
 import 'order_entry.dart';
+import 'team.dart' show TeamRequestScreen;
 
 // 3DEEZI Orders in the app (the website's /orders and its API, orders-api.md):
 // my orders by stage on phones (stage tabs), each order's garments, files,
@@ -706,7 +707,17 @@ class _NotificationsSheetState extends State<_NotificationsSheet> {
                           title: Text('${(n['data'] as Map?)?['text'] ?? ''}'),
                           subtitle: Text('${(n['data'] as Map?)?['number'] ?? ''} · ${(n['data'] as Map?)?['name'] ?? ''} · ${_day(n['created_at'])}',
                               style: const TextStyle(color: Palette.muted, fontSize: 12)),
-                          onTap: () => Navigator.pop(context, ((n['data'] as Map?)?['order_id'] as num?)?.toInt()),
+                          onTap: () {
+                            // 3DEEZI TEAM notifications (order_id null) open their design request.
+                            final team = ((n['data'] as Map?)?['team_request_id'] as num?)?.toInt();
+                            if (team != null) {
+                              final nav = Navigator.of(context);
+                              nav.pop();
+                              nav.push(MaterialPageRoute<void>(builder: (_) => TeamRequestScreen(widget.c, team)));
+                              return;
+                            }
+                            Navigator.pop(context, ((n['data'] as Map?)?['order_id'] as num?)?.toInt());
+                          },
                         ),
                     ],
                   ),

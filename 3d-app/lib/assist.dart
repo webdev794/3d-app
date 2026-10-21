@@ -179,6 +179,8 @@ class AssistController extends ChangeNotifier {
     '/assets': 'Assets',
     '/dashboard': 'Projects',
     '/downloads': 'Projects',
+    // The website's Orders page: in the app, the home's ORDER NOW WITH 3DEEZI.
+    '/order-now': 'Home',
     '/orders': 'My orders',
     '/pricing': 'Plans',
     '/studio': 'the 3D Studio', '/artboard': 'the Artboard',

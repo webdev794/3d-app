@@ -6,6 +6,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -16,6 +17,11 @@ use RuntimeException;
 class OpenAiDesigner
 {
     private const BASE = 'https://api.openai.com/v1';
+
+    /** The known-good models: a call that a newly set model or its parameters turn down is retried once with these. */
+    public const SAFE_IMAGE_MODEL = 'gpt-image-2';
+
+    public const SAFE_TEXT_MODEL = 'gpt-6-luna';
 
     public const PATTERNS = ['Velocity', 'Chevron', 'Stripes', 'Solid'];
 
@@ -34,10 +40,34 @@ class OpenAiDesigner
         .'where the client\'s logo goes; the back name and number; trims), never a plain template with flat colour blocks. '
         .'pattern is only the nearest built-in pattern for the editable 3D kit, and patternMotif is the custom print that carries the concept\'s graphics onto the 3D kit.';
 
+    /**
+     * The client's attached logo is theirs: every model keeps it exactly as supplied (QA 2026-10-21: a planning model
+     * wrote "do not reproduce the recognisable character" and invented a new mascot).
+     */
+    public const OWN_LOGO = 'The attached logos belong to the client, who owns the right to use them: keep the client\'s logo, mascot and lettering exactly as supplied in every design, '
+        .'never redraw, replace, simplify or "make original" the client\'s own logo or mascot.';
+
     /** Kit colours like a top teamwear brand: from the logo's brand colours, dark and bold when the brief is, readable names and numbers. */
     public const COLOUR_RULES = 'Colours: take the kit colours only from the dominant brand colours of the client\'s logo or the brief, never from skin tones or tiny logo details. '
         .'For a cool, bold or aggressive brief with a logo, prefer a dark body (black or deep navy) with the logo\'s main colour as the graphics and white highlights. '
         .'Back names and numbers are white with an outline in the accent colour, so they stand out from the graphics.';
+
+    /**
+     * The three alternatives look clearly different (client 2026-10-21: the BLITZ options were all dark blue with
+     * similar layouts), each keeping the client's logo exactly. The dark body preference is for the brief's design only.
+     */
+    public const VARIETY_RULES = 'The 3 alternatives must look clearly different from the brief\'s design and from each other, while every one keeps the client\'s logo exactly as supplied: '
+        .'alternative A has a different main body colour: the logo\'s secondary colour, or white or a light colour; '
+        .'alternative B has a different layout: bold panels, a diagonal sash, hoops or stripes instead of all-over graphics; '
+        .'alternative C is clearly bolder or clearly more minimal than the others. '
+        .'No two designs share the same body colour and layout. The dark body preference in the colour rules applies to the brief\'s design only, not to the alternatives.';
+
+    /** Colours for a direction that sets its own body colour (an alternative): no dark body preference. */
+    public const DIRECTION_COLOUR_RULES = 'Colours: from the client\'s logo or the brief, never from skin tones or tiny logo details, with the body colour the creative direction sets. '
+        .'Back names and numbers contrast clearly with the body, with an outline in the accent colour.';
+
+    /** Layouts an alternative can take; anything but all-over graphics replaces the "no flat panels" rule. */
+    public const LAYOUTS = ['all-over graphics', 'bold panels', 'diagonal sash', 'hoops', 'stripes', 'minimal'];
 
     /** The art director's brief for the HD mockup (strict JSON). */
     private const DIRECTION_FIELDS = [
@@ -52,6 +82,18 @@ class OpenAiDesigner
         'trims' => 'Collar, armhole or cuff binding, side panels and hem, in the palette.',
         'presentation' => 'The photo setting: dramatic and dark (night stadium, floodlights, haze in the kit\'s main colour, reflective floor) unless the brief asks for something else.',
     ];
+
+    /** The model that plans designs (art direction, the four designs, concepts); the ASSIST chat stays on the text model. */
+    public static function planningModel(): string
+    {
+        return (string) (config('services.openai.planning_model') ?: config('services.openai.text_model'));
+    }
+
+    /** The model for HD renders ("HD primary", "Make HD") and the image editor; the image model when not set. */
+    public static function hdImageModel(): string
+    {
+        return (string) (config('services.openai.hd_image_model') ?: config('services.openai.image_model'));
+    }
 
     public static function enabled(): bool
     {
@@ -92,7 +134,7 @@ class OpenAiDesigner
         }
 
         $json = $this->post('/responses', [
-            'model' => config('services.openai.text_model'),
+            'model' => self::planningModel(),
             'input' => [
                 ['role' => 'system', 'content' => self::SYSTEM],
                 ['role' => 'user', 'content' => $content],
@@ -200,16 +242,16 @@ class OpenAiDesigner
             .($back ? "back name and number (the name reads exactly \"{$logo}\" and the number reads \"{$number}\")" : "chest wordmark and crest (the wordmark reads exactly \"{$logo}\")")
             .'. Do not add, remove or change any text, logos or graphics. Make the fabric photoreal: fine knit and mesh texture, natural folds and drape, flatlock stitching, slight sheen on the print. Professional lighting with realistic shadows, ultra-detailed, no watermark, no UI.';
 
-        $response = $this->send(fn () => $this->client()
+        $response = $this->withSafeModel((string) config('services.openai.image_model'), self::SAFE_IMAGE_MODEL, fn (string $model) => $this->send(fn () => $this->client()
             ->attach('image[]', $bytes, 'capture.'.($mime === 'image/png' ? 'png' : 'jpg'), ['Content-Type' => $mime])
             ->post(self::BASE.'/images/edits', [
-                'model' => config('services.openai.image_model'),
+                'model' => $model,
                 'prompt' => $prompt,
                 'size' => '1536x1024',
                 'quality' => 'medium',
                 'output_format' => 'jpeg',
                 'output_compression' => '88',
-            ]));
+            ])));
 
         return base64_decode($this->firstImage($response->json()), true) ?: throw new RuntimeException('The AI returned an unreadable image.');
     }
@@ -256,7 +298,7 @@ class OpenAiDesigner
             .'The client\'s main logo goes large as the front centrepiece; the back carries the team name over a big number when it suits the garment. '
             .'Follow everything the brief specifies (colours, layout, background, text). If an attached image is the client\'s own complete garment design, set ownDesign to true and describe that design exactly instead of inventing one. '
             .self::COLOUR_RULES.' '
-            .'Never use real club, league or brand logos other than the client\'s own.';
+            .'Never use real club, league or brand logos other than the client\'s own. '.self::OWN_LOGO;
         $content = [['type' => 'input_text', 'text' => $text]];
         foreach ($references as $reference) {
             $content[] = ['type' => 'input_image', 'image_url' => $reference];
@@ -267,7 +309,7 @@ class OpenAiDesigner
         }
         try {
             $json = $this->post('/responses', [
-                'model' => config('services.openai.text_model'),
+                'model' => self::planningModel(),
                 'input' => [['role' => 'system', 'content' => self::SYSTEM], ['role' => 'user', 'content' => $content]],
                 'text' => ['format' => ['type' => 'json_schema', 'name' => 'art_direction', 'strict' => true, 'schema' => [
                     'type' => 'object', 'additionalProperties' => false,
@@ -290,13 +332,15 @@ class OpenAiDesigner
      *
      * @param  ?array<string, mixed>  $direction  from artDirection()
      */
-    public static function mockupPrompt(string $brief, string $sport, string $garment, int $count, ?array $direction = null): string
+    public static function mockupPrompt(string $brief, string $sport, string $garment, int $count, ?array $direction = null, string $view = 'presentation'): string
     {
+        $labels = ['body' => 'Body colour', 'layout' => 'Layout', 'theme' => 'Theme', 'palette' => 'Palette', 'front' => 'Front', 'back' => 'Back', 'graphics' => 'Graphics', 'trims' => 'Trims', 'presentation' => 'Presentation'];
+        $layout = strtolower(trim((string) ($direction['layout'] ?? '')));
         $prompt = "You are the lead designer of a top custom sublimation sportswear brand, making a client presentation mockup.\n"
             ."Sport: {$sport}. Garment: {$garment}.\nClient brief: {$brief}\n\n";
-        if ($direction) {
+        if (array_filter(array_intersect_key($direction ?? [], $labels), 'filled')) { // the brief as written adds nothing
             $prompt .= "Creative direction (follow it; the brief wins if they differ):\n";
-            foreach (['theme' => 'Theme', 'palette' => 'Palette', 'front' => 'Front', 'back' => 'Back', 'graphics' => 'Graphics', 'trims' => 'Trims', 'presentation' => 'Presentation'] as $key => $label) {
+            foreach ($labels as $key => $label) {
                 if (filled($direction[$key] ?? null)) {
                     $prompt .= "- {$label}: ".trim((string) $direction[$key])."\n";
                 }
@@ -306,12 +350,18 @@ class OpenAiDesigner
         $prompt .= 'Design: unless the client attached their own complete garment design, design the garment freely like a premium sublimated teamwear brand: '
             .'a bold, fully sublimated all-over design with dynamic graphics drawn from the theme and colours of the client\'s logo or brief '
             .'(for example lightning, speed lines, sharp angular shards, halftone dot fades, gradients and textures) flowing across the front, sides and back. '
-            .'Never a plain template with flat colour blocks or simple side panels. '
+            .($layout !== '' && $layout !== 'all-over graphics'
+                ? 'Follow the layout in the creative direction ('.$layout.'), finished with sublimated textures and fine detail, never a cheap flat template. '
+                : 'Never a plain template with flat colour blocks or simple side panels. ')
             .'The client\'s main logo is the large centrepiece on the front, reproduced faithfully (the same artwork, colours and lettering). '
-            .self::COLOUR_RULES.' '
+            .(filled($direction['body'] ?? null) ? self::DIRECTION_COLOUR_RULES : self::COLOUR_RULES).' '
             .'The back carries the team name in bold athletic lettering over a large player number (for example 01) when it suits the garment, with matching trims on the collar, armholes or cuffs and hem.'."\n"
-            .'Presentation: unless the brief asks for a different layout, angle or background, make one landscape image of premium commercial product photography: '
-            .'the front view on the left and the back view on the right, side by side, both complete, fully visible and not overlapping, on invisible ghost mannequins, '
+            .($view === 'front'
+                // The option cards (client picture 138.jpg): one garment that reads well small.
+                ? 'Presentation: one square image of premium commercial product photography: a single garment, the front view only (straight on or a slight three-quarter turn), '
+                    .'centred, complete and fully visible with a little space around it, on an invisible ghost mannequin, no back view, '
+                : 'Presentation: unless the brief asks for a different layout, angle or background, make one landscape image of premium commercial product photography: '
+                    .'the front view on the left and the back view on the right, side by side, both complete, fully visible and not overlapping, on invisible ghost mannequins, ')
             .'in a dramatic dark setting: a night stadium with floodlights, haze tinted in the kit\'s main colour, a glossy reflective floor and rim lighting. '
             .'Photorealistic fabric: fine knit and mesh texture, natural folds, flatlock stitching, a crisp vivid sublimated print. '
             .'All text must be spelled exactly as written in the brief or the logo. ';
@@ -325,21 +375,199 @@ class OpenAiDesigner
                 .'If the brief gives any wordmark, team, club or brand name, use exactly that text where the brief says and do NOT put 3DEEZI on the chest; then use the 3DEEZI emblem only on the small neck label. '
                 .'Only if the brief names no wordmark or brand at all, put the 3DEEZI wordmark across the chest and the 3DEEZI emblem as the crest, exactly as in the logo.';
 
-        return $prompt.' No watermarks, no extra brands.';
+        return $prompt.($count ? ' '.self::OWN_LOGO : '').' No watermarks, no extra brands.';
+    }
+
+    /**
+     * The AI designer's results (client visual 2026-10-21, images/138.jpg), fast like ChatGPT: the PRIMARY (the brief
+     * exactly as written, under the full design rules) starts rendering at once; meanwhile this one short planning call
+     * gives its 3D kit spec and three clearly different alternatives (palette, motifs, layout, name and number
+     * treatment), scored and ranked best first as options 2-4. Every direction follows the logo, colour, neck label and
+     * brand rules. When the call fails or takes over `$timeout` seconds, ready-made takes on the brief are used
+     * (`planned` false), so the pictures never wait.
+     *
+     * @param  array<int, string>  $references  data URLs (logos, sketches, photos)
+     * @return array<int, array<string, mixed>> best first, each with `rank` (1-4), `score`, `planned`, `direction` and `design`
+     */
+    public function designDirections(string $brief, string $sport, string $garment, array $references = [], ?int $timeout = null): array
+    {
+        try {
+            return $this->plannedDirections($brief, $sport, $garment, $references, $timeout ?? (int) config('services.openai.plan_timeout', 45));
+        } catch (RuntimeException) {
+            return $this->readyDirections($brief, $garment);
+        }
+    }
+
+    /**
+     * Four designs without the planning call: the brief exactly as written first (the full design rules still
+     * apply), then three clearly different takes on it.
+     */
+    public function readyDirections(string $brief, string $garment): array
+    {
+        $takes = [
+            ['Your brief', null],
+            ['Bold Strike', 'bold and aggressive: dynamic sharp angular shards and speed lines across the front and sides, a dark body with the logo\'s main colour as the graphics'],
+            ['Clean Classic', 'classic and clean: confident colour blocking with thin pinstripes and a tidy collar, the logo crisp on a calm body'],
+            ['Heritage Pattern', 'heritage and pattern-led: an all-over tonal geometric pattern drawn from the logo, with contrast trims'],
+        ];
+
+        return array_map(fn (array $take, int $i) => [
+            'id' => substr(hash('sha256', $brief.$i), 0, 16),
+            'rank' => $i + 1,
+            'score' => 0,
+            'planned' => false,
+            'name' => $take[0],
+            'description' => $take[1] ? ucfirst(strtok($take[1], ':')).' take on your brief.' : 'Your brief, exactly as written.',
+            'motif' => '',
+            'direction' => $take[1] ? ['theme' => $take[1], 'ownDesign' => false] : ['ownDesign' => false],
+            'design' => $this->kitSpec(['pattern' => ['Velocity', 'Velocity', 'Stripes', 'Chevron'][$i], 'mainColor' => '#0B1016', 'secondaryColor' => '#04D9E8', 'accentColor' => '#FFFFFF'], $brief, $garment),
+        ], $takes, array_keys($takes));
+    }
+
+    private function plannedDirections(string $brief, string $sport, string $garment, array $references, int $timeout): array
+    {
+        $references = array_slice($references, 0, 4);
+        $count = count($references);
+        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n"
+            .($count ? "{$count} image(s) from the client are attached: logos, references or their own finished design.\n" : "No images are attached.\n")
+            .'You are the art director of a top custom sublimation sportswear brand. The designer is already rendering the brief exactly as written; '
+            .'give its editable 3D kit spec in `brief`. Then write exactly 3 clearly different alternative design directions in `directions`, '
+            .'each with its own palette, motifs, layout of the graphics and treatment of the team name and number. '
+            .'Take the palette and theme from the client\'s logo (its colours, mascot, lettering style and motifs such as lightning, flames, claws or waves) or from the brief. '
+            .'Bold, fully sublimated graphics derived from that theme, flowing across the front, sides and back, never a plain template with flat colour blocks. '
+            .'The client\'s main logo stays large as the front centrepiece, reproduced faithfully; the back carries the team name over a big number when it suits the garment. '
+            .'Follow everything the brief specifies (colours, layout, background, text) and keep the team name the same. '
+            .self::COLOUR_RULES.' '
+            .self::VARIETY_RULES.' '
+            .'Score each alternative 0-100 as the client would judge it: brief fit, logo fit, boldness and readability of the name and number. '
+            .'Every design, including the brief, gets its own different name. Be quick and brief: every text field is one short phrase of at most 20 words. '
+            .'Never use real club, league or brand logos other than the client\'s own. '.self::OWN_LOGO;
+        $content = [['type' => 'input_text', 'text' => $text]];
+        foreach ($references as $reference) {
+            $content[] = ['type' => 'input_image', 'image_url' => $reference];
+        }
+        $string = fn (string $description) => ['type' => 'string', 'description' => $description];
+        $kit = [
+            'designName' => $string('Short catchy design name, max 3 words.'),
+            'summary' => $string('One short sentence to the client about this design.'),
+            'mainColor' => $string('Hex like #101D2A for the garment body.'),
+            'secondaryColor' => $string('Hex for panels and pattern.'),
+            'accentColor' => $string('Hex for the wordmark and numbers; must contrast mainColor.'),
+            'pattern' => ['type' => 'string', 'enum' => self::PATTERNS, 'description' => 'Only the nearest built-in pattern for the editable 3D kit.'],
+            'logoText' => $string('Chest wordmark, max 12 characters. Use the team or brand name from the brief; if the brief names none, use 3DEEZI.'),
+            'patternMotif' => $string('The signature print as a black-and-white pattern description for the 3D kit, max 20 words. No colours.'),
+        ];
+        $alternative = $kit + ['score' => ['type' => 'integer', 'description' => '0-100: brief fit, logo fit, boldness and readability of the name and number.']];
+        $alternative['bodyColour'] = $string('The main body colour, name and hex, e.g. "white #FFFFFF"; different for each design.');
+        $alternative['layout'] = ['type' => 'string', 'enum' => self::LAYOUTS, 'description' => 'The layout of the graphics; the alternatives use different layouts.'];
+        foreach (['palette', 'theme', 'front', 'back', 'graphics', 'trims'] as $field) {
+            $alternative[$field] = $string(self::DIRECTION_FIELDS[$field]);
+        }
+        $object = fn (array $properties) => ['type' => 'object', 'additionalProperties' => false, 'required' => array_keys($properties), 'properties' => $properties];
+        $json = $this->post('/responses', [
+            'model' => self::planningModel(),
+            'input' => [['role' => 'system', 'content' => self::SYSTEM], ['role' => 'user', 'content' => $content]],
+            'text' => ['format' => ['type' => 'json_schema', 'name' => 'design_directions', 'strict' => true, 'schema' => $object([
+                'brief' => $object($kit),
+                'directions' => ['type' => 'array', 'items' => $object($alternative)],
+            ])]],
+        ], $timeout);
+        $plan = json_decode($this->outputText($json), true);
+        $specs = array_values(array_filter(
+            array_slice($plan['directions'] ?? [], 0, 3),
+            fn ($spec) => is_array($spec) && filled($spec['front'] ?? null),
+        ));
+        if (! $specs || ! is_array($plan['brief'] ?? null)) {
+            throw new RuntimeException('The AI returned no designs. Please try again.');
+        }
+        // The alternatives best first (equal scores keep the AI's order), after the brief as written.
+        $order = array_keys($specs);
+        usort($order, fn (int $a, int $b) => [-(int) ($specs[$a]['score'] ?? 0), $a] <=> [-(int) ($specs[$b]['score'] ?? 0), $b]);
+        $entry = function (array $spec, int $rank, array $direction) use ($brief, $garment) {
+            return [
+                'id' => substr(hash('sha256', json_encode($spec).$rank), 0, 16),
+                'rank' => $rank,
+                'score' => (int) ($spec['score'] ?? 0),
+                'planned' => true,
+                'name' => mb_substr((string) ($spec['designName'] ?? 'Design '.$rank), 0, 60),
+                'description' => (string) ($spec['summary'] ?? ''),
+                'motif' => (string) ($spec['patternMotif'] ?? ''),
+                'direction' => [...array_map(fn ($v) => mb_substr(trim((string) $v), 0, 1500), $direction), 'ownDesign' => false],
+                'design' => $this->kitSpec($spec, $brief, $garment),
+            ];
+        };
+
+        return self::distinctNames([
+            $entry($plan['brief'], 1, []),
+            ...array_map(fn (int $index, int $position) => $entry($specs[$index], $position + 2, ['body' => $specs[$index]['bodyColour'] ?? '', 'layout' => in_array($specs[$index]['layout'] ?? null, self::LAYOUTS, true) ? $specs[$index]['layout'] : ''] + array_intersect_key($specs[$index], array_flip(['summary', 'palette', 'theme', 'front', 'back', 'graphics', 'trims']))), $order, array_keys($order)),
+        ]);
+    }
+
+    /** Four designs, four names: a repeated name (QA 2026-10-21: "Blitz Velocity" twice) gets a distinct word added. */
+    public static function distinctNames(array $designs): array
+    {
+        $words = ['Strike', 'Edge', 'Pulse', 'Surge', 'Nova', 'Prime'];
+        $seen = [];
+        foreach ($designs as $i => $design) {
+            $name = trim((string) ($design['name'] ?? '')) ?: 'Design '.($i + 1);
+            for ($w = 0; in_array(mb_strtolower($name), $seen, true); $w++) {
+                $name = trim((string) $design['name']).' '.($words[$w] ?? ($w + 2));
+            }
+            $seen[] = mb_strtolower($name);
+            $designs[$i]['name'] = $name;
+        }
+
+        return $designs;
+    }
+
+    /**
+     * One direction rendered as the presentation mockup (the same prompt and inputs as the HD mockup): `high` for the
+     * PRIMARY and "Make HD", `medium` for the three options. Returns raw JPEG bytes.
+     *
+     * @param  array<string, mixed>  $direction  from designDirections()
+     */
+    public function renderDirection(string $brief, string $sport, string $garment, array $direction, array $references = [], string $quality = 'high', string $view = 'presentation'): string
+    {
+        $references = array_slice($references, 0, 4);
+
+        return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view), $references, $quality, $view === 'front' ? '1024x1024' : '1536x1024');
+    }
+
+    /** The editable 3D kit's spec for a design direction. */
+    private function kitSpec(array $spec, string $prompt, string $garment): array
+    {
+        $main = $this->hex((string) ($spec['mainColor'] ?? ''));
+        $secondary = $this->hex((string) ($spec['secondaryColor'] ?? ''));
+        $logoText = mb_strtoupper(mb_substr((string) ($spec['logoText'] ?? '3DEEZI'), 0, 20));
+
+        return [
+            'garment' => $garment,
+            'main' => $main,
+            'secondary' => $secondary,
+            'accent' => $this->hex((string) ($spec['accentColor'] ?? '')),
+            'pattern' => in_array($spec['pattern'] ?? null, self::PATTERNS, true) ? $spec['pattern'] : 'Chevron',
+            'logoText' => $logoText,
+            'number' => '23',
+            'backName' => $logoText,
+            'patternColor' => $this->mix($main, $secondary, 0.55),
+            'patternBody' => 0.08,
+            'prompt' => $prompt,
+        ];
     }
 
     /** Renders a mockup prompt with the client's images and the 3DEEZI logo as real image inputs. Returns raw JPEG bytes. */
-    public function renderMockup(string $prompt, array $references = []): string
+    public function renderMockup(string $prompt, array $references = [], string $quality = 'high', string $size = '1536x1024'): string
     {
         $references = array_slice($references, 0, 4);
         $images = array_map(fn (string $r) => $this->decodeDataUrl($r), $references);
         $images[] = ['image/png', file_get_contents(public_path('media/images/logo_full.png'))];
 
         return $this->highFidelityEdit($prompt, $images, [
-            'size' => '1536x1024',
-            'quality' => 'high',
+            'model' => $quality === 'medium' ? config('services.openai.image_model') : self::hdImageModel(),
+            'size' => $size,
+            'quality' => $quality === 'medium' ? 'medium' : 'high',
             'output_format' => 'jpeg',
-            'output_compression' => '90',
+            'output_compression' => $quality === 'medium' ? '85' : '90',
         ]);
     }
 
@@ -352,14 +580,14 @@ class OpenAiDesigner
      *
      * @param  array<int, string>  $references  data URLs of the client's logos
      */
-    public function printSheet(string $mockup, string $sport, string $garment, array $references = []): string
+    public function printSheet(string $mockup, string $sport, string $garment, array $references = [], bool $frontOnly = false): string
     {
         $images = [$this->decodeDataUrl($mockup)];
         foreach (array_slice($references, 0, 3) as $reference) {
             $images[] = $this->decodeDataUrl($reference);
         }
 
-        return $this->highFidelityEdit(self::printSheetPrompt($sport, $garment, count($images) - 1), $images, [
+        return $this->highFidelityEdit(self::printSheetPrompt($sport, $garment, count($images) - 1, $frontOnly), $images, [
             'size' => '1536x1024',
             'quality' => 'high',
             'output_format' => 'jpeg',
@@ -367,9 +595,10 @@ class OpenAiDesigner
         ]);
     }
 
-    public static function printSheetPrompt(string $sport, string $garment, int $logos = 0): string
+    public static function printSheetPrompt(string $sport, string $garment, int $logos = 0, bool $frontOnly = false): string
     {
         return "The first attached image shows a {$sport} {$garment} design. Redraw exactly the same design as a flat print artwork sheet for the factory: "
+            .($frontOnly ? 'The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the team name in bold lettering over a large number). ' : '')
             .'the garment\'s front on the left and its back on the right, side by side, both complete and the same size, drawn flat and straight-on like a technical flat drawing, '
             .'on a plain pure white background with clear white space around and between them. '
             .'No mannequin, no person, no folds, no perspective, no lighting effects, no shadows, no scene. '
@@ -380,36 +609,47 @@ class OpenAiDesigner
 
     /**
      * An image edit that asks the model to keep the first input image (the
-     * client's logo or design) at high fidelity. Models that do not take
-     * input_fidelity get the same request without it.
+     * client's logo or design) at high fidelity. The gpt-image-2.5 models
+     * reject input_fidelity, so they never get it; another model that turns
+     * it down gets the same request again without it.
      *
      * @param  array<int, array{0: string, 1: string}>  $images  mime and bytes
      */
     private function highFidelityEdit(string $prompt, array $images, array $fields): string
     {
-        $post = function (bool $fidelity) use ($prompt, $images, $fields) {
-            $request = $this->client()->timeout(300);
-            foreach ($images as $i => [$mime, $bytes]) {
-                $request = $request->attach('image[]', $bytes, "image-{$i}.".explode('/', $mime)[1], ['Content-Type' => $mime]);
-            }
+        $edit = function (string $model) use ($prompt, $images, $fields) {
+            $post = function (bool $fidelity) use ($prompt, $images, $fields, $model) {
+                $request = $this->client()->timeout(300);
+                foreach ($images as $i => [$mime, $bytes]) {
+                    $request = $request->attach('image[]', $bytes, "image-{$i}.".explode('/', $mime)[1], ['Content-Type' => $mime]);
+                }
 
-            return $this->send(fn () => $request->post(self::BASE.'/images/edits', [
-                'model' => config('services.openai.image_model'),
-                'prompt' => $prompt,
-                ...$fields,
-                ...($fidelity ? ['input_fidelity' => 'high'] : []),
-            ]));
-        };
-        try {
-            $response = $post(true);
-        } catch (RuntimeException $e) {
-            if (! str_contains($e->getMessage(), 'input_fidelity')) {
-                throw $e;
+                return $this->send(fn () => $request->post(self::BASE.'/images/edits', [
+                    'prompt' => $prompt,
+                    ...$fields,
+                    'model' => $model,
+                    ...($fidelity ? ['input_fidelity' => 'high'] : []),
+                ]));
+            };
+            try {
+                return $post(self::takesInputFidelity($model));
+            } catch (RuntimeException $e) {
+                if (! str_contains($e->getMessage(), 'input_fidelity')) {
+                    throw $e;
+                }
+
+                return $post(false);
             }
-            $response = $post(false);
-        }
+        };
+        $response = $this->withSafeModel((string) ($fields['model'] ?? config('services.openai.image_model')), self::SAFE_IMAGE_MODEL, $edit);
 
         return base64_decode($this->firstImage($response->json()), true) ?: throw new RuntimeException('The AI returned an unreadable image.');
+    }
+
+    /** gpt-image-1, 1.5 and 2 take input_fidelity; the gpt-image-2.5 models (Flare, Sunburst) reject it. */
+    public static function takesInputFidelity(string $model): bool
+    {
+        return ! str_starts_with($model, 'gpt-image-2.5');
     }
 
     /** The quick concept preview: the concept's free design, the client's logo as the chest centrepiece. */
@@ -479,15 +719,15 @@ class OpenAiDesigner
             $request = $request->attach('mask', $this->decodeDataUrl($mask)[1], 'mask.png', ['Content-Type' => 'image/png']);
         }
 
-        $response = $this->send(fn () => $request->post(self::BASE.'/images/edits', [
-            'model' => config('services.openai.image_model'),
+        $response = $this->withSafeModel(self::hdImageModel(), self::SAFE_IMAGE_MODEL, fn (string $model) => $this->send(fn () => $request->post(self::BASE.'/images/edits', [
+            'model' => $model,
             'prompt' => $prompt,
             'size' => $size,
             // HD pictures (mockups, showcases) stay HD; smaller ones are edited faster.
             'quality' => max($dimensions[0], $dimensions[1]) >= 1400 ? 'high' : 'medium',
             'output_format' => $png ? 'png' : 'jpeg',
             ...($png ? [] : ['output_compression' => '90']),
-        ]));
+        ])));
 
         return [
             $png ? 'image/png' : 'image/jpeg',
@@ -697,9 +937,49 @@ class OpenAiDesigner
 
     private function post(string $path, array $body, int $timeout = 180): array
     {
+        // A newly set model that is turned down falls back to the known-good one (text or image).
+        $safe = $path === '/responses' ? self::SAFE_TEXT_MODEL : self::SAFE_IMAGE_MODEL;
+        $response = isset($body['model'])
+            ? $this->withSafeModel((string) $body['model'], $safe, fn (string $model) => $this->send(fn () => $this->client()->timeout($timeout)->post(self::BASE.$path, ['model' => $model] + $body)))
+            : $this->send(fn () => $this->client()->timeout($timeout)->post(self::BASE.$path, $body));
+
         // An empty or non-JSON answer is a failed request too (callers fall back or show a message).
-        return $this->send(fn () => $this->client()->timeout($timeout)->post(self::BASE.$path, $body))->json()
-            ?? throw new RuntimeException('The AI service sent an unexpected reply. Please try again.');
+        return $response->json() ?? throw new RuntimeException('The AI service sent an unexpected reply. Please try again.');
+    }
+
+    /**
+     * Runs `$call` with `$model`; when OpenAI turns that model or one of its parameters down (not the content), logs
+     * a warning and runs it once more with the known-good `$safe` model, so a new model setting never stops a
+     * feature that worked before.
+     */
+    private function withSafeModel(string $model, string $safe, callable $call): mixed
+    {
+        try {
+            return $call($model);
+        } catch (AiModelException $e) {
+            if ($model === $safe) {
+                throw $e;
+            }
+            Log::warning("OpenAI turned down the model {$model} ({$e->getMessage()}); retried with {$safe}.");
+
+            return $call($safe);
+        }
+    }
+
+    /** True when OpenAI turned down the model or a parameter, not the content. */
+    private static function modelProblem(Response $response): bool
+    {
+        $code = (string) $response->json('error.code');
+        $message = strtolower((string) $response->json('error.message'));
+        if (in_array($code, ['moderation_blocked', 'content_policy_violation', 'content_filter'], true) || str_contains($message, 'safety') || str_contains($message, 'policy')) {
+            return false;
+        }
+
+        return in_array($response->status(), [400, 403, 404], true) && (
+            in_array($code, ['model_not_found', 'invalid_model', 'unsupported_parameter', 'unknown_parameter', 'unsupported_value', 'invalid_parameter'], true)
+            || $response->json('error.param') === 'model'
+            || str_contains($message, 'model') || str_contains($message, 'parameter')
+        );
     }
 
     /** Sends a request and turns failures into friendly messages. */
@@ -711,7 +991,8 @@ class OpenAiDesigner
             throw new RuntimeException('Could not reach the AI service. Please try again.');
         }
         if ($response->failed()) {
-            throw new RuntimeException(match ($response->status()) {
+            $class = self::modelProblem($response) ? AiModelException::class : RuntimeException::class;
+            throw new $class(match ($response->status()) {
                 401 => 'The server\'s AI key was rejected.',
                 429 => 'AI usage limit reached. Please try again shortly.',
                 default => 'AI error: '.($response->json('error.message') ?? $response->status()),

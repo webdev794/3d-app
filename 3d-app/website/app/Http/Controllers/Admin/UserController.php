@@ -34,6 +34,9 @@ class UserController extends Controller
         $data = $this->validated($request);
         $user = new User(['name' => $data['name'], 'email' => $data['email'], 'password' => $data['password']]);
         $user->is_admin = (bool) ($data['is_admin'] ?? false);
+        // 3DEEZI TEAM designers (see only the requests assigned to them, or all with designer_all).
+        $user->is_designer = (bool) ($data['is_designer'] ?? false);
+        $user->designer_all = (bool) ($data['designer_all'] ?? false);
         $user->save();
 
         return response()->json(['data' => $user->loadCount(['projects', 'orders'])], 201);
@@ -52,6 +55,11 @@ class UserController extends Controller
         }
         if (array_key_exists('is_admin', $data)) {
             $user->is_admin = (bool) $data['is_admin'];
+        }
+        foreach (['is_designer', 'designer_all'] as $flag) {
+            if (array_key_exists($flag, $data)) {
+                $user->{$flag} = (bool) $data[$flag];
+            }
         }
         $user->save();
 
@@ -79,6 +87,8 @@ class UserController extends Controller
             'email' => [$required, 'email', 'max:254', Rule::unique('users', 'email')->ignore($user?->id)],
             'password' => [$user ? 'nullable' : 'required', 'string', 'max:72', Password::min(8)],
             'is_admin' => ['sometimes', 'boolean'],
+            'is_designer' => ['sometimes', 'boolean'],
+            'designer_all' => ['sometimes', 'boolean'],
         ]);
     }
 }

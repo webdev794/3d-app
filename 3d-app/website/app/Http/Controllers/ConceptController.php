@@ -71,7 +71,7 @@ class ConceptController extends Controller
     private function fromOpenAi(Request $request, array $data): JsonResponse
     {
         set_time_limit(240);
-        $sport = collect(config('catalog.sports'))->firstWhere('id', $data['sport'])['name'];
+        $sport = AiController::sportForAi($data['sport']);
         $garment = collect(config('catalog.garments'))->firstWhere('id', $data['garment'])['name'];
         $references = Asset::whereIn('id', $data['reference_ids'] ?? [])
             ->where('user_id', $request->user()->id)

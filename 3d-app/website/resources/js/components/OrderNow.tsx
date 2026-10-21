@@ -1,21 +1,32 @@
 import { ArrowRight, Box, ChevronDown } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import GarmentIcon from './GarmentIcon';
 import { Sparkle } from './Assist';
 import { media } from '../api';
 import '../../css/order-now.css';
 
+/** One column of the My Orders card's mini board: the stage, its count and up to three orders. */
+export interface MiniColumn { name: string; count: number; cards: MiniCard[] }
+/** An order chip: name, reference, garment picture, a progress bar (0–1) and whether it needs the customer. */
+export interface MiniCard { key: string | number; name: string; ref: string; garment: string; tone: 'dark' | 'light'; progress: number; hot?: boolean }
+
 /**
- * The homepage's "ORDER NOW WITH 3DEEZI" (client design 2026-10-20), under the three ways to create: the order form
- * with 3DEEZI Assist, uploading a ready order, and My Orders. The pictures on the tiles are drawn here (HTML, CSS and
- * SVG), not images, so they stay sharp and fit every screen.
+ * "ORDER NOW WITH 3DEEZI" (client design 2026-10-20): the three ways to order: the order form with 3DEEZI Assist,
+ * uploading a ready order, and My Orders. On the homepage (under the three ways to create) and, larger and on the
+ * studio background, as the Orders page (variant "page", /order-now, client design 2026-10-21), so both stay the
+ * same. The pictures on the tiles are drawn here (HTML, CSS and SVG), not images, so they stay sharp and fit every
+ * screen. `board`: the signed-in customer's own orders for the My Orders card (else the sample board).
  */
-export default function OrderNow() {
+export default function OrderNow({ variant = 'home', board }: { variant?: 'home' | 'page'; board?: MiniColumn[] | null }) {
+  const page = variant === 'page';
+  const Title = page ? 'h1' : 'h2';
   // Full page width: 3DEEZI ASSIST folds into its button when this section scrolls into view (data-assist-fold, Assist.tsx).
-  return <section className="order-now" id="order-now" aria-labelledby="order-now-title" data-assist-fold="">
+  return <section className={`order-now${page ? ' is-page' : ''}`} id={page ? undefined : 'order-now'} aria-labelledby="order-now-title" data-assist-fold="" style={page ? { '--on-backdrop': `url(${media('showroom/studio-backdrop.webp')})` } as CSSProperties : undefined}>
     <div className="on-haze" aria-hidden="true" />
+    {page && <div className="on-emblem" aria-hidden="true"><span>AI</span></div>}
     <div className="on-inner">
-      <h2 id="order-now-title" className="on-title">ORDER NOW WITH <span className="on-wordmark-glow"><img className="on-wordmark" src={media('images/brand-wordmark.png')} alt="3DEEZI" width={1628} height={233} decoding="async" /></span></h2>
+      <Title id="order-now-title" className="on-title">ORDER NOW WITH <span className="on-wordmark-glow"><img className="on-wordmark" src={media('images/brand-wordmark.png')} alt="3DEEZI" width={1628} height={233} decoding="async" /></span></Title>
       <p className="on-sub">Start an order. Upload your details. Follow its progress.</p>
       <div className="on-tiles">
         <Link to="/orders/new" className="on-tile on-tile-form" aria-label="Create order form: let 3DEEZI Assist help build your order form">
@@ -33,11 +44,11 @@ export default function OrderNow() {
         <Link to="/orders" className="on-tile on-tile-board" aria-label="My orders: view your current orders and follow their progress">
           <div className="on-head"><h3>MY ORDERS<span>YOUR ORDERS. ONE PLACE.</span></h3><span className="on-icon"><Box /></span></div>
           <p>View your current orders and follow their progress.</p>
-          <BoardVisual />
+          <BoardVisual columns={board ?? undefined} />
           <span className="on-button">VIEW MY ORDERS <ArrowRight /></span>
         </Link>
       </div>
-      <p className="on-foot">Your designs. Your orders. All in 3DEEZI.</p>
+      {!page && <p className="on-foot">Your designs. Your orders. All in 3DEEZI.</p>}
     </div>
   </section>;
 }
@@ -74,19 +85,22 @@ function UploadVisual() {
   </div>;
 }
 
+/** The sample board, shown when signed out or before the first order. */
+const sampleCard = (name: string, id: number, garment: string, tone: 'dark' | 'light', progress: number, hot?: boolean): MiniCard => ({ key: id, name, ref: `#${id}`, garment, tone, progress, hot });
+const SAMPLE_BOARD: MiniColumn[] = [
+  { name: 'Received', count: 3, cards: [sampleCard('Club Hoodies', 1001, 'hoodie', 'dark', 0.18), sampleCard('Training Tees', 1002, 'tee', 'light', 0.18), sampleCard('Caps', 1003, 'cap', 'dark', 0.1)] },
+  { name: 'Design', count: 2, cards: [sampleCard('Team kit', 1004, 'jersey', 'dark', 0.62, true), sampleCard('Warm Up Tops', 1005, 'warmup', 'dark', 0.36)] },
+  { name: 'Production', count: 2, cards: [sampleCard('Game Shorts', 1006, 'shorts', 'dark', 0.42), sampleCard('Jackets', 1007, 'jacket', 'dark', 0.3)] },
+];
+
 /** A preview of the order board: orders as cards under their stage. */
-function BoardVisual() {
-  const columns: { name: string; cards: [string, number, string, 'dark' | 'light', number, boolean?][] }[] = [
-    { name: 'Received', cards: [['Club Hoodies', 1001, 'hoodie', 'dark', 0.18], ['Training Tees', 1002, 'tee', 'light', 0.18], ['Caps', 1003, 'cap', 'dark', 0.1]] },
-    { name: 'Design', cards: [['Team kit', 1004, 'jersey', 'dark', 0.62, true], ['Warm Up Tops', 1005, 'warmup', 'dark', 0.36]] },
-    { name: 'Production', cards: [['Game Shorts', 1006, 'shorts', 'dark', 0.42], ['Jackets', 1007, 'jacket', 'dark', 0.3]] },
-  ];
+function BoardVisual({ columns = SAMPLE_BOARD }: { columns?: MiniColumn[] }) {
   return <div className="on-visual on-visual-board" aria-hidden="true">
     {columns.map(column => <div key={column.name} className="on-col">
-      <div className="on-col-head"><span>{column.name}</span><b>{column.cards.length}</b></div>
-      {column.cards.map(([name, id, garment, tone, progress, hot]) => <div key={id} className={`on-card${hot ? ' is-hot' : ''}`}>
-        <div className="on-card-text"><strong>{name}</strong><small>#{id}</small><i><em style={{ width: `${progress * 100}%` }} /></i></div>
-        <GarmentIcon garment={garment} tone={tone} />
+      <div className="on-col-head"><span>{column.name}</span><b>{column.count}</b></div>
+      {column.cards.map(card => <div key={card.key} className={`on-card${card.hot ? ' is-hot' : ''}`}>
+        <div className="on-card-text"><strong>{card.name}</strong><small>{card.ref}</small><i><em style={{ width: `${card.progress * 100}%` }} /></i></div>
+        <GarmentIcon garment={card.garment} tone={card.tone} />
       </div>)}
     </div>)}
   </div>;

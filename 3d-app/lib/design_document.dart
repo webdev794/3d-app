@@ -65,6 +65,22 @@ const garmentZones = {
   'sleeves': 'Sleeves',
   'sides': 'Side panels',
   'hem': 'Hem',
+  // Only on the pocket polo (pool and darts shirts) and hoodies (their kangaroo pocket).
+  'pocket': 'Chest pocket',
+  // Only on hoodies.
+  'hood': 'Hood',
+};
+
+/// The hoodies (pull-over and full zip), as the app names them.
+bool isHoodie(String garment) => garment == 'Hoodie' || garment == 'Zip hoodie';
+
+/// A hoodie's own colour areas (AppController.zoneColors) and their labels; the zip only on the zip hoodie.
+const hoodieAreas = {
+  'hood': 'Hood',
+  'lining': 'Hood lining',
+  'rib': 'Cuffs & waistband',
+  'pocket': 'Pocket',
+  'zip': 'Zip',
 };
 
 const studioPatterns = [

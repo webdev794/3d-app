@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, Check, Copy, FileUp, ImagePlus, Layers, LoaderCircle, PenTool, Plus, Search, Trash2, Type, Upload, WandSparkles, Star } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Copy, FileUp, ImagePlus, Layers, LoaderCircle, PenTool, Plus, RotateCcw, Search, Trash2, Type, Upload, WandSparkles, Star } from 'lucide-react';
 import { api, fetchFile, getToken, media, type Project } from '../api';
 import type { ArtworkLayer, Design } from '../types';
-import type { KitViewerHandle } from './KitViewer';
+import type { DesignLayout, KitViewerHandle } from './KitViewer';
 
 export type LibraryAsset = { id: number; name: string; type: string; src?: string };
 export type ArtworkDrop = { asset?: LibraryAsset; pattern?: string };
@@ -36,13 +36,16 @@ export async function checkDrawing(viewer: KitViewerHandle, src: string, name: s
     return { garment: top, layout: { asset, name: name.slice(0, 160), roles: result.roles, kind: 'drawing', parts: [top] } };
 }
 
+/** The last design picture and print layout on the kit this visit, with the garment they were on (a preset or Remove takes them off; Artwork puts them back). */
+export type ShelvedLayouts = Partial<Record<'drawing' | 'print', { layout: DesignLayout; garment: Design['garment'] }>>;
+
 interface ArtworkProps {
-    design: Design; edit: (patch: Partial<Design>) => void;
+    design: Design; edit: (patch: Partial<Design>) => void; shelved?: ShelvedLayouts;
     viewer: React.RefObject<KitViewerHandle | null>; selected: string | null; onSelect: (id: string | null) => void;
     requireAuth: (action?: () => void) => void; onNotice: (message: string) => void;
     onDrag: (payload: ArtworkDrop | null) => void; ready: boolean; board: boolean; onBoard: () => void;
 }
-export function ArtworkPanel({ design, edit, viewer, selected, onSelect, requireAuth, onNotice, onDrag, ready, board, onBoard }: ArtworkProps) {
+export function ArtworkPanel({ design, edit, shelved = {}, viewer, selected, onSelect, requireAuth, onNotice, onDrag, ready, board, onBoard }: ArtworkProps) {
     const [assets, setAssets] = useState<LibraryAsset[] | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
@@ -140,8 +143,9 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
             <strong>MY DESIGN PICTURE</strong>
             <p className="field-hint">A finished picture of your design: the front and back of the garment drawn flat, side by side (a tech flat or a designer’s mock-up). It goes onto the 3D kit exactly as drawn: the whole pattern, your logos in their places, on a singlet, jersey, training tee or polo.</p>
             {layout?.kind === 'drawing'
-                ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · on the 3D kit as drawn</p><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Design picture removed: back to your designed kit. The picture stays in your saved assets.'); }}>Remove design picture</button></>
-                : <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => drawingInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <ImagePlus size={15} />} Upload my design picture</button>}
+                ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · on the 3D kit as drawn</p><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Design picture removed: back to your designed kit. Put my design picture back (here) or Undo returns it.'); }}>Remove design picture</button></>
+                : <>{shelved.drawing && <button className="button button-secondary full-width" disabled={busy} onClick={() => { const { layout: back, garment } = shelved.drawing!; edit({ garment, layout: back }); onNotice(`${back.name} is back on the 3D kit as drawn.`); }}><RotateCcw size={15} /> Put my design picture back · {shelved.drawing.layout.name}</button>}
+                    <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => drawingInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <ImagePlus size={15} />} Upload my design picture</button></>}
             <input ref={drawingInput} hidden type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.svg,image/png,image/jpeg,image/webp,application/pdf,image/svg+xml" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importDrawing(file); }} />
         </div>
         <div className="print-layout">
@@ -149,8 +153,9 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
             <p className="field-hint">The finished print file from the factory (PDF, SVG or PNG with the cut panels laid flat and named FRONT BODY, LEFT SLEEVE …): each panel goes onto the 3D kit, the same way every time.</p>
             {layout && layout.kind !== 'drawing'
                 ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · {layout.roles.filter(role => role !== 'none').length} panels on the kit</p>
-                    <label className="print-layout-join"><input type="checkbox" checked={layout.joinLines !== false} onChange={e => edit({ layout: { ...layout, joinLines: e.target.checked } })} /> Join the sleeve bands to the sleeves (no white line between them)</label><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Print layout removed: back to your designed kit. The file stays in your saved assets.'); }}>Remove print layout</button></>
-                : <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => layoutInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <FileUp size={15} />} Upload print layout</button>}
+                    <label className="print-layout-join"><input type="checkbox" checked={layout.joinLines !== false} onChange={e => edit({ layout: { ...layout, joinLines: e.target.checked } })} /> Join the sleeve bands to the sleeves (no white line between them)</label><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Print layout removed: back to your designed kit. Put the print layout back (here) or Undo returns it.'); }}>Remove print layout</button></>
+                : <>{shelved.print && <button className="button button-secondary full-width" disabled={busy} onClick={() => { const { layout: back, garment } = shelved.print!; edit({ garment, layout: back }); onNotice(`${back.name} is back on the 3D kit.`); }}><RotateCcw size={15} /> Put the print layout back · {shelved.print.layout.name}</button>}
+                    <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => layoutInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <FileUp size={15} />} Upload print layout</button></>}
             <input ref={layoutInput} hidden type="file" accept=".pdf,.svg,.png,.jpg,.jpeg,application/pdf,image/svg+xml,image/png,image/jpeg" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importLayout(file); }} />
         </div>
         <button className="button button-secondary full-width" disabled={busy} onClick={() => requireAuth(load)}>{busy ? <LoaderCircle size={15} className="spin" /> : <ImagePlus size={15} />} Load your saved assets</button>
@@ -176,12 +181,22 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
 }
 
 type Preset = { id: string; name: string; description: string; design: Partial<Design> };
+/** Area patterns as an object ({} for none, also for the [] an empty one becomes in PHP). */
+const areas = (value: unknown): NonNullable<Design['zones']> => value && typeof value === 'object' && !Array.isArray(value) ? value as NonNullable<Design['zones']> : {};
 type Tab = 'all' | 'mine' | 'favourites';
 const FAVOURITES = '3deezi.favouritePresets';
 const readFavourites = (): string[] => { try { return JSON.parse(localStorage.getItem(FAVOURITES) || '[]'); } catch { return []; } };
 
-/** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites). */
-export function PresetPanel({ design, edit, onNotice }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void }) {
+/** The user's own design in this Studio (before the first preset, and as changed after it is chosen again), with a still of it. */
+export type OwnDesign = { design: Design; thumb?: string | null };
+/** The keys that make a design what it is (YOUR DESIGN compares them). */
+const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks'] as const;
+export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys.map(key => key === 'zones' ? areas(d.zones) : key === 'layers' ? d.layers ?? [] : key === 'marks' ? d.marks ?? {} : key === 'zoneColors' ? (Object.keys(d.zoneColors ?? {}).length ? d.zoneColors : null) : d[key] ?? null));
+/** The whole design back, as one change (keys it lacks are cleared). */
+export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, zoneColors: null, ...d, zones: areas(d.zones) });
+
+/** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites); YOUR DESIGN first. */
+export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void; own?: OwnDesign | null; onOwn?: () => void; beforePreset?: () => Promise<void> }) {
     const [presets, setPresets] = useState<Preset[]>([]);
     const [mine, setMine] = useState<Project[] | null>(null);
     const [error, setError] = useState('');
@@ -194,11 +209,18 @@ export function PresetPanel({ design, edit, onNotice }: { design: Design; edit: 
         if (tab !== 'mine' || mine || !getToken()) return;
         api<Project[]>('/projects').then(setMine).catch(() => setMine([]));
     }, [tab, mine]);
-    function matches(preset: Preset) { return ['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternBody', 'gradient', 'zones'].every(key => preset.design[key as keyof Design] === undefined || JSON.stringify(design[key as keyof Design]) === JSON.stringify(preset.design[key as keyof Design])) && !design.patternImage; }
-    function apply(name: string, source: Partial<Design>) {
-        const { layers: _layers, garment: _garment, logoText: _wordmark, number: _number, backName: _name, logoImage: _logo, sponsorImage: _sponsor, ...style } = source;
-        // Older saves lack these keys: clear them so the look matches exactly.
-        edit({ gradient: null, zones: {}, ...style, patternImage: style.patternImage ?? null }); onNotice(`${name} applied. Your logos and player details are preserved.`);
+    // The presets file comes through PHP, which turns an empty {} into []: area patterns compare as {}.
+    const same = (key: keyof Design, value: unknown) => JSON.stringify(key === 'zones' ? areas(value) : value) === JSON.stringify(key === 'zones' ? areas(design.zones) : design[key]);
+    function matches(preset: Preset) { return (['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternBody', 'gradient', 'zones'] as const).every(key => preset.design[key] === undefined || same(key, preset.design[key])) && !design.patternImage && !design.gradients && !design.layout; }
+    async function apply(name: string, source: Partial<Design>) {
+        await beforePreset?.().catch(() => undefined);
+        const { layers: _layers, garment: _garment, logoText: _wordmark, number: _number, backName: _name, logoImage: _logo, sponsorImage: _sponsor, marks: _marks, ...style } = source;
+        // The whole look: it replaces an AI print, the Secondary and Pattern gradients and a design picture or print
+        // layout on the kit (these hide the colours and pattern); keys older saves lack are cleared so the look matches.
+        const replaced = design.layout ? (design.layout.kind === 'drawing' ? 'design picture' : 'print layout') : null;
+        // A hoodie's own area colours go too: its lining, rib and zip then follow the preset's colours.
+        edit({ gradient: null, gradients: null, zoneColors: null, ...style, zones: areas(style.zones), patternImage: style.patternImage ?? null, layout: style.layout ?? null });
+        onNotice(replaced ? `${name} applied in place of your ${replaced}: Undo, or Artwork › ${replaced === 'design picture' ? 'My design picture' : 'Factory print layout'}, puts it back.` : `${name} applied. Your logos and player details are preserved.`);
     }
     function toggleFavourite(id: string) {
         const next = favourites.includes(id) ? favourites.filter(f => f !== id) : [...favourites, id];
@@ -208,19 +230,24 @@ export function PresetPanel({ design, edit, onNotice }: { design: Design; edit: 
     const q = filter.toLowerCase();
     const shownPresets = presets.filter(p => (tab === 'all' || favourites.includes(p.id)) && `${p.name} ${p.description} ${p.design.pattern}`.toLowerCase().includes(q));
     const shownMine = (mine ?? []).filter(p => p.name.toLowerCase().includes(q));
+    const ownOn = !!own && designSignature(own.design) === designSignature(design);
+    const ownCard = own && tab !== 'favourites' && (!q || 'your design'.includes(q)) ? <div className={`preset-card own-design ${ownOn ? 'selected' : ''}`}>
+        <button className="preset-apply" onClick={onOwn} title="Back to your own design: its picture or layout, colours, patterns, gradients, artwork and garment" aria-pressed={ownOn}>{own!.thumb ? <img className="preset-thumb" src={own!.thumb} alt="" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${own!.design.main},${own!.design.secondary})` }} />}<strong>YOUR DESIGN</strong><small>{own!.design.layout ? (own!.design.layout.kind === 'drawing' ? 'Design picture' : 'Print layout') : 'Your own kit'}</small></button>
+        {ownOn && <Check className="preset-check" size={15} />}
+    </div> : null;
     return <div className="studio-presets">
         <div className="preset-heading"><div><span className="eyebrow">READY TO USE</span><h2>Preset designs</h2></div><span>{presets.length}</span></div>
         <div className="preset-tabs" role="tablist">{([['all', 'All designs'], ['mine', 'My designs'], ['favourites', 'Favourites']] as const).map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>
         <label className="artwork-search"><Search size={14} /><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search designs" aria-label="Search designs" /></label>
         {tab === 'mine' ? (
-            !getToken() ? <p className="muted">Sign in to see your saved designs here.</p>
-            : !mine ? <p className="muted"><LoaderCircle size={14} className="spin" /> Loading your designs…</p>
-            : !shownMine.length ? <p className="muted">No saved designs yet. Save a kit and it appears here.</p>
-            : <div className="studio-preset-grid">{shownMine.map(p => <button key={p.id} onClick={() => apply(p.name, p.design)} title={`Apply the look of ${p.name}`}>{p.thumbnail ? <img className="preset-thumb" src={p.thumbnail} alt="" loading="lazy" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${p.design.main},${p.design.secondary})` }} />}<strong>{p.name}</strong><small>Version {p.version}</small></button>)}</div>
+            !getToken() ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted">Sign in to see your saved designs here.</p></>
+            : !mine ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted"><LoaderCircle size={14} className="spin" /> Loading your designs…</p></>
+            : !shownMine.length ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted">No saved designs yet. Save a kit and it appears here.</p></>
+            : <div className="studio-preset-grid">{ownCard}{shownMine.map(p => <button key={p.id} onClick={() => apply(p.name, p.design)} title={`Apply the look of ${p.name}`}>{p.thumbnail ? <img className="preset-thumb" src={p.thumbnail} alt="" loading="lazy" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${p.design.main},${p.design.secondary})` }} />}<strong>{p.name}</strong><small>Version {p.version}</small></button>)}</div>
         ) : error ? <div><p className="error-message" role="alert">{error}</p><button className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Retry presets</button></div>
         : !presets.length ? <p className="muted"><LoaderCircle size={14} className="spin" /> Loading designs…</p>
         : !shownPresets.length ? <p className="muted">{tab === 'favourites' ? 'Tap the star on any design to keep it here.' : 'No designs match your search.'}</p>
-        : <div className="studio-preset-grid">{shownPresets.map(preset => <div key={preset.id} className={`preset-card ${matches(preset) ? 'selected' : ''}`}>
+        : <div className="studio-preset-grid">{ownCard}{shownPresets.map(preset => <div key={preset.id} className={`preset-card ${matches(preset) ? 'selected' : ''}`}>
             <button className="preset-apply" onClick={() => apply(preset.name, preset.design)} title={preset.description} aria-pressed={matches(preset)}><img className="preset-thumb" src={media(`presets/${preset.id}.webp`)} alt="" loading="lazy" /><strong>{preset.name}</strong><small>{preset.design.pattern}</small></button>
             <button className={`preset-star ${favourites.includes(preset.id) ? 'on' : ''}`} onClick={() => toggleFavourite(preset.id)} aria-label={favourites.includes(preset.id) ? `Remove ${preset.name} from favourites` : `Add ${preset.name} to favourites`}><Star size={14} /></button>
             {matches(preset) && <Check className="preset-check" size={15} />}

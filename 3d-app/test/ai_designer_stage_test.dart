@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/widgets/ai_stage.dart';
 
@@ -25,6 +28,13 @@ void main() {
     expect(garmentInBrief('Rugby jersey and shorts'), 'Full Kit');
     expect(garmentInBrief('A netball dress in teal'), 'Singlet');
     expect(garmentInBrief('Black and gold with stripes'), isNull);
+    // Hoodies and the pocket polo are garments of their own (2026-10-21).
+    expect(garmentInBrief('Navy club hoodie with a gold crest'), 'Hoodie');
+    expect(garmentInBrief('A zip-up hoodie for the coaches'), 'Zip hoodie');
+    expect(garmentInBrief('Full zip hoodies for the bench'), 'Zip hoodie');
+    expect(garmentInBrief('A darts pocket polo'), 'Polo with pocket');
+    expect(garmentInBrief('A fishing shirt with a hood'), 'Jersey');
+    expect(garmentInBrief('Colours from my childhood club'), isNull);
     expect(sportInBrief('soccer home kit')?.sport, 'Soccer');
     expect(sportInBrief('boxing club gear')?.id, 'fight-wear');
     expect(sportInBrief('something plain'), isNull);
@@ -114,10 +124,101 @@ void main() {
     await tester.tap(find.byTooltip('Generate designs'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.generating);
-    expect(c.aiSport, 'Training / Gym');
+    // Its own category since 2026-10-21 (it was Training / Gym).
+    expect(c.aiSport, 'Workwear');
     expect(c.aiGarment, 'Polo');
     expect(c.brief, startsWith('Workwear: '));
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 400));
   });
+
+  // QA 2026-10-21: while MAKE IT 3D draws the print sheet it opens the Studio
+  // by itself; Open in 3D Designer waits meanwhile.
+  testWidgets('Open in 3D Designer waits while MAKE IT 3D draws', (
+    tester,
+  ) async {
+    final c = AppController()..screen = AppScreen.home;
+    await mountPhone(tester, c);
+    c.startAi();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.enterText(
+      find.byType(TextField),
+      'Black and cyan rugby league jersey with a Mantis logo',
+    );
+    await tester.tap(find.byTooltip('Generate designs'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.concepts);
+    final png = (await rootBundle.load(
+      'assets/images/reference_1.png',
+    )).buffer.asUint8List();
+    c.update(() {
+      c.concepts.first.image = png;
+      c.sheetBusy = true;
+    });
+    await tester.pump();
+    expect(find.text('Drawing the print sheet…'), findsOneWidget);
+    await tester.tap(find.text('Drawing the print sheet…'), warnIfMissed: false);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.concepts, reason: 'disabled while drawing');
+    c.update(() => c.sheetBusy = false);
+    await tester.pump();
+    // A guest signs in first (the print sheet is kept in their assets).
+    await tester.tap(find.text('Open in 3D Designer'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.auth);
+  });
+
+  // QA 2026-10-21: back to the brief while MAKE IT 3D draws; the late print
+  // sheet must not pull the user into the Studio.
+  testWidgets('a late MAKE IT 3D print sheet keeps the user on the brief', (
+    tester,
+  ) async {
+    final c = _SlowSheet()..screen = AppScreen.home;
+    c.user = const ApiUser(id: 1, name: 'Tester', email: 't@example.com');
+    await mountPhone(tester, c);
+    c.startAi();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.enterText(
+      find.byType(TextField),
+      'Black and cyan rugby league jersey with a Mantis logo',
+    );
+    await tester.tap(find.byTooltip('Generate designs'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.concepts);
+    final png = (await rootBundle.load(
+      'assets/images/reference_1.png',
+    )).buffer.asUint8List();
+    c.update(() => c.concepts.first.image = png);
+    await tester.pump();
+    await tester.tap(find.text('Open in 3D Designer'));
+    await tester.pump();
+    expect(c.sheetBusy, isTrue);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.aiDesigner);
+    c.sheet.complete(png);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.aiDesigner);
+    expect(find.text('Your print sheet is ready in Assets › Artwork.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+}
+
+/// MAKE IT 3D with a print sheet that arrives when the test says.
+class _SlowSheet extends AppController {
+  final sheet = Completer<Uint8List>();
+  @override
+  Future<Uint8List> mockupPrintSheet({bool frontOnly = false}) async {
+    update(() => sheetBusy = true);
+    try {
+      return await sheet.future;
+    } finally {
+      update(() => sheetBusy = false);
+    }
+  }
 }

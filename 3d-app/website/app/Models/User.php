@@ -34,6 +34,12 @@ class User extends Authenticatable
         return $this->hasMany(Order::class);
     }
 
+    /** 3DEEZI TEAM design requests. */
+    public function teamRequests(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(TeamRequest::class);
+    }
+
     /** Saved order forms and uploads, not submitted yet. */
     public function orderDrafts(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
@@ -72,6 +78,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'is_designer' => 'boolean',
+            'designer_all' => 'boolean',
         ];
     }
 }

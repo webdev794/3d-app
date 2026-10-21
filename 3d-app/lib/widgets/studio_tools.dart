@@ -227,12 +227,26 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
               c.edit(() => c.layout = null);
               showToast(
                 context,
-                'Design picture removed: back to your designed kit. The '
-                'picture stays in your saved assets.',
+                'Design picture removed: back to your designed kit. Put my '
+                'design picture back (here) or Undo returns it.',
               );
             },
           ),
-        ] else
+        ] else ...[
+          if (c.shelvedLayouts['drawing'] case final back?) ...[
+            SecondaryButton(
+              label: 'PUT MY DESIGN PICTURE BACK',
+              icon: Icons.undo,
+              onPressed: () {
+                c.putLayoutBack('drawing');
+                showToast(
+                  context,
+                  '${back.layout['name']} is back on the 3D kit as drawn.',
+                );
+              },
+            ),
+            const SizedBox(height: 6),
+          ],
           SecondaryButton(
             label: 'UPLOAD MY DESIGN PICTURE',
             icon: Icons.add_photo_alternate_outlined,
@@ -240,6 +254,7 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
                 ? null
                 : () => _uploadLayout(picture: true),
           ),
+        ],
         const SectionLabel('Factory print layout'),
         const Text(
           'The finished print file from the factory (PDF, SVG or PNG with the '
@@ -285,17 +300,29 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
               c.edit(() => c.layout = null);
               showToast(
                 context,
-                'Print layout removed: back to your designed kit. The file '
-                'stays in your saved assets.',
+                'Print layout removed: back to your designed kit. Put the '
+                'print layout back (here) or Undo returns it.',
               );
             },
           ),
-        ] else
+        ] else ...[
+          if (c.shelvedLayouts['print'] case final back?) ...[
+            SecondaryButton(
+              label: 'PUT THE PRINT LAYOUT BACK',
+              icon: Icons.undo,
+              onPressed: () {
+                c.putLayoutBack('print');
+                showToast(context, '${back.layout['name']} is back on the 3D kit.');
+              },
+            ),
+            const SizedBox(height: 6),
+          ],
           SecondaryButton(
             label: 'UPLOAD PRINT LAYOUT',
             icon: Icons.upload_file,
             onPressed: c.checkLayout == null ? null : _uploadLayout,
           ),
+        ],
         const SizedBox(height: 10),
         Row(
           children: [
@@ -933,7 +960,9 @@ class StudioZoneTool extends StatelessWidget {
     children: [
       const SectionLabel('Patterns by garment area'),
       for (final zone in garmentZones.entries)
-        if (c.garment != 'Shorts' || !['sleeves', 'yoke'].contains(zone.key))
+        if ((c.garment != 'Shorts' || !['sleeves', 'yoke'].contains(zone.key)) &&
+            (zone.key != 'pocket' || c.garment == 'Polo with pocket' || isHoodie(c.garment)) &&
+            (zone.key != 'hood' || isHoodie(c.garment)))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: DropdownButtonFormField<String>(
@@ -962,6 +991,37 @@ class StudioZoneTool extends StatelessWidget {
               }),
             ),
           ),
+      // Hoodies: each area's own colour, from the kit's colours (or back to them).
+      if (isHoodie(c.garment)) ...[
+        const SectionLabel('Hoodie area colours'),
+        for (final area in hoodieAreas.entries)
+          if (area.key != 'zip' || c.garment == 'Zip hoodie')
+            Row(
+              key: ValueKey('area-${area.key}'),
+              children: [
+                Expanded(child: Text(area.value, style: const TextStyle(fontSize: 12))),
+                for (final color in {c.mainColor, c.secondaryColor, c.accentColor, Colors.white, Colors.black})
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '${area.value}: ${ProjectSync.hex(color)}',
+                    icon: Icon(
+                      c.zoneColors[area.key] == ProjectSync.hex(color) ? Icons.check_circle : Icons.circle,
+                      color: color,
+                      size: 20,
+                    ),
+                    onPressed: () => c.edit(() => c.zoneColors = {...c.zoneColors, area.key: ProjectSync.hex(color)}),
+                  ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: '${area.value}: back to the kit colours',
+                  icon: const Icon(Icons.restart_alt, size: 18),
+                  onPressed: c.zoneColors.containsKey(area.key)
+                      ? () => c.edit(() => c.zoneColors = {...c.zoneColors}..remove(area.key))
+                      : null,
+                ),
+              ],
+            ),
+      ],
     ],
   );
 }
@@ -1012,9 +1072,69 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
         .catchError((Object _) => false);
   }
 
-  void _apply(String name, Map<String, dynamic> design) {
+  Future<void> _apply(String name, Map<String, dynamic> design) async {
+    await c.captureOwnThumb();
+    if (!mounted) return;
+    final on = c.layout;
+    final replaced = on == null
+        ? null
+        : on['kind'] == 'drawing'
+        ? 'design picture'
+        : 'print layout';
     c.applyPreset(design);
-    showToast(context, '$name applied. Undo restores your previous style.');
+    showToast(
+      context,
+      replaced == null
+          ? '$name applied. Your logos and player details are preserved.'
+          : '$name applied in place of your $replaced: Undo, or Artwork › '
+                '${replaced == 'design picture' ? 'My design picture' : 'Factory print layout'}, '
+                'puts it back.',
+    );
+  }
+
+  /// YOUR DESIGN, first in All designs and My designs.
+  List<Widget> _own() {
+    final own = c.ownKit;
+    if (own == null || !'your design'.contains(_query.toLowerCase())) {
+      return const [];
+    }
+    final thumb = c.ownThumb;
+    return [
+      Stack(
+        children: [
+          _card(
+            image: thumb != null
+                ? Image.memory(thumb, fit: BoxFit.cover)
+                : DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [own.mainColor, own.secondaryColor],
+                      ),
+                    ),
+                  ),
+            title: 'YOUR DESIGN',
+            subtitle: own.layout == null
+                ? 'Your own kit'
+                : own.layout!['kind'] == 'drawing'
+                ? 'Design picture'
+                : 'Print layout',
+            onTap: () {
+              c.restoreOwn();
+              showToast(
+                context,
+                'Your design is back on the kit. Undo returns to the preset.',
+              );
+            },
+          ),
+          if (c.ownOn)
+            const Positioned(
+              right: 6,
+              top: 6,
+              child: Icon(Icons.check_circle, color: Palette.cyan, size: 18),
+            ),
+        ],
+      ),
+    ];
   }
 
   Widget _card({
@@ -1139,12 +1259,19 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                   .where((p) => p.title.toLowerCase().contains(q))
                   .toList();
               if (mine.isEmpty) {
-                return const Text(
-                  'No saved designs yet. Save a kit and it appears here.',
-                  style: TextStyle(color: Palette.muted),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (c.ownKit != null) _grid(_own()),
+                    const Text(
+                      'No saved designs yet. Save a kit and it appears here.',
+                      style: TextStyle(color: Palette.muted),
+                    ),
+                  ],
                 );
               }
               return _grid([
+                ..._own(),
                 for (final p in mine)
                   _card(
                     image: p.thumbnail != null || p.asset != null
@@ -1195,6 +1322,7 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                 );
               }
               return _grid([
+                if (_tab == 0) ..._own(),
                 for (final preset in shown)
                   _card(
                     image: Image.asset(

@@ -48,6 +48,12 @@ class Invoice extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** A 3DEEZI TEAM design request's invoice (no order). */
+    public function teamRequest(): BelongsTo
+    {
+        return $this->belongsTo(TeamRequest::class);
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class)->orderBy('id');

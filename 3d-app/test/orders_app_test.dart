@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/screens/ai_designer.dart';
+import 'package:three_deezi/screens/library.dart' show ProfileScreen;
 import 'package:three_deezi/screens/order_entry.dart';
 import 'package:three_deezi/screens/orders_board.dart';
 
@@ -268,6 +269,75 @@ void main() {
     expect(c.screen, AppScreen.auth);
   });
 
+  testWidgets('Orders screen: opened from the home heading, own orders on the mini board, each card opens its screen', (tester) async {
+    final server = OrdersServer();
+    final c = signedIn(server);
+    await mount(tester, ListView(children: [OrderNowSection(c)]));
+    // The home's ORDER NOW heading opens the Orders screen (the website's /order-now).
+    await tap(tester, find.byKey(const ValueKey('order-now-open')));
+    expect(find.byType(OrderNowScreen), findsOneWidget);
+    expect(find.text('Orders'), findsOneWidget);
+    expect(find.text('Start an order. Upload your details. Follow its progress.'), findsWidgets);
+    // Signed in: the My Orders card shows the customer's own orders by stage.
+    final screen = find.byType(OrderNowScreen);
+    expect(find.descendant(of: screen, matching: find.text('Received')), findsOneWidget);
+    expect(find.descendant(of: screen, matching: find.text('MANTIS Rugby League')), findsOneWidget);
+    expect(find.descendant(of: screen, matching: find.text('#3DZ-00002')), findsOneWidget);
+    expect(server.requests.where((r) => r.url.path.endsWith('/orders/board')), hasLength(1));
+    // Create Order Form and Upload Your Order open the native screens on top.
+    await tap(tester, find.descendant(of: screen, matching: find.text('CREATE ORDER FORM →')));
+    expect(find.byType(OrderFormScreen), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tap(tester, find.descendant(of: screen, matching: find.text('UPLOAD YOUR ORDER →')));
+    expect(find.byType(OrderUploadScreen), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    // My Orders closes the Orders screen and shows the app's My orders.
+    await tap(tester, find.descendant(of: screen, matching: find.text('VIEW MY ORDERS →')));
+    expect(find.byType(OrderNowScreen), findsNothing);
+    expect(c.screen, AppScreen.orders);
+  });
+
+  testWidgets('Orders screen: a guest sees the cards (no board) and is asked to sign in', (tester) async {
+    final server = OrdersServer();
+    final c = AppController(store: FakeStore(), api: ApiClient(client: server.client, baseUrl: 'https://test.example'));
+    await mount(tester, OrderNowScreen(c));
+    expect(find.text('ORDER NOW WITH'), findsOneWidget);
+    expect(find.text('Received'), findsNothing);
+    expect(server.requests, isEmpty);
+    await tap(tester, find.text('UPLOAD YOUR ORDER →'));
+    expect(c.screen, AppScreen.auth);
+  });
+
+  test('a saved design sets its order row: zip hoodie → hoodie, pocket polo → polo, full kit → jersey', () {
+    expect(orderGarmentFor('Zip hoodie'), 'hoodie');
+    expect(orderGarmentFor('Hoodie'), 'hoodie');
+    expect(orderGarmentFor('Polo with pocket'), 'polo');
+    expect(orderGarmentFor('Full Kit'), 'jersey');
+    expect(orderGarmentFor('Training Tee'), 'tee');
+    expect(orderGarmentFor('Shorts'), 'shorts');
+    expect(orderGarmentFor('ziphoodie'), 'hoodie');
+    expect(orderGarmentFor('Something new'), 'jersey');
+  });
+
+  test('miniBoard: the first three stages with counts; null without orders', () {
+    final board = miniBoard({
+      'stages': [
+        {'key': 'received', 'count': 3, 'orders': [{'id': 1, 'number': '3DZ-1', 'name': 'A'}, {'id': 2, 'number': '3DZ-2', 'name': 'B'}, {'id': 3, 'number': '3DZ-3', 'name': 'C'}]},
+        {'key': 'design', 'count': 1, 'orders': [{'id': 4, 'number': '3DZ-4', 'name': 'D', 'action': 'review_design'}]},
+        {'key': 'production', 'count': 0, 'orders': []},
+        {'key': 'shipped', 'count': 5, 'orders': []},
+      ],
+    })!;
+    expect(board.map((c) => c.name), ['Received', 'Design', 'Production']);
+    expect(board.map((c) => c.count), [3, 1, 0]);
+    expect(board.first.cards, hasLength(2));
+    expect(board[1].cards.single.hot, isTrue);
+    expect(miniBoard({'stages': [{'key': 'received', 'count': 0, 'orders': []}]}), isNull);
+    expect(miniBoard(null), isNull);
+  });
+
   testWidgets('Upload Your Order: the order form uploads, its rows are confirmed, then one order', (tester) async {
     final server = OrdersServer();
     pickOrderFile = (kind) async => (name: kind == 'order_form' ? 'order.csv' : 'logo.png', bytes: Uint8List.fromList(utf8.encode('Item,Size,Qty\nJersey,M,10\n')));
@@ -290,5 +360,23 @@ void main() {
     final sent = server.submitted.single;
     expect(sent['team_name'], 'Lions FC');
     expect((sent['items'] as List).single['sizes'], {'M': 10});
+  });
+
+  testWidgets('Profile: a guest is "Guest", never the demo name; signed in it is the account name', (tester) async {
+    // QA 2026-10-21 (from D): the profile showed "Alex Morgan" (AppController.name's demo default) to everyone.
+    final c = AppController(store: FakeStore());
+    await mount(tester, ProfileScreen(c));
+    expect(find.text('Guest'), findsOneWidget);
+    expect(find.text('Alex Morgan'), findsNothing);
+    expect(find.text('Guest · projects stay on this device'), findsOneWidget);
+    c.user = const ApiUser(id: 1, name: 'Fabian Soutar', email: 'fab@example.test');
+    await mount(tester, ProfileScreen(c));
+    expect(find.text('Fabian Soutar'), findsOneWidget);
+    expect(find.text('fab@example.test'), findsOneWidget);
+    expect(find.text('Alex Morgan'), findsNothing);
+    // An account without a name shows its email.
+    c.user = const ApiUser(id: 2, name: ' ', email: 'noname@example.test');
+    await mount(tester, ProfileScreen(c));
+    expect(find.text('noname@example.test'), findsNWidgets(2));
   });
 }

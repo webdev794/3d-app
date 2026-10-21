@@ -32,9 +32,11 @@ export function friendlyError(error: unknown): string {
 }
 
 /**
- * The AI designer's sports quick-pick row (client visual 2026-10-21). `sport` is the catalogue sport the AI gets;
- * categories without a catalogue sport (fight wear, fishing, workwear) design as Training apparel and name themselves
- * in the brief. `garments`: the garment chips offered when the brief names none, most likely first.
+ * The AI designer's sports quick-pick row (client visual 2026-10-21). `sport` is the catalogue sport the AI gets (since
+ * 2026-10-21 fight wear, fishing and workwear are catalogue categories of their own, with a style hint; they still
+ * name themselves in the brief).
+ * `garments`: the garment chips offered when the brief names none, most likely first; the catalogue's list for the
+ * sport (config/catalog.php) wins over the ones here, which only cover the page before the catalogue loads.
  */
 export interface QuickSport { id: string; label: string; sport: string; brief?: string; garments: string[]; art?: string }
 export const allGarments = ['jersey', 'fullkit', 'shorts', 'tee', 'singlet', 'polo'];
@@ -44,19 +46,31 @@ export const quickSports: QuickSport[] = [
   { id: 'netball', label: 'Netball', sport: 'netball', garments: ['singlet', 'shorts', 'tee', 'polo'] },
   { id: 'football', label: 'Soccer', sport: 'football', garments: allGarments },
   { id: 'basketball', label: 'Basketball', sport: 'basketball', garments: ['singlet', 'fullkit', 'shorts', 'tee', 'polo'] },
-  { id: 'fight-wear', label: 'Fight Wear', sport: 'training', brief: 'Fight wear', garments: ['tee', 'shorts', 'singlet'] },
-  { id: 'fishing', label: 'Fishing', sport: 'training', brief: 'Fishing apparel', garments: ['jersey', 'polo', 'tee'] },
-  { id: 'workwear', label: 'Workwear', sport: 'training', brief: 'Workwear', garments: ['polo', 'tee', 'jersey'] },
+  { id: 'fight-wear', label: 'Fight Wear', sport: 'fight-wear', brief: 'Fight wear', garments: ['tee', 'shorts', 'singlet'] },
+  { id: 'fishing', label: 'Fishing', sport: 'fishing', brief: 'Fishing apparel', garments: ['jersey', 'polo', 'tee'] },
+  { id: 'workwear', label: 'Workwear', sport: 'workwear', brief: 'Workwear', garments: ['polo', 'tee', 'jersey'] },
   { id: 'afl', label: 'AFL', sport: 'afl', garments: allGarments },
   { id: 'hockey', label: 'Hockey', sport: 'hockey', garments: allGarments },
   { id: 'training', label: 'Training', sport: 'training', garments: ['tee', 'singlet', 'shorts', 'polo', 'jersey'] },
 ];
-export const garmentLabels: Record<string, string> = { jersey: 'Jersey', fullkit: 'Full kit', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo' };
+export const garmentLabels: Record<string, string> = { jersey: 'Jersey', fullkit: 'Full kit', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie' };
 
-/** The quick picks, then any catalogue sport they do not name yet (with its showroom kit as the picture). */
+/**
+ * The quick picks, then every other catalogue sport in catalogue order, each with the catalogue's garments for it. A quick
+ * pick the server does not list (an older server) is left out, so Generate never sends a sport it refuses.
+ */
 export function sportTiles(catalogSports: CatalogItem[] = []): QuickSport[] {
-  return [...quickSports, ...catalogSports.filter(s => !quickSports.some(q => q.id === s.id)).map(s => ({ id: s.id, label: s.name, sport: s.id, garments: allGarments, art: media(`showroom/kit-${s.id}.webp`) }))];
+  if (!catalogSports.length) return quickSports;
+  const known = (q: QuickSport) => catalogSports.find(s => s.id === q.sport);
+  const garmentsOf = (s?: CatalogItem) => s?.garments?.length ? s.garments : undefined;
+  return [
+    ...quickSports.filter(known).map(q => ({ ...q, garments: garmentsOf(known(q)) ?? q.garments })),
+    ...catalogSports.filter(s => !quickSports.some(q => q.id === s.id)).map(s => ({ id: s.id, label: s.name, sport: s.id, garments: garmentsOf(s) ?? allGarments })),
+  ];
 }
+
+/** The tile's photo; a missing one falls back to the sport's DYO kit picture (onError in SportRow). */
+const tileArt = (s: QuickSport) => s.art ?? media(`images/ai-designer/sport-${s.id}.webp`);
 
 /** The garment a brief names, if any ("navy polo" → polo; "jersey and shorts" → full kit). */
 export function garmentInBrief(text: string): string | null {
@@ -65,9 +79,13 @@ export function garmentInBrief(text: string): string | null {
   const top = has(/\bjerseys?\b|\bguernseys?\b|\bjumpers?\b|\bshirts?\b|\blong[- ]sleeves?\b/) && !has(/\bt-?shirts?\b|\bpolo shirts?\b/);
   const shorts = has(/\bshorts\b/);
   if (has(/\bfull[- ]?kits?\b|\bkits?\b|\buniforms?\b|\bstrips?\b/) || (top && shorts)) return 'fullkit';
+  // Hoodies are 3D garments of their own (a zip one too); "hood" alone (a fishing shirt's hood, "childhood") is not one.
+  if (has(/\bzip(?:ped)?[- ]?(?:up[- ]?|through[- ]?)?hood(?:ie|y)s?\b|\bfull[- ]zip hood(?:ie|y)s?\b/)) return 'ziphoodie';
+  if (has(/\bhood(?:ie|y)s?\b|\bhooded (?:jumpers?|sweat\w*|tops?|pullovers?)\b/)) return 'hoodie';
+  if (has(/\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b/)) return 'pocketpolo';
   if (has(/\bpolos?\b/)) return 'polo';
   if (has(/\bsinglets?\b|\bvests?\b|\btank tops?\b|\bdress(es)?\b|\bbodysuits?\b/)) return 'singlet';
-  if (has(/\bt-?shirts?\b|\btees?\b|\bhoodies?\b|\bjackets?\b|\bhi-?vis\b|\brash ?guards?\b/)) return 'tee';
+  if (has(/\bt-?shirts?\b|\btees?\b|\bjackets?\b|\bhi-?vis\b|\brash ?guards?\b/)) return 'tee';
   if (shorts) return 'shorts';
   if (top) return 'jersey';
   return null;
@@ -76,7 +94,15 @@ export function garmentInBrief(text: string): string | null {
 /** The sport a brief names, when no tile was picked ("soccer" → Soccer). */
 export function sportInBrief(text: string, tiles: QuickSport[] = quickSports): QuickSport | undefined {
   const t = text.toLowerCase();
-  const words: [RegExp, string][] = [[/rugby league|\bnrl\b/, 'rugby-league'], [/rugby union/, 'rugby-union'], [/\brugby\b/, 'rugby-league'], [/netball/, 'netball'], [/basketball/, 'basketball'], [/soccer|\bfootball\b|\bfc\b/, 'football'], [/\bafl\b|aussie rules|australian rules|guernsey/, 'afl'], [/hockey/, 'hockey'], [/boxing|\bmma\b|fight ?wear|martial arts|jiu.?jitsu|muay thai/, 'fight-wear'], [/fishing|angler/, 'fishing'], [/workwear|hi-?vis|tradie/, 'workwear'], [/training|\bgym\b/, 'training']];
+  const words: [RegExp, string][] = [[/rugby league|\bnrl\b/, 'rugby-league'], [/rugby union/, 'rugby-union'], [/\brugby\b/, 'rugby-league'], [/netball/, 'netball'], [/basketball/, 'basketball'],
+    // Before soccer, which also says "football".
+    [/american football|gridiron|\bnfl\b/, 'american-football'], [/touch football|\btouch (?:kit|team|club|jersey|tee|shirt|singlet|shorts)|oztag/, 'touch'],
+    [/soccer|\bfootball\b|\bfc\b/, 'football'], [/\bafl\b|aussie rules|australian rules|guernsey/, 'afl'], [/hockey/, 'hockey'], [/boxing|\bmma\b|fight ?wear|martial arts|jiu.?jitsu|muay thai/, 'fight-wear'], [/fishing|angler/, 'fishing'], [/workwear|hi-?vis|tradie/, 'workwear'],
+    [/\bgolf/, 'golf'], [/tennis/, 'tennis'], [/athletics|\brunning (?:club|team|kit|singlet)|track (?:and|&) field|cross[- ]country|marathon/, 'athletics'], [/swim|water ?polo|surf life/, 'swimming'],
+    [/darts|billiards|snooker|\bpool (?:shirt|team|player|league|club)/, 'darts'], [/cricket/, 'cricket'], [/softball|baseball/, 'softball'], [/volleyball/, 'volleyball'],
+    [/lacrosse/, 'lacrosse'], [/\bbmx\b|motocross|\bmx\b/, 'bmx'], [/cycling|cyclist|\bbike\b|bicycle/, 'cycling'], [/lawn bowls|\bbowls\b/, 'lawn-bowls'],
+    [/e-?sports|gaming|\bgamers?\b/, 'esports'], [/school leavers|\bleavers\b|graduat/, 'school-leavers'], [/club casual|teamwear|clubwear|\bsupporters?\b/, 'teamwear'],
+    [/gymwear|fitness|crossfit/, 'gymwear'], [/training|\bgym\b/, 'training']];
   const hit = words.find(([re]) => re.test(t));
   return hit ? tiles.find(s => s.id === hit[1]) : undefined;
 }
@@ -117,7 +143,7 @@ export function SportRow({ tiles, selected, onSelect }: { tiles: QuickSport[]; s
     <button type="button" className="aid-arrow" onClick={() => page(-1)} disabled={!more.prev} aria-label="Previous sports"><ChevronLeft size={22} /></button>
     <div ref={strip} className="aid-strip" onScroll={measure} role="group" aria-label="Choose a sport (optional)">
       {tiles.map((s, i) => <button key={s.id} type="button" className="aid-tile" aria-pressed={selected === s.id} onClick={() => onSelect(s.id)} title={selected === s.id ? `${s.label}: chosen (click again to clear)` : `Design for ${s.label}`}>
-        <img src={s.art ?? media(`images/ai-designer/sport-${s.id}.webp`)} alt="" width={300} height={360} loading={i < 9 ? 'eager' : 'lazy'} decoding="async" draggable={false} />
+        <img src={tileArt(s)} alt="" width={300} height={360} loading={i < 9 ? 'eager' : 'lazy'} decoding="async" draggable={false} onError={e => { const img = e.currentTarget, kit = media(`showroom/kit-${s.sport}.webp`); if (!img.src.endsWith(kit)) img.src = kit; }} />
         <strong>{s.label}</strong><i aria-hidden="true" />
       </button>)}
     </div>

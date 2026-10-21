@@ -119,12 +119,15 @@ export function createBoard({ getParts, getDesign, onLayers, onMarks = () => {},
       for (const back of [false, true]) {
         g.save();
         g.beginPath();
-        painter.outline.forEach((pt, i) => {
-          const c = painter.toCanvas(back, pt.x, pt.y);
-          const x = row.ox + c.x * row.k, y = row.oy + c.y * row.k;
-          i ? g.lineTo(x, y) : g.moveTo(x, y);
-        });
-        g.closePath();
+        // With any pieces of their own on that side (a hoodie's hood).
+        for (const outline of [painter.outline, ...(painter.piecesOn?.(back) ?? [])]) {
+          outline.forEach((pt, i) => {
+            const c = painter.toCanvas(back, pt.x, pt.y);
+            const x = row.ox + c.x * row.k, y = row.oy + c.y * row.k;
+            i ? g.lineTo(x, y) : g.moveTo(x, y);
+          });
+          g.closePath();
+        }
         g.save();
         g.clip();
         g.shadowBlur = 0;
@@ -193,7 +196,7 @@ export function createBoard({ getParts, getDesign, onLayers, onMarks = () => {},
       const tx = (px - row.ox) / row.k, ty = (py - row.oy) / row.k;
       if (tx < 0 || ty < 0 || tx > tex.width || ty > tex.height) continue;
       const at = row.part.painter.fromCanvas(tx, ty);
-      if (!row.part.painter.contains(at.x, at.y)) continue;
+      if (!row.part.painter.contains(at.x, at.y, at.side)) continue;
       return { part: row.part.painter.partName, ...at, painter: row.part.painter };
     }
     return null;

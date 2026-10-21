@@ -10,6 +10,7 @@ What the client's real site needs before launch. The current live site is a test
   - `upload_max_filesize = 26M`
   - `post_max_size = 30M`
 - **HTTPS:** required for card payments and Apple Pay.
+- **PHP errors off and a temp folder** (3DEEZI TEAM uploads): `display_errors = Off`, and `upload_tmp_dir` either unset or an existing, writable folder. Otherwise PHP notices break the upload replies.
 
 ## 2. Settings in the live `.env`
 
@@ -19,6 +20,7 @@ What the client's real site needs before launch. The current live site is a test
 | `APP_ENV` | `production` | |
 | `APP_DEBUG` | `false` | |
 | `OPENAI_API_KEY` | | For the AI designer, AI edits and 3DEEZI ASSIST (kept on the server only) |
+| AI models | set in Admin › Settings | Recommended (2026-10-21): image gpt-image-2.5-flare, HD image gpt-image-2.5-sunburst, planning gpt-6-luna (gpt-6.1-sol tested 2026-10-21: it dropped the client's mascot logo and was slower), chat gpt-6-luna. Saved in the database, so they override .env |
 | `MAIL_MAILER` | `sendmail` for now | Uses the hosting's own mail, like `wp_mail()` on WordPress sites. Later `smtp`, with `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` |
 | `MAIL_FROM_ADDRESS` | | e.g. noreply@ the client's domain |
 | `MAIL_FROM_NAME` | `3DEEZI` | |

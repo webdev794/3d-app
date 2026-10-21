@@ -6,6 +6,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
+import 'sports_catalog.dart';
+
 /// Supplied at build time: `--dart-define=OPENAI_API_KEY=...`. When it is
 /// absent the app falls back to its scripted demo flow.
 const _apiKey = String.fromEnvironment('OPENAI_API_KEY');
@@ -13,14 +15,23 @@ const _textModel = String.fromEnvironment(
   'OPENAI_TEXT_MODEL',
   defaultValue: 'gpt-6-luna',
 );
+// The same models as the website's Admin › Settings (2026-10-21): Flare for
+// the designs, Sunburst for HD; a model or parameter OpenAI turns down falls
+// back once to the known-good gpt-image-2 / gpt-6-luna.
 const _imageModel = String.fromEnvironment(
   'OPENAI_IMAGE_MODEL',
-  defaultValue: 'gpt-image-2',
+  defaultValue: 'gpt-image-2.5-flare',
+);
+const _hdImageModel = String.fromEnvironment(
+  'OPENAI_HD_IMAGE_MODEL',
+  defaultValue: 'gpt-image-2.5-sunburst',
 );
 const _base = 'https://api.openai.com/v1';
 
 const designPatterns = ['Velocity', 'Chevron', 'Stripes', 'Solid'];
 const designFabrics = ['Standard', 'Mesh', 'Pro', 'Eco'];
+/// Every sport name, as lib/sports_catalog.dart (a const list for the JSON
+/// schema; test/sports_catalog_test.dart checks the two match).
 const designSports = [
   'Rugby League',
   'Basketball',
@@ -29,7 +40,28 @@ const designSports = [
   'Netball',
   'Rugby Union',
   'Ice Hockey',
+  'American Football',
+  'Golf',
+  'Tennis',
+  'Athletics',
+  'Swimming',
+  'Darts & Pool',
+  'Touch',
+  'Cricket',
+  'Softball',
+  'Volleyball',
+  'Lacrosse',
+  'Cycling',
+  'BMX',
+  'Lawn Bowls',
+  'Esports',
   'Training / Gym',
+  'Fight Wear',
+  'Fishing',
+  'Workwear',
+  'Gymwear',
+  'Club Casual',
+  'School Leavers',
 ];
 const designGarments = [
   'Jersey',
@@ -38,6 +70,15 @@ const designGarments = [
   'Singlet',
   'Polo',
   'Full Kit',
+];
+
+/// Every 3D garment an AI design can be (the Artboard keeps to
+/// designGarments): the pocket polo and the hoodies too.
+const aiDesignGarments = [
+  ...designGarments,
+  'Polo with pocket',
+  'Hoodie',
+  'Zip hoodie',
 ];
 
 /// How the AI Designer's quick chips steer a brief.
@@ -64,8 +105,11 @@ class KitEdit {
 }
 
 class AiException implements Exception {
-  AiException(this.message);
+  AiException(this.message, {this.modelProblem = false});
   final String message;
+
+  /// OpenAI turned down the model or a parameter (not the content).
+  final bool modelProblem;
   @override
   String toString() => message;
 }
@@ -109,7 +153,7 @@ class DesignSpec {
     renderPrompt: j['renderPrompt'] as String,
     patternMotif: j['patternMotif'] as String? ?? '',
     sport: designSports.contains(j['sport']) ? j['sport'] : 'Rugby League',
-    garment: designGarments.contains(j['garment']) ? j['garment'] : 'Jersey',
+    garment: aiDesignGarments.contains(j['garment']) ? j['garment'] : 'Jersey',
   );
 
   /// For saving projects on the device.
@@ -143,8 +187,26 @@ class DesignSpec {
 }
 
 class AiService {
-  AiService({http.Client? client}) : _client = client ?? http.Client();
+  AiService({
+    http.Client? client,
+    String? apiKey,
+    this.imageModel = _imageModel,
+    this.hdImageModel = _hdImageModel,
+    this.textModel = _textModel,
+  }) : _client = client ?? http.Client(),
+       _key = apiKey ?? _apiKey;
   final http.Client _client;
+  final String _key;
+
+  /// The models in use (the build's defaults; the same as the website's).
+  String imageModel, hdImageModel, textModel;
+
+  /// The known-good models a turned-down call falls back to, once.
+  static const safeImageModel = 'gpt-image-2', safeTextModel = 'gpt-6-luna';
+
+  /// gpt-image-1, 1.5 and 2 take input_fidelity; the 2.5 models reject it.
+  static bool takesInputFidelity(String model) =>
+      !model.startsWith('gpt-image-2.5');
 
   static bool get enabled => _apiKey.isNotEmpty;
 
@@ -175,7 +237,7 @@ class AiService {
       },
       'garment': {
         'type': 'string',
-        'enum': designGarments,
+        'enum': aiDesignGarments,
         'description': 'The garment, from the brief or the stated garment.',
       },
       'designName': {
@@ -244,7 +306,7 @@ class AiService {
   }) async {
     final refs = [?reference, ...references];
     final text = StringBuffer()
-      ..writeln('Sport: $sport')
+      ..writeln('Sport: ${sportForAi(sport)}')
       ..writeln('Garment: $garment')
       ..writeln('Client brief: ${brief.trim().isEmpty ? '(none)' : brief}');
     if (refs.isNotEmpty) {
@@ -263,7 +325,7 @@ class AiService {
         ..writeln('Keep everything the change does not mention.');
     }
     final json = await _post('/responses', {
-      'model': _textModel,
+      'model': textModel,
       'input': [
         {'role': 'system', 'content': _system},
         {'role': 'user', 'content': _content(text.toString(), refs)},
@@ -299,18 +361,20 @@ class AiService {
     final text = StringBuffer()
       ..writeln('Client brief: ${brief.trim().isEmpty ? '(none)' : brief}');
     // Chosen on the AI Designer (a sports tile or a garment chip): keep to it.
-    if (sport != null) text.writeln('Sport chosen by the client: $sport.');
-    if (garment != null) text.writeln('Garment chosen by the client: $garment.');
-    text
-      ..writeln(
-        'Create exactly 4 clearly different concept directions for this '
-        'kit, each designed the way a top custom sublimation sportswear brand '
-        'would: 1) bold and aggressive, with dynamic all-over sublimated '
-        'graphics drawn from the theme of the client\'s logo or brief, 2) '
-        'classic and clean, 3) heritage or pattern-led, 4) modern minimal. '
-        'Keep the team name, sport and garment consistent across all four. '
-        '$freeDesign $colourRules',
-      );
+    if (sport != null) {
+      text.writeln('Sport chosen by the client: ${sportForAi(sport)}.');
+    }
+    if (garment != null)
+      text.writeln('Garment chosen by the client: $garment.');
+    text..writeln(
+      'Create exactly 4 clearly different concept directions for this '
+      'kit, each designed the way a top custom sublimation sportswear brand '
+      'would: 1) bold and aggressive, with dynamic all-over sublimated '
+      'graphics drawn from the theme of the client\'s logo or brief, 2) '
+      'classic and clean, 3) heritage or pattern-led, 4) modern minimal. '
+      'Keep the team name, sport and garment consistent across all four. '
+      '$freeDesign $colourRules',
+    );
     if (references.isNotEmpty) {
       text.writeln(switch (mode) {
         BriefMode.match =>
@@ -326,7 +390,7 @@ class AiService {
       });
     }
     final json = await _post('/responses', {
-      'model': _textModel,
+      'model': textModel,
       'input': [
         {'role': 'system', 'content': _system},
         {'role': 'user', 'content': _content(text.toString(), references)},
@@ -352,7 +416,14 @@ class AiService {
       },
     });
     final list = (jsonDecode(_outputText(json))['concepts'] as List)
-        .map((c) => DesignSpec.fromJson(c as Map<String, dynamic>))
+        .map(
+          (c) => DesignSpec.fromJson({
+            ...c as Map<String, dynamic>,
+            // The garment the client chose stays (as on the website).
+            if (garment != null && aiDesignGarments.contains(garment))
+              'garment': garment,
+          }),
+        )
         .take(4)
         .toList();
     if (list.isEmpty) throw AiException('No concepts came back. Try again.');
@@ -377,7 +448,7 @@ class AiService {
             '"$brief"',
     };
     final json = await _post('/responses', {
-      'model': _textModel,
+      'model': textModel,
       'input': [
         {'role': 'system', 'content': _system},
         {
@@ -451,6 +522,13 @@ class AiService {
   /// Kit colours like a top teamwear brand (the same words as the website):
   /// from the logo's brand colours, dark and bold when the brief is,
   /// readable names and numbers.
+  /// Colours for an option with its own palette (no dark body preference).
+  static const directionColourRules =
+      'Colours: from the client\'s logo or the brief, never from skin tones '
+      'or tiny logo details, with the body colour and palette the creative '
+      'direction sets. Back names and numbers contrast clearly with the body, '
+      'with an outline in the accent colour.';
+
   static const colourRules =
       'Colours: take the kit colours only from the dominant brand colours of '
       'the client\'s logo or the brief, never from skin tones or tiny logo '
@@ -511,7 +589,7 @@ class AiService {
   }) async {
     final count = logos.take(4).length;
     final text =
-        'Sport: $sport\nGarment: $garment\nClient brief: $brief\n'
+        'Sport: ${sportForAi(sport)}\nGarment: $garment\nClient brief: $brief\n'
         '${count > 0 ? '$count image(s) from the client are attached: logos, references or their own finished design.\n' : 'No images are attached.\n'}'
         'You are the art director of a top custom sublimation sportswear '
         'brand. Before the designer renders one hero mockup, write its '
@@ -529,7 +607,7 @@ class AiService {
         'club, league or brand logos other than the client\'s own.';
     try {
       final json = await _post('/responses', {
-        'model': _textModel,
+        'model': textModel,
         'input': [
           {'role': 'system', 'content': _system},
           {
@@ -586,13 +664,28 @@ class AiService {
     required String garment,
     required int count,
     Map<String, dynamic>? direction,
+    String view = 'presentation',
   }) {
+    // An option with its own palette (the website's alternatives): no dark
+    // body preference, so the options do not all look the same.
+    final ownColours = '${direction?['body'] ?? ''}'.trim().isNotEmpty;
     final prompt = StringBuffer(
       'You are the lead designer of a top custom sublimation sportswear '
-      'brand, making a client presentation mockup.\nSport: $sport. Garment: '
+      'brand, making a client presentation mockup.\nSport: ${sportForAi(sport)}. Garment: '
       '$garment.\nClient brief: $brief\n\n',
     );
-    if (direction != null) {
+    // A direction with no creative fields (the brief as written) adds nothing.
+    const creative = [
+      'theme',
+      'palette',
+      'front',
+      'back',
+      'graphics',
+      'trims',
+      'presentation', //
+    ];
+    if (direction != null &&
+        creative.any((k) => '${direction[k] ?? ''}'.trim().isNotEmpty)) {
       prompt.writeln(
         'Creative direction (follow it; the brief wins if they differ):',
       );
@@ -620,7 +713,7 @@ class AiService {
         'logo or brief (for example lightning, speed lines, sharp angular '
         'shards, halftone dot fades, gradients and textures) flowing across '
         'the front, sides and back. Never a plain template with flat colour '
-        'blocks or simple side panels. $colourRules The client\'s main logo is the large '
+        'blocks or simple side panels. ${ownColours ? directionColourRules : colourRules} The client\'s main logo is the large '
         'centrepiece on the front, reproduced faithfully (the same artwork, '
         'colours and lettering). The back carries the team name in bold '
         'athletic lettering over a large player number (for example 01) when '
@@ -628,11 +721,22 @@ class AiService {
         'cuffs and hem.\n',
       )
       ..write(
-        'Presentation: unless the brief asks for a different layout, angle or '
-        'background, make one landscape image of premium commercial product '
-        'photography: the front view on the left and the back view on the '
-        'right, side by side, both complete, fully visible and not '
-        'overlapping, on invisible ghost mannequins, in a dramatic dark '
+        view == 'front'
+            // The option cards (client picture 138.jpg): one garment.
+            ? 'Presentation: one square image of premium commercial product '
+                  'photography: a single garment, the front view only '
+                  '(straight on or a slight three-quarter turn), centred, '
+                  'complete and fully visible with a little space around it, '
+                  'on an invisible ghost mannequin, no back view, '
+            : 'Presentation: unless the brief asks for a different layout, '
+                  'angle or background, make one landscape image of premium '
+                  'commercial product photography: the front view on the left '
+                  'and the back view on the right, side by side, both '
+                  'complete, fully visible and not overlapping, on invisible '
+                  'ghost mannequins, ',
+      )
+      ..write(
+        'in a dramatic dark '
         'setting: a night stadium with floodlights, haze tinted in the kit\'s '
         'main colour, a glossy reflective floor and rim lighting. '
         'Photorealistic fabric: fine knit and mesh texture, natural folds, '
@@ -667,6 +771,37 @@ class AiService {
     return prompt.toString();
   }
 
+  /// One design on the AI designer's results (the same prompt and inputs as
+  /// the website's /ai/designs/render): the brief under the full design rules,
+  /// plus a [direction] for an option. Medium quality by default (about 40 s);
+  /// `high` for "HD primary" and "Make HD".
+  Future<Uint8List> designMockup({
+    required String brief,
+    required String sport,
+    required String garment,
+    List<Uint8List> logos = const [],
+    Map<String, dynamic>? direction,
+    String quality = 'medium',
+    String view = 'presentation',
+  }) async {
+    final client = logos.take(4).toList();
+    return _edit(
+      mockupPrompt(
+        brief: brief,
+        sport: sport,
+        garment: garment,
+        count: client.length,
+        direction: direction,
+        view: view,
+      ),
+      [...client, await _brandLogo()],
+      size: view == 'front' ? '1024x1024' : '1536x1024',
+      quality: quality == 'high' ? 'high' : 'medium',
+      highFidelity: true,
+      model: quality == 'high' ? hdImageModel : imageModel,
+    );
+  }
+
   /// One brief in, one finished HD presentation mockup out, like ChatGPT:
   /// an art direction from the brief and [logos] first, then the render
   /// with the logos as real image inputs. [onDirection] gets the one-line
@@ -699,14 +834,22 @@ class AiService {
       size: '1536x1024',
       quality: 'high',
       highFidelity: true,
+      model: hdImageModel,
     );
   }
 
   /// "Make it 3D": the print sheet prompt (the same words as the website).
-  static String printSheetPrompt(String sport, String garment, int logos) =>
+  static String printSheetPrompt(
+    String sport,
+    String garment,
+    int logos, {
+    bool frontOnly = false,
+  }) =>
       'The first attached image shows a $sport $garment design. Redraw '
       'exactly the same design as a flat print artwork sheet for the '
-      'factory: the garment\'s front on the left and its back on the right, '
+      'factory: '
+      '${frontOnly ? 'The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the team name in bold lettering over a large number). ' : ''}'
+      'the garment\'s front on the left and its back on the right, '
       'side by side, both complete and the same size, drawn flat and '
       'straight-on like a technical flat drawing, on a plain pure white '
       'background with clear white space around and between them. No '
@@ -726,10 +869,11 @@ class AiService {
     required String sport,
     required String garment,
     List<Uint8List> logos = const [],
+    bool frontOnly = false,
   }) {
     final client = logos.take(3).toList();
     return _edit(
-      printSheetPrompt(sport, garment, client.length),
+      printSheetPrompt(sport, garment, client.length, frontOnly: frontOnly),
       [mockup, ...client],
       size: '1536x1024',
       quality: 'high',
@@ -761,7 +905,7 @@ class AiService {
     });
     const hex = {'type': 'string', 'description': 'Hex colour like #0B1016.'};
     final json = await _post('/responses', {
-      'model': _textModel,
+      'model': textModel,
       'input': [
         {'role': 'system', 'content': _system},
         {
@@ -900,7 +1044,7 @@ class AiService {
   /// it into a stencil, so it always takes the kit's own colours.
   Future<Uint8List> generatePattern(String motif) async {
     final json = await _post('/images/generations', {
-      'model': _imageModel,
+      'model': imageModel,
       'prompt':
           'Seamless tileable textile print pattern swatch filling the whole '
           'square edge to edge, for a sublimated sports jersey. Motif: '
@@ -986,7 +1130,7 @@ class AiService {
     String quality = 'medium',
   }) async {
     final json = await _post('/images/generations', {
-      'model': _imageModel,
+      'model': imageModel,
       'prompt': prompt,
       'size': size,
       'quality': quality,
@@ -1003,28 +1147,62 @@ class AiService {
     String size = '1024x1536',
     String quality = 'medium',
     bool highFidelity = false,
-    bool fidelity = false,
+    String? model,
   }) async {
-    if (highFidelity) {
-      // Keeps the first image (the client's logo or design) faithful; a
-      // model that does not take input_fidelity gets the plain request.
+    final m = model ?? imageModel;
+    try {
+      return await _editWith(m, prompt, images, size, quality, highFidelity);
+    } on AiException catch (e) {
+      // A newly set model that OpenAI turns down: once more with gpt-image-2.
+      if (!e.modelProblem || m == safeImageModel) rethrow;
+      debugPrint(
+        'OpenAI turned down $m (${e.message}); retried with $safeImageModel.',
+      );
+      return _editWith(
+        safeImageModel,
+        prompt,
+        images,
+        size,
+        quality,
+        highFidelity,
+      );
+    }
+  }
+
+  Future<Uint8List> _editWith(
+    String model,
+    String prompt,
+    List<Uint8List> images,
+    String size,
+    String quality,
+    bool highFidelity,
+  ) async {
+    // Keeps the first image (the client's logo or design) faithful. The
+    // gpt-image-2.5 models reject input_fidelity, so they never get it;
+    // another model that turns it down gets the plain request.
+    if (highFidelity && takesInputFidelity(model)) {
       try {
-        return await _edit(
-          prompt,
-          images,
-          size: size,
-          quality: quality,
-          fidelity: true,
-        );
+        return await _editOnce(model, prompt, images, size, quality, true);
       } on AiException catch (e) {
         if (!e.message.contains('input_fidelity')) rethrow;
       }
     }
+    return _editOnce(model, prompt, images, size, quality, false);
+  }
+
+  Future<Uint8List> _editOnce(
+    String m,
+    String prompt,
+    List<Uint8List> images,
+    String size,
+    String quality,
+    bool fidelity,
+  ) async {
     final request =
         http.MultipartRequest('POST', Uri.parse('$_base/images/edits'))
-          ..headers['Authorization'] = 'Bearer $_apiKey'
+          ..headers['Authorization'] = 'Bearer $_key'
           ..fields.addAll({
-            'model': _imageModel,
+            'model': m,
             'prompt': prompt,
             'size': size,
             'quality': quality,
@@ -1057,21 +1235,36 @@ class AiService {
     return base64Decode(data.first['b64_json'] as String);
   }
 
-  Future<Map<String, dynamic>> _post(String path, Object body) => _send(
-    () => _client.post(
-      Uri.parse('$_base$path'),
-      headers: {
-        'Authorization': 'Bearer $_apiKey',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(body),
-    ),
-  );
+  Future<Map<String, dynamic>> _post(String path, Object body) async {
+    Future<Map<String, dynamic>> send(Object b) => _send(
+      () => _client.post(
+        Uri.parse('$_base$path'),
+        headers: {
+          'Authorization': 'Bearer $_key',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(b),
+      ),
+    );
+    final model = body is Map<String, dynamic> ? body['model'] : null;
+    final safe = path == '/responses' ? safeTextModel : safeImageModel;
+    try {
+      return await send(body);
+    } on AiException catch (e) {
+      if (!e.modelProblem || model == null || model == safe) rethrow;
+      debugPrint(
+        'OpenAI turned down $model (${e.message}); retried with $safe.',
+      );
+      return send({...body as Map<String, dynamic>, 'model': safe});
+    }
+  }
 
   Future<Map<String, dynamic>> _send(
     Future<http.Response> Function() call,
   ) async {
-    if (!enabled) throw AiException('AI is not configured in this build.');
+    if (_key.isEmpty) {
+      throw AiException('AI is not configured in this build.');
+    }
     final http.Response response;
     try {
       response = await call().timeout(const Duration(minutes: 3));
@@ -1092,9 +1285,36 @@ class AiService {
         401 => 'The AI key was rejected. The build needs a valid key.',
         429 => 'AI usage limit reached. Try again shortly or check credits.',
         _ => 'AI error: ${error['message'] ?? response.statusCode}',
-      });
+      }, modelProblem: modelProblem(response.statusCode, error));
     }
     return json;
+  }
+
+  /// True when OpenAI turned down the model or a parameter, not the content.
+  static bool modelProblem(int status, Map<String, dynamic> error) {
+    final code = '${error['code'] ?? ''}';
+    final message = '${error['message'] ?? ''}'.toLowerCase();
+    if (const {
+          'moderation_blocked',
+          'content_policy_violation',
+          'content_filter',
+        }.contains(code) ||
+        message.contains('safety') ||
+        message.contains('policy')) {
+      return false;
+    }
+    return const {400, 403, 404}.contains(status) &&
+        (const {
+              'model_not_found',
+              'invalid_model',
+              'unsupported_parameter',
+              'unknown_parameter',
+              'unsupported_value',
+              'invalid_parameter',
+            }.contains(code) ||
+            error['param'] == 'model' ||
+            message.contains('model') ||
+            message.contains('parameter'));
   }
 
   static String _mime(Uint8List bytes) {

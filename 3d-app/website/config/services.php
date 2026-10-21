@@ -28,6 +28,10 @@ return [
         'key' => env('OPENAI_API_KEY'),
         'text_model' => env('OPENAI_TEXT_MODEL', 'gpt-6-luna'),
         'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-2'),
+        // Design planning (art direction, the AI designer's four designs); empty: the text model.
+        'planning_model' => env('OPENAI_PLANNING_MODEL'),
+        // HD renders ("HD primary", "Make HD") and the image editor; empty: the image model.
+        'hd_image_model' => env('OPENAI_HD_IMAGE_MODEL'),
     ],
 
     'resend' => [

@@ -14,8 +14,8 @@ void main() {
     await tester.pump();
     expect(find.text('START CREATING'), findsOneWidget);
     for (final label in [
-      'START WITH AI',
-      'START DESIGNING',
+      'CREATE WITH AI',
+      'OPEN 3D DESIGNER',
       'OPEN ARTBOARD',
       'Plans & pricing',
     ]) {

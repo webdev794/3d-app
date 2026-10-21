@@ -124,6 +124,19 @@ class AssistTest extends TestCase
         $this->assertStringNotContainsString('open=Import', $assistant->instructions('/artboard', true));
     }
 
+    public function test_the_garment_command_knows_the_hoodies_and_the_pocket_polo(): void
+    {
+        $assistant = app(\App\Services\SiteAssistant::class);
+        $new = [['action' => 'garment', 'value' => 'hoodie'], ['action' => 'garment', 'value' => 'ziphoodie'], ['action' => 'garment', 'value' => 'pocketpolo'], ['action' => 'garment', 'value' => 'fullkit']];
+        $this->assertSame($new, $assistant->checkActions($new));
+        $this->assertSame([], $assistant->checkActions([['action' => 'garment', 'value' => 'jacket'], ['action' => 'garment', 'value' => 'zip hoodie']]));
+        // Every 3D garment of the catalogue can be switched to.
+        foreach (array_column(config('catalog.garments'), 'id') as $id) {
+            $this->assertCount(1, $assistant->checkActions([['action' => 'garment', 'value' => $id]]), $id);
+        }
+        $this->assertStringContainsString('ziphoodie', $assistant->instructions('/studio', true));
+    }
+
     public function test_a_page_opened_before_an_update_is_asked_to_refresh(): void
     {
         config(['services.openai.key' => 'sk-test']);

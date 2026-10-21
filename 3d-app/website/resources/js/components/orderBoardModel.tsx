@@ -228,7 +228,7 @@ export function readBoard(raw: unknown, view: 'current' | 'completed'): BoardDat
 
 /* ------------------------------------------------------------------------------------------- words and dates */
 
-const GARMENT_NAMES: Record<string, string> = { jersey: 'Jersey', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', hoodie: 'Hoodie', jacket: 'Jacket', warmup: 'Warm-up top', pants: 'Track pants', socks: 'Socks', cap: 'Cap', fullkit: 'Full kit', other: 'Garment' };
+const GARMENT_NAMES: Record<string, string> = { jersey: 'Jersey', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', jacket: 'Jacket', warmup: 'Warm-up top', pants: 'Track pants', socks: 'Socks', cap: 'Cap', fullkit: 'Full kit', other: 'Garment' };
 export const garmentName = (id: string) => GARMENT_NAMES[id] ?? (id ? id[0].toUpperCase() + id.slice(1) : 'Garment');
 /** "#3DZ-01048": the reference exactly as staff, emails and the admin board show it. */
 export const displayRef = (number: string) => `#${number}`;
@@ -298,7 +298,7 @@ const SHAPES: Record<string, { body: string; lines?: string }> = {
   other: { body: 'M28 30 60 14 92 30V92L60 108 28 92Z', lines: 'M28 30 60 46 92 30M60 46V108' },
   form: { body: 'M30 8H74L94 28V112H30Z', lines: 'M74 8V28H94M42 50H82M42 64H82M42 78H70M42 92H62' },
 };
-const SHAPE_OF: Record<string, string> = { jersey: 'tee', tee: 'tee', training: 'tee', fullkit: 'tee', polo: 'polo', singlet: 'singlet', hoodie: 'hoodie', jacket: 'jacket', warmup: 'jacket', shorts: 'shorts', pants: 'pants', socks: 'socks', cap: 'cap', form: 'form' };
+const SHAPE_OF: Record<string, string> = { jersey: 'tee', tee: 'tee', training: 'tee', fullkit: 'tee', polo: 'polo', pocketpolo: 'polo', singlet: 'singlet', hoodie: 'hoodie', ziphoodie: 'hoodie', jacket: 'jacket', warmup: 'jacket', shorts: 'shorts', pants: 'pants', socks: 'socks', cap: 'cap', form: 'form' };
 
 /** A drawn garment in the 3DEEZI colours, for an order row without a saved design picture. */
 export function GarmentIcon({ garment }: { garment: string }) {

@@ -164,3 +164,10 @@
   .gf-name{font-size:8.5px;letter-spacing:.04em}
   .gf-foot{margin-top:10px;padding-top:8px}
 }
+/* Hoodies: each area's own colour (Colours panel). */
+.hoodie-areas{margin:16px 0 4px}
+.hoodie-area{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:13px;color:#d6e6ee}
+.hoodie-area input{width:44px;height:30px;padding:2px;background:#0b1a27;border:1px solid #2a4b5b;border-radius:6px;cursor:pointer}
+.hoodie-area span{flex:1}
+.hoodie-area small{font-size:11px;color:#7f98a6}
+.hoodie-area .icon-button{width:26px;height:26px}

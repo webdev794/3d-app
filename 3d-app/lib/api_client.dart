@@ -527,6 +527,147 @@ class ApiClient {
     return 'data:$type;base64,${base64Encode(response.bodyBytes)}';
   }
 
+  // ---------- 3DEEZI TEAM (human designers; T1's team-api.md)
+  /// The sports and garments of the website's catalogue (`GET /catalog`):
+  /// `{sports: [{id, name, group, garments}], garments: [{id, name}]}`.
+  Future<Map<String, dynamic>> catalog() async =>
+      await _send('GET', '/catalog') as Map<String, dynamic>;
+
+  /// My plan, what is included this month and the next request's price.
+  Future<Map<String, dynamic>> teamAllowance() async =>
+      await _send('GET', '/team/allowance') as Map<String, dynamic>;
+
+  /// My design requests, newest first.
+  Future<List<Map<String, dynamic>>> teamRequests() async =>
+      (await _send('GET', '/team/requests') as List)
+          .cast<Map<String, dynamic>>();
+
+  /// One request with its files, designs, messages and history (opening it
+  /// marks the designer's messages read).
+  Future<Map<String, dynamic>> teamRequest(int id) async =>
+      await _send('GET', '/team/requests/$id') as Map<String, dynamic>;
+
+  /// Sends a request: [fields] name, email, sport, garment, category,
+  /// description, instructions; files under logos[] and references[].
+  Future<Map<String, dynamic>> createTeamRequest(
+    Map<String, String> fields, {
+    List<String> colours = const [],
+    List<({String name, Uint8List bytes})> logos = const [],
+    List<({String name, Uint8List bytes})> references = const [],
+    String? idempotencyKey,
+  }) async =>
+      await _teamMultipart(
+            '/team/requests',
+            {
+              ...fields,
+              if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+            },
+            lists: {'colours[]': colours},
+            files: [
+              for (final f in logos) ('logos[]', f),
+              for (final f in references) ('references[]', f),
+            ],
+          )
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> teamMessage(
+    int id,
+    String body, {
+    List<({String name, Uint8List bytes})> files = const [],
+  }) async =>
+      await _teamMultipart(
+            '/team/requests/$id/messages',
+            {if (body.isNotEmpty) 'body': body},
+            files: [for (final f in files) ('files[]', f)],
+          )
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> teamApprove(int id, {int? version}) async =>
+      await _send(
+            'POST',
+            '/team/requests/$id/approve',
+            body: {if (version != null) 'version': version},
+          )
+          as Map<String, dynamic>;
+
+  /// [extra]: the included revisions are used up, so an extra round is
+  /// invoiced (A$25 incl. GST) and starts once paid.
+  Future<Map<String, dynamic>> teamRevise(
+    int id,
+    String message, {
+    List<({String name, Uint8List bytes})> files = const [],
+    bool extra = false,
+  }) async =>
+      await _teamMultipart(
+            '/team/requests/$id/revisions',
+            {'message': message, if (extra) 'extra': '1'},
+            files: [for (final f in files) ('files[]', f)],
+          )
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> teamCancel(int id) async =>
+      await _send('POST', '/team/requests/$id/cancel', body: const {})
+          as Map<String, dynamic>;
+
+  /// The approved design as an asset for the Studio's design picture.
+  Future<Map<String, dynamic>> teamToStudio(int id) async =>
+      await _send('POST', '/team/requests/$id/to-studio', body: const {})
+          as Map<String, dynamic>;
+
+  /// An order-form draft with the approved design: {draft_id, link}.
+  Future<Map<String, dynamic>> teamOrderDraft(int id) async =>
+      await _send('POST', '/team/requests/$id/order-draft', body: const {})
+          as Map<String, dynamic>;
+
+  /// A request's file ([url] is its API path, "/api/v1/team/files/9").
+  Future<Uint8List> downloadTeamFile(String url) async {
+    final path = url.replaceFirst(RegExp(r'^.*/api/v1'), '');
+    final request = http.Request('GET', Uri.parse('$baseUrl/api/v1$path'))
+      ..headers.addAll({if (token != null) 'Authorization': 'Bearer $token'});
+    final response = await http.Response.fromStream(
+      await _client.send(request),
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(
+        'That file could not be downloaded.',
+        status: response.statusCode,
+      );
+    }
+    return response.bodyBytes;
+  }
+
+  Future<dynamic> _teamMultipart(
+    String path,
+    Map<String, String> fields, {
+    Map<String, List<String>> lists = const {},
+    List<(String, ({String name, Uint8List bytes}))> files = const [],
+  }) {
+    if (!configured) {
+      throw ApiException('No 3DEEZI server is set. Add it under Server.');
+    }
+    final multipart =
+        http.MultipartRequest('POST', Uri.parse('$baseUrl/api/v1$path'))
+          ..fields.addAll(fields)
+          ..headers.addAll({
+            'Accept': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          });
+    // Repeated fields (colours[]=navy&colours[]=#ffcc00) go in as parts too.
+    for (final MapEntry(:key, :value) in lists.entries) {
+      for (final v in value) {
+        multipart.files.add(http.MultipartFile.fromString(key, v));
+      }
+    }
+    var size = 0;
+    for (final (field, f) in files) {
+      size += f.bytes.length;
+      multipart.files.add(
+        http.MultipartFile.fromBytes(field, f.bytes, filename: f.name),
+      );
+    }
+    return _receive(() => _client.send(multipart), long: true, sent: size);
+  }
+
   // ---------- transport
   /// The largest request body sent (the website's limit too).
   static const maxBodyLength = 48 * 1024 * 1024;

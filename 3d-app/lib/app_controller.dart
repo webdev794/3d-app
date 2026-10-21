@@ -53,6 +53,7 @@ class KitState {
     this.sponsorImage,
     this.layers = const [],
     this.zones = const {},
+    this.zoneColors = const {},
     this.gradient,
     this.gradients,
     this.marks = const {},
@@ -64,6 +65,9 @@ class KitState {
   final DesignSpec? spec;
   final List<Map<String, dynamic>> layers;
   final Map<String, String> zones;
+
+  /// Hoodies: each area's own colour (hood, lining, rib, pocket, zip: hex).
+  final Map<String, String> zoneColors;
   final Map<String, dynamic>? gradient;
 
   /// The other colour zones' gradient fills (secondary, patternColor); [gradient] is the primary zone's.
@@ -74,12 +78,24 @@ class KitState {
   final Map<String, dynamic>? layout;
 }
 
-/// One AI concept on the "Choose a design" screen.
+/// One design on the AI designer's results (concepts[0] is the PRIMARY,
+/// [1..3] the options): its 3D kit spec, its direction for the picture and
+/// the picture itself, which fills in when it arrives.
 class Concept {
-  Concept(this.spec);
-  final DesignSpec spec;
+  Concept(this.spec, {this.direction});
+  DesignSpec spec;
   Uint8List? image;
   String? error;
+
+  /// The creative direction its picture is rendered from (null: none).
+  Map<String, dynamic>? direction;
+
+  /// Rendering now; [pending] the quality asked, [quality] the picture's.
+  bool busy = false;
+  String? pending, quality;
+
+  /// 'presentation' (front and back) or 'front' (one garment, the options).
+  String? view;
 
   /// Bundled sample image (demo mode, no API key).
   String? asset;
@@ -163,7 +179,14 @@ class AppController extends ChangeNotifier {
 
   /// The one-prompt HD presentation mockup (front and back), with the art
   /// direction's one-line summary, and "Make it 3D" drawing its print sheet.
-  bool wantMockup = true, mockupBusy = false, sheetBusy = false;
+  /// "HD primary" (off by default: fast and low cost first, client
+  /// 2026-10-21); any design can be made HD later from its menu.
+  bool wantMockup = false, mockupBusy = false, sheetBusy = false;
+
+  /// The AI designer's current Generate: a new brief or Back to create ends
+  /// it, so late pictures from an older brief are dropped.
+  int resultsRun = 0;
+  String? planError;
   Uint8List? mockupImage;
   String? mockupError, mockupDirection;
 
@@ -182,6 +205,9 @@ class AppController extends ChangeNotifier {
   DesignSpec? spec;
   List<Map<String, dynamic>> layers = [];
   Map<String, String> zones = {};
+
+  /// Hoodies: each area's own colour (hood, lining, rib, pocket, zip: hex); unset areas follow the kit colours.
+  Map<String, String> zoneColors = {};
   Map<String, dynamic>? gradient;
 
   /// Gradient fills of the secondary and pattern zones (see gradient_presets.dart); [gradient] is the primary's.
@@ -446,6 +472,9 @@ class AppController extends ChangeNotifier {
         garment: switch (garment) {
           'Training Tee' => 'tee',
           'Polo' => 'polo',
+          'Polo with pocket' => 'pocketpolo',
+          // Hoodies are long-sleeved: a drawing of one is read as a sleeved top.
+          'Hoodie' || 'Zip hoodie' => 'jersey',
           'Jersey' => 'jersey',
           _ => 'singlet',
         },
@@ -466,6 +495,7 @@ class AppController extends ChangeNotifier {
         'jersey' => 'Jersey',
         'tee' => 'Training Tee',
         'polo' => 'Polo',
+        'pocketpolo' => 'Polo with pocket',
         _ => 'Singlet',
       };
       layout = copyLayout({
@@ -480,20 +510,129 @@ class AppController extends ChangeNotifier {
         'Save the project to keep it.';
   }
 
-  /// Replaces styling as one undo step; artwork is preserved when absent.
-  void applyPreset(Map<String, dynamic> design) => edit(() {
+  /// Replaces the look (colours, pattern, gradients, area patterns) as one
+  /// undo step. It also takes off an AI print and a design picture or print
+  /// layout, which would hide it ([shelvedLayouts] keeps them to put back);
+  /// the artwork layers, logos and player details stay, as on the website.
+  void applyPreset(Map<String, dynamic> design) {
+    _keepOwn();
+    _applyPreset(design);
+  }
+
+  // ---------- YOUR DESIGN (Preset designs)
+  /// The user's own kit before the first preset (and as changed after it is
+  /// chosen again), with a 3D still; null for a fresh kit that started from a
+  /// preset. Kept per project for this app session.
+  KitState? ownKit;
+  Uint8List? ownThumb;
+  bool _onPreset = false;
+  String? _freshLook;
+  final Map<String, (KitState?, Uint8List?, bool)> _ownByProject = {};
+
+  String _signature(KitState k) => jsonEncode([
+    k.garment,
+    ProjectSync.hex(k.mainColor),
+    ProjectSync.hex(k.secondaryColor),
+    ProjectSync.hex(k.accentColor),
+    k.pattern,
+    identityHashCode(k.patternTile),
+    identityHashCode(k.logoImage),
+    identityHashCode(k.sponsorImage),
+    k.logoText,
+    k.backName,
+    k.number,
+    k.layers,
+    k.zones,
+    k.zoneColors,
+    k.gradient,
+    k.gradients,
+    k.marks,
+    k.layout,
+  ]);
+
+  /// YOUR DESIGN is on the kit now.
+  bool get ownOn => ownKit != null && _signature(ownKit!) == _signature(kit);
+
+  /// While the kit is the user's own (not a preset), YOUR DESIGN follows it.
+  void _followOwn() {
+    final now = _signature(kit);
+    if (ownKit != null && _signature(ownKit!) == now) {
+      _onPreset = false;
+      return;
+    }
+    if (_onPreset || (ownKit == null && now == _freshLook)) return;
+    ownKit = kit;
+  }
+
+  void _keepOwn() {
+    if (_onPreset) return;
+    if (ownKit != null || _signature(kit) != _freshLook) ownKit = kit;
+    _onPreset = true;
+  }
+
+  /// A 3D still of the user's own kit for the YOUR DESIGN card, taken just
+  /// before a preset replaces it.
+  Future<void> captureOwnThumb() async {
+    if (_onPreset) return;
+    final capture = captureMockup;
+    if (capture == null) return;
+    try {
+      ownThumb = await capture('Front') ?? ownThumb;
+    } on Object {
+      // The swatch shows.
+    }
+  }
+
+  /// YOUR DESIGN back on the kit (its picture or layout, colours, patterns,
+  /// gradients, artwork and garment) as one undo step.
+  void restoreOwn() {
+    final own = ownKit;
+    if (own == null) return;
+    edit(() => _restore(own));
+    _onPreset = false;
+  }
+
+  void _applyPreset(Map<String, dynamic> design) => edit(() {
     if (design['main'] != null) mainColor = ProjectSync.color(design['main']);
     if (design['secondary'] != null) {
       secondaryColor = ProjectSync.color(design['secondary']);
     }
-    if (design['accent'] != null)
+    if (design['accent'] != null) {
       accentColor = ProjectSync.color(design['accent']);
+    }
     if (design['pattern'] is String) pattern = design['pattern'] as String;
     gradient = copyGradient(design['gradient']);
     gradients = copyGradient(design['gradients']);
     zones = copyZones(design['zones']);
-    if (design.containsKey('layers')) layers = copyLayers(design['layers']);
+    zoneColors = copyZones(design['zoneColors']);
+    patternTile = null;
+    layout = copyLayout(design['layout']);
   });
+
+  /// The last design picture ('drawing') and print layout ('print') on the
+  /// kit in this visit, with the garment they were on: a preset or Remove
+  /// takes them off, and the Artwork tool puts them back.
+  final Map<String, ({Map<String, dynamic> layout, String garment})>
+  shelvedLayouts = {};
+  void _shelveLayout() {
+    final on = copyLayout(layout);
+    if (on == null) return;
+    shelvedLayouts[on['kind'] == 'drawing' ? 'drawing' : 'print'] = (
+      layout: on,
+      garment: garment,
+    );
+  }
+
+  /// Puts the shelved design picture or print layout ([kind] 'drawing' or
+  /// 'print') back on the kit as one undo step.
+  void putLayoutBack(String kind) {
+    final back = shelvedLayouts[kind];
+    if (back == null) return;
+    edit(() {
+      garment = back.garment;
+      layout = copyLayout(back.layout);
+    });
+  }
 
   // ---------- renders and the studio
   Uint8List? renderFront, renderBack;
@@ -892,8 +1031,38 @@ class AppController extends ChangeNotifier {
   }
 
   void update(VoidCallback change) {
+    final uncover = _coverCheck();
     change();
+    uncover?.call();
     notifyListeners();
+  }
+
+  /// The colours, pattern, AI print and gradients: what a design picture or
+  /// print layout hides.
+  String get _look => jsonEncode([
+    ProjectSync.hex(mainColor),
+    ProjectSync.hex(secondaryColor),
+    ProjectSync.hex(accentColor),
+    pattern,
+    identityHashCode(patternTile),
+    zones,
+    zoneColors,
+    gradient,
+    gradients,
+  ]);
+
+  /// A design picture or print layout is painted instead of the colours,
+  /// pattern and gradients: a change to them takes it off so the change
+  /// shows ([shelvedLayouts] and Undo put it back). Taken before a change;
+  /// the answer, called after it, does that (null without a layout).
+  VoidCallback? _coverCheck() {
+    if (layout == null) return null;
+    final look = _look, was = jsonEncode(layout);
+    return () {
+      if (layout != null && jsonEncode(layout) == was && _look != look) {
+        layout = null;
+      }
+    };
   }
 
   // ---------- kit edits with Undo/Redo
@@ -917,6 +1086,7 @@ class AppController extends ChangeNotifier {
     spec: spec,
     layers: copyLayers(layers),
     zones: copyZones(zones),
+    zoneColors: copyZones(zoneColors),
     gradient: copyGradient(gradient),
     gradients: copyGradient(gradients),
     marks: copyMarks(marks),
@@ -939,10 +1109,12 @@ class AppController extends ChangeNotifier {
     spec = k.spec;
     layers = copyLayers(k.layers);
     zones = copyZones(k.zones);
+    zoneColors = copyZones(k.zoneColors);
     gradient = copyGradient(k.gradient);
     gradients = copyGradient(k.gradients);
     marks = copyMarks(k.marks);
     layout = copyLayout(k.layout);
+    _shelveLayout();
     if (!layers.any((layer) => layer['id'] == selectedLayerId)) {
       selectedLayerId = null;
     }
@@ -950,10 +1122,15 @@ class AppController extends ChangeNotifier {
 
   /// Changes the kit and records the previous state for Undo.
   void edit(VoidCallback change) {
+    _shelveLayout();
     _undo.add(kit);
     if (_undo.length > 50) _undo.removeAt(0);
     _redo.clear();
+    final uncover = _coverCheck();
     change();
+    uncover?.call();
+    _shelveLayout();
+    _followOwn();
     saved = false;
     mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
@@ -963,6 +1140,7 @@ class AppController extends ChangeNotifier {
     if (_undo.isEmpty) return;
     _redo.add(kit);
     _restore(_undo.removeLast());
+    _followOwn();
     saved = false;
     mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
@@ -972,6 +1150,7 @@ class AppController extends ChangeNotifier {
     if (_redo.isEmpty) return;
     _undo.add(kit);
     _restore(_redo.removeLast());
+    _followOwn();
     saved = false;
     mockupFront = mockupBack = mockupSide = mockupPanels = null;
     notifyListeners();
@@ -991,9 +1170,13 @@ class AppController extends ChangeNotifier {
   // ---------- starting points
   void _resetDesign() {
     _restore(_sampleKit(1, 'Jersey'));
+    shelvedLayouts.clear();
+    ownKit = ownThumb = null;
+    _onPreset = false;
     logoText = backName = 'MANTIS';
     number = '23';
     mainColor = const Color(0xff0b1016);
+    _freshLook = _signature(kit);
     _undo.clear();
     _redo.clear();
     spec = null;
@@ -1071,7 +1254,7 @@ class AppController extends ChangeNotifier {
   /// "Make it 3D": the same AI redraws the mockup as a flat front and back
   /// print sheet (kept in Artwork); the caller puts it on the 3D kit with
   /// [importDesignPicture].
-  Future<Uint8List> mockupPrintSheet() async {
+  Future<Uint8List> mockupPrintSheet({bool frontOnly = false}) async {
     final image = mockupImage;
     if (image == null) throw AiException('Create the HD mockup first.');
     sheetBusy = true;
@@ -1082,6 +1265,7 @@ class AppController extends ChangeNotifier {
         sport: sport,
         garment: garment,
         logos: references,
+        frontOnly: frontOnly,
       );
       artwork.add(sheet);
       return sheet;
@@ -1241,6 +1425,7 @@ class AppController extends ChangeNotifier {
     }
     projects.insert(0, project);
     selectedProject = 0;
+    _ownByProject[project.id] = (ownKit, ownThumb, _onPreset);
     projectName = project.title;
     saved = false;
     saveError = null;
@@ -1278,6 +1463,13 @@ class AppController extends ChangeNotifier {
     renderFront = project.renderFront;
     renderBack = project.renderBack;
     selectedProject = projects.indexOf(project);
+    // An opened project is the user's own; YOUR DESIGN as it was when saved.
+    _freshLook = null;
+    if (_ownByProject[project.id] case (final own, final thumb, final preset)) {
+      ownKit = own;
+      ownThumb = thumb;
+      _onPreset = preset;
+    }
     projectName = project.title;
     saved = true;
     go(AppScreen.studio);

@@ -15,6 +15,8 @@ use App\Http\Controllers\OrderFileController;
 use App\Http\Controllers\PartnerApplicationController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SupportMessageController;
+use App\Http\Controllers\TeamRequestController;
+use App\Http\Middleware\EnsureTeamStaff;
 use App\Services\OpenAiDesigner;
 use Illuminate\Support\Facades\Route;
 
@@ -63,6 +65,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/ai/pattern', [AiController::class, 'pattern'])->middleware('throttle:concepts');
         Route::post('/ai/showcase', [AiController::class, 'showcase'])->middleware('throttle:concepts');
         Route::post('/ai/mockup', [AiController::class, 'mockup'])->middleware('throttle:concepts');
+        // The AI designer's results: four ranked directions, then one render each (PRIMARY HD, options medium).
+        Route::post('/ai/designs', [AiController::class, 'designs'])->middleware('throttle:concepts');
+        Route::post('/ai/designs/render', [AiController::class, 'renderDesign'])->middleware('throttle:concepts');
         Route::post('/ai/print-sheet', [AiController::class, 'printSheet'])->middleware('throttle:concepts');
         Route::post('/ai/edit', [AiController::class, 'edit'])->middleware('throttle:concepts');
         Route::post('/ai/image-edit', [AiController::class, 'imageEdit'])->middleware('throttle:concepts');
@@ -85,6 +90,38 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::get('/order-files/{file}', [OrderFileController::class, 'show'])->whereNumber('file');
         Route::get('/notifications', [NotificationController::class, 'index']);
         Route::post('/notifications/read', [NotificationController::class, 'read']);
+
+        // 3DEEZI TEAM, the human designer service (team-api.md): customers' requests, then the designers' and admins' API.
+        Route::get('/team/allowance', [TeamRequestController::class, 'allowance']);
+        Route::get('/team/requests', [TeamRequestController::class, 'index']);
+        Route::post('/team/requests', [TeamRequestController::class, 'store'])->middleware('throttle:uploads');
+        Route::get('/team/requests/{id}', [TeamRequestController::class, 'show'])->whereNumber('id');
+        Route::post('/team/requests/{id}/messages', [TeamRequestController::class, 'message'])->whereNumber('id')->middleware('throttle:uploads');
+        Route::post('/team/requests/{id}/approve', [TeamRequestController::class, 'approve'])->whereNumber('id');
+        Route::post('/team/requests/{id}/revisions', [TeamRequestController::class, 'revise'])->whereNumber('id')->middleware('throttle:uploads');
+        Route::post('/team/requests/{id}/cancel', [TeamRequestController::class, 'cancel'])->whereNumber('id');
+        Route::post('/team/requests/{id}/to-studio', [TeamRequestController::class, 'toStudio'])->whereNumber('id');
+        Route::post('/team/requests/{id}/order-draft', [TeamRequestController::class, 'orderDraft'])->whereNumber('id');
+        Route::get('/team/files/{file}', [TeamRequestController::class, 'file'])->whereNumber('file')->name('team.files');
+        Route::prefix('team-admin')->name('team-admin.')->middleware(EnsureTeamStaff::class)->group(function () {
+            Route::get('/requests', [Admin\TeamAdminController::class, 'index'])->name('requests');
+            Route::get('/board', [Admin\TeamAdminController::class, 'board'])->name('board');
+            Route::get('/designers', [Admin\TeamAdminController::class, 'designers'])->name('designers');
+            Route::get('/requests/{id}', [Admin\TeamAdminController::class, 'show'])->whereNumber('id')->name('show');
+            Route::patch('/requests/{id}', [Admin\TeamAdminController::class, 'update'])->whereNumber('id')->name('update');
+            Route::patch('/requests/{id}/assign', [Admin\TeamAdminController::class, 'assign'])->whereNumber('id')->name('assign');
+            Route::patch('/requests/{id}/status', [Admin\TeamAdminController::class, 'status'])->whereNumber('id')->name('status');
+            Route::post('/requests/{id}/deliveries', [Admin\TeamAdminController::class, 'deliver'])->whereNumber('id')->middleware('throttle:uploads')->name('deliveries');
+            Route::post('/requests/{id}/messages', [Admin\TeamAdminController::class, 'message'])->whereNumber('id')->middleware('throttle:uploads')->name('messages');
+            Route::post('/requests/{id}/files', [Admin\TeamAdminController::class, 'storeFiles'])->whereNumber('id')->middleware('throttle:uploads')->name('files');
+            Route::delete('/requests/{id}/files/{file}', [Admin\TeamAdminController::class, 'destroyFile'])->whereNumber(['id', 'file'])->name('files.destroy');
+            Route::get('/allowances', [Admin\TeamAdminController::class, 'allowances'])->name('allowances');
+            Route::post('/requests/{id}/free-revision', [Admin\TeamAdminController::class, 'freeRevision'])->whereNumber('id')->name('free-revision');
+            Route::patch('/requests/{id}/refund', [Admin\TeamAdminController::class, 'refund'])->whereNumber('id')->name('refund');
+            Route::put('/allowances/plans', [Admin\TeamAdminController::class, 'updatePlans'])->name('allowances.plans');
+            Route::get('/allowances/users', [Admin\TeamAdminController::class, 'allowanceUsers'])->name('allowances.users');
+            Route::put('/allowances/users/{user}', [Admin\TeamAdminController::class, 'updateAllowance'])->whereNumber('user')->name('allowances.user');
+        });
 
         // The admin panel.
         Route::prefix('admin')->name('admin.')->middleware('admin')->group(function () {

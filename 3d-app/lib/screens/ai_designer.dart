@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../ai_service.dart';
 import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
+import '../design_document.dart' show isHoodie;
 import '../export_service.dart';
 import '../widgets/ai_stage.dart';
 import '../widgets/flow_ui.dart';
@@ -240,17 +241,22 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
       showToast(context, 'Describe your kit or add a reference image.');
       return;
     }
-    final tile = aiQuickSports.where((s) => s.id == _tile).firstOrNull ??
+    final tile =
+        aiQuickSports.where((s) => s.id == _tile).firstOrNull ??
         sportInBrief(text);
     final garment = garmentChoice ?? garmentInBrief(text) ?? _garment;
     if (garment == null) {
       setState(() => _askGarment = true);
       return;
     }
-    var brief = text.isEmpty ? 'Create a design from my attached artwork.' : text;
+    var brief = text.isEmpty
+        ? 'Create a design from my attached artwork.'
+        : text;
     final category = tile?.brief;
     if (category != null &&
-        !brief.toLowerCase().contains(category.split(' ').first.toLowerCase())) {
+        !brief.toLowerCase().contains(
+          category.split(' ').first.toLowerCase(),
+        )) {
       brief = '$category: $brief';
     }
     FocusScope.of(context).unfocus();
@@ -359,7 +365,7 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                                   ),
                                 ),
                                 const Text(
-                                  'HD presentation mockup',
+                                  'HD primary',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     color: Color(0xffb9c7d4),
@@ -481,7 +487,11 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                 // Pictures pasted from the keyboard's clipboard join the
                 // references, as with the picture button.
                 contentInsertionConfiguration: ContentInsertionConfiguration(
-                  allowedMimeTypes: const ['image/png', 'image/jpeg', 'image/webp'],
+                  allowedMimeTypes: const [
+                    'image/png',
+                    'image/jpeg',
+                    'image/webp',
+                  ],
                   onContentInserted: _insertPicture,
                 ),
                 style: const TextStyle(fontSize: 14.5),
@@ -604,35 +614,12 @@ class _AiGeneratingScreenState extends State<AiGeneratingScreen>
     });
     try {
       if (!AiService.enabled) return await _demo(run);
-      if (!c.mockupBusy && c.mockupImage == null) unawaited(c.startMockup());
-      final specs = await c.ai.planConcepts(
-        brief: c.brief,
-        references: c.references,
-        mode: c.briefMode,
-        sport: c.aiSport,
-        garment: c.aiGarment,
-      );
+      // The results fill in as each picture arrives: no waiting here.
+      _ease?.cancel();
+      await Future<void>.delayed(Duration.zero);
       if (!_alive(run)) return;
-      c.concepts = specs.map(Concept.new).toList();
-      setState(() => _step = 2);
-      await Future.wait([
-        for (final concept in c.concepts)
-          c.ai
-              .renderConcept(concept.spec, references: c.references)
-              .then((image) => concept.image = image)
-              .catchError((Object e) {
-                concept.error = '$e';
-                return Uint8List(0);
-              })
-              .whenComplete(() {
-                if (mounted) setState(() => _rendered++);
-              }),
-      ]);
-      if (!_alive(run)) return;
-      if (c.concepts.every((x) => x.image == null)) {
-        throw AiException(c.concepts.first.error ?? 'Rendering failed.');
-      }
-      await _finish(run);
+      startResults(c);
+      c.go(AppScreen.concepts);
     } on AiException catch (e) {
       _ease?.cancel();
       if (mounted && run == _run) setState(() => _error = e.message);
@@ -774,11 +761,13 @@ class _AiGeneratingScreenState extends State<AiGeneratingScreen>
                               ),
                             ),
                       const SizedBox(width: 12),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: done ? Palette.text : Palette.muted,
+                      Flexible(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: done ? Palette.text : Palette.muted,
+                          ),
                         ),
                       ),
                     ],
@@ -824,7 +813,11 @@ class _ReferencesToKit extends StatelessWidget {
   static String _name(Uint8List b, int i) {
     final ext = b.length > 3 && b[0] == 0x89 && b[1] == 0x50
         ? 'png'
-        : b.length > 11 && b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50
+        : b.length > 11 &&
+              b[8] == 0x57 &&
+              b[9] == 0x45 &&
+              b[10] == 0x42 &&
+              b[11] == 0x50
         ? 'webp'
         : 'jpg';
     return 'design-picture-${i + 1}.$ext';
@@ -832,9 +825,17 @@ class _ReferencesToKit extends StatelessWidget {
 
   Future<void> _toKit(BuildContext context, int i) async {
     final messenger = ScaffoldMessenger.of(context);
-    void say(String text) => messenger.showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating, backgroundColor: Palette.surface2));
+    void say(String text) => messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Palette.surface2,
+      ),
+    );
     if (!c.signedIn) {
-      say('Sign in to put your design on the 3D kit: the picture is kept with your saved assets.');
+      say(
+        'Sign in to put your design on the 3D kit: the picture is kept with your saved assets.',
+      );
       c.go(AppScreen.auth);
       return;
     }
@@ -848,7 +849,11 @@ class _ReferencesToKit extends StatelessWidget {
       final done = await c.importDesignPicture(_name(bytes, i), bytes);
       if (done != null) say(done);
     } on Object catch (e) {
-      say(e is ApiException ? e.message : 'That picture could not go on the 3D kit.');
+      say(
+        e is ApiException
+            ? e.message
+            : 'That picture could not go on the 3D kit.',
+      );
     }
   }
 
@@ -858,14 +863,24 @@ class _ReferencesToKit extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Your pictures', style: TextStyle(fontWeight: FontWeight.w700)),
+        const Text(
+          'Your pictures',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 8),
         for (final (i, bytes) in c.references.indexed)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
               children: [
-                SizedBox(width: 56, height: 56, child: ClipRRect(borderRadius: BorderRadius.circular(8), child: artImage(bytes: bytes))),
+                SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: artImage(bytes: bytes),
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
@@ -882,189 +897,232 @@ class _ReferencesToKit extends StatelessWidget {
   );
 }
 
-/// 7 · Choose one of the four AI concepts.
-class ConceptsScreen extends StatelessWidget {
+/// Generate, fast like ChatGPT (client 2026-10-21; website /ai/designs): the
+/// PRIMARY (the brief as written, under the full design rules) starts
+/// rendering at once while one planning call gives its 3D kit spec and the
+/// three options' directions; then the options render, all in parallel.
+/// Medium quality unless "HD primary" is on. A newer Generate or Back to
+/// create ends the run, so late pictures are dropped.
+void startResults(AppController c) {
+  final run = ++c.resultsRun;
+  final primary = Concept(
+    DesignSpec(
+      designName: 'Your design',
+      detected: c.garment,
+      summary: 'Your brief, exactly as written.',
+      findings: const [],
+      mainColor: c.mainColor,
+      secondaryColor: c.secondaryColor,
+      accentColor: c.accentColor,
+      pattern: c.pattern,
+      fabric: 'Standard',
+      logoText: c.logoText,
+      renderPrompt: '',
+      patternMotif: '',
+      sport: c.sport,
+      garment: c.garment,
+    ),
+    direction: const {'ownDesign': false},
+  );
+  c.concepts = [primary];
+  c.selectedConcept = 0;
+  c.planError = null;
+  unawaited(
+    renderDesign(
+      c,
+      primary,
+      c.wantMockup ? 'high' : 'medium',
+      view: 'presentation',
+    ),
+  );
+  unawaited(_planOptions(c, run));
+}
+
+Future<void> _planOptions(AppController c, int run) async {
+  try {
+    final specs = await c.ai.planConcepts(
+      brief: c.brief,
+      references: c.references,
+      mode: c.briefMode,
+      sport: c.aiSport,
+      garment: c.aiGarment,
+    );
+    if (run != c.resultsRun || specs.isEmpty) return;
+    String hex(Color x) =>
+        '#${x.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
+    final options = [
+      for (final spec in specs.skip(1).take(3))
+        Concept(
+          spec,
+          direction: {
+            'front': spec.renderPrompt,
+            // Its own body colour: the dark body rule is for the primary only.
+            'body': hex(spec.mainColor),
+            'palette':
+                '${hex(spec.mainColor)}, ${hex(spec.secondaryColor)}, ${hex(spec.accentColor)}',
+            'ownDesign': false,
+          },
+        ),
+    ];
+    c.update(() {
+      // The primary keeps its picture and takes the plan's 3D kit spec.
+      c.concepts.first.spec = specs.first;
+      c.concepts = [...c.concepts.take(1), ...options];
+    });
+    for (final o in options) {
+      unawaited(renderDesign(c, o, 'medium', view: 'front'));
+    }
+  } on AiException catch (e) {
+    if (run == c.resultsRun) c.update(() => c.planError = e.message);
+  }
+}
+
+/// Renders one design (the primary, an option, "Make HD" or "Regenerate");
+/// its card fills in when it arrives.
+Future<void> renderDesign(
+  AppController c,
+  Concept o,
+  String quality, {
+  String? view,
+}) async {
+  final run = c.resultsRun;
+  final v = view ?? o.view ?? 'front';
+  c.update(() {
+    o.busy = true;
+    o.pending = quality;
+    o.view = v;
+    o.error = null;
+  });
+  try {
+    final image = await c.ai.designMockup(
+      brief: c.brief,
+      sport: c.aiSport ?? c.sport,
+      garment: c.aiGarment ?? c.garment,
+      logos: c.references,
+      direction: o.direction,
+      quality: quality,
+      view: v,
+    );
+    if (run != c.resultsRun) return;
+    o.image = image;
+    o.quality = quality;
+    if (quality == 'high') c.artwork.add(image);
+  } on AiException catch (e) {
+    if (run == c.resultsRun) o.error = e.message;
+  } finally {
+    if (run == c.resultsRun) c.update(() => o.busy = false);
+  }
+}
+
+/// 7 · The AI designer's results (client visual 138.jpg): the PRIMARY DESIGN
+/// card with Open in 3D Designer and Download, a row of three options, then
+/// the prompt bar with the brief to refine it. Each design keeps its 3D kit
+/// spec, so any of them opens in the Studio as an editable kit.
+class ConceptsScreen extends StatefulWidget {
   const ConceptsScreen(this.c, {super.key});
   final AppController c;
 
-  void _open(BuildContext context) {
-    final concept = c.concepts[c.selectedConcept];
+  @override
+  State<ConceptsScreen> createState() => _ConceptsScreenState();
+}
+
+class _ConceptsScreenState extends State<ConceptsScreen> {
+  late final _refine = TextEditingController(text: widget.c.brief);
+  AppController get c => widget.c;
+
+  @override
+  void dispose() {
+    _refine.dispose();
+    super.dispose();
+  }
+
+  void _say(String text) => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(text),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: Palette.surface2,
+    ),
+  );
+
+  /// "Customise in 3D Studio": the design's spec as an editable 3D kit.
+  void _open(int index) {
+    final concept = c.concepts[index];
     if (concept.image != null) c.artwork.add(concept.image!);
-    c.openConcept(c.selectedConcept);
+    c.openConcept(index);
     // The 3D kit's print pattern follows in the background.
     final spec = concept.spec;
     if (AiService.enabled && spec.patternMotif.isNotEmpty) {
       c.ai.generatePattern(spec.patternMotif).then((tile) {
         c.aiPatterns.add(tile);
-        if (identical(c.spec, spec)) c.update(() => c.patternTile = tile);
+        // A design picture put on meanwhile stays as drawn, without it.
+        if (identical(c.spec, spec) && c.layout?['kind'] != 'drawing') {
+          c.update(() => c.patternTile = tile);
+        }
       }, onError: (_) {});
     }
   }
 
-  /// The image editor on a concept's picture; Use replaces the picture.
-  Future<void> _edit(BuildContext context, int index) async {
+  /// "Make primary": the option swaps places with the primary at once.
+  void _makePrimary(int index) => c.update(() {
+    final list = [...c.concepts];
+    final first = list[0];
+    list[0] = list[index];
+    list[index] = first;
+    c.concepts = list;
+    c.selectedConcept = 0;
+  });
+
+  Future<void> _edit(int index) async {
     final concept = c.concepts[index];
     final edited = await openImageEditor(
       context,
       c,
       bytes: concept.image,
       asset: concept.asset,
-      title: 'Concept ${index + 1} · ${concept.spec.designName}',
-      fileName: '3deezi-concept-${index + 1}',
+      title: 'Design ${index + 1} · ${concept.spec.designName}',
+      fileName: '3deezi-design-${index + 1}',
     );
     if (edited == null) return;
     c.update(() => concept.image = edited);
-    if (context.mounted) showToast(context, 'Concept picture updated.');
+    if (mounted) showToast(context, 'Design picture updated.');
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final selected = c.concepts.isEmpty
-        ? null
-        : c.concepts[c.selectedConcept.clamp(0, c.concepts.length - 1)];
-    return Column(
-      children: [
-        TopBar(
-          onBack: c.back,
-          title: 'Choose a design',
-          trailing: [
-            IconButton(
-              tooltip: 'New concepts',
-              onPressed: () => c.go(AppScreen.generating),
-              icon: const Icon(Icons.refresh_rounded, color: Palette.cyan),
-            ),
-          ],
-        ),
-        Expanded(
-          child: CustomScrollView(
-            slivers: [
-              if (c.mockupBusy ||
-                  c.mockupImage != null ||
-                  c.mockupError != null)
-                SliverToBoxAdapter(child: _MockupCard(c)),
-              // Each attached reference picture can go straight onto the 3D kit, as on the website.
-              if (c.references.isNotEmpty)
-                SliverToBoxAdapter(child: _ReferencesToKit(c)),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                sliver: SliverGrid.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: .8,
-                  ),
-                  itemCount: c.concepts.length,
-                  itemBuilder: (context, i) {
-                    final concept = c.concepts[i];
-                    final isSelected = i == c.selectedConcept;
-                    return GlowCard(
-                      selected: isSelected,
-                      glow: isSelected,
-                      onTap: () => c.update(() => c.selectedConcept = i),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          concept.image != null || concept.asset != null
-                              ? artImage(
-                                  bytes: concept.image,
-                                  asset: concept.asset,
-                                )
-                              : const Center(
-                                  child: Text(
-                                    'Render failed',
-                                    style: TextStyle(color: Palette.muted),
-                                  ),
-                                ),
-                          Align(
-                            alignment: Alignment.bottomLeft,
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.fromLTRB(10, 16, 10, 8),
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Color(0x00000000),
-                                    Color(0xdd000000),
-                                  ],
-                                ),
-                              ),
-                              child: Text(
-                                concept.spec.designName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (isSelected)
-                            const Positioned(
-                              top: 8,
-                              right: 8,
-                              child: Icon(
-                                Icons.check_circle_rounded,
-                                color: Palette.cyan,
-                                size: 22,
-                              ),
-                            ),
-                          if (concept.image != null || concept.asset != null)
-                            Positioned(
-                              top: 6,
-                              left: 6,
-                              child: EditImageChip(
-                                onTap: () => _edit(context, i),
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (selected != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
-            child: Text(
-              selected.spec.summary,
-              textAlign: TextAlign.center,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Palette.muted,
-                fontSize: 12,
-                height: 1.45,
-              ),
-            ),
-          ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 14, 22, 20),
-          child: GradientButton(
-            label: 'OPEN IN DESIGN STUDIO',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: selected == null ? null : () => _open(context),
-          ),
-        ),
-      ],
+  Future<void> _download(int index) async {
+    final concept = c.concepts[index];
+    final bytes =
+        concept.image ??
+        (concept.asset == null
+            ? null
+            : (await rootBundle.load(concept.asset!)).buffer.asUint8List());
+    if (bytes == null || !mounted) return;
+    final box = context.findRenderObject() as RenderBox?;
+    final message = await shareImage(
+      bytes,
+      '3deezi-design-${index + 1}.jpg',
+      origin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
     );
+    if (mounted) showToast(context, message);
   }
-}
 
-/// The one-prompt HD presentation mockup on the concepts screen.
-class _MockupCard extends StatelessWidget {
-  const _MockupCard(this.c);
-  final AppController c;
-
-  /// "Make it 3D": the mockup drawn flat (front and back) by the same AI,
-  /// then on the 3D kit through the design-picture check, in one tap.
-  Future<void> _makeIt3d(BuildContext context) async {
+  /// "Open in 3D Designer" (MAKE IT 3D): the primary drawn flat, front and
+  /// back, by the same AI, then on the 3D kit through the design-picture
+  /// check. Sample designs (no AI) open as editable kits.
+  Future<void> _openIn3d() async {
+    final primary = c.concepts.first;
+    final image = primary.image;
+    if (image == null) return _open(0);
+    // A design picture goes on a singlet, jersey, tee or polo (with or
+    // without the pocket) only: a hoodie takes the design's colours, pattern
+    // and wordmark, with the first attached logo as its crest.
+    if (isHoodie(c.aiGarment ?? c.garment)) {
+      _open(0);
+      if (c.logoImage == null && c.references.isNotEmpty) {
+        c.update(() => c.logoImage = c.references.first);
+      }
+      showToast(context, hoodieDesignNote);
+      return;
+    }
+    // Kept for when this screen has gone (Back to create while drawing).
     final messenger = ScaffoldMessenger.of(context);
     void say(String text) => messenger.showSnackBar(
       SnackBar(
@@ -1081,15 +1139,21 @@ class _MockupCard extends StatelessWidget {
       c.go(AppScreen.auth);
       return;
     }
+    c.mockupImage = image;
     final Uint8List sheet;
     try {
-      sheet = await c.mockupPrintSheet();
+      sheet = await c.mockupPrintSheet(frontOnly: primary.view == 'front');
     } on AiException catch (e) {
-      say('Make it 3D: ${e.message}');
+      if (c.screen == AppScreen.concepts) say('Make it 3D: ${e.message}');
+      return;
+    }
+    // Back to the brief (or a new Generate) meanwhile: the user stays where
+    // they went; the print sheet is kept in Artwork.
+    if (c.screen != AppScreen.concepts) {
+      say('Your print sheet is ready in Assets › Artwork.');
       return;
     }
     c.go(AppScreen.studio);
-    // The Studio's 3D kit starts first.
     for (var t = 0; t < 100 && c.checkLayout == null; t++) {
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
@@ -1105,159 +1169,364 @@ class _MockupCard extends StatelessWidget {
     }
   }
 
+  void _backToCreate() {
+    c.resultsRun++;
+    c.back();
+  }
+
+  void _generateAgain() {
+    final text = _refine.text.trim();
+    if (text.length < 10) {
+      _say('Tell us a little more: colours, style or your team name.');
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    c.brief = text;
+    c.go(AppScreen.generating);
+  }
+
+  /// The ⋮ menu: Make primary, Make HD, Download, Edit image, Regenerate,
+  /// Customise in 3D Studio.
+  Widget _menu(int index) {
+    final o = c.concepts[index];
+    final hasPicture = o.image != null || o.asset != null;
+    // Designs from the AI (sample designs have no direction to render).
+    final ai = o.direction != null;
+    return PopupMenuButton<String>(
+      tooltip: index == 0
+          ? 'Primary design actions'
+          : 'Design ${index + 1} actions',
+      icon: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 20),
+      color: Palette.surface2,
+      onSelected: (action) => switch (action) {
+        'primary' => _makePrimary(index),
+        'hd' => renderDesign(c, o, 'high', view: 'presentation'),
+        'download' => _download(index),
+        'edit' => _edit(index),
+        'again' => renderDesign(c, o, o.quality ?? 'medium'),
+        _ => _open(index),
+      },
+      itemBuilder: (_) => [
+        if (index > 0)
+          const PopupMenuItem(value: 'primary', child: Text('Make primary')),
+        if (ai && o.quality != 'high')
+          PopupMenuItem(
+            value: 'hd',
+            enabled: !o.busy,
+            child: const Text('Make HD · 10 credits'),
+          ),
+        if (hasPicture)
+          const PopupMenuItem(value: 'download', child: Text('Download')),
+        if (hasPicture)
+          const PopupMenuItem(value: 'edit', child: Text('Edit image')),
+        if (ai)
+          PopupMenuItem(
+            value: 'again',
+            enabled: !o.busy,
+            child: Text(index == 0 ? 'Regenerate' : 'Regenerate this option'),
+          ),
+        const PopupMenuItem(
+          value: 'studio',
+          child: Text('Customise in 3D Studio'),
+        ),
+      ],
+    );
+  }
+
+  Widget _picture(Concept? o, {required bool big}) {
+    if (o == null) {
+      // Waiting for the plan while a Generate runs; otherwise nothing yet.
+      return Center(
+        child: c.concepts.isEmpty || c.planError != null
+            ? const Icon(Icons.image_outlined, color: Palette.muted)
+            : const CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    final hasPicture = o.image != null || o.asset != null;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (hasPicture)
+          artImage(bytes: o.image, asset: o.asset, fit: BoxFit.cover)
+        else if (o.busy)
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (big)
+                const EmblemLoader(size: 110)
+              else
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              if (big) ...[
+                const SizedBox(height: 8),
+                Text(
+                  o.pending == 'high'
+                      ? 'Rendering your HD design… about a minute'
+                      : 'Rendering your design… about 40 seconds',
+                  style: const TextStyle(fontSize: 12, color: Palette.muted),
+                ),
+              ],
+            ],
+          )
+        else
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                o.error ?? 'No picture yet.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11.5),
+              ),
+            ),
+          ),
+        if (hasPicture && o.busy)
+          const ColoredBox(
+            color: Color(0x8802060b),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final image = c.mockupImage;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
-      child: GlowCard(
-        selected: image != null,
-        onTap: image == null
-            ? null
-            : () => showDialog<void>(
-                context: context,
-                builder: (_) => Dialog.fullscreen(
-                  backgroundColor: Colors.black,
-                  child: Stack(
+    final list = c.concepts;
+    final primary = list.isEmpty ? null : list.first;
+    final hasPicture = primary?.image != null || primary?.asset != null;
+    return Column(
+      children: [
+        TopBar(onBack: _backToCreate, title: 'Your designs'),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            children: [
+              // The PRIMARY DESIGN card.
+              GlowCard(
+                selected: true,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Positioned.fill(
-                        child: InteractiveViewer(
-                          maxScale: 5,
-                          child: Image.memory(image, fit: BoxFit.contain),
+                      AspectRatio(
+                        aspectRatio: 3 / 2,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              _picture(primary, big: true),
+                              Positioned(
+                                top: 8,
+                                left: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xe60b4c99),
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.settings,
+                                        size: 13,
+                                        color: Palette.cyan,
+                                      ),
+                                      SizedBox(width: 5),
+                                      Text(
+                                        'PRIMARY DESIGN',
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: .6,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (primary != null)
+                                Positioned(top: 0, right: 0, child: _menu(0)),
+                            ],
+                          ),
                         ),
                       ),
-                      Positioned(
-                        top: 40,
-                        right: 12,
-                        child: IconButton.filled(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close),
-                        ),
+                      const SizedBox(height: 8),
+                      // Side by side where the full labels fit; on phones
+                      // (QA 2026-10-21: "Open in 3D …" cut at 390 px) the
+                      // two buttons go on two rows.
+                      LayoutBuilder(
+                        builder: (context, box) {
+                          final open = GradientButton(
+                            label: c.sheetBusy
+                                ? 'Drawing the print sheet…'
+                                : 'Open in 3D Designer',
+                            icon: Icons.view_in_ar_outlined,
+                            compact: true,
+                            onPressed:
+                                primary == null || c.sheetBusy || !hasPicture
+                                ? null
+                                : _openIn3d,
+                          );
+                          final download = OutlinedButton.icon(
+                            onPressed: hasPicture ? () => _download(0) : null,
+                            icon: const Icon(Icons.download_rounded, size: 18),
+                            label: const Text('Download'),
+                          );
+                          if (box.maxWidth < 420) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                open,
+                                const SizedBox(height: 8),
+                                download,
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(child: open),
+                              const SizedBox(width: 8),
+                              Expanded(child: download),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
                 ),
               ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AspectRatio(
-              aspectRatio: 3 / 2,
-              child: image != null
-                  ? Image.memory(image, fit: BoxFit.cover)
-                  : c.mockupError != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'Mockup not created: ${c.mockupError}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12),
+              const SizedBox(height: 12),
+              // The three options: a swipe row; tap one to make it primary.
+              SizedBox(
+                height: 132,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: 3,
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                  itemBuilder: (context, i) {
+                    final index = i + 1;
+                    final o = index < list.length ? list[index] : null;
+                    return SizedBox(
+                      width: 198,
+                      child: GlowCard(
+                        glow: false,
+                        onTap: o != null && (o.image != null || o.asset != null)
+                            ? () => _makePrimary(index)
+                            : null,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              o == null && c.planError != null && i == 0
+                                  ? Center(
+                                      child: TextButton(
+                                        onPressed: () => startResults(c),
+                                        child: const Text('Try again'),
+                                      ),
+                                    )
+                                  : _picture(o, big: false),
+                              Positioned(
+                                top: 6,
+                                left: 6,
+                                child: Container(
+                                  width: 26,
+                                  height: 26,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: const Color(0xb302060b),
+                                    border: Border.all(color: Palette.cyan),
+                                  ),
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: const TextStyle(
+                                      color: Palette.cyan,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (o != null)
+                                Positioned(
+                                  top: -4,
+                                  right: -4,
+                                  child: _menu(index),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    )
-                  : const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        EmblemLoader(size: 120),
-                        SizedBox(height: 8),
-                        Text(
-                          'Rendering your HD mockup… about a minute',
-                          style: TextStyle(fontSize: 12, color: Palette.muted),
-                        ),
-                      ],
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-              child: Row(
-                children: [
-                  const Icon(Icons.auto_awesome, color: Palette.cyan, size: 18),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'HD MOCKUP · ONE PROMPT',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        letterSpacing: 1.4,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  if (image != null)
-                    TextButton.icon(
-                      onPressed: () async {
-                        final edited = await openImageEditor(
-                          context,
-                          c,
-                          bytes: image,
-                          title: 'HD mockup',
-                          fileName: '3deezi-mockup',
-                        );
-                        if (edited == null) return;
-                        c.update(() {
-                          c.mockupImage = edited;
-                          c.artwork.add(edited);
-                        });
-                        if (context.mounted) {
-                          showToast(
-                            context,
-                            'Mockup updated · also saved in Assets › Artwork.',
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.edit_outlined, size: 17),
-                      label: const Text('Edit'),
-                    ),
-                  if (image != null)
-                    TextButton.icon(
-                      onPressed: () async {
-                        final box = context.findRenderObject() as RenderBox?;
-                        final message = await shareImage(
-                          image,
-                          '3deezi-mockup.jpg',
-                          origin: box == null
-                              ? null
-                              : box.localToGlobal(Offset.zero) & box.size,
-                        );
-                        if (context.mounted) showToast(context, message);
-                      },
-                      icon: const Icon(Icons.ios_share, size: 17),
-                      label: const Text('Save / share'),
-                    ),
-                ],
-              ),
-            ),
-            if (c.mockupDirection != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                child: Text(
-                  c.mockupDirection!,
-                  style: const TextStyle(fontSize: 12.5, height: 1.35),
+                    );
+                  },
                 ),
               ),
-            if (image != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                child: FilledButton.icon(
-                  onPressed: c.sheetBusy ? null : () => _makeIt3d(context),
-                  icon: c.sheetBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.view_in_ar_outlined, size: 18),
-                  label: Text(
-                    c.sheetBusy
-                        ? 'Drawing the print sheet… about a minute'
-                        : 'MAKE IT 3D',
+              if (c.planError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'More designs: ${c.planError}',
+                    style: const TextStyle(fontSize: 12, color: Palette.muted),
                   ),
                 ),
-              ),
-          ],
+              // Each attached reference picture can go straight onto the 3D kit, as on the website.
+              if (c.references.isNotEmpty) _ReferencesToKit(c),
+            ],
+          ),
         ),
-      ),
+        // The prompt bar with the brief: refine it or write a new one.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 2, 4, 2),
+            decoration: BoxDecoration(
+              color: const Color(0xe6050c14),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: Palette.cyan.withValues(alpha: .7)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const ValueKey('refine-brief'),
+                    controller: _refine,
+                    minLines: 1,
+                    maxLines: 3,
+                    style: const TextStyle(fontSize: 13.5),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Refine your brief or describe a new design…',
+                    ),
+                  ),
+                ),
+                IconButton.filled(
+                  tooltip: 'Generate again',
+                  onPressed: _generateAgain,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Palette.cyan,
+                    foregroundColor: Colors.black,
+                  ),
+                  icon: const Icon(Icons.arrow_upward_rounded),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
+
+/// Said when an AI design opens on a hoodie (no design picture on hoodies yet).
+const hoodieDesignNote =
+    'Hoodies take your design’s colours and logo; full print designs on '
+    'hoodies are coming.';

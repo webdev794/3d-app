@@ -53,7 +53,7 @@ const DEFAULT_OPTIONS: FormOptions = {
 const MAIN_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL'];
 const MAX_ROWS = 30, MAX_PLAYERS = 300, STORE = '3deezi.order-form';
 /** Garments with a picture (public/media/showroom/garment-<id>.webp); the rest show a shirt icon. */
-const ART = new Set(['jersey', 'shorts', 'tee', 'singlet', 'polo', 'socks']);
+const ART = new Set(['jersey', 'shorts', 'tee', 'singlet', 'polo', 'socks', 'hoodie']);
 const WORDS: Record<string, [string, string]> = { jersey: ['jersey', 'jerseys'], shorts: ['shorts', 'shorts'], tee: ['tee', 'tees'], singlet: ['singlet', 'singlets'], polo: ['polo', 'polos'], hoodie: ['hoodie', 'hoodies'], jacket: ['jacket', 'jackets'], warmup: ['warm-up top', 'warm-up tops'], pants: ['track pants', 'track pants'], socks: ['socks', 'socks'], cap: ['cap', 'caps'], other: ['item', 'items'] };
 
 /* ================================================================================================ the form's data */
@@ -69,6 +69,12 @@ const freshForm = (sport: string): FormState => ({ contact: emptyContact(), rows
 const sum = (sizes: Record<string, number>) => Object.values(sizes).reduce((a, b) => a + (Number(b) || 0), 0);
 const digits = (v: string, n = 3) => v.replace(/\D/g, '').slice(0, n);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** The order row for a saved design's garment: a full kit starts as its jersey, a zip hoodie is a hoodie, the pocket polo a polo. */
+const PROJECT_ROWS: Record<string, string> = { fullkit: 'jersey', ziphoodie: 'hoodie', pocketpolo: 'polo' };
+const orderGarment = (garment: string, o: { garments: Option[] }) => { const g = PROJECT_ROWS[garment] ?? garment; return o.garments.some(x => x.id === g) ? g : 'jersey'; };
+/** A saved design's garment as the Studio names it ("Zip hoodie", "Full kit"). */
+const DESIGN_GARMENTS: Record<string, string> = { fullkit: 'Full kit', tee: 'Training tee', pocketpolo: 'Polo with pocket', ziphoodie: 'Zip hoodie' };
+const designGarment = (garment: string) => DESIGN_GARMENTS[garment] ?? capital(garment);
 const word = (garment: string, n: number) => (WORDS[garment] ?? WORDS.other)[n === 1 ? 0 : 1];
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v : '').slice(0, max);
 function cleanSizes(value: unknown, allowed: string[]) {
@@ -526,7 +532,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   /** "Use one of my saved designs": on the chosen garment, else the matching one, else a new garment. */
   function applyDesign(p: Project, target: string) {
     const rows = [...formRef.current.rows];
-    const garment = p.garment === 'fullkit' ? 'jersey' : options.garments.some(g => g.id === p.garment) ? p.garment : 'jersey';
+    const garment = orderGarment(p.garment, options);
     let i = target === 'new' ? -1 : target !== 'auto' ? rows.findIndex(r => r.key === target) : rows.findIndex(r => r.garment === garment && !r.project_id);
     if (i < 0 && target === 'auto') i = rows.findIndex(r => r.garment === garment);
     if (i < 0 && target === 'auto') i = rows.findIndex(r => !r.project_id);
@@ -788,7 +794,7 @@ function DesignPicker({ labelledBy, value, projects, options, signedIn, onPick, 
   const chosen = projects?.find(p => p.id === value) ?? null;
   const items: { key: string; label: string; sub?: string; picture?: string | null; run: () => void }[] = [
     ...(value ? [{ key: 'none', label: 'No saved design', sub: 'We design it with you', run: () => onPick(null) }] : []),
-    ...(projects ?? []).map(p => ({ key: `p${p.id}`, label: p.name, sub: [options.sports.find(s => s.id === p.sport)?.name, capital(p.garment === 'fullkit' ? 'full kit' : p.garment)].filter(Boolean).join(' · '), picture: projectPicture(p) ?? garmentPicture(p.garment), run: () => onPick(p.id) })),
+    ...(projects ?? []).map(p => ({ key: `p${p.id}`, label: p.name, sub: [options.sports.find(s => s.id === p.sport)?.name, designGarment(p.garment)].filter(Boolean).join(' · '), picture: projectPicture(p) ?? garmentPicture(PROJECT_ROWS[p.garment] ?? p.garment), run: () => onPick(p.id) })),
     { key: 'upload', label: 'Upload artwork for this garment…', sub: 'Logos, a mock-up or a reference picture', run: onUpload },
   ];
   useEffect(() => {
@@ -947,8 +953,8 @@ function DesignsHelper({ rows, options, projects, signedIn, onSignIn, onPick }: 
   if (!projects.length) return <div className="of-helper"><p>No saved designs yet. Design a kit, save it, and it shows here.</p><Link className="of-btn" to="/create/sport">Design a kit <ArrowRight size={15} /></Link></div>;
   return <div className="of-helper">
     <TargetSelect rows={rows} options={options} value={target} onChange={setTarget} extra={<option value="new">A new garment</option>} />
-    <ul className="of-designs">{projects.slice(0, 24).map(p => { const pic = projectPicture(p) ?? garmentPicture(p.garment); return <li key={p.id}><button type="button" onClick={() => setResult(onPick(p, target))} aria-label={`Use ${p.name}`}>
-      <span className="of-design-pic">{pic ? <img src={pic} alt="" loading="lazy" /> : <Shirt size={26} />}</span><b>{p.name}</b><small>{[options.sports.find(s => s.id === p.sport)?.name, capital(p.garment === 'fullkit' ? 'full kit' : p.garment)].filter(Boolean).join(' · ')}</small>
+    <ul className="of-designs">{projects.slice(0, 24).map(p => { const pic = projectPicture(p) ?? garmentPicture(PROJECT_ROWS[p.garment] ?? p.garment); return <li key={p.id}><button type="button" onClick={() => setResult(onPick(p, target))} aria-label={`Use ${p.name}`}>
+      <span className="of-design-pic">{pic ? <img src={pic} alt="" loading="lazy" /> : <Shirt size={26} />}</span><b>{p.name}</b><small>{[options.sports.find(s => s.id === p.sport)?.name, designGarment(p.garment)].filter(Boolean).join(' · ')}</small>
     </button></li>; })}</ul>
     {result && <p className="of-helper-result is-ok" role="status"><Check size={15} /><span>{result}</span></p>}
   </div>;

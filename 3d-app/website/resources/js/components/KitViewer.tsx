@@ -1,11 +1,16 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { ApiError, fetchFile, getToken } from '../api';
 
-export type Garment = 'jersey' | 'tee' | 'polo' | 'singlet' | 'shorts' | 'fullkit';
+export type Garment = 'jersey' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'singlet' | 'shorts' | 'fullkit';
 export type View = 'front' | 'side' | 'back';
-export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem';
+/** Colour / pattern areas; 'pocket' only on the pocket polo (pool and darts shirts). */
+export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem' | 'pocket' | 'hood';
+/** A hoodie's own colour areas (Design.zoneColors): the hood's outer, its lining, the rib cuffs and waistband, the
+ * kangaroo pocket and the zip. Unset, the hood and pocket follow the body, the lining and zip the Secondary colour. */
+export type HoodieArea = 'hood' | 'lining' | 'rib' | 'pocket' | 'zip';
+export const isHoodie = (garment: string) => garment === 'hoodie' || garment === 'ziphoodie';
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-12';
+const VIEWER_VERSION = '2026-10-20-15';
 
 export interface ArtworkLayer {
     id: string; name?: string; type: 'image' | 'text' | 'shape';
@@ -53,6 +58,8 @@ export interface Design {
     gradient?: Gradient | null;
     gradients?: Partial<Record<'secondary' | 'patternColor', Gradient>> | null;
     zones?: Partial<Record<Zone, string>>;
+    /** Hoodies: each area's own colour (hex). */
+    zoneColors?: Partial<Record<HoodieArea, string>> | null;
     layers?: ArtworkLayer[];
     marks?: Record<string, MarkPlace>;
     layout?: DesignLayout | null;

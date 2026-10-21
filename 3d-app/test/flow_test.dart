@@ -69,8 +69,8 @@ void main() {
 
     await tapText(tester, 'Continue as guest (projects stay on this device)');
     expect(c.screen, AppScreen.home);
-    expect(find.text('START WITH AI'), findsOneWidget);
-    expect(find.text('START DESIGNING'), findsOneWidget);
+    expect(find.text('CREATE WITH AI'), findsOneWidget);
+    expect(find.text('OPEN 3D DESIGNER'), findsOneWidget);
   });
 
   testWidgets('Design Your Own: carousel, garment, studio and undo', (
@@ -79,7 +79,7 @@ void main() {
     final c = AppController()..screen = AppScreen.home;
     await mountPhone(tester, c);
 
-    await tapText(tester, 'START DESIGNING');
+    await tapText(tester, 'OPEN 3D DESIGNER');
     expect(c.screen, AppScreen.sport);
     expect(c.mode, 'DYO');
     expect(find.text('DESIGN RUGBY LEAGUE'), findsOneWidget);
@@ -137,7 +137,7 @@ void main() {
     final c = AppController()..screen = AppScreen.home;
     await mountPhone(tester, c);
 
-    await tapText(tester, 'START WITH AI');
+    await tapText(tester, 'CREATE WITH AI');
     expect(c.screen, AppScreen.aiDesigner);
     // The brief helpers now live in the (+) sheet of the prompt bar.
     await tester.tap(find.byTooltip('Attach and suggestions'));
@@ -161,10 +161,18 @@ void main() {
     expect(c.screen, AppScreen.concepts);
     expect(c.concepts, hasLength(4));
 
-    await tester.tap(find.text('Gold Standard'));
-    await tester.pump();
-    expect(c.selectedConcept, 1);
-    await tapText(tester, 'OPEN IN DESIGN STUDIO');
+    // The results: the PRIMARY and three numbered options; Make primary swaps one in.
+    expect(find.text('PRIMARY DESIGN'), findsOneWidget);
+    for (final n in ['2', '3']) {
+      expect(find.text(n), findsOneWidget);
+    }
+    await tester.tap(find.byTooltip('Design 2 actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Make primary'));
+    await tester.pumpAndSettle();
+    expect(c.concepts.first.spec.designName, 'Gold Standard');
+    expect(c.concepts[1].spec.designName, 'Mantis Strike');
+    await tapText(tester, 'Open in 3D Designer');
     expect(c.screen, AppScreen.studio);
     expect(c.projectName, 'Gold Standard');
     expect(c.secondaryColor, const Color(0xffffc52f));

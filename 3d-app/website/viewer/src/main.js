@@ -13,6 +13,7 @@ import { createStudio } from './studio.js';
 import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt } from './zones.js';
+import { buildHoodCords, ribNormalMap, tubeAlong } from './hoodie.js';
 import { readLayout, findPanels, confirmPanels, hemFold, joinLines, drawPockets, ROLE_NAMES } from './layout.js';
 import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, drawnSleeves, sleevedShape, unprojectPhoto } from './layout-warp.js';
 
@@ -145,6 +146,9 @@ const PARTS = {
   tee: ['tee'],
   raglan: ['raglan'],
   polo: ['polo'],
+  pocketpolo: ['pocketpolo'],
+  hoodie: ['hoodie'],
+  ziphoodie: ['ziphoodie'],
   singlet: ['singlet'],
   shorts: ['shorts'],
   fullkit: ['shorts', 'jersey'],
@@ -167,7 +171,7 @@ function buildKit(kind) {
   if (key === currentKind) return;
   currentKind = key;
   const geometries = new Set();
-  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); o.material.map?.dispose(); o.material.dispose(); } });
+  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); [o.material].flat().forEach((m) => { m.map?.dispose(); m.dispose(); }); } });
   geometries.forEach((geometry) => geometry.dispose());
   parts.forEach((part) => part.texture.dispose());
   kit.clear();
@@ -202,12 +206,52 @@ function buildKit(kind) {
     fabric.castShadow = true;
     fabric.receiveShadow = true;
     group.add(fabric);
-    // Collar rib or waistband along the top opening.
+    // The pocket polo's chest pocket: its own piece of the same printed fabric, standing off the front.
+    if (garment.pocket) {
+      const pocket = new THREE.Mesh(garment.pocket, partMaterial);
+      pocket.userData.part = parts.length;
+      pocket.castShadow = true;
+      pocket.receiveShadow = true;
+      group.add(pocket);
+    }
+    // Hoodies: heavy brushed fleece (matt, a soft sheen, hardly any knit showing), the lined hood, the kangaroo pocket,
+    // rib cuffs and waistband, the zip and the hood's drawstring (hoodie.js).
+    let hoodie = null;
+    if (garment.hoodie) {
+      const h = garment.hoodie;
+      partMaterial.roughness = 0.88;
+      partMaterial.sheen = 0.3;
+      partMaterial.sheenRoughness = 0.8;
+      partMaterial.normalScale.set(0.14, 0.14);
+      const add = (mesh, pick = false) => { if (pick) mesh.userData.part = parts.length; mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh; };
+      // The hood: printed outside (its atlas piece), its lining inside.
+      const liningFront = new THREE.MeshStandardMaterial({ roughness: 0.92, vertexColors: true });
+      const liningBack = liningFront.clone();
+      liningBack.side = THREE.BackSide;
+      const outerBack = partMaterial.clone();
+      outerBack.side = THREE.BackSide;
+      addRelief(outerBack, painter);
+      // Stand and roll: lining towards the neck, outer fabric outside; the fall: outer fabric outside, lining under.
+      add(new THREE.Mesh(h.hood.geometry, [liningFront, partMaterial]), true);
+      add(new THREE.Mesh(h.hood.geometry, [outerBack, liningBack]), true);
+      const channel = add(new THREE.Mesh(tubeAlong(h.hood.channel, 0.0042), new THREE.MeshStandardMaterial({ roughness: 0.9 })));
+      add(new THREE.Mesh(h.pocket, partMaterial), true);
+      ribMap ??= ribNormalMap();
+      const rib = new THREE.MeshPhysicalMaterial({ roughness: 0.92, sheen: 0.2, sheenRoughness: 0.8, side: THREE.DoubleSide, normalMap: ribMap, normalScale: new THREE.Vector2(0.85, 0.85) });
+      h.ribs.forEach((g) => add(new THREE.Mesh(g, rib)));
+      if (h.zip) group.add(h.zip.group);
+      const cords = buildHoodCords({ sampleFront: h.sampleFront }, h.hood.eyelets);
+      group.add(cords.group);
+      painter.pieces = [{ back: true, outline: h.hood.piece }];
+      hoodie = { lining: [liningFront, liningBack], channel: channel.material, rib, zip: h.zip, cords };
+    }
+    // Collar rib or waistband along the top opening (a hoodie's neck is under its hood).
     const rim = new THREE.Mesh(
       buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth),
       new THREE.MeshPhysicalMaterial({ roughness: 0.9, reflectivity: .2, sheen: 0.15, side: THREE.DoubleSide, sheenColor: new THREE.Color(0x7092a4), normalMap: knit, normalScale: new THREE.Vector2(.17, .17) }),
     );
     group.add(rim);
+    rim.visible = !hoodie;
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
     const label = partKind === 'shorts' ? null : buildLabel(garment);
     // Shorts: the drawstring out of the front of the waistband.
@@ -221,7 +265,7 @@ function buildKit(kind) {
     group.position.y = base;
     base += partKind === 'shorts' ? garment.frame.maxY * stretch - 0.06 : 0;
     kit.add(group);
-    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label });
+    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie });
   }
   frameKit();
   // The labels after framing (the camera frames the kit as it is without them).
@@ -240,6 +284,28 @@ function frameKit() {
   setCamera({ ...HOME, theta: new THREE.Spherical().setFromVector3(camera.position.clone().sub(CENTER)).theta || 0 });
 }
 
+/** The rib knit's normal map (hoodies' cuffs and waistband), made once. */
+let ribMap = null;
+const HEX = /^#[0-9a-f]{6}$/i;
+/**
+ * A hoodie's colour zones (design.zoneColors): the hood lining, the rib cuffs and waistband, the zip and the drawstring
+ * (the hood's outer and the pocket are printed: texture.js). Unset, a preset colours them sensibly: the lining and zip
+ * in the kit's secondary colour, the rib in the body's colour (a little deeper, as rib looks), the cord as the lining.
+ */
+function paintHoodie(part) {
+  const own = (key, fallback) => (HEX.test(design.zoneColors?.[key] ?? '') ? design.zoneColors[key] : fallback);
+  const h = part.hoodie, lining = own('lining', design.secondary);
+  h.lining.forEach((m) => m.color.set(lining));
+  h.channel.color.set(own('hood', design.main));
+  h.rib.color.set(own('rib', design.main)).multiplyScalar(0.9);
+  h.cords.cord.color.set(lining).multiplyScalar(0.95);
+  if (h.zip) {
+    const zip = own('zip', design.secondary);
+    h.zip.tape.color.set(zip).multiplyScalar(0.85);
+    h.zip.teeth.color.set(zip);
+  }
+}
+
 /** Repaints every part's print from the current design. */
 async function paintAll() {
   await prepareLayout();
@@ -253,6 +319,7 @@ async function paintAll() {
     // The inside: the print's (or the kit's) main colour, a little darker for shade; the label shows the kit's size.
     part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(0.72);
     if (part.label) paintLabel(part.label, design.size || 'L');
+    if (part.hoodie) paintHoodie(part);
     // The drawstring: the cord darker than the waistband it comes out of, eyelets and tips in the trim colour.
     if (part.cord) {
       part.cord.cord.color.set(layout && part.layoutRim ? part.layoutRim : design.main).multiplyScalar(0.82);
@@ -328,7 +395,7 @@ function garmentShape(p) {
 /** The key a file read is kept by (a drawing is read differently from a print layout). */
 const fileKey = (asset, drawing) => (drawing ? `drawing:${asset}` : asset);
 /** The garments a drawing can go on, as the hosts name them. */
-const DRAWN_NAMES = { singlet: 'Singlet', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo' };
+const DRAWN_NAMES = { singlet: 'Singlet', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo', pocketpolo: 'Polo with pocket' };
 /** The garment a drawing goes on: the one it was checked as (its parts), else the design's own top, else a singlet. */
 const drawnGarment = (...choices) => choices.find((g) => typeof g === 'string' && Object.hasOwn(DRAWN, g)) ?? 'singlet';
 /** The parts a layout's panels make: a raglan top, shorts, or both. */
@@ -452,7 +519,7 @@ async function checkLayout({ id, src, name = 'Print layout', asset = null, drawi
       // The garment it is, from its shape: sleeves make it a jersey, tee or polo (the one asked for, else a jersey).
       const main = file.found.find((p) => p.role === 'front') ?? file.found.find((p) => p.role === 'back');
       const sleeved = main ? sleevedShape(main.outline) : false;
-      const guess = sleeved ? (['jersey', 'tee', 'polo'].includes(garment) ? garment : ['jersey', 'tee', 'polo'].includes(design.garment) ? design.garment : 'jersey') : 'singlet';
+      const guess = sleeved ? (['jersey', 'tee', 'polo', 'pocketpolo'].includes(garment) ? garment : ['jersey', 'tee', 'polo', 'pocketpolo'].includes(design.garment) ? design.garment : 'jersey') : 'singlet';
       options = {
         drawing: true,
         garments: Object.fromEntries(Object.keys(DRAWN).map((g) => [g, DRAWN_NAMES[g] ?? g])),
@@ -504,7 +571,7 @@ const raycaster = new THREE.Raycaster();
 function pickAt(nx, ny) {
   if (![nx, ny].every(Number.isFinite) || nx < 0 || nx > 1 || ny < 0 || ny > 1) return { hit: false };
   const onBoard = board.pick(nx, ny);
-  if (onBoard) return { hit: true, ...onBoard, zone: zoneAt(onBoard.kind, onBoard.x, onBoard.y) };
+  if (onBoard) return { hit: true, ...onBoard, zone: zoneAt(onBoard.kind, onBoard.x, onBoard.y, onBoard.side) };
   if (board.visible) return { hit: false };
   raycaster.setFromCamera(new THREE.Vector2(nx * 2 - 1, -(ny * 2 - 1)), camera);
   const meshes = [];
@@ -513,7 +580,7 @@ function pickAt(nx, ny) {
   if (!hit?.uv) return { hit: false };
   const painter = parts[hit.object.userData.part].painter;
   const at = painter.fromCanvas(hit.uv.x * painter.canvas.width, (1 - hit.uv.y) * painter.canvas.height);
-  return { hit: true, part: painter.partName, kind: painter.kind, ...at, zone: zoneAt(painter.kind, at.x, at.y) };
+  return { hit: true, part: painter.partName, kind: painter.kind, ...at, zone: zoneAt(painter.kind, at.x, at.y, at.side) };
 }
 
 // ---------- controls

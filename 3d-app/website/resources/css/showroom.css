@@ -23,9 +23,10 @@
 .loader-card h2{font-family:var(--heading);font-size:30px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px}
 .loader-card>p{color:#8d9fb3;font-size:13px;margin:0 0 30px}
 .loader-inline .loader-card h2{font-size:20px}.loader-inline .loader-card>p{margin-bottom:18px}
-.loader-emblem{position:relative;width:220px;height:220px;margin:0 auto 32px;display:grid;place-items:center}
-.loader-inline .loader-emblem{width:150px;height:150px;margin-bottom:20px}
-.loader-emblem img{width:46%;filter:drop-shadow(0 0 14px #00d9edaa);animation:emblem-spin 2.6s cubic-bezier(.6,0,.4,1) infinite}
+/* --ring is the orbit circle's size; the emblem fills 65% of it and stays inside the inner orbit (inset 12%) as it spins */
+.loader-emblem{--ring:236px;position:relative;width:var(--ring);height:var(--ring);margin:0 auto 32px;display:grid;place-items:center}
+.loader-inline .loader-emblem{--ring:164px;margin-bottom:20px}
+.loader-emblem img{width:65%;max-width:none;height:auto;filter:drop-shadow(0 0 14px #00d9edaa);animation:emblem-spin 2.6s cubic-bezier(.6,0,.4,1) infinite}
 .loader-emblem .orbit{position:absolute;inset:0;border-radius:50%;border:2px solid transparent}
 .orbit-1{border-color:#00d9ed99 transparent #00d9ed22 transparent!important;box-shadow:0 0 24px #00d9ed33,inset 0 0 24px #00d9ed22;animation:spin 3.2s linear infinite}
 .orbit-2{inset:12%!important;border-color:transparent #7560ffaa transparent #36e3ee66!important;animation:spin 2.2s linear infinite reverse}
@@ -34,9 +35,9 @@
 .loader-spark.s1{animation:orbit-a 3.2s linear infinite}.loader-spark.s2{animation:orbit-b 2.2s linear infinite;background:#a99bff;box-shadow:0 0 12px #7560ff}.loader-spark.s3{animation:orbit-c 5s linear infinite;width:5px;height:5px}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes emblem-spin{0%{transform:perspective(500px) rotateY(0)}60%,100%{transform:perspective(500px) rotateY(360deg)}}
-@keyframes orbit-a{from{transform:translate(-50%,-50%) rotate(0) translateX(110px)}to{transform:translate(-50%,-50%) rotate(360deg) translateX(110px)}}
-@keyframes orbit-b{from{transform:translate(-50%,-50%) rotate(180deg) translateX(84px)}to{transform:translate(-50%,-50%) rotate(-180deg) translateX(84px)}}
-@keyframes orbit-c{from{transform:translate(-50%,-50%) rotate(90deg) translateX(126px)}to{transform:translate(-50%,-50%) rotate(450deg) translateX(126px)}}
+@keyframes orbit-a{from{transform:translate(-50%,-50%) rotate(0) translateX(calc(var(--ring) * .5))}to{transform:translate(-50%,-50%) rotate(360deg) translateX(calc(var(--ring) * .5))}}
+@keyframes orbit-b{from{transform:translate(-50%,-50%) rotate(180deg) translateX(calc(var(--ring) * .382))}to{transform:translate(-50%,-50%) rotate(-180deg) translateX(calc(var(--ring) * .382))}}
+@keyframes orbit-c{from{transform:translate(-50%,-50%) rotate(90deg) translateX(calc(var(--ring) * .573))}to{transform:translate(-50%,-50%) rotate(450deg) translateX(calc(var(--ring) * .573))}}
 .loader-inline .loader-spark{display:none}
 .loader-bar{height:4px;border-radius:4px;background:#ffffff12;overflow:hidden;margin-bottom:24px}
 .loader-bar span{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#00e0e4,#04c6f3,#7560ff);box-shadow:0 0 12px #00d9ed;transition:width .4s ease}
@@ -150,6 +151,8 @@
 .bubble.typing{display:flex;align-items:center;gap:8px;color:#8d9fb3}
 .dyo-stage{position:relative;min-height:0;border-radius:16px;overflow:hidden;border:1.5px solid #00d9ed44;box-shadow:0 0 26px #00d9ed1f}
 .dyo-stage .studio-viewer{position:absolute;inset:0}
+/* The stage keeps the third grid column: the tool panel (column 2) is not rendered while closed, which otherwise drops the stage into the 0-wide panel column. */
+.dyo-body>.dyo-stage{grid-column:3}
 .stage-chips{position:absolute;top:14px;left:14px;display:flex;gap:8px;z-index:5;flex-wrap:wrap}
 .stage-chips span{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:20px;background:#05101acc;border:1px solid #ffffff22;font-size:11px;color:#c9d6e2;backdrop-filter:blur(8px)}
 .dyo-stage .view-controls{bottom:16px;border-radius:30px;border:1.5px solid #00d9ed55;box-shadow:0 0 14px #00d9ed33;padding:5px}
@@ -245,7 +248,7 @@
   .carousel-arrow{top:auto;bottom:-6px;width:44px;height:44px}
 }
 @media(max-width:800px){.nav-mobile-only{display:flex!important}}
-@media(max-width:600px){.plan-grid{grid-template-columns:1fr}.carousel{height:360px}.carousel-item{--spread:92px;width:150px;margin-left:-75px}.carousel-item.is-active .carousel-label strong{font-size:18px}.showroom-head .back-link{position:static;margin-bottom:8px}.design-sport{min-width:0;width:100%}.garment-panel{padding:20px 16px}.garment-tiles{grid-template-columns:repeat(2,1fr)}.garment-actions .button{width:100%}.dyo-actions .button-outline{display:none}.loader-emblem{width:170px;height:170px}.dyo-prompt{width:calc(100% - 86px);margin-left:10px}.dyo-prompt .round-button:nth-of-type(2){display:none}}
+@media(max-width:600px){.plan-grid{grid-template-columns:1fr}.carousel{height:360px}.carousel-item{--spread:92px;width:150px;margin-left:-75px}.carousel-item.is-active .carousel-label strong{font-size:18px}.showroom-head .back-link{position:static;margin-bottom:8px}.design-sport{min-width:0;width:100%}.garment-panel{padding:20px 16px}.garment-tiles{grid-template-columns:repeat(2,1fr)}.garment-actions .button{width:100%}.dyo-actions .button-outline{display:none}.loader-emblem{--ring:196px}.dyo-prompt{width:calc(100% - 86px);margin-left:10px}.dyo-prompt .round-button:nth-of-type(2){display:none}}
 
 /* ---------- Admin panel and orders */
 .admin-page{padding:36px 0 70px}
@@ -551,3 +554,17 @@ button.kit-shot:hover{border-color:#00d9ed88}
   .showroom.sport-step .carousel{--kit-h:clamp(270px,calc(100dvh - 440px),480px)}
 }
 @media(prefers-reduced-motion:reduce){.sport-tiles{scroll-behavior:auto}}
+
+/* The DESIGN button belongs to the stage: it sticks to the bottom of the window while the kits are in view, then stops
+   at the end of the stage, so it never sits on the footer. On phones it rides above the 3DEEZI ASSIST launcher. */
+.showroom.sport-step>.design-sport{position:sticky;left:auto;bottom:20px;transform:none;align-self:center;margin-top:8px}
+.showroom.sport-step>.design-sport:hover{transform:translateY(-2px)}
+.showroom.sport-step{padding-bottom:30px}
+@media(max-width:600px){.showroom.sport-step>.design-sport{width:100%;bottom:calc(76px + env(safe-area-inset-bottom))}}
+
+/* 30 categories (task 9.79, 2026-10-21): a count instead of dots, and the garment step's "Show all garments". */
+.carousel-count{margin:42px 0 14px;font:600 13px/1 var(--font-display,inherit);letter-spacing:.12em;color:#c4d2df}
+.carousel-count b{color:var(--glow)}
+@media(max-width:600px){.carousel-count{display:none}}
+.garment-more{display:block;margin:14px auto 0;padding:7px 16px;border:1px solid #ffffff2e;border-radius:999px;background:none;color:#c4d2df;font-size:13px;cursor:pointer}
+.garment-more:hover,.garment-more:focus-visible{border-color:var(--glow);color:#fff}

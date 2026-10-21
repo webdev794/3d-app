@@ -19,9 +19,9 @@ interface Message { role: 'user' | 'assistant'; content: string; error?: boolean
 const storeKey = '3deezi.assist';
 const greeting = "Hi! I'm 3DEEZI ASSIST.\nWhat would you like help with?";
 /** Pages a reply may link to (the server allows the same list). */
-const pages = ['/', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/orders', '/orders/new', '/orders/upload', '/pricing', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms'];
+const pages = ['/', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/order-now', '/orders', '/orders/new', '/orders/upload', '/pricing', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms', '/team', '/team/requests'];
 
-const pageNames: Record<string, string> = { '/': 'the home page', '/create/ai': 'AI Powered Sportswear', '/create/sport': 'Design Your Own', '/convert': 'Convert', '/projects': 'Projects', '/approved': 'Approved', '/assets': 'Assets', '/dashboard': 'the Dashboard', '/downloads': 'Downloads', '/orders': 'My orders', '/orders/new': 'the Create Order Form', '/orders/upload': 'Upload Your Order', '/pricing': 'Plans', '/studio': 'the 3D Studio', '/artboard': 'the Artboard', '/about': 'About 3DEEZI', '/support': 'Support', '/privacy': 'the Privacy Policy', '/terms': 'the Terms of Use' };
+const pageNames: Record<string, string> = { '/': 'the home page', '/create/ai': 'AI Powered Sportswear', '/create/sport': 'Design Your Own', '/convert': 'Convert', '/projects': 'Projects', '/approved': 'Approved', '/assets': 'Assets', '/dashboard': 'the Dashboard', '/downloads': 'Downloads', '/order-now': 'the Orders page', '/orders': 'My orders', '/orders/new': 'the Create Order Form', '/orders/upload': 'Upload Your Order', '/pricing': 'Plans', '/studio': 'the 3D Studio', '/artboard': 'the Artboard', '/about': 'About 3DEEZI', '/support': 'Support', '/privacy': 'the Privacy Policy', '/terms': 'the Terms of Use', '/team': '3DEEZI TEAM', '/team/requests': 'My design requests' };
 /** Commands run on the Artboard (in its frame) or on the Studio page; the rest open a page. */
 const artboardActions = ['grid', 'snap', 'rulers', 'snapTo', 'tool', 'select', 'arrange', 'align', 'mirror', 'group', 'duplicate', 'connect', 'varline', 'page', 'gradient', 'palette', 'textStyle', 'move', 'rotate', 'scale', 'size', 'fill', 'outline', 'menu', 'effect', 'add', 'zoom', 'pageSize', 'units', 'tab', 'help'];
 const studioActions = ['view', 'panel', 'garment', 'board', 'export', 'design', 'studioAi'];
@@ -135,10 +135,13 @@ export default function Assist() {
       }
       const section = document.querySelector('[data-assist-fold]');
       const sectionTop = section ? section.getBoundingClientRect().top : Infinity, f = fold.current;
-      if (!f.below && sectionTop < h - 120) {
+      // The very top of the page always counts as "back at the top": on some windows ORDER NOW already shows there
+      // (e.g. 1440 x 900, 2560 x 1440), and its top could never pass h - 40 again, so the chat stayed folded.
+      const atTop = window.scrollY < 4;
+      if (!f.below && !atTop && sectionTop < h - 120) {
         f.below = true;
         if (isOpen.current && !f.keep) { f.folded = true; setFolded(true); setState(s => ({ ...s, open: false })); }
-      } else if (f.below && sectionTop > h - 40) {
+      } else if (f.below && (atTop || sectionTop > h - 40)) {
         f.below = false;
         if (f.folded) {
           f.folded = false;
