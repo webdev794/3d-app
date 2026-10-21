@@ -89,7 +89,7 @@ Finished work that I have checked myself, with how to test each item. When somet
 6. Choose **Fishing**, type a brief without a garment: buttons ask which garment; tap one and it starts.
 7. **+** in the bar: "Attach logos or artwork" and suggestions such as "Club polo".
 8. Paste a very long text: it is kept up to 4,000 characters, with a counter near the end and no error.
-9. While it generates, the "Creating your design…" circle shows the spinning 3DEEZI emblem.
+9. While it generates, the "Creating your design…" circle shows the spinning 3DEEZI emblem; with the HD mockup on, the "Rendering your HD mockup…" circle shows the same small glowing emblem inside the circle, with no grey square.
 10. On a phone the bar stays in the middle and the sports row swipes. **App:** AI Designer shows the same; tap Netball, type, tap the arrow, choose the garment.
 
 ### 8a. AI designer like ChatGPT, and MAKE IT 3D (2026-10-21) (AI credit)
