@@ -23,9 +23,21 @@ class User extends Authenticatable
         return $this->hasMany(Asset::class);
     }
 
+    /** Artboard designs and templates kept in the account. */
+    public function artboardDocuments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ArtboardDocument::class);
+    }
+
     public function orders(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    /** Saved order forms and uploads, not submitted yet. */
+    public function orderDrafts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(OrderDraft::class);
     }
 
     /**

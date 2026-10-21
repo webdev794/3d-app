@@ -9,7 +9,7 @@ const out = path.resolve(here, '../public/media/viewer/index.html');
 const base64 = (file) => fs.readFileSync(path.resolve(root, file)).toString('base64');
 const { outputFiles } = await esbuild.build({
     entryPoints: [path.join(here, 'src/main.js')],
-    nodePaths: [path.join(root, 'viewer/node_modules')],
+    nodePaths: [path.join(root, 'viewer/node_modules'), path.join(here, '../node_modules')],
     bundle: true, minify: true, format: 'iife',
     target: ['chrome100', 'safari16'], write: false, legalComments: 'none',
 });
@@ -32,6 +32,17 @@ if (!process.argv.includes('--website-only')) {
   fs.mkdirSync(path.dirname(mobileOut), { recursive: true });
   fs.writeFileSync(mobileOut, html);
 }
+// pdf.js for print layouts: its own file beside the viewer, loaded only when a PDF is opened (layout.js); a plain
+// script, as modules do not load from the apps' local files.
+const reader = await esbuild.build({
+    entryPoints: [path.join(here, 'src/pdf-reader.js')],
+    nodePaths: [path.join(here, '../node_modules')],
+    bundle: true, minify: true, format: 'iife',
+    target: ['chrome100', 'safari16'], write: false, legalComments: 'none',
+});
+const readerOut = path.join(path.dirname(out), 'pdf-reader.js');
+fs.writeFileSync(readerOut, reader.outputFiles[0].text);
+if (!process.argv.includes('--website-only')) fs.writeFileSync(path.join(root, 'assets/viewer/pdf-reader.js'), reader.outputFiles[0].text);
 const presets = path.join(root, 'assets/presets.json');
 if (fs.existsSync(presets)) fs.copyFileSync(presets, path.join(root, 'website/public/media/presets.json'));
 console.log(`Cinematic website viewer built: ${path.relative(root, out)} (${Math.round(html.length / 1024)} KB)`);

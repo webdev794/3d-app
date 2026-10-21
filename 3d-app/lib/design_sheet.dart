@@ -7,6 +7,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import 'app_controller.dart';
+import 'gradient_presets.dart';
 
 /// One-page PDF design sheet, as on the website's Export menu: front and back
 /// views, the flat print panels, colours (HEX / RGB / CMYK), pattern, text,
@@ -134,12 +135,19 @@ Future<Uint8List> designSheetPdf(AppController c) async {
       ),
     );
   }
-  final gradient = c.gradient;
-  if (gradient != null) {
+  // Gradient fills, per colour zone: every stop (Sunset has three), and the angle.
+  for (final (label, gradient) in [
+    ('Primary gradient', c.gradient),
+    ('Secondary gradient', c.gradients?['secondary']),
+    ('Pattern gradient', c.gradients?['patternColor']),
+  ]) {
+    if (gradient is! Map) continue;
+    final stops = gradientStops(gradient);
+    if (stops.isEmpty) continue;
     row(
-      'Gradient',
-      '${'${gradient['from'] ?? ''}'.toUpperCase()} to '
-          '${'${gradient['to'] ?? ''}'.toUpperCase()}, ${gradient['angle'] ?? 0}°',
+      label,
+      '${stops.map((s) => '${s.hex.toUpperCase()} ${(s.at * 100).round()}%').join(' > ')}, '
+          '${gradient['angle'] ?? 0}°',
     );
   }
   heading('PATTERN');

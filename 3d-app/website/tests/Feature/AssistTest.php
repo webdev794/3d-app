@@ -153,7 +153,7 @@ class AssistTest extends TestCase
             'page' => '/artboard', 'can' => ['commands'],
             'context' => 'Selected: N logo [drop shadow x 5 mm, y 0 mm, blur 3 mm].',
         ])->assertOk()->assertJsonPath('data.actions', []);
-        Http::assertSent(fn (Request $request) => str_contains($request->data()['instructions'], 'What is on the Artboard right now')
+        Http::assertSent(fn (Request $request) => str_contains($request->data()['instructions'], 'What is on the page right now')
             && str_contains($request->data()['instructions'], 'N logo [drop shadow x 5 mm')
             && str_contains($request->data()['instructions'], 'already has that effect'));
     }

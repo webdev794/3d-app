@@ -34,6 +34,11 @@ return [
             'driver' => 'sync',
         ],
 
+        // Runs the job just after the response is sent: no worker needed (used for the support form's email).
+        'deferred' => [
+            'driver' => 'deferred',
+        ],
+
         'database' => [
             'driver' => 'database',
             'connection' => env('DB_QUEUE_CONNECTION'),

@@ -40,23 +40,38 @@ export function createStudio(scene, renderer, mobile) {
   top.position.set(0, 3, .2);
   scene.add(key, fill, rimR, rimL, top, new THREE.HemisphereLight(0x7aadd3, 0x071017, .2));
 
-  const floor = new Reflector(new THREE.PlaneGeometry(22, 22), {
+  // The stage floor: a round reflecting floor that fades out into the stadium photo's own floor, so it has no far
+  // edge to show as a line. Round and centred on the stage the camera turns around, it looks the same from every side.
+  const FADE = [.95, 2.75];
+  const floor = new Reflector(new THREE.CircleGeometry(FADE[1] + .05, 128), {
     clipBias: .003, textureWidth: mobile ? 512 : 768, textureHeight: mobile ? 512 : 768,
     color: 0x38444d, multisample: 0,
   });
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -.172;
+  floor.material.transparent = true;
+  // Under the glow pool, the contact shadow and the podium's rings.
+  floor.renderOrder = -1;
+  floor.material.vertexShader = floor.material.vertexShader
+    .replace('varying vec4 vUv;', 'varying vec4 vUv;\nvarying vec2 vStage;')
+    .replace('vUv = textureMatrix * vec4( position, 1.0 );', 'vUv = textureMatrix * vec4( position, 1.0 );\nvStage = position.xy;');
   // Soften the reflection as light spreads across a satin rather than mirror floor.
-  floor.material.fragmentShader = floor.material.fragmentShader.replace(
-    'vec4 base = texture2DProj( tDiffuse, vUv );',
-    `vec2 uv = vUv.xy / vUv.w;
+  floor.material.fragmentShader = floor.material.fragmentShader
+    .replace('varying vec4 vUv;', 'varying vec4 vUv;\nvarying vec2 vStage;')
+    .replace(
+      'vec4 base = texture2DProj( tDiffuse, vUv );',
+      `vec2 uv = vUv.xy / vUv.w;
      float blur = .0017 + .002 * abs(sin(uv.y * 24.0));
      vec4 base = texture2D(tDiffuse, uv) * .28;
      base += texture2D(tDiffuse, uv + vec2(blur, 0.0)) * .18;
      base += texture2D(tDiffuse, uv - vec2(blur, 0.0)) * .18;
      base += texture2D(tDiffuse, uv + vec2(0.0, blur * 1.5)) * .18;
      base += texture2D(tDiffuse, uv - vec2(0.0, blur * 1.5)) * .18;`,
-  );
+    )
+    .replace(
+      'gl_FragColor = vec4( blendOverlay( base.rgb, color ), 1.0 );',
+      `gl_FragColor = vec4( blendOverlay( base.rgb, color ), 1.0 - smoothstep(${FADE[0].toFixed(2)}, ${FADE[1].toFixed(2)}, length(vStage)) );`,
+    );
   scene.add(floor);
 
   const podium = new THREE.Group();

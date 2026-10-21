@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../api_client.dart';
 import '../app_controller.dart';
 import '../design_document.dart';
 import '../project_sync.dart';
@@ -51,6 +52,7 @@ class KitViewer3DState extends State<KitViewer3D> {
     c.processArtwork = processArtwork;
     c.pickGarment = pickGarment;
     c.zoomBoard = _zoomBoard;
+    c.checkLayout = _checkLayout;
   }
 
   void _zoomBoard(String how) => _send('boardZoom', how);
@@ -63,6 +65,8 @@ class KitViewer3DState extends State<KitViewer3D> {
       if (c.captureMockup == capture) c.captureMockup = null;
       if (c.captureBoard == captureBoard) c.captureBoard = null;
       if (c.zoomBoard == _zoomBoard) c.zoomBoard = null;
+      if (c.checkLayout == _checkLayout) c.checkLayout = null;
+      if (c.viewerModal) c.viewerModal = false;
       if (c.processArtwork == processArtwork) c.processArtwork = null;
       if (c.pickGarment == pickGarment) c.pickGarment = null;
       for (final pending in _captures.values) {
@@ -88,6 +92,8 @@ class KitViewer3DState extends State<KitViewer3D> {
     switch (msg['type']) {
       case 'ready':
         setState(() => _ready = true);
+        // This app answers the viewer's requests for print layout files.
+        _send('features', {'layouts': true});
         _sync();
       case 'capture':
         final data = msg['data'] as String?;
@@ -105,9 +111,20 @@ class KitViewer3DState extends State<KitViewer3D> {
           _sentSelection = msg['id'] as String?;
           c.selectLayer(_sentSelection);
         }
+      case 'modal':
+        c.update(() => c.viewerModal = msg['open'] == true);
+      case 'layoutWanted':
+        if (msg['asset'] case final int asset) unawaited(_sendLayout(asset));
+      case 'layoutError':
+        showToast(
+          context,
+          'Print layout: ${msg['message'] ?? 'it could not be loaded.'} The '
+          'kit is shown without it (Artwork, Factory print layout).',
+        );
       case 'captureBoard':
       case 'image':
       case 'pick':
+      case 'layout':
         _requests.remove(msg['id'])?.complete(msg);
     }
   }
@@ -138,7 +155,9 @@ class KitViewer3DState extends State<KitViewer3D> {
       'layers': c.layers,
       'zones': c.zones,
       'gradient': c.gradient,
+      'gradients': c.gradients,
       'marks': c.marks,
+      'layout': c.layout,
       'patternColor': _hex(
         Color.lerp(c.mainColor, c.secondaryColor, 0.55) ?? c.secondaryColor,
       ),
@@ -182,20 +201,51 @@ class KitViewer3DState extends State<KitViewer3D> {
 
   Future<Map<String, dynamic>?> _request(
     String command,
-    Map<String, dynamic> argument,
-  ) async {
+    Map<String, dynamic> argument, {
+    Duration wait = const Duration(seconds: 15),
+  }) async {
     if (!_ready) return null;
     final id = 'flutter-${_nextRequest++}';
     final pending = Completer<Map<String, dynamic>?>();
     _requests[id] = pending;
     _send(command, {'id': id, ...argument});
     try {
-      return await pending.future.timeout(
-        const Duration(seconds: 15),
-        onTimeout: () => null,
-      );
+      return await pending.future.timeout(wait, onTimeout: () => null);
     } finally {
       _requests.remove(id);
+    }
+  }
+
+  /// A new print layout checked on screen in the 3D view (the user may take
+  /// their time); see [AppController.checkLayout].
+  Future<Map<String, dynamic>?> _checkLayout(
+    String src,
+    String name,
+    int asset, {
+    bool drawing = false,
+    String? garment,
+  }) async {
+    final result = await _request('checkLayout', {
+      'src': src,
+      'name': name,
+      'asset': asset,
+      if (drawing) 'drawing': true,
+      'garment': ?garment,
+    }, wait: const Duration(minutes: 30));
+    if (result?['error'] case final String error) throw ApiException(error);
+    return result;
+  }
+
+  /// The design's print layout file, which the viewer has not read yet.
+  Future<void> _sendLayout(int asset) async {
+    try {
+      if (!c.signedIn) {
+        throw ApiException('Sign in to see this kit\u2019s print layout.');
+      }
+      final src = await c.api.assetDataUrl(asset);
+      if (mounted) _send('layoutFile', {'asset': asset, 'src': src});
+    } on Object catch (error) {
+      if (mounted) _send('layoutFile', {'asset': asset, 'error': '$error'});
     }
   }
 

@@ -6,14 +6,20 @@ import { defaultDesign, type Design } from './types';
 import { AiDesigner, ConvertPage, GarmentSelection, SportSelection } from './pages/Create';
 import PricingPage from './pages/Pricing';
 import AdminPage from './pages/Admin';
-import { MyOrdersPage } from './pages/Orders';
+import OrdersBoardPage from './pages/OrdersBoard';
+import OrderUploadPage from './pages/OrderUpload';
+import OrderFormPage from './pages/OrderForm';
+import InvoicePayPage from './pages/InvoicePay';
 import Studio from './pages/Studio';
 import ArtboardPage from './pages/Artboard';
 import { ProjectsPage, AssetsPage, DashboardPage, ProfilePage } from './pages/Library';
 import Home, { DownloadsPage } from './pages/Home';
 import Assist from './components/Assist';
+import { AboutPage, PrivacyPage, SupportPage, TermsPage } from './pages/InfoPages';
+import '../css/site-footer.css';
+import OrdersMenu from './components/OrdersMenu';
 
-export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string }
+export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string; /** A design picture (a saved asset) the Studio puts on the 3D kit when it opens (checked on screen first). */ pendingDrawing?: { asset: number; name: string } }
 export const newDraft = (): Draft => ({ name: 'Untitled kit', sport: 'rugby-league', garment: 'jersey', mode: 'dyo', design: { ...defaultDesign } });
 const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', polo: 'polo', fullkit: 'fullkit', 'full kit': 'fullkit' };
 /** Seeded projects can store a null garment and older AI concepts a display name ("Jersey"); every draft gets a valid id so it stays saveable. */
@@ -75,7 +81,7 @@ export default function App() {
     {!studio && <header className={`site-header ${location.pathname === '/' ? 'is-home' : ''}`}><div className="header-inner">
       <Link to="/" className="brand" aria-label="3DEEZI home"><img src={media('images/brand-final.png')} alt="3DEEZI" /><span>AI SPORTSWEAR DESIGNER</span></Link>
       <nav className={`main-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
-        <NavLink to="/" end>Create</NavLink><NavLink to="/convert">Convert</NavLink><NavLink to="/projects">Projects</NavLink><NavLink to="/approved">Approved</NavLink><NavLink to="/assets">Assets</NavLink><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}
+        <NavLink to="/" end>Create</NavLink><NavLink to="/convert">Convert</NavLink><NavLink to="/projects">Projects</NavLink><NavLink to="/approved">Approved</NavLink><NavLink to="/assets">Assets</NavLink><OrdersMenu onNavigate={() => setMenuOpen(false)} /><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}
         <button className="nav-quick" onClick={() => { setMenuOpen(false); start('ai'); }}><Sparkles size={15} /> AI Powered Sportswear</button><button className="nav-quick" onClick={() => { setMenuOpen(false); start('dyo'); }}><Shirt size={15} /> Design Your Own</button>
       </nav>
       <div className="header-actions">{user?.is_admin && <Link className="button button-outline admin-link" to="/admin" title="Admin"><ShieldCheck size={15} /><span className="admin-text">Admin</span></Link>}{user ? <Link className="account-link" to="/profile"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span>{user.name.split(' ')[0]}</span></Link> : <button className="button button-quiet" onClick={() => requireAuth()}>Sign in</button>}<button className="button button-primary header-cta" onClick={() => { navigate('/'); setTimeout(() => document.getElementById('create-options')?.scrollIntoView({ behavior: 'smooth' }), 50); }}>Start a kit <ArrowRight size={15} /></button><span className="quick-tabs" role="group" aria-label="Quick start"><button className="quick-tab is-ai" title="AI Powered Sportswear: describe your kit and AI designs it" onClick={() => start('ai')}><Sparkles size={13} /> AI</button><button className="quick-tab" title="Design Your Own: choose a sport and garment, then design it in 3D" onClick={() => start('dyo')}><Shirt size={13} /> DYO</button></span><button className="icon-button mobile-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>{menuOpen ? <X /> : <Menu />}</button></div>
@@ -90,10 +96,18 @@ export default function App() {
       <Route path="/admin" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section/:itemId" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
-      <Route path="/orders" element={protectedPage(<MyOrdersPage />)} />
+      <Route path="/orders" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
+      <Route path="/orders/:orderId" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
+      <Route path="/orders/upload" element={<OrderUploadPage user={user} checking={checkingSession} requireAuth={requireAuth} onNotice={setNotice} />} />
+      <Route path="/orders/new" element={<OrderFormPage user={user} restoring={checkingSession} requireAuth={requireAuth} catalog={catalog} onNotice={setNotice} />} />
+      <Route path="/invoices/:number" element={<InvoicePayPage user={user} checking={checkingSession} requireAuth={requireAuth} />} />
       <Route path="/pricing" element={<PricingPage onStart={() => start('dyo')} />} />
       <Route path="/downloads" element={<DownloadsPage />} />
-      <Route path="/artboard" element={<ArtboardPage draft={draft} onChange={setDraft} user={user} onNotice={setNotice} requireAuth={requireAuth} onStart={start} />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/support" element={<SupportPage user={user} />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/artboard" element={<ArtboardPage draft={draft} onChange={setDraft} user={user} onNotice={setNotice} requireAuth={requireAuth} onStart={mode => mode === 'home' ? navigate('/') : start(mode)} />} />
       <Route path="/studio" element={<Studio draft={draft} onChange={setDraft} catalog={catalog} requireAuth={requireAuth} onNotice={setNotice} user={user} />} />
       <Route path="/projects" element={protectedPage(<ProjectsPage onOpen={openProject} onCreate={() => start('dyo')} />)} />
       <Route path="/approved" element={protectedPage(<ProjectsPage approvedOnly onOpen={openProject} onCreate={() => start('dyo')} />)} />
@@ -103,7 +117,13 @@ export default function App() {
       <Route path="*" element={<div className="page-shell empty-state"><h1>Off the field?</h1><p>This page doesn’t exist. Your next kit starts here.</p><Link className="button button-primary" to="/">Back to create <ArrowRight size={18} /></Link></div>} />
     </Routes></main>
     <Assist />
-    {!studio && <footer className="site-footer"><Link to="/" className="footer-brand">3DEEZI<span>YOUR SPORT. <b>YOUR WAY.</b></span></Link><span>Designed for the next generation of teams.</span><Link to="/pricing" className="footer-link">Plans & pricing</Link><span>CREATE <i>·</i> DESIGN <i>·</i> PLAY</span></footer>}
+    {/* The footer (client design 2026-10-20): 3DEEZI ASSIST's button settles into .footer-assist while it is on screen (Assist.tsx). */}
+    {!studio && <footer className="site-footer"><div className="footer-inner">
+      <Link to="/" className="foot-brand" aria-label="3DEEZI home"><img src={media('images/brand-final.png')} alt="3DEEZI" width={1712} height={272} loading="lazy" decoding="async" /></Link>
+      <nav className="foot-links" aria-label="About 3DEEZI"><NavLink to="/about">About</NavLink><NavLink to="/support">Support</NavLink><NavLink to="/privacy">Privacy</NavLink><NavLink to="/terms">Terms</NavLink></nav>
+      <span className="foot-rule" aria-hidden="true" />
+      <div className="footer-assist" data-assist-dock="" />
+    </div></footer>}
     {authOpen && <AuthModal onClose={() => { setAuthOpen(false); afterAuth.current = null; }} onSuccess={(nextUser, token) => { setToken(token); setUser(nextUser); setAuthOpen(false); setNotice(`Welcome, ${nextUser.name.split(' ')[0]}. Your workspace is ready.`); const callback = afterAuth.current; afterAuth.current = null; callback?.(); }} />}
     {notice && <div className="toast" role="status"><Check size={18} /><span>{notice}</span><button className="icon-button" aria-label="Dismiss notification" onClick={() => setNotice('')}><X size={16} /></button></div>}
   </>;

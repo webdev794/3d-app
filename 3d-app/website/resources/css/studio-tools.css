@@ -111,3 +111,56 @@
 .hex-field input{min-width:108px;padding-right:30px!important;font-size:13px!important}
 .save-colour{padding:0 10px!important;font-size:10.5px!important;white-space:nowrap}
 .save-colour{width:40px;height:40px;min-height:40px!important;padding:0!important;justify-content:center}
+
+/* Factory print layout (Artwork panel). */
+.print-layout-join{display:flex;gap:8px;align-items:flex-start;margin:0;font-size:12.5px;line-height:1.4;color:#9fb3c2;cursor:pointer}.print-layout-join input{margin-top:2px;accent-color:#12e1f0}
+.print-layout{margin-top:14px;padding:12px;border:1px solid #1c3a4c;border-radius:12px;background:#06121c;display:flex;flex-direction:column;gap:8px}
+.print-layout>strong{font-size:11px;letter-spacing:.12em;color:#9fb2c4}
+.print-layout .field-hint{margin:0}
+.print-layout-on{display:flex;align-items:center;gap:7px;margin:0;color:#7ff3d0;font-size:12px;word-break:break-word}
+.dyo-stage.viewer-modal .stage-chips,.dyo-stage.viewer-modal .view-controls,.dyo-stage.viewer-modal .stage-meta,.dyo-stage.viewer-modal .artboard-controls{display:none}
+/* GRADIENT PRESETS: the CHOOSE GRADIENT button in the Colours panel and the flyout beside it (a bottom sheet on phones). */
+.gradient-choose{display:flex;width:100%;align-items:center;justify-content:center;gap:6px;margin:10px 0 4px;padding:11px 12px;border:1.5px solid #00dfe4;border-radius:9px;background:#00dfe40d;color:#e9fbff;font:700 12px/1 inherit;letter-spacing:.12em;cursor:pointer;box-shadow:0 0 12px #00dfe41f;transition:background .15s,box-shadow .15s}
+.gradient-choose:hover,.gradient-choose[aria-expanded=true]{background:#00dfe424;box-shadow:0 0 18px #00dfe440}
+.gradient-stops-preview{height:22px;border-radius:6px;border:1px solid #2a4b5b;margin:-6px 0 12px;display:flex;align-items:center;justify-content:center}
+.gradient-stops-preview span{font-size:9px;font-weight:700;letter-spacing:.14em;color:#fff;text-shadow:0 1px 2px #000a}
+.gradient-off{display:flex;align-items:center;gap:6px;margin-top:4px;padding:7px 10px;border:1px solid #33515f;border-radius:8px;background:transparent;color:#a4becb;font-size:11px;cursor:pointer}
+.gradient-off:hover{color:#fff;border-color:#00dfe4}
+.gradient-flyout{position:fixed;z-index:60;width:310px;overflow:auto;padding:16px 16px 12px;border:1.5px solid #00d9ed66;border-radius:14px;background:linear-gradient(180deg,#0a1824f7,#050e18fa);box-shadow:0 0 22px #00d9ed26,0 18px 40px #000a;color:#e6f6fb;backdrop-filter:blur(6px)}
+.gradient-flyout .gf-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px}
+.gradient-flyout h3{margin:0;font-size:14px;font-weight:800;letter-spacing:.14em;color:#fff}
+.gradient-flyout .gf-head p{margin:5px 0 0;font-size:11.5px;color:#8fa6b3}
+.gradient-flyout .gf-head p b{margin-left:6px;padding:2px 6px;border:1px solid #00dfe455;border-radius:5px;font-size:9px;letter-spacing:.1em;color:#7cf3f8}
+.gradient-flyout .gf-head .icon-button{flex-shrink:0;margin:-4px -6px 0 0}
+.gf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 12px}
+.gf-grid button{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:0;border:0;background:none;color:#c9dbe4;cursor:pointer}
+.gf-swatch{position:relative;height:50px;border-radius:9px;border:1.5px solid #ffffff1f;box-shadow:inset 0 0 0 1px #0004;transition:border-color .15s,box-shadow .15s}
+.gf-grid button:hover .gf-swatch{border-color:#00dfe488}
+.gf-grid button.selected .gf-swatch{border:2px solid #00e5f0;box-shadow:0 0 12px #00e5f066}
+.gf-name{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-align:center}
+.gf-grid button.selected .gf-name{color:#fff}
+.gf-check{position:absolute;top:-7px;right:-7px;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#00e5f0;color:#03141c;box-shadow:0 0 8px #00e5f0aa}
+.gf-custom{margin-top:14px;padding-top:12px;border-top:1px solid #26404e}
+.gf-custom h4{margin:0 0 10px;font-size:11px;letter-spacing:.14em;color:#7cf3f8}
+.gf-bar{position:relative;height:26px;margin:0 9px 12px;border-radius:7px;border:1px solid #2a4b5b}
+.gf-bar button{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;padding:0;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #0008;cursor:pointer}
+.gf-bar button.active{width:22px;height:22px;margin:-11px 0 0 -11px;border-color:#00e5f0;box-shadow:0 0 0 2px #03141c,0 0 10px #00e5f0}
+.gf-stop-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:#a4becb}
+.gf-stop-row span{margin-right:auto}
+.gf-mini{display:inline-flex;align-items:center;gap:3px;padding:5px 8px;border:1px solid #33515f;border-radius:7px;background:#0b1a27;color:#d7eef6;font-size:10.5px;cursor:pointer}
+.gf-mini:disabled{opacity:.4;cursor:default}
+.gf-custom .color-wheel{margin-top:6px}
+.gf-foot{margin-top:14px;padding-top:12px;border-top:1px solid #26404e;text-align:center}
+.gf-create{display:inline-flex;align-items:center;gap:7px;padding:6px 8px;border:0;background:none;color:#00e5f0;font-size:12px;font-weight:800;letter-spacing:.12em;cursor:pointer}
+.gf-create:hover{color:#7cf3f8;text-shadow:0 0 8px #00e5f088}
+.gf-off{display:block;margin:6px auto 0;padding:4px 8px;border:0;background:none;color:#a4becb;font-size:11px;text-decoration:underline;cursor:pointer}
+.gf-foot p{margin:8px 0 0;font-size:11px;color:#71899a}
+@media(max-width:900px){
+  .gradient-flyout{z-index:1200;left:0!important;right:0;top:auto!important;bottom:0;width:auto;max-height:58vh!important;padding:10px 14px 12px;border-radius:16px 16px 0 0;border-bottom:0}
+  .gradient-flyout::before{content:'';display:block;width:42px;height:4px;margin:0 auto 8px;border-radius:2px;background:#3b5a69}
+  .gradient-flyout .gf-head{margin-bottom:8px}
+  .gf-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .gf-swatch{height:34px}
+  .gf-name{font-size:8.5px;letter-spacing:.04em}
+  .gf-foot{margin-top:10px;padding-top:8px}
+}

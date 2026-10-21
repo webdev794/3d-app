@@ -106,7 +106,12 @@ export async function designSheetPdf(info: SheetInfo): Promise<Blob> {
         pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(93, 107, 123); pdf.text(`RGB ${rgb.join(', ')}   CMYK ${cmykOf(rgb).join(', ')}`, x0 + 12, y + 3.8);
         y += 11;
     }
-    if (d.gradient) row('Gradient', `${d.gradient.from.toUpperCase()} to ${d.gradient.to.toUpperCase()}, ${d.gradient.angle}°`);
+    // Gradient fills, per colour zone: every stop (Sunset has three), and the angle.
+    for (const [label, g] of [['Primary', d.gradient], ['Secondary', d.gradients?.secondary], ['Pattern', d.gradients?.patternColor]] as const) {
+        if (!g) continue;
+        const stops = g.stops && g.stops.length >= 2 ? g.stops : [{ color: g.from, at: 0 }, { color: g.to, at: 1 }];
+        row(`${label} gradient`, `${stops.map(s => `${s.color.toUpperCase()} ${Math.round(s.at * 100)}%`).join(' > ')}, ${g.angle}°`);
+    }
     heading('PATTERN');
     row('Style', d.pattern);
     if (d.patternScale) row('Size', `${Math.round(d.patternScale * 100)}%`);

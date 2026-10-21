@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
+import '../order_names.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
 
@@ -65,6 +67,7 @@ const _costs = [
   ('AI print pattern', 3),
   ('Photoreal showcase image', 5),
   ('HD presentation mockup (one prompt)', 10),
+  ('Make it 3D (AI print sheet on the 3D kit)', 10),
 ];
 const _perks = [
   'Website integration',
@@ -722,7 +725,8 @@ String? _email(String? v) =>
     ? null
     : 'Enter a valid email';
 
-/// Order a saved kit: quantities by size and delivery details (POST /orders).
+/// Order a saved kit: quantities by size, the design confirmed as final, the
+/// names and numbers on the back, and delivery details (POST /orders).
 Future<void> showOrderKitSheet(
   BuildContext context,
   AppController c,
@@ -736,7 +740,20 @@ Future<void> showOrderKitSheet(
   await _sheet(context, _OrderForm(c, p));
 }
 
-const orderSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
+/// One row of the players list, with its text fields.
+class _PlayerRow {
+  _PlayerRow(this.player)
+    : name = TextEditingController(text: player.name),
+      number = TextEditingController(text: player.number);
+  final OrderPlayer player;
+  final TextEditingController name, number;
+  final key = UniqueKey();
+
+  void dispose() {
+    name.dispose();
+    number.dispose();
+  }
+}
 
 class _OrderForm extends StatefulWidget {
   const _OrderForm(this.c, this.p);
@@ -752,22 +769,136 @@ class _OrderFormState extends State<_OrderForm> {
   late final _name = TextEditingController(text: widget.c.user?.name ?? '');
   final _phone = TextEditingController(),
       _address = TextEditingController(),
-      _notes = TextEditingController();
-  bool _busy = false;
-  String? _error;
+      _notes = TextEditingController(),
+      _paste = TextEditingController();
 
-  int get _total => _sizes.values.fold(0, (a, b) => a + b);
+  /// What goes on the back. The same name and number, and a list's first
+  /// row, start from the design's.
+  BackNames? _names;
+  late final _same = OrderPlayer(
+    name: widget.p.kit.backName,
+    number: orderDigits(widget.p.kit.number),
+  );
+  late final _sameName = TextEditingController(text: _same.name);
+  late final _sameNumber = TextEditingController(text: _same.number);
+  List<_PlayerRow> _rows = [];
+
+  /// The list was changed by hand: pasted players are added to the rows with
+  /// a name or number (otherwise they replace the starting rows).
+  bool _edited = false, _pasting = false;
+  bool _busy = false, _final = false, _tried = false;
+  String? _error, _pasted;
+
+  bool get _list => _names == BackNames.list;
+  List<OrderPlayer> get _players => [for (final r in _rows) r.player];
+  Map<String, int> get _shown => _list ? countSizes(_players) : _sizes;
+  int get _total => _shown.values.fold(0, (a, b) => a + b);
 
   @override
   void dispose() {
-    for (final t in [_name, _phone, _address, _notes]) {
+    for (final t in [
+      _name,
+      _phone,
+      _address,
+      _notes,
+      _paste,
+      _sameName,
+      _sameNumber,
+    ]) {
       t.dispose();
+    }
+    for (final r in _rows) {
+      r.dispose();
     }
     super.dispose();
   }
 
+  String? _problem() {
+    if (!_list && _total < 1) return 'Add at least one garment to the order.';
+    if (!_final) return 'Tick “This design is final” to place the order.';
+    return namesProblem(_names, _same, _players) ??
+        (_name.text.trim().isEmpty ? 'Add a contact name.' : null);
+  }
+
+  /// Replaces the players list; the old rows' fields are freed after the
+  /// frame that removes them.
+  void _setRows(List<OrderPlayer> players) {
+    final old = _rows;
+    _rows = [for (final p in players) _PlayerRow(p)];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final r in old) {
+        r.dispose();
+      }
+    });
+  }
+
+  void _choose(BackNames names) => setState(() {
+    _names = names;
+    // A list starts with one row for each garment already counted above.
+    if (names == BackNames.list && !_edited) {
+      _setRows(
+        rowsForSizes(
+          _sizes,
+          name: widget.p.kit.backName,
+          number: widget.p.kit.number,
+        ),
+      );
+    }
+  });
+
+  void _addRow() => setState(() {
+    _rows.add(
+      _PlayerRow(
+        OrderPlayer(size: _rows.isEmpty ? null : _rows.last.player.size),
+      ),
+    );
+    _edited = true;
+  });
+
+  void _removeRow(_PlayerRow row) {
+    setState(() {
+      _rows.remove(row);
+      _edited = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => row.dispose());
+  }
+
+  void _addPasted() {
+    final found = parsePlayers(_paste.text);
+    if (found.isEmpty) {
+      setState(
+        () => _pasted =
+            'No players found. Put one player on each line: name, number, size.',
+      );
+      return;
+    }
+    final kept = _edited
+        ? [
+            for (final p in _players)
+              if (p.name.trim().isNotEmpty || p.number.isNotEmpty) p,
+          ]
+        : <OrderPlayer>[];
+    final added = found
+        .take((maxPlayers - kept.length).clamp(0, maxPlayers))
+        .toList();
+    final noSize = added.where((p) => p.size == null).length,
+        left = found.length - added.length;
+    setState(() {
+      _setRows([...kept, ...added]);
+      _edited = true;
+      _pasting = false;
+      _paste.clear();
+      _pasted =
+          'Added ${added.length} player${added.length == 1 ? '' : 's'}.'
+          '${noSize > 0 ? ' Choose a size for $noSize of them.' : ''}'
+          '${left > 0 ? ' The list is full at $maxPlayers: $left not added.' : ''}';
+    });
+  }
+
   Future<void> _send() async {
-    if (!_form.currentState!.validate() || _total < 1) return;
+    setState(() => _tried = true);
+    final valid = _form.currentState!.validate();
+    if (!valid || _problem() != null) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -775,9 +906,11 @@ class _OrderFormState extends State<_OrderForm> {
     try {
       final order = await widget.c.orderKit(widget.p, {
         'sizes': {
-          for (final e in _sizes.entries)
+          for (final e in _shown.entries)
             if (e.value > 0) e.key: e.value,
         },
+        'design_final': true,
+        ...namesBody(_names!, _same, _players),
         'contact_name': _name.text.trim(),
         'phone': _phone.text.trim(),
         'shipping_address': _address.text.trim(),
@@ -797,7 +930,8 @@ class _OrderFormState extends State<_OrderForm> {
   }
 
   Widget _stepper(String size) {
-    final n = _sizes[size] ?? 0;
+    final n = _shown[size] ?? 0;
+    final fixed = _list;
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: n > 0 ? Palette.cyan : Palette.border),
@@ -817,7 +951,9 @@ class _OrderFormState extends State<_OrderForm> {
             children: [
               _tiny(
                 Icons.remove,
-                n > 0 ? () => setState(() => _sizes[size] = n - 1) : null,
+                !fixed && n > 0
+                    ? () => setState(() => _sizes[size] = n - 1)
+                    : null,
                 'Fewer $size',
               ),
               SizedBox(
@@ -833,7 +969,7 @@ class _OrderFormState extends State<_OrderForm> {
               ),
               _tiny(
                 Icons.add,
-                () => setState(() => _sizes[size] = n + 1),
+                fixed ? null : () => setState(() => _sizes[size] = n + 1),
                 'More $size',
               ),
             ],
@@ -852,94 +988,477 @@ class _OrderFormState extends State<_OrderForm> {
     padding: EdgeInsets.zero,
   );
 
-  @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-    child: Form(
-      key: _form,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  /// The kit's saved pictures: the 3D preview (or the AI front render) and
+  /// the AI back render, when there are any.
+  Widget _shots() {
+    final p = widget.p;
+    final front = p.thumbnail ?? p.renderFront;
+    final shots = [
+      if (front != null || p.asset != null)
+        ('Front', artImage(bytes: front, asset: p.asset, fit: BoxFit.contain)),
+      if (p.renderBack != null)
+        ('Back', artImage(bytes: p.renderBack, fit: BoxFit.contain)),
+    ];
+    if (shots.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
         children: [
-          const Text('ORDER THIS KIT', style: _eyebrow),
-          const SizedBox(height: 4),
-          Text(
-            widget.p.title,
-            style: _heading,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Tell us the sizes you need. We’ll confirm the price and timing before anything is made.',
-            style: TextStyle(color: Palette.muted, fontSize: 12.5),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Quantities by size · $_total total',
-            style: const TextStyle(fontSize: 12, color: Palette.muted),
-          ),
-          const SizedBox(height: 8),
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 1.45,
-            children: [for (final s in orderSizes) _stepper(s)],
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _name,
-            decoration: _field('Contact name'),
-            maxLength: 120,
-            validator: _required,
-          ),
-          TextFormField(
-            controller: _phone,
-            decoration: _field('Phone'),
-            maxLength: 40,
-            keyboardType: TextInputType.phone,
-          ),
-          TextFormField(
-            controller: _address,
-            decoration: _field('Delivery address'),
-            maxLength: 1000,
-            minLines: 1,
-            maxLines: 3,
-          ),
-          TextFormField(
-            controller: _notes,
-            decoration: _field(
-              'Notes',
-              hint: 'Deadline, player names, anything we should know',
-            ),
-            maxLength: 2000,
-            minLines: 1,
-            maxLines: 3,
-          ),
-          if (_error != null)
+          for (final (label, image) in shots)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                _error!,
-                style: const TextStyle(
-                  color: Color(0xffff6b78),
-                  fontSize: 12.5,
+              padding: const EdgeInsets.only(right: 10),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: 112,
+                    height: 140,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: ColoredBox(color: Palette.surface2, child: image),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label.toUpperCase(),
+                    style: const TextStyle(
+                      color: Palette.muted,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _box({required Widget child, bool bad = false}) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: bad
+            ? const Color(0xffff6b78)
+            : Palette.cyan.withValues(alpha: .35),
+        width: 1.3,
+      ),
+    ),
+    child: child,
+  );
+
+  Widget _choice(BackNames value) {
+    final on = _names == value;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Semantics(
+        inMutuallyExclusiveGroup: true,
+        checked: on,
+        child: SurfaceCard(
+          selected: on,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          onTap: () => _choose(value),
+          child: Row(
+            children: [
+              Icon(
+                on ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                size: 20,
+                color: on ? Palette.cyan : Palette.muted,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(value.label, style: const TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static final _numberInput = [
+    FilteringTextInputFormatter.digitsOnly,
+    LengthLimitingTextInputFormatter(3),
+  ];
+
+  InputDecoration _cell(String hint, bool bad) => InputDecoration(
+    hintText: hint,
+    isDense: true,
+    counterText: '',
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+    border: const OutlineInputBorder(),
+    enabledBorder: bad
+        ? const OutlineInputBorder(
+            borderSide: BorderSide(color: Color(0xffff6b78)),
+          )
+        : null,
+  );
+
+  Widget _warn(String text) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.warning_amber_rounded,
+          size: 16,
+          color: Color(0xffffbc75),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: Color(0xffffbc75), fontSize: 12),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _playerRow(int i, _PlayerRow row) {
+    final bad = _tried && playerProblem(row.player) != null;
+    void changed() {
+      _edited = true;
+      if (_tried) setState(() {});
+    }
+
+    return Padding(
+      key: row.key,
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              label: 'Player ${i + 1} name',
+              child: TextField(
+                controller: row.name,
+                maxLength: 40,
+                textCapitalization: TextCapitalization.characters,
+                decoration: _cell('Name', bad),
+                onChanged: (v) {
+                  row.player.name = v;
+                  changed();
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 54,
+            child: Semantics(
+              label: 'Player ${i + 1} number',
+              child: TextField(
+                controller: row.number,
+                keyboardType: TextInputType.number,
+                inputFormatters: _numberInput,
+                decoration: _cell('No.', bad),
+                onChanged: (v) {
+                  row.player.number = v;
+                  changed();
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 78,
+            child: InputDecorator(
+              decoration: _cell('', bad).copyWith(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  isDense: true,
+                  value: row.player.size,
+                  hint: const Text('Size', style: TextStyle(fontSize: 13)),
+                  items: [
+                    for (final s in orderSizes)
+                      DropdownMenuItem(value: s, child: Text(s)),
+                  ],
+                  onChanged: (v) => setState(() {
+                    row.player.size = v;
+                    _edited = true;
+                  }),
                 ),
               ),
             ),
-          GradientButton(
-            label: _busy
-                ? 'SENDING…'
-                : 'SEND ORDER REQUEST · $_total ITEM${_total == 1 ? '' : 'S'}',
-            compact: true,
-            onPressed: _busy || _total < 1 ? null : _send,
+          ),
+          IconButton(
+            tooltip: 'Remove player ${i + 1}',
+            onPressed: () => _removeRow(row),
+            icon: const Icon(Icons.delete_outline, size: 19),
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            padding: EdgeInsets.zero,
           ),
         ],
       ),
+    );
+  }
+
+  List<Widget> _sameFields() => [
+    const SizedBox(height: 4),
+    Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _sameName,
+            maxLength: 40,
+            textCapitalization: TextCapitalization.characters,
+            decoration: _field(
+              'Name on the back',
+              hint: 'SMITH',
+            ).copyWith(counterText: ''),
+            onChanged: (v) => setState(() => _same.name = v),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 92,
+          child: TextField(
+            controller: _sameNumber,
+            keyboardType: TextInputType.number,
+            inputFormatters: _numberInput,
+            decoration: _field('Number', hint: '7'),
+            onChanged: (v) => setState(() => _same.number = v),
+          ),
+        ),
+      ],
     ),
-  );
+    if (isPlaceholderName(_same.name))
+      _warn(
+        'YOUR NAME is the sample name on the design. Type the name to print on every shirt, or clear it for no name.',
+      ),
+  ];
+
+  List<Widget> _listFields() => [
+    const SizedBox(height: 4),
+    for (final (i, r) in _rows.indexed) _playerRow(i, r),
+    if (_rows.isNotEmpty && isPlaceholderName(_rows.first.player.name))
+      _warn(
+        'YOUR NAME is the sample name on the design. Type the player’s name instead.',
+      ),
+    const SizedBox(height: 4),
+    Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _rows.length >= maxPlayers ? null : _addRow,
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Add a player'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => setState(() {
+            _pasting = true;
+            _pasted = null;
+          }),
+          icon: const Icon(Icons.content_paste, size: 18),
+          label: const Text('Paste from Excel'),
+        ),
+      ],
+    ),
+    if (_pasting) ...[
+      const SizedBox(height: 10),
+      TextField(
+        controller: _paste,
+        autofocus: true,
+        minLines: 3,
+        maxLines: 6,
+        decoration: _field(
+          'Players to paste',
+          hint: 'SMITH, 7, M\nJONES, 10, L',
+        ),
+      ),
+      const SizedBox(height: 6),
+      const Text(
+        'Copy the name, number and size columns in Excel and paste them here: one player on each line.',
+        style: TextStyle(color: Palette.muted, fontSize: 12),
+      ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          GradientButton(
+            label: 'ADD THESE PLAYERS',
+            compact: true,
+            onPressed: _addPasted,
+          ),
+          TextButton(
+            onPressed: () => setState(() => _pasting = false),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    ],
+    if (_pasted != null)
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          _pasted!,
+          style: const TextStyle(color: Palette.cyan, fontSize: 12),
+        ),
+      ),
+    const SizedBox(height: 8),
+    Text(
+      '${_rows.length} player${_rows.length == 1 ? '' : 's'} · the sizes above are counted from this list.',
+      style: const TextStyle(color: Palette.muted, fontSize: 12),
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final wrong = _tried ? _problem() : null;
+    final version = widget.p.remoteVersion;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+      child: Form(
+        key: _form,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('ORDER THIS KIT', style: _eyebrow),
+            const SizedBox(height: 4),
+            Text(
+              widget.p.title,
+              style: _heading,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Tell us the sizes and what goes on the back. We’ll confirm the price and timing before anything is made.',
+              style: TextStyle(color: Palette.muted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Quantities by size · $_total total'
+              '${_list ? ' · counted from the players list' : ''}',
+              style: const TextStyle(fontSize: 12, color: Palette.muted),
+            ),
+            const SizedBox(height: 8),
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 1.45,
+              children: [for (final s in orderSizes) _stepper(s)],
+            ),
+            const SizedBox(height: 14),
+            _box(
+              bad: _tried && !_final,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _shots(),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: _final,
+                    onChanged: (on) => setState(() => _final = on ?? false),
+                    title: const Text(
+                      'This design is final',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'We make the kit as it is saved'
+                      '${version != null ? ' (version $version)' : ''}. '
+                      'To change it, close this and edit it in the studio first.',
+                      style: const TextStyle(
+                        color: Palette.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            _box(
+              bad: _tried && _names == null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Names and numbers on the back',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final value in BackNames.values) _choice(value),
+                  if (_names == BackNames.same) ..._sameFields(),
+                  if (_list) ..._listFields(),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _name,
+              decoration: _field('Contact name'),
+              maxLength: 120,
+              validator: _required,
+              onChanged: (_) {
+                if (_tried) setState(() {});
+              },
+            ),
+            TextFormField(
+              controller: _phone,
+              decoration: _field('Phone'),
+              maxLength: 40,
+              keyboardType: TextInputType.phone,
+            ),
+            TextFormField(
+              controller: _address,
+              decoration: _field('Delivery address'),
+              maxLength: 1000,
+              minLines: 1,
+              maxLines: 3,
+            ),
+            TextFormField(
+              controller: _notes,
+              decoration: _field(
+                'Notes',
+                hint: 'Deadline, anything we should know',
+              ),
+              maxLength: 2000,
+              minLines: 1,
+              maxLines: 3,
+            ),
+            if ((wrong ?? _error) != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  (wrong ?? _error)!,
+                  style: const TextStyle(
+                    color: Color(0xffff6b78),
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            GradientButton(
+              label: _busy
+                  ? 'SENDING…'
+                  : 'SEND ORDER REQUEST · $_total ITEM${_total == 1 ? '' : 'S'}',
+              compact: true,
+              onPressed: _busy ? null : _send,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// My orders: status, quantities and price once 3DEEZI quotes it.
@@ -1078,6 +1597,10 @@ class _OrderCard extends StatelessWidget {
     final total = o['total'],
         sizes = (o['sizes'] as Map?)?.cast<String, dynamic>() ?? const {};
     final project = (o['project'] as Map?)?.cast<String, dynamic>();
+    // A names and numbers list: one player for each shirt.
+    final players = o['names'] == 'list'
+        ? (o['players'] as List?)?.length ?? 0
+        : 0;
     final date = DateTime.tryParse('${o['created_at']}')?.toLocal();
     return SurfaceCard(
       child: Column(
@@ -1119,7 +1642,8 @@ class _OrderCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            '${o['quantity'] ?? 0} garments · ${sizes.entries.map((e) => '${e.key} ${e.value}').join(', ')}',
+            '${o['quantity'] ?? 0} garments · ${sizes.entries.map((e) => '${e.key} ${e.value}').join(', ')}'
+            '${players > 0 ? ' · $players player${players == 1 ? '' : 's'}' : ''}',
             style: const TextStyle(color: Palette.muted, fontSize: 11.5),
           ),
           const SizedBox(height: 8),

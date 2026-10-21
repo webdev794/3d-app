@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -53,7 +54,9 @@ class KitState {
     this.layers = const [],
     this.zones = const {},
     this.gradient,
+    this.gradients,
     this.marks = const {},
+    this.layout,
   });
   final String garment, pattern, fabric, logoText, backName, number;
   final Color mainColor, secondaryColor, accentColor;
@@ -62,7 +65,13 @@ class KitState {
   final List<Map<String, dynamic>> layers;
   final Map<String, String> zones;
   final Map<String, dynamic>? gradient;
+
+  /// The other colour zones' gradient fills (secondary, patternColor); [gradient] is the primary zone's.
+  final Map<String, dynamic>? gradients;
   final Map<String, dynamic> marks;
+
+  /// The factory print layout on the kit (see [copyLayout]), or null.
+  final Map<String, dynamic>? layout;
 }
 
 /// One AI concept on the "Choose a design" screen.
@@ -148,10 +157,11 @@ class AppController extends ChangeNotifier {
   List<Concept> concepts = [];
   int selectedConcept = 0;
 
-  /// The one-prompt HD presentation mockup (front, back, details).
-  bool wantMockup = true, mockupBusy = false;
+  /// The one-prompt HD presentation mockup (front and back), with the art
+  /// direction's one-line summary, and "Make it 3D" drawing its print sheet.
+  bool wantMockup = true, mockupBusy = false, sheetBusy = false;
   Uint8List? mockupImage;
-  String? mockupError;
+  String? mockupError, mockupDirection;
 
   /// A custom AI print is being generated for the kit.
   bool printBusy = false;
@@ -170,8 +180,33 @@ class AppController extends ChangeNotifier {
   Map<String, String> zones = {};
   Map<String, dynamic>? gradient;
 
+  /// Gradient fills of the secondary and pattern zones (see gradient_presets.dart); [gradient] is the primary's.
+  Map<String, dynamic>? gradients;
+
   /// The wordmark, crest, sponsor, name and number as moved on the 2D panels.
   Map<String, dynamic> marks = {};
+
+  /// The factory print layout on the kit (see [copyLayout]), or null.
+  Map<String, dynamic>? layout;
+
+  /// Shows a new print layout's panels for checking in the 3D view (set by
+  /// the viewer): the data URL of the file, its name and its saved asset id;
+  /// a design picture ([drawing]: front and back drawn flat) with the
+  /// garment it most likely is. Answers {roles, hemFold, parts, panels}
+  /// ({kind: 'drawing', roles, parts} for a picture), {cancelled: true} or
+  /// null.
+  Future<Map<String, dynamic>?> Function(
+    String src,
+    String name,
+    int asset, {
+    bool drawing,
+    String? garment,
+  })?
+  checkLayout;
+
+  /// The 3D view shows a screen of its own (the print layout check): what
+  /// the app puts over the 3D view (view buttons, the chat button) hides.
+  bool viewerModal = false;
   bool boardMode = false;
   String? selectedLayerId;
 
@@ -187,6 +222,58 @@ class AppController extends ChangeNotifier {
       layers.where((layer) => layer['id'] == selectedLayerId).firstOrNull;
 
   void selectLayer(String? id) => update(() => selectedLayerId = id);
+
+  /// The Artboard design to open when the Artboard next starts (the
+  /// Studio's "Edit in Artboard" on artwork sent from it): its account id.
+  int? openArtboardDoc;
+
+  /// Opens the Artboard with the design an artwork layer came from.
+  void editInArtboard(int doc) {
+    openArtboardDoc = doc;
+    go(AppScreen.artboard);
+  }
+
+  /// Artwork from the Artboard ([src], a PNG data URL) on the kit, as one
+  /// undo step. Layers made from the same Artboard design ([doc]) get the new
+  /// picture in place (same position and size); otherwise a new layer at
+  /// [at] ({part, side, x, y, w, rot}). Answers 'updated', 'added' or 'full'.
+  String placeArtboardArtwork({
+    required String src,
+    required String name,
+    int? doc,
+    Map<String, dynamic>? at,
+  }) {
+    final linked = doc == null
+        ? const <Map<String, dynamic>>[]
+        : layers.where((l) => l['artboard'] == doc).toList();
+    if (linked.isNotEmpty) {
+      edit(() {
+        layers = [
+          for (final l in layers)
+            if (l['artboard'] == doc) {...l, 'src': src, 'name': name} else l,
+        ];
+        selectedLayerId = linked.first['id'] as String?;
+      });
+      return 'updated';
+    }
+    if (layers.length >= 40) return 'full';
+    addLayer({
+      'type': 'image',
+      'name': name,
+      'src': src,
+      ...?at,
+      'artboard': ?doc,
+    });
+    return 'added';
+  }
+
+  /// A new kit on [garment] (Send to 3D Studio from the Artboard).
+  void newKit(String garment) {
+    _resetDesign();
+    mode = 'DYO';
+    this.garment = garment;
+    projectName = '$sport $garment';
+  }
 
   void addLayer(Map<String, dynamic> layer) {
     final id = 'layer-${DateTime.now().microsecondsSinceEpoch}';
@@ -233,6 +320,162 @@ class AppController extends ChangeNotifier {
     if (selectedLayerId == id) selectedLayerId = null;
   });
 
+  /// A factory print layout (PDF, SVG, PNG or JPG): kept with the saved
+  /// assets (so the project opens with it, here and on the website), checked
+  /// in the 3D view, then put on the kit as one undo step. Answers what to
+  /// tell the user, or null when the check was cancelled.
+  Future<String?> importPrintLayout(String name, Uint8List bytes) async {
+    final lower = name.toLowerCase();
+    final type = lower.endsWith('.pdf')
+        ? 'application/pdf'
+        : lower.endsWith('.svg')
+        ? 'image/svg+xml'
+        : lower.endsWith('.png')
+        ? 'image/png'
+        : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
+        ? 'image/jpeg'
+        : null;
+    if (type == null) {
+      throw ApiException('Choose a PDF, SVG, PNG or JPG print layout.');
+    }
+    if (bytes.length > 30 * 1024 * 1024) {
+      throw ApiException('Choose a print layout smaller than 30 MB.');
+    }
+    final check = checkLayout;
+    if (check == null) {
+      throw ApiException('The 3D kit is still starting. Please try again.');
+    }
+    final asset = await api.uploadAsset(
+      bytes,
+      filename: name,
+      type: 'layout',
+      contentType: type,
+    );
+    // A layout not put on the kit is not kept.
+    void forget() =>
+        unawaited(api.deleteAsset(asset).catchError((Object _) {}));
+    final Map<String, dynamic>? result;
+    try {
+      result = await check(
+        'data:$type;base64,${base64Encode(bytes)}',
+        name,
+        asset,
+      );
+    } on Object {
+      forget();
+      rethrow;
+    }
+    final roles = result?['roles'];
+    if (result == null || result['cancelled'] == true || roles is! List) {
+      forget();
+      return null;
+    }
+    // The garment shows what the layout makes: a top and shorts are the full kit.
+    final parts = result['parts'] is List ? result['parts'] as List : const [];
+    final top = parts.contains('raglan'), legs = parts.contains('shorts');
+    edit(() {
+      garment = top && legs
+          ? 'Full Kit'
+          : legs
+          ? 'Shorts'
+          : garment == 'Shorts' || garment == 'Full Kit'
+          ? 'Training Tee'
+          : garment;
+      layout = copyLayout({
+        'asset': asset,
+        'name': name.length > 160 ? name.substring(0, 160) : name,
+        'roles': roles,
+        'hemFold': result!['hemFold'] != false,
+        'joinLines': result['joinLines'] == true,
+        'parts': result['parts'],
+      });
+    });
+    final panels = (result['panels'] as List?)?.length ?? 0;
+    return 'Print layout on the 3D kit: $panels panels from $name. '
+        'Save the project to keep it.';
+  }
+
+  /// My design picture: the finished design's front and back drawn flat (a
+  /// PNG, JPG, WebP, PDF or SVG), kept with the saved assets, checked in the
+  /// 3D view, then on the kit exactly as drawn (a singlet) as one undo step.
+  /// Answers what to tell the user, or null when the check was cancelled.
+  Future<String?> importDesignPicture(String name, Uint8List bytes) async {
+    final lower = name.toLowerCase();
+    final type = lower.endsWith('.pdf')
+        ? 'application/pdf'
+        : lower.endsWith('.svg')
+        ? 'image/svg+xml'
+        : lower.endsWith('.png')
+        ? 'image/png'
+        : lower.endsWith('.webp')
+        ? 'image/webp'
+        : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
+        ? 'image/jpeg'
+        : null;
+    if (type == null) {
+      throw ApiException('Choose a PNG, JPG, WebP, PDF or SVG picture.');
+    }
+    if (bytes.length > 30 * 1024 * 1024) {
+      throw ApiException('Choose a picture smaller than 30 MB.');
+    }
+    final check = checkLayout;
+    if (check == null) {
+      throw ApiException('The 3D kit is still starting. Please try again.');
+    }
+    final asset = await api.uploadAsset(
+      bytes,
+      filename: name,
+      type: 'layout',
+      contentType: type,
+    );
+    void forget() =>
+        unawaited(api.deleteAsset(asset).catchError((Object _) {}));
+    final Map<String, dynamic>? result;
+    try {
+      result = await check(
+        'data:$type;base64,${base64Encode(bytes)}',
+        name,
+        asset,
+        drawing: true,
+        // The garment it most likely is (the check screen also reads it
+        // from the drawing's shape, and the user can change it there).
+        garment: switch (garment) {
+          'Training Tee' => 'tee',
+          'Polo' => 'polo',
+          'Jersey' => 'jersey',
+          _ => 'singlet',
+        },
+      );
+    } on Object {
+      forget();
+      rethrow;
+    }
+    final roles = result?['roles'];
+    if (result == null || result['cancelled'] == true || roles is! List) {
+      forget();
+      return null;
+    }
+    final parts = result['parts'];
+    final top = parts is List && parts.isNotEmpty ? '${parts.first}' : 'singlet';
+    edit(() {
+      garment = switch (top) {
+        'jersey' => 'Jersey',
+        'tee' => 'Training Tee',
+        'polo' => 'Polo',
+        _ => 'Singlet',
+      };
+      layout = copyLayout({
+        'asset': asset,
+        'name': name.length > 160 ? name.substring(0, 160) : name,
+        'roles': roles,
+        'kind': 'drawing',
+        'parts': [top],
+      });
+    });
+    return 'Your design is on the 3D kit as drawn ($name). '
+        'Save the project to keep it.';
+  }
+
   /// Replaces styling as one undo step; artwork is preserved when absent.
   void applyPreset(Map<String, dynamic> design) => edit(() {
     if (design['main'] != null) mainColor = ProjectSync.color(design['main']);
@@ -243,6 +486,7 @@ class AppController extends ChangeNotifier {
       accentColor = ProjectSync.color(design['accent']);
     if (design['pattern'] is String) pattern = design['pattern'] as String;
     gradient = copyGradient(design['gradient']);
+    gradients = copyGradient(design['gradients']);
     zones = copyZones(design['zones']);
     if (design.containsKey('layers')) layers = copyLayers(design['layers']);
   });
@@ -591,7 +835,24 @@ class AppController extends ChangeNotifier {
             'This project is not on your account yet. Check the connection and try again.',
       );
     }
-    final order = await api.createOrder({...details, 'project_id': p.remoteId});
+    final Map<String, dynamic> order;
+    try {
+      order = await api.createOrder({
+        ...details,
+        'project_id': p.remoteId,
+        // The version shown is the one ordered: the server refuses a newer one.
+        if (p.remoteVersion != null) 'project_version': p.remoteVersion,
+      });
+    } on ApiException catch (e) {
+      // Changed on another device: bring the new version down to check it.
+      if (e.status == 409) unawaited(syncProjects());
+      rethrow;
+    }
+    // Ordering approves the design (the customer confirmed it is final).
+    if (!p.approved) {
+      p.approved = true;
+      _persist(p);
+    }
     orders = [order, ...orders];
     notifyListeners();
     return order;
@@ -653,7 +914,9 @@ class AppController extends ChangeNotifier {
     layers: copyLayers(layers),
     zones: copyZones(zones),
     gradient: copyGradient(gradient),
+    gradients: copyGradient(gradients),
     marks: copyMarks(marks),
+    layout: copyLayout(layout),
   );
 
   void _restore(KitState k) {
@@ -673,7 +936,9 @@ class AppController extends ChangeNotifier {
     layers = copyLayers(k.layers);
     zones = copyZones(k.zones);
     gradient = copyGradient(k.gradient);
+    gradients = copyGradient(k.gradients);
     marks = copyMarks(k.marks);
+    layout = copyLayout(k.layout);
     if (!layers.any((layer) => layer['id'] == selectedLayerId)) {
       selectedLayerId = null;
     }
@@ -732,7 +997,7 @@ class AppController extends ChangeNotifier {
     mockupFront = mockupBack = mockupSide = mockupPanels = null;
     concepts = [];
     selectedConcept = 0;
-    mockupImage = mockupError = null;
+    mockupImage = mockupError = mockupDirection = null;
     mockupBusy = false;
     view = 'Front';
     show3d = true;
@@ -772,7 +1037,7 @@ class AppController extends ChangeNotifier {
   Future<void> startMockup() async {
     if (!AiService.enabled || !wantMockup || brief.trim().isEmpty) return;
     mockupBusy = true;
-    mockupImage = mockupError = null;
+    mockupImage = mockupError = mockupDirection = null;
     notifyListeners();
     final forBrief = brief;
     try {
@@ -781,6 +1046,11 @@ class AppController extends ChangeNotifier {
         sport: sport,
         garment: garment,
         logos: references,
+        onDirection: (summary) {
+          if (forBrief != brief) return;
+          mockupDirection = summary;
+          notifyListeners();
+        },
       );
       if (forBrief != brief) return;
       mockupImage = image;
@@ -789,6 +1059,29 @@ class AppController extends ChangeNotifier {
       if (forBrief == brief) mockupError = e.message;
     } finally {
       if (forBrief == brief) mockupBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// "Make it 3D": the same AI redraws the mockup as a flat front and back
+  /// print sheet (kept in Artwork); the caller puts it on the 3D kit with
+  /// [importDesignPicture].
+  Future<Uint8List> mockupPrintSheet() async {
+    final image = mockupImage;
+    if (image == null) throw AiException('Create the HD mockup first.');
+    sheetBusy = true;
+    notifyListeners();
+    try {
+      final sheet = await ai.printSheet(
+        image,
+        sport: sport,
+        garment: garment,
+        logos: references,
+      );
+      artwork.add(sheet);
+      return sheet;
+    } finally {
+      sheetBusy = false;
       notifyListeners();
     }
   }

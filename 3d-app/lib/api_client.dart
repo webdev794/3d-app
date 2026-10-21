@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 /// The 3DEEZI server set at build time:
 /// `--dart-define=API_BASE_URL=https://test.example.com`.
@@ -159,6 +160,172 @@ class ApiClient {
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> body) async =>
       await _send('POST', '/orders', body: body) as Map<String, dynamic>;
 
+  /// 3DEEZI Orders: my orders by stage (`current` or `completed`), with a
+  /// search by reference, name or garment, and my saved drafts.
+  Future<Map<String, dynamic>> ordersBoard({
+    String view = 'current',
+    String search = '',
+  }) async =>
+      await _send(
+            'GET',
+            '/orders/board?view=$view'
+                '${search.isEmpty ? '' : '&search=${Uri.encodeQueryComponent(search)}'}',
+          )
+          as Map<String, dynamic>;
+
+  /// One of my orders: garments, files, design proofs, updates, tracking.
+  Future<Map<String, dynamic>> order(int id) async =>
+      await _send('GET', '/orders/$id') as Map<String, dynamic>;
+
+  /// Approves the waiting design proof, or asks for changes (with a note).
+  Future<Map<String, dynamic>> answerProof(
+    int orderId, {
+    required bool approve,
+    int? proofId,
+    String? message,
+  }) async =>
+      await _send(
+            'POST',
+            '/orders/$orderId/approval',
+            body: {
+              'decision': approve ? 'approve' : 'changes',
+              'proof_id': proofId,
+              'message': message,
+            },
+          )
+          as Map<String, dynamic>;
+
+  /// Notifications about my orders (approval needed, updates, shipped).
+  Future<Map<String, dynamic>> notifications() async =>
+      await _send('GET', '/notifications') as Map<String, dynamic>;
+
+  Future<void> readNotifications() async {
+    await _send('POST', '/notifications/read', body: const {});
+  }
+
+  /// The order forms' choices: garments, sports, fits, sizes (public).
+  Future<Map<String, dynamic>> orderOptions() async =>
+      await _send('GET', '/orders/options') as Map<String, dynamic>;
+
+  /// "Help me add sizes": garment rows read from a plain description.
+  Future<Map<String, dynamic>> orderAssist(String text) async =>
+      await _send('POST', '/orders/assist', body: {'text': text})
+          as Map<String, dynamic>;
+
+  /// A saved, not submitted order form or upload (kind `form` / `upload`).
+  Future<Map<String, dynamic>> createOrderDraft(
+    String kind,
+    Map<String, dynamic> data,
+  ) async =>
+      await _send('POST', '/order-drafts', body: {'kind': kind, 'data': data})
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> saveOrderDraft(
+    int id,
+    Map<String, dynamic> data,
+  ) async =>
+      await _send('PATCH', '/order-drafts/$id', body: {'data': data})
+          as Map<String, dynamic>;
+
+  Future<void> removeOrderDraftFile(int draftId, int fileId) async {
+    await _send('DELETE', '/order-drafts/$draftId/files/$fileId');
+  }
+
+  /// Submits a draft as one order; the same [key] again (a retry) gives the
+  /// same order, never a second one.
+  Future<Map<String, dynamic>> submitOrderDraft(
+    int id,
+    String key,
+    Map<String, dynamic> fields,
+  ) async =>
+      await _send(
+            'POST',
+            '/order-drafts/$id/submit',
+            body: fields,
+            headers: {'Idempotency-Key': key},
+          )
+          as Map<String, dynamic>;
+
+  /// Uploads an order form or artwork file to a draft, reporting progress
+  /// (0..1) as the bytes go out.
+  Future<Map<String, dynamic>> uploadOrderFile(
+    int draftId,
+    Uint8List bytes, {
+    required String filename,
+    required String kind,
+    void Function(double sent)? onProgress,
+  }) async {
+    if (!configured) {
+      throw ApiException('No 3DEEZI server is set. Add it under Server.');
+    }
+    final multipart =
+        http.MultipartRequest(
+            'POST',
+            Uri.parse('$baseUrl/api/v1/order-drafts/$draftId/files'),
+          )
+          ..fields['kind'] = kind
+          ..files.add(
+            http.MultipartFile.fromBytes('file', bytes, filename: filename),
+          );
+    final total = multipart.contentLength;
+    var sent = 0;
+    final body = multipart.finalize().map((chunk) {
+      sent += chunk.length;
+      onProgress?.call(total == 0 ? 1 : (sent / total).clamp(0, 1).toDouble());
+      return chunk;
+    });
+    final request =
+        http.StreamedRequest(
+            'POST',
+            Uri.parse('$baseUrl/api/v1/order-drafts/$draftId/files'),
+          )
+          ..contentLength = total
+          ..headers.addAll({
+            ...multipart.headers,
+            'Accept': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          });
+    body.listen(
+      request.sink.add,
+      onDone: request.sink.close,
+      onError: request.sink.addError,
+    );
+    return await _receive(
+          () => _client.send(request),
+          long: true,
+          sent: bytes.length,
+        )
+        as Map<String, dynamic>;
+  }
+
+  /// The price choices offered (payments): destinations, extras, discount codes (public).
+  Future<Map<String, dynamic>> pricingOptions() async =>
+      await _send('GET', '/pricing/options') as Map<String, dynamic>;
+
+  /// The review step's price (payments): a quote for these order fields.
+  Future<Map<String, dynamic>> pricingQuote(Map<String, dynamic> body) async =>
+      await _send('POST', '/pricing/quote', body: body) as Map<String, dynamic>;
+
+  /// A 2-hour link to pay an invoice (no sign-in needed on the pay page).
+  Future<String> invoicePayLink(String number) async =>
+      '${(await _send('POST', '/invoices/${Uri.encodeComponent(number)}/link') as Map)['url']}';
+
+  /// A file kept with one of my orders (an order form, artwork, a proof).
+  Future<Uint8List> downloadOrderFile(int id) async {
+    final request = http.Request('GET', Uri.parse('$baseUrl/api/v1/order-files/$id'))
+      ..headers.addAll({if (token != null) 'Authorization': 'Bearer $token'});
+    final response = await http.Response.fromStream(await _client.send(request));
+    if (response.statusCode != 200) {
+      throw ApiException('That file could not be downloaded.', status: response.statusCode);
+    }
+    return response.bodyBytes;
+  }
+
+  /// A website page, opened signed in: the token goes in the address's
+  /// #fragment, which browsers never send to a server.
+  String sitePage(String path) =>
+      '$baseUrl$path${token == null ? '' : '#app-token=${Uri.encodeComponent(token!)}'}';
+
   /// 3DEEZI ASSIST, the help chat (no account needed): the answer to the
   /// last question in [messages] and, when [can] includes `commands`, the
   /// commands for the app to run (show the grid, pick a tool, …).
@@ -188,6 +355,178 @@ class ApiClient {
     return (data as Map?)?['message'] as String? ?? 'Application sent.';
   }
 
+  // ---------- saved assets
+  /// Keeps a file with the user's saved assets (`POST /assets`, multipart);
+  /// answers its id.
+  Future<int> uploadAsset(
+    Uint8List bytes, {
+    required String filename,
+    required String type,
+    required String contentType,
+  }) async {
+    if (!configured) {
+      throw ApiException('No 3DEEZI server is set. Add it under Server.');
+    }
+    final parts = contentType.split('/');
+    final request =
+        http.MultipartRequest('POST', Uri.parse('$baseUrl/api/v1/assets'))
+          ..headers.addAll({
+            'Accept': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          })
+          ..fields['type'] = type
+          ..fields['name'] = filename.length > 120
+              ? filename.substring(0, 120)
+              : filename
+          ..files.add(
+            http.MultipartFile.fromBytes(
+              'file',
+              bytes,
+              filename: filename,
+              contentType: MediaType(parts.first, parts.last),
+            ),
+          );
+    final data = await _receive(
+      () => _client.send(request),
+      long: true,
+      sent: bytes.length,
+    );
+    final id = (data as Map?)?['id'];
+    if (id is! int) {
+      throw ApiException('The server did not keep the file. Please try again.');
+    }
+    return id;
+  }
+
+  Future<void> deleteAsset(int id) => _send('DELETE', '/assets/$id');
+
+  // ---------- Artboard designs and templates (the Artboard's File menu)
+  /// The account's Artboard designs or, with [template], its templates
+  /// (newest first), without their contents.
+  Future<List<Map<String, dynamic>>> artboards({bool template = false}) async =>
+      (await _send('GET', '/artboards?template=${template ? 1 : 0}') as List)
+          .cast<Map<String, dynamic>>();
+
+  /// One Artboard design with its `document` (every page, as JSON text).
+  Future<Map<String, dynamic>> artboard(int id) async =>
+      await _send('GET', '/artboards/$id') as Map<String, dynamic>;
+
+  /// Saves an Artboard design: a new one, or design [id] again. [version]
+  /// is the one it was opened at (a newer one on the server answers 409).
+  Future<Map<String, dynamic>> saveArtboard({
+    int? id,
+    required String name,
+    required String document,
+    String? preview,
+    bool template = false,
+    int? version,
+  }) async =>
+      await _send(
+            id == null ? 'POST' : 'PATCH',
+            id == null ? '/artboards' : '/artboards/$id',
+            body: {
+              'name': name,
+              'document': document,
+              'preview': preview,
+              'template': template,
+              if (id != null && version != null) 'expected_version': version,
+            },
+            long: true,
+          )
+          as Map<String, dynamic>;
+
+  Future<void> deleteArtboard(int id) => _send('DELETE', '/artboards/$id');
+
+  // ---------- AI image edits (the image editor's "Describe edits")
+  /// Whether AI is connected on the server (`GET /catalog`, no account
+  /// needed).
+  Future<bool> aiAvailable() async {
+    final data = await _send('GET', '/catalog');
+    return (data as Map?)?['provider']?['is_ai'] == true;
+  }
+
+  /// The picture changed as described (`POST /ai/image-edit`): [image] and
+  /// the optional [mask] (see-through where the AI may change it) and
+  /// [marked] copy are data URLs; [notes] are `{text, x, y}` with x and y
+  /// from 0 to 1. Answers the new picture as a data URL.
+  Future<String> editImage({
+    required String image,
+    String? instruction,
+    String? mask,
+    String? marked,
+    List<Map<String, Object>> notes = const [],
+    String? size,
+  }) async {
+    final data = await _send(
+      'POST',
+      '/ai/image-edit',
+      body: {
+        'image': image,
+        if (instruction != null && instruction.trim().isNotEmpty)
+          'instruction': instruction.trim(),
+        if (notes.isNotEmpty) 'notes': notes,
+        'mask': ?mask,
+        'marked': ?marked,
+        'size': ?size,
+      },
+      long: true,
+    );
+    final result = (data as Map?)?['image'];
+    if (result is! String || !result.startsWith('data:image/')) {
+      throw ApiException('No picture came back. Please try again.');
+    }
+    return result;
+  }
+
+  /// One saved asset's file (`GET /assets/{id}/file`) as a data URL.
+  Future<String> assetDataUrl(int id) async {
+    if (!configured) {
+      throw ApiException('No 3DEEZI server is set. Add it under Server.');
+    }
+    final request =
+        http.Request('GET', Uri.parse('$baseUrl/api/v1/assets/$id/file'))
+          ..headers.addAll({
+            'Accept': '*/*',
+            if (token != null) 'Authorization': 'Bearer $token',
+          });
+    final http.Response response;
+    try {
+      response = await http.Response.fromStream(
+        await _client.send(request),
+      ).timeout(const Duration(minutes: 3));
+    } on TimeoutException {
+      throw ApiException('The server at $host took too long to answer.');
+    } on Object {
+      throw ApiException(
+        "Can't reach the 3DEEZI server at $host. Check the connection.",
+      );
+    }
+    if (response.statusCode == 404) {
+      throw ApiException(
+        'The print layout file is no longer in the saved assets.',
+        status: 404,
+      );
+    }
+    if (response.statusCode != 200) {
+      Object? json;
+      try {
+        json = jsonDecode(response.body);
+      } on FormatException {
+        json = null;
+      }
+      throw ApiException(
+        _message(response.statusCode, json),
+        status: response.statusCode,
+      );
+    }
+    final type =
+        (response.headers['content-type'] ?? 'application/octet-stream')
+            .split(';')
+            .first
+            .trim();
+    return 'data:$type;base64,${base64Encode(response.bodyBytes)}';
+  }
+
   // ---------- transport
   /// The largest request body sent (the website's limit too).
   static const maxBodyLength = 48 * 1024 * 1024;
@@ -196,11 +535,14 @@ class ApiClient {
       'This design is too large to save. Remove or shrink large images in '
       'your artwork and try again.';
 
-  /// Sends a request and returns the response's `data`.
+  /// Sends a request and returns the response's `data`. [long] waits up to
+  /// five minutes (AI pictures).
   Future<dynamic> _send(
     String method,
     String path, {
     Map<String, dynamic>? body,
+    bool long = false,
+    Map<String, String> headers = const {},
   }) async {
     if (!configured) {
       throw ApiException('No 3DEEZI server is set. Add it under Server.');
@@ -216,13 +558,28 @@ class ApiClient {
         'Accept': 'application/json',
         if (body != null) 'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
+        ...headers,
       });
     if (encoded != null) request.body = encoded;
+    return _receive(
+      () => _client.send(request),
+      sent: encoded?.length ?? 0,
+      long: long,
+    );
+  }
+
+  /// The answer's `data`, or an [ApiException] that says what went wrong.
+  /// [sent] is the request's size (a large one explains an odd answer).
+  Future<dynamic> _receive(
+    Future<http.StreamedResponse> Function() send, {
+    int sent = 0,
+    bool long = false,
+  }) async {
     final http.Response response;
     try {
       response = await http.Response.fromStream(
-        await _client.send(request),
-      ).timeout(const Duration(seconds: 90));
+        await send(),
+      ).timeout(Duration(seconds: long ? 300 : 90));
     } on TimeoutException {
       throw ApiException('The server at $host took too long to answer.');
     } on Object {
@@ -236,8 +593,7 @@ class ApiClient {
     } on FormatException {
       // A web page instead of an answer: after a large save that is the
       // server's size limit (the website's "Unexpected token '<'").
-      final large =
-          response.statusCode == 413 || (encoded?.length ?? 0) > 1024 * 1024;
+      final large = response.statusCode == 413 || sent > 1024 * 1024;
       throw ApiException(
         large
             ? 'The server sent an unexpected reply. If your design contains '

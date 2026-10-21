@@ -1,0 +1,39 @@
+/* Ordering a kit (Orders.tsx): the design confirmed as final, and the names and numbers on the back. */
+.order-final,.order-names{border:1.5px solid #00d9ed44;border-radius:12px;padding:12px;margin:0;display:flex;flex-direction:column;gap:10px;min-width:0}
+.order-final.invalid,.order-names.invalid{border-color:#f16482aa}
+.order-names legend{padding:0 6px;font-size:12px;color:#c9d6e2}
+.order-wait{display:flex;align-items:center;gap:8px;margin:0;color:#8d9fb3;font-size:11px}
+.order-shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.order-shots figure{margin:0;display:flex;flex-direction:column;gap:5px;min-width:0}
+.order-shots img{width:100%;aspect-ratio:4/5;object-fit:contain;border-radius:10px;border:1px solid #ffffff1c;background:radial-gradient(circle at 50% 35%,#16354d,#050c15 75%)}
+.order-shots figcaption{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8d9fb3;text-align:center}
+.order-check,.order-choice{display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:12px;color:#dfeaf8;line-height:1.4}
+.order-check input,.order-choice input{width:17px;height:17px;accent-color:#00d9ed;margin:0;flex-shrink:0}
+.order-check span{display:flex;flex-direction:column;gap:3px}
+.order-check small{color:#8d9fb3;font-size:11px;line-height:1.5}
+.order-choice{padding:9px 10px;border-radius:9px;border:1px solid #ffffff14;background:#06111b}
+.order-choice.on{border-color:#00d9ed88;background:#00d9ed0d}
+.order-same{display:grid;grid-template-columns:minmax(0,1fr) 90px;gap:10px}
+.order-input{display:flex;flex-direction:column;gap:5px;font-size:11px;color:#8d9fb3}
+.order-input input,.order-player input,.order-player select,.order-paste textarea{width:100%;min-width:0;height:36px;padding:0 10px;border-radius:8px;border:1px solid #ffffff22;background:#06111b;color:#fff;font-size:12px;outline:none}
+.order-player select{padding:0 6px}
+.order-paste textarea{height:auto;padding:9px 10px;resize:vertical;font-family:ui-monospace,Consolas,monospace;line-height:1.5}
+.order-input input:focus,.order-player input:focus,.order-player select:focus,.order-paste textarea:focus{border-color:#00d9ed88}
+.order-input input[aria-invalid=true],.order-player.invalid input,.order-player.invalid select{border-color:#f16482aa}
+.order-warn{grid-column:1/-1;display:flex;gap:7px;align-items:flex-start;margin:0;color:#ffbc75;font-size:11px;line-height:1.5}
+.order-warn svg{flex-shrink:0;margin-top:1px}
+.order-players{display:flex;flex-direction:column;gap:6px}
+.order-player{display:grid;grid-template-columns:minmax(0,1fr) 62px 78px 34px;gap:6px;align-items:center}
+.order-player.head{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#8d9fb3}
+.order-player-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.order-player-actions .button{min-height:36px;padding:8px 14px;gap:8px}
+.order-paste{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:10px;background:#0a1928;border:1px solid #ffffff12}
+.order-names .field-hint,.order-paste .field-hint{margin:0}
+.size-grid:disabled input{opacity:.8;cursor:default}
+
+/* The admin's order page (Admin.tsx OrderKit): the kit as ordered and the players list. */
+.kit-note{display:flex;gap:8px;align-items:flex-start;margin:0 0 14px;padding:10px 12px;border-radius:10px;border:1px solid #ffbc7555;background:#ffbc750d;color:#ffd7a8;font-size:13px;line-height:1.5}
+.kit-note svg{flex-shrink:0;margin-top:2px}
+.kit-players td:first-child,.kit-players th:first-child{color:#8d9fb3;width:44px}
+.kit-players td{font-variant-numeric:tabular-nums}
+@media(max-width:420px){.order-player{grid-template-columns:minmax(0,1fr) 52px 70px 30px;gap:5px}.order-same{grid-template-columns:minmax(0,1fr) 76px}}

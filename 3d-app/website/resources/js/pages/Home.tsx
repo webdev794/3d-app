@@ -1,8 +1,10 @@
-import { ArrowRight, BatteryFull, Box, ChevronLeft, ChevronRight, Layers, Monitor, MousePointer2, Palette, PenTool, Signal, Smartphone, Sparkles, Type, Wifi } from 'lucide-react';
+import { ArrowRight, BatteryFull, Box, ChevronLeft, ChevronRight, Layers, Monitor, MousePointer2, Palette, PenTool, Signal, Sparkles, Type, Wifi } from 'lucide-react';
 import { useEffect, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { media } from '../api';
 import StoreBadges, { AppleLogo, GooglePlayLogo } from '../components/StoreBadges';
+import RewardsBanner from '../components/RewardsBanner';
+import OrderNow from '../components/OrderNow';
 import '../../css/home.css';
 
 export default function Home({onStart}:{onStart:(mode:'ai'|'dyo')=>void}) {
@@ -50,7 +52,10 @@ export default function Home({onStart}:{onStart:(mode:'ai'|'dyo')=>void}) {
         <Link to="/artboard" className="path-card path-artboard"><div className="mini-artboard" aria-hidden="true"><div className="mini-bar"><span/><span/><span/></div><div className="mini-tools"><MousePointer2/><PenTool/><Type/><Layers/></div><div className="mini-canvas"><img src={media('images/emblem-final.png')} alt=""/><i/><i/><i/><i/></div><div className="mini-swatches"><span/><span/><span/><span/></div></div><div className="path-heading"><span className="path-icon"><PenTool/></span><h2>3DEEZI<br/><span>ARTBOARD</span></h2></div><p>Arrange logos, shapes, and artwork. <br/>Bring your composition into the 3D kit.</p><span className="button button-outline">OPEN ARTBOARD <ArrowRight size={17}/></span></Link>
       </section>
     </div></div>
-    <section className="home-app-strip"><div><Smartphone size={21}/><span>On your desktop. On your team’s next adventure.</span></div><Link to="/downloads">EXPLORE THE APPS <ArrowRight size={15}/></Link></section>
+    {/* ORDER NOW WITH 3DEEZI: the order form, uploading an order, and My Orders */}
+    <OrderNow/>
+    {/* 3DEEZI Rewards (coming soon): keep below the Orders section */}
+    <RewardsBanner/>
   </div>;
 }
 

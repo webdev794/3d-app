@@ -111,6 +111,71 @@ void main() {
     expect(c.gradient, isNull);
   });
 
+  test('a print layout undoes, saves, syncs and leaves with a new kit', () {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    final layout = {
+      'asset': 41,
+      'name': 'LEOPARDS NEW.pdf',
+      'roles': ['neck', 'back', 'front', 'sleeveL', 'sleeveR', 'legR', 'legL'],
+      'hemFold': true,
+      'joinLines': true,
+      'parts': ['shorts', 'raglan'],
+    };
+    c.edit(() => c.layout = copyLayout(layout));
+    c.undo();
+    expect(c.layout, isNull);
+    c.redo();
+    expect(c.layout, layout);
+    final project = Project(
+      title: 'Leopards',
+      sport: 'Rugby League',
+      garment: 'Full Kit',
+      mode: 'DYO',
+      kit: c.kit,
+      updated: DateTime.now(),
+    );
+    final body = jsonDecode(jsonEncode(ProjectSync.toServer(project)));
+    expect(body['design']['layout'], layout);
+    final disk = ProjectStore.decode(
+      jsonDecode(jsonEncode(ProjectStore.encode(project))),
+      {},
+    );
+    final server = ProjectSync.fromServer({...body, 'id': 19, 'version': 1});
+    for (final restored in [disk, server]) {
+      expect(restored.kit.layout, layout);
+    }
+    // No layout: the field is left out (older servers refuse it) and comes
+    // back as null, as do the website's removed layouts.
+    c.edit(() => c.layout = null);
+    final plain = ProjectSync.toServer(
+      Project(
+        title: 'Plain',
+        sport: 'Rugby League',
+        garment: 'Jersey',
+        mode: 'DYO',
+        kit: c.kit,
+        updated: DateTime.now(),
+      ),
+    );
+    expect((plain['design'] as Map).containsKey('layout'), isFalse);
+    expect(
+      ProjectSync.fromServer({
+        'id': 3,
+        'name': 'Removed',
+        'design': {'layout': null},
+      }).kit.layout,
+      isNull,
+    );
+    // Not a layout: no file or no panel names.
+    expect(copyLayout({'name': 'x.pdf', 'roles': []}), isNull);
+    expect(copyLayout({'asset': 4, 'name': 'x.pdf'}), isNull);
+    c.loadProject(server);
+    expect(c.layout?['asset'], 41);
+    c.startDyo();
+    expect(c.layout, isNull);
+  });
+
   test('marks moved on the 2D panels undo, save, sync and reset', () {
     final c = AppController(store: FakeStore());
     addTearDown(c.dispose);
@@ -228,9 +293,11 @@ void main() {
       ),
     );
     await tester.enterText(find.byType(TextField).first, 'CLUB');
+    await tester.ensureVisible(find.byTooltip('Add text layer'));
     await tester.tap(find.byTooltip('Add text layer'));
     await tester.pump();
     expect(c.layers.single['text'], 'CLUB');
+    await tester.ensureVisible(find.text('ellipse').first);
     await tester.tap(find.text('ellipse').first);
     await tester.pump();
     expect(c.layers, hasLength(2));

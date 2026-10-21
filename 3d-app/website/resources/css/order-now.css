@@ -1,0 +1,119 @@
+/* Homepage "ORDER NOW WITH 3DEEZI" (OrderNow.tsx, client design 2026-10-20). --u is 1 px at 1600 px wide (up to
+   1.2 px), like the cards above; tablets and phones stack the tiles in the same order. */
+.order-now{position:relative;overflow:hidden;container-type:inline-size;background:linear-gradient(180deg,#020912,#030c18 45%,#020912)}
+.on-haze{position:absolute;inset:0;pointer-events:none;background:
+  radial-gradient(ellipse 26% 48% at 0% 62%,#1f6fd23d,transparent 72%),
+  radial-gradient(ellipse 26% 48% at 100% 62%,#1f6fd23d,transparent 72%),
+  radial-gradient(ellipse 55% 22% at 50% 100%,#1366c42e,transparent 75%),
+  radial-gradient(ellipse 40% 30% at 50% 18%,#0e2c4f40,transparent 70%)}
+.on-inner{--hu:min(calc(100cqw / 1600),1.2px);--w:min(calc(100cqw - 48px),calc(1440 * var(--hu)));--u:calc(var(--w) / 1440);position:relative;width:var(--w);margin:0 auto;padding:calc(70 * var(--u)) 0 calc(44 * var(--u))}
+/* Full page width on every screen (2026-10-20): 3DEEZI ASSIST folds into its button when this section scrolls into
+   view (Assist.tsx, data-assist-fold), so the section no longer leaves the chat a column. */
+.on-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.on-title{margin:0;text-align:center;font-family:var(--heading);font-weight:700;font-size:max(30px,calc(70 * var(--u)));line-height:1;letter-spacing:.04em;color:#f4f8fc;
+  background:linear-gradient(180deg,#ffffff 30%,#b9c6d4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-shadow:none}
+.on-wordmark-glow{display:inline-block;vertical-align:-.06em;margin-left:.16em;filter:drop-shadow(0 0 calc(10 * var(--u)) #12c8f070)}
+.on-wordmark{display:block;height:.84em;width:auto;aspect-ratio:1628/233}
+.on-sub{margin:calc(18 * var(--u)) 0 0;text-align:center;font-size:max(14px,calc(24 * var(--u)));letter-spacing:.06em;color:#d4dfea;line-height:1.4}
+
+.on-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:calc(20 * var(--u));margin-top:calc(42 * var(--u))}
+.on-tile{position:relative;display:flex;flex-direction:column;min-width:0;padding:calc(30 * var(--u)) calc(32 * var(--u)) calc(26 * var(--u));border:1.5px solid #12e1f0a6;border-radius:calc(12 * var(--u));
+  background:radial-gradient(ellipse 80% 45% at 50% 62%,#0b2a4a59,transparent 72%),linear-gradient(180deg,#081a2deb,#04101ceb);color:#eaf4fc;text-align:left;
+  box-shadow:0 0 18px #00d9ed38,0 0 46px #00d9ed14,inset 0 0 30px #00d9ed10;transition:border-color .2s,transform .2s,box-shadow .2s}
+.on-tile:hover{transform:translateY(-4px);border-color:#36e3ee;box-shadow:0 0 26px #00d9ed80,0 0 70px #00d9ed2e,inset 0 0 30px #00d9ed1f}
+.on-tile:focus-visible{outline:2px solid var(--cyan);outline-offset:4px}
+.on-head{display:flex;align-items:flex-start;justify-content:space-between;gap:calc(14 * var(--u));min-height:calc(86 * var(--u))}
+.on-head h3{margin:0;font-family:var(--heading);font-weight:700;font-size:max(21px,calc(36 * var(--u)));line-height:1.02;letter-spacing:.03em;color:#fff}
+.on-head h3 span{display:block;margin-top:calc(8 * var(--u));font-size:max(14px,calc(23 * var(--u)));letter-spacing:.07em;color:#21e3f2}
+.on-icon{display:grid;place-items:center;flex-shrink:0;width:max(42px,calc(66 * var(--u)));height:max(42px,calc(66 * var(--u)));border:1.5px solid #76e6fba8;border-radius:calc(11 * var(--u));
+  color:#e6fbff;background:#0731485c;box-shadow:0 0 12px #00d9ed33,inset 0 0 11px #00d9ed15}
+.on-icon svg{width:max(20px,calc(32 * var(--u)));height:max(20px,calc(32 * var(--u)))}
+.on-icon .assist-sparkle{fill:#00d9ed18;stroke:#e9fbff;stroke-width:1.4}
+.on-tile>p{margin:calc(12 * var(--u)) 0 0;max-width:30ch;font-size:max(13px,calc(20 * var(--u)));line-height:1.4;color:#d3dee8}
+.on-button{margin-top:auto;display:flex;align-items:center;justify-content:center;gap:calc(12 * var(--u));min-height:max(46px,calc(64 * var(--u)));padding:0 calc(20 * var(--u));border-radius:999px;
+  background:linear-gradient(100deg,#12e2f1,#1cc6f6 32%,#3f8cff 66%,#8c5cff);color:#03182a;font-family:var(--heading);font-weight:700;font-size:max(14px,calc(22 * var(--u)));letter-spacing:.08em;
+  box-shadow:0 0 22px #12e1f04d,inset 0 1px 0 #ffffff59;transition:box-shadow .2s,filter .2s}
+.on-button svg{width:max(17px,calc(24 * var(--u)));height:max(17px,calc(24 * var(--u)))}
+.on-tile:hover .on-button{box-shadow:0 0 30px #12e1f080,inset 0 1px 0 #ffffff59;filter:brightness(1.06)}
+.on-foot{margin:calc(44 * var(--u)) 0 0;text-align:center;font-size:max(13px,calc(20 * var(--u)));letter-spacing:.08em;color:#c6d3df}
+
+/* The pictures: the same height on every tile, so the buttons line up. */
+.on-visual{position:relative;height:calc(318 * var(--u));margin:calc(18 * var(--u)) 0 calc(22 * var(--u))}
+
+/* 1. The order form on a tablet. */
+.on-tablet{position:absolute;left:2%;right:4%;top:6%;bottom:4%;padding:calc(14 * var(--u));border-radius:calc(18 * var(--u));border:1.5px solid #4fd8ee8c;
+  background:linear-gradient(155deg,#10263f,#060f1c 60%,#040a14);box-shadow:0 calc(18 * var(--u)) calc(40 * var(--u)) #000a,0 0 calc(24 * var(--u)) #12c8f040,inset 0 0 0 calc(5 * var(--u)) #0a1626;
+  transform:perspective(calc(1100 * var(--u))) rotateX(9deg) rotateY(-9deg) rotate(-3deg);transform-origin:50% 60%}
+.on-tablet-grid{height:100%;display:grid;grid-template-rows:auto repeat(3,1fr);gap:calc(7 * var(--u));padding:calc(10 * var(--u));border-radius:calc(10 * var(--u));border:1px solid #ffffff14;background:#071322}
+.on-tablet-head,.on-tablet-row{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,.95fr) minmax(0,.85fr);gap:calc(10 * var(--u));align-items:center}
+.on-tablet-head{padding:0 calc(6 * var(--u));font-size:max(9px,calc(15 * var(--u)));color:#c8d6e4}
+.on-tablet-head span:nth-child(n+2){text-align:center}
+.on-tablet-row{padding:calc(6 * var(--u));border-top:1px solid #ffffff10}
+.on-item{display:flex;align-items:center;gap:calc(10 * var(--u));min-width:0;font-size:max(10px,calc(16 * var(--u)));color:#f2f7fb}
+.on-thumb{display:grid;place-items:center;flex-shrink:0;width:calc(54 * var(--u));height:calc(54 * var(--u));border-radius:calc(8 * var(--u));background:#0c1c2f;border:1px solid #ffffff12}
+.on-thumb svg{width:86%;height:86%}
+.on-field{display:flex;align-items:center;justify-content:space-between;height:calc(40 * var(--u));padding:0 calc(10 * var(--u));border-radius:calc(7 * var(--u));border:1px solid #ffffff2b;background:#0a1626;
+  font-size:max(10px,calc(16 * var(--u)));color:#f2f7fb}
+.on-field svg{width:calc(15 * var(--u));height:calc(15 * var(--u));color:#9fb4c8}
+.on-qty i{width:calc(6 * var(--u));height:calc(10 * var(--u));border-left:calc(4 * var(--u)) solid transparent;border-right:calc(4 * var(--u)) solid transparent;border-top:calc(5 * var(--u)) solid #7f93a8}
+
+/* 2. The upload tray: an order form and a garment's artwork going in. */
+.on-paper{position:absolute;left:12%;top:7%;width:43%;height:66%;padding:calc(14 * var(--u)) calc(16 * var(--u));border-radius:calc(8 * var(--u));background:linear-gradient(170deg,#f6f9fc,#d7e0ea);
+  box-shadow:0 calc(10 * var(--u)) calc(26 * var(--u)) #000a;transform:rotate(-9deg);color:#3c4b5c}
+.on-paper b{display:block;font-family:var(--heading);font-size:max(9px,calc(17 * var(--u)));letter-spacing:.08em;margin-bottom:calc(10 * var(--u))}
+.on-paper-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:calc(6 * var(--u)) calc(7 * var(--u))}
+.on-paper-grid i{height:calc(11 * var(--u));border-radius:2px;background:#b9c6d4}
+.on-paper-grid i:nth-child(3n+1){background:#a5b4c4}
+.on-art{position:absolute;right:11%;top:3%;width:40%;height:66%;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:calc(10 * var(--u));
+  background:radial-gradient(ellipse at 50% 40%,#16406c,#071222 72%);border:1px solid #4aa8ff59;box-shadow:0 calc(10 * var(--u)) calc(26 * var(--u)) #000b,0 0 calc(22 * var(--u)) #1e7bff33;transform:rotate(8deg)}
+.on-art svg{width:78%;height:auto}
+.on-art span{margin-top:calc(-62 * var(--u));font:italic 700 max(8px,calc(15 * var(--u)))/1 var(--heading);letter-spacing:.06em;color:#e9f6ff}
+.on-tray{position:absolute;left:8%;right:8%;bottom:9%;height:38%;display:grid;place-items:center;border-radius:calc(12 * var(--u)) calc(12 * var(--u)) calc(20 * var(--u)) calc(20 * var(--u));
+  background:linear-gradient(180deg,#14263b,#070f1b 55%,#03070e);border:1px solid #2c4a68;box-shadow:inset 0 calc(10 * var(--u)) calc(14 * var(--u)) #ffffff0d,0 calc(14 * var(--u)) calc(30 * var(--u)) #000c}
+.on-tray::before{content:"";position:absolute;left:4%;right:4%;top:-1px;height:calc(10 * var(--u));border-radius:0 0 calc(8 * var(--u)) calc(8 * var(--u));background:#02060c}
+.on-tray svg{width:30%;height:auto;fill:none;stroke:#25e6f6;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 calc(8 * var(--u)) #12e1f0cc)}
+.on-floor{position:absolute;left:4%;right:4%;bottom:0;height:12%;border-radius:50%;background:radial-gradient(ellipse at center,#1fa6ff59,transparent 70%);filter:blur(calc(6 * var(--u)))}
+
+/* 3. The order board. */
+.on-visual-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:calc(8 * var(--u));margin-left:calc(-12 * var(--u));margin-right:calc(-12 * var(--u))}
+.on-col{display:flex;flex-direction:column;gap:calc(8 * var(--u));min-width:0;padding:calc(8 * var(--u));border-radius:calc(9 * var(--u));border:1px solid #ffffff17;background:#06111d}
+.on-col-head{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:calc(4 * var(--u)) calc(4 * var(--u)) calc(6 * var(--u));font-size:max(9px,calc(16 * var(--u)));font-weight:600;color:#eef5fb}
+.on-col-head b{display:grid;place-items:center;min-width:calc(26 * var(--u));height:calc(26 * var(--u));border-radius:calc(6 * var(--u));background:#ffffff14;font-size:max(8px,calc(13 * var(--u)));font-weight:600}
+.on-card{display:flex;align-items:center;justify-content:space-between;gap:calc(4 * var(--u));min-height:calc(72 * var(--u));padding:calc(8 * var(--u));border-radius:calc(8 * var(--u));border:1px solid #ffffff12;background:#0b1828}
+.on-card.is-hot{border-color:#2ee6f5;background:linear-gradient(160deg,#0d2a44,#08182a);box-shadow:0 0 calc(14 * var(--u)) #12e1f066,inset 0 0 calc(10 * var(--u)) #12e1f022}
+.on-card-text{display:flex;flex-direction:column;gap:calc(4 * var(--u));min-width:0}
+.on-card strong{font-size:max(8px,calc(13 * var(--u)));font-weight:600;color:#f2f7fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.on-card.is-hot strong{font-size:max(9px,calc(15 * var(--u)))}
+.on-card small{font-size:max(7px,calc(11 * var(--u)));color:#8ea3b8}
+.on-card i{display:block;width:calc(56 * var(--u));height:calc(5 * var(--u));border-radius:9px;background:#ffffff14;overflow:hidden}
+.on-card em{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,#12e1f0,#1f8bff)}
+.on-card svg{flex-shrink:0;width:calc(48 * var(--u));height:calc(48 * var(--u))}
+.on-card.is-hot svg{width:calc(56 * var(--u));height:calc(56 * var(--u))}
+
+/* Tablets: one tile a row, the picture beside the words. */
+@media(max-width:899px){
+  .on-inner{--u:.78px;width:calc(100% - 40px);padding:44px 0 34px}
+  .on-tiles{grid-template-columns:1fr;gap:18px}
+  .on-tile{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);grid-template-areas:"head visual" "text visual" "button visual";column-gap:20px;align-items:start}
+  .on-head{grid-area:head;min-height:0}
+  .on-tile>p{grid-area:text}
+  .on-visual{grid-area:visual;align-self:center;margin:0;height:260px}
+  .on-button{grid-area:button;margin-top:18px;align-self:end}
+  .on-visual-board{margin:0}
+}
+/* Phones: the tiles stacked, each with its picture under the words. */
+@media(max-width:600px){
+  .on-inner{--u:.7px;width:calc(100% - 32px);padding:36px 0 28px}
+  .on-title{font-size:clamp(26px,8.2vw,36px);line-height:1.08}
+  .on-wordmark-glow{display:block;margin:6px auto 0;width:max-content}
+  .on-wordmark{height:clamp(30px,9vw,40px)}
+  .on-sub{font-size:14px;letter-spacing:.03em}
+  .on-tile{display:flex;padding:20px 18px 18px}
+  .on-visual{height:min(64vw,250px);margin:14px 0 18px}
+  .on-button{margin-top:auto}
+  .on-head h3{font-size:22px}
+  .on-head h3 span{font-size:15px}
+  .on-tile>p{font-size:14px}
+}
+@media(prefers-reduced-motion:reduce){.on-tile,.on-button{transition:none}.on-tile:hover{transform:none}}

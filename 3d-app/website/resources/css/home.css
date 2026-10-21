@@ -136,7 +136,8 @@
 .campaign-copy>.button{justify-content:space-between;min-height:max(44px,calc(52 * var(--u)));min-width:calc(281 * var(--u));padding:0 calc(26 * var(--u)) 0 calc(38 * var(--u));gap:calc(38 * var(--u));border-radius:calc(12 * var(--u));font-size:max(11px,calc(15 * var(--u)));letter-spacing:.2em;color:#04192b;background:linear-gradient(100deg,#12e2f1,#1cc6f6 45%,#6d74ff 85%,#8c5cff);box-shadow:0 0 calc(24 * var(--u)) #12e1f055}
 .campaign-copy>.button svg{width:max(16px,calc(21 * var(--u)));height:max(16px,calc(21 * var(--u)))}
 
-.creation-paths{position:relative;z-index:3;margin-left:calc(95 * var(--u));width:min(calc(1122 * var(--u)),calc(100cqw - 24px - 344px * var(--assist-scale,1) - 113 * var(--u)));display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:calc(11 * var(--u))}
+.creation-paths{position:relative;z-index:3;margin-left:calc(95 * var(--u));width:calc(1410 * var(--u));display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:calc(11 * var(--u))}
+/* The cards always use the full width (user 2026-10-20); an open 3DEEZI ASSIST floats over them. */
 .path-card{position:relative;min-height:calc(219 * var(--u));padding:calc(20 * var(--u)) calc(18 * var(--u)) calc(18 * var(--u));border:1.5px solid #12e1f0b3;border-radius:calc(8 * var(--u));overflow:hidden;background:#061624e8;color:#eaf4fc;text-align:left;display:flex;flex-direction:column;align-items:flex-start;box-shadow:0 0 18px #00d9ed45,0 0 46px #00d9ed1f,inset 0 0 26px #00d9ed12;transition:border-color .2s,transform .2s,box-shadow .2s}
 .path-card:hover{transform:translateY(-4px);border-color:#36e3ee;box-shadow:0 0 26px #00d9ed88,0 0 70px #00d9ed33,inset 0 0 30px #00d9ed22}
 .path-card>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:right center;opacity:.9}
@@ -166,10 +167,6 @@
 .mini-swatches{display:flex;position:absolute;left:33px;bottom:11px;gap:5px}
 .mini-swatches>span{width:9px;height:9px;border-radius:2px;background:#00dcf0}.mini-swatches>span:nth-child(2){background:#0962ff}.mini-swatches>span:nth-child(3){background:#923cff}.mini-swatches>span:nth-child(4){background:#f4f8ff}
 
-.home-app-strip{max-width:1480px;width:calc(100% - 72px);margin:auto;border-top:1px solid #00d9ed24;padding:24px 3px 26px;display:flex;align-items:center;justify-content:space-between;gap:20px;color:#87a5b8;font-size:11px}
-.home-app-strip>div,.home-app-strip>a{display:flex;align-items:center;gap:10px}
-.home-app-strip>div>svg{color:#00d9ed}
-.home-app-strip>a{font-size:9px;letter-spacing:.08em;color:#9dddea}
 
 /* Screens wider than the design (over 1920 px): the arena, its floor and the smoke fade into the dark page on the right. */
 @media(min-width:1940px){
@@ -254,7 +251,4 @@
 
   .creation-paths{order:3;margin-top:12px}
   .path-card>p{max-width:none}
-}
-@media(max-width:400px){
-  .home-app-strip{width:calc(100% - 34px);flex-direction:column;align-items:flex-start;gap:14px}
 }

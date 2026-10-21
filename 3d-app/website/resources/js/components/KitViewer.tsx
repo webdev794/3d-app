@@ -1,10 +1,11 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
+import { ApiError, fetchFile, getToken } from '../api';
 
 export type Garment = 'jersey' | 'tee' | 'polo' | 'singlet' | 'shorts' | 'fullkit';
 export type View = 'front' | 'side' | 'back';
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem';
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-19-2';
+const VIEWER_VERSION = '2026-10-20-12';
 
 export interface ArtworkLayer {
     id: string; name?: string; type: 'image' | 'text' | 'shape';
@@ -18,8 +19,20 @@ export interface ArtworkLayer {
  */
 export interface MarkPlace { side?: 'front' | 'back'; x?: number; y?: number; scale?: number; rot?: number; hidden?: boolean }
 export interface GarmentPoint { hit: boolean; part?: 'top' | 'shorts'; side?: 'front' | 'back'; x?: number; y?: number; zone?: Zone }
+/**
+ * A factory print layout on the kit: the file (one of the user's assets), each panel found in it named in the order
+ * found ('none' = not used), whether the plain strip under the body panels is the hem fold, whether the white lines
+ * across the sleeves are joined up (left out), and the parts it makes.
+ */
+export interface DesignLayout { asset: number; name: string; roles: string[]; hemFold?: boolean; joinLines?: boolean; parts?: string[]; /** 'drawing': the finished garment's front and back drawn flat (a design picture), put on the garment in parts[0]. */ kind?: 'drawing' }
 
 /** Shared with the Flutter viewer. Persist this object as a project's design. */
+/** A gradient colour stop: `at` runs 0 (start) to 1 (end). */
+export type GradientStop = { color: string; at: number };
+/** A colour zone's gradient fill: from, to and angle (0 = top to bottom); `stops` has every colour when there are more
+ * than two (Sunset: orange, pink, purple); `preset` names the ready-made gradient it came from. */
+export type Gradient = { from: string; to: string; angle: number; stops?: GradientStop[]; preset?: string | null };
+
 export interface Design {
     garment: Garment;
     main: string;
@@ -36,10 +49,13 @@ export interface Design {
     patternColor?: string;
     patternBody?: number;
     patternScale?: number;
-    gradient?: { from: string; to: string; angle: number } | null;
+    /** The Primary zone's gradient fill (the body); `gradients` holds the Secondary and Pattern zones' fills. */
+    gradient?: Gradient | null;
+    gradients?: Partial<Record<'secondary' | 'patternColor', Gradient>> | null;
     zones?: Partial<Record<Zone, string>>;
     layers?: ArtworkLayer[];
     marks?: Record<string, MarkPlace>;
+    layout?: DesignLayout | null;
 }
 
 export const defaultDesign: Design = {
@@ -65,7 +81,13 @@ export interface KitViewerHandle {
     select: (id: string | null) => void;
     /** Zooms the 2D panels. */
     zoomBoard: (how: 'in' | 'out' | 'fit') => void;
+    /**
+     * A new factory print layout (data URL of a PDF, SVG or picture, saved as asset `asset`): its panels are found and
+     * checked on screen. Put it on the kit with the design's `layout` ({asset, name, roles, hemFold, parts}).
+     */
+    checkLayout: (src: string, name: string, asset: number, options?: { drawing?: boolean; garment?: string }) => Promise<LayoutCheck>;
 }
+export interface LayoutCheck { cancelled?: boolean; roles?: string[]; hemFold?: boolean; joinLines?: boolean; parts?: string[]; kind?: 'drawing'; panels?: { role: string; label: string }[] }
 
 export interface KitViewerProps {
     design: Design;
@@ -77,6 +99,10 @@ export interface KitViewerProps {
     onLayers?: (layers: ArtworkLayer[]) => void;
     onMarks?: (marks: Record<string, MarkPlace>) => void;
     onSelection?: (id: string | null) => void;
+    /** The viewer shows a screen of its own (the print layout check): hide what the page puts over the 3D view. */
+    onModal?: (open: boolean) => void;
+    /** The design's print layout could not be put on the kit (the kit is shown without it). */
+    onLayoutError?: (message: string) => void;
 }
 
 interface CaptureRequest {
@@ -89,9 +115,21 @@ interface CaptureRequest {
 
 const views: Record<View, string> = { front: 'Front', side: 'Side', back: 'Back' };
 
+/** A saved print layout file as a data URL, downloaded with the visitor's sign-in (their own, or any for administrators). */
+async function downloadLayout(asset: number) {
+    if (!getToken()) throw new Error('Sign in to see this kit’s print layout.');
+    try {
+        const blob = await fetchFile(`/assets/${asset}/file`);
+        return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('The print layout file could not be read.')); reader.readAsDataURL(blob); });
+    } catch (error) {
+        if (error instanceof ApiError && error.status === 404) throw new Error('The print layout file is no longer in the saved assets.');
+        throw error;
+    }
+}
+
 /** Hosts the same bundled Three.js garment renderer used by the mobile app. */
 export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function KitViewer(
-    { design, view = 'front', rotating = false, onReady, className = '', board = false, onLayers, onMarks, onSelection }, ref,
+    { design, view = 'front', rotating = false, onReady, className = '', board = false, onLayers, onMarks, onSelection, onModal, onLayoutError }, ref,
 ) {
     const host = `website-kit-${useId().replace(/:/g, '')}`;
     const appBase = document.querySelector('meta[name="app-base"]')?.getAttribute('content')?.replace(/\/$/, '') || '';
@@ -112,27 +150,33 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     const boardMode = useRef(board);
     const layerCallback = useRef(onLayers);
     const marksCallback = useRef(onMarks);
+    const modalCallback = useRef(onModal);
+    const layoutErrorCallback = useRef(onLayoutError);
+    // Print layout files this page already has (the last one checked here), by asset id.
+    const layoutSources = useRef(new Map<number, string>());
     const selectionCallback = useRef(onSelection);
     const requests = useRef(new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }>());
     const captureQueue = useRef<CaptureRequest[]>([]);
     const activeCapture = useRef<CaptureRequest | null>(null);
     const designTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const flushRef = useRef<() => void>(() => {});
-    latestDesign.current = JSON.stringify({ layers: [], zones: {}, gradient: null, marks: {}, ...design });
+    latestDesign.current = JSON.stringify({ layers: [], zones: {}, gradient: null, gradients: null, marks: {}, layout: null, ...design });
     latestView.current = { view, rotating };
     readyCallback.current = onReady;
     boardMode.current = board;
     layerCallback.current = onLayers;
     marksCallback.current = onMarks;
+    modalCallback.current = onModal;
+    layoutErrorCallback.current = onLayoutError;
     selectionCallback.current = onSelection;
 
     const send = useCallback((cmd: string, arg: unknown) => {
         iframe.current?.contentWindow?.postMessage(JSON.stringify({ cmd, arg }), window.location.origin);
     }, []);
-    const request = useCallback(<T,>(cmd: string, arg: object) => new Promise<T>((resolve, reject) => {
+    const request = useCallback(<T,>(cmd: string, arg: object, wait = 20000) => new Promise<T>((resolve, reject) => {
         if (!engineReady.current || failed.current) { reject(new Error('Wait for the preview to finish loading.')); return; }
         const id = crypto.randomUUID();
-        const timeout = setTimeout(() => { requests.current.delete(id); reject(new Error('The designer did not respond. Please try again.')); }, 20000);
+        const timeout = setTimeout(() => { requests.current.delete(id); reject(new Error('The designer did not respond. Please try again.')); }, wait);
         requests.current.set(id, { resolve, reject, timeout }); send(cmd, { ...arg, id });
     }), [send]);
 
@@ -190,6 +234,11 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         processImage: (src, options) => request<string>('processImage', { src, ...options }),
         select: (id) => send('select', id),
         zoomBoard: (how) => send('boardZoom', how),
+        // The visitor checks the panels in the viewer first: allow them time.
+        checkLayout: (src, name, asset, options = {}) => {
+            layoutSources.current = new Map([[asset, src]]);
+            return request<LayoutCheck>('checkLayout', { src, name, asset, ...options }, 30 * 60 * 1000);
+        },
         captureBoard: () => new Promise<string>((resolve, reject) => {
             if (!mounted.current || status === 'error') { reject(new Error('The design board is unavailable. Please retry.')); return; }
             captureQueue.current.push({ view: 'front', kind: 'board', resolve, reject, timeout: setTimeout(() => fail('The 2D panels export timed out. Please retry.'), 30000) });
@@ -243,11 +292,21 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         const receive = (event: MessageEvent) => {
             if (event.origin !== window.location.origin || event.source !== iframe.current?.contentWindow) return;
             if (typeof event.data !== 'string') return;
-            let message: { host?: string; type?: string; view?: string; data?: string; id?: string; error?: string; layers?: ArtworkLayer[]; marks?: Record<string, MarkPlace> };
+            let message: { host?: string; type?: string; view?: string; data?: string; id?: string; error?: string; layers?: ArtworkLayer[]; marks?: Record<string, MarkPlace>; open?: boolean; asset?: number; message?: string };
             try { message = JSON.parse(event.data); } catch { return; }
             if (!message || message.host !== host) return;
             if (message.type === 'layers' && Array.isArray(message.layers)) layerCallback.current?.(message.layers);
             if (message.type === 'marks' && message.marks && typeof message.marks === 'object') marksCallback.current?.(message.marks);
+            if (message.type === 'modal') modalCallback.current?.(!!message.open);
+            // The design's print layout file: the viewer has not read it yet (allow time to download and read it).
+            if (message.type === 'layoutWanted' && typeof message.asset === 'number') {
+                const asset = message.asset;
+                if (designTimer.current) clearTimeout(designTimer.current);
+                designTimer.current = setTimeout(() => fail('The print layout took too long to load. Please retry.'), 200000);
+                const kept = layoutSources.current.get(asset);
+                void (kept ? Promise.resolve(kept) : downloadLayout(asset)).then((src) => send('layoutFile', { asset, src }), (error: Error) => send('layoutFile', { asset, error: error.message }));
+            }
+            if (message.type === 'layoutError') layoutErrorCallback.current?.(message.message || 'The print layout could not be loaded.');
             if (message.type === 'selection') selectionCallback.current?.(message.id || null);
             if (message.id && requests.current.has(message.id)) {
                 const pending = requests.current.get(message.id)!; requests.current.delete(message.id); clearTimeout(pending.timeout);
@@ -307,7 +366,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             <iframe
                 key={attempt}
                 ref={iframe}
-                src={`${appBase}/media/viewer/index.html?host=${encodeURIComponent(host)}&still&mobile&v=${VIEWER_VERSION}`}
+                src={`${appBase}/media/viewer/index.html?host=${encodeURIComponent(host)}&still&mobile&layouts&v=${VIEWER_VERSION}`}
                 title="Interactive 3D kit preview. Drag to rotate and scroll to zoom."
                 allow="fullscreen"
                 style={{ width: '100%', height: '100%', minHeight: 260, display: 'block', border: 0 }}

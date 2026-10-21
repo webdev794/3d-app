@@ -396,7 +396,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                 )
               : KitPreview(controller: c, height: double.infinity),
         ),
-        if (!_preview && !c.boardMode)
+        if (!_preview && !c.boardMode && !c.viewerModal)
           Positioned(
             left: 10,
             top: 10,
@@ -425,6 +425,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
           ),
         if (!_preview &&
             !c.boardMode &&
+            !c.viewerModal &&
             c.renderFront != null &&
             KitViewer3D.supported)
           Positioned(
@@ -468,15 +469,12 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
         if (!_preview)
           SizedBox(
             height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: ChipRow(
               children: [
                 ActionChipPill(
                   'Artboard',
                   onTap: () => c.go(AppScreen.artboard),
                 ),
-                const SizedBox(width: 8),
                 ActionChipPill(
                   c.boardMode ? 'Back to 3D' : '2D panels',
                   selected: c.boardMode,
@@ -492,42 +490,33 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                 if (c.boardMode) ...[
                   // Pinch or drag on the panels works too; these are the
                   // same zoom steps as the website's buttons.
-                  const SizedBox(width: 8),
                   ActionChipPill(
                     'Zoom −',
                     onTap: () => c.zoomBoard?.call('out'),
                   ),
-                  const SizedBox(width: 8),
                   ActionChipPill(
                     'Zoom +',
                     onTap: () => c.zoomBoard?.call('in'),
                   ),
-                  const SizedBox(width: 8),
                   ActionChipPill('Fit', onTap: () => c.zoomBoard?.call('fit')),
-                  if (c.marks.isNotEmpty) ...[
-                    const SizedBox(width: 8),
+                  if (c.marks.isNotEmpty)
                     // The wordmark, crest, sponsor, name and number back in
                     // their places (and shown again if removed).
                     ActionChipPill(
                       'Reset layout',
                       onTap: () => c.edit(() => c.marks = {}),
                     ),
-                  ],
-                  const SizedBox(width: 8),
                   ActionChipPill(
                     'Export board',
                     onTap: _busy == null ? _exportBoard : null,
                   ),
                 ],
-                const SizedBox(width: 8),
                 ActionChipPill(
                   'Drag to kit',
                   selected: _tray,
                   onTap: () => setState(() => _tray = !_tray),
                 ),
-                const SizedBox(width: 8),
                 ActionChipPill('Artwork', onTap: () => _openTool('Artwork')),
-                const SizedBox(width: 8),
                 ActionChipPill('Presets', onTap: () => _openTool('Presets')),
               ],
             ),
@@ -646,8 +635,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
           ),
           SizedBox(
             height: 46,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
+            child: ChipRow(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
               children: [
                 for (final (label, action) in [
@@ -658,10 +646,8 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                     () => _ask('Change the collar to a contrasting colour'),
                   ),
                   ('Add logo', _addLogo),
-                ]) ...[
+                ])
                   ActionChipPill(label, onTap: _busy == null ? action : null),
-                  const SizedBox(width: 8),
-                ],
               ],
             ),
           ),
@@ -1052,7 +1038,7 @@ class _ColoursToolState extends State<_ColoursTool> {
             ),
         ],
       ),
-      StudioGradientTool(c),
+      StudioGradientTool(c, slot: _slot),
     ],
   );
 }

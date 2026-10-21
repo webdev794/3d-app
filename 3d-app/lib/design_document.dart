@@ -31,6 +31,30 @@ Map<String, dynamic> copyMarks(Object? value) => value is Map
       }
     : {};
 
+/// A factory print layout on the kit (the website's `design.layout`): the file
+/// (`asset`, one of the user's saved assets), each panel found in it named in
+/// the order found (`roles`, 'none' = not used), whether the plain strip under
+/// the body panels is the hem fold, whether the white lines across the sleeves
+/// are joined up (left out), and the parts it makes. Null when none.
+Map<String, dynamic>? copyLayout(Object? value) {
+  if (value is! Map) return null;
+  final asset = value['asset'], roles = value['roles'], parts = value['parts'];
+  if (asset is! int || roles is! List) return null;
+  return {
+    'asset': asset,
+    'name': '${value['name'] ?? 'Print layout'}',
+    'roles': [for (final role in roles) '$role'],
+    'hemFold': value['hemFold'] != false,
+    'joinLines': value['joinLines'] != false,
+    'parts': [
+      if (parts is List)
+        for (final part in parts) '$part',
+    ],
+    // A design picture (the garment's front and back drawn flat).
+    if (value['kind'] == 'drawing') 'kind': 'drawing',
+  };
+}
+
 Map<String, dynamic>? copyGradient(Object? value) => value is Map
     ? (jsonDecode(jsonEncode(value)) as Map).cast<String, dynamic>()
     : null;

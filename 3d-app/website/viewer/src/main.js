@@ -6,12 +6,15 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import gsap from 'gsap';
-import { buildGarment, buildCollar } from './garment.js';
+import { buildGarment, buildCollar, buildDrawstring, SPECS } from './garment.js';
+import { buildLabel, paintLabel, mainColour } from './label.js';
 import { KitPainter, knitNormalMap } from './texture.js';
 import { createStudio } from './studio.js';
 import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt } from './zones.js';
+import { readLayout, findPanels, confirmPanels, hemFold, joinLines, drawPockets, ROLE_NAMES } from './layout.js';
+import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, drawnSleeves, sleevedShape, unprojectPhoto } from './layout-warp.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent) || params.has('mobile');
@@ -86,7 +89,11 @@ const { podium, ringMat, outerRing, pool, shadow } = createStudio(scene, rendere
 const reliefs = new Map();
 /** Adds the sewing relief on top of the fabric weave (both are normal maps, blended in the shader). */
 function addRelief(target, painter) {
-  const key = `${painter.kind}:${painter.canvas.width}`;
+  // A garment cut like a drawing has its own (only the latest such is kept).
+  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}:${painter.canvas.width}`;
+  if (painter.cut && !reliefs.has(key)) {
+    for (const [k, old] of reliefs) if (k.startsWith('cut:')) { old.dispose(); reliefs.delete(k); }
+  }
   if (!reliefs.has(key)) {
     const relief = new THREE.CanvasTexture(painter.reliefMap());
     relief.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -136,6 +143,7 @@ let currentKind = null;
 const PARTS = {
   jersey: ['jersey'],
   tee: ['tee'],
+  raglan: ['raglan'],
   polo: ['polo'],
   singlet: ['singlet'],
   shorts: ['shorts'],
@@ -143,19 +151,42 @@ const PARTS = {
 };
 
 function buildKit(kind) {
-  const key = PARTS[kind] ? kind : 'jersey';
+  // A print layout brings its own parts (a raglan top, shorts or both); the garment chosen shows its top, its
+  // shorts or the full kit.
+  let list = PARTS[PARTS[kind] ? kind : 'jersey'];
+  if (layout) {
+    // A garment drawing is of one top (the one it was checked as).
+    const own = layout.drawing ? [layout.garment] : layoutParts(layout.panels);
+    const pick = kind === 'fullkit' ? own : kind === 'shorts' ? own.filter((p) => p === 'shorts') : own.filter((p) => p !== 'shorts');
+    list = pick.length ? pick : own;
+  }
+  // A layout's shorts are training shorts (cut like its leg pieces), so the key says which; a drawing's top is the
+  // garment itself, cut like the drawing when it can be (drawnCut).
+  const cut = layout?.drawing ? layout.cut : null;
+  const key = (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '');
   if (key === currentKind) return;
   currentKind = key;
   const geometries = new Set();
-  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); o.material.dispose(); } });
+  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); o.material.map?.dispose(); o.material.dispose(); } });
   geometries.forEach((geometry) => geometry.dispose());
   parts.forEach((part) => part.texture.dispose());
   kit.clear();
   parts = [];
   let base = 0;
-  for (const partKind of PARTS[key]) {
-    const garment = buildGarment(partKind);
+  for (const partKind of list) {
+    const own = cut && partKind === layout.garment ? cut : null;
+    // A layout's tee over its shorts (shown bigger, below) hangs a little fuller at the hem, over their waistband.
+    const over = partKind === 'raglan' && layout && list.includes('shorts') ? { ...SPECS.raglan, hemFlare: 0.09 } : null;
+    const garment = buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over });
     const painter = new KitPainter(garment.frame, garment.outline, mobile ? 2048 : 4096, partKind);
+    if (own) painter.cut = layout.key;
+    // The finished edges (the hem follows a leg's side split), the waistband's width and the places a print
+    // layout's pieces are matched to.
+    painter.edgeMask = garment.edges;
+    painter.rimWidth = garment.rimWidth;
+    painter.points = garment.points;
+    // The fabric as worn: a garment drawing keeps its shapes on it (layout-warp.js).
+    painter.surface = garment.surface;
     const texture = new THREE.CanvasTexture(painter.canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -163,9 +194,9 @@ function buildKit(kind) {
     partMaterial.map = texture;
     addRelief(partMaterial, painter);
     const group = new THREE.Group();
-    // The inside of the fabric, seen through the neck, hem and cuffs: the same print in
-    // shade (sublimated prints show through), not a black hole.
-    group.add(new THREE.Mesh(garment.geometry, new THREE.MeshStandardMaterial({ map: texture, color: 0x5a6068, roughness: 0.95, vertexColors: true, side: THREE.BackSide })));
+    // The inside of the fabric, seen through the neck, hem and cuffs: the garment's own colour in shade (paintAll).
+    const inside = new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.95, vertexColors: true, side: THREE.BackSide });
+    group.add(new THREE.Mesh(garment.geometry, inside));
     const fabric = new THREE.Mesh(garment.geometry, partMaterial);
     fabric.userData.part = parts.length;
     fabric.castShadow = true;
@@ -173,17 +204,28 @@ function buildKit(kind) {
     group.add(fabric);
     // Collar rib or waistband along the top opening.
     const rim = new THREE.Mesh(
-      buildCollar(garment.neck, partKind === 'shorts'),
+      buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth),
       new THREE.MeshPhysicalMaterial({ roughness: 0.9, reflectivity: .2, sheen: 0.15, side: THREE.DoubleSide, sheenColor: new THREE.Color(0x7092a4), normalMap: knit, normalScale: new THREE.Vector2(.17, .17) }),
     );
     group.add(rim);
+    // Tops: the 3DEEZI neck label inside the back neck (label.js).
+    const label = partKind === 'shorts' ? null : buildLabel(garment);
+    // Shorts: the drawstring out of the front of the waistband.
+    const cord = garment.drawstring ? buildDrawstring(garment) : null;
+    if (cord) group.add(cord.group);
+    // A layout's training shorts are shown longer than their flat pattern (as on the client's mock-ups), and as much
+    // wider and deeper: the same proportions, only bigger.
+    const stretch = partKind === 'shorts' && layout ? 1.12 : 1;
+    group.scale.setScalar(stretch);
     // In a full kit the jersey sits over the shorts' waistband.
     group.position.y = base;
-    base += partKind === 'shorts' ? 0.36 : 0;
+    base += partKind === 'shorts' ? garment.frame.maxY * stretch - 0.06 : 0;
     kit.add(group);
-    parts.push({ painter, texture, rim, material: partMaterial });
+    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label });
   }
   frameKit();
+  // The labels after framing (the camera frames the kit as it is without them).
+  parts.forEach((part) => { if (part.label) part.rim.parent.add(part.label); });
 }
 
 /** Re-centres the camera on whatever is on the podium. */
@@ -200,12 +242,22 @@ function frameKit() {
 
 /** Repaints every part's print from the current design. */
 async function paintAll() {
+  await prepareLayout();
   buildKit(design.garment);
+  warpParts();
   await document.fonts.load('700 100px Rajdhani').catch(() => {});
   for (const part of parts) {
     await part.painter.paint(design);
     part.texture.needsUpdate = true;
-    part.rim.material.color.set(design.secondary);
+    part.rim.material.color.set(layout && part.layoutRim ? part.layoutRim : design.secondary);
+    // The inside: the print's (or the kit's) main colour, a little darker for shade; the label shows the kit's size.
+    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(0.72);
+    if (part.label) paintLabel(part.label, design.size || 'L');
+    // The drawstring: the cord darker than the waistband it comes out of, eyelets and tips in the trim colour.
+    if (part.cord) {
+      part.cord.cord.color.set(layout && part.layoutRim ? part.layoutRim : design.main).multiplyScalar(0.82);
+      part.cord.metal.color.set(layout && part.layoutAccent ? part.layoutAccent : design.accent);
+    }
   }
   ringMat.color.set(design.secondary).multiplyScalar(4);
   pool.material.color.set(design.secondary);
@@ -226,6 +278,200 @@ function applyDesign(next) {
     await paintAll();
     post({ type: 'designApplied' });
   });
+}
+
+// ---------- print layouts (layout.js reads them, layout-warp.js puts them on the garment)
+// A design's print layout is {asset: the host's id for the file, name, roles: each panel's name in the order found,
+// hemFold: the hem fold strips are cut off, joinLines: white lines across the sleeves are joined up, parts: what the
+// panels make}. Files read are kept by asset (the last two,
+// for undo and redo); a file the viewer has not read is asked of the host ({type: 'layoutWanted'}, answered with
+// layoutFile) when the host says it can.
+// A garment drawing (the finished design's front and back drawn flat, as on a tech sheet or a mock-up) is a layout
+// with kind: 'drawing' and parts: [the garment it is: a key of DRAWN, such as 'singlet']; its roles name the front
+// and the back. It goes onto that garment edge to edge, its pattern and logos as drawn.
+const layoutFiles = new Map();
+const layoutMissing = new Set();   // files the host could not give: those kits are shown without them
+let layout = null;                 // the layout on the kit: {key, image, panels}
+let layoutAsked = null;            // {asset, resolve, reject} while the host fetches a file
+// Hosts that can send files say so: &layouts in the address (website) or features({layouts: true}) (the apps).
+let hostLayouts = params.has('layouts');
+function dropLayout() {
+  layout = null;
+  parts.forEach((p) => { p.painter.layoutBase = null; });
+  delete document.body.dataset.layout;
+}
+function keepFile(asset, file) {
+  layoutFiles.delete(asset);
+  layoutFiles.set(asset, file);
+  while (layoutFiles.size > 2) layoutFiles.delete(layoutFiles.keys().next().value);
+}
+/**
+ * A print layout file (data URL of a PDF, SVG or picture) read into its panels, each named from its label; a garment
+ * drawing (`drawing`) into its front and back.
+ */
+async function readLayoutFile(src, drawing = false) {
+  const long = Math.min(mobile ? 3000 : 4800, renderer.capabilities.maxTextureSize);
+  const read = await readLayout(String(src ?? ''), { long });
+  let image = read.image;
+  const found = findPanels(image, read.labels, { drawing });
+  if (!found.length) throw new Error(drawing ? 'No garment was found in this picture: it needs the garment on a plain background.' : 'No garment panels were found in this file.');
+  if (drawing) orderDrawing(found);
+  // A photo mock-up: its garments laid flat (their sides are foreshortened in the photo, the garment a little turned).
+  if (drawing && found.plain === false) image = unprojectPhoto(image, found);
+  return { image, found };
+}
+/** A drawing's shape is a garment: not a detail panel or photo (frame), upright, its neck, straps and underarms found. */
+function garmentShape(p) {
+  const w = p.x1 - p.x0, h = p.y1 - p.y0, sleeved = sleevedShape(p.outline);
+  return !p.frame && h > (sleeved ? 0.5 : 0.75) * w && h < 2.4 * w && drawingSides(p.outline, sleeved).found;
+}
+/** The key a file read is kept by (a drawing is read differently from a print layout). */
+const fileKey = (asset, drawing) => (drawing ? `drawing:${asset}` : asset);
+/** The garments a drawing can go on, as the hosts name them. */
+const DRAWN_NAMES = { singlet: 'Singlet', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo' };
+/** The garment a drawing goes on: the one it was checked as (its parts), else the design's own top, else a singlet. */
+const drawnGarment = (...choices) => choices.find((g) => typeof g === 'string' && Object.hasOwn(DRAWN, g)) ?? 'singlet';
+/** The parts a layout's panels make: a raglan top, shorts, or both. */
+function layoutParts(panels) {
+  const roles = new Set(panels.map((p) => p.role));
+  const top = ['front', 'back', 'sleeveL', 'sleeveR'].some((r) => roles.has(r));
+  const legs = roles.has('legL') || roles.has('legR');
+  return top && legs ? ['shorts', 'raglan'] : legs ? ['shorts'] : ['raglan'];
+}
+/** The panels used (roles in the order found; 'none' left out), each body panel without its hem fold strip when fold is on. */
+function namePanels(image, found, roles, fold) {
+  return found.map((p, i) => {
+    const role = Object.hasOwn(ROLE_NAMES, roles[i]) ? roles[i] : 'none';
+    return { ...p, role, hemFold: fold && (role === 'front' || role === 'back') ? hemFold(image, p) : null };
+  }).filter((p) => p.role !== 'none');
+}
+/** The design's print layout ready to put on the kit (its file asked of the host when the viewer has not read it). */
+async function prepareLayout() {
+  const want = design.layout;
+  if (!want || want.asset == null) { if (layout) dropLayout(); return; }
+  const drawing = want.kind === 'drawing';
+  // Joined unless the layout says not (layouts saved before the choice existed join too, as the mock-ups show).
+  const fold = !drawing && want.hemFold !== false, join = !drawing && want.joinLines !== false;
+  const garment = drawing ? drawnGarment(want.parts?.[0], design.garment) : null;
+  const key = JSON.stringify([want.asset, want.roles ?? null, fold, join, garment]);
+  if (layout?.key === key) return;
+  dropLayout();
+  if (layoutMissing.has(want.asset)) return;
+  let file = layoutFiles.get(fileKey(want.asset, drawing));
+  if (!file) {
+    // Other hosts (older versions) are never asked: the kit is shown without it.
+    if (!hostLayouts) return;
+    try {
+      const src = await new Promise((resolve, reject) => {
+        layoutAsked = { asset: want.asset, resolve, reject };
+        setTimeout(() => reject(new Error('The print layout file did not arrive.')), 180000);
+        post({ type: 'layoutWanted', asset: want.asset, name: want.name ?? '' });
+      });
+      file = await readLayoutFile(src, drawing);
+      keepFile(fileKey(want.asset, drawing), file);
+    } catch (error) {
+      layoutMissing.add(want.asset);
+      post({ type: 'layoutError', asset: want.asset, message: error.message });
+      return;
+    } finally { layoutAsked = null; }
+  }
+  // The same file gives the same panels; if it ever gave a different number, they are named by their labels.
+  const roles = Array.isArray(want.roles) && want.roles.length === file.found.length ? want.roles : file.found.map((p) => p.role);
+  const panels = namePanels(file.image, file.found, roles, fold);
+  if (drawing) {
+    // A singlet is cut like the drawing (its straps, armholes and sides), so the print goes on with its shapes kept.
+    const front = panels.find((p) => p.role === 'front') ?? panels.find((p) => p.role === 'back');
+    // A jersey, tee or polo takes the drawing's sleeve length.
+    const cut = !front ? null : garment === 'singlet' ? drawnCut(front, SPECS.singlet) : DRAWN[garment]?.CT ? drawnSleeves(front, garment, SPECS[garment]) : null;
+    layout = { key, image: file.image, panels, drawing: true, garment, cut };
+    document.body.dataset.layout = String(want.asset);
+    return;
+  }
+  // The white line between a sleeve's band and the sleeve, left out when the layout says so (as in the mock-ups).
+  const sleeves = panels.filter((p) => p.role === 'sleeveL' || p.role === 'sleeveR');
+  let image = join && sleeves.length ? joinLines(file.image, sleeves) : file.image;
+  // The pocket marks on the leg pieces become pocket openings, as on the made shorts.
+  const legs = panels.filter((p) => p.role === 'legL' || p.role === 'legR');
+  // Each with its side line (where the 3D side seam goes), so the openings face the front with their lip as made.
+  if (legs.length) image = drawPockets(image, legs.map((p) => ({ ...p, side: panelSides(p).left?.[1] })));
+  layout = { key, image, panels };
+  // Which file is on the kit (for checks from outside, such as automated tests).
+  document.body.dataset.layout = String(want.asset);
+}
+/** The host's answer to layoutWanted: {asset, src} or {asset, error}. */
+function layoutFile({ asset, src, error } = {}) {
+  if (!layoutAsked || layoutAsked.asset !== asset) return;
+  if (src) layoutAsked.resolve(src); else layoutAsked.reject(new Error(error || 'The print layout file could not be loaded.'));
+}
+/** Each part's print, drawn from the layout's panels (once per part), and its collar or waistband colour. */
+function warpParts() {
+  if (!layout) return;
+  const byRole = Object.fromEntries(layout.panels.map((p) => [p.role, p]));
+  for (const part of parts) {
+    if (part.painter.layoutBase) continue;
+    const { painter } = part, shorts = painter.kind === 'shorts';
+    painter.layoutBase = warpLayout(renderer, layout.image, regionsFor(painter, layout.panels, layout.image, { drawing: !!layout.drawing }), painter.canvas.width, painter.canvas.height);
+    const main = shorts ? byRole.legL ?? byRole.legR : byRole.front ?? byRole.back;
+    painter.layoutFill = main ? panelColour(layout.image, main, 0.45, 0.8) : design.main;
+    part.layoutRim = shorts ? (main ? panelColour(layout.image, main, 0, 0.06) : null) : byRole.neck ? panelColour(layout.image, byRole.neck) : painter.layoutFill;
+    // A drawing's collar: the colour of its neckline's trim, just in from the edge.
+    if (layout.drawing && main) {
+      const w = main.x1 - main.x0, middle = [(main.x0 + main.x1) / 2, (main.y0 + main.y1) / 2];
+      part.layoutRim = lineColour(layout.image, drawingSides(main.outline, !!DRAWN[layout.garment]?.CT).sides[0], middle, Math.max(4, 0.012 * w));
+    }
+    // The inside's colour: the print's commonest colour (label.js).
+    part.layoutInside = main ? mainColour(layout.image, main) : null;
+    // The trim colour (the neck trim's), for the shorts' eyelets and cord tips.
+    part.layoutAccent = byRole.neck ? panelColour(layout.image, byRole.neck) : null;
+  }
+}
+/**
+ * A new print layout from the host ({id, src: data URL of a PDF, SVG or picture, name, asset: the host's id for the
+ * file}): its panels found, named from their labels and shown for checking. Posts {type: 'layout', id, roles, hemFold,
+ * parts, panels} (the host then puts it on with setDesign({layout: {asset, name, roles, hemFold, parts}})),
+ * {type: 'layout', id, cancelled: true} or {type: 'layout', id, error}.
+ * A garment drawing (`drawing: true`; `garment`: the host's guess of what it is): its front and back found and shown
+ * for checking with the garment; posts {type: 'layout', id, kind: 'drawing', roles, parts: [garment], panels} (put on
+ * with setDesign({garment, layout: {asset, name, roles, kind: 'drawing', parts}})).
+ */
+async function checkLayout({ id, src, name = 'Print layout', asset = null, drawing = false, garment = null } = {}) {
+  try {
+    const file = await readLayoutFile(src, drawing);
+    if (asset != null) { keepFile(fileKey(asset, drawing), file); layoutMissing.delete(asset); }
+    // The host hides its own buttons over the 3D view while the check screen is open.
+    post({ type: 'modal', open: true });
+    let options = {};
+    if (drawing) {
+      // Only garment shapes are named front and back (a mock-up's detail panels, a photo's shapes are not); with no
+      // clean pair the person is told, and chooses (the check screen will not put a non-garment shape on the kit).
+      const usable = file.found.map(garmentShape);
+      file.found.forEach((p, i) => { if (!usable[i]) p.role = 'none'; });
+      const big = Math.max(0, ...file.found.filter((_, i) => usable[i]).map((p) => (p.x1 - p.x0) * (p.y1 - p.y0)));
+      const many = file.found.filter((p, i) => usable[i] && (p.x1 - p.x0) * (p.y1 - p.y0) > 0.5 * big).length > 2;
+      const named = file.found.filter((p) => p.role === 'front' || p.role === 'back').length;
+      // The garment it is, from its shape: sleeves make it a jersey, tee or polo (the one asked for, else a jersey).
+      const main = file.found.find((p) => p.role === 'front') ?? file.found.find((p) => p.role === 'back');
+      const sleeved = main ? sleevedShape(main.outline) : false;
+      const guess = sleeved ? (['jersey', 'tee', 'polo'].includes(garment) ? garment : ['jersey', 'tee', 'polo'].includes(design.garment) ? design.garment : 'jersey') : 'singlet';
+      options = {
+        drawing: true,
+        garments: Object.fromEntries(Object.keys(DRAWN).map((g) => [g, DRAWN_NAMES[g] ?? g])),
+        garment: guess,
+        dots: file.found.map((p, i) => (usable[i] ? Object.values(drawingSides(p.outline, sleevedShape(p.outline)).corners).map((k) => p.outline[k]) : [])),
+        usable,
+        warning: !named || many ? 'This looks like a photo or presentation mockup. Use your flat design (front and back drawn side by side), or choose the front and back below.' : '',
+        remark: file.found.plain === false ? 'This picture is a photo mockup: its lighting and folds are printed onto the 3D kit as they are (a flat drawing gives the cleanest kit).' : '',
+      };
+    }
+    const choice = await confirmPanels(file.image, file.found, name, options).finally(() => post({ type: 'modal', open: false }));
+    if (!choice) { post({ type: 'layout', id, cancelled: true }); return; }
+    const used = namePanels(file.image, file.found, choice.roles, !drawing && choice.fold);
+    const panels = used.map((p) => ({ role: p.role, label: p.label }));
+    if (drawing) post({ type: 'layout', id, kind: 'drawing', roles: choice.roles, parts: [drawnGarment(choice.garment)], panels });
+    else post({ type: 'layout', id, roles: choice.roles, hemFold: choice.fold, joinLines: choice.join, parts: layoutParts(used), panels });
+  } catch (error) {
+    post({ type: 'layout', id, error: error.message });
+  }
 }
 
 // ---------- design board (2D print panels) and picking
@@ -438,7 +684,7 @@ function backdrop() {
 
 // ---------- public bridge (called from Flutter via runJavaScript)
 // Automated tests only (?debug): reach the camera for close-ups.
-if (new URLSearchParams(location.search).has('debug')) window.__v = { camera, controls, scene, kit, setCamera, get parts() { return parts; } };
+if (new URLSearchParams(location.search).has('debug')) window.__v = { camera, controls, scene, kit, setCamera, get parts() { return parts; }, get layout() { return layout; }, panelSides, regionsFor };
 
 window.viewer = {
   setDesign: (json) => applyDesign(typeof json === 'string' ? JSON.parse(json) : json),
@@ -466,6 +712,12 @@ window.viewer = {
   select: (id) => board.select(id),
   /** Zooms the design board: 'in', 'out' or 'fit'. */
   boardZoom: (how) => board.zoom(how),
+  /** {id, src, name, asset, drawing?, garment?}: a new factory print layout or garment drawing, checked on screen; see checkLayout. */
+  checkLayout,
+  /** {asset, src | error}: the file the viewer asked for (layoutWanted). */
+  layoutFile,
+  /** What the host can do: {layouts: true} = it answers layoutWanted. */
+  features: (what = {}) => { if (what?.layouts) hostLayouts = true; },
   /** The design board's items and zoom (read only, for automated checks; not a host command). */
   boardItems: () => board.inspect(),
   captureBoard: async ({ id } = {}) => {
@@ -476,7 +728,7 @@ window.viewer = {
   receive: (msg) => {
     try {
       const m = typeof msg === 'string' ? JSON.parse(msg) : msg;
-      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard'];
+      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features'];
       if (m && allowed.includes(m.cmd)) Promise.resolve(window.viewer[m.cmd](m.arg)).catch((error) => post({ type: 'error', command: m.cmd, message: error.message }));
     } catch (error) { post({ type: 'error', message: error.message }); }
   },

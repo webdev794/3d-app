@@ -9,6 +9,8 @@
 //     setAssets [{name, src}]   addImage {src, name}   load <json>   clear
 //   artboard -> host: {type:'ready'} {type:'artwork', data, name}
 //     {type:'saved', json} {type:'export', data, name}
+//   Designs in the account, templates and Send to 3D Studio linked to the design: see projects.js
+//     (host {docs, signedIn, …}, docsReply, openDoc; {type:'docs'}, {type:'signin'}, artwork with target).
 
 import {
   Canvas, Rect, Ellipse, Path, IText, Textbox, FabricImage, PencilBrush,
@@ -24,17 +26,23 @@ import { createNodeEditor } from './nodes.js';
 import { createGuides } from './guides.js';
 import * as B from './bitmaps.js';
 import * as G from './geomcore.js';
+import * as CT from './contour.js';
 import * as AM from './media.js';
 import * as SK from './sketch.js';
 import * as PB from './paint.js';
 import * as C from './connect.js';
+import { createHandles } from './handles.js';
+import { autosave, createProjects, loadLocal, saveNow } from './projects.js';
 
 // ===================================================================
 // Setup
 // ===================================================================
 const params = new URLSearchParams(location.search);
 const HOST = params.get('host');
-const STORE = `3deezi.artboard.${HOST || 'web'}`;
+// The Flutter web app names each Artboard it opens 3deezi-artboard-0, -1 …: one store for all of them, so the design
+// comes back every time (it was kept under the first name before).
+const STORE = `3deezi.artboard.${/^3deezi-artboard-\d+$/.test(HOST ?? '') ? 'app' : HOST || 'web'}`;
+const OLD_STORE = STORE === '3deezi.artboard.app' ? '3deezi.artboard.3deezi-artboard-0' : null;
 const MM = 2;                       // world units per millimetre
 const BRAND = ['#12E1F0', '#1E7BFF', '#7B4DFF', '#E8EDF2', '#5D6B7B', '#000000'];
 const ISO = { A5: [148, 210], A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841] };
@@ -83,8 +91,16 @@ const canvas = new Canvas($('board'), {
   fireRightClick: false,
   stopContextMenu: true,
   enableRetinaScaling: true,
+  // The Pick tool's pointer is the normal arrow, over objects and while moving them too (as in CorelDRAW; Fabric's
+  // default is the four-way "move" arrows); the handles keep their resize, rotate and slant cursors.
+  hoverCursor: 'default',
+  moveCursor: 'default',
 });
 const handleStyle = { borderColor: '#1E7BFF', cornerColor: '#ffffff', cornerStrokeColor: '#1E7BFF', cornerStyle: 'rect', cornerSize: 9, transparentCorners: false, borderScaleFactor: 1.2, padding: 2 };
+// CorelDRAW handles (handles.js): one click shows the 6 sizing handles, a click on the selected object again the
+// rotate and slant handles with a centre of rotation; only with the Pick tool, not while Space is held (panning) and
+// not for the tap that opened a right-click menu (⋯ on phones).
+const handles = createHandles({ canvas, enabled: () => state.tool === 'select' && !pickFrame && !spaceDown && !$('ctxMenu').classList.contains('open'), hint: (t) => hint(t), hintEl: $('hint'), style: handleStyle });
 
 let pageSize = [500, 400];
 const page = new Rect({ left: 0, top: 0, width: pageSize[0] * MM, height: pageSize[1] * MM, fill: '#ffffff', selectable: false, evented: false, excludeFromExport: true, hoverCursor: 'default', shadow: { color: 'rgba(0,0,0,.55)', blur: 30, offsetX: 0, offsetY: 8 } });
@@ -107,13 +123,13 @@ const state = {
   conn: { radius: 5, arrows: 'none' },
   media: { mode: 'preset', width: 6, smooth: 50, preset: 'taper', brush: 'dry', spray: 'stars', spacing: 12, sizeVar: 30, rotate: 'random', angle: 45 },
   fx: {
-    blendSteps: 8, contourDir: 'outside', contourSteps: 1, contourOffset: 3, contourColour: '#000000', shadowX: 2, shadowY: 2, shadowBlur: 4, shadowColour: '#000000', shadowOpacity: 50, transp: 'uniform', transpValue: 50, transpAngle: 0, transpMerge: 'normal',
+    blendSteps: 8, contourDir: 'outside', contourSteps: 1, contourOffset: 3, contourColour: '#000000', contourOutline: '#000000', contourJoin: 'round', shadowX: 2, shadowY: 2, shadowBlur: 4, shadowColour: '#000000', shadowOpacity: 50, transp: 'uniform', transpValue: 50, transpAngle: 0, transpMerge: 'normal',
     distort: 'zipper', zipSize: 2, zipTeeth: 30, twist: 90, push: 40, envelope: 'arcUp', envAmount: 20,
     extX: 6, extY: 6, extColour: '#1E7BFF', blockX: 3, blockY: 3, blockColour: '#000000', meshSize: 40, meshStrength: 85,
     innerX: 2, innerY: 2, innerBlur: 3, innerOpacity: 60, innerColour: '#000000', innerMerge: 'multiply',
   },
 };
-try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
+try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || (OLD_STORE && localStorage.getItem(`${OLD_STORE}.prefs`)) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
 const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, palettes: state.palettes, palette: state.palette, gradients: state.gradients, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint, conn: state.conn, ui: state.ui, quick: state.quick })); } catch { /* private mode */ } };
 
 const toast = (text, ms = 2800) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), ms); };
@@ -172,7 +188,9 @@ function repairObject(o) {
 // ===================================================================
 // Viewport: fit, zoom, pan, rulers, grid
 // ===================================================================
+let sizedAt = ''; // the canvas size last set (see resizeIfChanged)
 function resize() {
+  sizedAt = `${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}`;
   canvas.setDimensions({ width: wrap.clientWidth, height: wrap.clientHeight });
   drawRulers();
   // Resizing clears the canvas: draw it again straight away.
@@ -197,11 +215,11 @@ function zoomAt(z, point) {
 function afterZoom() {
   // Should the view ever hold a bad number, show the whole page again instead of a broken view.
   if (!canvas.viewportTransform.every(Number.isFinite) || !(canvas.getZoom() > 0)) { canvas.setViewportTransform([1, 0, 0, 1, 0, 0]); fit(); return; }
+  drawRulers(); // first: it reads the rulers' sizes, before the zoom boxes below change
   const pct = Math.round(canvas.getZoom() * 100 / baseZoom());
   $('zoomPct').value = String([25, 50, 75, 100, 150, 200, 400].includes(pct) ? pct : 'fit');
   $('zoomRange').value = String(Math.round(Math.log2(canvas.getZoom() / baseZoom()) * 100));
   $('zoomLabel').textContent = `${pct}%`;
-  drawRulers();
   canvas.requestRenderAll();
 }
 /** Zoom at which the page is shown at "100%" (fits the window). */
@@ -255,12 +273,15 @@ addEventListener('pointerup', endPan);
 addEventListener('pointercancel', endPan);
 
 function drawRulers() {
-  for (const [id, horizontal] of [['rulerH', true], ['rulerV', false]]) {
-    const c = $(id), r = c.getBoundingClientRect(), d = devicePixelRatio || 1;
+  // Both sizes read before either ruler is drawn, and a ruler's bitmap is made again only when its size changed
+  // (the rulers are drawn on every pan and zoom step).
+  const rulers = [['rulerH', true], ['rulerV', false]].map(([id, horizontal]) => { const c = $(id); return { c, horizontal, r: c.getBoundingClientRect() }; });
+  for (const { c, horizontal, r } of rulers) {
+    const d = devicePixelRatio || 1;
     if (!r.width) continue;
-    c.width = r.width * d; c.height = r.height * d;
     const g = c.getContext('2d');
-    g.scale(d, d);
+    if (c.width !== Math.floor(r.width * d) || c.height !== Math.floor(r.height * d)) { c.width = r.width * d; c.height = r.height * d; }
+    g.setTransform(d, 0, 0, d, 0, 0);
     g.fillStyle = '#0a141e'; g.fillRect(0, 0, r.width, r.height);
     g.strokeStyle = '#3a5568'; g.fillStyle = '#7f93a6'; g.font = '10px Inter, sans-serif';
     const z = canvas.getZoom(), off = horizontal ? canvas.viewportTransform[4] : canvas.viewportTransform[5];
@@ -417,7 +438,7 @@ canvas.on('object:moving', (e) => {
 // History (undo / redo) and autosave
 // ===================================================================
 const EXTRA = ['textOutlines', 'pathGuide', 'pathDist', 'name', 'toolName', 'lockMovementX', 'lockMovementY', 'lockScalingX', 'lockScalingY', 'lockRotation', 'hasControls', 'selectable', 'gradSpec', 'patSpec', 'shapeSpec', 'powerClip', 'locked', 'fxSweep', 'fxPart', 'fxMesh', 'tableSpec', 'cell', 'pcFrame', 'mediaSpec', 'liveSpec', 'paintSpec', 'uid', 'connSpec', 'anchors', 'varSpec', 'num', 'fxInner', 'fxContour', 'fxStep', 'nodeTypes'];
-let history = [], future = [], restoring = false, muted = 0, saveTimer = null;
+let history = [], future = [], restoring = false, muted = 0;
 let pages = [{ name: 'Page 1', objects: null }], pageIndex = 0, otherNums = new Set(); // see Pages below
 // objects: the page on screen; with more pages, pages holds every page's name and the others' objects.
 const snapshot = () => JSON.stringify({ page: pageSize, guides: guides.get(), objects: userObjects().map((o) => o.toObject(EXTRA)), ...(pages.length > 1 ? { pages: pages.map((p, i) => ({ name: p.name, objects: i === pageIndex ? null : p.objects })), current: pageIndex } : pages[0].name !== 'Page 1' ? { pageName: pages[0].name } : {}) });
@@ -430,8 +451,7 @@ function record() {
   if (history.length > 80) history.shift();
   future = [];
   syncHistory();
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { try { localStorage.setItem(STORE, snap); } catch { /* too big for storage */ } }, 600);
+  autosave(STORE, snap); // kept on this device a moment later (projects.js)
 }
 /** Several canvas changes as one undo step. */
 function batch(fn) {
@@ -474,8 +494,8 @@ function syncHistory() {
   $('undo').disabled = history.length < 2;
   $('redo').disabled = !future.length;
 }
-async function undo() { if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); }
-async function redo() { if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); }
+async function undo() { if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); autosave(STORE, history.at(-1)); }
+async function redo() { if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); autosave(STORE, s); }
 for (const ev of ['object:added', 'object:removed', 'object:modified']) canvas.on(ev, (e) => { if (ev === 'object:added' && e?.target) ownCopies(e.target); if (muted) return; refreshLayers(); record(); });
 
 const guides = createGuides({
@@ -534,6 +554,8 @@ async function convertToCurves(objs = active()) {
         const kids = o.removeAll().filter((k) => !(isText(k) && !k.text.trim()));
         const conv = kids.map((k) => { canvas.add(k); return V.canConvert(k) ? toPathObject(k, { quiet: true }) ?? k : k; });
         for (const k of conv) canvas.remove(k);
+        // A contour becomes plain curves (no longer linked to the object, as in CorelDRAW).
+        if (isContourGroup(o)) for (const k of conv) { delete k.fxPart; delete k.fxStep; }
         const g = style(new Group(conv), { toolName: 'Group' });
         g.name = o.name;
         if (o.powerClip) g.powerClip = true;
@@ -586,27 +608,23 @@ const TOOL_GROUPS = [
   ['zoom', [['zoom', 'Zoom', 'zoom', 'Z']]],
   ['curve', [['draw', 'Freehand', 'freehand', 'F5'], ['line', '2-Point Line', 'line'], ['bezier', 'Bézier', 'bezier'], ['pen', 'Pen', 'pen'], ['bspline', 'B-Spline', 'bspline'], ['polyline', 'Polyline', 'polyline'], ['curve3', '3-Point Curve', 'curve3'], ['smartdraw', 'Smart Drawing', 'smartdraw'], ['livesketch', 'LiveSketch', 'livesketch']]],
   ['art', [['media', 'Artistic Media', 'media'], ['paint', 'Painterly Brush', 'paintbrush'], ['varline', 'Variable Outline', 'varline']]],
-  ['smart', [['smartfill', 'Smart Fill', 'smartfill']]],
-  ['rect', [['rect', 'Rectangle', 'rect', 'F6'], ['rect3', '3-Point Rectangle', 'rect3']]],
-  ['ellipse', [['ellipse', 'Ellipse', 'ellipse', 'F7'], ['ellipse3', '3-Point Ellipse', 'ellipse3']]],
-  ['object', [['polygon', 'Polygon', 'polygon', 'Y'], ['star', 'Star', 'star', 'S'], ['cstar', 'Complex Star', 'cstar'], ['graph', 'Graph Paper', 'graph', 'D'], ['spiral', 'Spiral', 'spiral', 'A'], ['impact', 'Impact', 'impact']]],
-  ['shapes', [['shape:basic', 'Basic Shapes', 'shapes'], ['shape:arrow', 'Arrow Shapes', 'arrowshape'], ['shape:banner', 'Banner Shapes', 'banner'], ['shape:callout', 'Callout Shapes', 'callout'], ['shape:badge', 'Sport Badges', 'badge']]],
+  // Every shape tool in one flyout (client 2026-10-20, as in CorelDRAW): rectangles, ellipses, polygons and stars,
+  // the basic shapes. The button shows the one used last; the flyout has a line between the four kinds (FLY_BREAK).
+  ['rect', [['rect', 'Rectangle', 'rect', 'F6'], ['rect3', '3-Point Rectangle', 'rect3'],
+    ['ellipse', 'Ellipse', 'ellipse', 'F7'], ['ellipse3', '3-Point Ellipse', 'ellipse3'],
+    ['polygon', 'Polygon', 'polygon', 'Y'], ['star', 'Star', 'star', 'S'], ['cstar', 'Complex Star', 'cstar'], ['graph', 'Graph Paper', 'graph', 'D'], ['spiral', 'Spiral', 'spiral', 'A'], ['impact', 'Impact', 'impact'],
+    ['shape:basic', 'Basic Shapes', 'shapes'], ['shape:arrow', 'Arrow Shapes', 'arrowshape'], ['shape:banner', 'Banner Shapes', 'banner'], ['shape:callout', 'Callout Shapes', 'callout'], ['shape:badge', 'Sport Badges', 'badge']]],
   ['text', [['text', 'Text', 'text', 'F8'], ['ptext', 'Paragraph Text', 'ptext']]],
   ['dim', [['dimP', 'Parallel Dimension', 'dimension'], ['dimHV', 'Horizontal or Vertical Dimension', 'dimhv'], ['dimA', 'Angular Dimension', 'dimangle'], ['dimS', 'Segment Dimension', 'dimseg'], ['callout2', '2-Leg Callout', 'callout2']]],
   ['conn', [['connS', 'Straight Line Connector', 'connstraight'], ['connR', 'Right-Angle Connector', 'connright'], ['connRR', 'Rounded Right-Angle Connector', 'connround'], ['anchor', 'Anchor Editing', 'anchoredit']]],
   ['table', [['table', 'Table', 'table']]],
-  // Each effect has its own always-visible button (client spec: Transparency and Contour must be visible).
+  // Transparency keeps its own button; the other effects share one flyout, as CorelDRAW groups them (client
+  // 2026-10-20), with Contour first so it shows until another effect is used.
   ['transparency', [['transparency', 'Transparency', 'transparency']]],
-  ['contour', [['contour', 'Contour', 'contour']]],
-  ['blend', [['blend', 'Blend', 'blend']]],
-  ['shadow', [['shadow', 'Drop Shadow', 'shadow'], ['inner', 'Inner Shadow', 'innershadow']]],
-  ['distort', [['distort', 'Distort', 'distort']]],
-  ['envelope', [['envelope', 'Envelope', 'envelope']]],
-  ['extrude', [['extrude', 'Extrude', 'extrude']]],
-  ['blockshadow', [['blockshadow', 'Block Shadow', 'blockshadow']]],
+  ['contour', [['contour', 'Contour', 'contour'], ['blend', 'Blend', 'blend'], ['shadow', 'Drop Shadow', 'shadow'], ['inner', 'Inner Shadow', 'innershadow'], ['blockshadow', 'Block Shadow', 'blockshadow'], ['extrude', 'Extrude', 'extrude'], ['distort', 'Distort', 'distort'], ['envelope', 'Envelope', 'envelope']]],
   ['eyedrop', [['eyedropper', 'Color Eyedropper', 'eyedropper', 'I'], ['attrdrop', 'Attributes Eyedropper', 'attrdrop']]],
-  ['fill', [['fill', 'Interactive Fill', 'fill', 'G']]],
-  ['meshfill', [['meshfill', 'Mesh Fill', 'meshfill', 'M']]],
+  // Interactive Fill, Mesh Fill and Smart Fill in one flyout, as in CorelDRAW (client 2026-10-20).
+  ['fill', [['fill', 'Interactive Fill', 'fill', 'G'], ['meshfill', 'Mesh Fill', 'meshfill', 'M'], ['smartfill', 'Smart Fill', 'smartfill']]],
   ['import', [['image', 'Import Image', 'image', 'Ctrl+I']]],
 ];
 /** Shorter names where the full one doesn't fit the toolbox (flyouts show the full name). */
@@ -615,10 +633,12 @@ const SHORT_LABEL = { dimP: 'Dimension', dimHV: 'H / V Dimension', eyedropper: '
 const TOOL_SECTIONS = [
   // Artistic Media right below Pan (user 2026-10-15).
   ['Select', ['pick', 'pan', 'art', 'shape', 'crop', 'zoom']],
-  ['Draw', ['curve', 'smart']],
-  ['Shapes & text', ['rect', 'ellipse', 'object', 'shapes', 'text', 'table', 'dim', 'conn', 'import']],
-  ['Effects', ['fill', 'meshfill', 'transparency', 'contour', 'blend', 'shadow', 'blockshadow', 'extrude', 'distort', 'envelope', 'eyedrop']],
+  ['Draw', ['curve']],
+  ['Shapes & text', ['rect', 'text', 'table', 'dim', 'conn', 'import']],
+  ['Effects', ['fill', 'transparency', 'contour', 'eyedrop']],
 ];
+/** Flyout tools with a line above them: the kinds of tool in one long flyout. */
+const FLY_BREAK = new Set(['ellipse', 'polygon', 'shape:basic']);
 const TOOLS = {};
 for (const [group, tools] of TOOL_GROUPS) for (const [id, label, ic, key] of tools) TOOLS[id] = { id, label, icon: ic, key, group };
 const groupCurrent = {};
@@ -644,7 +664,7 @@ const TOOL_HINTS = {
   rect: 'Drag to draw a rectangle (Shift = square)', ellipse: 'Drag to draw an ellipse (Shift = circle)', polygon: 'Drag to draw a polygon (Shift = equal sides)',
   star: 'Drag to draw a star (Shift = equal sides)', cstar: 'Drag to draw a complex star', graph: 'Drag to draw graph paper (a group of rectangles)', spiral: 'Drag to draw a spiral',
   text: 'Click on the page to add text', dimP: 'Drag between two points to measure them', dimHV: 'Drag to add a horizontal or vertical dimension',
-  blend: 'Select two shapes, set the steps, then Apply blend', contour: 'Select a shape or text, set the contour, then Apply contour',
+  blend: 'Select two shapes, set the steps, then Apply blend', contour: 'Drag from a shape or text: outwards for an outside contour, inwards for an inside one · or select it, set the property bar and Apply contour · a selected contour follows the bar',
   shadow: 'Select objects, set the shadow, then Apply', inner: 'Select objects, set the inner shadow (X, Y = which way it falls, Feather, Opacity, Colour), then Apply', transparency: 'Select objects, choose the transparency type and amount',
   eyedropper: 'Click any colour on the page to pick it (shapes, text or images), then click objects to fill them', attrdrop: 'Click an object to copy its fill, outline and effects, then click other objects to apply them · Esc to stop',
   fill: 'Click an object to fill it with the current colour or gradient', 'shape:basic': 'Pick a shape on the property bar, then drag on the page',
@@ -802,10 +822,15 @@ function openToolFly(gid, b) {
   closeMenus();
   if (!open) return;
   fly.dataset.group = gid;
-  fly.innerHTML = tools.map(([id, label, ic, key]) => `<button data-tool="${id}" class="${state.tool === id ? 'on' : ''}">${icon(ic)}${label}${key ? `<small>${key}</small>` : ''}</button>`).join('');
+  fly.innerHTML = tools.map(([id, label, ic, key], i) => `${i && FLY_BREAK.has(id) ? '<hr>' : ''}<button data-tool="${id}" class="${state.tool === id ? 'on' : ''}">${icon(ic)}${label}${key ? `<small>${key}</small>` : ''}</button>`).join('');
   fly.querySelectorAll('[data-tool]').forEach((x) => (x.onclick = () => { closeMenus(); setTool(x.dataset.tool); }));
-  Object.assign(fly.style, innerWidth > 900 ? { left: `${r.right + 6}px`, top: `${Math.min(r.top, innerHeight - tools.length * 40 - 20)}px`, bottom: 'auto' } : { left: `${Math.max(6, Math.min(r.left, innerWidth - 250))}px`, top: 'auto', bottom: `${innerHeight - r.top + 6}px` });
+  // Beside the button (above the toolbox on phones), kept inside the window; a flyout taller than the room scrolls.
+  const phone = innerWidth <= 900;
+  Object.assign(fly.style, phone
+    ? { left: `${Math.max(6, Math.min(r.left, innerWidth - 250))}px`, top: 'auto', bottom: `${innerHeight - r.top + 6}px`, maxHeight: `${Math.max(120, r.top - 12)}px` }
+    : { left: `${r.right + 6}px`, top: '8px', bottom: 'auto', maxHeight: `${innerHeight - 16}px` });
   fly.classList.add('open');
+  if (!phone) fly.style.top = `${Math.max(8, Math.min(r.top, innerHeight - fly.offsetHeight - 8))}px`;
 }
 
 // Tool cursors: an eyedropper while picking a colour, a paint bucket while filling.
@@ -831,6 +856,7 @@ function setTool(tool) {
   if (pcEdit && tool !== 'select') finishPowerClipEdit();
   finishPath(); cancelCurve3(); cancelTp(); cancelMulti(); cancelConn(); cancelVar(); dropVsdHover(); topSegment = null; if (tool !== 'livesketch') finishLive(); attrSample = null; pickFrame = null;
   if (tool === 'image') { $('fileImage').click(); return; }
+  handles.off(); // any tool (Pick again too) starts with the sizing handles
   const prev = state.tool;
   // Brushes, knife and eraser work on the objects selected when the tool is picked.
   if (OWN_MOUSE.has(tool) && !OWN_MOUSE.has(prev)) toolTargets = canvas.getActiveObjects().slice();
@@ -852,8 +878,8 @@ function setTool(tool) {
   if (tool === 'node' && editFirst) nodes.start(editFirst);
   if (tool === 'eyedropper') eye.mode = 'pick';
   canvas.defaultCursor = toolCursor(tool);
-  // Over objects the cursor still shows the tool (Pick-like tools show "move").
-  canvas.hoverCursor = PICK_LIKE.has(tool) ? 'move' : canvas.defaultCursor;
+  // Over objects the cursor still shows the tool (Pick-like tools: the arrow).
+  canvas.hoverCursor = PICK_LIKE.has(tool) ? 'default' : canvas.defaultCursor;
   setBrushRing(SCULPT.has(tool) || tool === 'smudge' ? { radius: state.shape.radius * MM } : tool === 'eraser' ? { radius: (state.shape.eraser * MM) / 2 } : null);
   if (tool.startsWith('shape:')) state.shape.set = tool.split(':')[1];
   renderToolbox();
@@ -876,7 +902,7 @@ function selectionNotice(tool) {
 }
 const NEEDS_SELECTION = {
   blend: 'Select two shapes on the Artboard first (click one, Shift+click the other), then set the steps and click Apply blend',
-  contour: 'Select a shape or text on the Artboard first, then set the contour and click Apply contour',
+  contour: 'Drag from a shape or text on the Artboard: outwards for an outside contour, inwards for an inside one (or select it, set the contour and click Apply contour)',
   shadow: 'Select an item on the Artboard first, then set the shadow and click Apply',
   inner: 'Select an item on the Artboard first, then set the inner shadow and click Apply',
   transparency: 'Select an item on the Artboard first, then choose the transparency type and amount',
@@ -932,6 +958,7 @@ canvas.on('mouse:down', (opt) => {
   // Place inside: the frame can sit under the contents (a picture over text), so skip them.
   if (pickFrame) { placeInFrame(userObjects().slice().reverse().find((o) => !pickFrame.includes(o) && o.visible && !o.locked && o.containsPoint(new Point(p.x, p.y)))); return; }
   if (tool === 'node') { nodes.down(p, opt.e); return; }
+  if (tool === 'contour' && contourDown(opt, p)) return;
   if (SCULPT.has(tool)) { sculptDown(tool, p); return; }
   if (tool === 'smudge') { smudgeDown(p); return; }
   if (tool === 'smartdraw' || tool === 'livesketch' || tool === 'paint') {
@@ -993,6 +1020,7 @@ canvas.on('mouse:down', (opt) => {
 canvas.on('mouse:move', (opt) => {
   const tool = state.tool, p = pointer(opt, tool);
   if (tool === 'node') { nodes.move(p, opt.e); return; }
+  if (ctDrag) { contourMove(p); return; }
   if (SCULPT.has(tool) || tool === 'eraser' || tool === 'smudge') setBrushRing({ radius: tool === 'eraser' ? (state.shape.eraser * MM) / 2 : state.shape.radius * MM, at: p });
   if (SCULPT.has(tool)) { if (opt.e.buttons & 1) nodes.brushStep(p); return; }
   if (erase) { addStrokePoint(erase.points, p); return; }
@@ -1035,6 +1063,7 @@ canvas.on('mouse:up', (opt) => {
   const tool = state.tool, p = pointer(opt, tool);
   guides.forget();
   if (tool === 'node') { nodes.up(p); return; }
+  if (ctDrag) { contourUp(p); return; }
   if (SCULPT.has(tool)) { sculptUp(tool); return; }
   if (erase) { const e = erase; erase = null; topStroke = null; drawTop(); applyEraser(e.points); return; }
   if (knife) { const k = knife; knife = null; dropHelper(k.helper); applyKnife(k.a, k.b); return; }
@@ -2098,13 +2127,16 @@ function outlineRuns(o) {
       const A = ns[i], B = ns[(i + 1) % ns.length], sg = { seg: V.segmentPoints(A, B), straight: !A.ho && !B.hi, len: 0 };
       let prev = A;
       for (let k = 1; k <= 16; k++) { const q = at(sg, k / 16); sg.len += Math.hypot(q.x - prev.x, q.y - prev.y); prev = q; }
-      if (sg.len > 1e-6) segs.push(sg);
+      if (sg.len > 1e-6 && Number.isFinite(sg.len)) segs.push(sg);
     }
     if (!segs.length) continue;
     const pts = [];
     let s = 0;
+    // A point every mm, but at most about 20 000 on one outline: a huge shape (junk from an old page) must not
+    // freeze the page while the pointer moves over it.
+    const each = Math.max(step, segs.reduce((a, sg) => a + sg.len, 0) / 20000);
     segs.forEach((sg, i) => {
-      const n = Math.max(1, Math.ceil(sg.len / step));
+      const n = Math.max(1, Math.ceil(sg.len / each));
       for (let k = 0; k < n; k++) {
         const t = k / n, p = at(sg, t), tg = tan(sg, t), e = { x: p.x, y: p.y, s: s + sg.len * t, tx: tg.x, ty: tg.y };
         if (k === 0 && (i > 0 || sp.closed)) { const tin = tan(segs[(i - 1 + segs.length) % segs.length], 1); if (tin.x * tg.x + tin.y * tg.y < 0.978) e.tin = tin; }
@@ -2840,6 +2872,8 @@ function combine() {
   select([p]); toast('Combined (Ctrl+K breaks it apart again)');
 }
 function breakApart() {
+  // A contour (Ctrl+K, as in CorelDRAW): the object and each step become shapes of their own.
+  if (active().length && active().every(isContourGroup)) { applyContour('break'); return; }
   const objs = active().filter(shapeable);
   if (!objs.length) { toast('Select a combined curve or text converted to curves'); return; }
   canvas.discardActiveObject();
@@ -3024,60 +3058,238 @@ function applyBlend() {
   batch(() => { for (const o of objs) canvas.remove(o); g = style(new Group([a, ...mids, b]), { toolName: 'Blend group' }); canvas.add(g); });
   select([g]); toast(`Blended in ${steps} steps (Ctrl+U ungroups)`);
 }
-// Contour (CorelDRAW): steps outside, inside or to the centre of the object, grouped with it. Applying again changes
-// the contour (it is made again from the original object, never stacked); Remove gives the original back; Break
-// apart leaves the object and its steps as separate shapes.
+// Contour (CorelDRAW): steps outside, inside or to the centre of the object, grouped with it, their fill and outline
+// blended from the object's to the contour's colours. Drag from the object with the Contour tool (outwards: outside,
+// inwards: inside), or set the property bar and Apply. A selected contour shows its settings on the bar and follows
+// every change to them; it is always made again from the original object (never stacked), and scaling it keeps its
+// offset (it is made again around the scaled object). Remove gives the original back; Break apart (also Ctrl+K)
+// leaves the object and its steps as separate shapes. The shapes come from contour.js (even offsets, clean results
+// for text, holes and open lines).
 const isContourGroup = (o) => o?.type === 'group' && (!!o.fxContour || o.toolName === 'Contour group');
-const contourBase = (g) => g.getObjects().find((k) => k.fxPart !== 'contour' && k.toolName !== 'Contour') ?? g.getObjects()[0];
-function applyContour(mode = 'apply') {
-  const objs = active().filter((o) => shapeable(o) || isContourGroup(o));
-  if (!objs.length) { toast('Select a shape or text to contour'); return; }
-  const fx = state.fx, dir = fx.contourDir, outside = dir === 'outside', centre = dir === 'centre', steps = Math.max(1, Math.min(20, fx.contourSteps));
+// The original object: not a step (pages from before steps were marked: not named Contour either).
+const contourBase = (g) => { const kids = g.getObjects(); return kids.find((k) => !k.fxPart && k.toolName !== 'Contour') ?? kids.find((k) => k.fxPart !== 'contour') ?? kids[0]; };
+const contourable = (o) => shapeable(o) || isContourGroup(o);
+const CONTOUR_MAX = 100; // To centre: at most this many steps
+/** A contour's own settings (pages from before corners and outline colours: round corners, outline as the fill). */
+function contourSpec(g) {
+  const f = g?.fxContour ?? {};
+  return { dir: ['outside', 'inside', 'centre'].includes(f.dir) ? f.dir : 'outside', steps: Math.max(1, Math.round(f.steps) || 1), offset: f.offset > 0 ? f.offset : 3, colour: f.colour ?? '#000000', outline: f.outline ?? f.colour ?? '#000000', join: ['miter', 'round', 'bevel'].includes(f.join) ? f.join : 'round' };
+}
+/** The contour settings on the property bar. */
+function barContour() {
+  const f = state.fx;
+  return { dir: ['outside', 'inside', 'centre'].includes(f.contourDir) ? f.contourDir : 'outside', steps: Math.max(1, Math.min(20, Math.round(f.contourSteps) || 1)), offset: Math.max(0.1, Math.min(100, Number(f.contourOffset) || 3)), colour: f.contourColour ?? '#000000', outline: f.contourOutline ?? '#000000', join: ['miter', 'round', 'bevel'].includes(f.contourJoin) ? f.contourJoin : 'round' };
+}
+/** The property bar shows a contour's settings (and Apply uses them). */
+function contourToBar(s) {
+  const f = state.fx;
+  Object.assign(f, { contourDir: s.dir, contourOffset: s.offset, contourColour: s.colour, contourOutline: s.outline, contourJoin: s.join });
+  if (s.dir !== 'centre') f.contourSteps = Math.min(20, s.steps);
+  $('fxCDir').value = f.contourDir; $('fxCStepsWrap').hidden = f.contourDir === 'centre'; $('fxCSteps').value = String(f.contourSteps); $('fxCOffset').value = String(f.contourOffset);
+  $('fxCColour').value = f.contourColour; $('fxCOutline').value = f.contourOutline; $('fxCJoin').value = f.contourJoin;
+}
+const ctLabel = (o) => (isText(o) ? `“${String(o.text).slice(0, 24)}”` : o.name || o.toolName || o.type);
+/** What a contour goes round: each part's outline with its own fill rule (the parts of a group; pictures have none). */
+const contourParts = (o) => (o.visible === false ? [] : o.type === 'group' ? o.getObjects().flatMap(contourParts) : V.canConvert(o) ? [{ d: worldD(o), rule: o.fillRule === 'evenodd' ? 'evenodd' : 'nonzero' }] : []);
+/** A colour as #RRGGBB (names and rgb() too), or null. */
+const inkHex = (c) => { if (typeof c !== 'string' || !c || c === 'none' || c === 'transparent') return null; const h = hexOf(c); if (h) return h; try { return hexOf(colourOf(c)); } catch { return null; } };
+/** The fill and outline the steps blend from: the object's own (a group: its first part's; a gradient or pattern: its first colour). */
+function contourInk(o) {
+  const p = o.type === 'group' ? paintParts(o)[0] ?? o : o, fancy = p.fill && typeof p.fill === 'object';
+  const fill = fancy && p.gradSpec ? inkHex(gradStops(p.gradSpec)[0]?.color) : fancy && p.patSpec ? inkHex(p.patSpec.ink) : inkHex(p.fill);
+  const stroke = p.strokeWidth > 0 ? inkHex(p.stroke) : null;
+  return { fill, stroke, width: stroke ? p.strokeWidth : 0 };
+}
+/** Step i of n: the object's colours blended towards the contour's (the last step has them). */
+function stepInk(ink, spec, i, n) {
+  const t = n ? Math.min(1, i / n) : 1;
+  return { fill: ink.fill ? mix(ink.fill, spec.colour, t) : ink.stroke ? null : mix('#888888', spec.colour, t), stroke: ink.stroke ? mix(ink.stroke, spec.outline, t) : null };
+}
+function makeStep(d, ink, spec, i, n, opacity) {
+  // Made with its final outline width: a width changed afterwards would move the path by half the difference.
+  const p = new Path(d, { ...stepInk(ink, spec, i, n), strokeWidth: ink.stroke ? ink.width : 0, strokeUniform: true, strokeLineJoin: spec.join, opacity });
+  style(p, { toolName: 'Contour' });
+  p.fxPart = 'contour'; p.fxStep = i; // its place from the object outwards (inwards), for re-colouring
+  return p;
+}
+/** The steps' path data around o (page units), from the object outwards (inwards), or why there are none. */
+function contourSteps(o, spec, deadline = Infinity) {
+  const prep = CT.contourPrep(contourParts(o)), inward = spec.dir !== 'outside', n = spec.dir === 'centre' ? CONTOUR_MAX : spec.steps, ds = [];
+  if (!prep.comps.length && !prep.lines.length) return { ds, error: `${ctLabel(o)} has no outline to contour` };
+  if (inward && !prep.comps.length) return { ds, error: `${ctLabel(o)} is an open line, so it has no inside: choose Outside, or close the curve first (Shape tool)` };
+  let late = false;
+  for (let i = 1; i <= n; i++) {
+    if (Date.now() > deadline) { late = true; break; }
+    const d = CT.contourStep(prep, (inward ? -1 : 1) * spec.offset * MM * i, spec.join);
+    if (!d) break;
+    ds.push(d);
+  }
+  if (!ds.length) return { ds, error: inward ? `An inside contour ${spec.offset} mm in doesn't fit in ${ctLabel(o)}: nothing is left inside it. Use a smaller offset` : `${ctLabel(o)} could not be contoured` };
+  return { ds, late };
+}
+/**
+ * Apply ('apply'), Remove ('remove') or Break apart ('break') the contour of objs. A contour already there keeps its
+ * own settings with `change` over them (a setting changed on the bar); otherwise the bar's settings are used.
+ * Problems are always said; `quiet` leaves out the message for a contour made. Returns what is selected after.
+ */
+function applyContour(mode = 'apply', { objs = active(), change = null, quiet = false } = {}) {
+  const sel = objs.filter((o) => canvas.getObjects().includes(o)), targets = sel.filter(contourable);
+  if (!targets.length) {
+    toast(sel.some((o) => o.type === 'image') ? 'Images have no outline to contour. Trace the image to vectors first (select it, Properties tab > Trace bitmap), then contour the result' : 'Select a shape or text first, then Apply contour (or drag from it with the Contour tool)', 5000);
+    return [];
+  }
+  if (mode !== 'apply' && !targets.some(isContourGroup)) { toast(`The selection has no contour to ${mode === 'break' ? 'break apart' : 'remove'}`); return []; }
+  const deadline = Date.now() + 8000, plans = [], notes = [];
+  // The shapes first: nothing on the page changes when one can't be made.
+  if (mode === 'apply') for (const o of targets) {
+    const g = isContourGroup(o) ? o : null, base = g ? contourBase(g) : o, spec = { ...(g && change ? contourSpec(g) : barContour()), ...(change ?? {}) };
+    let res;
+    try { res = contourSteps(base, spec, deadline); } catch (err) { res = { ds: [], error: err?.message || `${ctLabel(base)} could not be contoured` }; }
+    if (res.error) { notes.push(res.error); continue; }
+    if (spec.dir === 'inside' && res.ds.length < spec.steps && !res.late) notes.push(`Only ${res.ds.length} of ${spec.steps} steps fit inside ${ctLabel(base)} at ${spec.offset} mm apart`);
+    if (res.late) notes.push(`Only ${res.ds.length} steps could be made in time: use ${spec.dir === 'centre' ? 'a bigger offset' : 'fewer steps'}`);
+    else if (spec.dir === 'centre' && res.ds.length >= CONTOUR_MAX) notes.push(`To centre stopped at ${CONTOUR_MAX} steps: use a bigger offset to reach the centre`);
+    plans.push({ o, g, base, spec, ds: res.ds });
+  }
+  if (mode === 'apply' && !plans.length) { toast(notes.join(' · '), 6000); return []; }
   canvas.discardActiveObject();
   const out = [];
-  try {
-    batch(() => {
-      for (let o of objs) {
-        if (isContourGroup(o)) {
-          if (mode === 'break') {
-            // The steps and the object stay where they are, each a shape of its own.
-            const i = canvas.getObjects().indexOf(o), kids = o.removeAll();
-            canvas.remove(o);
-            kids.forEach((k, j) => { delete k.fxPart; if (k.toolName === 'Contour') k.name ??= `Contour step ${j + 1}`; canvas.insertAt(Math.max(1, i + j), k); out.push(k); });
-            continue;
-          }
-          const kids = o.removeAll(), keep = contourBase({ getObjects: () => kids }) ?? kids[0];
-          replaceObject(o, keep); o = keep;
-        }
-        if (mode !== 'apply') { out.push(o); continue; }
-        const base = worldD(o), ds = [];
-        // To centre: inside steps until the shape is filled (at most 100).
-        for (let i = 1; i <= (centre ? 100 : steps); i++) {
-          const d = V.offsetD(base, (outside ? 1 : -1) * fx.contourOffset * MM * i);
-          if (!d) break;
-          ds.push(d);
-        }
-        if (!ds.length) { out.push(o); continue; }
-        const contours = ds.map((d, i) => {
-          const p = makePath(d, null, { toolName: 'Contour' });
-          p.set({ fill: mix(solid(o), fx.contourColour, (i + 1) / ds.length), stroke: null, strokeWidth: 0, opacity: o.opacity });
-          p.fxPart = 'contour'; p.fxStep = i + 1; // its place from the object outwards (inwards), for re-colouring
-          return p;
-        });
-        const i = canvas.getObjects().indexOf(o);
+  batch(() => {
+    if (mode !== 'apply') {
+      for (const o of targets) {
+        if (!isContourGroup(o)) { out.push(o); continue; }
+        const i = canvas.getObjects().indexOf(o), kids = o.removeAll(), base = contourBase({ getObjects: () => kids });
+        if (mode === 'remove') { replaceObject(o, base); out.push(base); continue; }
+        // Break apart: the steps and the object stay where they are, each a shape of its own.
         canvas.remove(o);
-        const g = style(new Group(outside ? [...contours.reverse(), o] : [o, ...contours]), { toolName: 'Contour group' });
-        g.name = `${o.name} contour`;
-        g.fxContour = { dir, steps: ds.length, offset: fx.contourOffset, colour: fx.contourColour };
-        canvas.insertAt(Math.max(1, i), g); out.push(g);
+        kids.forEach((k, j) => { delete k.fxPart; delete k.fxStep; canvas.insertAt(Math.max(1, i + j), k); out.push(k); });
       }
-    });
-  } catch { toast('That object could not be contoured'); return; }
+      return;
+    }
+    for (const { o, g, base, spec, ds } of plans) {
+      const ink = contourInk(base), steps = ds.map((d, k) => makeStep(d, ink, spec, k + 1, ds.length, base.opacity));
+      const i = canvas.getObjects().indexOf(o);
+      if (g) g.removeAll(); // the object leaves the old contour where it is on the page; the old steps go
+      canvas.remove(o);
+      const grp = style(new Group(spec.dir === 'outside' ? [...steps.reverse(), base] : [base, ...steps]), { toolName: 'Contour group' });
+      grp.name = g?.name ?? `${base.name} contour`;
+      if (g?.num != null) grp.num = g.num;
+      if (g?.uid) grp.uid = g.uid;
+      grp.fxContour = { dir: spec.dir, steps: ds.length, offset: spec.offset, colour: spec.colour, outline: spec.outline, join: spec.join };
+      canvas.insertAt(Math.max(1, i), grp); out.push(grp);
+    }
+  });
   select(out);
   if (mode === 'remove') toast('Contour removed: the original object again');
   else if (mode === 'break') toast('Contour broken apart: the object and each step are separate shapes now');
-  else if (out.length) toast(`Contour ${centre ? 'to the centre' : outside ? 'outside' : 'inside'} added · change the settings and Apply again to adjust it · Remove takes it off`);
+  else if (notes.length || !quiet) {
+    const s = plans[0].spec, n = plans[0].ds.length;
+    toast(`${notes.length ? `${notes.join(' · ')} · ` : ''}Contour ${s.dir === 'centre' ? 'to the centre' : s.dir} (${n} step${n > 1 ? 's' : ''}, ${s.offset} mm apart) · drag again or change the property bar to adjust it · Remove takes it off`, notes.length ? 6000 : 3500);
+  }
+  return out;
 }
+/** Colours changed on the bar: the selected contours' steps blend to them (no new shapes needed). */
+function contourColours(commit) {
+  if (barQuiet || !(state.tool === 'contour' || state.tool === 'select')) return;
+  const groups = canvas.getActiveObjects().filter(isContourGroup);
+  for (const g of groups) {
+    const spec = { ...contourSpec(g), colour: state.fx.contourColour, outline: state.fx.contourOutline }, ink = contourInk(contourBase(g)), steps = g.getObjects().filter((k) => k.fxPart === 'contour');
+    steps.forEach((k, j) => k.set(stepInk(ink, spec, k.fxStep ?? j + 1, steps.length)));
+    g.fxContour = { ...(g.fxContour ?? {}), colour: spec.colour, outline: spec.outline };
+    g.dirty = true;
+  }
+  canvas.requestRenderAll();
+  if (commit && groups.length) canvas.fire('object:modified', { target: groups[0] });
+}
+/** A setting changed on the bar: the selected contours follow it at once (one undo step). */
+let barQuiet = 0; // set while the chat fills in the bar (it presses Apply itself)
+function contourBar(change) {
+  if (barQuiet || !(state.tool === 'contour' || state.tool === 'select')) return;
+  const groups = canvas.getActiveObjects().filter(isContourGroup);
+  if (groups.length) applyContour('apply', { objs: groups, change, quiet: true });
+}
+// Scaling or slanting a contour makes it again around the changed object, so its offset stays (as in CorelDRAW).
+canvas.on('object:modified', ({ target: g }) => {
+  if (restoring || !isContourGroup(g) || !canvas.getObjects().includes(g)) return;
+  if (Math.abs(g.scaleX - 1) < 1e-6 && Math.abs(g.scaleY - 1) < 1e-6 && !g.skewX && !g.skewY) return;
+  const own = !muted && history.at(-1) === snapshot(); // the change was just recorded as its own undo step
+  muted++;
+  try { applyContour('apply', { objs: [g], change: {}, quiet: true }); } finally { muted--; }
+  if (muted) return; // part of a bigger change: recorded with it
+  if (own) { history[history.length - 1] = snapshot(); autosave(STORE, history.at(-1)); } else record();
+  refreshLayers();
+});
+// Contour tool: drag from an object outwards for an outside contour, inwards for an inside one, as in CorelDRAW. While
+// dragging, the steps show as dashed outlines (the bar's number of steps, spread to reach the pointer; To centre: the
+// drag sets the gap between them); letting go applies them. A click just selects; on an empty part of the page a
+// drag draws a selection box; Esc cancels.
+let ctDrag = null;
+function contourDown(opt, p) {
+  // As in CorelDRAW the Contour tool has no sizing handles: a drag from the object (its edge too) makes the contour.
+  if (opt.e.button || !opt.target || opt.target.isPage || opt.target.isHelper) return false;
+  const objs = canvas.getActiveObjects();
+  if (!objs.length) return false;
+  canvas._currentTransform = null; // the object doesn't move or resize
+  const targets = objs.filter(contourable);
+  if (!targets.length) { toast('Images have no outline to contour. Trace the image to vectors first (select it, Properties tab > Trace bitmap), then contour the result', 5000); return true; }
+  const boxes = targets.map((o) => o.getBoundingRect()), l = Math.min(...boxes.map((b) => b.left)), t = Math.min(...boxes.map((b) => b.top));
+  const r = Math.max(...boxes.map((b) => b.left + b.width)), b = Math.max(...boxes.map((x) => x.top + x.height));
+  ctDrag = { start: { x: p.x, y: p.y }, at: { x: p.x, y: p.y }, objs: targets, centre: { x: (l + r) / 2, y: (t + b) / 2 }, preps: new Map(), helper: null, moved: false, frame: 0 };
+  return true;
+}
+/** The contour the drag makes: away from the centre outside, towards it inside (or to the centre); reaching the pointer. */
+function contourDragSpec(c) {
+  const bar = barContour(), far = (a) => Math.hypot(a.x - c.centre.x, a.y - c.centre.y);
+  const dir = far(c.at) >= far(c.start) ? 'outside' : bar.dir === 'centre' ? 'centre' : 'inside';
+  const depth = Math.hypot(c.at.x - c.start.x, c.at.y - c.start.y) / MM;
+  return { ...bar, dir, offset: Math.max(0.1, Math.min(100, Math.round((dir === 'centre' ? depth : depth / bar.steps) * 10) / 10)) };
+}
+function contourMove(p) {
+  const c = ctDrag;
+  if (panning || state.tool !== 'contour') { cancelContourDrag(); return; }
+  c.at = { x: p.x, y: p.y };
+  if (!c.moved && screenDist(c.at, c.start) < 4) return;
+  c.moved = true;
+  c.frame ||= requestAnimationFrame(() => { c.frame = 0; if (ctDrag === c) contourPreview(c); });
+}
+function contourPreview(c) {
+  const spec = contourDragSpec(c), n = spec.dir === 'centre' ? 40 : spec.steps, sign = spec.dir === 'outside' ? 1 : -1, until = performance.now() + 60, ds = [];
+  for (const o of c.objs) {
+    if (!c.preps.has(o)) { let prep = null; try { prep = CT.contourPrep(contourParts(isContourGroup(o) ? contourBase(o) : o)); } catch { /* no preview */ } c.preps.set(o, prep); }
+    const prep = c.preps.get(o);
+    if (!prep || (sign < 0 && !prep.comps.length)) continue;
+    // The last step first (how far the contour reaches), the others while there is time.
+    for (let k = 0; k < n && performance.now() < until; k++) {
+      const i = spec.dir === 'centre' ? k + 1 : n - k;
+      let d = '';
+      try { d = CT.contourStep(prep, sign * spec.offset * MM * i, spec.join); } catch { /* skip */ }
+      if (d) ds.push(d); else if (spec.dir === 'centre') break;
+    }
+  }
+  c.helper ??= helperPath('M 0 0', { fill: 'rgba(18,225,240,.10)' });
+  setLive(c.helper, ds.join(' '));
+  hint(`${spec.dir === 'centre' ? 'To centre' : spec.dir === 'outside' ? 'Outside' : 'Inside'} contour · ${spec.dir === 'centre' ? '' : `${spec.steps} step${spec.steps > 1 ? 's' : ''} · `}${spec.offset} mm apart · let go to apply, Esc cancels`);
+  canvas.requestRenderAll();
+}
+function contourUp(p) {
+  const c = ctDrag;
+  cancelContourDrag();
+  if (!c.moved || state.tool !== 'contour') return; // a click: the object is just selected
+  c.at = { x: p.x, y: p.y };
+  // The drag sets the bar (direction and offset; the number of steps stays), then the contour is made from it.
+  contourToBar(contourDragSpec(c));
+  savePrefs();
+  applyContour('apply', { objs: c.objs });
+}
+function cancelContourDrag() {
+  if (!ctDrag) return;
+  if (ctDrag.frame) cancelAnimationFrame(ctDrag.frame);
+  dropHelper(ctDrag.helper);
+  ctDrag = null;
+  hint(TOOL_HINTS[state.tool] ?? '');
+  canvas.requestRenderAll();
+}
+addEventListener('keydown', (e) => { if (ctDrag && e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); cancelContourDrag(); } }, true);
 function applyShadow(remove = false) {
   const objs = active();
   if (!objs.length) { toast('Select objects for the shadow'); return; }
@@ -3848,7 +4060,9 @@ $('selInfo').onclick = () => {
   navigator.clipboard?.writeText(ids).catch(() => {});
   toast(`Copied ${list.length > 1 ? 'IDs' : 'ID'} ${ids}`);
 };
-function syncProps() {
+/** The property bar, Properties and Layers tabs for the selection. `live`: while it is being moved, scaled or rotated
+ *  (positions and sizes change, the Layers list and the page's colours don't: they follow when it is let go). */
+function syncProps(live = false) {
   const o = one();
   const has = active().length > 0;
   for (const id of ['del', 'dup', 'front', 'back', 'lock', 'alL', 'alC', 'alR', 'alT', 'alM', 'alB', 'flipH', 'flipV']) $(id).disabled = !has;
@@ -3895,11 +4109,11 @@ function syncProps() {
     $('pOC').value = typeof p.stroke === 'string' && /^#[0-9a-f]{6}$/i.test(p.stroke) ? p.stroke : state.stroke;
     $('pONote').hidden = ow > 0;
   }
-  refreshLayers();
+  if (!live) refreshLayers();
   syncTextBar();
   syncContext();
 }
-for (const ev of ['selection:created', 'selection:updated', 'selection:cleared', 'object:modified', 'object:scaling', 'object:moving', 'object:rotating']) canvas.on(ev, () => { if (state.tool === 'node' && ev === 'object:modified') nodes.refresh(); syncProps(); });
+for (const ev of ['selection:created', 'selection:updated', 'selection:cleared', 'object:modified', 'object:scaling', 'object:moving', 'object:rotating']) canvas.on(ev, () => { if (state.tool === 'node' && ev === 'object:modified') nodes.refresh(); syncProps(ev === 'object:scaling' || ev === 'object:moving' || ev === 'object:rotating'); });
 
 $('strokeWidth').onchange = (e) => {
   state.strokeWidth = Number(e.target.value);
@@ -4146,7 +4360,10 @@ function syncContext() {
   show('ctx-graph', t === 'graph');
   show('ctx-shapes', t.startsWith('shape:') || (pick && o?.shapeSpec?.tool?.startsWith('shape:')));
   show('ctx-rect', t === 'rect' || (pick && o?.type === 'rect'));
-  show('ctx-blend', t === 'blend'); show('ctx-contour', t === 'contour'); show('ctx-shadow', t === 'shadow'); show('ctx-inner', t === 'inner'); show('ctx-transp', t === 'transparency');
+  // A selected contour shows its own settings (with the Contour tool, or Pick), and follows changes to them.
+  const ctSel = n > 0 && sel.every(isContourGroup);
+  if (ctSel && (t === 'contour' || pick) && !ctDrag) contourToBar(contourSpec(sel[0]));
+  show('ctx-blend', t === 'blend'); show('ctx-contour', t === 'contour' || (pick && ctSel)); show('ctx-shadow', t === 'shadow'); show('ctx-inner', t === 'inner'); show('ctx-transp', t === 'transparency');
   show('ctx-distort', t === 'distort'); show('ctx-envelope', t === 'envelope'); show('ctx-extrude', t === 'extrude'); show('ctx-block', t === 'blockshadow');
   show('ctx-mesh', t === 'meshfill' || (pick && !!o?.fxMesh));
   show('ctx-powerclip', !!pcEdit || (pick && !!o?.powerClip)); show('pcEditBtn', !pcEdit); show('pcFinishBtn', !!pcEdit); show('pcExtractBtn', !pcEdit); show('ctx-table', t === 'table'); show('ctx-eyedrop', t === 'eyedropper');
@@ -4267,10 +4484,14 @@ bindNumber('cRows', (v) => { state.shape.rows = Math.max(1, Math.min(50, Math.ro
 bindNumber('cRadius', (v) => { state.shape.radius = Math.max(1, Math.min(200, v)); state.shape.eraser = state.tool === 'eraser' ? Math.max(0.5, Math.min(200, v)) : state.shape.eraser; setBrushRing({ radius: (state.tool === 'eraser' ? state.shape.eraser / 2 : state.shape.radius) * MM, at: brushRing?.at }); });
 bindNumber('rectRadius', (v) => { state.shape.radiusRect = Math.max(0, v); const o = one(); if (o?.type === 'rect') applyToSelection({ rx: v * MM, ry: v * MM }); });
 bindNumber('fxSteps', (v) => { state.fx.blendSteps = Math.max(1, Math.min(60, Math.round(v))); });
-bindNumber('fxCSteps', (v) => { state.fx.contourSteps = Math.max(1, Math.min(20, Math.round(v))); });
-bindNumber('fxCOffset', (v) => { state.fx.contourOffset = Math.max(0.1, Math.min(100, v)); });
-$('fxCDir').onchange = (e) => { state.fx.contourDir = e.target.value; $('fxCStepsWrap').hidden = e.target.value === 'centre'; savePrefs(); };
-$('fxCColour').oninput = (e) => { state.fx.contourColour = e.target.value; savePrefs(); };
+// Contour bar: a selected contour follows each change at once (colours just blend its steps again).
+bindNumber('fxCSteps', (v) => { state.fx.contourSteps = Math.max(1, Math.min(20, Math.round(v))); $('fxCSteps').value = String(state.fx.contourSteps); contourBar({ steps: state.fx.contourSteps }); });
+bindNumber('fxCOffset', (v) => { state.fx.contourOffset = Math.max(0.1, Math.min(100, v)); $('fxCOffset').value = String(state.fx.contourOffset); contourBar({ offset: state.fx.contourOffset }); });
+$('fxCDir').onchange = (e) => { const dir = e.target.value; state.fx.contourDir = dir; $('fxCStepsWrap').hidden = dir === 'centre'; savePrefs(); contourBar(dir === 'centre' ? { dir } : { dir, steps: state.fx.contourSteps }); };
+$('fxCJoin').onchange = (e) => { state.fx.contourJoin = e.target.value; savePrefs(); contourBar({ join: state.fx.contourJoin }); };
+$('fxCColour').oninput = (e) => { state.fx.contourColour = e.target.value; savePrefs(); contourColours(false); };
+$('fxCOutline').oninput = (e) => { state.fx.contourOutline = e.target.value; savePrefs(); contourColours(false); };
+for (const id of ['fxCColour', 'fxCOutline']) $(id).onchange = () => contourColours(true);
 for (const [id, k] of [['fxSX', 'shadowX'], ['fxSY', 'shadowY'], ['fxSBlur', 'shadowBlur'], ['fxSOpacity', 'shadowOpacity']]) bindNumber(id, (v) => { state.fx[k] = v; });
 $('fxSColour').oninput = (e) => { state.fx.shadowColour = e.target.value; savePrefs(); };
 $('fxTType').onchange = (e) => { state.fx.transp = e.target.value; $('fxTAngleWrap').hidden = e.target.value !== 'linear'; savePrefs(); };
@@ -4317,7 +4538,7 @@ function initContextValues() {
   const s = state.shape, f = state.fx;
   $('cRevs').value = String(s.revs); $('cSpiralType').value = s.log ? 'log' : 'sym'; $('cExpand').value = String(s.expand); $('cExpandWrap').hidden = !s.log;
   $('cCols').value = String(s.cols); $('cRows').value = String(s.rows); $('cRadius').value = String(s.radius);
-  $('fxSteps').value = String(f.blendSteps); $('fxCDir').value = f.contourDir; $('fxCStepsWrap').hidden = f.contourDir === 'centre'; $('fxCSteps').value = String(f.contourSteps); $('fxCOffset').value = String(f.contourOffset); $('fxCColour').value = f.contourColour;
+  $('fxSteps').value = String(f.blendSteps); $('fxCDir').value = f.contourDir; $('fxCStepsWrap').hidden = f.contourDir === 'centre'; $('fxCSteps').value = String(f.contourSteps); $('fxCOffset').value = String(f.contourOffset); $('fxCColour').value = f.contourColour; $('fxCOutline').value = f.contourOutline; $('fxCJoin').value = f.contourJoin;
   $('fxSX').value = String(f.shadowX); $('fxSY').value = String(f.shadowY); $('fxSBlur').value = String(f.shadowBlur); $('fxSOpacity').value = String(f.shadowOpacity); $('fxSColour').value = f.shadowColour;
   $('fxIX').value = String(f.innerX); $('fxIY').value = String(f.innerY); $('fxIBlur').value = String(f.innerBlur); $('fxIOpacity').value = String(f.innerOpacity); $('fxIColour').value = f.innerColour; $('fxIMerge').value = f.innerMerge;
   $('fxTType').value = f.transp; $('fxTValue').value = String(f.transpValue); $('fxTAngle').value = String(f.transpAngle); $('fxTAngleWrap').hidden = f.transp !== 'linear'; $('fxTMerge').value = f.transpMerge ?? 'normal';
@@ -4332,6 +4553,10 @@ function initContextValues() {
 // ===================================================================
 // Layers tab
 // ===================================================================
+// Each object's row is kept and made again only when what it shows changes (selected, shown, locked, name or text,
+// colour, picture): rebuilding the whole list on every change, tool switch and selection made big pages laggy (a
+// photo's row put its whole picture data into the page each time, a painted stroke's was made from scratch).
+const layerRows = new WeakMap();
 function refreshLayers() {
   const list = $('layerList');
   if (!list || restoring || muted) return;
@@ -4340,27 +4565,36 @@ function refreshLayers() {
   $('layersEmpty').style.display = objs.length ? 'none' : 'block';
   $('layerCount').textContent = String(objs.length);
   const selected = new Set(active());
-  list.innerHTML = '';
-  for (const o of objs) {
-    const row = document.createElement('div');
-    row.className = `layer ${selected.has(o) ? 'on' : ''}`;
-    const thumb = o.type === 'image' ? `<img src="${o.getSrc()}" alt="">` : isText(o) ? '<b style="color:#000">T</b>' : `<span style="width:16px;height:16px;border-radius:${o.type === 'ellipse' ? '50%' : '3px'};background:${typeof o.fill === 'string' ? o.fill : o.stroke || '#12E1F0'}"></span>`;
-    row.innerHTML = `<span class="thumb">${thumb}</span><span class="name"></span><span class="acts"><button data-a="up" title="Bring forward">${icon('up')}</button><button data-a="down" title="Send backward">${icon('down')}</button><button data-a="vis" title="Show / hide">${icon(o.visible ? 'eye' : 'eyeOff')}</button><button data-a="lock" title="Lock">${icon(o.locked ? 'lock' : 'unlock')}</button><button data-a="del" title="Delete">${icon('trash')}</button></span>`;
-    row.querySelector('.name').textContent = isText(o) ? `“${o.text}”` : o.name;
-    row.onclick = (e) => {
-      const a = e.target.closest('button')?.dataset.a;
-      if (a === 'up') canvas.bringObjectForward(o);
-      else if (a === 'down') { if (canvas.getObjects().indexOf(o) > 1) canvas.sendObjectBackwards(o); }
-      else if (a === 'vis') o.visible = !o.visible;
-      else if (a === 'lock') setLocked(o, !o.locked);
-      else if (a === 'del') { canvas.remove(o); return; }
-      else if (o.visible && !o.locked) { if (state.tool === 'node') nodes.start(o); else { if (!PICK_LIKE.has(state.tool)) setTool('select'); canvas.setActiveObject(o); } }
-      canvas.requestRenderAll();
-      if (a) canvas.fire('object:modified', { target: o });
-      refreshLayers();
-    };
-    list.append(row);
-  }
+  const rows = objs.map((o) => layerRow(o, selected.has(o)));
+  const kids = list.children;
+  if (kids.length === rows.length && rows.every((r, i) => kids[i] === r)) return;
+  list.replaceChildren(...rows);
+}
+function layerRow(o, on) {
+  // A picture's row: the same image or canvas (a painted stroke gets a new one when repainted) and the same address.
+  const pic = o.type === 'image' ? o._originalElement ?? o._element ?? null : null, src = pic?.tagName === 'IMG' ? pic.src : '';
+  const key = `${on ? 1 : 0}|${o.visible ? 1 : 0}|${o.locked ? 1 : 0}|${o.type}|${isText(o) ? `T${o.text}` : `N${o.name}`}|${o.type === 'image' || isText(o) ? '' : typeof o.fill === 'string' ? o.fill : o.stroke || ''}`;
+  const kept = layerRows.get(o);
+  if (kept && kept.key === key && kept.pic === pic && kept.src === src) return kept.row;
+  const row = kept?.row ?? document.createElement('div');
+  layerRows.set(o, { row, key, pic, src });
+  row.className = `layer ${on ? 'on' : ''}`;
+  const thumb = o.type === 'image' ? `<img src="${o.getSrc()}" alt="">` : isText(o) ? '<b style="color:#000">T</b>' : `<span style="width:16px;height:16px;border-radius:${o.type === 'ellipse' ? '50%' : '3px'};background:${typeof o.fill === 'string' ? o.fill : o.stroke || '#12E1F0'}"></span>`;
+  row.innerHTML = `<span class="thumb">${thumb}</span><span class="name"></span><span class="acts"><button data-a="up" title="Bring forward">${icon('up')}</button><button data-a="down" title="Send backward">${icon('down')}</button><button data-a="vis" title="Show / hide">${icon(o.visible ? 'eye' : 'eyeOff')}</button><button data-a="lock" title="Lock">${icon(o.locked ? 'lock' : 'unlock')}</button><button data-a="del" title="Delete">${icon('trash')}</button></span>`;
+  row.querySelector('.name').textContent = isText(o) ? `“${o.text}”` : o.name;
+  row.onclick = (e) => {
+    const a = e.target.closest('button')?.dataset.a;
+    if (a === 'up') canvas.bringObjectForward(o);
+    else if (a === 'down') { if (canvas.getObjects().indexOf(o) > 1) canvas.sendObjectBackwards(o); }
+    else if (a === 'vis') o.visible = !o.visible;
+    else if (a === 'lock') setLocked(o, !o.locked);
+    else if (a === 'del') { canvas.remove(o); return; }
+    else if (o.visible && !o.locked) { if (state.tool === 'node') nodes.start(o); else { if (!PICK_LIKE.has(state.tool)) setTool('select'); canvas.setActiveObject(o); } }
+    canvas.requestRenderAll();
+    if (a) canvas.fire('object:modified', { target: o });
+    refreshLayers();
+  };
+  return row;
 }
 
 // ===================================================================
@@ -4495,12 +4729,14 @@ state.palettes = (Array.isArray(state.palettes) ? state.palettes : []).filter((p
 state.gradients = (Array.isArray(state.gradients) ? state.gradients : []).filter((g) => g && Array.isArray(g.stops) && g.stops.length >= 2);
 const findPalette = (name) => state.palettes.find((p) => p.name.toLowerCase() === String(name).trim().toLowerCase()) ?? null;
 const currentPalette = () => (state.palette ? findPalette(state.palette) : null);
+/** Colours an effect works out between the chosen ones (contour steps before the last, blend steps): not the user's. */
+const inBetween = (o) => (o.fxPart === 'contour' && o.fxStep !== o.group?.fxContour?.steps) || o.toolName === 'Blend step';
 /** The fill (or gradient) and outline colours some objects use, most used first. */
 function coloursOf(objs) {
   const count = new Map(), add = (c) => { const h = hexOf(c); if (h) count.set(h, (count.get(h) ?? 0) + 1); };
   const walk = (o) => {
     if (o.type === 'group') { o.getObjects().forEach(walk); return; }
-    if (o.type === 'image') return;
+    if (o.type === 'image' || inBetween(o)) return;
     if (o.gradSpec && !o.gradSpec.fade && o.fill && typeof o.fill === 'object') gradStops(o.gradSpec).forEach((s) => add(s.color)); else add(o.fill);
     if (o.strokeWidth) add(o.stroke);
   };
@@ -4639,6 +4875,7 @@ function renderDocPalette() {
   const found = new Set();
   const walk = (o) => {
     if (o.type === 'group') { o.getObjects().forEach(walk); return; }
+    if (inBetween(o)) return; // a contour's or blend's in-between colours were not picked by the user
     for (const c of [o.fill, o.strokeWidth ? o.stroke : null]) { const h = hexOf(c); if (h) found.add(h); }
     if (o.gradSpec && !o.gradSpec.fade && o.fill && typeof o.fill === 'object') for (const s of gradStops(o.gradSpec)) { const h = hexOf(s.color); if (h) found.add(h); }
   };
@@ -4942,17 +5179,29 @@ for (const id of ['patKind', 'patSize', 'patBg']) $(id).onchange = () => { if (!
 // ===================================================================
 // Export, send to studio, pages
 // ===================================================================
-function contentBounds() {
-  const objs = userObjects().filter((o) => o.visible);
-  if (!objs.length) return null;
-  const rects = objs.map((o) => o.getBoundingRect());
+/**
+ * The box around the artwork. `onPage`: only what is on the page, cut at its edges (drawings left on the work
+ * area around it are not part of the design).
+ */
+function contentBounds({ onPage = false } = {}) {
+  let rects = userObjects().filter((o) => o.visible).map((o) => o.getBoundingRect());
+  if (onPage) {
+    rects = rects.map((r) => {
+      const left = Math.max(0, r.left), top = Math.max(0, r.top);
+      const right = Math.min(page.width, r.left + r.width), bottom = Math.min(page.height, r.top + r.height);
+      return right > left && bottom > top ? { left, top, width: right - left, height: bottom - top } : null;
+    }).filter(Boolean);
+  }
+  if (!rects.length) return null;
   const left = Math.min(...rects.map((r) => r.left)), top = Math.min(...rects.map((r) => r.top));
   return { left, top, width: Math.max(...rects.map((r) => r.left + r.width)) - left, height: Math.max(...rects.map((r) => r.top + r.height)) - top };
 }
-/** PNG of the artwork. `whole` = the full page at 300 DPI (capped), otherwise trimmed to the artwork. */
+/** Why there is nothing to export or send: an empty page, or artwork only on the work area around it. */
+const nothingOnPage = (empty) => (contentBounds() ? 'Nothing is on the page: move the artwork onto the white page first' : empty);
+/** PNG of the artwork. `whole` = the full page at 300 DPI (capped), otherwise trimmed to the artwork on the page. */
 function renderPng({ whole = false, maxPx = 2048, background = null } = {}) {
   canvas.discardActiveObject();
-  const box = whole ? { left: 0, top: 0, width: page.width, height: page.height } : contentBounds();
+  const box = whole ? { left: 0, top: 0, width: page.width, height: page.height } : contentBounds({ onPage: true });
   if (!box) return null;
   const dpiPx = (box.width / MM / 25.4) * 300; // 300 DPI width in pixels
   const multiplier = Math.min(dpiPx, maxPx) / box.width;
@@ -4977,7 +5226,7 @@ function download(data, name) {
 function exportPng(whole) {
   finishPowerClipEdit();
   const data = renderPng({ whole, maxPx: whole ? 4096 : 3000, background: whole ? '#ffffff' : null });
-  if (!data) { toast('The page is empty'); return; }
+  if (!data) { toast(nothingOnPage('The page is empty')); return; }
   download(data, whole ? '3deezi-artboard-page.png' : '3deezi-artwork.png');
   toast(whole ? 'Page exported (white background, 300 DPI up to 4096 px)' : 'Artwork exported (transparent PNG)');
 }
@@ -5054,9 +5303,11 @@ $('pdfAll').onclick = () => { $('pdfDialog').close(); exportPdf('all'); };
 function sendToStudio() {
   finishPowerClipEdit();
   const data = renderPng({ maxPx: 2048 });
-  if (!data) { toast('Add some artwork first'); return; }
+  if (!data) { toast(nothingOnPage('Add some artwork first')); return; }
   const name = (userObjects().find(isText)?.text || 'Artboard design').slice(0, 40);
-  if (embedded()) { post({ type: 'artwork', data, name }); toast('Sent to the 3D studio'); }
+  // The website and the app ask where it goes and keep the design with it (projects.js); other hosts get the picture.
+  if (projects.hosted()) projects.send(data, name);
+  else if (embedded()) { post({ type: 'artwork', data, name }); toast('Sent to the 3D studio'); }
   else download(data, '3deezi-artwork.png');
 }
 function setPage([w, h], record_ = true) {
@@ -5097,7 +5348,7 @@ function updateOtherNums() {
   const walk = (o) => { if (o?.num != null) otherNums.add(o.num); (o?.objects ?? []).forEach(walk); };
   pages.forEach((p, i) => { if (i !== pageIndex) (p.objects ?? []).forEach(walk); });
 }
-const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ } }, 600); };
+const saveSoon = () => autosave(STORE, snapshot, false); // another page opened: kept, but nothing in the design changed
 function nextPageName() { let n = pages.length + 1; while (pages.some((p) => p.name === `Page ${n}`)) n++; return `Page ${n}`; }
 /** Shows another page (it is not an undo step; the autosave keeps it open). */
 async function gotoPage(i, { quiet = false } = {}) {
@@ -5209,7 +5460,7 @@ document.addEventListener('pointerdown', (e) => { const m = $('pageMenu'); if (!
 const SNAP_LABELS = { grid: 'Grid (5 mm)', guides: 'Guidelines', objects: 'Objects', nodes: 'Nodes', page: 'Page' };
 const ACTIONS = {
   fonts: () => { if ($('textBar').hidden) setTool('text'); setTimeout(() => $('tFont').click()); },
-  new: async () => { finishPowerClipEdit(); if ((userObjects().length || pages.length > 1) && !confirm('Start a new document? Every page is cleared (Undo can restore it).')) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); },
+  new: async () => { finishPowerClipEdit(); if ((userObjects().length || pages.length > 1) && !confirm('Start a new document? Every page is cleared (Undo can restore it).')) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); projects.cleared(); },
   pageAdd: () => insertPage(), pageDup: () => duplicatePage(), pageDelete: () => deletePage(), pagePrev: () => gotoPage(pageIndex - 1), pageNext: () => gotoPage(pageIndex + 1),
   pageRename: () => { const tab = $('pageTabs').querySelector(`[data-page="${pageIndex}"]`); if (tab) startRename(tab, pageIndex); },
   open: () => $('fileImage').click(),
@@ -5309,18 +5560,92 @@ function closeMenus() { document.querySelectorAll('.menu.open, .fly.open').forEa
 document.querySelectorAll('.menu>button').forEach((b) => b.addEventListener('click', (e) => { const m = b.parentElement, open = m.classList.contains('open'); closeMenus(); if (!open) m.classList.add('open'); e.stopPropagation(); }));
 addEventListener('click', (e) => { if (!e.target.closest('.menu,.fly,.tool')) closeMenus(); });
 $('undo').onclick = undo; $('redo').onclick = redo;
-$('save').onclick = () => { finishPowerClipEdit(); try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ } post({ type: 'saved', json: snapshot() }); toast('Artboard saved on this device'); };
+$('save').onclick = () => projects.saveButton(); // on this device, and in the account when signed in
 $('sendBtn').onclick = sendToStudio;
-// AI / DYO quick access: save the artwork here first, then the website or app opens AI Powered Sportswear or
-// Design Your Own. Opened on its own (no 3DEEZI around it), go to the website's page instead.
+// AI / DYO / HOME quick access: save the artwork here first, then the website or app opens AI Powered Sportswear,
+// Design Your Own or its home page. Opened on its own (no 3DEEZI around it), go to the website's page instead.
 const startKit = (mode) => {
   finishPowerClipEdit();
-  try { localStorage.setItem(STORE, snapshot()); } catch { /* storage full */ }
+  saveNow(STORE, snapshot());
   if (embedded()) post({ type: 'start', mode });
-  else location.href = new URL(mode === 'ai' ? '../../create/ai' : '../../create/sport', location.href).href;
+  else location.href = new URL({ ai: '../../create/ai', dyo: '../../create/sport', home: '../../' }[mode], location.href).href;
 };
 $('goAi').onclick = () => startKit('ai');
 $('goDyo').onclick = () => startKit('dyo');
+$('goHome').onclick = () => startKit('home');
+// The pills show as much as the top bar has room for (not by screen width alone, so the icons stay whenever they
+// fit): icon and word at full size, then step by step smaller, words only, HOME as its house only, smallest, and last
+// no HOME (classes f1…f8, see artboard.css). Checked again whenever the bar or its buttons change size.
+const goTabs = document.querySelector('.go-tabs'), topBar = document.querySelector('.top'), topActions = document.querySelector('.top-actions');
+const barSpills = () => {
+  if (topBar.scrollWidth > topBar.clientWidth || goTabs.scrollWidth > goTabs.clientWidth) return true;
+  const shown = [...document.querySelectorAll('.top-actions > *')].filter((e) => e.offsetParent);
+  if (!shown.length) return false;
+  const pills = [...goTabs.children].filter((e) => e.offsetParent);
+  const pillsEnd = Math.max(...pills.map((e) => e.getBoundingClientRect().right));
+  const rects = shown.map((e) => e.getBoundingClientRect());
+  // Past the bar's end, or running into Undo / Save.
+  return Math.max(...rects.map((r) => r.right)) > topBar.getBoundingClientRect().right - 1 || pillsEnd > Math.min(...rects.map((r) => r.left)) - 4;
+};
+/** Inside each pill, as on the client's: the icon's middle at about 23 % of the width and the word from about 43 %
+ *  (nearer the icon when the word would not fit). Pills showing only a word or only an icon keep them centred. */
+function placeInPills() {
+  for (const pill of goTabs.children) {
+    const icon = pill.querySelector('svg.i'), word = pill.querySelector('span');
+    if (!pill.offsetParent || !icon?.getClientRects().length || !word?.getClientRects().length || getComputedStyle(pill).justifyContent === 'center') continue;
+    const w = pill.getBoundingClientRect().width, iw = icon.getBoundingClientRect().width, tw = word.getBoundingClientRect().width;
+    const right = parseFloat(getComputedStyle(pill).paddingRight) || 0;
+    const start = Math.min(0.43 * w, w - tw - right);
+    const left = Math.max(4, Math.min(0.23 * w - iw / 2, start - iw - 4));
+    pill.style.paddingLeft = `${left.toFixed(1)}px`;
+    pill.style.gap = `${(start - left - iw).toFixed(1)}px`;
+  }
+}
+let goFitAt = ''; // the widths of the bar and its buttons when the pills were last fitted
+const goFitKey = () => `${topBar.getBoundingClientRect().width}|${topActions.getBoundingClientRect().width}`;
+function fitGoTabs() {
+  if (!topBar.offsetParent) return; // hidden (full-page preview): fitted again when it comes back
+  goFitAt = goFitKey();
+  for (const pill of goTabs.children) { pill.style.removeProperty('padding-left'); pill.style.removeProperty('gap'); }
+  for (let level = 0; level <= 8; level++) {
+    const steps = Array.from({ length: level }, (_, i) => ` f${i + 1}`).join('');
+    // All the pills as wide as the widest one (HOME as its house alone keeps its own size).
+    goTabs.style.removeProperty('--pill-w');
+    goTabs.className = `go-tabs measure${steps}`;
+    const widths = [...goTabs.children].filter((e) => e.offsetParent && !(e.id === 'goHome' && level >= 5)).map((e) => e.getBoundingClientRect().width);
+    goTabs.className = `go-tabs${steps}`;
+    if (widths.length) goTabs.style.setProperty('--pill-w', `${Math.ceil(Math.max(...widths))}px`);
+    if (!barSpills()) break;
+  }
+  placeInPills();
+}
+// One observer for both (once when both change together), and only when a width changed: the pills fit across.
+const goFit = new ResizeObserver(() => { if (goFitKey() !== goFitAt) fitGoTabs(); });
+goFit.observe(topBar); goFit.observe(topActions);
+document.fonts.ready.then(fitGoTabs);
+// Projects (projects.js): the design kept on this device and in the account (File > Save to my account, Open from my
+// account), templates, and Send to 3D Studio with the design linked to the artwork on the kit.
+/** Opens a whole design in place of the one on the page (from the account or a template): its own Undo starts. */
+async function openDocument(json) {
+  await window.artboard.load(json);
+  history = [snapshot()]; future = []; syncHistory();
+  saveNow(STORE, history[0]);
+}
+/** A picture of the page on screen (white page), for the account's lists; the selection stays selected. */
+function pagePreview() {
+  const keep = canvas.getActiveObjects(), editing = canvas.getActiveObject()?.isEditing;
+  const data = renderPng({ whole: true, maxPx: 480, background: '#ffffff' });
+  if (keep.length && !editing) select(keep);
+  return data;
+}
+let starter = null; // the YOUR TEAM text a new page starts with (see Start): untouched, the page counts as blank
+const projects = createProjects({
+  $, toast, post, icon, escHtml, store: STORE, snapshot, open: openDocument, preview: pagePreview,
+  blank: () => (!userObjects().length || (history.length < 2 && userObjects().length === 1 && userObjects()[0] === starter)) && pages.every((p, i) => i === pageIndex || !p.objects?.length),
+  firstText: () => String(userObjects().find(isText)?.text ?? '').trim().slice(0, 60),
+  finish: () => finishPowerClipEdit(), sendAgain: () => sendToStudio(),
+});
+Object.assign(ACTIONS, projects.actions);
 // Right-click menu: order (to front / back), duplicate, curves, lock, delete for the object under the pointer.
 const CTX_ITEMS = [
   ['front', 'To front', 'Shift+PgUp'], ['forward', 'Forward one', 'Ctrl+PgUp'], ['backward', 'Back one', 'Ctrl+PgDn'], ['back', 'To back', 'Shift+PgDn'], null,
@@ -5366,7 +5691,8 @@ wrap.addEventListener('contextmenu', (e) => {
 // its usual action (on an empty part of the page: the page's menu). Tap ⋯ again to cancel. A finger held still on an
 // item (long press) does the same in one go, but on the page only with the Pick tool, and never with a pen or a
 // mouse, so drawing and writing are not interrupted.
-let rightTap = false, swallowClick = false, swallowPointer = null, press = null, pressedAt = 0, pressOpened = null;
+// pressedAt starts long ago: a right-click in the first second after the page opens is not taken for a long press.
+let rightTap = false, swallowClick = false, swallowPointer = null, press = null, pressedAt = -1e9, pressOpened = null;
 /** The nearest element (from `el` up) that has a right-click action. */
 const rightClickable = (el) => { for (let n = el; n && n !== document.body; n = n.parentElement) if (n.oncontextmenu) return n; return null; };
 function rightClickAt(el, x, y) {
@@ -5965,7 +6291,8 @@ addEventListener('keydown', (e) => {
     return;
   }
   if (editing) return;
-  if (k === ' ') { spaceDown = true; canvas.defaultCursor = 'grab'; e.preventDefault(); return; }
+  // Space held: the hand (panning) on the page and over objects alike.
+  if (k === ' ') { spaceDown = true; canvas.defaultCursor = canvas.hoverCursor = 'grab'; canvas.setCursor('grab'); e.preventDefault(); return; }
   if (/^f\d+$/.test(k)) e.preventDefault();
   if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if (mod && k === 'y') { e.preventDefault(); redo(); }
@@ -6010,10 +6337,19 @@ addEventListener('keydown', (e) => {
   else if (!mod && !e.altKey && KEY_ALIGN[k] && canvas.getActiveObjects().length && state.tool === 'select') align(KEY_ALIGN[k]);
   else if (!mod && !e.altKey && KEY_TOOLS[k]) setTool(KEY_TOOLS[k]);
 });
-addEventListener('keyup', (e) => { if (e.key === ' ') { spaceDown = false; canvas.defaultCursor = toolCursor(state.tool); } });
-addEventListener('resize', () => { resize(); });
+addEventListener('keyup', (e) => {
+  if (e.key !== ' ' || !spaceDown) return;
+  spaceDown = false;
+  canvas.defaultCursor = toolCursor(state.tool);
+  canvas.hoverCursor = PICK_LIKE.has(state.tool) ? 'default' : canvas.defaultCursor;
+  canvas.setCursor(canvas.defaultCursor);
+});
+// The window and the page area both say when it changes size: the canvas is sized (and so cleared and drawn again)
+// once, and not at all when its size stayed the same.
+const resizeIfChanged = () => { if (`${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}` !== sizedAt) resize(); };
+addEventListener('resize', resizeIfChanged);
 // The canvas also follows the property bar growing to two rows.
-new ResizeObserver(() => resize()).observe(wrap);
+new ResizeObserver(resizeIfChanged).observe(wrap);
 
 // ===================================================================
 // Host bridge
@@ -6082,7 +6418,7 @@ const needSelection = () => { if (!active().length) throw new Error('Nothing is 
 const EFFECTS = {
   shadow: { label: 'Drop shadow', tool: 'shadow', apply: 'fxShadow', remove: 'fxShadowOff', inputs: { x: 'fxSX', y: 'fxSY', blur: 'fxSBlur', opacity: 'fxSOpacity', colour: 'fxSColour' } },
   inner: { label: 'Inner shadow', tool: 'inner', apply: 'fxInner', remove: 'fxInnerOff', inputs: { x: 'fxIX', y: 'fxIY', blur: 'fxIBlur', opacity: 'fxIOpacity', colour: 'fxIColour', merge: 'fxIMerge' } },
-  contour: { label: 'Contour', tool: 'contour', apply: 'fxContour', remove: 'fxContourOff', inputs: { dir: 'fxCDir', steps: 'fxCSteps', offset: 'fxCOffset', colour: 'fxCColour' } },
+  contour: { label: 'Contour', tool: 'contour', apply: 'fxContour', remove: 'fxContourOff', inputs: { dir: 'fxCDir', steps: 'fxCSteps', offset: 'fxCOffset', colour: 'fxCColour', outline: 'fxCOutline', corners: 'fxCJoin' } },
   blockshadow: { label: 'Block shadow', tool: 'blockshadow', apply: 'fxBlock', remove: 'fxBlockOff', inputs: { x: 'fxBX', y: 'fxBY', colour: 'fxBColour' } },
   extrude: { label: 'Extrude', tool: 'extrude', apply: 'fxExtrude', remove: 'fxExtrudeOff', inputs: { x: 'fxXX', y: 'fxXY', colour: 'fxXColour' } },
   envelope: { label: 'Envelope', tool: 'envelope', apply: 'fxEnvelope', inputs: { preset: 'fxEPreset', amount: 'fxEAmount' } },
@@ -6107,7 +6443,7 @@ function effectsOf(o) {
   if (o.textOutlines?.length) out.push(`name / number outlines ${o.textOutlines.map((x) => `${x.w} mm ${x.c}`).join(' + ')}`);
   if (isText(o) && o.path) out.push(`on a path${o.pathDist ? `, ${o.pathDist} mm from it` : ''}`);
   if (o.varSpec) out.push(`variable outline (${VAR_NAMES[o.varSpec.profile] ?? 'custom'}, ${+o.varSpec.width.toFixed(1)} mm)`);
-  if (/contour/.test(name)) out.push('contour');
+  if (isContourGroup(o)) { const s = contourSpec(o); out.push(`contour ${s.dir === 'centre' ? 'to centre' : s.dir}, ${s.steps} step${s.steps > 1 ? 's' : ''} ${s.offset} mm apart, ${s.join} corners, colour ${s.colour}`); }
   if (/blend group/.test(name)) out.push('blend');
   if (/envelope/.test(name)) out.push('envelope');
   if (/distortion/.test(name)) out.push('distortion');
@@ -6117,7 +6453,7 @@ function effectsOf(o) {
 /** Whether an object already has the effect the assistant was asked to apply. */
 const HAS_EFFECT = {
   shadow: (o) => !!o.shadow, inner: (o) => !!o.fxInner, blockshadow: (o) => o.fxSweep === 'blockshadow', extrude: (o) => o.fxSweep === 'extrude',
-  contour: (o) => /contour/i.test(`${o.name} ${o.toolName}`), envelope: (o) => /envelope/i.test(o.name ?? ''),
+  contour: (o) => isContourGroup(o), envelope: (o) => /envelope/i.test(o.name ?? ''),
   distort: (o) => /distortion/i.test(o.name ?? ''), transparency: (o) => o.opacity < 1 || !!o.gradSpec?.fade, blend: () => false,
 };
 const objLabel = (o) => (textOf(o) ? `text “${textOf(o).slice(0, 30)}”` : o.name || o.toolName || o.type);
@@ -6142,7 +6478,7 @@ const ASSIST = {
     const line = (o) => { const fx = effectsOf(o); return `${o.num != null ? `#${o.num} ` : ''}${objLabel(o)}${where(o)}${fx.length ? ` [${fx.join('; ')}]` : ''}${o.locked ? ' (locked)' : ''}${o.visible ? '' : ' (hidden)'}`; };
     const objs = userObjects(), sel = active();
     const pg = pages.length > 1 ? `Page ${pageIndex + 1} of ${pages.length} is open (${pages.map((p, i) => `${i + 1} “${p.name}”`).join(', ')}). ` : '';
-    return `${pg}Selected: ${sel.length ? sel.map(line).join(' | ') : 'nothing'}. On the page (${objs.length}, top first): ${objs.slice().reverse().slice(0, 15).map(line).join(' | ')}${objs.length > 15 ? ' | …' : ''}. Tool: ${TOOLS[state.tool]?.label ?? state.tool}. Grid ${state.grid ? 'on' : 'off'}, snap ${state.snap ? 'on' : 'off'}. ${toolboxReport()}`;
+    return `${projects.describe()}${pg}Selected: ${sel.length ? sel.map(line).join(' | ') : 'nothing'}. On the page (${objs.length}, top first): ${objs.slice().reverse().slice(0, 15).map(line).join(' | ')}${objs.length > 15 ? ' | …' : ''}. Tool: ${TOOLS[state.tool]?.label ?? state.tool}. Grid ${state.grid ? 'on' : 'off'}, snap ${state.snap ? 'on' : 'off'}. ${toolboxReport()}`;
   },
   grid: (v) => { state.grid = onOff(v); $('gridToggle').checked = state.grid; savePrefs(); canvas.requestRenderAll(); return `Grid ${v}`; },
   snap: (v) => { state.snap = onOff(v); $('snapToggle').checked = state.snap; savePrefs(); return `Snap ${v}`; },
@@ -6532,6 +6868,8 @@ const ASSIST = {
     const WORDS = { right: step, left: -step, down: step, up: -step, none: 0, auto: soft };
     // Changing a shadow keeps the settings that weren't mentioned (blur, opacity, colour …).
     const old = name === 'shadow' && keep.length === 1 ? keep[0].shadow : null;
+    barQuiet++; // filling in the bar: the selection follows when Apply is pressed below (one undo step)
+    try {
     if (!remove && old) {
       const m = /rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)(?:\D+([\d.]+))?/.exec(String(old.color)) ?? [];
       const hex = m[1] ? `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('')}` : null;
@@ -6576,6 +6914,7 @@ const ASSIST = {
         el.dispatchEvent(new Event('change'));
       }
     }
+    } finally { barQuiet--; }
     const button = remove ? fx.remove : fx.apply;
     if (!button) throw new Error(remove ? `${fx.label} can't be removed this way.` : `${fx.label} is added by clicking on the object with its tool.`);
     // The effect reports problems in its own message (for example "Select two objects to blend").
@@ -6651,8 +6990,10 @@ window.artboard = {
     if (m && m.cmd !== 'receive' && typeof window.artboard[m.cmd] === 'function') window.artboard[m.cmd](m.arg);
   },
 };
+// The account (projects.js): host {docs, signedIn, kit, garments, placements}, docsReply {id, ok, data}, openDoc {id}.
+Object.assign(window.artboard, projects.bridge);
 // Automated tests only (?debug): reach the canvas from the browser.
-if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, B, F: { Rect, IText, FabricImage, Group, Path }, geom: { mode: () => (geomWorker ? 'worker' : geomWorker === false ? 'page' : 'not started'), limit: (ms) => { GEOM_LIMIT = ms; }, stop: () => stopGeom(new Error('stopped')) } };
+if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, B, F: { Rect, IText, FabricImage, Group, Path }, geom: { mode: () => (geomWorker ? 'worker' : geomWorker === false ? 'page' : 'not started'), limit: (ms) => { GEOM_LIMIT = ms; }, stop: () => stopGeom(new Error('stopped')) }, projects, handles };
 addEventListener('message', (e) => { if (e.source === window.parent && typeof e.data === 'string') { try { window.artboard.receive(e.data); } catch { /* not for us */ } } });
 
 // ===================================================================
@@ -6671,14 +7012,16 @@ addEventListener('message', (e) => { if (e.source === window.parent && typeof e.
   initContextValues();
   renderToolbox();
   showPageInfo();
-  let saved = null;
-  try { saved = localStorage.getItem(STORE); } catch { /* none */ }
+  // The design kept on this device (projects.js: a big one is in the browser's database).
+  const saved = await loadLocal(STORE, OLD_STORE);
   if (saved) await restore(saved).catch(() => {});
+  projects.started(!!saved);
   compactNums();
   if (!userObjects().length) {
     // A starter so the page isn't blank: editable 3DEEZI-style badge text.
     const t = style(new IText('YOUR TEAM', { left: page.width / 2, top: page.height / 2, originX: 'center', originY: 'center', fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 70 * MM, fill: '#1E7BFF', toolName: 'Text' }));
     canvas.add(t);
+    starter = t;
   }
   history = [snapshot()];
   syncHistory();

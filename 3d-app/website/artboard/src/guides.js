@@ -115,7 +115,9 @@ export function createGuides({ canvas, wrap, rulerH, rulerV, page, objects, canE
   /** Moves a dragged object so an edge or centre meets a guideline or another object. */
   function snapObject(o) {
     targets ??= collect([o, ...(o.type === 'activeselection' ? o.getObjects() : [])]);
-    o.setCoords();  // while dragging, the cached corners lag one step behind
+    // While dragging, the cached corners lag one step behind: its own box worked out again (not every selected
+    // object's corners and handles, which made dragging many objects at once slow; Fabric does those after the move).
+    o.aCoords = o.calcACoords();
     const b = o.getBoundingRect(), t = tol();
     const delta = (mine, lines) => { let best = null; for (const a of mine) for (const l of lines) { const d = l - a; if (Math.abs(d) < t && (best === null || Math.abs(d) < Math.abs(best))) best = d; } return best; };
     const dx = delta([b.left, b.left + b.width / 2, b.left + b.width], targets.xs);

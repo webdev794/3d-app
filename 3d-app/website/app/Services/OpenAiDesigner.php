@@ -28,6 +28,31 @@ class OpenAiDesigner
 
     private const SYSTEM = 'You are the lead designer at 3DEEZI, a custom sportswear studio. Turn client briefs into original, manufacturable kit designs. Never copy real club, league or brand logos. When a brief mentions a cultural style, create an original design inspired by it rather than reproducing sacred motifs.';
 
+    /** Concepts are designed freely; the 3D kit's pattern list is only the nearest editable match. */
+    public const FREE_DESIGN = 'Design each concept freely, like a premium sublimated teamwear brand: renderPrompt describes the whole design '
+        .'(graphics such as lightning, speed lines, sharp angular shards, halftone dot fades, gradients and textures where they suit the theme; '
+        .'where the client\'s logo goes; the back name and number; trims), never a plain template with flat colour blocks. '
+        .'pattern is only the nearest built-in pattern for the editable 3D kit, and patternMotif is the custom print that carries the concept\'s graphics onto the 3D kit.';
+
+    /** Kit colours like a top teamwear brand: from the logo's brand colours, dark and bold when the brief is, readable names and numbers. */
+    public const COLOUR_RULES = 'Colours: take the kit colours only from the dominant brand colours of the client\'s logo or the brief, never from skin tones or tiny logo details. '
+        .'For a cool, bold or aggressive brief with a logo, prefer a dark body (black or deep navy) with the logo\'s main colour as the graphics and white highlights. '
+        .'Back names and numbers are white with an outline in the accent colour, so they stand out from the graphics.';
+
+    /** The art director's brief for the HD mockup (strict JSON). */
+    private const DIRECTION_FIELDS = [
+        'summary' => 'One friendly sentence to the client saying what you will create, e.g. "I\'ll create a BLITZ training singlet in electric blue, black and white, with your logo as the centrepiece and lightning details flowing around the sides."',
+        'ownDesign' => 'true only if an attached image is the client\'s own complete garment design (front and/or back fully designed) that must be kept exactly.',
+        'teamName' => 'The team, club or brand name from the brief or the logo\'s wordmark, exactly as written; empty if none.',
+        'palette' => 'The 3-4 kit colours with names and hex: the dominant brand colours of the client\'s logo or the brief (ignore skin tones and small details), high contrast, e.g. "electric blue #1E5BFF, black #0A0C12, white #FFFFFF".',
+        'theme' => 'The theme and motifs drawn from the logo and brief, e.g. "speed and lightning: the mascot sprinting, jagged lightning edges".',
+        'front' => 'The front design: base colour (dark black or navy for a cool or bold brief with a logo), the main logo large as the centrepiece, and the sublimated graphics around it.',
+        'back' => 'The back design: the team name in bold white athletic lettering over a large white player number (e.g. 01) with an outline in the accent colour, when it suits the garment, plus graphics.',
+        'graphics' => 'The all-over sublimated graphics: shapes, flow across the sides, textures (halftone, gradients, grunge) and colours.',
+        'trims' => 'Collar, armhole or cuff binding, side panels and hem, in the palette.',
+        'presentation' => 'The photo setting: dramatic and dark (night stadium, floodlights, haze in the kit\'s main colour, reflective floor) unless the brief asks for something else.',
+    ];
+
     public static function enabled(): bool
     {
         return filled(config('services.openai.key'));
@@ -54,10 +79,12 @@ class OpenAiDesigner
     public function concepts(string $prompt, string $sport, string $garment, array $references = []): array
     {
         $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$prompt}\n"
-            .'Create exactly 4 clearly different concept directions: 1) bold and aggressive, 2) classic and clean, '
-            .'3) heritage or pattern-led, 4) modern minimal. Keep the team name consistent across all four.';
+            .'Create exactly 4 clearly different concept directions, each designed the way a top custom sublimation sportswear brand would: '
+            .'1) bold and aggressive, with dynamic all-over sublimated graphics drawn from the theme of the client\'s logo or brief, '
+            .'2) classic and clean, 3) heritage or pattern-led, 4) modern minimal. Keep the team name consistent across all four. '
+            .self::FREE_DESIGN.' '.self::COLOUR_RULES;
         if ($references) {
-            $text .= "\nReference images are attached. Take colours, motifs and mood from them.";
+            $text .= "\nReference images are attached. Take the palette, motifs and mood from them (a logo's colours, mascot and lettering style set the theme), and make the client's main logo the chest centrepiece. If one shows the client's own finished garment design, make concept 1 follow it closely (its colours, pattern and lettering).";
         }
         $content = [['type' => 'input_text', 'text' => $text]];
         foreach (array_slice($references, 0, 3) as $reference) {
@@ -88,19 +115,27 @@ class OpenAiDesigner
         }
 
         // Quick low-quality previews, generated in parallel (about 15 s). The
-        // 3DEEZI logo goes in so every mockup carries the real emblem.
+        // client's logos go in first as real image inputs (the chest
+        // centrepiece), then the 3DEEZI logo for the emblem or neck label.
         $logo = file_get_contents(public_path('media/images/logo_full.png'));
+        $clientImages = array_map(fn (string $r) => $this->decodeDataUrl($r), array_slice($references, 0, 3));
         $responses = Http::pool(fn (Pool $pool) => array_map(
-            fn (array $spec) => $this->imageRequest($pool)
-                ->attach('image[]', $logo, '3deezi-logo.png', ['Content-Type' => 'image/png'])
-                ->post(self::BASE.'/images/edits', [
-                    'model' => config('services.openai.image_model'),
-                    'prompt' => "Premium photoreal product render of a {$sport} {$garment}, front view, centred and fully visible, on an invisible mannequin floating on a near-black background with a cyan rim light. Design: {$spec['renderPrompt']} The chest wordmark reads exactly \"{$spec['logoText']}\". The attached image is the 3DEEZI logo: use its emblem as the chest crest. No other logos or text.",
-                    'size' => '1024x1024',
-                    'quality' => 'low',
-                    'output_format' => 'jpeg',
-                    'output_compression' => '82',
-                ]),
+            function (array $spec) use ($pool, $logo, $clientImages, $sport, $garment) {
+                $request = $this->imageRequest($pool);
+                foreach ($clientImages as $i => [$mime, $bytes]) {
+                    $request = $request->attach('image[]', $bytes, "reference-{$i}.".explode('/', $mime)[1], ['Content-Type' => $mime]);
+                }
+
+                return $request->attach('image[]', $logo, '3deezi-logo.png', ['Content-Type' => 'image/png'])
+                    ->post(self::BASE.'/images/edits', [
+                        'model' => config('services.openai.image_model'),
+                        'prompt' => self::conceptPreviewPrompt($sport, $garment, $spec['renderPrompt'], $spec['logoText'], count($clientImages)),
+                        'size' => '1024x1024',
+                        'quality' => 'low',
+                        'output_format' => 'jpeg',
+                        'output_compression' => '82',
+                    ]);
+            },
             $specs,
         ));
 
@@ -189,40 +224,285 @@ class OpenAiDesigner
      */
     public function mockup(string $brief, string $sport, string $garment, array $references = []): string
     {
+        return $this->renderMockup($this->mockupPlan($brief, $sport, $garment, $references)['prompt'], $references);
+    }
+
+    /**
+     * The art direction (a short creative brief from the chat model, which
+     * sees the client's logos) and the image prompt built from it, the way
+     * ChatGPT plans before it draws. Without a direction (the chat model
+     * failed or timed out) the prompt still carries the full design rules.
+     *
+     * @param  array<int, string>  $references  data URLs (logos, sketches, photos)
+     * @return array{direction: ?array<string, mixed>, prompt: string}
+     */
+    public function mockupPlan(string $brief, string $sport, string $garment, array $references = []): array
+    {
         $references = array_slice($references, 0, 4);
+        $direction = $this->artDirection($brief, $sport, $garment, $references);
+
+        return ['direction' => $direction, 'prompt' => self::mockupPrompt($brief, $sport, $garment, count($references), $direction)];
+    }
+
+    /** @return ?array<string, mixed> */
+    public function artDirection(string $brief, string $sport, string $garment, array $references = []): ?array
+    {
         $count = count($references);
-        $prompt = "You are a world-class sportswear designer making a client presentation mockup.\n"
-            ."Sport: {$sport}. Garment: {$garment}.\nClient brief: {$brief}\n\n"
-            .'Unless the brief asks for a different layout, make one landscape presentation sheet: the garment shown flat-front on the left and from the back in the centre, '
-            .'on invisible ghost mannequins against a soft light-grey seamless studio background with gentle shadows, plus a column of 4 square close-up detail panels on the right '
-            .'(for example collar, raised logo, crest and fabric) each with a short uppercase caption underneath. '
-            .'Photorealistic commercial product photography: real fabric with fine knit texture, natural folds, flatlock stitching, ribbed trims, crisp printed and raised logos. '
-            .'All text must be spelled exactly as written in the brief. ';
+        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n"
+            .($count ? "{$count} image(s) from the client are attached: logos, references or their own finished design.\n" : "No images are attached.\n")
+            .'You are the art director of a top custom sublimation sportswear brand. Before the designer renders one hero mockup, write its creative direction. '
+            .'Take the palette and theme from the client\'s logo (its colours, mascot, lettering style and motifs such as lightning, flames, claws or waves) or from the brief. '
+            .'Design bold, fully sublimated graphics derived from that theme, flowing across the front, sides and back, never a plain template with flat colour blocks. '
+            .'The client\'s main logo goes large as the front centrepiece; the back carries the team name over a big number when it suits the garment. '
+            .'Follow everything the brief specifies (colours, layout, background, text). If an attached image is the client\'s own complete garment design, set ownDesign to true and describe that design exactly instead of inventing one. '
+            .self::COLOUR_RULES.' '
+            .'Never use real club, league or brand logos other than the client\'s own.';
+        $content = [['type' => 'input_text', 'text' => $text]];
+        foreach ($references as $reference) {
+            $content[] = ['type' => 'input_image', 'image_url' => $reference];
+        }
+        $properties = [];
+        foreach (self::DIRECTION_FIELDS as $field => $description) {
+            $properties[$field] = ['type' => $field === 'ownDesign' ? 'boolean' : 'string', 'description' => $description];
+        }
+        try {
+            $json = $this->post('/responses', [
+                'model' => config('services.openai.text_model'),
+                'input' => [['role' => 'system', 'content' => self::SYSTEM], ['role' => 'user', 'content' => $content]],
+                'text' => ['format' => ['type' => 'json_schema', 'name' => 'art_direction', 'strict' => true, 'schema' => [
+                    'type' => 'object', 'additionalProperties' => false,
+                    'required' => array_keys(self::DIRECTION_FIELDS), 'properties' => $properties,
+                ]]],
+            ], 90);
+            $direction = json_decode($this->outputText($json), true);
+        } catch (RuntimeException) {
+            return null; // The mockup still renders from the brief and the design rules.
+        }
+
+        return is_array($direction) && filled($direction['front'] ?? null) ? $direction : null;
+    }
+
+    /**
+     * The HD mockup prompt: a bold sublimated design from the logo's theme,
+     * the logo as the front centrepiece, name and number on the back,
+     * front and back side by side in a dramatic dark setting (unless the
+     * brief asks otherwise); a client's own complete design is kept exactly.
+     *
+     * @param  ?array<string, mixed>  $direction  from artDirection()
+     */
+    public static function mockupPrompt(string $brief, string $sport, string $garment, int $count, ?array $direction = null): string
+    {
+        $prompt = "You are the lead designer of a top custom sublimation sportswear brand, making a client presentation mockup.\n"
+            ."Sport: {$sport}. Garment: {$garment}.\nClient brief: {$brief}\n\n";
+        if ($direction) {
+            $prompt .= "Creative direction (follow it; the brief wins if they differ):\n";
+            foreach (['theme' => 'Theme', 'palette' => 'Palette', 'front' => 'Front', 'back' => 'Back', 'graphics' => 'Graphics', 'trims' => 'Trims', 'presentation' => 'Presentation'] as $key => $label) {
+                if (filled($direction[$key] ?? null)) {
+                    $prompt .= "- {$label}: ".trim((string) $direction[$key])."\n";
+                }
+            }
+            $prompt .= "\n";
+        }
+        $prompt .= 'Design: unless the client attached their own complete garment design, design the garment freely like a premium sublimated teamwear brand: '
+            .'a bold, fully sublimated all-over design with dynamic graphics drawn from the theme and colours of the client\'s logo or brief '
+            .'(for example lightning, speed lines, sharp angular shards, halftone dot fades, gradients and textures) flowing across the front, sides and back. '
+            .'Never a plain template with flat colour blocks or simple side panels. '
+            .'The client\'s main logo is the large centrepiece on the front, reproduced faithfully (the same artwork, colours and lettering). '
+            .self::COLOUR_RULES.' '
+            .'The back carries the team name in bold athletic lettering over a large player number (for example 01) when it suits the garment, with matching trims on the collar, armholes or cuffs and hem.'."\n"
+            .'Presentation: unless the brief asks for a different layout, angle or background, make one landscape image of premium commercial product photography: '
+            .'the front view on the left and the back view on the right, side by side, both complete, fully visible and not overlapping, on invisible ghost mannequins, '
+            .'in a dramatic dark setting: a night stadium with floodlights, haze tinted in the kit\'s main colour, a glossy reflective floor and rim lighting. '
+            .'Photorealistic fabric: fine knit and mesh texture, natural folds, flatlock stitching, a crisp vivid sublimated print. '
+            .'All text must be spelled exactly as written in the brief or the logo. ';
         $prompt .= $count
-            ? "The first {$count} attached image(s) are the client's logos or references: reproduce any logos faithfully and place them where the brief says (or in sensible positions). "
-                .'The last attached image is the 3DEEZI logo: use it only for the small neck label, unless the brief asks for 3DEEZI branding.'
+            ? "The first {$count} attached image(s) come from the client: logos, references, or the client's own finished garment design (flat artwork, a sketch, a snapshot or a photo). "
+                .'If one of them shows a complete garment design, make the garment exactly that design: the same colours, pattern, panels, collar, trims, logos, text and numbers, front and back as shown; '
+                .'do not redesign or simplify it, just turn it into a real 3D garment presented as the brief asks. '
+                .'Reproduce any logos faithfully and place them where the brief says, where the design shows them, or in sensible positions (the main logo large on the front). '
+                .'The last attached image is the 3DEEZI logo: use it only for the small neck label, unless the brief asks for 3DEEZI branding; leave it out when the client\'s design carries its own brand.'
             : 'The attached image is the 3DEEZI logo (emblem and wordmark). '
                 .'If the brief gives any wordmark, team, club or brand name, use exactly that text where the brief says and do NOT put 3DEEZI on the chest; then use the 3DEEZI emblem only on the small neck label. '
                 .'Only if the brief names no wordmark or brand at all, put the 3DEEZI wordmark across the chest and the 3DEEZI emblem as the crest, exactly as in the logo.';
-        $prompt .= ' No watermarks, no extra brands.';
 
-        $request = $this->client()->timeout(300);
-        foreach ($references as $i => $reference) {
-            [$mime, $bytes] = $this->decodeDataUrl($reference);
-            $request = $request->attach('image[]', $bytes, "reference-{$i}.".explode('/', $mime)[1], ['Content-Type' => $mime]);
-        }
-        $request = $request->attach('image[]', file_get_contents(public_path('media/images/logo_full.png')), '3deezi-logo.png', ['Content-Type' => 'image/png']);
+        return $prompt.' No watermarks, no extra brands.';
+    }
 
-        $response = $this->send(fn () => $request->post(self::BASE.'/images/edits', [
-            'model' => config('services.openai.image_model'),
-            'prompt' => $prompt,
+    /** Renders a mockup prompt with the client's images and the 3DEEZI logo as real image inputs. Returns raw JPEG bytes. */
+    public function renderMockup(string $prompt, array $references = []): string
+    {
+        $references = array_slice($references, 0, 4);
+        $images = array_map(fn (string $r) => $this->decodeDataUrl($r), $references);
+        $images[] = ['image/png', file_get_contents(public_path('media/images/logo_full.png'))];
+
+        return $this->highFidelityEdit($prompt, $images, [
             'size' => '1536x1024',
             'quality' => 'high',
             'output_format' => 'jpeg',
             'output_compression' => '90',
-        ]));
+        ]);
+    }
+
+    /**
+     * "Make it 3D": the same design redrawn as a flat print sheet (front and
+     * back side by side on plain white, like a factory drawing), ready for
+     * the Studio's "My design picture", which maps it onto the 3D kit.
+     * The client's logos go in after the mockup so they stay faithful.
+     * Returns raw JPEG bytes.
+     *
+     * @param  array<int, string>  $references  data URLs of the client's logos
+     */
+    public function printSheet(string $mockup, string $sport, string $garment, array $references = []): string
+    {
+        $images = [$this->decodeDataUrl($mockup)];
+        foreach (array_slice($references, 0, 3) as $reference) {
+            $images[] = $this->decodeDataUrl($reference);
+        }
+
+        return $this->highFidelityEdit(self::printSheetPrompt($sport, $garment, count($images) - 1), $images, [
+            'size' => '1536x1024',
+            'quality' => 'high',
+            'output_format' => 'jpeg',
+            'output_compression' => '95',
+        ]);
+    }
+
+    public static function printSheetPrompt(string $sport, string $garment, int $logos = 0): string
+    {
+        return "The first attached image shows a {$sport} {$garment} design. Redraw exactly the same design as a flat print artwork sheet for the factory: "
+            .'the garment\'s front on the left and its back on the right, side by side, both complete and the same size, drawn flat and straight-on like a technical flat drawing, '
+            .'on a plain pure white background with clear white space around and between them. '
+            .'No mannequin, no person, no folds, no perspective, no lighting effects, no shadows, no scene. '
+            .'Keep the design exactly: the same colours, graphics, gradients, lettering, logos, numbers and trims, in the same places and proportions, and the same garment shape (neck, armholes or sleeves, hem). '
+            .($logos ? "The other {$logos} attached image(s) are the client's logos: reproduce them faithfully where the design shows them. " : '')
+            .'No labels, captions, measurements, hangers, neck labels or extra text.';
+    }
+
+    /**
+     * An image edit that asks the model to keep the first input image (the
+     * client's logo or design) at high fidelity. Models that do not take
+     * input_fidelity get the same request without it.
+     *
+     * @param  array<int, array{0: string, 1: string}>  $images  mime and bytes
+     */
+    private function highFidelityEdit(string $prompt, array $images, array $fields): string
+    {
+        $post = function (bool $fidelity) use ($prompt, $images, $fields) {
+            $request = $this->client()->timeout(300);
+            foreach ($images as $i => [$mime, $bytes]) {
+                $request = $request->attach('image[]', $bytes, "image-{$i}.".explode('/', $mime)[1], ['Content-Type' => $mime]);
+            }
+
+            return $this->send(fn () => $request->post(self::BASE.'/images/edits', [
+                'model' => config('services.openai.image_model'),
+                'prompt' => $prompt,
+                ...$fields,
+                ...($fidelity ? ['input_fidelity' => 'high'] : []),
+            ]));
+        };
+        try {
+            $response = $post(true);
+        } catch (RuntimeException $e) {
+            if (! str_contains($e->getMessage(), 'input_fidelity')) {
+                throw $e;
+            }
+            $response = $post(false);
+        }
 
         return base64_decode($this->firstImage($response->json()), true) ?: throw new RuntimeException('The AI returned an unreadable image.');
+    }
+
+    /** The quick concept preview: the concept's free design, the client's logo as the chest centrepiece. */
+    public static function conceptPreviewPrompt(string $sport, string $garment, string $design, string $logoText, int $clientImages): string
+    {
+        return "Premium photoreal product render of a {$sport} {$garment}, front view, centred and fully visible, on an invisible ghost mannequin "
+            .'against a dramatic dark background with soft floodlight haze and a rim light in the kit\'s colours. '
+            ."Design: {$design} A bold, fully sublimated print, never a plain template. "
+            .($clientImages
+                ? "The first {$clientImages} attached image(s) come from the client: reproduce the client's main logo faithfully as the large chest centrepiece "
+                    ."(if one shows the client's own complete garment design, follow it). Any chest wordmark reads exactly \"{$logoText}\". "
+                    .'The last attached image is the 3DEEZI logo: use its emblem only on the small neck label. '
+                : "The chest wordmark reads exactly \"{$logoText}\". The attached image is the 3DEEZI logo: use its emblem as the chest crest. ")
+            .'No other logos or text.';
+    }
+
+    /** Output sizes the image model can make. */
+    public const EDIT_SIZES = ['auto', '1024x1024', '1536x1024', '1024x1536'];
+
+    /**
+     * The image editor's "Describe edits", like ChatGPT's image editor: the
+     * picture changed only where and as the client asks. A mask (transparent
+     * where the AI may change the picture), a copy of the picture with the
+     * client's marks and numbered notes show where. A PNG picture comes back
+     * as a PNG (it may be see-through), any other as a JPEG.
+     *
+     * @param  array<int, array{text: string, x: float|int|string, y: float|int|string}>  $notes  x and y from 0 to 1
+     * @return array{0: string, 1: string} mime type and raw bytes
+     */
+    public function editImage(string $image, string $instruction, ?string $mask = null, ?string $marked = null, array $notes = [], ?string $size = null): array
+    {
+        [$mime, $bytes] = $this->decodeDataUrl($image);
+        $dimensions = @getimagesizefromstring($bytes) ?: [1024, 1024];
+        $ratio = $dimensions[0] / max(1, $dimensions[1]);
+        $size = in_array($size, self::EDIT_SIZES, true) ? $size
+            : ($ratio > 1.2 ? '1536x1024' : ($ratio < 0.83 ? '1024x1536' : '1024x1024'));
+        $png = $mime === 'image/png';
+
+        $prompt = 'Edit this picture exactly as the client asks. Change only what the client asks for and keep everything else the same: '
+            .'the garment design, colours, panels, logos, lettering and numbers, the camera angle, the lighting and the background, unless the client asks to change them. '
+            .'Spell any text exactly as written.';
+        if ($mask) {
+            $prompt .= ' The mask shows the area to change (its transparent part): fill and change that area as asked, and leave the rest of the picture as it is.';
+        }
+        if ($marked) {
+            $prompt .= ' The second image is a copy of the picture with the client\'s marks on it: red brush strokes and circles show where to change, and numbered pins show where each note applies. '
+                .'Use it only to find those places. Never draw the marks, pins or numbers in the result.';
+        }
+        if ($notes) {
+            $prompt .= "\nThe client's notes on the picture:";
+            foreach (array_values($notes) as $i => $note) {
+                $prompt .= "\n".($i + 1).' ('.$this->place((float) $note['x'], (float) $note['y']).'): '.trim($note['text']);
+            }
+        }
+        if (filled($instruction)) {
+            $prompt .= "\nClient request: ".trim($instruction);
+        }
+        $prompt .= "\nPhotoreal where the picture is photoreal. No watermarks, no extra logos, no UI.";
+
+        $request = $this->client()->timeout(300)
+            ->attach('image[]', $bytes, 'picture.'.explode('/', $mime)[1], ['Content-Type' => $mime]);
+        if ($marked) {
+            [$markedMime, $markedBytes] = $this->decodeDataUrl($marked);
+            $request = $request->attach('image[]', $markedBytes, 'marks.'.explode('/', $markedMime)[1], ['Content-Type' => $markedMime]);
+        }
+        if ($mask) {
+            $request = $request->attach('mask', $this->decodeDataUrl($mask)[1], 'mask.png', ['Content-Type' => 'image/png']);
+        }
+
+        $response = $this->send(fn () => $request->post(self::BASE.'/images/edits', [
+            'model' => config('services.openai.image_model'),
+            'prompt' => $prompt,
+            'size' => $size,
+            // HD pictures (mockups, showcases) stay HD; smaller ones are edited faster.
+            'quality' => max($dimensions[0], $dimensions[1]) >= 1400 ? 'high' : 'medium',
+            'output_format' => $png ? 'png' : 'jpeg',
+            ...($png ? [] : ['output_compression' => '90']),
+        ]));
+
+        return [
+            $png ? 'image/png' : 'image/jpeg',
+            base64_decode($this->firstImage($response->json()), true) ?: throw new RuntimeException('The AI returned an unreadable image.'),
+        ];
+    }
+
+    /** Where a note sits on the picture, in words the image model follows. */
+    private function place(float $x, float $y): string
+    {
+        $row = $y < 0.34 ? 'top' : ($y > 0.66 ? 'bottom' : '');
+        $column = $x < 0.34 ? 'left' : ($x > 0.66 ? 'right' : '');
+
+        return sprintf('%s, %d%% from the left and %d%% from the top',
+            trim("{$row} {$column}") ?: 'centre', round($x * 100), round($y * 100));
     }
 
     /**
@@ -362,8 +642,8 @@ class OpenAiDesigner
                 'accentColor' => $string('Hex for the wordmark and numbers; must contrast mainColor.'),
                 'pattern' => ['type' => 'string', 'enum' => self::PATTERNS],
                 'logoText' => $string('Chest wordmark, max 12 characters. Use the team or brand name from the brief; if the brief names none, use 3DEEZI.'),
-                'renderPrompt' => $string('Detailed visual description of the garment design for an image model: colours, panels, pattern, trims, collar, wordmark text and placement. Garment only.'),
-                'patternMotif' => $string('The repeating print motif as a black-and-white pattern description, max 25 words. No colours.'),
+                'renderPrompt' => $string('Detailed visual description of the whole fully sublimated garment design for an image model: colours, graphics and how they flow across front, sides and back, textures, trims, collar, where the client logo and wordmark go, the back name and number. Free design, not limited to the pattern list. Garment only.'),
+                'patternMotif' => $string('The concept signature print as a black-and-white pattern description for the 3D kit, max 25 words, e.g. "jagged lightning bolts and speed streaks with halftone dot fades". No colours.'),
             ],
         ];
     }
@@ -415,10 +695,10 @@ class OpenAiDesigner
         return $pool->withToken((string) config('services.openai.key'))->timeout(180)->acceptJson();
     }
 
-    private function post(string $path, array $body): array
+    private function post(string $path, array $body, int $timeout = 180): array
     {
         // An empty or non-JSON answer is a failed request too (callers fall back or show a message).
-        return $this->send(fn () => $this->client()->post(self::BASE.$path, $body))->json()
+        return $this->send(fn () => $this->client()->timeout($timeout)->post(self::BASE.$path, $body))->json()
             ?? throw new RuntimeException('The AI service sent an unexpected reply. Please try again.');
     }
 

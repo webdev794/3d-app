@@ -3,8 +3,12 @@ import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/site_page_stub.dart'
+    if (dart.library.js_interop) '../widgets/site_page_web.dart'
+    if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/ui.dart';
 import 'business.dart';
+import 'image_editor.dart';
 import 'onboarding.dart' show editServer;
 
 class _Tabs extends StatelessWidget {
@@ -388,6 +392,11 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 title: const Text('Use as AI reference'),
                 onTap: () => Navigator.pop(sheet, 'reference'),
               ),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit image'),
+                onTap: () => Navigator.pop(sheet, 'edit'),
+              ),
             ],
           ),
         ),
@@ -405,6 +414,21 @@ class _AssetsScreenState extends State<AssetsScreen> {
       case 'reference':
         c.startAi();
         c.update(() => c.references.add(data));
+      case 'edit':
+        // The image editor; Save keeps the chosen version as a new picture.
+        if (!mounted) return;
+        final tab = _tab, list = _items;
+        final edited = await openImageEditor(
+          context,
+          c,
+          bytes: data,
+          title: tab,
+          fileName: '3deezi-${tab.toLowerCase()}',
+          useLabel: 'Save',
+        );
+        if (edited == null || !mounted) return;
+        setState(() => list.add(edited));
+        showToast(context, 'Saved as a new picture in $tab.');
     }
   }
 
@@ -616,6 +640,19 @@ class ProfileScreen extends StatelessWidget {
               'Plans & pricing',
               () => c.go(AppScreen.pricing),
             ),
+            const SizedBox(height: 22),
+            // The website's footer pages, opened signed in (same as the site's footer links).
+            for (final (icon, label, path) in const [
+              (Icons.info_outline, 'About', '/about'),
+              (Icons.support_agent_outlined, 'Support', '/support'),
+              (Icons.privacy_tip_outlined, 'Privacy', '/privacy'),
+              (Icons.description_outlined, 'Terms', '/terms'),
+            ])
+              _row(
+                icon,
+                label,
+                () => openSitePage(context, c.api.sitePage(path), label),
+              ),
             const SizedBox(height: 22),
             _row(
               Icons.dns_outlined,

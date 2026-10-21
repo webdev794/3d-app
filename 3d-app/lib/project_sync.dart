@@ -57,9 +57,12 @@ class ProjectSync {
         'layers': copyLayers(k.layers),
         'zones': copyZones(k.zones),
         'gradient': copyGradient(k.gradient),
+        // Only when set: servers older than 2026-10-21 refuse the field.
+        if (k.gradients != null) 'gradients': copyGradient(k.gradients),
         // Only when something was moved: servers older than 2026-10-19
         // refuse the field.
         if (k.marks.isNotEmpty) 'marks': copyMarks(k.marks),
+        if (k.layout != null) 'layout': copyLayout(k.layout),
         if (p.brief.isNotEmpty) 'prompt': _clip(p.brief, 1500),
         'renderFront': dataUrl(p.renderFront),
         'renderBack': dataUrl(p.renderBack),
@@ -124,7 +127,9 @@ class ProjectSync {
         layers: copyLayers(d['layers']),
         zones: copyZones(d['zones']),
         gradient: copyGradient(d['gradient']),
+        gradients: copyGradient(d['gradients']),
         marks: copyMarks(d['marks']),
+        layout: copyLayout(d['layout']),
       ),
     );
   }

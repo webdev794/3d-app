@@ -6,11 +6,13 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../ai_service.dart';
+import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
 import '../export_service.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
+import 'image_editor.dart';
 
 const _sampleBriefs = [
   'Create a black and cyan rugby league jersey with Maori inspired patterns.',
@@ -86,6 +88,22 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
         c.uploads.add(bytes);
       });
     }
+  }
+
+  /// A picture pasted into the brief (from the keyboard's clipboard): a logo,
+  /// a reference or a finished design to turn into 3D.
+  void _insertPicture(KeyboardInsertedContent content) {
+    final bytes = content.data;
+    if (bytes == null || bytes.isEmpty) return;
+    if (c.references.length >= 3) {
+      showToast(context, 'Up to 3 reference images. Remove one first.');
+      return;
+    }
+    c.update(() {
+      c.references.add(bytes);
+      c.uploads.add(bytes);
+    });
+    showToast(context, 'Picture added to your references.');
   }
 
   Future<void> _pickSample() async {
@@ -309,7 +327,7 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             subtitle: const Text(
-              'Photoreal front, back and details, like ChatGPT',
+              'Bold design from your logo, front and back, like ChatGPT',
               style: TextStyle(fontSize: 11, color: Palette.muted),
             ),
           ),
@@ -335,6 +353,16 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                   maxLines: 4,
                   enabled: !_busy,
                   textCapitalization: TextCapitalization.sentences,
+                  // Pictures pasted from the keyboard's clipboard join the
+                  // references, as with the add button.
+                  contentInsertionConfiguration: ContentInsertionConfiguration(
+                    allowedMimeTypes: const [
+                      'image/png',
+                      'image/jpeg',
+                      'image/webp',
+                    ],
+                    onContentInserted: _insertPicture,
+                  ),
                   style: const TextStyle(fontSize: 13),
                   decoration: const InputDecoration(
                     hintText: 'Ask 3DEEZI anything…',
@@ -649,6 +677,73 @@ class _AiGeneratingScreenState extends State<AiGeneratingScreen>
   }
 }
 
+/// The attached reference pictures, each with "Put my design on the 3D kit": the Studio opens and the picture goes
+/// on the kit as drawn (AppController.importDesignPicture).
+class _ReferencesToKit extends StatelessWidget {
+  const _ReferencesToKit(this.c);
+  final AppController c;
+
+  static String _name(Uint8List b, int i) {
+    final ext = b.length > 3 && b[0] == 0x89 && b[1] == 0x50
+        ? 'png'
+        : b.length > 11 && b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50
+        ? 'webp'
+        : 'jpg';
+    return 'design-picture-${i + 1}.$ext';
+  }
+
+  Future<void> _toKit(BuildContext context, int i) async {
+    final messenger = ScaffoldMessenger.of(context);
+    void say(String text) => messenger.showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating, backgroundColor: Palette.surface2));
+    if (!c.signedIn) {
+      say('Sign in to put your design on the 3D kit: the picture is kept with your saved assets.');
+      c.go(AppScreen.auth);
+      return;
+    }
+    final bytes = c.references[i];
+    c.go(AppScreen.studio);
+    // The Studio's 3D kit starts first.
+    for (var t = 0; t < 100 && c.checkLayout == null; t++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    try {
+      final done = await c.importDesignPicture(_name(bytes, i), bytes);
+      if (done != null) say(done);
+    } on Object catch (e) {
+      say(e is ApiException ? e.message : 'That picture could not go on the 3D kit.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Your pictures', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        for (final (i, bytes) in c.references.indexed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                SizedBox(width: 56, height: 56, child: ClipRRect(borderRadius: BorderRadius.circular(8), child: artImage(bytes: bytes))),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _toKit(context, i),
+                    icon: const Icon(Icons.view_in_ar_outlined, size: 18),
+                    label: const Text('Put my design on the 3D kit'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
 /// 7 · Choose one of the four AI concepts.
 class ConceptsScreen extends StatelessWidget {
   const ConceptsScreen(this.c, {super.key});
@@ -666,6 +761,22 @@ class ConceptsScreen extends StatelessWidget {
         if (identical(c.spec, spec)) c.update(() => c.patternTile = tile);
       }, onError: (_) {});
     }
+  }
+
+  /// The image editor on a concept's picture; Use replaces the picture.
+  Future<void> _edit(BuildContext context, int index) async {
+    final concept = c.concepts[index];
+    final edited = await openImageEditor(
+      context,
+      c,
+      bytes: concept.image,
+      asset: concept.asset,
+      title: 'Concept ${index + 1} · ${concept.spec.designName}',
+      fileName: '3deezi-concept-${index + 1}',
+    );
+    if (edited == null) return;
+    c.update(() => concept.image = edited);
+    if (context.mounted) showToast(context, 'Concept picture updated.');
   }
 
   @override
@@ -693,6 +804,9 @@ class ConceptsScreen extends StatelessWidget {
                   c.mockupImage != null ||
                   c.mockupError != null)
                 SliverToBoxAdapter(child: _MockupCard(c)),
+              // Each attached reference picture can go straight onto the 3D kit, as on the website.
+              if (c.references.isNotEmpty)
+                SliverToBoxAdapter(child: _ReferencesToKit(c)),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 sliver: SliverGrid.builder(
@@ -760,6 +874,14 @@ class ConceptsScreen extends StatelessWidget {
                                 size: 22,
                               ),
                             ),
+                          if (concept.image != null || concept.asset != null)
+                            Positioned(
+                              top: 6,
+                              left: 6,
+                              child: EditImageChip(
+                                onTap: () => _edit(context, i),
+                              ),
+                            ),
                         ],
                       ),
                     );
@@ -801,6 +923,49 @@ class ConceptsScreen extends StatelessWidget {
 class _MockupCard extends StatelessWidget {
   const _MockupCard(this.c);
   final AppController c;
+
+  /// "Make it 3D": the mockup drawn flat (front and back) by the same AI,
+  /// then on the 3D kit through the design-picture check, in one tap.
+  Future<void> _makeIt3d(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    void say(String text) => messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Palette.surface2,
+      ),
+    );
+    if (!c.signedIn) {
+      say(
+        'Sign in to make it 3D: the print sheet is kept with your saved '
+        'assets.',
+      );
+      c.go(AppScreen.auth);
+      return;
+    }
+    final Uint8List sheet;
+    try {
+      sheet = await c.mockupPrintSheet();
+    } on AiException catch (e) {
+      say('Make it 3D: ${e.message}');
+      return;
+    }
+    c.go(AppScreen.studio);
+    // The Studio's 3D kit starts first.
+    for (var t = 0; t < 100 && c.checkLayout == null; t++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    try {
+      final done = await c.importDesignPicture('ai-print-sheet.jpg', sheet);
+      if (done != null) say(done);
+    } on Object catch (e) {
+      say(
+        e is ApiException
+            ? e.message
+            : 'The print sheet could not go on the 3D kit.',
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -884,6 +1049,31 @@ class _MockupCard extends StatelessWidget {
                   if (image != null)
                     TextButton.icon(
                       onPressed: () async {
+                        final edited = await openImageEditor(
+                          context,
+                          c,
+                          bytes: image,
+                          title: 'HD mockup',
+                          fileName: '3deezi-mockup',
+                        );
+                        if (edited == null) return;
+                        c.update(() {
+                          c.mockupImage = edited;
+                          c.artwork.add(edited);
+                        });
+                        if (context.mounted) {
+                          showToast(
+                            context,
+                            'Mockup updated · also saved in Assets › Artwork.',
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.edit_outlined, size: 17),
+                      label: const Text('Edit'),
+                    ),
+                  if (image != null)
+                    TextButton.icon(
+                      onPressed: () async {
                         final box = context.findRenderObject() as RenderBox?;
                         final message = await shareImage(
                           image,
@@ -900,6 +1090,33 @@ class _MockupCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (c.mockupDirection != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: Text(
+                  c.mockupDirection!,
+                  style: const TextStyle(fontSize: 12.5, height: 1.35),
+                ),
+              ),
+            if (image != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: FilledButton.icon(
+                  onPressed: c.sheetBusy ? null : () => _makeIt3d(context),
+                  icon: c.sheetBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.view_in_ar_outlined, size: 18),
+                  label: Text(
+                    c.sheetBusy
+                        ? 'Drawing the print sheet… about a minute'
+                        : 'MAKE IT 3D',
+                  ),
+                ),
+              ),
           ],
         ),
       ),

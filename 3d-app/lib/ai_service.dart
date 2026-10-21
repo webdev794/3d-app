@@ -214,16 +214,19 @@ class AiService {
       'patternMotif': {
         'type': 'string',
         'description':
-            'The repeating print motif for the kit, as a black-and-white '
-            'pattern description, max 25 words, e.g. "sharp interlocking '
-            'chevrons with small triangles". No colours.',
+            'The concept signature print for the 3D kit, as a black-and-white '
+            'pattern description, max 25 words, e.g. "jagged lightning bolts '
+            'and speed streaks with halftone dot fades". No colours.',
       },
       'renderPrompt': {
         'type': 'string',
         'description':
-            'Detailed visual description of the garment design for an image '
-            'model: colours, panels, pattern, trims, collar, wordmark text '
-            'and placement. Garment only; no background or camera details.',
+            'Detailed visual description of the whole fully sublimated '
+            'garment design for an image model: colours, graphics and how '
+            'they flow across front, sides and back, textures, trims, collar, '
+            'where the client logo and wordmark go, the back name and number. '
+            'Free design, not limited to the pattern list. Garment only; no '
+            'background or camera details.',
       },
     },
   };
@@ -247,7 +250,9 @@ class AiService {
     if (refs.isNotEmpty) {
       text.writeln(
         'Reference images are attached. Take colours, motifs and mood from '
-        'them, adapted to the garment.',
+        'them, adapted to the garment. If one shows the client\'s own finished '
+        'garment design, make concept 1 follow it closely (its colours, '
+        'pattern and lettering).',
       );
     }
     if (current != null && change != null) {
@@ -293,9 +298,12 @@ class AiService {
       ..writeln('Client brief: ${brief.trim().isEmpty ? '(none)' : brief}')
       ..writeln(
         'Create exactly 4 clearly different concept directions for this '
-        'kit: 1) bold and aggressive, 2) classic and clean, 3) heritage or '
-        'pattern-led, 4) modern minimal. Keep the team name, sport and '
-        'garment consistent across all four.',
+        'kit, each designed the way a top custom sublimation sportswear brand '
+        'would: 1) bold and aggressive, with dynamic all-over sublimated '
+        'graphics drawn from the theme of the client\'s logo or brief, 2) '
+        'classic and clean, 3) heritage or pattern-led, 4) modern minimal. '
+        'Keep the team name, sport and garment consistent across all four. '
+        '$freeDesign $colourRules',
       );
     if (references.isNotEmpty) {
       text.writeln(switch (mode) {
@@ -305,8 +313,10 @@ class AiService {
           'Reference images are attached. Keep their layout but change the '
               'colours and details as the brief says.',
         _ =>
-          'Reference images are attached. Take colours, motifs and mood from '
-              'them.',
+          'Reference images are attached. Take the palette, motifs and mood '
+              'from them (a logo\'s colours, mascot and lettering style set '
+              'the theme), and make the client\'s main logo the chest '
+              'centrepiece.',
       });
     }
     final json = await _post('/responses', {
@@ -375,27 +385,53 @@ class AiService {
     return _outputText(json).trim().replaceAll('"', '');
   }
 
-  /// A quick square concept render (about 12 s at low quality).
+  /// Concepts are designed freely; the 3D kit's pattern list is only the
+  /// nearest editable match (the same words as the website).
+  static const freeDesign =
+      'Design each concept freely, like a premium sublimated teamwear brand: '
+      'renderPrompt describes the whole design (graphics such as lightning, '
+      'speed lines, sharp angular shards, halftone dot fades, gradients and '
+      'textures where they suit the theme; where the client\'s logo goes; the '
+      'back name and number; trims), never a plain template with flat colour '
+      'blocks. pattern is only the nearest built-in pattern for the editable '
+      '3D kit, and patternMotif is the custom print that carries the '
+      'concept\'s graphics onto the 3D kit.';
+
+  /// The quick concept preview prompt: the concept's free design, the
+  /// client's logo as the chest centrepiece.
+  static String conceptPreviewPrompt(
+    String sport,
+    String garment,
+    String design,
+    String logoText,
+    int clientImages,
+  ) =>
+      'Premium photoreal product render of a $sport $garment, front view, '
+      'centred and fully visible, on an invisible ghost mannequin against a '
+      'dramatic dark background with soft floodlight haze and a rim light in '
+      'the kit\'s colours. Design: $design A bold, fully sublimated print, '
+      'never a plain template. '
+      '${clientImages > 0 ? 'The first $clientImages attached image(s) come from the client: reproduce the client\'s main logo faithfully as the large chest centrepiece (if one shows the client\'s own complete garment design, follow it). Any chest wordmark reads exactly "$logoText". The last attached image is the 3DEEZI logo: use its emblem only on the small neck label. ' : 'The chest wordmark reads exactly "$logoText". The attached image is the 3DEEZI logo: use its emblem as the chest crest. '}'
+      'No other logos or text.';
+
+  /// A quick square concept render (about 12 s at low quality). The
+  /// client's logos go in first as real image inputs, then the 3DEEZI logo.
   Future<Uint8List> renderConcept(
     DesignSpec spec, {
     List<Uint8List> references = const [],
-  }) {
-    final prompt =
-        'Premium photoreal product render of a ${spec.sport} ${spec.garment}, '
-        'front view, centred and fully visible, on an invisible mannequin '
-        'floating on a near-black background with a cyan rim light. Design: '
-        '${spec.renderPrompt} The chest wordmark reads exactly '
-        '"${spec.logoText}". The first attached image is the 3DEEZI logo: use '
-        'its emblem as the chest crest. No other logos or text.';
-    return _brandLogo().then(
-      (logo) => _edit(
-        references.isEmpty
-            ? prompt
-            : '$prompt The other attached images are style references only.',
-        [logo, ...references.take(3)],
-        size: '1024x1024',
-        quality: 'low',
+  }) async {
+    final client = references.take(3).toList();
+    return _edit(
+      conceptPreviewPrompt(
+        spec.sport,
+        spec.garment,
+        spec.renderPrompt,
+        spec.logoText,
+        client.length,
       ),
+      [...client, await _brandLogo()],
+      size: '1024x1024',
+      quality: 'low',
     );
   }
 
@@ -406,52 +442,292 @@ class AiService {
       .load('assets/images/logo_full.png')
       .then((data) => data.buffer.asUint8List());
 
-  /// One brief in, one finished HD presentation mockup out, like ChatGPT:
-  /// front and back with close-up detail panels. [logos] are placed as the
-  /// brief says; otherwise the garment wears the 3DEEZI emblem and wordmark.
-  Future<Uint8List> mockup({
+  /// Kit colours like a top teamwear brand (the same words as the website):
+  /// from the logo's brand colours, dark and bold when the brief is,
+  /// readable names and numbers.
+  static const colourRules =
+      'Colours: take the kit colours only from the dominant brand colours of '
+      'the client\'s logo or the brief, never from skin tones or tiny logo '
+      'details. For a cool, bold or aggressive brief with a logo, prefer a '
+      'dark body (black or deep navy) with the logo\'s main colour as the '
+      'graphics and white highlights. Back names and numbers are white with '
+      'an outline in the accent colour, so they stand out from the graphics.';
+
+  /// The art director's brief for the HD mockup (strict JSON), the same as
+  /// the website's.
+  static const _directionFields = {
+    'summary':
+        'One friendly sentence to the client saying what you will create, '
+        'e.g. "I\'ll create a BLITZ training singlet in electric blue, black '
+        'and white, with your logo as the centrepiece and lightning details '
+        'flowing around the sides."',
+    'ownDesign':
+        'true only if an attached image is the client\'s own complete garment '
+        'design (front and/or back fully designed) that must be kept exactly.',
+    'teamName':
+        'The team, club or brand name from the brief or the logo\'s wordmark, '
+        'exactly as written; empty if none.',
+    'palette':
+        'The 3-4 kit colours with names and hex: the dominant brand colours '
+        'of the client\'s logo or the brief (ignore skin tones and small '
+        'details), high contrast, e.g. "electric blue #1E5BFF, black #0A0C12, white '
+        '#FFFFFF".',
+    'theme':
+        'The theme and motifs drawn from the logo and brief, e.g. "speed and '
+        'lightning: the mascot sprinting, jagged lightning edges".',
+    'front':
+        'The front design: base colour (dark black or navy for a cool or '
+        'bold brief with a logo), the main logo large as the centrepiece, '
+        'and the sublimated graphics around it.',
+    'back':
+        'The back design: the team name in bold white athletic lettering '
+        'over a large white player number (e.g. 01) with an outline in the '
+        'accent colour, when it suits the garment, plus graphics.',
+    'graphics':
+        'The all-over sublimated graphics: shapes, flow across the sides, '
+        'textures (halftone, gradients, grunge) and colours.',
+    'trims':
+        'Collar, armhole or cuff binding, side panels and hem, in the palette.',
+    'presentation':
+        'The photo setting: dramatic and dark (night stadium, floodlights, '
+        'haze in the kit\'s main colour, reflective floor) unless the brief '
+        'asks for something else.',
+  };
+
+  /// The creative direction for the HD mockup, written by the chat model
+  /// from the brief and the client's logos before anything is drawn (as
+  /// ChatGPT does). Null when it fails: the mockup still renders.
+  Future<Map<String, dynamic>?> artDirection({
     required String brief,
     required String sport,
     required String garment,
     List<Uint8List> logos = const [],
   }) async {
     final count = logos.take(4).length;
+    final text =
+        'Sport: $sport\nGarment: $garment\nClient brief: $brief\n'
+        '${count > 0 ? '$count image(s) from the client are attached: logos, references or their own finished design.\n' : 'No images are attached.\n'}'
+        'You are the art director of a top custom sublimation sportswear '
+        'brand. Before the designer renders one hero mockup, write its '
+        'creative direction. Take the palette and theme from the client\'s '
+        'logo (its colours, mascot, lettering style and motifs such as '
+        'lightning, flames, claws or waves) or from the brief. Design bold, '
+        'fully sublimated graphics derived from that theme, flowing across '
+        'the front, sides and back, never a plain template with flat colour '
+        'blocks. The client\'s main logo goes large as the front centrepiece; '
+        'the back carries the team name over a big number when it suits the '
+        'garment. Follow everything the brief specifies (colours, layout, '
+        'background, text). If an attached image is the client\'s own '
+        'complete garment design, set ownDesign to true and describe that '
+        'design exactly instead of inventing one. $colourRules Never use real '
+        'club, league or brand logos other than the client\'s own.';
+    try {
+      final json = await _post('/responses', {
+        'model': _textModel,
+        'input': [
+          {'role': 'system', 'content': _system},
+          {
+            'role': 'user',
+            'content': [
+              {'type': 'input_text', 'text': text},
+              for (final image in logos.take(4))
+                {
+                  'type': 'input_image',
+                  'image_url':
+                      'data:${_mime(image)};base64,${base64Encode(image)}',
+                },
+            ],
+          },
+        ],
+        'text': {
+          'format': {
+            'type': 'json_schema',
+            'name': 'art_direction',
+            'strict': true,
+            'schema': {
+              'type': 'object',
+              'additionalProperties': false,
+              'required': _directionFields.keys.toList(),
+              'properties': {
+                for (final MapEntry(:key, :value) in _directionFields.entries)
+                  key: {
+                    'type': key == 'ownDesign' ? 'boolean' : 'string',
+                    'description': value,
+                  },
+              },
+            },
+          },
+        },
+      });
+      final direction = jsonDecode(_outputText(json));
+      return direction is Map<String, dynamic> &&
+              '${direction['front'] ?? ''}'.trim().isNotEmpty
+          ? direction
+          : null;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// The HD mockup prompt (the same words as the website): a bold
+  /// sublimated design from the logo's theme, the logo as the front
+  /// centrepiece, name and number on the back, front and back side by side
+  /// in a dramatic dark setting unless the brief asks otherwise; a client's
+  /// own complete design is kept exactly.
+  static String mockupPrompt({
+    required String brief,
+    required String sport,
+    required String garment,
+    required int count,
+    Map<String, dynamic>? direction,
+  }) {
     final prompt = StringBuffer(
-      'You are a world-class sportswear designer making a client '
-      'presentation mockup.\nSport: $sport. Garment: $garment.\n'
-      'Client brief: $brief\n\n'
-      'Unless the brief asks for a different layout, make one landscape '
-      'presentation sheet: the garment shown flat-front on the left and from '
-      'the back in the centre, on invisible ghost mannequins against a soft '
-      'light-grey seamless studio background with gentle shadows, plus a '
-      'column of 4 square close-up detail panels on the right (for example '
-      'collar, raised logo, crest and fabric) each with a short uppercase '
-      'caption underneath. Photorealistic commercial product photography: '
-      'real fabric with fine knit texture, natural folds, flatlock stitching, '
-      'ribbed trims, crisp printed and raised logos. All text must be spelled '
-      'exactly as written in the brief. ',
+      'You are the lead designer of a top custom sublimation sportswear '
+      'brand, making a client presentation mockup.\nSport: $sport. Garment: '
+      '$garment.\nClient brief: $brief\n\n',
     );
-    prompt.write(
-      count > 0
-          ? 'The first $count attached image(s) are the client\'s logos or '
-                'references: reproduce any logos faithfully and place them '
-                'where the brief says (or in sensible positions). The last '
-                'attached image is the 3DEEZI logo: use it only for the small '
-                'neck label, unless the brief asks for 3DEEZI branding.'
-          : 'The attached image is the 3DEEZI logo (emblem and wordmark). If '
-                'the brief gives any wordmark, team, club or brand name, use '
-                'exactly that text where the brief says and do NOT put 3DEEZI '
-                'on the chest; then use the 3DEEZI emblem only on the small '
-                'neck label. Only if the brief names no wordmark or brand at '
-                'all, put the 3DEEZI wordmark across the chest and the 3DEEZI '
-                'emblem as the crest, exactly as in the logo.',
+    if (direction != null) {
+      prompt.writeln(
+        'Creative direction (follow it; the brief wins if they differ):',
+      );
+      const labels = {
+        'theme': 'Theme',
+        'palette': 'Palette',
+        'front': 'Front',
+        'back': 'Back',
+        'graphics': 'Graphics',
+        'trims': 'Trims',
+        'presentation': 'Presentation',
+      };
+      for (final MapEntry(:key, :value) in labels.entries) {
+        final text = '${direction[key] ?? ''}'.trim();
+        if (text.isNotEmpty) prompt.writeln('- $value: $text');
+      }
+      prompt.writeln();
+    }
+    prompt
+      ..write(
+        'Design: unless the client attached their own complete garment '
+        'design, design the garment freely like a premium sublimated '
+        'teamwear brand: a bold, fully sublimated all-over design with '
+        'dynamic graphics drawn from the theme and colours of the client\'s '
+        'logo or brief (for example lightning, speed lines, sharp angular '
+        'shards, halftone dot fades, gradients and textures) flowing across '
+        'the front, sides and back. Never a plain template with flat colour '
+        'blocks or simple side panels. $colourRules The client\'s main logo is the large '
+        'centrepiece on the front, reproduced faithfully (the same artwork, '
+        'colours and lettering). The back carries the team name in bold '
+        'athletic lettering over a large player number (for example 01) when '
+        'it suits the garment, with matching trims on the collar, armholes or '
+        'cuffs and hem.\n',
+      )
+      ..write(
+        'Presentation: unless the brief asks for a different layout, angle or '
+        'background, make one landscape image of premium commercial product '
+        'photography: the front view on the left and the back view on the '
+        'right, side by side, both complete, fully visible and not '
+        'overlapping, on invisible ghost mannequins, in a dramatic dark '
+        'setting: a night stadium with floodlights, haze tinted in the kit\'s '
+        'main colour, a glossy reflective floor and rim lighting. '
+        'Photorealistic fabric: fine knit and mesh texture, natural folds, '
+        'flatlock stitching, a crisp vivid sublimated print. All text must be '
+        'spelled exactly as written in the brief or the logo. ',
+      )
+      ..write(
+        count > 0
+            ? 'The first $count attached image(s) come from the client: logos, '
+                  'references, or the client\'s own finished garment design (flat '
+                  'artwork, a sketch, a snapshot or a photo). If one of them shows '
+                  'a complete garment design, make the garment exactly that '
+                  'design: the same colours, pattern, panels, collar, trims, '
+                  'logos, text and numbers, front and back as shown; do not '
+                  'redesign or simplify it, just turn it into a real 3D garment '
+                  'presented as the brief asks. Reproduce any logos faithfully '
+                  'and place them where the brief says, where the design shows '
+                  'them, or in sensible positions (the main logo large on the '
+                  'front). The last attached image is the 3DEEZI logo: use it '
+                  'only for the small neck label, unless the brief asks for '
+                  '3DEEZI branding; leave it out when the client\'s design '
+                  'carries its own brand.'
+            : 'The attached image is the 3DEEZI logo (emblem and wordmark). If '
+                  'the brief gives any wordmark, team, club or brand name, use '
+                  'exactly that text where the brief says and do NOT put 3DEEZI '
+                  'on the chest; then use the 3DEEZI emblem only on the small '
+                  'neck label. Only if the brief names no wordmark or brand at '
+                  'all, put the 3DEEZI wordmark across the chest and the 3DEEZI '
+                  'emblem as the crest, exactly as in the logo.',
+      )
+      ..write(' No watermarks, no extra brands.');
+    return prompt.toString();
+  }
+
+  /// One brief in, one finished HD presentation mockup out, like ChatGPT:
+  /// an art direction from the brief and [logos] first, then the render
+  /// with the logos as real image inputs. [onDirection] gets the one-line
+  /// summary to show the client.
+  Future<Uint8List> mockup({
+    required String brief,
+    required String sport,
+    required String garment,
+    List<Uint8List> logos = const [],
+    void Function(String summary)? onDirection,
+  }) async {
+    final client = logos.take(4).toList();
+    final direction = await artDirection(
+      brief: brief,
+      sport: sport,
+      garment: garment,
+      logos: client,
     );
-    prompt.write(' No watermarks, no extra brands.');
+    final summary = '${direction?['summary'] ?? ''}'.trim();
+    if (summary.isNotEmpty) onDirection?.call(summary);
     return _edit(
-      prompt.toString(),
-      [...logos.take(4), await _brandLogo()],
+      mockupPrompt(
+        brief: brief,
+        sport: sport,
+        garment: garment,
+        count: client.length,
+        direction: direction,
+      ),
+      [...client, await _brandLogo()],
       size: '1536x1024',
       quality: 'high',
+      highFidelity: true,
+    );
+  }
+
+  /// "Make it 3D": the print sheet prompt (the same words as the website).
+  static String printSheetPrompt(String sport, String garment, int logos) =>
+      'The first attached image shows a $sport $garment design. Redraw '
+      'exactly the same design as a flat print artwork sheet for the '
+      'factory: the garment\'s front on the left and its back on the right, '
+      'side by side, both complete and the same size, drawn flat and '
+      'straight-on like a technical flat drawing, on a plain pure white '
+      'background with clear white space around and between them. No '
+      'mannequin, no person, no folds, no perspective, no lighting effects, '
+      'no shadows, no scene. Keep the design exactly: the same colours, '
+      'graphics, gradients, lettering, logos, numbers and trims, in the same '
+      'places and proportions, and the same garment shape (neck, armholes or '
+      'sleeves, hem). '
+      '${logos > 0 ? 'The other $logos attached image(s) are the client\'s logos: reproduce them faithfully where the design shows them. ' : ''}'
+      'No labels, captions, measurements, hangers, neck labels or extra text.';
+
+  /// "Make it 3D": the mockup redrawn by the same model as a flat front and
+  /// back print sheet, which the Studio's design-picture check puts on the
+  /// 3D kit (AppController.importDesignPicture).
+  Future<Uint8List> printSheet(
+    Uint8List mockup, {
+    required String sport,
+    required String garment,
+    List<Uint8List> logos = const [],
+  }) {
+    final client = logos.take(3).toList();
+    return _edit(
+      printSheetPrompt(sport, garment, client.length),
+      [mockup, ...client],
+      size: '1536x1024',
+      quality: 'high',
+      highFidelity: true,
     );
   }
 
@@ -720,7 +996,24 @@ class AiService {
     List<Uint8List> images, {
     String size = '1024x1536',
     String quality = 'medium',
+    bool highFidelity = false,
+    bool fidelity = false,
   }) async {
+    if (highFidelity) {
+      // Keeps the first image (the client's logo or design) faithful; a
+      // model that does not take input_fidelity gets the plain request.
+      try {
+        return await _edit(
+          prompt,
+          images,
+          size: size,
+          quality: quality,
+          fidelity: true,
+        );
+      } on AiException catch (e) {
+        if (!e.message.contains('input_fidelity')) rethrow;
+      }
+    }
     final request =
         http.MultipartRequest('POST', Uri.parse('$_base/images/edits'))
           ..headers['Authorization'] = 'Bearer $_apiKey'
@@ -731,6 +1024,7 @@ class AiService {
             'quality': quality,
             'output_format': 'jpeg',
             'output_compression': '88',
+            if (fidelity) 'input_fidelity': 'high',
           });
     for (final (i, bytes) in images.indexed) {
       final mime = _mime(bytes);

@@ -100,6 +100,23 @@ The prompt must contain 8–1500 characters. `colors` is optional and accepts on
 
 The current provider is `procedural` with `is_ai: false`. It interprets supported color and pattern keywords and returns four variations. It does not perform generative AI, visual reference-image analysis or an external model request. Clients should display the provider information rather than imply an AI service is connected.
 
+## AI image edits
+
+`POST /ai/image-edit` (signed in, 12 per user per minute, like the other AI requests) is the image editor's "Describe edits": the picture changed as described, like ChatGPT's image editor. The website (`components/ImageEditor.tsx`) and the app (`lib/screens/image_editor.dart`) send:
+
+```json
+{
+  "image": "data:image/jpeg;base64,...",
+  "instruction": "Make the collar gold",
+  "notes": [{ "text": "Gold trim here", "x": 0.5, "y": 0.15 }],
+  "mask": "data:image/png;base64,...",
+  "marked": "data:image/jpeg;base64,...",
+  "size": "1024x1024"
+}
+```
+
+`image` is a PNG, JPEG or WebP data URL. `instruction` (up to 1000 characters) or at least one note is required. `notes` (up to 20) are short comments at points on the picture (`x` and `y` from 0 to 1). `mask` is optional: a PNG the size of `image`, see-through where the AI may change the picture (brush marks, circled areas, erased parts, the empty edges when extending). `marked` is optional: a copy of the picture with the markup and numbered pins drawn on. `size` is `auto`, `1024x1024`, `1536x1024` or `1024x1536`; without it the picture keeps its shape. The answer is `{"data":{"image":"data:image/png;base64,..."}}`: a PNG picture comes back as a PNG, any other as a JPEG. Nothing is saved on the server. Errors: 422 for invalid input (including a mask of another size), 503 when AI is not configured, 502 when the AI service fails.
+
 ## Projects, versions and dashboard
 
 All project access is scoped to the authenticated user. Another account's project returns 404. New projects start at version 1 and create an initial snapshot.
@@ -151,6 +168,8 @@ Required creation fields: `name` (up to 120 characters), `sport`, `garment` and 
 
 The design requires `main`, `secondary`, `accent` and `pattern`. Supported patterns are exactly `Solid`, `Stripes`, `Chevron` and `Velocity`. Colors use `#RRGGBB`. Optional `logoText` and `backName` allow up to 40 characters; `number` is a string of up to three characters. `patternBody` is an opacity between 0 and 1; `patternScale` is a number from 0.1 to 10. `prompt` can store up to 1500 characters. The server keeps `design.garment` consistent with the project garment.
 
+`layout` (nullable) is a factory print layout on the kit: `{asset, name, roles, hemFold, parts}`. `asset` is the id of one of the user's own `layout` assets (the PDF, SVG or picture); `name` is up to 160 characters; `roles` names each panel found in the file, in the order found (`front`, `back`, `sleeveL`, `sleeveR`, `neck`, `legL`, `legR` or `none`, up to 60); `hemFold` says the plain strip under the body panels is the hem fold; `parts` is `raglan`, `shorts` or both. The 3D viewer reads the file (the host fetches it with the user's authorization when the viewer asks with `layoutWanted`, and answers with `layoutFile`). Send `layout: null` to remove it.
+
 When updating, omit unchanged top-level fields. If you provide `design`, send the complete desired design object: it replaces the stored object rather than merging individual properties. Include `expected_version` from the last fetched project to detect simultaneous edits:
 
 ```http
@@ -172,10 +191,10 @@ A mismatched `expected_version` returns 409. Fetch the latest project, reconcile
 | --- | --- | --- |
 | GET | `/assets` | Lists the current user's uploaded assets, newest first. |
 | POST | `/assets` | Multipart upload; returns HTTP 201 with asset metadata. |
-| GET | `/assets/{id}/file` | Returns the original image, authenticated and scoped to its owner. |
+| GET | `/assets/{id}/file` | Returns the original file, authenticated and scoped to its owner (administrators can read any, for order kits). Sent with `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`. |
 | DELETE | `/assets/{id}` | Deletes the stored file and metadata; returns a message. |
 
-Upload fields are `file`, required `type` (`logo`, `pattern`, `artwork` or `reference`), and optional `name` (up to 120 characters). Allowed files are PNG, JPEG and WebP, up to 10 MiB, with dimensions no larger than 8192 × 8192. SVG is not accepted. Ensure PHP's `upload_max_filesize` and `post_max_size` allow the intended request size; Apache's PHP settings can differ from command-line PHP.
+Upload fields are `file`, required `type` (`logo`, `pattern`, `artwork`, `reference` or `layout`), and optional `name` (up to 120 characters). Allowed files are PNG, JPEG and WebP, up to 10 MiB, with dimensions no larger than 8192 × 8192. SVG is not accepted, except for `layout`: a factory print layout may be a PDF, SVG, PNG or JPEG up to 30 MiB. Ensure PHP's `upload_max_filesize` and `post_max_size` allow the intended request size; Apache's PHP settings can differ from command-line PHP.
 
 For example, with curl (use `curl.exe` in Windows PowerShell):
 
@@ -186,6 +205,40 @@ curl -X POST "http://127.0.0.1:8000/api/v1/assets" -H "Accept: application/json"
 Do not manually set a multipart `Content-Type`; the HTTP client must include its generated boundary. Asset metadata includes `id`, `name`, `type`, `mime_type`, `size`, `created_at` and `url`. Files are private on Laravel's local disk, with authenticated download routes; there is no requirement to create a public storage symlink.
 
 An asset's `url` still requires an Authorization header. A browser `<img src>` or the embedded viewer cannot attach that bearer header automatically. Fetch the file with authentication, then use a Blob URL for display or a raster data URL for the saved design's `logoImage` / `patternImage`. The design image fields accept nullable local URLs, same-origin URLs, and PNG/JPEG/WebP base64 data URLs, each up to 1,500,000 characters. Resize large uploaded artwork before embedding it into a design. Do not persist temporary Blob URLs; they expire when the document closes.
+
+## Artboard designs and templates
+
+The Artboard's File menu keeps editable designs in the account (Save to my account, Open from my account) and the user's own templates (Save as template, New from template). Each account sees and changes only its own.
+
+| Method | Endpoint | Behavior |
+| --- | --- | --- |
+| GET | `/artboards` | Lists the designs and templates, newest first, without their contents: `id`, `name`, `template`, `preview`, `pages`, `size`, `version`, `created_at`, `updated_at`. `?template=1` lists only templates, `?template=0` only designs. |
+| POST | `/artboards` | `{name, document, preview?, template?}`; returns HTTP 201 with the list fields. |
+| GET | `/artboards/{id}` | One design with its `document`. |
+| PATCH | `/artboards/{id}` | Any of `name`, `document`, `preview`; optional `expected_version` (the version it was opened at: a newer one on the server answers 409). A change increments `version`. |
+| DELETE | `/artboards/{id}` | Deletes the design; returns a message. |
+
+`document` is the Artboard's own JSON as text (every page with its objects and guidelines; it must have an `objects` list), up to 20 MB. `name` is up to 120 characters. `preview` is a small PNG, JPEG or WebP data URL of the page (up to 600,000 characters). An account keeps up to 300 designs and templates. Artwork sent from the Artboard to a kit keeps the design's id in its layer (`design.layers[].artboard`), so the Studio's "Edit in Artboard" opens it again and sending again updates that layer in place.
+
+## 3DEEZI Orders: order form, uploaded orders, the order board
+
+Three ways in, one order system (the `orders` table, references `3DZ-00001`...): the Studio's "Order this kit" (`source: studio`), the Create Order Form (`form`) and Upload Your Order (`upload`); staff may add orders too (`admin`). The board's five stages are the order statuses: `pending` Order Received, `confirmed` Design & Approval, `in_production` Production, `shipped` Shipped, `delivered` Delivered (`cancelled` is off the board). Each card has a sub-status pill (`sub_status`: in Design & Approval it follows the design approval: Design in progress, Approval needed, Changes requested, Design approved; elsewhere staff choose it, e.g. Sewing). Delivered orders count as completed 14 days after delivery. The full contract, with every JSON shape, is kept with the code as `resources/js/orderApi.ts` (types and calls).
+
+| Method | Endpoint | Behavior |
+| --- | --- | --- |
+| GET | `/orders/options` | Public. Garments, sports, fits, sizes, stages with their sub-statuses, allowed file types and sizes. |
+| POST | `/orders/assist` | Public, throttled like the chat. `{text}` ("12 jerseys M, 12 shorts L, 6 hoodies XL") → `{items:[{garment, sport, fit, sizes, name}], unknown, summary, source}`. A built-in reader; OpenAI only when it can't read everything and AI is set up. |
+| GET | `/order-drafts` · POST `/order-drafts` · GET/PATCH/DELETE `/order-drafts/{id}` | Saved, not submitted order forms and uploads: `{kind: form|upload, data}` (the order fields, up to 200 KB). Never orders: no reference, not on the board. |
+| POST | `/order-drafts/{id}/files` | Multipart `file`, `kind` = `order_form` or `artwork`. Up to 25 MB each and 15 per draft; types are checked by name and content (order forms: PDF, Excel, CSV, ODS, Word, text, pictures; artwork: pictures, SVG, PDF, AI, EPS, CDR, PSD, TIFF). A CSV or XLSX order form comes back with `suggested` garment rows for the customer to check. DELETE `/order-drafts/{id}/files/{file}` removes one. |
+| POST | `/order-drafts/{id}/submit` | Header `Idempotency-Key` (required). Submits the draft's fields (any sent now replace them) as one order in Order Received: 201 with the order, its `link` and `invoice`. The same key again (double click, retry, even after the draft is gone) → 200 with the same order and `Idempotent-Replayed: true`. An upload needs an order form file. |
+| POST | `/orders` | As before for "Order this kit"; also `source: form|upload` with `team_name`, `contact_name`, `contact_email`, `phone`, `shipping_address`, `needed_by`, `notes`, `items[{garment, sport, fit, label, project_id, sizes, players, file_ids}]` and an `Idempotency-Key`. |
+| GET | `/orders/board?view=current|completed&search=` | My orders by stage (cards: reference, name, garments with pictures, garment count, submitted and last-update dates, latest update, sub-status, tracking, payment), and my drafts. Search: reference, name, garment, sport. |
+| GET | `/orders` · GET `/orders/{id}` | All my orders (cards) · one order with its items, customer-visible files, versioned design proofs, the stages reached and the updates. Another customer's order is "not found". |
+| POST | `/orders/{id}/approval` | `{decision: approve|changes, proof_id, message}` answers the waiting design proof (409 when none is waiting or a newer proof replaced it). The stage does not change. |
+| GET | `/order-files/{id}` | Downloads a file: the customer's own draft files and their order's customer-visible files; staff any file. |
+| GET | `/notifications` · POST `/notifications/read` | In-app notifications (approval needed, a message from the team, shipped); emails are sent with them. |
+
+Staff (administrators only, 403 otherwise): GET `/admin/orders/board` (every order, with the customer, assignee, due date and payment), PATCH `/admin/orders/{id}/stage` `{status, step?, message?, visibility?, confirm_without_approval?, confirm_unpaid?, override_reason?}`, POST `/admin/orders/{id}/updates` (a message `customer`-visible or `internal`, sub-status, approval, tracking `carrier`/`tracking_number`/`tracking_url`, `assigned_to`, `due_date`), POST `/admin/orders/{id}/files` (multipart `file`, `kind` = proof | artwork | photo | invoice | order_form | other, `visibility` = customer | internal; a customer-visible proof is the next version and asks the customer to approve it again), DELETE `/admin/orders/{id}/files/{file}`, GET `/admin/orders/staff`. Moving an order into Production (or past it) needs the customer's design approval and full payment: otherwise 409 `{code, problems: [{code: approval_missing|payment_missing, message}]}`; staff may confirm (`confirm_without_approval`, `confirm_unpaid` with an `override_reason`), and the override is kept in the order's history. Every change is recorded in the order's history (who, what, when); internal notes, internal files, `admin_notes`, `assigned_to` and `due_date` are never in a customer's response.
 
 ## Export contract
 
@@ -271,7 +324,7 @@ The exact human-readable message can vary. Use HTTP status and field-keyed `erro
 | --- | --- |
 | 401 | Missing, expired or revoked token; request sign-in. |
 | 404 | Resource is absent or belongs to another account. |
-| 409 | Project version conflict; reload and reconcile. |
+| 409 | Project or Artboard design version conflict; reload and reconcile. |
 | 422 | Show field validation errors; invalid login credentials also use this status. |
 | 429 | Rate limit reached; respect `Retry-After`. |
 | 5xx | Report a server failure and offer retry without assuming the write succeeded. |

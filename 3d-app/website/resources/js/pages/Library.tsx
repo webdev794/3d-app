@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDownToLine, ArrowRight, CheckCircle2, Clock3, FileImage, FolderOpen, History, ImagePlus, Layers3, LoaderCircle, LogOut, Plus, Search, ShieldCheck, Sparkles, Trash2, UploadCloud, UserRound, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, CheckCircle2, Clock3, FileImage, FileText, FolderOpen, History, ImagePlus, Layers3, LoaderCircle, LogOut, PenLine, Plus, Search, ShieldCheck, Sparkles, Trash2, UploadCloud, UserRound, X } from 'lucide-react';
 import { api, downloadFile, fetchFile } from '../api';
 import type { Project, User } from '../api';
 import type { Design } from '../types';
+import ImageEditor, { keepInAssets } from '../components/ImageEditor';
 import './library.css';
 
 type PageActions = { onOpen: (project: Project) => void; onCreate: () => void };
-type Asset = { id: number; name: string; type: 'logo' | 'pattern' | 'artwork' | 'reference'; mime_type: string; size: number; url: string; created_at: string };
+type Asset = { id: number; name: string; type: 'logo' | 'pattern' | 'artwork' | 'reference' | 'layout'; mime_type: string; size: number; url: string; created_at: string };
 type ProjectVersion = { id: number; version: number; design: Project['design']; name: string; created_at: string };
 type Dashboard = { projects: number; drafts: number; approved: number; assets: number; recent_projects: Project[] };
 
@@ -146,13 +147,16 @@ export function ProjectsPage({ onOpen, onCreate, approvedOnly = false }: PageAct
 function AssetPreview({ asset }: { asset: Asset }) {
     const [url, setUrl] = useState('');
     const [failed, setFailed] = useState(false);
+    const pdf = asset.mime_type === 'application/pdf';
     useEffect(() => {
         let disposed = false;
         let objectUrl = '';
         setFailed(false);
+        if (pdf) return;
         fetchFile(`/assets/${asset.id}/file`).then((blob) => { if (disposed) return; objectUrl = URL.createObjectURL(blob); setUrl(objectUrl); }).catch(() => { if (!disposed) setFailed(true); });
         return () => { disposed = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-    }, [asset.id]);
+    }, [asset.id, pdf]);
+    if (pdf) return <div className="lib-asset-preview"><div className="lib-asset-fallback"><FileText size={30} /><span>{asset.type === 'layout' ? 'Print layout · PDF' : 'PDF'}</span></div></div>;
     return <div className={`lib-asset-preview ${asset.type === 'pattern' ? 'is-pattern' : ''}`}>{url && !failed ? <img src={url} alt={asset.name} onError={() => setFailed(true)} /> : failed ? <div className="lib-asset-fallback"><FileImage size={30} /><span>Preview unavailable</span></div> : <LoaderCircle className="lib-spin" size={23} />}</div>;
 }
 
@@ -168,6 +172,7 @@ export function AssetsPage() {
     const [deleting, setDeleting] = useState<Asset | null>(null);
     const [actionError, setActionError] = useState('');
     const [notice, setNotice] = useState('');
+    const [editing, setEditing] = useState<{ asset: Asset; src: string } | null>(null);
     const assets = (data || []).filter((asset) => (filter === 'all' || asset.type === filter) && asset.name.toLowerCase().includes(search.toLowerCase()));
     function openUpload() { setFile(null); setName(''); setType('logo'); setActionError(''); setUploading(true); }
     async function upload(event: FormEvent) {
@@ -186,20 +191,36 @@ export function AssetsPage() {
         try { await api(`/assets/${deleting.id}`, { method: 'DELETE' }); setData((previous) => previous?.filter((asset) => asset.id !== deleting.id) || []); setDeleting(null); setNotice('Asset deleted.'); }
         catch (err) { setActionError(message(err)); } finally { setBusy(false); }
     }
+    /** Opens a picture in the image editor; Save keeps the chosen version as a new asset. */
+    async function edit(asset: Asset) {
+        setActionError('');
+        try { setEditing({ asset, src: URL.createObjectURL(await fetchFile(`/assets/${asset.id}/file`)) }); }
+        catch (err) { setActionError(message(err)); }
+    }
+    function closeEditor() { if (editing) URL.revokeObjectURL(editing.src); setEditing(null); }
+    async function saveEdited(image: string) {
+        if (!editing) return;
+        const kind = (['logo', 'pattern', 'artwork', 'reference'] as const).find((value) => value === editing.asset.type) ?? 'artwork';
+        const asset = await keepInAssets<Asset>(image, `${editing.asset.name.slice(0, 110)} (edited)`, kind);
+        setData((previous) => [asset, ...(previous || [])]);
+        closeEditor();
+        setNotice('Your edited image has been saved as a new asset.');
+    }
     async function download(asset: Asset) {
         setActionError('');
-        try { const extension = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg' } as Record<string, string>)[asset.mime_type] || 'png'; await downloadFile(`/assets/${asset.id}/file`, `${asset.name}.${extension}`); }
+        try { const extension = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'application/pdf': 'pdf' } as Record<string, string>)[asset.mime_type] || 'png'; await downloadFile(`/assets/${asset.id}/file`, `${asset.name}.${extension}`); }
         catch (err) { setActionError(message(err)); }
     }
     return <main className="page-shell lib-page">
         <div className="page-heading lib-heading"><h1>Asset library</h1><button className="button button-primary" onClick={openUpload}><UploadCloud size={18} /> Upload asset</button></div>
-        {!!data?.length && <div className="lib-toolbar"><div className="lib-tabs" aria-label="Filter assets">{[['all', 'All'], ['logo', 'Logos'], ['pattern', 'Patterns'], ['artwork', 'Artwork'], ['reference', 'References']].map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="lib-search"><Search size={17} /><input type="search" placeholder="Search assets…" aria-label="Search assets" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>}
+        {!!data?.length && <div className="lib-toolbar"><div className="lib-tabs" aria-label="Filter assets">{[['all', 'All'], ['logo', 'Logos'], ['pattern', 'Patterns'], ['artwork', 'Artwork'], ['reference', 'References'], ['layout', 'Print layouts']].map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="lib-search"><Search size={17} /><input type="search" placeholder="Search assets…" aria-label="Search assets" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>}
         {notice && <div className="lib-notice" role="status"><CheckCircle2 size={17} />{notice}<button onClick={() => setNotice('')} aria-label="Dismiss notification"><X size={16} /></button></div>}
         {actionError && !uploading && !deleting && <div className="lib-error lib-inline-error" role="alert">{actionError}</div>}
         <Feedback loading={loading} error={error} onRetry={reload} />
-        {!loading && !error && (assets.length ? <div className="lib-assets-grid">{assets.map((asset) => <article className="lib-asset-card" key={asset.id}><AssetPreview asset={asset} /><div className="lib-asset-info">{filter === 'all' && <span className="lib-asset-type">{asset.type}</span>}<h3 title={asset.name}>{asset.name}</h3><div className="lib-project-footer"><span>{bytes(asset.size)} <span>·</span> {date(asset.created_at)}</span><div className="lib-card-actions"><button className="lib-small-button" onClick={() => download(asset)} title="Download asset" aria-label={`Download ${asset.name}`}><ArrowDownToLine size={15} /></button><button className="lib-small-button lib-delete-button" onClick={() => { setActionError(''); setDeleting(asset); }} title="Delete asset" aria-label={`Delete ${asset.name}`}><Trash2 size={14} /></button></div></div></div></article>)}</div> : <div className="empty-state lib-empty"><span className="lib-empty-icon"><ImagePlus size={32} /></span><h2>{search || filter !== 'all' ? 'No matching assets' : 'No assets yet'}</h2><p>{search || filter !== 'all' ? 'Try another search or clear the filters.' : 'Upload logos, patterns or reference images to use in your designs.'}</p>{(search || filter !== 'all') && <button className="button button-secondary" onClick={() => { setSearch(''); setFilter('all'); }}>Clear filters</button>}</div>)}
+        {!loading && !error && (assets.length ? <div className="lib-assets-grid">{assets.map((asset) => <article className="lib-asset-card" key={asset.id}><AssetPreview asset={asset} /><div className="lib-asset-info">{filter === 'all' && <span className="lib-asset-type">{asset.type === 'layout' ? 'print layout' : asset.type}</span>}<h3 title={asset.name}>{asset.name}</h3><div className="lib-project-footer"><span>{bytes(asset.size)} <span>·</span> {date(asset.created_at)}</span><div className="lib-card-actions">{['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type) && <button className="lib-small-button" onClick={() => edit(asset)} title="Edit image" aria-label={`Edit ${asset.name}`}><PenLine size={15} /></button>}<button className="lib-small-button" onClick={() => download(asset)} title="Download asset" aria-label={`Download ${asset.name}`}><ArrowDownToLine size={15} /></button><button className="lib-small-button lib-delete-button" onClick={() => { setActionError(''); setDeleting(asset); }} title="Delete asset" aria-label={`Delete ${asset.name}`}><Trash2 size={14} /></button></div></div></div></article>)}</div> : <div className="empty-state lib-empty"><span className="lib-empty-icon"><ImagePlus size={32} /></span><h2>{search || filter !== 'all' ? 'No matching assets' : 'No assets yet'}</h2><p>{search || filter !== 'all' ? 'Try another search or clear the filters.' : 'Upload logos, patterns or reference images to use in your designs.'}</p>{(search || filter !== 'all') && <button className="button button-secondary" onClick={() => { setSearch(''); setFilter('all'); }}>Clear filters</button>}</div>)}
         {uploading && <Dialog title="Add to your library" onClose={() => { if (!busy) setUploading(false); }}><form onSubmit={upload}><label className="lib-upload-zone"><input type="file" accept="image/png,image/jpeg,image/webp" required onChange={(event) => { const next = event.target.files?.[0] || null; setFile(next); if (next && !name) setName(next.name.replace(/\.[^.]+$/, '')); }} /><UploadCloud size={30} /><strong>{file ? file.name : 'Choose an image'}</strong><span>{file ? bytes(file.size) : 'PNG, JPG or WebP · up to 10 MB'}</span></label><label className="field lib-field">Asset name<input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Club crest" maxLength={150} required /></label><label className="field lib-field">Category<select className="input" value={type} onChange={(event) => setType(event.target.value as Asset['type'])}><option value="logo">Logo</option><option value="pattern">Pattern</option><option value="artwork">Artwork</option><option value="reference">Reference image</option></select></label>{actionError && <p className="lib-form-error" role="alert">{actionError}</p>}<div className="lib-dialog-actions"><button type="button" className="button button-secondary" onClick={() => setUploading(false)} disabled={busy}>Cancel</button><button className="button button-primary" disabled={busy}>{busy ? <LoaderCircle size={17} className="lib-spin" /> : <UploadCloud size={17} />}{busy ? 'Uploading…' : 'Upload asset'}</button></div></form></Dialog>}
-        {deleting && <Dialog title="Delete this asset?" onClose={() => { if (!busy) setDeleting(null); }}><p className="muted">“{deleting.name}” will be permanently removed from your asset library.</p>{actionError && <p className="lib-form-error" role="alert">{actionError}</p>}<div className="lib-dialog-actions"><button className="button button-secondary" disabled={busy} onClick={() => setDeleting(null)}>Keep asset</button><button className="button lib-danger-button" disabled={busy} onClick={deleteAsset}>{busy ? <LoaderCircle size={16} className="lib-spin" /> : <Trash2 size={16} />}Delete asset</button></div></Dialog>}
+        {editing && <ImageEditor src={editing.src} title={editing.asset.name} fileName={editing.asset.name.replace(/[^a-z0-9-]+/gi, '-').toLowerCase()} useLabel="Save as new asset" onUse={saveEdited} onClose={closeEditor} />}
+        {deleting && <Dialog title="Delete this asset?" onClose={() => { if (!busy) setDeleting(null); }}><p className="muted">“{deleting.name}” will be permanently removed from your asset library.{deleting.type === 'layout' && ' Kits that use this print layout are shown without it until it is uploaded again.'}</p>{actionError && <p className="lib-form-error" role="alert">{actionError}</p>}<div className="lib-dialog-actions"><button className="button button-secondary" disabled={busy} onClick={() => setDeleting(null)}>Keep asset</button><button className="button lib-danger-button" disabled={busy} onClick={deleteAsset}>{busy ? <LoaderCircle size={16} className="lib-spin" /> : <Trash2 size={16} />}Delete asset</button></div></Dialog>}
     </main>;
 }
 

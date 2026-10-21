@@ -46,6 +46,11 @@ return [
         'cloudconvert' => env('CLOUDCONVERT_API_KEY'),
     ],
 
+    /* Where messages from the Support page's contact form are emailed (every administrator when empty). */
+    'support' => [
+        'email' => env('SUPPORT_EMAIL'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

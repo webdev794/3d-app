@@ -64,7 +64,7 @@ class AdminTest extends TestCase
         $this->postJson('/api/v1/orders', ['project_id' => $other->id, 'sizes' => ['M' => 2], 'contact_name' => 'Fab'])->assertUnprocessable();
         $this->postJson('/api/v1/orders', ['project_id' => $project->id, 'sizes' => ['M' => 0], 'contact_name' => 'Fab'])->assertUnprocessable();
         $this->postJson('/api/v1/orders', ['sizes' => ['M' => 2], 'contact_name' => 'Fab', 'unit_price' => 1])->assertUnprocessable();
-        $order = $this->postJson('/api/v1/orders', ['project_id' => $project->id, 'sizes' => ['S' => 4, 'M' => 10], 'contact_name' => 'Fab', 'phone' => '0400 000 000'])
+        $order = $this->postJson('/api/v1/orders', ['project_id' => $project->id, 'sizes' => ['S' => 4, 'M' => 10], 'contact_name' => 'Fab', 'phone' => '0400 000 000', 'design_final' => true, 'names' => 'none'])
             ->assertCreated()->assertJsonPath('data.quantity', 14)->assertJsonPath('data.status', 'pending')->assertJsonPath('data.total', null)->json('data');
         $this->assertSame(sprintf('3DZ-%05d', $order['id']), $order['number']);
         $this->getJson('/api/v1/orders')->assertJsonCount(1, 'data');
@@ -77,8 +77,9 @@ class AdminTest extends TestCase
             ->assertJsonPath('data.project.name', 'Home kit')->assertJsonPath('data.project.design.prompt', 'Navy and gold with chevrons')
             ->assertJsonPath('data.project.thumbnail', 'data:image/png;base64,AAAA')->assertJsonPath('data.phone', '0400 000 000')
             ->assertJsonPath('data.user.email', $customer->email);
+        // Ordering approved the kit (the customer confirmed the design is final).
         $this->getJson('/api/v1/admin/orders')->assertJsonPath('data.data.0.project.thumbnail', 'data:image/png;base64,AAAA')
-            ->assertJsonPath('data.data.0.project.status', 'draft');
+            ->assertJsonPath('data.data.0.project.status', 'approved');
         $this->patchJson("/api/v1/admin/orders/{$order['id']}", ['status' => 'confirmed', 'unit_price' => 45.5, 'sizes' => ['S' => 4, 'M' => 10, 'L' => 6]])
             ->assertOk()->assertJsonPath('data.quantity', 20)->assertJsonPath('data.total', '910.00')->assertJsonPath('data.user.email', $customer->email);
         $this->patchJson("/api/v1/admin/orders/{$order['id']}", ['status' => 'lost'])->assertUnprocessable();

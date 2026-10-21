@@ -3,6 +3,7 @@
 // is drawn in garment coordinates (metres), so placement is exact.
 
 import { zoneRects } from './zones.js';
+import { RAGLAN, raglanSeam } from './layout-warp.js';
 
 const loadImage = (src) =>
   new Promise((resolve, reject) => {
@@ -48,6 +49,28 @@ const mix = (a, b, t) => {
 /** Contrast bands along the finished edges (metres): kept narrow, the same width at the hem
  *  (and leg hems) and round the sleeve ends, and even all the way round. */
 const HEM_BAND = 0.009, CUFF_BAND = 0.009;
+
+
+const HEX = /^#[0-9a-f]{6}$/i;
+/**
+ * A colour zone's gradient fill, or null when the zone is a solid colour. The Primary zone keeps the original
+ * `design.gradient` ({ from, to, angle }); Secondary and Pattern use `design.gradients[slot]`. Any gradient may carry
+ * `stops` ([{ color, at 0..1 }], two or more, e.g. Sunset's orange, pink and purple); without them it runs from `from`
+ * to `to`.
+ */
+export function zoneGradient(design, slot) {
+  const gradient = slot === 'main' ? design.gradient : design.gradients?.[slot];
+  if (!gradient || typeof gradient !== 'object') return null;
+  let stops = Array.isArray(gradient.stops)
+    ? gradient.stops.filter((s) => s && HEX.test(s.color)).map((s) => ({ color: s.color, at: Math.min(1, Math.max(0, Number(s.at) || 0)) }))
+    : [];
+  if (stops.length < 2) {
+    if (!HEX.test(gradient.from ?? '') || !HEX.test(gradient.to ?? '')) return null;
+    stops = [{ color: gradient.from, at: 0 }, { color: gradient.to, at: 1 }];
+  }
+  stops.sort((a, b) => a.at - b.at);
+  return { stops, angle: Number(gradient.angle) || 0 };
+}
 
 export class KitPainter {
   constructor(frame, outline, size = 2048, kind = 'jersey') {
@@ -150,7 +173,8 @@ export class KitPainter {
    * hem turned up inside). Shared by the painted stitches and the relief map.
    */
   tailoring(back) {
-    const shorts = this.kind === 'shorts', sleeves = ['jersey', 'tee', 'polo'].includes(this.kind);
+    const shorts = this.kind === 'shorts', sleeves = ['jersey', 'tee', 'raglan', 'polo'].includes(this.kind);
+    const raglan = this.kind === 'raglan';
     const stitches = [], seams = [], folds = [];
     const along = (points) => (c) => points.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
     // Hems and sleeve ends: two rows of cover-stitch and the turned-up edge inside, each an even
@@ -159,27 +183,35 @@ export class KitPainter {
       stitches.push(along(this.inset(points, .0115)), along(this.inset(points, .0147)));
       folds.push(along(this.inset(points, .019, .006)));
     }
+    // Shorts: where the waistband is sewn on, just below it (the waist's own height: the drawn outline bulges a
+    // little above it at the corners).
+    // A deep gathered band (training shorts): the stitching runs right along its foot, where the gathers end.
+    const deepBand = (this.rimWidth ?? 0.026) >= 0.035;
+    const waistSeam = (this.points?.CF?.[1] ?? 0.42) - (this.rimWidth ?? 0.026) - (deepBand ? 0.0012 : 0.006);
     for (const inset of [0, .0032]) {
-      if (shorts) { stitches.push((c) => { c.moveTo(-.3, .388 - inset); c.lineTo(.3, .388 - inset); }); continue; }
+      if (shorts) { stitches.push((c) => { c.moveTo(-.4, waistSeam - inset); c.lineTo(.4, waistSeam - inset); }); continue; }
       for (const dir of [-1, 1]) {
-        stitches.push((c) => { c.moveTo(dir * (.105 + inset), .718); c.quadraticCurveTo(dir * .235, .691 - inset, dir * .395, .548 - inset); });
+        // Raglan: the seam from the neck down to the underarm, stitched on the body side; otherwise along the shoulder.
+        if (raglan) stitches.push(along(raglanSeam([dir * RAGLAN.neck, .728], dir).map(([x, y]) => ({ x: x - dir * (0.004 + inset), y: y - 0.004 - inset }))));
+        else stitches.push((c) => { c.moveTo(dir * (.105 + inset), .718); c.quadraticCurveTo(dir * .235, .691 - inset, dir * .395, .548 - inset); });
         stitches.push((c) => { c.moveTo(dir * (.235 - inset), .035); c.quadraticCurveTo(dir * (.21 - inset), .29, dir * (.234 - inset), .496); });
       }
     }
     if (!shorts) {
       for (const dir of [-1, 1]) {
-        seams.push((c) => { c.moveTo(dir * .1066, .718); c.quadraticCurveTo(dir * .235, .6894, dir * .395, .5464); });
+        if (raglan) seams.push(along(raglanSeam([dir * RAGLAN.neck, .728], dir).map(([x, y]) => ({ x, y }))));
+        else seams.push((c) => { c.moveTo(dir * .1066, .718); c.quadraticCurveTo(dir * .235, .6894, dir * .395, .5464); });
         seams.push((c) => { c.moveTo(dir * .2334, .035); c.quadraticCurveTo(dir * .2084, .29, dir * .2324, .496); });
       }
       // Collar: joined just below the neck trim, with two rows of stitching under it.
-      const crew = this.kind === 'tee' || this.kind === 'polo';
+      const crew = this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo';
       const neckline = (drop, inset) => (crew
         ? (c) => { c.moveTo(-.09 + inset, .745 - drop); c.quadraticCurveTo(0, (back ? .73 : .66) - drop, .09 - inset, .745 - drop); }
         : (c) => { c.moveTo(-.089 + inset, .745 - drop); c.lineTo(0, (back ? .69 : .668) - drop); c.lineTo(.089 - inset, .745 - drop); });
       seams.push(neckline(.0095, 0));
       for (const drop of [.0125, .0165]) stitches.push(neckline(drop, 0));
     }
-    if (sleeves) {
+    if (sleeves && !raglan) {
       // Set-in sleeves: the armhole seam from the shoulder down to the underarm, stitched on the body side.
       for (const dir of [-1, 1]) {
         seams.push((c) => { c.moveTo(dir * .257, .687); c.quadraticCurveTo(dir * .273, .61, dir * .261, .531); });
@@ -272,13 +304,18 @@ export class KitPainter {
   edges() {
     if (this._edges) return this._edges;
     const poly = this.outline, n = poly.length, shorts = this.kind === 'shorts';
-    const sleeves = ['jersey', 'tee', 'polo'].includes(this.kind);
-    const a = { x: 0.418, y: 0.566 }, b = { x: 0.372, y: 0.476 }, dx = b.x - a.x, dy = b.y - a.y;
+    const sleeves = ['jersey', 'tee', 'raglan', 'polo'].includes(this.kind);
+    // The cuff's corners: the garment's own (the raglan's, garment.js points) or the tee's.
+    const [ax, ay] = this.points?.CT ?? [0.418, 0.566], [bx, by] = this.points?.CB ?? [0.372, 0.476];
+    const a = { x: ax, y: ay }, b = { x: bx, y: by }, dx = b.x - a.x, dy = b.y - a.y;
     const onCuff = (p) => {
       const x = Math.abs(p.x), t = ((x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy);
       return t >= 0 && t <= 1 && Math.hypot(x - a.x - dx * t, p.y - a.y - dy * t) < 0.006;
     };
-    const kinds = poly.map((p) => (p.y < 0.03 && (!shorts || Math.abs(p.x) > 0.035) ? 'hem' : sleeves && onCuff(p) ? 'cuff' : null));
+    // Shorts made with their finished edges marked (legs with side splits) take those: the hem curves up into the split.
+    const kinds = shorts && this.edgeMask
+      ? poly.map((p, i) => (this.edgeMask[i] && p.y < this.frame.maxY - 0.05 ? 'hem' : null))
+      : poly.map((p) => (p.y < 0.03 && (!shorts || Math.abs(p.x) > 0.035) ? 'hem' : sleeves && onCuff(p) ? 'cuff' : null));
     const runs = [], start = kinds.findIndex((k, i) => k !== kinds[(i - 1 + n) % n]);
     for (let i = Math.max(0, start), seen = 0; start >= 0 && seen < n;) {
       const kind = kinds[i], points = [];
@@ -396,6 +433,23 @@ export class KitPainter {
   async paint(design) {
     const g = this.ctx;
     g.setTransform(1, 0, 0, 1, 0, 0);
+    // A factory print layout: its panels are the print (warped into layoutBase by layout-warp.js); only the
+    // sewing and the user's own artwork go on top.
+    if (design.layout && this.layoutBase) {
+      g.fillStyle = this.layoutFill ?? design.main;
+      g.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      g.drawImage(this.layoutBase, 0, 0, this.canvas.width, this.canvas.height);
+      for (const back of [false, true]) {
+        g.save();
+        this.clipOutline(back);
+        this.stitches(back, this.tailoring(back).stitches);
+        g.restore();
+      }
+      this.marks = [];
+      await this.paintLayers(design);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      return this.canvas;
+    }
     g.fillStyle = design.main;
     g.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -412,12 +466,17 @@ export class KitPainter {
     for (const back of [false, true]) {
       g.save();
       this.clipOutline(back);
-      if (design.gradient) this.gradientFill(design.gradient);
-      this.proceduralPattern(design);
+      // Gradient fills, one per colour zone (zoneGradient): the body (Primary), the pattern's ink (Pattern) and
+      // the trims (Secondary: side panels, bands, collar, placket, area blocks).
+      const body = zoneGradient(design, 'main');
+      if (body) this.gradientFill(body);
+      const ink = zoneGradient(design, 'patternColor');
+      this.proceduralPattern(design, design.pattern, ink ? this.gradientStyle(ink) : undefined);
+      const trim = this.zoneFill(design, 'secondary');
 
       const shorts = this.kind === 'shorts';
-      const sleeves = ['jersey', 'tee', 'polo'].includes(this.kind);
-      g.fillStyle = design.secondary;
+      const sleeves = ['jersey', 'tee', 'raglan', 'polo'].includes(this.kind);
+      g.fillStyle = trim;
       for (const dir of [-1, 1]) {
         g.beginPath();
         if (shorts) {
@@ -439,7 +498,7 @@ export class KitPainter {
       // Bands an even width all the way round: the cuffs, the hem (leg hems on shorts), and
       // the waistband. Each reaches a little past the edge so the rolled hem is banded too.
       for (const run of this.edges()) this.band(run.points, run.kind === 'cuff' ? CUFF_BAND : HEM_BAND);
-      if (shorts) g.fillRect(-0.3, 0.395, 0.6, 0.03);
+      if (shorts) g.fillRect(-0.4, (this.points?.CF?.[1] ?? 0.42) - 0.025, 0.8, 0.03);
 
       // AI pattern across the shoulders and sleeves (the yoke), fading out.
       if (this._stencil) {
@@ -474,9 +533,9 @@ export class KitPainter {
 
       // Collar trim: V-neck for jerseys and singlets, crew for tee and polo.
       this.side(back);
-      g.strokeStyle = design.secondary;
+      g.strokeStyle = trim;
       g.lineWidth = 0.018;
-      if (this.kind === 'tee' || this.kind === 'polo') {
+      if (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo') {
         g.beginPath();
         g.moveTo(-0.092, 0.745);
         g.quadraticCurveTo(0, back ? 0.73 : 0.66, 0.092, 0.745);
@@ -490,7 +549,7 @@ export class KitPainter {
       }
       // Polo button placket.
       if (this.kind === 'polo' && !back) {
-        g.fillStyle = design.secondary;
+        g.fillStyle = trim;
         g.fillRect(-0.02, 0.57, 0.04, 0.15);
         g.fillStyle = design.accent;
         for (const y of [0.6, 0.64, 0.68]) {
@@ -547,16 +606,27 @@ export class KitPainter {
     return this.canvas;
   }
 
-  /** Two-colour gradient across the body; angle 0 runs top to bottom. */
-  gradientFill({ from, to, angle = 0 }) {
+  /** A gradient across the body, in panel metres (any number of stops); angle 0 runs top to bottom. */
+  gradientStyle({ stops, angle = 0 }) {
     const g = this.ctx;
     const a = (angle * Math.PI) / 180, cx = 0, cy = 0.38, r = 0.42;
     const dx = Math.sin(a) * r, dy = -Math.cos(a) * r;
     const grad = g.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
-    grad.addColorStop(0, from);
-    grad.addColorStop(1, to);
-    g.fillStyle = grad;
+    for (const s of stops) grad.addColorStop(s.at, s.color);
+    return grad;
+  }
+
+  /** Fills the whole panel with a gradient (the body's Primary zone). */
+  gradientFill(gradient) {
+    const g = this.ctx;
+    g.fillStyle = this.gradientStyle(gradient);
     g.fillRect(-0.6, -0.1, 1.2, 1);
+  }
+
+  /** A colour zone's paint: its gradient when it has one, else its solid colour. */
+  zoneFill(design, slot) {
+    const gradient = zoneGradient(design, slot);
+    return gradient ? this.gradientStyle(gradient) : design[slot];
   }
 
   /** Patterns or colour blocks dropped onto areas (sleeves, shoulders, ...). */
@@ -570,10 +640,10 @@ export class KitPainter {
       for (const [x0, y0, x1, y1] of zoneRects(this.kind, zone)) g.rect(x0, y0, x1 - x0, y1 - y0);
       g.clip();
       if (name === 'Solid') {
-        g.fillStyle = design.secondary;
+        g.fillStyle = this.zoneFill(design, 'secondary');
         g.fillRect(-0.6, -0.1, 1.2, 1);
       } else {
-        this.proceduralPattern(design, name, design.secondary);
+        this.proceduralPattern(design, name, this.zoneFill(design, 'secondary'));
       }
       g.restore();
     }
