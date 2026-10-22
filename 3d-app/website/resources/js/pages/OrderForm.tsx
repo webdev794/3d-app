@@ -2,18 +2,21 @@
  * Create Order Form (/orders/new): an order built from scratch. ① contact and team, ② garments (type, fit, a saved
  * design or uploaded artwork, sizes and quantities, optional player names and numbers), ③ artwork and design
  * instructions; the order summary and 3DEEZI Assist beside them; Save draft and Review order along the bottom.
- * Review shows everything read-only with the price; Confirm order makes ONE order (3DZ-…, idempotency key).
+ * REVIEW & APPROVE ORDER (components/OrderReviewApprove.tsx) shows it read-only: mockups, garments, the size table, delivery
+ * and the price; ticking the confirm box enables Approve Order, which makes ONE order (3DZ-…, idempotency key).
  *
  * Drafts: kept on this device as you type (localStorage, also signed out) and saved to the account with Save draft
  * (order drafts API, orders-api.md §3). Signed out, the page asks to sign in and carries on with the draft after.
  */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Check, ChevronDown, ClipboardPaste, CreditCard, Info, LoaderCircle, LogIn, Palette, Paperclip, Pencil, Plus, Settings, Shirt, Trash2, TriangleAlert, X } from 'lucide-react';
-import { api, ApiError, media, type Catalog, type Project, type User } from '../api';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Check, ChevronDown, ClipboardPaste, CreditCard, Info, LoaderCircle, LogIn, Palette, Paperclip, Plus, Settings, Shirt, Trash2, TriangleAlert, X } from 'lucide-react';
+import { api, ApiError, fetchFile, media, type Catalog, type Project, type User } from '../api';
 import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type OrderDetail, type OrderFile, type Payment } from '../orderApi';
-import { AssistCard, ContactDetailsCard, FileDropBox, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSummaryCard, checkFiles, emptyContact, formatBytes, type ContactDetails, type SummaryRow, type UploadItem } from '../components/OrderPageParts';
+import { AssistCard, ContactDetailsCard, FileDropBox, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSummaryCard, checkFiles, emptyContact, type ContactDetails, type SummaryRow, type UploadItem } from '../components/OrderPageParts';
 import { PriceBreakdown, PricingChoices, type Quote as PayQuote } from '../components/OrderPayment';
+import { OrderReviewApprove, OrderSentPanel, ReviewApproveHeader, layoutFor, paymentPath, type ReviewDesign, type ReviewFile, type ReviewGarment, type ReviewRow } from '../components/OrderReviewApprove';
+import { DEFAULT_LEAD_WEEKS, DeliveryFieldsCard, EMPTY_DELIVERY, MOBILE_MESSAGE, choiceDestination, dateText, deliveryErrors, deliveryPayload, deliveryText, mobileError, pickDelivery, validMobile, type DeliveryErrors, type DeliveryFields } from '../components/OrderDeliveryFields';
 import '../../css/order-form.css';
 
 /* ================================================================================================ API shapes */
@@ -26,7 +29,9 @@ interface Player { name: string; number: string; size?: string }
 interface FormItem { garment: string; sport?: string; fit?: string; label?: string; project_id?: number; sizes: Record<string, number>; players?: Player[] }
 interface PricingChoice { destination?: string; extras?: string[]; discount_code?: string }
 /** The order fields (orders-api.md §2) with the customer's pricing choices (payments-api.md R3). */
-interface FormFields { contact_name: string; contact_email: string; phone: string; team_name: string; notes: string; items: FormItem[]; pricing?: PricingChoice }
+interface FormFields { contact_name: string; contact_email: string; phone: string; team_name: string; notes: string; items: FormItem[]; pricing?: PricingChoice;
+  /** The date required and Deliver / Pick up with the address (components/OrderDeliveryFields.tsx, 2026-10-22). */
+  needed_by: string; delivery: string; address: Record<string, string> }
 /** A garment read from "Help me add sizes" (the server's reader, or this page's own: it may have no garment yet). */
 interface AssistItem { garment: string | null; sport?: string | null; fit?: string | null; sizes: Record<string, number>; stated?: number }
 interface SizesReply { items: AssistItem[]; unknown?: string[] }
@@ -60,20 +65,20 @@ const WORDS: Record<string, [string, string]> = { jersey: ['jersey', 'jerseys'],
 
 interface PlayerRow { key: string; name: string; number: string; size: string }
 interface Row { key: string; garment: string; sport: string; fit: string; label: string; project_id: number | null; sizes: Record<string, number>; players: PlayerRow[]; open: boolean; more: boolean; file_ids: number[] }
-interface FormState { contact: ContactDetails; rows: Row[]; notes: string; pricing: PricingChoice }
+interface FormState { contact: ContactDetails; rows: Row[]; notes: string; pricing: PricingChoice; delivery: DeliveryFields }
 
 let seq = 0;
 const makeKey = (prefix: string) => `${prefix}${Date.now().toString(36)}${(seq++).toString(36)}`;
 const newRow = (p: Partial<Row> = {}): Row => ({ key: makeKey('r'), garment: 'jersey', sport: '', fit: 'mens', label: '', project_id: null, sizes: {}, players: [], open: false, more: false, file_ids: [], ...p });
-const freshForm = (sport: string): FormState => ({ contact: emptyContact(), rows: [newRow({ sport, open: true })], notes: '', pricing: {} });
+const freshForm = (sport: string): FormState => ({ contact: emptyContact(), rows: [newRow({ sport, open: true })], notes: '', pricing: {}, delivery: { ...EMPTY_DELIVERY } });
 const sum = (sizes: Record<string, number>) => Object.values(sizes).reduce((a, b) => a + (Number(b) || 0), 0);
 const digits = (v: string, n = 3) => v.replace(/\D/g, '').slice(0, n);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** The order row for a saved design's garment: a full kit starts as its jersey, a zip hoodie is a hoodie, the pocket polo a polo. */
-const PROJECT_ROWS: Record<string, string> = { fullkit: 'jersey', ziphoodie: 'hoodie', pocketpolo: 'polo' };
+const PROJECT_ROWS: Record<string, string> = { fullkit: 'jersey', ziphoodie: 'hoodie', pocketpolo: 'polo', varsity: 'jacket', trackjacket: 'jacket' };
 const orderGarment = (garment: string, o: { garments: Option[] }) => { const g = PROJECT_ROWS[garment] ?? garment; return o.garments.some(x => x.id === g) ? g : 'jersey'; };
 /** A saved design's garment as the Studio names it ("Zip hoodie", "Full kit"). */
-const DESIGN_GARMENTS: Record<string, string> = { fullkit: 'Full kit', tee: 'Training tee', pocketpolo: 'Polo with pocket', ziphoodie: 'Zip hoodie' };
+const DESIGN_GARMENTS: Record<string, string> = { fullkit: 'Full kit', tee: 'Training tee', pocketpolo: 'Polo with pocket', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
 const designGarment = (garment: string) => DESIGN_GARMENTS[garment] ?? capital(garment);
 const word = (garment: string, n: number) => (WORDS[garment] ?? WORDS.other)[n === 1 ? 0 : 1];
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v : '').slice(0, max);
@@ -109,6 +114,7 @@ function toOrderFields(f: FormState, sizes: string[]): FormFields {
       return { garment: r.garment, ...(r.sport ? { sport: r.sport } : {}), ...(r.fit ? { fit: r.fit } : {}), ...(r.garment === 'other' && r.label.trim() ? { label: r.label.trim() } : {}), ...(r.project_id ? { project_id: r.project_id } : {}), sizes: cleanSizes(r.sizes, sizes), ...(players.length ? { players } : {}) };
     }),
     ...(Object.keys(pricing).length ? { pricing } : {}),
+    ...deliveryPayload(f.delivery),
   };
 }
 /** A draft keeps the order fields plus the screen's own keys (row ids, open rows, artwork per garment, blank player rows). */
@@ -122,6 +128,8 @@ function fromData(d: Loose | null | undefined, sizes: string[]): FormState {
     contact: { contact_name: str(d?.contact_name, 120), contact_email: str(d?.contact_email, 190), team_name: str(d?.team_name, 120), phone: str(d?.phone, 40) },
     notes: str(d?.notes, 4000),
     pricing: d?.pricing && typeof d.pricing === 'object' ? (d.pricing as PricingChoice) : {},
+    // An older draft has none of these: Deliver, in Australia, until chosen.
+    delivery: { ...EMPTY_DELIVERY, ...pickDelivery(d) },
     rows: items.slice(0, MAX_ROWS).map(it => {
       const s = cleanSizes(it?.sizes, sizes), project = Number(it?.project_id) || null;
       const players: Loose[] = Array.isArray(it?.players) ? it.players : [];
@@ -142,6 +150,10 @@ function validate(f: FormState, o: FormOptions): Record<string, string> {
   if (!f.contact.contact_name.trim()) p.contact_name = 'Add the contact name.';
   if (f.contact.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.contact_email.trim())) p.contact_email = 'Check the email address.';
   if (!f.contact.team_name.trim()) p.team_name = 'Add your team or organisation.';
+  // Mobile, date required and delivery, as on Upload Your Order (the server checks the same).
+  const mobile = mobileError(f.contact.phone);
+  if (mobile) p.phone = mobile;
+  Object.assign(p, deliveryErrors(f.delivery));
   if (!f.rows.length) p.items = 'Add at least one garment.';
   f.rows.forEach((r, i) => {
     if (!sum(r.sizes)) p[`items.${i}.sizes`] = `Add sizes and quantities for ${rowName(r, o)}.`;
@@ -154,7 +166,8 @@ function serverProblems(e: ApiError): Record<string, string> {
   const p: Record<string, string> = {};
   for (const [key, messages] of Object.entries(e.errors ?? {})) {
     const row = key.match(/^items\.(\d+)\.(sizes|players)?/);
-    const at = row ? `items.${row[1]}.${row[2] ?? 'sizes'}` : ['contact_name', 'contact_email', 'team_name', 'phone', 'notes', 'items'].includes(key) ? key : 'general';
+    const at = row ? `items.${row[1]}.${row[2] ?? 'sizes'}` : ['contact_name', 'contact_email', 'team_name', 'phone', 'notes', 'items', 'needed_by', 'delivery'].includes(key) ? key
+      : key.startsWith('address.') ? key.slice(8) : key === 'address' ? 'delivery' : 'general';
     p[at] = p[at] ? `${p[at]} ${messages[0]}` : messages[0];
   }
   if (!Object.keys(p).length) p.general = e.message;
@@ -283,6 +296,9 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [quote, setQuote] = useState<{ data: Quote | null; loading: boolean; error: string }>({ data: null, loading: false, error: '' });
   const [pricingOptions, setPricingOptions] = useState<PricingOptions | null | undefined>(undefined);
+  /** REVIEW & APPROVE ORDER's box: "I confirm the selected garments, sizes, quantities and final mockups are correct". */
+  const [approved, setApproved] = useState(false);
+  const navigate = useNavigate();
 
   // The latest values for requests that finish later and for handlers registered once.
   const formRef = useRef(form); formRef.current = form;
@@ -308,10 +324,13 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const updateRow = (key: string, patch: Partial<Row>) => setForm(f => ({ ...f, rows: f.rows.map(r => (r.key === key ? { ...r, ...patch } : r)) }));
 
   /* ------------------------------------------------------------------------------ loading */
+  /** The usual production and delivery time (Admin › Settings): a sooner date required gets a gentle warning. */
+  const [leadWeeks, setLeadWeeks] = useState(DEFAULT_LEAD_WEEKS);
   useEffect(() => {
     let live = true;
     orderApi.options().then(o => {
       if (!live || !o) return;
+      if (typeof o.lead_time_weeks === 'number') setLeadWeeks(o.lead_time_weeks);
       setOptions(prev => ({
         garments: o.garments?.length ? o.garments : prev.garments, sports: o.sports?.length ? o.sports : prev.sports, fits: o.fits?.length ? o.fits : prev.fits, sizes: o.sizes?.length ? o.sizes : prev.sizes,
         files: { artwork: { ...prev.files.artwork, ...(o.files?.artwork ?? {}) }, max_files: o.files?.max_files ?? prev.files.max_files },
@@ -556,6 +575,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     if (!userRef.current) { needSignIn('review'); return; }
     if (busyUploads) { onNotice('Wait for your files to finish uploading, then review the order.'); return; }
     setSubmitError('');
+    setApproved(false);
     setStep('review');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     void saveDraft(true);
@@ -577,6 +597,9 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       touched.current = false;
       setDraftId(null); draftRef.current = null; setFiles([]); setUploads([]);
       setOrder(placed); setStep('done');
+      // Approve Order made the order and its invoice: on to COMPLETE YOUR PAYMENT once that page is live (else Order sent).
+      const payPage = paymentPath(placed);
+      if (payPage) { navigate(payPage); return; }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
       const err = e as ApiError;
@@ -600,9 +623,12 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     if (step !== 'review' || !pricingOptions) { setQuote({ data: null, loading: pricingOptions === undefined && step === 'review', error: '' }); return; }
     let live = true;
     const fields = toOrderFields(formRef.current, options.sizes);
+    // As the order will be priced: the review's destination, else Deliver / Pick up and the country (as the server does).
+    const choice = choiceDestination(formRef.current.delivery);
+    const withChoice = (p: PricingChoice) => (p.destination || !choice ? p : { ...p, destination: choice });
     setQuote(q => ({ ...q, loading: true, error: '' }));
     const t = setTimeout(() => {
-      api<Quote>('/pricing/quote', { method: 'POST', body: JSON.stringify({ items: fields.items, pricing: fields.pricing ?? {} }) })
+      api<Quote>('/pricing/quote', { method: 'POST', body: JSON.stringify({ items: fields.items, pricing: withChoice(fields.pricing ?? {}) }) })
         .then(q => { if (live) setQuote({ data: q, loading: false, error: '' }); })
         .catch(e => { if (live) setQuote({ data: null, loading: false, error: [0, 404, 405].includes((e as ApiError).status) ? '' : (e as Error).message }); });
     }, 200);
@@ -627,19 +653,21 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const problems = useMemo(() => validate(form, options), [form, options]);
   const hint = !form.rows.length ? 'Add a garment to start your order.'
     : form.rows.some(r => !sum(r.sizes)) ? 'Complete garment quantities before review.'
-    : problems.contact_name || problems.team_name || problems.contact_email ? 'Add your contact and team details before review.'
+    : problems.contact_name || problems.team_name || problems.contact_email || problems.phone ? 'Add your contact and team details before review.'
+    : problems.needed_by || problems.delivery || problems.street || problems.suburb || problems.state || problems.postcode || problems.country ? 'Add the date required and the delivery address (or Pick up) before review.'
     : `Ready to review: ${totalQty} ${totalQty === 1 ? 'garment' : 'garments'}.`;
   const hintTone = Object.keys(problems).length ? 'info' : 'ok';
-  const shownErrors = tried ? errors : {};
+  // Section 1 follows what is typed now (a fixed field loses its message at once); the rest as last checked.
+  const shownErrors: Record<string, string | undefined> = tried ? { ...errors, ...Object.fromEntries(['contact_name', 'contact_email', 'team_name', 'phone'].map(k => [k, problems[k]])) } : {};
   const describe = () => {
     const f = formRef.current, names = (r: Row) => projects?.find(p => p.id === r.project_id)?.name;
     return [
-      `ORDER FORM (/orders/new, the customer's Create Order Form; not the Artboard). Step: ${step === 'review' ? 'reviewing before Confirm order' : step === 'done' ? 'order placed' : 'filling it in'}.`,
+      `ORDER FORM (/orders/new, the customer's Create Order Form; not the Artboard). Step: ${step === 'review' ? 'REVIEW & APPROVE ORDER (final mockups, garments, sizes table, delivery & notes; ticking the confirm box enables Approve Order, which places the order; Back to Edit returns to the form)' : step === 'done' ? 'order sent' : 'filling it in'}.`,
       `Team / organisation: ${f.contact.team_name.trim() || '(empty)'}. Contact name ${f.contact.contact_name.trim() ? 'filled' : 'empty'}, email ${f.contact.contact_email.trim() ? 'filled' : 'empty'}, phone ${f.contact.phone.trim() ? 'filled' : 'empty'}.`,
       `Garments (${f.rows.length}):`,
       ...f.rows.map((r, i) => `${i + 1}. ${rowName(r, options)}, ${options.fits.find(x => x.id === r.fit)?.name ?? 'no fit'}, ${r.project_id ? `saved design "${names(r) ?? r.project_id}"` : 'no saved design'}, sizes: ${sizesText(r.sizes, options.sizes) || 'not filled yet'}${r.players.length ? `, ${r.players.length} player names` : ''}.`),
       `Artwork files: ${files.length}. Design instructions: ${f.notes.trim() ? 'written' : 'empty'}. Draft ${draftRef.current ? 'saved in the account' : 'not saved to the account yet'}.`,
-      'On this page: + ADD GARMENT adds a garment; "Add sizes" opens its size boxes (S to 3XL; "+ XS, 4XL, Kids" for more); the 3DEEZI Assist card has "Help me add sizes" (type e.g. "12 jerseys: 2 S, 4 M, 6 L") and "Use one of my saved designs"; "+ Add player names & numbers" takes a list (Paste from Excel); section 3 takes logos and artwork and the design instructions; Save draft keeps it in the account; REVIEW ORDER shows everything and the price, then Confirm order places it and gives a 3DZ- reference.',
+      'On this page: + ADD GARMENT adds a garment; "Add sizes" opens its size boxes (S to 3XL; "+ XS, 4XL, Kids" for more); the 3DEEZI Assist card has "Help me add sizes" (type e.g. "12 jerseys: 2 S, 4 M, 6 L") and "Use one of my saved designs"; "+ Add player names & numbers" takes a list (Paste from Excel); section 3 takes logos and artwork and the design instructions; Save draft keeps it in the account; REVIEW ORDER opens REVIEW & APPROVE ORDER with the mockups, sizes and price, then the confirm box and Approve Order place it and give a 3DZ- reference.',
     ].join('\n').slice(0, 2900);
   };
 
@@ -655,26 +683,82 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const playerCount = form.rows.reduce((n, r) => n + r.players.length, 0);
 
   /* ------------------------------------------------------------------------------ the screen */
-  if (step === 'done' && order) return <OrderPageLayout className="of-page is-done"
-    header={<OrderPageHeader current="Create Order Form" title="Order placed" subtitle="Thank you. Your order is with the 3DEEZI team." />}
-    main={<Placed order={order} onAnother={startAnother} />} />;
+  if (step === 'done' && order) {
+    // The invoice made for the order (payments-api.md §2): "Pay now" only while one can be paid (none while payments are off).
+    const pay: Payment | null = order.invoice ?? order.payment ?? null;
+    const payable = !!pay?.invoice_number && !!pay.can_pay;
+    return <OrderPageLayout className="of-page is-done"
+      header={<ReviewApproveHeader step="sent" firstStep="Order details" subtitle="Thank you. Your order is with the 3DEEZI team." />}
+      main={<OrderSentPanel number={order.number} name={user?.name.split(' ')[0]} message="We’ll check your order and send you the design to approve. You can follow every step in My Orders."
+        onView={() => navigate(`/orders?order=${order.id}`, { state: { order: order.id, number: order.number } })}
+        pay={payable ? { label: <><CreditCard size={18} /> Pay now{pay!.amount_due != null ? ` · ${money(String(pay!.amount_due), pay!.currency || 'AUD')}` : ''}</>, onClick: () => navigate(`/invoices/${encodeURIComponent(pay!.invoice_number!)}`) } : null}
+        note={pay?.status === 'quote_required' ? <p className="ora-sent-note"><Info size={16} /> We’re confirming your price and will send your invoice when it’s ready.</p> : null}
+        another={{ label: 'Start another order', onClick: startAnother }} />} />;
+  }
 
   const reviewing = step === 'review';
+  // REVIEW & APPROVE ORDER (client design 2026-10-22, components/OrderReviewApprove.tsx): read only; Back to Edit returns to the form.
+  if (reviewing) {
+    const c = form.contact;
+    const designRow = form.rows.find(r => r.project_id && projects?.some(p => p.id === r.project_id));
+    const designProject = designRow ? projects?.find(p => p.id === designRow.project_id) ?? null : null;
+    const back = designRow?.players.find(p => p.name.trim() || p.number);
+    const reviewDesign: ReviewDesign | null = designProject ? { id: `${designProject.id}:${designProject.updated_at}`, name: designProject.name, garment: designProject.garment, design: designProject.design as ReviewDesign['design'], thumbnail: designProject.thumbnail, back: back ? { name: back.name.trim(), number: back.number } : null } : null;
+    const garments: ReviewGarment[] = form.rows.map(r => {
+      const project = projects?.find(p => p.id === r.project_id), d = project?.design as Loose | undefined;
+      const fit = options.fits.find(f => f.id === r.fit)?.name, own = files.some(f => r.file_ids.includes(f.id));
+      return {
+        key: r.key, garment: r.garment, name: rowName(r, options), column: typeLabel(r),
+        sub: [fit ? `${fit} fit` : '', project ? `Design: ${project.name}` : r.project_id ? 'Saved design' : own ? 'Your artwork' : ''].filter(Boolean).join(' · '),
+        colours: project ? [d?.main, d?.secondary] : [],
+        // A full kit's rows (jersey, shorts) show their own garment; a single-garment design shows its saved picture.
+        thumb: (project && project.garment !== 'fullkit' ? projectPicture(project) : null) ?? garmentPicture(r.garment) ?? projectPicture(project),
+        sizes: cleanSizes(r.sizes, options.sizes),
+        players: r.players.filter(p => p.name.trim() || p.number).map(p => ({ name: p.name.trim(), number: p.number, size: p.size })),
+      };
+    });
+    const reviewFiles: ReviewFile[] = files.map(f => ({ id: f.id, name: f.name, kind: f.kind, extension: f.extension, size: f.size, thumb: f.thumb, preview: previews.current.get(f.id) ?? null, download: f.download }));
+    // The rows as the order takes them (with the row key and its artwork), for the layout rule and the per-garment sections.
+    const reviewRows: ReviewRow[] = form.rows.map(r => ({ key: r.key, garment: r.garment, sport: r.sport || null, fit: r.fit || null, label: r.garment === 'other' ? r.label.trim() || null : null, project_id: r.project_id,
+      sizes: cleanSizes(r.sizes, options.sizes), players: r.players.filter(p => p.name.trim() || p.number).map(p => ({ name: p.name.trim(), number: p.number, size: p.size || null })), file_ids: r.file_ids }));
+    const layout = layoutFor(reviewRows);
+    const priced = quote.data?.status === 'priced';
+    const toForm = (id?: string) => {
+      setStep('form');
+      requestAnimationFrame(() => requestAnimationFrame(() => (id ? document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : window.scrollTo({ top: 0, behavior: 'smooth' }))));
+    };
+    return <OrderPageLayout className="of-page is-review"
+      header={<ReviewApproveHeader step="review" firstStep="Order details" layout={layout} />}
+      main={<OrderReviewApprove garments={garments} sizeOrder={options.sizes} design={reviewDesign} artwork={reviewFiles} files={reviewFiles} filesLabel="Artwork"
+        layout={layout} rows={reviewRows} projects={projects} options={options} quote={quote.data as unknown as PayQuote | null} quoteLoading={quote.loading} quoteError={quote.error}
+        onEditGarment={i => { const row = form.rows.filter(r => sum(r.sizes) > 0)[i]; if (row) updateRow(row.key, { open: true }); toForm('of-garments'); }}
+        onDownload={f => { const file = files.find(x => x.id === f.id); if (file) orderApi.download(file).catch(e => onNotice(`Couldn’t download ${file.name}: ${(e as Error).message}`)); }}
+        fetchFile={f => fetchFile(String(f.download))}
+        delivery={{ contactName: c.contact_name, team: c.team_name, email: c.contact_email, phone: c.phone, phoneProblem: c.phone.trim() && !validMobile(c.phone) ? MOBILE_MESSAGE : null,
+          neededBy: form.delivery.needed_by, neededByText: form.delivery.needed_by ? dateText(form.delivery.needed_by) : '', method: form.delivery.delivery === 'pickup' ? 'pickup' : 'deliver',
+          address: form.delivery.delivery === 'pickup' ? null : deliveryText(form.delivery), notes: form.notes }}
+        onEditDelivery={() => toForm('of-contact')}
+        onEditGarments={() => toForm('of-garments')}
+        price={priced || (quote.loading && !quote.data) ? <PriceBreakdown quote={quote.data as unknown as PayQuote | null} loading={quote.loading} error={quote.error} /> : undefined}
+        priceNote={quote.error ? `The price couldn’t be worked out (${quote.error}). 3DEEZI confirms it after review.` : quote.data?.reasons?.map(r => r.message).join(' ') || '3DEEZI confirms the price after review, before you pay anything.'}
+        priceOptions={pricingOptions ? <PricingChoices value={form.pricing} onChange={pricing => setForm(f => ({ ...f, pricing }))} /> : undefined}
+        agreed={approved} onAgree={setApproved} busy={submitting} error={submitError}
+        onBack={() => toForm()} onApprove={() => void confirm()} assistContext={describe} />} />;
+  }
   const side = <>
-    <OrderSummaryCard name={form.contact.team_name.trim() || 'Your team'} rows={summaryRows} empty="No garments added yet." hint={reviewing ? 'Check everything, then confirm your order.' : hint} tone={reviewing ? 'info' : hintTone} />
-    <AssistCard context={describe} actions={reviewing ? [] : [
+    <OrderSummaryCard name={form.contact.team_name.trim() || 'Your team'} rows={summaryRows} empty="No garments added yet." hint={hint} tone={hintTone} />
+    <AssistCard context={describe} actions={[
       { key: 'sizes', icon: <Shirt size={26} strokeWidth={1.6} />, label: 'Help me add sizes', open: assistOpen === 'sizes', onClick: () => setAssistOpen(o => (o === 'sizes' ? null : 'sizes')), panel: <SizesHelper rows={form.rows} options={options} onApply={applySizes} /> },
       { key: 'designs', icon: <Palette size={26} strokeWidth={1.6} />, label: 'Use one of my saved designs', open: assistOpen === 'designs', onClick: () => setAssistOpen(o => (o === 'designs' ? null : 'designs')), panel: <DesignsHelper rows={form.rows} options={options} projects={projects} signedIn={!!user} onSignIn={() => authRef.current()} onPick={applyDesign} /> },
     ]} />
   </>;
 
-  const main = reviewing
-    ? <Review form={form} options={options} projects={projects} files={files} quote={quote} pricingOptions={pricingOptions} submitError={submitError}
-        onPricing={pricing => setForm(f => ({ ...f, pricing }))} onEdit={() => { setStep('form'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
-    : <>
+  const main = <>
       {!user && <div className="of-signin" role="note"><LogIn size={20} /><p><strong>Sign in to save and send your order.</strong> What you enter here is kept on this device.</p><button type="button" className="of-btn is-primary" onClick={() => authRef.current()}>Sign in</button></div>}
       {tried && shownErrors.general && <p className="of-general-error" role="alert"><TriangleAlert size={16} /> {shownErrors.general}</p>}
-      <ContactDetailsCard value={form.contact} onChange={contact => setForm(f => ({ ...f, contact }))} errors={shownErrors} />
+      <div id="of-contact"><ContactDetailsCard value={form.contact} onChange={contact => setForm(f => ({ ...f, contact }))} errors={shownErrors} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
+        <DeliveryFieldsCard value={form.delivery} errors={(tried ? problems : {}) as DeliveryErrors} leadWeeks={leadWeeks} onChange={next => setForm(f => ({ ...f, delivery: { ...f.delivery, ...next } }))} />
+      </ContactDetailsCard></div>
       <OrderSection number={2} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
         action={<button type="button" className="op-link caps" onClick={addRow} disabled={form.rows.length >= MAX_ROWS}><Plus size={18} /> Add garment</button>}>
         {form.rows.length ? <ul className="of-rows">{form.rows.map((r, i) => <GarmentRow key={r.key} row={r} index={i} options={options} projects={projects} signedIn={!!user} focus={r.key === focusKey}
@@ -705,14 +789,10 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       </OrderSection>
     </>;
 
-  return <OrderPageLayout className={`of-page${reviewing ? ' is-review' : ''}`}
-    header={<OrderPageHeader current="Create Order Form" title={reviewing ? 'Review your order' : 'Create order form'} subtitle={reviewing ? 'Check everything below. Nothing is sent until you confirm the order.' : 'Add your team details and garments. Review everything before submitting.'} />}
+  return <OrderPageLayout className="of-page"
+    header={<OrderPageHeader current="Create Order Form" title="Create order form" subtitle="Add your team details and garments. Review everything before submitting." />}
     main={main} side={side}
-    bar={reviewing
-      ? <OrderBottomBar secondary={{ label: 'Edit', onClick: () => { setStep('form'); window.scrollTo({ top: 0, behavior: 'smooth' }); }, icon: <Pencil size={20} />, disabled: submitting }}
-          primary={{ label: 'Confirm order', onClick: () => void confirm(), busy: submitting, icon: <Check size={20} /> }}
-          note={quote.data?.status === 'priced' ? 'Confirming places your order. Your invoice follows.' : 'Confirming places your order. 3DEEZI confirms the price.'} status={submitError} />
-      : <OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} primary={{ label: 'Review order', onClick: () => void review() }} note="Reviewing does not submit your order." status={statusText} />} />;
+    bar={<OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} primary={{ label: 'Review order', onClick: () => void review() }} note="Reviewing does not submit your order." status={statusText} />} />;
 }
 
 /* ================================================================================================ a garment */
@@ -960,73 +1040,7 @@ function DesignsHelper({ rows, options, projects, signedIn, onSignIn, onPick }: 
   </div>;
 }
 
-/* ================================================================================================ review and placed */
+/* ================================================================================================ money */
 
 const money = (v: string | null | undefined, currency: string) => (v === null || v === undefined ? '—' : new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(Number(v)));
 
-function Review({ form, options, projects, files, quote, pricingOptions, submitError, onPricing, onEdit }: {
-  form: FormState; options: FormOptions; projects: Project[] | null; files: OrderFile[]; quote: { data: Quote | null; loading: boolean; error: string };
-  pricingOptions: PricingOptions | null | undefined; submitError: string; onPricing: (p: PricingChoice) => void; onEdit: () => void;
-}) {
-  const edit = <button type="button" className="op-link" onClick={onEdit}><Pencil size={15} /> Edit</button>;
-  const c = form.contact, total = form.rows.reduce((n, r) => n + sum(r.sizes), 0);
-  return <>
-    {submitError && <p className="of-general-error" role="alert"><TriangleAlert size={16} /> {submitError}</p>}
-    <OrderSection number={1} title="Contact & team details" action={edit}>
-      <dl className="of-facts">
-        <div><dt>Contact name</dt><dd>{c.contact_name || '—'}</dd></div><div><dt>Email</dt><dd>{c.contact_email || '—'}</dd></div>
-        <div><dt>Team / organisation</dt><dd>{c.team_name || '—'}</dd></div><div><dt>Phone</dt><dd>{c.phone || '—'}</dd></div>
-      </dl>
-    </OrderSection>
-    <OrderSection number={2} title="Garments & sizes" action={edit}>
-      <ul className="of-review-items">{form.rows.map(r => {
-        const project = projects?.find(p => p.id === r.project_id), qty = sum(r.sizes), pic = projectPicture(project) ?? garmentPicture(r.garment);
-        const own = files.filter(f => r.file_ids.includes(f.id)), named = r.players.filter(p => p.name.trim() || p.number);
-        return <li key={r.key}>
-          <div className="of-thumb is-small">{pic ? <img src={pic} alt="" /> : <Shirt size={30} />}</div>
-          <div className="of-review-text">
-            <strong>{rowName(r, options)}</strong>
-            <span>{options.fits.find(f => f.id === r.fit)?.name ?? 'Fit not chosen'} · {project ? `Design: ${project.name}` : r.project_id ? 'Saved design' : own.length ? `Artwork: ${own.map(f => f.name).join(', ')}` : 'No saved design'}</span>
-            <span className="of-review-sizes">{options.sizes.filter(s => r.sizes[s]).map(s => <b key={s}>{s} <i>{r.sizes[s]}</i></b>)}</span>
-            {named.length > 0 && <details className="of-review-players"><summary>{named.length} name{named.length === 1 ? '' : 's'} &amp; number{named.length === 1 ? '' : 's'}</summary>
-              <table><thead><tr><th>Name</th><th>No.</th><th>Size</th></tr></thead><tbody>{named.map((p, i) => <tr key={i}><td>{p.name || '—'}</td><td>{p.number || '—'}</td><td>{p.size || '—'}</td></tr>)}</tbody></table></details>}
-          </div>
-          <div className="of-review-qty"><strong>{qty}</strong><span>{word(r.garment, qty)}</span></div>
-        </li>;
-      })}</ul>
-      <p className="of-review-total">Total <strong>{total}</strong> {total === 1 ? 'garment' : 'garments'}</p>
-    </OrderSection>
-    <OrderSection number={3} title="Artwork & instructions" action={edit}>
-      {files.length ? <ul className="of-review-files">{files.map(f => <li key={f.id}>{f.thumb ? <img src={f.thumb} alt="" /> : <span className="op-file-thumb">{(f.extension || f.name.split('.').pop() || 'file').slice(0, 4)}</span>}<span>{f.name}<small>{formatBytes(f.size)}{form.rows.some(r => r.file_ids.includes(f.id)) ? ` · for ${form.rows.filter(r => r.file_ids.includes(f.id)).map(r => rowName(r, options)).join(', ')}` : ''}</small></span></li>)}</ul> : <p className="of-muted">No files added.</p>}
-      <h3 className="of-review-h">Design instructions</h3>
-      <p className="of-review-notes">{form.notes.trim() || 'None.'}</p>
-    </OrderSection>
-    <OrderSection number={4} title="Price" className="of-price-card">
-      {/* The same price choices and breakdown as Upload Your Order (components/OrderPayment). */}
-      {pricingOptions && <PricingChoices value={form.pricing} onChange={onPricing} />}
-      {quote.data || quote.loading
-        ? <PriceBreakdown quote={quote.data as unknown as PayQuote | null} loading={quote.loading} error={quote.error} />
-        : <p className="of-price-note"><Info size={16} /> {quote.error ? `The price couldn’t be worked out (${quote.error}). ` : ''}Price confirmed by 3DEEZI after review.</p>}
-    </OrderSection>
-  </>;
-}
-
-function Placed({ order, onAnother }: { order: OrderDetail; onAnother: () => void }) {
-  // The invoice made for the order (payments-api.md §2): "Pay now" only while one can be paid (none while payments are off).
-  const pay: Payment | null = order.invoice ?? order.payment ?? null;
-  const payable = !!pay?.invoice_number && !!pay.can_pay;
-  return <section className="op-card of-done" aria-labelledby="of-done-title">
-    <span className="of-done-mark" aria-hidden="true"><Check size={34} /></span>
-    <h2 id="of-done-title">Order placed</h2>
-    <p className="of-done-label">Your order reference</p>
-    <strong className="of-ref">{order.number}</strong>
-    <p className="of-done-line">We’ll check your order and send you the design to approve. You can follow every step in My Orders.</p>
-    {pay?.status === 'quote_required' && <p className="of-done-line">We’re confirming your price and will send your invoice when it’s ready.</p>}
-    {payable && pay?.amount_due != null && <p className="of-done-line">Invoice {pay.invoice_number}: {money(String(pay.amount_due), pay.currency || 'AUD')} to pay.</p>}
-    <div className="of-done-actions">
-      <Link className="of-cta" to={`/orders?order=${order.id}`}>View My Order <ArrowRight size={18} /></Link>
-      {payable && <Link className="of-cta is-pay" to={`/invoices/${pay!.invoice_number}`}><CreditCard size={18} /> Pay now</Link>}
-    </div>
-    <button type="button" className="op-link" onClick={onAnother}><Plus size={16} /> Start another order</button>
-  </section>;
-}

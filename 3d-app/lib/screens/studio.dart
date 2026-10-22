@@ -657,14 +657,28 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     );
   }
 
+  // A tall tool (Preset designs, Artwork) fills the screen: useSafeArea keeps
+  // it below the iPhone notch, and SheetTop gives it a ✕ and a drag handle
+  // (iPhones have no Back button; Android Back closes it too).
   void _openTool(String tool) => showModalBottomSheet<void>(
     context: context,
     backgroundColor: Palette.surface,
-    showDragHandle: true,
     isScrollControlled: true,
+    useSafeArea: true,
     builder: (sheet) => AnimatedBuilder(
       animation: c,
-      builder: (context, _) => Padding(
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SheetTop(),
+          Flexible(child: _toolBody(tool, sheet, context)),
+        ],
+      ),
+    ),
+  );
+
+  Widget _toolBody(String tool, BuildContext sheet, BuildContext context) =>
+      Padding(
         padding: EdgeInsets.fromLTRB(
           20,
           0,
@@ -698,9 +712,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
             _ => _GarmentTool(c),
           },
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _StudioBar extends StatelessWidget {
@@ -716,27 +728,37 @@ class _StudioBar extends StatelessWidget {
   final bool preview;
   final VoidCallback onBack, onPreview, onSave, onShowcase;
 
+  // A fixed width per action, its label scaled down to fit: five actions and
+  // Back always fit a 360 px phone, even with larger iPhone text sizes (the
+  // bar overflowed by 48 px at 375 and 390).
   Widget _action(String label, IconData icon, VoidCallback? onTap) => InkWell(
     borderRadius: BorderRadius.circular(10),
     onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: onTap == null ? Palette.border : Palette.text,
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 9.5,
-              color: onTap == null ? Palette.border : Palette.muted,
+    child: SizedBox(
+      width: 54,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: onTap == null ? Palette.border : Palette.text,
             ),
-          ),
-        ],
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  color: onTap == null ? Palette.border : Palette.muted,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );

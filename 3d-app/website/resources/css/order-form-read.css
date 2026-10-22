@@ -1,0 +1,84 @@
+/* Upload Your Order, review section 3: the order form as read by 3DEEZI AI (components/OrderFormRead.tsx). */
+.ofr{--ofr-amber:#ffc27a;--ofr-line:#1f3448;display:flex;flex-direction:column;gap:14px}
+.ofr-note{display:flex;gap:10px;align-items:flex-start;margin:0;padding:11px 14px;border:1px solid #2b4a63;border-radius:8px;background:#071a29;font-size:13.5px;line-height:1.45;color:#d6e8f7}
+.ofr-note svg{flex:none;margin-top:1px;color:var(--op-cyan,#5cc8ec)}
+.ofr-note.is-ai{border-color:#5a6cff66;background:linear-gradient(90deg,#0a1d33,#120f2e)}
+.ofr-note.is-ai svg{color:#b7a3ff}
+.ofr-note b{color:#fff;font-weight:600;overflow-wrap:anywhere}
+.ofr-none{display:flex;gap:11px;align-items:flex-start;padding:13px 15px;border:1px solid #2b4a63;border-radius:8px;background:#071a29;color:#d6e8f7;font-size:13.5px;line-height:1.5}
+.ofr-none>svg{flex:none;margin-top:2px;color:var(--op-cyan,#5cc8ec)}
+.ofr-none p{margin:0 0 8px}
+.ofr-date{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;margin:0;font-size:13.5px;color:#c6d7e8}
+.ofr-date b{color:#fff}
+.ofr-date small{flex-basis:100%;font-size:12px;color:var(--op-muted,#97aabd)}
+.ofr-rows{display:flex;flex-direction:column;gap:12px}
+.ofr-row{padding:12px 14px;border:1px solid var(--ofr-line);border-radius:8px;background:#04111d}
+.ofr-row-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.ofr-garment{flex:1;min-width:0}
+.ofr-garment select,.ofr-size select{max-width:100%;height:32px;padding:0 28px 0 10px;border:1px solid var(--op-input-line,#4b5d71);border-radius:5px;background:var(--op-input,#030a14);color:#fff;font:inherit;font-size:14px;font-weight:600}
+.ofr-garment select:focus,.ofr-size select:focus,.ofr-player input:focus{outline:none;border-color:var(--op-cyan,#5cc8ec);box-shadow:0 0 0 3px #00d9ed24}
+.ofr-row-total{flex:none;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;color:#fff}
+.ofr-row-total small{font-size:11.5px;font-weight:500;color:var(--op-muted,#97aabd)}
+.ofr-icon{display:grid;place-items:center;flex:none;width:30px;height:30px;padding:0;border:0;border-radius:6px;background:none;color:#a4c1e3;cursor:pointer}
+.ofr-icon:hover{background:#ffffff10;color:#fff}
+.ofr-sizes{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px}
+.ofr-sizes label{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--op-muted,#97aabd)}
+.ofr-sizes label.is-on{color:#dff4ff;font-weight:600}
+.ofr-sizes input{width:100%;max-width:56px;height:32px;padding:0 4px;border:1px solid var(--op-input-line,#4b5d71);border-radius:5px;background:var(--op-input,#030a14);color:#fff;font-size:14px;text-align:center;outline:none}
+.ofr-sizes label.is-on input{border-color:#3f8fb4;background:#06263a}
+.ofr-sizes input:focus{border-color:var(--op-cyan,#5cc8ec);box-shadow:0 0 0 3px #00d9ed24}
+.ofr-detail{margin:8px 0 0;font-size:12px;color:var(--op-muted,#97aabd)}
+.ofr-players{margin-top:12px;border-top:1px solid var(--ofr-line);padding-top:10px}
+.ofr-players-toggle{display:flex;align-items:center;gap:8px;padding:2px 0;border:0;background:none;color:#d6e8f7;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.ofr-players-toggle span{padding:1px 8px;border-radius:10px;background:#12304a;color:#9fdcff;font-size:12px}
+.ofr-player-list{display:flex;flex-direction:column;gap:5px;margin:8px 0 0;padding:0;list-style:none}
+/* .ofr first: the review's dialog styles every li in it as a flex row (order-review.css .ora-files-card li). */
+.ofr .ofr-player{display:grid;grid-template-columns:28px minmax(0,1fr) 70px 128px 30px;gap:8px;align-items:center;padding:0;border:0}
+.ofr-player.is-head{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--op-muted,#97aabd)}
+.ofr-n{font-size:12px;color:var(--op-muted,#97aabd);text-align:right;font-variant-numeric:tabular-nums}
+.ofr-player input{width:100%;height:30px;padding:0 8px;border:1px solid var(--op-input-line,#4b5d71);border-radius:5px;background:var(--op-input,#030a14);color:#fff;font-size:13px}
+.ofr-num{text-align:center}
+.ofr-size{display:flex;align-items:center;gap:6px;min-width:0}
+.ofr-size select{height:30px;font-size:13px;font-weight:500;padding-right:22px}
+.ofr-size small{font-size:11px;color:#9fdcff;white-space:nowrap}
+.ofr-player.is-missing .ofr-size select{border-color:var(--ofr-amber);color:var(--ofr-amber)}
+.ofr-totals{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0;padding:10px 14px;border-radius:8px;background:#0a2032;font-size:13.5px;color:#c6d7e8}
+.ofr-totals b{font-size:16px;color:#fff}
+.ofr-add{display:inline-flex;align-items:center;gap:6px;margin-left:auto;padding:5px 11px;border:1px solid #3b7594;border-radius:16px;background:none;color:#cfe6ff;font:inherit;font-size:12.5px;cursor:pointer}
+.ofr-none .ofr-add{margin-left:0}
+.ofr-add:hover{border-color:var(--op-cyan,#5cc8ec);color:#fff}
+.ofr-unread{display:flex;gap:9px;align-items:flex-start;padding:10px 13px;border:1px solid #ffc27a55;border-radius:8px;background:#1d160a;font-size:13px;color:var(--ofr-amber);line-height:1.45}
+.ofr-unread svg{flex:none;margin-top:2px}
+.ofr-unread ul{margin:5px 0 0;padding-left:18px;color:#ffe2bb}
+.ofr-unread li{overflow-wrap:anywhere}
+.ofr .ou-confirm{margin-top:0}
+@media (max-width:640px){
+  .ofr-row{padding:11px 10px}
+  .ofr-sizes{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .ofr-sizes input{max-width:none}
+  .ofr .ofr-player{grid-template-columns:minmax(0,1fr) 56px 30px;grid-template-areas:"name num del" "size size n";row-gap:4px;padding:0 0 6px;border-bottom:1px solid var(--ofr-line)}
+  .ofr .ofr-player.is-head{display:none}
+  .ofr-name{grid-area:name}.ofr-num{grid-area:num}.ofr-size{grid-area:size}.ofr-player .ofr-icon{grid-area:del}.ofr-n{grid-area:n;align-self:center}
+  .ofr-add{margin-left:0}
+}
+/* Section 2 (upload): 3DEEZI AI reading the order form. */
+.ou-ai-status{display:flex;align-items:center;gap:7px;margin:10px 0 0;font-size:12.5px;line-height:1.4;color:#9fdcff}
+.ou-ai-status svg{flex:none}
+/* Staff: the order form as 3DEEZI AI read it (components/OrderFormReading.tsx). */
+.ofr-staff{display:flex;flex-direction:column;gap:10px;margin:0 0 14px;padding:12px 14px;border:1px solid #5a6cff55;border-radius:10px;background:linear-gradient(180deg,#0b1830,#08111d);color:#dce9f5}
+.ofr-staff header{display:flex;align-items:center;gap:10px}
+.ofr-staff header>svg{flex:none;color:#b7a3ff}
+.ofr-staff header>div{flex:1;min-width:0}
+.ofr-staff header strong{display:block;font-size:14px}
+.ofr-staff header small{display:block;font-size:12px;color:#97aabd;overflow-wrap:anywhere}
+.ofr-staff header .ofr-add{margin-left:0}
+.ofr-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px 14px;margin:0}
+.ofr-facts dt{font-size:11px;color:#97aabd}
+.ofr-facts dd{margin:0;font-size:13px;overflow-wrap:anywhere}
+.ofr-staff-table{overflow-x:auto}
+.ofr-staff-table table{width:100%;border-collapse:collapse;font-size:12.5px}
+.ofr-staff-table th{padding:5px 6px;text-align:left;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:#97aabd;border-bottom:1px solid #24384b}
+.ofr-staff-table td{padding:5px 6px;border-bottom:1px solid #1a2d40}
+.ofr-staff-table td.is-num{text-align:right;font-weight:700}
+.ofr-staff-table tr.is-missing td{color:#ffc27a}
+.ofr-staff-sub{margin:4px 0;font-size:12.5px;font-weight:600}

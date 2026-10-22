@@ -20,11 +20,22 @@ class _Plan {
     this.yearly,
     this.credits,
     this.features, {
+    required this.team,
     this.popular = false,
   });
   final String name, tag;
-  final int monthly, yearly, credits;
+
+  /// A$ a month: whole dollars, or with cents (Club A$49.95).
+  final num monthly;
+
+  /// A$ a year (2 months free): Club A$499.50.
+  final num yearly;
+  final int credits;
   final List<String> features;
+
+  /// The plan's 3DEEZI TEAM (real designers) line, as on the website's
+  /// /pricing and the server's TEAM plans (2026-10-22).
+  final String team;
   final bool popular;
 }
 
@@ -35,22 +46,31 @@ const _plans = [
     '20 AI credits each month',
     'Standard-resolution exports',
     '3DEEZI watermark on AI images',
-  ]),
+  ], team: '3DEEZI TEAM designer: A\$100 per design (incl. GST)'),
   _Plan('Creator', 'For designers & coaches', 19, 190, 250, [
     'Everything in Rookie',
     '250 AI credits each month',
     'Unlimited projects & versions',
     'HD exports, no watermark',
     'Convert any image to 3D',
-  ]),
-  _Plan('Club', 'For clubs & schools', 59, 590, 900, [
-    'Everything in Creator',
-    '900 AI credits each month',
-    '5 team seats',
-    'Shared logo & asset library',
-    'Approval workflow for committees',
-    'Priority generation',
-  ], popular: true),
+  ], team: '3DEEZI TEAM designer: A\$49.95 per design (incl. GST)'),
+  _Plan(
+    'Club',
+    'For clubs & schools',
+    49.95,
+    499.5,
+    900,
+    [
+      'Everything in Creator',
+      '900 AI credits each month',
+      '5 team seats',
+      'Shared logo & asset library',
+      'Approval workflow for committees',
+      'Priority generation',
+    ],
+    team: '3DEEZI TEAM designers included: 15 designs a month',
+    popular: true,
+  ),
   _Plan('Pro Studio', 'For brands & resellers', 149, 1490, 3000, [
     'Everything in Club',
     '3,000 AI credits each month',
@@ -58,7 +78,7 @@ const _plans = [
     'Brand kit & commercial licence',
     'Custom branding on mockups',
     'Dedicated support',
-  ]),
+  ], team: '3DEEZI TEAM designers included: 30 designs a month'),
 ];
 const _costs = [
   ('AI edit in the studio (“Ask 3DEEZI”)', 1),
@@ -234,7 +254,7 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final price = p.monthly == 0
         ? 'Free'
-        : 'A\$${yearly ? (p.yearly / 12).round() : p.monthly}';
+        : 'A\$${yearly ? _perMonth(p) : _dollars(p.monthly)}';
     return GlowCard(
       selected: p.popular,
       radius: 14,
@@ -289,7 +309,7 @@ class _PlanCard extends StatelessWidget {
                   if (p.monthly > 0)
                     TextSpan(
                       text: yearly
-                          ? ' / month, A\$${p.yearly} billed yearly'
+                          ? ' / month, A\$${_dollars(p.yearly)} billed yearly'
                           : ' / month',
                       style: const TextStyle(
                         color: Palette.muted,
@@ -318,6 +338,11 @@ class _PlanCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             for (final f in p.features) _Check(f),
+            _Check(
+              p.team,
+              key: Key('plan-team-${p.name}'),
+              icon: Icons.groups_outlined,
+            ),
             const SizedBox(height: 10),
             p.popular
                 ? GradientButton(
@@ -343,18 +368,29 @@ class _PlanCard extends StatelessWidget {
 String _n(int v) =>
     v >= 1000 ? '${v ~/ 1000},${(v % 1000).toString().padLeft(3, '0')}' : '$v';
 
+/// The yearly price a month: whole dollars (16) unless the plan is priced in
+/// cents (Club: 499.50 / 12 = 41.63), as on the website.
+String _perMonth(_Plan p) => p.monthly == p.monthly.roundToDouble()
+    ? '${(p.yearly / 12).round()}'
+    : ((p.yearly / 12 * 100).round() / 100).toStringAsFixed(2);
+
+/// 19 stays whole; a price with cents shows them (49.95, 499.50).
+String _dollars(num v) =>
+    v == v.roundToDouble() ? '${v.round()}' : v.toStringAsFixed(2);
+
 class _Check extends StatelessWidget {
-  const _Check(this.text);
+  const _Check(this.text, {super.key, this.icon = Icons.check_rounded});
   final String text;
+  final IconData icon;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 3),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 1),
-          child: Icon(Icons.check_rounded, size: 16, color: Palette.cyan),
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 16, color: Palette.cyan),
         ),
         const SizedBox(width: 8),
         Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5))),
@@ -549,13 +585,24 @@ Future<T?> _sheet<T>(BuildContext context, Widget child) =>
     showModalBottomSheet<T>(
       context: context,
       isScrollControlled: true,
+      // Below the iPhone notch, with a ✕: a long form fills the screen.
+      useSafeArea: true,
       backgroundColor: Palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheet) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheet).bottom),
-        child: SafeArea(top: false, child: child),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SheetTop(),
+              Flexible(child: child),
+            ],
+          ),
+        ),
       ),
     );
 
@@ -623,7 +670,7 @@ class _PartnerFormState extends State<_PartnerForm> {
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
-    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
     child: Form(
       key: _form,
       child: Column(
@@ -1318,7 +1365,7 @@ class _OrderFormState extends State<_OrderForm> {
     final wrong = _tried ? _problem() : null;
     final version = widget.p.remoteVersion;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: Form(
         key: _form,
         child: Column(

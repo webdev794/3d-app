@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/notification_bell.dart';
 import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
@@ -173,6 +174,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         TopBar(
           title: 'My projects',
           trailing: [
+            NotificationBell(c),
             IconButton(
               tooltip: 'New design',
               onPressed: () => c.go(AppScreen.home),
@@ -440,7 +442,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
     final canUpload = _tab == 'Logos' || _tab == 'Uploads';
     return Column(
       children: [
-        const TopBar(title: 'Assets', subtitle: 'Logos · patterns · artwork'),
+        TopBar(title: 'Assets', subtitle: 'Logos · patterns · artwork', trailing: [NotificationBell(widget.c)]),
         _Tabs(
           labels: const ['Logos', 'Patterns', 'Artwork', 'Uploads'],
           selected: _tab,
@@ -570,7 +572,7 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      const TopBar(title: 'Profile'),
+      TopBar(title: 'Profile', trailing: [NotificationBell(c)]),
       Expanded(
         child: ListView(
           padding: const EdgeInsets.all(22),

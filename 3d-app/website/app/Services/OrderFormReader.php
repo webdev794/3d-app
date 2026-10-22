@@ -39,8 +39,11 @@ class OrderFormReader
         }
         $rows = array_values(array_filter(array_map(fn ($r) => array_map(fn ($c) => trim((string) $c), array_slice($r, 0, self::MAX_COLUMNS)), $rows),
             fn ($r) => implode('', $r) !== ''));
-        $result = $this->table($rows) ?? $this->lines($rows);
+        $result = $this->table($rows) ?? $this->playerRows($rows) ?? $this->lines($rows);
+        // A garment with no size read is not a row to fill in (client 2026-10-22: an empty Jersey row blocked the review).
+        $result['items'] = array_values(array_filter($result['items'], fn ($item) => array_sum(array_map('intval', $item['sizes'] ?? [])) > 0));
         $result['items'] = array_map(fn ($item) => $item + ['name' => Order::itemName($item)], $result['items']);
+        $result['source'] = 'reader';
         $result['rows'] = count($rows);
         $result['summary'] = $this->assistant->summary($result['items']);
 
@@ -207,7 +210,7 @@ class OrderFormReader
         $items = [];
         $unknown = [];
         foreach ($rows as $row) {
-            $size = $this->size($row[$sizeColumn] ?? '');
+            $size = $this->cellSize($row[$sizeColumn] ?? '');
             $n = (int) round((float) ($row[$qtyColumn] ?? 0));
             if (! $size || $n < 1) {
                 if (implode('', $row) !== '') {
@@ -231,7 +234,7 @@ class OrderFormReader
         $unknown = [];
         $count = 0;
         foreach ($rows as $row) {
-            $size = $this->size($row[$sizeColumn] ?? '');
+            $size = $this->cellSize($row[$sizeColumn] ?? '');
             $name = $nameColumn !== null ? mb_substr(trim($row[$nameColumn] ?? ''), 0, 40) : '';
             $number = $numberColumn !== null ? preg_replace('/\D/', '', (string) ($row[$numberColumn] ?? '')) : '';
             if (! $size) {
@@ -249,6 +252,63 @@ class OrderFormReader
         }
 
         return ['items' => array_values($items), 'players' => $count, 'unknown' => array_slice($unknown, 0, 10)];
+    }
+
+    /**
+     * No heading row, but players as size | name | number cells (a club form like Te Arawa's: "10Y | SMITH | 1", often
+     * beside labels and a size totals table): one jersey each. Null unless at least three players are found.
+     */
+    private function playerRows(array $rows): ?array
+    {
+        $found = [];
+        $columns = [];
+        foreach ($rows as $r => $row) {
+            for ($i = 0, $n = count($row) - 2; $i < $n; $i++) {
+                $size = OrderFormAi::siteSize($row[$i]);
+                if ($size && $this->isName($row[$i + 1]) && preg_match('/^\d{1,3}(\.0+)?$/', $row[$i + 2])) {
+                    $found[] = [$r, $i, $size];
+                    $columns[$i] = ($columns[$i] ?? 0) + 1;
+                    break;
+                }
+            }
+        }
+        if (count($found) < 3) {
+            return null;
+        }
+        arsort($columns);
+        $column = array_key_first($columns);
+        $players = [];
+        $sizes = [];
+        $unknown = [];
+        foreach ($rows as $r => $row) {
+            $name = $row[$column + 1] ?? '';
+            $number = preg_replace('/\.0+$/', '', $row[$column + 2] ?? '') ?? '';
+            if (! $this->isName($name) || ! preg_match('/^\d{1,3}$/', $number)) {
+                continue;
+            }
+            $size = OrderFormAi::siteSize($row[$column] ?? '');
+            if (! $size) {
+                $unknown[] = trim(($row[$column] ?? '').' '.$name.' '.$number).' (no size)';
+                $players[] = ['name' => mb_substr($name, 0, 40), 'number' => $number, 'size' => null];
+
+                continue;
+            }
+            $sizes[$size] = ($sizes[$size] ?? 0) + 1;
+            $players[] = ['name' => mb_substr($name, 0, 40), 'number' => $number, 'size' => $size];
+        }
+        $ordered = array_filter(array_merge(array_fill_keys(Order::SIZES, 0), $sizes));
+        $item = ['garment' => 'jersey', 'sizes' => $ordered, 'players' => $players] + (array_keys($ordered) === ['Kids'] ? ['fit' => 'youth'] : []);
+
+        return ['items' => [$item], 'players' => count($players), 'unknown' => array_slice($unknown, 0, 10)];
+    }
+
+    /** A cell that reads as a player's name: letters, not a size or a heading word. */
+    private function isName(string $cell): bool
+    {
+        $cell = trim($cell);
+
+        return $cell !== '' && mb_strlen($cell) <= 40 && preg_match("/^[\\pL][\\pL\\s'’.\\-]*$/u", $cell) === 1 && ! OrderFormAi::siteSize($cell)
+            && ! in_array(mb_strtolower($cell), ['name', 'names', 'player', 'size', 'number', 'no', 'qty', 'total', 'asap'], true);
     }
 
     /** No heading row: each line read like a description ("Jersey M 12"). */
@@ -277,6 +337,12 @@ class OrderFormReader
         $sizes = $read['items'][0]['sizes'] ?? [];
 
         return count($sizes) === 1 && trim($cell) !== '' && mb_strlen(trim($cell)) <= 12 ? (string) array_key_first($sizes) : null;
+    }
+
+    /** A size in a table's size column: also youth sizes ("10Y", "Y12" => Kids). Headings use size() only. */
+    private function cellSize(string $cell): ?string
+    {
+        return OrderFormAi::siteSize($cell) ?? $this->size($cell);
     }
 
     /** A garment (with sport and fit) named in a cell, or null. */

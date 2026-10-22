@@ -59,7 +59,7 @@ class TeamService
                 $allowance->decrement('bonus_requests');
             }
             $payFirst = (bool) TeamPlans::config()['pay_first'];
-            $request = new TeamRequest(array_intersect_key($data, array_flip(['name', 'email', 'sport', 'garment', 'category', 'description', 'colours', 'instructions'])));
+            $request = new TeamRequest(array_intersect_key(self::briefFields($data), array_flip(['name', 'email', 'sport', 'garment', 'garments', 'category', 'description', 'colours', 'instructions', 'preferred_date'])));
             $request->forceFill([
                 'user_id' => $user->id,
                 'status' => $next['billing'] === 'paid' && $payFirst ? 'awaiting_payment' : 'received',
@@ -105,6 +105,30 @@ class TeamService
         return $request->refresh();
     }
 
+    /**
+     * "Garments needed" and "Preferred delivery date" (the client's /team form, 2026-10-22) go into their own columns;
+     * before the 2026_10_22_100000 migration runs they are added to the instructions, so the designer still sees them.
+     */
+    public static function briefFields(array $data): array
+    {
+        $garments = array_values(array_filter((array) ($data['garments'] ?? []), 'filled'));
+        $date = filled($data['preferred_date'] ?? null) ? (string) $data['preferred_date'] : null;
+        if (TeamRequest::briefReady()) {
+            return ['garments' => $garments ?: null, 'preferred_date' => $date] + $data;
+        }
+        unset($data['garments'], $data['preferred_date']);
+        $names = collect(config('catalog.garments'));
+        $notes = array_filter([
+            count($garments) > 1 ? 'Garments needed: '.implode(', ', array_map(fn ($g) => $names->firstWhere('id', $g)['name'] ?? $g, $garments)).'.' : null,
+            $date ? 'Preferred delivery date: '.\Illuminate\Support\Carbon::parse($date)->format('j M Y').'.' : null,
+        ]);
+        if ($notes) {
+            $data['instructions'] = mb_substr(trim(implode("\n", [...$notes, (string) ($data['instructions'] ?? '')])), 0, 4000);
+        }
+
+        return $data;
+    }
+
     /** TEAM-1001, 1002, ...: the next number, taken again when another request took it at the same moment. */
     private function number(TeamRequest $request): void
     {
@@ -125,8 +149,9 @@ class TeamService
 
     /**
      * The request's invoice in the existing invoices (INV-..., no order): one line, paid in full. TEAM prices include
-     * GST, so the line and subtotal are the price before GST and the GST is the part of the price (A$99.00 = A$90.00 +
-     * A$9.00 GST). Emailed like order invoices. $purpose "revision" is an extra revision round (A$25 incl. GST).
+     * GST, so the line and subtotal are the price before GST and the GST is the part of the price (A$100.00 = A$90.91 +
+     * A$9.09 GST). Emailed like order invoices. $purpose "revision" is an extra revision round (A$25 incl. GST). The line
+     * names the plan after a dot ("... TEAM-1001 · Rookie (Free) plan · A$100.00 incl. GST"): plan names can hold brackets.
      */
     public function issueInvoice(TeamRequest $request, string $purpose = 'request', ?int $priceCents = null, ?string $lineName = null): Invoice
     {
@@ -144,7 +169,7 @@ class TeamService
         $price = $total - $tax;
         $taxName = (string) $settings['tax_name'] ?: 'Tax';
         $planName = TeamPlans::plan($request->plan)['name'];
-        $name = ($lineName ?? "3DEEZI TEAM design request {$request->number} ({$planName} plan)").' · '.Money::format($total, $currency).($tax > 0 ? " incl. {$taxName}" : '');
+        $name = ($lineName ?? "3DEEZI TEAM design request {$request->number} · {$planName} plan").' · '.Money::format($total, $currency).($tax > 0 ? " incl. {$taxName}" : '');
         $line = ['key' => 'team', 'kind' => 'custom', 'garment' => null, 'sport' => null, 'name' => $name,
             'quantity' => 1, 'unit_cents' => $price, 'total_cents' => $price, 'priced' => true];
         $quote = ['status' => 'priced', 'currency' => $currency, 'quantity' => 1, 'lines' => [$line], 'extras' => [], 'garments_total_cents' => $price,

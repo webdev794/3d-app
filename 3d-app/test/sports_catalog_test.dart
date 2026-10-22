@@ -40,6 +40,8 @@ void main() {
     'Polo with pocket': 'pocketpolo',
     'Hoodie': 'hoodie',
     'Zip hoodie': 'ziphoodie',
+    'Varsity jacket': 'varsity',
+    'Track jacket': 'trackjacket',
   };
 
   test('the same categories as the website, with the same groups, garments '

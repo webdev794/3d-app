@@ -21,6 +21,8 @@ export interface TeamInvoice { invoice_number: string | null; status?: string; l
 export interface TeamRequest {
   id: number; number: string; status: TeamStatus; status_label: string; stage_index: number;
   name: string; email: string; sport: string; sport_name?: string | null; garment: string; garment_name?: string | null; category?: string | null;
+  /** "Garments needed" (the first is `garment`) and the optional "Preferred delivery date" (Y-m-d), from 2026-10-22. */
+  garments?: string[]; garment_names?: string[]; preferred_date?: string | null;
   description: string; colours: string[]; instructions: string | null;
   billing: 'included' | 'paid' | 'free'; price: string; currency: string; invoice: TeamInvoice | null;
   /** TEAM prices include GST (client 2026-10-21). */
@@ -48,7 +50,7 @@ export interface TeamAllowance {
   plans: TeamPlan[];
 }
 export interface TeamRequestFields {
-  name: string; email: string; sport: string; garment: string; category?: string; description: string;
+  name: string; email: string; sport: string; garment: string; garments?: string[]; preferred_date?: string; category?: string; description: string;
   colours: string[]; instructions?: string; logos: File[]; references: File[];
 }
 
@@ -60,7 +62,8 @@ export const teamApi = {
   get: (id: number | string) => api<TeamRequest>(`/team/requests/${id}`),
   create: (fields: TeamRequestFields, key: string) => {
     const form = new FormData();
-    (['name', 'email', 'sport', 'garment', 'category', 'description', 'instructions'] as const).forEach(k => { const v = fields[k]; if (v) form.append(k, v); });
+    (['name', 'email', 'sport', 'garment', 'preferred_date', 'category', 'description', 'instructions'] as const).forEach(k => { const v = fields[k]; if (v) form.append(k, v); });
+    (fields.garments ?? []).forEach(g => form.append('garments[]', g));
     fields.colours.forEach(c => form.append('colours[]', c));
     fields.logos.forEach(f => form.append('logos[]', f));
     fields.references.forEach(f => form.append('references[]', f));
@@ -92,18 +95,10 @@ export const TEAM_LIMITS = {
   referenceTypes: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'pdf', 'ai', 'eps', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'zip'],
 };
 /**
- * The client's answers (2026-10-21), shown before the plan loads (signed out): prices incl. GST, included requests a
- * month, revisions per request, the extra revision round, the turnaround and the refund policy. The server's values
- * (Admin > 3DEEZI TEAM) replace them once loaded.
+ * The turnaround shown before the plan loads (signed out); the server's values (Admin > 3DEEZI TEAM) replace it once
+ * loaded. Prices are never kept here: /team shows them only from the allowance API (client, 2026-10-22).
  */
 export const TEAM_DEFAULTS = {
-  plans: [
-    { id: 'free', name: 'Free', included_per_month: 0, price: '99.00', revisions: 2, max_open: 1 },
-    { id: 'pro', name: 'Pro', included_per_month: 0, price: '79.00', revisions: 3, max_open: 2 },
-    { id: 'premium', name: 'Premium', included_per_month: 2, price: '69.00', revisions: 3, max_open: 3 },
-    { id: 'business', name: 'Business', included_per_month: 6, price: '49.00', revisions: 5, max_open: 10 },
-  ] as TeamPlan[],
-  extraRevision: '25.00',
   turnaround: { first_draft_days: 3, revision_days: 2 } as TeamTurnaround,
 };
 export const TEAM_REFUNDS = [
@@ -111,8 +106,8 @@ export const TEAM_REFUNDS = [
   'No refund once the first draft is delivered, though 3DEEZI may give an account credit where fair.',
   'Full refund if 3DEEZI can’t deliver as promised.',
 ];
-/** "A$99.00 incl. GST". */
-export const audMoney = (amount: string | number, currency = 'AUD') => currency === 'AUD' ? `A$${Number(amount).toFixed(2)}` : money(amount, currency);
+/** "A$12.34 incl. GST" (amounts from the API). */
+export const audMoney = (amount: string | number, currency = 'AUD') => currency === 'AUD' ? `A$${new Intl.NumberFormat('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount))}` : money(amount, currency);
 export const inclGst = (amount: string | number, currency = 'AUD', taxName = 'GST') => `${audMoney(amount, currency)} incl. ${taxName}`;
 export const extOf = (name: string) => (name.split('.').pop() || '').toLowerCase();
 export const money = (amount: string | number, currency = 'AUD') => {

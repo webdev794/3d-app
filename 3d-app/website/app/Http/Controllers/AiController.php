@@ -136,7 +136,9 @@ class AiController extends Controller
         ]);
         abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
         $quality = $data['quality'] ?? 'medium';
-        $view = $data['view'] ?? ($quality === 'high' || (int) $data['rank'] === 1 ? 'presentation' : 'front');
+        // All four designs front and back in one tall picture (YOUR DESIGNS, 146.jpg, 2026-10-22); 'front' (one square front
+        // view, the old option cards) only when asked.
+        $view = $data['view'] ?? 'presentation';
         set_time_limit(330);
         [$sport, $garment] = $this->names($data);
         try {

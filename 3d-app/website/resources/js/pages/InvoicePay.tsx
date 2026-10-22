@@ -15,7 +15,9 @@ import { PaymentStatusPill, amountOnly, downloadInvoice, money, type PaymentSumm
 interface InvoicePayment { id: number; provider: 'airwallex' | 'stripe' | 'test' | 'manual'; kind: string; method: string | null; status: string; amount: string; currency: string; message: string | null; card: { brand: string | null; last4: string } | null; paid_at: string | null; created_at: string | null }
 interface InvoiceData extends PaymentSummary {
   id: number; number: string; viewer: 'owner' | 'link' | 'staff';
-  order: { id: number | null; number: string | null; name: string | null; status: string | null; approval: string | null; quantity: number; summary: string | null };
+  order: { id: number | null; number: string | null; name: string | null; status: string | null; approval: string | null; quantity: number; summary: string | null;
+    /** "team": a 3DEEZI TEAM design request's invoice (no garments); "order" or missing: an order's. */
+    source?: string | null };
   customer: { name: string | null; contact: string | null; email: string | null; phone: string | null; address: string | null } | null;
   seller: { name: string; abn: string; email: string; logo: string | null };
   quote: Quote; payments: InvoicePayment[];
@@ -39,7 +41,8 @@ interface AirwallexPayments { redirectToCheckout: (options: Record<string, unkno
 interface AirwallexSdk { init: (options: Record<string, unknown>) => Promise<{ payments?: AirwallexPayments }> }
 declare global { interface Window { Stripe?: (key: string) => StripeJs; AirwallexComponentsSDK?: AirwallexSdk } }
 let airwallexSdk: Promise<AirwallexPayments> | null = null;
-function loadAirwallex(env: 'demo' | 'prod'): Promise<AirwallexPayments> {
+/** Also used by COMPLETE YOUR PAYMENT (OrderCheckout.tsx). */
+export function loadAirwallex(env: 'demo' | 'prod'): Promise<AirwallexPayments> {
   airwallexSdk ??= new Promise<void>((resolve, reject) => {
     if (window.AirwallexComponentsSDK) return resolve();
     const script = document.createElement('script');
@@ -96,9 +99,20 @@ export default function InvoicePayPage({ user, checking, requireAuth }: { user: 
   const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(() => {
-    api<InvoiceData>(`${path}${suffix}`).then(data => { setInvoice(data); setError(null); })
+    api<InvoiceData>(`${path}${suffix}`).then(data => {
+      // An order's invoice is paid on the order's COMPLETE YOUR PAYMENT page (the same payment, in the client's design),
+      // keeping the app's pay link (?key=) and Airwallex's return (?payment= / ?cancelled=). 3DEEZI TEAM invoices (no
+      // order), staff and Stripe (its card fields are on this page) stay here.
+      if (data.order.number && data.order.status && data.viewer !== 'staff' && data.gateway.provider !== 'stripe') {
+        const q = new URLSearchParams(search);
+        q.set('invoice', data.number);
+        navigate(`/orders/${encodeURIComponent(data.order.number)}/${data.status === 'paid' && !q.get('payment') ? 'confirmation' : 'pay'}?${q}`, { replace: true });
+        return;
+      }
+      setInvoice(data); setError(null);
+    })
       .catch(e => setError({ status: e instanceof ApiError ? e.status : 0, message: (e as Error).message }));
-  }, [path, suffix]);
+  }, [path, suffix, search, navigate]);
   const signedIn = !!user || !!getToken();
   useEffect(() => { if (key || (signedIn && !checking)) load(); }, [load, key, signedIn, checking]);
   // Back from Airwallex's payment page: check the payment with Airwallex (its webhook may come a little later).
@@ -135,15 +149,19 @@ export default function InvoicePayPage({ user, checking, requireAuth }: { user: 
 
   const paid = invoice.status === 'paid';
   const closed = invoice.status === 'refunded' || invoice.status === 'cancelled';
+  const team = isTeam(invoice);
   const head = paid ? { title: 'Payment received', sub: 'Thank you. Your invoice is paid in full.' }
     : closed ? { title: `Invoice ${invoice.status}`, sub: invoice.status === 'refunded' ? 'This invoice was refunded.' : 'This invoice was cancelled: nothing is due.' }
+    : team ? (isRevision(invoice) ? { title: 'Pay for your extra revision round', sub: 'Your designer starts the revision once this is paid.' } : { title: 'Pay for your design request', sub: 'Your designer starts once this is paid.' })
     : { title: 'Review & pay', sub: 'Your order is confirmed. Complete payment to continue.' };
-  const approvalBar = invoice.order.approval && invoice.order.approval !== 'approved'
+  // A 3DEEZI TEAM invoice has no production or artwork approval.
+  const approvalBar = team ? invoice.notes : invoice.order.approval && invoice.order.approval !== 'approved'
     ? 'Artwork approval is required before production.'
     : invoice.payment_rule.rule === 'full' && !paid ? 'Production starts once your invoice is paid in full.' : invoice.notes;
 
   return <div className="page-shell pay-page">
-    {phone ? <Link to="/orders" className="pay-back"><ArrowLeft size={17} /> My Orders</Link>
+    {phone ? <Link to={team ? '/team/requests' : '/orders'} className="pay-back"><ArrowLeft size={17} /> {team ? 'My design requests' : 'My Orders'}</Link>
+      : team ? <nav className="pay-crumbs" aria-label="Breadcrumb"><Link to="/">Home</Link><i>/</i><Link to="/team">3DEEZI TEAM</Link><i>/</i><Link to="/team/requests">My design requests</Link><i>/</i><span>Invoice</span></nav>
       : <nav className="pay-crumbs" aria-label="Breadcrumb"><Link to="/">Home</Link><i>/</i><Link to="/orders">Orders</Link><i>/</i><Link to="/orders">My Orders</Link><i>/</i><span>Invoice</span></nav>}
     {invoice.gateway.banner && <div className="pay-test-banner" role="note"><TriangleAlert size={16} /> {invoice.gateway.banner}</div>}
     {phone ? <PhoneHead invoice={invoice} />
@@ -154,19 +172,25 @@ export default function InvoicePayPage({ user, checking, requireAuth }: { user: 
       {phone ? <details className="pay-details glow-panel"><summary><FileText size={18} /> View invoice details <ChevronDown size={18} className="pay-chevron" /></summary><InvoiceCard invoice={invoice} keyParam={key} bare /></details>
         : <InvoiceCard invoice={invoice} keyParam={key} />}
       {paid || closed || invoice.status === 'part_paid' && !invoice.can_pay
-        ? <ResultCard invoice={invoice} keyParam={key} onOrders={() => navigate('/orders')} />
+        ? <ResultCard invoice={invoice} keyParam={key} onOrders={() => navigate(team ? '/team/requests' : '/orders')} />
         : <PaymentCard invoice={invoice} keyParam={key} phone={phone} onChange={setInvoice} />}
     </div>
     {approvalBar && <div className="pay-info glow-panel"><Info size={20} /><span>{approvalBar}</span></div>}
   </div>;
 }
 
+/** A 3DEEZI TEAM design request's invoice (the API's order.source), and one for an extra revision round. */
+const isTeam = (invoice: InvoiceData) => invoice.order.source === 'team';
+const isRevision = (invoice: InvoiceData) => isTeam(invoice) && invoice.order.summary === 'Extra revision round';
+/** "Order #3DZ-00012", or "Design request TEAM-1001". */
+const refOf = (invoice: InvoiceData) => isTeam(invoice) ? `Design request ${invoice.order.number}` : `Order #${invoice.order.number}`;
+
 function PhoneHead({ invoice }: { invoice: InvoiceData }) {
   return <header className="pay-phone-head">
     <h1>Invoice {invoice.number}</h1>
     <PaymentStatusPill payment={invoice} />
     {invoice.order.summary && <p className="pay-phone-summary">{invoice.order.summary}</p>}
-    {invoice.order.number && <p className="pay-phone-order">Order #{invoice.order.number}</p>}
+    {invoice.order.number && <p className="pay-phone-order">{refOf(invoice)}</p>}
     <strong className="pay-phone-amount">{money(invoice.can_pay ? invoice.amount_due : invoice.total, invoice.currency)}</strong>
   </header>;
 }
@@ -181,13 +205,13 @@ function InvoiceCard({ invoice, keyParam, bare = false }: { invoice: InvoiceData
   return <section className={`pay-card pay-invoice${bare ? ' is-bare' : ' glow-panel'}`} aria-label={`Invoice ${invoice.number}`}>
     {!bare && <div className="pay-invoice-head">
       <div className="pay-invoice-title"><h2>Invoice</h2><PaymentStatusPill payment={invoice} /></div>
-      <div className="pay-invoice-ref"><strong>{invoice.number}</strong>{invoice.order.number && <span>Order #{invoice.order.number}</span>}</div>
+      <div className="pay-invoice-ref"><strong>{invoice.number}</strong>{invoice.order.number && <span>{refOf(invoice)}</span>}</div>
     </div>}
     <div className="pay-customer"><span>Customer</span><strong>{invoice.customer?.name || '—'}</strong></div>
     <table className="pay-items"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead>
       <tbody>{rows.map(r => <tr key={r.key}><td>{r.name}</td><td>{r.quantity}</td><td>{amountOnly(r.unit_price, c)}</td><td>{amountOnly(r.total, c)}</td></tr>)}</tbody></table>
     <dl className="pay-totals">
-      <div><dt>Garments</dt><dd>{amountOnly(q.garments_total, c)}</dd></div>
+      <div><dt>{invoice.order.source === 'team' ? (invoice.order.summary || 'Design request') : 'Garments'}</dt><dd>{amountOnly(q.garments_total, c)}</dd></div>
       {Number(q.extras_total) > 0 && <div><dt>Extras</dt><dd>{amountOnly(q.extras_total, c)}</dd></div>}
       {q.shipping && <div><dt>Shipping</dt><dd>{amountOnly(q.shipping.amount, c)}</dd></div>}
       {q.discounts.map(d => <div key={d.name + d.code} className="is-discount"><dt>{d.name}</dt><dd>-{amountOnly(d.amount, c)}</dd></div>)}
@@ -218,10 +242,10 @@ function ResultCard({ invoice, keyParam, onOrders }: { invoice: InvoiceData; key
       {r.paid_at && <div><dt>Paid</dt><dd>{shortDate(r.paid_at)}</dd></div>}
       <div><dt>Method</dt><dd>{r.card ? `${brandName(r.card.brand)} •••• ${r.card.last4}` : r.method === 'bank_transfer' ? 'Bank transfer' : r.method === 'wallet' ? 'Wallet' : 'Card'}</dd></div>
     </dl> : <p className="muted">{invoice.status === 'refunded' ? 'The payment for this invoice was refunded.' : 'This invoice was cancelled. Nothing is due.'}</p>}
-    {paid && <p className="pay-result-note">{invoice.status === 'paid' ? 'A receipt is on its way to your email. Your order moves on to production once its design is approved.' : `Still to pay: ${money(invoice.amount_due, invoice.currency)}.`}</p>}
+    {paid && <p className="pay-result-note">{invoice.status === 'paid' ? `A receipt is on its way to your email. ${isTeam(invoice) ? 'Your designer can start now.' : 'Your order moves on to production once its design is approved.'}` : `Still to pay: ${money(invoice.amount_due, invoice.currency)}.`}</p>}
     <div className="pay-result-actions">
       <button type="button" className="button button-outline" disabled={busy} onClick={async () => { setBusy(true); try { await downloadInvoice(invoice.number, keyParam); } finally { setBusy(false); } }}>{busy ? <LoaderCircle className="spin" size={15} /> : <FileText size={15} />} {paid ? 'Download receipt' : 'Download invoice'}</button>
-      <button type="button" className="button button-gradient" onClick={onOrders}>My Orders <ArrowRight size={15} /></button>
+      <button type="button" className="button button-gradient" onClick={onOrders}>{isTeam(invoice) ? 'My design requests' : 'My Orders'} <ArrowRight size={15} /></button>
     </div>
   </section>;
 }

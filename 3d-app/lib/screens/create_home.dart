@@ -8,6 +8,7 @@ import '../project_sync.dart';
 import '../sports_catalog.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/notification_bell.dart';
 import '../widgets/rewards_card.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
@@ -38,6 +39,8 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _Hero(
+                  // The notification bell (signed in), as the website's header.
+                  bell: NotificationBell(c),
                   onStart: () => Scrollable.ensureVisible(
                     _paths.currentContext!,
                     duration: const Duration(milliseconds: 450),
@@ -140,8 +143,9 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
 
 /// Floodlit stadium hero with the campaign line.
 class _Hero extends StatelessWidget {
-  const _Hero({required this.onStart, required this.onStudio});
+  const _Hero({required this.onStart, required this.onStudio, this.bell});
   final VoidCallback onStart, onStudio;
+  final Widget? bell;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -178,7 +182,14 @@ class _Hero extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const BrandLogo(width: 120, tagline: true),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const BrandLogo(width: 120, tagline: true),
+                  const Spacer(),
+                  ?bell,
+                ],
+              ),
               const Spacer(),
               const Text(
                 'FROM IDEA TO YOUR TEAM’S NEXT KIT',
@@ -1021,6 +1032,8 @@ const garmentTiles = <(String, String)>[
   ('Polo with pocket', 'pocketpolo'),
   ('Hoodie', 'hoodie'),
   ('Zip hoodie', 'ziphoodie'),
+  ('Track jacket', 'trackjacket'),
+  ('Varsity jacket', 'varsity'),
 ];
 
 /// Shown with the garments; not yet available in 3D.
@@ -1301,5 +1314,12 @@ Future<void> convertFlow(BuildContext context, AppController c) async {
   } on AiException catch (e) {
     navigator.pop();
     if (context.mounted) showToast(context, e.message);
+  } on Object {
+    // Any other failure must not leave the user behind this un-closable
+    // dialog (no Back button on an iPhone).
+    navigator.pop();
+    if (context.mounted) {
+      showToast(context, 'Convert did not finish. Please try again.');
+    }
   }
 }

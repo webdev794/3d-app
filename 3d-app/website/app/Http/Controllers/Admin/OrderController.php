@@ -39,6 +39,13 @@ class OrderController extends Controller
                 ->orWhereHas('user', fn ($u) => $u->where('email', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%"))))
             ->latest()
             ->paginate(min(100, max(5, (int) $request->query('per_page', 20))));
+        // The Total column: each order's invoice at a glance (total, paid, status), not the whole invoice.
+        if (OrderView::hasInvoices()) {
+            $orders->getCollection()->load('invoice')->each(function (Order $order) {
+                $order->setAttribute('payment', OrderView::payment($order));
+                $order->unsetRelation('invoice');
+            });
+        }
 
         return response()->json(['data' => $orders]);
     }
@@ -52,9 +59,15 @@ class OrderController extends Controller
         // The board's view of it too: stage, sub-status, garments, files (also internal) and the whole history.
         $order->load(['user:id,name,email', 'project'])->makeVisible('design_snapshot');
 
+        // The saved designs on the order form's rows (with their design), for the kit page's per-garment list.
+        $itemIds = collect($order->items ?? [])->pluck('project_id')->filter()->unique()->values();
+        $itemProjects = $itemIds->isEmpty() ? [] : Project::whereIn('id', $itemIds)->where('user_id', $order->user_id)
+            ->get(['id', 'name', 'sport', 'garment', 'mode', 'status', 'version', 'thumbnail', 'design', 'updated_at'])->toArray();
+
         return response()->json(['data' => array_merge(OrderView::detail($order, true), [
             'project' => $order->project?->toArray(),
             'user' => $order->user?->only(['id', 'name', 'email']),
+            'item_projects' => $itemProjects,
         ])]);
     }
 

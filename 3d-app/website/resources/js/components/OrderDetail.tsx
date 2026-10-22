@@ -195,8 +195,8 @@ function DeliverySection({ order, lit }: { order: OrderDetail; lit: boolean }) {
       </dl>
       {carrierLink ? <a className="ob-action obd-primary" href={carrierLink} target="_blank" rel="noopener noreferrer">Track with {t.carrier || 'the carrier'} <ExternalLink size={16} /></a>
         : <p className="obd-quiet">Use the tracking number on {t.carrier ? `${t.carrier}’s` : 'the carrier’s'} website.</p>}
-    </div> : <p className="obd-quiet">{order.stage === 'delivered' ? 'Delivered.' : 'Tracking appears here when your order ships.'}{order.needed_by ? ` Needed by ${shortDate(order.needed_by)}.` : ''}</p>}
-    {order.shipping_address && <p className="obd-address"><strong>Delivery address</strong>{order.shipping_address}</p>}
+    </div> : <p className="obd-quiet">{order.stage === 'delivered' ? 'Delivered.' : 'Tracking appears here when your order ships.'}{order.needed_by ? ` Date required: ${shortDate(order.needed_by)}.` : ''}</p>}
+    {order.shipping_address && <p className="obd-address"><strong>{/^pick up/i.test(order.shipping_address) ? 'Pick up' : 'Delivery address'}</strong>{order.shipping_address}</p>}
   </DetailSection>;
 }
 
@@ -348,7 +348,7 @@ function DetailsSection({ order }: { order: OrderDetail }) {
     ['Contact', order.contact_name],
     ['Email', order.contact_email],
     ['Phone', order.phone],
-    ['Needed by', order.needed_by && shortDate(order.needed_by)],
+    ['Date required', order.needed_by && shortDate(order.needed_by)],
     ['Total', total ?? (order.payment ? null : 'Quote pending')],
   ];
   return <DetailSection id="obd-info" title="Order details" icon={<ClipboardList size={18} />}>

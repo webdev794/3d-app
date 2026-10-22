@@ -962,13 +962,20 @@ class StudioZoneTool extends StatelessWidget {
       for (final zone in garmentZones.entries)
         if ((c.garment != 'Shorts' || !['sleeves', 'yoke'].contains(zone.key)) &&
             (zone.key != 'pocket' || c.garment == 'Polo with pocket' || isHoodie(c.garment)) &&
-            (zone.key != 'hood' || isHoodie(c.garment)))
+            (zone.key != 'hood' || isHoodie(c.garment) || isTrack(c.garment)))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: DropdownButtonFormField<String>(
               key: ValueKey('${zone.key}-${c.zones[zone.key]}'),
               initialValue: c.zones[zone.key] ?? '',
-              decoration: InputDecoration(labelText: zone.value),
+              // A hoodie's pocket is its kangaroo pocket (as the website's Studio).
+              decoration: InputDecoration(
+                labelText: zone.key == 'pocket' && isHoodie(c.garment)
+                    ? 'Kangaroo pocket'
+                    : zone.key == 'hood' && isTrack(c.garment) && c.trackStyle != 'hood'
+                    ? 'Collar'
+                    : zone.value,
+              ),
               items: [
                 const DropdownMenuItem(
                   value: '',
@@ -991,10 +998,31 @@ class StudioZoneTool extends StatelessWidget {
               }),
             ),
           ),
-      // Hoodies: each area's own colour, from the kit's colours (or back to them).
-      if (isHoodie(c.garment)) ...[
-        const SectionLabel('Hoodie area colours'),
-        for (final area in hoodieAreas.entries)
+      // The track jacket's style: its stand-up collar or a hood (as the website's TRACK JACKET STYLE).
+      if (isTrack(c.garment)) ...[
+        const SectionLabel('Track jacket style'),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: SegmentedButton<String>(
+            key: const ValueKey('track-style'),
+            segments: const [
+              ButtonSegment(value: 'collar', label: Text('Stand-up collar')),
+              ButtonSegment(value: 'hood', label: Text('Hood')),
+            ],
+            selected: {c.trackStyle},
+            onSelectionChanged: (v) => c.edit(() => c.trackStyle = v.first),
+          ),
+        ),
+      ],
+      // Hoodies, the varsity and track jackets: each area's own colour, from the kit's colours (or back to them).
+      if (isHoodie(c.garment) || isVarsity(c.garment) || isTrack(c.garment)) ...[
+        SectionLabel(isTrack(c.garment) ? 'Track jacket area colours' : isVarsity(c.garment) ? 'Varsity area colours' : 'Hoodie area colours'),
+        for (final area in (isTrack(c.garment)
+                ? {...trackAreas, if (c.trackStyle == 'hood') 'collar': 'Hood'}
+                : isVarsity(c.garment)
+                ? varsityAreas
+                : hoodieAreas)
+            .entries)
           if (area.key != 'zip' || c.garment == 'Zip hoodie')
             Row(
               key: ValueKey('area-${area.key}'),

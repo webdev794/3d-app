@@ -328,6 +328,10 @@ class PricingService
             $code = $rule ? strtoupper((string) $rule->code) : $code;
         }
         $amount = $rule ? $rule->amount_cents + $rule->per_item_cents * $quantity : null;
+        // Picking the order up (Upload Your Order's Pick up) costs nothing to ship, unless the price list prices it.
+        if (! $rule && $code === 'PICKUP') {
+            $amount = 0;
+        }
         if (isset($overrides['shipping']) && $overrides['shipping'] !== null) {
             $amount = (int) $overrides['shipping'];
         }
@@ -357,6 +361,10 @@ class PricingService
             if (strlen($name) >= 4 && str_contains($text, ' '.$name.' ')) {
                 return strtoupper((string) $code);
             }
+        }
+        // Upload Your Order's pick-up note (App\Support\OrderDelivery::PICKUP_TEXT).
+        if (str_starts_with($text, ' PICK UP FROM 3DEEZI ')) {
+            return 'PICKUP';
         }
         if (str_contains($text, ' NEW ZEALAND ') || preg_match('/ (NZ|AOTEAROA) /', $text)) {
             return 'NZ';

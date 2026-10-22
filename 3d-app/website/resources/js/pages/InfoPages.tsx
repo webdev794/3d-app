@@ -69,7 +69,7 @@ export function AboutPage() {
       </section>)}</div>
       <OrderSection title="Your sport. Your way.">
         <div className="info-prose">
-          <p>29 sports and apparel categories: Rugby League, Rugby Union, Football, Basketball, Netball, AFL, Hockey, American Football, Golf, Tennis, Athletics, Swimming, Darts &amp; Pool, Touch, Cricket, Softball, Volleyball, Lacrosse, Cycling, BMX, Lawn Bowls and Esports, plus Training, Fight Wear, Fishing, Workwear, Gymwear, Club Casual and School Leavers. Garments: Jersey, Shorts, Training Tee, Singlet, Polo, Polo with pocket, Hoodie, Zip hoodie and Full Kit (jersey and shorts together).</p>
+          <p>29 sports and apparel categories: Rugby League, Rugby Union, Football, Basketball, Netball, AFL, Hockey, American Football, Golf, Tennis, Athletics, Swimming, Darts &amp; Pool, Touch, Cricket, Softball, Volleyball, Lacrosse, Cycling, BMX, Lawn Bowls and Esports, plus Training, Fight Wear, Fishing, Workwear, Gymwear, Club Casual and School Leavers. Garments: Jersey, Shorts, Training Tee, Singlet, Polo, Polo with pocket, Hoodie, Zip hoodie, Varsity jacket and Full Kit (jersey and shorts together).</p>
           <p>Your designs are saved to your account, so you can reopen, change and download them at any time, on the website and in the app. Production starts once you have approved the design and the order is paid in full.</p>
         </div>
       </OrderSection>

@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\InvoiceAdminController;
 use App\Http\Controllers\Admin\PricingAdminController;
 use App\Http\Controllers\AirwallexWebhookController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\OrderCheckoutController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,9 @@ Route::prefix('api/v1')->middleware('api')->group(function () {
         Route::post('/invoices/{number}/pay', [InvoiceController::class, 'pay'])->where('number', $number)->middleware('throttle:payments');
         Route::post('/payments/{payment}/sync', [InvoiceController::class, 'sync'])->whereNumber('payment')->middleware('throttle:payments');
         Route::post('/payments/{payment}/test-complete', [InvoiceController::class, 'testComplete'])->whereNumber('payment')->middleware('throttle:payments');
+        // COMPLETE YOUR PAYMENT and its Confirmation: the order (3DZ-00008 or its id) with its invoice; the billing address.
+        Route::get('/orders/{ref}/checkout', [OrderCheckoutController::class, 'show'])->where('ref', '[0-9]{1,10}|[A-Za-z0-9]{1,6}-[0-9]{1,10}');
+        Route::put('/invoices/{number}/billing', [InvoiceController::class, 'billing'])->where('number', $number)->middleware('throttle:payments');
 
         Route::middleware('auth:sanctum')->group(function () use ($number) {
             Route::get('/invoices', [InvoiceController::class, 'index']);

@@ -33,11 +33,11 @@ class TeamRequest extends Model
     /** A designer may move a request to these. */
     public const DESIGNER_STATUSES = ['in_progress', 'review'];
 
-    protected $fillable = ['name', 'email', 'sport', 'garment', 'category', 'description', 'colours', 'instructions', 'priority', 'due_date', 'revisions_allowed'];
+    protected $fillable = ['name', 'email', 'sport', 'garment', 'garments', 'category', 'description', 'colours', 'instructions', 'preferred_date', 'priority', 'due_date', 'revisions_allowed'];
 
     protected function casts(): array
     {
-        return ['colours' => 'array', 'final_asset_ids' => 'array', 'used_bonus' => 'boolean', 'sequence' => 'integer', 'price_cents' => 'integer',
+        return ['colours' => 'array', 'garments' => 'array', 'preferred_date' => 'date', 'final_asset_ids' => 'array', 'used_bonus' => 'boolean', 'sequence' => 'integer', 'price_cents' => 'integer',
             'revisions_used' => 'integer', 'revisions_allowed' => 'integer', 'final_version' => 'integer', 'due_date' => 'date',
             'approved_at' => 'datetime', 'closed_at' => 'datetime', 'refunded_at' => 'datetime', 'extra_revisions' => 'integer', 'status_changed_at' => 'datetime', 'customer_read_at' => 'datetime', 'staff_read_at' => 'datetime'];
     }
@@ -103,6 +103,33 @@ class TeamRequest extends Model
         }
 
         return self::$answersReady;
+    }
+
+    private static ?bool $briefReady = null;
+
+    /**
+     * Whether the 2026_10_22_100000 migration ran ("Garments needed" and "Preferred delivery date", the client's new
+     * /team form): until it does, both are written into the instructions and everything else works as before.
+     */
+    public static function briefReady(): bool
+    {
+        if (self::$briefReady === null) {
+            try {
+                self::$briefReady = Schema::hasColumn('team_requests', 'garments') && Schema::hasColumn('team_requests', 'preferred_date');
+            } catch (\Throwable) {
+                self::$briefReady = false;
+            }
+        }
+
+        return self::$briefReady;
+    }
+
+    /** The garments asked for: the list, or the one garment of an older request. */
+    public function garmentList(): array
+    {
+        $list = self::briefReady() ? array_values(array_filter((array) ($this->garments ?? []), 'filled')) : [];
+
+        return $list ?: array_values(array_filter([(string) $this->garment], 'filled'));
     }
 
     /**

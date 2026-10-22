@@ -1,14 +1,15 @@
 /**
- * 3DEEZI TEAM, the human designer service (client brief 2026-10-21): the landing page with the request form
- * (/team), My design requests (/team/requests) and one request with its progress, conversation, designs for
- * review and the final design (/team/requests/:id). Server: T1's team-api.md.
+ * 3DEEZI TEAM, the human designer service (client brief 2026-10-21; the client's new /team design 2026-10-22): the
+ * landing page with the photo hero, HOW IT WORKS (seven steps), the request form and YOUR DESIGN REQUEST (/team),
+ * My design requests (/team/requests) and one request with its progress, conversation, designs for review and the
+ * final design (/team/requests/:id). Server: T1's team-api.md.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Box, CalendarClock, Check, CheckCircle2, ClipboardList, CreditCard, Download, FileText, ImagePlus, LoaderCircle, MessageSquare, Paperclip, PenTool, Plus, RefreshCw, Send, ShieldCheck, ShoppingBag, Sparkles, Upload, UserRound, Users, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Box, CalendarClock, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheck, CreditCard, Download, FileText, ImageIcon, Info, LoaderCircle, MessageSquare, MessageSquareText, Palette, Paperclip, Pencil, Plus, RefreshCw, Send, Settings, ShieldCheck, Shirt, ShoppingBag, Truck, Upload, UserPen, Users, X } from 'lucide-react';
 import { ApiError, media, type Catalog, type User } from '../api';
 import { clearIdempotencyKey, idempotencyKey } from '../orderApi';
-import { TEAM_DEFAULTS, TEAM_LIMITS, TEAM_REFUNDS, TEAM_STEPS, audMoney, extOf, inclGst, money, teamApi, type TeamAllowance, type TeamFile, type TeamRequest, type TeamStatus } from '../teamApi';
+import { TEAM_DEFAULTS, TEAM_LIMITS, TEAM_REFUNDS, TEAM_STEPS, audMoney, extOf, inclGst, teamApi, type TeamAllowance, type TeamFile, type TeamRequest, type TeamStatus } from '../teamApi';
 import '../../css/team.css';
 
 type RequireAuth = (after?: () => void) => void;
@@ -101,188 +102,311 @@ function ColourPicker({ value, onChange }: { value: string[]; onChange: (next: s
   </div>;
 }
 
-function AllowanceCard({ allowance, user, onSignIn }: { allowance: TeamAllowance | null; user: User | null; onSignIn: () => void }) {
-  if (!user) return <aside className="tm-allow panel"><span className="tm-kicker">YOUR ALLOWANCE</span><p>Sign in to see the design requests included in your plan and the price of the next one.</p><button className="button button-outline" onClick={onSignIn}>Sign in <ArrowRight size={15} /></button></aside>;
-  if (!allowance) return <aside className="tm-allow panel" aria-busy="true"><span className="tm-kicker">YOUR ALLOWANCE</span><p><LoaderCircle className="spin" size={16} /> Checking your plan…</p></aside>;
-  const next = allowance.next_request;
-  return <aside className="tm-allow panel" aria-label="Your 3DEEZI TEAM allowance">
-    <span className="tm-kicker">YOUR PLAN · {allowance.plan_name.toUpperCase()}</span>
-    <div className="tm-allow-grid">
-      <div><b>{allowance.unlimited ? '∞' : allowance.remaining_included}</b><span>{allowance.unlimited ? 'Unlimited requests' : `of ${allowance.included_per_month + allowance.bonus_remaining} included left this month`}</span></div>
-      <div><b>{next.billing === 'paid' ? money(next.total, next.currency) : 'Included'}</b><span>{next.billing === 'paid' ? `Your next request, incl. ${next.tax_name || 'GST'}` : 'Your next request'}</span></div>
-      <div><b>{allowance.revisions_per_request}</b><span>Revisions per request</span></div>
-    </div>
-    {next.billing === 'paid' && <p className="tm-allow-note"><CreditCard size={15} /> {next.pay_first ? 'You pay the invoice first; your designer starts when it is paid.' : 'An invoice is issued; your designer starts straight away.'}</p>}
-    {!allowance.can_submit && allowance.blocked_reason && <p className="tm-allow-note is-warn" role="status">{allowance.blocked_reason}</p>}
-  </aside>;
-}
+/** "Jersey, Shorts" (the garments asked for), or the one garment of an older request. */
+const garmentsText = (r: Pick<TeamRequest, 'garment' | 'garment_name' | 'garment_names'>) => r.garment_names?.length ? r.garment_names.join(', ') : (r.garment_name || r.garment);
 
 function RequestList({ requests, compact }: { requests: TeamRequest[]; compact?: boolean }) {
   if (!requests.length) return <p className="muted tm-empty">No design requests yet. Your requests and their progress appear here.</p>;
   return <ul className={`tm-list${compact ? ' is-compact' : ''}`}>{requests.map(r => <li key={r.id}><Link to={`/team/requests/${r.id}`} className="tm-row">
     <span className="tm-row-ref">{r.number}</span>
-    <span className="tm-row-main"><strong>{r.garment_name || r.garment} · {r.sport_name || r.sport}</strong><small>{r.name} · {fmtDate(r.created_at)}</small></span>
+    <span className="tm-row-main"><strong>{garmentsText(r)} · {r.sport_name || r.sport}</strong><small>{r.name} · {fmtDate(r.created_at)}{r.preferred_date ? ` · wanted by ${fmtDate(r.preferred_date)}` : ''}</small></span>
     <StatusChip request={r} />
     {r.unread > 0 && <span className="tm-unread" aria-label={`${r.unread} new messages`}>{r.unread}</span>}
     <ArrowRight size={16} className="tm-row-go" />
   </Link></li>)}</ul>;
 }
 
-/** /team: the landing page (heading, how it works, allowance), the request form and the customer's requests. */
+/** HOW IT WORKS: the client's seven steps (2026-10-22), a loop from the brief to delivery. */
+export const TEAM_LOOP: { title: string; sub: string; icon: ReactNode }[] = [
+  { title: 'Share your brief', sub: 'Ideas, colours & examples', icon: <FileText /> },
+  { title: 'Designer creates', sub: 'Your first concept', icon: <Pencil /> },
+  { title: 'Review & refine', sub: 'Share your feedback', icon: <MessageSquareText /> },
+  { title: 'Approve your order', sub: 'Check artwork, sizes & quantities', icon: <CircleCheck /> },
+  { title: 'Payment', sub: 'Complete secure checkout', icon: <CreditCard /> },
+  { title: 'Production', sub: 'Your garments are made', icon: <Settings /> },
+  { title: 'Delivery', sub: 'Track your order', icon: <Truck /> },
+];
+
+function HowItWorks() {
+  const card = (step: (typeof TEAM_LOOP)[number], i: number) => <div className="tm-step">
+    <span className="tm-step-num">{i + 1}</span>
+    <span className="tm-step-icon" aria-hidden="true">{step.icon}</span>
+    <span className="tm-step-text"><b>{step.title}</b><small>{step.sub}</small></span>
+  </div>;
+  return <section className="tm-how" aria-labelledby="tm-how-h">
+    <h2 id="tm-how-h">HOW IT <span>WORKS</span></h2>
+    <div className="tm-loop">
+      <span className="tm-loop-track" aria-hidden="true" />
+      <ol className="tm-loop-row is-top">{TEAM_LOOP.slice(0, 4).map((step, i) => <li key={step.title} className={`s${i + 1}`}>{card(step, i)}{i < 3 && <span className="tm-arrow" aria-hidden="true" />}</li>)}</ol>
+      <p className="tm-loop-center">FROM IDEA TO <span>TEAMWEAR</span></p>
+      <ol className="tm-loop-row is-bottom" start={5}>{TEAM_LOOP.slice(4).map((step, k) => <li key={step.title} className={`s${k + 5}`}>{card(step, k + 4)}{k < 2 && <span className="tm-arrow" aria-hidden="true" />}</li>)}</ol>
+      <span className="tm-loop-head is-right" aria-hidden="true" />
+      <span className="tm-loop-head is-left" aria-hidden="true" />
+    </div>
+  </section>;
+}
+
+/** /team: the photo hero, HOW IT WORKS, the request form and YOUR DESIGN REQUEST (the client's design, 2026-10-22). */
 export function TeamPage({ user, requireAuth, catalog }: { user: User | null; requireAuth: RequireAuth; catalog: Catalog | null }) {
   const navigate = useNavigate();
   const [allowance, setAllowance] = useState<TeamAllowance | null>(null);
-  const [requests, setRequests] = useState<TeamRequest[] | null>(null);
   const [loadError, setLoadError] = useState('');
   const [sent, setSent] = useState<TeamRequest | null>(null);
+  const [progress, setProgress] = useState<BriefProgress>({ garments: false, inspiration: false, logos: false, date: false });
   const load = useCallback(() => {
-    if (!user) { setAllowance(null); setRequests(null); return; }
+    if (!user) { setAllowance(null); return; }
     setLoadError('');
     teamApi.allowance().then(setAllowance).catch(e => setLoadError((e as Error).message));
-    teamApi.list().then(setRequests).catch(e => setLoadError((e as Error).message));
   }, [user]);
   useEffect(load, [load]);
   const toForm = () => document.getElementById('tm-request')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const myRequests = () => requireAuth(() => navigate('/team/requests'));
   return <div className="tm-page">
-    <section className="tm-hero" style={{ backgroundImage: `linear-gradient(90deg,#020912 0,#020912f0 38%,#02091299 62%,#0209124d),url(${media('images/art/home_team.webp')})` }}>
+    <section className="tm-hero" style={{ ['--tm-hero' as string]: `url(${media('images/art/team_hero.webp')})` }}>
       <div className="tm-hero-inner">
         <span className="tm-kicker"><Users size={15} /> HUMAN DESIGN SERVICE</span>
-        <h1>3DEEZI <span>TEAM</span></h1>
+        <h1 className="tm-title"><img className="tm-wordmark" src={media('images/brand-wordmark.png')} alt="3DEEZI" width={1628} height={233} decoding="async" /> <span>DESIGN TEAM</span></h1>
         <p className="tm-sub">REAL DESIGNERS. REAL RESULTS.</p>
-        <p className="tm-lead">Let our professional design team bring your ideas to life. Simply upload your logos, colours, examples and design requirements, and we’ll take care of the rest.</p>
-        <p className="tm-promise" data-testid="team-promise"><CalendarClock size={17} /> First design within {(allowance?.turnaround ?? TEAM_DEFAULTS.turnaround).first_draft_days} business days</p>
-        <div className="tm-hero-actions"><button className="button button-gradient tm-cta" onClick={toForm}>REQUEST A DESIGNER <ArrowRight size={18} /></button>{user && requests && requests.length > 0 && <Link className="button button-outline" to="/team/requests"><ClipboardList size={16} /> MY DESIGN REQUESTS</Link>}</div>
+        <p className="tm-lead">Share your ideas, logos and examples.<br />Our design team will bring your kit to life.</p>
+        <div className="tm-hero-actions">
+          <button className="button button-gradient tm-cta" onClick={toForm}>REQUEST A DESIGNER <ArrowRight size={18} /></button>
+          <button className="button button-outline tm-mine-cta" onClick={myRequests}><FileText size={16} /> VIEW MY REQUESTS</button>
+        </div>
+        <ul className="tm-perks">
+          <li><Users size={17} /> Personal design support</li>
+          <li><Shirt size={17} /> Custom sportswear expertise</li>
+          <li><ShieldCheck size={17} /> Review before you approve</li>
+        </ul>
       </div>
+      <p className="tm-hero-words" aria-hidden="true">{['SPORTSWEAR', 'BRANDS', 'TEAMS', 'PEOPLE', 'BETTER', 'TOGETHER'].map(w => <span key={w}>{w}</span>)}</p>
     </section>
     <div className="page-shell tm-shell">
-      <section className="tm-how" aria-labelledby="tm-how-h">
-        <h2 id="tm-how-h">HOW IT <span>WORKS</span></h2>
-        <ol>
-          <li><span className="tm-how-icon"><Upload /></span><b>1. Send your brief</b><p>Your sport and garment, logos, colours, examples and anything else your designer should know.</p></li>
-          <li><span className="tm-how-icon"><UserRound /></span><b>2. Meet your designer</b><p>A 3DEEZI designer takes your request and keeps you posted here and by notification.</p></li>
-          <li><span className="tm-how-icon"><PenTool /></span><b>3. Review and refine</b><p>See the designs, chat with your designer and ask for revisions until it is right.</p></li>
-          <li><span className="tm-how-icon"><CheckCircle2 /></span><b>4. Approve and order</b><p>Your final design goes to My assets: open it on the 3D kit or order it straight away.</p></li>
-        </ol>
-      </section>
-      <TeamFacts allowance={allowance} />
-      <div className="tm-columns">
-        <section className="tm-form-wrap" id="tm-request" aria-labelledby="tm-form-h">
+      <HowItWorks />
+      <div className="tm-columns" id="tm-request">
+        <section className="tm-form-wrap" aria-labelledby="tm-form-h">
           {sent ? <Confirmation request={sent} onAnother={() => { setSent(null); load(); }} onPay={url => navigate(url)} />
-            : <RequestForm user={user} catalog={catalog} allowance={allowance} requireAuth={requireAuth} onSent={r => { setSent(r); load(); setTimeout(() => document.getElementById('tm-request')?.scrollIntoView({ block: 'start' }), 30); }} />}
+            : <RequestForm user={user} catalog={catalog} allowance={allowance} loadError={loadError} requireAuth={requireAuth} onProgress={setProgress} onSent={r => { setSent(r); load(); setTimeout(() => document.getElementById('tm-request')?.scrollIntoView({ block: 'start' }), 30); }} />}
+          <GoodToKnow allowance={allowance} />
         </section>
-        <div className="tm-side">
-          <AllowanceCard allowance={allowance} user={user} onSignIn={() => requireAuth()} />
-          {user && <section className="tm-mine panel" aria-labelledby="tm-mine-h"><div className="tm-mine-head"><h2 id="tm-mine-h">MY DESIGN REQUESTS</h2>{requests && requests.length > 0 && <Link to="/team/requests">View all</Link>}</div>
-            {loadError ? <p className="error-message" role="alert">{loadError} <button className="tm-link" onClick={load}>Try again</button></p> : requests ? <RequestList requests={requests.slice(0, 5)} compact /> : <p className="muted"><LoaderCircle className="spin" size={16} /> Loading…</p>}
-          </section>}
-        </div>
+        <RequestChecklist progress={sent ? { garments: true, inspiration: true, logos: progress.logos, date: progress.date } : progress} />
       </div>
     </div>
   </div>;
 }
 
-/** Prices (incl. GST), revisions and extra rounds, turnaround and the refund policy (client answers 2026-10-21). */
-function TeamFacts({ allowance }: { allowance: TeamAllowance | null }) {
-  const plans = allowance?.plans?.length ? allowance.plans : TEAM_DEFAULTS.plans;
+type BriefProgress = { garments: boolean; inspiration: boolean; logos: boolean; date: boolean };
+
+/** YOUR DESIGN REQUEST: what a good brief has; each row is ticked as the form gets it. */
+function RequestChecklist({ progress }: { progress: BriefProgress }) {
+  const rows: { key: keyof BriefProgress; icon: ReactNode; title: string; sub: string }[] = [
+    { key: 'garments', icon: <Shirt size={19} />, title: 'Garment types & quantities', sub: 'Tell us what you need' },
+    { key: 'inspiration', icon: <Palette size={19} />, title: 'Colours & inspiration', sub: 'Share references or examples' },
+    { key: 'logos', icon: <ImageIcon size={19} />, title: 'Logos & sponsor artwork', sub: 'Upload your files' },
+    { key: 'date', icon: <CalendarDays size={19} />, title: 'Preferred delivery date', sub: 'Let us know if you have a target date' },
+  ];
+  return <aside className="tm-check panel" aria-labelledby="tm-check-h">
+    <h2 id="tm-check-h">YOUR DESIGN REQUEST</h2>
+    <ul>{rows.map(r => <li key={r.key} className={progress[r.key] ? 'is-done' : ''}>
+      <span className="tm-check-icon" aria-hidden="true">{r.icon}</span>
+      <span className="tm-check-text"><b>{r.title}</b><small>{r.sub}</small></span>
+      {progress[r.key] && <span className="tm-check-tick" title="Added"><Check size={13} /><span className="tm-sr">(added)</span></span>}
+    </li>)}</ul>
+    <p className="tm-fees" data-testid="team-fees"><span className="tm-i" aria-hidden="true">i</span> Design service availability and any fees are confirmed before work begins.</p>
+    <Link className="tm-subs" to="/pricing">View subscription options <ArrowRight size={15} /></Link>
+  </aside>;
+}
+
+/** Turnaround, revisions and the refund policy (client answers 2026-10-21): small and folded, without prices. */
+function GoodToKnow({ allowance }: { allowance: TeamAllowance | null }) {
   const turnaround = allowance?.turnaround ?? TEAM_DEFAULTS.turnaround;
-  const currency = allowance?.next_request.currency ?? 'AUD';
-  const tax = allowance?.next_request.tax_name || 'GST';
-  const extra = allowance?.extra_revision?.price ?? TEAM_DEFAULTS.extraRevision;
-  const short = (name: string) => name.split(' / ')[0];
-  const included = plans.filter(p => p.included_per_month > 0);
-  return <section className="tm-facts-panel" aria-labelledby="tm-facts-h">
-    <h2 id="tm-facts-h">GOOD TO <span>KNOW</span></h2>
-    <dl className="tm-faq">
-      <div><dt><CreditCard size={17} /> Prices</dt><dd>{included.length > 0 && <>{included.map(p => `${short(p.name)}: ${p.included_per_month} included a month`).join(' · ')} (no carry-over). </>}Each extra request: {plans.map(p => `${short(p.name)} ${audMoney(p.price, currency)}`).join(', ')}, all incl. {tax}.</dd></div>
-      <div><dt><RefreshCw size={17} /> Revisions</dt><dd>{plans.map(p => `${short(p.name)} ${p.revisions}`).join(', ')} per request. Need more? An extra revision round is {inclGst(extra, currency, tax)}, and it starts once paid.</dd></div>
-      <div><dt><CalendarClock size={17} /> Turnaround</dt><dd>First design within {turnaround.first_draft_days} business days; each revision within {turnaround.revision_days} business days (Monday to Friday). Paid requests start once the invoice is paid.</dd></div>
-      <div><dt><ShieldCheck size={17} /> Refunds</dt><dd data-testid="team-refunds">{TEAM_REFUNDS.join(' ')}</dd></div>
+  return <details className="tm-good">
+    <summary><Info size={15} /> Good to know: turnaround, revisions and refunds <ChevronDown size={15} className="tm-good-caret" /></summary>
+    <dl>
+      <div><dt><CalendarClock size={15} /> Turnaround</dt><dd data-testid="team-promise">First design within {turnaround.first_draft_days} business days; each revision within {turnaround.revision_days} business days (Monday to Friday). A request with a fee starts once it is paid.</dd></div>
+      <div><dt><RefreshCw size={15} /> Revisions</dt><dd>{allowance ? `Your plan includes ${allowance.revisions_per_request} revisions per request.` : 'Every request includes revisions.'} Need more? Ask your designer for an extra round; any fee is shown before it starts.</dd></div>
+      <div><dt><ShieldCheck size={15} /> Refunds</dt><dd data-testid="team-refunds">{TEAM_REFUNDS.join(' ')}</dd></div>
     </dl>
-  </section>;
+  </details>;
+}
+
+/** The line by SEND DESIGN REQUEST: what this request costs, from the allowance API (nothing hard-coded). */
+function CostLine({ user, allowance, loadError }: { user: User | null; allowance: TeamAllowance | null; loadError: string }) {
+  if (!user) return <p className="tm-cost" data-testid="team-cost"><Info size={15} /> You sign in when you send; you see any fee before work begins.</p>;
+  if (loadError) return <p className="tm-cost is-warn" data-testid="team-cost" role="alert"><Info size={15} /> Your plan could not be checked: {loadError}</p>;
+  if (!allowance) return <p className="tm-cost" data-testid="team-cost"><LoaderCircle className="spin" size={15} /> Checking your plan…</p>;
+  const next = allowance.next_request;
+  if (next.billing === 'paid') return <p className="tm-cost is-paid" data-testid="team-cost"><CreditCard size={15} /> <span>This request: <b>{inclGst(next.total, next.currency, next.tax_name || 'GST')} design fee</b>{next.pay_first ? ', paid before work begins.' : '. An invoice is issued when you send.'}</span></p>;
+  return <p className="tm-cost is-included" data-testid="team-cost"><Check size={15} /> <span>{next.billing === 'free' ? 'No design fee on your plan.' : <>Included in your plan <b>({allowance.plan_name})</b>{allowance.remaining_included != null ? `: ${allowance.remaining_included} left this month.` : '.'}</>}</span></p>;
 }
 
 function Confirmation({ request, onAnother, onPay }: { request: TeamRequest; onAnother: () => void; onPay: (url: string) => void }) {
   const mustPay = request.status === 'awaiting_payment' || (request.billing === 'paid' && request.invoice?.can_pay);
+  const fee = request.billing === 'paid' ? `${inclGst(request.invoice?.total || request.price, request.currency)} design fee` : request.billing === 'free' ? 'No design fee' : 'Included in your plan';
   return <div className="tm-confirm panel" role="status">
     <CheckCircle2 size={44} />
-    <span className="tm-kicker">SENT TO 3DEEZI TEAM</span>
+    <span className="tm-kicker">SENT TO 3DEEZI DESIGN TEAM</span>
     <h2>Your reference: <span data-testid="team-ref">{request.number}</span></h2>
+    <p className={`tm-confirm-fee ${request.billing === 'paid' ? 'is-paid' : 'is-included'}`} data-testid="team-fee">{request.billing === 'paid' ? <CreditCard size={16} /> : <Check size={16} />} {fee}</p>
     {mustPay && request.invoice
-      ? <><p>This request is {inclGst(request.invoice.total || request.price, request.currency)}. Pay invoice {request.invoice.invoice_number} and your designer starts straight away.</p><div className="tm-confirm-actions">{payPath(request.invoice) && <button className="button button-gradient" onClick={() => onPay(payPath(request.invoice)!)}><CreditCard size={16} /> REVIEW &amp; PAY</button>}<Link className="button button-outline" to={`/team/requests/${request.id}`}>VIEW REQUEST</Link></div></>
+      ? <><p>Pay invoice {request.invoice.invoice_number} and your designer starts straight away.</p><div className="tm-confirm-actions">{payPath(request.invoice) && <button className="button button-gradient" onClick={() => onPay(payPath(request.invoice)!)}><CreditCard size={16} /> REVIEW &amp; PAY</button>}<Link className="button button-outline" to={`/team/requests/${request.id}`}>VIEW REQUEST</Link></div></>
       : <><p>We have your brief. A designer will be assigned shortly; you will get a notification at each step.</p><div className="tm-confirm-actions"><Link className="button button-gradient" to={`/team/requests/${request.id}`}>VIEW REQUEST <ArrowRight size={16} /></Link><button className="button button-outline" onClick={onAnother}>SEND ANOTHER REQUEST</button></div></>}
   </div>;
 }
 
-function RequestForm({ user, catalog, allowance, requireAuth, onSent }: { user: User | null; catalog: Catalog | null; allowance: TeamAllowance | null; requireAuth: RequireAuth; onSent: (r: TeamRequest) => void }) {
+/** "Garments needed": several garments from the catalogue (this sport's first), or anything else typed in. */
+function GarmentPicker({ options, value, onChange, invalid }: { options: { id: string; name: string }[]; value: string[]; onChange: (next: string[]) => void; invalid?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [other, setOther] = useState('');
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', away); document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
+  }, [open]);
+  const nameOf = (id: string) => options.find(o => o.id === id)?.name ?? id;
+  const toggle = (id: string) => onChange(value.includes(id) ? value.filter(v => v !== id) : value.length >= 12 ? value : [...value, id]);
+  const addOther = () => { const v = other.trim().slice(0, 60); if (v && !value.includes(v) && value.length < 12) onChange([...value, v]); setOther(''); };
+  const custom = value.filter(v => !options.some(o => o.id === v));
+  return <div className={`tm-multi${open ? ' is-open' : ''}`} ref={box}>
+    <button type="button" id="tm-garments" className={`tm-multi-btn${invalid ? ' is-invalid' : ''}`} aria-haspopup="true" aria-expanded={open} aria-labelledby="tm-garments-l tm-garments" onClick={() => setOpen(o => !o)}>
+      {value.length ? <span className="tm-multi-value">{value.map(nameOf).join(', ')}</span> : <span className="tm-multi-ph">e.g. Jerseys, Shorts, Tracksuits…</span>}<ChevronDown size={16} />
+    </button>
+    {open && <div className="tm-multi-pop" role="group" aria-label="Garments needed">
+      <div className="tm-multi-list">{[...options, ...custom.map(id => ({ id, name: id }))].map(o => <label key={o.id} className={value.includes(o.id) ? 'is-on' : ''}><input type="checkbox" checked={value.includes(o.id)} onChange={() => toggle(o.id)} /><span>{o.name}</span></label>)}</div>
+      <div className="tm-multi-other"><input value={other} onChange={e => setOther(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addOther(); } }} maxLength={60} placeholder="Something else, e.g. Socks" aria-label="Another garment" /><button type="button" className="button button-outline" onClick={addOther} disabled={!other.trim()}><Plus size={14} /> Add</button></div>
+      <button type="button" className="button button-quiet tm-multi-done" onClick={() => setOpen(false)}>Done</button>
+    </div>}
+  </div>;
+}
+
+type BriefPick = { file: File; kind: 'logo' | 'reference' };
+/** Logos and sponsor artwork, or pictures, documents and examples: a first guess from the name and type, changeable. */
+const guessKind = (file: File, logos: number): BriefPick['kind'] => {
+  const ext = extOf(file.name);
+  const logoish = /logo|crest|badge|emblem|sponsor/i.test(file.name) || ['svg', 'ai', 'eps'].includes(ext);
+  return logoish && logos < TEAM_LIMITS.logos && TEAM_LIMITS.logoTypes.includes(ext) ? 'logo' : 'reference';
+};
+
+/** "Upload logos, artwork & inspiration": one box for logos (logos[], up to 5) and examples (references[], up to 10). */
+function BriefFiles({ picks, onChange }: { picks: BriefPick[]; onChange: (next: BriefPick[]) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const [error, setError] = useState('');
+  const previews = useMemo(() => picks.map(p => p.file.type.startsWith('image/') && !p.file.type.includes('svg') ? URL.createObjectURL(p.file) : ''), [picks]);
+  useEffect(() => () => previews.forEach(u => u && URL.revokeObjectURL(u)), [previews]);
+  const count = (kind: BriefPick['kind'], list = picks) => list.filter(p => p.kind === kind).length;
+  const add = (list: FileList | null) => {
+    if (!list) return; setError('');
+    const next = [...picks];
+    for (const file of [...list]) {
+      const ext = extOf(file.name);
+      if (!TEAM_LIMITS.referenceTypes.includes(ext)) { setError(`${file.name}: this file type is not accepted.`); continue; }
+      if (file.size > TEAM_LIMITS.fileMb * 1048576) { setError(`${file.name} is over ${TEAM_LIMITS.fileMb} MB.`); continue; }
+      let kind = guessKind(file, count('logo', next));
+      if (kind === 'reference' && count('reference', next) >= TEAM_LIMITS.references) kind = 'logo';
+      if (kind === 'logo' && (count('logo', next) >= TEAM_LIMITS.logos || !TEAM_LIMITS.logoTypes.includes(ext))) { setError(`Up to ${TEAM_LIMITS.logos} logos and ${TEAM_LIMITS.references} other files per request.`); continue; }
+      next.push({ file, kind });
+    }
+    onChange(next);
+  };
+  const setKind = (i: number, kind: BriefPick['kind']) => {
+    if (kind === 'logo' && count('logo') >= TEAM_LIMITS.logos) { setError(`Up to ${TEAM_LIMITS.logos} logos per request.`); return; }
+    if (kind === 'reference' && count('reference') >= TEAM_LIMITS.references) { setError(`Up to ${TEAM_LIMITS.references} artwork and inspiration files per request.`); return; }
+    setError(''); onChange(picks.map((p, k) => k === i ? { ...p, kind } : p));
+  };
+  return <div className="tm-field">
+    <div className={`tm-drop${over ? ' is-over' : ''}`} onClick={() => input.current?.click()} onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={(e: DragEvent) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }}>
+      <Upload size={28} aria-hidden="true" />
+      <span className="tm-drop-text"><strong id="tm-files-l">Upload logos, artwork &amp; inspiration</strong><span>Drag and drop files here or click to browse</span></span>
+      <button type="button" className="button button-outline tm-add-files" onClick={e => { e.stopPropagation(); input.current?.click(); }} aria-describedby="tm-files-l"><Paperclip size={15} /> Add files</button>
+      <input ref={input} id="tm-files" type="file" multiple hidden accept={TEAM_LIMITS.referenceTypes.map(a => `.${a}`).join(',')} onChange={(e: ChangeEvent<HTMLInputElement>) => { add(e.target.files); e.target.value = ''; }} />
+    </div>
+    <small className="tm-drop-hint">Up to {TEAM_LIMITS.logos} logos (PNG, JPG, SVG, PDF, AI, EPS) and {TEAM_LIMITS.references} other files (pictures, PDF, Word, PowerPoint, ZIP), {TEAM_LIMITS.fileMb} MB each.</small>
+    {picks.length > 0 && <ul className="tm-picks">{picks.map((p, i) => <li key={`${p.file.name}${i}`}>{previews[i] ? <img src={previews[i]} alt="" /> : <FileText size={18} />}<span>{p.file.name}<small>{sizeMb(p.file.size)}</small></span>
+      <select className="tm-kind" value={p.kind} aria-label={`${p.file.name}: logo or inspiration`} onChange={e => setKind(i, e.target.value as BriefPick['kind'])}>{TEAM_LIMITS.logoTypes.includes(extOf(p.file.name)) && <option value="logo">Logo</option>}<option value="reference">Inspiration</option></select>
+      <button type="button" className="icon-button" aria-label={`Remove ${p.file.name}`} onClick={() => onChange(picks.filter((_, k) => k !== i))}><X size={14} /></button></li>)}</ul>}
+    {error && <p className="error-message" role="alert">{error}</p>}
+  </div>;
+}
+
+const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+function RequestForm({ user, catalog, allowance, loadError, requireAuth, onSent, onProgress }: { user: User | null; catalog: Catalog | null; allowance: TeamAllowance | null; loadError: string; requireAuth: RequireAuth; onSent: (r: TeamRequest) => void; onProgress: (p: BriefProgress) => void }) {
   const [name, setName] = useState(''); const [email, setEmail] = useState('');
-  const [sport, setSport] = useState(''); const [garment, setGarment] = useState(''); const [garmentOther, setGarmentOther] = useState('');
+  const [sport, setSport] = useState(''); const [garments, setGarments] = useState<string[]>([]);
   const [description, setDescription] = useState(''); const [instructions, setInstructions] = useState('');
+  const [preferredDate, setPreferredDate] = useState('');
   const [colours, setColours] = useState<string[]>([]);
-  const logos = useFilePicks(TEAM_LIMITS.logos, TEAM_LIMITS.logoTypes);
-  const references = useFilePicks(TEAM_LIMITS.references, TEAM_LIMITS.referenceTypes);
+  const [more, setMore] = useState(false);
+  const [picks, setPicks] = useState<BriefPick[]>([]);
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   useEffect(() => { if (user) { setName(n => n || user.name); setEmail(e => e || user.email); } }, [user]);
   const sports = catalog?.sports ?? [];
   const chosenSport = sports.find(s => s.id === sport);
-  const garments = useMemo(() => {
-    const all = catalog?.garments ?? [];
+  const garmentOptions = useMemo(() => {
+    const all = (catalog?.garments ?? []).map(g => ({ id: g.id, name: g.name }));
     const wanted = chosenSport?.garments;
     return wanted?.length ? [...wanted.map(id => all.find(g => g.id === id)).filter((g): g is NonNullable<typeof g> => !!g), ...all.filter(g => !wanted.includes(g.id))] : all;
   }, [catalog, chosenSport]);
   const groups = [{ key: 'sports', label: 'Sports' }, { key: 'apparel', label: 'Apparel' }];
-  const totalMb = [...logos.files, ...references.files].reduce((t, f) => t + f.size, 0) / 1048576;
+  const logos = picks.filter(p => p.kind === 'logo').map(p => p.file);
+  const references = picks.filter(p => p.kind === 'reference').map(p => p.file);
+  const totalMb = picks.reduce((t, p) => t + p.file.size, 0) / 1048576;
   const blocked = !!allowance && !allowance.can_submit;
+  useEffect(() => onProgress({ garments: garments.length > 0, inspiration: references.length > 0 || colours.length > 0 || description.trim().length >= 10, logos: logos.length > 0, date: !!preferredDate }),
+    [garments.length, references.length, colours.length, description, logos.length, preferredDate, onProgress]);
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(''); setFieldErrors({});
+    if (!garments.length) { setFieldErrors({ garment: ['Choose at least one garment.'] }); document.getElementById('tm-garments')?.focus(); return; }
     if (!user) { requireAuth(); return; }
     if (totalMb > TEAM_LIMITS.totalMb) { setError(`Your files add up to ${totalMb.toFixed(0)} MB: the limit is ${TEAM_LIMITS.totalMb} MB per request.`); return; }
-    const garmentValue = garment === '__other' ? garmentOther.trim() : garment;
-    if (!garmentValue) { setError('Choose the garment type.'); return; }
     setBusy(true);
     const key = idempotencyKey('team-request');
     try {
-      const request = await teamApi.create({ name, email, sport, garment: garmentValue, category: chosenSport?.group === 'apparel' ? 'Apparel' : chosenSport ? 'Sports' : undefined, description, colours, instructions, logos: logos.files, references: references.files }, key);
+      const request = await teamApi.create({ name, email, sport, garment: garments[0], garments, preferred_date: preferredDate || undefined, category: chosenSport?.group === 'apparel' ? 'Apparel' : chosenSport ? 'Sports' : undefined, description, colours, instructions, logos, references }, key);
       clearIdempotencyKey('team-request');
-      logos.clear(); references.clear(); setDescription(''); setInstructions(''); setColours([]);
+      setPicks([]); setDescription(''); setInstructions(''); setColours([]); setPreferredDate('');
       onSent(request);
     } catch (err) {
       if (err instanceof ApiError && err.errors) setFieldErrors(err.errors);
       setError((err as Error).message);
     } finally { setBusy(false); }
   }
-  const fe = (k: string) => fieldErrors[k]?.[0] ? <small className="tm-field-error">{fieldErrors[k][0]}</small> : null;
-  return <form className="tm-form panel" onSubmit={submit} noValidate={false}>
-    <span className="tm-kicker"><Sparkles size={14} /> REQUEST A DESIGNER</span>
+  const fe = (...keys: string[]) => { const k = keys.find(x => fieldErrors[x]?.[0]); return k ? <small className="tm-field-error">{fieldErrors[k][0]}</small> : null; };
+  return <form className="tm-form panel" onSubmit={submit}>
+    <span className="tm-kicker"><UserPen size={14} /> REQUEST A DESIGNER</span>
     <h2 id="tm-form-h">Tell us what you need</h2>
     {!user && <p className="tm-signin-note">You can fill in your brief now; you sign in when you send it.</p>}
     <div className="tm-grid2">
-      <label className="field">Customer or business name<input value={name} onChange={e => setName(e.target.value)} required maxLength={120} autoComplete="organization" placeholder="Northside Hawks" />{fe('name')}</label>
-      <label className="field">Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} required maxLength={190} autoComplete="email" placeholder="you@yourclub.com" />{fe('email')}</label>
-      <label className="field">Sport or apparel category<select value={sport} onChange={e => { setSport(e.target.value); }} required>
-        <option value="" disabled>{catalog ? 'Choose a sport or category' : 'Loading the catalogue…'}</option>
+      <label className="field">Company / team name<input value={name} onChange={e => setName(e.target.value)} required maxLength={120} autoComplete="organization" placeholder="e.g. Your Club, School or Business" />{fe('name')}</label>
+      <label className="field">Contact email<input type="email" value={email} onChange={e => setEmail(e.target.value)} required maxLength={190} autoComplete="email" placeholder="you@yourdomain.com" />{fe('email')}</label>
+      <label className="field">Sport / activity<select value={sport} onChange={e => setSport(e.target.value)} required>
+        <option value="" disabled>{catalog ? 'Select a sport' : 'Loading the catalogue…'}</option>
         {groups.map(g => { const items = sports.filter(s => (s.group ?? 'sports') === g.key); return items.length ? <optgroup key={g.key} label={g.label}>{items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</optgroup> : null; })}
       </select>{fe('sport')}</label>
-      <label className="field">Garment type<select value={garment} onChange={e => setGarment(e.target.value)} required>
-        <option value="" disabled>Choose a garment</option>
-        {garments.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}<option value="__other">Something else…</option>
-      </select>{fe('garment')}</label>
-      {garment === '__other' && <label className="field tm-span2">Which garment?<input value={garmentOther} onChange={e => setGarmentOther(e.target.value)} required maxLength={60} placeholder="e.g. Hoodie, bucket hat" /></label>}
+      <div className="field tm-garments-field"><span id="tm-garments-l">Garments needed</span><GarmentPicker options={garmentOptions} value={garments} onChange={next => { setGarments(next); if (next.length) setFieldErrors(f => { const { garment: _g, garments: _gs, ...rest } = f; return rest; }); }} invalid={!!fieldErrors.garment || !!fieldErrors.garments} />{fe('garment', 'garments', 'garments.0')}</div>
     </div>
-    <label className="field">Design description<textarea value={description} onChange={e => setDescription(e.target.value)} required minLength={10} maxLength={4000} rows={5} placeholder="The look you want: style, pattern, where the logos go, names and numbers, the feel of the kit…" /><small className="tm-count">{description.length} / 4000</small>{fe('description')}</label>
-    <ColourPicker value={colours} onChange={setColours} />
-    {fe('colours')}
-    <div className="tm-grid2">
-      <DropZone id="tm-logos" label="Logos" hint={`Up to ${TEAM_LIMITS.logos}: PNG, JPG, SVG, PDF, AI, EPS · ${TEAM_LIMITS.fileMb} MB each`} icon={<ImagePlus size={22} />} picks={logos} accept={TEAM_LIMITS.logoTypes} max={TEAM_LIMITS.logos} />
-      <DropZone id="tm-refs" label="Reference images and documents" hint={`Up to ${TEAM_LIMITS.references}: pictures, PDF, Word, PowerPoint, ZIP`} icon={<Paperclip size={22} />} picks={references} accept={TEAM_LIMITS.referenceTypes} max={TEAM_LIMITS.references} />
+    <label className="field">Design brief<textarea value={description} onChange={e => setDescription(e.target.value)} required minLength={10} maxLength={4000} rows={3} placeholder="Tell us about your colours, style, logos and ideas…" />{fe('description')}</label>
+    <BriefFiles picks={picks} onChange={setPicks} />
+    {fe('logos', 'references', 'logos.0', 'references.0')}
+    <div className="tm-grid2 tm-extra-row">
+      <label className="field tm-date"><span>Preferred delivery date <small className="muted">(optional)</small></span><input type="date" value={preferredDate} min={todayIso()} onChange={e => setPreferredDate(e.target.value)} />{fe('preferred_date')}</label>
+      <button type="button" className="tm-more-toggle" aria-expanded={more} aria-controls="tm-more" onClick={() => setMore(m => !m)}>{more ? <ChevronUp size={15} /> : <Plus size={15} />}<span>Add brand colours or extra instructions <small>(optional)</small></span></button>
     </div>
-    {fe('logos')}{fe('references')}
-    <label className="field">Additional instructions <small className="muted">(optional)</small><textarea value={instructions} onChange={e => setInstructions(e.target.value)} maxLength={4000} rows={3} placeholder="Deadlines, sponsors, sizes of the logos, anything else" /></label>
-    {allowance && allowance.next_request.billing === 'paid' && <p className="tm-price" role="note"><CreditCard size={16} /> This request is <b>{money(allowance.next_request.total, allowance.next_request.currency)}</b> incl. {allowance.next_request.tax_name || 'GST'}. After sending, you pay the invoice on the Review &amp; Pay page.</p>}
-    {allowance && allowance.next_request.billing !== 'paid' && <p className="tm-price is-included" role="note"><Check size={16} /> {allowance.unlimited || allowance.next_request.billing === 'free' ? 'This request is free on your plan.' : 'This request is included in your plan.'}</p>}
+    {more && <div className="tm-more" id="tm-more">
+      <ColourPicker value={colours} onChange={setColours} />
+      {fe('colours')}
+      <label className="field">Extra instructions<textarea value={instructions} onChange={e => setInstructions(e.target.value)} maxLength={4000} rows={3} placeholder="Quantities and sizes, sponsors, names and numbers, anything else" /></label>
+    </div>}
     {blocked && <p className="error-message" role="alert">{allowance?.blocked_reason}</p>}
     {error && <p className="error-message" role="alert">{error}</p>}
-    <button className="button button-gradient tm-send" disabled={busy || blocked}>{busy ? <LoaderCircle className="spin" size={18} /> : <Send size={17} />} SEND TO 3DEEZI TEAM</button>
+    <div className="tm-send-row">
+      <button className="button button-gradient tm-send" disabled={busy || blocked}>{busy ? <LoaderCircle className="spin" size={18} /> : null} SEND DESIGN REQUEST <ArrowRight size={18} /></button>
+      <CostLine user={user} allowance={allowance} loadError={loadError} />
+    </div>
   </form>;
 }
 
@@ -330,10 +454,10 @@ export function TeamRequestPage({ onStudio, onNotice }: { onStudio: (picture: { 
   const revisionInvoice = request.pending_revision?.invoice ?? null;
   return <div className="page-shell tm-shell tm-detail">
     <Link className="tm-back" to="/team/requests"><ArrowLeft size={16} /> My design requests</Link>
-    <div className="tm-page-head"><div><span className="tm-kicker"><Users size={15} /> 3DEEZI TEAM · {request.number}</span><h1>{request.garment_name || request.garment} <span>· {request.sport_name || request.sport}</span></h1><p className="muted">{request.name} · sent {fmtDate(request.created_at)}{request.designer ? ` · designer ${request.designer.name}` : ''}</p>{request.due_date && ['received', 'assigned', 'in_progress', 'revision'].includes(request.status) && <p className="tm-due" data-testid="team-due"><CalendarClock size={16} /> {request.status === 'revision' ? 'Revision' : request.latest_version ? 'Next design' : 'First design'} due by <b>{fmtDate(request.due_date)}</b></p>}</div><StatusChip request={request} /></div>
+    <div className="tm-page-head"><div><span className="tm-kicker"><Users size={15} /> 3DEEZI TEAM · {request.number}</span><h1>{garmentsText(request)} <span>· {request.sport_name || request.sport}</span></h1><p className="muted">{request.name} · sent {fmtDate(request.created_at)}{request.designer ? ` · designer ${request.designer.name}` : ''}</p>{request.due_date && ['received', 'assigned', 'in_progress', 'revision'].includes(request.status) && <p className="tm-due" data-testid="team-due"><CalendarClock size={16} /> {request.status === 'revision' ? 'Revision' : request.latest_version ? 'Next design' : 'First design'} due by <b>{fmtDate(request.due_date)}</b></p>}</div><StatusChip request={request} /></div>
     <TeamSteps request={request} />
     {actionError && <p className="error-message" role="alert">{actionError}</p>}
-    {request.can.pay && request.invoice && payPath(request.invoice) && <div className="tm-banner panel"><CreditCard size={20} /><span>Invoice {request.invoice.invoice_number}: {money(request.invoice.amount_due || request.invoice.total || request.price, request.currency)} incl. GST to pay before your designer starts.</span><button className="button button-gradient" onClick={() => navigate(payPath(request.invoice)!)}>REVIEW &amp; PAY</button></div>}
+    {request.can.pay && request.invoice && payPath(request.invoice) && <div className="tm-banner panel"><CreditCard size={20} /><span>Invoice {request.invoice.invoice_number}: {audMoney(request.invoice.amount_due || request.invoice.total || request.price, request.currency)} incl. GST to pay before your designer starts.</span><button className="button button-gradient" onClick={() => navigate(payPath(request.invoice)!)}>REVIEW &amp; PAY</button></div>}
     {revisionInvoice && <div className="tm-banner panel" data-testid="team-extra-pay"><CreditCard size={20} /><span>Extra revision: invoice {revisionInvoice.invoice_number}, {inclGst(revisionInvoice.amount_due || revisionInvoice.total || '0')}. Your designer starts the revision once it is paid.</span>{request.can.pay_revision && payPath(revisionInvoice) && <button className="button button-gradient" onClick={() => navigate(payPath(revisionInvoice)!)}>REVIEW &amp; PAY</button>}</div>}
     {request.refund_status && <div className="tm-banner panel is-refund" role="status"><ShieldCheck size={20} /><span>{request.refund_status === 'refunded' ? 'Refunded in full.' : 'Cancelled before work started: your full refund is being processed.'}</span></div>}
 
@@ -361,7 +485,7 @@ export function TeamRequestPage({ onStudio, onNotice }: { onStudio: (picture: { 
           {reviewing && shown && <div className="tm-review-actions">
             <button className="button button-gradient" disabled={!!busy || !request.can.approve} onClick={() => act('approve', async () => { const r = await teamApi.approve(request.id, shown.version); setRequest(r); onNotice(`${r.number} approved. Your design is in My assets.`); })}>{busy === 'approve' ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />} APPROVE V{shown.version}</button>
             {request.can.extra_revision
-              ? <button className="button button-outline" disabled={!!busy} onClick={() => setRevising(v => v === 'extra' ? false : 'extra')} data-testid="team-extra-revision"><RefreshCw size={16} /> EXTRA REVISION {extraPrice ? money(extraPrice.price, extraPrice.currency) : ''}</button>
+              ? <button className="button button-outline" disabled={!!busy} onClick={() => setRevising(v => v === 'extra' ? false : 'extra')} data-testid="team-extra-revision"><RefreshCw size={16} /> EXTRA REVISION {extraPrice ? audMoney(extraPrice.price, extraPrice.currency) : ''}</button>
               : <button className="button button-outline" disabled={!!busy || !request.can.revise || left <= 0} onClick={() => setRevising(v => v ? false : 'included')}><RefreshCw size={16} /> REQUEST REVISIONS</button>}
             <button className="button button-quiet" onClick={() => chatBox.current?.focus()}><MessageSquare size={16} /> MESSAGE</button>
             <small className="muted">{left > 0 ? `${left} of ${request.revisions_allowed} revisions left` : revisionInvoice ? 'Extra revision waiting for payment.' : request.can.extra_revision ? `Your included revisions are used: an extra round is ${extraText}.` : 'No revisions left: message your designer or approve the design.'}</small>
@@ -381,7 +505,7 @@ export function TeamRequestPage({ onStudio, onNotice }: { onStudio: (picture: { 
           {request.colours.length > 0 && <div className="tm-chosen" aria-label="Colours">{request.colours.map(c => <span key={c}><i style={{ background: c }} />{c}</span>)}</div>}
           {request.instructions && <p className="tm-brief-text muted">{request.instructions}</p>}
           {(request.files ?? []).filter(f => f.kind === 'logo' || f.kind === 'reference').length > 0 && <div className="tm-brief-files">{(request.files ?? []).filter(f => f.kind === 'logo' || f.kind === 'reference').map(f => <FileChip key={f.id} file={f} />)}</div>}
-          <dl className="tm-facts"><div><dt>Billing</dt><dd>{request.billing === 'paid' ? inclGst(request.price, request.currency) : request.billing === 'free' ? 'Free' : 'Included in your plan'}</dd></div><div><dt>Revisions</dt><dd>{request.revisions_used} of {request.revisions_allowed} used{request.extra_revisions ? ` (${request.extra_revisions} extra)` : ''}</dd></div>{request.due_date && <div><dt>Due</dt><dd>{fmtDate(request.due_date)}</dd></div>}{request.invoice?.invoice_number && <div><dt>Invoice</dt><dd><Link to={payPath(request.invoice)!}>{request.invoice.invoice_number}</Link> {request.invoice.label ? `· ${request.invoice.label}` : ''}</dd></div>}</dl>
+          <dl className="tm-facts">{request.preferred_date && <div data-testid="team-preferred"><dt>Wanted by</dt><dd>{fmtDate(request.preferred_date)}</dd></div>}<div><dt>Billing</dt><dd>{request.billing === 'paid' ? inclGst(request.price, request.currency) : request.billing === 'free' ? 'Free' : 'Included in your plan'}</dd></div><div><dt>Revisions</dt><dd>{request.revisions_used} of {request.revisions_allowed} used{request.extra_revisions ? ` (${request.extra_revisions} extra)` : ''}</dd></div>{request.due_date && <div><dt>Due</dt><dd>{fmtDate(request.due_date)}</dd></div>}{request.invoice?.invoice_number && <div><dt>Invoice</dt><dd><Link to={payPath(request.invoice)!}>{request.invoice.invoice_number}</Link> {request.invoice.label ? `· ${request.invoice.label}` : ''}</dd></div>}</dl>
           {request.can.cancel && request.billing === 'paid' && request.invoice?.status === 'paid' && <p className="muted tm-refund-note">Cancel before your designer starts and you get a full refund.</p>}
           {request.can.cancel && <button className="button button-quiet tm-cancel" disabled={!!busy} onClick={() => { if (window.confirm(`Cancel ${request.number}? This cannot be undone.`)) act('cancel', async () => { const r = await teamApi.cancel(request.id); setRequest(r); onNotice(`${r.number} cancelled.`); }); }}><X size={15} /> Cancel this request</button>}
         </section>

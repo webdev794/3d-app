@@ -15,7 +15,7 @@ type Dashboard = { projects: number; drafts: number; approved: number; assets: n
 
 function message(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please try again.'; }
 /** The Studio's garment names ("Zip hoodie", "Polo with pocket"); others are title-cased ids. */
-const GARMENT_NAMES: Record<string, string> = { fullkit: 'Full kit', tee: 'Training tee', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie' };
+const GARMENT_NAMES: Record<string, string> = { fullkit: 'Full kit', tee: 'Training tee', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
 function title(value: string) { return value.replaceAll('-', ' ').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function date(value: string) { return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
 function bytes(value: number) { return value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / 1024 / 1024).toFixed(1)} MB`; }
@@ -52,10 +52,12 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
     const fullkit = project.garment === 'fullkit';
     const polo = project.garment === 'polo' || project.garment === 'pocketpolo';
     const hoodie = project.garment === 'hoodie' || project.garment === 'ziphoodie';
-    const crewNeck = project.garment === 'tee' || polo || hoodie;
-    const zones = (design.zoneColors ?? {}) as Partial<Record<'hood' | 'lining' | 'rib' | 'pocket' | 'zip', string>>;
-    // A hoodie has long sleeves to the wrist.
-    const outline = shorts ? 'M99 71H221L230 229H169L160 158L151 229H90Z' : singlet ? 'M117 55L139 48Q160 75 181 48L203 55L195 108L207 242H113L125 108Z' : hoodie ? 'M107 67L138 49Q160 70 182 49L213 67L246 196L222 203L204 125L209 242H111L116 125L98 203L74 196Z' : 'M107 67L138 49Q160 70 182 49L213 67L256 119L221 144L204 125L209 242H111L116 125L99 144L64 119Z';
+    const varsity = project.garment === 'varsity';
+    const track = project.garment === 'trackjacket';
+    const crewNeck = project.garment === 'tee' || polo || hoodie || varsity || track;
+    const zones = (design.zoneColors ?? {}) as Partial<Record<'hood' | 'lining' | 'rib' | 'pocket' | 'zip' | 'body' | 'sleeves' | 'ribStripe' | 'snaps' | 'pocketTrim' | 'shoulder' | 'side' | 'stripe' | 'collar' | 'cuffs', string>>;
+    // A hoodie (and the varsity jacket) has long sleeves to the wrist.
+    const outline = shorts ? 'M99 71H221L230 229H169L160 158L151 229H90Z' : singlet ? 'M117 55L139 48Q160 75 181 48L203 55L195 108L207 242H113L125 108Z' : hoodie || varsity || track ? 'M107 67L138 49Q160 70 182 49L213 67L246 196L222 203L204 125L209 242H111L116 125L98 203L74 196Z' : 'M107 67L138 49Q160 70 182 49L213 67L256 119L221 144L204 125L209 242H111L116 125L99 144L64 119Z';
     return <svg className="lib-kit-svg" viewBox={fullkit ? '0 0 320 420' : '0 0 320 280'} role="img" aria-label={`${project.name} front design illustration`}>
         <defs>
             <linearGradient id={`${id}-shine`} x1="0" x2="1" y1="0" y2="1"><stop stopColor="white" stopOpacity=".2" /><stop offset=".4" stopColor="white" stopOpacity="0" /><stop offset="1" stopColor="black" stopOpacity=".42" /></linearGradient>
@@ -79,6 +81,13 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
         {!shorts && <><path d={crewNeck ? 'M136 49Q160 82 184 49L179 46Q160 70 141 46Z' : 'M136 49L160 78L184 49L179 46L160 67L141 46Z'} fill={secondary} />{polo && <><path d="M155 62H165V104H155Z" fill={secondary} /><circle cx="160" cy="79" r="1.5" fill={accent} /><circle cx="160" cy="89" r="1.5" fill={accent} /><circle cx="160" cy="99" r="1.5" fill={accent} /></>}{design.logoImage?.startsWith('data:image/') ? <image href={design.logoImage} x="177" y="95" width="20" height="22" preserveAspectRatio="xMidYMid meet" /> : <><path d="M186 96L196 101L194 113L186 117L178 113L176 101Z" fill={accent} /><text x="186" y="109" fill={main} fontSize="7" textAnchor="middle" fontWeight="800">3D</text></>}<text x="160" y="147" fill={accent} textAnchor="middle" fontSize="18" fontWeight="800" fontFamily="Rajdhani, Inter, sans-serif" fontStyle="italic">{(design.logoText ?? '3DEEZI').toUpperCase().slice(0, 16)}</text></>}
         {hoodie && <><path d="M138 49Q160 30 182 49Q160 62 138 49Z" fill={zones.lining || secondary} /><path d="M111 232H209M98 197L74 190M222 197L246 190" stroke={zones.rib || secondary} strokeWidth="6" />
             {project.garment === 'ziphoodie' ? <><path d="M160 58V236" stroke={zones.zip || secondary} strokeWidth="3" /><path d="M122 178L146 172V214H118ZM198 178L174 172V214H202Z" fill={zones.pocket || main} stroke={secondary} strokeOpacity=".6" /></> : <path d="M126 176H194L204 214H116Z" fill={zones.pocket || main} stroke={secondary} strokeOpacity=".6" />}</>}
+        {varsity && <><path d="M107 67L74 196L98 203L116 125L119 73ZM213 67L246 196L222 203L204 125L201 73Z" fill={zones.sleeves || secondary} stroke={secondary} strokeOpacity=".55" strokeWidth="1.5" />
+            <path d="M111 232H209M98 197L74 190M222 197L246 190" stroke={zones.rib || main} strokeWidth="7" /><path d="M111 230H209M98 195L74 188M222 195L246 188" stroke={zones.ribStripe || zones.sleeves || secondary} strokeWidth="1.6" />
+            <path d="M125 180L131 160M195 180L189 160" stroke={zones.pocketTrim || zones.sleeves || secondary} strokeWidth="4" /><path d="M160 60V236" stroke="black" strokeOpacity=".35" strokeWidth="1" />
+            {[84, 110, 136, 162, 188, 214].map(y => <circle key={y} cx="160" cy={y} r="2.2" fill={zones.snaps || main} stroke="white" strokeOpacity=".7" strokeWidth=".8" />)}</>}
+        {track && <><path d="M138 49L213 67L246 196L238 198L206 76ZM182 49L107 67L74 196L82 198L114 76Z" fill={zones.shoulder || secondary} opacity=".9" /><path d="M213 67L246 196M107 67L74 196" stroke={zones.stripe || accent} strokeWidth="3" />
+            <path d="M111 232H209M98 197L74 190M222 197L246 190" stroke={zones.cuffs || zones.body || main} strokeWidth="6" /><path d="M160 46V236" stroke={zones.zip || secondary} strokeWidth="3" /><path d="M126 205L130 180M194 205L190 180" stroke={zones.zip || secondary} strokeWidth="2.5" />
+            {design.trackStyle === 'hood' ? <path d="M138 49Q160 30 182 49Q160 62 138 49Z" fill={zones.collar || zones.body || main} stroke={secondary} strokeOpacity=".55" /> : <path d="M138 49L140 38Q160 32 180 38L182 49Q160 56 138 49Z" fill={zones.collar || zones.body || main} stroke={secondary} strokeOpacity=".55" />}</>}
         {project.garment === 'pocketpolo' && <path d="M171 121H201V146Q186 151 171 146Z" fill={zones.pocket || main} stroke={accent} strokeOpacity=".8" strokeWidth="1.5" />}
         {shorts && <><path d="M99 75H221" stroke={secondary} strokeWidth="9" /><text x="126" y="182" fill={accent} textAnchor="middle" fontSize="23" fontWeight="800">{design.number ?? ''}</text></>}
         <path d={shorts ? 'M100 230H149M171 230H220' : 'M112 238H209'} stroke={secondary} strokeWidth="3" />

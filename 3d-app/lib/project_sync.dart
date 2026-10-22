@@ -25,6 +25,8 @@ class ProjectSync {
     'Polo with pocket': 'pocketpolo',
     'Hoodie': 'hoodie',
     'Zip hoodie': 'ziphoodie',
+    'Varsity jacket': 'varsity',
+    'Track jacket': 'trackjacket',
     'Full Kit': 'fullkit',
   };
 
@@ -54,6 +56,8 @@ class ProjectSync {
         'zones': copyZones(k.zones),
         // Only when set (hoodies): servers older than 2026-10-21 refuse the field.
         if (k.zoneColors.isNotEmpty) 'zoneColors': copyZones(k.zoneColors),
+        // The track jacket's style (only on it: older servers refuse the field).
+        if (k.garment == 'Track jacket') 'trackStyle': k.trackStyle,
         'gradient': copyGradient(k.gradient),
         // Only when set: servers older than 2026-10-21 refuse the field.
         if (k.gradients != null) 'gradients': copyGradient(k.gradients),
@@ -125,6 +129,7 @@ class ProjectSync {
         layers: copyLayers(d['layers']),
         zones: copyZones(d['zones']),
         zoneColors: copyZones(d['zoneColors']),
+        trackStyle: d['trackStyle'] == 'hood' ? 'hood' : 'collar',
         gradient: copyGradient(d['gradient']),
         gradients: copyGradient(d['gradients']),
         marks: copyMarks(d['marks']),

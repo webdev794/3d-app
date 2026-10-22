@@ -50,6 +50,7 @@ const _all = [
   'Training Tee',
   'Singlet',
   'Polo',
+  'Track jacket',
 ];
 
 const sportCategories = <SportCategory>[
@@ -66,6 +67,8 @@ const sportCategories = <SportCategory>[
     'Shorts',
     'Training Tee',
     'Polo',
+    'Varsity jacket',
+    'Track jacket',
   ]),
   SportCategory('football', 'Soccer', 'sports', 'Jersey + Shorts', _all),
   SportCategory('afl', 'AFL', 'sports', 'Guernsey + Shorts', _all),
@@ -74,6 +77,7 @@ const sportCategories = <SportCategory>[
     'Shorts',
     'Training Tee',
     'Polo',
+    'Track jacket',
   ]),
   SportCategory(
     'rugby-union',
@@ -96,7 +100,7 @@ const sportCategories = <SportCategory>[
     'American Football',
     'sports',
     'Jersey + Pants',
-    ['Jersey', 'Full Kit', 'Shorts', 'Training Tee'],
+    ['Jersey', 'Full Kit', 'Shorts', 'Training Tee', 'Varsity jacket'],
     hint:
         'American football: a short-sleeve jersey cut wide over the shoulder '
         'pads, big block numbers on the front, back and sleeves, sleeve stripes',
@@ -126,7 +130,7 @@ const sportCategories = <SportCategory>[
     'Athletics',
     'sports',
     'Singlet + Shorts',
-    ['Singlet', 'Shorts', 'Training Tee'],
+    ['Singlet', 'Shorts', 'Training Tee', 'Track jacket'],
     hint:
         'athletics and running: a racing singlet with split shorts; a crop top '
         'for women',
@@ -156,7 +160,7 @@ const sportCategories = <SportCategory>[
     'Touch',
     'sports',
     'Tee + Shorts',
-    ['Training Tee', 'Full Kit', 'Shorts', 'Singlet'],
+    ['Training Tee', 'Full Kit', 'Shorts', 'Singlet', 'Track jacket'],
     hint:
         'Touch football and Oztag: a lightweight raglan tee or singlet with '
         'shorts',
@@ -166,7 +170,7 @@ const sportCategories = <SportCategory>[
     'Cricket',
     'sports',
     'Shirt + Trousers',
-    ['Polo', 'Training Tee', 'Jersey'],
+    ['Polo', 'Training Tee', 'Jersey', 'Track jacket'],
     hint:
         'cricket: a one-day cricket shirt with a polo collar (short or long '
         'sleeves) and matching long trousers; whites for the long format',
@@ -176,7 +180,7 @@ const sportCategories = <SportCategory>[
     'Softball',
     'sports',
     'Jersey + Pants',
-    ['Jersey', 'Training Tee', 'Polo', 'Shorts'],
+    ['Jersey', 'Training Tee', 'Polo', 'Shorts', 'Varsity jacket'],
     hint:
         'softball and baseball: a full button-front jersey (or a two-button '
         'henley with raglan sleeves), pinstripes allowed, script team name '
@@ -250,6 +254,8 @@ const sportCategories = <SportCategory>[
     'Jersey',
     'Hoodie',
     'Zip hoodie',
+    'Varsity jacket',
+    'Track jacket',
   ], aiLabel: 'Training'),
   SportCategory(
     'fight-wear',
@@ -286,7 +292,7 @@ const sportCategories = <SportCategory>[
     'Gymwear',
     'apparel',
     'Singlet + Shorts',
-    ['Singlet', 'Training Tee', 'Shorts', 'Hoodie', 'Zip hoodie'],
+    ['Singlet', 'Training Tee', 'Shorts', 'Hoodie', 'Zip hoodie', 'Track jacket'],
     hint:
         'gym and fitness wear: a muscle-fit singlet or tee with training '
         'shorts',
@@ -296,7 +302,15 @@ const sportCategories = <SportCategory>[
     'Club Casual',
     'apparel',
     'Club polo + Shorts',
-    ['Polo', 'Training Tee', 'Shorts', 'Hoodie', 'Zip hoodie'],
+    [
+      'Polo',
+      'Training Tee',
+      'Shorts',
+      'Hoodie',
+      'Zip hoodie',
+      'Varsity jacket',
+      'Track jacket',
+    ],
     hint:
         'club casual teamwear: a smart club polo or tee with an embroidered '
         'crest',
@@ -306,7 +320,15 @@ const sportCategories = <SportCategory>[
     'School Leavers',
     'apparel',
     'Leavers jersey',
-    ['Jersey', 'Polo', 'Training Tee', 'Hoodie', 'Zip hoodie'],
+    [
+      'Jersey',
+      'Polo',
+      'Training Tee',
+      'Hoodie',
+      'Zip hoodie',
+      'Varsity jacket',
+      'Track jacket',
+    ],
     hint:
         'school leavers: a long-sleeve rugby-collar jersey with the class year '
         "big on the front or back and every student's name",

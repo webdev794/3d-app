@@ -136,13 +136,24 @@ final class InvoicePdf
         ]);
         $this->block(self::LEFT, $top, 165, 'FROM', (string) ($seller['name'] ?? '3DEEZI'), $from);
 
-        // Bill to (the customer).
-        $to = array_filter([
-            ($customer['contact'] ?? null) && ($customer['contact'] ?? null) !== ($customer['name'] ?? null) ? $customer['contact'] : null,
-            $customer['email'] ?? null, $customer['phone'] ?? null,
-            ...$this->lines((string) ($customer['address'] ?? '')),
-        ]);
-        $bottomTo = $this->block(222, $top, 165, 'BILL TO', (string) ($customer['name'] ?? 'Customer'), $to);
+        // Bill to (the customer): at the billing address the customer gave when paying, else the delivery address.
+        $billing = is_array($this->snap['billing'] ?? null) && ($this->snap['billing']['same'] ?? true) === false ? $this->snap['billing'] : null;
+        if ($billing) {
+            $billName = (string) ($billing['company'] ?? null ?: ($billing['name'] ?? null ?: ($customer['name'] ?? 'Customer')));
+            $to = array_filter([
+                filled($billing['name'] ?? null) && $billing['name'] !== $billName ? $billing['name'] : null,
+                $customer['email'] ?? null, $customer['phone'] ?? null,
+                ...$this->lines((string) ($billing['address'] ?? '')),
+            ]);
+        } else {
+            $billName = (string) ($customer['name'] ?? 'Customer');
+            $to = array_filter([
+                ($customer['contact'] ?? null) && ($customer['contact'] ?? null) !== ($customer['name'] ?? null) ? $customer['contact'] : null,
+                $customer['email'] ?? null, $customer['phone'] ?? null,
+                ...$this->lines((string) ($customer['address'] ?? '')),
+            ]);
+        }
+        $bottomTo = $this->block(222, $top, 165, 'BILL TO', $billName, $to);
 
         // The invoice's details.
         $rows = array_filter([
@@ -258,7 +269,9 @@ final class InvoicePdf
     {
         $pdf = $this->pdf;
         $q = $this->quote;
-        $rows = [['Garments', $this->short($q['garments_total_cents'] ?? 0)]];
+        // A 3DEEZI TEAM invoice is a design request (or an extra revision round), not garments.
+        $team = ($this->snap['order']['source'] ?? null) === 'team' || $this->invoice->team_request_id;
+        $rows = [[$team ? ((string) ($this->snap['order']['summary'] ?? '') ?: 'Design request') : 'Garments', $this->short($q['garments_total_cents'] ?? 0)]];
         if (($q['extras_total_cents'] ?? 0) > 0) {
             $rows[] = ['Extras', $this->short($q['extras_total_cents'])];
         }

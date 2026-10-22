@@ -199,8 +199,11 @@ class ApiClient {
   Future<Map<String, dynamic>> notifications() async =>
       await _send('GET', '/notifications') as Map<String, dynamic>;
 
-  Future<void> readNotifications() async {
-    await _send('POST', '/notifications/read', body: const {});
+  /// Marks these notifications read (all of them without [ids]); returns the
+  /// unread count left, or null when the server does not say.
+  Future<int?> readNotifications({List<String>? ids}) async {
+    final r = await _send('POST', '/notifications/read', body: ids == null ? const {} : {'ids': ids});
+    return r is Map ? (r['unread'] as num?)?.toInt() : null;
   }
 
   /// The order forms' choices: garments, sports, fits, sizes (public).
@@ -225,6 +228,13 @@ class ApiClient {
     Map<String, dynamic> data,
   ) async =>
       await _send('PATCH', '/order-drafts/$id', body: {'data': data})
+          as Map<String, dynamic>;
+
+  /// 3DEEZI AI reads the draft's order forms (once per file on the server, so
+  /// asking again answers at once); the draft comes back with each form's
+  /// reading in `suggested` (items, details, players, unknown, form, source).
+  Future<Map<String, dynamic>> readOrderDraft(int id) async =>
+      await _send('POST', '/order-drafts/$id/read', long: true)
           as Map<String, dynamic>;
 
   Future<void> removeOrderDraftFile(int draftId, int fileId) async {
@@ -549,9 +559,12 @@ class ApiClient {
 
   /// Sends a request: [fields] name, email, sport, garment, category,
   /// description, instructions; files under logos[] and references[].
+  /// [garments]: "Garments needed" (the client's TEAM form, 2026-10-22);
+  /// the first is also sent as `garment` by the caller.
   Future<Map<String, dynamic>> createTeamRequest(
     Map<String, String> fields, {
     List<String> colours = const [],
+    List<String> garments = const [],
     List<({String name, Uint8List bytes})> logos = const [],
     List<({String name, Uint8List bytes})> references = const [],
     String? idempotencyKey,
@@ -562,7 +575,7 @@ class ApiClient {
               ...fields,
               if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
             },
-            lists: {'colours[]': colours},
+            lists: {'colours[]': colours, 'garments[]': garments},
             files: [
               for (final f in logos) ('logos[]', f),
               for (final f in references) ('references[]', f),

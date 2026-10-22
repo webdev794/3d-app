@@ -63,7 +63,7 @@ export function createBoard({ getParts, getDesign, onLayers, onMarks = () => {},
     for (const row of rows) {
       for (const m of row.part.painter.marks ?? []) {
         const o = own[m.key] ?? {}, scale = num(o.scale, 1);
-        out.push({ id: MARK + m.key, mark: m, part: row.part.painter.partName, side: o.side === 'front' || o.side === 'back' ? o.side : m.def.side, x: num(o.x, m.def.x), y: num(o.y, m.def.y), rot: num(o.rot, 0), scale, wM: m.w0 * scale, hM: m.h0 * scale });
+        out.push({ id: MARK + m.key, mark: m, part: row.part.painter.partName, side: o.side === 'front' || o.side === 'back' ? o.side : m.def.side, x: num(o.x, m.def.x), y: num(o.y, m.def.y), rot: num(o.rot, m.def.rot ?? 0), scale, wM: m.w0 * scale, hM: m.h0 * scale });
       }
     }
     return out;

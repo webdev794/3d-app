@@ -70,7 +70,16 @@ class OrderSubmission
         if ($source === 'upload' && ! $draft?->files()->where('kind', 'order_form')->exists()) {
             throw ValidationException::withMessages(['files' => 'Attach your completed order form.']);
         }
-        $order = $user->orders()->make(Arr::except($data, ['design_final', 'project_version', 'draft_id', 'idempotency_key', 'items', 'pricing']));
+        // Delivery or pick up (Upload Your Order) becomes the order's delivery address text, as on every order view.
+        if (isset($data['delivery'])) {
+            $data['shipping_address'] = \App\Support\OrderDelivery::text($data['delivery'], $data['address'] ?? null) ?? ($data['shipping_address'] ?? null);
+            // The price list's destination follows the choice (pick up, the country), unless one was chosen on the review.
+            $destination = \App\Support\OrderDelivery::destination($data['delivery'], $data['address'] ?? null);
+            if ($destination && blank($data['pricing']['destination'] ?? null)) {
+                $data['pricing'] = ['destination' => $destination] + (is_array($data['pricing'] ?? null) ? $data['pricing'] : []);
+            }
+        }
+        $order = $user->orders()->make(Arr::except($data, ['design_final', 'project_version', 'draft_id', 'idempotency_key', 'items', 'pricing', 'delivery', 'address']));
         $order->forceFill(['idempotency_key' => $key]);
         // The customer's pricing choices, for the invoice (payments-api.md R3).
         if (self::hasPricing()) {

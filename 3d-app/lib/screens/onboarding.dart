@@ -163,9 +163,17 @@ class AuthScreen extends StatelessWidget {
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      // With the keyboard up the form fills the screen: keep it below the
+      // iPhone notch and give it a ✕.
+      useSafeArea: true,
       backgroundColor: Palette.surface,
-      showDragHandle: true,
-      builder: (_) => AccountSheet(c, register: register),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SheetTop(),
+          Flexible(child: AccountSheet(c, register: register)),
+        ],
+      ),
     );
     if (ok == true && context.mounted) {
       showToast(context, 'Signed in as ${c.user?.email}. Projects now sync.');

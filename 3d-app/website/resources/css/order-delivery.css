@@ -1,0 +1,16 @@
+/* Section 1's Date required, Deliver / Pick up and the delivery address (components/OrderDeliveryFields.tsx), on
+   Upload Your Order and Create Order Form. Colours follow order-pages.css. */
+.od-when-where{display:grid;gap:12px;margin-top:12px;padding-top:14px;border-top:1px solid #4f759355}
+.od-when-where input[type=date]{color-scheme:dark}
+.od-delivery{margin:0;padding:0;border:0;min-width:0}
+.od-delivery legend{padding:0;margin-bottom:6px}
+.od-choice{display:flex;gap:10px;flex-wrap:wrap}
+.od-choice-pill{position:relative;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 16px;border:1px solid var(--op-input-line);border-radius:5px;background:var(--op-input);color:#d6e8f7;font-size:14px;cursor:pointer;transition:border-color .15s,background .15s}
+.od-choice-pill input{position:absolute;opacity:0;pointer-events:none}
+.od-choice-pill.is-on{border-color:var(--op-cyan);background:#00d9ed1a;color:#fff}
+.od-choice-pill:focus-within{box-shadow:0 0 0 3px #00d9ed24}
+.od-delivery.has-error .od-choice-pill{border-color:#f16482}
+.od-address .od-wide{grid-column:1/-1}
+.od-address-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 16px;min-width:0}
+.od-lead-warning{display:inline-flex;gap:6px;align-items:flex-start;color:#ffc27a;line-height:1.4}
+.od-lead-warning svg{flex:none;margin-top:1px}

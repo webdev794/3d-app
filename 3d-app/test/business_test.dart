@@ -38,6 +38,33 @@ void main() {
     expect(c.screen, AppScreen.pricing);
     expect(find.text('Club'), findsOneWidget);
     expect(find.text('MOST POPULAR'), findsOneWidget);
+    // Club is the A$49.95 plan (A$499.50 billed yearly), and each
+    // plan has its 3DEEZI TEAM line, as on the website's /pricing.
+    expect(find.text('A\$49.95 / month'), findsOneWidget);
+    expect(find.text('A\$19 / month'), findsOneWidget);
+    for (final (plan, line) in [
+      ('Rookie', '3DEEZI TEAM designer: A\$100 per design (incl. GST)'),
+      ('Creator', '3DEEZI TEAM designer: A\$49.95 per design (incl. GST)'),
+      ('Club', '3DEEZI TEAM designers included: 15 designs a month'),
+      ('Pro Studio', '3DEEZI TEAM designers included: 30 designs a month'),
+    ]) {
+      expect(
+        find.descendant(
+          of: find.byKey(Key('plan-team-$plan')),
+          matching: find.text(line),
+        ),
+        findsOneWidget,
+      );
+    }
+    await tapText(tester, 'Yearly · 2 months free');
+    // Yearly keeps "2 months free" true: A$499.50 (A$41.63 a month).
+    expect(
+      find.text('A\$41.63 / month, A\$499.50 billed yearly'),
+      findsOneWidget,
+    );
+    expect(find.text('A\$16 / month, A\$190 billed yearly'), findsOneWidget);
+    await tapText(tester, 'Monthly');
+    expect(find.text('A\$49.95 / month'), findsOneWidget);
     await tester.ensureVisible(find.text('APPLY TO BECOME A PARTNER'));
     expect(
       find.text('Yearly only. Setup fee applies. Pricing excludes GST.'),

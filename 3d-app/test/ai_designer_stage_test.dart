@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
+import 'package:three_deezi/screens/ai_designer.dart' show AiDesignerScreen;
 import 'package:three_deezi/widgets/ai_stage.dart';
 
 import 'flow_test.dart' show mountPhone;
@@ -130,6 +131,61 @@ void main() {
     expect(c.brief, startsWith('Workwear: '));
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  // QA AB 2026-10-22: without an AI key the sample concepts kept a jersey for
+  // a zip hoodie brief, so the Studio opened a jersey.
+  testWidgets('sample concepts keep the garment of the brief into the Studio', (tester) async {
+    final c = AppController()..screen = AppScreen.home;
+    await mountPhone(tester, c);
+    c.startAi();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.enterText(find.byType(TextField), 'A black full zip hoodie for the coaches with teal trims');
+    await tester.tap(find.byTooltip('Generate designs'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.aiGarment, 'Zip hoodie');
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.concepts);
+    expect(c.concepts.every((k) => k.spec.garment == 'Zip hoodie'), isTrue);
+    c.openConcept(0);
+    expect(c.garment, 'Zip hoodie');
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  // QA AB follow-up: every garment a brief can name reaches the Studio offline.
+  testWidgets('sample concepts open the garment of each brief in the Studio', (tester) async {
+    final c = AppController()..screen = AppScreen.home;
+    await mountPhone(tester, c);
+    const briefs = {
+      'Black and teal rugby league jersey': 'Jersey',
+      'A teal netball singlet with gold trims': 'Singlet',
+      'Navy training shorts with a white stripe': 'Shorts',
+      'A grey training tee for the gym': 'Training Tee',
+      'Navy polo with a gold crest': 'Polo',
+      'A pocket polo for the darts team': 'Polo with pocket',
+      'A black hoodie for the coaches': 'Hoodie',
+      'Maroon rugby jersey and shorts': 'Full Kit',
+      'A navy varsity jacket for the seniors': 'Varsity jacket',
+      'A black club track jacket with teal piping': 'Track jacket',
+    };
+    for (final MapEntry(key: brief, value: garment) in briefs.entries) {
+      c.startAi();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.enterText(find.descendant(of: find.byType(AiDesignerScreen), matching: find.byType(TextField)), brief);
+      await tester.tap(find.byTooltip('Generate designs'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(c.aiGarment, garment, reason: brief);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(c.screen, AppScreen.concepts, reason: brief);
+      expect(c.concepts.map((k) => k.spec.garment).toSet(), {garment}, reason: brief);
+      c.openConcept(0);
+      expect(c.garment, garment, reason: brief);
+      expect(c.screen, AppScreen.studio);
+      await tester.pump(const Duration(seconds: 1));
+    }
   });
 
   // QA 2026-10-21: while MAKE IT 3D draws the print sheet it opens the Studio

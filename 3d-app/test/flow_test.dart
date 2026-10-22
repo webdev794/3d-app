@@ -161,17 +161,16 @@ void main() {
     expect(c.screen, AppScreen.concepts);
     expect(c.concepts, hasLength(4));
 
-    // The results: the PRIMARY and three numbered options; Make primary swaps one in.
-    expect(find.text('PRIMARY DESIGN'), findsOneWidget);
-    for (final n in ['2', '3']) {
+    // YOUR DESIGNS (146.jpg): design 1 large, the others as numbered
+    // thumbnails; tapping one shows it large (Open in 3D Designer follows it).
+    for (final n in ['2', '3', '4']) {
       expect(find.text(n), findsOneWidget);
     }
-    await tester.tap(find.byTooltip('Design 2 actions'));
+    await tester.tap(find.byKey(const ValueKey('thumb-1')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Make primary'));
-    await tester.pumpAndSettle();
-    expect(c.concepts.first.spec.designName, 'Gold Standard');
-    expect(c.concepts[1].spec.designName, 'Mantis Strike');
+    expect(c.selectedConcept, 1);
+    expect(c.concepts[1].spec.designName, 'Gold Standard');
+    expect(c.concepts.first.spec.designName, 'Mantis Strike');
     await tapText(tester, 'Open in 3D Designer');
     expect(c.screen, AppScreen.studio);
     expect(c.projectName, 'Gold Standard');

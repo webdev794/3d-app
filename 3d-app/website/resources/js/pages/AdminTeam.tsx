@@ -21,7 +21,9 @@ interface Summary {
   designer: { id: number; name: string } | null; revisions_used: number; revisions_allowed: number; due_date: string | null; latest_version: number; unread: number;
   created_at: string; status_changed_at: string | null; customer?: { id: number; name: string; email: string } | null; priority?: string; internal_notes_count?: number; files_count?: number;
   /** Client answers 2026-10-21: extra revision rounds, a round waiting for payment, the refund mark. */
-  extra_revisions?: number; pending_revision?: { invoice: InvoiceSummary | null } | null; refund_status?: 'due' | 'refunded' | null; refunded_at?: string | null;
+  extra_revisions?: number;
+  /** The client's new /team form (2026-10-22): "Garments needed" (the first is the garment) and the "Preferred delivery date". */
+  garments?: string[]; garment_names?: string[]; preferred_date?: string | null; pending_revision?: { invoice: InvoiceSummary | null } | null; refund_status?: 'due' | 'refunded' | null; refunded_at?: string | null;
 }
 interface Detail extends Summary {
   files: TeamFile[]; deliveries: { version: number; created_at: string; note: string | null; files: TeamFile[] }[]; messages: Message[]; history: HistoryRow[];
@@ -40,6 +42,9 @@ const when = (iso: string | null) => iso ? new Date(iso).toLocaleString('en-AU',
 const kb = (n: number) => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 const Pill = ({ status }: { status: string }) => <span className={`status-pill s-${PILL[status] ?? 'pending'}`}>{label(status)}</span>;
 const billingText = (r: Summary) => r.billing === 'paid' ? `Paid request · ${r.currency} ${r.price} incl. GST${r.invoice ? ` · ${r.invoice.invoice_number} ${r.invoice.label}` : ''}` : r.billing === 'free' ? 'No charge' : `Included (${r.plan})`;
+/** "Jersey, Shorts": every garment asked for (older requests: the one garment). */
+const garmentsOf = (r: Summary) => r.garment_names?.length ? r.garment_names.join(', ') : r.garment_name;
+const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 const RefundChip = ({ r }: { r: Summary }) => r.refund_status ? <em className={`atm-refund${r.refund_status === 'refunded' ? ' done' : ''}`}>{r.refund_status === 'due' ? 'REFUND DUE' : 'REFUNDED'}</em> : null;
 /** "Assigned to me" on the board and list: the owner who is also the designer. */
 const MINE_KEY = 'atm.mine';
@@ -65,8 +70,8 @@ function Card({ r, base }: { r: Summary; base: string }) {
   return <Link to={`${base}/${r.id}`} className="atm-card" aria-label={`Open ${r.number} ${r.name}`}>
     <span className="atm-card-top"><strong>{r.number}</strong>{r.unread > 0 && <em className="atm-unread" title="Unread customer messages">{r.unread}</em>}{r.priority === 'high' && <em className="atm-high">HIGH</em>}<RefundChip r={r} />{r.pending_revision && <em className="atm-high" title="Extra revision waiting for payment">EXTRA · UNPAID</em>}</span>
     <span className="atm-card-name">{r.name}</span>
-    <small>{r.garment_name} · {r.sport_name}</small>
-    <small className="muted">{r.designer ? <><UserCheck size={12} /> {r.designer.name}</> : 'Unassigned'}{r.due_date ? ` · due ${r.due_date}` : ''}</small>
+    <small>{garmentsOf(r)} · {r.sport_name}</small>
+    <small className="muted">{r.designer ? <><UserCheck size={12} /> {r.designer.name}</> : 'Unassigned'}{r.due_date ? ` · due ${r.due_date}` : ''}{r.preferred_date ? ` · wanted by ${day(r.preferred_date)}` : ''}</small>
   </Link>;
 }
 
@@ -113,7 +118,7 @@ function RequestList({ base, mode }: { base: string; mode: Mode }) {
       {rows.map(r => <tr key={r.id} className="atm-row" onClick={() => navigate(`${base}/${r.id}`)}>
         <td><Link to={`${base}/${r.id}`} onClick={e => e.stopPropagation()}><strong>{r.number}</strong></Link>{r.unread > 0 && <em className="atm-unread">{r.unread}</em>}<small className="cell-sub">{r.name}</small></td>
         <td>{r.customer?.name ?? '—'}<small className="cell-sub">{r.customer?.email}</small></td>
-        <td>{r.garment_name}<small className="cell-sub">{r.sport_name}</small></td>
+        <td>{garmentsOf(r)}<small className="cell-sub">{r.sport_name}{r.preferred_date ? ` · wanted by ${day(r.preferred_date)}` : ''}</small></td>
         <td>{r.designer?.name ?? <span className="muted">Unassigned</span>}</td>
         <td><Pill status={r.status} /> <RefundChip r={r} /></td>
         <td><small>{billingText(r)}</small></td>
@@ -181,8 +186,9 @@ function RequestDetail({ id, mode, base, onNotice, myId }: { id: number; mode: M
       <div className="atm-main">
         <section className="glow-panel admin-card"><h3>Brief</h3>
           <dl className="atm-kv"><dt>Customer</dt><dd>{r.customer?.name ?? r.name} · <a href={`mailto:${r.email}?subject=${encodeURIComponent(`${r.number}: your 3DEEZI design`)}`}>{r.email}</a></dd>
-            <dt>Business / name</dt><dd>{r.name}</dd>
-            <dt>Garment</dt><dd>{r.garment_name} · {r.sport_name}{r.category ? ` · ${r.category}` : ''}</dd>
+            <dt>Company / team</dt><dd>{r.name}</dd>
+            <dt>Garments needed</dt><dd data-testid="atm-garments">{garmentsOf(r)} · {r.sport_name}{r.category ? ` · ${r.category}` : ''}</dd>
+            <dt>Preferred delivery date</dt><dd data-testid="atm-preferred">{r.preferred_date ? day(r.preferred_date) : <span className="muted">Not given</span>}</dd>
             <dt>Colours</dt><dd>{r.colours.length ? <span className="atm-swatches">{r.colours.map(c => <span key={c}><i style={{ background: /^#[0-9a-f]{3,8}$/i.test(c) || /^[a-z]+$/i.test(c) ? c : 'transparent' }} />{c}</span>)}</span> : <span className="muted">Not given</span>}</dd>
             <dt>Sent</dt><dd>{when(r.created_at)}</dd></dl>
           <p className="atm-text">{r.description}</p>
@@ -343,7 +349,7 @@ function Allowances({ onNotice }: { onNotice: (text: string) => void }) {
   if (!plans) return <div className="empty-state"><LoaderCircle className="spin" /></div>;
   return <>
     <section className="glow-panel admin-card"><h2><SlidersHorizontal size={18} /> Plans</h2>
-      <p className="muted">Prices include GST (the GST is worked out at the rate in Pricing). Included requests don't carry over to the next month. Subscriptions are not live yet: set each customer's plan below.</p>
+      <p className="muted">These are the plans on the public <a href="/pricing" target="_blank" rel="noreferrer">Pricing page</a> (Rookie, Creator, Club and Pro Studio); keep the names the same. Prices include GST (the GST is worked out at the rate in Admin › Pricing). Included requests don't carry over to the next month. Subscriptions are not live yet: set each customer's plan below.</p>
       <div className="table-wrap"><table className="admin-table atm-plans"><thead><tr><th>Plan</th><th>Included a month</th><th>Price per extra request (incl. GST)</th><th>Revisions per request</th><th>Open at once</th></tr></thead><tbody>
         {Object.values(plans).map(p => <tr key={p.id}>
           <td><input aria-label={`${p.id} name`} value={p.name} maxLength={60} onChange={e => edit(p.id, { name: e.target.value })} /><small className="cell-sub">{p.id}</small></td>
@@ -370,7 +376,7 @@ function Allowances({ onNotice }: { onNotice: (text: string) => void }) {
       {found && <button className="button button-outline" onClick={() => { setFound(null); setSearch(''); }}>Show customers with settings</button>}</div>
       <div className="table-wrap"><table className="admin-table"><thead><tr><th>Customer</th><th>Plan</th><th>Monthly override</th><th>Bonus requests</th><th>Unlimited</th><th>This month</th><th>Note</th><th /></tr></thead><tbody>
         {shown.map(row => <AllowanceEditor key={row.user.id} row={row} plans={plans} onSaved={next => { setCustomers(c => [next, ...c.filter(x => x.user.id !== next.user.id)]); setFound(f => f && f.map(x => x.user.id === next.user.id ? next : x)); onNotice(`${next.user.name}: allowance saved.`); }} onError={onNotice} />)}
-        {!shown.length && <tr><td colSpan={8} className="muted">{found ? 'No customers found.' : 'Every customer is on the Free plan. Find a customer to change theirs.'}</td></tr>}
+        {!shown.length && <tr><td colSpan={8} className="muted">{found ? 'No customers found.' : `Every customer is on the ${plans.free?.name ?? 'free'} plan. Find a customer to change theirs.`}</td></tr>}
       </tbody></table></div>
     </section>
   </>;

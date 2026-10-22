@@ -13,10 +13,12 @@ use App\Services\Pdf\InvoicePdf;
 use App\Services\Pricing\BillingSettings;
 use App\Services\Pricing\Money;
 use App\Services\Pricing\PricingService;
+use App\Support\OrderDelivery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The customer's invoices and paying them (the Review & Pay page). Only the order's own account (signed in), or
@@ -100,6 +102,55 @@ class InvoiceController extends Controller
         return response()->json(['data' => self::present($invoice->refresh(), $viewer)]);
     }
 
+    /**
+     * The billing address for the invoice (COMPLETE YOUR PAYMENT): the delivery address (same: true, the default) or
+     * another one, printed under BILL TO on the invoice. Only the customer, and only while the invoice can be paid.
+     */
+    public function billing(Request $request, string $number): JsonResponse
+    {
+        [$invoice] = $this->find($request, $number, true);
+        abort_unless($invoice->canPay(), 409, $invoice->status === 'paid' ? 'This invoice is already paid.' : 'This invoice cannot be changed now.');
+        $data = $request->validate([
+            'same' => ['required', 'boolean'],
+            'name' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'company' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'address' => ['exclude_if:same,true', 'required', 'array:street,suburb,state,postcode,country'],
+            'address.*' => ['exclude_if:same,true', 'nullable', 'string', 'max:120'],
+        ], ['address.required' => 'Add the billing address, or tick "Same as delivery address".']);
+        $snapshot = $invoice->snapshot ?? [];
+        if ($data['same']) {
+            unset($snapshot['billing']);
+        } else {
+            $errors = OrderDelivery::addressErrors($data['address']);
+            if ($errors !== []) {
+                throw ValidationException::withMessages(collect($errors)->mapWithKeys(fn ($m, $k) => ['address.'.$k => str_replace('for delivery', 'for billing', $m)])->all());
+            }
+            $fields = [];
+            foreach (OrderDelivery::ADDRESS_FIELDS as $field) {
+                $fields[$field] = trim((string) ($data['address'][$field] ?? ''));
+            }
+            $fields['state'] = strtoupper($fields['state']);
+            $snapshot['billing'] = [
+                'same' => false,
+                'name' => trim((string) ($data['name'] ?? '')) ?: null,
+                'company' => trim((string) ($data['company'] ?? '')) ?: null,
+                'address' => OrderDelivery::text('deliver', $fields),
+                'fields' => $fields,
+            ];
+        }
+        $invoice->forceFill(['snapshot' => $snapshot])->save();
+
+        return response()->json(['data' => self::billingOf($invoice)]);
+    }
+
+    /** The invoice's billing address: {same: true} (the delivery address) or the one the customer gave. */
+    public static function billingOf(Invoice $invoice): array
+    {
+        $billing = $invoice->snapshot['billing'] ?? null;
+
+        return is_array($billing) && ($billing['same'] ?? true) === false ? $billing : ['same' => true];
+    }
+
     /** The app's pay link: the pay page in the phone's browser for two hours, without signing in there. */
     public function link(Request $request, string $number): JsonResponse
     {
@@ -156,6 +207,8 @@ class InvoiceController extends Controller
                 'quantity' => (int) ($snap['order']['quantity'] ?? $order?->quantity ?? 0),
                 'summary' => $snap['order']['summary'] ?? null,
                 'items' => $snap['order']['items'] ?? [],
+                // "team": a 3DEEZI TEAM design request (or extra revision round), so the totals don't say "Garments".
+                'source' => $order ? 'order' : ($invoice->team_request_id || ($snap['order']['source'] ?? null) === 'team' ? 'team' : ($snap['order']['source'] ?? null)),
             ],
             'customer' => $snap['customer'] ?? null,
             'seller' => ($snap['seller'] ?? BillingSettings::seller()) + ['logo' => BillingSettings::logoDataUrl()],

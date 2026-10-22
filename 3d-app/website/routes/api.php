@@ -84,6 +84,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::patch('/order-drafts/{draft}', [OrderDraftController::class, 'update'])->whereNumber('draft');
         Route::delete('/order-drafts/{draft}', [OrderDraftController::class, 'destroy'])->whereNumber('draft');
         Route::post('/order-drafts/{draft}/submit', [OrderDraftController::class, 'submit'])->whereNumber('draft')->middleware('throttle:uploads')->name('order-drafts.submit');
+        // 3DEEZI AI reads the draft's order forms (once per file; called on Review).
+        Route::post('/order-drafts/{draft}/read', \App\Http\Controllers\OrderFormReadController::class)->whereNumber('draft')->middleware('throttle:concepts');
         Route::get('/order-drafts/{draft}/files', [OrderDraftController::class, 'files'])->whereNumber('draft');
         Route::post('/order-drafts/{draft}/files', [OrderDraftController::class, 'storeFile'])->whereNumber('draft')->middleware('throttle:uploads');
         Route::delete('/order-drafts/{draft}/files/{file}', [OrderDraftController::class, 'destroyFile'])->whereNumber(['draft', 'file']);
