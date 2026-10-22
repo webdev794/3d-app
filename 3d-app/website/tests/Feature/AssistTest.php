@@ -196,7 +196,29 @@ class AssistTest extends TestCase
             ->assertJsonPath('data.reply', fn ($reply) => str_contains($reply, 'Club') && str_contains($reply, '(/pricing)'));
         $this->ask('what is the meaning of life')->assertOk()
             ->assertJsonPath('data.reply', fn ($reply) => str_contains($reply, "I'm not sure"));
+        // 3DEEZI TEAM prices on the Pricing page's plans (2026-10-22): Rookie (Free) A$100, Creator A$49.95, Club 15 included.
+        foreach (['How much is a designer?', 'how much does 3DEEZI TEAM cost'] as $question) {
+            $this->ask($question, page: '/team')->assertOk()->assertJsonPath('data.source', 'faq')
+                ->assertJsonPath('data.reply', fn ($reply) => str_contains($reply, 'A$100 on Rookie (Free)') && str_contains($reply, 'A$49.95 on Creator')
+                    && str_contains($reply, 'Club includes 15') && ! str_contains($reply, 'A$99'));
+        }
         Http::assertNothingSent();
+    }
+
+    public function test_the_ai_gets_the_current_plan_and_team_prices(): void
+    {
+        config(['services.openai.key' => 'sk-test']);
+        Http::fake(['api.openai.com/*' => Http::response(['output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => json_encode(['reply' => 'A$100 on Rookie.', 'actions' => []])]]]]])]);
+
+        $this->ask('How much is a designer?', page: '/team', can: [])->assertOk()->assertJsonPath('data.reply', 'A$100 on Rookie.');
+        Http::assertSent(function (Request $request) {
+            $knowledge = $request->data()['instructions'];
+
+            return str_contains($knowledge, 'Club: A$49.95 a month (or A$499.50 a year')
+                && str_contains($knowledge, 'a design request costs A$100 on Rookie (Free) and A$49.95 on Creator')
+                && str_contains($knowledge, '3DEEZI TEAM designers included: 30 design requests a month')
+                && ! str_contains($knowledge, 'A$99') && ! str_contains($knowledge, 'A$79') && ! str_contains($knowledge, 'A$69') && ! str_contains($knowledge, 'A$59 a month') && ! str_contains($knowledge, 'on Premium');
+        });
     }
 
     public function test_an_unexpected_ai_reply_never_shows_an_error(): void

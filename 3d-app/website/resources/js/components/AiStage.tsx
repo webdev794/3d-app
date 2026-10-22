@@ -53,7 +53,7 @@ export const quickSports: QuickSport[] = [
   { id: 'hockey', label: 'Hockey', sport: 'hockey', garments: allGarments },
   { id: 'training', label: 'Training', sport: 'training', garments: ['tee', 'singlet', 'shorts', 'polo', 'jersey'] },
 ];
-export const garmentLabels: Record<string, string> = { jersey: 'Jersey', fullkit: 'Full kit', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie' };
+export const garmentLabels: Record<string, string> = { jersey: 'Jersey', fullkit: 'Full kit', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
 
 /**
  * The quick picks, then every other catalogue sport in catalogue order, each with the catalogue's garments for it. A quick
@@ -79,9 +79,13 @@ export function garmentInBrief(text: string): string | null {
   const top = has(/\bjerseys?\b|\bguernseys?\b|\bjumpers?\b|\bshirts?\b|\blong[- ]sleeves?\b/) && !has(/\bt-?shirts?\b|\bpolo shirts?\b/);
   const shorts = has(/\bshorts\b/);
   if (has(/\bfull[- ]?kits?\b|\bkits?\b|\buniforms?\b|\bstrips?\b/) || (top && shorts)) return 'fullkit';
+  // The track suit jacket (a track top, a tracksuit's jacket) is its own 3D garment, with a collar or a hood.
+  if (has(/\btrack ?(?:suit )?(?:jackets?|tops?)\b|\btracksuit (?:jackets?|tops?)\b|\btrack suits?\b|\btracksuits?\b/)) return 'trackjacket';
   // Hoodies are 3D garments of their own (a zip one too); "hood" alone (a fishing shirt's hood, "childhood") is not one.
   if (has(/\bzip(?:ped)?[- ]?(?:up[- ]?|through[- ]?)?hood(?:ie|y)s?\b|\bfull[- ]zip hood(?:ie|y)s?\b/)) return 'ziphoodie';
   if (has(/\bhood(?:ie|y)s?\b|\bhooded (?:jumpers?|sweat\w*|tops?|pullovers?)\b/)) return 'hoodie';
+  // The varsity (letterman, baseball or college) jacket is its own 3D garment; other jackets stay tees for now.
+  if (has(/\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b/)) return 'varsity';
   if (has(/\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b/)) return 'pocketpolo';
   if (has(/\bpolos?\b/)) return 'polo';
   if (has(/\bsinglets?\b|\bvests?\b|\btank tops?\b|\bdress(es)?\b|\bbodysuits?\b/)) return 'singlet';

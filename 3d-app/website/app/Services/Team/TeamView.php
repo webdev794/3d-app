@@ -31,6 +31,10 @@ final class TeamView
             'sport_name' => $sports->firstWhere('id', $r->sport)['name'] ?? $r->sport,
             'garment' => $r->garment,
             'garment_name' => $garments->firstWhere('id', $r->garment)['name'] ?? $r->garment,
+            // "Garments needed" (several; the first is `garment`) and the optional "Preferred delivery date" (2026-10-22).
+            'garments' => $list = $r->garmentList(),
+            'garment_names' => array_map(fn ($g) => $garments->firstWhere('id', $g)['name'] ?? $g, $list),
+            'preferred_date' => TeamRequest::briefReady() ? $r->preferred_date?->toDateString() : null,
             'category' => $r->category,
             'description' => $r->description,
             'colours' => array_values($r->colours ?? []),

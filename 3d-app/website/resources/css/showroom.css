@@ -151,6 +151,8 @@
 .bubble.typing{display:flex;align-items:center;gap:8px;color:#8d9fb3}
 .dyo-stage{position:relative;min-height:0;border-radius:16px;overflow:hidden;border:1.5px solid #00d9ed44;box-shadow:0 0 26px #00d9ed1f}
 .dyo-stage .studio-viewer{position:absolute;inset:0}
+/* The stage keeps the third grid column: the tool panel (column 2) is not rendered while closed, which otherwise drops the stage into the 0-wide panel column. */
+.dyo-body>.dyo-stage{grid-column:3}
 .stage-chips{position:absolute;top:14px;left:14px;display:flex;gap:8px;z-index:5;flex-wrap:wrap}
 .stage-chips span{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:20px;background:#05101acc;border:1px solid #ffffff22;font-size:11px;color:#c9d6e2;backdrop-filter:blur(8px)}
 .dyo-stage .view-controls{bottom:16px;border-radius:30px;border:1.5px solid #00d9ed55;box-shadow:0 0 14px #00d9ed33;padding:5px}

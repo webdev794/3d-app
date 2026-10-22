@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, ArrowUp, Box, Check, ChevronLeft, ChevronRight, Crown, Download, EllipsisVertical, ImagePlus, ImageUp, Lightbulb, LoaderCircle, Mic, MicOff, Paperclip, PenLine, Plus, RefreshCw, Settings, Sparkles, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUp, Box, Check, ChevronDown, ChevronLeft, ChevronRight, Download, Ellipsis, ImagePlus, ImageUp, Lightbulb, LoaderCircle, Mic, MicOff, Paperclip, PenLine, Plus, RefreshCw, SendHorizontal, Sparkles, Undo2, WandSparkles, X } from 'lucide-react';
 import { api, media, saveBlob, type Catalog, type CatalogItem, type Concept } from '../api';
 import type { Draft } from '../App';
 import type { Design } from '../types';
@@ -9,13 +9,14 @@ import Loader from '../components/Loader';
 import ImageEditor, { EditImageButton } from '../components/ImageEditor';
 import { CategoryIcon } from '../components/GarmentIcon';
 import { allGarments, formatCount, friendlyError, garmentInBrief, garmentLabels, MAX_BRIEF, sportInBrief, SportRow, sportTiles, useVoice } from '../components/AiStage';
+import { ResultsViewer } from '../components/ResultsViewer';
 import '../../css/ai-designer.css';
 
 export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
 export const garmentArt = (garment: string) => media(`showroom/garment-${garment}.webp`);
 /** Shown in the garment step and the studio; not yet available in 3D. */
 export const comingSoon = [{ id: 'socks', name: 'Socks', description: 'Match socks with team bands.' }, { id: 'shoes', name: 'Shoes', description: 'Boots in your colours.' }];
-const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie'];
+const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
 /** A garment's place on the garment step; one not listed yet goes last. */
 const order = (id: string) => { const i = garmentOrder.indexOf(id); return i < 0 ? garmentOrder.length : i; };
 
@@ -166,8 +167,8 @@ async function uploadable(file: File): Promise<File> {
 }
 
 /** One of the four designs a brief gives: its direction (from the AI's planning step), its 3D kit spec and its picture. */
-type DesignOption = { id: string; rank: number; name: string; description: string; design: Design; motif?: string; direction?: Record<string, unknown>; image?: string | null; quality?: 'high' | 'medium'; pending?: 'high' | 'medium'; busy: boolean; error?: string; view?: View };
-/** presentation: front and back side by side (the PRIMARY, Make HD); front: one garment, square, for the option cards (138.jpg). */
+type DesignOption = { id: string; rank: number; name: string; description: string; design: Design; motif?: string; direction?: Record<string, unknown>; image?: string | null; quality?: 'high' | 'medium'; pending?: 'high' | 'medium' | 'refine'; busy: boolean; error?: string; view?: View; previous?: string };
+/** presentation: front and back side by side in one tall 2:3 picture (all four designs and Make HD, 146.jpg; landscape if the model turns the size down); front: one garment, square (the old option cards). */
 type View = 'presentation' | 'front';
 type BriefBody = { prompt: string; sport: string; garment: string; reference_ids: number[] };
 /** What "Make HD" costs (Pricing: an HD presentation mockup). */
@@ -191,6 +192,12 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   const [options, setOptions] = useState<DesignOption[]>([]);
   const [menu, setMenu] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
+  /** The design shown large (client visual 146.jpg): tapping a thumbnail selects it; nothing is rendered again. */
+  const [sel, setSel] = useState(0);
+  /** "Refine this design…": the slim bar, expanded while typing (the original brief shows under it); its text is kept. */
+  const [refineOpen, setRefineOpen] = useState(false);
+  const [refineText, setRefineText] = useState('');
+  const controls = useRef<HTMLDivElement>(null);
   const lastBrief = useRef<BriefBody | null>(null);
   const [making3d, setMaking3d] = useState(false);
   const [dropping, setDropping] = useState(false);
@@ -212,12 +219,21 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   const tiles = sportTiles(catalog?.sports);
   const chosen = tiles.find(t => t.id === tile);
   const atBrief = !results;
-  const primary = options[0];
+  /** The selected design (the PRIMARY until another is chosen): Open in 3D Designer, Download, Refine and ⋯ act on it. */
+  const primary = options[sel] ?? options[0];
 
   // The bar grows with the text (about seven lines, then it scrolls); the column around it stays centred.
-  useEffect(() => { const el = field.current; if (!el) return; el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 196)}px`; }, [prompt, atBrief]);
+  useEffect(() => { const el = field.current; if (!el) return; el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 196)}px`; }, [prompt, atBrief, refineOpen]);
   // Ready to type on computers (not on phones, where it would open the keyboard over the page).
   useEffect(() => { if (atBrief && matchMedia('(pointer: fine)').matches) field.current?.focus({ preventScroll: true }); }, [atBrief]);
+  useEffect(() => {
+    if (!refineOpen) return;
+    const away = (e: PointerEvent) => { const t = e.target as Element | null; if (t?.isConnected && !controls.current?.contains(t) && !t.closest?.('dialog, .aid-full')) setRefineOpen(false); };
+    // Esc closes an open menu (the (+) menu, ⋯) first; only then the expanded bar.
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('dialog[open], .aid-full, .aid-menu')) setRefineOpen(false); };
+    document.addEventListener('pointerdown', away); document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', key); };
+  }, [refineOpen]);
   useEffect(() => {
     if (menu === null) return;
     const away = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest?.('.aid-kebab-wrap')) setMenu(null); };
@@ -251,7 +267,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   }
   async function generate(brief: string, sport: string, garment: string) {
     const mine = ++run.current, current = () => run.current === mine;
-    setResults(true); setPlanning(true); setOptions([]); setMenu(null); setEditing(null); setMaking3d(false); setError('');
+    setResults(true); setPlanning(true); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError('');
     onChange({ ...draft, sport, garment, mode: 'ai', design: { ...draft.design, garment: garment as Design['garment'] }, patternMotif: undefined, pendingDrawing: undefined });
     // Pictures attached before signing in are saved now (in Assets, as references), so the AI can read them.
     let refs = references;
@@ -281,11 +297,11 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
       const alternatives = rest.map(d => ({ ...d, image: null, busy: true }));
       // The primary keeps its picture (or its render still running) and takes the plan's name and 3D kit spec.
       setOptions(list => [...list.map(o => o.id === first.id && spec ? { ...o, name: spec.name, description: spec.description, design: spec.design, motif: spec.motif } : o), ...alternatives]);
-      for (const o of alternatives) void render(o, 'medium', mine, 'front');
+      for (const o of alternatives) void render(o, 'medium', mine, 'presentation');
     } catch (e) { if (current()) setError(friendlyError(e)); } finally { if (current()) setPlanning(false); }
   }
   /** Renders one design (the PRIMARY in HD, an option as a medium preview, "Make HD" or "Regenerate"); its card fills in when it arrives. */
-  async function render(option: DesignOption, quality: 'high' | 'medium', mine = run.current, view: View = option.view ?? 'front') {
+  async function render(option: DesignOption, quality: 'high' | 'medium', mine = run.current, view: View = option.view ?? 'presentation') {
     const body = lastBrief.current, current = () => run.current === mine;
     if (!body || !option.direction) return;
     setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: true, pending: quality, view, error: undefined } : x));
@@ -294,11 +310,35 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
       if (current()) setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: false, image: r.image, quality: r.quality, view: r.view ?? view } : x));
     } catch (e) { if (current()) setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: false, error: friendlyError(e) } : x)); }
   }
-  /** "Make primary": the option swaps places with the PRIMARY at once, keeping its picture. */
-  const makePrimary = (index: number) => { setMenu(null); setOptions(list => { const next = [...list]; [next[0], next[index]] = [next[index], next[0]]; return next; }); };
+  /** A thumbnail tapped: that design goes large and the one shown moves into the thumbnails; each keeps its picture and edits (nothing is rendered or charged). */
+  const select = (index: number) => { setMenu(null); setSel(index); };
+  /** The selected picture alone (the thumbnails are page elements, never part of the file). */
   const download = async (o: DesignOption, n: number) => { setMenu(null); if (o.image) saveBlob(await (await fetch(o.image)).blob(), `3deezi-design-${n}${o.quality === 'high' ? '-hd' : ''}.jpg`); };
   /** "Back to create": the brief step with the brief, pictures, sport and switches kept; work still running is dropped. */
-  const backToCreate = () => { run.current += 1; setResults(false); setPlanning(false); setOptions([]); setMenu(null); setEditing(null); setMaking3d(false); setError(''); };
+  const backToCreate = () => { run.current += 1; setResults(false); setPlanning(false); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError(''); };
+  /** "Refine this design…": the selected picture changed as described by the AI image editor (the same as Edit image › Describe), in its own proportions. */
+  function refine() {
+    const o = primary, text = refineText.trim();
+    if (!o?.image || o.busy) return;
+    if (text.length < 3) { setError('Describe the change: for example “make the collar gold” or “add the number 7 on the back”.'); return; }
+    if (!isAi) { setError('Refining a design needs AI to be connected on the server.'); return; }
+    requireAuth(async () => {
+      const mine = run.current, current = () => run.current === mine, id = o.id, before = o.image!;
+      setError(''); setRefineOpen(false);
+      setOptions(list => list.map(x => x.id === id ? { ...x, busy: true, pending: 'refine' } : x));
+      try {
+        const image = before.startsWith('data:image/') ? before : await new Promise<string>((resolve, reject) => { void fetch(before).then(r => r.blob()).then(b => { const f = new FileReader(); f.onload = () => resolve(String(f.result)); f.onerror = reject; f.readAsDataURL(b); }, reject); });
+        const r = await api<{ image: string }>('/ai/image-edit', { method: 'POST', body: JSON.stringify({ image, instruction: text }) }); // no size: the server keeps the picture's own proportions
+        if (!current()) return;
+        setOptions(list => list.map(x => x.id === id ? { ...x, busy: false, image: r.image, previous: before } : x));
+        setRefineText('');
+      } catch (e) {
+        if (!current()) return;
+        setOptions(list => list.map(x => x.id === id ? { ...x, busy: false } : x));
+        setError(`Refine: ${friendlyError(e)}`);
+      }
+    });
+  }
   async function saveReference(file: File) {
     const data = new FormData(); data.append('file', file); data.append('name', file.name); data.append('type', 'reference');
     return api<{ id: number; name: string }>('/assets', { method: 'POST', body: data });
@@ -328,11 +368,12 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     if (!image || !primary) return;
     // A design picture goes on a singlet, jersey, tee or polo (with or without the pocket) only: a hoodie takes the
     // design's colours, pattern and wordmark, with the first attached logo as its crest (no print sheet is drawn).
-    if (draft.garment === 'hoodie' || draft.garment === 'ziphoodie') {
+    // The varsity jacket too (its letter, club name and number come from the design's wordmark and number).
+    if (draft.garment === 'hoodie' || draft.garment === 'ziphoodie' || draft.garment === 'varsity' || draft.garment === 'trackjacket') {
       const logo = primary.design.logoImage || references.find(r => r.preview.startsWith('data:image/'))?.preview || null;
       onChange({ ...draft, id: undefined, version: undefined, name: primary.name || draft.name, mode: 'ai', design: { ...primary.design, garment: draft.garment, layout: null, logoImage: logo }, patternMotif: primary.motif, pendingDrawing: undefined });
       onStudio();
-      onNotice?.('Hoodies take your design’s colours and logo; full print designs on hoodies are coming.');
+      onNotice?.(draft.garment === 'varsity' || draft.garment === 'trackjacket' ? `The ${draft.garment === 'varsity' ? 'varsity' : 'track'} jacket takes your design’s colours and logo; full print designs on it are coming.` : 'Hoodies take your design’s colours and logo; full print designs on hoodies are coming.');
       return;
     }
     const mine = run.current, current = () => run.current === mine;
@@ -400,52 +441,69 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   </>;
 
   if (results) {
-    /** The ⋮ menu of the PRIMARY (index 0) or an option: Make primary, Make HD, Download, Edit image, Regenerate, Customise in 3D Studio. */
+    /** The ⋯ menu on the large design (client visual 146.jpg keeps the page to one big picture and two buttons): Make HD, Regenerate, Edit image, Undo refine, Customise in 3D Studio, your pictures on the kit. */
     const kebab = (o: DesignOption, index: number) => <div className="aid-kebab-wrap">
-      <button type="button" className="aid-kebab" aria-haspopup="menu" aria-expanded={menu === index} aria-label={index ? `Design ${index + 1} actions` : 'Primary design actions'} onClick={() => setMenu(m => m === index ? null : index)}><EllipsisVertical size={18} /></button>
+      <button type="button" className="aid-round aid-kebab" aria-haspopup="menu" aria-expanded={menu === index} aria-label={`Design ${index + 1} actions`} title="More: Make HD, Regenerate, Edit image…" onClick={() => setMenu(m => m === index ? null : index)}><Ellipsis size={18} /></button>
       {menu === index && <div className="aid-menu aid-kebab-menu" role="menu">
-        {index > 0 && <button type="button" role="menuitem" onClick={() => makePrimary(index)}><Crown size={16} /><span>Make primary</span></button>}
         {isAi && o.direction && o.quality !== 'high' && <button type="button" role="menuitem" disabled={o.busy} onClick={() => { setMenu(null); requireAuth(() => void render(o, 'high', run.current, 'presentation')); }} title="The full front and back presentation in HD"><Sparkles size={16} /><span>Make HD</span><small>{HD_CREDITS} credits</small></button>}
-        {o.image && <button type="button" role="menuitem" onClick={() => void download(o, index + 1)}><Download size={16} /><span>Download</span></button>}
-        {o.image && <button type="button" role="menuitem" onClick={() => { setMenu(null); setEditing(index); }}><PenLine size={16} /><span>Edit image</span></button>}
-        {isAi && o.direction && <button type="button" role="menuitem" disabled={o.busy} onClick={() => { setMenu(null); requireAuth(() => void render(o, o.quality ?? 'medium')); }}><RefreshCw size={16} /><span>Regenerate{index ? ' this option' : ''}</span></button>}
+        {isAi && o.direction && <button type="button" role="menuitem" disabled={o.busy} onClick={() => { setMenu(null); requireAuth(() => void render(o, o.quality ?? 'medium')); }}><RefreshCw size={16} /><span>Regenerate this design</span></button>}
+        {o.image && <button type="button" role="menuitem" disabled={o.busy} onClick={() => { setMenu(null); setEditing(index); }}><PenLine size={16} /><span>Edit image</span></button>}
+        {o.previous && <button type="button" role="menuitem" disabled={o.busy} onClick={() => { setMenu(null); setOptions(list => list.map(x => x.id === o.id ? { ...x, image: x.previous, previous: undefined } : x)); }}><Undo2 size={16} /><span>Undo last refine</span></button>}
         <button type="button" role="menuitem" disabled={making3d} onClick={() => { setMenu(null); customize(o); }}><Box size={16} /><span>Customise in 3D Studio</span><small>editable kit</small></button>
-        {index === 0 && references.filter(r => r.id).map(r => <button key={r.id} type="button" role="menuitem" onClick={() => { setMenu(null); putDrawing(r); }} title="Already the finished design? Put your attached picture on the 3D kit exactly as drawn"><ArrowRight size={16} /><span>Put {r.name} on the 3D kit</span></button>)}
+        {references.filter(r => r.id).map(r => <button key={r.id} type="button" role="menuitem" onClick={() => { setMenu(null); putDrawing(r); }} title="Already the finished design? Put your attached picture on the 3D kit exactly as drawn"><ArrowRight size={16} /><span>Put {r.name} on the 3D kit</span></button>)}
       </div>}
     </div>;
     const art = (o: DesignOption | undefined, big: boolean) => !o ? null
-      : o.image ? <><img className="aid-art-blur" src={o.image} alt="" aria-hidden="true" /><img className="aid-art-img" src={o.image} alt={`${o.name}: ${o.description}`} />{o.busy && <span className="aid-art-busy" role="status"><LoaderCircle className="spin" size={big ? 30 : 20} />{big ? (o.pending === 'high' && o.quality !== 'high' ? 'Rendering in HD… about a minute' : 'Regenerating…') : null}</span>}</>
-      : o.busy ? (big ? <Loader overlay={false} title={o.pending === 'high' ? 'Rendering your HD design…' : 'Rendering your design…'} subtitle={o.pending === 'high' ? 'Your brief and logos, front and back, in HD · about a minute.' : 'Your brief and logos, front and back · about 40 seconds. Three more designs follow.'} steps={['Reading your brief and logos', 'Designing front and back', 'Lighting the presentation', 'Finishing']} seconds={o.pending === 'high' ? 70 : 38} /> : <span className="aid-art-wait" role="status"><LoaderCircle className="spin" size={22} /><small>{o.name}</small></span>)
-      : o.error ? <div className="aid-art-error" role="alert"><p>{o.error}</p>{o.direction && <button type="button" className="button button-outline" onClick={() => requireAuth(() => void render(o, o.pending ?? 'medium'))}><RefreshCw size={15} /> Try again</button>}</div>
+      : o.image ? <><img className="aid-art-blur" src={o.image} alt="" aria-hidden="true" /><img className="aid-art-img" src={o.image} alt={`${o.name}: ${o.description}`} draggable={false} />{o.busy && <span className="aid-art-busy" role="status"><LoaderCircle className="spin" size={big ? 30 : 20} />{big ? (o.pending === 'refine' ? 'Refining this design… about a minute' : o.pending === 'high' && o.quality !== 'high' ? 'Rendering in HD… about a minute' : 'Regenerating…') : null}</span>}</>
+      : o.busy ? (big ? <Loader overlay={false} title={o.pending === 'high' ? 'Rendering your HD design…' : 'Rendering your design…'} subtitle={o.pending === 'high' ? 'Your brief and logos, front and back, in HD · about a minute.' : 'Your brief and logos, front and back · about 40 seconds. Three more designs follow.'} steps={['Reading your brief and logos', 'Designing front and back', 'Lighting the presentation', 'Finishing']} seconds={o.pending === 'high' ? 70 : 38} /> : <span className="aid-art-wait" role="status"><LoaderCircle className="spin" size={20} /></span>)
+      : o.error ? (big ? <div className="aid-art-error" role="alert"><p>{o.error}</p>{o.direction && <button type="button" className="button button-outline" onClick={() => requireAuth(() => void render(o, o.pending === 'high' ? 'high' : 'medium'))}><RefreshCw size={15} /> Try again</button>}</div> : <span className="aid-art-wait is-error" title={o.error}><RefreshCw size={18} /></span>)
       : <DesignThumbnail design={o.design} />;
     const editingOption = editing === null ? undefined : options[editing];
-    return <section className={`aid-stage aid-results-stage${dropping ? ' dropping' : ''}`} aria-label="Your designs" {...stageProps}>
+    // Four designs (the PRIMARY and three options): the three not shown float as thumbnails; while the plan is written their places wait.
+    const total = Math.max(options.length, planning ? 4 : 0);
+    const shown = Math.min(sel, Math.max(0, total - 1));
+    const thumbs = Array.from({ length: total }, (_, i) => i).filter(i => i !== shown).map(i => {
+      const o = options[i];
+      return { index: i, label: o ? `Design ${i + 1}: ${o.name}. Show this design` : `Design ${i + 1}: on its way`, disabled: !o || (!o.image && !!o.direction && !o.error), content: o ? art(o, false) : <span className="aid-art-wait" role="status"><LoaderCircle className="spin" size={20} /></span> };
+    });
+    const main = !primary && planning ? <Loader overlay={false} title="Designing your kit…" subtitle="Four design directions from your brief and logos; the best becomes your primary design." steps={references.length ? ['Reading your brief and logos', 'Four design directions', 'Choosing the best', 'Rendering your designs'] : ['Reading your brief', 'Four design directions', 'Choosing the best', 'Rendering your designs']} seconds={isAi ? 30 : 3} />
+      : primary ? art(primary, true)
+      : <div className="aid-art-error" role="alert"><p>{error || 'No designs came back.'}</p>{lastBrief.current && <button type="button" className="button button-outline" onClick={() => { const b = lastBrief.current!; requireAuth(() => void generate(b.prompt, b.sport, b.garment)); }}><RefreshCw size={15} /> Try again</button>}</div>;
+    const canRefine = !!primary?.image && !primary.busy;
+    return <section className={`aid-stage aid-results-stage${dropping ? ' dropping' : ''}${refineOpen ? ' refining' : ''}`} aria-label="Your designs" {...stageProps}>
       {background}
       <div className="aid-results">
-        <button type="button" className="aid-back" onClick={backToCreate}><ArrowLeft size={18} /> Back to create</button>
-        <div className="aid-primary glow-panel" aria-busy={planning || !!primary?.busy}>
-          <span className="aid-badge"><Settings size={16} /> PRIMARY DESIGN</span>
-          {primary && kebab(primary, 0)}
-          <div className="aid-primary-art" title={primary ? `${primary.name}: ${primary.description}` : undefined}>
-            {!primary && planning ? <Loader overlay={false} title="Designing your kit…" subtitle="Four design directions from your brief and logos; the best becomes your primary design." steps={references.length ? ['Reading your brief and logos', 'Four design directions', 'Choosing the best', 'Rendering your designs'] : ['Reading your brief', 'Four design directions', 'Choosing the best', 'Rendering your designs']} seconds={isAi ? 30 : 3} />
-              : primary ? art(primary, true)
-              : <div className="aid-art-error" role="alert"><p>{error || 'No designs came back.'}</p>{lastBrief.current && <button type="button" className="button button-outline" onClick={() => { const b = lastBrief.current!; requireAuth(() => void generate(b.prompt, b.sport, b.garment)); }}><RefreshCw size={15} /> Try again</button>}</div>}
-          </div>
-          <div className="aid-primary-actions">
-            <button type="button" className="button button-gradient" disabled={!primary || making3d || (isAi ? !primary.image : false)} onClick={() => { if (!primary) return; if (primary.image) requireAuth(() => void makeIt3d()); else customize(primary); }} title={making3d ? 'Drawing the print sheet: the 3D Designer opens by itself' : 'The same design drawn flat, front and back, then put on the live 3D kit'}>{making3d ? <LoaderCircle className="spin" size={18} /> : <Box size={18} />} {making3d ? 'Drawing the print sheet… about a minute' : <>Open in 3D Designer <ArrowRight size={18} /></>}</button>
-            <button type="button" className="button button-outline" disabled={!primary?.image} onClick={() => primary && void download(primary, 1)}><Download size={18} /> Download</button>
-          </div>
+        <div className="aid-results-head">
+          <button type="button" className="aid-back" onClick={backToCreate} aria-label="Back to create" title="Back to create"><ArrowLeft size={22} /></button>
+          <h1>YOUR DESIGNS</h1>
+          {total > 0 ? <span className="aid-count-sel" aria-live="polite" aria-label={`Design ${shown + 1} of ${total}`}><b>{shown + 1}</b> / {total}</span> : <span />}
         </div>
-        <div className="aid-option-list" role="list" aria-label="More designs">
-          {[1, 2, 3].map(i => { const o = options[i]; return <div key={o?.id ?? i} className={`aid-option glow-panel${o?.busy && !o.image ? ' is-busy' : ''}`} role="listitem">
-            <span className="aid-num" aria-hidden="true">{i + 1}</span>
-            {o && kebab(o, i)}
-            <button type="button" className="aid-option-art" disabled={!o || (!o.image && !!o.direction)} onClick={() => o && makePrimary(i)} aria-label={o ? `Design ${i + 1}: ${o.name}. Make primary` : `Design ${i + 1}`} title={o ? `${o.name}: ${o.description}` : undefined}>
-              {o ? art(o, false) : <span className="aid-art-wait"><LoaderCircle className="spin" size={22} /></span>}
-            </button>
-          </div>; })}
+        <ResultsViewer id={primary?.id ?? 'none'} image={primary?.image} alt={primary ? `${primary.name}: ${primary.description}` : 'Your design'} defaultRatio={primary?.view === 'front' ? 1 : 2 / 3} main={main}
+          busy={planning || !!primary?.busy} thumbs={primary ? thumbs : []} onPick={select} tools={primary && kebab(primary, shown)} />
+        <div className="aid-controls" ref={controls}>
+          {!refineOpen && <div className="aid-actions">
+            <button type="button" className="button button-gradient aid-open3d" disabled={!primary || making3d || (isAi ? !primary.image : false)} onClick={() => { if (!primary) return; if (primary.image) requireAuth(() => void makeIt3d()); else customize(primary); }} title={making3d ? 'Drawing the print sheet: the 3D Designer opens by itself' : 'The same design drawn flat, front and back, then put on the live 3D kit'}>{making3d ? <LoaderCircle className="spin" size={20} /> : <Box size={20} />}<span>{making3d ? 'Drawing the print sheet…' : 'Open in 3D Designer'}</span></button>
+            <button type="button" className="aid-dl" disabled={!primary?.image} onClick={() => primary && void download(primary, shown + 1)} aria-label={`Download design ${shown + 1}`} title="Download this design"><Download size={22} /></button>
+          </div>}
+          <div className={`aid-refine${refineOpen ? ' is-open' : ''}`}>
+            <form className="aid-refine-row" onSubmit={e => { e.preventDefault(); refine(); }}>
+              <Sparkles className="aid-refine-icon" size={19} aria-hidden="true" />
+              <label className="aid-refine-field"><span className="sr-only">Refine this design</span>
+                <textarea rows={refineOpen ? 3 : 1} value={refineText} maxLength={1000} placeholder="Refine this design…"
+                  onFocus={e => { setRefineOpen(true); const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'nearest' }), 250); }}
+                  onChange={e => { setRefineText(e.target.value); if (error) setError(''); }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); refine(); } }} />
+              </label>
+              {refineOpen && <button type="button" className="aid-refine-close" onClick={() => setRefineOpen(false)} aria-label="Collapse" title="Collapse (your text is kept)"><ChevronDown size={20} /></button>}
+              <button type="submit" className="aid-refine-go" disabled={!canRefine || !refineText.trim()} aria-label="Refine this design" title={isAi ? 'The AI changes this design as you describe (about a minute)' : 'Needs AI on the server'}><SendHorizontal size={19} /></button>
+            </form>
+            {refineOpen && <div className="aid-refine-brief">
+              <span className="aid-menu-label">Your original brief · edit it for four new designs</span>
+              {bar}
+            </div>}
+          </div>
+          {notes}
         </div>
-        <div className="aid-results-bar">{bar}{notes}</div>
       </div>
       {editingOption?.image && <ImageEditor src={editingOption.image} title={`Design ${editing! + 1} · ${editingOption.name}`} fileName={`3deezi-design-${editing! + 1}`} ai={isAi} requireAuth={requireAuth} onClose={() => setEditing(null)} onUse={image => { const id = editingOption.id; setOptions(list => list.map(x => x.id === id ? { ...x, image } : x)); setEditing(null); }} />}
     </section>;

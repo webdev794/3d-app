@@ -122,64 +122,115 @@
 }
 @media(prefers-reduced-motion:reduce){.aid-tile,.aid-tile img,.aid-go,.aid-menu,.aid-ask{transition:none;animation:none}.aid-icon.is-on{animation:none}}
 
-/* The results (client visual 2026-10-21, images/138.jpg): the PRIMARY DESIGN panel and the prompt bar share one centred column
-   of the same width, the three options a narrower column on its right; the panel takes most of the screen height. */
-.aid-results-stage{align-items:flex-start;padding:clamp(12px,2vh,26px) 24px clamp(22px,3.4vh,36px)}
-.aid-results-stage::before{background:linear-gradient(180deg,#02060ba6,#02060b59 30%,#02060b66 70%,#02060b)}
-.aid-results{--col:min(50vw,980px);--side:clamp(180px,17vw,320px);--h:clamp(360px,min(70vh,calc(100svh - 262px)),900px);width:100%;display:grid;grid-template-columns:minmax(0,1fr) var(--col) minmax(0,1fr);grid-template-areas:". back ." ". primary options" ". bar .";column-gap:20px;row-gap:12px;align-items:start}
-.aid-back{grid-area:back;justify-self:start;display:inline-flex;align-items:center;gap:10px;min-height:36px;padding:4px 2px;border:0;background:none;color:#eef6fc;font-size:16px;font-weight:500;text-shadow:0 2px 10px #000}
-.aid-back:hover{color:#3fe6f5}
-.aid-primary{grid-area:primary;position:relative;display:flex;flex-direction:column;height:var(--h);min-width:0;padding:14px;border:1.5px solid #19d6ea80;border-radius:18px;background:linear-gradient(180deg,#06111ccc,#030a12e6);box-shadow:0 0 0 1px #00d9ed1a,0 0 26px #00d9ed33,inset 0 0 24px #00d9ed12;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.aid-badge{position:absolute;z-index:3;top:24px;left:24px;display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border:1px solid #3d9bff66;border-radius:999px;background:linear-gradient(90deg,#0b4c99e6,#0a2c5ce6);color:#eaf6ff;font:700 13px/1 var(--heading,Inter),Inter,sans-serif;letter-spacing:.05em;box-shadow:0 4px 18px #0008}
-.aid-badge svg{color:#3fe6f5}
-.aid-kebab-wrap{position:absolute;z-index:4;top:22px;right:22px}
-.aid-kebab{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid #ffffff26;border-radius:50%;background:#02060bb3;color:#eef6fc;transition:background .2s,border-color .2s}
-.aid-kebab:hover,.aid-kebab[aria-expanded=true]{border-color:#19d6ea;background:#0b2636}
-.aid-menu.aid-kebab-menu{left:auto;right:0;top:calc(100% + 6px);min-width:236px}
-.aid-primary-art{position:relative;flex:1;min-height:0;display:grid;place-items:center;border-radius:12px;overflow:hidden;background:#02070d}
+/* The results, YOUR DESIGNS (client visual 2026-10-22, images/146.jpg): the heading with a 1 / 4 counter, one large design
+   that fills the space between the heading and the controls (never cropped or stretched; ResultsViewer sizes it to the
+   picture's proportions), the other designs as small floating thumbnails in its bottom-right corner, then one compact row:
+   Open in 3D Designer and a download icon, and the slim "Refine this design…" bar. Everything fits one screen. */
+.aid-results-stage{display:block;height:calc(100svh - 82px);min-height:560px;padding:10px 24px 18px}
+.aid-results-stage::before{background:linear-gradient(180deg,#02060bb3,#02060b73 30%,#02060b80 70%,#02060b)}
+.aid-results{display:flex;flex-direction:column;gap:10px;width:min(1280px,100%);height:100%;margin:0 auto}
+.aid-results-head{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:44px}
+.aid-results-head h1{margin:0;font:700 clamp(19px,1.7vw,25px)/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.07em;color:#f2f8fd;text-shadow:0 2px 14px #000}
+.aid-back{justify-self:start;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:none;color:#eef6fc;text-shadow:0 2px 10px #000}
+.aid-back:hover{color:#3fe6f5;background:#ffffff0d}
+.aid-count-sel{justify-self:end;padding-right:6px;color:#9fb0c2;font:600 17px/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.aid-count-sel b{color:#3fe6f5;font-weight:700}
+/* The viewer: the space left for it, then the picture's own box (sized in px by ResultsViewer). */
+.aid-view-area{position:relative;flex:1;min-height:0;display:grid;place-items:center}
+.aid-viewer{position:relative;max-width:100%;border-radius:16px;box-shadow:0 0 0 1px #19d6ea40,0 0 30px #00d9ed26,0 18px 50px #000a}
+.aid-viewer-clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:#02070d}
+.aid-viewer-backdrop{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(30px) brightness(.48) saturate(1.1);transform:scale(1.15)}
+.aid-viewer-art{position:absolute;left:0;display:grid;place-items:center;overflow:hidden;animation:aid-swap .26s ease-out}
+.aid-viewer.is-fill .aid-viewer-art{inset:0;width:auto!important;height:auto!important}
+.aid-viewer.is-below .aid-viewer-art{border-radius:0}
+@keyframes aid-swap{from{opacity:0;transform:scale(.985)}}
+.aid-viewer-art .aid-art-img{position:relative;width:100%;height:100%;object-fit:contain;user-select:none}
+.aid-viewer-art .lib-design-thumbnail{width:100%;height:100%}
+.aid-viewer-art .loader-inline{height:100%;overflow:auto}
 .aid-art-blur{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(26px) brightness(.5);transform:scale(1.12)}
-.aid-art-img{position:relative;width:100%;height:100%;object-fit:contain}
-.aid-art-busy{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#02060b8c;color:#3fe6f5;font-size:13px}
-.aid-art-wait{display:grid;place-items:center;gap:6px;color:#3fe6f5}
-.aid-art-wait small{max-width:90%;color:#9fb0c2;font-size:12px;text-align:center}
+.aid-art-busy{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#02060b8c;color:#3fe6f5;font-size:13px;text-align:center}
+.aid-art-wait{display:grid;place-items:center;width:100%;height:100%;color:#3fe6f5}
+.aid-art-wait.is-error{color:#ffb4b4}
 .aid-art-error{display:grid;justify-items:center;gap:10px;padding:16px;color:#ffd7d7;text-align:center}
 .aid-art-error p{margin:0;font-size:13.5px}
-.aid-primary-art .lib-design-thumbnail,.aid-option-art .lib-design-thumbnail{width:100%;height:100%}
-.aid-primary-actions{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
-.aid-primary-actions .button{min-height:50px;font-size:15px;gap:10px}
-.aid-option-list{grid-area:options;justify-self:start;display:grid;grid-template-rows:repeat(3,minmax(0,1fr));gap:12px;width:var(--side);height:var(--h)}
-.aid-option{position:relative;min-height:0;padding:0;border:1.5px solid #19d6ea59;border-radius:14px;overflow:visible;background:#040b13cc;box-shadow:0 0 18px #00d9ed1f}
-.aid-option-art{position:relative;display:grid;place-items:center;width:100%;height:100%;padding:0;border:0;border-radius:12.5px;overflow:hidden;background:#02070d;cursor:pointer}
-.aid-option-art:disabled{cursor:default}
-.aid-option-art .aid-art-img{object-fit:cover}
-.aid-option-art:not(:disabled):hover .aid-art-img{transform:scale(1.03)}
-.aid-option-art .aid-art-img{transition:transform .3s}
-.aid-option-art:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
-.aid-num{position:absolute;z-index:3;top:9px;left:9px;display:grid;place-items:center;width:30px;height:30px;border:1.5px solid #3fe6f5;border-radius:50%;background:#02060bb3;color:#3fe6f5;font-size:14px;font-weight:600;pointer-events:none}
-.aid-option .aid-kebab-wrap{top:7px;right:7px}
-.aid-option .aid-kebab{width:32px;height:32px}
-.aid-option.is-busy{border-color:#19d6ea33}
-.aid-results-bar{grid-area:bar;min-width:0;display:flex;flex-direction:column;align-items:center}
-.aid-results-bar .aid-prompt{width:100%}
-/* Tablets and small laptops: the column and the options fill the width together. */
-@media(max-width:1179px){
-  .aid-results{--side:clamp(150px,26vw,240px);grid-template-columns:minmax(0,1fr) var(--side);grid-template-areas:"back back" "primary options" "bar .";column-gap:14px}
-  .aid-primary-actions .button{font-size:14px}
-}
-/* Phones: the PRIMARY at full width, the options a swipe row under it, then the prompt bar (clear of the ASSIST button). */
+/* ⋯ and full screen, top right on the picture. */
+.aid-viewer-tools{position:absolute;z-index:4;top:10px;right:10px;display:flex;gap:8px}
+.aid-round{display:grid;place-items:center;width:40px;height:40px;padding:0;border:1px solid #ffffff2e;border-radius:50%;background:#0a1520b3;color:#eef6fc;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background .2s,border-color .2s}
+.aid-round:hover:not(:disabled),.aid-round[aria-expanded=true]{border-color:#19d6ea;background:#0b2636e6}
+.aid-round:disabled{opacity:.4}
+.aid-kebab-wrap{position:relative}
+.aid-menu.aid-kebab-menu{left:auto;right:0;top:calc(100% + 6px);min-width:236px}
+/* The floating thumbnails: translucent dark frames, thin cyan borders, the number and "Tap to switch". */
+.aid-thumbs{position:absolute;z-index:3;right:12px;bottom:6px;display:flex;flex-direction:column;align-items:flex-end;gap:3px;pointer-events:none}
+.aid-thumb-row{display:flex;gap:var(--tg,8px)}
+.aid-thumb{position:relative;display:block;width:var(--tw,78px);height:var(--tw,78px);padding:3px;border:1px solid #3fe6f5cc;border-radius:12px;background:#02060b99;box-shadow:0 6px 18px #000b,0 0 12px #00d9ed33;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);pointer-events:auto;cursor:pointer;transition:transform .18s,border-color .18s,box-shadow .18s}
+.aid-thumb:hover:not(:disabled){transform:translateY(-2px);border-color:#7ff3ff;box-shadow:0 8px 22px #000c,0 0 18px #00d9ed66}
+.aid-thumb:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.aid-thumb:disabled{cursor:default}
+.aid-thumb-art{position:relative;display:grid;place-items:center;width:100%;height:100%;border-radius:9px;overflow:hidden;background:#02070d}
+.aid-thumb-art .aid-art-img{position:relative;width:100%;height:100%;object-fit:cover}
+.aid-thumb-art .aid-art-blur{display:none}
+.aid-thumb-art .lib-design-thumbnail{width:100%;height:100%}
+.aid-thumb-num{position:absolute;top:6px;left:6px;display:grid;place-items:center;width:22px;height:22px;border:1.5px solid #3fe6f5;border-radius:50%;background:#02060bc7;color:#3fe6f5;font-size:12px;font-weight:700;line-height:1}
+.aid-thumbs-hint{display:block;padding-right:4px;white-space:nowrap;color:#e6eef5;font-size:11.5px;line-height:1.3;text-shadow:0 1px 3px #000,0 0 8px #000}
+/* Controls: one compact row, then the slim refine bar. */
+.aid-controls{flex:none;display:flex;flex-direction:column;gap:10px;width:min(100%,820px);margin:0 auto}
+.aid-actions{display:flex;gap:10px}
+.aid-controls .aid-open3d{flex:1;min-width:0;min-height:54px;padding:10px 18px;gap:12px;border-radius:14px;background:linear-gradient(90deg,#17d8f0,#1aa6f6 55%,#2f7bff);color:#031423;font:700 clamp(16px,1.25vw,19px)/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.03em;box-shadow:0 0 22px #00d9ed4d}
+.aid-controls .aid-open3d:hover:not(:disabled){filter:brightness(1.08)}
+.aid-controls .aid-open3d:disabled{opacity:.55}
+.aid-open3d span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aid-dl{flex:none;display:grid;place-items:center;width:58px;min-height:52px;padding:0;border:1.5px solid #19d6eacc;border-radius:14px;background:#04101acc;color:#3fe6f5;transition:background .2s,border-color .2s}
+.aid-dl:hover:not(:disabled){background:#0b2636;border-color:#3fe6f5}
+.aid-dl:disabled{opacity:.45}
+.aid-refine{border:1.5px solid #19d6eab3;border-radius:28px;background:linear-gradient(180deg,#07131ecc,#030a12e6);box-shadow:0 0 18px #00d9ed2e,inset 0 0 14px #00d9ed12;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:border-color .2s,border-radius .2s}
+.aid-refine:focus-within{border-color:#3fe6f5}
+.aid-refine.is-open{border-radius:20px;padding-bottom:8px;max-height:min(62svh,560px);overflow-y:auto}
+.aid-refine-row{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 16px}
+.aid-refine.is-open .aid-refine-row{align-items:flex-end}
+.aid-refine-icon{flex:none;color:#3fe6f5;align-self:center}
+.aid-refine-field{flex:1;min-width:0;display:flex}
+.aid-refine-field textarea{display:block;width:100%;min-height:40px;padding:10px 6px;border:0;background:none;color:#eef5fc;font-size:16px;line-height:1.35;resize:none;outline:none}
+.aid-refine:not(.is-open) .aid-refine-field textarea{height:40px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.aid-refine-field textarea::placeholder{color:#a3b2c2}
+.aid-refine-field textarea:focus-visible{outline:none}
+.aid-refine-close{flex:none;display:grid;place-items:center;width:38px;height:42px;padding:0;border:0;border-radius:10px;background:none;color:#cfe0ec}
+.aid-refine-close:hover{background:#ffffff10}
+.aid-refine-go{flex:none;display:grid;place-items:center;width:42px;height:42px;padding:0;border:0;border-radius:50%;background:#14d8ec;color:#021219;box-shadow:0 0 14px #00d9ed80;transition:opacity .2s,background .2s}
+.aid-refine-go:hover:not(:disabled){background:#3fe6f5}
+.aid-refine-go:disabled{opacity:.4;box-shadow:none}
+.aid-refine-brief{display:grid;gap:6px;padding:4px 8px 0}
+.aid-refine-brief .aid-menu-label{margin:4px 8px 0}
+.aid-refine-brief .aid-prompt{width:100%;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.aid-refine-brief .aid-menu{top:auto;bottom:calc(100% + 8px)}
+.aid-controls .aid-error,.aid-controls .aid-info{margin:0}
+.aid-controls .aid-ask{margin-top:0}
+/* The full-screen picture: alone, pinch, scroll or double-tap to zoom. */
+.aid-full{position:fixed;inset:0;z-index:1000;background:#010409f7;animation:aid-pop .18s ease-out}
+.aid-full-stage{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;touch-action:none;cursor:zoom-in;padding:max(env(safe-area-inset-top),12px) max(env(safe-area-inset-right),12px) max(env(safe-area-inset-bottom),12px) max(env(safe-area-inset-left),12px)}
+.aid-full-stage img{max-width:100%;max-height:100%;object-fit:contain;transform-origin:50% 50%;user-select:none;-webkit-user-drag:none;will-change:transform}
+.aid-full-close{position:absolute;top:max(env(safe-area-inset-top),14px);right:max(env(safe-area-inset-right),14px);width:46px;height:46px}
+.aid-full-bar{position:absolute;left:50%;bottom:max(env(safe-area-inset-bottom),16px);transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:6px;border:1px solid #ffffff1f;border-radius:999px;background:#0a1520cc;color:#dce8f1;font-size:13px;font-variant-numeric:tabular-nums}
+.aid-full-bar span{min-width:44px;text-align:center}
+@media(max-width:800px){.aid-results-stage{height:calc(100svh - 69px)}}
+/* Tablets and small laptops: the controls end where the ASSIST button starts, so they stay clear of it. */
+@media(min-width:760px) and (max-width:1279px){.aid-results-stage{padding-bottom:84px}}
+/* Phones: the picture edge to edge, the controls clear of the ASSIST button. */
 @media(max-width:759px){
-  .aid-results-stage{padding:10px 16px 92px}
-  .aid-results{grid-template-columns:minmax(0,1fr);grid-template-areas:"back" "primary" "options" "bar";row-gap:12px}
-  .aid-primary{height:auto;padding:10px;border-radius:16px}
-  .aid-primary-art{flex:none;aspect-ratio:3/2}
-  .aid-primary-art:has(.loader-inline){aspect-ratio:auto;min-height:400px}
-  .aid-badge{top:18px;left:18px;padding:6px 12px;font-size:11.5px}
-  .aid-kebab-wrap{top:16px;right:16px}
-  .aid-primary-actions{gap:8px;margin-top:10px}
-  .aid-primary-actions .button{min-height:46px;padding:10px 8px;font-size:13px;gap:6px}
-  .aid-option-list{display:flex;justify-self:stretch;min-width:0;width:auto;height:auto;margin:0 -16px;padding:2px 16px 6px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 16px;scrollbar-width:none}
-  .aid-option-list::-webkit-scrollbar{display:none}
-  .aid-option{flex:0 0 min(62vw,260px);aspect-ratio:3/2;scroll-snap-align:start}
-  .aid-option .aid-kebab-menu{position:fixed;left:16px;right:16px;top:auto;bottom:96px;min-width:0}
+  .aid-results-stage{min-height:600px;padding:2px 0 12px}
+  /* Portrait designs need the height: ASSIST becomes a round button beside the refine bar (as in the app). */
+  body:has(.aid-results-stage) .assist-launcher{width:52px;height:52px;padding:0;justify-content:center;border-radius:50%}
+  body:has(.aid-results-stage) .assist-launcher span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .aid-refine{margin-right:60px}
+  .aid-results{gap:8px}
+  .aid-results-head{padding:0 8px}
+  .aid-viewer{border-radius:0;box-shadow:none}
+  .aid-viewer-clip{border-radius:0}
+  .aid-controls{padding:0 14px}
+  .aid-controls .aid-open3d{min-height:52px;font-size:17px}
+  .aid-dl{width:54px;min-height:50px}
+  .aid-thumbs-hint{font-size:11px}
+  .aid-thumb-num{top:4px;left:4px;width:20px;height:20px;font-size:11px}
+  .aid-menu.aid-kebab-menu{position:fixed;left:16px;right:16px;top:auto;bottom:96px;min-width:0}
 }
-@media(prefers-reduced-motion:reduce){.aid-option-art .aid-art-img{transition:none}}
+@media(prefers-reduced-motion:reduce){.aid-viewer-art,.aid-full{animation:none}.aid-thumb{transition:none}}

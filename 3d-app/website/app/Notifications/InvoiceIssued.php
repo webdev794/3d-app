@@ -54,10 +54,16 @@ class InvoiceIssued extends Notification
     /** What the website shows (notifications table), like the order updates. */
     public function toArray(object $notifiable): array
     {
+        // A 3DEEZI TEAM design request's invoice (no order): the TEAM bell finds it by team_request_id.
+        $teamRequestId = $this->invoice->team_request_id;
+        $team = $teamRequestId && (! filled($this->invoice->snapshot['order']['number'] ?? null) || ! filled($this->invoice->snapshot['order']['name'] ?? null))
+            ? $this->invoice->teamRequest : null;
+
         return [
             'order_id' => $this->invoice->order_id,
-            'number' => $this->invoice->snapshot['order']['number'] ?? null,
-            'name' => $this->invoice->snapshot['order']['name'] ?? null,
+            'team_request_id' => $teamRequestId,
+            'number' => $this->invoice->snapshot['order']['number'] ?? $team?->number,
+            'name' => $this->invoice->snapshot['order']['name'] ?? $team?->name,
             'kind' => 'invoice',
             'text' => "Invoice {$this->invoice->number} is ready: ".Money::format($this->invoice->total_cents, $this->invoice->currency).' to pay',
             'message' => null,

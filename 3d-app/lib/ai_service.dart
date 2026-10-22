@@ -79,6 +79,8 @@ const aiDesignGarments = [
   'Polo with pocket',
   'Hoodie',
   'Zip hoodie',
+  'Varsity jacket',
+  'Track jacket',
 ];
 
 /// How the AI Designer's quick chips steer a brief.
@@ -665,7 +667,11 @@ class AiService {
     required int count,
     Map<String, dynamic>? direction,
     String view = 'presentation',
+    bool portrait = true,
   }) {
+    // A full kit (a top with shorts) stands as worn: each top with its
+    // shorts below it (client picture 146.jpg).
+    final fullKit = garment.toLowerCase().contains('kit');
     // An option with its own palette (the website's alternatives): no dark
     // body preference, so the options do not all look the same.
     final ownColours = '${direction?['body'] ?? ''}'.trim().isNotEmpty;
@@ -728,12 +734,21 @@ class AiService {
                   '(straight on or a slight three-quarter turn), centred, '
                   'complete and fully visible with a little space around it, '
                   'on an invisible ghost mannequin, no back view, '
+            : portrait
+            // YOUR DESIGNS (client picture 146.jpg, 2026-10-22): one tall
+            // picture that fills a phone screen.
+            ? 'Presentation: unless the brief asks for a different layout, '
+                  'angle or background, make one tall portrait image (2:3) of '
+                  'premium commercial product photography that fills a phone '
+                  'screen: ${fullKit ? 'each set stands as worn, the top with its shorts directly below it: the front set on the left and the back set on the right, side by side, ' : 'the front view on the left and the back view on the right, side by side, '}'
+                  'both complete, fully visible and not overlapping, large so '
+                  'they fill most of the width and height of the frame with a '
+                  'little space around them, on invisible ghost mannequins, '
             : 'Presentation: unless the brief asks for a different layout, '
                   'angle or background, make one landscape image of premium '
-                  'commercial product photography: the front view on the left '
-                  'and the back view on the right, side by side, both '
-                  'complete, fully visible and not overlapping, on invisible '
-                  'ghost mannequins, ',
+                  'commercial product photography: ${fullKit ? 'the front set (the top with its shorts below it) on the left and the back set on the right, side by side, ' : 'the front view on the left and the back view on the right, side by side, '}'
+                  'both complete, fully visible and not overlapping, on '
+                  'invisible ghost mannequins, ',
       )
       ..write(
         'in a dramatic dark '
@@ -785,7 +800,8 @@ class AiService {
     String view = 'presentation',
   }) async {
     final client = logos.take(4).toList();
-    return _edit(
+    final images = [...client, await _brandLogo()];
+    Future<Uint8List> render(bool portrait) => _edit(
       mockupPrompt(
         brief: brief,
         sport: sport,
@@ -793,14 +809,38 @@ class AiService {
         count: client.length,
         direction: direction,
         view: view,
+        portrait: portrait,
       ),
-      [...client, await _brandLogo()],
-      size: view == 'front' ? '1024x1024' : '1536x1024',
+      images,
+      size: view == 'front'
+          ? '1024x1024'
+          : portrait
+          ? portraitSize
+          : '1536x1024',
       quality: quality == 'high' ? 'high' : 'medium',
       highFidelity: true,
       model: quality == 'high' ? hdImageModel : imageModel,
     );
+    if (view == 'front') return render(false);
+    // Portrait (YOUR DESIGNS, 146.jpg); a model that turns the size down
+    // gets the landscape picture once instead (the results fit any shape).
+    try {
+      return await render(true);
+    } on AiException catch (e) {
+      if (!sizeProblem(e.message)) rethrow;
+      debugPrint('The image model turned down $portraitSize; landscape: $e');
+      return render(false);
+    }
   }
+
+  /// The AI designs' picture size: tall, so a design fills a phone.
+  static const portraitSize = '1024x1536';
+
+  /// Whether an image error is about the picture size.
+  static bool sizeProblem(String message) => RegExp(
+    r'\bsize\b|1024x1536|dimension|aspect ratio',
+    caseSensitive: false,
+  ).hasMatch(message);
 
   /// One brief in, one finished HD presentation mockup out, like ChatGPT:
   /// an art direction from the brief and [logos] first, then the render

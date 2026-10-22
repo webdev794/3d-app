@@ -48,8 +48,11 @@
 /* Phones: the Admin button moves into the menu, so it never covers the logo. */
 .main-nav .nav-admin{display:none}
 @media(max-width:800px){.header-actions .admin-link{display:none}.main-nav .nav-admin{display:flex;align-items:center;gap:9px}}
-/* 801–1440 px signed in: the Admin button shows its shield only and the account its initial, so AI and DYO fit. */
-@media(max-width:1440px) and (min-width:801px){.header-actions .admin-link{width:38px;padding:0!important;justify-content:center}.header-actions .admin-link .admin-text{display:none}.header-actions .account-link>span:last-child{display:none}}
+/* 801–1500 px signed in: the Admin (or Designer) button shows its icon only and the account its initial, so AI and DYO fit
+   (at 1441–1488 px the admin and designer headers were up to 33 px too wide). The header never scrolls the page sideways,
+   even for the moment before the Rajdhani font loads (the fallback font is wider): anything past the edge is clipped. */
+.site-header{overflow-x:clip}
+@media(max-width:1500px) and (min-width:801px){.header-actions .admin-link{width:38px;padding:0!important;justify-content:center}.header-actions .admin-link .admin-text{display:none}.header-actions .account-link>span:last-child{display:none}}
 
 /* The AI brief: pictures dragged over it (they are attached when dropped). */
 .brief-form.dropping textarea{border-color:var(--cyan);box-shadow:0 0 0 3px #00d9ed22}.brief-form.dropping .reference-upload{border-style:solid;background:#00d9ed12}

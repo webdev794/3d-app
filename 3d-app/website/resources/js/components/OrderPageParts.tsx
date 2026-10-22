@@ -97,9 +97,12 @@ export interface ContactDetails { contact_name: string; contact_email: string; t
 export const emptyContact = (): ContactDetails => ({ contact_name: '', contact_email: '', team_name: '', phone: '' });
 
 /** Section "Contact & team details": contact name, email, team / organisation and phone, two by two (one column on phones). */
-export function ContactDetailsCard({ number = 1, title = 'Contact & team details', value, onChange, errors = {}, disabled = false, children }: {
+export function ContactDetailsCard({ number = 1, title = 'Contact & team details', value, onChange, errors = {}, disabled = false, phone = { label: 'Phone', placeholder: 'Your phone number' }, children }: {
   number?: number | string; title?: ReactNode; value: ContactDetails; onChange: (next: ContactDetails) => void;
-  errors?: Partial<Record<keyof ContactDetails, string>>; disabled?: boolean; children?: ReactNode;
+  errors?: Partial<Record<keyof ContactDetails, string>>; disabled?: boolean;
+  /** The phone field's label and placeholder (Upload Your Order: a required "Mobile"). */
+  phone?: { label: ReactNode; placeholder: string; required?: boolean };
+  children?: ReactNode;
 }) {
   const set = (key: keyof ContactDetails) => (e: ChangeEvent<HTMLInputElement>) => onChange({ ...value, [key]: e.target.value });
   return <OrderSection number={number} title={title} className="op-contact">
@@ -107,7 +110,7 @@ export function ContactDetailsCard({ number = 1, title = 'Contact & team details
       <OrderField label="Contact name" error={errors.contact_name}><input className="op-input" name="contact_name" autoComplete="name" maxLength={120} placeholder="Your name" value={value.contact_name} onChange={set('contact_name')} aria-invalid={!!errors.contact_name} disabled={disabled} /></OrderField>
       <OrderField label="Email" error={errors.contact_email}><input className="op-input" type="email" name="contact_email" autoComplete="email" maxLength={190} placeholder="Your email address" value={value.contact_email} onChange={set('contact_email')} aria-invalid={!!errors.contact_email} disabled={disabled} /></OrderField>
       <OrderField label="Team / organisation" error={errors.team_name}><input className="op-input" name="team_name" autoComplete="organization" maxLength={120} placeholder="Your team or club" value={value.team_name} onChange={set('team_name')} aria-invalid={!!errors.team_name} disabled={disabled} /></OrderField>
-      <OrderField label="Phone" error={errors.phone}><input className="op-input" type="tel" name="phone" autoComplete="tel" maxLength={40} placeholder="Your phone number" value={value.phone} onChange={set('phone')} aria-invalid={!!errors.phone} disabled={disabled} /></OrderField>
+      <OrderField label={phone.label} error={errors.phone}><input className="op-input" type="tel" name="phone" autoComplete="tel" inputMode="tel" maxLength={40} placeholder={phone.placeholder} value={value.phone} onChange={set('phone')} aria-invalid={!!errors.phone} aria-required={phone.required || undefined} disabled={disabled} /></OrderField>
     </div>
     {children}
   </OrderSection>;

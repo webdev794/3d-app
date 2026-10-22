@@ -54,6 +54,7 @@ class KitState {
     this.layers = const [],
     this.zones = const {},
     this.zoneColors = const {},
+    this.trackStyle = 'collar',
     this.gradient,
     this.gradients,
     this.marks = const {},
@@ -68,6 +69,9 @@ class KitState {
 
   /// Hoodies: each area's own colour (hood, lining, rib, pocket, zip: hex).
   final Map<String, String> zoneColors;
+
+  /// The track jacket's style: 'collar' (its stand-up collar) or 'hood'.
+  final String trackStyle;
   final Map<String, dynamic>? gradient;
 
   /// The other colour zones' gradient fills (secondary, patternColor); [gradient] is the primary zone's.
@@ -208,6 +212,9 @@ class AppController extends ChangeNotifier {
 
   /// Hoodies: each area's own colour (hood, lining, rib, pocket, zip: hex); unset areas follow the kit colours.
   Map<String, String> zoneColors = {};
+
+  /// The track jacket's style: 'collar' (its stand-up collar) or 'hood'.
+  String trackStyle = 'collar';
   Map<String, dynamic>? gradient;
 
   /// Gradient fills of the secondary and pattern zones (see gradient_presets.dart); [gradient] is the primary's.
@@ -474,7 +481,7 @@ class AppController extends ChangeNotifier {
           'Polo' => 'polo',
           'Polo with pocket' => 'pocketpolo',
           // Hoodies are long-sleeved: a drawing of one is read as a sleeved top.
-          'Hoodie' || 'Zip hoodie' => 'jersey',
+          'Hoodie' || 'Zip hoodie' || 'Varsity jacket' || 'Track jacket' => 'jersey',
           'Jersey' => 'jersey',
           _ => 'singlet',
         },
@@ -544,6 +551,7 @@ class AppController extends ChangeNotifier {
     k.layers,
     k.zones,
     k.zoneColors,
+    k.trackStyle,
     k.gradient,
     k.gradients,
     k.marks,
@@ -1087,6 +1095,7 @@ class AppController extends ChangeNotifier {
     layers: copyLayers(layers),
     zones: copyZones(zones),
     zoneColors: copyZones(zoneColors),
+    trackStyle: trackStyle,
     gradient: copyGradient(gradient),
     gradients: copyGradient(gradients),
     marks: copyMarks(marks),
@@ -1110,6 +1119,7 @@ class AppController extends ChangeNotifier {
     layers = copyLayers(k.layers);
     zones = copyZones(k.zones);
     zoneColors = copyZones(k.zoneColors);
+    trackStyle = k.trackStyle;
     gradient = copyGradient(k.gradient);
     gradients = copyGradient(k.gradients);
     marks = copyMarks(k.marks);

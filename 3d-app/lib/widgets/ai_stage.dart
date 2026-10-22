@@ -113,10 +113,15 @@ String? garmentInBrief(String text) {
       (top && shorts)) {
     return 'Full Kit';
   }
+  // The track suit jacket (a track top, a tracksuit's jacket) is its own 3D
+  // garment, with a collar or a hood.
+  if (has(r'\btrack ?(?:suit )?(?:jackets?|tops?)\b|\btracksuit (?:jackets?|tops?)\b|\btrack suits?\b|\btracksuits?\b')) return 'Track jacket';
   // Hoodies are 3D garments of their own (a zip one too); "hood" alone
   // (a fishing shirt's hood, "childhood") is not one.
   if (has(r'\bzip(?:ped)?[- ]?(?:up[- ]?|through[- ]?)?hood(?:ie|y)s?\b|\bfull[- ]zip hood(?:ie|y)s?\b')) return 'Zip hoodie';
   if (has(r'\bhood(?:ie|y)s?\b|\bhooded (?:jumpers?|sweat\w*|tops?|pullovers?)\b')) return 'Hoodie';
+  // The varsity (letterman, baseball or college) jacket is its own 3D garment.
+  if (has(r"\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b")) return 'Varsity jacket';
   if (has(r'\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b')) return 'Polo with pocket';
   if (has(r'\bpolos?\b')) return 'Polo';
   if (has(r'\bsinglets?\b|\bvests?\b|\btank tops?\b|\bdress(es)?\b|\bbodysuits?\b')) {

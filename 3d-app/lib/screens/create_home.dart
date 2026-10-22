@@ -8,6 +8,7 @@ import '../project_sync.dart';
 import '../sports_catalog.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/notification_bell.dart';
 import '../widgets/rewards_card.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
@@ -38,6 +39,8 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _Hero(
+                  // The notification bell (signed in), as the website's header.
+                  bell: NotificationBell(c),
                   onStart: () => Scrollable.ensureVisible(
                     _paths.currentContext!,
                     duration: const Duration(milliseconds: 450),
@@ -60,32 +63,32 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
                       _PathCard(
                         art: 'assets/images/art/home_ai.jpg',
                         icon: Icons.auto_awesome,
-                        title: 'AI POWERED',
-                        sub: 'SPORTSWEAR',
+                        title: 'AI DESIGNER',
+                        sub: 'LET AI CREATE IT',
                         body:
-                            'Describe it. Create it. Refine it.\nTurn your brief into your next kit.',
-                        action: 'START WITH AI',
+                            'Describe your ideas and let 3DEEZI AI generate custom designs instantly.',
+                        action: 'CREATE WITH AI',
                         onTap: c.startAi,
                       ),
                       const SizedBox(height: 16),
                       _PathCard(
                         art: 'assets/images/art/home_dyo.jpg',
                         icon: Icons.view_in_ar_outlined,
-                        title: 'DESIGN',
-                        sub: 'YOUR OWN',
+                        title: 'DESIGN YOUR OWN',
+                        sub: 'CREATE IT YOURSELF',
                         body:
-                            'Choose your sport. Customize every\ndetail in 3D. Make it yours.',
-                        action: 'START DESIGNING',
+                            'Use our 3D studio and professional design tools to bring your vision to life.',
+                        action: 'OPEN 3D DESIGNER',
                         onTap: c.startDyo,
                       ),
                       const SizedBox(height: 16),
                       _PathCard(
                         illustration: const _MiniArtboard(),
                         icon: Icons.draw_outlined,
-                        title: '3DEEZI',
-                        sub: 'ARTBOARD',
+                        title: '3DEEZI ARTBOARD',
+                        sub: 'PROFESSIONAL EDITING',
                         body:
-                            'Arrange logos, shapes, and artwork.\nBring your composition into the 3D kit.',
+                            'Advanced 2D design tools for full control. Create, edit and perfect your artwork.',
                         action: 'OPEN ARTBOARD',
                         onTap: () => c.go(AppScreen.artboard),
                       ),
@@ -95,10 +98,10 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
                       _PathCard(
                         art: 'assets/images/art/home_team.webp',
                         icon: Icons.groups_outlined,
-                        title: '3DEEZI',
-                        sub: 'TEAM',
+                        title: '3DEEZI TEAM',
+                        sub: 'REAL DESIGNERS. REAL RESULTS.',
                         body:
-                            'Real designers. Real results.\nOur design team creates it for you.',
+                            'Don’t want to design it yourself? Our professional design team will create it for you.',
                         action: 'GET A DESIGNER',
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(builder: (_) => TeamScreen(c)),
@@ -140,8 +143,9 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
 
 /// Floodlit stadium hero with the campaign line.
 class _Hero extends StatelessWidget {
-  const _Hero({required this.onStart, required this.onStudio});
+  const _Hero({required this.onStart, required this.onStudio, this.bell});
   final VoidCallback onStart, onStudio;
+  final Widget? bell;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -178,7 +182,14 @@ class _Hero extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const BrandLogo(width: 120, tagline: true),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const BrandLogo(width: 120, tagline: true),
+                  const Spacer(),
+                  ?bell,
+                ],
+              ),
               const Spacer(),
               const Text(
                 'FROM IDEA TO YOUR TEAM’S NEXT KIT',
@@ -300,7 +311,7 @@ class _PathCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: SizedBox(
-            height: 232,
+            height: 252,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -332,21 +343,29 @@ class _PathCard extends StatelessWidget {
                         children: [
                           Icon(icon, color: Palette.cyan, size: 26),
                           const SizedBox(width: 10),
-                          Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(text: '$title\n'),
-                                TextSpan(
-                                  text: sub,
-                                  style: const TextStyle(color: Palette.cyan),
-                                ),
-                              ],
-                            ),
-                            style: const TextStyle(
-                              fontFamily: 'Rajdhani',
-                              fontWeight: FontWeight.w700,
-                              fontSize: 24,
-                              height: 1,
+                          // Title, then the teal subtitle smaller and spaced (145.jpg).
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(text: '$title\n'),
+                                  TextSpan(
+                                    text: sub,
+                                    style: const TextStyle(
+                                      color: Palette.cyan,
+                                      fontSize: 15,
+                                      letterSpacing: 1.2,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              style: const TextStyle(
+                                fontFamily: 'Rajdhani',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 24,
+                                height: 1,
+                              ),
                             ),
                           ),
                         ],
@@ -1013,6 +1032,8 @@ const garmentTiles = <(String, String)>[
   ('Polo with pocket', 'pocketpolo'),
   ('Hoodie', 'hoodie'),
   ('Zip hoodie', 'ziphoodie'),
+  ('Track jacket', 'trackjacket'),
+  ('Varsity jacket', 'varsity'),
 ];
 
 /// Shown with the garments; not yet available in 3D.
@@ -1293,5 +1314,12 @@ Future<void> convertFlow(BuildContext context, AppController c) async {
   } on AiException catch (e) {
     navigator.pop();
     if (context.mounted) showToast(context, e.message);
+  } on Object {
+    // Any other failure must not leave the user behind this un-closable
+    // dialog (no Back button on an iPhone).
+    navigator.pop();
+    if (context.mounted) {
+      showToast(context, 'Convert did not finish. Please try again.');
+    }
   }
 }

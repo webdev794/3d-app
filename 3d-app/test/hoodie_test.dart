@@ -76,5 +76,60 @@ void main() {
     await show('Zip hoodie');
     expect(find.text('Zip'), findsOneWidget);
     expect(isHoodie('Zip hoodie') && !isHoodie('Polo'), isTrue);
+    // QA AB 2026-10-22: a hoodie's pocket area is its kangaroo pocket (as the
+    // website); the pocket polo keeps its chest pocket; a plain polo has none.
+    expect(find.text('Kangaroo pocket'), findsOneWidget);
+    expect(find.text('Chest pocket'), findsNothing);
+    await show('Polo with pocket');
+    expect(find.text('Chest pocket'), findsOneWidget);
+    expect(find.text('Hood'), findsNothing);
+    await show('Polo');
+    expect(find.text('Chest pocket'), findsNothing);
+  });
+
+  // QA AB follow-up: the website's Studio › Patterns › Apply to area list for
+  // each garment, and a pattern set on each area.
+  testWidgets('every garment lists the website areas and each area takes a pattern', (tester) async {
+    final c = AppController(store: FakeStore());
+    addTearDown(c.dispose);
+    const common = ['Chest & body', 'Shoulders', 'Sleeves', 'Side panels', 'Hem'];
+    const expected = {
+      'Jersey': common,
+      'Training Tee': common,
+      'Polo': common,
+      'Singlet': common,
+      'Full Kit': common,
+      'Polo with pocket': [...common, 'Chest pocket'],
+      'Hoodie': [...common, 'Kangaroo pocket', 'Hood'],
+      'Zip hoodie': [...common, 'Kangaroo pocket', 'Hood'],
+      'Varsity jacket': common,
+      // The track jacket's hood area is its collar unless it has a hood (website: Hood or Collar).
+      'Track jacket': [...common, 'Collar'],
+      // The 3D shorts have no shoulders or sleeves (viewer zones.js uses
+      // sides, hem and body only), so the app leaves those two out.
+      'Shorts': ['Chest & body', 'Side panels', 'Hem'],
+    };
+    final keyOf = {for (final e in garmentZones.entries) e.value: e.key, 'Kangaroo pocket': 'pocket', 'Collar': 'hood'};
+    for (final MapEntry(key: garment, value: areas) in expected.entries) {
+      c.garment = garment;
+      c.zones = {};
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: StudioZoneTool(c)))));
+      await tester.pump();
+      final fields = find.byType(DropdownButtonFormField<String>);
+      final labels = [
+        for (final d in tester.widgetList<InputDecorator>(find.descendant(of: fields, matching: find.byType(InputDecorator))))
+          d.decoration.labelText,
+      ];
+      expect(labels, areas, reason: garment);
+      for (var i = 0; i < areas.length; i++) {
+        await tester.ensureVisible(fields.at(i));
+        await tester.tap(fields.at(i));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Tribal').last);
+        await tester.pumpAndSettle();
+        expect(c.zones[keyOf[areas[i]]], 'Tribal', reason: '$garment ${areas[i]}');
+      }
+      expect(c.zones.length, areas.length, reason: garment);
+    }
   });
 }

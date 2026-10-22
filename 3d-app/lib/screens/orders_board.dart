@@ -4,12 +4,12 @@ import '../api_client.dart';
 import '../app_controller.dart';
 import '../export_service.dart' show shareImage;
 import '../widgets/flow_ui.dart';
+import '../widgets/notification_bell.dart';
 import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/ui.dart';
 import 'order_entry.dart';
-import 'team.dart' show TeamRequestScreen;
 
 // 3DEEZI Orders in the app (the website's /orders and its API, orders-api.md):
 // my orders by stage on phones (stage tabs), each order's garments, files,
@@ -73,7 +73,6 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
   int _stage = 0;
   bool _loading = false;
   String? _error;
-  int _unread = 0;
 
   @override
   void initState() {
@@ -88,12 +87,10 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
     });
     try {
       final board = await widget.c.api.ordersBoard(view: _view);
-      final notes = await widget.c.api.notifications();
+      // The bell's shared list (also polled once a minute by the app).
+      await NotificationFeed.of(widget.c).refresh();
       if (!mounted) return;
-      setState(() {
-        _board = board;
-        _unread = (notes['unread'] as num?)?.toInt() ?? 0;
-      });
+      setState(() => _board = board);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -115,17 +112,6 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
     if (mounted) _load();
   }
 
-  Future<void> _notifications() async {
-    final opened = await showModalBottomSheet<int>(
-      context: context,
-      backgroundColor: Palette.surface,
-      isScrollControlled: true,
-      builder: (_) => _NotificationsSheet(widget.c),
-    );
-    if (mounted) _load();
-    if (opened != null && mounted) _openOrder(opened);
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
@@ -141,15 +127,8 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
           title: 'My orders',
           trailing: [
             if (c.signedIn)
-              IconButton(
-                tooltip: 'Notifications',
-                onPressed: _notifications,
-                icon: Badge(
-                  isLabelVisible: _unread > 0,
-                  label: Text('$_unread'),
-                  child: const Icon(Icons.notifications_outlined),
-                ),
-              ),
+              // The shared bell: all notifications; an order, TEAM request or invoice opens from it.
+              NotificationBell(c, onClosed: _load),
             if (c.signedIn)
               IconButton(
                 tooltip: 'Refresh',
@@ -324,7 +303,7 @@ class OrderBoardCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            (o['quantity'] as num? ?? 0) > 0 ? '${o['quantity']} garments' : 'Sizes in your order form',
+            '${(o['quantity'] as num? ?? 0) > 0 ? '${o['quantity']} garments' : 'Sizes in your order form'}${'${o['needed_by'] ?? ''}'.isNotEmpty && o['completed'] != true ? ' · required ${_day(o['needed_by'])}' : ''}',
             style: const TextStyle(fontSize: 12.5),
           ),
           const SizedBox(height: 8),
@@ -573,6 +552,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ),
           ),
         ],
+        // The date required and the delivery address or pick up (Upload Your Order, 2026-10-22); older orders have neither.
+        if ('${o['needed_by'] ?? ''}'.isNotEmpty || '${o['shipping_address'] ?? ''}'.trim().isNotEmpty) ...[
+          const _Heading('Date required & delivery'),
+          SurfaceCard(
+            key: const Key('order-delivery-details'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if ('${o['needed_by'] ?? ''}'.isNotEmpty) Text('Date required: ${_day(o['needed_by'])}'),
+                if ('${o['shipping_address'] ?? ''}'.trim().isNotEmpty) ...[
+                  if ('${o['needed_by'] ?? ''}'.isNotEmpty) const SizedBox(height: 8),
+                  Text('${o['shipping_address']}'.startsWith('Pick up') ? 'Pick up' : 'Delivery address', style: const TextStyle(color: Palette.muted, fontSize: 12)),
+                  Text('${o['shipping_address']}'.trim()),
+                ],
+              ],
+            ),
+          ),
+        ],
         const _Heading('Garments and sizes'),
         if (items.isNotEmpty)
           for (final item in items)
@@ -654,76 +651,5 @@ class _Heading extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(0, 22, 0, 10),
     child: Text(text.toUpperCase(), style: const TextStyle(color: Palette.cyan, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 1.2)),
-  );
-}
-
-/// The notifications about my orders; tapping one opens its order.
-class _NotificationsSheet extends StatefulWidget {
-  const _NotificationsSheet(this.c);
-  final AppController c;
-  @override
-  State<_NotificationsSheet> createState() => _NotificationsSheetState();
-}
-
-class _NotificationsSheetState extends State<_NotificationsSheet> {
-  List<Map<String, dynamic>>? _items;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.c.api.notifications().then((n) {
-      if (mounted) setState(() => _items = ((n['items'] as List?) ?? const []).cast<Map<String, dynamic>>());
-    }).catchError((Object _) {
-      if (mounted) setState(() => _items = const []);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => SafeArea(
-    child: SizedBox(
-      height: MediaQuery.of(context).size.height * .7,
-      child: Column(
-        children: [
-          ListTile(
-            title: const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w800)),
-            trailing: TextButton(
-              onPressed: () async {
-                await widget.c.api.readNotifications();
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Mark all read'),
-            ),
-          ),
-          Expanded(
-            child: _items == null
-                ? const Center(child: CircularProgressIndicator())
-                : _items!.isEmpty
-                ? const Center(child: Text('No notifications yet.', style: TextStyle(color: Palette.muted)))
-                : ListView(
-                    children: [
-                      for (final n in _items!)
-                        ListTile(
-                          leading: Icon(n['read_at'] == null ? Icons.circle : Icons.circle_outlined, size: 10, color: Palette.cyan),
-                          title: Text('${(n['data'] as Map?)?['text'] ?? ''}'),
-                          subtitle: Text('${(n['data'] as Map?)?['number'] ?? ''} · ${(n['data'] as Map?)?['name'] ?? ''} · ${_day(n['created_at'])}',
-                              style: const TextStyle(color: Palette.muted, fontSize: 12)),
-                          onTap: () {
-                            // 3DEEZI TEAM notifications (order_id null) open their design request.
-                            final team = ((n['data'] as Map?)?['team_request_id'] as num?)?.toInt();
-                            if (team != null) {
-                              final nav = Navigator.of(context);
-                              nav.pop();
-                              nav.push(MaterialPageRoute<void>(builder: (_) => TeamRequestScreen(widget.c, team)));
-                              return;
-                            }
-                            Navigator.pop(context, ((n['data'] as Map?)?['order_id'] as num?)?.toInt());
-                          },
-                        ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    ),
   );
 }

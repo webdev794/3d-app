@@ -38,7 +38,21 @@ export interface OrderFields {
   /** The customer's pricing choices (payments-api.md R3). */
   pricing?: { destination?: string | null; extras?: string[] | null; discount_code?: string | null } | null;
 }
-export interface Suggested { items: OrderItem[]; players: number; unknown: string[]; rows: number; summary: string }
+/** What the order form said beyond the rows, as read by 3DEEZI AI ('' when not on the form). */
+export interface SuggestedForm {
+  team_name: string; contact_name: string; contact_email: string; phone: string; needed_by: string; needed_by_text: string;
+  delivery: '' | 'deliver' | 'pickup'; address: { street: string; suburb: string; state: string; postcode: string; country: string }; notes: string;
+}
+/**
+ * An order form's reading: the rows (`items`, ready to send), the lines it could not place (`unknown`), and who read it:
+ * `source` 'ai' (3DEEZI AI, POST /order-drafts/{id}/read) or 'reader' (the built-in reading at upload). An AI reading
+ * also has `form` and `details` (per row: the sizes as written, e.g. {"10Y": 3}, and each player's size as written).
+ */
+export interface Suggested {
+  items: OrderItem[]; players: number; unknown: string[]; rows: number; summary: string;
+  source?: 'ai' | 'reader'; file_name?: string; read_at?: string; form?: SuggestedForm;
+  details?: ({ form_sizes?: Record<string, number> | null; player_sizes?: string[] | null } | null)[];
+}
 export interface OrderFile {
   id: number; kind: FileKind; name: string; extension: string; mime_type: string; size: number; thumb: string | null;
   /** The API path to download it: orderApi.download(file). */
@@ -49,6 +63,8 @@ export interface OrderFile {
   visibility?: 'customer' | 'internal';
   /** An order form just uploaded (CSV or XLSX): the rows read from it, for the customer to check. */
   suggested?: Suggested | null;
+  /** Staff only: what the server keeps with the file (an order form's reading: `suggested`, and `ai` {status, at, model}). */
+  meta?: { suggested?: Suggested | null; ai?: { status: string; at: string; model?: string } | null; [key: string]: unknown } | null;
 }
 export interface DraftSummary { id: number; kind: DraftKind; title: string | null; files_count: number; garments_count: number; link: string; created_at: string; updated_at: string }
 export interface OrderDraft {
@@ -108,6 +124,8 @@ export interface OrderOptions {
   stages: { key: StageKey; status: OrderStatus; label: string; tone: Tone; steps: { key: string; label: string }[] }[];
   files: { order_form: { extensions: string[]; max_kb: number }; artwork: { extensions: string[]; max_kb: number }; max_files: number };
   completed_after_days: number;
+  /** The usual production and delivery time in weeks (Admin › Settings); a sooner date required gets a warning. */
+  lead_time_weeks?: number;
 }
 export interface AssistResult { items: OrderItem[]; team_name: string | null; notes: string | null; unknown: string[]; summary: string; source: 'parser' | 'ai' }
 export interface Notifications { unread: number; items: { id: string; type: string; data: { order_id: number; number: string; name: string; kind: string; text: string; message: string | null; link: string }; read_at: string | null; created_at: string }[] }
@@ -156,6 +174,8 @@ export const orderApi = {
 
   drafts: () => api<DraftSummary[]>('/order-drafts'),
   draft: (id: number) => api<OrderDraft>(`/order-drafts/${id}`),
+  /** The draft, after 3DEEZI AI has read its order forms (once per file; later calls answer at once). */
+  readDraft: (id: number) => api<OrderDraft>(`/order-drafts/${id}/read`, post({})),
   createDraft: (kind: DraftKind, data: OrderFields & Record<string, unknown>) => api<OrderDraft>('/order-drafts', post({ kind, data })),
   saveDraft: (id: number, data: OrderFields & Record<string, unknown>) => api<OrderDraft>(`/order-drafts/${id}`, { method: 'PATCH', body: json({ data }) }),
   deleteDraft: (id: number) => api(`/order-drafts/${id}`, { method: 'DELETE' }),

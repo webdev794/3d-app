@@ -59,7 +59,7 @@ const SHAPES: Record<string, { body: string; extra?: (accent: string) => React.R
 
 export default function GarmentIcon({ garment, tone = 'dark', className, title }: { garment: string; tone?: Tone; className?: string; title?: string }) {
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
-  const shape = SHAPES[garment === 'fullkit' ? 'jersey' : garment] ?? SHAPES.other;
+  const shape = SHAPES[garment === 'fullkit' ? 'jersey' : garment === 'trackjacket' ? 'jacket' : garment] ?? SHAPES.other;
   const light = tone === 'light';
   const accent = light ? '#1f6fff' : '#12e1f0';
   return <svg className={className} viewBox="0 0 64 64" role={title ? 'img' : undefined} aria-hidden={title ? undefined : true} aria-label={title}>

@@ -176,4 +176,39 @@ class OrderNamesTest extends TestCase
         $this->assertNull(Order::find($new)->design_snapshot);
         $this->postJson('/api/v1/admin/orders', ['user_id' => $this->customer->id, 'sizes' => ['L' => 2], 'contact_name' => 'X', 'project_version' => 3])->assertJsonValidationErrors('project_version');
     }
+    public function test_the_kit_page_gets_each_garment_rows_design(): void
+    {
+        $shorts = $this->customer->projects()->create(['name' => 'Away shorts', 'sport' => 'football', 'garment' => 'shorts', 'design' => ['main' => '#ff0000']]);
+        $theirs = User::factory()->create()->projects()->create(['name' => 'Theirs', 'sport' => 'football', 'garment' => 'jersey', 'design' => ['main' => '#000000']]);
+        $order = Order::create(['user_id' => $this->customer->id, 'contact_name' => 'Fab', 'source' => 'form', 'items' => [
+            ['garment' => 'jersey', 'project_id' => $this->project->id, 'sizes' => ['M' => 4], 'players' => [['name' => 'KANE', 'number' => '9', 'size' => 'M']]],
+            ['garment' => 'shorts', 'project_id' => $shorts->id, 'sizes' => ['L' => 3]],
+            ['garment' => 'singlet', 'project_id' => $theirs->id, 'sizes' => ['S' => 2]],
+        ]]);
+        $this->admin();
+        $data = $this->getJson("/api/v1/admin/orders/{$order->id}")->assertOk()->json('data');
+        // The customer's own designs only, with their design for the colours and mockups.
+        $this->assertEqualsCanonicalizing([$this->project->id, $shorts->id], array_column($data['item_projects'], 'id'));
+        $this->assertSame('#ff0000', collect($data['item_projects'])->firstWhere('id', $shorts->id)['design']['main']);
+        $this->assertCount(3, $data['items']);
+        $this->assertSame('KANE', $data['items'][0]['players'][0]['name']);
+        $this->assertEquals(['M' => 4, 'L' => 3, 'S' => 2], array_intersect_key($data['sizes'], ['M' => 1, 'L' => 1, 'S' => 1]));
+        // A Studio order without rows has none.
+        $studio = Order::create(['user_id' => $this->customer->id, 'project_id' => $this->project->id, 'contact_name' => 'Fab', 'sizes' => ['M' => 2]]);
+        $this->getJson("/api/v1/admin/orders/{$studio->id}")->assertOk()->assertJsonPath('data.item_projects', []);
+    }
+    public function test_the_admin_orders_list_shows_each_invoice_at_a_glance(): void
+    {
+        $paid = Order::create(['user_id' => $this->customer->id, 'contact_name' => 'Fab', 'source' => 'upload', 'items' => [['garment' => 'jersey', 'sizes' => ['M' => 13]]]]);
+        $invoice = new \App\Models\Invoice(['order_id' => $paid->id, 'user_id' => $this->customer->id, 'status' => 'paid', 'currency' => 'AUD']);
+        $invoice->forceFill(['sequence' => 1004, 'number' => 'INV-1004', 'total_cents' => 77000, 'paid_cents' => 77000, 'issued_at' => now(), 'paid_at' => now()])->save();
+        $old = Order::create(['user_id' => $this->customer->id, 'project_id' => $this->project->id, 'contact_name' => 'Fab', 'sizes' => ['M' => 2], 'unit_price' => 50]);
+        $this->admin();
+        $rows = collect($this->getJson('/api/v1/admin/orders')->assertOk()->json('data.data'))->keyBy('id');
+        $this->assertSame('paid', $rows[$paid->id]['payment']['status']);
+        $this->assertSame('770.00', $rows[$paid->id]['payment']['total']);
+        $this->assertArrayNotHasKey('invoice', $rows[$paid->id]);
+        $this->assertNull($rows[$old->id]['payment']);
+        $this->assertSame('100.00', $rows[$old->id]['total']);
+    }
 }

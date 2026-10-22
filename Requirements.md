@@ -58,6 +58,8 @@ Customers pay on Airwallex's secure payment page (card, Apple Pay, Google Pay); 
    - **Decide before launch: selling in New Zealand?** Today the whole site uses one currency (AUD) and one tax rate (Australian GST 10%). If the client also sells to New Zealand customers in NZD with NZ GST (15%), the site needs a currency and tax rate per delivery country (a small change); Airwallex itself already takes NZD.
 6. **Test in demo:** pay an invoice with an Airwallex test card; it shows Paid, the receipt arrives, and the webhook shows delivered in Airwallex. Try a declined test card and a refund too.
 7. **Go live:** in the **live** account, create live API keys and the same webhook (its own secret), then set them in the live `.env` with `AIRWALLEX_ENV=prod`. Admin › Pricing › Online payments then says "Airwallex connected (live)".
+8. **Return address (nothing to set up):** after paying on Airwallex's page, the customer comes back to the order's COMPLETE YOUR PAYMENT page, `https://<site>/orders/3DZ-…/pay?payment=…` (or `?cancelled=…` when they close it without paying), and then sees the order's Confirmation. 3DEEZI TEAM invoices come back to `https://<site>/invoices/INV-…` as before. The site sends these addresses with each payment, so no return URL or domain needs to be entered in Airwallex; only the webhook (step 3) is set up there.
+9. **Optional, after go-live: card fields on the page itself.** Today PAY opens Airwallex's secure payment page. The client's design shows the card number, expiry and CVC on our page; that can be done with Airwallex's embedded card fields (still Airwallex's own secure fields, so card details still never reach the site). It needs the demo keys first to build and test it with Airwallex test cards, and, if Apple Pay should also appear inside the page, the site's domain registered for Apple Pay in Airwallex. A small change on the payment page; no server change.
 
 ## 3b. Stripe (only if used instead of Airwallex)
 
@@ -79,6 +81,8 @@ Customers pay on Airwallex's secure payment page (card, Apple Pay, Google Pay); 
 - Rule before production: paid in full (default).
 
 ## 5. Prices (Admin › Pricing › Price list)
+- **Prices for the new garments:** hoodie, zip hoodie, polo with pocket, varsity jacket and track jacket have no price in the price list yet, so their orders go to "We're confirming your price". Add them in Admin › Pricing.
+- **Full kit price:** the price list has no price for a full kit (top + shorts ordered from the Studio), so every Studio full-kit order lands on "We're confirming your price" with no Pay button. Add a full-kit price (or per-garment prices that the kit order uses) so customers can pay straight away.
 
 - Replace the example prices (jersey $50, shorts $30, Australian shipping $100) with the client's real prices: garments per sport, extras (e.g. names and numbers), shipping per destination, discounts.
 

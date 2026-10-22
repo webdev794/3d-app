@@ -5,15 +5,18 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { FXAAPass } from 'three/addons/postprocessing/FXAAPass.js';
 import gsap from 'gsap';
 import { buildGarment, buildCollar, buildDrawstring, SPECS } from './garment.js';
 import { buildLabel, paintLabel, mainColour } from './label.js';
 import { KitPainter, knitNormalMap } from './texture.js';
 import { createStudio } from './studio.js';
+import { qualityTier, TIERS, stadiumEnvironment, dressFabric, hdrBackdrop } from './render-quality.js';
 import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt } from './zones.js';
 import { buildHoodCords, ribNormalMap, tubeAlong } from './hoodie.js';
+import { buildSnaps, varsityRibMap, quiltMap, finishMap, varsityColour } from './varsity.js';
 import { readLayout, findPanels, confirmPanels, hemFold, joinLines, drawPockets, ROLE_NAMES } from './layout.js';
 import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, drawnSleeves, sleevedShape, unprojectPhoto } from './layout-warp.js';
 
@@ -54,12 +57,21 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 2 : 2.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.02;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+// The render tier (render-quality.js): 'high' on computers, 'low' on phones and the apps, 'flat' = as before
+// (?quality=flat, for checks). Q: the tier's settings, null when flat.
+const QUALITY = qualityTier(params, renderer);
+const Q = TIERS[QUALITY] ?? null;
+document.body.dataset.quality = QUALITY;
+// The tiers: Khronos PBR Neutral tone mapping, which keeps the print's colours true (ACES shifts and pales them); its
+// exposure set so a print's lit front matches the design's colours.
+if (Q) { renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.3; }
 
 const scene = new THREE.Scene();
 scene.background = backdrop();
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.3;
+// The tiers: the stadium's own light (floodlights, a warm key, cool rims) in every reflection and sheen.
+scene.environment = pmrem.fromScene(Q ? stadiumEnvironment() : new RoomEnvironment(), Q ? 0.03 : 0.04).texture;
+scene.environmentIntensity = Q ? 1.3 : 0.3;
 
 // A photographic stadium plate supplies the distant architecture. The editable
 // garment, stage, lighting, shadows and floor reflection are rendered in 3D.
@@ -73,8 +85,13 @@ const environmentReady = new Promise((resolve) => {
     g.filter = `blur(${blur}px)`;
     g.drawImage(img, -pad, -pad, img.width + pad * 2, img.height + pad * 2);
     texture.dispose();
-    texture = new THREE.CanvasTexture(soft);
-    texture.colorSpace = THREE.SRGBColorSpace;
+    if (Q) {
+      // The tiers: its floodlights brighter than white, so they bloom.
+      texture = hdrBackdrop(soft, Q.backdropScale);
+    } else {
+      texture = new THREE.CanvasTexture(soft);
+      texture.colorSpace = THREE.SRGBColorSpace;
+    }
     scene.background = texture;
     coverBackground();
     resolve();
@@ -83,7 +100,7 @@ const environmentReady = new Promise((resolve) => {
 
 const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 30);
 
-const { podium, ringMat, outerRing, pool, shadow } = createStudio(scene, renderer, mobile);
+const { podium, ringMat, outerRing, pool, shadow, mirror } = createStudio(scene, renderer, mobile, Q);
 
 // ---------- garment
 /** Relief of the sewing (stitches, seams, hem edges) per garment shape, made once. */
@@ -149,6 +166,8 @@ const PARTS = {
   pocketpolo: ['pocketpolo'],
   hoodie: ['hoodie'],
   ziphoodie: ['ziphoodie'],
+  trackjacket: ['trackjacket'],
+  varsity: ['varsity'],
   singlet: ['singlet'],
   shorts: ['shorts'],
   fullkit: ['shorts', 'jersey'],
@@ -167,13 +186,15 @@ function buildKit(kind) {
   // A layout's shorts are training shorts (cut like its leg pieces), so the key says which; a drawing's top is the
   // garment itself, cut like the drawing when it can be (drawnCut).
   const cut = layout?.drawing ? layout.cut : null;
-  const key = (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '');
+  // The track jacket's style (design.trackStyle: its stand-up collar or a hood) is part of its cut.
+  const trackHood = design.trackStyle === 'hood';
+  const key = (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '');
   if (key === currentKind) return;
   currentKind = key;
   const geometries = new Set();
   kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); [o.material].flat().forEach((m) => { m.map?.dispose(); m.dispose(); }); } });
   geometries.forEach((geometry) => geometry.dispose());
-  parts.forEach((part) => part.texture.dispose());
+  parts.forEach((part) => { part.texture.dispose(); part.varsity?.finish.dispose(); });
   kit.clear();
   parts = [];
   let base = 0;
@@ -181,7 +202,8 @@ function buildKit(kind) {
     const own = cut && partKind === layout.garment ? cut : null;
     // A layout's tee over its shorts (shown bigger, below) hangs a little fuller at the hem, over their waistband.
     const over = partKind === 'raglan' && layout && list.includes('shorts') ? { ...SPECS.raglan, hemFlare: 0.09 } : null;
-    const garment = buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over });
+    const style = partKind === 'trackjacket' && trackHood ? SPECS.trackjacketHood : null;
+    const garment = buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over ?? style });
     const painter = new KitPainter(garment.frame, garment.outline, mobile ? 2048 : 4096, partKind);
     if (own) painter.cut = layout.key;
     // The finished edges (the hem follows a leg's side split), the waistband's width and the places a print
@@ -245,13 +267,85 @@ function buildKit(kind) {
       painter.pieces = [{ back: true, outline: h.hood.piece }];
       hoodie = { lining: [liningFront, liningBack], channel: channel.material, rib, zip: h.zip, cords };
     }
+    // The track jacket: smooth polyester (a little gloss, a fine knit), its stand-up collar (printed outside, lined) or
+    // the zip hoodie's hood and drawstring, rib cuffs and hem band, the front zip and its garage, the pocket zips.
+    let track = null;
+    if (garment.track) {
+      const t = garment.track;
+      partMaterial.roughness = 0.55;
+      partMaterial.sheen = 0.5;
+      partMaterial.sheenRoughness = 0.5;
+      partMaterial.normalScale.set(0.2, 0.2);
+      const add = (mesh, pick = false) => { if (pick) mesh.userData.part = parts.length; mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh; };
+      const liningFront = new THREE.MeshStandardMaterial({ roughness: 0.8, vertexColors: true });
+      const liningBack = liningFront.clone();
+      liningBack.side = THREE.BackSide;
+      let channel = null, cords = null, garage = null;
+      if (t.collar) {
+        add(new THREE.Mesh(t.collar.geometry, [partMaterial, liningFront]), true);
+        add(new THREE.Mesh(t.collar.geometry, [liningBack, liningBack]));
+        painter.pieces = [{ back: true, outline: t.collar.piece }];
+      } else {
+        const outerBack = partMaterial.clone();
+        outerBack.side = THREE.BackSide;
+        addRelief(outerBack, painter);
+        add(new THREE.Mesh(t.hood.geometry, [liningFront, partMaterial]), true);
+        add(new THREE.Mesh(t.hood.geometry, [outerBack, liningBack]), true);
+        channel = add(new THREE.Mesh(tubeAlong(t.hood.channel, 0.0042), new THREE.MeshStandardMaterial({ roughness: 0.75 }))).material;
+        cords = buildHoodCords({ sampleFront: t.sampleFront }, t.hood.eyelets);
+        group.add(cords.group);
+        painter.pieces = [{ back: true, outline: t.hood.piece }];
+      }
+      painter.trackHood = !t.collar;
+      ribMap ??= ribNormalMap();
+      const rib = new THREE.MeshPhysicalMaterial({ roughness: 0.85, sheen: 0.3, sheenRoughness: 0.7, side: THREE.DoubleSide, normalMap: ribMap, normalScale: new THREE.Vector2(0.7, 0.7) });
+      t.ribs.forEach((g) => add(new THREE.Mesh(g, rib)));
+      group.add(t.zip.group);
+      t.pocketZips.forEach((z) => group.add(z.group));
+      if (t.garage) {
+        garage = add(new THREE.Mesh(t.garage.geometry, new THREE.MeshPhysicalMaterial({ roughness: 0.55, sheen: 0.5, sheenRoughness: 0.5 })));
+        garage.position.copy(t.garage.position);
+        garage.quaternion.copy(t.garage.quaternion);
+        garage = garage.material;
+      }
+      track = { lining: [liningFront, liningBack], rib, zips: [t.zip, ...t.pocketZips], garage, channel, cords };
+    }
+    // The varsity jacket (varsity.js): a wool body and leather sleeves (one fabric, its finish map making the sleeves
+    // and welts smoother, with a clear coat), the placket and welt pockets, rib collar, cuffs and waistband printed
+    // from their own atlas pieces (with their stripes), the snaps and the quilted lining inside.
+    let varsity = null;
+    if (garment.varsity) {
+      const v = garment.varsity;
+      const finish = finishMap(painter);
+      partMaterial.roughness = 1;
+      partMaterial.roughnessMap = finish;
+      partMaterial.clearcoat = 0.4;
+      partMaterial.clearcoatRoughness = 0.38;
+      partMaterial.clearcoatMap = finish;
+      partMaterial.sheen = 0.3;
+      partMaterial.sheenRoughness = 0.75;
+      partMaterial.normalScale.set(0.12, 0.12);
+      const add = (mesh) => { mesh.userData.part = parts.length; mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh; };
+      add(new THREE.Mesh(v.placket, partMaterial));
+      v.welts.forEach((w) => add(new THREE.Mesh(w, partMaterial)));
+      varsityRib ??= varsityRibMap();
+      const rib = new THREE.MeshPhysicalMaterial({ map: texture, roughness: 0.92, sheen: 0.2, sheenRoughness: 0.8, side: THREE.DoubleSide, normalMap: varsityRib, normalScale: new THREE.Vector2(0.85, 0.85) });
+      v.ribs.forEach((g) => add(new THREE.Mesh(g, rib)));
+      const snaps = new THREE.MeshStandardMaterial({ roughness: 0.26, metalness: 0.55 });
+      group.add(buildSnaps(v.snaps, snaps));
+      painter.pieces = v.pieces;
+      painter.ribPieces = v.pieces;
+      inside.map = quiltMap();
+      inside.needsUpdate = true;
+      varsity = { rib, snaps, finish };
+    }
     // Collar rib or waistband along the top opening (a hoodie's neck is under its hood).
     const rim = new THREE.Mesh(
       buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth),
       new THREE.MeshPhysicalMaterial({ roughness: 0.9, reflectivity: .2, sheen: 0.15, side: THREE.DoubleSide, sheenColor: new THREE.Color(0x7092a4), normalMap: knit, normalScale: new THREE.Vector2(.17, .17) }),
     );
     group.add(rim);
-    rim.visible = !hoodie;
+    rim.visible = !hoodie && !track && !varsity;
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
     const label = partKind === 'shorts' ? null : buildLabel(garment);
     // Shorts: the drawstring out of the front of the waistband.
@@ -265,8 +359,10 @@ function buildKit(kind) {
     group.position.y = base;
     base += partKind === 'shorts' ? garment.frame.maxY * stretch - 0.06 : 0;
     kit.add(group);
-    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie });
+    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity });
   }
+  // The tiers: each part's fabric (mesh, piqué, fleece...) woven into its printed materials (render-quality.js).
+  if (Q) parts.forEach((part) => dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy()));
   frameKit();
   // The labels after framing (the camera frames the kit as it is without them).
   parts.forEach((part) => { if (part.label) part.rim.parent.add(part.label); });
@@ -306,6 +402,37 @@ function paintHoodie(part) {
   }
 }
 
+/**
+ * The track jacket's colour areas on its 3D parts (design.zoneColors): the collar's (or hood's) lining a little deeper
+ * than the collar, the rib cuffs and hem band ('cuffs', default the body's colour, a little deeper), the zips ('zip',
+ * default Secondary), the zip garage as the collar and the hood's drawstring in Secondary. The body, panels, stripe and
+ * the collar's outside are printed (texture.js paintTrack).
+ */
+function paintTrack(part) {
+  const own = (key, fallback) => (HEX.test(design.zoneColors?.[key] ?? '') ? design.zoneColors[key] : fallback);
+  const t = part.track, body = own('body', design.main), collar = own('collar', body);
+  t.lining.forEach((m) => m.color.set(collar).multiplyScalar(0.85));
+  t.rib.color.set(own('cuffs', body)).multiplyScalar(0.9);
+  const zip = own('zip', design.secondary);
+  for (const z of t.zips) { z.tape.color.set(zip).multiplyScalar(0.85); z.teeth.color.set(zip); }
+  if (t.garage) t.garage.color.set(collar);
+  if (t.channel) t.channel.color.set(collar);
+  if (t.cords) t.cords.cord.color.set(design.secondary).multiplyScalar(0.95);
+}
+
+/** The varsity's rib normal map (read from uv1), made once. */
+let varsityRib = null;
+/**
+ * The varsity jacket's colour zones on its own 3D parts (design.zoneColors): the snaps and the quilted lining; its
+ * body, sleeves, rib, rib stripes and welt trim are printed (varsity.js paintVarsity).
+ */
+function paintVarsityPart(part) {
+  const v = part.varsity;
+  v.rib.color.setScalar(0.94);
+  v.snaps.color.set(varsityColour(design, 'snaps'));
+  part.inside.color.set(varsityColour(design, 'lining')).multiplyScalar(0.85);
+}
+
 /** Repaints every part's print from the current design. */
 async function paintAll() {
   await prepareLayout();
@@ -320,6 +447,8 @@ async function paintAll() {
     part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(0.72);
     if (part.label) paintLabel(part.label, design.size || 'L');
     if (part.hoodie) paintHoodie(part);
+    if (part.track) paintTrack(part);
+    if (part.varsity) paintVarsityPart(part);
     // The drawstring: the cord darker than the waistband it comes out of, eyelets and tips in the trim colour.
     if (part.cord) {
       part.cord.cord.color.set(layout && part.layoutRim ? part.layoutRim : design.main).multiplyScalar(0.82);
@@ -501,7 +630,7 @@ function warpParts() {
  * for checking with the garment; posts {type: 'layout', id, kind: 'drawing', roles, parts: [garment], panels} (put on
  * with setDesign({garment, layout: {asset, name, roles, kind: 'drawing', parts}})).
  */
-async function checkLayout({ id, src, name = 'Print layout', asset = null, drawing = false, garment = null } = {}) {
+async function checkLayout({ id, src, name = 'Print layout', asset = null, drawing = false, garment = null, known = false } = {}) {
   try {
     const file = await readLayoutFile(src, drawing);
     if (asset != null) { keepFile(fileKey(asset, drawing), file); layoutMissing.delete(asset); }
@@ -516,10 +645,11 @@ async function checkLayout({ id, src, name = 'Print layout', asset = null, drawi
       const big = Math.max(0, ...file.found.filter((_, i) => usable[i]).map((p) => (p.x1 - p.x0) * (p.y1 - p.y0)));
       const many = file.found.filter((p, i) => usable[i] && (p.x1 - p.x0) * (p.y1 - p.y0) > 0.5 * big).length > 2;
       const named = file.found.filter((p) => p.role === 'front' || p.role === 'back').length;
-      // The garment it is, from its shape: sleeves make it a jersey, tee or polo (the one asked for, else a jersey).
+      // The garment it is: the one asked for when the host knows it (`known`: a 3DEEZI TEAM request names it), else from
+      // its shape: sleeves make it a jersey, tee or polo (the one asked for, else a jersey). The person can still change it.
       const main = file.found.find((p) => p.role === 'front') ?? file.found.find((p) => p.role === 'back');
       const sleeved = main ? sleevedShape(main.outline) : false;
-      const guess = sleeved ? (['jersey', 'tee', 'polo', 'pocketpolo'].includes(garment) ? garment : ['jersey', 'tee', 'polo', 'pocketpolo'].includes(design.garment) ? design.garment : 'jersey') : 'singlet';
+      const guess = known && Object.hasOwn(DRAWN, garment) ? garment : sleeved ? (['jersey', 'tee', 'polo', 'pocketpolo'].includes(garment) ? garment : ['jersey', 'tee', 'polo', 'pocketpolo'].includes(design.garment) ? design.garment : 'jersey') : 'singlet';
       options = {
         drawing: true,
         garments: Object.fromEntries(Object.keys(DRAWN).map((g) => [g, DRAWN_NAMES[g] ?? g])),
@@ -654,11 +784,42 @@ function setView(view) {
 
 // ---------- post-processing (bloom for the glow ring)
 const composer = new EffectComposer(renderer);
+// The tiers' edges: high multisamples the scene (both buffers, as they take turns), low smooths them with FXAA.
+if (Q?.msaa) composer.renderTarget1.samples = composer.renderTarget2.samples = Q.msaa;
 composer.addPass(new RenderPass(scene, camera));
-// High threshold: only the emissive rings glow, never the fabric.
+// High threshold: only the emissive rings glow, never the fabric (in the tiers also the stadium's floodlights).
 const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), mobile ? 0.42 : 0.5, 0.42, 1.65);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+// FXAA: on in the low tier; on high, ready for when a slow graphics card makes it step down (stepDown).
+const fxaa = Q ? new FXAAPass() : null;
+if (fxaa) { fxaa.enabled = !!Q.fxaa; composer.addPass(fxaa); }
+/**
+ * The high tier on a graphics card too slow for it (found from the frame times while it runs, only when the tier was
+ * detected rather than asked for with ?quality): first the multisampling gives way to FXAA, then the podium's mirror
+ * goes. It never steps back up, so the picture does not flicker between the two.
+ */
+let steps = 0, speedFrom = Infinity, speed = [];
+const adaptive = QUALITY === 'high' && !params.has('quality');
+function stepDown() {
+  if (steps === 0 && composer.renderTarget1.samples) {
+    composer.renderTarget1.samples = composer.renderTarget2.samples = 0;
+    composer.renderTarget1.dispose();
+    composer.renderTarget2.dispose();
+    fxaa.enabled = true;
+  } else if (mirror) mirror.visible = false;
+  steps++;
+  document.body.dataset.quality = `high-${steps}`;
+}
+function watchSpeed(dt) {
+  if (!adaptive || steps >= 2 || performance.now() < speedFrom || document.hidden || canvas.style.visibility === 'hidden') return;
+  speed.push(dt);
+  if (speed.length < 90) return;
+  const average = speed.reduce((a, b) => a + b, 0) / speed.length;
+  speed = [];
+  // Slower than about 26 frames a second.
+  if (average > 0.038) stepDown();
+}
 
 function resize() {
   const w = innerWidth, h = innerHeight;
@@ -690,6 +851,7 @@ function frame() {
   shadow.scale.set(1.15 - kit.position.y * 3, 0.55 - kit.position.y * 1.5, 1);
   // The architectural stage stays still while the garment turns.
   controls.update(dt);
+  watchSpeed(dt);
   composer.render();
   requestAnimationFrame(frame);
 }
@@ -751,7 +913,24 @@ function backdrop() {
 
 // ---------- public bridge (called from Flutter via runJavaScript)
 // Automated tests only (?debug): reach the camera for close-ups.
-if (new URLSearchParams(location.search).has('debug')) window.__v = { camera, controls, scene, kit, setCamera, get parts() { return parts; }, get layout() { return layout; }, panelSides, regionsFor };
+if (new URLSearchParams(location.search).has('debug')) {
+  window.__v = {
+    camera, controls, scene, kit, setCamera, get parts() { return parts; }, get layout() { return layout; }, panelSides, regionsFor, quality: QUALITY, renderer, composer, stepDown,
+    /** The cost of a frame (ms, the graphics card waited for): the median of `n` frames as the kit turns. */
+    bench: (n = 30) => {
+      const gl = renderer.getContext(), px = new Uint8Array(4), turn = kit.rotation.y, times = [];
+      for (let i = -3; i < n; i++) {
+        const t0 = performance.now();
+        kit.rotation.y = turn + i * 0.07;
+        composer.render();
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        if (i >= 0) times.push(performance.now() - t0);
+      }
+      kit.rotation.y = turn;
+      return times.sort((a, b) => a - b)[times.length >> 1];
+    },
+  };
+}
 
 window.viewer = {
   setDesign: (json) => applyDesign(typeof json === 'string' ? JSON.parse(json) : json),
@@ -779,7 +958,7 @@ window.viewer = {
   select: (id) => board.select(id),
   /** Zooms the design board: 'in', 'out' or 'fit'. */
   boardZoom: (how) => board.zoom(how),
-  /** {id, src, name, asset, drawing?, garment?}: a new factory print layout or garment drawing, checked on screen; see checkLayout. */
+  /** {id, src, name, asset, drawing?, garment?, known?}: a new factory print layout or garment drawing, checked on screen; see checkLayout. */
   checkLayout,
   /** {asset, src | error}: the file the viewer asked for (layoutWanted). */
   layoutFile,
@@ -811,5 +990,6 @@ addEventListener('message', (e) => {
   setTimeout(() => (controls.autoRotate = !params.has('still')), 1600);
   frame();
   document.body.classList.add('ready');
+  speedFrom = performance.now() + 3000;
   post({ type: 'ready' });
 })().catch((error) => post({ type: 'error', message: error.message }));

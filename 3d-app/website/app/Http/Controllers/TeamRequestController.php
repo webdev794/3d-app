@@ -35,14 +35,22 @@ class TeamRequestController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        if (is_string($request->input('colours'))) {
-            $request->merge(['colours' => array_values(array_filter(array_map('trim', explode(',', $request->input('colours')))))]);
+        foreach (['colours', 'garments'] as $list) {
+            if (is_string($request->input($list))) {
+                $request->merge([$list => array_values(array_filter(array_map('trim', explode(',', $request->input($list)))))]);
+            }
         }
         $data = $request->validate([
+            // Company / team name and contact email (the client's /team form, 2026-10-22).
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:190'],
             'sport' => ['required', 'string', 'max:60'],
-            'garment' => ['required', 'string', 'max:60'],
+            // "Garments needed": garments[] (several), or the one garment of older apps and API clients.
+            'garment' => [$request->filled('garments') ? 'nullable' : 'required', 'string', 'max:60'],
+            'garments' => ['sometimes', 'nullable', 'array', 'max:12'],
+            'garments.*' => ['string', 'max:60'],
+            // Optional "Preferred delivery date" (Y-m-d), not in the past.
+            'preferred_date' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'after_or_equal:'.now()->subDay()->toDateString(), 'before_or_equal:'.now()->addYears(2)->toDateString()],
             'category' => ['sometimes', 'nullable', 'string', 'max:60'],
             'description' => ['required', 'string', 'min:10', 'max:4000'],
             'colours' => ['sometimes', 'nullable', 'array', 'max:8'],
@@ -53,7 +61,18 @@ class TeamRequestController extends Controller
             'references' => ['sometimes', 'array', 'max:10'],
             'references.*' => TeamFile::rules('reference'),
             'idempotency_key' => ['sometimes', 'nullable', 'string', 'max:80'],
-        ], ['logos.*.max' => 'Files can be up to 20 MB.', 'references.*.max' => 'Files can be up to 20 MB.', 'logos.max' => 'Add up to 5 logos.', 'references.max' => 'Add up to 10 references.']);
+        ], ['logos.*.max' => 'Files can be up to 20 MB.', 'references.*.max' => 'Files can be up to 20 MB.', 'logos.max' => 'Add up to 5 logos.', 'references.max' => 'Add up to 10 references.',
+            'garment.required' => 'Choose at least one garment.', 'garments.max' => 'Choose up to 12 garments.',
+            'preferred_date.after_or_equal' => 'The preferred delivery date can\'t be in the past.', 'preferred_date.before_or_equal' => 'Choose a preferred delivery date within the next two years.',
+            'preferred_date.date_format' => 'Enter the preferred delivery date as a date.']);
+        // One list of garments, in order; `garment` is its first (the Studio and order paths use it).
+        $garments = array_values(array_unique(array_filter(array_map(fn ($g) => trim((string) $g), [$data['garment'] ?? null, ...($data['garments'] ?? [])]), 'filled')));
+        if (! $garments) {
+            throw ValidationException::withMessages(['garment' => 'Choose at least one garment.']);
+        }
+        $data['garment'] = $garments[0];
+        $data['garments'] = $garments;
+        $data['preferred_date'] = $data['preferred_date'] ?? null;
         $user = $request->user();
         if (filled($data['idempotency_key'] ?? null) && ($same = TeamRequest::where('user_id', $user->id)->where('idempotency_key', $data['idempotency_key'])->first())) {
             return response()->json(['data' => TeamView::detail($same, $user)]);

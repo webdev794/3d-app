@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import Delaunator from 'delaunator';
 import { wornTop, wornShorts } from './worn.js';
-import { POCKET, isHoodie } from './zones.js';
+import { POCKET, isHoodie, isTrack } from './zones.js';
 import { panelSampler, buildHood, buildKangaroo, buildRib, buildZip } from './hoodie.js';
+import { buildTrackParts } from './trackjacket.js';
+import { buildVarsityParts } from './varsity.js';
 
 // Garment outlines (right half, metres, y up, hem at 0). The left half is
 // mirrored. Each garment is a sewn front + back panel "inflated" into a
@@ -139,6 +141,27 @@ SPECS.hoodie = {
   hood: true,
 };
 SPECS.ziphoodie = { ...SPECS.hoodie, zip: true };
+
+/**
+ * The track suit jacket (trackjacket.js): the hoodie's long set-in sleeves and fuller body gathered a little into a rib
+ * hem band, smooth polyester, a full front zip, zipped side pockets and a stand-up collar (`track.style` 'collar') or
+ * the zip hoodie's hood ('hood': design.trackStyle).
+ */
+SPECS.trackjacket = { ...SPECS.hoodie, hood: false, zip: true, fleece: { hemIn: 0.03 }, track: { style: 'collar' } };
+SPECS.trackjacketHood = { ...SPECS.trackjacket, track: { style: 'hood' } };
+
+/**
+ * The varsity (letterman) jacket: the hoodie's long set-in sleeves (leather) on a wool body bloused into a rib
+ * waistband, a deeper round neck for its rib collar, rib cuffs, a snap front and welt pockets (varsity.js).
+ */
+SPECS.varsity = {
+  ...SPECS.hoodie,
+  half: [[0, 0.665], [0.05, 0.7], [0.095, 0.736], [0.19, 0.716], ...HOOD_SLEEVE, [0.25, 0.42], [0.244, 0.3], [0.25, 0.16], [0.258, 0.03], [0.2, 0.012], [0.1, 0.002], [0, 0]],
+  neck: { drop: 0.08, half: 0.1 },
+  rim: { drop: 0.085, half: 0.11, radius: 0.009 },
+  hood: false,
+  varsity: true,
+};
 
 // A raglan top has the tee's shape; only its sewing differs (raglan seams from the neck to the underarms instead of
 // set-in sleeves). Print layouts use it (layout-warp.js), as a loose training tee: it hangs from the chest in soft
@@ -452,7 +475,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null 
   const colours = new Float32Array(n * 2 * 3);
   const backHeight = (p) => {
     if (!spec.chest || Math.abs(p.x) > .112 || p.y < .62) return p.y;
-    const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' || kind === 'pocketpolo' || isHoodie(kind) ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
+    const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' || kind === 'pocketpolo' || isHoodie(kind) || isTrack(kind) ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
     const weight = Math.exp(-((p.y - neckLine) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
     return p.y + Math.max(0, .752 - p.y) * weight;
   };
@@ -573,13 +596,19 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null 
   const vertex = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
   const neck = [...neckIdx.map((i) => vertex(i)), ...neckIdx.slice().reverse().map((i) => vertex(n + i))];
   const uvAt = (x, y) => [(0.5 * (x - minX)) / span, (y - minY) / span];
-  const hoodie = spec.hood ? buildHoodieParts(spec, { poly, seam, points, faces, positions, normals, colours, n, nb, maxY, minY, neck: spec.neck, uvAt,
+  const partsCtx = () => ({ poly, seam, points, faces, positions, normals, colours, n, nb, maxY, minY, neck: spec.neck, uvAt,
     uvBack: (x, y) => [0.5 + (0.5 * (maxX - x)) / span, (y - minY) / span],
     surface: (x, y, back) => { const p = new THREE.Vector2(x, y), v = worn.at(p, back); if (back) v.y += backHeight(p) - p.y; return v; },
-    at: (x, y, back) => worn.at(new THREE.Vector2(x, y), back) }) : null;
+    at: (x, y, back) => worn.at(new THREE.Vector2(x, y), back) });
+  const hoodie = spec.hood ? buildHoodieParts(spec, partsCtx()) : null;
+  // The varsity jacket: its rib collar, cuffs and waistband, placket, welt pockets and snaps (varsity.js).
+  const varsity = spec.varsity ? buildVarsityParts(spec, partsCtx()) : null;
   return {
+    // The track jacket: its collar or hood (and that piece on the atlas), rib cuffs and hem band, zips (trackjacket.js).
+    track: spec.track ? buildTrackParts(spec, partsCtx()) : null,
     // Hoodies: the hood (and its atlas piece), kangaroo pocket, rib cuffs and waistband, zip (hoodie.js).
     hoodie,
+    varsity,
     kind,
     geometry,
     // The chest pocket's own mesh, on the front panel as made (its creases), printed from the same atlas.

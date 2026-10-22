@@ -2,10 +2,12 @@
 // (mirrored so it reads correctly from behind) on the right half. Everything
 // is drawn in garment coordinates (metres), so placement is exact.
 
-import { zoneRects, POCKET, hasPocket, isHoodie, KANGAROO, kangarooEdge, HOOD_TOP } from './zones.js';
+import { zoneRects, POCKET, hasPocket, isHoodie, isTrack, KANGAROO, kangarooEdge, HOOD_TOP } from './zones.js';
+import { POCKET_ZIP, pocketZipX } from './trackjacket.js';
+import { isVarsity, varsityTailoring, paintVarsity, paintVarsityMarks } from './varsity.js';
 
 /** The tops with set-in or raglan sleeves. */
-const SLEEVED = ['jersey', 'tee', 'raglan', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie'];
+const SLEEVED = ['jersey', 'tee', 'raglan', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
 
 /**
  * The chest pocket's outline (zones.js POCKET) in garment metres on the current transform: from the top's inner
@@ -52,6 +54,29 @@ function openingPath(c, sgn, d = 0) {
   }
 }
 
+/**
+ * The track jacket's panel lines (right half, garment metres; mirrored with `dir`): the shoulder and sleeve panel's
+ * lower edge, from the neck over the shoulder and down the sleeve to the cuff, and the side panel's inner edge, from
+ * the underarm down to the hem. Shared by the paint and the stitching.
+ */
+function trackShoulderLine(c, dir, d = 0, move = true) {
+  if (move) c.moveTo(dir * 0.075, 0.745 - d); else c.lineTo(dir * 0.075, 0.745 - d);
+  c.quadraticCurveTo(dir * 0.17, 0.69 - d, dir * 0.258, 0.622 - d);
+  c.lineTo(dir * 0.65, 0.245 - d);
+}
+function trackSideLine(c, dir, d = 0, move = true) {
+  if (move) c.moveTo(dir * (0.256 - d), 0.53); else c.lineTo(dir * (0.256 - d), 0.53);
+  c.quadraticCurveTo(dir * (0.2 - d), 0.3, dir * (0.212 - d), -0.01);
+}
+/** A side pocket's zip line on the front (trackjacket.js POCKET_ZIP), moved `d` metres square to it (+ outwards). */
+function trackPocketLine(c, sgn, d = 0) {
+  const [, yb] = POCKET_ZIP.bottom, [, yt] = POCKET_ZIP.top;
+  const dx = pocketZipX(sgn, yt) - pocketZipX(sgn, yb), dy = yt - yb, l = Math.hypot(dx, dy);
+  const nx = (sgn * dy) / l, ny = (-sgn * dx) / l;   // square to the zip, away from the middle
+  c.moveTo(pocketZipX(sgn, yb) + nx * d, yb + ny * d);
+  c.lineTo(pocketZipX(sgn, yt) + nx * d, yt + ny * d);
+}
+
 const loadImage = (src) =>
   new Promise((resolve, reject) => {
     const img = new Image();
@@ -96,6 +121,8 @@ const mix = (a, b, t) => {
 /** Contrast bands along the finished edges (metres): kept narrow, the same width at the hem
  *  (and leg hems) and round the sleeve ends, and even all the way round. */
 const HEM_BAND = 0.009, CUFF_BAND = 0.009;
+/** The track jacket's sleeve sponsor: on the wearer's right sleeve panel (front), along the arm. */
+const TRACK_SPONSOR = { side: 'front', x: -0.38, y: 0.528, rot: -46 };
 
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -178,7 +205,7 @@ export class KitPainter {
     this.clipOutline(back);
     g.translate(num(o.x, def.x), num(o.y, def.y));
     g.scale(back ? -1 : 1, -1);
-    g.rotate((num(o.rot, 0) * Math.PI) / 180);
+    g.rotate((num(o.rot, def.rot ?? 0) * Math.PI) / 180);
     const scale = num(o.scale, 1);
     g.scale(scale, scale);
     const size = draw(g);
@@ -235,9 +262,10 @@ export class KitPainter {
     // A deep gathered band (training shorts): the stitching runs right along its foot, where the gathers end.
     const deepBand = (this.rimWidth ?? 0.026) >= 0.035;
     const waistSeam = (this.points?.CF?.[1] ?? 0.42) - (this.rimWidth ?? 0.026) - (deepBand ? 0.0012 : 0.006);
-    const hoodie = isHoodie(this.kind);
+    const hoodie = isHoodie(this.kind), track = isTrack(this.kind), varsity = isVarsity(this.kind), longTop = hoodie || track || varsity;
     for (const inset of [0, .0032]) {
-      if (hoodie) {
+      // The varsity jacket's long sleeves are set in as a hoodie's.
+      if (longTop) {
         // Shoulder seams (to the shoulder point; the long sleeve is set in below it).
         for (const dir of [-1, 1]) stitches.push((c) => { c.moveTo(dir * (.1 + inset), .725 - inset); c.quadraticCurveTo(dir * .19, .712 - inset, dir * .254, .684 - inset); });
         continue;
@@ -252,18 +280,27 @@ export class KitPainter {
     }
     if (!shorts) {
       for (const dir of [-1, 1]) {
-        if (hoodie) { seams.push((c) => { c.moveTo(dir * .1, .728); c.quadraticCurveTo(dir * .19, .715, dir * .258, .688); }); continue; }
+        if (longTop) { seams.push((c) => { c.moveTo(dir * .1, .728); c.quadraticCurveTo(dir * .19, .715, dir * .258, .688); }); continue; }
         if (raglan) seams.push(along(raglanSeam([dir * RAGLAN.neck, .728], dir).map(([x, y]) => ({ x, y }))));
         else seams.push((c) => { c.moveTo(dir * .1066, .718); c.quadraticCurveTo(dir * .235, .6894, dir * .395, .5464); });
         seams.push((c) => { c.moveTo(dir * .2334, .035); c.quadraticCurveTo(dir * .2084, .29, dir * .2324, .496); });
       }
       // Collar: joined just below the neck trim, with two rows of stitching under it.
-      const crew = this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || hoodie;
+      const crew = this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || longTop;
       const neckline = (drop, inset) => (crew
         ? (c) => { c.moveTo(-.09 + inset, .745 - drop); c.quadraticCurveTo(0, (back ? .73 : .66) - drop, .09 - inset, .745 - drop); }
         : (c) => { c.moveTo(-.089 + inset, .745 - drop); c.lineTo(0, (back ? .69 : .668) - drop); c.lineTo(.089 - inset, .745 - drop); });
-      seams.push(neckline(.0095, 0));
-      for (const drop of [.0125, .0165]) stitches.push(neckline(drop, 0));
+      // The varsity's collar is sewn round its own deeper neck (varsityTailoring).
+      if (!varsity) {
+        seams.push(neckline(.0095, 0));
+        for (const drop of [.0125, .0165]) stitches.push(neckline(drop, 0));
+      }
+    }
+    if (varsity) {
+      const own = varsityTailoring(this, back);
+      stitches.push(...own.stitches);
+      seams.push(...own.seams);
+      folds.push(...own.folds);
     }
     if (hasPocket(this.kind) && !back) {
       // The chest pocket: sewn on round its sides and bottom with two rows of stitching, its top hem stitched across
@@ -284,7 +321,21 @@ export class KitPainter {
       }
       for (const sgn of [-1, 1]) folds.push((c) => openingPath(c, sgn, 0.0015));
     }
-    if (hoodie && back) {
+    if (track) {
+      // The track jacket: the shoulder and sleeve panels and the side panels sewn in (top-stitched on the body side);
+      // the side pockets' welts stitched round their zips; the collar piece stitched along its top edge.
+      for (const dir of [-1, 1]) {
+        seams.push((c) => trackShoulderLine(c, dir), (c) => trackSideLine(c, dir));
+        stitches.push((c) => trackShoulderLine(c, dir, 0.0035), (c) => trackSideLine(c, dir, 0.0035));
+        if (!back) for (const d of [-0.0145, 0.0145]) stitches.push((c) => trackPocketLine(c, dir, d));
+      }
+      const piece = this.pieces?.[0]?.outline;
+      if (back && piece && !this.trackHood) {
+        const foot = piece.filter((p) => p.y < HOOD_TOP);
+        stitches.push((c) => foot.forEach((p, i) => (i ? c.lineTo(p.x, p.y + 0.009) : c.moveTo(p.x, p.y + 0.009))));
+      }
+    }
+    if ((hoodie || (track && this.trackHood)) && back) {
       // The hood piece: its centre seam, and the face edge's drawstring channel stitched along its foot.
       const piece = this.pieces?.[0]?.outline;
       seams.push((c) => { c.moveTo(0, HOOD_TOP); c.lineTo(0, HOOD_TOP - 0.4); });
@@ -578,17 +629,20 @@ export class KitPainter {
       // Gradient fills, one per colour zone (zoneGradient): the body (Primary), the pattern's ink (Pattern) and
       // the trims (Secondary: side panels, bands, collar, placket, area blocks).
       const body = zoneGradient(design, 'main');
-      if (body) this.gradientFill(body);
+      // The track jacket's body may have its own colour (design.zoneColors.body) instead of the Primary.
+      const ownBody = isTrack(this.kind) && HEX.test(design.zoneColors?.body ?? '') ? design.zoneColors.body : null;
+      if (ownBody) { g.fillStyle = ownBody; g.fillRect(-1.6, -0.1, 3.2, 1.6); } else if (body) this.gradientFill(body);
       const ink = zoneGradient(design, 'patternColor');
       this.proceduralPattern(design, design.pattern, ink ? this.gradientStyle(ink) : undefined);
       const trim = this.zoneFill(design, 'secondary');
 
       const shorts = this.kind === 'shorts';
       const sleeves = SLEEVED.includes(this.kind);
-      const hoodie = isHoodie(this.kind);
+      const hoodie = isHoodie(this.kind), track = isTrack(this.kind), varsity = isVarsity(this.kind);
       g.fillStyle = trim;
-      // Hoodies: no side panels or edge bands (their cuffs and waistband are rib, hoodie.js).
-      for (const dir of hoodie ? [] : [-1, 1]) {
+      // Hoodies: no side panels or edge bands (their cuffs and waistband are rib, hoodie.js); the track jacket's own
+      // panels are painted below (paintTrack); the varsity jacket has rib trims (varsity.js).
+      for (const dir of hoodie || track || varsity ? [] : [-1, 1]) {
         g.beginPath();
         if (shorts) {
           // Outer-leg stripe.
@@ -608,7 +662,7 @@ export class KitPainter {
       }
       // Bands an even width all the way round: the cuffs, the hem (leg hems on shorts), and
       // the waistband. Each reaches a little past the edge so the rolled hem is banded too.
-      if (!hoodie) for (const run of this.edges()) this.band(run.points, run.kind === 'cuff' ? CUFF_BAND : HEM_BAND);
+      if (!hoodie && !track && !varsity) for (const run of this.edges()) this.band(run.points, run.kind === 'cuff' ? CUFF_BAND : HEM_BAND);
       if (shorts) g.fillRect(-0.4, (this.points?.CF?.[1] ?? 0.42) - 0.025, 0.8, 0.03);
 
       // AI pattern across the shoulders and sleeves (the yoke), fading out.
@@ -641,6 +695,8 @@ export class KitPainter {
       }
 
       if (hoodie) this.paintHoodie(design, back);
+      if (track) this.paintTrack(design, back);
+      if (varsity) paintVarsity(this, design, back);
       this.paintZones(design, back);
 
       // Collar trim: V-neck for jerseys and singlets, crew for tee and polo.
@@ -652,7 +708,7 @@ export class KitPainter {
         g.moveTo(-0.092, 0.745);
         g.quadraticCurveTo(0, back ? 0.73 : 0.66, 0.092, 0.745);
         g.stroke();
-      } else if (!shorts && !hoodie) {
+      } else if (!shorts && !hoodie && !track && !varsity) {
         g.beginPath();
         g.moveTo(-0.095, 0.745);
         g.lineTo(0, back ? 0.69 : 0.668);
@@ -701,9 +757,28 @@ export class KitPainter {
       return this.canvas;
     }
     const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text');
+    // The varsity jacket: a chenille letter (or the logo) on the chest, the club arched across the back, the name and
+    // a big number under it, sleeve patches (varsity.js).
+    if (isVarsity(this.kind)) {
+      if (design.sponsorImage && design.sponsorImage !== this._sponsorKey) {
+        this._sponsor = await loadImage(design.sponsorImage).catch(() => null);
+        this._sponsorKey = design.sponsorImage;
+      }
+      if (design.logoImage && design.logoImage !== this._logoKey) {
+        this._logo = await loadImage(design.logoImage).catch(() => null);
+        this._logoKey = design.logoImage;
+      } else if (!design.logoImage) { this._logo = null; this._logoKey = null; }
+      paintVarsityMarks(this, design, { logo, logoImg: this._logo, sponsorImg: design.sponsorImage ? this._sponsor : null, ownArt });
+      await this.paintLayers(design);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      return this.canvas;
+    }
     // The pocket polo (pool and darts shirts): the team name small on the right chest, the crest on the pocket (it
     // can be moved above it on the 2D panels), the player's name across the upper back and the sponsor low on the back.
-    const pocket = hasPocket(this.kind), hoodie = isHoodie(this.kind), zip = this.kind === 'ziphoodie';
+    const pocket = hasPocket(this.kind), hoodie = isHoodie(this.kind), zip = this.kind === 'ziphoodie' || isTrack(this.kind);
+    // The track jacket: as the zip hoodie in front (the club name small on the right chest, the crest on the left),
+    // the sponsor on the right sleeve, the name and number (or the club's name) across the back.
+    const track = isTrack(this.kind);
     // Hoodies: the wordmark across the chest above the pocket (the zip hoodie's small on the right chest, clear of the
     // zip), the crest on the left chest, the sponsor on the pocket (the zip hoodie's low on the back), the name and
     // number on the back below the hood.
@@ -717,7 +792,8 @@ export class KitPainter {
         this._sponsor = await loadImage(design.sponsorImage).catch(() => null);
         this._sponsorKey = design.sponsorImage;
       }
-      if (this._sponsor && zip) this.markImage(design, 'sponsor', { side: 'back', x: 0, y: 0.09 }, this._sponsor, 0.2, 0.07);
+      if (this._sponsor && track) this.markImage(design, 'sponsor', TRACK_SPONSOR, this._sponsor, 0.09, 0.03);
+      else if (this._sponsor && zip) this.markImage(design, 'sponsor', { side: 'back', x: 0, y: 0.09 }, this._sponsor, 0.2, 0.07);
       else if (this._sponsor && hoodie) this.markImage(design, 'sponsor', { side: 'front', x: 0, y: 0.19 }, this._sponsor, 0.17, 0.065);
       else if (this._sponsor && pocket) this.markImage(design, 'sponsor', { side: 'back', x: 0, y: 0.17 }, this._sponsor, 0.24, 0.09);
       else if (this._sponsor) this.markImage(design, 'sponsor', { side: 'front', x: 0, y: 0.335 }, this._sponsor, 0.17, 0.065);
@@ -733,11 +809,11 @@ export class KitPainter {
     }
     // Uploaded club logo on the chest, fitted into a 7 cm box; else the 3DEEZI shield (none when the user's own
     // artwork is on the kit).
-    const crest = hoodie ? { side: 'front', x: 0.105, y: 0.575 } : pocket ? { side: 'front', x: (POCKET.x0 + POCKET.x1) / 2, y: (POCKET.bottom + POCKET.top - POCKET.hem) / 2 } : { side: 'front', x: 0.105, y: 0.6 };
+    const crest = hoodie || track ? { side: 'front', x: 0.105, y: 0.575 } : pocket ? { side: 'front', x: (POCKET.x0 + POCKET.x1) / 2, y: (POCKET.bottom + POCKET.top - POCKET.hem) / 2 } : { side: 'front', x: 0.105, y: 0.6 };
     if (this._logo) this.markImage(design, 'crest', crest, this._logo, pocket ? 0.075 : 0.07, pocket ? 0.075 : 0.07);
     else if (!ownArt) this.markShield(design, 'crest', crest, [[0, 0.034], [0.028, 0.018], [0.022, -0.02], [0, -0.036], [-0.022, -0.02], [-0.028, 0.018]], 0.03, 0.04);
     const backName = (design.backName || logo).toUpperCase();
-    if (hoodie) {
+    if (hoodie || (track && this.trackHood)) {
       this.markText(design, 'name', { side: 'back', x: 0, y: 0.43 }, backName, 0.055, design.accent, 0.3, textOutline);
       this.markText(design, 'number', { side: 'back', x: 0, y: 0.25 }, String(design.number ?? '23'), 0.19, design.accent, 0.28, textOutline);
     } else if (pocket) {
@@ -812,13 +888,86 @@ export class KitPainter {
     }
   }
 
+  /**
+   * The track jacket's own colour areas on the atlas (design.zoneColors, hex): the shoulder and sleeve panels and the
+   * side panels (default Secondary), the sleeve stripe along the top seam from the neck to the cuff (default Accent),
+   * the collar or hood (its piece on the back; default the body's fill), and the side pockets' welts. The body's own
+   * colour is the background (paint); the cuffs, hem band and zip are coloured on their 3D parts (main.js).
+   */
+  paintTrack(design, back) {
+    const g = this.ctx, own = (key) => (HEX.test(design.zoneColors?.[key] ?? '') ? design.zoneColors[key] : null);
+    const trim = this.zoneFill(design, 'secondary');
+    g.save();
+    this.side(back);
+    for (const dir of [-1, 1]) {
+      g.fillStyle = own('shoulder') ?? trim;
+      g.beginPath();
+      trackShoulderLine(g, dir);
+      g.lineTo(dir * 0.8, 0.3);
+      g.lineTo(dir * 0.8, 0.9);
+      g.lineTo(dir * 0.075, 0.9);
+      g.closePath();
+      g.fill();
+      g.fillStyle = own('side') ?? trim;
+      g.beginPath();
+      trackSideLine(g, dir);
+      g.lineTo(dir * 0.3, -0.01);
+      g.lineTo(dir * 0.3, 0.47);
+      g.closePath();
+      g.fill();
+    }
+    // The stripe: along the outline's top edge (the shoulder and sleeve seam), 1.2 cm on each panel.
+    g.strokeStyle = own('stripe') ?? design.accent;
+    g.lineWidth = 0.024;
+    g.lineJoin = 'round';
+    for (const run of this.trackTopEdges()) { g.beginPath(); run.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke(); }
+    if (!back) {
+      // The side pockets' welts: a narrow, slightly darker strip round each zip (the zip itself is 3D).
+      g.strokeStyle = 'rgba(0,0,0,0.2)';
+      g.lineWidth = 0.027;
+      g.lineCap = 'round';
+      for (const sgn of [-1, 1]) { g.beginPath(); trackPocketLine(g, sgn); g.stroke(); }
+    }
+    g.restore();
+    if (back) {
+      // The collar or hood: the body's fill (its gradient too) unless it has its own colour.
+      g.save();
+      this.side(true);
+      g.beginPath();
+      for (const piece of this.piecesOn(true)) { piece.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.closePath(); }
+      g.clip();
+      const body = zoneGradient(design, 'main'), ownBody = own('body');
+      g.fillStyle = own('collar') ?? ownBody ?? design.main;
+      g.fillRect(-0.8, HOOD_TOP - 0.5, 1.6, 0.6);
+      if (body && !own('collar') && !ownBody) { g.translate(0, HOOD_TOP - 0.78); this.gradientFill(body); }
+      g.restore();
+    }
+  }
+
+  /** The outline's top edge on each side (the shoulder seam and the sleeve's top seam, neck to cuff), as point runs. */
+  trackTopEdges() {
+    if (this._topEdges) return this._topEdges;
+    const poly = this.outline, n = poly.length;
+    const nearest = (x, y) => poly.reduce((best, p, i) => (Math.hypot(p.x - x, p.y - y) < Math.hypot(poly[best].x - x, poly[best].y - y) ? i : best), 0);
+    const runs = [];
+    for (const dir of [-1, 1]) {
+      const a = nearest(dir * 0.098, 0.738), b = nearest(dir * 0.68, 0.262), run = [];
+      // The short way round between them.
+      const fwd = (b - a + n) % n, step = fwd <= n / 2 ? 1 : -1;
+      for (let i = a; ; i = (i + step + n) % n) { run.push(poly[i]); if (i === b) break; }
+      // On a little way past each end (the neck edge, the cuff), so the stripe's ends are square to them.
+      runs.push(run);
+    }
+    return (this._topEdges = runs);
+  }
+
   /** Patterns or colour blocks dropped onto areas (sleeves, shoulders, ...). */
   paintZones(design, back) {
     const g = this.ctx;
     for (const [zone, name] of Object.entries(design.zones ?? {})) {
       if (!name || name === 'None') continue;
       if (zone === 'pocket' && (back || !(hasPocket(this.kind) || isHoodie(this.kind)))) continue;
-      if (zone === 'hood' && (!back || !isHoodie(this.kind))) continue;
+      if (zone === 'hood' && (!back || !(isHoodie(this.kind) || isTrack(this.kind)))) continue;
       g.save();
       this.side(back);
       g.beginPath();

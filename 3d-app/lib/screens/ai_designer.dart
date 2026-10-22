@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import '../ai_service.dart';
 import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
-import '../design_document.dart' show isHoodie;
+import '../design_document.dart' show isHoodie, isVarsity, isTrack;
 import '../export_service.dart';
 import '../widgets/ai_stage.dart';
 import '../widgets/flow_ui.dart';
@@ -58,6 +60,8 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
       backgroundColor: Palette.surface,
       showDragHandle: true,
       isScrollControlled: true,
+      // Below the iPhone notch if the list ever fills the screen.
+      useSafeArea: true,
       builder: (sheet) => SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -636,12 +640,19 @@ class _AiGeneratingScreenState extends State<AiGeneratingScreen>
       ('Heritage Bands', 0xff2a0d2c, 0xffe796e4, 'Stripes', 3),
       ('Clean Line', 0xff07203a, 0xff2b92dd, 'Solid', 5),
     ];
+    // The garment and sport of the brief (a zip hoodie stays a zip hoodie in the Studio).
+    final garment = aiDesignGarments.contains(c.aiGarment)
+        ? c.aiGarment!
+        : 'Jersey';
+    final sport = c.aiSport ?? 'Rugby League';
     c.concepts = [
       for (final (name, main, second, pattern, asset) in looks)
         Concept(
           DesignSpec(
             designName: name,
-            detected: 'Rugby League Jersey',
+            detected: '$sport $garment',
+            sport: sport,
+            garment: garment,
             summary: 'Sample concept (demo mode).',
             findings: const ['Demo concept'],
             mainColor: Color(main),
@@ -970,7 +981,7 @@ Future<void> _planOptions(AppController c, int run) async {
       c.concepts = [...c.concepts.take(1), ...options];
     });
     for (final o in options) {
-      unawaited(renderDesign(c, o, 'medium', view: 'front'));
+      unawaited(renderDesign(c, o, 'medium', view: 'presentation'));
     }
   } on AiException catch (e) {
     if (run == c.resultsRun) c.update(() => c.planError = e.message);
@@ -986,7 +997,7 @@ Future<void> renderDesign(
   String? view,
 }) async {
   final run = c.resultsRun;
-  final v = view ?? o.view ?? 'front';
+  final v = view ?? o.view ?? 'presentation';
   c.update(() {
     o.busy = true;
     o.pending = quality;
@@ -1014,10 +1025,14 @@ Future<void> renderDesign(
   }
 }
 
-/// 7 · The AI designer's results (client visual 138.jpg): the PRIMARY DESIGN
-/// card with Open in 3D Designer and Download, a row of three options, then
-/// the prompt bar with the brief to refine it. Each design keeps its 3D kit
-/// spec, so any of them opens in the Studio as an editable kit.
+/// 7 · YOUR DESIGNS, the AI designer's results (client visual 146.jpg, as the
+/// website): the heading with a 1 / 4 counter, one large design edge to edge
+/// (never cropped or stretched), the other designs as small floating
+/// thumbnails in its bottom-right corner, then one compact row (Open in 3D
+/// Designer and a download icon) and the slim "Refine this design…" bar,
+/// which expands with the original brief. Make HD, Regenerate, Edit image
+/// and Customise in 3D Studio are in the ⋯ menu on the picture. Each design
+/// keeps its 3D kit spec, so any of them opens in the Studio as a kit.
 class ConceptsScreen extends StatefulWidget {
   const ConceptsScreen(this.c, {super.key});
   final AppController c;
@@ -1028,11 +1043,32 @@ class ConceptsScreen extends StatefulWidget {
 
 class _ConceptsScreenState extends State<ConceptsScreen> {
   late final _refine = TextEditingController(text: widget.c.brief);
+
+  /// "Refine this design…": the change asked for the selected design (kept
+  /// when the bar collapses); the bar expands while it has focus.
+  final _change = TextEditingController();
+  final _changeFocus = FocusNode();
+  bool _refineOpen = false;
+
+  /// The picture each design had before its last refine (⋯ Undo).
+  final _previous = Expando<Uint8List>();
   AppController get c => widget.c;
+
+  @override
+  void initState() {
+    super.initState();
+    _changeFocus.addListener(() {
+      if (_changeFocus.hasFocus && !_refineOpen && mounted) {
+        setState(() => _refineOpen = true);
+      }
+    });
+  }
 
   @override
   void dispose() {
     _refine.dispose();
+    _change.dispose();
+    _changeFocus.dispose();
     super.dispose();
   }
 
@@ -1062,15 +1098,17 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     }
   }
 
-  /// "Make primary": the option swaps places with the primary at once.
-  void _makePrimary(int index) => c.update(() {
-    final list = [...c.concepts];
-    final first = list[0];
-    list[0] = list[index];
-    list[index] = first;
-    c.concepts = list;
-    c.selectedConcept = 0;
-  });
+  /// The design shown large (client visual 146.jpg; the primary until a
+  /// thumbnail is tapped). Open in 3D Designer, Download, Refine and ⋯ act
+  /// on it.
+  int get _sel => c.concepts.isEmpty
+      ? 0
+      : c.selectedConcept.clamp(0, c.concepts.length - 1);
+
+  /// A thumbnail tapped: that design goes large and the one shown moves into
+  /// the thumbnails. Each keeps its picture and edits; nothing is rendered
+  /// again or charged.
+  void _select(int index) => c.update(() => c.selectedConcept = index);
 
   Future<void> _edit(int index) async {
     final concept = c.concepts[index];
@@ -1108,18 +1146,27 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
   /// back, by the same AI, then on the 3D kit through the design-picture
   /// check. Sample designs (no AI) open as editable kits.
   Future<void> _openIn3d() async {
-    final primary = c.concepts.first;
+    final index = _sel;
+    final primary = c.concepts[index];
     final image = primary.image;
-    if (image == null) return _open(0);
+    if (image == null) return _open(index);
     // A design picture goes on a singlet, jersey, tee or polo (with or
     // without the pocket) only: a hoodie takes the design's colours, pattern
     // and wordmark, with the first attached logo as its crest.
-    if (isHoodie(c.aiGarment ?? c.garment)) {
-      _open(0);
+    final onItself = c.aiGarment ?? c.garment;
+    if (isHoodie(onItself) || isVarsity(onItself) || isTrack(onItself)) {
+      _open(index);
       if (c.logoImage == null && c.references.isNotEmpty) {
         c.update(() => c.logoImage = c.references.first);
       }
-      showToast(context, hoodieDesignNote);
+      showToast(
+        context,
+        isTrack(onItself)
+            ? trackDesignNote
+            : isVarsity(onItself)
+            ? varsityDesignNote
+            : hoodieDesignNote,
+      );
       return;
     }
     // Kept for when this screen has gone (Back to create while drawing).
@@ -1185,51 +1232,146 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     c.go(AppScreen.generating);
   }
 
-  /// The ⋮ menu: Make primary, Make HD, Download, Edit image, Regenerate,
-  /// Customise in 3D Studio.
+  /// "Refine this design…": the selected picture changed as described by the
+  /// AI image editor (the same as Edit image › Describe), in its own
+  /// proportions; ⋯ Undo last refine brings the old one back.
+  Future<void> _refineSelected() async {
+    if (c.concepts.isEmpty) return;
+    final o = c.concepts[_sel];
+    final text = _change.text.trim();
+    if (o.busy) return;
+    if (text.length < 3) {
+      _say('Describe the change: for example “make the collar gold”.');
+      return;
+    }
+    if (!c.signedIn) {
+      _say('Sign in to refine a design with AI: it is kept with your designs.');
+      c.go(AppScreen.auth);
+      return;
+    }
+    final image =
+        o.image ??
+        (o.asset == null
+            ? null
+            : (await rootBundle.load(o.asset!)).buffer.asUint8List());
+    if (image == null || !mounted) return;
+    _changeFocus.unfocus();
+    setState(() => _refineOpen = false);
+    final run = c.resultsRun;
+    c.update(() {
+      o.busy = true;
+      o.pending = 'refine';
+    });
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final mime = image.isNotEmpty && image[0] == 0x89
+          ? 'image/png'
+          : 'image/jpeg';
+      final answer = await c.api.editImage(
+        image: 'data:$mime;base64,${base64Encode(image)}',
+        instruction: text,
+      );
+      if (run != c.resultsRun) return;
+      final bytes = base64Decode(answer.substring(answer.indexOf(',') + 1));
+      _previous[o] = image;
+      c.update(() => o.image = bytes);
+      _change.clear();
+    } on ApiException catch (e) {
+      if (run == c.resultsRun) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Refine: ${e.message}'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Palette.surface2,
+          ),
+        );
+      }
+    } finally {
+      if (run == c.resultsRun) c.update(() => o.busy = false);
+    }
+  }
+
+  /// The ⋯ menu on the large design: Make HD, Regenerate, Edit image, Undo
+  /// last refine, Customise in 3D Studio and the attached pictures on the kit.
   Widget _menu(int index) {
     final o = c.concepts[index];
     final hasPicture = o.image != null || o.asset != null;
     // Designs from the AI (sample designs have no direction to render).
     final ai = o.direction != null;
-    return PopupMenuButton<String>(
-      tooltip: index == 0
-          ? 'Primary design actions'
-          : 'Design ${index + 1} actions',
-      icon: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 20),
-      color: Palette.surface2,
-      onSelected: (action) => switch (action) {
-        'primary' => _makePrimary(index),
-        'hd' => renderDesign(c, o, 'high', view: 'presentation'),
-        'download' => _download(index),
-        'edit' => _edit(index),
-        'again' => renderDesign(c, o, o.quality ?? 'medium'),
-        _ => _open(index),
-      },
-      itemBuilder: (_) => [
-        if (index > 0)
-          const PopupMenuItem(value: 'primary', child: Text('Make primary')),
-        if (ai && o.quality != 'high')
-          PopupMenuItem(
-            value: 'hd',
-            enabled: !o.busy,
-            child: const Text('Make HD · 10 credits'),
-          ),
-        if (hasPicture)
-          const PopupMenuItem(value: 'download', child: Text('Download')),
-        if (hasPicture)
-          const PopupMenuItem(value: 'edit', child: Text('Edit image')),
-        if (ai)
-          PopupMenuItem(
-            value: 'again',
-            enabled: !o.busy,
-            child: Text(index == 0 ? 'Regenerate' : 'Regenerate this option'),
-          ),
-        const PopupMenuItem(
-          value: 'studio',
-          child: Text('Customise in 3D Studio'),
+    return _RoundButton(
+      child: PopupMenuButton<String>(
+        tooltip: 'Design ${index + 1} actions',
+        padding: EdgeInsets.zero,
+        icon: const Icon(
+          Icons.more_horiz_rounded,
+          color: Colors.white,
+          size: 20,
         ),
-      ],
+        color: Palette.surface2,
+        onSelected: (action) {
+          switch (action) {
+            case 'hd':
+              renderDesign(c, o, 'high', view: 'presentation');
+            case 'again':
+              renderDesign(c, o, o.quality ?? 'medium');
+            case 'edit':
+              _edit(index);
+            case 'undo':
+              final before = _previous[o];
+              if (before != null) {
+                _previous[o] = null;
+                c.update(() => o.image = before);
+              }
+            case 'studio':
+              _open(index);
+            default:
+              if (action.startsWith('picture-')) {
+                _ReferencesToKit(
+                  c,
+                )._toKit(context, int.parse(action.substring(8)));
+              }
+          }
+        },
+        itemBuilder: (_) => [
+          if (ai && o.quality != 'high')
+            PopupMenuItem(
+              value: 'hd',
+              enabled: !o.busy,
+              child: const Text('Make HD · 10 credits'),
+            ),
+          if (ai)
+            PopupMenuItem(
+              value: 'again',
+              enabled: !o.busy,
+              child: const Text('Regenerate this design'),
+            ),
+          if (hasPicture)
+            PopupMenuItem(
+              value: 'edit',
+              enabled: !o.busy,
+              child: const Text('Edit image'),
+            ),
+          if (_previous[o] != null)
+            PopupMenuItem(
+              value: 'undo',
+              enabled: !o.busy,
+              child: const Text('Undo last refine'),
+            ),
+          const PopupMenuItem(
+            value: 'studio',
+            child: Text('Customise in 3D Studio'),
+          ),
+          for (var i = 0; i < c.references.length; i++)
+            PopupMenuItem(
+              value: 'picture-$i',
+              child: Text(
+                c.references.length == 1
+                    ? 'Put my design on the 3D kit'
+                    : 'Put my design ${i + 1} on the 3D kit',
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1239,7 +1381,11 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
       return Center(
         child: c.concepts.isEmpty || c.planError != null
             ? const Icon(Icons.image_outlined, color: Palette.muted)
-            : const CircularProgressIndicator(strokeWidth: 2),
+            : const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
       );
     }
     final hasPicture = o.image != null || o.asset != null;
@@ -1247,7 +1393,11 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
       fit: StackFit.expand,
       children: [
         if (hasPicture)
-          artImage(bytes: o.image, asset: o.asset, fit: BoxFit.cover)
+          artImage(
+            bytes: o.image,
+            asset: o.asset,
+            fit: big ? BoxFit.contain : BoxFit.cover,
+          )
         else if (o.busy)
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1271,252 +1421,522 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               ],
             ],
           )
+        else if (!big)
+          const Center(
+            child: Icon(Icons.refresh_rounded, color: Color(0xffffb4b4)),
+          )
         else
           Center(
             child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                o.error ?? 'No picture yet.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11.5),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    o.error ?? 'No picture yet.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                  if (o.direction != null && o.error != null)
+                    TextButton(
+                      onPressed: () => renderDesign(
+                        c,
+                        o,
+                        o.pending == 'high' ? 'high' : 'medium',
+                      ),
+                      child: const Text('Try again'),
+                    ),
+                ],
               ),
             ),
           ),
         if (hasPicture && o.busy)
-          const ColoredBox(
-            color: Color(0x8802060b),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ColoredBox(
+            color: const Color(0x8802060b),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(strokeWidth: 2),
+                  if (big) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      o.pending == 'refine'
+                          ? 'Refining this design… about a minute'
+                          : o.pending == 'high' && o.quality != 'high'
+                          ? 'Rendering in HD… about a minute'
+                          : 'Regenerating…',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Palette.cyan,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
       ],
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final list = c.concepts;
-    final primary = list.isEmpty ? null : list.first;
-    final hasPicture = primary?.image != null || primary?.asset != null;
-    return Column(
-      children: [
-        TopBar(onBack: _backToCreate, title: 'Your designs'),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+  /// Full screen: the selected picture alone, pinch to zoom; closing returns
+  /// to the same design.
+  void _fullScreen(Concept o) => Navigator.of(context).push(
+    PageRouteBuilder<void>(
+      pageBuilder: (context, _, _) => _FullScreenPicture(o),
+      transitionsBuilder: (_, animation, _, child) =>
+          FadeTransition(opacity: animation, child: child),
+    ),
+  );
+
+  /// One floating thumbnail: a translucent dark frame with a thin cyan
+  /// border and the design's number; tap to show it large.
+  Widget _thumb(int index, double size) {
+    final o = index < c.concepts.length ? c.concepts[index] : null;
+    final ready =
+        o != null &&
+        (o.image != null ||
+            o.asset != null ||
+            o.error != null ||
+            o.direction == null);
+    return Semantics(
+      button: true,
+      label: 'Design ${index + 1}: show this design',
+      child: GestureDetector(
+        key: ValueKey('thumb-$index'),
+        onTap: ready ? () => _select(index) : null,
+        child: Container(
+          width: size,
+          height: size,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: const Color(0x9902060b),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Palette.cyan.withValues(alpha: .8)),
+            boxShadow: const [
+              BoxShadow(color: Color(0xbb000000), blurRadius: 14),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const ColoredBox(color: Color(0xff02070d)),
+                _picture(o, big: false),
+                Positioned(
+                  top: 3,
+                  left: 3,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xc702060b),
+                      border: Border.all(color: Palette.cyan, width: 1.5),
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(
+                        color: Palette.cyan,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The large design with its backdrop, ⋯ and full screen, and the
+  /// thumbnails of the others (page elements only: never in a download).
+  Widget _viewer(Concept? primary, int sel, int total) => LayoutBuilder(
+    builder: (context, box) {
+      final hasPicture = primary?.image != null || primary?.asset != null;
+      final ratio =
+          (primary?.image == null ? null : pictureRatio(primary!.image!)) ??
+          (primary?.image == null && primary?.asset != null
+              // The bundled sample pictures (demo mode) are landscape.
+              ? 1.5
+              : primary?.view == 'front'
+              ? 1.0
+              : 2 / 3);
+      final others = [
+        if (primary != null)
+          for (var i = 0; i < total; i++)
+            if (i != sel) i,
+      ];
+      final l = resultsLayout(
+        box.maxWidth,
+        box.maxHeight,
+        ratio,
+        box.maxHeight < 170 ? 0 : others.length,
+        picture: hasPicture,
+      );
+      final over = l.mode == ResultsMode.over;
+      return Center(
+        child: SizedBox(
+          key: const ValueKey('design-viewer'),
+          width: l.vw,
+          height: l.vh,
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              // The PRIMARY DESIGN card.
-              GlowCard(
-                selected: true,
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(over ? 14 : 0),
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      AspectRatio(
-                        aspectRatio: 3 / 2,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              _picture(primary, big: true),
-                              Positioned(
-                                top: 8,
-                                left: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xe60b4c99),
-                                    borderRadius: BorderRadius.circular(99),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.settings,
-                                        size: 13,
-                                        color: Palette.cyan,
-                                      ),
-                                      SizedBox(width: 5),
-                                      Text(
-                                        'PRIMARY DESIGN',
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: .6,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              if (primary != null)
-                                Positioned(top: 0, right: 0, child: _menu(0)),
-                            ],
+                      const ColoredBox(color: Color(0xff02070d)),
+                      if (hasPicture) ...[
+                        ImageFiltered(
+                          imageFilter: ui.ImageFilter.blur(
+                            sigmaX: 22,
+                            sigmaY: 22,
+                          ),
+                          child: artImage(
+                            bytes: primary!.image,
+                            asset: primary.asset,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Side by side where the full labels fit; on phones
-                      // (QA 2026-10-21: "Open in 3D …" cut at 390 px) the
-                      // two buttons go on two rows.
-                      LayoutBuilder(
-                        builder: (context, box) {
-                          final open = GradientButton(
-                            label: c.sheetBusy
-                                ? 'Drawing the print sheet…'
-                                : 'Open in 3D Designer',
-                            icon: Icons.view_in_ar_outlined,
-                            compact: true,
-                            onPressed:
-                                primary == null || c.sheetBusy || !hasPicture
-                                ? null
-                                : _openIn3d,
-                          );
-                          final download = OutlinedButton.icon(
-                            onPressed: hasPicture ? () => _download(0) : null,
-                            icon: const Icon(Icons.download_rounded, size: 18),
-                            label: const Text('Download'),
-                          );
-                          if (box.maxWidth < 420) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                open,
-                                const SizedBox(height: 8),
-                                download,
-                              ],
-                            );
-                          }
-                          return Row(
-                            children: [
-                              Expanded(child: open),
-                              const SizedBox(width: 8),
-                              Expanded(child: download),
-                            ],
-                          );
-                        },
-                      ),
+                        const ColoredBox(color: Color(0x99000000)),
+                      ],
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              // The three options: a swipe row; tap one to make it primary.
-              SizedBox(
-                height: 132,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 3,
-                  separatorBuilder: (_, _) => const SizedBox(width: 10),
-                  itemBuilder: (context, i) {
-                    final index = i + 1;
-                    final o = index < list.length ? list[index] : null;
-                    return SizedBox(
-                      width: 198,
-                      child: GlowCard(
-                        glow: false,
-                        onTap: o != null && (o.image != null || o.asset != null)
-                            ? () => _makePrimary(index)
-                            : null,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              o == null && c.planError != null && i == 0
-                                  ? Center(
-                                      child: TextButton(
-                                        onPressed: () => startResults(c),
-                                        child: const Text('Try again'),
-                                      ),
-                                    )
-                                  : _picture(o, big: false),
-                              Positioned(
-                                top: 6,
-                                left: 6,
-                                child: Container(
-                                  width: 26,
-                                  height: 26,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: const Color(0xb302060b),
-                                    border: Border.all(color: Palette.cyan),
-                                  ),
-                                  child: Text(
-                                    '${index + 1}',
-                                    style: const TextStyle(
-                                      color: Palette.cyan,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (o != null)
-                                Positioned(
-                                  top: -4,
-                                  right: -4,
-                                  child: _menu(index),
-                                ),
+              Positioned(
+                left: 0,
+                top: l.top,
+                width: l.iw,
+                height: l.ih,
+                child: ClipRRect(
+                  key: ValueKey('design-$sel-picture'),
+                  borderRadius: BorderRadius.circular(over ? 14 : 0),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    child: KeyedSubtree(
+                      key: ValueKey('design-$sel-${identityHashCode(primary)}'),
+                      child: _picture(primary, big: true),
+                    ),
+                  ),
+                ),
+              ),
+              if (primary != null)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Row(
+                    children: [
+                      _menu(sel),
+                      if (hasPicture) ...[
+                        const SizedBox(width: 8),
+                        _RoundButton(
+                          child: IconButton(
+                            tooltip: 'Full screen',
+                            padding: EdgeInsets.zero,
+                            onPressed: () => _fullScreen(primary),
+                            icon: const Icon(
+                              Icons.fullscreen_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              if (l.tw > 0 && others.isNotEmpty)
+                Positioned(
+                  right: 12,
+                  bottom: 6,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        children: [
+                          for (final (n, i) in others.indexed) ...[
+                            if (n > 0) SizedBox(width: l.gap),
+                            _thumb(i, l.tw),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      // Kept inside the picture's right padding (QA 2026-10-22: "Tap to switc").
+                      const Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: Text(
+                          'Tap to switch',
+                          key: ValueKey('tap-to-switch'),
+                          softWrap: false,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xffe6eef5),
+                            shadows: [
+                              Shadow(blurRadius: 3, offset: Offset(0, 1)),
+                              Shadow(blurRadius: 8),
                             ],
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-              if (c.planError != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'More designs: ${c.planError}',
-                    style: const TextStyle(fontSize: 12, color: Palette.muted),
+                    ],
                   ),
                 ),
-              // Each attached reference picture can go straight onto the 3D kit, as on the website.
-              if (c.references.isNotEmpty) _ReferencesToKit(c),
             ],
           ),
         ),
-        // The prompt bar with the brief: refine it or write a new one.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 2, 4, 2),
-            decoration: BoxDecoration(
-              color: const Color(0xe6050c14),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Palette.cyan.withValues(alpha: .7)),
+      );
+    },
+  );
+
+  void _collapse() {
+    _changeFocus.unfocus();
+    if (_refineOpen) setState(() => _refineOpen = false);
+  }
+
+  /// The slim "Refine this design…" bar; focused, it expands with the
+  /// original brief (edit it for four new designs). Its text is kept.
+  Widget _refineBar(bool canRefine) => AnimatedContainer(
+    duration: const Duration(milliseconds: 180),
+    padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
+    decoration: BoxDecoration(
+      color: const Color(0xe6050c14),
+      borderRadius: BorderRadius.circular(_refineOpen ? 20 : 28),
+      border: Border.all(color: Palette.cyan.withValues(alpha: .7)),
+      boxShadow: [
+        BoxShadow(color: Palette.cyan.withValues(alpha: .12), blurRadius: 16),
+      ],
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.auto_awesome_outlined,
+              color: Palette.cyan,
+              size: 19,
             ),
-            child: Row(
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                key: const ValueKey('refine-design'),
+                controller: _change,
+                focusNode: _changeFocus,
+                minLines: 1,
+                maxLines: _refineOpen ? 4 : 1,
+                maxLength: 1000,
+                style: const TextStyle(fontSize: 14.5),
+                scrollPadding: const EdgeInsets.all(120),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  filled: false,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 13),
+                  counterText: '',
+                  hintText: 'Refine this design…',
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            if (_refineOpen)
+              IconButton(
+                tooltip: 'Collapse',
+                onPressed: _collapse,
+                icon: const Icon(Icons.expand_more_rounded),
+              ),
+            IconButton.filled(
+              tooltip: 'Refine this design',
+              onPressed: canRefine && _change.text.trim().isNotEmpty
+                  ? _refineSelected
+                  : null,
+              style: IconButton.styleFrom(
+                backgroundColor: Palette.cyan,
+                foregroundColor: Colors.black,
+                disabledBackgroundColor: Palette.cyan.withValues(alpha: .3),
+              ),
+              icon: const Icon(Icons.send_rounded, size: 19),
+            ),
+          ],
+        ),
+        if (_refineOpen) ...[
+          const Divider(height: 8),
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'YOUR ORIGINAL BRIEF · EDIT IT FOR FOUR NEW DESIGNS',
+              style: TextStyle(
+                fontSize: 10,
+                letterSpacing: 1.1,
+                fontWeight: FontWeight.w700,
+                color: Palette.muted,
+              ),
+            ),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const ValueKey('refine-brief'),
+                  controller: _refine,
+                  minLines: 1,
+                  maxLines: 4,
+                  style: const TextStyle(fontSize: 13.5),
+                  scrollPadding: const EdgeInsets.all(120),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                    hintText: 'Your brief, or a new design…',
+                  ),
+                ),
+              ),
+              IconButton.filled(
+                tooltip: 'Generate again',
+                onPressed: _generateAgain,
+                style: IconButton.styleFrom(
+                  backgroundColor: Palette.blue,
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.arrow_upward_rounded),
+              ),
+            ],
+          ),
+        ],
+      ],
+    ),
+  );
+
+  // Rebuilt on every change of the designs (a picture in, a switch, a refine).
+  @override
+  Widget build(BuildContext context) =>
+      ListenableBuilder(listenable: c, builder: (context, _) => _page());
+
+  Widget _page() {
+    final list = c.concepts;
+    final sel = _sel;
+    final primary = list.isEmpty ? null : list[sel];
+    final hasPicture = primary?.image != null || primary?.asset != null;
+    // Four designs: while the plan is written the three options' places wait.
+    final total =
+        list.length == 1 && c.planError == null && list.first.direction != null
+        ? 4
+        : list.length;
+    return Column(
+      children: [
+        TopBar(
+          onBack: _backToCreate,
+          title: 'Your designs',
+          trailing: [
+            if (total > 0)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${sel + 1}',
+                        style: const TextStyle(color: Palette.cyan),
+                      ),
+                      TextSpan(text: ' / $total'),
+                    ],
+                  ),
+                  key: const ValueKey('design-counter'),
+                  semanticsLabel: 'Design ${sel + 1} of $total',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Palette.muted,
+                    letterSpacing: .5,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        Expanded(child: _viewer(primary, sel, total)),
+        TapRegion(
+          onTapOutside: (_) => _collapse(),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: TextField(
-                    key: const ValueKey('refine-brief'),
-                    controller: _refine,
-                    minLines: 1,
-                    maxLines: 3,
-                    style: const TextStyle(fontSize: 13.5),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      hintText: 'Refine your brief or describe a new design…',
+                if (!_refineOpen) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GradientButton(
+                          label: c.sheetBusy
+                              ? 'Drawing the print sheet…'
+                              : 'Open in 3D Designer',
+                          icon: Icons.view_in_ar_outlined,
+                          onPressed:
+                              primary == null || c.sheetBusy || !hasPicture
+                              ? null
+                              : _openIn3d,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 58,
+                        height: 52,
+                        child: OutlinedButton(
+                          key: const ValueKey('download-design'),
+                          onPressed: hasPicture ? () => _download(sel) : null,
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            foregroundColor: Palette.cyan,
+                            side: BorderSide(
+                              color: Palette.cyan.withValues(alpha: .8),
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                          ),
+                          child: Tooltip(
+                            message: 'Download design ${sel + 1}',
+                            child: const Icon(Icons.download_rounded, size: 24),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                // Clear of the 3DEEZI ASSIST button beside it.
+                Padding(
+                  padding: const EdgeInsets.only(right: 60),
+                  child: _refineBar(hasPicture && !(primary?.busy ?? true)),
+                ),
+                if (c.planError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'More designs: ${c.planError}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Palette.muted,
+                      ),
                     ),
                   ),
-                ),
-                IconButton.filled(
-                  tooltip: 'Generate again',
-                  onPressed: _generateAgain,
-                  style: IconButton.styleFrom(
-                    backgroundColor: Palette.cyan,
-                    foregroundColor: Colors.black,
-                  ),
-                  icon: const Icon(Icons.arrow_upward_rounded),
-                ),
               ],
             ),
           ),
@@ -1525,6 +1945,181 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     );
   }
 }
+
+/// A small round translucent button on the picture (⋯, full screen).
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 40,
+    height: 40,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: const Color(0xb30a1520),
+      border: Border.all(color: const Color(0x2effffff)),
+    ),
+    child: Center(child: child),
+  );
+}
+
+/// The selected design alone, full screen: pinch (or double-tap) to zoom,
+/// drag to pan; × returns to the same design.
+class _FullScreenPicture extends StatelessWidget {
+  const _FullScreenPicture(this.o);
+  final Concept o;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xff010409),
+    body: Stack(
+      children: [
+        Positioned.fill(
+          child: InteractiveViewer(
+            key: const ValueKey('full-screen-zoom'),
+            minScale: 1,
+            maxScale: 6,
+            child: Center(
+              child: artImage(
+                bytes: o.image,
+                asset: o.asset,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: _RoundButton(
+                child: IconButton(
+                  tooltip: 'Close full screen',
+                  padding: EdgeInsets.zero,
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+enum ResultsMode { below, over, fill }
+
+/// Where the large design and its thumbnails go in a [w]×[h] area, for a
+/// picture of aspect [ar] (width / height) and [n] thumbnails (the website's
+/// viewerLayout): `below` when the picture is as wide as the area and leaves
+/// room under it, so the thumbnails sit under it over its blurred backdrop
+/// and the viewer still fills the area; `over` when it fills the height (the
+/// thumbnails float inside its bottom-right corner); `fill` with no picture.
+({
+  ResultsMode mode,
+  double vw,
+  double vh,
+  double iw,
+  double ih,
+  double top,
+  double tw,
+  double gap,
+})
+resultsLayout(double w, double h, double ar, int n, {bool picture = true}) {
+  final iw = math.max(0.0, math.min(w, h * ar));
+  final ih = ar > 0 ? iw / ar : 0.0;
+  final gap = w < 520 ? 6.0 : 10.0;
+  // About 20% of the picture per thumbnail, smaller when three must fit.
+  final tw = n == 0
+      ? 0.0
+      : math
+            .max(
+              56.0,
+              math.min(
+                math.min(iw * .2, 150.0),
+                (iw * .66 - (n - 1) * gap) / n,
+              ),
+            )
+            .roundToDouble();
+  final cluster = n == 0 ? 0.0 : tw + 24;
+  if (!picture) {
+    return (
+      mode: ResultsMode.fill,
+      vw: w,
+      vh: h,
+      iw: w,
+      ih: h,
+      top: 0.0,
+      tw: tw,
+      gap: gap,
+    );
+  }
+  if (n > 0 && h - ih >= cluster + 12) {
+    final top = math.max(0.0, ((h - cluster - 12 - ih) / 2).roundToDouble());
+    return (
+      mode: ResultsMode.below,
+      vw: iw,
+      vh: h,
+      iw: iw,
+      ih: ih,
+      top: top,
+      tw: tw,
+      gap: gap,
+    );
+  }
+  return (
+    mode: ResultsMode.over,
+    vw: iw,
+    vh: ih,
+    iw: iw,
+    ih: ih,
+    top: 0.0,
+    tw: tw,
+    gap: gap,
+  );
+}
+
+/// A picture's width / height from its PNG or JPEG header (null: unknown).
+double? pictureRatio(Uint8List b) {
+  if (b.length > 24 && b[0] == 0x89 && b[1] == 0x50) {
+    final w = (b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19];
+    final h = (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23];
+    return w > 0 && h > 0 ? w / h : null;
+  }
+  if (b.length > 4 && b[0] == 0xff && b[1] == 0xd8) {
+    var i = 2;
+    while (i + 9 < b.length) {
+      if (b[i] != 0xff) {
+        i++;
+        continue;
+      }
+      final m = b[i + 1];
+      if (m == 0xd8 || m == 0x01 || m == 0xff || (m >= 0xd0 && m <= 0xd7)) {
+        i += m == 0xff ? 1 : 2;
+        continue;
+      }
+      final length = (b[i + 2] << 8) | b[i + 3];
+      if (m >= 0xc0 && m <= 0xcf && m != 0xc4 && m != 0xc8 && m != 0xcc) {
+        final h = (b[i + 5] << 8) | b[i + 6];
+        final w = (b[i + 7] << 8) | b[i + 8];
+        return w > 0 && h > 0 ? w / h : null;
+      }
+      i += 2 + length;
+    }
+  }
+  return null;
+}
+
+/// Said when an AI design opens on the varsity jacket (no design picture on it yet).
+const varsityDesignNote =
+    'The varsity jacket takes your design’s colours and logo; full print '
+    'designs on it are coming.';
+
+/// Said when an AI design opens on the track jacket (no design picture on it yet).
+const trackDesignNote =
+    'The track jacket takes your design’s colours and logo; full print '
+    'designs on it are coming.';
 
 /// Said when an AI design opens on a hoodie (no design picture on hoodies yet).
 const hoodieDesignNote =

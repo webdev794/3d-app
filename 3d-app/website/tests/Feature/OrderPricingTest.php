@@ -38,18 +38,22 @@ class OrderPricingTest extends TestCase
         $this->assertNotSame($wrong['total'], $quote['total']);
 
         // Confirmed with the same choices: kept with the order; the invoice is the reviewed total.
-        $draft = $this->postJson('/api/v1/order-drafts', ['kind' => 'form', 'data' => ['team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'pricing' => $pricing]])->json('data.id');
+        $draft = $this->postJson('/api/v1/order-drafts', ['kind' => 'form', 'data' => ['team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'pricing' => $pricing,
+            'phone' => '0400 000 000', 'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'deliver',
+            'address' => ['street' => '1 Park Rd', 'suburb' => 'Sydney', 'state' => 'NSW', 'postcode' => '2000', 'country' => 'Australia']]])->json('data.id');
         $order = $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'pricing-key-1'])->assertCreated()->json('data');
         $this->assertSame(['destination' => 'NZ', 'extras' => ['express'], 'discount_code' => 'TEAM10'], Order::find($order['id'])->pricing);
         $this->assertSame($quote['total'], $order['invoice']['total']);
         $this->assertSame('awaiting_payment', $order['invoice']['status']);
 
         // Sent directly with the submission too (the app does), and a bad code is refused by nobody: it just doesn't apply.
-        $direct = $this->postJson('/api/v1/orders', ['source' => 'form', 'team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'pricing' => ['destination' => 'AU']], ['Idempotency-Key' => 'pricing-key-2'])
+        $direct = $this->postJson('/api/v1/orders', ['source' => 'form', 'team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'pricing' => ['destination' => 'AU'],
+            'phone' => '0400 000 000', 'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup'], ['Idempotency-Key' => 'pricing-key-2'])
             ->assertCreated()->json('data');
         $au = $this->postJson('/api/v1/pricing/quote', ['items' => $items, 'pricing' => ['destination' => 'AU']])->json('data');
         $this->assertSame($au['total'], $direct['invoice']['total']);
-        $this->postJson('/api/v1/orders', ['source' => 'form', 'team_name' => 'X', 'contact_name' => 'F', 'items' => $items, 'pricing' => ['extras' => ['bad code!']]], ['Idempotency-Key' => 'pricing-key-3'])
+        $this->postJson('/api/v1/orders', ['source' => 'form', 'team_name' => 'X', 'contact_name' => 'F', 'items' => $items, 'pricing' => ['extras' => ['bad code!']],
+            'phone' => '0400 000 000', 'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup'], ['Idempotency-Key' => 'pricing-key-3'])
             ->assertUnprocessable()->assertJsonValidationErrors('pricing.extras.0');
     }
 }

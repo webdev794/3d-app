@@ -332,8 +332,10 @@ class OpenAiDesigner
      *
      * @param  ?array<string, mixed>  $direction  from artDirection()
      */
-    public static function mockupPrompt(string $brief, string $sport, string $garment, int $count, ?array $direction = null, string $view = 'presentation'): string
+    public static function mockupPrompt(string $brief, string $sport, string $garment, int $count, ?array $direction = null, string $view = 'presentation', bool $portrait = true): string
     {
+        // A full kit (a top with shorts) stands as worn: each top with its shorts below it (client picture 146.jpg).
+        $fullKit = str_contains(mb_strtolower($garment), 'kit');
         $labels = ['body' => 'Body colour', 'layout' => 'Layout', 'theme' => 'Theme', 'palette' => 'Palette', 'front' => 'Front', 'back' => 'Back', 'graphics' => 'Graphics', 'trims' => 'Trims', 'presentation' => 'Presentation'];
         $layout = strtolower(trim((string) ($direction['layout'] ?? '')));
         $prompt = "You are the lead designer of a top custom sublimation sportswear brand, making a client presentation mockup.\n"
@@ -360,8 +362,16 @@ class OpenAiDesigner
                 // The option cards (client picture 138.jpg): one garment that reads well small.
                 ? 'Presentation: one square image of premium commercial product photography: a single garment, the front view only (straight on or a slight three-quarter turn), '
                     .'centred, complete and fully visible with a little space around it, on an invisible ghost mannequin, no back view, '
-                : 'Presentation: unless the brief asks for a different layout, angle or background, make one landscape image of premium commercial product photography: '
-                    .'the front view on the left and the back view on the right, side by side, both complete, fully visible and not overlapping, on invisible ghost mannequins, ')
+                : ($portrait
+                    // YOUR DESIGNS (client picture 146.jpg, 2026-10-22): one tall picture that fills a phone screen.
+                    ? 'Presentation: unless the brief asks for a different layout, angle or background, make one tall portrait image (2:3) of premium commercial product photography that fills a phone screen: '
+                        .($fullKit
+                            ? 'each set stands as worn, the top with its shorts directly below it: the front set on the left and the back set on the right, side by side, '
+                            : 'the front view on the left and the back view on the right, side by side, ')
+                        .'both complete, fully visible and not overlapping, large so they fill most of the width and height of the frame with a little space around them, on invisible ghost mannequins, '
+                    : 'Presentation: unless the brief asks for a different layout, angle or background, make one landscape image of premium commercial product photography: '
+                        .($fullKit ? 'the front set (the top with its shorts below it) on the left and the back set on the right, side by side, ' : 'the front view on the left and the back view on the right, side by side, ')
+                        .'both complete, fully visible and not overlapping, on invisible ghost mannequins, '))
             .'in a dramatic dark setting: a night stadium with floodlights, haze tinted in the kit\'s main colour, a glossy reflective floor and rim lighting. '
             .'Photorealistic fabric: fine knit and mesh texture, natural folds, flatlock stitching, a crisp vivid sublimated print. '
             .'All text must be spelled exactly as written in the brief or the logo. ';
@@ -529,8 +539,30 @@ class OpenAiDesigner
     public function renderDirection(string $brief, string $sport, string $garment, array $direction, array $references = [], string $quality = 'high', string $view = 'presentation'): string
     {
         $references = array_slice($references, 0, 4);
+        if ($view === 'front') {
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view), $references, $quality, '1024x1024');
+        }
+        // Portrait (2026-10-22, client picture 146.jpg: the design fills a phone); a model that turns the size down gets
+        // the landscape picture once instead (the results page fits any proportions).
+        try {
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view), $references, $quality, self::PORTRAIT);
+        } catch (RuntimeException $e) {
+            if (! self::sizeProblem($e->getMessage())) {
+                throw $e;
+            }
+            Log::warning('The image model turned down '.self::PORTRAIT.'; rendered landscape instead: '.$e->getMessage());
 
-        return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view), $references, $quality, $view === 'front' ? '1024x1024' : '1536x1024');
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view, false), $references, $quality, '1536x1024');
+        }
+    }
+
+    /** The AI designs' picture size: tall, so the selected design fills a phone (YOUR DESIGNS, 146.jpg). */
+    public const PORTRAIT = '1024x1536';
+
+    /** Whether an image error is about the picture size (then the landscape size is tried once). */
+    public static function sizeProblem(string $message): bool
+    {
+        return (bool) preg_match('/\bsize\b|1024x1536|dimension|aspect ratio/i', $message);
     }
 
     /** The editable 3D kit's spec for a design direction. */

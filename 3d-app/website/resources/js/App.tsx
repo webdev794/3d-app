@@ -11,11 +11,13 @@ import OrderUploadPage from './pages/OrderUpload';
 import OrderFormPage from './pages/OrderForm';
 import OrdersLandingPage from './pages/OrdersLanding';
 import InvoicePayPage from './pages/InvoicePay';
+import OrderCheckoutPage from './pages/OrderCheckout';
 import Studio from './pages/Studio';
 import ArtboardPage from './pages/Artboard';
 import { ProjectsPage, AssetsPage, DashboardPage, ProfilePage } from './pages/Library';
 import Home, { DownloadsPage } from './pages/Home';
 import Assist from './components/Assist';
+import NotificationBell from './components/NotificationBell';
 import { AboutPage, PrivacyPage, SupportPage, TermsPage } from './pages/InfoPages';
 import '../css/site-footer.css';
 import OrdersMenu from './components/OrdersMenu';
@@ -23,9 +25,9 @@ import { TeamPage, TeamRequestPage, TeamRequestsPage } from './pages/Team';
 import '../css/team-header.css';
 import { DesignerPage } from './pages/AdminTeam';
 
-export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string; /** A design picture (a saved asset) the Studio puts on the 3D kit when it opens (checked on screen first). */ pendingDrawing?: { asset: number; name: string } }
+export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string; /** A design picture (a saved asset) the Studio puts on the 3D kit when it opens (checked on screen first). */ pendingDrawing?: { asset: number; name: string; /** The garment is the one asked for (a 3DEEZI TEAM request): the check screen opens on it, not on a guess from the picture. */ known?: boolean } }
 export const newDraft = (): Draft => ({ name: 'Untitled kit', sport: 'rugby-league', garment: 'jersey', mode: 'dyo', design: { ...defaultDesign } });
-const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', polo: 'polo', pocketpolo: 'pocketpolo', 'polo with pocket': 'pocketpolo', hoodie: 'hoodie', ziphoodie: 'ziphoodie', 'zip hoodie': 'ziphoodie', fullkit: 'fullkit', 'full kit': 'fullkit' };
+const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', polo: 'polo', pocketpolo: 'pocketpolo', 'polo with pocket': 'pocketpolo', hoodie: 'hoodie', ziphoodie: 'ziphoodie', 'zip hoodie': 'ziphoodie', varsity: 'varsity', 'varsity jacket': 'varsity', trackjacket: 'trackjacket', 'track jacket': 'trackjacket', 'track suit jacket': 'trackjacket', 'tracksuit jacket': 'trackjacket', fullkit: 'fullkit', 'full kit': 'fullkit' };
 /** Seeded projects can store a null garment and older AI concepts a display name ("Jersey"); every draft gets a valid id so it stays saveable. */
 function normalizeDraft(draft: Draft): Draft {
   const pick = (g?: string | null) => (g ? garmentIds[String(g).toLowerCase()] : undefined);
@@ -70,12 +72,29 @@ export default function App() {
 
   function requireAuth(action?: () => void) { if (user) action?.(); else { afterAuth.current = action || null; setAuthOpen(true); } }
   function start(mode: 'ai' | 'dyo') { setDraft({ ...newDraft(), mode }); navigate(mode === 'ai' ? '/create/ai' : '/create/sport'); }
+  // Design Your Own opened by its address or a plain link starts a new kit: a saved project, an AI design or a design
+  // picture left in the draft must not come back on the new garment (and a save must not overwrite that project).
+  // "Change sport" in the Studio and the garment step's back button pass { keep: true } to change the current kit's sport.
+  useEffect(() => {
+    if (location.pathname !== '/create/sport' || (location.state as { keep?: boolean } | null)?.keep) return;
+    setDraft(d => (d.id || d.mode !== 'dyo' || d.pendingDrawing || d.design.layout) ? { ...newDraft(), mode: 'dyo' } : d);
+  }, [location.pathname, location.state]);
   function openProject(project: Project) { setDraft({ ...project, design: { ...defaultDesign, ...project.design } }); navigate('/studio'); }
-  /** A saved design picture (an asset) onto the 3D kit: the Studio checks it, then puts it on as drawn (as the AI designer's "MAKE IT 3D"). */
+  /** A 3DEEZI TEAM design picture (a saved asset) onto the 3D kit: the Studio checks it on the garment the request names (a design picture fits a singlet, jersey, tee or polo, with or without the pocket), then puts it on as drawn (as the AI designer's "MAKE IT 3D"). */
   function openDesignPicture(picture: { asset: number; name: string; garment: string; sport: string }) {
-    const top = (['singlet', 'jersey', 'tee', 'polo'].includes(picture.garment) ? picture.garment : 'singlet') as Design['garment'];
     const base = newDraft();
-    setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: top, mode: 'dyo', design: { ...base.design, garment: top, layout: null }, pendingDrawing: { asset: picture.asset, name: picture.name } });
+    // Like the AI designer's MAKE IT 3D: a hoodie takes the design's colours and logo (no design picture on hoodies yet).
+    // The track jacket too: it lands on itself, never on a singlet.
+    if (picture.garment === 'hoodie' || picture.garment === 'ziphoodie' || picture.garment === 'trackjacket') {
+      const hoodie = picture.garment as Design['garment'];
+      setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: hoodie, mode: 'dyo', design: { ...base.design, garment: hoodie, layout: null } });
+      navigate('/studio');
+      setNotice(hoodie === 'trackjacket' ? 'The track jacket takes your design’s colours and logo; full print designs on it are coming. Your design picture is in your Assets.' : 'Hoodies take your design’s colours and logo; full print designs on hoodies are coming. Your design picture is in your Assets.');
+      return;
+    }
+    const known = ['singlet', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(picture.garment);
+    const top = (known ? picture.garment : 'singlet') as Design['garment'];
+    setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: top, mode: 'dyo', design: { ...base.design, garment: top, layout: null }, pendingDrawing: { asset: picture.asset, name: picture.name, known } });
     navigate('/studio');
   }
   async function logout() {
@@ -95,14 +114,14 @@ export default function App() {
         <NavLink to="/" end>Create</NavLink><NavLink to="/convert">Convert</NavLink><NavLink to="/projects">Projects</NavLink><NavLink to="/approved">Approved</NavLink><NavLink to="/assets">Assets</NavLink><OrdersMenu onNavigate={() => setMenuOpen(false)} /><NavLink to="/team" className="nav-team">3DEEZI Team</NavLink><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}{user?.is_designer && !user.is_admin && <NavLink className="nav-admin" to="/designer"><PenTool size={15} /> Designer</NavLink>}
         <button className="nav-quick" onClick={() => { setMenuOpen(false); start('ai'); }}><Sparkles size={15} /> AI Powered Sportswear</button><button className="nav-quick" onClick={() => { setMenuOpen(false); start('dyo'); }}><Shirt size={15} /> Design Your Own</button>
       </nav>
-      <div className="header-actions">{user?.is_admin && <Link className="button button-outline admin-link" to="/admin" title="Admin"><ShieldCheck size={15} /><span className="admin-text">Admin</span></Link>}{user?.is_designer && !user.is_admin && <Link className="button button-outline admin-link designer-link" to="/designer" title="3DEEZI TEAM designer: my design requests"><PenTool size={15} /><span className="admin-text">Designer</span></Link>}{user ? <Link className="account-link" to="/profile"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span>{user.name.split(' ')[0]}</span></Link> : <button className="button button-quiet" onClick={() => requireAuth()}>Sign in</button>}<button className="button button-primary header-cta" onClick={() => { navigate('/'); setTimeout(() => document.getElementById('create-options')?.scrollIntoView({ behavior: 'smooth' }), 50); }}>Start a kit <ArrowRight size={15} /></button><span className="quick-tabs" role="group" aria-label="Quick start"><button className="quick-tab is-ai" title="AI Powered Sportswear: describe your kit and AI designs it" onClick={() => start('ai')}><Sparkles size={13} /> AI</button><button className="quick-tab" title="Design Your Own: choose a sport and garment, then design it in 3D" onClick={() => start('dyo')}><Shirt size={13} /> DYO</button></span><button className="icon-button mobile-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>{menuOpen ? <X /> : <Menu />}</button></div>
+      <div className="header-actions">{user?.is_admin && <Link className="button button-outline admin-link" to="/admin" title="Admin"><ShieldCheck size={15} /><span className="admin-text">Admin</span></Link>}{user?.is_designer && !user.is_admin && <Link className="button button-outline admin-link designer-link" to="/designer" title="3DEEZI TEAM designer: my design requests"><PenTool size={15} /><span className="admin-text">Designer</span></Link>}<NotificationBell signedIn={!!user} />{user ? <Link className="account-link" to="/profile"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span>{user.name.split(' ')[0]}</span></Link> : <button className="button button-quiet" onClick={() => requireAuth()}>Sign in</button>}<button className="button button-primary header-cta" onClick={() => { navigate('/'); setTimeout(() => document.getElementById('create-options')?.scrollIntoView({ behavior: 'smooth' }), 50); }}>Start a kit <ArrowRight size={15} /></button><span className="quick-tabs" role="group" aria-label="Quick start"><button className="quick-tab is-ai" title="AI Powered Sportswear: describe your kit and AI designs it" onClick={() => start('ai')}><Sparkles size={13} /> AI</button><button className="quick-tab" title="Design Your Own: choose a sport and garment, then design it in 3D" onClick={() => start('dyo')}><Shirt size={13} /> DYO</button></span><button className="icon-button mobile-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>{menuOpen ? <X /> : <Menu />}</button></div>
     </div></header>}
     {catalogError && <div className="server-banner" role="alert">{catalogError} <button onClick={loadCatalog}>Retry connection</button></div>}
     <main><Routes>
       <Route path="/" element={<Home onStart={start} />} />
       <Route path="/create/ai" element={<AiDesigner catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} onNotice={setNotice} />} />
       <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={sport => setDraft(d => ({ ...d, sport, mode: 'dyo' }))} onNext={() => navigate('/create/garment')} />} />
-      <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={garment => setDraft(d => ({ ...d, garment, design: { ...d.design, garment: garment as Design['garment'] } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport')} />} />
+      <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={garment => setDraft(d => ({ ...d, garment, design: { ...d.design, garment: garment as Design['garment'] } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport', { state: { keep: true } })} />} />
       <Route path="/convert" element={<ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} />} />
       <Route path="/admin" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
@@ -117,6 +136,9 @@ export default function App() {
       <Route path="/orders/upload" element={<OrderUploadPage user={user} checking={checkingSession} requireAuth={requireAuth} onNotice={setNotice} />} />
       <Route path="/orders/new" element={<OrderFormPage user={user} restoring={checkingSession} requireAuth={requireAuth} catalog={catalog} onNotice={setNotice} />} />
       <Route path="/invoices/:number" element={<InvoicePayPage user={user} checking={checkingSession} requireAuth={requireAuth} />} />
+      {/* COMPLETE YOUR PAYMENT and its Confirmation: after REVIEW & APPROVE ORDER (the app's pay link works here too). */}
+      <Route path="/orders/:ref/pay" element={<OrderCheckoutPage user={user} checking={checkingSession} requireAuth={requireAuth} step="pay" />} />
+      <Route path="/orders/:ref/confirmation" element={<OrderCheckoutPage user={user} checking={checkingSession} requireAuth={requireAuth} step="confirmation" />} />
       {/* 3DEEZI TEAM (human designers): the page and form, My design requests, one request. */}
       <Route path="/team" element={<TeamPage user={user} requireAuth={requireAuth} catalog={catalog} />} />
       <Route path="/team/requests" element={protectedPage(<TeamRequestsPage />)} />

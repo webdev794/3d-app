@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Download, ExternalLink, Eye, EyeOff, LoaderCircle, Lock, Paperclip, RefreshCw, Search, Send, Truck, Upload, X } from 'lucide-react';
 import { ApiError } from '../api';
 import GarmentIcon from '../components/GarmentIcon';
+import OrderFormReading from '../components/OrderFormReading';
 import { STAGES, StageBlocked, orderApi, uploadAdminFile, type Board, type BoardOrder, type FileKind, type OrderDetail, type OrderStatus, type StageProblem } from '../orderApi';
 import '../../css/admin-board.css';
 
@@ -68,7 +69,7 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
               <span className={`aob-pill tone-${order.sub_status.tone}`}>{order.sub_status.label}</span>
               {order.payment ? <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}</span> : <span className="aob-pill tone-grey">No invoice</span>}
               {order.latest_update && <span className="aob-latest">{order.latest_update.text}{order.latest_update.message && order.latest_update.text !== order.latest_update.message ? `: ${order.latest_update.message}` : ''}</span>}
-              <span className="aob-dates">In {day(order.submitted_at)}{order.due_date ? ` · due ${day(order.due_date)}` : ''}{order.assignee ? ` · ${order.assignee}` : ''}</span>
+              <span className="aob-dates">In {day(order.submitted_at)}{order.due_date ? ` · due ${day(order.due_date)}` : ''}{order.needed_by ? ` · required ${day(order.needed_by)}` : ''}{order.assignee ? ` · ${order.assignee}` : ''}</span>
             </button>
             <label className="aob-move"><span>Move</span><select value={order.status} onChange={e => void move(order, e.target.value as OrderStatus)} aria-label={`Move ${order.number} to`}>
               {STAGES.map(s => <option key={s.status} value={s.status}>{s.label}</option>)}<option value="cancelled">Cancelled</option></select></label>
@@ -159,7 +160,8 @@ function OrderPanel({ id, onClose, onNotice }: { id: number; onClose: () => void
           {order.items.length ? <ul className="aob-list">{order.items.map((item, i) => <li key={i}><strong>{item.name}</strong>{item.fit ? ` · ${item.fit}` : ''}{item.project_name ? ` · design “${item.project_name}”` : ''}<small>{Object.entries(item.sizes).map(([s, n]) => `${s} ${n}`).join(' · ')} = {item.quantity}{item.players?.length ? ` · ${item.players.length} names/numbers` : ''}</small></li>)}</ul>
             : <p className="muted">{order.quantity ? Object.entries(order.sizes).map(([s, n]) => `${s} ${n}`).join(' · ') : 'Sizes are in the uploaded order form.'}</p>}
           {order.notes && <p className="aob-notes">“{order.notes}”</p>}
-          {order.needed_by && <p className="muted">Needed by {day(order.needed_by)}</p>}
+          {order.needed_by && <p className="muted" data-testid="aob-date-required">Date required: <strong>{new Date(`${order.needed_by}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong></p>}
+          {order.shipping_address && <p className="muted kit-pre" data-testid="aob-delivery"><strong>Delivery address</strong><br />{order.shipping_address}</p>}
         </section>
         <section><h3>Stage and staff</h3>
           {steps.length > 0 && <label className="field">Sub-status<select value={order.step ?? steps[0][0]} disabled={saving} onChange={e => void save({ step: e.target.value }, 'Sub-status updated.')}>{steps.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>}
@@ -181,6 +183,8 @@ function OrderPanel({ id, onClose, onNotice }: { id: number; onClose: () => void
         </div>
       </section>
 
+      {/* An uploaded order form as 3DEEZI AI read it, with the original file one click away. */}
+      <OrderFormReading files={order.files} onError={setError} />
       <section className="aob-block"><h3>Files and design proofs</h3>
         <div className="aob-row">
           <select value={fileKind} onChange={e => setFileKind(e.target.value as FileKind)} aria-label="Kind of file">{FILE_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>

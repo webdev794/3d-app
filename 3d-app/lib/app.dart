@@ -15,6 +15,7 @@ import 'screens/onboarding.dart';
 import 'screens/showcase.dart';
 import 'screens/studio.dart';
 import 'widgets/assist_overlay.dart';
+import 'widgets/notification_bell.dart';
 import 'widgets/ui.dart';
 
 class ThreeDeeziApp extends StatefulWidget {
@@ -27,8 +28,18 @@ class ThreeDeeziApp extends StatefulWidget {
 class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
   late final AppController c = widget.controller ?? AppController();
   late final AssistController assist = AssistController(c);
+  // The notification bells' list, polled once a minute while the app is open and signed in.
+  late final NotificationFeed bell = NotificationFeed.of(c);
+
+  @override
+  void initState() {
+    super.initState();
+    bell.startPolling();
+  }
+
   @override
   void dispose() {
+    bell.stopPolling();
     assist.dispose();
     if (widget.controller == null) c.dispose();
     super.dispose();

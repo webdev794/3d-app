@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\OpenAiDesigner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -139,9 +140,10 @@ class AiDesignsTest extends TestCase
         $this->assertStringContainsString('- Front: FRONT-2: black body', $edits[2]);
         foreach ($edits as $i => $body) {
             $this->assertSame(2, substr_count($body, 'name="image[]"'));
-            // The PRIMARY and Make HD: front and back, landscape; the option cards: one front view, square.
-            $this->assertStringContainsString(in_array($i, [0, 4], true) ? '1536x1024' : '1024x1024', $body);
-            $this->assertStringContainsString(in_array($i, [0, 4], true) ? 'the front view on the left and the back view on the right' : 'the front view only', $body);
+            // All four and Make HD: front and back side by side in one tall picture (YOUR DESIGNS, 146.jpg).
+            $this->assertStringContainsString(OpenAiDesigner::PORTRAIT, $body);
+            $this->assertStringContainsString('tall portrait image (2:3)', $body);
+            $this->assertStringContainsString('the front view on the left and the back view on the right', $body);
             $this->assertStringContainsString('only for the small neck label', $body);
             $this->assertStringContainsString('fully sublimated all-over design', $body);
             $this->assertStringContainsString('name="input_fidelity"', $body);
@@ -169,7 +171,7 @@ class AiDesignsTest extends TestCase
         $this->assertCount(3, array_unique(array_map(fn ($d) => $d['direction']['body'].$d['direction']['layout'], array_slice($directions, 1))));
 
         // A white sash option: its own body colour and layout, no dark-body rule, the logo kept exactly.
-        $this->postJson('/api/v1/ai/designs/render', [...$brief, 'rank' => 2, 'direction' => $directions[1]['direction']])->assertCreated()->assertJsonPath('data.view', 'front');
+        $this->postJson('/api/v1/ai/designs/render', [...$brief, 'rank' => 2, 'direction' => $directions[1]['direction']])->assertCreated()->assertJsonPath('data.view', 'presentation');
         $body = Http::recorded(fn (Request $r) => str_ends_with($r->url(), '/images/edits'))->last()[0]->body();
         $this->assertStringContainsString('- Body colour: white #FFFFFF', $body);
         $this->assertStringContainsString('- Layout: diagonal sash', $body);
@@ -197,6 +199,36 @@ class AiDesignsTest extends TestCase
         foreach ($bodies as $body) {
             $this->assertStringContainsString('front on the left and its back on the right', $body);
         }
+    }
+
+    public function test_a_full_kit_stands_as_worn_and_a_size_error_falls_back_to_landscape_once(): void
+    {
+        Storage::fake('local');
+        config(['services.openai.key' => 'sk-test']);
+        Http::fake(['api.openai.com/v1/images/*' => Http::sequence()
+            ->push(['error' => ['message' => "Invalid value: '1024x1536'. Supported values are: '1024x1024', '1536x1024', and 'auto'.", 'param' => 'size', 'code' => 'invalid_value']], 400)
+            ->push(['data' => [['b64_json' => self::PNG]]])]);
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson('/api/v1/ai/designs/render', ['prompt' => 'A navy BLITZ rugby league full kit', 'sport' => 'rugby-league', 'garment' => 'fullkit', 'rank' => 2, 'direction' => ['front' => 'Navy body', 'ownDesign' => false]])
+            ->assertCreated()->assertJsonPath('data.view', 'presentation');
+        $bodies = Http::recorded()->map(fn ($pair) => $pair[0]->body())->values();
+        $this->assertCount(2, $bodies, 'one portrait try, then landscape once');
+        $this->assertStringContainsString(OpenAiDesigner::PORTRAIT, $bodies[0]);
+        $this->assertStringContainsString('the top with its shorts directly below it', $bodies[0]);
+        $this->assertStringContainsString('1536x1024', $bodies[1]);
+        $this->assertStringContainsString('one landscape image', $bodies[1]);
+        $this->assertStringNotContainsString('tall portrait', $bodies[1]);
+    }
+
+    public function test_another_error_is_not_retried_in_landscape(): void
+    {
+        config(['services.openai.key' => 'sk-test']);
+        Http::fake(['api.openai.com/v1/images/*' => Http::response(['error' => ['message' => 'Your request was rejected by the safety system.', 'code' => 'moderation_blocked']], 400)]);
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson('/api/v1/ai/designs/render', ['prompt' => 'A navy BLITZ rugby jersey', 'sport' => 'rugby-league', 'garment' => 'jersey', 'rank' => 1, 'direction' => ['ownDesign' => false]])->assertStatus(502);
+        Http::assertSentCount(1);
     }
 
     public function test_make_hd_renders_an_option_in_high_quality(): void

@@ -51,6 +51,8 @@ class OrderBoardTest extends TestCase
         return $fields + [
             'source' => 'form', 'contact_name' => 'Fabian Soutar', 'contact_email' => 'fabian@example.test', 'phone' => '0400 000 000',
             'team_name' => 'MANTIS Rugby League', 'notes' => 'Navy and cyan, logo on the chest.',
+            // The order form's date required and delivery (client 2026-10-22).
+            'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup',
             'items' => [
                 ['garment' => 'jersey', 'sport' => 'rugby-league', 'fit' => 'mens', 'sizes' => ['S' => 2, 'M' => 4, 'L' => 6, 'XL' => 4, '2XL' => 2, '3XL' => 0],
                     'players' => [['name' => 'SMITH', 'number' => '7', 'size' => 'M']]],
@@ -175,9 +177,10 @@ class OrderBoardTest extends TestCase
 
         // An upload needs its order form; then it submits once and the files move to the order.
         $this->deleteJson("/api/v1/order-drafts/{$draft}/files/{$form['id']}")->assertOk();
-        $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'upload-key-1'])->assertUnprocessable()->assertJsonValidationErrors(['files' => 'Attach your completed order form.']);
+        $due = now()->addMonth()->toDateString();
+        $this->postJson("/api/v1/order-drafts/{$draft}/submit", ['phone' => '0411 111 111', 'needed_by' => $due, 'delivery' => 'pickup'], ['Idempotency-Key' => 'upload-key-1'])->assertUnprocessable()->assertJsonValidationErrors(['files' => 'Attach your completed order form.']);
         $this->post("/api/v1/order-drafts/{$draft}/files", ['kind' => 'order_form', 'file' => UploadedFile::fake()->createWithContent('order.csv', "Item,Size,Qty\nJersey,M,10\nShorts,L,10\n")], ['Accept' => 'application/json'])->assertCreated();
-        $order = $this->postJson("/api/v1/order-drafts/{$draft}/submit", ['phone' => '0411 111 111'], ['Idempotency-Key' => 'upload-key-1'])->assertCreated()
+        $order = $this->postJson("/api/v1/order-drafts/{$draft}/submit", ['phone' => '0411 111 111', 'needed_by' => $due, 'delivery' => 'pickup'], ['Idempotency-Key' => 'upload-key-1'])->assertCreated()
             ->assertJsonPath('data.source', 'upload')->assertJsonPath('data.team_name', 'Lions FC')->assertJsonPath('data.contact_name', 'Fab Soutar')
             ->assertJsonPath('data.phone', '0411 111 111')->assertJsonPath('data.notes', 'Rush please')->assertJsonPath('data.quantity', 0)
             ->assertJsonCount(2, 'data.files')->assertJsonPath('data.stage', 'received')->json('data');
@@ -192,7 +195,7 @@ class OrderBoardTest extends TestCase
         $this->get('/api/v1/order-files/'.$order['files'][0]['id'])->assertOk()->assertDownload('logo.png');
 
         // Checked rows read from the order form can go with the submission.
-        $draft2 = $this->postJson('/api/v1/order-drafts', ['kind' => 'upload', 'data' => ['team_name' => 'Hawks', 'contact_name' => 'Fab']])->json('data.id');
+        $draft2 = $this->postJson('/api/v1/order-drafts', ['kind' => 'upload', 'data' => ['team_name' => 'Hawks', 'contact_name' => 'Fab', 'phone' => '+61 412 345 678', 'needed_by' => $due, 'delivery' => 'pickup']])->json('data.id');
         $csvId = $this->post("/api/v1/order-drafts/{$draft2}/files", ['kind' => 'order_form', 'file' => UploadedFile::fake()->createWithContent('o.csv', "Item,Size,Qty\nHoodie,XL,6\n")], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
         // A garment's own files stay linked to it (only the draft's own files: 999999 is dropped).
         $this->postJson("/api/v1/order-drafts/{$draft2}/submit", ['items' => [['garment' => 'hoodie', 'sizes' => ['XL' => 6], 'file_ids' => [$csvId, 999999]]]], ['Idempotency-Key' => 'upload-key-2'])

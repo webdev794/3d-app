@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Order;
+use App\Support\OrderDelivery;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -34,6 +35,10 @@ class OrderRequest extends FormRequest
             default => ['prohibited'],
         };
         $staff = fn (array $rules) => $admin ? ['sometimes', 'nullable', ...$rules] : ['prohibited'];
+        // Upload Your Order needs the date required, a mobile and delivery or pick up (client 2026-10-22); drafts save without them.
+        // The order form needs them too (client 2026-10-22).
+        $upload = in_array($source, ['form', 'upload'], true);
+        $delivery = fn (array $rules) => $admin ? ['prohibited'] : ['sometimes', 'nullable', ...$rules];
         // The customer's pricing choices (destination, extras, discount code): the payments feature's rules.
         $pricing = class_exists(\App\Services\Pricing\PricingService::class) ? \App\Services\Pricing\PricingService::choiceRules() : [];
 
@@ -49,11 +54,15 @@ class OrderRequest extends FormRequest
             'sizes.*' => ['integer', 'min:0', 'max:10000'],
             'contact_name' => [$required, 'string', 'max:120'],
             'contact_email' => ['sometimes', 'nullable', 'email', 'max:190'],
-            'phone' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'phone' => [$upload ? 'required' : 'sometimes', 'nullable', 'string', 'max:40'],
             'team_name' => [$byForm ? 'required' : 'sometimes', 'nullable', 'string', 'max:120'],
             'shipping_address' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:'.($byForm || $admin ? 4000 : 2000)],
-            'needed_by' => ['sometimes', 'nullable', 'date_format:Y-m-d', ...($admin ? [] : ['after_or_equal:today'])],
+            'needed_by' => [$upload ? 'required' : 'sometimes', 'nullable', 'date_format:Y-m-d', ...($admin ? [] : ['after_or_equal:today'])],
+            // Deliver to an address or pick up; kept on the order as its shipping_address text (App\Support\OrderDelivery).
+            'delivery' => $upload ? ['required', Rule::in(OrderDelivery::METHODS)] : $delivery([Rule::in(OrderDelivery::METHODS)]),
+            'address' => $delivery(['array:'.implode(',', OrderDelivery::ADDRESS_FIELDS)]),
+            'address.*' => ['nullable', 'string', 'max:200'],
             'items' => $items,
             'items.*' => ['array:garment,sport,fit,label,project_id,sizes,players,file_ids,name,quantity,thumbnail,project_name,project_version'],
             // The draft's artwork files chosen for this garment (kept with the row in the order).
@@ -122,6 +131,12 @@ class OrderRequest extends FormRequest
             'contact_email.email' => 'Check the email address.',
             'needed_by.after_or_equal' => 'The needed-by date can’t be in the past.',
             'needed_by.date_format' => 'Give the needed-by date as a date.',
+            'needed_by.required' => 'Choose the date you need the order by.',
+            'phone.required' => 'Add a mobile number so we can reach you.',
+            'delivery.required' => 'Choose delivery or pick up.',
+            'delivery.in' => 'Choose delivery or pick up.',
+            'address.array' => 'Send the delivery address as street, suburb, state, postcode and country.',
+            'address.*.max' => 'Each part of the address can be up to 200 characters.',
             'items.required' => 'Add at least one garment to the order.',
             'items.min' => 'Add at least one garment to the order.',
             'items.max' => 'An order form can have up to '.Order::MAX_ITEMS.' garments.',
@@ -151,6 +166,17 @@ class OrderRequest extends FormRequest
         return [function ($validator) {
             if ($this->names() !== 'list' && $this->has('sizes') && ! $this->filled('items') && array_sum(array_map('intval', (array) $this->input('sizes'))) < 1) {
                 $validator->errors()->add('sizes', 'Add at least one garment to the order.');
+            }
+            // Upload Your Order: a sensible mobile number, and the full address when delivering.
+            if (! $this->routeIs('admin.*') && in_array($this->source(), ['form', 'upload'], true)) {
+                if ($this->filled('phone') && ! $validator->errors()->has('phone') && ! OrderDelivery::validMobile((string) $this->input('phone'))) {
+                    $validator->errors()->add('phone', OrderDelivery::MOBILE_MESSAGE);
+                }
+                if ($this->input('delivery') === 'deliver' && ! $validator->errors()->has('address')) {
+                    foreach (OrderDelivery::addressErrors($this->input('address')) as $field => $message) {
+                        $validator->errors()->add("address.$field", $message);
+                    }
+                }
             }
             // Every garment row has a quantity.
             foreach (is_array($this->input('items')) ? array_values($this->input('items')) : [] as $i => $item) {

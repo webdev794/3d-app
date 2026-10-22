@@ -47,7 +47,7 @@ void main() {
     (tester) async {
       final c = AppController()..screen = AppScreen.home;
       await mountPhone(tester, c);
-      await tapText(tester, 'START DESIGNING');
+      await tapText(tester, 'OPEN 3D DESIGNER');
       expect(c.screen, AppScreen.sport);
       await tester.pumpAndSettle();
 

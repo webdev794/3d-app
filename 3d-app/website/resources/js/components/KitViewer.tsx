@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { ApiError, fetchFile, getToken } from '../api';
 
-export type Garment = 'jersey' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'singlet' | 'shorts' | 'fullkit';
+export type Garment = 'jersey' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'varsity' | 'trackjacket' | 'singlet' | 'shorts' | 'fullkit';
 export type View = 'front' | 'side' | 'back';
 /** Colour / pattern areas; 'pocket' only on the pocket polo (pool and darts shirts). */
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem' | 'pocket' | 'hood';
@@ -9,8 +9,52 @@ export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem' | 'pocket' | 'h
  * kangaroo pocket and the zip. Unset, the hood and pocket follow the body, the lining and zip the Secondary colour. */
 export type HoodieArea = 'hood' | 'lining' | 'rib' | 'pocket' | 'zip';
 export const isHoodie = (garment: string) => garment === 'hoodie' || garment === 'ziphoodie';
+/** The varsity (letterman) jacket's own colour areas (Design.zoneColors): the wool body, the leather sleeves, the rib
+ * collar, cuffs and waistband and their stripes, the snaps, the welt pockets' trim and the quilted lining. */
+export type VarsityArea = 'body' | 'sleeves' | 'rib' | 'ribStripe' | 'snaps' | 'pocketTrim' | 'lining';
+export const isVarsity = (garment: string) => garment === 'varsity';
+/** VARSITY AREAS in the Studio, the kit page and the Design sheet, with what each follows while unset. */
+export const varsityAreas: { key: VarsityArea; label: string; follows: 'Primary' | 'Secondary' | 'Sleeves' }[] = [
+    { key: 'body', label: 'Body (wool)', follows: 'Primary' }, { key: 'sleeves', label: 'Sleeves (leather)', follows: 'Secondary' },
+    { key: 'rib', label: 'Collar, cuffs & waistband', follows: 'Primary' }, { key: 'ribStripe', label: 'Rib stripes', follows: 'Sleeves' },
+    { key: 'snaps', label: 'Snaps', follows: 'Primary' }, { key: 'pocketTrim', label: 'Pocket trim', follows: 'Sleeves' },
+    { key: 'lining', label: 'Quilted lining', follows: 'Secondary' },
+];
+/** A varsity area's colour: its own, else what it follows (as the 3D viewer paints it). */
+export function varsityColour(design: { main?: string; secondary?: string; zoneColors?: Record<string, string | undefined> | null }, key: VarsityArea): string {
+    const hex = (v?: string) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
+    const own = hex(design.zoneColors?.[key]);
+    if (own) return own;
+    const follows = varsityAreas.find(a => a.key === key)?.follows ?? 'Primary';
+    if (follows === 'Sleeves') return hex(design.zoneColors?.sleeves) ?? design.secondary ?? '#ffffff';
+    return (follows === 'Secondary' ? design.secondary : design.main) ?? '#ffffff';
+}
+/** The track suit jacket's own colour areas (Design.zoneColors): the body, the shoulder and sleeve panels, the side
+ * panels, the sleeve stripe, the collar (or hood: Design.trackStyle), the rib cuffs and hem band and the zips. */
+export type TrackArea = 'body' | 'shoulder' | 'side' | 'stripe' | 'collar' | 'cuffs' | 'zip';
+export const isTrack = (garment: string) => garment === 'trackjacket';
+/** TRACK JACKET AREAS in the Studio, the kit page and the Design sheet, with what each follows while unset. */
+export const trackAreas: { key: TrackArea; label: string; follows: 'Primary' | 'Secondary' | 'Accent' | 'Body' }[] = [
+    { key: 'body', label: 'Body', follows: 'Primary' }, { key: 'shoulder', label: 'Shoulder & sleeve panels', follows: 'Secondary' },
+    { key: 'side', label: 'Side panels', follows: 'Secondary' }, { key: 'stripe', label: 'Sleeve stripe', follows: 'Accent' },
+    { key: 'collar', label: 'Collar', follows: 'Body' }, { key: 'cuffs', label: 'Cuffs & hem band', follows: 'Body' },
+    { key: 'zip', label: 'Zips', follows: 'Secondary' },
+];
+/** The collar area's label: the hood when the jacket has one. */
+export const trackAreaLabel = (key: TrackArea, trackStyle?: string | null) => (key === 'collar' && trackStyle === 'hood' ? 'Hood' : trackAreas.find(a => a.key === key)?.label ?? key);
+/** A track jacket area's colour: its own, else what it follows (as the 3D viewer paints it). */
+export function trackColour(design: { main?: string; secondary?: string; accent?: string; zoneColors?: Record<string, string | undefined> | null }, key: TrackArea): string {
+    const hex = (v?: string) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
+    const own = hex(design.zoneColors?.[key]);
+    if (own) return own;
+    const follows = trackAreas.find(a => a.key === key)?.follows ?? 'Primary';
+    if (follows === 'Body') return hex(design.zoneColors?.body) ?? design.main ?? '#ffffff';
+    return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
+}
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-15';
+const VIEWER_VERSION = '2026-10-20-20';
+/** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
+const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
 export interface ArtworkLayer {
     id: string; name?: string; type: 'image' | 'text' | 'shape';
@@ -58,8 +102,10 @@ export interface Design {
     gradient?: Gradient | null;
     gradients?: Partial<Record<'secondary' | 'patternColor', Gradient>> | null;
     zones?: Partial<Record<Zone, string>>;
-    /** Hoodies: each area's own colour (hex). */
-    zoneColors?: Partial<Record<HoodieArea, string>> | null;
+    /** Hoodies, the varsity jacket and the track jacket: each area's own colour (hex). */
+    zoneColors?: Partial<Record<HoodieArea | VarsityArea | TrackArea, string>> | null;
+    /** The track jacket's style: its stand-up collar (default) or a hood. */
+    trackStyle?: 'collar' | 'hood' | null;
     layers?: ArtworkLayer[];
     marks?: Record<string, MarkPlace>;
     layout?: DesignLayout | null;
@@ -92,7 +138,7 @@ export interface KitViewerHandle {
      * A new factory print layout (data URL of a PDF, SVG or picture, saved as asset `asset`): its panels are found and
      * checked on screen. Put it on the kit with the design's `layout` ({asset, name, roles, hemFold, parts}).
      */
-    checkLayout: (src: string, name: string, asset: number, options?: { drawing?: boolean; garment?: string }) => Promise<LayoutCheck>;
+    checkLayout: (src: string, name: string, asset: number, options?: { drawing?: boolean; garment?: string; known?: boolean }) => Promise<LayoutCheck>;
 }
 export interface LayoutCheck { cancelled?: boolean; roles?: string[]; hemFold?: boolean; joinLines?: boolean; parts?: string[]; kind?: 'drawing'; panels?: { role: string; label: string }[] }
 
@@ -373,7 +419,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             <iframe
                 key={attempt}
                 ref={iframe}
-                src={`${appBase}/media/viewer/index.html?host=${encodeURIComponent(host)}&still&mobile&layouts&v=${VIEWER_VERSION}`}
+                src={`${appBase}/media/viewer/index.html?host=${encodeURIComponent(host)}&still&mobile&layouts${viewerQuality()}&v=${VIEWER_VERSION}`}
                 title="Interactive 3D kit preview. Drag to rotate and scroll to zoom."
                 allow="fullscreen"
                 style={{ width: '100%', height: '100%', minHeight: 260, display: 'block', border: 0 }}

@@ -65,7 +65,13 @@ class _AssistOverlayState extends State<AssistOverlay> {
       final tool =
           a.app.screen == AppScreen.studio ||
           a.app.screen == AppScreen.artboard;
-      final bottom = tool ? 172.0 : 92.0;
+      // YOUR DESIGNS (AI results): beside the slim refine bar, clear of the
+      // large design and the download button.
+      final bottom = tool
+          ? 172.0
+          : a.app.screen == AppScreen.concepts
+          ? 11.0
+          : 92.0;
       const size = 50.0;
       return LayoutBuilder(
         builder: (context, box) => Stack(

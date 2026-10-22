@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Services\OpenAiDesigner;
+use App\Support\OrderDelivery;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,7 +28,12 @@ class SettingsController extends Controller
             'openai_image_model' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[A-Za-z0-9._\-]+$/'],
             'openai_planning_model' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[A-Za-z0-9._\-]+$/'],
             'openai_hd_image_model' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[A-Za-z0-9._\-]+$/'],
-        ], ['openai_key.regex' => 'That does not look like an OpenAI API key (it starts with sk-).']);
+            'production_lead_weeks' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:52'],
+        ], ['openai_key.regex' => 'That does not look like an OpenAI API key (it starts with sk-).',
+            'production_lead_weeks.integer' => 'Give the production lead time in whole weeks.', 'production_lead_weeks.max' => 'The production lead time can be up to 52 weeks.']);
+        if (array_key_exists('production_lead_weeks', $data)) {
+            Setting::put(OrderDelivery::LEAD_WEEKS_SETTING, $data['production_lead_weeks'] === null ? null : (string) $data['production_lead_weeks']);
+        }
 
         if ($request->boolean('clear_key')) {
             Setting::put('openai_key', null);
@@ -82,6 +88,8 @@ class SettingsController extends Controller
             // Empty: the text model plans designs and the image model renders HD.
             'planning_model' => config('services.openai.planning_model') ?: null,
             'hd_image_model' => config('services.openai.hd_image_model') ?: null,
+            // Orders: the usual production and delivery time (Upload Your Order and the order form warn before it).
+            'production_lead_weeks' => OrderDelivery::leadWeeks(),
         ];
     }
 }

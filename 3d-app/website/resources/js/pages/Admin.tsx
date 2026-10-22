@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, Eye, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, TriangleAlert, Users, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, Eye, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, TriangleAlert, Users, X, Clock } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type User } from '../api';
-import { KitViewer, defaultDesign, type Design, type KitViewerHandle } from '../components/KitViewer';
+import { KitViewer, defaultDesign, varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, type Design, type KitViewerHandle } from '../components/KitViewer';
 import { Columns3 } from 'lucide-react';
 import AdminOrderBoard from './AdminOrderBoard';
+import OrderFormReading from '../components/OrderFormReading';
+import type { OrderFile, OrderItem, Payment } from '../orderApi';
+import { GarmentReviewSection, ReviewSummaryChip, artworkOf, aud, priceRowsFromPayment, reviewGarmentsFrom, reviewLayoutFor, useGarmentMockups } from '../components/OrderReviewGarments';
+import type { Project } from '../api';
 import SupportPanel from './AdminSupport';
 import { LifeBuoy } from 'lucide-react';
 import { InvoicesAdmin, PricingAdmin } from './AdminPricing';
@@ -17,10 +21,11 @@ export interface AdminUser extends User { is_admin: boolean; is_designer?: boole
 export interface Order {
   id: number; number: string; user_id: number; project_id: number | null; status: string; sizes: Record<string, number>;
   quantity: number; unit_price: string | null; total: string | null; currency: string; contact_name: string; phone: string | null;
-  shipping_address: string | null; notes: string | null; admin_notes?: string | null; created_at: string;
+  shipping_address: string | null; needed_by?: string | null; notes: string | null; admin_notes?: string | null; created_at: string;
   user?: { id: number; name: string; email: string }; project?: { id: number; name: string; sport: string; garment: string; status?: string; version?: number; thumbnail?: string | null } | null;
   /** Names and numbers on the back: the same on every shirt (players holds the one), a list (one per player) or none. */
   names?: BackNames | null; players?: Player[] | null; /** The kit's version when it was ordered. */ project_version?: number | null;
+  /** The invoice at a glance (total, paid, status); none before the order has one. */ payment?: Payment | null;
 }
 export type BackNames = 'same' | 'list' | 'none';
 /** One shirt's back: a list row has its size. */
@@ -31,7 +36,7 @@ interface TrendPoint { day: string; kits: number; orders: number }
 interface Stats { partners: number; new_partners: number; users: number; admins: number; projects: number; orders: number; approved: number; quotes: number; garments: number; revenue: number; by_status: Record<string, number>; recent: Order[]; trend: TrendPoint[]; sports: { sport: string; count: number }[] }
 interface Partner { id: number; company: string; name: string; email: string; phone: string | null; website: string | null; message: string | null; status: string; created_at: string }
 const PARTNER_STATUSES = ['new', 'contacted', 'onboarding', 'live', 'declined'];
-interface ApiSettings { configured: boolean; source: string; masked_key: string | null; text_model: string; image_model: string; planning_model?: string | null; hd_image_model?: string | null }
+interface ApiSettings { configured: boolean; source: string; masked_key: string | null; text_model: string; image_model: string; planning_model?: string | null; hd_image_model?: string | null; production_lead_weeks?: number }
 interface DbInfo { driver: string; size: number | null; uploads: number; tables: { name: string; rows: number }[]; expired_tokens: number; php: string; laravel: string; backup: boolean }
 
 export const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
@@ -219,10 +224,12 @@ function SettingsPanel({ state, onSaved, onNotice }: { state: ApiSettings | null
   /** Empty: design planning uses the text model, HD renders the image model. */
   const [planning, setPlanning] = useState('');
   const [hdImage, setHdImage] = useState('');
+  /** Orders: the usual production and delivery time (a sooner date required gets a gentle warning). */
+  const [lead, setLead] = useState('4');
   const [busy, setBusy] = useState<'save' | 'test' | null>(null);
   const [error, setError] = useState('');
   const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
-  useEffect(() => { if (state) { setText(state.text_model); setImage(state.image_model); setPlanning(state.planning_model ?? ''); setHdImage(state.hd_image_model ?? ''); } }, [state]);
+  useEffect(() => { if (state) { setText(state.text_model); setImage(state.image_model); setPlanning(state.planning_model ?? ''); setHdImage(state.hd_image_model ?? ''); setLead(String(state.production_lead_weeks ?? 4)); } }, [state]);
   async function save(body: Record<string, unknown>, message: string) {
     setBusy('save'); setError(''); setTest(null);
     try { onSaved(await api<ApiSettings>('/admin/settings', { method: 'PUT', body: JSON.stringify(body) })); setKey(''); onNotice(message); }
@@ -245,6 +252,13 @@ function SettingsPanel({ state, onSaved, onNotice }: { state: ApiSettings | null
         <div className="field-row"><label className="field">Image model<input value={image} onChange={e => setImage(e.target.value)} /><span className="field-hint">The four designs and print sheets.</span></label><label className="field">HD image model<input value={hdImage} onChange={e => setHdImage(e.target.value)} placeholder={`Same as the image model (${image || 'image model'})`} /><span className="field-hint">HD primary, Make HD and the image editor.</span></label></div>
         {error && <p className="error-message">{error}</p>}
         <button className="button button-gradient full-width" disabled={busy !== null}>{busy === 'save' && <LoaderCircle className="spin" size={15} />}SAVE SETTINGS</button>
+      </form>
+    </section>
+    <section className="glow-panel admin-card"><h2><Clock size={18} /> Orders</h2>
+      <form className="admin-form" onSubmit={e => { e.preventDefault(); void save({ production_lead_weeks: Number(lead) }, 'Production lead time saved.'); }}>
+        <label className="field">Production lead time (weeks)<input type="number" name="production_lead_weeks" min={0} max={52} step={1} required value={lead} onChange={e => setLead(e.target.value)} />
+          <span className="field-hint">Upload Your Order and Create Order Form show a gentle warning when the date required is sooner (the order can still be sent). 0 turns the warning off.</span></label>
+        <button className="button button-outline full-width" disabled={busy !== null}>SAVE LEAD TIME</button>
       </form>
     </section>
   </div>;
@@ -360,7 +374,7 @@ function OrdersPanel({ onNotice }: { onNotice: (text: string) => void }) {
       <button className="button button-gradient" onClick={() => setEditing('new')}><Plus size={16} /> Add order</button></div>
     {error && <p className="error-message">{error}</p>}
     {!result ? <div className="empty-state"><LoaderCircle className="spin" /></div> : <div className="table-wrap"><table className="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>Kit</th><th>Sizes</th><th>Total</th><th>Status</th><th>Date</th><th /></tr></thead><tbody>
-      {result.data.map(o => <tr key={o.id}><td><strong>{o.number}</strong></td><td>{o.user?.name}<small className="cell-sub">{o.user?.email}</small></td><td>{o.project ? <div className="order-kit"><Link to={`/admin/orders/${o.id}`} className="order-kit-thumb" aria-label={`View the kit of ${o.number}`}>{o.project.thumbnail ? <img src={o.project.thumbnail} alt="" loading="lazy" /> : <Package size={20} />}</Link><div><strong>{o.project.name}</strong><Link className="order-kit-link" to={`/admin/orders/${o.id}`}>View kit</Link></div></div> : <span className="muted">No kit</span>}</td><td>{o.quantity}<small className="cell-sub">{sizeSummary(o.sizes)}</small>{o.names === 'list' && o.players?.length ? <small className="cell-sub">{o.players.length} player{o.players.length === 1 ? '' : 's'}</small> : null}</td><td>{money(o.total, o.currency)}</td>
+      {result.data.map(o => <tr key={o.id}><td><strong>{o.number}</strong></td><td>{o.user?.name}<small className="cell-sub">{o.user?.email}</small></td><td>{o.project ? <div className="order-kit"><Link to={`/admin/orders/${o.id}`} className="order-kit-thumb" aria-label={`View the kit of ${o.number}`}>{o.project.thumbnail ? <img src={o.project.thumbnail} alt="" loading="lazy" /> : <Package size={20} />}</Link><div><strong>{o.project.name}</strong><Link className="order-kit-link" to={`/admin/orders/${o.id}`}>View kit</Link></div></div> : <span className="muted">No kit</span>}</td><td>{o.quantity}<small className="cell-sub">{sizeSummary(o.sizes)}</small>{o.names === 'list' && o.players?.length ? <small className="cell-sub">{o.players.length} player{o.players.length === 1 ? '' : 's'}</small> : null}</td><td data-testid="order-total">{orderPrice(o)}{o.payment && o.payment.status !== 'quote_required' && <small className="cell-sub">{orderPill(o)[0]}{Number(o.payment.amount_paid) > 0 && o.payment.status !== 'paid' ? ` · ${aud(o.payment.amount_paid, o.payment.currency)} paid` : ''}</small>}</td>
         <td><select className={`status-select s-${o.status}`} value={o.status} onChange={e => quickStatus(o, e.target.value)} aria-label={`Status of ${o.number}`}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></td><td>{date(o.created_at)}</td>
         <td className="row-actions"><button className="icon-button" onClick={() => navigate(`/admin/orders/${o.id}`)} aria-label={`View the kit of ${o.number}`} title="View kit"><Eye size={15} /></button><button className="icon-button" onClick={() => setEditing(o)} aria-label={`Edit ${o.number}`}><Pencil size={15} /></button><button className="icon-button danger" aria-label={`Delete ${o.number}`} onClick={() => confirmDelete(`order ${o.number}`, () => api(`/admin/orders/${o.id}`, { method: 'DELETE' }), () => { onNotice('Order deleted.'); reload(); }, onNotice)}><Trash2 size={15} /></button></td></tr>)}
       {!result.data.length && <tr><td colSpan={8} className="muted">No orders found.</td></tr>}
@@ -373,7 +387,29 @@ function OrdersPanel({ onNotice }: { onNotice: (text: string) => void }) {
 /** A kit as saved: the design may also hold the AI brief (prompt) and AI photo renders. */
 type SavedDesign = Partial<Design> & { prompt?: string; renderFront?: string | null; renderBack?: string | null };
 interface KitProject { id: number; name: string; sport: string; garment: string; mode?: string; status?: string; version?: number; thumbnail?: string | null; design?: SavedDesign; updated_at?: string }
-interface KitOrder extends Omit<Order, 'project'> { project?: KitProject | null; /** The kit as it was ordered. */ design_snapshot?: Pick<KitProject, 'name' | 'sport' | 'garment' | 'mode' | 'design' | 'thumbnail'> | null }
+interface KitOrder extends Omit<Order, 'project'> {
+  project?: KitProject | null; /** The kit as it was ordered. */ design_snapshot?: Pick<KitProject, 'name' | 'sport' | 'garment' | 'mode' | 'design' | 'thumbnail'> | null;
+  /** The order's invoice at a glance (OrderView::payment); null before it has one. */ payment?: Payment | null;
+  /** The order form's garment rows (Create Order Form, an upload as AI read it); none for a Studio "Order this kit". */ items?: (OrderItem & { file_ids?: number[] })[] | null;
+  /** The saved designs on those rows. */ item_projects?: KitProject[]; files?: OrderFile[];
+}
+/** The payment as the kit page's pill shows it: words and the colour class. */
+const PAY_PILL: Record<string, [string, string]> = {
+  paid: ['Paid', 'delivered'], part_paid: ['Part paid', 'confirmed'], awaiting_payment: ['Awaiting payment', 'pending'],
+  quote_required: ['Quote pending', 'pending'], refunded: ['Refunded', 'cancelled'], cancelled: ['Invoice cancelled', 'cancelled'],
+};
+/** The pill: the invoice's payment; an older order without one: "Quote pending" until priced, else its status. */
+function orderPill(order: Pick<KitOrder, 'payment' | 'total' | 'status'>): [string, string] {
+  const pay = order.payment;
+  if (pay) return PAY_PILL[pay.status] ?? [pay.label || 'Payment', 'pending'];
+  return order.total === null || order.total === undefined || order.total === '' ? ['Quote pending', 'pending'] : [statusLabel(order.status), order.status];
+}
+/** The order's price in words: the invoice total (A$), "Quote pending", or the older orders' own total. */
+function orderPrice(order: Pick<KitOrder, 'payment' | 'total' | 'currency'>): string {
+  const pay = order.payment;
+  if (pay) return pay.status === 'quote_required' || pay.total === null || pay.total === '' ? 'Quote pending' : aud(pay.total, pay.currency);
+  return money(order.total, order.currency);
+}
 /** The back as printed for this order, for its pictures: the same name and number (or a list's first player), or none. */
 function printedBack(order: KitOrder, d: SavedDesign): Partial<Design> {
   const mark = (key: string, hide: boolean) => ({ ...d.marks?.[key], hidden: hide || !!d.marks?.[key]?.hidden });
@@ -408,6 +444,20 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
   // A different kit (or a newer save of it): draw its pictures again.
   useEffect(() => { setShots({ state: 'drawing' }); }, [project?.id, project?.updated_at]);
   const design = useMemo<Design | null>(() => (project && order ? { ...defaultDesign, ...project.design, garment: project.garment as Design['garment'], ...printedBack(order, project.design ?? {}) } : null), [project?.id, project?.updated_at]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The order form's garments, one by one (several styles, or rows without the ordered kit): each with its own design
+  // picture or artwork, name, colours and fit, sizes and players. A Studio "Order this kit" order has no rows.
+  const items = order?.items ?? [];
+  const perGarment = items.length > 1 || (items.length === 1 && (!project || items[0].project_id !== project.id));
+  const garments = useMemo(() => {
+    if (!order || !perGarment) return [];
+    // The ordered kit as it was ordered; the other rows' designs as they are now.
+    const projects = [...(order.item_projects ?? []).filter(p => p.id !== project?.id), ...(project ? [project] : [])] as unknown as Project[];
+    return reviewGarmentsFrom({ items, projects, artwork: artworkOf(order.files), options: catalog ? { sports: catalog.sports, garments: catalog.garments } : null });
+  }, [order, perGarment, project?.id, project?.updated_at, catalog]); // eslint-disable-line react-hooks/exhaustive-deps
+  // One matching kit (a top and shorts of one design) still shows the kit's own Front / Back / Kit pictures.
+  const showPictures = !!project && (!garments.length || reviewLayoutFor(order) === 'kit');
+  // Drawn one at a time, after the kit's own pictures (one 3D viewer at a time).
+  const mockups = useGarmentMockups(garments, perGarment && !(showPictures && shots.state === 'drawing'));
   async function draw() {
     try {
       const front = await viewer.current!.capture('front'), back = await viewer.current!.capture('back');
@@ -439,10 +489,23 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
   if (shownImage(d.renderFront)) pictures.push(['AI front render', d.renderFront]);
   if (shownImage(d.renderBack)) pictures.push(['AI back render', d.renderBack]);
   const colours: [string, string | undefined][] = [['Main', d.main], ['Secondary', d.secondary], ['Accent', d.accent], ['Pattern colour', d.patternColor], ...(d.gradient ? [['Gradient from', d.gradient.from], ['Gradient to', d.gradient.to]] as [string, string][] : []),
-    ...Object.entries(d.zoneColors ?? {}).filter(([, c]) => typeof c === 'string' && c).map(([area, c]) => [AREA_NAMES[area] ?? area, c] as [string, string])];
+    // The varsity jacket: every VARSITY AREA as the kit shows it; a hoodie: the areas given their own colour.
+    ...(project?.garment === 'varsity' ? varsityAreas.map(a => [a.label, varsityColour(d, a.key)] as [string, string]) : project?.garment === 'trackjacket' ? trackAreas.map(a => [trackAreaLabel(a.key, d.trackStyle), trackColour(d, a.key)] as [string, string]) : Object.entries(d.zoneColors ?? {}).filter(([, c]) => typeof c === 'string' && c).map(([area, c]) => [AREA_NAMES[area] ?? area, c] as [string, string]))];
   const zones = Object.entries(d.zones ?? {}).filter(([, v]) => v && v !== 'None');
   const layers = d.layers ?? [];
   const ordered = SIZES.filter(s => (order.sizes[s] ?? 0) > 0);
+  const pill = orderPill(order);
+  const pay = order.payment ?? null;
+  // The invoice's rows (Invoice, Total, Paid, Amount due) once priced; older orders: their unit price and total.
+  const priceRows: [string, string][] = pay && pay.status !== 'quote_required' ? priceRowsFromPayment(pay).map(([k, v]) => [k === 'Total' ? 'Order total' : k, v])
+    : pay ? [['Invoice', `${pay.invoice_number ?? '—'} · ${pay.label}`], ['Unit price', 'Quote pending'], ['Order total', 'Quote pending']]
+    : [['Unit price', money(order.unit_price, order.currency)], ['Order total', money(order.total, order.currency)]];
+  if (pay && pay.status !== 'quote_required' && order.unit_price) priceRows.splice(1, 0, ['Unit price', money(order.unit_price, order.currency)]);
+  // Names and numbers given on the garment rows (an upload as AI read it, the Create Order Form).
+  const rowPlayers = garments.length ? garments.flatMap(g => (g.players ?? []).map(p => ({ ...p, garment: g.name })))
+    : items.flatMap(it => (it.players ?? []).filter(p => p && (p.name || p.number || p.size)).map(p => ({ ...p, garment: it.name ?? it.garment })));
+  const playerGarments = new Set(rowPlayers.map(p => p.garment)).size;
+  const usedBy = project ? items.map((it, i) => (it.project_id === project.id ? i + 1 : 0)).filter(Boolean) : [];
   const editButton = <button className="button button-gradient" onClick={() => setEditing(true)}><Pencil size={15} /> Edit order, price or status</button>;
 
   return <div className="kit-page">
@@ -450,8 +513,8 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
       <div className="kit-head">
         {back}
         <h2>{order.number}</h2>
-        <span className={`status-pill s-${order.status}`}>{statusLabel(order.status)}</span>
-        <span className="muted">Placed {date(order.created_at)} · {order.quantity} garment{order.quantity === 1 ? '' : 's'} · {money(order.total, order.currency)}</span>
+        <span className={`status-pill s-${pill[1]}`} data-testid="kit-pill">{pill[0]}</span>
+        <span className="muted">Placed {date(order.created_at)} · {order.quantity} garment{order.quantity === 1 ? '' : 's'} · {orderPrice(order)}</span>
         <div className="kit-head-actions">
           <select className={`status-select s-${order.status}`} value={order.status} onChange={e => setStatus(e.target.value)} aria-label={`Status of ${order.number}`}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
           {editButton}
@@ -459,17 +522,27 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
       </div>
     </section>
 
+    {/* An uploaded order form as 3DEEZI AI read it (garments, sizes, players), with the original file one click away. */}
+    <OrderFormReading files={order.files ?? []} onError={onNotice} />
+
+    {garments.length > 0 && <section className="glow-panel admin-card kit-garments" data-testid="kit-garments">
+      <div className="card-head"><h2>Garments</h2><ReviewSummaryChip garments={garments} /></div>
+      <div className="orm-sections">{garments.map((g, i) => <GarmentReviewSection key={g.key} garment={g} index={i} mockup={mockups.shots[i]} staff />)}</div>
+      {mockups.renderer}
+    </section>}
+
     {project ? <>
       <section className="glow-panel admin-card">
         <div className="card-head"><h2>{project.name}</h2>{current ? <span className={`status-pill s-${approved ? 'delivered' : 'pending'}`}>{approved ? 'Approved' : 'Draft'}</span> : <span className="status-pill s-cancelled">Project deleted</span>}</div>
         {changed && <p className="kit-note"><TriangleAlert size={16} /> The customer changed this kit after ordering (it is now v{current!.version}). This page shows v{order.project_version}, as ordered.</p>}
         {kept && !current && <p className="kit-note"><TriangleAlert size={16} /> The customer deleted this kit after ordering. This page shows it as ordered.</p>}
-        <div className="kit-shots">{pictures.map(([label, src]) => <figure key={label}>
+        {!showPictures && <p className="kit-note"><TriangleAlert size={16} /> This order lists its garments one by one: these are the details of the design “{project.name}”{usedBy.length ? ` (garment ${usedBy.join(', ')})` : ''}. Each garment's own pictures, sizes and players are under Garments above.</p>}
+        {showPictures && <div className="kit-shots">{pictures.map(([label, src]) => <figure key={label}>
           {src ? <button className="kit-shot" onClick={() => setZoom({ label, src })} aria-label={`Show the ${label.toLowerCase()} picture larger`}><img src={src} alt={`${label} of ${project.name}`} /></button>
             : shots.state === 'drawing' ? <div className="kit-shot wait"><LoaderCircle className="spin" /> Drawing the {label.toLowerCase()}…</div>
             : <div className="kit-shot none">{shots.state === 'failed' ? 'The 3D picture could not be drawn on this computer.' : 'No picture saved.'}</div>}
           <figcaption>{label}{src && <a className="icon-button" href={src} download={`${order.number}-${label.toLowerCase().replace(/\s+/g, '-')}.${fileType(src)}`} aria-label={`Download the ${label.toLowerCase()} picture`} title="Download"><Download size={14} /></a>}</figcaption>
-        </figure>)}</div>
+        </figure>)}</div>}
       </section>
 
       <div className="admin-grid">
@@ -499,19 +572,20 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
           {d.prompt ? <p className="kit-brief">“{d.prompt}”</p> : <p className="muted">No AI brief: this kit was designed by hand.</p>}
         </section>
       </div>
-    </> : <section className="glow-panel admin-card"><h2>No kit</h2><p className="muted">No kit is linked to this order. Use “Edit order, price or status” to choose one of the customer's kits.</p></section>}
+    </> : garments.length > 0 ? null : <section className="glow-panel admin-card"><h2>No kit</h2><p className="muted">No kit is linked to this order. Use “Edit order, price or status” to choose one of the customer's kits.</p></section>}
 
     <div className="admin-grid">
-      <section className="glow-panel admin-card"><h2>Sizes and quantities</h2>
+      <section className="glow-panel admin-card"><h2>Sizes and quantities{garments.length > 1 ? ' (all garments)' : ''}</h2>
         <table className="admin-table compact kit-sizes"><thead><tr><th>Size</th><th>Quantity</th></tr></thead>
           <tbody>{ordered.map(s => <tr key={s}><td>{s}</td><td>{order.sizes[s]}</td></tr>)}</tbody>
-          <tfoot><tr><td>Total</td><td>{order.quantity}</td></tr><tr><td>Unit price</td><td>{money(order.unit_price, order.currency)}</td></tr><tr><td>Order total</td><td>{money(order.total, order.currency)}</td></tr></tfoot>
+          <tfoot><tr><td>Total</td><td>{order.quantity}</td></tr>{priceRows.map(([k, v]) => <tr key={k} data-testid="kit-price-row"><td>{k}</td><td>{v}</td></tr>)}</tfoot>
         </table>
       </section>
       <section className="glow-panel admin-card"><h2>Customer</h2><dl className="kit-dl">
         <dt>Account</dt><dd>{order.user?.name ?? '—'}{order.user?.email && <small><a href={`mailto:${order.user.email}`}>{order.user.email}</a></small>}</dd>
         <dt>Contact</dt><dd>{order.contact_name}</dd>
         <dt>Phone</dt><dd>{order.phone ? <a href={`tel:${order.phone.replace(/[^\d+]/g, '')}`}>{order.phone}</a> : '—'}</dd>
+        <dt>Date required</dt><dd>{order.needed_by ? new Date(`${order.needed_by}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</dd>
         <dt>Delivery address</dt><dd className="kit-pre">{order.shipping_address || '—'}</dd>
         <dt>Notes</dt><dd className="kit-pre">{order.notes || '—'}</dd>
         {order.admin_notes && <><dt>Internal notes</dt><dd className="kit-pre">{order.admin_notes}</dd></>}
@@ -525,13 +599,18 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
           <tbody>{order.players.map((p, i) => <tr key={i}><td>{i + 1}</td><td>{p.name || '—'}</td><td>{p.number || '—'}</td><td>{p.size}</td></tr>)}</tbody></table></div>
       </> : order.names === 'same' ? <dl className="kit-dl"><dt>Choice</dt><dd>The same on every shirt</dd><dt>Name</dt><dd>{sameBack?.name || '—'}</dd><dt>Number</dt><dd>{sameBack?.number || '—'}</dd></dl>
         : order.names === 'none' ? <p>No name or number on the back.</p>
+        : rowPlayers.length ? <>
+          <p className="muted">Given with the garments · {rowPlayers.length} player{rowPlayers.length === 1 ? '' : 's'}</p>
+          <div className="table-wrap"><table className="admin-table compact kit-players" data-testid="kit-row-players"><thead><tr><th>#</th>{playerGarments > 1 && <th>Garment</th>}<th>Name</th><th>Number</th><th>Size</th></tr></thead>
+            <tbody>{rowPlayers.map((p, i) => <tr key={i}><td>{i + 1}</td>{playerGarments > 1 && <td>{p.garment}</td>}<td>{p.name || '—'}</td><td>{p.number || '—'}</td><td>{p.size || '—'}</td></tr>)}</tbody></table></div>
+        </>
         : <p className="muted">Not given with this order. Check the notes.</p>}
     </section>
 
     <div className="kit-foot">{back}{editButton}</div>
     {editing && <OrderForm order={order as Order} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); onNotice('Order saved.'); load(); }} />}
     {zoom && <Modal title={`${order.number} · ${zoom.label}`} wide onClose={() => setZoom(null)}><div className="kit-zoom"><img src={zoom.src} alt={`${zoom.label} of ${project?.name ?? 'the kit'}`} /></div></Modal>}
-    {design && shots.state === 'drawing' && <div className="kit-capture" aria-hidden><KitViewer ref={viewer} design={design} onReady={draw} /></div>}
+    {design && showPictures && shots.state === 'drawing' && <div className="kit-capture" aria-hidden><KitViewer ref={viewer} design={design} onReady={draw} /></div>}
   </div>;
 }
 

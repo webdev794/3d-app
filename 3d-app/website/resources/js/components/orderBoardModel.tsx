@@ -38,6 +38,8 @@ export interface BoardOrder {
   tracking: Tracking | null; action: 'review_design' | 'track_delivery' | null; completed: boolean; payment: PaymentSummary | null;
   /** The first artwork or proof picture: shown when no garment has a design picture. */
   cover: string | null;
+  /** The date required (YYYY-MM-DD), when the customer gave one. */
+  needed_by?: string | null;
 }
 export interface OrderFile {
   id: number; kind: string; name: string; extension: string; mime_type: string; size: number | null; thumb: string | null; download: string; created_at: string | null;
@@ -151,7 +153,7 @@ export function readBoardOrder(raw: unknown): BoardOrder | null {
     status, stage, sub_status: sub ? { key: str(sub.key, fallback.key), label: str(sub.label, fallback.label), tone: toneOf(sub.tone, fallback.tone) } : fallback, approval,
     quantity: num(o.quantity), garments: readGarments(o, project), submitted_at: str(o.submitted_at ?? o.created_at), updated_at: str(o.updated_at ?? o.created_at),
     latest_update: latest && str(latest.text) ? { kind: str(latest.kind), text: str(latest.text), at: str(latest.at ?? latest.created_at) } : null,
-    tracking, action, completed: o.completed === true || stage === 'cancelled', payment: readPayment(o), cover: strOrNull(o.cover),
+    tracking, action, completed: o.completed === true || stage === 'cancelled', payment: readPayment(o), cover: strOrNull(o.cover), needed_by: strOrNull(o.needed_by),
   };
 }
 
@@ -228,7 +230,7 @@ export function readBoard(raw: unknown, view: 'current' | 'completed'): BoardDat
 
 /* ------------------------------------------------------------------------------------------- words and dates */
 
-const GARMENT_NAMES: Record<string, string> = { jersey: 'Jersey', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', jacket: 'Jacket', warmup: 'Warm-up top', pants: 'Track pants', socks: 'Socks', cap: 'Cap', fullkit: 'Full kit', other: 'Garment' };
+const GARMENT_NAMES: Record<string, string> = { jersey: 'Jersey', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket', jacket: 'Jacket', warmup: 'Warm-up top', pants: 'Track pants', socks: 'Socks', cap: 'Cap', fullkit: 'Full kit', other: 'Garment' };
 export const garmentName = (id: string) => GARMENT_NAMES[id] ?? (id ? id[0].toUpperCase() + id.slice(1) : 'Garment');
 /** "#3DZ-01048": the reference exactly as staff, emails and the admin board show it. */
 export const displayRef = (number: string) => `#${number}`;
@@ -298,7 +300,7 @@ const SHAPES: Record<string, { body: string; lines?: string }> = {
   other: { body: 'M28 30 60 14 92 30V92L60 108 28 92Z', lines: 'M28 30 60 46 92 30M60 46V108' },
   form: { body: 'M30 8H74L94 28V112H30Z', lines: 'M74 8V28H94M42 50H82M42 64H82M42 78H70M42 92H62' },
 };
-const SHAPE_OF: Record<string, string> = { jersey: 'tee', tee: 'tee', training: 'tee', fullkit: 'tee', polo: 'polo', pocketpolo: 'polo', singlet: 'singlet', hoodie: 'hoodie', ziphoodie: 'hoodie', jacket: 'jacket', warmup: 'jacket', shorts: 'shorts', pants: 'pants', socks: 'socks', cap: 'cap', form: 'form' };
+const SHAPE_OF: Record<string, string> = { jersey: 'tee', tee: 'tee', training: 'tee', fullkit: 'tee', polo: 'polo', pocketpolo: 'polo', singlet: 'singlet', hoodie: 'hoodie', ziphoodie: 'hoodie', varsity: 'jacket', trackjacket: 'jacket', jacket: 'jacket', warmup: 'jacket', shorts: 'shorts', pants: 'pants', socks: 'socks', cap: 'cap', form: 'form' };
 
 /** A drawn garment in the 3DEEZI colours, for an order row without a saved design picture. */
 export function GarmentIcon({ garment }: { garment: string }) {

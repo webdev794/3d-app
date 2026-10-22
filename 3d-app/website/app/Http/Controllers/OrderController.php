@@ -37,6 +37,8 @@ class OrderController extends Controller
                 'max_files' => OrderFile::MAX_FILES,
             ],
             'completed_after_days' => Order::COMPLETED_AFTER_DAYS,
+            // A date required sooner than this many weeks gets a gentle warning (Admin › Settings).
+            'lead_time_weeks' => \App\Support\OrderDelivery::leadWeeks(),
         ]]);
     }
 

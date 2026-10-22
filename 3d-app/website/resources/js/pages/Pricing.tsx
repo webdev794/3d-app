@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, CheckCircle2, ClipboardList, Handshake, LoaderCircle, MessagesSquare, Rocket, Shirt, Sparkles, Wand2, X } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, ClipboardList, Handshake, LoaderCircle, MessagesSquare, Rocket, Shirt, Sparkles, Users, Wand2, X } from 'lucide-react';
 import { api, media } from '../api';
 
+/**
+ * The plans. `team` is the plan's 3DEEZI TEAM (real designers) line, as in TeamPlans.php's defaults (client 2026-10-22:
+ * Rookie A$100 a design, Creator A$49.95, Club 15 included a month, Pro Studio 30; all admin-editable on the server).
+ */
 const plans = [
-  { id: 'rookie', name: 'Rookie', tag: 'Try it free', monthly: 0, yearly: 0, credits: 20, features: ['Unlimited 3D design studio', '3 saved projects', '20 AI credits each month', 'Standard-resolution exports', '3DEEZI watermark on AI images'] },
-  { id: 'creator', name: 'Creator', tag: 'For designers & coaches', monthly: 19, yearly: 190, credits: 250, features: ['Everything in Rookie', '250 AI credits each month', 'Unlimited projects & versions', 'HD exports, no watermark', 'Convert any image to 3D'] },
-  { id: 'club', name: 'Club', tag: 'For clubs & schools', monthly: 59, yearly: 590, credits: 900, popular: true, features: ['Everything in Creator', '900 AI credits each month', '5 team seats', 'Shared logo & asset library', 'Approval workflow for committees', 'Priority generation'] },
-  { id: 'pro', name: 'Pro Studio', tag: 'For brands & resellers', monthly: 149, yearly: 1490, credits: 3000, features: ['Everything in Club', '3,000 AI credits each month', '15 team seats', 'Brand kit & commercial licence', 'Custom branding on mockups', 'Dedicated support'] },
+  { id: 'rookie', name: 'Rookie', tag: 'Try it free', monthly: 0, yearly: 0, credits: 20, team: '3DEEZI TEAM designer: A$100 per design (incl. GST)', features: ['Unlimited 3D design studio', '3 saved projects', '20 AI credits each month', 'Standard-resolution exports', '3DEEZI watermark on AI images'] },
+  { id: 'creator', name: 'Creator', tag: 'For designers & coaches', monthly: 19, yearly: 190, credits: 250, team: '3DEEZI TEAM designer: A$49.95 per design (incl. GST)', features: ['Everything in Rookie', '250 AI credits each month', 'Unlimited projects & versions', 'HD exports, no watermark', 'Convert any image to 3D'] },
+  { id: 'club', name: 'Club', tag: 'For clubs & schools', monthly: 49.95, yearly: 499.5, credits: 900, popular: true, team: '3DEEZI TEAM designers included: 15 designs a month', features: ['Everything in Creator', '900 AI credits each month', '5 team seats', 'Shared logo & asset library', 'Approval workflow for committees', 'Priority generation'] },
+  { id: 'pro', name: 'Pro Studio', tag: 'For brands & resellers', monthly: 149, yearly: 1490, credits: 3000, team: '3DEEZI TEAM designers included: 30 designs a month', features: ['Everything in Club', '3,000 AI credits each month', '15 team seats', 'Brand kit & commercial licence', 'Custom branding on mockups', 'Dedicated support'] },
 ];
+/** A$19 stays whole; a price with cents shows them (A$49.95, A$499.50). */
+const dollars = (n: number) => Number.isInteger(n) ? String(n) : n.toFixed(2);
+/** The yearly price a month: whole dollars (A$16) unless the plan is priced in cents (Club: A$499.50 / 12 = A$41.63). */
+const perMonth = (p: { monthly: number; yearly: number }) => Number.isInteger(p.monthly) ? String(Math.round(p.yearly / 12)) : (Math.round(p.yearly / 12 * 100) / 100).toFixed(2);
 const partnerPerks = ['Website integration', 'Your branding & garments', 'Team-led onboarding', 'Training & setup', 'Annual AI credit allowance', 'Priority partner support'];
 const partnerSteps = [['Apply', ClipboardList], ['Consultation', MessagesSquare], ['Onboarding', Handshake], ['Launch', Rocket]] as const;
 const costs = [['AI edit in the studio (“Ask 3DEEZI”)', 1], ['Convert an image to 3D', 1], ['Four AI designs', 2], ['AI print pattern', 3], ['Photoreal showcase image', 5], ['Make HD (an HD front and back presentation)', 10], ['Make it 3D (AI print sheet on the 3D kit)', 10]] as const;
@@ -22,9 +30,9 @@ export default function PricingPage({ onStart }: { onStart: () => void }) {
     <div className="plan-grid">{plans.map(p => <article key={p.id} className={`plan glow-panel ${p.popular ? 'popular' : ''}`}>
       {p.popular && <span className="plan-badge">MOST POPULAR</span>}
       <h2>{p.name}</h2><p className="muted">{p.tag}</p>
-      <div className="plan-price"><strong>{p.monthly ? `A$${yearly ? Math.round(p.yearly / 12) : p.monthly}` : 'Free'}</strong>{p.monthly > 0 && <span>/ month{yearly ? `, A$${p.yearly} billed yearly` : ''}</span>}</div>
+      <div className="plan-price"><strong>{p.monthly ? `A$${yearly ? perMonth(p) : dollars(p.monthly)}` : 'Free'}</strong>{p.monthly > 0 && <span>/ month{yearly ? `, A$${dollars(p.yearly)} billed yearly` : ''}</span>}</div>
       <p className="plan-credits"><Sparkles size={15} /> {p.credits.toLocaleString()} AI credits / month</p>
-      <ul>{p.features.map(f => <li key={f}><Check size={15} />{f}</li>)}</ul>
+      <ul>{p.features.map(f => <li key={f}><Check size={15} />{f}</li>)}<li className="plan-team" data-testid="plan-team"><Users size={15} />{p.team}</li></ul>
       <button className={`button ${p.popular ? 'button-gradient' : 'button-outline'} full-width`} onClick={onStart}>{p.monthly ? 'Start 7-day free trial' : 'Start designing'}</button>
     </article>)}</div>
     <section className="partner-plan glow-panel" aria-labelledby="partner-title">

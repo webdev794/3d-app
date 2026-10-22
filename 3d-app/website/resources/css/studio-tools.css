@@ -52,6 +52,7 @@
 .artwork-layers img{width:27px;height:27px;object-fit:contain}
 .artwork-layers small{display:block;font-size:9px;color:#91aeba;margin-top:4px;text-transform:capitalize}
 .layer-properties{display:flex;flex-direction:column;gap:12px;padding-top:5px;border-top:1px solid #223745}
+.layer-properties .layer-off{margin:-4px 0 0;color:#ffbc75}
 .layer-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .layer-fields input{min-width:0;width:100%}
 .layer-actions{display:flex;gap:8px}

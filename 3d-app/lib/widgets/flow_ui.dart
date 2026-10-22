@@ -137,6 +137,71 @@ class TopBar extends StatelessWidget {
   );
 }
 
+/// The top of a tall bottom sheet: a drag handle (drag it down to close), an
+/// optional [title] and a close ✕ (top right). iPhones have no Back button,
+/// so a sheet that can grow to full height must show its own way out; open
+/// it with `useSafeArea: true` so this row stays below the notch.
+class SheetTop extends StatelessWidget {
+  const SheetTop({super.key, this.title, this.onClose});
+  final String? title;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final handle = Container(
+      width: 36,
+      height: 4,
+      decoration: BoxDecoration(
+        color: const Color(0xff3b5a69),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+    final close = IconButton(
+      key: const ValueKey('sheet-close'),
+      tooltip: 'Close',
+      onPressed: onClose ?? () => Navigator.of(context).maybePop(),
+      icon: const Icon(Icons.close, color: Palette.text, size: 22),
+    );
+    // No title: the handle and the ✕ share one row, as tall as Flutter's own
+    // drag handle, so the sheet's content keeps its place.
+    if (title == null) {
+      return SizedBox(
+        height: 48,
+        child: Stack(
+          children: [
+            Center(child: handle),
+            Positioned(right: 6, top: 0, bottom: 0, child: close),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 6, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          handle,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title!,
+                  style: const TextStyle(
+                    fontFamily: 'Rajdhani',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              close,
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The mockup's glowing card: image fill, cyan edge and outer glow.
 class GlowCard extends StatelessWidget {
   const GlowCard({

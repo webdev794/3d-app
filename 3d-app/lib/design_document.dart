@@ -83,6 +83,40 @@ const hoodieAreas = {
   'zip': 'Zip',
 };
 
+/// The varsity (letterman) jacket, as the app names it.
+bool isVarsity(String garment) => garment == 'Varsity jacket';
+
+/// The varsity jacket's own colour areas (AppController.zoneColors), as the
+/// website's VARSITY AREAS. Unset, the body, rib and snaps follow the main
+/// colour, the sleeves and lining the secondary, the stripes and pocket trim
+/// the sleeves.
+const varsityAreas = {
+  'body': 'Body (wool)',
+  'sleeves': 'Sleeves (leather)',
+  'rib': 'Collar, cuffs & waistband',
+  'ribStripe': 'Rib stripes',
+  'snaps': 'Snaps',
+  'pocketTrim': 'Pocket trim',
+  'lining': 'Quilted lining',
+};
+
+/// The track suit jacket, as the app names it.
+bool isTrack(String garment) => garment == 'Track jacket';
+
+/// The track jacket's own colour areas (AppController.zoneColors), as the
+/// website's TRACK JACKET AREAS. Unset, the body follows the main colour, the
+/// panels and zips the secondary, the stripe the accent, the collar (or hood)
+/// and the cuffs the body.
+const trackAreas = {
+  'body': 'Body',
+  'shoulder': 'Shoulder & sleeve panels',
+  'side': 'Side panels',
+  'stripe': 'Sleeve stripe',
+  'collar': 'Collar',
+  'cuffs': 'Cuffs & hem band',
+  'zip': 'Zips',
+};
+
 const studioPatterns = [
   'Solid',
   'Stripes',

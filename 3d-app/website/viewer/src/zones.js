@@ -37,6 +37,8 @@ export function onPocket(x, y) {
 
 /** Hoodies (pull-over and full zip). */
 export const isHoodie = (kind) => kind === 'hoodie' || kind === 'ziphoodie';
+/** The track suit jacket (collar or hood style: one kind, design.trackStyle). */
+export const isTrack = (kind) => kind === 'trackjacket';
 
 /**
  * A hoodie's kangaroo pocket, in garment metres on the front: its top (sewn) and foot (sewn, just above the
@@ -71,7 +73,10 @@ const HOODIE = {
   hood: [[-0.7, 0, 0.7, 0.8]],
 };
 
-const table = (kind) => (kind === 'shorts' ? SHORTS : isHoodie(kind) ? HOODIE : TOP);
+// The varsity jacket (varsity.js): the hoodie's long sleeves, no hood.
+const { hood: _hood, ...VARSITY_ZONES } = HOODIE;
+
+const table = (kind) => (kind === 'shorts' ? SHORTS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : TOP);
 
 /** Rectangles [x0, y0, x1, y1] for a zone, mirrored to both sides of the body. */
 export function zoneRects(kind, zone) {
@@ -86,6 +91,8 @@ export function zoneAt(kind, x, y, side) {
     if (side === 'back' && y > 0.8) return 'hood';
     if (side !== 'back' && onKangaroo(x, y, kind === 'ziphoodie')) return 'pocket';
   }
+  // The track jacket's collar (or hood) piece, above the back panel on the atlas.
+  if (isTrack(kind) && side === 'back' && y > 0.8) return 'hood';
   const order = kind === 'shorts' ? ['sides', 'hem', 'body'] : ['sleeves', 'yoke', 'sides', 'hem', 'body'];
   for (const zone of order) {
     if (zoneRects(kind, zone).some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)) return zone;

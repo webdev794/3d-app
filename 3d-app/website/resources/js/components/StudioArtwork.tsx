@@ -20,6 +20,23 @@ export const placements = [
     { id: 'shorts-left', label: 'Shorts left leg', side: 'front', part: 'shorts', x: 0.15, y: 0.2, w: 0.07 },
     { id: 'shorts-right', label: 'Shorts right leg', side: 'front', part: 'shorts', x: -0.15, y: 0.2, w: 0.07 },
 ] as const;
+/**
+ * A layer whose centre is clearly off the garment (the viewer clips it away, so it shows nowhere on the 3D kit), from the
+ * print outlines in garment metres, hem at y 0 (viewer 2026-10-20-18): tops up to y .746, shorts .427; sleeves out to
+ * x .421, long sleeves (hoodies, jackets) .688. Pieces printed above the body count as on it: the hood or the track
+ * jacket's collar on the back (y up to 1.206, x within .33), the varsity's ribs (y up to 1.056, x within .506); garments
+ * not listed here are only checked loosely. (The 2D board only moves a layer onto the garment or one of its pieces.)
+ */
+export function offGarment(layer: Pick<ArtworkLayer, 'x' | 'y' | 'part' | 'side'>, garment: string) {
+    const shorts = (layer.part ?? 'top') === 'shorts';
+    const plain = shorts || ['jersey', 'tee', 'polo', 'pocketpolo', 'raglan', 'fullkit', 'singlet', 'shorts'].includes(garment);
+    const reach = shorts ? 0.32 : garment === 'singlet' ? 0.27 : plain ? 0.43 : 0.7;
+    if (layer.y < -0.02 || Math.abs(layer.x) > reach) return true;
+    if (layer.y <= (shorts ? 0.44 : 0.76)) return false;
+    const hooded = ['hoodie', 'ziphoodie', 'trackjacket'].includes(garment);
+    const pieces = plain ? 0 : hooded ? (layer.side === 'back' ? 1.21 : 0) : 1.21;
+    return layer.y > pieces || Math.abs(layer.x) > 0.52;
+}
 /** Artwork sent from the Artboard keeps the id of the design it came from: Edit in Artboard opens it again, and sending it again updates the layer in place. */
 export type ArtboardLayer = ArtworkLayer & { artboard?: number };
 export const artboardOf = (layer?: ArtworkLayer | null) => { const id = (layer as ArtboardLayer | null | undefined)?.artboard; return typeof id === 'number' && id > 0 ? id : undefined; };
@@ -29,8 +46,9 @@ export async function readAsset(asset: LibraryAsset) { return asset.src || readI
  * A design picture (the finished garment's front and back drawn flat, saved as asset `asset`): checked in the 3D
  * viewer, then the design change that puts it on the kit exactly as drawn (null when the check was cancelled).
  */
-export async function checkDrawing(viewer: KitViewerHandle, src: string, name: string, asset: number, garment: string): Promise<Partial<Design> | null> {
-    const result = await viewer.checkLayout(src, name, asset, { drawing: true, garment });
+export async function checkDrawing(viewer: KitViewerHandle, src: string, name: string, asset: number, garment: string, known = false): Promise<Partial<Design> | null> {
+    // known: the garment is the one asked for (a 3DEEZI TEAM request), so the check opens on it rather than on a guess from the picture.
+    const result = await viewer.checkLayout(src, name, asset, { drawing: true, garment, known });
     if (result.cancelled || !result.roles) return null;
     const top = (result.parts?.[0] ?? 'singlet') as Design['garment'];
     return { garment: top, layout: { asset, name: name.slice(0, 160), roles: result.roles, kind: 'drawing', parts: [top] } };
@@ -169,6 +187,7 @@ export function ArtworkPanel({ design, edit, shelved = {}, viewer, selected, onS
             {layer.type === 'text' && <label className="field">Text<input value={layer.text || ''} maxLength={100} onChange={e => patchLayer({ text: e.target.value })} /></label>}
             <label className="field">Placement<select value="custom" onChange={e => { const next = validPlacements.find(item => item.id === e.target.value); if (next) { const { id: _id, label: _label, ...position } = next; patchLayer(position); } }}><option value="custom">Custom · {layer.side}</option>{validPlacements.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
             <div className="layer-fields"><label className="field">X (mm)<input type="number" min={-500} max={500} step={1} value={Math.round(layer.x * 1000)} onChange={e => patchLayer({ x: Math.max(-0.5, Math.min(0.5, Number(e.target.value) / 1000)) })} /></label><label className="field">Y (mm)<input type="number" min={0} max={1000} value={Math.round(layer.y * 1000)} onChange={e => patchLayer({ y: Math.max(0, Math.min(1, Number(e.target.value) / 1000)) })} /></label></div>
+            {offGarment(layer, design.garment) && <p className="field-hint layer-off" role="status" data-testid="layer-off-garment">Outside the garment — move it onto the {(layer.part ?? 'top') === 'shorts' ? 'shorts' : 'shirt'}.</p>}
             <div className="layer-fields"><label className="field">{layer.type === 'text' ? 'Text size' : 'Width'} (mm)<input type="number" min={10} max={layer.type === 'text' ? 400 : 600} value={Math.round((layer.type === 'text' ? layer.size ?? 0.06 : layer.w ?? 0.1) * 1000)} onChange={e => patchLayer({ [layer.type === 'text' ? 'size' : 'w']: Math.max(0.01, Math.min(layer.type === 'text' ? 0.4 : 0.6, Number(e.target.value) / 1000)) })} /></label><label className="field">Rotation (°)<input type="number" min={-360} max={360} value={layer.rot || 0} onChange={e => patchLayer({ rot: Math.max(-360, Math.min(360, Number(e.target.value))) })} /></label></div>
             {layer.type === 'shape' && <label className="field">Height (mm)<input type="number" min={10} max={600} value={Math.round((layer.h ?? 0.1) * 1000)} onChange={e => patchLayer({ h: Math.max(0.01, Math.min(0.6, Number(e.target.value) / 1000)) })} /></label>}
             <label className="field">Opacity · {Math.round((layer.opacity ?? 1) * 100)}%<input type="range" min={0.05} max={1} step={0.05} value={layer.opacity ?? 1} onChange={e => patchLayer({ opacity: Number(e.target.value) })} /></label>

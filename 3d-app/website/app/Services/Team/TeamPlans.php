@@ -30,15 +30,21 @@ final class TeamPlans
 
     private static ?array $cache = null;
 
-    /** plan => {name, included_per_month, price_cents (incl. GST), revisions, max_open}, and the options. */
+    /**
+     * plan => {name, included_per_month, price_cents (incl. GST), revisions, max_open}, and the options. The names
+     * match the /pricing plans. The client's answers (2026-10-22): Rookie (Free) pays A$100 a request; Creator (A$19)
+     * gets a lower rate, A$49.95; Club (A$49.95 a month) includes 15 requests a month, then A$49.95 each (never more
+     * than Creator); Pro Studio includes more than Club: 30 a month, then A$49. The ids stay free / pro / premium /
+     * business, and every value stays editable in Admin > 3DEEZI TEAM > Plans & allowances.
+     */
     public static function defaults(): array
     {
         return [
             'plans' => [
-                'free' => ['name' => 'Free / Entry', 'included_per_month' => 0, 'price_cents' => 9900, 'revisions' => 2, 'max_open' => 1],
-                'pro' => ['name' => 'Pro', 'included_per_month' => 0, 'price_cents' => 7900, 'revisions' => 3, 'max_open' => 2],
-                'premium' => ['name' => 'Premium', 'included_per_month' => 2, 'price_cents' => 6900, 'revisions' => 3, 'max_open' => 3],
-                'business' => ['name' => 'Business / Apparel Partner', 'included_per_month' => 6, 'price_cents' => 4900, 'revisions' => 5, 'max_open' => 10],
+                'free' => ['name' => 'Rookie (Free)', 'included_per_month' => 0, 'price_cents' => 10000, 'revisions' => 2, 'max_open' => 1],
+                'pro' => ['name' => 'Creator', 'included_per_month' => 0, 'price_cents' => 4995, 'revisions' => 3, 'max_open' => 2],
+                'premium' => ['name' => 'Club', 'included_per_month' => 15, 'price_cents' => 4995, 'revisions' => 3, 'max_open' => 5],
+                'business' => ['name' => 'Pro Studio / Apparel Partner', 'included_per_month' => 30, 'price_cents' => 4900, 'revisions' => 5, 'max_open' => 10],
             ],
         ] + self::OPTIONS;
     }
@@ -242,7 +248,7 @@ final class TeamPlans
         return $price > 0 ? ['billing' => 'paid', 'price_cents' => $price, 'bonus' => false] : ['billing' => 'free', 'price_cents' => 0, 'bonus' => false];
     }
 
-    /** The tax inside a price that includes it, at Admin > Pricing's rate (GST 10%: A$99.00 holds A$9.00). */
+    /** The tax inside a price that includes it, at Admin > Pricing's rate (GST 10%: A$100.00 holds A$9.09). */
     public static function includedTax(int $cents): int
     {
         $rate = (float) BillingSettings::get('tax_rate');

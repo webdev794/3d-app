@@ -363,7 +363,201 @@ Use test accounts only. The designer side needs an account ticked "3DEEZI TEAM d
 9. Studio on a hoodie with a Hood colour › Export › Design sheet: the PDF has a HOODIE AREAS section.
 10. **App:** AI designer with Zip hoodie → Open in 3D Designer opens the zip hoodie with the note; the order form's Design picker sets the garment row.
 
+### 15f. 3DEEZI TEAM answers in the app (8088, 2026-10-21)
+1. **Home:** the four tiles read as in the client's picture (CREATE WITH AI, OPEN 3D DESIGNER, OPEN ARTBOARD, GET A DESIGNER) with no overflow; each opens AI, the sport picker, the Artboard and TEAM.
+2. **TEAM screen:** "FIRST DESIGN WITHIN 3 BUSINESS DAYS" under the hero; signed in, the card lists A$99 / 79 / 69 / 49 incl. GST, extra round A$25 incl. GST, turnaround and refunds; Free plan: "Your next request, incl. GST" A$99.00.
+3. A request with a due date shows "… due by <date>".
+4. A paid request cancelled before work: "your full refund is being processed"; after the admin ticks Refunded: "Refunded in full."
+5. **Revisions used up** (admin sets revisions to 0, sends a draft): "Extra revision A$25.00" → note → SEND AND PAY opens the pay page; the "Extra revision: invoice …" line with PAY NOW stays until paid; once paid, Revisions requested.
+
+### 10f. Studio: closing a panel (2026-10-21)
+1. In the Studio on a computer (1280 or 1440 px wide), open Colours, then close it with the Colours button on the left rail: the 3D kit stays and gets wider; Preset designs and the garment column stay on the right.
+2. Open it again and close it with X: the same.
+3. On a phone, nothing changed.
+
+### 15g. Website notification bell and the TEAM title (2026-10-21)
+1. /team: the title shows "3DEEZI" as the logo (3D light, EEZI in the logo blue) followed by TEAM; on a phone TEAM goes to the next line. App: the TEAM screen's hero shows the same.
+2. Sign in on the website: a round bell sits left of your avatar. Send a 3DEEZI TEAM request or get an order update: within a minute it shows a count.
+3. Click the bell: newest first, each with a title, short text and time ago; the count clears. Click an item: its page opens. Escape or a click outside closes the list.
+4. Resize from 1920 to 1024 px: nothing in the header overlaps; ORDERS, 3DEEZI TEAM, DASHBOARD, AI, DYO and Start a kit still work. On a phone the list opens full width under the header. Signed out: no bell.
+
+### 9g. Design Your Own starts a new kit (2026-10-21)
+1. Open a saved project or an AI design in the Studio, then type the address /create/sport in the browser. Pick Training → Zip hoodie → Continue to studio: the Studio shows a new zip hoodie, not the earlier design; saving makes a new project.
+2. In the Studio, ⋮ → Change sport → pick a sport → garment → Continue: the same kit is kept (only the sport and garment change).
+
+### 15h. TEAM prices, TEAM design in 3D, off-garment warning (2026-10-22)
+1. **A$:** signed in on a Free plan, 3DEEZI TEAM: the allowance card and the price note say "A$… incl. GST". A request with revisions used up: "EXTRA REVISION A$25.00". A request awaiting payment: "Invoice …: A$… incl. GST". The app shows the same.
+2. **TEAM design in 3D:** an approved TEAM request for a jersey → OPEN IN 3D DESIGNER: the check opens with Garment = Jersey (not Singlet), and the design goes on the jersey. Same for tee, polo and polo with pocket. A hoodie request opens the Studio on the hoodie with the note "Hoodies take your design's colours and logo…", no check screen.
+3. Still as before: Studio › Artwork › MY DESIGN PICTURE upload and the AI designer's MAKE IT 3D guess the garment from the picture.
+4. **Off-garment text:** Studio (jersey) › Artwork › ADD A LAYER › Text, Y (mm) 1000: an amber "Outside the garment — move it onto the shirt." appears; Y 500: it goes. X 375 (sleeve): no warning; X 480: warning. On shorts: "…onto the shorts."
+
+### 15i. App notification bell and app fixes (2026-10-22)
+1. Sign in to the app: a bell shows top right on Home, My projects, Assets and Profile, with a red count of unread notifications; none when signed out.
+2. Tap it: newest first, each with a title, the text and "x min ago"; the count clears, and the website's bell shows them as read too.
+3. Tap a TEAM item: its design request opens. An order item: the order opens. An invoice item: the pay page opens.
+4. Leave the app open: a new notification (e.g. a designer message) shows in the badge within about a minute.
+5. My orders and 3DEEZI TEAM still have their bells; the TEAM bell shows only TEAM news.
+6. **AI designer:** brief "A black full zip hoodie for the coaches" → Generate → Open in 3D Designer: the Studio shows a zip hoodie, not a jersey.
+7. **Patterns:** on a Hoodie or Zip hoodie the areas include "Kangaroo pocket" and "Hood"; on a Polo with pocket, "Chest pocket"; a plain Polo has no pocket.
+
+### 9h. Upload Your Order: Date required, Delivery / Pick up, Mobile (2026-10-22)
+Website (/orders/upload, signed in):
+1. Section 1 "Contact & team details" › Edit: the phone field is now "Mobile" ("Phone is optional." is gone). Below it: Date required (calendar), Deliver / Pick up, and with Deliver: Street address, Suburb / town, State (list), Postcode, Country (Australia by default).
+2. Upload an order form, leave Mobile, Date required and the address empty, press REVIEW ORDER: section 1 opens with "Add a mobile number…", "Choose the date you need the order by." and the address messages.
+3. A short mobile (0412 34) or a past date gives a clear message; 0412 345 678 and +61 412 345 678 both work.
+4. Fill everything in: the Upload Summary shows Date required and "Delivery: To <suburb> <state>". Save draft still works with fields missing.
+5. Pick up hides the address fields; the summary says Pick up.
+6. REVIEW ORDER lists Mobile, Date required and the delivery address (or Pick up); Confirm places the order.
+7. My Orders: the card shows "· required <date>"; the order details show Date required and the delivery address.
+8. Admin › the order's page: Phone, Date required, Delivery address. Admin order board: "required <date>" on the card; the side panel shows the date and address.
+9. An old draft still opens and saves; only Confirm needs the new fields. Old orders still open.
+App (Orders › Upload Your Order):
+10. The same fields (Mobile, Date required, Deliver / Pick up chips, address with a State list); REVIEW ORDER says what is missing; the review shows them; Confirm sends one order.
+
+### 9o. Lead-time warning, Create Order Form fields, shipping by Deliver / Pick up (2026-10-22)
+1. Admin › Settings › Orders: "Production lead time (weeks)" shows 4; change to 5, SAVE LEAD TIME.
+2. Upload Your Order › Edit: a Date required 2 weeks away shows the amber note "Usually 5 weeks for production and delivery; we'll confirm if we can meet your date."; 8 weeks away: no note. The order can still be sent. The same on /orders/new and in the app. Set 0: no warning anywhere.
+3. /orders/new section 1: Mobile (required), Date required, Deliver / Pick up, address (Australia by default). Review order with them empty: clear messages, which go away as you type. Filled in: REVIEW & APPROVE's delivery card shows them; "Review delivery details" goes back. Approve: My Orders and the admin order page show them. An older order-form draft still opens; admin-created orders don't ask for them. The app's order form: the same.
+4. Pick up: review and invoice have shipping $0. An Australian address: Australian shipping. A New Zealand address with no NZ price: "quote required". The invoice PDF prints the address on three lines.
+5. App: My orders › an order shows "Date required & delivery"; the board card shows "· required <date>".
+
+### 9i. YOUR DESIGNS results page (2026-10-22)
+1. Create with AI, type a brief, Generate. Results: back arrow, YOUR DESIGNS, "1 / 4"; one large design (whole garment, not cropped); thumbnails 2, 3, 4 bottom-right with "Tap to switch"; Open in 3D Designer + a download icon in one row; a slim "Refine this design…" bar, all on one phone screen; no PRIMARY DESIGN banner.
+2. Tap thumbnail 3: it goes large, the counter says "3 / 4", design 1 moves into the thumbnails; nothing is rendered again, no credits.
+3. Download icon: saves only design 3's picture (no thumbnails in the file).
+4. Tap the refine bar: it expands with your original brief; type "make the collar gold", collapse (text kept), send: design 3 changes; switch away and back, the change is kept; ⋯ › Undo last refine brings the old picture back.
+5. ⋯ on the image: Make HD shows the HD loader and replaces the picture; Regenerate this design; Edit image; Customise in 3D Studio.
+6. Expand icon: full screen, only the picture; pinch (phone) or scroll (computer) to zoom; closing returns to the same design and counter.
+7. Open in 3D Designer: print sheet, then the Studio puts it on the kit. Hoodie or jacket briefs open the Studio with colours and logo, no print sheet.
+8. In the expanded bar, edit the brief and press the arrow: four new designs, back to "1 / 4".
+9. Website at 1440, 1280, 1024, 768 and 390, app at 360, 390 and 430: nothing overflows; the ASSIST button covers nothing (in the app it sits beside the refine bar).
+
+### 9n. Portrait AI designs (2026-10-22)
+1. Phone 390: Create with AI, "basketball full kit, MANTIS 86, Polynesian patterns", Generate: each design is one tall picture (front left, back right, shorts under each top) filling the screen edge to edge; thumbnails over its bottom-right corner; ASSIST is a round button beside the refine bar.
+2. Make HD: the HD picture is tall too. Refine "make the collar gold": the design keeps its tall shape.
+3. Open in 3D Designer: the print sheet shows front and back flat, then sits on the 3D kit; Save; My projects shows it with a thumbnail; reopen: still on the kit.
+4. Back keeps the brief, logo and sport tile; Generate again works. In the expanded refine bar, Esc closes the (+) menu only.
+5. iPad sizes (768×1024, 1024×1366, landscape): the thumbnails stay inside the image and nothing covers the controls.
+6. Phones 360, 390 and 430 (website and app): "Tap to switch" under the thumbnails reads in full, inside the picture's right edge.
+
+### 9j. COMPLETE YOUR PAYMENT and Confirmation (2026-10-22)
+1. Place an order (Create Order Form or Upload Your Order) and press Approve Order (or open /orders/3DZ-000NN/pay).
+2. The pay page: COMPLETE YOUR PAYMENT with steps Review & approve ✓ → Payment → Confirmation; Credit / debit card with the box "Card details are entered securely with Airwallex" (test mode: "Test mode: no card needed"); ORDER SUMMARY with the reference + copy button, garments × quantity, "N garment styles · M garments", Garments / Shipping / GST / Total in A$; the PAY button shows the same total.
+3. DOWNLOAD APPROVED ORDER PDF: the PDF opens with every garment.
+4. Untick "Same as delivery address", type postcode "21", PAY: "Enter the 4-digit postcode". Fix it.
+5. Test mode Decline → PAY: "Payment failed", stays on Payment. Approve → PAY: Confirmation with all 3 steps ✓, the order number, receipt and "What happens next".
+6. Download receipt: BILL TO shows the billing address from step 4. View My Orders: the order shows Paid.
+7. Phone (390): the payment card comes first; scrolling shows a "Total + PAY" bar at the bottom with 3DEEZI ASSIST above it; paying from the bar works.
+8. An old /invoices/INV-… link of an order opens this page; the app's Pay now opens it in the phone's browser and pays; a 3DEEZI TEAM invoice still opens its own /invoices page and shows under the TEAM bell.
+
+### 15j. Off-garment warning: no false alarms (2026-10-22)
+1. Studio on a hoodie: add a text layer, set it to the back and drag it on the 2D board onto the hood: no "Outside the garment" line.
+2. The same on the track jacket's collar and the varsity's collar or waistband rib.
+3. On a jersey, Y 1000 mm shows the warning; Y 500 clears it.
+4. Save, reopen from Projects, export the JSON: the layer is unchanged.
+
+### 9p. Admin order page: payment, garments and players (2026-10-22)
+1. Upload Your Order with a form listing players, date and address, review, approve, pay (test mode). Admin › Orders › View kit: the pill says Paid; the header and size table show the invoice number, Order total, Paid and Amount due in A$; "Names and numbers" lists every player; the Garments card shows the garment with its sizes and players.
+2. A Create Order Form order with 3 garment styles: Garments shows 01 / 02 / 03, each with its own front and back mockup (or placeholder), colours, fit and size table; the sizes card says "(all garments)".
+3. A Studio "Order this kit" order: Front / Back / Kit pictures as before, no Garments card; the pill reads Awaiting payment / Part paid / Paid as the invoice changes.
+4. An old order without an invoice: its status (or "Quote pending" without a price), Unit price and Order total as before.
+5. Admin › Order board and Admin › Invoices look and work as before.
+6. Admin › Orders list: a paid upload order shows "A$770.00" with "Paid" under it; part paid "Part paid · A$… paid"; unpaid "Awaiting payment"; a quote order "Quote pending"; old orders their old totals.
+7. An upload order with artwork: the admin garment card shows the artwork with "The customer's uploaded artwork. No mockup yet: prepare it from the artwork."; the customer's own review still says "Mockup prepared by 3DEEZI after you approve".
+
+### 9j+. Payment page: linked checks (2026-10-22)
+1. My Orders › an unpaid order › Pay now: COMPLETE YOUR PAYMENT opens; pay (test mode); back in My Orders: Paid, no Pay now; Download invoice gives the receipt PDF. The bell shows "Payment received" and opens the Confirmation.
+2. Admin › Invoices: Mark paid with a part amount: the pay page shows Paid / Amount due and PAY is the balance; Resend works; Mark paid the rest: Paid (also on the order board). Refund or Cancel: the pay page says so, no PAY.
+3. Invoice PDF: BILL TO is the delivery address unless a different billing address was entered on the pay page.
+4. A 3DEEZI TEAM invoice (request or the A$25 extra revision) stays on its /invoices page and pays as before. As an admin, an order's /invoices page is view only.
+5. App: My orders › the order › PAY NOW opens the pay page in the browser › pay › back in the app, refresh: Paid.
+6. An order from a saved design shows its picture in ORDER SUMMARY. A garment with no price: "We're confirming your price", no PAY.
+
+### 9k. Upload Your Order: the form read by 3DEEZI AI (2026-10-22)
+1. Signed in, Orders › Upload Your Order: upload a club order form (e.g. the Te Arawa U13 .xlsx). Under the file: "3DEEZI AI is reading your order form…", then "Read by 3DEEZI AI…".
+2. Section 1: an empty team, mobile, date required or delivery address is filled from the form when the form has it ("ASAP" leaves the date empty, so choose one).
+3. REVIEW ORDER: the garments have their sizes filled in (10Y, 12Y, 14Y, 16Y as on the form, counted as Kids), the total matches, the players count shows, with the note "Read by 3DEEZI AI from <file>"; no "Each garment needs at least one size" error.
+4. Edit sizes & garments: "As on your form: 10Y … · 12Y …", the players with name, number and size, "Date required on your form: ASAP", and only the lines it couldn't place. Change a size or a player's size: the totals follow.
+5. Tick the confirm box, APPROVE ORDER: one order with those rows.
+6. Admin: the order (or its board card) shows "Order form read by 3DEEZI AI" with the garments, sizes as written, players and an Original file download.
+7. A file with no sizes: "Nothing to fill in here…"; the order still goes.
+8. App: Upload your order: "Read by 3DEEZI AI" appears; the review shows editable sizes, players and lines to check.
+9. The first Review of a form calls the AI once (about 1–3 cents, 10–20 s); going to Review again makes no call.
+10. Review twice (Back to Edit in between): the second Review opens at once, with no "reading" pause.
+11. A HEIC, a PDF with no sizes, or a photo: under the file it says "Uploaded. Nothing to type in: 3DEEZI reads your order form…" (not "Read by 3DEEZI AI"); Edit sizes & garments shows "Nothing to fill in here"; Approve still places the order.
+12. Approve an upload order: COMPLETE YOUR PAYMENT opens; My Orders shows it; the admin order page and its board card show "Order form read by 3DEEZI AI" with an Original file download.
+
+### 9l. REVIEW & APPROVE ORDER, several garments (2026-10-22)
+1. Signed in, save two designs: a full basketball kit and a polo.
+2. Orders › Create Order Form: a singlet and shorts from the kit design with different sizes, and a polo from the polo design, 30 each. Review order.
+3. The chip reads "3 garment styles · 90 garments", with sections 01–03. Each shows FRONT and BACK of that garment only (singlet alone, shorts alone, polo alone), the name and "colours · fit", SIZE | QTY with TOTAL 30, and the players list if entered.
+4. View full size / zoom: a large viewer with FRONT / BACK tabs; Escape closes it. Edit garment opens the editor.
+5. ORDER TOTALS: 3 styles, 90 garments, the price in A$ (or "Pricing pending confirmation.").
+6. Download review PDF: every garment with front and back, sizes and players, then delivery, notes and totals in A$.
+7. Make the shorts' sizes the same as the singlet's: the review switches to the single-kit layout.
+8. Phone (390): the two tiles side by side, then the name, then the table; no sideways scroll.
+9. Upload Your Order with artwork and no design: the first tile shows the artwork, the back "Mockup prepared by 3DEEZI after you approve".
+10. App: Create order form › REVIEW ORDER with three garment styles shows the same chip, sections and ORDER TOTALS.
+
+### 15k. Plans: Club A$49.95 with 3DEEZI TEAM, Free A$100 (2026-10-22)
+1. /pricing: Club shows A$49.95 a month (billed yearly about A$41.63 / month, A$499.50 a year); each plan has a 3DEEZI TEAM line (Rookie A$100 per design, Creator A$79, Club 2 designs a month included, Pro Studio 6). The app's Plans screen shows the same.
+2. Signed in on the free plan, /team: "This request: A$100.00 incl. GST design fee". Send a request: the invoice is A$100.00 (A$90.91 + A$9.09 GST).
+3. Admin › 3DEEZI TEAM › Plans & allowances: the plans are named Rookie (Free), Creator, Club, Pro Studio / Apparel Partner, with 100 / 79 / 69 / 49; change a price, Save, reload: it stays (set it back).
+4. A TEAM invoice's Review & Pay and PDF say "Design request" (or "Extra revision round"), not "Garments"; order invoices still say "Garments".
+5. Drag the browser from 1920 down to 1024, signed out, as admin and as a designer: the header never makes the page scroll sideways and nothing overlaps; between 1441 and 1500 px the Admin / Designer button is just the icon.
+6. Ask 3DEEZI ASSIST "How much is a designer?": A$100 on Rookie (Free), A$79 on Creator, 2 / 6 designs included with Club / Pro Studio.
+
+### 9m. REVIEW & APPROVE ORDER, one kit (2026-10-22)
+1. /orders/upload: fill section 1, upload a form listing a singlet and shorts in the same sizes plus a PNG artwork, Review order: the 3-step bar, two artwork tiles (zoom, View full size), "Order form & artwork · N files" → View files, the SINGLETS | SHORTS table with TOTAL and "N matching kits · M garments", DELIVERY & NOTES with mobile, date and address.
+2. Approve Order is off until the box is ticked; then it opens /orders/3DZ-…/pay. My Orders and the admin order show it.
+3. Edit sizes & garments: change one size, Done: the box unticks; if the top and shorts sizes now differ, the layout switches to one section per garment. Back to Edit keeps the files.
+4. Create Order Form with a saved full kit as jersey + shorts in the same sizes: front and back drawn from the design, JERSEYS | SHORTS, the price; Approve → pay (test mode) → confirmation → My Orders.
+5. 1024, 768 and 390: it stacks, no sideways scroll. App: both order screens show the same structure; APPROVE ORDER only after the tick.
+
+6. An older saved upload draft (My Orders › Drafts): the form is still there; Review asks for mobile, date required and address; once filled, the new review opens.
+7. On the upload review and Order sent screens, the 3DEEZI ASSIST button is at the bottom right and opens the chat.
+8. Create Order Form review › "Delivery region, extras & discount code": tick an extra and apply a discount code; the review, pay page and invoice totals match. Approve: the order is on the admin order board.
+
+9. Studio: open a saved kit › ⋯ › Order this kit › sizes, "This design is final", Send: the site goes straight to COMPLETE YOUR PAYMENT. With a price: pay (test mode) → Confirmation → My Orders. Without a price yet: "We're confirming your price", a View my order link, no Pay button.
+
+### 15m. Plans as the client answered, TEAM invoice wording (2026-10-22)
+1. /pricing and the app's Plans & pricing: Rookie A$100 per design, Creator A$49.95 per design, Club "15 designs a month", Pro Studio "30 designs a month".
+2. Admin › 3DEEZI TEAM › Plans & allowances: give a customer Creator: /team says "This request: A$49.95 incl. GST design fee"; the invoice is A$45.41 + GST A$4.54 = A$49.95 with a "Creator plan" line. Club: the request is included, with 15 left this month (up to 5 open at once).
+3. A TEAM invoice: "Pay for your design request" / "Your designer starts once this is paid.", "Design request TEAM-…", the breadcrumb Home / 3DEEZI TEAM / My design requests; no "production" text and no "Garments". After paying: "Your designer can start now." and a My design requests button.
+4. As admin, an order's invoice still says "Review & pay", "Order #…", Home / Orders / My Orders and "Garments".
+5. ASSIST "How much is a designer?": A$100 on Rookie, A$49.95 on Creator, 15 included on Club, 30 on Pro Studio.
+
+### 15l. New 3DEEZI DESIGN TEAM page (2026-10-22)
+1. /team signed out: the photo hero with "3DEEZI DESIGN TEAM", the 7-step loop "FROM IDEA TO TEAMWEAR", the form, the YOUR DESIGN REQUEST card with the fees line; no prices on the page. VIEW MY REQUESTS asks you to sign in; "View subscription options" opens /pricing.
+2. 1024, 768 and 390: no sideways scroll; from 768 down the steps are a vertical list.
+3. Signed in on a plan with included requests: company and email pre-filled; the line by SEND reads "Included in your plan (…)". On the free plan: "This request: A$100.00 incl. GST design fee"; REVIEW & PAY opens the invoice.
+4. Send with a sport, several garments, a brief, a logo and a PDF, and a date: the four card rows tick; the reference shows. The request page, My requests, Admin › 3DEEZI TEAM and /designer show the garments and the preferred date.
+5. App: GET A DESIGNER opens the same screen; VIEW MY REQUESTS lists your requests.
+
+### 10h. Varsity jacket (2026-10-22)
+1. Studio › Garment › Varsity jacket: turn the kit: snaps, slanted leather-trim pockets, striped rib collar, cuffs and waistband, quilted lining inside the neck, chenille letter on the chest, arched club name, name and number on the back, sponsor patch on the right sleeve, number patch on the left.
+2. Colours › VARSITY AREAS: change Sleeves, Rib stripes, Snaps and Quilted lining; ✕ puts each back to the kit colour.
+3. 2D panels: the collar (above the back) and the waistband and cuffs (above the front) take artwork.
+4. Save, reopen from My projects; Export › Design sheet has a VARSITY AREAS section. Order this kit: a Jacket row named "Varsity jacket".
+5. AI designer brief "letterman jacket navy and gold" picks the Varsity jacket; Open in 3D Designer lands on it with a note.
+6. App: Club Casual lists the Varsity jacket; the Studio's area tool shows the varsity colours.
+
+### 10g. Track suit jacket (2026-10-22)
+1. Studio › Garment › Track jacket: the zip and zip garage, pocket zips, rib cuffs and hem band.
+2. Garment › Track jacket style: Hood, then Stand-up collar.
+3. Colours › TRACK JACKET AREAS: change each (body, shoulder & sleeve panels, side panels, sleeve stripe, collar or hood, cuffs & hem band, zips), then ✕ back to the kit colours.
+4. Patterns › Apply to area › Collar › Hoops. Artwork: crest on the left chest, sponsor on the right sleeve panel; name and number on the back. 2D panels: the collar or hood piece above the back.
+5. Save, reopen from My projects: style and colours kept. A preset, then YOUR DESIGN. Export the 2D panels and the Design sheet (TRACK JACKET AREAS). Order the saved design: a Jacket row.
+6. An AI brief "navy track jacket" picks the track jacket. App: Open 3D Designer › Rugby League › Track jacket, with style and area colours in the Studio tools.
+
 ## App (http://127.0.0.1:8088)
+
+### 17x. App: no screen traps you on an iPhone (2026-10-22)
+1. iPhone (TestFlight) or 8088 at 390 px: Studio › Presets: the PRESET DESIGNS title and a ✕ (top right) sit below the status bar / notch.
+2. Tap Electric Chevron: the kit changes and the sheet stays open; ✕: back in the Studio with the chevron kit kept. Dragging the top handle down also closes it; on Android, Back does.
+3. The same ✕ on Artwork, Colours, Patterns, Logos, Text and Garment.
+4. ✕ also closes: Order this kit, Apply to become a partner, Welcome › Continue with Email (with the keyboard up), TEAM › Garments needed, TEAM › Request revisions (without sending), the notification list.
+5. Studio top bar at 360, 375, 390 and 430 px and with iPhone Larger Text: Back, Undo, Redo, Preview, Showcase and Save fit on one row.
 
 ### 16. Ordering in the app
 1. **Home:** "Order now with 3DEEZI" has three entries.

@@ -216,7 +216,7 @@ class TeamRequestTest extends TestCase
     {
         $admin = $this->admin();
         $customer = User::factory()->create();
-        $this->plan($customer, 'premium');
+        $this->plan($customer, 'premium', ['monthly_included' => 2]); // Club includes 15; a monthly override of 2 keeps this short.
         Sanctum::actingAs($customer);
         $allowance = $this->getJson('/api/v1/team/allowance')->assertOk()->json('data');
         $this->assertSame(['premium', 2, 2, 'included'], [$allowance['plan'], $allowance['included_per_month'], $allowance['remaining_included'], $allowance['next_request']['billing']]);
@@ -224,16 +224,16 @@ class TeamRequestTest extends TestCase
         $this->submit($customer)->assertCreated()->assertJsonPath('data.billing', 'included');
         $this->submit($customer)->assertCreated()->assertJsonPath('data.billing', 'included');
         $next = $this->getJson('/api/v1/team/allowance')->json('data');
-        // Prices include GST (client 2026-10-21): A$69.00 holds A$6.27 GST.
-        $this->assertSame([0, 'paid', '69.00', '6.27', '69.00', true], [$next['remaining_included'], $next['next_request']['billing'], $next['next_request']['price'], $next['next_request']['tax'], $next['next_request']['total'], $next['next_request']['tax_included']]);
+        // Prices include GST (client 2026-10-21): Club's extra request A$49.95 holds A$4.54 GST (client 2026-10-22).
+        $this->assertSame([0, 'paid', '49.95', '4.54', '49.95', true], [$next['remaining_included'], $next['next_request']['billing'], $next['next_request']['price'], $next['next_request']['tax'], $next['next_request']['total'], $next['next_request']['tax_included']]);
 
         $third = $this->submit($customer)->assertCreated()->json('data');
-        $this->assertSame(['awaiting_payment', 'paid', '69.00'], [$third['status'], $third['billing'], $third['price']]);
+        $this->assertSame(['awaiting_payment', 'paid', '49.95'], [$third['status'], $third['billing'], $third['price']]);
         $number = $third['invoice']['invoice_number'];
         $this->assertMatchesRegularExpression('/^INV-\d+$/', $number);
-        $this->assertSame(['69.00', true], [$third['invoice']['total'], $third['invoice']['can_pay']]);
+        $this->assertSame(['49.95', true], [$third['invoice']['total'], $third['invoice']['can_pay']]);
         $invoice = Invoice::where('number', $number)->firstOrFail();
-        $this->assertSame([$third['id'], null, 6900, 627, 6273], [$invoice->team_request_id, $invoice->order_id, $invoice->total_cents, $invoice->tax_cents, $invoice->subtotal_cents]);
+        $this->assertSame([$third['id'], null, 4995, 454, 4541], [$invoice->team_request_id, $invoice->order_id, $invoice->total_cents, $invoice->tax_cents, $invoice->subtotal_cents]);
         $this->assertStringContainsString('incl. GST', $invoice->quote['lines'][0]['name']);
         Notification::assertNotSentTo($admin, TeamRequestNotification::class, fn ($n) => $n->request->id === $third['id']);
 
@@ -260,14 +260,53 @@ class TeamRequestTest extends TestCase
     {
         $admin = $this->admin();
         $customer = User::factory()->create();
+        // People on the free plan (Rookie, as on /pricing) pay the A$100 design fee incl. GST (2026-10-22).
+        Sanctum::actingAs($customer);
+        $status = $this->getJson('/api/v1/team/allowance')->assertOk()->json('data');
+        $this->assertSame(['free', 'Rookie (Free)', 'paid', '100.00', '9.09', '100.00', true],
+            [$status['plan'], $status['plan_name'], $status['next_request']['billing'], $status['next_request']['price'], $status['next_request']['tax'], $status['next_request']['total'], $status['next_request']['tax_included']]);
         $first = $this->submit($customer)->assertCreated()->json('data');
-        $this->assertSame(['awaiting_payment', '99.00', '99.00'], [$first['status'], $first['price'], $first['invoice']['total']]);
+        $this->assertSame(['awaiting_payment', '100.00', '100.00'], [$first['status'], $first['price'], $first['invoice']['total']]);
+        // The invoice: A$100.00 = A$90.91 + A$9.09 GST, its line naming the plan.
+        $invoice = Invoice::where('team_request_id', $first['id'])->firstOrFail();
+        $this->assertSame([10000, 909, 9091], [$invoice->total_cents, $invoice->tax_cents, $invoice->subtotal_cents]);
+        $line = $invoice->quote['lines'][0]['name'];
+        $this->assertStringStartsWith("3DEEZI TEAM design request {$first['number']} · Rookie (Free) plan · ", $line);
+        $this->assertStringEndsWith('100.00 incl. GST', $line);
+        // Review & Pay and the PDF call it a design request, not "Garments" (an order's invoice still says Garments).
+        $shown = $this->getJson("/api/v1/invoices/{$invoice->number}")->assertOk()->json('data.order');
+        $this->assertSame(['team', 'Design request', $first['number']], [$shown['source'], $shown['summary'], $shown['number']]);
+        $pdf = $this->get("/api/v1/invoices/{$invoice->number}/pdf")->assertOk()->getContent();
+        preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $m);
+        $text = implode("\n", array_map(fn ($s) => @gzuncompress($s) ?: $s, $m[1]));
+        $this->assertStringContainsString('Design request', $text);
+        $this->assertStringContainsString('Rookie', $text);
+        $this->assertStringNotContainsString('Garments', $text);
         // Staff can't work on it before it is paid, unless they confirm.
         Sanctum::actingAs($admin);
         $this->patchJson("/api/v1/team-admin/requests/{$first['id']}/status", ['status' => 'in_progress'])->assertStatus(409);
-        $invoice = Invoice::where('team_request_id', $first['id'])->firstOrFail();
         $this->postJson("/api/v1/admin/invoices/{$invoice->id}/mark-paid", ['method' => 'bank_transfer'])->assertOk();
         $this->assertSame('received', TeamRequest::findOrFail($first['id'])->status);
+    }
+
+    /** The client (2026-10-22): Creator gets a lower rate than Free, A$49.95 a request incl. GST; Club includes 15. */
+    public function test_creator_pays_the_lower_rate_and_club_includes_fifteen(): void
+    {
+        $creator = User::factory()->create();
+        $this->plan($creator, 'pro');
+        Sanctum::actingAs($creator);
+        $status = $this->getJson('/api/v1/team/allowance')->assertOk()->json('data');
+        $this->assertSame(['Creator', 'paid', '49.95', '4.54'], [$status['plan_name'], $status['next_request']['billing'], $status['next_request']['price'], $status['next_request']['tax']]);
+        $sent = $this->submit($creator)->assertCreated()->json('data');
+        $invoice = Invoice::where('team_request_id', $sent['id'])->firstOrFail();
+        $this->assertSame([4995, 454, 4541], [$invoice->total_cents, $invoice->tax_cents, $invoice->subtotal_cents]);
+        $this->assertStringContainsString("{$sent['number']} · Creator plan · ", $invoice->quote['lines'][0]['name']);
+
+        $club = User::factory()->create();
+        $this->plan($club, 'premium');
+        Sanctum::actingAs($club);
+        $this->getJson('/api/v1/team/allowance')->assertOk()->assertJsonPath('data.plan_name', 'Club')
+            ->assertJsonPath('data.included_per_month', 15)->assertJsonPath('data.remaining_included', 15)->assertJsonPath('data.next_request.billing', 'included');
     }
 
     public function test_unpaid_requests_can_be_cancelled_and_the_allowance_is_given_back(): void
@@ -301,8 +340,8 @@ class TeamRequestTest extends TestCase
         $this->plan($customer, 'pro', ['bonus_requests' => 1]);
         $this->submit($customer)->assertCreated()->assertJsonPath('data.billing', 'included')->assertJsonPath('data.status', 'received');
         $this->assertSame(0, TeamAllowance::where('user_id', $customer->id)->value('bonus_requests'));
-        $this->submit($customer)->assertCreated()->assertJsonPath('data.billing', 'paid')->assertJsonPath('data.price', '79.00');
-        // The Pro plan allows 2 open requests at once (Free 1, Premium 3, Business 10).
+        $this->submit($customer)->assertCreated()->assertJsonPath('data.billing', 'paid')->assertJsonPath('data.price', '49.95');
+        // The Creator plan (id pro) allows 2 open requests at once (Rookie 1, Club 5, Pro Studio 10).
         $this->submit($customer)->assertStatus(422)->assertJsonValidationErrors('allowance');
 
         // The customer can't make themselves unlimited: there is no customer API for it; the staff one is admins only.
@@ -570,7 +609,7 @@ class TeamRequestTest extends TestCase
         $closed = collect($this->getJson('/api/v1/team-admin/board')->json('data.columns'))->firstWhere('status', 'closed');
         $this->assertSame('due', $closed['requests'][0]['refund_status']);
         $this->patchJson("/api/v1/team-admin/requests/{$r['id']}/refund", ['refund_status' => 'refunded'])->assertOk()->assertJsonPath('data.refund_status', 'refunded');
-        $this->assertSame(['refunded', 9900], [Invoice::where('team_request_id', $r['id'])->value('status'), (int) Invoice::where('team_request_id', $r['id'])->value('refunded_cents')]);
+        $this->assertSame(['refunded', 10000], [Invoice::where('team_request_id', $r['id'])->value('status'), (int) Invoice::where('team_request_id', $r['id'])->value('refunded_cents')]);
         Http::assertNothingSent();
 
         // After work started (a draft delivered) there is no refund due; an unpaid request has nothing to refund.
@@ -604,13 +643,16 @@ class TeamRequestTest extends TestCase
     public function test_plan_defaults_are_the_clients_values_incl_gst(): void
     {
         $plans = collect(TeamPlans::present())->keyBy('id');
-        $this->assertSame(['99.00', '79.00', '69.00', '49.00'], $plans->pluck('price')->values()->all());
-        $this->assertSame([0, 0, 2, 6], $plans->pluck('included_per_month')->values()->all());
+        // Named as on /pricing (2026-10-22), the ids unchanged; the free plan pays the A$100 design fee.
+        $this->assertSame(['free', 'pro', 'premium', 'business'], $plans->keys()->all());
+        $this->assertSame(['Rookie (Free)', 'Creator', 'Club', 'Pro Studio / Apparel Partner'], $plans->pluck('name')->values()->all());
+        $this->assertSame(['100.00', '49.95', '49.95', '49.00'], $plans->pluck('price')->values()->all());
+        $this->assertSame([0, 0, 15, 30], $plans->pluck('included_per_month')->values()->all());
         $this->assertSame([2, 3, 3, 5], $plans->pluck('revisions')->values()->all());
-        $this->assertSame([1, 2, 3, 10], $plans->pluck('max_open')->values()->all());
+        $this->assertSame([1, 2, 5, 10], $plans->pluck('max_open')->values()->all());
         $this->assertSame(['pay_first' => true, 'default_designer_id' => null, 'extra_revision_cents' => 2500, 'first_draft_days' => 3, 'revision_days' => 2],
             array_intersect_key(TeamPlans::config(), TeamPlans::OPTIONS));
-        $this->assertSame(900, TeamPlans::includedTax(9900));
+        $this->assertSame([900, 909], [TeamPlans::includedTax(9900), TeamPlans::includedTax(10000)]);
     }
 
     public function test_the_migration_updates_only_old_placeholder_values(): void
@@ -625,5 +667,50 @@ class TeamRequestTest extends TestCase
         $plans = TeamPlans::config()['plans'];
         $this->assertSame([1, 7900, 2, 5500, 3], [$plans['free']['max_open'], $plans['pro']['price_cents'], $plans['pro']['max_open'], $plans['premium']['price_cents'], $plans['premium']['max_open']],
             "An admin's own value (Premium A\$55) stays; the old placeholders change.");
+    }
+
+    /** The client's new /team form (2026-10-22): company and contact email, "Garments needed" and "Preferred delivery date". */
+    public function test_the_new_form_sends_several_garments_and_a_preferred_delivery_date(): void
+    {
+        $admin = $this->admin();
+        $designer = $this->designer();
+        $customer = User::factory()->create();
+        $this->plan($customer, 'premium');
+        $date = now()->addDays(30)->toDateString();
+        $sent = $this->submit($customer, ['garment' => null, 'garments' => ['jersey', 'shorts', 'Bucket hat'], 'preferred_date' => $date])->assertCreated()
+            ->assertJsonPath('data.name', 'Northside Hawks')->assertJsonPath('data.email', 'coach@example.com')
+            ->assertJsonPath('data.garment', 'jersey')->assertJsonPath('data.garment_name', 'Jersey')
+            ->assertJsonPath('data.garments', ['jersey', 'shorts', 'Bucket hat'])->assertJsonPath('data.garment_names', ['Jersey', 'Shorts', 'Bucket hat'])
+            ->assertJsonPath('data.preferred_date', $date);
+        $id = $sent->json('data.id');
+        $this->getJson('/api/v1/team/requests')->assertOk()->assertJsonPath('data.0.garment_names', ['Jersey', 'Shorts', 'Bucket hat'])->assertJsonPath('data.0.preferred_date', $date);
+        // The admin's detail and the designer's page show them too.
+        Sanctum::actingAs($admin);
+        $this->getJson("/api/v1/team-admin/requests/{$id}")->assertOk()->assertJsonPath('data.garment_names', ['Jersey', 'Shorts', 'Bucket hat'])->assertJsonPath('data.preferred_date', $date);
+        $this->patchJson("/api/v1/team-admin/requests/{$id}/assign", ['designer_id' => $designer->id])->assertOk();
+        Sanctum::actingAs($designer);
+        $this->getJson("/api/v1/team-admin/requests/{$id}")->assertOk()->assertJsonPath('data.garments', ['jersey', 'shorts', 'Bucket hat'])->assertJsonPath('data.preferred_date', $date);
+        // Older apps send one garment and no date: unchanged.
+        $this->submit($customer, ['garment' => 'polo'])->assertCreated()->assertJsonPath('data.garments', ['polo'])->assertJsonPath('data.garment_names', ['Polo'])->assertJsonPath('data.preferred_date', null);
+        // A date in the past, and no garment at all, are refused.
+        $this->submit($customer, ['preferred_date' => now()->subDays(5)->toDateString()])->assertStatus(422)->assertJsonValidationErrors('preferred_date');
+        $this->submit($customer, ['garment' => null, 'garments' => []])->assertStatus(422)->assertJsonValidationErrors('garment');
+        $this->assertSame(2, TeamRequest::where('user_id', $customer->id)->count());
+    }
+
+    public function test_before_the_migration_runs_the_new_fields_go_into_the_instructions(): void
+    {
+        $ready = new \ReflectionProperty(TeamRequest::class, 'briefReady');
+        $ready->setValue(null, false);
+        try {
+            $customer = User::factory()->create();
+            $this->plan($customer, 'premium');
+            $date = now()->addDays(10);
+            $this->submit($customer, ['garment' => null, 'garments' => ['jersey', 'shorts'], 'preferred_date' => $date->toDateString(), 'instructions' => 'Club logo on the left chest.'])->assertCreated()
+                ->assertJsonPath('data.garment', 'jersey')->assertJsonPath('data.garments', ['jersey'])->assertJsonPath('data.preferred_date', null)
+                ->assertJsonPath('data.instructions', "Garments needed: Jersey, Shorts.\nPreferred delivery date: {$date->format('j M Y')}.\nClub logo on the left chest.");
+        } finally {
+            $ready->setValue(null, null);
+        }
     }
 }

@@ -20,7 +20,7 @@ class Order extends Model
         'hoodie' => 'Hoodie', 'jacket' => 'Jacket', 'warmup' => 'Warm-up top', 'pants' => 'Track pants', 'socks' => 'Socks', 'cap' => 'Cap', 'other' => 'Other'];
 
     /** A saved design's garment that the order form lists under another row (a full kit is a jersey and shorts). */
-    public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo'];
+    public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo', 'varsity' => 'jacket', 'trackjacket' => 'jacket'];
 
     public const FITS = ['mens' => 'Mens', 'womens' => 'Womens', 'youth' => 'Youth', 'unisex' => 'Unisex'];
 

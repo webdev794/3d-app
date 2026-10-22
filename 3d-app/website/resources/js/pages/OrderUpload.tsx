@@ -1,18 +1,26 @@
 import { useEffect, useReducer, useRef, useState, type DragEvent as ReactDragEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp, CircleAlert, CircleCheck, CircleHelp, CreditCard, Download, FileImage, FileSpreadsheet, FileText, FileUp, Info, LoaderCircle, LogIn, Paperclip, Pencil, Replace, RotateCcw, X } from 'lucide-react';
-import { api, ApiError, getToken, type User } from '../api';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp, CircleAlert, CircleCheck, CircleHelp, CreditCard, Download, FileImage, FileSpreadsheet, FileText, FileUp, Info, LoaderCircle, LogIn, Paperclip, Pencil, Replace, RotateCcw, Store, Truck, X } from 'lucide-react';
+import { api, ApiError, fetchFile, getToken, type User } from '../api';
 import { askAssist, provideAssistContext } from '../assistBridge';
 import { AssistCard, AssistSparkle, ContactDetailsCard, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSummaryCard, fileExtension, formatBytes, type ContactDetails } from '../components/OrderPageParts';
-import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type OrderDetail, type OrderFields, type OrderFile, type OrderItem, type OrderOptions, type Payment, type Suggested } from '../orderApi';
+import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type OrderDetail, type OrderFields, type OrderFile, type OrderDraft, type OrderItem, type OrderOptions, type OrderPlayer, type Payment, type Suggested, type SuggestedForm } from '../orderApi';
 import { PriceBreakdown, PricingChoices, type PricingChoice, type Quote as PayQuote } from '../components/OrderPayment';
+import OrderFormRead, { cleanRows, rowTotal, rowsFromReadings, type ReadNote, type ReviewItem } from '../components/OrderFormRead';
+import { OrderReviewApprove, OrderSentPanel, ReviewApproveHeader, garmentThumb, layoutFor, paymentPath, youthSplit, type ReviewFile, type ReviewGarment, type ReviewRow } from '../components/OrderReviewApprove';
+import { ADDRESS_KEYS, DEFAULT_LEAD_WEEKS, DeliveryFieldsCard, MOBILE_MESSAGE, dateText, deliveryErrors, deliveryText, isAustralia, mobileError, todayText, validMobile } from '../components/OrderDeliveryFields';
 import '../../css/order-upload.css';
 
 /** The two kinds of file this page uploads. */
 type UploadKind = 'order_form' | 'artwork';
 type FileRule = OrderOptions['files']['order_form'];
 type FileRules = OrderOptions['files'];
-export interface UploadFields extends ContactDetails { notes: string }
+/**
+ * The details: contact (phone is the required mobile), notes, and section 1's date required (`needed_by`, YYYY-MM-DD)
+ * and delivery (`deliver` with the address, or `pickup`). The draft and the order send the address as `address`
+ * {street, suburb, state, postcode, country}; the server keeps it as the order's delivery address text (client 2026-10-22).
+ */
+export interface UploadFields extends ContactDetails { notes: string; needed_by: string; delivery: string; street: string; suburb: string; state: string; postcode: string; country: string }
 /** What the page keeps in the draft: the order fields, with the rows read from the order form once they are checked. */
 type DraftData = OrderFields & Record<string, unknown>;
 
@@ -45,7 +53,7 @@ const DEFAULT_RULES: FileRules = {
 };
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
 
-const EMPTY: UploadFields = { contact_name: '', contact_email: '', phone: '', team_name: '', notes: '' };
+const EMPTY: UploadFields = { contact_name: '', contact_email: '', phone: '', team_name: '', notes: '', needed_by: '', delivery: 'deliver', street: '', suburb: '', state: '', postcode: '', country: 'Australia' };
 const FIELD_NAMES = Object.keys(EMPTY) as (keyof UploadFields)[];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PICTURES = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'heic', 'tif', 'tiff'];
@@ -64,7 +72,7 @@ const itemTotal = (item: OrderItem) => Object.values(item.sizes).reduce((a, b) =
 /** "AUD $1,870.00", as the payment components show it. */
 const money = (v: string | number | null | undefined, currency = 'AUD') => (v === null || v === undefined || v === '' ? '—' : `${currency} ${new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(Number(v))}`);
 
-/** What is wrong with the contact details (empty when they are fine). Team and email are needed to make the order. */
+/** What is wrong with section 1 (empty when it is fine): team, email, mobile, date required and delivery are needed to make the order. */
 function contactErrors(f: UploadFields) {
   const e: Partial<Record<keyof UploadFields, string>> = {};
   const name = f.contact_name.trim(), email = f.contact_email.trim(), team = f.team_name.trim(), phone = f.phone.trim();
@@ -74,8 +82,10 @@ function contactErrors(f: UploadFields) {
   else if (email.length > 190 || !EMAIL.test(email)) e.contact_email = 'Check the email address (for example name@club.com).';
   if (!team) e.team_name = 'Add your team or organisation name.';
   else if (team.length > 120) e.team_name = 'The team name can be up to 120 characters.';
-  const digits = phone.replace(/\D/g, '');
-  if (phone && (!/^[\d\s()+\-.]+$/.test(phone) || digits.length < 6 || digits.length > 20 || phone.length > 40)) e.phone = 'Check the phone number: digits, spaces and + ( ) - only.';
+  const mobile = mobileError(phone);
+  if (mobile) e.phone = mobile;
+  // Date required, and the address when delivering (components/OrderDeliveryFields.tsx, as the server checks them).
+  Object.assign(e, deliveryErrors(f));
   if (f.notes.length > 4000) e.notes = 'Instructions can be up to 4000 characters.';
   return e;
 }
@@ -92,7 +102,9 @@ function dropLocal(owner: string) { try { localStorage.removeItem(localKey(owner
 const lastContactKey = (userId: number) => `3deezi.orderContact.u${userId}`;
 function readLastContact(userId: number): Partial<UploadFields> { try { return JSON.parse(localStorage.getItem(lastContactKey(userId)) || '{}'); } catch { return {}; } }
 const pickFields = (data?: object | null): Partial<UploadFields> => {
-  const source = (data ?? {}) as Record<string, unknown>;
+  const given = (data ?? {}) as Record<string, unknown>;
+  // The server's draft keeps the address as an object; this browser's copy keeps the fields flat.
+  const source = { ...(given.address && typeof given.address === 'object' ? given.address as Record<string, unknown> : {}), ...given };
   return Object.fromEntries(FIELD_NAMES.flatMap(k => (typeof source[k] === 'string' ? [[k, source[k] as string]] : []))) as Partial<UploadFields>;
 };
 const filled = (f: Partial<UploadFields>) => Object.fromEntries(Object.entries(f).filter(([, v]) => typeof v === 'string' && v.trim())) as Partial<UploadFields>;
@@ -169,14 +181,27 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   const [save, setSave] = useState<SaveState>({ state: 'idle' });
   const [banner, setBanner] = useState('');
   const [busy, setBusy] = useState(false);
-  const [items, setItems] = useState<OrderItem[] | null>(null);
+  const [items, setItems] = useState<ReviewItem[] | null>(null);
   const itemsRef = useLatest(items);
+  /** The order forms' readings (3DEEZI AI, or the built-in one at upload), for the review's note and the date on the form. */
+  const [readings, setReadings] = useState<Suggested[]>([]);
+  /** 3DEEZI AI reading the order forms (started once a form has uploaded; Review waits for it). */
+  const [aiState, setAiState] = useState<'idle' | 'reading' | 'done'>('idle');
+  /** Whether that reading found garments (else 3DEEZI reads the form itself: nothing to type in either way). */
+  const [aiFound, setAiFound] = useState(false);
+  const reading = useRef<Promise<OrderDraft | null> | null>(null);
+  const prefilled = useRef(new Set<string>());
+  /** Order forms 3DEEZI AI has read (its reading is kept with the file): not asked about again. */
+  const aiRead = useRef(new Set<number>());
+  const [garments, setGarments] = useState<{ id: string; name: string }[]>([]);
   const [itemsFor, setItemsFor] = useState('');
   /** Lines of the order form the server could not read (shown in the review: 3DEEZI checks them). */
   const [unread, setUnread] = useState<string[]>([]);
   const [itemsConfirmed, setItemsConfirmed] = useState(false);
   const itemsConfirmedRef = useLatest(itemsConfirmed);
   const [confirmTried, setConfirmTried] = useState(false);
+  /** REVIEW & APPROVE ORDER's confirm box while no garment rows are sent (with rows, the box is itemsConfirmed). */
+  const [approved, setApproved] = useState(false);
   const [quote, setQuote] = useState<{ state: 'required' | 'loading' | 'ready'; quote?: Quote }>({ state: 'required' });
   // The review's price choices: delivery destination, extras and a discount code (payments-api.md R3), sent with the order.
   const [pricing, setPricing] = useState<PricingChoice>({});
@@ -207,19 +232,30 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     const u = userRef.current;
     if (!u) return f;
     const last = readLastContact(u.id);
-    return { ...f, contact_name: f.contact_name || u.name, contact_email: f.contact_email || u.email, team_name: f.team_name || last.team_name || '', phone: f.phone || last.phone || '' };
+    // The last order's delivery address, when this one has none yet.
+    const address = !f.street && !f.suburb && !f.postcode && last.street ? Object.fromEntries(ADDRESS_KEYS.map(k => [k, typeof last[k] === 'string' ? last[k] : f[k]])) : {};
+    return { ...f, ...address, contact_name: f.contact_name || u.name, contact_email: f.contact_email || u.email, team_name: f.team_name || last.team_name || '', phone: f.phone || last.phone || '' };
   };
   const payload = (): DraftData => {
     const f = fieldsRef.current, list = itemsRef.current;
-    const data: DraftData = { contact_name: f.contact_name.trim(), contact_email: f.contact_email.trim(), phone: f.phone.trim(), team_name: f.team_name.trim(), notes: f.notes.trim() };
-    if (list?.length) { data.items = list; data.items_confirmed = itemsConfirmedRef.current; }
+    const data: DraftData = { contact_name: f.contact_name.trim(), contact_email: f.contact_email.trim(), phone: f.phone.trim(), team_name: f.team_name.trim(), notes: f.notes.trim(),
+      needed_by: f.needed_by, delivery: f.delivery, address: Object.fromEntries(ADDRESS_KEYS.map(k => [k, f[k].trim()])) };
+    // The rows as the order takes them (the sizes as written on the form are only shown; empty rows are left out).
+    const sent = cleanRows(list);
+    if (sent.length) { data.items = sent; data.items_confirmed = itemsConfirmedRef.current; }
     const chosen = cleanPricing(pricingRef.current);
     if (chosen) data.pricing = chosen;
     return data;
   };
 
+  // The price list's delivery destinations (PUBLIC), to start the review's "Delivery to" from section 1's choice.
+  const destinations = useRef<{ code: string; name: string }[]>([]);
+  const autoDestination = useRef<string | undefined>(undefined);
+  useEffect(() => { api<{ destinations?: { code: string; name: string }[] }>('/pricing/options').then(o => { destinations.current = Array.isArray(o?.destinations) ? o.destinations : []; }).catch(() => { /* chosen on the review instead */ }); }, []);
   // The allowed file types and sizes come from the server (PUBLIC); the contract's values until then.
-  useEffect(() => { orderApi.options().then(o => { if (o?.files?.order_form && o.files.artwork) setRules(o.files); }).catch(() => { /* keep the defaults */ }); }, []);
+  /** The usual production and delivery time (Admin › Settings): a sooner date required gets a gentle warning. */
+  const [leadWeeks, setLeadWeeks] = useState(DEFAULT_LEAD_WEEKS);
+  useEffect(() => { orderApi.options().then(o => { if (typeof o?.lead_time_weeks === 'number') setLeadWeeks(o.lead_time_weeks); if (o?.files?.order_form && o.files.artwork) setRules(o.files); if (Array.isArray(o?.garments)) setGarments(o.garments); }).catch(() => { /* keep the defaults */ }); }, []);
 
   /* --- Whose page this is: load their draft; a guest who signs in keeps what they typed. --- */
   useEffect(() => {
@@ -246,7 +282,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     loadFields(withDefaults({ ...EMPTY, ...pickFields(saved?.data), ...filled(pickFields(handed)) }));
     setDraftId(saved?.id);
     commit((saved?.files ?? []).map(fromRemote));
-    setItems(saved?.items ?? null); setItemsFor(''); setItemsConfirmed(false);
+    setItems(saved?.items ?? null); setItemsFor(''); setItemsConfirmed(false); setReadings([]); setAiState('idle'); setAiFound(false);
     setStep('edit'); setTried(false); setContactOpen(false); setContactTried(false); setServerErrors({}); setBanner(''); setPlaced(null);
     setSave({ state: 'idle' });
     dirty.current = false;
@@ -323,11 +359,12 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     const r = rowsRef.current, f = fieldsRef.current, rule = rulesRef.current;
     const named = (kind: UploadKind) => r.filter(x => x.kind === kind && x.status === 'done').map(x => x.name);
     const forms = named('order_form'), art = named('artwork');
-    return [`Upload Your Order page (/orders/upload), ${stepRef.current === 'review' ? 'review screen (Confirm order sends it)' : stepRef.current === 'sent' ? 'order sent' : 'filling it in'}.`,
-      `Signed in: ${userRef.current ? 'yes' : 'no'}. Team: ${f.team_name.trim() || 'not added'}. Contact details complete: ${Object.keys(contactErrors(f)).length ? 'no' : 'yes'}.`,
+    return [`Upload Your Order page (/orders/upload), ${stepRef.current === 'review' ? 'REVIEW & APPROVE ORDER screen (final mockups, selected garments with the sizes table, delivery & notes; ticking the confirm box enables Approve Order, which sends it; Edit sizes & garments corrects the rows read from the order form; Back to Edit returns to the form)' : stepRef.current === 'sent' ? 'order sent' : 'filling it in'}.`,
+      `Signed in: ${userRef.current ? 'yes' : 'no'}. Team: ${f.team_name.trim() || 'not added'}. Contact details complete: ${Object.keys(contactErrors(f)).length ? 'no' : 'yes'}. Mobile: ${f.phone.trim() ? 'added' : 'not added'}. Date required: ${f.needed_by || 'not chosen'}. ${f.delivery === 'pickup' ? 'Pick up.' : `Delivery address: ${deliveryText(f) || 'not added'}.`}`,
+      `Garments read from the order form: ${cleanRows(itemsRef.current).map(it => `${it.name || it.label || it.garment} (${Object.entries(it.sizes).filter(([, n]) => Number(n) > 0).map(([z, n]) => `${n} ${z}`).join(', ')})`).join('; ') || 'none yet'}.`,
       `Order form files uploaded: ${forms.length ? forms.join(', ') : 'none'}. Supporting artwork: ${art.length ? art.join(', ') : 'none'}. Files uploading: ${r.filter(busyRow).length}. Files refused: ${r.filter(x => x.status === 'error').length}.`,
       `Allowed order form files: ${rule.order_form.extensions.join(', ')} up to ${mbText(rule.order_form.max_kb)} each. Artwork: ${rule.artwork.extensions.join(', ')} up to ${mbText(rule.artwork.max_kb)}. Up to ${rule.max_files} files per order.`,
-      'No order form? Create Order Form (/orders/new) builds one. Sizes, quantities and the price are confirmed by 3DEEZI after the order is sent.'].join(' ');
+      'Section 1 needs the mobile, the date required (when the garments are needed) and Deliver (street, suburb, state, postcode, country) or Pick up. No order form? Create Order Form (/orders/new) builds one. Sizes, quantities and the price are confirmed by 3DEEZI after the order is sent.'].join(' ');
   }), []);
 
   /* --- Server draft and uploads --- */
@@ -396,6 +433,8 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       // Removed while it was arriving: take it off the draft again.
       if (!rowsRef.current.some(r => r.key === key)) { orderApi.removeDraftFile(id, remote.id).catch(() => {}); return; }
       patchRow(key, r => ({ status: 'done', progress: 1, remote, name: remote.name, size: remote.size, preview: remote.thumb ?? r.preview }));
+      // 3DEEZI AI reads the order form now, so the review is ready (and section 1's empty details filled) by then.
+      if (row.kind === 'order_form') void readForms();
     } catch (e) {
       const err = e as ApiError;
       if (stop.signal.aborted) return;   // removed (✕) while uploading: not an error
@@ -487,6 +526,12 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     setFields(f => ({ ...f, ...next }));
     setServerErrors(errs => Object.fromEntries(Object.entries(errs).filter(([k]) => !(k in next) || next[k as keyof ContactDetails] === fieldsRef.current[k as keyof ContactDetails])));
   }
+  /** Date required, delivery or pick up, and the address (section 1). */
+  function setDetail(next: Partial<UploadFields>) {
+    dirty.current = true;
+    setFields(f => ({ ...f, ...next }));
+    setServerErrors(errs => Object.fromEntries(Object.entries(errs).filter(([k]) => !(k in next) && !(k.replace(/^address\./, '') in next) && !(k === 'address' && 'delivery' in next))));
+  }
   function setNotes(notes: string) {
     dirty.current = true;
     setFields(f => ({ ...f, notes }));
@@ -494,9 +539,12 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   }
   const clientErrors = contactErrors(fields);
   const showContactErrors = tried || contactTried;
-  const errorFor = (name: keyof UploadFields) => (showContactErrors ? clientErrors[name] : undefined) ?? serverErrors[name]?.[0];
+  const errorFor = (name: keyof UploadFields) => (showContactErrors ? clientErrors[name] : undefined) ?? serverErrors[name]?.[0] ?? serverErrors[`address.${name}`]?.[0];
   const contactErrorList = { contact_name: errorFor('contact_name'), contact_email: errorFor('contact_email'), team_name: errorFor('team_name'), phone: errorFor('phone') };
-  const contactBad = Object.values(contactErrorList).some(Boolean);
+  const delivering = fields.delivery === 'deliver';
+  const detailErrorList: Partial<Record<'needed_by' | 'delivery' | typeof ADDRESS_KEYS[number], string>> = { needed_by: errorFor('needed_by'), delivery: errorFor('delivery') ?? serverErrors.address?.[0],
+    ...(delivering ? Object.fromEntries(ADDRESS_KEYS.map(k => [k, errorFor(k)])) : {}) };
+  const contactBad = [...Object.values(contactErrorList), ...Object.values(detailErrorList)].some(Boolean);
   const forms = rows.filter(r => r.kind === 'order_form');
   const art = rows.filter(r => r.kind === 'artwork');
   const formsDone = forms.filter(r => r.status === 'done' && r.remote);
@@ -522,7 +570,8 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     const read = new Map<number, Suggested>();
     if (ok && draftRef.current) {
       try {
-        const d = await orderApi.draft(draftRef.current);
+        // Read by 3DEEZI AI (once per file on the server: at once when the upload already started it).
+        const d = (await readForms()) ?? await orderApi.draft(draftRef.current);
         commit([...d.files.filter(f => f.kind === 'order_form' || f.kind === 'artwork').map(fromRemote), ...rowsRef.current.filter(r => !r.remote)]);
         for (const s of d.suggested ?? []) read.set(s.file_id, s);
       } catch { /* the rows on the page are the same files */ }
@@ -534,14 +583,37 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     // The garment rows read from the order forms ("suggested"), unless these files' rows were already checked.
     const which = ready.map(r => r.remote!.id).join(',');
     if (which !== itemsFor) {
-      const found = ready.map(r => r.remote!.suggested ?? read.get(r.remote!.id) ?? null);
-      const rowsRead = found.flatMap(s => s?.items ?? []);
-      setItems(rowsRead.length ? rowsRead.map(i => ({ ...i, sizes: { ...i.sizes } })) : null);
-      setUnread(found.flatMap(s => s?.unknown ?? []).slice(0, 12));
+      // The server's latest reading (3DEEZI AI) first, else the one made at upload.
+      const found = ready.map(r => read.get(r.remote!.id) ?? r.remote!.suggested ?? null);
+      const rowsRead = rowsFromReadings(found);
+      setItems(rowsRead.length ? rowsRead : null);
+      setReadings(found.filter((x): x is Suggested => !!x));
+      setUnread(found.flatMap(s => s?.unknown ?? []).slice(0, 20));
       setItemsFor(which); setItemsConfirmed(false); setConfirmTried(false);
     }
+    // Delivery to the address's country, or Pick up, as the review's "Delivery to" (unless chosen there already).
+    // A destination set here before follows a changed choice (or is cleared, so the server takes it from the choice).
+    const dest = destinationFor(fieldsRef.current);
+    if (!pricingRef.current.destination || pricingRef.current.destination === autoDestination.current) {
+      autoDestination.current = dest;
+      setPricing(p => { const { destination: _was, ...rest } = p; return dest ? { ...rest, destination: dest } : rest; });
+    }
+    setApproved(false);
     setStep('review');
     window.scrollTo({ top: 0 });
+  }
+  /** Section 1's destination as the server takes it when none is chosen (App\Support\OrderDelivery::destination). */
+  const choiceDestination = (f: UploadFields) => (f.delivery === 'pickup' ? 'PICKUP' : f.delivery !== 'deliver' || !f.country.trim() ? undefined
+    : isAustralia(f.country) ? 'AU' : /^(new zealand|nz|aotearoa)$/i.test(f.country.trim()) ? 'NZ' : 'INTL');
+  /** The price list's destination for section 1's choice (only one the price list has). */
+  function destinationFor(f: UploadFields): string | undefined {
+    const list = destinations.current;
+    const find = (code: string, name: RegExp) => list.find(d => d.code.toUpperCase() === code)?.code ?? list.find(d => name.test(d.name))?.code;
+    if (f.delivery === 'pickup') return find('PICKUP', /pick\s*-?\s*up/i);
+    if (f.delivery !== 'deliver') return undefined;
+    if (isAustralia(f.country)) return find('AU', /^australia/i);
+    if (/^(new zealand|nz|aotearoa)$/i.test(f.country.trim())) return find('NZ', /new zealand/i);
+    return find('INTL', /international/i);
   }
   function editAgain(target: 'contact' | 'files' | 'notes' | 'top') {
     setStep('edit'); setSubmitError('');
@@ -558,14 +630,82 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     setItemsConfirmed(false);
   }
   function removeItem(index: number) { setItems(list => (list && list.length > 1 ? list.filter((_, i) => i !== index) : list)); setItemsConfirmed(false); }
+  /** A row's garment corrected: its name follows the garment list. */
+  function setGarment(index: number, garment: string) {
+    setItems(list => list && list.map((it, i) => (i === index ? { ...it, garment, label: undefined, name: garments.find(g => g.id === garment)?.name } : it)));
+    setItemsConfirmed(false);
+  }
+  /** A player's name, number or size corrected (null removes the player); the row's size counts follow the player's size. */
+  function setPlayer(index: number, j: number, patch: Partial<OrderPlayer> | null) {
+    setItems(list => list && list.map((it, i) => {
+      const old = it.players?.[j];
+      if (i !== index || !it.players || !old) return it;
+      const sizes = { ...it.sizes };
+      const from = old.size || null, to = patch === null ? null : 'size' in patch ? patch.size || null : from;
+      if (from !== to) {
+        if (from && (sizes[from] ?? 0) > 0) sizes[from] -= 1;
+        if (to) sizes[to] = (sizes[to] ?? 0) + 1;
+      }
+      const players = patch === null ? it.players.filter((_, k) => k !== j) : it.players.map((p, k) => (k === j ? { ...p, ...patch } : p));
+      const written = it._form?.player_sizes;
+      const form = it._form && written && patch === null ? { ...it._form, player_sizes: written.filter((_, k) => k !== j) } : it._form;
+      return { ...it, sizes, players, _form: form };
+    }));
+    setItemsConfirmed(false);
+  }
+  function addRow() { setItems(list => [...(list ?? []), { garment: 'jersey', sizes: {} }]); setItemsConfirmed(false); }
+
+  /**
+   * 3DEEZI AI reads the draft's order forms (POST /order-drafts/{id}/read: once per file on the server, so later calls
+   * answer at once). Started when an order form has uploaded; Review waits for it. Null when it could not be asked.
+   */
+  function readForms(): Promise<OrderDraft | null> {
+    const id = draftRef.current;
+    if (!id || !getToken()) return Promise.resolve(null);
+    // Every order form already read by 3DEEZI AI: nothing to ask (Review then loads the draft as it is).
+    const forms = rowsRef.current.filter(r => r.kind === 'order_form' && r.remote).map(r => r.remote!.id);
+    if (!reading.current && forms.length && forms.every(f => aiRead.current.has(f))) return Promise.resolve(null);
+    setAiState('reading');
+    const run: Promise<OrderDraft | null> = (reading.current ?? Promise.resolve(null)).then(() => orderApi.readDraft(id)).then(d => { applyReading(d); return d; }, () => null);
+    reading.current = run;
+    void run.finally(() => { if (reading.current === run) { reading.current = null; setAiState('done'); } });
+    return run;
+  }
+  /** Section 1's empty details from what the form says (never over what the customer typed; once per reading). */
+  function applyReading(d: OrderDraft) {
+    for (const s of d.suggested ?? []) {
+      if (s.source === 'ai') aiRead.current.add(s.file_id);
+      if (s.source === 'ai' && s.items?.length) setAiFound(true);
+      const key = `${s.file_id}:${s.read_at ?? ''}`;
+      if (s.source !== 'ai' || !s.form || prefilled.current.has(key)) continue;
+      prefilled.current.add(key);
+      prefill(s.form);
+    }
+  }
+  function prefill(form: SuggestedForm) {
+    const f = fieldsRef.current, next: Partial<UploadFields> = {};
+    if (!f.needed_by && /^\d{4}-\d{2}-\d{2}$/.test(form.needed_by) && form.needed_by >= todayText()) next.needed_by = form.needed_by;
+    if (!f.phone.trim() && form.phone) next.phone = form.phone;
+    if (!f.team_name.trim() && form.team_name) next.team_name = form.team_name;
+    if (f.delivery !== 'pickup' && !f.street.trim() && !f.suburb.trim() && form.address?.street) {
+      for (const k of ADDRESS_KEYS) if (form.address[k]) next[k] = form.address[k];
+    }
+    if (!Object.keys(next).length) return;
+    dirty.current = true;
+    setFields(cur => ({ ...cur, ...next }));
+  }
 
   // The price: quoted from confirmed rows; otherwise 3DEEZI prices it after checking the order form.
   useEffect(() => {
-    if (!PRICES_LIVE || step !== 'review' || !items?.length || !itemsConfirmed) { setQuote({ state: 'required' }); return; }
+    const priced = cleanRows(items);
+    if (!PRICES_LIVE || step !== 'review' || !priced.length || !itemsConfirmed) { setQuote({ state: 'required' }); return; }
     let live = true;
     setQuote({ state: 'loading' });
     const timer = setTimeout(() => {
-      quoteFor(items, cleanPricing(pricing) ?? {}).then(q => { if (live) setQuote(q?.status === 'priced' && q.total !== null ? { state: 'ready', quote: q } : { state: 'required', quote: q }); })
+      // As the order will be priced: the review's choice, else section 1's (pick up, the country).
+      const chosen = cleanPricing(pricing) ?? {};
+      const destination = chosen.destination ?? choiceDestination(fieldsRef.current);
+      quoteFor(priced, destination ? { ...chosen, destination } : chosen).then(q => { if (live) setQuote(q?.status === 'priced' && q.total !== null ? { state: 'ready', quote: q } : { state: 'required', quote: q }); })
         .catch(() => { if (live) setQuote({ state: 'required' }); });
     }, 300);
     return () => { live = false; clearTimeout(timer); };
@@ -575,20 +715,23 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
 
   async function submit() {
     if (submitting.current || step !== 'review') return;
-    if (items?.length && !itemsConfirmed) { setConfirmTried(true); focusFirstError(); return; }
-    if (items?.some(it => itemTotal(it) < 1)) { setSubmitError('Each garment needs at least one size and quantity, or remove that row.'); focusFirstError(); return; }
+    // Rows left empty are not sent (3DEEZI reads the form for those); rows with sizes are confirmed with the tick.
+    if (cleanRows(items).length && !itemsConfirmed) { setConfirmTried(true); focusFirstError(); return; }
     const id = draftRef.current;
-    if (!id) { setSubmitError('Your draft is not saved yet. Press Edit, then Review order again.'); focusFirstError(); return; }
+    if (!id) { setSubmitError('Your draft is not saved yet. Press Back to Edit, then Review order again.'); focusFirstError(); return; }
     submitting.current = true; setBusy(true); setSubmitError('');
     const scope = `order-upload-${id}`;
     try {
       const order = await orderApi.submitDraft(id, idempotencyKey(scope), payload());
       clearIdempotencyKey(scope);
       const f = fieldsRef.current, u = userRef.current;
-      if (u) { try { localStorage.setItem(lastContactKey(u.id), JSON.stringify({ team_name: f.team_name.trim(), phone: f.phone.trim() })); } catch { /* only a convenience */ } }
+      if (u) { try { localStorage.setItem(lastContactKey(u.id), JSON.stringify({ team_name: f.team_name.trim(), phone: f.phone.trim(), ...(f.delivery === 'deliver' ? Object.fromEntries(ADDRESS_KEYS.map(k => [k, f[k].trim()])) : {}) })); } catch { /* only a convenience */ } }
       if (owner) dropLocal(owner);
       rowsRef.current.forEach(release);
       setPlaced(order); setDraftId(undefined); commit([]); setItems(null); setStep('sent');
+      // Approve Order made the order and its invoice: on to COMPLETE YOUR PAYMENT once that page is live (else Order sent).
+      const payPage = paymentPath(order);
+      if (payPage) { navigate(payPage); return; }
       window.scrollTo({ top: 0 });
     } catch (e) {
       const err = e as ApiError;
@@ -597,18 +740,18 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
         if (Object.keys(err.errors).some(k => k.startsWith('items'))) { setSubmitError(err.message); focusFirstError(); }
         else {
           setStep('edit'); setTried(true);
-          if (['contact_name', 'contact_email', 'phone', 'team_name'].some(k => err.errors![k])) setContactOpen(true);
+          if (Object.keys(err.errors).some(k => ['contact_name', 'contact_email', 'phone', 'team_name', 'needed_by', 'delivery', 'address'].includes(k) || k.startsWith('address.'))) setContactOpen(true);
           focusFirstError();
         }
       } else {
         setSubmitError(err.status === 404 ? 'This draft was already sent or deleted. Check My Orders before sending it again.'
-          : `${err.message} Your order has not been sent yet. Press Confirm order again: it is only ever sent once.`);
+          : `${err.message} Your order has not been sent yet. Press Approve Order again: it is only ever sent once.`);
         focusFirstError();
       }
     } finally { submitting.current = false; setBusy(false); }
   }
   function startOver() {
-    setPlaced(null); setStep('edit'); setTried(false); setServerErrors({}); setItems(null); setItemsFor(''); setSave({ state: 'idle' }); setContactOpen(false);
+    setPlaced(null); setStep('edit'); setTried(false); setServerErrors({}); setItems(null); setItemsFor(''); setReadings([]); setAiState('idle'); setAiFound(false); setSave({ state: 'idle' }); setContactOpen(false);
     loadFields(withDefaults({ ...EMPTY }));
     window.scrollTo({ top: 0 });
   }
@@ -631,19 +774,13 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
 
   // The submit reply's invoice (payments): "Pay now" when it can be paid; an upload is usually priced after review.
   const invoice = placed ? placed.invoice ?? placed.payment : null;
-  if (step === 'sent' && placed) return <OrderPageLayout className="ou-page" header={header('Order sent', 'Order sent', 'Your order is with 3DEEZI.')} main={
-    <section className="op-card ou-sent" aria-live="polite">
-      <div className="ou-sent-icon"><Check size={38} strokeWidth={3} /></div>
-      <h2>Thank you{user ? `, ${user.name.split(' ')[0]}` : ''}!</h2>
-      <p>We have your order form. We’ll check it, then confirm sizes, quantities and the price with you before anything is made.</p>
-      <div className="ou-ref"><small>Your order reference</small><strong data-testid="order-reference">{placed.number}</strong></div>
-      <div className="ou-sent-actions">
-        <button type="button" className="op-bar-primary ou-sent-main" onClick={() => viewOrder(placed)}>View my order <ArrowRight size={20} /></button>
-        {invoice && payable(invoice) && <button type="button" className="ou-pill ou-pay" onClick={() => (invoice.invoice_number ? navigate(`/invoices/${encodeURIComponent(invoice.invoice_number)}`) : window.location.assign(String(invoice.pay_url)))}><CreditCard size={17} /> Pay now{invoice.amount_due ? ` · ${money(invoice.amount_due, invoice.currency ?? 'AUD')}` : ''}</button>}
-      </div>
-      {invoice && !payable(invoice) && invoice.status === 'quote_required' && <p className="ou-sent-price"><Info size={16} /> Price: Quote required. 3DEEZI confirms it after checking your order form, then sends your invoice.</p>}
-      <p className="ou-sent-more"><button type="button" onClick={startOver}>Upload another order</button></p>
-    </section>} />;
+  if (step === 'sent' && placed) return <OrderPageLayout className="ou-page is-sent" header={<ReviewApproveHeader step="sent" firstStep="Upload files" />} main={
+    <OrderSentPanel number={placed.number} name={user ? user.name.split(' ')[0] : undefined}
+      message="We have your order form. We’ll check it, then confirm sizes, quantities and the price with you before anything is made."
+      onView={() => viewOrder(placed)}
+      pay={invoice && payable(invoice) ? { label: <><CreditCard size={17} /> Pay now{invoice.amount_due ? ` · ${money(invoice.amount_due, invoice.currency ?? 'AUD')}` : ''}</>, onClick: () => (invoice.invoice_number ? navigate(`/invoices/${encodeURIComponent(invoice.invoice_number)}`) : window.location.assign(String(invoice.pay_url))) } : null}
+      note={invoice && !payable(invoice) && invoice.status === 'quote_required' ? <p className="ora-sent-note ou-sent-price"><Info size={16} /> Price: Quote required. 3DEEZI confirms it after checking your order form, then sends your invoice.</p> : null}
+      another={{ label: 'Upload another order', onClick: startOver }} />} />;
 
   const reviewing = step === 'review';
   const team = fields.team_name.trim();
@@ -659,26 +796,98 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     : 'Not saved to your account yet.';
   const lastTeam = user ? readLastContact(user.id).team_name : undefined;
 
+  /** Opens section 1 and puts the cursor in one of its fields. */
+  const openAt = (name: string) => { setContactOpen(true); requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector<HTMLElement>(`.ou-page [name="${name}"]`)?.focus())); };
+  const missing = (text: string, name: string) => <button type="button" className="ou-add" onClick={() => openAt(name)}>{text}</button>;
+  const today = todayText();
+  // Section 1's date required and delivery (client 2026-10-22: required date, delivery address, mobile not optional).
+  const whenWhere = <DeliveryFieldsCard value={fields} errors={detailErrorList} onChange={setDetail} leadWeeks={leadWeeks} />;
+
   const contactSection = contactOpen
-    ? <div id="ou-contact" className="ou-contact-edit"><ContactDetailsCard value={fields} onChange={setContact} errors={contactErrorList}>
-      <div className="ou-contact-actions"><span className="op-hint">Phone is optional.</span><button type="button" className="op-link" onClick={() => { setContactTried(true); if (!Object.keys(contactErrors(fieldsRef.current)).some(k => k !== 'notes')) setContactOpen(false); else focusFirstError(); }}><Check size={16} /> Done</button></div>
+    ? <div id="ou-contact" className="ou-contact-edit"><ContactDetailsCard value={fields} onChange={setContact} errors={contactErrorList} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
+      {whenWhere}
+      <div className="ou-contact-actions"><span className="op-hint">Mobile, date required and delivery are needed to send your order.</span><button type="button" className="op-link" onClick={() => { setContactTried(true); if (!Object.keys(contactErrors(fieldsRef.current)).some(k => k !== 'notes')) setContactOpen(false); else focusFirstError(); }}><Check size={16} /> Done</button></div>
     </ContactDetailsCard></div>
     : <OrderSection number={1} id="ou-contact" title="Contact & team details" action={<button type="button" className="op-link" onClick={() => setContactOpen(true)}><Pencil size={15} /> Edit</button>}>
       <dl className="ou-contact">
         <div><dt>Contact name</dt><dd className={fields.contact_name.trim() ? '' : 'is-missing'}>{fields.contact_name.trim() || 'Not added'}</dd></div>
         <div><dt>Email</dt><dd className={fields.contact_email.trim() ? '' : 'is-missing'}>{fields.contact_email.trim() || 'Not added'}</dd></div>
         <div><dt>Team / organisation</dt><dd className={team ? '' : 'is-missing'}>{team || <button type="button" className="ou-add" onClick={() => { setContactOpen(true); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.ou-page input[name="team_name"]')?.focus()); }}>Add your team</button>}</dd></div>
-        <div><dt>Phone</dt><dd className={fields.phone.trim() ? '' : 'is-empty'}>{fields.phone.trim() || 'Not added'}</dd></div>
+        <div><dt>Mobile</dt><dd className={fields.phone.trim() ? '' : 'is-missing'}>{fields.phone.trim() || missing('Add your mobile', 'phone')}</dd></div>
+        <div><dt>Date required</dt><dd className={fields.needed_by ? '' : 'is-missing'} data-testid="date-required">{fields.needed_by ? dateText(fields.needed_by) : missing('Add the date required', 'needed_by')}</dd></div>
+        <div className="ou-contact-wide"><dt>{fields.delivery === 'pickup' ? 'Pick up' : 'Delivery address'}</dt><dd className={fields.delivery === 'pickup' || fields.street.trim() ? '' : 'is-missing'} data-testid="delivery-text">{fields.delivery === 'pickup' ? 'Pick up from 3DEEZI' : fields.street.trim() ? deliveryText(fields) : missing('Add the delivery address', 'street')}</dd></div>
       </dl>
       {showContactErrors && contactBad ? <p className="ou-alert" role="alert"><CircleAlert size={15} /> {Object.values(contactErrorList).find(Boolean)} <button type="button" className="ou-add" onClick={() => setContactOpen(true)}>Edit</button></p>
         : user && <p className="ou-contact-note"><Info size={14} /> From your account{lastTeam ? ' and your last order' : ''}. Edit them for this order if they’re different.</p>}
     </OrderSection>;
 
-  const main = !reviewing ? <>
+  // What the review says about the reading: 3DEEZI AI or the built-in one, the files, and the date words on the form.
+  const aiForm = readings.find(r => r.source === 'ai' && r.form)?.form;
+  const readNote: ReadNote = {
+    // Who read the rows (none read: no "Read from" line, the review says 3DEEZI reads the form instead).
+    source: readings.some(r => r.source === 'ai' && r.items?.length) ? 'ai' : readings.some(r => r.items?.length) ? 'reader' : null,
+    files: formsDone.map(r => r.name),
+    neededByText: aiForm?.needed_by_text && aiForm.needed_by_text !== aiForm.needed_by ? aiForm.needed_by_text : '',
+    neededByFilled: aiForm?.needed_by && fields.needed_by === aiForm.needed_by ? dateText(aiForm.needed_by) : '',
+  };
+  const reviewItems = { items, unread, note: readNote, garments, confirmed: itemsConfirmed, confirmTried,
+    onConfirm: (v: boolean) => { setItemsConfirmed(v); setConfirmTried(false); }, onItem: setItem, onGarment: setGarment, onRemoveItem: removeItem, onPlayer: setPlayer, onAddRow: addRow };
+
+  const signInNote = !user && <div className="ou-signin" role="note"><LogIn size={20} /><p>Sign in to upload your files and send your order. Anything you type here is kept, and comes with you when you sign in.</p><button type="button" className="ou-pill" onClick={() => requireAuth()}>Sign in</button></div>;
+  const bannerNote = banner && <div className="ou-banner" role="status"><Info size={16} /><span>{banner}</span><button type="button" className="op-icon-btn" aria-label="Dismiss" onClick={() => setBanner('')}><X size={16} /></button></div>;
+
+  // REVIEW & APPROVE ORDER (client design 2026-10-22, components/OrderReviewApprove.tsx): the uploaded artwork as the
+  // mockups, the rows read from the order form as the size table (corrected in "Edit sizes & garments", U2's reader),
+  // section 1's delivery details (U1), and the confirm box: ticked, Approve Order sends the ONE order (submit above).
+  if (reviewing) {
+    const asFile = (r: Row): ReviewFile => ({ id: r.remote!.id, name: r.name, kind: r.kind, extension: r.remote!.extension, size: r.size, thumb: r.remote!.thumb, preview: r.preview ?? null, download: r.remote!.download });
+    const sent = (items ?? []).filter(it => rowTotal(it) > 0), emptyRows = (items ?? []).length - sent.length;
+    const rowsToSend = cleanRows(items).length > 0;
+    const reviewGarments: ReviewGarment[] = sent.map((it, i) => ({
+      key: `r${i}`, garment: it.garment, name: it.name || it.label || garments.find(g => g.id === it.garment)?.name || garmentName(it.garment),
+      sub: it.fit ? `${garmentName(it.fit)} fit` : '', thumb: it.thumbnail ?? garmentThumb(it.garment),
+      // The youth sizes as the form wrote them (10Y, 12Y) in place of Kids, when they add up to it.
+      sizes: youthSplit(it.sizes, it._form?.form_sizes), players: it.players ?? null,
+    }));
+    const readLine = [
+      readNote.source === 'ai' ? `Read by 3DEEZI AI from ${readNote.files.join(', ')}.` : readNote.source === 'reader' ? `Read from ${readNote.files.join(', ')}.` : '',
+      emptyRows ? `${plural(emptyRows, 'row')} without sizes: 3DEEZI confirms ${emptyRows === 1 ? 'it' : 'them'} with you.` : '',
+      unread.length ? `${unread.length === 1 ? 'One line' : `${unread.length} lines`} of your form to check: 3DEEZI checks ${unread.length === 1 ? 'it' : 'them'} with you.` : '',
+    ].filter(Boolean).join(' ');
+    const showPrice = quote.state === 'ready' || (quote.state === 'loading' && (!quote.quote || quote.quote.status === 'priced'));
+    const reasons = quote.quote?.status === 'quote_required' ? (quote.quote.reasons ?? []).map(r => r.message).join(' ') : '';
+    const done = [...formsDone, ...artDone];
+    // The rows for the layout rule and the per-garment sections, with the youth sizes as the form wrote them.
+    const reviewRows: ReviewRow[] = (items ?? []).map(it => ({ ...it, sizes: youthSplit(it.sizes, it._form?.form_sizes) }));
+    const layout = layoutFor(reviewRows);
+    return <div id="ou-top"><OrderPageLayout className="ou-page is-review" header={<>
+      <ReviewApproveHeader step="review" firstStep="Upload files" layout={layout} />
+      {signInNote}{bannerNote}
+    </>} main={<OrderReviewApprove garments={reviewGarments} sizeOrder={SIZES} artwork={artDone.map(asFile)} files={done.map(asFile)} filesLabel={artDone.length ? 'Order form & artwork' : 'Order form'}
+      layout={layout} rows={reviewRows} options={{ garments }} quote={(quote.quote ?? null) as unknown as PayQuote | null} quoteLoading={quote.state === 'loading'}
+      onDownload={f => { const file = done.find(r => r.remote?.id === f.id)?.remote; if (file) void download(file); }} fetchFile={f => fetchFile(String(f.download))}
+      delivery={{ contactName: fields.contact_name, team: fields.team_name, email: fields.contact_email, phone: fields.phone, phoneProblem: fields.phone.trim() && !validMobile(fields.phone) ? MOBILE_MESSAGE : null,
+        neededBy: fields.needed_by, neededByText: fields.needed_by ? dateText(fields.needed_by) : '', method: fields.delivery === 'pickup' ? 'pickup' : 'deliver', address: fields.delivery === 'pickup' ? null : deliveryText(fields), notes: fields.notes }}
+      onEditDelivery={() => editAgain('contact')} onEditGarments={() => editAgain('files')}
+      garmentEditor={<OrderFormRead items={items} note={readNote} unread={unread} sizes={SIZES} garments={garments} confirmed={itemsConfirmed} confirmTried={confirmTried} onConfirm={reviewItems.onConfirm}
+        onSize={setItem} onGarment={setGarment} onRemove={removeItem} onPlayer={setPlayer} onAddRow={addRow} showConfirm={false} />}
+      garmentsNote={readLine ? <p className="ora-garments-note" data-testid="read-summary">{readLine}</p> : null}
+      price={showPrice ? <PriceBox quote={quote} waitingForTick={false} /> : undefined}
+      priceNote={rowsToSend && !itemsConfirmed ? 'Tick the box below to see the price now.' : reasons || '3DEEZI confirms the price after checking your order form, before you pay anything.'}
+      priceOptions={<PricingChoices value={pricing} onChange={setPricing} />}
+      agreed={rowsToSend ? itemsConfirmed : approved} onAgree={v => { setApproved(v); if (rowsToSend) { setItemsConfirmed(v); setConfirmTried(false); } }}
+      busy={busy} error={submitError} onBack={() => editAgain('top')} onApprove={() => void submit()} />} /></div>;
+  }
+
+  const main = <>
     {contactSection}
     <OrderSection number={2} id="ou-upload" title="Upload order form">
       <DropArea kind="order_form" rule={rules.order_form} invalid={tried && !!filesError && !formsDone.length} onFiles={list => addFiles('order_form', list)} />
       {fileList(forms, 'Order form files')}
+      {formsDone.length > 0 && aiState !== 'idle' && <p className="ou-ai-status" role="status" data-testid="ai-status">{aiState === 'reading'
+        ? <><LoaderCircle className="spin" size={15} /> 3DEEZI AI is reading your order form…</>
+        : aiFound ? <><Check size={15} /> Read by 3DEEZI AI. You’ll check the garments, sizes and players on Review: nothing to type in.</>
+        : <><Check size={15} /> Uploaded. Nothing to type in: 3DEEZI reads your order form and confirms the sizes with you.</>}</p>}
       {tried && filesError && <p className="ou-alert" role="alert"><CircleAlert size={15} /> {filesError}</p>}
     </OrderSection>
     <OrderSection number={3} id="ou-art" title="Artwork & notes">
@@ -691,16 +900,14 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
         <OrderField label="Additional instructions" error={errorFor('notes')}><textarea id="ou-notes" className="op-input ou-notes" rows={3} maxLength={4000} value={fields.notes} onChange={e => setNotes(e.target.value)} placeholder="Anything else we should know about this order?" aria-invalid={!!errorFor('notes')} /></OrderField>
       </div>
     </OrderSection>
-  </> : <>
-    {submitError && <p className="ou-alert ou-submit-error" role="alert"><CircleAlert size={16} /> {submitError}</p>}
-    <ReviewView fields={fields} forms={formsDone} art={artDone} items={items} unread={unread} confirmed={itemsConfirmed} confirmTried={confirmTried} quote={quote} pricing={pricing} onPricing={setPricing}
-      onConfirm={v => { setItemsConfirmed(v); setConfirmTried(false); }} onItem={setItem} onRemoveItem={removeItem} onEdit={editAgain} onDownload={download} />
   </>;
 
   const side = <>
     <OrderSummaryCard title="Upload summary" name={team || <span className="ou-quiet">Your team</span>} badge="Draft"
       rows={[{ key: 'form', label: 'Order form', value: formsDone.length ? `${plural(formsDone.length, 'file')} uploaded` : undefined, pending: pendingText(forms) },
-        { key: 'art', label: 'Supporting artwork', value: artDone.length ? plural(artDone.length, 'file') : undefined, pending: pendingText(art) }]}
+        { key: 'art', label: 'Supporting artwork', value: artDone.length ? plural(artDone.length, 'file') : undefined, pending: pendingText(art) },
+        { key: 'date', label: 'Date required', value: fields.needed_by ? dateText(fields.needed_by) : undefined, pending: 'Not added' },
+        { key: 'delivery', label: fields.delivery === 'pickup' ? 'Pick up' : 'Delivery', value: fields.delivery === 'pickup' ? 'From 3DEEZI' : fields.suburb.trim() ? `To ${[fields.suburb.trim(), fields.state.trim().toUpperCase()].filter(Boolean).join(' ')}` : undefined, pending: 'Address needed' }]}
       hint="Sizes and quantities will be confirmed during review."
       footer={<p className={`ou-saved ${save.state === 'error' ? 'is-error' : ''}`} data-testid="save-state">{savedText}</p>} />
     <AssistToggle open={assistOpen} onToggle={() => setAssistOpen(v => !v)}>
@@ -719,17 +926,13 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     </AssistToggle>
   </>;
 
-  const bar = !reviewing
-    ? <OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveNow(true), busy: save.state === 'saving' }}
-        status={save.state === 'error' ? <span className="ou-bar-error">{save.message}</span> : save.state === 'saved' && draftId ? `Draft saved ${timeText(save.at)}` : !user ? 'Kept on this device' : ''}
-        primary={{ label: 'Review order', onClick: () => void goReview(), busy }} note="Your order is only submitted after review." />
-    : <OrderBottomBar secondary={{ label: 'Edit', icon: <ArrowLeft size={22} />, onClick: () => editAgain('top'), disabled: busy }}
-        primary={{ label: busy ? 'Sending…' : 'Confirm order', icon: <Check size={20} />, onClick: () => void submit(), busy }} note="Sends one order. We confirm sizes, quantities and price with you." />;
+  const bar = <OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveNow(true), busy: save.state === 'saving' }}
+    status={save.state === 'error' ? <span className="ou-bar-error">{save.message}</span> : save.state === 'saved' && draftId ? `Draft saved ${timeText(save.at)}` : !user ? 'Kept on this device' : ''}
+    primary={{ label: 'Review order', onClick: () => void goReview(), busy }} note="Your order is only submitted after review." />;
 
   return <div id="ou-top"><OrderPageLayout className="ou-page" header={<>
-    {header('Upload Your Order', reviewing ? 'Review your order' : 'Upload your order', reviewing ? 'Check everything below. Nothing is sent until you press Confirm order.' : 'Already have your order ready? Upload your form and artwork below.')}
-    {!user && <div className="ou-signin" role="note"><LogIn size={20} /><p>Sign in to upload your files and send your order. Anything you type here is kept, and comes with you when you sign in.</p><button type="button" className="ou-pill" onClick={() => requireAuth()}>Sign in</button></div>}
-    {banner && <div className="ou-banner" role="status"><Info size={16} /><span>{banner}</span><button type="button" className="op-icon-btn" aria-label="Dismiss" onClick={() => setBanner('')}><X size={16} /></button></div>}
+    {header('Upload Your Order', 'Upload your order', 'Already have your order ready? Upload your form and artwork below.')}
+    {signInNote}{bannerNote}
   </>} main={main} side={side} bar={bar} /></div>;
 }
 
@@ -818,18 +1021,40 @@ function AssistToggle({ open, onToggle, children }: { open: boolean; onToggle: (
   return <div className="ou-assist">{children}<button ref={hide} type="button" className="ou-assist-hide" aria-expanded aria-label="Close 3DEEZI Assist" title="Close" onClick={onToggle}><ChevronUp size={20} /></button></div>;
 }
 
-/** The review: everything read only with Edit, the rows read from the order form to check, and the price. */
-function ReviewView({ fields, forms, art, items, unread, confirmed, confirmTried, quote, pricing, onPricing, onConfirm, onItem, onRemoveItem, onEdit, onDownload }: {
-  fields: UploadFields; forms: Row[]; art: Row[]; items: OrderItem[] | null; unread: string[]; confirmed: boolean; confirmTried: boolean; quote: { state: 'required' | 'loading' | 'ready'; quote?: Quote };
-  pricing: PricingChoice; onPricing: (next: PricingChoice) => void;
-  onConfirm: (value: boolean) => void; onItem: (index: number, size: string, value: string) => void; onRemoveItem: (index: number) => void; onEdit: (target: 'contact' | 'files' | 'notes') => void; onDownload: (file: OrderFile) => void;
+/** Review section 3's data and handlers (the rows read from the order form, editable). */
+export interface ReviewItemsProps {
+  items: ReviewItem[] | null; unread: string[]; note: ReadNote; garments: { id: string; name: string }[]; confirmed: boolean; confirmTried: boolean;
+  onConfirm: (value: boolean) => void; onItem: (index: number, size: string, value: string) => void; onGarment: (index: number, garment: string) => void;
+  onRemoveItem: (index: number) => void; onPlayer: (index: number, player: number, patch: Partial<OrderPlayer> | null) => void; onAddRow: () => void;
+  /** The section's number on the page (3 on the review). */
+  number?: number;
+}
+
+/**
+ * Review section 3 "Details from your order form": the finished form read by 3DEEZI AI (garments with sizes, players,
+ * date on the form, totals), every value editable; only lines it couldn't place are listed (components/OrderFormRead.tsx).
+ */
+export function ReviewItems({ number = 3, items, unread, note, garments, confirmed, confirmTried, onConfirm, onItem, onGarment, onRemoveItem, onPlayer, onAddRow }: ReviewItemsProps) {
+  return <OrderSection number={number} id="ou-review-items" title="Details from your order form" className="ou-review">
+    <OrderFormRead items={items} note={note} unread={unread} sizes={SIZES} garments={garments} confirmed={confirmed} confirmTried={confirmTried} onConfirm={onConfirm}
+      onSize={onItem} onGarment={onGarment} onRemove={onRemoveItem} onPlayer={onPlayer} onAddRow={onAddRow} />
+  </OrderSection>;
+}
+
+/** The review: everything read only with Edit, the rows read from the order form to check, and the price. `part="items"` is section 3 alone. */
+function ReviewView({ fields, forms, art, quote, pricing, onPricing, onEdit, onDownload, part, ...rows }: ReviewItemsProps & {
+  fields: UploadFields; forms: Row[]; art: Row[]; quote: { state: 'required' | 'loading' | 'ready'; quote?: Quote };
+  pricing: PricingChoice; onPricing: (next: PricingChoice) => void; onEdit: (target: 'contact' | 'files' | 'notes') => void; onDownload: (file: OrderFile) => void; part?: 'items';
 }) {
+  if (part === 'items') return <ReviewItems {...rows} />;
+  const { items, confirmed } = rows;
   const edit = (target: 'contact' | 'files' | 'notes', what: string) => <button type="button" className="op-link" onClick={() => onEdit(target)} aria-label={`Edit ${what}`}><Pencil size={15} /> Edit</button>;
   const value = (v: string) => (v.trim() ? <dd>{v.trim()}</dd> : <dd className="is-empty">Not added</dd>);
   let n = 0;
   return <>
     <OrderSection number={++n} id="ou-review-contact" title="Contact & team details" action={edit('contact', 'contact details')} className="ou-review">
-      <dl className="ou-pairs"><div><dt>Contact name</dt>{value(fields.contact_name)}</div><div><dt>Email</dt>{value(fields.contact_email)}</div><div><dt>Team / organisation</dt>{value(fields.team_name)}</div><div><dt>Phone</dt>{value(fields.phone)}</div></dl>
+      <dl className="ou-pairs"><div><dt>Contact name</dt>{value(fields.contact_name)}</div><div><dt>Email</dt>{value(fields.contact_email)}</div><div><dt>Team / organisation</dt>{value(fields.team_name)}</div><div><dt>Mobile</dt>{value(fields.phone)}</div>
+        <div><dt>Date required</dt>{value(fields.needed_by ? dateText(fields.needed_by) : '')}</div><div><dt>{fields.delivery === 'pickup' ? 'Pick up' : 'Delivery address'}</dt>{value(deliveryText(fields))}</div></dl>
     </OrderSection>
     <OrderSection number={++n} id="ou-review-files" title="Order form" action={edit('files', 'files')} className="ou-review">
       <ul className="ou-files">{forms.map(r => <li key={r.key} className="ou-file" data-status="done" data-name={r.name}>
@@ -838,20 +1063,7 @@ function ReviewView({ fields, forms, art, items, unread, confirmed, confirmTried
         <div className="ou-file-side"><span className="ou-done"><CircleCheck size={21} /> Uploaded</span>{r.remote && <button type="button" className="ou-icon" title="Download to check it" aria-label={`Download ${r.name}`} onClick={() => onDownload(r.remote!)}><Download size={18} /></button>}</div>
       </li>)}</ul>
     </OrderSection>
-    {items && items.length > 0 && <OrderSection number={++n} id="ou-review-items" title="Details from your order form" className="ou-review">
-      <p className="ou-lead">We read these garments and sizes from your order form. Check them and correct anything that is wrong.</p>
-      <div className="ou-table"><table className="ou-rows"><thead><tr><th>Garment</th><th>Sizes</th><th>Total</th><th><span className="op-sr">Remove</span></th></tr></thead><tbody>
-        {items.map((it, i) => { const name = it.name || it.label || garmentName(it.garment); return <tr key={i}>
-          <td>{name}</td>
-          <td><div className="ou-sizes">{SIZES.map(s => <label key={s}>{s}<input inputMode="numeric" value={it.sizes[s] ? String(it.sizes[s]) : ''} placeholder="0" onChange={e => onItem(i, s, e.target.value)} aria-label={`${name}, size ${s}`} /></label>)}</div></td>
-          <td className="is-num">{itemTotal(it)}</td>
-          <td>{items.length > 1 && <button type="button" className="ou-icon" aria-label={`Remove ${name}`} title="Remove this row" onClick={() => onRemoveItem(i)}><X size={18} /></button>}</td>
-        </tr>; })}
-      </tbody></table></div>
-      {unread.length > 0 && <p className="ou-unread"><Info size={15} /><span>Some lines could not be read, so 3DEEZI checks them with you: {unread.join(' · ')}</span></p>}
-      <label className={`ou-confirm ${confirmTried && !confirmed ? 'is-invalid' : ''}`}><input type="checkbox" checked={confirmed} aria-invalid={confirmTried && !confirmed} onChange={e => onConfirm(e.target.checked)} /><span><strong>These details are correct</strong><small>We make your order from them. Anything unclear in your order form is checked with you.</small></span></label>
-      {confirmTried && !confirmed && <p className="ou-alert" role="alert"><CircleAlert size={15} /> Tick “These details are correct” (or correct them first) to confirm your order.</p>}
-    </OrderSection>}
+    <ReviewItems {...rows} number={++n} />
     <OrderSection number={++n} id="ou-review-art" title="Artwork & notes" action={edit('notes', 'artwork and notes')} className="ou-review">
       <dl className="ou-pairs">
         <div><dt>Supporting artwork</dt><dd className={art.length ? '' : 'is-empty'}>{art.length ? <ul className="ou-thumbs">{art.map(r => <li key={r.key}><span className="ou-file-icon">{r.preview ? <img src={r.preview} alt="" /> : <FileIcon name={r.name} size={24} />}</span><span title={r.name}>{r.name}</span></li>)}</ul> : 'Not added'}</dd></div>
@@ -860,7 +1072,7 @@ function ReviewView({ fields, forms, art, items, unread, confirmed, confirmTried
     </OrderSection>
     <OrderSection number={++n} id="ou-review-price" title="Price" className="ou-review">
       <PricingChoices value={pricing} onChange={onPricing} />
-      <PriceBox quote={quote} waitingForTick={PRICES_LIVE && !!items?.length && !confirmed} />
+      <PriceBox quote={quote} waitingForTick={PRICES_LIVE && cleanRows(items).length > 0 && !confirmed} />
     </OrderSection>
   </>;
 }
