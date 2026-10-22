@@ -24,13 +24,15 @@ class ProjectRequest extends FormRequest
             'garment' => [$required, Rule::in(array_column(config('catalog.garments'), 'id'))],
             'mode' => ['sometimes', Rule::in(['ai', 'dyo'])],
             'status' => ['sometimes', Rule::in(['draft', 'approved'])],
-            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,gradients,zones,zoneColors,trackStyle,layers,marks,layout,presetId'],
+            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,gradients,zones,zoneColors,trackStyle,layers,marks,layout,presetId,productName'],
             'design.garment' => ['sometimes', Rule::in(array_column(config('catalog.garments'), 'id'))],
             'design.main' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.secondary' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.accent' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.pattern' => ['required_with:design', Rule::in($patterns)],
             'design.presetId' => ['sometimes', 'nullable', 'string', 'max:80'],
+            // The sport's garment tile the design was made as ("Netball dress", task 9.99); 'garment' stays the 3D garment.
+            'design.productName' => ['sometimes', 'nullable', 'string', 'max:60'],
             // Gradient fills per colour zone: Primary in design.gradient (its original place), Secondary and Pattern in
             // design.gradients. Each has from, to and angle; stops (2 to 6, e.g. Sunset's three) when it has more colours,
             // and the ready-made preset it came from.

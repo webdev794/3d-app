@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp, CircleAlert, Download, Sparkles } from 'lucide-react';
 import { orderApi, type OrderFile, type Suggested } from '../orderApi';
 import '../../css/order-form-read.css';
+import { FIT_NAMES } from '../orderSizes';
 
 /**
  * Staff: an uploaded order form as 3DEEZI AI read it (client 2026-10-22), next to the original file (one click to
- * download): the garments with their sizes as the site counts them and as written on the form (10Y, 12Y ... are counted
- * in Kids), the players with their sizes as written, the date and delivery on the form, notes, and the lines it could not
+ * download): the garments with their sizes as the site counts them and as written on the form (Y10, Youth 12 ... are the site's 10Y, 12Y;
+ * older readings counted them in Kids), the players with their sizes as written, the date and delivery on the form, notes, and the lines it could not
  * place. It is the reading when the customer reviewed it; the order's own rows are what they confirmed.
  */
 export default function OrderFormReading({ files, onError }: { files: OrderFile[]; onError?: (message: string) => void }) {
@@ -35,7 +36,7 @@ function Reading({ file, reading, onError }: { file: OrderFile; reading: Suggest
       {facts.length > 0 && <dl className="ofr-facts">{facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>}
       <div className="ofr-staff-table"><table><thead><tr><th>Garment</th><th>Sizes</th><th>As written on the form</th><th>Total</th></tr></thead><tbody>
         {reading.items.map((it, i) => { const detail = reading.details?.[i]; return <tr key={i}>
-          <td>{it.name || it.label || it.garment}{it.fit ? <small> · {it.fit}</small> : null}</td>
+          <td>{it.name || it.label || it.garment}{it.fit ? <small> · {FIT_NAMES[it.fit] ?? it.fit}</small> : null}</td>
           <td>{Object.entries(it.sizes).map(([s, n]) => `${s} ${n}`).join(' · ')}</td>
           <td>{detail?.form_sizes ? Object.entries(detail.form_sizes).map(([s, n]) => `${s} ${n}`).join(' · ') : '—'}</td>
           <td className="is-num">{Object.values(it.sizes).reduce((x, n) => x + (Number(n) || 0), 0)}</td>

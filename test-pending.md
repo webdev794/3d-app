@@ -421,6 +421,29 @@ App (Orders › Upload Your Order):
 4. Pick up: review and invoice have shipping $0. An Australian address: Australian shipping. A New Zealand address with no NZ price: "quote required". The invoice PDF prints the address on three lines.
 5. App: My orders › an order shows "Date required & delivery"; the board card shows "· required <date>".
 
+### 9q. All sizes on order forms (2026-10-22)
+1. Orders › Create Order Form: Fit Mens shows XS–4XL; "+ 5XL–8XL" adds the rest ("Fewer sizes" hides them). Fit Womens: W8–W20 with "+ W22, W24". Fit Kids: 6Y–16Y with "+ 2Y, 4Y". Numbers already typed stay visible.
+2. Fit Mens, M 4; "+ Womens sizes" adds a second row of the same garment in Womens: W10 3; on row 1 "+ Kids sizes": 10Y 2. Each subtotal and the order summary count all rows. Tidy at 1440, 1024 and 390.
+3. Player names & numbers: the size list is grouped Mens / Womens / Kids; pasting "SMITH, 7, W12" or "JONES, 9, 10y" sets W12 / 10Y.
+4. ASSIST › Help me add sizes: "10 jerseys: 5 W10, 5 W12; 8 shorts 10y" fills a Womens jersey row and a Kids shorts row.
+5. Review order: sizes in order with the fit (Mens / Womens / Kids fit); the review PDF lists them; price lines named "… · Womens". Approve: the pay page, My Orders, order detail and invoice PDF show every size.
+6. Admin › Orders › the order and the board: sizes in order, fit shown as Mens / Womens / Kids.
+7. Studio › Order this kit: Mens XS–4XL; "+ More sizes" shows 5XL–8XL and the Womens and Kids sizes.
+8. An older draft or order with "Kids" still shows a Kids box with its number and can be sent.
+9. Upload Your Order with a club form listing 10Y / 12Y / 14Y / 16Y: the read rows show 10Y, 12Y… (not Kids).
+10. App: the order form's fit chooses the boxes, "+ 5XL–8XL", "+ Womens / + Kids sizes"; My Orders shows the sizes and fit.
+11. Upload Your Order with 10Y–16Y, Womens sizes and a 6XL: Review shows each garment's sizes in order (Mens, Womens, Kids) with its fit; Edit sizes & garments shows each fit's boxes, "+ All sizes" shows all; Approve → the pay page and invoice PDF list each row's sizes.
+12. Studio › Order this kit: M 2, W12 3, 8Y 4 → pay page; the invoice PDF shows M 2 · W12 3 · 8Y 4. Admin board drawer lists each row with fit and sizes; Admin › Orders › Edit opens with them filled in.
+
+### 9r. Garments per sport (2026-10-22)
+1. Create › Design Your Own › Netball › DESIGN NETBALL: "NETBALL UNIFORMS & TEAMWEAR" with 8 tiles in the client's order; Netball dress chosen (✓, "3D preview uses singlet"); Netball skirt shows COMING SOON and can't be clicked. "More teamwear ›" shows 7 more.
+2. Netball bibs → Continue to studio: the stage chip reads "Netball · Netball bibs" on the singlet. Save: My projects shows "Netball · Netball bibs". Order it: the order row, review and admin order say "Netball bibs".
+3. Rugby League: 11 tiles in rows of 4 + 4 + 3 (last row centred), no More teamwear; Hooded Tracksuit opens the track jacket with the hood. Rugby: "RUGBY UNIFORMS & TEAMWEAR" with "Rugby Kit" first. Fight Wear: "FIGHT WEAR TEAMWEAR".
+4. 4 columns at 1440, 3 at 1024, 2 at 768 and 390.
+5. AI designer: Netball, a brief naming no garment, Generate: the chips are the Netball tile names (no skirt); "Netball dress" carries into the Studio.
+6. App: Netball shows the same 8 tiles; Continue → "Netball · Netball dress"; My projects shows it. In the Studio, changing the garment clears the tile name; Undo brings it back.
+7. At 1440, 1280 and 1024, scrolling the garment step: the round ASSIST button never covers "Continue to studio" (Netball and Rugby League). Singlet with bib shows "GA"; Hoodie is the black / cyan hoodie; AFL guernsey, Fight shorts and Basketball shorts have their own pictures. My projects search "netball bibs" finds the design; its invoice PDF line reads "Netball bibs".
+
 ### 9i. YOUR DESIGNS results page (2026-10-22)
 1. Create with AI, type a brief, Generate. Results: back arrow, YOUR DESIGNS, "1 / 4"; one large design (whole garment, not cropped); thumbnails 2, 3, 4 bottom-right with "Tap to switch"; Open in 3D Designer + a download icon in one row; a slim "Refine this design…" bar, all on one phone screen; no PRIMARY DESIGN banner.
 2. Tap thumbnail 3: it goes large, the counter says "3 / 4", design 1 moves into the thumbnails; nothing is rendered again, no credits.
@@ -520,6 +543,18 @@ App (Orders › Upload Your Order):
 
 9. Studio: open a saved kit › ⋯ › Order this kit › sizes, "This design is final", Send: the site goes straight to COMPLETE YOUR PAYMENT. With a price: pay (test mode) → Confirmation → My Orders. Without a price yet: "We're confirming your price", a View my order link, no Pay button.
 
+### 15o. AI · DYO · HOME pills in the header (2026-10-22)
+0. "Start a kit" is gone from the header and the ☰ menu on every page (homepage START CREATING stays).
+1. /projects at 1920: after Start a kit, three gradient pills AI · DYO · HOME, each with an icon and the Artboard's italic word. Hover: shine, lift, icon tilt. AI → /create/ai, DYO → /create/sport, HOME → /. On the homepage HOME has a white ring.
+2. Narrow from 1920 to 1024: the words get smaller, then icons only (about 1168–1600 px); nothing overlaps, wraps or scrolls sideways; Start a kit stays on desktop; at 1160 and below the links move into ☰ and the pills show their words again. The same signed in as admin and designer (icons a little earlier).
+3. Tablet: 1024 portrait and 768 show icon + word; 1180 landscape icons only. Phone: 430 and 390 three small icon pills, no Start a kit; 360 no pills. ☰: Home is first.
+4. /artboard: its own AI · DYO · HOME bar is unchanged. ORDERS (and its menu), 3DEEZI TEAM, DASHBOARD, the bell, Admin / Designer and the avatar still work at 1440 and 1280.
+
+### 15n. TEAM "How it works" loop curves (2026-10-22)
+1. /team at 1440, HOW IT WORKS: the loop ends are big, wide, glowing half-ovals: the left arc leaves card 7, sweeps out left (in line with the heading) and comes back into card 1; the right arc leaves card 4, sweeps out right and comes back into card 5. Arrows run 1→2→3→4, down the right arc into 5, 5→6→7, and up the left arc.
+2. 1920, 1280 and 1100: the arcs stay round, never touch the cards or text, no sideways scroll.
+3. 1050 px and below (1000, 768, 390): the steps show as the vertical list 1–7.
+
 ### 15m. Plans as the client answered, TEAM invoice wording (2026-10-22)
 1. /pricing and the app's Plans & pricing: Rookie A$100 per design, Creator A$49.95 per design, Club "15 designs a month", Pro Studio "30 designs a month".
 2. Admin › 3DEEZI TEAM › Plans & allowances: give a customer Creator: /team says "This request: A$49.95 incl. GST design fee"; the invoice is A$45.41 + GST A$4.54 = A$49.95 with a "Creator plan" line. Club: the request is included, with 15 left this month (up to 5 open at once).
@@ -533,6 +568,14 @@ App (Orders › Upload Your Order):
 3. Signed in on a plan with included requests: company and email pre-filled; the line by SEND reads "Included in your plan (…)". On the free plan: "This request: A$100.00 incl. GST design fee"; REVIEW & PAY opens the invoice.
 4. Send with a sport, several garments, a brief, a logo and a PDF, and a date: the four card rows tick; the reference shows. The request page, My requests, Admin › 3DEEZI TEAM and /designer show the garments and the preferred date.
 5. App: GET A DESIGNER opens the same screen; VIEW MY REQUESTS lists your requests.
+
+### 10i. 3D quality step 1, "PlayStation-like" (viewer 2026-10-20-20)
+1. On a computer, open the Studio (hard refresh): warm key light with cool rim light on the edges; mesh holes on the jersey, singlet and shorts (piqué on polos, fleece on hoodies); glowing stadium floodlights; a glossy podium that reflects the kit; smooth edges.
+2. Switch through Jersey, Full kit, Polo, Polo with pocket, Hoodie, Zip hoodie, Varsity and Track jacket: each looks better, and logos, names and numbers sit exactly where they did.
+3. A strong colour (red, royal blue): the lit front matches the colour picker.
+4. Add ?quality=flat to the Studio address: the old look; ?quality=low: the phone look; ?quality=high: the full look.
+5. On a phone (website and app) the Studio turns smoothly, with floodlight glow and fabric detail but no podium mirror.
+6. Unchanged: the 2D panels and their export, the Design sheet PDF (its 3D pictures have the new look), save and reopen, My design picture, print layouts.
 
 ### 10h. Varsity jacket (2026-10-22)
 1. Studio › Garment › Varsity jacket: turn the kit: snaps, slanted leather-trim pockets, striped rib collar, cuffs and waistband, quilted lining inside the neck, chenille letter on the chest, arched club name, name and number on the back, sponsor patch on the right sleeve, number patch on the left.

@@ -55,6 +55,7 @@ class KitState {
     this.zones = const {},
     this.zoneColors = const {},
     this.trackStyle = 'collar',
+    this.productName = '',
     this.gradient,
     this.gradients,
     this.marks = const {},
@@ -72,6 +73,10 @@ class KitState {
 
   /// The track jacket's style: 'collar' (its stand-up collar) or 'hood'.
   final String trackStyle;
+
+  /// The sport's garment tile it was chosen as ("Netball dress", task 9.99);
+  /// empty for a plain 3D garment. [garment] stays the 3D garment.
+  final String productName;
   final Map<String, dynamic>? gradient;
 
   /// The other colour zones' gradient fills (secondary, patternColor); [gradient] is the primary zone's.
@@ -199,7 +204,22 @@ class AppController extends ChangeNotifier {
   String sport = 'Rugby League';
 
   // ---------- the kit (see [KitState])
-  String garment = 'Jersey';
+  String _garment = 'Jersey';
+
+  /// The 3D garment. Another garment is no longer the sport's tile it was
+  /// chosen as, so it drops [productName] (set it after the garment).
+  String get garment => _garment;
+  set garment(String value) {
+    if (value != _garment) productName = '';
+    _garment = value;
+  }
+
+  /// The sport's garment tile the kit was chosen as ("Netball dress", task
+  /// 9.99), or empty: the Studio, projects and orders name the kit by it.
+  String productName = '';
+
+  /// The kit's garment as the user chose it: its tile name, else the garment.
+  String get garmentLabel => productName.isNotEmpty ? productName : garment;
   Color mainColor = const Color(0xff0b1016);
   Color secondaryColor = const Color(0xff00c2cc);
   Color accentColor = const Color(0xff36e3ee);
@@ -481,7 +501,10 @@ class AppController extends ChangeNotifier {
           'Polo' => 'polo',
           'Polo with pocket' => 'pocketpolo',
           // Hoodies are long-sleeved: a drawing of one is read as a sleeved top.
-          'Hoodie' || 'Zip hoodie' || 'Varsity jacket' || 'Track jacket' => 'jersey',
+          'Hoodie' ||
+          'Zip hoodie' ||
+          'Varsity jacket' ||
+          'Track jacket' => 'jersey',
           'Jersey' => 'jersey',
           _ => 'singlet',
         },
@@ -496,7 +519,9 @@ class AppController extends ChangeNotifier {
       return null;
     }
     final parts = result['parts'];
-    final top = parts is List && parts.isNotEmpty ? '${parts.first}' : 'singlet';
+    final top = parts is List && parts.isNotEmpty
+        ? '${parts.first}'
+        : 'singlet';
     edit(() {
       garment = switch (top) {
         'jersey' => 'Jersey',
@@ -552,6 +577,7 @@ class AppController extends ChangeNotifier {
     k.zones,
     k.zoneColors,
     k.trackStyle,
+    k.productName,
     k.gradient,
     k.gradients,
     k.marks,
@@ -1096,6 +1122,7 @@ class AppController extends ChangeNotifier {
     zones: copyZones(zones),
     zoneColors: copyZones(zoneColors),
     trackStyle: trackStyle,
+    productName: productName,
     gradient: copyGradient(gradient),
     gradients: copyGradient(gradients),
     marks: copyMarks(marks),
@@ -1120,6 +1147,7 @@ class AppController extends ChangeNotifier {
     zones = copyZones(k.zones);
     zoneColors = copyZones(k.zoneColors);
     trackStyle = k.trackStyle;
+    productName = k.productName;
     gradient = copyGradient(k.gradient);
     gradients = copyGradient(k.gradients);
     marks = copyMarks(k.marks);

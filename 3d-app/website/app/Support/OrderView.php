@@ -30,7 +30,7 @@ final class OrderView
 
         return $query->withoutKit()
             // The kit as ordered: its picture, name and garment, for a card whose project was deleted since.
-            ->addSelect(['orders.design_snapshot->thumbnail as kit_thumbnail', 'orders.design_snapshot->name as kit_name', 'orders.design_snapshot->garment as kit_garment'])
+            ->addSelect(['orders.design_snapshot->thumbnail as kit_thumbnail', 'orders.design_snapshot->name as kit_name', 'orders.design_snapshot->garment as kit_garment', 'orders.design_snapshot->design->productName as kit_product'])
             ->with($with)
             ->withCount(['files' => fn ($q) => $staff ? $q : $q->where('visibility', 'customer')]);
     }
@@ -130,7 +130,7 @@ final class OrderView
         $updates = $staff ? $order->updates : $order->updates->where('visibility', 'customer')->values();
         $proofs = $order->files->where('kind', 'proof')->where('visibility', 'customer')->sortByDesc(fn (OrderFile $f) => [$f->version, $f->id])->values();
 
-        $base = Arr::except($order->attributesToArray(), ['kit_thumbnail', 'kit_name', 'kit_garment', 'files_count']);
+        $base = Arr::except($order->attributesToArray(), ['kit_thumbnail', 'kit_name', 'kit_garment', 'kit_product', 'files_count']);
         if (! $staff) {
             $base = Arr::except($base, Order::INTERNAL);
         }
@@ -180,7 +180,11 @@ final class OrderView
         // The Studio's own garments that the order form lists under another row: a zip hoodie is a hoodie, the pocket polo a polo.
         $row = Order::PROJECT_ROWS[(string) $garment] ?? $garment;
         $known = $row && array_key_exists($row, Order::GARMENTS);
-        $name = $row !== $garment ? collect(config('catalog.garments'))->firstWhere('id', $garment)['name'] ?? Order::GARMENTS[$row] : ($known ? Order::GARMENTS[$row] : 'Kit');
+        // The sport's garment tile the kit was made as ("Netball dress", task 9.99).
+        $attributes = $order->getAttributes();
+        $snapshot = array_key_exists('design_snapshot', $attributes) ? $order->design_snapshot : null;
+        $product = trim((string) (array_key_exists('kit_product', $attributes) ? self::text($attributes['kit_product']) : (is_array($snapshot) ? ($snapshot['design']['productName'] ?? null) : null)));
+        $name = $product !== '' ? $product : ($row !== $garment ? collect(config('catalog.garments'))->firstWhere('id', $garment)['name'] ?? Order::GARMENTS[$row] : ($known ? Order::GARMENTS[$row] : 'Kit'));
 
         return [['garment' => $known ? $row : 'jersey', 'name' => $known ? $name : 'Kit', 'quantity' => (int) $order->quantity, 'thumbnail' => $thumbnail]];
     }

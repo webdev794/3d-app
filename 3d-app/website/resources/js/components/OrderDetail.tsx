@@ -10,10 +10,12 @@ import { ArrowRight, Check, CheckCircle2, ClipboardList, Copy, CreditCard, Downl
 import { ApiError, downloadFile, fetchFile } from '../api';
 import { orderApi } from '../orderApi';
 import { DetailSection, GarmentPicture, PaymentPill, STAGES, StatusPill, dateTime, displayRef, fileSize, garmentName, money, payPath, plural, readOrderDetail, safeLink, shortDate, type BoardOrder, type OrderDetail, type OrderFile, type OrderUpdate, type PaymentSummary, type Player } from './orderBoardModel';
+import { ALL_SIZES, FIT_NAMES } from '../orderSizes';
 
 export type DetailFocus = 'review' | 'track' | 'pay' | null;
 
-const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
+/** Every size in order (Order::SIZES): Mens XS–8XL, Womens W8–W24, Kids 2Y–16Y, then the older Kids column. */
+const SIZE_ORDER = ALL_SIZES;
 const sizeEntries = (sizes: Record<string, number>) => Object.entries(sizes).filter(([, n]) => n > 0).sort(([a], [b]) => (SIZE_ORDER.indexOf(a) + 1 || 99) - (SIZE_ORDER.indexOf(b) + 1 || 99));
 const KIND_LABEL: Record<string, string> = { order_form: 'Order form', artwork: 'Artwork', proof: 'Design proof', photo: 'Photo', invoice: 'Invoice', other: 'File' };
 const SOURCE_LABEL: Record<string, string> = { studio: 'Ordered from the Studio', form: 'Order form', upload: 'Uploaded order form', admin: 'Added by 3DEEZI' };
@@ -213,7 +215,7 @@ function GarmentsSection({ order }: { order: OrderDetail }) {
     {order.items.length ? <ul className="obd-items">{order.items.map((item, n) => {
       // "Mens · Hoodie": the fit, and the garment when the row's name doesn't say it (e.g. a kit's own name).
       const kind = garmentName(item.garment);
-      const sub = [item.fit && item.fit[0].toUpperCase() + item.fit.slice(1), item.garment !== 'other' && !item.name.toLowerCase().includes(kind.toLowerCase()) ? kind : null].filter(Boolean).join(' · ');
+      const sub = [item.fit && (FIT_NAMES[item.fit] ?? item.fit[0].toUpperCase() + item.fit.slice(1)), item.garment !== 'other' && !item.name.toLowerCase().includes(kind.toLowerCase()) ? kind : null].filter(Boolean).join(' · ');
       const sizes = sizeEntries(item.sizes);
       return <li key={n}>
         <GarmentPicture garment={item.garment} thumbnail={item.thumbnail} alt={item.name} />

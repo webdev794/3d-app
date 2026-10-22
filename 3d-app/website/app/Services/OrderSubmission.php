@@ -139,7 +139,7 @@ class OrderSubmission
     private function items(User $user, array $items): ?array
     {
         $ids = collect($items)->pluck('project_id')->filter()->unique();
-        $projects = $ids->isEmpty() ? collect() : $user->projects()->whereIn('id', $ids)->get(['id', 'name', 'version'])->keyBy('id');
+        $projects = $ids->isEmpty() ? collect() : $user->projects()->whereIn('id', $ids)->get(['id', 'name', 'version', 'design'])->keyBy('id');
         $errors = [];
         foreach ($items as $i => &$item) {
             if (empty($item['project_id'])) {
@@ -155,6 +155,11 @@ class OrderSubmission
             }
             $item['project_name'] = $project->name;
             $item['project_version'] = $project->version;
+            // The design's own garment name ("Netball dress", task 9.99) names the row, unless the row has its own label.
+            $product = trim((string) ($project->design['productName'] ?? ''));
+            if ($product !== '' && blank($item['label'] ?? null)) {
+                $item['label'] = mb_substr($product, 0, 60);
+            }
         }
         unset($item);
         if ($errors) {

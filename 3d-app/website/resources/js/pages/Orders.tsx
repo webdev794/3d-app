@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ClipboardPaste, LoaderCircle, Package, Plus, Trash2, TriangleAlert, X } from 'lucide-react';
 import { api, type Project, type User } from '../api';
-import { SIZES, statusLabel, type BackNames, type Order, type Player } from './Admin';
+import { SIZES, SizeFields, statusLabel, type BackNames, type Order, type Player } from './Admin';
+import { sizeGroups, siteSize } from '../orderSizes';
 import '../../css/orders.css';
 
 const money = (v: string | null, currency = 'AUD') => v === null ? 'Quote pending' : new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(Number(v));
@@ -25,9 +26,8 @@ export function MyOrdersPage() {
 const MAX_PLAYERS = 300;
 /** The sample name a new design starts with: the customer types the real one when ordering. */
 const isPlaceholder = (name: string) => name.trim().toUpperCase() === 'YOUR NAME';
-const SIZE_WORDS: Record<string, string> = { XXL: '2XL', XXXL: '3XL', XXXXL: '4XL', KID: 'Kids', CHILD: 'Kids', YOUTH: 'Kids', SMALL: 'S', MEDIUM: 'M', LARGE: 'L', XLARGE: 'XL', EXTRALARGE: 'XL' };
-/** A size in a spreadsheet cell ("m", "XXL", "kids"), or null. */
-const sizeOf = (cell: string) => { const word = cell.toUpperCase().replace(/[\s.-]+/g, ''); return SIZES.find(s => s.toUpperCase() === word) ?? SIZE_WORDS[word] ?? null; };
+/** A size in a spreadsheet cell ("m", "XXL", "10y", "W12", "kids"), or null (orderSizes.ts siteSize). */
+const sizeOf = (cell: string) => { const found = siteSize(cell); return found && SIZES.includes(found) ? found : null; };
 
 /**
  * Players pasted from Excel: one per line, cells split by tabs (or commas or semicolons). The size and the number
@@ -162,7 +162,7 @@ export function OrderKitDialog({ projectId, projectName, user, onClose, onOrdere
   return <dialog ref={ref} className="modal compact-modal admin-modal" onCancel={onClose}><button className="icon-button modal-close" onClick={onClose} aria-label="Close"><X /></button>
     <span className="eyebrow">ORDER THIS KIT</span><h2>{projectName}</h2><p className="muted">Tell us the sizes and what goes on the back. We’ll confirm the price and timing before anything is made.</p>
     <form onSubmit={submit} className="admin-form" noValidate>
-      <fieldset className="size-grid" disabled={list}><legend>Quantities by size · {quantity} total{list ? ' · counted from the players list' : ''}</legend>{SIZES.map(s => <label key={s}><span>{s}</span><input type="number" min={0} max={10000} value={shown[s] || ''} placeholder="0" onChange={e => setSizes({ ...sizes, [s]: Math.max(0, Math.min(10000, Math.floor(Number(e.target.value)) || 0)) })} /></label>)}</fieldset>
+      <SizeFields sizes={shown} disabled={list} legend={<>Quantities by size · {quantity} total{list ? ' · counted from the players list' : ''}</>} onChange={(s, n) => setSizes({ ...sizes, [s]: n })} />
 
       <div className={`order-final${tried && !final ? ' invalid' : ''}`}>
         {kitState === 'loading' ? <p className="order-wait"><LoaderCircle className="spin" size={14} /> Loading the kit’s pictures…</p>
@@ -182,7 +182,7 @@ export function OrderKitDialog({ projectId, projectName, user, onClose, onOrdere
           {rows.map((r, i) => <div key={r.key} className={`order-player${tried && rowProblem(r) ? ' invalid' : ''}`}>
             <input aria-label={`Player ${i + 1} name`} maxLength={40} value={r.name} placeholder="Name" autoFocus={r.key === focusKey} onChange={e => setRow(r.key, { name: e.target.value })} />
             <input aria-label={`Player ${i + 1} number`} inputMode="numeric" maxLength={3} value={r.number} placeholder="No." onChange={e => setRow(r.key, { number: digits(e.target.value) })} />
-            <select aria-label={`Player ${i + 1} size`} value={r.size} onChange={e => setRow(r.key, { size: e.target.value })}><option value="">Size</option>{SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select>
+            <select aria-label={`Player ${i + 1} size`} value={r.size} onChange={e => setRow(r.key, { size: e.target.value })}><option value="">Size</option>{r.size && !SIZES.includes(r.size) && <option value={r.size}>{r.size}</option>}{sizeGroups(SIZES).map(g => <optgroup key={g.fit} label={`${g.name} sizes`}>{g.sizes.map(s => <option key={s} value={s}>{s}</option>)}</optgroup>)}</select>
             <button type="button" className="icon-button" onClick={() => removeRow(r.key)} aria-label={`Remove player ${i + 1}`} title="Remove"><Trash2 size={15} /></button>
           </div>)}
           {isPlaceholder(rows[0]?.name ?? '') && <p className="order-warn"><TriangleAlert size={14} /> YOUR NAME is the sample name on the design. Type the player’s name instead.</p>}

@@ -104,7 +104,9 @@ class _CreateHomeScreenState extends State<CreateHomeScreen> {
                             'Don’t want to design it yourself? Our professional design team will create it for you.',
                         action: 'GET A DESIGNER',
                         onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(builder: (_) => TeamScreen(c)),
+                          MaterialPageRoute<void>(
+                            builder: (_) => TeamScreen(c),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 18),
@@ -850,14 +852,11 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   }
 
   void _design() {
-    final garments = sportNamed(dyoSports[_index].$1)?.garments ?? const [];
     GarmentScreen.showAll.value = false;
     widget.c.update(() {
       widget.c.sport = dyoSports[_index].$1;
-      // A garment this sport does not offer gives way to its first one.
-      if (garments.isNotEmpty && !garments.contains(widget.c.garment)) {
-        widget.c.garment = garments.first;
-      }
+      // The sport's first garment, unless the kit already is one of its tiles.
+      GarmentScreen.startOn(widget.c);
     });
     widget.c.go(AppScreen.garment);
   }
@@ -1021,7 +1020,8 @@ class _ArrowButton extends StatelessWidget {
   );
 }
 
-/// The garments offered: (name, showroom art id).
+/// The 3D garments: (name, showroom art id). "More teamwear" offers the ones
+/// a sport's own tiles do not use.
 const garmentTiles = <(String, String)>[
   ('Full Kit', 'fullkit'),
   ('Jersey', 'jersey'),
@@ -1036,241 +1036,372 @@ const garmentTiles = <(String, String)>[
   ('Varsity jacket', 'varsity'),
 ];
 
-/// Shown with the garments; not yet available in 3D.
+/// Shown in the Studio's garment list; not yet available in 3D.
 const comingSoonGarments = <(String, String)>[
   ('Socks', 'socks'),
   ('Shoes', 'shoes'),
 ];
 
-/// 9 · Select garment for the chosen sport.
+/// 9 · Step 2 (client visuals images/157.jpg and 160.jpg, task 9.99):
+/// "<SPORT> UNIFORMS & TEAMWEAR", the sport's own garment tiles
+/// (lib/sports_catalog.dart, as on the website) and "More teamwear" for every
+/// other 3D garment. A tile without a 3D model of its own says which garment
+/// the 3D preview uses; one with none close enough is COMING SOON.
 class GarmentScreen extends StatelessWidget {
   const GarmentScreen(this.c, {super.key});
   final AppController c;
 
-  /// "Show all garments": the sport's garments only until it is tapped (the
-  /// sport chooser resets it).
+  /// "More teamwear" open (the sport chooser closes it).
   static final showAll = ValueNotifier(false);
 
-  /// The garment tiles for [sport]: its garments (lib/sports_catalog.dart)
-  /// in its order, or all of them.
-  static List<(String, String)> tilesFor(String sport, {bool all = false}) {
-    final suited = sportNamed(sport)?.garments ?? const <String>[];
-    if (all || suited.isEmpty) return garmentTiles;
+  /// The sport's own tiles (an unknown sport: one per 3D garment).
+  static List<GarmentTile> tilesFor(String sport) {
+    final tiles = sportNamed(sport)?.tiles ?? const <GarmentTile>[];
+    if (tiles.isNotEmpty) return tiles;
+    return [for (final (name, _) in garmentTiles) GarmentTile(name, '', name)];
+  }
+
+  /// "More teamwear": the 3D garments the sport's tiles do not use (none for
+  /// the client's Rugby lists).
+  static List<GarmentTile> moreFor(String sport) {
+    final s = sportNamed(sport);
+    if (s != null && !s.more) return const [];
+    final used = {for (final t in tilesFor(sport)) t.garment};
     return [
-      for (final name in suited)
-        ...garmentTiles.where((g) => g.$1 == name),
+      for (final (name, _) in garmentTiles)
+        if (!used.contains(name)) GarmentTile(name, '', name),
     ];
   }
 
-  Widget _tile(
-    String name,
-    String art, {
-    bool selected = false,
-    bool soon = false,
-    VoidCallback? onTap,
-  }) => Opacity(
-    opacity: soon ? .55 : 1,
-    child: GlowCard(
-      selected: selected,
-      glow: selected,
-      onTap: onTap,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(10, soon ? 26 : 10, 10, 34),
-            child: Image.asset(
-              'assets/images/showroom/garment-$art.webp',
-              fit: BoxFit.contain,
-              // A garment without its picture yet shows its nearest one.
-              errorBuilder: (_, _, _) => Image.asset(
-                'assets/images/showroom/garment-${art.contains('polo') ? 'polo' : 'jersey'}.webp',
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-          if (selected)
-            const Positioned(
-              top: 9,
-              right: 9,
-              child: Icon(
-                Icons.check_circle_rounded,
-                color: Palette.cyan,
-                size: 22,
-              ),
-            ),
-          if (soon)
-            Positioned(
-              top: 8,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0x337560ff),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0x997560ff)),
-                  ),
-                  child: const Text(
-                    'COMING SOON',
-                    style: TextStyle(fontSize: 8.5, letterSpacing: 1.2),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
+  /// The tile the kit was chosen as: by its name; a plain 3D garment from
+  /// "More teamwear" has an empty name.
+  static GarmentTile? current(AppController c) {
+    if (c.productName.isNotEmpty) {
+      for (final t in tilesFor(c.sport)) {
+        if (t.name == c.productName && t.garment == c.garment) return t;
+      }
+      return null;
+    }
+    for (final t in moreFor(c.sport)) {
+      if (t.garment == c.garment) return t;
+    }
+    return null;
+  }
 
-  @override
-  Widget build(BuildContext context) => StageBackground(
-    dim: true,
-    child: Column(
-      children: [
-        TopBar(onBack: c.back),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Row(
+  /// Puts the tile on the kit: its 3D garment, its name and its settings.
+  static void choose(AppController c, GarmentTile t, {bool plain = false}) {
+    if (t.garment == null) return;
+    c.garment = t.garment!;
+    c.productName = plain ? '' : t.name;
+    if (t.trackStyle != null) c.trackStyle = t.trackStyle!;
+  }
+
+  /// A new sport (or a garment left from another one) starts on its first
+  /// garment that can be designed.
+  static void startOn(AppController c) {
+    final tiles = tilesFor(c.sport);
+    final mine =
+        c.productName.isNotEmpty &&
+        tiles.any((t) => t.name == c.productName && t.garment == c.garment);
+    if (mine) return;
+    for (final t in tiles) {
+      if (!t.soon) return choose(c, t);
+    }
+  }
+
+  /// The project's name when the kit opens: the tile's name ("Netball
+  /// dress"), with the sport first when the name does not say it.
+  static String projectNameFor(AppController c) {
+    final label = c.garmentLabel;
+    return label.toLowerCase().contains(c.sport.toLowerCase())
+        ? label
+        : '${c.sport} $label';
+  }
+
+  Widget _tile(
+    BuildContext context,
+    GarmentTile t, {
+    bool selected = false,
+    bool plain = false,
+  }) {
+    final soon = t.soon;
+    final art = plain ? garmentIds[t.garment] ?? 'jersey' : t.art;
+    final uses = t.fit == 'nearest' ? t.garment : null;
+    return Semantics(
+      label: t.name,
+      selected: selected,
+      button: !soon,
+      child: Opacity(
+        opacity: soon ? .6 : 1,
+        child: GlowCard(
+          key: ValueKey('garment-tile-${t.name}'),
+          selected: selected,
+          glow: selected,
+          onTap: soon
+              ? () => showToast(context, '${t.name}: coming soon in 3D.')
+              : () => c.update(() => choose(c, t, plain: plain)),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Palette.cyan, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Palette.cyan.withValues(alpha: .45),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-                child: const Text(
-                  '2',
-                  style: TextStyle(
-                    fontFamily: 'Rajdhani',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
+              Padding(
+                padding: EdgeInsets.fromLTRB(8, soon ? 24 : 8, 8, 0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const ScreenTitle(
-                      'Select garment',
-                      size: 24,
-                      align: TextAlign.left,
-                    ),
-                    Text(
-                      'Choose what you want to design for ${c.sport}.',
-                      style: const TextStyle(
-                        color: Color(0xffc4d2df),
-                        fontSize: 12,
+                    Expanded(
+                      child: Image.asset(
+                        'assets/images/showroom/garment-$art.webp',
+                        fit: BoxFit.contain,
+                        // A picture still to come shows its 3D garment's.
+                        errorBuilder: (_, _, _) => Image.asset(
+                          'assets/images/showroom/garment-${garmentIds[t.garment] ?? 'jersey'}.webp',
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      t.name.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Rajdhani',
+                        fontSize: 15,
+                        height: 1.05,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .5,
+                      ),
+                    ),
+                    if (t.description.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          t.description,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xffb7c6d6),
+                            fontSize: 10.5,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    if (uses != null)
+                      Text(
+                        '3D preview uses ${uses.toLowerCase()}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xff5fdcea),
+                          fontSize: 9.5,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
+              if (selected)
+                const Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    color: Palette.cyan,
+                    size: 22,
+                  ),
+                ),
+              if (soon)
+                Positioned(
+                  top: 8,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0x337560ff),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0x997560ff)),
+                      ),
+                      child: const Text(
+                        'COMING SOON',
+                        style: TextStyle(fontSize: 8.5, letterSpacing: 1.2),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
-        Expanded(
-          child: ValueListenableBuilder(
-            valueListenable: showAll,
-            builder: (context, all, _) {
-              final tiles = tilesFor(c.sport, all: all);
-              final more = tilesFor(c.sport).length < garmentTiles.length;
-              return GridView.count(
-                crossAxisCount: 2,
-                padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: .9,
-                children: [
-                  for (final (name, art) in tiles)
-                    _tile(
-                      name,
-                      art,
-                      selected: c.garment == name,
-                      onTap: () => c.update(() => c.garment = name),
+      ),
+    );
+  }
+
+  SliverGrid _grid(List<Widget> children) => SliverGrid.count(
+    crossAxisCount: 2,
+    mainAxisSpacing: 12,
+    crossAxisSpacing: 12,
+    childAspectRatio: .68,
+    children: children,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final sport = sportNamed(c.sport);
+    final title = sport?.heading ?? c.sport;
+    final heading = sport?.group == 'apparel'
+        ? '$title teamwear'
+        : '$title uniforms & teamwear';
+    final tiles = tilesFor(c.sport), more = moreFor(c.sport);
+    final chosen = current(c);
+    return StageBackground(
+      dim: true,
+      child: Column(
+        children: [
+          TopBar(onBack: c.back),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Palette.cyan, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Palette.cyan.withValues(alpha: .45),
+                        blurRadius: 12,
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    '2',
+                    style: TextStyle(
+                      fontFamily: 'Rajdhani',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
                     ),
-                  for (final (name, art) in comingSoonGarments)
-                    _tile(
-                      name,
-                      art,
-                      soon: true,
-                      onTap: () =>
-                          showToast(context, '$name are coming soon in 3D.'),
-                    ),
-                  // The sport's garments first; this shows the rest too.
-                  if (more)
-                    GlowCard(
-                      onTap: () => showAll.value = !all,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ScreenTitle(heading, size: 22, align: TextAlign.left),
+                      Text(
+                        'Choose what you want to design for $title.',
+                        style: const TextStyle(
+                          color: Color(0xffc4d2df),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ValueListenableBuilder(
+              valueListenable: showAll,
+              builder: (context, all, _) => CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
+                    sliver: _grid([
+                      for (final t in tiles)
+                        _tile(
+                          context,
+                          t,
+                          selected:
+                              chosen != null &&
+                              c.productName == t.name &&
+                              chosen.garment == t.garment,
+                        ),
+                    ]),
+                  ),
+                  if (more.isNotEmpty)
+                    SliverToBoxAdapter(
                       child: Center(
-                        child: Text(
-                          all
-                              ? 'ONLY ${c.sport.toUpperCase()} GARMENTS'
-                              : 'SHOW ALL GARMENTS',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Palette.cyan,
-                            letterSpacing: 1,
+                        child: TextButton(
+                          key: const ValueKey('more-teamwear'),
+                          onPressed: () => showAll.value = !all,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                all ? 'Less teamwear' : 'More teamwear',
+                                style: const TextStyle(
+                                  color: Palette.cyan,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Icon(
+                                all
+                                    ? Icons.expand_less_rounded
+                                    : Icons.chevron_right_rounded,
+                                color: Palette.cyan,
+                                size: 18,
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
+                  if (all && more.isNotEmpty)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
+                      sliver: _grid([
+                        for (final t in more)
+                          _tile(
+                            context,
+                            t,
+                            plain: true,
+                            selected:
+                                chosen != null &&
+                                c.productName.isEmpty &&
+                                chosen.garment == t.garment,
+                          ),
+                      ]),
+                    ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 10)),
                 ],
-              );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 6, 18, 8),
-          child: Column(
-            children: [
-              GradientButton(
-                label: 'CONTINUE TO STUDIO',
-                icon: Icons.arrow_forward_rounded,
-                onPressed: () {
-                  c.update(() => c.projectName = '${c.sport} ${c.garment}');
-                  c.go(AppScreen.studio);
-                },
               ),
-              TextButton.icon(
-                onPressed: c.back,
-                icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                label: const Text('Change sport'),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 6, 18, 8),
+            child: Column(
+              children: [
+                GradientButton(
+                  label: 'CONTINUE TO STUDIO',
+                  icon: Icons.arrow_forward_rounded,
+                  onPressed: chosen == null
+                      ? null
+                      : () {
+                          c.update(() => c.projectName = projectNameFor(c));
+                          c.go(AppScreen.studio);
+                        },
+                ),
+                TextButton.icon(
+                  onPressed: c.back,
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text('Change sport'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// CONVERT: pick a photo, sketch or mockup and open it as an editable 3D kit.

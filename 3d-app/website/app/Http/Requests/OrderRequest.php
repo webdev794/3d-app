@@ -148,7 +148,7 @@ class OrderRequest extends FormRequest
             'items.*.fit.in' => 'Garment :position: choose a fit from the list.',
             'items.*.label.max' => 'Garment :position: the name can be up to 60 characters.',
             'items.*.sizes.required' => 'Garment :position: add at least one size and quantity.',
-            'items.*.sizes.array' => 'Garment :position: use the sizes XS to 4XL or Kids.',
+            'items.*.sizes.array' => 'Garment :position: use the sizes XS to 8XL, W8 to W24 or 2Y to 16Y.',
             'items.*.players.max' => 'Garment :position: up to '.Order::MAX_PLAYERS.' names and numbers.',
             'items.*.players.*.name.max' => 'A name can be up to 40 characters.',
             'items.*.players.*.number.regex' => 'A number is digits only, up to 3.',

@@ -109,6 +109,8 @@ export interface Design {
     layers?: ArtworkLayer[];
     marks?: Record<string, MarkPlace>;
     layout?: DesignLayout | null;
+    /** The sport's garment tile it was chosen as ("Netball dress", task 9.99): its name in the Studio, projects and orders; `garment` stays the 3D garment. Empty: a plain 3D garment. */
+    productName?: string;
 }
 
 export const defaultDesign: Design = {

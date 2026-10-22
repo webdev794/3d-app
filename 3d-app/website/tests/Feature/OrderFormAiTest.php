@@ -21,7 +21,7 @@ use Tests\TestCase;
 
 /**
  * Upload Your Order, read by 3DEEZI AI (client 2026-10-22: "our AI should analyse the form and create a final form for
- * review"): a club form shaped like Te Arawa's becomes Jersey rows with youth sizes in Kids, the players and the date
+ * review"): a club form shaped like Te Arawa's becomes Jersey rows with its youth sizes (10Y ... 16Y, 2026-10-22), the players and the date
  * words; the result is kept on the file and never asked for twice; a failing or missing AI keeps the built-in reading,
  * which now reads such a form too; and the order goes through without the customer typing sizes. No real OpenAI calls.
  */
@@ -86,13 +86,14 @@ class OrderFormAiTest extends TestCase
             ->assertJsonPath('data.suggested.0.form.needed_by_text', 'ASAP')
             ->json('data.suggested.0');
 
-        // Youth sizes go in Kids; the sizes as written stay beside the row; quantities add up to the players with a size.
-        $this->assertSame(['XS' => 1, 'Kids' => 11], $read['items'][0]['sizes']);
-        $this->assertSame(['10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 1], $read['details'][0]['form_sizes']);
+        // The youth sizes are the site's own (10Y ... 16Y, in size order), not Kids, even when the model says Kids;
+        // written as the site writes them, nothing is kept beside the row; quantities add up to the players with a size.
+        $this->assertSame(['XS' => 1, '10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 1], $read['items'][0]['sizes']);
+        $this->assertNull($read['details'][0]['form_sizes']);
         $this->assertSame(12, array_sum($read['items'][0]['sizes']));
         $players = $read['items'][0]['players'];
         $this->assertCount(13, $players);
-        $this->assertSame(['name' => 'WALKER', 'number' => '1', 'size' => 'Kids'], $players[0]);
+        $this->assertSame(['name' => 'WALKER', 'number' => '1', 'size' => '10Y'], $players[0]);
         $this->assertSame(['name' => 'FERRIS', 'number' => '8', 'size' => 'XS'], $players[7]);
         $this->assertNull($players[3]['size']);   // PARKER has no size on the form
         $this->assertSame('12Y', $read['details'][0]['player_sizes'][1]);
@@ -129,7 +130,7 @@ class OrderFormAiTest extends TestCase
             'items' => $read['items'], 'phone' => '0411 111 111', 'needed_by' => now()->addDays(30)->toDateString(), 'delivery' => 'pickup',
         ], ['Idempotency-Key' => 'ai-read-0001'])->assertCreated()->json('data');
         $placed = Order::find($order['id']);
-        $this->assertSame(['XS' => 1, 'Kids' => 11], $placed->sizes);
+        $this->assertSame(['XS' => 1, '10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 1], $placed->sizes);
         $this->assertSame(12, $placed->quantity);
         $this->assertCount(13, $placed->items[0]['players']);
         $this->assertSame('upload', $placed->source);
@@ -142,7 +143,7 @@ class OrderFormAiTest extends TestCase
         $files = $this->getJson("/api/v1/admin/orders/{$order['id']}")->assertOk()->json('data.files');
         $form = collect($files)->firstWhere('id', $file);
         $this->assertSame('ai', $form['meta']['suggested']['source']);
-        $this->assertSame(['10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 1], $form['meta']['suggested']['details'][0]['form_sizes']);
+        $this->assertSame(['XS' => 1, '10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 1], $form['meta']['suggested']['items'][0]['sizes']);
         $this->assertStringContainsString('/order-files/', $form['download']);
     }
 
@@ -154,7 +155,7 @@ class OrderFormAiTest extends TestCase
             ->assertJsonPath('data.suggested.0.source', 'reader')
             ->assertJsonPath('data.suggested.0.items.0.garment', 'jersey')
             ->json('data.suggested.0');
-        $this->assertSame(['XS' => 1, 'Kids' => 11], $read['items'][0]['sizes']);
+        $this->assertSame(['XS' => 1, '10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 1], $read['items'][0]['sizes']);
         $this->assertCount(13, $read['items'][0]['players']);
         $this->assertSame(['PARKER 4 (no size)'], $read['unknown']);
         $this->assertSame('failed', OrderFile::find($file)->meta['ai']['status']);
@@ -203,7 +204,7 @@ class OrderFormAiTest extends TestCase
 
         $this->assertCount(3, $out['items']);
         [$shorts, $other, $jersey] = $out['items'];
-        $this->assertSame(['2XL' => 2, 'Kids' => 5], $shorts['sizes']);
+        $this->assertSame(['2XL' => 2, '12Y' => 5], $shorts['sizes']);   // Y12 is the site's 12Y
         $this->assertArrayNotHasKey('sport', $shorts);
         $this->assertSame('youth', $shorts['fit']);
         $this->assertSame(['garment' => 'other', 'label' => 'Supporter scarf', 'sizes' => ['M' => 4], 'name' => 'Supporter scarf'], $other);
@@ -240,7 +241,7 @@ class OrderFormAiTest extends TestCase
         $out = app(OrderFormAi::class)->checked($answer, 'form.xlsx');
         $jersey = $out['items'][0];
         $this->assertCount(13, $jersey['players']);
-        $this->assertSame(['XS' => 1, 'Kids' => 12], $jersey['sizes']);   // counted again from the named players
+        $this->assertSame(['XS' => 1, '10Y' => 3, '12Y' => 4, '14Y' => 4, '16Y' => 1], $jersey['sizes']);   // counted again from the named players
         $this->assertCount(13, $out['details'][0]['player_sizes']);
         $this->assertContains('Jersey: 5 lines with a size and a number but no name were not taken as players (a size totals table?): 10Y 3 · 12Y 4 · 14Y 3 · 16Y 1 · XS 1', $out['unknown']);
 
@@ -248,7 +249,7 @@ class OrderFormAiTest extends TestCase
         $spares = OrderFormSample::aiAnswer();
         $spares['garments'][0]['quantities'][] = ['form_size' => 'M', 'size' => 'M', 'quantity' => 2];
         $out = app(OrderFormAi::class)->checked($spares, 'form.xlsx');
-        $this->assertSame(['XS' => 1, 'M' => 2, 'Kids' => 11], $out['items'][0]['sizes']);
+        $this->assertSame(['XS' => 1, 'M' => 2, '10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 1], $out['items'][0]['sizes']);
         $this->assertContains('Jersey: the sizes add up to 14, the players list has 12 with a size', $out['unknown']);
     }
 
@@ -263,11 +264,11 @@ class OrderFormAiTest extends TestCase
         $path = tempnam(sys_get_temp_dir(), 'frm').'.xlsx';
         OrderFormSample::xlsx($path);
         $checked = $reader->checked($answer, 'form.xlsx');
-        $this->assertSame(['XS' => 1, 'Kids' => 12], $checked['items'][0]['sizes']);
+        $this->assertSame(['XS' => 1, '10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 2], $checked['items'][0]['sizes']);
 
         $out = $reader->againstSheet($checked, $reader->text($path, 'xlsx'));
-        $this->assertSame(['XS' => 1, 'Kids' => 11], $out['items'][0]['sizes']);
-        $this->assertSame(['10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 1], $out['details'][0]['form_sizes']);
+        $this->assertSame(['XS' => 1, '10Y' => 3, '12Y' => 4, '14Y' => 3, '16Y' => 1], $out['items'][0]['sizes']);
+        $this->assertEmpty($out['details'][0]['form_sizes'] ?? null);
         $this->assertNull($out['items'][0]['players'][3]['size']);
         $this->assertSame('', $out['details'][0]['player_sizes'][3]);
         $this->assertContains('Jersey: PARKER 4 (size missing)', $out['unknown']);
@@ -280,8 +281,11 @@ class OrderFormAiTest extends TestCase
 
     public function test_sizes_as_written_map_to_the_site_columns(): void
     {
-        foreach (['10Y' => 'Kids', '16 yrs' => 'Kids', 'Y12' => 'Kids', 'YS' => 'Kids', 'Youth M' => 'Kids', 'kids' => 'Kids', 'XS' => 'XS', 'small' => 'S', 'Med' => 'M',
-            'XXL' => '2XL', 'xxxl' => '3XL', '4XL' => '4XL', 'Mens L' => 'L', '10' => null, 'One size' => null, '' => null] as $written => $site) {
+        // Kids ages are the site's own sizes (2Y ... 16Y); youth letters and ages not on the list stay in the older Kids.
+        foreach (['10Y' => '10Y', '16 yrs' => '16Y', 'Y12' => '12Y', 'Youth 14' => '14Y', 'Kids 6' => '6Y', '2y' => '2Y', '11Y' => 'Kids', '18Y' => 'Kids', 'YS' => 'Kids', 'Youth M' => 'Kids', 'kids' => 'Kids',
+            'W12' => 'W12', 'w8' => 'W8', 'Womens 14' => 'W14', 'Ladies 24' => 'W24', '16W' => 'W16', 'W26' => null, 'W11' => null,
+            'XS' => 'XS', 'small' => 'S', 'Med' => 'M', 'XXL' => '2XL', 'xxxl' => '3XL', '4XL' => '4XL', 'XXXXXL' => '5XL', '6XL' => '6XL', '7xl' => '7XL', 'XXXXXXXXL' => '8XL', '9XL' => null,
+            'Mens L' => 'L', 'Womens XL' => 'XL', '10' => null, 'One size' => null, '' => null] as $written => $site) {
             $this->assertSame($site, OrderFormAi::siteSize((string) $written), "size {$written}");
         }
     }

@@ -309,7 +309,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${p.sport} · v${p.version} · ${p.age}',
+                                    // The sport's garment tile ("Netball dress"), when the kit has one.
+                                    '${p.sport}${p.kit.productName.isEmpty ? '' : ' · ${p.kit.productName}'} · v${p.version} · ${p.age}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -442,7 +443,11 @@ class _AssetsScreenState extends State<AssetsScreen> {
     final canUpload = _tab == 'Logos' || _tab == 'Uploads';
     return Column(
       children: [
-        TopBar(title: 'Assets', subtitle: 'Logos · patterns · artwork', trailing: [NotificationBell(widget.c)]),
+        TopBar(
+          title: 'Assets',
+          subtitle: 'Logos · patterns · artwork',
+          trailing: [NotificationBell(widget.c)],
+        ),
         _Tabs(
           labels: const ['Logos', 'Patterns', 'Artwork', 'Uploads'],
           selected: _tab,
@@ -644,7 +649,9 @@ class ProfileScreen extends StatelessWidget {
             _row(
               Icons.receipt_long_outlined,
               'Orders',
-              () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => OrderNowScreen(c))),
+              () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => OrderNowScreen(c)),
+              ),
             ),
             _row(
               Icons.local_shipping_outlined,
@@ -655,7 +662,9 @@ class ProfileScreen extends StatelessWidget {
             _row(
               Icons.groups_outlined,
               '3DEEZI TEAM',
-              () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => TeamScreen(c))),
+              () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute<void>(builder: (_) => TeamScreen(c))),
             ),
             _row(
               Icons.workspace_premium_outlined,

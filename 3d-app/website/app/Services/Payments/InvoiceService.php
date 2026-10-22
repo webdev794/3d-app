@@ -148,7 +148,7 @@ class InvoiceService
         }
         if ($items === [] && (int) $order->quantity > 0) {
             $kit = $order->design_snapshot ?: ($order->project ? $order->project->only(['name', 'garment', 'sport']) : []);
-            $items[] = ['name' => PricingService::itemName(['garment' => $kit['garment'] ?? 'jersey', 'sport' => $kit['sport'] ?? null]), 'garment' => $kit['garment'] ?? 'jersey',
+            $items[] = ['name' => PricingService::itemName(['garment' => $kit['garment'] ?? 'jersey', 'sport' => $kit['sport'] ?? null, 'label' => $kit['design']['productName'] ?? null]), 'garment' => $kit['garment'] ?? 'jersey',
                 'sizes' => array_map('intval', (array) ($order->sizes ?? [])), 'quantity' => (int) $order->quantity, 'players' => is_array($order->players) ? count($order->players) : 0];
         }
         $name = method_exists($order, 'displayName') ? $order->displayName() : ($order->team_name ?: 'Order '.$order->number);

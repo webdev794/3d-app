@@ -28,7 +28,8 @@ class SportsCatalogTest extends TestCase
             $this->assertFileExists(public_path("media/showroom/kit-{$sport['id']}.webp"));
             $this->assertFileExists(public_path("media/images/ai-designer/sport-{$sport['id']}.webp"));
         }
-        $this->assertSame(['pocketpolo', 'polo', 'tee'], collect($sports)->firstWhere('id', 'darts')['garments']);
+        // Worked out from the sport's garment tiles (task 9.99).
+        $this->assertSame(['pocketpolo', 'polo', 'tee', 'hoodie', 'ziphoodie'], collect($sports)->firstWhere('id', 'darts')['garments']);
     }
 
     public function test_the_ai_gets_the_style_hint_and_old_sports_read_as_before(): void

@@ -439,6 +439,39 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
               }),
             ),
           ),
+        // The sport's garment tile the kit was chosen as ("Netball dress",
+        // task 9.99), as on the website's stage.
+        if (!_preview &&
+            !c.boardMode &&
+            !c.viewerModal &&
+            c.productName.isNotEmpty)
+          Positioned(
+            top: 12,
+            left: 70,
+            right: 70,
+            child: IgnorePointer(
+              child: Center(
+                child: Container(
+                  key: const ValueKey('studio-product'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xcc08131e),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0x3300d9ed)),
+                  ),
+                  child: Text(
+                    '${c.sport} · ${c.productName}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (_busy != null || c.renderingBack || c.printBusy)
           Positioned(
             bottom: 12,
@@ -1385,7 +1418,7 @@ class SaveProjectScreen extends StatefulWidget {
 class _SaveProjectScreenState extends State<SaveProjectScreen> {
   late final _name = TextEditingController(
     text: widget.c.projectName.isEmpty
-        ? '${widget.c.sport} ${widget.c.garment}'
+        ? '${widget.c.sport} ${widget.c.garmentLabel}'
         : widget.c.projectName,
   );
   bool _done = false;
@@ -1457,7 +1490,7 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
               const SizedBox(height: 8),
               Text(
                 '${c.mode == 'AI' ? 'AI design' : 'Design Your Own'} · '
-                '${c.sport} · ${c.garment}',
+                '${c.sport} · ${c.garmentLabel}',
                 style: const TextStyle(color: Palette.muted, fontSize: 12),
               ),
             ],

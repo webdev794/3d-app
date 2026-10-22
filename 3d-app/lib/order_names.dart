@@ -3,8 +3,13 @@
 /// Excel) and the part of the order body they make (POST /orders).
 library;
 
-/// The sizes an order can have (the website's list).
-const orderSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
+import 'order_sizes.dart';
+
+export 'order_sizes.dart';
+
+/// The sizes an order can have (the website's list: Mens XS–8XL, Womens
+/// W8–W24, Kids 2Y–16Y, then the older Kids column; order_sizes.dart).
+const orderSizes = allOrderSizes;
 
 /// The most players on one order's list.
 const maxPlayers = 300;
@@ -42,28 +47,9 @@ String orderDigits(String value) {
   return d.length > 3 ? d.substring(0, 3) : d;
 }
 
-const _sizeWords = {
-  'XXL': '2XL',
-  'XXXL': '3XL',
-  'XXXXL': '4XL',
-  'KID': 'Kids',
-  'CHILD': 'Kids',
-  'YOUTH': 'Kids',
-  'SMALL': 'S',
-  'MEDIUM': 'M',
-  'LARGE': 'L',
-  'XLARGE': 'XL',
-  'EXTRALARGE': 'XL',
-};
-
-/// A size in a spreadsheet cell ("m", "XXL", "kids"), or null.
-String? sizeFromCell(String cell) {
-  final word = cell.toUpperCase().replaceAll(RegExp(r'[\s.-]+'), '');
-  for (final s in orderSizes) {
-    if (s.toUpperCase() == word) return s;
-  }
-  return _sizeWords[word];
-}
+/// A size in a spreadsheet cell ("m", "XXL", "10y", "W12", "kids"), or null
+/// (order_sizes.dart siteSize).
+String? sizeFromCell(String cell) => siteSize(cell);
 
 /// Players pasted from Excel: one per line, cells split by tabs (or commas
 /// or semicolons). The size and the number (up to 3 digits) are found in any

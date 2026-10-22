@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../order_sizes.dart';
 import 'ui.dart';
 
-/// The order's size columns (as on the website and the server's Order::SIZES).
-const orderSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
+/// The order's size columns (as on the website and the server's Order::SIZES): Mens XS–8XL, Womens W8–W24, Kids
+/// 2Y–16Y, then the older Kids column.
+const orderSizes = allOrderSizes;
 
 /// The rows of an order form's reading (`suggested` from POST /order-drafts/{id}/read), copied so they can be
 /// corrected: each with its sizes, players (name, number, size) and, for showing only, `_form` (the sizes as written,
@@ -73,6 +75,8 @@ class OrderFormReadView extends StatefulWidget {
 
 class _OrderFormReadViewState extends State<OrderFormReadView> {
   final _controllers = <String, TextEditingController>{};
+  // Rows showing every size (all fits), not just their own fit's set.
+  final _wide = <int>{};
 
   @override
   void didUpdateWidget(OrderFormReadView old) {
@@ -194,6 +198,11 @@ class _OrderFormReadViewState extends State<OrderFormReadView> {
     final row = widget.rows[i];
     final players = ((row['players'] as List?) ?? const []).cast<Map<String, dynamic>>();
     final written = (row['_form'] as Map?)?.entries.map((e) => '${e.key} ${e.value}').join(' · ') ?? '';
+    // The row's fit's sizes (Mens XS–4XL, Womens W8–W20, Kids 6Y–16Y) and any it has; "All sizes" shows every one.
+    final counts = {for (final e in (row['sizes'] as Map).entries) '${e.key}': (e.value as num?)?.toInt() ?? 0};
+    final fit = row['fit'] is String ? row['fit'] as String : fitFromSizes(counts);
+    final all = _wide.contains(i);
+    final shown = all ? orderSizes : rowSizes(fit, counts);
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: SurfaceCard(
@@ -211,7 +220,7 @@ class _OrderFormReadViewState extends State<OrderFormReadView> {
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (final s in orderSizes)
+                for (final s in shown)
                   SizedBox(
                     width: 52,
                     child: TextField(
@@ -228,6 +237,14 @@ class _OrderFormReadViewState extends State<OrderFormReadView> {
                     ),
                   ),
               ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                key: Key('all-sizes-$i'),
+                onPressed: () => setState(() => all ? _wide.remove(i) : _wide.add(i)),
+                child: Text(all ? 'Fewer sizes' : '+ All sizes (Mens, Womens, Kids)', style: const TextStyle(fontSize: 12.5)),
+              ),
             ),
             if (written.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text('As on your form: $written', style: const TextStyle(color: Palette.muted, fontSize: 12))),
             if (players.isNotEmpty)

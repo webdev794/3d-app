@@ -22,7 +22,7 @@ class Order extends Model
     /** A saved design's garment that the order form lists under another row (a full kit is a jersey and shorts). */
     public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo', 'varsity' => 'jacket', 'trackjacket' => 'jacket'];
 
-    public const FITS = ['mens' => 'Mens', 'womens' => 'Womens', 'youth' => 'Youth', 'unisex' => 'Unisex'];
+    public const FITS = ['mens' => 'Mens', 'womens' => 'Womens', 'youth' => 'Kids', 'unisex' => 'Unisex'];
 
     /** Where the order came from: Order this kit, the order form, an uploaded order form, or staff. */
     public const SOURCES = ['studio', 'form', 'upload', 'admin'];
@@ -38,7 +38,27 @@ class Order extends Model
     /** Never in a customer's API response. */
     public const INTERNAL = ['admin_notes', 'assigned_to', 'due_date', 'idempotency_key', 'design_snapshot', 'user_id'];
 
-    public const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
+    /**
+     * The sizes, one set per fit (client price list 2026-10-22, tasks.md 9.12): Mens (and Unisex) XS to 8XL, Womens W8
+     * to W24, Kids 2Y to 16Y. "Kids" is the one youth column of older orders and drafts: kept and shown, not offered.
+     * The website (resources/js/orderSizes.ts) and the app (lib/order_sizes.dart) have the same lists.
+     */
+    public const MENS_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL', '7XL', '8XL'];
+
+    public const WOMENS_SIZES = ['W8', 'W10', 'W12', 'W14', 'W16', 'W18', 'W20', 'W22', 'W24'];
+
+    public const KIDS_SIZES = ['2Y', '4Y', '6Y', '8Y', '10Y', '12Y', '14Y', '16Y'];
+
+    public const OLD_KIDS = 'Kids';
+
+    /** Every size, in order: Mens, Womens, Kids, then the older Kids column. */
+    public const SIZES = [...self::MENS_SIZES, ...self::WOMENS_SIZES, ...self::KIDS_SIZES, self::OLD_KIDS];
+
+    /** Sizes behind "More sizes" on the order form (rarely ordered). */
+    public const RARE_SIZES = ['5XL', '6XL', '7XL', '8XL', 'W22', 'W24', '2Y', '4Y'];
+
+    /** The size set each fit orders in. */
+    public const FIT_SIZES = ['mens' => self::MENS_SIZES, 'womens' => self::WOMENS_SIZES, 'youth' => self::KIDS_SIZES, 'unisex' => self::MENS_SIZES];
 
     /** Names and numbers on the back: the same on every shirt, a different one for each player (a list), or none. */
     public const NAMES = ['same', 'list', 'none'];
@@ -121,6 +141,74 @@ class Order extends Model
     {
         $this->design_snapshot = $project?->only(['name', 'sport', 'garment', 'mode', 'design', 'thumbnail']);
         $this->project_version = $project?->version;
+    }
+
+    /**
+     * The site's size for a size as written on a form or typed: "xxl" 2XL, "XXXXXL" 5XL, "10y", "Y10", "Youth 10",
+     * "Kids 10" 10Y, "w12", "Womens 12", "Ladies 12", "12W" W12; "kids", "youth", "YM" and youth ages not on the list
+     * (11Y) the older Kids column. Null when it is not one (a plain "10" may be a womens or a youth size).
+     */
+    public static function siteSize(string $written): ?string
+    {
+        $s = strtoupper(preg_replace('/[\s.\-_\'’]+/u', '', $written) ?? '');
+        if ($s === '') {
+            return null;
+        }
+        foreach (self::SIZES as $size) {
+            if (strtoupper($size) === $s) {
+                return $size;
+            }
+        }
+        if (preg_match('/^(X{2,8})L$/', $s, $m)) {
+            return strlen($m[1]).'XL';
+        }
+        if (preg_match('/^([2-8])X(?:L|LARGE)$/', $s, $m)) {
+            return $m[1].'XL';
+        }
+        if (preg_match('/^(\d{1,2})(?:Y|YR|YRS|YEAR|YEARS|YO)$/', $s, $m) || preg_match('/^(?:Y|YTH|YOUTH|K|KID|KIDS|C|CH|CHILD|JR|JNR|JUNIOR|AGE|BOYS|GIRLS)(\d{1,2})$/', $s, $m)) {
+            $youth = ((int) $m[1]).'Y';
+
+            return in_array($youth, self::KIDS_SIZES, true) ? $youth : self::OLD_KIDS;
+        }
+        if (preg_match('/^(?:Y|YOUTH|KIDS?)(?:XS|S|M|L|XL|SMALL|MEDIUM|LARGE)$/', $s)) {
+            return self::OLD_KIDS;
+        }
+        if (preg_match('/^(?:W|WMN|WOMENS|WOMEN|WOMANS|WOMAN|LADIES|LADY|LDS)(\d{1,2})$/', $s, $m) || preg_match('/^(\d{1,2})W$/', $s, $m)) {
+            $womens = 'W'.(int) $m[1];
+
+            return in_array($womens, self::WOMENS_SIZES, true) ? $womens : null;
+        }
+        $words = ['XXS' => 'XS', 'XSMALL' => 'XS', 'EXTRASMALL' => 'XS', 'SMALL' => 'S', 'SML' => 'S', 'SM' => 'S', 'MEDIUM' => 'M', 'MED' => 'M', 'MD' => 'M',
+            'LARGE' => 'L', 'LRG' => 'L', 'LG' => 'L', 'XLARGE' => 'XL', 'EXTRALARGE' => 'XL', 'XXLARGE' => '2XL',
+            'KID' => self::OLD_KIDS, 'KIDS' => self::OLD_KIDS, 'CHILD' => self::OLD_KIDS, 'CHILDREN' => self::OLD_KIDS, 'CHILDRENS' => self::OLD_KIDS,
+            'YOUTH' => self::OLD_KIDS, 'JUNIOR' => self::OLD_KIDS, 'JUNIORS' => self::OLD_KIDS];
+        if (isset($words[$s])) {
+            return $words[$s];
+        }
+        foreach (['ADULT', 'MENS', 'MEN', 'UNISEX', 'WOMENS', 'WOMEN', 'LADIES'] as $prefix) {
+            if (strlen($s) > strlen($prefix) && str_starts_with($s, $prefix)) {
+                $rest = self::siteSize(substr($s, strlen($prefix)));
+                if ($rest !== null && in_array($rest, self::MENS_SIZES, true)) {
+                    return $rest;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** The fit a row's sizes say when they are all of one set: youth (Kids sizes), womens (W sizes), else null. */
+    public static function fitFromSizes(array $sizes): ?string
+    {
+        $keys = array_keys(array_filter($sizes, fn ($n) => (int) $n > 0));
+        if (! $keys) {
+            return null;
+        }
+        if (! array_diff($keys, [...self::KIDS_SIZES, self::OLD_KIDS])) {
+            return 'youth';
+        }
+
+        return array_diff($keys, self::WOMENS_SIZES) ? null : 'womens';
     }
 
     /** Garments per size for a players list, in size order. */

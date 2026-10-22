@@ -66,12 +66,16 @@ void main() {
     await tester.pump();
     expect(c.screen, AppScreen.aiDesigner);
     expect(find.text('What are we designing for Netball?'), findsOneWidget);
-    await tester.tap(find.text('Singlet'));
+    // Netball's own garments by their names (task 9.99), as in Design Your
+    // Own; the coming-soon skirt is not offered.
+    expect(find.text('Netball skirt'), findsNothing);
+    await tester.tap(find.text('Netball dress'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.generating);
     expect(c.aiSport, 'Netball');
     expect(c.aiGarment, 'Singlet');
     expect(c.garment, 'Singlet');
+    expect(c.productName, 'Netball dress');
     expect(c.brief, 'Teal and white with a wave pattern for the Stingrays');
     // Let the demo generation finish before the test ends.
     await tester.pump(const Duration(seconds: 5));

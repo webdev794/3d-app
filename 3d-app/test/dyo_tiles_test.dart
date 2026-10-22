@@ -115,13 +115,26 @@ void main() {
       );
 
       // The Design button continues into the garment step, with the sport's
-      // garments (2026-10-21: 29 categories, each with its own garments).
+      // own garment tiles (task 9.99) and More teamwear for the rest.
       await tapText(tester, 'DESIGN ESPORTS');
       expect(c.sport, 'Esports');
       expect(c.screen, AppScreen.garment);
-      expect(['Jersey', 'Training Tee', 'Polo'], contains(c.garment));
-      expect(find.text('SHOW ALL GARMENTS'), findsOneWidget);
-      expect(find.text('Full Kit'), findsNothing);
+      expect(c.garment, 'Jersey');
+      expect(c.productName, 'Esports jersey');
+      expect(find.text('ESPORTS JERSEY'), findsOneWidget);
+      final list = find
+          .descendant(
+            of: find.byType(CustomScrollView),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.text('More teamwear'),
+        120,
+        scrollable: list,
+      );
+      expect(find.text('More teamwear'), findsOneWidget);
+      expect(find.text('FULL KIT'), findsNothing);
     },
   );
 }

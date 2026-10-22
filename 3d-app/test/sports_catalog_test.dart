@@ -11,24 +11,50 @@ import 'package:three_deezi/widgets/category_icon.dart';
 /// The app's sports list (lib/sports_catalog.dart) against the website's
 /// config/catalog.php, and every category's pictures and symbol (task 9.79).
 void main() {
-  // The website's sports: id, name, group, garment ids and style hint.
+  // The website's sports (config/catalog.php): id, group, style hint, heading,
+  // "More teamwear" and the garment tiles ($tile, $near and $soon calls).
   final php = File('website/config/catalog.php').readAsStringSync();
   final block = php.substring(
-    php.indexOf("'sports' => ["),
-    // The garment list itself (each sport also has a 'garments' entry).
-    php.indexOf(RegExp(r"\n    'garments' => \[")),
+    php.indexOf(r'$sports = ['),
+    php.indexOf('\nreturn ['),
+  );
+  final starts = [
+    for (final m in RegExp(r"\['id' => '").allMatches(block)) m.start,
+    block.length,
+  ];
+  const str = r"'((?:[^'\\]|\\.)*)'";
+  String? field(String text, String key) =>
+      RegExp("'$key' => $str").firstMatch(text)?[1]?.replaceAll(r"\'", "'");
+  final tileCall = RegExp(
+    r'\$(tile|near|soon)\(' +
+        str +
+        ', ' +
+        str +
+        r"((?:, '[^']*')*)\)( \+ \['design' => \['trackStyle' => '(\w+)'\]\])?",
   );
   final website = [
-    for (final m in RegExp(
-      r"\['id' => '([^']+)', 'name' => '((?:[^'\\]|\\.)+)'.*?'group' => '(\w+)', 'garments' => \[([^\]]*)\]((?:,\s*'prompt' => '((?:[^'\\]|\\.)*)')?)",
-      dotAll: true,
-    ).allMatches(block))
-      (
-        id: m[1]!,
-        group: m[3]!,
-        garments: RegExp(r"'(\w+)'").allMatches(m[4]!).map((g) => g[1]!).toList(),
-        prompt: m[6]?.replaceAll(r"\'", "'"),
-      ),
+    for (var i = 0; i + 1 < starts.length; i++)
+      (String text) {
+        return (
+          id: field(text, 'id')!,
+          group: field(text, 'group')!,
+          prompt: field(text, 'prompt'),
+          heading: field(text, 'heading'),
+          more: !text.contains("'more' => false"),
+          tiles: [
+            for (final m in tileCall.allMatches(text))
+              (
+                kind: m[1]!,
+                name: m[2]!.replaceAll(r"\'", "'"),
+                description: m[3]!.replaceAll(r"\'", "'"),
+                args: [
+                  for (final a in RegExp(r"'([^']*)'").allMatches(m[4]!)) a[1]!,
+                ],
+                trackStyle: m[6],
+              ),
+          ],
+        );
+      }(block.substring(starts[i], starts[i + 1])),
   ];
   const garmentIds = {
     'Jersey': 'jersey',
@@ -52,16 +78,48 @@ void main() {
       final s = sportWithId(w.id);
       expect(s, isNotNull, reason: w.id);
       expect(s!.group, w.group, reason: w.id);
-      expect(
-        [for (final g in s.garments) garmentIds[g]],
-        w.garments,
-        reason: w.id,
-      );
       expect(s.hint, w.prompt, reason: w.id);
+      expect(s.heading, w.heading, reason: w.id);
+      expect(s.more, w.more, reason: w.id);
+      // The same garment tiles (task 9.99): names, descriptions, 3D garments,
+      // fit, the garment still to build, the picture and the track style.
+      expect(s.tiles.length, w.tiles.length, reason: w.id);
+      expect(w.tiles.length, greaterThanOrEqualTo(6), reason: w.id);
+      for (var i = 0; i < w.tiles.length; i++) {
+        final a = s.tiles[i], b = w.tiles[i], why = '${w.id} ${b.name}';
+        expect(a.name, b.name, reason: why);
+        expect(a.description, b.description, reason: why);
+        expect(a.trackStyle, b.trackStyle, reason: why);
+        final (fit, garment, future, art) = switch (b.kind) {
+          'tile' => (
+            'exact',
+            b.args[0],
+            null,
+            b.args.elementAtOrNull(1) ?? b.args[0],
+          ),
+          'near' => (
+            'nearest',
+            b.args[0],
+            b.args[1],
+            b.args.elementAtOrNull(2) ?? b.args[0],
+          ),
+          _ => ('soon', null, b.args[0], b.args[1]),
+        };
+        expect(a.fit, fit, reason: why);
+        expect(garmentIds[a.garment], garment, reason: why);
+        expect(a.future, future, reason: why);
+        expect(a.art, art, reason: why);
+      }
     }
     // Ids and names are unique; the old sports keep theirs.
-    expect({for (final s in sportCategories) s.id}.length, sportCategories.length);
-    expect({for (final s in sportCategories) s.name}.length, sportCategories.length);
+    expect(
+      {for (final s in sportCategories) s.id}.length,
+      sportCategories.length,
+    );
+    expect(
+      {for (final s in sportCategories) s.name}.length,
+      sportCategories.length,
+    );
     expect(ProjectSync.sports['Soccer'], 'football');
     expect(ProjectSync.sports['Ice Hockey'], 'hockey');
     expect(ProjectSync.sports['Training / Gym'], 'training');
@@ -88,7 +146,11 @@ void main() {
       );
       expect(s.garments, isNotEmpty);
       for (final g in s.garments) {
-        expect(garmentTiles.any((t) => t.$1 == g), isTrue, reason: '$g ${s.id}');
+        expect(
+          garmentTiles.any((t) => t.$1 == g),
+          isTrue,
+          reason: '$g ${s.id}',
+        );
       }
     }
     // The AI JSON schema's sport list and the AI row cover them all.
@@ -105,7 +167,10 @@ void main() {
   });
 
   test('briefs find the new sports; the old words still work', () {
-    expect(sportInBrief('navy american football jersey')?.id, 'american-football');
+    expect(
+      sportInBrief('navy american football jersey')?.id,
+      'american-football',
+    );
     expect(sportInBrief('golf polo for our club day')?.id, 'golf');
     expect(sportInBrief('tennis dress, white and green')?.id, 'tennis');
     expect(sportInBrief('athletics singlet for nationals')?.id, 'athletics');
@@ -118,20 +183,68 @@ void main() {
     expect(sportInBrief('gym singlet')?.id, 'training');
   });
 
-  test('the AI gets the style hint with the sport; old sports read as before',
-      () {
-    expect(sportForAi('Rugby League'), 'Rugby League');
-    expect(sportForAi('Golf'), startsWith('Golf (golf: '));
-    expect(sportForAi('Someone else'), 'Someone else');
-  });
+  test(
+    'the AI gets the style hint with the sport; old sports read as before',
+    () {
+      expect(sportForAi('Rugby League'), 'Rugby League');
+      expect(sportForAi('Golf'), startsWith('Golf (golf: '));
+      expect(sportForAi('Someone else'), 'Someone else');
+    },
+  );
 
-  test('the garment step offers the sport\'s garments, or all of them', () {
+  test('the garment step offers the sport\'s own tiles and More teamwear', () {
+    // The client's Netball list (images/157.jpg).
+    expect(GarmentScreen.tilesFor('Netball').map((t) => t.name), [
+      'Netball dress',
+      'Netball skirt',
+      'Singlet with bib',
+      'Training singlet',
+      'Training T-shirt',
+      'Netball bibs',
+      'Tracksuit',
+      'Hoodie',
+    ]);
+    expect(GarmentScreen.tilesFor('Netball').first.garment, 'Singlet');
+    expect(GarmentScreen.tilesFor('Netball')[1].soon, isTrue);
+    // More teamwear: the 3D garments Netball's own tiles do not use.
+    expect(GarmentScreen.moreFor('Netball').map((t) => t.garment), [
+      'Full Kit',
+      'Jersey',
+      'Shorts',
+      'Polo',
+      'Polo with pocket',
+      'Zip hoodie',
+      'Varsity jacket',
+    ]);
+    // The client's Rugby League list (images/160.jpg): 11 tiles, all shown.
+    final league = GarmentScreen.tilesFor('Rugby League');
+    expect(league.length, 11);
+    expect(league.first.name, 'Rugby League Kit');
+    expect(league.first.garment, 'Full Kit');
+    expect(league[7].trackStyle, 'hood');
+    expect(GarmentScreen.moreFor('Rugby League'), isEmpty);
+    expect(sportWithId('rugby-union')!.heading, 'Rugby');
+    // A sport's garments are worked out from its tiles.
+    expect(sportWithId('darts')!.garments, [
+      'Polo with pocket',
+      'Polo',
+      'Training Tee',
+      'Hoodie',
+      'Zip hoodie',
+    ]);
     expect(
-      GarmentScreen.tilesFor('Darts & Pool').map((t) => t.$1),
-      ['Polo with pocket', 'Polo', 'Training Tee'],
+      GarmentScreen.tilesFor('Unknown sport').map((t) => t.garment),
+      garmentTiles.map((t) => t.$1),
     );
-    expect(GarmentScreen.tilesFor('Golf').map((t) => t.$1), ['Polo', 'Training Tee']);
-    expect(GarmentScreen.tilesFor('Golf', all: true), garmentTiles);
-    expect(GarmentScreen.tilesFor('Unknown sport'), garmentTiles);
+    // Every tile's picture is in the app.
+    for (final s in sportCategories) {
+      for (final t in s.tiles) {
+        expect(
+          File('assets/images/showroom/garment-${t.art}.webp').existsSync(),
+          isTrue,
+          reason: '${s.id} ${t.name}',
+        );
+      }
+    }
   });
 }

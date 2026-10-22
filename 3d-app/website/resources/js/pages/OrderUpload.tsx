@@ -9,6 +9,7 @@ import { PriceBreakdown, PricingChoices, type PricingChoice, type Quote as PayQu
 import OrderFormRead, { cleanRows, rowTotal, rowsFromReadings, type ReadNote, type ReviewItem } from '../components/OrderFormRead';
 import { OrderReviewApprove, OrderSentPanel, ReviewApproveHeader, garmentThumb, layoutFor, paymentPath, youthSplit, type ReviewFile, type ReviewGarment, type ReviewRow } from '../components/OrderReviewApprove';
 import { ADDRESS_KEYS, DEFAULT_LEAD_WEEKS, DeliveryFieldsCard, MOBILE_MESSAGE, dateText, deliveryErrors, deliveryText, isAustralia, mobileError, todayText, validMobile } from '../components/OrderDeliveryFields';
+import { ALL_SIZES, FIT_NAMES } from '../orderSizes';
 import '../../css/order-upload.css';
 
 /** The two kinds of file this page uploads. */
@@ -51,7 +52,8 @@ const DEFAULT_RULES: FileRules = {
   artwork: { extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'pdf', 'ai', 'eps', 'cdr', 'psd', 'tif', 'tiff', 'heic'], max_kb: 25600 },
   max_files: 15,
 };
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
+/** Every size in order (Order::SIZES): Mens XS–8XL, Womens W8–W24, Kids 2Y–16Y, then the older Kids column. */
+const SIZES = ALL_SIZES;
 
 const EMPTY: UploadFields = { contact_name: '', contact_email: '', phone: '', team_name: '', notes: '', needed_by: '', delivery: 'deliver', street: '', suburb: '', state: '', postcode: '', country: 'Australia' };
 const FIELD_NAMES = Object.keys(EMPTY) as (keyof UploadFields)[];
@@ -845,7 +847,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     const rowsToSend = cleanRows(items).length > 0;
     const reviewGarments: ReviewGarment[] = sent.map((it, i) => ({
       key: `r${i}`, garment: it.garment, name: it.name || it.label || garments.find(g => g.id === it.garment)?.name || garmentName(it.garment),
-      sub: it.fit ? `${garmentName(it.fit)} fit` : '', thumb: it.thumbnail ?? garmentThumb(it.garment),
+      sub: it.fit ? `${FIT_NAMES[it.fit] ?? garmentName(it.fit)} fit` : '', thumb: it.thumbnail ?? garmentThumb(it.garment),
       // The youth sizes as the form wrote them (10Y, 12Y) in place of Kids, when they add up to it.
       sizes: youthSplit(it.sizes, it._form?.form_sizes), players: it.players ?? null,
     }));

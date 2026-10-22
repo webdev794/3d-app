@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, CircleAlert, Info, Plus, Sparkles, X } from 'lucide-react';
 import type { OrderItem, OrderPlayer, Suggested } from '../orderApi';
+import { rowSizes, sizeFit, sizeGroups } from '../orderSizes';
 import '../../css/order-form-read.css';
 
 /**
@@ -46,6 +47,10 @@ export default function OrderFormRead({ items, note, unread, sizes, garments, co
   const players = rows.reduce((a, it) => a + (it.players?.length ?? 0), 0);
   const files = note.files.join(', ');
   const rowName = (it: OrderItem) => it.name || it.label || garments.find(g => g.id === it.garment)?.name || it.garment;
+  // Rows showing every size (all fits), not just their own fit's set.
+  const [wide, setWide] = useState<number[]>([]);
+  /** The row's fit, else the one its sizes say (only womens or only kids sizes). */
+  const fitOf = (it: OrderItem) => { if (it.fit) return it.fit; const sets = new Set(Object.keys(it.sizes).filter(s => (Number(it.sizes[s]) || 0) > 0).map(sizeFit)); return sets.size === 1 ? [...sets][0] : null; };
 
   return <div className="ofr" data-testid="order-form-read">
     {rows.length > 0 ? <p className={`ofr-note ${note.source === 'ai' ? 'is-ai' : ''}`} data-testid="read-note">
@@ -66,7 +71,9 @@ export default function OrderFormRead({ items, note, unread, sizes, garments, co
     {rows.length > 0 && <>
       <div className="ofr-rows" role="table" aria-label="Garments and sizes">
         {rows.map((it, i) => {
-          const name = rowName(it), detail = formSizesText(it._form?.form_sizes);
+          const name = rowName(it), detail = formSizesText(it._form?.form_sizes), all = wide.includes(i);
+          // The row's fit's sizes (Mens XS–4XL, Womens W8–W20, Kids 6Y–16Y) and any it has; "All sizes" shows every one.
+          const shown = all ? sizes : rowSizes(fitOf(it), it.sizes, false, sizes).shown;
           return <div className="ofr-row" role="row" key={i} data-testid="read-row">
             <div className="ofr-row-head">
               <label className="ofr-garment"><span className="op-sr">Garment {i + 1}</span>
@@ -78,10 +85,11 @@ export default function OrderFormRead({ items, note, unread, sizes, garments, co
               <span className="ofr-row-total" data-testid="row-total">{rowTotal(it)} <small>{rowTotal(it) === 1 ? 'garment' : 'garments'}</small></span>
               {rows.length > 1 && <button type="button" className="ofr-icon" aria-label={`Remove ${name}`} title="Remove this row" onClick={() => onRemove(i)}><X size={17} /></button>}
             </div>
-            <div className="ofr-sizes">{sizes.map(s => <label key={s} className={it.sizes[s] ? 'is-on' : ''}>{s}
+            <div className="ofr-sizes">{shown.map(s => <label key={s} className={it.sizes[s] ? 'is-on' : ''}>{s}
               <input inputMode="numeric" value={it.sizes[s] ? String(it.sizes[s]) : ''} placeholder="0" onChange={e => onSize(i, s, e.target.value)} aria-label={`${name}, size ${s}`} /></label>)}</div>
+            <button type="button" className="ofr-more" aria-expanded={all} onClick={() => setWide(w => (all ? w.filter(n => n !== i) : [...w, i]))}>{all ? 'Fewer sizes' : '+ All sizes (Mens, Womens, Kids)'}</button>
             {detail && <p className="ofr-detail" data-testid="form-sizes">As on your form: {detail}{it.sizes.Kids ? ' (in Kids)' : ''}</p>}
-            {!!it.players?.length && <Players item={it} index={i} name={name} sizes={sizes} onPlayer={onPlayer} />}
+            {!!it.players?.length && <Players item={it} index={i} name={name} sizes={sizes} fit={fitOf(it)} onPlayer={onPlayer} />}
           </div>;
         })}
       </div>
@@ -101,7 +109,7 @@ export default function OrderFormRead({ items, note, unread, sizes, garments, co
 }
 
 /** The players read for one garment: name, number and size, each editable; the size as written on the form beside it. */
-function Players({ item, index, name, sizes, onPlayer }: { item: ReviewItem; index: number; name: string; sizes: string[]; onPlayer: Props['onPlayer'] }) {
+function Players({ item, index, name, sizes, fit, onPlayer }: { item: ReviewItem; index: number; name: string; sizes: string[]; fit: string | null; onPlayer: Props['onPlayer'] }) {
   const list = item.players ?? [];
   const [open, setOpen] = useState(list.length <= 40);
   const written = item._form?.player_sizes ?? [];
@@ -117,7 +125,7 @@ function Players({ item, index, name, sizes, onPlayer }: { item: ReviewItem; ind
         <input className="ofr-num" value={p.number} inputMode="numeric" maxLength={3} onChange={e => onPlayer(index, j, { number: e.target.value.replace(/\D/g, '').slice(0, 3) })} aria-label={`Player ${j + 1} number`} placeholder="No." />
         <span className="ofr-size">
           <select value={p.size ?? ''} onChange={e => onPlayer(index, j, { size: e.target.value || null })} aria-label={`Player ${j + 1} size`}>
-            <option value="">Size?</option>{sizes.map(s => <option key={s} value={s}>{s}</option>)}
+            <option value="">Size?</option>{p.size && !sizes.includes(p.size) && <option value={p.size}>{p.size}</option>}{sizeGroups(sizes, fit).map(g => <optgroup key={g.fit} label={`${g.name} sizes`}>{g.sizes.map(s => <option key={s} value={s}>{s}</option>)}</optgroup>)}
           </select>
           {written[j] && written[j].toUpperCase() !== (p.size ?? '').toUpperCase() && <small title="The size as written on your form">{written[j]}</small>}
         </span>

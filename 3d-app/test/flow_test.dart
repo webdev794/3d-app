@@ -5,6 +5,7 @@ import 'package:three_deezi/app.dart';
 import 'package:three_deezi/app_controller.dart';
 
 import 'features_test.dart' show FakeStore;
+import 'garment_tiles_test.dart' show revealTap;
 
 Future<void> mountPhone(WidgetTester tester, AppController controller) async {
   tester.view.devicePixelRatio = 1;
@@ -93,8 +94,15 @@ void main() {
     expect(c.screen, AppScreen.garment);
 
     await tester.pumpAndSettle();
-    await tapText(tester, 'Full Kit');
+    // Basketball's own garments (task 9.99): its first one is chosen; the
+    // Full Kit is under More teamwear.
+    expect(find.text('BASKETBALL UNIFORMS & TEAMWEAR'), findsOneWidget);
+    expect(c.productName, 'Basketball singlet');
+    await revealTap(tester, 'More teamwear');
+    await revealTap(tester, 'FULL KIT');
+    await tester.pumpAndSettle();
     expect(c.garment, 'Full Kit');
+    expect(c.productName, isEmpty);
     await tapText(tester, 'CONTINUE TO STUDIO');
     expect(c.screen, AppScreen.studio);
     for (final tool in ['Colours', 'Patterns', 'Logos', 'Text', 'Garment']) {

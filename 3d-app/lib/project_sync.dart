@@ -16,19 +16,7 @@ import 'sports_catalog.dart';
 class ProjectSync {
   /// App sport name → the website's catalogue id (lib/sports_catalog.dart).
   static final sports = {for (final s in sportCategories) s.name: s.id};
-  static const garments = {
-    'Jersey': 'jersey',
-    'Shorts': 'shorts',
-    'Training Tee': 'tee',
-    'Singlet': 'singlet',
-    'Polo': 'polo',
-    'Polo with pocket': 'pocketpolo',
-    'Hoodie': 'hoodie',
-    'Zip hoodie': 'ziphoodie',
-    'Varsity jacket': 'varsity',
-    'Track jacket': 'trackjacket',
-    'Full Kit': 'fullkit',
-  };
+  static const garments = garmentIds;
 
   /// The body for `POST /projects` and `PATCH /projects/{id}`.
   static Map<String, dynamic> toServer(Project p) {
@@ -58,6 +46,9 @@ class ProjectSync {
         if (k.zoneColors.isNotEmpty) 'zoneColors': copyZones(k.zoneColors),
         // The track jacket's style (only on it: older servers refuse the field).
         if (k.garment == 'Track jacket') 'trackStyle': k.trackStyle,
+        // The sport's garment tile ("Netball dress"; only when set: older
+        // servers refuse the field).
+        if (k.productName.isNotEmpty) 'productName': _clip(k.productName, 60),
         'gradient': copyGradient(k.gradient),
         // Only when set: servers older than 2026-10-21 refuse the field.
         if (k.gradients != null) 'gradients': copyGradient(k.gradients),
@@ -130,6 +121,9 @@ class ProjectSync {
         zones: copyZones(d['zones']),
         zoneColors: copyZones(d['zoneColors']),
         trackStyle: d['trackStyle'] == 'hood' ? 'hood' : 'collar',
+        productName: d['productName'] is String
+            ? d['productName'] as String
+            : '',
         gradient: copyGradient(d['gradient']),
         gradients: copyGradient(d['gradients']),
         marks: copyMarks(d['marks']),

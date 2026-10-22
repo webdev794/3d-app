@@ -12,6 +12,8 @@ What the client's real site needs before launch. The current live site is a test
 - **HTTPS:** required for card payments and Apple Pay.
 - **PHP errors off and a temp folder** (3DEEZI TEAM uploads): `display_errors = Off`, and `upload_tmp_dir` either unset or an existing, writable folder. Otherwise PHP notices break the upload replies.
 
+- **CorelDRAW (.cdr) upload (optional):** the Artboard opens .cdr files only with a converter on the server. The cheapest option is LibreOffice installed on the server (set CDR_SOFFICE_PATH); or a converter service (CDR_CONVERTER_URL); or CloudConvert, a paid API (CLOUDCONVERT_API_KEY). Without one, .cdr upload says it is not available; SVG / PDF / PNG / JPG work.
+
 ## 2. Settings in the live `.env`
 
 | Setting | Value | Notes |

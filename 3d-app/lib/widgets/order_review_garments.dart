@@ -3,15 +3,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'ui.dart';
+import '../order_sizes.dart';
 
 /// REVIEW & APPROVE ORDER with several garment styles, as on the website (components/OrderReviewGarments.tsx):
 /// the "3 garment styles · 90 garments" chip, one section per garment ("01 — BASKETBALL SINGLET", Edit garment,
 /// FRONT and BACK tiles with View full size, the name and "colours · fit", SIZE | QTY with TOTAL, the players) and
 /// ORDER TOTALS. One matching kit (a top and shorts from one design, same sizes) keeps the combined review.
 
-/// The site's sizes in order (Order::SIZES); youth sizes (Y8, 10Y, Kids 12, YXL) go with Kids.
-const reviewSiteSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
-const _letters = ['XXS', '2XS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', 'XXXL', '3XL', '4XL', '5XL'];
+/// The site's sizes in order (Order::SIZES: Mens XS–8XL, Womens W8–W24, Kids 2Y–16Y, the older Kids); other youth
+/// sizes (Y8, Kids 12, YXL) go with Kids.
+const reviewSiteSizes = allOrderSizes;
+const _letters = ['XXS', '2XS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', 'XXXL', '3XL', '4XL', '5XL', '6XL', '7XL', '8XL'];
 final _youth = RegExp(r'^(?:y(?:outh)?\s*-?\s*|k(?:ids?)?\s*-?\s*|jr\s*-?\s*)(\d{1,2}|xxs|xs|s|m|l|xl)$|^(\d{1,2})\s*y?$', caseSensitive: false);
 
 double _rank(String size, List<String> order) {
@@ -73,7 +75,7 @@ class MultiGarment {
   int get total => sizes.values.fold(0, (a, b) => a + (b > 0 ? b : 0));
 }
 
-const _fits = {'mens': 'Mens fit', 'womens': 'Womens fit', 'youth': 'Youth fit', 'unisex': 'Unisex fit'};
+const _fits = {'mens': 'Mens fit', 'womens': 'Womens fit', 'youth': 'Kids fit', 'unisex': 'Unisex fit'};
 
 /// The review's garments from the order rows (the form's rows, or the rows read from an upload). [names]: garment
 /// id → name; [pictures]: a row's FRONT / BACK pictures when known (e.g. its design's saved picture); [artwork]: an

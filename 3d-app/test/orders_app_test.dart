@@ -302,6 +302,51 @@ void main() {
     expect(opened, ['https://test.example/invoices/INV-1001?key=abc']);
   });
 
+  testWidgets('Create Order Form: the fit chooses the sizes; a team adds the same garment in womens and kids sizes', (tester) async {
+    final server = OrdersServer();
+    await mount(tester, OrderFormScreen(signedIn(server)));
+    await tester.enterText(find.widgetWithText(TextField, 'Team / organisation'), 'MANTIS Rugby League');
+    Future<void> size(String key, String n) async {
+      await seeIt(tester, find.byKey(Key(key)));
+      await tester.ensureVisible(find.byKey(Key(key)));
+      await tester.enterText(find.byKey(Key(key)), n);
+      await tester.pumpAndSettle();
+    }
+
+    // Mens: XS to 4XL; More sizes adds 5XL to 8XL.
+    await seeIt(tester, find.byKey(const Key('size-0-XS')));
+    expect(find.byKey(const Key('size-0-4XL')), findsOneWidget);
+    expect(find.byKey(const Key('size-0-5XL')), findsNothing);
+    expect(find.byKey(const Key('size-0-Kids')), findsNothing);
+    await tap(tester, find.byKey(const Key('more-sizes-0')));
+    expect(find.byKey(const Key('size-0-8XL')), findsOneWidget);
+    await size('size-0-M', '4');
+    await size('size-0-6XL', '1');
+    // + Womens sizes, then + Kids sizes: the same garment again, just after it, in that fit.
+    await tap(tester, find.byKey(const Key('add-fit-0-womens')));
+    expect(find.byKey(const Key('size-1-W8')), findsOneWidget);
+    expect(find.byKey(const Key('size-1-W24')), findsNothing);
+    await size('size-1-W10', '3');
+    await tap(tester, find.byKey(const Key('add-fit-0-youth')));
+    expect(find.byKey(const Key('size-1-16Y')), findsOneWidget);
+    expect(find.byKey(const Key('size-1-2Y')), findsNothing);
+    await size('size-1-10Y', '2');
+    expect(find.text('Subtotal 2'), findsOneWidget);
+    await fillDelivery(tester, pickup: true);
+    await tap(tester, find.text('REVIEW ORDER'));
+    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
+    await approve(tester);
+    final items = (server.submitted.single['items'] as List).cast<Map>();
+    expect(items.map((i) => i['fit']), ['mens', 'youth', 'womens']);
+    expect(items.map((i) => i['garment']).toSet(), {'jersey'});
+    expect(items.map((i) => i['sizes']), [
+      {'M': 4, '6XL': 1},
+      {'10Y': 2},
+      {'W10': 3},
+    ]);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Create Order Form: REVIEW & APPROVE ORDER fits 360, 390 and 430 wide', (tester) async {
     for (final width in [360.0, 390.0, 430.0]) {
       final server = OrdersServer();

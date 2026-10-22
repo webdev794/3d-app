@@ -834,6 +834,8 @@ class _OrderFormState extends State<_OrderForm> {
   /// a name or number (otherwise they replace the starting rows).
   bool _edited = false, _pasting = false;
   bool _busy = false, _final = false, _tried = false;
+  // "More sizes": 5XL–8XL, the Womens (W8–W24) and Kids (2Y–16Y) sizes.
+  bool _moreSizes = false;
   String? _error, _pasted;
 
   bool get _list => _names == BackNames.list;
@@ -1398,7 +1400,27 @@ class _OrderFormState extends State<_OrderForm> {
               mainAxisSpacing: 8,
               crossAxisSpacing: 8,
               childAspectRatio: 1.45,
-              children: [for (final s in orderSizes) _stepper(s)],
+              children: [
+                for (final s in orderSizes)
+                  if ((_shown[s] ?? 0) > 0 ||
+                      (s != oldKids &&
+                          (_moreSizes ||
+                              (mensSizes.contains(s) &&
+                                  !rareSizes.contains(s)))))
+                    _stepper(s),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => setState(() => _moreSizes = !_moreSizes),
+                child: Text(
+                  _moreSizes
+                      ? 'Fewer sizes'
+                      : '+ More sizes: 5XL–8XL, Womens W8–W24, Kids 2Y–16Y',
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+              ),
             ),
             const SizedBox(height: 14),
             _box(

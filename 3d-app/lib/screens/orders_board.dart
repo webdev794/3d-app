@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api_client.dart';
 import '../app_controller.dart';
 import '../export_service.dart' show shareImage;
+import '../order_sizes.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/site_page_stub.dart'
@@ -584,7 +585,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${item['name']}${item['fit'] != null ? ' · ${item['fit']}' : ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          Text('${item['name']}${item['fit'] != null ? ' · ${fitNames[item['fit']] ?? item['fit']}' : ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
                           Text(
                             ((item['sizes'] as Map?) ?? const {}).entries.map((e) => '${e.key} ${e.value}').join(' · '),
                             style: const TextStyle(color: Palette.muted, fontSize: 12),

@@ -14,7 +14,7 @@ use ZipArchive;
  * for review"). The file's text or table is taken out first (xlsx, ods, csv, txt, docx; the readable text of xls and
  * doc); a PDF goes to the model as a file and a photo as an image. The model answers in strict JSON: team and contact,
  * date required, delivery, garments with sizes and players, notes and the lines it could not map. The answer is checked
- * here, sizes are mapped to the site's size columns (youth 10Y, 12Y ... go in Kids), and the result has the same shape
+ * here, sizes are mapped to the site's size columns (10Y, W12, 5XL ...; Order::SIZES), and the result has the same shape
  * as OrderFormReader's (items, unknown, players ...) plus `form`, `details` and `source: 'ai'`. Anything going wrong
  * returns null, so the caller keeps the built-in reading.
  */
@@ -130,29 +130,13 @@ class OrderFormAi
     }
 
     /**
-     * A site size column for a size as written on a form: "10Y", "Y12", "YS", "Kids" => Kids; "small", "XXL" => S, 2XL.
-     * Null when it is not one (a plain "10" is left to the model: it may be a youth or a womens size).
+     * A site size column for a size as written on a form: "10Y", "Y12", "Youth 12" => 10Y, 12Y; "W12", "Ladies 12" =>
+     * W12; "XXXXXL" => 5XL; "small", "XXL" => S, 2XL; "YS", "Kids" and youth ages not on the list => the older Kids
+     * column (Order::siteSize). Null when it is not one (a plain "10" is left to the model: a youth or a womens size).
      */
     public static function siteSize(string $written): ?string
     {
-        $s = strtoupper(preg_replace('/[\s.\-_]+/', '', $written) ?? '');
-        if ($s === '') {
-            return null;
-        }
-        if (preg_match('/^(\d{1,2})(Y|YR|YRS|YEAR|YEARS|YO)$/', $s) || preg_match('/^(Y|YTH|YOUTH|K|KID|KIDS|C|CH|CHILD)(\d{1,2})$/', $s)
-            || preg_match('/^(Y|YOUTH|KIDS?)(XS|S|M|L|XL|SMALL|MEDIUM|LARGE)$/', $s) || in_array($s, ['KIDS', 'KID', 'CHILD', 'CHILDREN', 'CHILDRENS', 'YOUTH', 'JUNIOR', 'JUNIORS'], true)) {
-            return 'Kids';
-        }
-        $map = ['XXS' => 'XS', 'XS' => 'XS', 'XSMALL' => 'XS', 'EXTRASMALL' => 'XS', 'S' => 'S', 'SM' => 'S', 'SML' => 'S', 'SMALL' => 'S', 'M' => 'M', 'MD' => 'M', 'MED' => 'M', 'MEDIUM' => 'M',
-            'L' => 'L', 'LG' => 'L', 'LRG' => 'L', 'LARGE' => 'L', 'XL' => 'XL', 'XLARGE' => 'XL', 'EXTRALARGE' => 'XL', 'XXL' => '2XL', '2XL' => '2XL', 'XXXL' => '3XL', '3XL' => '3XL',
-            'XXXXL' => '4XL', '4XL' => '4XL'];
-        foreach (['ADULT', 'MENS', 'MEN', 'WOMENS', 'WOMEN', 'LADIES', 'UNISEX'] as $prefix) {
-            if (str_starts_with($s, $prefix) && isset($map[substr($s, strlen($prefix))])) {
-                return $map[substr($s, strlen($prefix))];
-            }
-        }
-
-        return $map[$s] ?? null;
+        return Order::siteSize($written);
     }
 
     private function instructions(): string
@@ -172,8 +156,8 @@ class OrderFormAi
         A player has a name, or at least a number, in the players list's own columns. A size and a quantity with no name beside them (e.g. "16Y | 1" to the right of the players) is a line of the size totals table, never a player.
         Take each player's size only from that player's own row in the players list's size column: when that cell is empty the size is "" (never take it from another row or from the totals table).
         The size totals table counts the same garments as the players list: never add them together. When its totals differ from the players counted, use the players and add a line to unmapped saying so (e.g. "Size totals on the form: 14Y 4, the players list has 3").
-        "form_size" is the size exactly as written (e.g. 10Y, 12Y, XS, M); "size" is the site's size column: {$sizes}. Youth or kids sizes (6Y, 8Y, 10Y, 12Y, 14Y, 16Y, YS, YM, Youth 12...) go in Kids. Use "" when unsure.
-        Sport ids: {$sports}, or "" when not said. Fit: mens, womens, youth, unisex, or "" (youth when the garment is only in youth sizes).
+        "form_size" is the size exactly as written (e.g. 10Y, 12Y, XS, M); "size" is the site's size column: {$sizes}. Kids ages go in their own column (Y10, Youth 10, 10 yrs => 10Y); womens sizes (Womens 12, Ladies 12, 12W) => W12; XXXXXL => 5XL. Youth letter sizes (YS, YM, YL) and ages not listed go in Kids. Use "" when unsure.
+        Sport ids: {$sports}, or "" when not said. Fit: mens, womens, youth, unisex, or "" (youth when the garment is only in kids sizes, womens when only in W sizes). Men's, women's and kids' sizes of the same garment are separate garments, one per fit.
         label: a short name only when the form names the garment in a way the garment list doesn't cover (e.g. "Training singlet with hood"), else "".
         Player number: digits only as written (e.g. "1.0" is 1), "" when none. Never invent players, sizes or quantities.
         team_name, contact_name, contact_email, phone: as written on the form, else "". date_required: YYYY-MM-DD when the form gives a real date (today is {$today}), else "". date_required_text: the date words as written (e.g. "ASAP", "before 12 Nov"), else "".
@@ -341,9 +325,7 @@ class OrderFormAi
                 }
             }
             $fit = array_key_exists($row['fit'] ?? '', Order::FITS) ? (string) $row['fit'] : null;
-            if (! $fit && array_keys($ordered) === ['Kids']) {
-                $fit = 'youth';
-            }
+            $fit ??= Order::fitFromSizes($ordered);
             $item = array_filter([
                 'garment' => $garment,
                 'sport' => in_array($row['sport'] ?? '', $sports, true) ? $row['sport'] : null,

@@ -109,7 +109,7 @@ function ProjectCard({ project, onOpen, onDelete, onApprove, onHistory, busy, hi
             {hasCapture ? <img className="lib-captured-preview" src={thumbnail!} alt={`${project.name} 3D preview`} loading="lazy" onError={() => setFailedThumbnail(thumbnail!)} /> : <><ProjectThumbnail project={project} /><span className="lib-illustration-caption">Design illustration</span></>}
             <span className="lib-open-overlay">Open in studio <ArrowRight size={16} /></span>
         </button>
-        <div className="lib-project-info"><h3 className="lib-project-title"><button className="lib-title-link" onClick={() => onOpen(project)}>{project.name}</button></h3><p>{title(project.sport)} <span>·</span> {GARMENT_NAMES[project.garment] ?? title(project.garment)}</p>
+        <div className="lib-project-info"><h3 className="lib-project-title"><button className="lib-title-link" onClick={() => onOpen(project)}>{project.name}</button></h3><p>{title(project.sport)} <span>·</span> {project.design?.productName || GARMENT_NAMES[project.garment] || title(project.garment)}</p>
             <div className="lib-project-footer"><span>V{project.version} <span>·</span> {date(project.updated_at)}</span><div className="lib-card-actions">
                 {onApprove && <button className={`lib-small-button ${project.status === 'approved' ? 'is-approved' : ''}`} disabled={busy} onClick={() => onApprove(project)} title={project.status === 'approved' ? 'Return to draft' : 'Approve design'} aria-label={`${project.status === 'approved' ? 'Return to draft' : 'Approve'} ${project.name}`}><ShieldCheck size={15} /></button>}
                 {onHistory && <button className="lib-small-button" onClick={() => onHistory(project)} title="Version history" aria-label={`Version history for ${project.name}`}><History size={15} /></button>}
@@ -140,7 +140,7 @@ export function ProjectsPage({ onOpen, onCreate, approvedOnly = false }: PageAct
     const [busy, setBusy] = useState<number | null>(null);
     const [actionError, setActionError] = useState('');
     const available = (data || []).filter((project) => !approvedOnly || project.status === 'approved');
-    const projects = available.filter((project) => (filter === 'all' || (filter === 'draft' ? project.status === 'draft' : project.mode === filter)) && `${project.name} ${project.sport} ${project.garment} ${GARMENT_NAMES[project.garment] ?? ''}`.toLowerCase().includes(search.toLowerCase()));
+    const projects = available.filter((project) => (filter === 'all' || (filter === 'draft' ? project.status === 'draft' : project.mode === filter)) && `${project.name} ${project.sport} ${project.garment} ${GARMENT_NAMES[project.garment] ?? ''} ${project.design?.productName ?? ''}`.toLowerCase().includes(search.toLowerCase()));
     async function deleteProject() {
         if (!deleting) return;
         setBusy(deleting.id); setActionError('');

@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, media, type CatalogItem } from '../api';
+import { ApiError, media, type CatalogItem, type GarmentTile } from '../api';
 
 /** The longest brief the AI designer takes (the server allows the same). */
 export const MAX_BRIEF = 4000;
@@ -38,7 +38,7 @@ export function friendlyError(error: unknown): string {
  * `garments`: the garment chips offered when the brief names none, most likely first; the catalogue's list for the
  * sport (config/catalog.php) wins over the ones here, which only cover the page before the catalogue loads.
  */
-export interface QuickSport { id: string; label: string; sport: string; brief?: string; garments: string[]; art?: string }
+export interface QuickSport { id: string; label: string; sport: string; brief?: string; garments: string[]; art?: string; /** The sport's own garment tiles (config/catalog.php, task 9.99): the garment chips by their names ("Netball dress"). */ tiles?: GarmentTile[] }
 export const allGarments = ['jersey', 'fullkit', 'shorts', 'tee', 'singlet', 'polo'];
 export const quickSports: QuickSport[] = [
   { id: 'rugby-league', label: 'Rugby League', sport: 'rugby-league', garments: allGarments },
@@ -64,9 +64,18 @@ export function sportTiles(catalogSports: CatalogItem[] = []): QuickSport[] {
   const known = (q: QuickSport) => catalogSports.find(s => s.id === q.sport);
   const garmentsOf = (s?: CatalogItem) => s?.garments?.length ? s.garments : undefined;
   return [
-    ...quickSports.filter(known).map(q => ({ ...q, garments: garmentsOf(known(q)) ?? q.garments })),
-    ...catalogSports.filter(s => !quickSports.some(q => q.id === s.id)).map(s => ({ id: s.id, label: s.name, sport: s.id, garments: garmentsOf(s) ?? allGarments })),
+    ...quickSports.filter(known).map(q => ({ ...q, garments: garmentsOf(known(q)) ?? q.garments, tiles: known(q)?.tiles })),
+    ...catalogSports.filter(s => !quickSports.some(q => q.id === s.id)).map(s => ({ id: s.id, label: s.name, sport: s.id, garments: garmentsOf(s) ?? allGarments, tiles: s.tiles })),
   ];
+}
+
+/** A garment chip: the 3D garment and the name it is chosen as ("Netball dress"; empty for a plain garment). */
+export interface GarmentChip { garment: string; name: string; design?: GarmentTile['design'] }
+/** The AI designer's garment chips for a sport: its own garment tiles that have a 3D garment (the DYO step's list and names), else its garments. */
+export function garmentChips(sport?: QuickSport): GarmentChip[] {
+  const tiles = sport?.tiles?.filter(t => t.garment && t.fit !== 'soon');
+  if (tiles?.length) return tiles.map(t => ({ garment: t.garment!, name: t.name, design: t.design }));
+  return (sport?.garments ?? allGarments).map(g => ({ garment: g, name: '' }));
 }
 
 /** The tile's photo; a missing one falls back to the sport's DYO kit picture (onError in SportRow). */

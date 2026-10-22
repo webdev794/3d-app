@@ -20,6 +20,8 @@ class ProjectController extends Controller
         $search = trim((string) $request->query('search', ''));
         $projects = Project::query()
             ->select(['id', 'user_id', 'name', 'sport', 'garment', 'mode', 'status', 'version', 'thumbnail', 'created_at', 'updated_at'])
+            // The sport's garment tile it was made as ("Netball dress", task 9.99).
+            ->addSelect('design->productName as product_name')
             ->with('user:id,name,email')
             ->withCount('orders')
             ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))

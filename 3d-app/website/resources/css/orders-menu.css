@@ -55,7 +55,6 @@
   .site-header .brand>span{font-size:6.5px}
   .site-header .main-nav a,.site-header .main-nav .nav-orders-trigger{font-size:12px}
   .site-header .header-actions{gap:4px}
-  .site-header .header-cta{padding:11px 12px}
 }
 @media(max-width:1200px){.main-nav .nav-orders-trigger{font-size:12px}}
 /* 1101–1160 px folds like 801–1100 px (app.css). */
