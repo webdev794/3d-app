@@ -10,6 +10,7 @@ import OrderFormRead, { cleanRows, rowTotal, rowsFromReadings, type ReadNote, ty
 import { OrderReviewApprove, OrderSentPanel, ReviewApproveHeader, garmentThumb, layoutFor, paymentPath, youthSplit, type ReviewFile, type ReviewGarment, type ReviewRow } from '../components/OrderReviewApprove';
 import { ADDRESS_KEYS, DEFAULT_LEAD_WEEKS, DeliveryFieldsCard, MOBILE_MESSAGE, dateText, deliveryErrors, deliveryText, isAustralia, mobileError, todayText, validMobile } from '../components/OrderDeliveryFields';
 import { ALL_SIZES, FIT_NAMES } from '../orderSizes';
+import { moneyOr } from '../money';
 import '../../css/order-upload.css';
 
 /** The two kinds of file this page uploads. */
@@ -30,7 +31,7 @@ type DraftData = OrderFields & Record<string, unknown>;
 interface QuoteLine { key?: string; name: string; quantity: number; unit_price?: string | null; total: string | null; priced?: boolean }
 export interface Quote {
   status: 'priced' | 'quote_required'; currency: string; lines: QuoteLine[]; extras?: QuoteLine[];
-  shipping?: { name?: string; amount: string | null; priced?: boolean } | null; discounts?: { name: string; amount: string }[];
+  shipping?: { destination?: string | null; name?: string; amount: string | null; priced?: boolean } | null; discounts?: { name: string; amount: string }[];
   subtotal: string | null; tax?: { name: string; amount: string | null; included?: boolean; applies?: boolean } | null; total: string | null;
   reasons?: { code: string; message: string }[];
 }
@@ -71,8 +72,8 @@ const timeText = (iso?: string) => { const d = iso ? new Date(iso) : new Date();
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const garmentName = (id: string) => id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_]/g, ' ');
 const itemTotal = (item: OrderItem) => Object.values(item.sizes).reduce((a, b) => a + (Number(b) || 0), 0);
-/** "AUD $1,870.00", as the payment components show it. */
-const money = (v: string | number | null | undefined, currency = 'AUD') => (v === null || v === undefined || v === '' ? '—' : `${currency} ${new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(Number(v))}`);
+/** "A$1,870.00", the site's one price style (money.ts); "—" without an amount. */
+const money = (v: string | number | null | undefined, currency = 'AUD') => moneyOr(v, currency, '—');
 
 /** What is wrong with section 1 (empty when it is fine): team, email, mobile, date required and delivery are needed to make the order. */
 function contactErrors(f: UploadFields) {
@@ -596,7 +597,8 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     // Delivery to the address's country, or Pick up, as the review's "Delivery to" (unless chosen there already).
     // A destination set here before follows a changed choice (or is cleared, so the server takes it from the choice).
     const dest = destinationFor(fieldsRef.current);
-    if (!pricingRef.current.destination || pricingRef.current.destination === autoDestination.current) {
+    // Picked up: no delivery destination chosen before still counts (the review says Pick up).
+    if (!pricingRef.current.destination || pricingRef.current.destination === autoDestination.current || fieldsRef.current.delivery === 'pickup') {
       autoDestination.current = dest;
       setPricing(p => { const { destination: _was, ...rest } = p; return dest ? { ...rest, destination: dest } : rest; });
     }
@@ -876,7 +878,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       garmentsNote={readLine ? <p className="ora-garments-note" data-testid="read-summary">{readLine}</p> : null}
       price={showPrice ? <PriceBox quote={quote} waitingForTick={false} /> : undefined}
       priceNote={rowsToSend && !itemsConfirmed ? 'Tick the box below to see the price now.' : reasons || '3DEEZI confirms the price after checking your order form, before you pay anything.'}
-      priceOptions={<PricingChoices value={pricing} onChange={setPricing} />}
+      priceOptions={<PricingChoices value={pricing} onChange={setPricing} choice={choiceDestination(fields)} shipping={quote.quote?.shipping} />}
       agreed={rowsToSend ? itemsConfirmed : approved} onAgree={v => { setApproved(v); if (rowsToSend) { setItemsConfirmed(v); setConfirmTried(false); } }}
       busy={busy} error={submitError} onBack={() => editAgain('top')} onApprove={() => void submit()} />} /></div>;
   }

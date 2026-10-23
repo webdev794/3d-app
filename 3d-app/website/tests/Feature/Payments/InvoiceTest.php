@@ -64,7 +64,7 @@ class InvoiceTest extends TestCase
         $this->assertNotNull($invoice->fresh()->emailed_at);
         // In the customer's order history (R5), without a second email from the order updates.
         $entry = $invoice->order->updates()->where('kind', 'payment')->first();
-        $this->assertSame(['customer', 'Invoice INV-1001 issued: AUD $1,870.00.'], [$entry->visibility, $entry->text()]);
+        $this->assertSame(['customer', 'Invoice INV-1001 issued: A$1,870.00.'], [$entry->visibility, $entry->text()]);
         Notification::assertNotSentTo($customer, \App\Notifications\OrderUpdateNotification::class);
         // Once per order: the same event again changes nothing.
         $this->submit($invoice->order);

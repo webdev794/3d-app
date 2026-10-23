@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Palette, Columns3, Download, FileText, Gift, List, LoaderCircle, Lock, MessageSquare, Paperclip, ReceiptText, RefreshCw, Search, Send, SlidersHorizontal, Upload, UserCheck } from 'lucide-react';
 import { api, fetchFile, saveBlob } from '../api';
+import { formatMoney } from '../money';
 import '../../css/admin-team.css';
 
 /**
@@ -41,7 +42,7 @@ const label = (s: string) => TEAM_STATUSES.find(([id]) => id === s)?.[1] ?? s;
 const when = (iso: string | null) => iso ? new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
 const kb = (n: number) => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 const Pill = ({ status }: { status: string }) => <span className={`status-pill s-${PILL[status] ?? 'pending'}`}>{label(status)}</span>;
-const billingText = (r: Summary) => r.billing === 'paid' ? `Paid request · ${r.currency} ${r.price} incl. GST${r.invoice ? ` · ${r.invoice.invoice_number} ${r.invoice.label}` : ''}` : r.billing === 'free' ? 'No charge' : `Included (${r.plan})`;
+const billingText = (r: Summary) => r.billing === 'paid' ? `Paid request · ${formatMoney(r.price, r.currency)} incl. GST${r.invoice ? ` · ${r.invoice.invoice_number} ${r.invoice.label}` : ''}` : r.billing === 'free' ? 'No charge' : `Included (${r.plan})`;
 /** "Jersey, Shorts": every garment asked for (older requests: the one garment). */
 const garmentsOf = (r: Summary) => r.garment_names?.length ? r.garment_names.join(', ') : r.garment_name;
 const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -69,7 +70,7 @@ export default function AdminTeam({ mode, itemId, onNotice, myId }: { mode: Mode
 function Card({ r, base }: { r: Summary; base: string }) {
   return <Link to={`${base}/${r.id}`} className="atm-card" aria-label={`Open ${r.number} ${r.name}`}>
     <span className="atm-card-top"><strong>{r.number}</strong>{r.unread > 0 && <em className="atm-unread" title="Unread customer messages">{r.unread}</em>}{r.priority === 'high' && <em className="atm-high">HIGH</em>}<RefundChip r={r} />{r.pending_revision && <em className="atm-high" title="Extra revision waiting for payment">EXTRA · UNPAID</em>}</span>
-    <span className="atm-card-name">{r.name}</span>
+    <span className="atm-card-name" title={r.name}>{r.name}</span>
     <small>{garmentsOf(r)} · {r.sport_name}</small>
     <small className="muted">{r.designer ? <><UserCheck size={12} /> {r.designer.name}</> : 'Unassigned'}{r.due_date ? ` · due ${r.due_date}` : ''}{r.preferred_date ? ` · wanted by ${day(r.preferred_date)}` : ''}</small>
   </Link>;
@@ -179,7 +180,7 @@ function RequestDetail({ id, mode, base, onNotice, myId }: { id: number; mode: M
       <h2>{r.number} <span>{r.name}</span></h2><Pill status={r.status} /><RefundChip r={r} />
       <button className="icon-button" onClick={load} aria-label="Refresh"><RefreshCw size={16} /></button>
     </div>
-    {mode === 'admin' && r.refund_status === 'due' && <div className="atm-refund-bar" role="status"><ReceiptText size={18} /><span><b>Refund due</b> · {r.invoice?.invoice_number ? `invoice ${r.invoice.invoice_number}, ${r.currency} ${r.invoice.total ?? r.price}` : `${r.currency} ${r.price}`}. Refund it by hand in Airwallex or Stripe, then tick Refunded.</span><label className="atm-check"><input type="checkbox" checked={false} disabled={busy === 'refund'} onChange={() => setRefund('refunded')} /> Refunded</label></div>}
+    {mode === 'admin' && r.refund_status === 'due' && <div className="atm-refund-bar" role="status"><ReceiptText size={18} /><span><b>Refund due</b> · {r.invoice?.invoice_number ? `invoice ${r.invoice.invoice_number}, ${formatMoney(r.invoice.total ?? r.price, r.currency)}` : formatMoney(r.price, r.currency)}. Refund it by hand in Airwallex or Stripe, then tick Refunded.</span><label className="atm-check"><input type="checkbox" checked={false} disabled={busy === 'refund'} onChange={() => setRefund('refunded')} /> Refunded</label></div>}
     {r.refund_status === 'refunded' && <p className="atm-refund-done"><ReceiptText size={15} /> Refunded{r.refunded_at ? ` ${when(r.refunded_at)}` : ''}.</p>}
     {r.pending_revision && <p className="atm-refund-done is-wait"><RefreshCw size={15} /> Extra revision requested: waiting for invoice {r.pending_revision.invoice?.invoice_number ?? ''} to be paid.</p>}
     <div className="atm-grid">

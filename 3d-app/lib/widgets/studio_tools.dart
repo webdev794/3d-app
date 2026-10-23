@@ -13,6 +13,30 @@ import 'flow_ui.dart';
 import 'showroom.dart' show ColorWheel;
 import 'ui.dart';
 
+/// "1 panel", "6 panels": a print layout's panels on the kit.
+String _panels(int n) => '$n panel${n == 1 ? '' : 's'}';
+
+/// Patterns › the garment's areas (area key, label), as the website's Studio
+/// (patternAreas): only the areas the 3D viewer paints on that garment
+/// (viewer zones.js). Shorts have no shoulders or sleeves, and a singlet no
+/// sleeves (its outline ends at x 0.254, the sleeve area starts at 0.27: a
+/// pattern there painted nothing); the full kit's jersey has both.
+List<(String, String)> patternAreas(String garment, {String? trackStyle}) {
+  final shorts = garment == 'Shorts';
+  return [
+    ('body', shorts ? 'Body' : garmentZones['body']!),
+    if (!shorts) ('yoke', garmentZones['yoke']!),
+    if (!shorts && garment != 'Singlet') ('sleeves', garmentZones['sleeves']!),
+    ('sides', garmentZones['sides']!),
+    ('hem', shorts ? 'Leg hems' : garmentZones['hem']!),
+    if (garment == 'Polo with pocket') ('pocket', garmentZones['pocket']!),
+    // A hoodie's pocket is its kangaroo pocket.
+    if (isHoodie(garment)) ...[('pocket', 'Kangaroo pocket'), ('hood', 'Hood')],
+    // The track jacket's stand-up collar, or its hood.
+    if (isTrack(garment)) ('hood', trackStyle == 'hood' ? 'Hood' : 'Collar'),
+  ];
+}
+
 /// Tools edit the same document as the web studio and the live 2D board.
 class StudioArtworkTool extends StatefulWidget {
   const StudioArtworkTool(this.c, {super.key});
@@ -271,8 +295,8 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
               Expanded(
                 child: Text(
                   '${layout['name']} · '
-                  '${(layout['roles'] as List).where((role) => role != 'none').length}'
-                  ' panels on the kit',
+                  '${_panels((layout['roles'] as List).where((role) => role != 'none').length)}'
+                  ' on the kit',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12.5),
@@ -959,45 +983,35 @@ class StudioZoneTool extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const SectionLabel('Patterns by garment area'),
-      for (final zone in garmentZones.entries)
-        if ((c.garment != 'Shorts' || !['sleeves', 'yoke'].contains(zone.key)) &&
-            (zone.key != 'pocket' || c.garment == 'Polo with pocket' || isHoodie(c.garment)) &&
-            (zone.key != 'hood' || isHoodie(c.garment) || isTrack(c.garment)))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: DropdownButtonFormField<String>(
-              key: ValueKey('${zone.key}-${c.zones[zone.key]}'),
-              initialValue: c.zones[zone.key] ?? '',
-              // A hoodie's pocket is its kangaroo pocket (as the website's Studio).
-              decoration: InputDecoration(
-                labelText: zone.key == 'pocket' && isHoodie(c.garment)
-                    ? 'Kangaroo pocket'
-                    : zone.key == 'hood' && isTrack(c.garment) && c.trackStyle != 'hood'
-                    ? 'Collar'
-                    : zone.value,
+      for (final (area, label) in patternAreas(c.garment, trackStyle: c.trackStyle))
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: DropdownButtonFormField<String>(
+            key: ValueKey('$area-${c.zones[area]}'),
+            initialValue: c.zones[area] ?? '',
+            decoration: InputDecoration(labelText: label),
+            items: [
+              const DropdownMenuItem(
+                value: '',
+                child: Text('Use whole garment'),
               ),
-              items: [
-                const DropdownMenuItem(
-                  value: '',
-                  child: Text('Use whole garment'),
-                ),
-                const DropdownMenuItem(
-                  value: 'None',
-                  child: Text('No pattern'),
-                ),
-                for (final pattern in studioPatterns)
-                  DropdownMenuItem(value: pattern, child: Text(pattern)),
-              ],
-              onChanged: (value) => c.edit(() {
-                c.zones = {...c.zones};
-                if (value == null || value.isEmpty) {
-                  c.zones.remove(zone.key);
-                } else {
-                  c.zones[zone.key] = value;
-                }
-              }),
-            ),
+              const DropdownMenuItem(
+                value: 'None',
+                child: Text('No pattern'),
+              ),
+              for (final pattern in studioPatterns)
+                DropdownMenuItem(value: pattern, child: Text(pattern)),
+            ],
+            onChanged: (value) => c.edit(() {
+              c.zones = {...c.zones};
+              if (value == null || value.isEmpty) {
+                c.zones.remove(area);
+              } else {
+                c.zones[area] = value;
+              }
+            }),
           ),
+        ),
       // The track jacket's style: its stand-up collar or a hood (as the website's TRACK JACKET STYLE).
       if (isTrack(c.garment)) ...[
         const SectionLabel('Track jacket style'),

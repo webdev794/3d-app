@@ -40,7 +40,7 @@ export const TIERS = {
  * faint glow over the stands, banks of cool floodlights high behind and to the sides, a big warm key panel in front
  * on the left (the same side as the key light), a dim cool fill on the right and cool rim strips behind.
  */
-export function stadiumEnvironment() {
+export function stadiumEnvironment({ softbox = false } = {}) {
   const env = new THREE.Scene();
   const bowl = new THREE.Mesh(new THREE.SphereGeometry(20, 48, 24), new THREE.ShaderMaterial({
     side: THREE.BackSide,
@@ -72,8 +72,8 @@ void main() {
   panel(4, 3, 0x9cc4ff, 0.7, 7, 2.5, 6);
   // A broad soft light from the camera's side, so the print reads true from the front.
   panel(9, 5, 0xfff4ea, 1.5, 0, 2.2, 9.5);
-  // A long studio softbox overhead (2026-10-23): a soft sheen along the shoulders, the folds' ridges and the trims.
-  panel(7, 2.2, 0xeef5ff, 2.2, 0, 8.5, 1.5);
+  // Look 2: a long studio softbox overhead, a soft sheen along the shoulders, the folds' ridges and the trims.
+  if (softbox) panel(7, 2.2, 0xeef5ff, 2.2, 0, 8.5, 1.5);
   // Cool rim strips behind.
   panel(0.6, 5.5, 0x74d2ff, 4, -6, 1.8, -6.5);
   panel(0.6, 5.5, 0x74d2ff, 4, 6, 1.8, -6.5);

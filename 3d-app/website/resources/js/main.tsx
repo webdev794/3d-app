@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { baseUrl, setToken } from './api';
+// ?look=1|2 on any page: the 3D look preview for this device (viewerLook.ts), read before the address changes.
+import './viewerLook';
 import '../css/app.css';
 import '../css/showroom.css';
 

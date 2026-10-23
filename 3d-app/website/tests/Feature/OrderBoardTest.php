@@ -458,7 +458,7 @@ class OrderBoardTest extends TestCase
             'currency' => 'AUD', 'total_cents' => 187000, 'paid_cents' => 50000]);
         Sanctum::actingAs($this->admin());
         $this->patchJson("/api/v1/admin/orders/{$id}/stage", ['status' => 'in_production'])->assertStatus(409)
-            ->assertJsonPath('problems.0.message', 'Not paid in full: INV-1048 AUD 1,370.00 outstanding.');
+            ->assertJsonPath('problems.0.message', 'Not paid in full: INV-1048 A$1,370.00 outstanding.');
         $invoice->forceFill(['status' => 'paid', 'paid_cents' => 187000])->save();
         $this->patchJson("/api/v1/admin/orders/{$id}/stage", ['status' => 'in_production'])->assertOk()->assertJsonPath('data.stage', 'production');
     }

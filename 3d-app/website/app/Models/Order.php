@@ -22,6 +22,19 @@ class Order extends Model
     /** A saved design's garment that the order form lists under another row (a full kit is a jersey and shorts). */
     public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo', 'varsity' => 'jacket', 'trackjacket' => 'jacket'];
 
+    /**
+     * Whether an order row is the saved design's own garment, so the design's product name ("Netball bibs", task 9.99)
+     * may name it: the same garment, or the row the order form lists it under (a zip hoodie is a hoodie row). A full
+     * kit names no single row (its jersey and shorts keep their own names); any other garment keeps its own name too
+     * (a "Netball bibs" design on a Rugby League jersey row is a "Rugby League Jersey", task 9.97).
+     */
+    public static function isDesignRow(?string $designGarment, ?string $rowGarment): bool
+    {
+        $design = (string) $designGarment;
+
+        return $design !== '' && (self::PROJECT_ROWS[$design] ?? $design) === (string) $rowGarment;
+    }
+
     public const FITS = ['mens' => 'Mens', 'womens' => 'Womens', 'youth' => 'Kids', 'unisex' => 'Unisex'];
 
     /** Where the order came from: Order this kit, the order form, an uploaded order form, or staff. */

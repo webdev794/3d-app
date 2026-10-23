@@ -115,7 +115,14 @@ class PricingTest extends TestCase
         $this->assertSame(0, Money::percentOf(4, 10));
         $this->assertSame(187000, Money::toCents('1,870.00'));
         $this->assertSame(1999, Money::toCents('19.99'));
-        $this->assertSame('AUD $1,870.00', Money::format(187000, 'AUD'));
+        // One price style on the site, in the app and in every server text (task 9.85).
+        $this->assertSame('A$1,870.00', Money::format(187000, 'AUD'));
+        $this->assertSame('A$1,870.00', Money::format(187000));
+        $this->assertSame('-A$12.50', Money::format(-1250, 'aud'));
+        $this->assertSame('A$0.00', Money::format(0));
+        $this->assertSame('To be confirmed', Money::format(null));
+        $this->assertSame(['NZ$1,870.00', 'US$5.00', 'CA$5.00', '£5.00', '€5.00', 'JPY 5.00'],
+            [Money::format(187000, 'NZD'), Money::format(500, 'USD'), Money::format(500, 'CAD'), Money::format(500, 'GBP'), Money::format(500, 'EUR'), Money::format(500, 'JPY')]);
         $this->assertSame('1870.00', Money::decimal(187000));
     }
 

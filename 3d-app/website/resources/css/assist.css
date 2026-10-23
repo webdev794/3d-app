@@ -2,7 +2,7 @@
 .assist{--assist-cyan:#00d9ed;--assist-line:#00d9ed40;position:fixed;right:24px;bottom:calc(24px + var(--assist-lift,0px));z-index:900;display:flex;flex-direction:column;align-items:flex-end;font-family:Inter,Arial,sans-serif}
 .assist-sparkle{fill:#00d9ed22;stroke:var(--assist-cyan);stroke-width:1.6;stroke-linejoin:round;filter:drop-shadow(0 0 5px #00d9edaa)}
 
-.assist-launcher{display:flex;align-items:center;gap:12px;height:56px;padding:0 26px 0 20px;border:1.5px solid #00d9edcc;border-radius:999px;background:linear-gradient(180deg,#0a1a2cf2,#050d18f2);color:#f2f8ff;font-family:var(--heading,Rajdhani,sans-serif);font-size:17px;font-weight:700;letter-spacing:.07em;box-shadow:0 0 0 1px #00d9ed22,0 0 22px #00d9ed55,inset 0 0 14px #00d9ed1f,0 12px 30px #0009;transition:box-shadow .2s,transform .2s,opacity .25s,visibility .25s}
+.assist-launcher{display:flex;align-items:center;gap:12px;height:56px;padding:0 26px 0 20px;border:1.5px solid #00d9edcc;border-radius:999px;background:linear-gradient(180deg,#0a1a2cf2,#050d18f2);color:#f2f8ff;font-family:var(--heading,Rajdhani,sans-serif);font-size:17px;font-weight:700;letter-spacing:.07em;box-shadow:0 0 0 1px #00d9ed22,0 0 22px #00d9ed55,inset 0 0 14px #00d9ed1f,0 12px 30px #0009;transition:box-shadow .2s,transform .2s,opacity .25s,visibility .25s,translate .25s}
 .assist-launcher:hover{box-shadow:0 0 0 1px #00d9ed44,0 0 30px #00d9ed88,inset 0 0 16px #00d9ed2e,0 12px 30px #0009;transform:translateY(-1px)}
 .assist.is-open .assist-launcher{background:linear-gradient(180deg,#0c2236f2,#071424f2)}
 
@@ -84,4 +84,9 @@
 /* On the homepage the chat scales with the page, as in its design (341 px wide at 1600 px): see Home.tsx. */
 @media (min-width:1200px){.assist{scale:var(--assist-scale,1);transform-origin:100% 100%}.assist-panel{max-height:min(620px,calc((100dvh - 130px - var(--assist-lift,0px)) / var(--assist-scale,1)))}}
 .assist.is-waiting .assist-launcher{opacity:0;visibility:hidden;transform:translateY(14px)}
+/* Resting over one of the page's buttons or fields (Assist.tsx avoid): just the round icon (its name stays for screen
+   readers and in the tooltip), raised just above that button when the icon alone would still cover it. */
+.assist.avoid-round .assist-launcher{width:var(--assist-round,56px);padding:0;gap:0;justify-content:center;border-radius:50%}
+.assist.avoid-round .assist-launcher span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.assist.avoid-raised .assist-launcher{translate:0 calc(-1 * var(--assist-avoid,0px))}
 @media (prefers-reduced-motion:reduce){.assist-panel,.assist-typing i{animation:none}.assist-launcher{transition:none}}

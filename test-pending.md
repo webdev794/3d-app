@@ -135,8 +135,78 @@ Open /artboard and press Ctrl+F5; the status bar shows 2026-10-23-5. In the app,
 
 ---
 
-## 3D look step 2: folds, mannequin, thicker hems (2026-10-23; on v2 only, not in the live package)
-Where the v2 branch runs (or locally), open the Studio with a hard refresh.
+## Order rows keep their own garment name (2026-10-23)
+1. Save a "Netball bibs" design. Orders › Create Order Form: add a Rugby League Jersey row (M 6) and a Netball Singlet row (M 5), both using that design › Pick up › Review.
+2. The jersey row says "Rugby League Jersey" everywhere: the form, the review, the price line "6 × A$50.00", the pay page, the invoice and its PDF, Admin › Orders and the order board. Only the singlet row says "Netball bibs".
+3. A full kit design used on a jersey row and a shorts row shows "Rugby League Jersey" and "Rugby League Shorts".
+
+---
+
+## Review shows Pick up / New Zealand correctly (2026-10-23)
+1. On the order review, open "Delivery region, extras & discount code".
+2. With Pick up: it reads "Pick up from 3DEEZI (no delivery)" and shipping is A$0.00.
+3. With a New Zealand address: it shows New Zealand and "No delivery price is set for New Zealand yet".
+4. Choose Australia there: shipping becomes A$100.00. Go back, choose Pick up, review again: back to Pick up and A$0.00. The same on Upload Your Order.
+
+---
+
+## One price style "A$" across the website (2026-10-23)
+Every price reads like "A$495.00":
+1. The order review lines, discount and TOTAL; the pay page button "PAY A$…".
+2. My Orders and the bell ("Invoice INV-… is ready: A$… to pay"); the invoice PDF.
+3. TEAM pages ("A$100.00 incl. GST"); Pricing (A$19 / A$49.95 / A$149, and the yearly prices).
+4. Admin: Orders, an order page, the order board, Invoices, Pricing, TEAM.
+5. Older history lines that said "AUD $…" now read "A$…".
+
+---
+
+## Admin cards: text stays inside the boxes (2026-10-23)
+1. Admin › Projects: a long customer email ends with "…" inside the card; hover shows the full text.
+2. The same on Admin › 3DEEZI TEAM and the other admin lists, on a computer and a phone.
+
+---
+
+## Website: Studio areas, sign-in timing, ASSIST button, Save on phones, counts (2026-10-23)
+1. Studio › Shorts › Patterns: the areas are only Body, Side panels and Leg hems.
+2. Signed in: reload the Studio and press Save at once: the Save window opens, not sign-in.
+3. /pricing on a wide screen: the round ASSIST icon sits beside Pro Studio's trial button, not on it.
+4. Studio on a phone: Save is in the top bar.
+5. Counts read naturally ("1 player", "1 garment", "1 file").
+
+---
+
+## App: Assist links, order row names, "A$" prices, Delivery to (2026-10-23)
+1. App › Assist: tap a link to the TEAM page in an answer: TEAM opens over your screen; Back returns. A "design requests" link opens My design requests (signed out: "Sign in to see your design requests."). About, Support, Privacy and Terms links open the website page. A Convert link starts Convert.
+2. Create Order Form: garment 1 uses the "Netball bibs" design; add garment 2 with the same design, change it to Jersey › Review: "01 — NETBALL BIBS" and "02 — JERSEY"; after Approve the order shows the same names.
+3. Every amount looks like "A$1,166.00" (extras, discounts "-A$111.00", totals, "Invoice INV-…: A$…", "A$… due", TEAM "PAY A$100.00"); no "AUD".
+4. Pick up › Review: "Delivery to: Pick up from 3DEEZI (no delivery)", shipping A$0.00. New Zealand shows New Zealand; an unlisted country shows "International".
+
+---
+
+## App: buttons for screen readers, counts, one status pill, Studio areas (2026-10-23)
+1. Web app preview, Profile: press Tab to the round Assist button. It is read as "Ask 3DEEZI ASSIST, button"; Enter opens the chat (it becomes "Hide 3DEEZI ASSIST"), Enter again closes it.
+2. 3DEEZI TEAM: "REQUEST A DESIGNER" and "VIEW MY REQUESTS" are separate buttons. After sending a request on a plan with a fee, "PAY NOW" and "View request" are separate buttons (don't pay).
+3. Counts read naturally: "Total: 1 garment · 1 player" (Upload Your Order › Review › Edit garment), "1 garment" (My orders), "1 file added" / "2 files added", "1 of 1 revision left" (TEAM), "1 Project" (Profile).
+4. An order page shows one status pill: "Order received" (not twice); delivered shows one "Delivered".
+5. Studio › Patterns: the Singlet lists Chest & body, Shoulders, Side panels, Hem (no Sleeves); Shorts list Body, Side panels, Leg hems.
+
+---
+
+## Admin Users: one-click "Remove test accounts" (2026-10-23)
+On the live site, after uploading tonight's package, first take a backup (Admin › Database Tools › Backup).
+1. Admin › Users: a "Remove test accounts" button sits next to "Add user".
+2. Click it: a window shows how many test accounts will go and how many stay, with the list (name, email, projects). No admin, no real email address and no customer with an order is in the list.
+3. Cancel: nothing changes.
+4. Open it again › Remove: it says how many were removed and kept. Done.
+5. Users now shows only the admins (Manoj Caresort, admin@3deezi.com, admin@example.test) and the demo customers (Sample Club, Pay Tester, Form Tester). The Users number in the left menu matches.
+6. Click the button again: "No test accounts to remove."
+7. On a phone the window fits and the list scrolls.
+
+---
+
+## 3D new look: mannequin, folds, showroom light (2026-10-23; after tonight's upload)
+Open any page of the test site once with ?look=2 at the end of the address (e.g. https://testcaresortwork.co.in/3deez/?look=2), then open the Studio. The browser remembers it; ?look=1 brings back the normal look. Without the link, the Studio looks exactly as before.
+0. Jersey, hoodie and full kit are the showcase models: mesh fabric, stitching, ribbed collar and cuffs, deeper folds, rim light and a soft shadow on the stand (pictures in D:\3d-app\deploy-zips\3d-showcase\).
 1. Jersey: natural folds from the armpits, at the waist and lower back, under the sleeves; a dark display mannequin (hips below the hem, upper arms in the sleeves, a short chrome stand into the podium); a thicker collar and hem; a soft sheen on the shoulders.
 2. All 11 garments: folds and the mannequin; the neck size label still shows; logos, names, numbers and artwork sit where they did.
 3. Add ?quality=flat to the address: exactly the old look.

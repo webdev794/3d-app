@@ -169,7 +169,7 @@ class _OrderFormReadViewState extends State<OrderFormReadView> {
         if (rows.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 10),
-            child: Text('Total: $total garment${total == 1 ? '' : 's'}${players > 0 ? ' · $players players' : ''}', key: const Key('read-totals'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            child: Text('Total: $total garment${total == 1 ? '' : 's'}${players > 0 ? ' · $players player${players == 1 ? '' : 's'}' : ''}', key: const Key('read-totals'), style: const TextStyle(fontWeight: FontWeight.w800)),
           ),
         if (unknown.isNotEmpty)
           Container(

@@ -127,7 +127,8 @@ export function ArtworkPanel({ design, edit, shelved = {}, viewer, selected, onS
         const parts = result.parts ?? [];
         const garment = parts.includes('shorts') && parts.includes('raglan') ? 'fullkit' : parts.includes('shorts') ? 'shorts' : ['shorts', 'fullkit'].includes(design.garment) ? 'tee' : design.garment;
         edit({ garment, layout: { asset: saved.id, name: file.name.slice(0, 160), roles: result.roles, hemFold: result.hemFold !== false, joinLines: result.joinLines === true, parts: result.parts } });
-        onNotice(`Print layout on the 3D kit: ${result.panels?.length ?? 0} panels from ${file.name}. Save the project to keep it.`);
+        const panels = result.panels?.length ?? 0;
+        onNotice(`Print layout on the 3D kit: ${panels} panel${panels === 1 ? '' : 's'} from ${file.name}. Save the project to keep it.`);
     }); }
     /** My design picture: the finished design's front and back drawn flat, put on the 3D kit exactly as drawn. */
     async function importDrawing(file: File) { await task(async () => {
@@ -170,7 +171,7 @@ export function ArtworkPanel({ design, edit, shelved = {}, viewer, selected, onS
             <strong>FACTORY PRINT LAYOUT</strong>
             <p className="field-hint">The finished print file from the factory (PDF, SVG or PNG with the cut panels laid flat and named FRONT BODY, LEFT SLEEVE …): each panel goes onto the 3D kit, the same way every time.</p>
             {layout && layout.kind !== 'drawing'
-                ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · {layout.roles.filter(role => role !== 'none').length} panels on the kit</p>
+                ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · {panelCount(layout.roles)} on the kit</p>
                     <label className="print-layout-join"><input type="checkbox" checked={layout.joinLines !== false} onChange={e => edit({ layout: { ...layout, joinLines: e.target.checked } })} /> Join the sleeve bands to the sleeves (no white line between them)</label><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Print layout removed: back to your designed kit. Put the print layout back (here) or Undo returns it.'); }}>Remove print layout</button></>
                 : <>{shelved.print && <button className="button button-secondary full-width" disabled={busy} onClick={() => { const { layout: back, garment } = shelved.print!; edit({ garment, layout: back }); onNotice(`${back.name} is back on the 3D kit.`); }}><RotateCcw size={15} /> Put the print layout back · {shelved.print.layout.name}</button>}
                     <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => layoutInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <FileUp size={15} />} Upload print layout</button></>}
@@ -210,6 +211,8 @@ const readFavourites = (): string[] => { try { return JSON.parse(localStorage.ge
 export type OwnDesign = { design: Design; thumb?: string | null };
 /** The keys that make a design what it is (YOUR DESIGN compares them). */
 const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks'] as const;
+/** "1 panel", "4 panels": a print layout's panels on the kit (its roles other than 'none'). */
+const panelCount = (roles: string[]) => { const n = roles.filter(role => role !== 'none').length; return `${n} panel${n === 1 ? '' : 's'}`; };
 export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys.map(key => key === 'zones' ? areas(d.zones) : key === 'layers' ? d.layers ?? [] : key === 'marks' ? d.marks ?? {} : key === 'zoneColors' ? (Object.keys(d.zoneColors ?? {}).length ? d.zoneColors : null) : d[key] ?? null));
 /** The whole design back, as one change (keys it lacks are cleared). */
 export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, zoneColors: null, ...d, zones: areas(d.zones) });

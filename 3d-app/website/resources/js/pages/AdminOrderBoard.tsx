@@ -7,6 +7,7 @@ import OrderFormReading from '../components/OrderFormReading';
 import { STAGES, StageBlocked, orderApi, uploadAdminFile, type Board, type BoardOrder, type FileKind, type OrderDetail, type OrderStatus, type StageProblem } from '../orderApi';
 import '../../css/admin-board.css';
 import { FIT_NAMES } from '../orderSizes';
+import { formatMoney } from '../money';
 
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '');
@@ -66,7 +67,7 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
               <span className="aob-ref">{order.number}</span>
               <strong>{order.name}</strong>
               <span className="aob-garments">{order.garments.slice(0, 3).map((g, i) => g.thumbnail ? <img key={i} src={g.thumbnail} alt="" /> : <GarmentIcon key={i} garment={g.garment} />)}{order.garments.length === 0 && (order.cover ? <img src={order.cover} alt="" /> : <Paperclip size={22} />)}</span>
-              <span className="aob-meta">{order.quantity ? `${order.quantity} garments` : 'Sizes in the order form'} · {order.customer?.name}</span>
+              <span className="aob-meta">{order.quantity ? `${order.quantity} garment${order.quantity === 1 ? '' : 's'}` : 'Sizes in the order form'} · {order.customer?.name}</span>
               <span className={`aob-pill tone-${order.sub_status.tone}`}>{order.sub_status.label}</span>
               {order.payment ? <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}</span> : <span className="aob-pill tone-grey">No invoice</span>}
               {order.latest_update && <span className="aob-latest">{order.latest_update.text}{order.latest_update.message && order.latest_update.text !== order.latest_update.message ? `: ${order.latest_update.message}` : ''}</span>}
@@ -152,7 +153,7 @@ function OrderPanel({ id, onClose, onNotice }: { id: number; onClose: () => void
       <h2 id="aob-panel-title">{order.number} · {order.name}</h2>
       <p className="muted">{order.customer?.name ?? order.user?.name} ({order.customer?.email ?? order.user?.email}) · {order.contact_name}{order.phone ? ` · ${order.phone}` : ''}{order.contact_email ? ` · ${order.contact_email}` : ''} · placed {when(order.submitted_at)}</p>
       <div className="project-actions"><Link className="button button-outline" to={`/admin/orders/${order.id}`}><Eye size={15} /> Full order page</Link>
-        {order.payment?.pdf && <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}{order.payment.amount_due ? ` · ${order.payment.currency} ${order.payment.amount_due} due` : ''}</span>}
+        {order.payment?.pdf && <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}{order.payment.amount_due ? ` · ${formatMoney(order.payment.amount_due, order.payment.currency)} due` : ''}</span>}
         {!order.payment && <span className="aob-pill tone-grey">No invoice yet</span>}</div>
       {error && <p className="error-message" role="alert">{error}</p>}
 

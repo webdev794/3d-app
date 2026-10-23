@@ -5,7 +5,7 @@
  */
 import { media, type Project } from '../api';
 import type { OrderDetail, OrderFile, OrderItem, OrderPlayer, Payment } from '../orderApi';
-import { audMoney } from '../teamApi';
+import { moneyOr } from '../money';
 import { defaultDesign, type Design } from './KitViewer';
 import { ALL_SIZES } from '../orderSizes';
 
@@ -149,9 +149,10 @@ export function reviewGarmentsFrom({ items, projects, artwork, options }: {
     const sport = options?.sports?.find(s => s.id === item.sport)?.name;
     const garmentName = options?.garments?.find(g => g.id === item.garment)?.name ?? capital(item.garment);
     const d = project?.design;
-    // A saved design made as one of its sport's garments ("Netball bibs", task 9.99) is ordered by that name, as the
-    // order form's rows (OrderForm rowName) and the placed order (OrderSubmission) call it; a row's own label wins.
-    const product = typeof d?.productName === 'string' ? d.productName.trim() : '';
+    // A saved design made as one of its sport's garments ("Netball bibs", task 9.99) names its own garment's rows, as the
+    // order form's rows (OrderForm rowName) and the placed order (OrderSubmission) call them; a row of another garment
+    // keeps its own name (task 9.97); a row's own label wins.
+    const product = designRowName(project, item.garment);
     const name = item.label || item.name || product || [sport, sport ? garmentName.toLowerCase() : garmentName].filter(Boolean).join(' ') || 'Garment';
     const colours = [...new Set([colourName(d?.main), colourName(d?.secondary)].filter((c): c is string => !!c))].join(' / ');
     const fit = item.fit ? FIT_NAMES[item.fit] ?? `${options?.fits?.find(f => f.id === item.fit)?.name ?? capital(item.fit)} fit` : '';
@@ -172,6 +173,19 @@ export function projectPicture(p: Project | null | undefined): string | null {
 const garmentPicture = (garment: string) => (ART.has(garment) ? media(`showroom/garment-${garment}.webp`) : null);
 const PROJECT_ROWS: Record<string, string> = { fullkit: 'jersey', ziphoodie: 'hoodie', pocketpolo: 'polo', varsity: 'jacket', trackjacket: 'jacket' };
 export const rowGarmentOf = (designGarment: string) => PROJECT_ROWS[designGarment] ?? designGarment;
+/** The rows a saved design's own garment is listed under, for its name: as PROJECT_ROWS, but a full kit names no single row. */
+const NAME_ROWS: Record<string, string> = { ziphoodie: 'hoodie', pocketpolo: 'polo', varsity: 'jacket', trackjacket: 'jacket' };
+/**
+ * Whether an order row is the saved design's own garment, so the design's product name may name it (the server's
+ * Order::isDesignRow): a "Netball bibs" singlet design on a Rugby League jersey row is that jersey (task 9.97), and a
+ * full kit's jersey and shorts rows keep their own names.
+ */
+export const isDesignRow = (designGarment: string | null | undefined, rowGarment: string | null | undefined) => !!designGarment && (NAME_ROWS[designGarment] ?? designGarment) === rowGarment;
+/** The name a saved design gives an order row ("Netball bibs"), or '' when it has none or the row is another garment. */
+export function designRowName(project: Pick<Project, 'garment' | 'design'> | null | undefined, rowGarment: string | null | undefined): string {
+  const product = typeof project?.design?.productName === 'string' ? project.design.productName.trim() : '';
+  return product && isDesignRow(project?.garment, rowGarment) ? product : '';
+}
 const VIEWER_TOPS = new Set(['jersey', 'tee', 'polo', 'pocketpolo', 'singlet', 'hoodie', 'ziphoodie', 'varsity', 'trackjacket']);
 
 /**
@@ -231,8 +245,7 @@ export function priceRowsFromPayment(payment: Payment | null | undefined): [stri
   ];
 }
 
-/** "A$4,000.00" (the site's money, as TEAM and the payment page show it); "To be confirmed" without an amount. */
+/** "A$4,000.00" (the site's one price style, money.ts); "To be confirmed" without an amount. */
 export function aud(amount: string | number | null | undefined, currency = 'AUD'): string {
-  if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount))) return amount === null || amount === undefined || amount === '' ? 'To be confirmed' : String(amount);
-  return audMoney(amount, currency);
+  return moneyOr(amount, currency, 'To be confirmed');
 }

@@ -272,7 +272,8 @@ class TeamRequestTest extends TestCase
         $this->assertSame([10000, 909, 9091], [$invoice->total_cents, $invoice->tax_cents, $invoice->subtotal_cents]);
         $line = $invoice->quote['lines'][0]['name'];
         $this->assertStringStartsWith("3DEEZI TEAM design request {$first['number']} · Rookie (Free) plan · ", $line);
-        $this->assertStringEndsWith('100.00 incl. GST', $line);
+        // The site's one price style (task 9.85).
+        $this->assertStringEndsWith(' · A$100.00 incl. GST', $line);
         // Review & Pay and the PDF call it a design request, not "Garments" (an order's invoice still says Garments).
         $shown = $this->getJson("/api/v1/invoices/{$invoice->number}")->assertOk()->json('data.order');
         $this->assertSame(['team', 'Design request', $first['number']], [$shown['source'], $shown['summary'], $shown['number']]);

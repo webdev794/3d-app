@@ -66,12 +66,19 @@ document.body.dataset.quality = QUALITY;
 // The tiers: Khronos PBR Neutral tone mapping, which keeps the print's colours true (ACES shifts and pales them); its
 // exposure set so a print's lit front matches the design's colours.
 if (Q) { renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.3; }
+// The 3D look (2026-10-23). '2' = step 2 on top of the tiers: folds and drape, the display mannequin, fuller trims,
+// the studio softbox. '1' = the tiers exactly as before step 2. The website sends ?look=2 only for a device that asked
+// for the preview (?look=2 on any page, until ?look=1); the apps never send it. When the client approves, LOOK_DEFAULT
+// becomes '2' and everyone gets step 2 (the one-line switch; then the next VIEWER_VERSION).
+const LOOK_DEFAULT = '1';
+const LOOK2 = !!Q && (params.get('look') ?? LOOK_DEFAULT) === '2';
+document.body.dataset.look = LOOK2 ? '2' : '1';
 
 const scene = new THREE.Scene();
 scene.background = backdrop();
 const pmrem = new THREE.PMREMGenerator(renderer);
 // The tiers: the stadium's own light (floodlights, a warm key, cool rims) in every reflection and sheen.
-scene.environment = pmrem.fromScene(Q ? stadiumEnvironment() : new RoomEnvironment(), Q ? 0.03 : 0.04).texture;
+scene.environment = pmrem.fromScene(Q ? stadiumEnvironment({ softbox: LOOK2 }) : new RoomEnvironment(), Q ? 0.03 : 0.04).texture;
 scene.environmentIntensity = Q ? 1.3 : 0.3;
 
 // A photographic stadium plate supplies the distant architecture. The editable
@@ -102,6 +109,20 @@ const environmentReady = new Promise((resolve) => {
 const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 30);
 
 const { podium, ringMat, outerRing, pool, shadow, mirror } = createStudio(scene, renderer, mobile, Q);
+// Look 2, the showroom: the floodlights behind trace the kit's edges more strongly, and the kit sits in a deeper, wider
+// soft contact shadow on the podium.
+if (LOOK2) {
+  scene.traverse((o) => { if (o.isDirectionalLight && o.position.z < 0) o.intensity *= 1.35; });
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d'), fade = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  fade.addColorStop(0, 'rgba(0,0,0,.9)'); fade.addColorStop(.55, 'rgba(0,0,0,.42)'); fade.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = fade; g.fillRect(0, 0, 128, 128);
+  shadow.material.map.dispose();
+  shadow.material.map = new THREE.CanvasTexture(c);
+  shadow.geometry.dispose();
+  shadow.geometry = new THREE.PlaneGeometry(.8, .52);
+}
 
 // ---------- garment
 /** Relief of the sewing (stitches, seams, hem edges) per garment shape, made once. */
@@ -109,25 +130,27 @@ const reliefs = new Map();
 /** Adds the sewing relief on top of the fabric weave (both are normal maps, blended in the shader). */
 function addRelief(target, painter) {
   // A garment cut like a drawing has its own (only the latest such is kept).
-  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}:${painter.canvas.width}${Q ? ':pucker' : ''}`;
+  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}:${painter.canvas.width}${LOOK2 ? ':pucker' : ''}`;
   if (painter.cut && !reliefs.has(key)) {
     for (const [k, old] of reliefs) if (k.startsWith('cut:')) { old.dispose(); reliefs.delete(k); }
   }
   if (!reliefs.has(key)) {
-    // The tiers: the seams pucker a little more (texture.js), as sewn polyester does.
-    const relief = new THREE.CanvasTexture(painter.reliefMap(Q ? { pucker: true } : undefined));
+    // Look 2: the seams pucker a little more (texture.js), as sewn polyester does.
+    const relief = new THREE.CanvasTexture(painter.reliefMap(LOOK2 ? { pucker: true } : undefined));
     relief.anisotropy = renderer.capabilities.getMaxAnisotropy();
     reliefs.set(key, relief);
   }
   const relief = reliefs.get(key);
-  target.customProgramCacheKey = () => 'sewing-relief';
+  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief');
   target.onBeforeCompile = (shader) => {
     shader.uniforms.reliefMap = { value: relief };
+    // Look 2: the stitches and seams stand out a little more (the relief's slopes scaled up).
+    const slopes = LOOK2 ? 'relief.xy * 1.7' : 'relief.xy';
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <normalmap_pars_fragment>', '#include <normalmap_pars_fragment>\nuniform sampler2D reliefMap;')
       .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace(
         'mapN.xy *= normalScale;',
-        'mapN.xy *= normalScale;\n\tvec3 relief = texture2D( reliefMap, vMapUv ).xyz * 2.0 - 1.0;\n\tmapN = normalize( vec3( mapN.xy + relief.xy, mapN.z * relief.z ) );',
+        `mapN.xy *= normalScale;\n\tvec3 relief = texture2D( reliefMap, vMapUv ).xyz * 2.0 - 1.0;\n\tmapN = normalize( vec3( mapN.xy + ${slopes}, mapN.z * relief.z ) );`,
       ));
   };
 }
@@ -195,7 +218,7 @@ function buildKit(kind) {
   currentKind = key;
   const geometries = new Set();
   // (The mannequin's finishes are kept: made once, so their shaders are not compiled again on every change.)
-  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); [o.material].flat().forEach((m) => { if (m.userData.keep) return; m.map?.dispose(); m.dispose(); }); } });
+  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); [o.material].flat().forEach((m) => { if (m.userData.keep) return; m.map?.dispose(); if (m.normalMap?.userData.own) m.normalMap.dispose(); m.dispose(); }); } });
   geometries.forEach((geometry) => geometry.dispose());
   parts.forEach((part) => { part.texture.dispose(); part.varsity?.finish.dispose(); });
   kit.clear();
@@ -206,8 +229,8 @@ function buildKit(kind) {
     // A layout's tee over its shorts (shown bigger, below) hangs a little fuller at the hem, over their waistband.
     const over = partKind === 'raglan' && layout && list.includes('shorts') ? { ...SPECS.raglan, hemFlare: 0.09 } : null;
     const style = partKind === 'trackjacket' && trackHood ? SPECS.trackjacketHood : null;
-    // The tiers: the drape and wrinkles of worn cloth (flat: the garment as before).
-    const garment = buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over ?? style, detail: !!Q });
+    // Look 2: the drape and wrinkles of worn cloth (otherwise the garment as before).
+    const garment = buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over ?? style, detail: LOOK2 });
     const painter = new KitPainter(garment.frame, garment.outline, mobile ? 2048 : 4096, partKind);
     if (own) painter.cut = layout.key;
     // The finished edges (the hem follows a leg's side split), the waistband's width and the places a print
@@ -345,12 +368,22 @@ function buildKit(kind) {
     }
     // Collar rib or waistband along the top opening (a hoodie's neck is under its hood).
     const rim = new THREE.Mesh(
-      buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth, Q ? 1.6 : 1),
+      buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth, LOOK2 ? 1.6 : 1),
       new THREE.MeshPhysicalMaterial({ roughness: 0.9, reflectivity: .2, sheen: 0.15, side: THREE.DoubleSide, sheenColor: new THREE.Color(0x7092a4), normalMap: knit, normalScale: new THREE.Vector2(.17, .17) }),
     );
     group.add(rim);
-    // The tiers: the rib's soft sheen catches the studio's light along the collar (or waistband).
-    if (Q) Object.assign(rim.material, { roughness: 0.78, sheen: 0.38, sheenRoughness: 0.5 });
+    // Look 2: the rib's soft sheen catches the studio's light along the collar (or waistband), and its knit shows as
+    // fine ribs across the band (about 3 mm apart round the neck).
+    if (LOOK2) {
+      Object.assign(rim.material, { roughness: 0.78, sheen: 0.38, sheenRoughness: 0.5 });
+      ribMap ??= ribNormalMap();
+      const ribs = ribMap.clone();
+      ribs.userData.own = true;   // this collar's own copy, freed with the kit
+      ribs.repeat.set(partKind === 'shorts' ? 260 : 150, 1);
+      ribs.needsUpdate = true;
+      rim.material.normalMap = ribs;
+      rim.material.normalScale.set(0.75, 0.75);
+    }
     rim.visible = !hoodie && !track && !varsity;
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
     const label = partKind === 'shorts' ? null : buildLabel(garment);
@@ -369,18 +402,20 @@ function buildKit(kind) {
   }
   // The tiers: each part's fabric (mesh, piqué, fleece...) woven into its printed materials (render-quality.js).
   if (Q) parts.forEach((part) => dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy()));
+  // Look 2: the knit's relief a quarter deeper, so the mesh and its sheen read up close.
+  if (LOOK2) parts.forEach((part) => part.material.normalScale.multiplyScalar(1.25));
   frameKit();
   // The labels after framing (the camera frames the kit as it is without them).
   parts.forEach((part) => { if (part.label) part.rim.parent.add(part.label); });
-  // The tiers: the mannequin under the kit and its stand into the podium, also after framing (never picked).
-  if (Q) dressMannequin(list);
+  // Look 2: the mannequin under the kit and its stand into the podium, also after framing (never picked).
+  if (LOOK2) dressMannequin(list);
 }
 
 /** The mannequin under each part (mannequin.js), and one stand from the lowest of them into the podium. */
 let mannequinMat = null;
 function dressMannequin(list) {
   mannequinMat ??= Object.assign(mannequinMaterial(), { userData: { keep: true } });
-  let low = Infinity, legs = null;
+  let low = Infinity, foot = null;
   for (const part of parts) {
     const group = part.rim.parent;
     const form = buildMannequin(part.garment, mannequinMat, { over: list.includes('shorts') && part.painter.kind !== 'shorts' });
@@ -388,12 +423,14 @@ function dressMannequin(list) {
     group.add(form);
     const s = group.scale.y;
     form.children.forEach((m) => { m.geometry.computeBoundingBox(); low = Math.min(low, group.position.y + s * m.geometry.boundingBox.min.y); });
-    if (part.garment.body.legs) legs = group.position.y + s * (part.garment.body.crotch - 0.02);
+    // Shorts (alone or in a full kit): the stand goes up into the wearer's left thigh, as on a shop's leg form.
+    const tip = form.userData.feet?.find((p) => p.x > 0);
+    if (tip) foot = { x: tip.x * s, y: group.position.y + s * tip.y, z: tip.z * s };
     // Its points are no longer needed (the garment object lives as long as the kit).
     part.garment.body = null;
   }
   // The podium's top is at y -0.0675 (studio.js); the rod goes a little into it, so the kit's gentle bob never lifts it off.
-  const stand = Number.isFinite(low) ? buildStand(legs ?? low + 0.012, -0.075) : null;
+  const stand = foot ? buildStand(foot.y + 0.012, -0.075, foot.x, foot.z) : Number.isFinite(low) ? buildStand(low + 0.012, -0.075) : null;
   if (stand) kit.add(stand);
 }
 
@@ -874,7 +911,11 @@ resize();
 
 // ---------- loop
 const clock = new THREE.Clock();
+/** Set when the page has given its graphics back (pagehide, below): nothing is drawn after that. */
+let released = false;
 function frame() {
+  // A frame drawn after the release would try to rebuild the freed materials on the lost context.
+  if (released) return;
   const dt = clock.getDelta(), t = clock.elapsedTime;
   kit.position.y = 0.0025 * Math.sin(t * .7);
   shadow.scale.set(1.15 - kit.position.y * 3, 0.55 - kit.position.y * 1.5, 1);
@@ -1019,7 +1060,6 @@ addEventListener('message', (e) => {
  * a removed frame's context is freed only when the browser collects it, and a long session that opens the Studio many
  * times can run out of WebGL contexts or graphics memory. A page kept in the back/forward cache (persisted) keeps all.
  */
-let released = false;
 addEventListener('pagehide', (event) => {
   if (event.persisted || released) return;
   released = true;

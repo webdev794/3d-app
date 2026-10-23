@@ -8,7 +8,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { BadgeDollarSign, Ban, Building2, CheckCircle2, ChevronLeft, ChevronRight, Copy, CreditCard, Download, Eye, FileText, LoaderCircle, Mail, Pencil, Plus, Receipt, RotateCcw, Search, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { api, fetchFile, saveBlob } from '../api';
-import { PaymentStatusPill, amountOnly, money, type PaymentSummary, type Quote } from '../components/OrderPayment';
+import { PaymentStatusPill, money, type PaymentSummary, type Quote } from '../components/OrderPayment';
 
 type Kind = 'garment' | 'extra' | 'shipping' | 'discount';
 interface Rule { id: number; kind: Kind; code: string | null; sport: string | null; name: string; price: string; per_item: string; percent: string | null; unit: 'garment' | 'player' | 'order' | null; auto: boolean; min_quantity: number | null; taxable: boolean; active: boolean; sort: number }
@@ -301,7 +301,7 @@ function InvoiceActions({ inv, onChanged, onNotice }: { inv: InvoiceDetail; onCh
     <div className="admin-grid">
       <section className="admin-card pa-box"><h3>Invoice</h3>
         <table className="admin-table compact"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>
-          {[...q.lines, ...q.extras].map(l => <tr key={l.key}><td>{l.name}</td><td>{l.quantity}</td><td>{amountOnly(l.unit_price, inv.currency)}</td><td>{amountOnly(l.total, inv.currency)}</td></tr>)}</tbody></table>
+          {[...q.lines, ...q.extras].map(l => <tr key={l.key}><td>{l.name}</td><td>{l.quantity}</td><td>{money(l.unit_price, inv.currency)}</td><td>{money(l.total, inv.currency)}</td></tr>)}</tbody></table>
         <dl className="kv pa-kv">
           {q.shipping && <><dt>Shipping · {q.shipping.name}</dt><dd>{money(q.shipping.amount, inv.currency)}</dd></>}
           {q.discounts.map(d => <Fragment key={d.name + d.code}><dt>{d.name}</dt><dd>-{money(d.amount, inv.currency)}</dd></Fragment>)}
@@ -365,16 +365,16 @@ function IssueForm({ orderId, quote, reasons, currency, onIssued }: { orderId: n
     {reasons.length > 0 && <div className="pa-reasons"><TriangleAlert size={16} /><ul>{reasons.map((r, i) => <li key={i}>{r.message}</li>)}</ul></div>}
     <table className="admin-table compact"><thead><tr><th>Item</th><th>Qty</th><th>Unit price ({currency})</th><th>Total</th></tr></thead><tbody>
       {preview.lines.filter(l => l.kind === 'garment').map(l => <tr key={l.key}><td>{l.name}</td><td>{l.quantity}</td>
-        <td><input className="pa-price" type="number" min={0} step="0.01" value={lines[l.key] ?? ''} placeholder={l.priced ? amountOnly(l.unit_price, currency) : 'Price'} aria-label={`Unit price of ${l.name}`} onChange={e => setLines({ ...lines, [l.key]: e.target.value })} /></td>
-        <td>{l.priced ? amountOnly(l.total, currency) : '—'}</td></tr>)}
-      {preview.extras.map(l => <tr key={l.key}><td>{l.name}</td><td>{l.quantity}</td><td>{amountOnly(l.unit_price, currency)}</td><td>{amountOnly(l.total, currency)}</td></tr>)}
+        <td><input className="pa-price" type="number" min={0} step="0.01" value={lines[l.key] ?? ''} placeholder={l.priced ? money(l.unit_price, currency) : 'Price'} aria-label={`Unit price of ${l.name}`} onChange={e => setLines({ ...lines, [l.key]: e.target.value })} /></td>
+        <td>{l.priced ? money(l.total, currency) : '—'}</td></tr>)}
+      {preview.extras.map(l => <tr key={l.key}><td>{l.name}</td><td>{l.quantity}</td><td>{money(l.unit_price, currency)}</td><td>{money(l.total, currency)}</td></tr>)}
       {custom.map((c, i) => <tr key={`c${i}`}><td><input className="pa-price wide" value={c.name} placeholder="e.g. Design fee" aria-label="Added line" onChange={e => setCustom(custom.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} /></td>
         <td><input className="pa-price" type="number" min={1} value={c.quantity} aria-label="Quantity" onChange={e => setCustom(custom.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} /></td>
         <td><input className="pa-price" type="number" min={0} step="0.01" value={c.unit_price} aria-label="Unit price" onChange={e => setCustom(custom.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x))} /></td>
         <td><button type="button" className="icon-button danger" aria-label="Remove line" onClick={() => setCustom(custom.filter((_, j) => j !== i))}><Trash2 size={14} /></button></td></tr>)}
     </tbody></table>
     <button type="button" className="button button-outline pa-add" onClick={() => setCustom([...custom, { name: '', quantity: '1', unit_price: '' }])}><Plus size={15} /> Add a line</button>
-    <div className="field-row"><label className="field">Shipping ({preview.shipping?.name ?? 'delivery'}, {currency})<input type="number" min={0} step="0.01" value={shipping} placeholder={preview.shipping?.priced ? amountOnly(preview.shipping.amount, currency) : 'Price'} onChange={e => setShipping(e.target.value)} /></label>
+    <div className="field-row"><label className="field">Shipping ({preview.shipping?.name ?? 'delivery'}, {currency})<input type="number" min={0} step="0.01" value={shipping} placeholder={preview.shipping?.priced ? money(preview.shipping.amount, currency) : 'Price'} onChange={e => setShipping(e.target.value)} /></label>
       <label className="field">Discount ({currency})<input type="number" min={0} step="0.01" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0.00" /></label></div>
     <label className="field">Note on the invoice<input maxLength={1000} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" /></label>
     <div className="pa-preview">{ready ? <><span>Subtotal {money(preview.subtotal, currency)} · {preview.tax.name} {money(preview.tax.amount, currency)}</span><strong>Total {money(preview.total, currency)}</strong></>

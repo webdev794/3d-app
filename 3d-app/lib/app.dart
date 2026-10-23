@@ -48,6 +48,9 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
+    // 3DEEZI ASSIST's links and open commands push the TEAM screens over the
+    // app and open Convert and the website's pages with it.
+    navigatorKey: assist.navigator,
     title: '3DEEZI · Sportswear Designer',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(

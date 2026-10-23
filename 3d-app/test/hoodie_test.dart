@@ -97,7 +97,9 @@ void main() {
       'Jersey': common,
       'Training Tee': common,
       'Polo': common,
-      'Singlet': common,
+      // No sleeves (website 2026-10-23): the singlet's outline ends at x 0.254
+      // and the viewer's sleeve area starts at 0.27, so a pattern there painted nothing.
+      'Singlet': ['Chest & body', 'Shoulders', 'Side panels', 'Hem'],
       'Full Kit': common,
       'Polo with pocket': [...common, 'Chest pocket'],
       'Hoodie': [...common, 'Kangaroo pocket', 'Hood'],
@@ -106,10 +108,11 @@ void main() {
       // The track jacket's hood area is its collar unless it has a hood (website: Hood or Collar).
       'Track jacket': [...common, 'Collar'],
       // The 3D shorts have no shoulders or sleeves (viewer zones.js uses
-      // sides, hem and body only), so the app leaves those two out.
-      'Shorts': ['Chest & body', 'Side panels', 'Hem'],
+      // sides, hem and body only), so the app leaves those two out; their
+      // areas read as on the website.
+      'Shorts': ['Body', 'Side panels', 'Leg hems'],
     };
-    final keyOf = {for (final e in garmentZones.entries) e.value: e.key, 'Kangaroo pocket': 'pocket', 'Collar': 'hood'};
+    final keyOf = {for (final e in garmentZones.entries) e.value: e.key, 'Kangaroo pocket': 'pocket', 'Collar': 'hood', 'Body': 'body', 'Leg hems': 'hem'};
     for (final MapEntry(key: garment, value: areas) in expected.entries) {
       c.garment = garment;
       c.zones = {};

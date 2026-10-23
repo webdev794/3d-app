@@ -323,7 +323,7 @@
 .super-admin svg{color:var(--cyan)}
 .super-admin em{font-style:normal;font-size:9px;letter-spacing:.12em;padding:3px 7px;border-radius:10px;background:linear-gradient(110deg,#00e0e4,#7560ff);color:#031423;font-weight:800}
 .console-burger{display:none}
-.console-body{padding:24px 28px 50px;display:flex;flex-direction:column;gap:18px}
+.console-body{padding:24px 28px 84px;display:flex;flex-direction:column;gap:18px}
 .console-shortcuts{display:flex;gap:10px;justify-content:flex-end;margin-top:-6px}
 .console-shortcuts .button{min-height:40px;padding:0 16px;font-size:12px}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:4px}
@@ -339,7 +339,7 @@
 .trend .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#c9d6e2}
 .trend .legend i,.chart-tip i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .trend-plot{position:relative;margin-top:8px}
-.trend-plot svg{width:100%;height:auto;display:block;cursor:crosshair}
+.trend-plot svg{width:100%;height:auto;display:block;cursor:crosshair;overflow:visible}
 .trend-plot .grid{stroke:#ffffff12;stroke-width:1}
 .trend-plot .tick{fill:#7f93a6;font-size:11px;font-family:Inter,sans-serif}
 .trend-plot .crosshair{stroke:#ffffff55;stroke-width:1;stroke-dasharray:3 3}
@@ -360,6 +360,11 @@
 .project-card:hover{border-color:#00d9ed66}
 .project-card h3{margin:6px 0 0;font-size:15px}
 .project-card p{margin:0;font-size:12px}
+/* Admin › Projects: long text stays inside the card (picture 169, 2026-10-23). A project name wraps; the customer's
+   name and email keep one line with an ellipsis, the full text in its tooltip. */
+.project-card{min-width:0}
+.project-card h3,.project-card p{overflow-wrap:anywhere}
+.project-card .cell-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .project-thumb{position:relative;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#0f2a3a,#050c15);display:grid;place-items:center;color:#5d7083;font-size:12px}
 .project-thumb img{width:100%;height:100%;object-fit:contain}
 .project-thumb .status-pill{position:absolute;top:8px;left:8px;background:#05101acc}
@@ -387,7 +392,8 @@
   .console-burger{display:inline-flex}
   .console-top{padding:14px 16px;flex-wrap:wrap}
   .console-actions .button-outline{display:none}
-  .console-body{padding:16px}
+  /* The last row stays clear of the 3DEEZI ASSIST button (44 px, 18 px from the bottom) when scrolled to the end. */
+  .console-body{padding:16px 16px 84px}
 }
 
 /* Create cards: thicker glowing outline (client feedback) */
@@ -471,7 +477,7 @@
 .pm-ai small{text-align:center;color:#64748b;font-size:8px}.pm-ai small em{font-style:normal;font-weight:800;color:#0f172a}
 @media(max-width:1200px){.partner-plan{grid-template-columns:1fr 1fr}.partner-side{grid-column:1/-1}}
 @media(max-width:700px){.partner-plan{grid-template-columns:1fr;padding:22px 18px}.partner-perks{padding:18px 0 0;border-left:0;border-top:1px solid #ffffff1a}.pm-app{grid-template-columns:1fr 110px}.pm-garments{display:none}.pm-nav nav span:not(.on){display:none}.partner-steps li{font-size:11px}}
-.admin-table .cell-message{max-width:320px;white-space:pre-wrap;font-size:13px;color:#cbd5e1}
+.admin-table .cell-message{max-width:320px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#cbd5e1}
 
 /* ---------- Admin: the kit's picture in the orders list, and an order's kit page */
 .order-kit{display:flex;align-items:center;gap:10px;min-width:190px}

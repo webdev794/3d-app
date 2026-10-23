@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CircleCheck, Clock, CreditCard, FileText, Info, LoaderCircle, RotateCcw, TriangleAlert, XCircle } from 'lucide-react';
 import { api, fetchFile, saveBlob } from '../api';
+import { moneyOr } from '../money';
 import '../../css/payments.css';
 
 export type PaymentStatus = 'quote_required' | 'awaiting_payment' | 'part_paid' | 'paid' | 'refunded' | 'cancelled';
@@ -38,18 +39,9 @@ export interface PricingOptions {
   tiers: { name: string; min_quantity: number; percent: string | null; amount: string | null }[]; payment_rule: { rule: 'none' | 'deposit' | 'full'; deposit_percent: number };
 }
 
-/** "1870.00", "AUD" -> "AUD $1,870.00". */
+/** "1870.00", "AUD" -> "A$1,870.00" (the site's one price style, money.ts); "To be confirmed" without an amount. */
 export function money(amount: string | number | null | undefined, currency = 'AUD'): string {
-  if (amount === null || amount === undefined || amount === '') return 'To be confirmed';
-  const value = Number(amount);
-  if (!Number.isFinite(value)) return String(amount);
-  try { return `${currency} ${new Intl.NumberFormat('en-AU', { style: 'currency', currency, currencyDisplay: 'narrowSymbol' }).format(value)}`; }
-  catch { return `${currency} ${value.toFixed(2)}`; }
-}
-/** "$1,870.00" (the currency is said elsewhere). */
-export function amountOnly(amount: string | number | null | undefined, currency = 'AUD'): string {
-  const full = money(amount, currency);
-  return full.startsWith(`${currency} `) ? full.slice(currency.length + 1) : full;
+  return moneyOr(amount, currency, 'To be confirmed');
 }
 
 const PILL_ICON: Record<PaymentStatus, typeof Clock> = { quote_required: Clock, awaiting_payment: Clock, part_paid: CircleCheck, paid: CircleCheck, refunded: RotateCcw, cancelled: XCircle };
@@ -115,15 +107,15 @@ export function PriceBreakdown({ quote, loading = false, error = '' }: { quote: 
   const required = quote.status === 'quote_required';
   return <div className={`pay-breakdown${loading ? ' is-updating' : ''}`} aria-busy={loading}>
     <table className="pay-items"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead>
-      <tbody>{rows.map(r => <tr key={r.key}><td>{r.name}</td><td>{r.quantity}</td><td>{r.priced ? amountOnly(r.unit_price, c) : '—'}</td><td>{r.priced ? amountOnly(r.total, c) : 'To be confirmed'}</td></tr>)}</tbody></table>
+      <tbody>{rows.map(r => <tr key={r.key}><td>{r.name}</td><td>{r.quantity}</td><td>{r.priced ? money(r.unit_price, c) : '—'}</td><td>{r.priced ? money(r.total, c) : 'To be confirmed'}</td></tr>)}</tbody></table>
     <dl className="pay-totals">
-      <div><dt>Garments</dt><dd>{amountOnly(quote.garments_total, c)}</dd></div>
-      {Number(quote.extras_total) > 0 && <div><dt>Extras</dt><dd>{amountOnly(quote.extras_total, c)}</dd></div>}
-      {quote.shipping && <div><dt>Shipping{quote.shipping.name ? ` · ${quote.shipping.name}` : ''}</dt><dd>{quote.shipping.priced ? amountOnly(quote.shipping.amount, c) : 'To be confirmed'}</dd></div>}
-      {quote.discounts.map(d => <div key={d.name + d.code} className="is-discount"><dt>{d.name}{d.code ? ` (${d.code})` : ''}</dt><dd>-{amountOnly(d.amount, c)}</dd></div>)}
+      <div><dt>Garments</dt><dd>{money(quote.garments_total, c)}</dd></div>
+      {Number(quote.extras_total) > 0 && <div><dt>Extras</dt><dd>{money(quote.extras_total, c)}</dd></div>}
+      {quote.shipping && <div><dt>Shipping{quote.shipping.name ? ` · ${quote.shipping.name}` : ''}</dt><dd>{quote.shipping.priced ? money(quote.shipping.amount, c) : 'To be confirmed'}</dd></div>}
+      {quote.discounts.map(d => <div key={d.name + d.code} className="is-discount"><dt>{d.name}{d.code ? ` (${d.code})` : ''}</dt><dd>-{money(d.amount, c)}</dd></div>)}
       {!required && <>
-        <div className="is-rule"><dt>Subtotal</dt><dd>{amountOnly(quote.subtotal, c)}</dd></div>
-        <div><dt>{quote.tax.name} ({quote.tax.applies ? `${quote.tax.rate}%` : 'not applicable'})</dt><dd>{amountOnly(quote.tax.amount, c)}</dd></div>
+        <div className="is-rule"><dt>Subtotal</dt><dd>{money(quote.subtotal, c)}</dd></div>
+        <div><dt>{quote.tax.name} ({quote.tax.applies ? `${quote.tax.rate}%` : 'not applicable'})</dt><dd>{money(quote.tax.amount, c)}</dd></div>
       </>}
     </dl>
     {required
@@ -133,17 +125,40 @@ export function PriceBreakdown({ quote, loading = false, error = '' }: { quote: 
   </div>;
 }
 
-/** Delivery destination, optional extras and a discount code, for the `pricing` sent with the order. */
-export function PricingChoices({ value, onChange }: { value: PricingChoice; onChange: (next: PricingChoice) => void }) {
+/** Destination names the price list may not have (the server's PricingService::DESTINATIONS). */
+const DESTINATION_NAMES: Record<string, string> = { AU: 'Australia', NZ: 'New Zealand', INTL: 'International', PICKUP: 'Pick up' };
+
+/**
+ * Delivery destination, optional extras and a discount code, for the `pricing` sent with the order. "Delivery to" shows
+ * where the price is worked out for: the one chosen here, else the quote's (`shipping`), else section 1's Deliver / Pick
+ * up and country (`choice`, e.g. "PICKUP", "NZ"), else the price list's default; a destination the price list has no
+ * price for shows as itself (3DEEZI prices it). Picked up (`choice` "PICKUP"): there is nothing to deliver, so no list.
+ */
+export function PricingChoices({ value, onChange, choice, shipping }: { value: PricingChoice; onChange: (next: PricingChoice) => void;
+  choice?: string | null; shipping?: { destination?: string | null; name?: string | null } | null }) {
   const [options, setOptions] = useState<PricingOptions | null>(null);
   const [code, setCode] = useState(value.discount_code ?? '');
   useEffect(() => { api<PricingOptions>('/pricing/options').then(setOptions).catch(() => setOptions(null)); }, []);
   if (!options) return null;
   const extras = options.extras.filter(e => !e.auto);
   const chosen = new Set(value.extras ?? []);
+  // The price list's own code for a destination (its code, or a known place under another code, as the server matches it).
+  const listed = (c: string | null | undefined) => {
+    const up = (c ?? '').trim().toUpperCase();
+    if (!up) return null;
+    const named = DESTINATION_NAMES[up]?.toLowerCase();
+    return options.destinations.find(d => d.code.toUpperCase() === up)?.code ?? (named ? options.destinations.find(d => d.name.trim().toLowerCase() === named)?.code : undefined) ?? null;
+  };
+  const pickup = choice?.toUpperCase() === 'PICKUP' && (!value.destination || value.destination.toUpperCase() === 'PICKUP' || value.destination === listed('PICKUP'));
+  const shown = value.destination || shipping?.destination || choice || options.default_destination || '';
+  const selected = listed(shown) ?? shown.toUpperCase();
+  const destinations = selected && !options.destinations.some(d => d.code === selected)
+    ? [{ code: selected, name: shipping?.destination?.toUpperCase() === selected && shipping.name ? shipping.name : DESTINATION_NAMES[selected] ?? selected }, ...options.destinations]
+    : options.destinations;
   return <div className="pay-choices">
-    {options.destinations.length > 0 && <label className="field">Delivery to<select value={value.destination ?? options.default_destination ?? ''} onChange={e => onChange({ ...value, destination: e.target.value || undefined })}>
-      {options.destinations.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}</select></label>}
+    {pickup ? <div className="field pay-pickup" data-testid="pay-pickup">Delivery to<span>Pick up from 3DEEZI (no delivery)</span></div>
+      : destinations.length > 0 && <label className="field">Delivery to<select value={selected} onChange={e => onChange({ ...value, destination: e.target.value || undefined })}>
+      {destinations.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}</select></label>}
     {extras.length > 0 && <fieldset className="pay-extras"><legend>Extras</legend>{extras.map(e => <label key={e.code} className="pay-extra"><input type="checkbox" checked={chosen.has(e.code)}
       onChange={ev => { const next = new Set(chosen); if (ev.target.checked) next.add(e.code); else next.delete(e.code); onChange({ ...value, extras: [...next] }); }} />
       <span>{e.name}<small>{money(e.unit_price, options.currency)} {e.unit === 'order' ? 'per order' : e.unit === 'player' ? 'per name / number' : 'per garment'}</small></span></label>)}</fieldset>}

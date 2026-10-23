@@ -4,9 +4,13 @@ import * as THREE from 'three';
 // cloth reads as worn rather than floating. A torso (a top), or hips and thighs (shorts), the neck and the upper arms,
 // each taken slice by slice from the fabric's own points and set a few millimetres inside them, so the garment never
 // shows it except through its openings (the neck, the sleeves, below the hem). It is never picked and never framed:
-// main.js adds it after framing, outside the printed meshes.
+// main.js adds it after framing, outside the printed meshes. Inside the garment it is in the garment's shade (each
+// ring's occlusion: dark there, fully lit where it shows), so an opening such as a singlet's armhole looks into shadow.
 
 const BINS = 40;
+const ramp = (a, b, v) => { const t = THREE.MathUtils.clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+/** How much light reaches the form inside the garment (1 = where it shows). */
+const INSIDE = 0.28;
 
 /** Closes the gaps in a ring of radii (null = no fabric point in that direction), then smooths it. */
 function fillRing(r) {
@@ -40,11 +44,11 @@ function sliceRadii(pts) {
   return fillRing(r);
 }
 
-/** A closed tube through rings (each BINS points), capped at both ends with a rounded end. */
-function tubeGeometry(rings) {
-  const pos = [], idx = [];
+/** A closed tube through rings (each BINS points), with a cap at each end; `shades`: each ring's occlusion. */
+function tubeGeometry(rings, shades) {
+  const pos = [], idx = [], occ = [];
   const K = BINS;
-  for (const ring of rings) for (const p of ring) pos.push(p.x, p.y, p.z);
+  rings.forEach((ring, r) => { for (const p of ring) { pos.push(p.x, p.y, p.z); occ.push(shades[r]); } });
   for (let a = 0; a < rings.length - 1; a++) for (let k = 0; k < K; k++) {
     const i0 = a * K + k, i1 = a * K + ((k + 1) % K), j0 = i0 + K, j1 = i1 + K;
     idx.push(i0, j0, i1, i1, j0, j1);
@@ -56,6 +60,7 @@ function tubeGeometry(rings) {
     c.divideScalar(K);
     const ci = pos.length / 3;
     pos.push(c.x, c.y, c.z);
+    occ.push(shades[ring]);
     for (let k = 0; k < K; k++) {
       const a = ring * K + k, b = ring * K + ((k + 1) % K);
       if (flip) idx.push(ci, a, b); else idx.push(ci, b, a);
@@ -63,6 +68,7 @@ function tubeGeometry(rings) {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('occlusion', new THREE.Float32BufferAttribute(occ, 1));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
@@ -146,9 +152,10 @@ export function buildMannequin(garment, material, { over = false } = {}) {
   const trunk = all.filter((p) => p.l < 0);
   const group = new THREE.Group();
   group.name = 'mannequin';
-  const add = (rings) => {
+  // Each tube with its rings' occlusion: shade(ring, index) -> 0..1.
+  const add = (rings, shade) => {
     if (rings.length < 2) return;
-    const mesh = new THREE.Mesh(outward(tubeGeometry(rings), rings), material);
+    const mesh = new THREE.Mesh(outward(tubeGeometry(rings, rings.map((ring, i) => shade(ring, i))), rings), material);
     mesh.receiveShadow = true;
     mesh.castShadow = true;
     group.add(mesh);
@@ -156,17 +163,22 @@ export function buildMannequin(garment, material, { over = false } = {}) {
   let minY = Infinity, maxY = -Infinity;
   for (const p of trunk) { minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
   const down = new THREE.Vector3(0, -1, 0), up = new THREE.Vector3(0, 1, 0);
+  /** Dark inside the garment, lit from just above its lower edge (the hem or a leg opening at `edge`) downwards. */
+  const below = (edge) => (ring) => INSIDE + (1 - INSIDE) * ramp(edge + 0.02, edge - 0.012, ring[0].y);
+  group.userData.feet = [];
 
   if (body.legs) {
     // Shorts: the hips from the crotch to the waist, then each thigh, on past the leg opening.
     const hips = horizontalRings(trunk, body.crotch + 0.01, maxY - 0.008, 0.007);
-    if (hips.length) { roundEnd(hips, up, 0.02); add(hips); }
+    if (hips.length) { roundEnd(hips, up, 0.02); add(hips, () => INSIDE); }
     for (const sg of [1, -1]) {
       const leg = horizontalRings(trunk, minY + 0.004, body.crotch + 0.03, 0.007, (p) => Math.sign(p.x) === sg).reverse();
       if (leg.length < 2) continue;
-      extend(leg, down, 0.06, 0.06);
-      roundEnd(leg, down, 0.012);
-      add(leg);
+      // The thighs end about 4 cm below the leg openings, well above the podium; the stand goes into one of them.
+      extend(leg, down, 0.035, 0.05, 3);
+      roundEnd(leg, down, 0.01);
+      add(leg, below(minY));
+      group.userData.feet.push(leg.at(-1).reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(BINS));
     }
   } else {
     // A top: the torso from the hem (below it when the top is worn alone: the hips) to the shoulders.
@@ -183,7 +195,7 @@ export function buildMannequin(garment, material, { over = false } = {}) {
     torso.unshift(...cap.reverse());
     if (!over) extend(torso, down, 0.05, 0.045, 3);
     roundEnd(torso, down, 0.008);
-    add(torso);
+    add(torso, below(minY));
 
     // The neck: rising from inside the torso through the neck opening, a little forward at the top, cut level.
     const neck = garment.neck ?? [];
@@ -202,7 +214,8 @@ export function buildMannequin(garment, material, { over = false } = {}) {
         }));
       }
       roundEnd(rings, up, 0.004);
-      add(rings);
+      // Seen through the neck opening, in the collar's shade.
+      add(rings, () => 0.55);
     }
 
     // Upper arms: along each sleeve, from just inside the armhole on past a short sleeve's end.
@@ -230,28 +243,43 @@ export function buildMannequin(garment, material, { over = false } = {}) {
       });
       const dir = bins.at(-1).c.clone().sub(bins.at(-3).c).normalize();
       // A short sleeve: the arm ends just past it, rounded off; a long one ends just inside its cuff.
+      const inSleeve = rings.length;
       if (!body.long) extend(rings, dir, 0.006, 0.03, 1);
       roundEnd(rings, dir, 0.01);
-      add(rings);
+      // Dark up the sleeve, lighter towards its end, where the opening lets the light in.
+      add(rings, (ring, i) => (i < inSleeve - 2 ? INSIDE : i < inSleeve ? 0.5 : body.long ? 0.5 : 0.85));
     }
   }
   return group.children.length ? group : null;
 }
 
-/** The mannequin's finish: a dark satin display form, catching the stadium's light along its edges. */
+/**
+ * The mannequin's finish: a dark satin display form, catching the stadium's light along its edges. Its occlusion
+ * (per vertex) scales all the light it sends back, reflections included, so inside the garment it stays in shade.
+ */
 export function mannequinMaterial() {
-  return new THREE.MeshPhysicalMaterial({ color: 0x1c2129, roughness: 0.56, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.45, sheen: 0.25, sheenRoughness: 0.5, sheenColor: new THREE.Color(0x8fb4d0) });
+  const m = new THREE.MeshPhysicalMaterial({ color: 0x1c2129, roughness: 0.56, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.45, sheen: 0.25, sheenRoughness: 0.5, sheenColor: new THREE.Color(0x8fb4d0) });
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float occlusion;\nvarying float vOcclusion;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvOcclusion = occlusion;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vOcclusion;')
+      .replace('#include <opaque_fragment>', 'outgoingLight *= vOcclusion;\n\t#include <opaque_fragment>');
+  };
+  m.customProgramCacheKey = () => 'mannequin-occlusion';
+  return m;
 }
 
 /** The stand under the mannequin: a polished rod from its lowest point into the podium (kit coordinates). */
 let chrome = null;
-export function buildStand(fromY, toY, z = 0) {
+export function buildStand(fromY, toY, x = 0, z = 0) {
   const length = fromY - toY;
   if (!(length > 0.004)) return null;
   // Made once and kept (main.js leaves materials marked keep when it clears the kit).
   chrome ??= new THREE.MeshStandardMaterial({ color: 0xc4ccd4, metalness: 1, roughness: 0.2, userData: { keep: true } });
   const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, length, 32), chrome);
-  rod.position.set(0, (fromY + toY) / 2, z);
+  rod.position.set(x, (fromY + toY) / 2, z);
   rod.castShadow = true;
   rod.name = 'mannequin-stand';
   return rod;

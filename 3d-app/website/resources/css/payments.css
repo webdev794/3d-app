@@ -192,3 +192,5 @@ input.pay-input:focus,.pay-input.is-stripe:focus-within{border-color:#27c8ec;box
 .pay-hosted-note{display:flex;align-items:flex-start;gap:10px;margin:0;padding:12px 14px;border-radius:8px;color:#d8e6f3;background:#0aa9e00f;border:1px solid #0aa9e033;font-size:14px;line-height:1.5}
 .pay-hosted-note svg{flex:none;margin-top:2px;color:#00d9ed}
 .pay-hosted-methods{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 8px;margin:0;color:#9fb2c6;font-size:13px}
+/* "Delivery to" when the order is picked up (PricingChoices): nothing to choose, said as text. */
+.pay-pickup>span{display:block;margin-top:2px;color:#dce7f3;font-size:13px;font-weight:600}

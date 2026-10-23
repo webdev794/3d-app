@@ -128,6 +128,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // The admin panel.
         Route::prefix('admin')->name('admin.')->middleware('admin')->group(function () {
             Route::get('/stats', [Admin\OrderController::class, 'stats'])->name('stats');
+            // Users › "Remove test accounts": the preview, then the removal (confirm: true).
+            Route::get('/users/test-accounts', [Admin\UserController::class, 'testAccounts'])->name('users.test-accounts');
+            Route::post('/users/test-accounts/remove', [Admin\UserController::class, 'removeTestAccounts'])->name('users.test-accounts.remove');
             Route::apiResource('users', Admin\UserController::class)->whereNumber('user');
             // The order board (before the orders resource, so "board" and "staff" are not read as an order).
             Route::get('/orders/board', [Admin\OrderBoardController::class, 'board'])->name('orders.board');

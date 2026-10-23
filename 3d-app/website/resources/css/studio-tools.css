@@ -172,3 +172,5 @@
 .hoodie-area span{flex:1}
 .hoodie-area small{font-size:11px;color:#7f98a6}
 .hoodie-area .icon-button{width:26px;height:26px}
+/* Phones: Save stays in the Studio top bar (2026-10-23); showroom.css hides the other outline buttons there at 600 px. */
+@media(max-width:600px){.dyo-actions .button-outline.studio-save{display:inline-flex}}

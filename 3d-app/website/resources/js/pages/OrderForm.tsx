@@ -16,6 +16,8 @@ import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type Or
 import { AssistCard, ContactDetailsCard, FileDropBox, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSummaryCard, checkFiles, emptyContact, type ContactDetails, type SummaryRow, type UploadItem } from '../components/OrderPageParts';
 import { PriceBreakdown, PricingChoices, type Quote as PayQuote } from '../components/OrderPayment';
 import { OrderReviewApprove, OrderSentPanel, ReviewApproveHeader, layoutFor, paymentPath, type ReviewDesign, type ReviewFile, type ReviewGarment, type ReviewRow } from '../components/OrderReviewApprove';
+import { designRowName } from '../components/orderReviewData';
+import { moneyOr } from '../money';
 import { DEFAULT_LEAD_WEEKS, DeliveryFieldsCard, EMPTY_DELIVERY, MOBILE_MESSAGE, choiceDestination, dateText, deliveryErrors, deliveryPayload, deliveryText, mobileError, pickDelivery, validMobile, type DeliveryErrors, type DeliveryFields } from '../components/OrderDeliveryFields';
 import { ALL_SIZES, SET_NAMES, rareText, rowSizes, siteSize, sizeFit, sizeGroups } from '../orderSizes';
 import '../../css/order-form.css';
@@ -40,7 +42,7 @@ interface Money { name: string; code?: string | null; amount: string }
 interface QuoteLine { key: string; name: string; quantity: number; unit_price: string | null; total: string | null; priced: boolean; unit?: string }
 interface Quote {
   status: 'priced' | 'quote_required'; currency: string; quantity?: number; lines: QuoteLine[]; extras?: QuoteLine[];
-  shipping?: { name: string; amount: string | null; priced: boolean } | null; discounts?: Money[]; subtotal: string | null;
+  shipping?: { destination?: string | null; name: string; amount: string | null; priced: boolean } | null; discounts?: Money[]; subtotal: string | null;
   tax?: { name: string; rate: string; amount: string | null; included: boolean; applies: boolean } | null; total: string | null;
   reasons?: { code: string; message: string }[]; discount_code?: { code: string; valid: boolean; message: string | null } | null;
 }
@@ -71,6 +73,7 @@ const makeKey = (prefix: string) => `${prefix}${Date.now().toString(36)}${(seq++
 const newRow = (p: Partial<Row> = {}): Row => ({ key: makeKey('r'), garment: 'jersey', sport: '', fit: 'mens', label: '', project_id: null, sizes: {}, players: [], open: false, more: false, file_ids: [], ...p });
 const freshForm = (sport: string): FormState => ({ contact: emptyContact(), rows: [newRow({ sport, open: true })], notes: '', pricing: {}, delivery: { ...EMPTY_DELIVERY } });
 const sum = (sizes: Record<string, number>) => Object.values(sizes).reduce((a, b) => a + (Number(b) || 0), 0);
+const withoutDestination = ({ destination: _was, ...rest }: PricingChoice): PricingChoice => rest;
 const digits = (v: string, n = 3) => v.replace(/\D/g, '').slice(0, n);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** The order row for a saved design's garment: a full kit starts as its jersey, a zip hoodie is a hoodie, the pocket polo a polo. */
@@ -90,8 +93,9 @@ const sizesText = (sizes: Record<string, number>, order: string[]) => order.filt
 
 function rowName(r: Row, o: FormOptions, project?: Project | null) {
   if (r.garment === 'other') return r.label.trim() || 'Other garment';
-  // A saved design made as one of its sport's garments ("Netball dress", task 9.99) is ordered by that name.
-  const product = project && project.id === r.project_id ? project.design?.productName?.trim() : '';
+  // A saved design made as one of its sport's garments ("Netball dress", task 9.99) is ordered by that name on rows of
+  // that garment; on another garment's row ("Netball bibs" on a Rugby League jersey row) the row keeps its own name.
+  const product = project && project.id === r.project_id ? designRowName(project, r.garment) : '';
   if (product) return product;
   const garment = o.garments.find(g => g.id === r.garment)?.name ?? capital(r.garment);
   const sport = o.sports.find(s => s.id === r.sport)?.name;
@@ -638,10 +642,11 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     if (step !== 'review' || !pricingOptions) { setQuote({ data: null, loading: pricingOptions === undefined && step === 'review', error: '' }); return; }
     let live = true;
     const fields = toOrderFields(formRef.current, options.sizes);
-    // Rows using a design made as a sport's garment are priced under that name ("Netball bibs"), as the order will be.
+    // Rows using a design made as a sport's garment are priced under that name ("Netball bibs"), as the order will be;
+    // only rows of that garment (the server's rule, OrderSubmission).
     const items = fields.items.map((item, i) => {
       const r = formRef.current.rows[i];
-      const product = r && r.garment !== 'other' && r.project_id ? projects?.find(p => p.id === r.project_id)?.design?.productName?.trim() : '';
+      const product = r && r.garment !== 'other' && r.project_id ? designRowName(projects?.find(p => p.id === r.project_id), r.garment) : '';
       return product && !item.label ? { ...item, label: product.slice(0, 60) } : item;
     });
     // As the order will be priced: the review's destination, else Deliver / Pick up and the country (as the server does).
@@ -762,7 +767,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
         onEditGarments={() => toForm('of-garments')}
         price={priced || (quote.loading && !quote.data) ? <PriceBreakdown quote={quote.data as unknown as PayQuote | null} loading={quote.loading} error={quote.error} /> : undefined}
         priceNote={quote.error ? `The price couldn’t be worked out (${quote.error}). 3DEEZI confirms it after review.` : quote.data?.reasons?.map(r => r.message).join(' ') || '3DEEZI confirms the price after review, before you pay anything.'}
-        priceOptions={pricingOptions ? <PricingChoices value={form.pricing} onChange={pricing => setForm(f => ({ ...f, pricing }))} /> : undefined}
+        priceOptions={pricingOptions ? <PricingChoices value={form.pricing} onChange={pricing => setForm(f => ({ ...f, pricing }))} choice={choiceDestination(form.delivery)} shipping={quote.data?.shipping} /> : undefined}
         agreed={approved} onAgree={setApproved} busy={submitting} error={submitError}
         onBack={() => toForm()} onApprove={() => void confirm()} assistContext={describe} />} />;
   }
@@ -778,7 +783,9 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       {!user && <div className="of-signin" role="note"><LogIn size={20} /><p><strong>Sign in to save and send your order.</strong> What you enter here is kept on this device.</p><button type="button" className="of-btn is-primary" onClick={() => authRef.current()}>Sign in</button></div>}
       {tried && shownErrors.general && <p className="of-general-error" role="alert"><TriangleAlert size={16} /> {shownErrors.general}</p>}
       <div id="of-contact"><ContactDetailsCard value={form.contact} onChange={contact => setForm(f => ({ ...f, contact }))} errors={shownErrors} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
-        <DeliveryFieldsCard value={form.delivery} errors={(tried ? problems : {}) as DeliveryErrors} leadWeeks={leadWeeks} onChange={next => setForm(f => ({ ...f, delivery: { ...f.delivery, ...next } }))} />
+        <DeliveryFieldsCard value={form.delivery} errors={(tried ? problems : {}) as DeliveryErrors} leadWeeks={leadWeeks} onChange={next => setForm(f => ({ ...f, delivery: { ...f.delivery, ...next },
+          // A "Delivery to" chosen on the review was for the earlier Deliver / Pick up or country: the price follows the new one.
+          pricing: ('delivery' in next || 'country' in next) && f.pricing.destination ? withoutDestination(f.pricing) : f.pricing }))} />
       </ContactDetailsCard></div>
       <OrderSection number={2} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
         action={<button type="button" className="op-link caps" onClick={addRow} disabled={form.rows.length >= MAX_ROWS}><Plus size={18} /> Add garment</button>}>
@@ -1065,5 +1072,6 @@ function DesignsHelper({ rows, options, projects, signedIn, onSignIn, onPick }: 
 
 /* ================================================================================================ money */
 
-const money = (v: string | null | undefined, currency: string) => (v === null || v === undefined ? '—' : new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(Number(v)));
+/** "A$1,870.00", the site's one price style (money.ts); "—" without an amount. */
+const money = (v: string | null | undefined, currency: string) => moneyOr(v, currency, '—');
 

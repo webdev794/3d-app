@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
+import '../money.dart';
 import '../order_sizes.dart';
 import '../project_sync.dart';
 import '../widgets/site_page_stub.dart' if (dart.library.js_interop) '../widgets/site_page_web.dart' if (dart.library.io) '../widgets/site_page_io.dart';
@@ -24,7 +25,8 @@ import 'orders_board.dart';
 /// here when the app resumes; inside the app only if no browser opens. (Replaced in tests.)
 Future<void> Function(BuildContext context, String url, String title) openPayPage = openPayLink;
 
-String _money(Object? amount, Object? currency) => amount == null ? '' : '${currency ?? 'AUD'} ${double.tryParse('$amount')?.toStringAsFixed(2) ?? amount}';
+/// "A$1,870.00", the website's price style (money.dart); "To be confirmed" without an amount.
+String _money(Object? amount, Object? currency) => moneyOr(amount, currency);
 
 /// The price for the review step, from the server's quote (or "Quote required" with the reasons).
 class PriceBox extends StatefulWidget {
@@ -121,13 +123,22 @@ class _PriceBoxState extends State<PriceBox> {
   );
 }
 
+/// Destination names the price list may not have (the server's PricingService::DESTINATIONS).
+const _destinationNames = {'AU': 'Australia', 'NZ': 'New Zealand', 'INTL': 'International', 'PICKUP': 'Pick up'};
+
 /// The review's price choices (payments-api.md R3): delivery destination, extras and a discount code with Apply.
 /// Each change goes to [onChanged], which asks for the price again.
 class PriceChoices extends StatefulWidget {
-  const PriceChoices(this.c, this.value, this.onChanged, {super.key});
+  const PriceChoices(this.c, this.value, this.onChanged, {super.key, this.choice});
   final AppController c;
   final Map<String, dynamic> value;
   final ValueChanged<Map<String, dynamic>> onChanged;
+
+  /// Section 1's Deliver / Pick up and country as a destination ("PICKUP", "AU", "NZ", "INTL"; null before they are
+  /// chosen), which prices the order when nothing is chosen here. As the website's PricingChoices (task 9.97): "Delivery
+  /// to" shows the destination the price is for (the one chosen here, else this, else the price list's default; one the
+  /// list has no price for shows as itself), and a picked-up order has nothing to deliver, so no list.
+  final String? choice;
   @override
   State<PriceChoices> createState() => _PriceChoicesState();
 }
@@ -161,19 +172,45 @@ class _PriceChoicesState extends State<PriceChoices> {
       final destinations = ((o['destinations'] as List?) ?? const []).cast<Map<String, dynamic>>();
       final extras = ((o['extras'] as List?) ?? const []).cast<Map<String, dynamic>>().where((e) => e['auto'] != true).toList();
       final chosen = {...((widget.value['extras'] as List?) ?? const []).map((e) => '$e')};
+      // The price list's own code for a destination: its code, or a known place under another code (as the server).
+      String? listed(Object? code) {
+        final up = '${code ?? ''}'.trim().toUpperCase();
+        if (up.isEmpty) return null;
+        final named = _destinationNames[up]?.toLowerCase();
+        return destinations.where((d) => '${d['code']}'.toUpperCase() == up).map((d) => '${d['code']}').firstOrNull ??
+            (named == null ? null : destinations.where((d) => '${d['name']}'.trim().toLowerCase() == named).map((d) => '${d['code']}').firstOrNull);
+      }
+
+      final picked = '${widget.value['destination'] ?? ''}'.trim();
+      final pickup = widget.choice?.toUpperCase() == 'PICKUP' && (picked.isEmpty || picked.toUpperCase() == 'PICKUP' || picked == listed('PICKUP'));
+      final shown = picked.isNotEmpty ? picked : '${widget.choice ?? o['default_destination'] ?? (destinations.isEmpty ? '' : destinations.first['code'])}';
+      final selected = listed(shown) ?? (shown.isEmpty ? null : shown.toUpperCase());
+      final options = [
+        if (selected != null && !destinations.any((d) => '${d['code']}' == selected)) {'code': selected, 'name': _destinationNames[selected] ?? selected},
+        ...destinations,
+      ];
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (destinations.isNotEmpty)
-            // Shown again when the destination is set from outside (Upload Your Order's Deliver / Pick up).
+          if (pickup)
+            Padding(
+              key: const Key('price-pickup'),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: const InputDecorator(
+                decoration: InputDecoration(labelText: 'Delivery to', isDense: true),
+                child: Text('Pick up from 3DEEZI (no delivery)'),
+              ),
+            )
+          else if (options.isNotEmpty)
+            // Shown again when the destination changes from outside (section 1's Deliver / Pick up and country).
             KeyedSubtree(
-              key: ValueKey('destination-${widget.value['destination']}'),
+              key: ValueKey('destination-$selected'),
               child: DropdownButtonFormField<String>(
                 key: const Key('price-destination'),
                 isExpanded: true,
-                initialValue: '${widget.value['destination'] ?? o['default_destination'] ?? destinations.first['code']}',
+                initialValue: selected,
                 decoration: const InputDecoration(labelText: 'Delivery to', isDense: true),
-                items: [for (final d in destinations) DropdownMenuItem(value: '${d['code']}', child: Text('${d['name']}'))],
+                items: [for (final d in options) DropdownMenuItem(value: '${d['code']}', child: Text('${d['name']}'))],
                 onChanged: (v) => _set('destination', v),
               ),
             ),
@@ -309,6 +346,23 @@ String orderGarmentFor(String garment) {
   final id = ProjectSync.garments[garment] ?? garment.toLowerCase();
   final row = const {'fullkit': 'jersey', 'ziphoodie': 'hoodie', 'pocketpolo': 'polo', 'varsity': 'jacket', 'trackjacket': 'jacket'}[id] ?? id;
   return _garments.containsKey(row) ? row : 'jersey';
+}
+
+/// Whether an order row is a saved design's own garment, so the design's product name ("Netball bibs", task 9.99) may
+/// name it, as the server's Order::isDesignRow and the website's isDesignRow (SP/W1/price-format.md): the same
+/// garment, or the row the order form lists it under (a zip hoodie is a hoodie row, the pocket polo a polo row, the
+/// varsity and track jackets a jacket row). A full kit names no single row (its jersey and shorts keep their own
+/// names); a design on any other garment's row keeps that garment's name ("Netball bibs" on a jersey row is a Jersey).
+/// [designGarment]: the Studio's garment name ("Singlet") or id ("singlet").
+bool isDesignRow(String designGarment, String rowGarment) {
+  final id = ProjectSync.garments[designGarment] ?? designGarment.trim().toLowerCase();
+  return id.isNotEmpty && (const {'ziphoodie': 'hoodie', 'pocketpolo': 'polo', 'varsity': 'jacket', 'trackjacket': 'jacket'}[id] ?? id) == rowGarment;
+}
+
+/// The name a saved design gives an order row ("Netball bibs"), or '' when it has none or the row is another garment.
+String designRowName(String designGarment, String productName, String rowGarment) {
+  final product = productName.trim();
+  return product.isNotEmpty && isDesignRow(designGarment, rowGarment) ? product : '';
 }
 
 /// The fits (Order::FITS): the fit chooses the row's sizes (order_sizes.dart).
@@ -1160,12 +1214,15 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   }
 
   /// Rows using a design made as one of its sport's garments ("Netball bibs", task 9.99) are named by it on the review
-  /// and priced under it, as the placed order names them (the server's OrderSubmission); a row's own label wins.
+  /// and priced under it, as the placed order names them (the server's OrderSubmission), but only a row of the
+  /// design's own garment (designRowName): the design on another garment's row keeps that garment's name (task 9.97).
+  /// A row's own label wins.
   List<Map<String, dynamic>> _named(Iterable<Object?> items) => [
     for (final m in items.whereType<Map>().map((m) => m.cast<String, dynamic>()))
       () {
         final id = m['project_id'];
-        final product = id == null ? '' : c.projects.where((p) => p.remoteId != null && p.remoteId == id).firstOrNull?.kit.productName.trim() ?? '';
+        final project = id == null ? null : c.projects.where((p) => p.remoteId != null && p.remoteId == id).firstOrNull;
+        final product = project == null ? '' : designRowName(project.kit.garment, project.kit.productName, '${m['garment'] ?? ''}');
         return product.isNotEmpty && '${m['label'] ?? ''}'.trim().isEmpty ? {...m, 'label': product.length > 60 ? product.substring(0, 60) : product} : m;
       }(),
   ];
@@ -1208,7 +1265,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         price: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            PriceChoices(c, pricing, (next) => setState(() => pricing = next)),
+            PriceChoices(c, pricing, (next) => setState(() => pricing = next), choice: choiceDestination),
             // Priced as the order will be: the review's choice, else Deliver / Pick up and the country.
             PriceBox(c, {'items': _named((fields()['items'] as List?) ?? const []), 'pricing': {...pricing, if (pricing['destination'] == null && choiceDestination != null) 'destination': choiceDestination}},
                 key: ValueKey('${jsonEncode(pricing)}$choiceDestination')),
@@ -1522,7 +1579,7 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
           price: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PriceChoices(c, pricing, (next) => setState(() => pricing = next)),
+              PriceChoices(c, pricing, (next) => setState(() => pricing = next), choice: choiceDestination),
               // Priced as the order will be: the review's choice, else section 1's (pick up, the country).
               PriceBox(c, {
                 'items': correct ? items : const [],

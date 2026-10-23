@@ -464,6 +464,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
    * compression folds round the waist and the small of the back; on shorts, folds down and across the legs. Each
    * fades out on the seams (crease), the open edges' bands and the neckline, so the trims stay even. Metres, + out.
    */
+  // The hero garments (jersey, shorts, hoodies) drape most visibly; the others a little less.
+  const foldGain = ['jersey', 'shorts', 'hoodie', 'ziphoodie'].includes(kind) ? 2.7 : 2.1;
   const detailFolds = (p, back, i) => {
     if (!detail) return 0;
     const ax = Math.abs(p.x), y = p.y, ph = back ? 1.9 : 0, side = p.x < 0 ? 0.7 : 0, sl = sleeveAt[i];
@@ -472,6 +474,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     const h = 0.002 * heavy * (0.5 * Math.sin(p.x * 41 + y * 13 + ph + 1.7 * Math.sin(y * 23 + p.x * 7))
       + 0.35 * Math.sin(y * 57 - p.x * 29 + 2.1 + ph + 1.3 * Math.sin(p.x * 31)) + 0.15 * Math.sin((p.x + y) * 83 + 2 * ph));
     if (spec.loose) return h * ramp(0.012, 0.03, openDist[i]);
+    // The varsity jacket's leather sleeves are stiff: they keep their own shape (and sleeveFolds' few soft folds).
+    if (spec.varsity && sl) return 0;
     let f = 0;
     if (spec.legs) {
       // Shorts: long soft folds down the legs, leaning out towards the hem, and a few creases across the thighs.
@@ -489,6 +493,9 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
         // Compression round the waist: soft level folds at the sides, deeper behind.
         const waist = ramp(0.1, 0.17, ax) * ramp(0.06, 0.14, y) * ramp(0.34, 0.24, y);
         f += (back ? 0.0032 : 0.0024) * waist * fold((y + 0.12 * ax) * 105 + ph + side + 1.3 * Math.sin(ax * 27 + ph));
+        // Gravity: below the waist the cloth hangs in a few long, soft upright folds down to the hem.
+        f += 0.0017 * ramp(0.27, 0.07, y) * ramp(0.03, 0.08, ax) * (0.65 + 0.35 * Math.sin(p.x * 23 + ph))
+          * fold(p.x * 34 + ph + side + 0.9 * Math.sin(y * 7 + p.x * 5));
         // In front, the cloth sags in soft level folds between the chest and the stomach.
         if (!back) f += 0.0022 * ramp(0.17, 0.05, ax) * ramp(0.3, 0.36, y) * ramp(0.47, 0.41, y) * fold((y + 0.25 * ax * ax * 10) * 88 + 0.4 + 1.1 * Math.sin(p.x * 17));
         // The small of the back gathers in a few broad upright folds; the upper back in faint diagonal drag lines
@@ -502,14 +509,16 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
         // Sleeves: folds bunching along the underside (from the armpit), and soft rings where the sleeve leaves the
         // shoulder; the top over the shoulder stays smooth (the fabric is pulled taut there).
         // A long sleeve has its own folds (sleeveFolds): only a little more here.
-        const under = ramp(0.3, -0.75, Math.sin(sl.phi)) * (spec.long ? 0.3 : 1), ring = ramp(0.0, 0.03, sl.l) * ramp(0.12, 0.05, sl.l);
+        const under = ramp(0.3, -0.75, Math.sin(sl.phi)) * (spec.long ? (spec.fleece ? 0.65 : 0.3) : 1), ring = ramp(0.0, 0.03, sl.l) * ramp(0.12, 0.05, sl.l);
+        // Fleece sleeves crease across the inside of the elbow (about 26 cm down the arm).
+        if (spec.fleece) f += 0.003 * Math.exp(-(((sl.l - 0.26) / 0.05) ** 2)) * ramp(0.35, -0.5, Math.sin(sl.phi)) * fold(sl.l * 140 + sl.phi * 2 + ph);
         f += 0.0048 * under * ramp(0.0, 0.025, sl.l) * fold(sl.l * 95 + sl.phi * 3.2 + ph + side);
         f += 0.0018 * ring * (1 - under) * fold(sl.phi * 5 + sl.l * 30 + ph);
       }
     }
     // The folds deep enough to read under the stadium's soft light: up to about 1 cm under the arms, a few
     // millimetres elsewhere.
-    return (h + 2.1 * f) * ramp(0.014, 0.034, openDist[i]);
+    return (h + foldGain * f) * ramp(0.014, 0.034, openDist[i]);
   };
   /** Crease height in metres (+ out, - in), pushed out along the body's surface. */
   const crease = (p, back, i) => ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back, i) + shortsFolds(p, back) + drapeFolds(p, back, i) + sleeveFolds(p, back, i) + detailFolds(p, back, i));
@@ -529,7 +538,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   // under the collar (or the shorts' waistband).
   const shade = (p, i, back) => {
     // A loose tee's back: soft valleys (a gentle shadow, not a dark cut).
-    const valley = 1 - (spec.loose ? (spec.legs ? 0.3 : back ? 0.18 : 0.22) : 0.16) * Math.min(1, Math.max(0, -crease(p, back, i) / (spec.loose ? (back && !spec.legs ? 0.007 : 0.004) : 0.003)));
+    // Detail: the folds' valleys a little deeper in shade, so the drape reads at the Studio's distance too.
+    const valley = 1 - (spec.loose ? (spec.legs ? 0.3 : back ? 0.18 : 0.22) : detail ? 0.31 : 0.16) * Math.min(1, Math.max(0, -crease(p, back, i) / (spec.loose ? (back && !spec.legs ? 0.007 : 0.004) : detail ? 0.0045 : 0.003)));
     // A loose top's fold ridges catch the light, as in the client's photo (the only shading above 1).
     const ridge = spec.loose && !spec.legs ? 1 + (back ? 0.26 : 0.14) * Math.min(1, Math.max(0, crease(p, back, i) / 0.004)) : 1;
     const muscles = 1 - 0.5 * THREE.MathUtils.clamp(hollow(p, back) / 0.006, 0, 1);

@@ -76,15 +76,10 @@ final class InvoicePdf
         return $this->pdf->output();
     }
 
+    /** "A$50.00" on every row and total (task 9.85: the site's one price style); "-" without an amount. */
     private function money(?int $cents): string
     {
         return $cents === null ? '-' : Money::format($cents, $this->currency);
-    }
-
-    /** "$50.00" (the currency is in the TOTAL row). */
-    private function short(?int $cents): string
-    {
-        return $cents === null ? '-' : trim(substr(Money::format($cents, $this->currency), strlen($this->currency) + 1));
     }
 
     /**
@@ -278,8 +273,8 @@ final class InvoicePdf
                 $pdf->text(self::LEFT + 10, $y + 13 * count($name) - 1.5 + 11 * $k, $line, 8, false, self::MUTED);
             }
             $pdf->text(372, $y, (string) ($row['quantity'] ?? 1), 10, false, self::INK, 'right');
-            $pdf->text(462, $y, $this->short($row['unit_cents'] ?? null), 10, false, self::INK, 'right');
-            $pdf->text(self::RIGHT - 10, $y, $this->short($row['total_cents'] ?? null), 10, true, self::INK, 'right');
+            $pdf->text(462, $y, $this->money($row['unit_cents'] ?? null), 10, false, self::INK, 'right');
+            $pdf->text(self::RIGHT - 10, $y, $this->money($row['total_cents'] ?? null), 10, true, self::INK, 'right');
             $this->y += $height;
             $pdf->line(self::LEFT, $this->y, self::RIGHT, $this->y, self::RULE, 0.6);
         }
@@ -292,15 +287,15 @@ final class InvoicePdf
         $q = $this->quote;
         // A 3DEEZI TEAM invoice is a design request (or an extra revision round), not garments.
         $team = ($this->snap['order']['source'] ?? null) === 'team' || $this->invoice->team_request_id;
-        $rows = [[$team ? ((string) ($this->snap['order']['summary'] ?? '') ?: 'Design request') : 'Garments', $this->short($q['garments_total_cents'] ?? 0)]];
+        $rows = [[$team ? ((string) ($this->snap['order']['summary'] ?? '') ?: 'Design request') : 'Garments', $this->money($q['garments_total_cents'] ?? 0)]];
         if (($q['extras_total_cents'] ?? 0) > 0) {
-            $rows[] = ['Extras', $this->short($q['extras_total_cents'])];
+            $rows[] = ['Extras', $this->money($q['extras_total_cents'])];
         }
         if (! empty($q['shipping'])) {
-            $rows[] = ['Shipping'.(filled($q['shipping']['name'] ?? null) ? ' · '.$q['shipping']['name'] : ''), $this->short($q['shipping']['amount_cents'] ?? 0)];
+            $rows[] = ['Shipping'.(filled($q['shipping']['name'] ?? null) ? ' · '.$q['shipping']['name'] : ''), $this->money($q['shipping']['amount_cents'] ?? 0)];
         }
         foreach ($q['discounts'] ?? [] as $discount) {
-            $rows[] = [($discount['name'] ?? 'Discount').(filled($discount['code'] ?? null) ? ' ('.$discount['code'].')' : ''), '-'.$this->short($discount['amount_cents'] ?? 0)];
+            $rows[] = [($discount['name'] ?? 'Discount').(filled($discount['code'] ?? null) ? ' ('.$discount['code'].')' : ''), '-'.$this->money($discount['amount_cents'] ?? 0)];
         }
         $tax = $q['tax'] ?? [];
         $paid = (int) $this->invoice->paid_cents;
@@ -318,11 +313,11 @@ final class InvoicePdf
         $pdf->line($x, $y - 9, self::RIGHT, $y - 9, self::RULE);
         $y += 4;
         $pdf->text($x, $y, 'Subtotal', 9.5, false, self::MUTED);
-        $pdf->text(self::RIGHT - 10, $y, $this->short($this->invoice->subtotal_cents), 9.5, false, self::INK, 'right');
+        $pdf->text(self::RIGHT - 10, $y, $this->money($this->invoice->subtotal_cents), 9.5, false, self::INK, 'right');
         $y += 18;
         $taxLabel = ($tax['name'] ?? 'GST').' ('.self::percent($tax['rate'] ?? '10').'%)';
         $pdf->text($x, $y, ($tax['applies'] ?? true) ? $taxLabel : ($tax['name'] ?? 'GST').' (not applicable)', 9.5, false, self::MUTED);
-        $pdf->text(self::RIGHT - 10, $y, $this->short($this->invoice->tax_cents), 9.5, false, self::INK, 'right');
+        $pdf->text(self::RIGHT - 10, $y, $this->money($this->invoice->tax_cents), 9.5, false, self::INK, 'right');
         $y += 12;
         $pdf->rect($x - 10, $y, self::RIGHT - $x + 10, 30, self::INK, null, 5);
         $pdf->text($x, $y + 19.5, 'TOTAL', 11, true, '#ffffff');
@@ -331,7 +326,7 @@ final class InvoicePdf
         if ($paid > 0) {
             $y += 16;
             $pdf->text($x, $y, 'Paid', 9.5, false, self::MUTED);
-            $pdf->text(self::RIGHT - 10, $y, '-'.$this->short($paid), 9.5, false, '#15803d', 'right');
+            $pdf->text(self::RIGHT - 10, $y, '-'.$this->money($paid), 9.5, false, '#15803d', 'right');
             $y += 18;
             $pdf->text($x, $y, 'Amount due', 10, true, self::INK);
             $pdf->text(self::RIGHT - 10, $y, $this->money($this->invoice->amountDue()), 10, true, self::INK, 'right');

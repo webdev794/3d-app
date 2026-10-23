@@ -4,6 +4,7 @@
  * pills, garment pictures, dates.
  */
 import { useId, useState, type ReactNode } from 'react';
+import { formatMoney } from '../money';
 
 export type StageKey = 'received' | 'design' | 'production' | 'shipped' | 'delivered';
 export type Tone = 'blue' | 'amber' | 'violet' | 'green' | 'red' | 'grey';
@@ -249,8 +250,8 @@ export function dateTime(iso: string | null | undefined) {
   if (!d) return '';
   return `${d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).replace(/\s?([AP]M)$/i, (_, m: string) => ` ${m.toLowerCase()}`)}`;
 }
-/** "AUD $1,870.00", as the invoices show it (payments-api.md §6). */
-export const money = (amount: string | null, currency = 'AUD') => amount === null || amount === '' || Number.isNaN(Number(amount)) ? null : `${currency} ${new Intl.NumberFormat('en-AU', { style: 'currency', currency, currencyDisplay: 'narrowSymbol' }).format(Number(amount))}`;
+/** "A$1,870.00", the site's one price style (money.ts); null without an amount. */
+export const money = (amount: string | null, currency = 'AUD') => amount === null || amount === '' || Number.isNaN(Number(amount)) ? null : formatMoney(amount, currency);
 export function fileSize(bytes: number | null) {
   if (bytes === null) return '';
   if (bytes < 1024) return `${bytes} B`;

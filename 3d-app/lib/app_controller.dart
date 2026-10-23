@@ -451,7 +451,7 @@ class AppController extends ChangeNotifier {
       });
     });
     final panels = (result['panels'] as List?)?.length ?? 0;
-    return 'Print layout on the 3D kit: $panels panels from $name. '
+    return 'Print layout on the 3D kit: $panels panel${panels == 1 ? '' : 's'} from $name. '
         'Save the project to keep it.';
   }
 

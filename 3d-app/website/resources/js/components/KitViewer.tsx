@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { ApiError, fetchFile, getToken } from '../api';
+import { viewerLook } from '../viewerLook';
 
 export type Garment = 'jersey' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'varsity' | 'trackjacket' | 'singlet' | 'shorts' | 'fullkit';
 export type View = 'front' | 'side' | 'back';
@@ -52,7 +53,7 @@ export function trackColour(design: { main?: string; secondary?: string; accent?
     return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-21';
+const VIEWER_VERSION = '2026-10-20-23';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
@@ -421,7 +422,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             <iframe
                 key={attempt}
                 ref={iframe}
-                src={`${appBase}/media/viewer/index.html?host=${encodeURIComponent(host)}&still&mobile&layouts${viewerQuality()}&v=${VIEWER_VERSION}`}
+                src={`${appBase}/media/viewer/index.html?host=${encodeURIComponent(host)}&still&mobile&layouts${viewerQuality()}${viewerLook()}&v=${VIEWER_VERSION}`}
                 title="Interactive 3D kit preview. Drag to rotate and scroll to zoom."
                 allow="fullscreen"
                 style={{ width: '100%', height: '100%', minHeight: 260, display: 'block', border: 0 }}

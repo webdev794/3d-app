@@ -3,6 +3,7 @@
  * /api/v1/team/... Request statuses, allowance, the conversation, review, approval and the final design.
  */
 import { api, fetchFile, saveBlob } from './api';
+import { formatMoney } from './money';
 
 export type TeamStatus = 'awaiting_payment' | 'received' | 'assigned' | 'in_progress' | 'review' | 'revision' | 'approved' | 'closed';
 export type TeamRole = 'customer' | 'designer' | 'admin' | 'system';
@@ -106,11 +107,8 @@ export const TEAM_REFUNDS = [
   'No refund once the first draft is delivered, though 3DEEZI may give an account credit where fair.',
   'Full refund if 3DEEZI can’t deliver as promised.',
 ];
-/** "A$12.34 incl. GST" (amounts from the API). */
-export const audMoney = (amount: string | number, currency = 'AUD') => currency === 'AUD' ? `A$${new Intl.NumberFormat('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount))}` : money(amount, currency);
+/** "A$12.34" (amounts from the API), the site's one price style (money.ts). */
+export const audMoney = (amount: string | number, currency = 'AUD') => formatMoney(amount, currency);
+/** "A$12.34 incl. GST". */
 export const inclGst = (amount: string | number, currency = 'AUD', taxName = 'GST') => `${audMoney(amount, currency)} incl. ${taxName}`;
 export const extOf = (name: string) => (name.split('.').pop() || '').toLowerCase();
-export const money = (amount: string | number, currency = 'AUD') => {
-  const n = Number(amount);
-  try { return new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; }
-};

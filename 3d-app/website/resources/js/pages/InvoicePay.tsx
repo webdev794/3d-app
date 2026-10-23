@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ChevronDown, CircleCheck, CreditCard, FileText, Info, LoaderCircle, Lock, ShieldCheck, TriangleAlert, Wallet } from 'lucide-react';
 import { api, ApiError, getToken, type User } from '../api';
-import { PaymentStatusPill, amountOnly, downloadInvoice, money, type PaymentSummary, type Quote } from '../components/OrderPayment';
+import { PaymentStatusPill, downloadInvoice, money, type PaymentSummary, type Quote } from '../components/OrderPayment';
 
 interface InvoicePayment { id: number; provider: 'airwallex' | 'stripe' | 'test' | 'manual'; kind: string; method: string | null; status: string; amount: string; currency: string; message: string | null; card: { brand: string | null; last4: string } | null; paid_at: string | null; created_at: string | null }
 interface InvoiceData extends PaymentSummary {
@@ -209,17 +209,17 @@ function InvoiceCard({ invoice, keyParam, bare = false }: { invoice: InvoiceData
     </div>}
     <div className="pay-customer"><span>Customer</span><strong>{invoice.customer?.name || '—'}</strong></div>
     <table className="pay-items"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead>
-      <tbody>{rows.map(r => <tr key={r.key}><td>{r.name}</td><td>{r.quantity}</td><td>{amountOnly(r.unit_price, c)}</td><td>{amountOnly(r.total, c)}</td></tr>)}</tbody></table>
+      <tbody>{rows.map(r => <tr key={r.key}><td>{r.name}</td><td>{r.quantity}</td><td>{money(r.unit_price, c)}</td><td>{money(r.total, c)}</td></tr>)}</tbody></table>
     <dl className="pay-totals">
-      <div><dt>{invoice.order.source === 'team' ? (invoice.order.summary || 'Design request') : 'Garments'}</dt><dd>{amountOnly(q.garments_total, c)}</dd></div>
-      {Number(q.extras_total) > 0 && <div><dt>Extras</dt><dd>{amountOnly(q.extras_total, c)}</dd></div>}
-      {q.shipping && <div><dt>Shipping</dt><dd>{amountOnly(q.shipping.amount, c)}</dd></div>}
-      {q.discounts.map(d => <div key={d.name + d.code} className="is-discount"><dt>{d.name}</dt><dd>-{amountOnly(d.amount, c)}</dd></div>)}
-      <div className="is-rule"><dt>Subtotal</dt><dd>{amountOnly(q.subtotal, c)}</dd></div>
-      <div><dt>{q.tax.name} ({q.tax.applies ? `${q.tax.rate}%` : 'not applicable'})</dt><dd>{amountOnly(q.tax.amount, c)}</dd></div>
+      <div><dt>{invoice.order.source === 'team' ? (invoice.order.summary || 'Design request') : 'Garments'}</dt><dd>{money(q.garments_total, c)}</dd></div>
+      {Number(q.extras_total) > 0 && <div><dt>Extras</dt><dd>{money(q.extras_total, c)}</dd></div>}
+      {q.shipping && <div><dt>Shipping</dt><dd>{money(q.shipping.amount, c)}</dd></div>}
+      {q.discounts.map(d => <div key={d.name + d.code} className="is-discount"><dt>{d.name}</dt><dd>-{money(d.amount, c)}</dd></div>)}
+      <div className="is-rule"><dt>Subtotal</dt><dd>{money(q.subtotal, c)}</dd></div>
+      <div><dt>{q.tax.name} ({q.tax.applies ? `${q.tax.rate}%` : 'not applicable'})</dt><dd>{money(q.tax.amount, c)}</dd></div>
     </dl>
     <div className="pay-total"><span>TOTAL</span><b>{money(invoice.total, c)}</b></div>
-    {Number(invoice.amount_paid) > 0 && <dl className="pay-totals is-paid"><div><dt>Paid</dt><dd>-{amountOnly(invoice.amount_paid, c)}</dd></div><div><dt>Amount due</dt><dd>{money(invoice.amount_due, c)}</dd></div></dl>}
+    {Number(invoice.amount_paid) > 0 && <dl className="pay-totals is-paid"><div><dt>Paid</dt><dd>-{money(invoice.amount_paid, c)}</dd></div><div><dt>Amount due</dt><dd>{money(invoice.amount_due, c)}</dd></div></dl>}
     <div className="pay-invoice-foot">
       <button type="button" className="pay-download" onClick={download} disabled={busy}>{busy ? <LoaderCircle className="spin" size={22} /> : <FileText size={24} />}<span>Download invoice</span></button>
       <span>{invoice.issued_at ? `Issued ${shortDate(invoice.issued_at)}` : ''}{invoice.due_at && invoice.can_pay ? ` · Due ${shortDate(invoice.due_at)}` : ''}</span>

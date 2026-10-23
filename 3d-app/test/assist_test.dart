@@ -7,10 +7,12 @@ import 'package:http/testing.dart';
 import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/assist.dart';
+import 'package:three_deezi/screens/team.dart' show TeamRequestsScreen, TeamScreen;
 import 'package:three_deezi/widgets/assist_overlay.dart';
 
 import 'features_test.dart' show FakeStore;
 import 'flow_test.dart' show mountPhone;
+import 'team_app_test.dart' show TeamServer;
 
 /// 3DEEZI ASSIST in the app, against a fake `/api/v1/assist`.
 void main() {
@@ -230,6 +232,122 @@ void main() {
       }
     },
   );
+
+  group('links and open commands to pages over the app screens (task 9.97)', () {
+    final site = AssistController.openSite, convert = AssistController.convert;
+    late List<(String, String)> opened;
+    late int converted;
+    setUp(() {
+      opened = [];
+      converted = 0;
+      AssistController.openSite = (context, url, title) async => opened.add((url, title));
+      AssistController.convert = (context, app) async => converted++;
+    });
+    tearDown(() {
+      AssistController.openSite = site;
+      AssistController.convert = convert;
+    });
+
+    /// The chat over the Projects screen, inside an app with the chat's navigator (as ThreeDeeziApp has it).
+    Future<AssistController> mountChat(WidgetTester tester, {required bool signedIn}) async {
+      final server = TeamServer();
+      final c = AppController(store: FakeStore(), api: ApiClient(client: server.client, baseUrl: 'https://test.example'))..screen = AppScreen.projects;
+      if (signedIn) {
+        c.user = const ApiUser(id: 1, name: 'Pat Tester', email: 'pat@example.test');
+        c.api.token = 'tok';
+      }
+      final assist = AssistController(c);
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(420, 900);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: assist.navigator,
+          home: Scaffold(body: AssistOverlay(assist)),
+        ),
+      );
+      return assist;
+    }
+
+    Future<void> back(WidgetTester tester, AssistController assist) async {
+      assist.navigator.currentState!.pop();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('/team and /team/requests open the TEAM screens; back goes to the TEAM screen, then the app', (tester) async {
+      final assist = await mountChat(tester, signedIn: true);
+      expect(AssistController.isPage('/team'), isTrue);
+      assist.openPath('/team');
+      await tester.pumpAndSettle();
+      expect(find.byType(TeamScreen), findsOneWidget);
+      await back(tester, assist);
+      expect(find.byType(TeamScreen), findsNothing);
+      expect(assist.app.screen, AppScreen.projects, reason: 'the app screen stays where it was');
+
+      // An open command: My design requests over the TEAM screen.
+      final done = await tester.runAsync(() => assist.run([('open', '/team/requests')]));
+      await tester.pumpAndSettle();
+      expect(done!.single.ok, isTrue);
+      expect(done.single.text, 'Opened My design requests');
+      expect(find.byType(TeamRequestsScreen), findsOneWidget);
+      expect(find.text('MY DESIGN REQUESTS'), findsOneWidget);
+      await back(tester, assist);
+      expect(find.byType(TeamScreen), findsOneWidget);
+      await back(tester, assist);
+      expect(find.byType(TeamScreen), findsNothing);
+    });
+
+    testWidgets('signed out, /team/requests opens the TEAM screen and asks to sign in', (tester) async {
+      final assist = await mountChat(tester, signedIn: false);
+      assist.openPath('/team/requests');
+      await tester.pumpAndSettle();
+      expect(find.byType(TeamScreen), findsOneWidget);
+      expect(find.byType(TeamRequestsScreen), findsNothing);
+      expect(find.text('Sign in to see your design requests.'), findsOneWidget);
+    });
+
+    testWidgets('/convert opens Convert; /about, /support, /privacy and /terms open the website pages, signed in', (tester) async {
+      final assist = await mountChat(tester, signedIn: true);
+      final done = await tester.runAsync(() => assist.run([('open', '/convert'), ('open', '/about'), ('open', '/support')]));
+      expect([for (final d in done!) (d.ok, d.text)], [(true, 'Opened Convert an image to 3D'), (true, 'Opened About'), (true, 'Opened Support')]);
+      expect(converted, 1);
+      assist.openPath('/privacy');
+      assist.openPath('/terms');
+      expect(opened, [
+        ('https://test.example/about#app-token=tok', 'About'),
+        ('https://test.example/support#app-token=tok', 'Support'),
+        ('https://test.example/privacy#app-token=tok', 'Privacy'),
+        ('https://test.example/terms#app-token=tok', 'Terms'),
+      ]);
+      expect(assist.app.screen, AppScreen.projects, reason: 'never the Home any more');
+    });
+
+    testWidgets('links in an answer to these pages are links, not plain text, and open them', (tester) async {
+      final assist = await mountChat(tester, signedIn: true);
+      assist.messages.add(
+        AssistMessage.assistant(
+          'Ask [3DEEZI TEAM](/team), see [your requests](/team/requests), [convert a picture](/convert) or read our [privacy policy](https://3deezi.com/privacy).',
+        ),
+      );
+      assist.show();
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('privacy policy', findRichText: true).last);
+      await tester.pumpAndSettle();
+      expect(opened, [('https://test.example/privacy#app-token=tok', 'Privacy')]);
+      expect(assist.open, isFalse, reason: 'the chat gets out of the way');
+      assist.show();
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('convert a picture', findRichText: true).last);
+      await tester.pumpAndSettle();
+      expect(converted, 1);
+      assist.show();
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('3DEEZI TEAM', findRichText: true).last);
+      await tester.pumpAndSettle();
+      expect(find.byType(TeamScreen), findsOneWidget);
+    });
+  });
 
   testWidgets('hidden while the app starts', (tester) async {
     final c = controller()..screen = AppScreen.splash;

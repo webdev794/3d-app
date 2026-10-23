@@ -47,13 +47,9 @@ const NARROW = '(max-width: 900px)';
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
 const isAustralia = (c: string) => ['australia', 'au', 'aus', ''].includes(c.trim().toLowerCase());
 
-/** "A$4,000.00" (task 9.85: A$ everywhere); other currencies as the site writes them. */
+/** "A$4,000.00" (task 9.85: the site's one price style, money.ts); "To be confirmed" without an amount. */
 export function aud(amount: string | number | null | undefined, currency = 'AUD'): string {
-  if (amount === null || amount === undefined || amount === '') return 'To be confirmed';
-  const value = Number(amount);
-  if (!Number.isFinite(value)) return String(amount);
-  if (currency !== 'AUD') return money(value, currency);
-  return `${value < 0 ? '-' : ''}A$${Math.abs(value).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return money(amount, currency);
 }
 const shortDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 const brandName = (b: string | null | undefined) => (b ? b.charAt(0).toUpperCase() + b.slice(1) : 'Card');

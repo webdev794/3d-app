@@ -54,7 +54,7 @@ final class OrderGate
         return ['override' => $approval ? (string) $order->approval : null, 'unpaid' => $unpaid, 'reason' => $unpaid ? mb_substr($reason, 0, 500) : null];
     }
 
-    /** Null when the order is paid in full; else why not: "Not paid in full: INV-1048 AUD 1,870.00 outstanding". */
+    /** Null when the order is paid in full; else why not: "Not paid in full: INV-1048 A$1,870.00 outstanding". */
     public static function unpaid(Order $order): ?string
     {
         if (method_exists($order, 'isPaidInFull')) {
@@ -78,8 +78,9 @@ final class OrderGate
         }
         $due = method_exists($invoice, 'amountDue') ? $invoice->amountDue() : null;
 
-        return trim('Not paid in full: '.($invoice->number ?: 'the invoice').' '.($invoice->currency ?: $order->currency)
-            .($due === null ? '' : ' '.number_format($due / 100, 2)).' outstanding');
+        // "A$1,870.00", as every price on the site (task 9.85).
+        return trim('Not paid in full: '.($invoice->number ?: 'the invoice')
+            .($due === null ? '' : ' '.\App\Services\Pricing\Money::format($due, (string) ($invoice->currency ?: $order->currency ?: 'AUD'))).' outstanding');
     }
 
     /** The order's current invoice (not cancelled), from the payments feature; null without one. */

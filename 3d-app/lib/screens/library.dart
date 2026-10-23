@@ -567,10 +567,11 @@ class ProfileScreen extends StatelessWidget {
   const ProfileScreen(this.c, {super.key});
   final AppController c;
 
-  Widget _stat(String value, String label) => Column(
+  /// A count over its noun: "1 Project", "6 Projects".
+  Widget _stat(int count, String noun) => Column(
     children: [
       Text(
-        value,
+        '$count',
         style: const TextStyle(
           fontFamily: 'Rajdhani',
           fontSize: 28,
@@ -578,7 +579,10 @@ class ProfileScreen extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
-      Text(label, style: const TextStyle(color: Palette.muted, fontSize: 10)),
+      Text(
+        count == 1 ? noun : '${noun}s',
+        style: const TextStyle(color: Palette.muted, fontSize: 10),
+      ),
     ],
   );
 
@@ -636,14 +640,17 @@ class ProfileScreen extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _stat('${c.projects.length}', 'Projects'),
+                  _stat(c.projects.length, 'Project'),
                   _stat(
-                    '${c.logos.length + c.aiPatterns.length + c.uploads.length + c.artwork.length}',
-                    'Assets',
+                    c.logos.length +
+                        c.aiPatterns.length +
+                        c.uploads.length +
+                        c.artwork.length,
+                    'Asset',
                   ),
                   _stat(
-                    '${c.projects.where((p) => p.mode == 'AI').length}',
-                    'AI designs',
+                    c.projects.where((p) => p.mode == 'AI').length,
+                    'AI design',
                   ),
                 ],
               ),

@@ -308,7 +308,7 @@ class OrderBoardCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '${(o['quantity'] as num? ?? 0) > 0 ? '${o['quantity']} garments' : 'Sizes in your order form'}${'${o['needed_by'] ?? ''}'.isNotEmpty && o['completed'] != true ? ' · required ${_day(o['needed_by'])}' : ''}',
+            '${(o['quantity'] as num? ?? 0) > 0 ? '${o['quantity']} garment${o['quantity'] == 1 ? '' : 's'}' : 'Sizes in your order form'}${'${o['needed_by'] ?? ''}'.isNotEmpty && o['completed'] != true ? ' · required ${_day(o['needed_by'])}' : ''}',
             style: const TextStyle(fontSize: 12.5),
           ),
           const SizedBox(height: 8),
@@ -471,6 +471,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   Widget _details(Map<String, dynamic> o) {
     final sub = (o['sub_status'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final status = '${sub['label'] ?? o['stage_label'] ?? ''}';
     final proof = (o['proof'] as Map?)?.cast<String, dynamic>();
     final proofs = ((o['proofs'] as List?) ?? const []).cast<Map<String, dynamic>>();
     final tracking = (o['tracking'] as Map?)?.cast<String, dynamic>();
@@ -488,7 +489,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       children: [
         Text('${o['name']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
         const SizedBox(height: 6),
-        Wrap(spacing: 6, children: [_pill('${o['stage_label']}', _tone('blue')), _pill('${sub['label']}', _tone(sub['tone']))]),
+        // The status once, as on the website's order page: the sub-status ("Order received", "Approval needed"), its
+        // stage being in the steps below. The stage pill beside it repeated it ("Order Received", "Delivered").
+        if (status.isNotEmpty) Wrap(key: const Key('order-status'), spacing: 6, children: [_pill(status, _tone(sub['label'] == null ? 'blue' : sub['tone']))]),
         // The invoice: its status and, while unpaid, Pay now (the status is read again on the way back).
         PaymentStrip(widget.c, (o['payment'] as Map?)?.cast<String, dynamic>(), onBack: _load),
         const SizedBox(height: 14),

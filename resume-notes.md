@@ -4,15 +4,22 @@ Updated 2026-10-23 13:10 (checkpoint at the session limit). Only what's needed t
 
 ## After a restart
 1. Stop leftover test servers and browsers (php not on :8000, node iso scripts, playwright chrome / msedge, flutter_tester); check SP\*.lock.
-2. No agent is running. Start the next wave from "Next" with new agents.
+2. Resume each running agent below: SendMessage to its ID with "continue where you stopped; re-read files first; finish, test linked modules, build under the locks, report". In a new session where the IDs don't work, start a new agent with the task from tasks.md.
 
-## Running agents
-None. All finished or stopped at a checkpoint by 13:05 on 2026-10-23. Last IDs:
-- QA U afc76b65e6cebc31f (bug hunt; stopped at a checkpoint, see Next 1)
-- V2 ae8e48ab7079b58fd (3D step 2; checkpoint SP\V2\checkpoint.md)
+## Running agents (started 2026-10-23 about 13:40)
+| Agent | Task | Notes |
+|---|---|---|
 
 ## Next
-1. Finish QA U's checks from "Resume from here" in SP\QAU\results.md:
+0. **Checkpoint 2026-10-23 at 85%.** Done: V2 (viewer -23: switch, touch-ups, hero look; showcase pictures in D:\3d-app\deploy-zips\3d-showcase\), W1, W3, A1, A2. W2 was told to stop at a safe point.
+   - Then run `bash SP/final-pack-1023q.sh` from the website folder: the CODE-ONLY evening tar 3deez-update-2026-10-23-q.tar.gz, with no database or uploads and the new look behind ?look=2.
+   - Then push to v2 with SP/final-push-v2.sh and a new message file.
+   - **Open question (questions.md 2): should the new 3D look be the default on the test site?** Making it the default (LOOK_DEFAULT '2' in viewer/src/main.js + VIEWER_VERSION -24 + node viewer/build.mjs) was BLOCKED by the permission check ("Production Deploy"), so it was reverted; it waits for the user's clear yes.
+   - **User 2026-10-23 at 85%: "stop the testing part, we will do it in end, once main 3D task finalized."** No QA rounds until the 3D task is final. Then one full test round covering everything below.
+   - Still to check later, when the machine is quiet: the app preview 30-visit check (V2 couldn't finish it under load); a QA round on today's last changes.
+   - Paused: 9.113 American Football own 3D jersey / compression top.
+   - Website bug for later (from V2): on phones (≤600 px) the Studio's Save button is hidden by CSS dated 2026-10-19 (W2 may have fixed it; see its report).
+1. QA U's unfinished checks ("Resume from here" in SP\QAU\results.md), for that QA round:
    - re-sweep Admin Pricing on phones;
    - the app preview sweep (QAU\iso-app.cjs, app-sweep.cjs);
    - full flutter test -j 1 (expect 205);
@@ -31,15 +38,18 @@ None. All finished or stopped at a checkpoint by 13:05 on 2026-10-23. Last IDs:
    - 9.80 garment build list;
    - 9.83 print designs on hoodies / jackets;
    - later 9.60a / 9.60b.
-4. **Test-setup bug:** uploads made on iso servers land in the real storage folder, under storage/app/private/*/121. User 121 doesn't exist in the real database; the config cache probably keeps the real path. Fix SP\iso-server.cjs (e.g. clear the config cache in the copy or set the disk root) and delete those orphan files before the next tar. Tars -o and -p carried them; they're harmless but junk.
+4. Test-setup bug FIXED 2026-10-23: `artisan serve` didn't pass LARAVEL_STORAGE_PATH to its web process, so iso uploads landed in the real storage. iso-server.cjs now runs `php -S` with variables_order=EGPCS and refuses to start unless storage is the copy. The leaked folders (assets/121, 123, order-files/121, 122; ids the real database never issued) were moved to C:\3deezi-archive\iso-leak-uploads-2026-10-23.
 5. Waiting on the client: the Airwallex demo keys; confirming the plan values; review of 3D step 2.
+6. **Live tars are code-only from now on** (no database.sqlite, no storage/app), so the live database keeps its own accounts. **Manoj Caresort's live admin account must never be deleted** (user 2026-10-23).
+   - The users cleanup happens on the live site with the "Remove test accounts" button (W3, tasks.md 9.111).
+   - New tables or columns then need `php artisan migrate --force` on live: tell the user when a tar adds a migration. None has been added since -o.
 
 ## Where things are
-- **Live package:** `D:\3d-app\deploy-zips\3deez-update-2026-10-23-p.tar.gz` (2026-10-23 13:01).
-  - Contains everything done up to then, with the old 3D look and a database with both live logins.
+- **Live package:** `D:\3d-app\deploy-zips\3deez-update-2026-10-23-p2.tar.gz`: the same code as -p (2026-10-23 13:01) WITHOUT database.sqlite and storage/app, so Manoj Caresort's live account stays. Do not use -p, which carries our database.
+  - Contains everything done up to then, with the old 3D look. No new migrations since -o, so nothing to run on live.
   - Extract it in the live website folder (https://testcaresortwork.co.in/3deez/), then run `php artisan optimize:clear`.
   - Older packages: -o is in deploy-zips; the rest are in C:\3deezi-archive.
-- **GitHub:** main = 2d9b553; v2 = pushed 2026-10-23 (see MEMORY branches). database.sqlite stays out of git. Local v6 = ec79628 with the work uncommitted.
+- **GitHub:** main = 2d9b553; v2 = 6a5e0f2 (pushed 2026-10-23 13:10, includes 3D step 2). database.sqlite stays out of git. Local v6 = ec79628 with the work uncommitted.
 - **Scripts:** SP\final-pack-1023p.sh (pack, with the old-viewer swap), SP\final-push-main.sh and SP\final-push-v2.sh (push via a temp index).
 - **Briefs:**
   - rules: SP\qa-rules.md (locks wait 15 min), SP\viewer-protocol.md, SP\garment-brief.md, SP\team-api.md;
@@ -52,7 +62,9 @@ None. All finished or stopped at a checkpoint by 13:05 on 2026-10-23. Last IDs:
 
 ## Rules
 - **Keep this file current:** update it before and after every task; delete what's done.
-- **Notes files:** after every task, update tasks.md, task-done-today.md (only what's new and done, short lines, no "client", no testing rounds) and test-pending.md (its test steps, one section per task between horizontal lines).
+- **Notes files:** after every task, update tasks.md, task-done-today.md and test-pending.md.
+  - task-done-today.md is SHOWN TO THE CLIENT: list only tasks the user gave directly, short lines, no "client". Leave out bug fixes from our own testing, our own improvements and testing rounds.
+  - test-pending.md: each task's test steps, one section per task between horizontal lines.
 - **Testing:**
   - every task gets its linked modules tested (website + app);
   - a fresh QA round runs before every tar or push;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, CheckCircle2, ClipboardList, Handshake, LoaderCircle, MessagesSquare, Rocket, Shirt, Sparkles, Users, Wand2, X } from 'lucide-react';
 import { api, media } from '../api';
+import { formatMoney } from '../money';
 
 /**
  * The plans. `team` is the plan's 3DEEZI TEAM (real designers) line, as in TeamPlans.php's defaults (client 2026-10-22:
@@ -12,10 +13,10 @@ const plans = [
   { id: 'club', name: 'Club', tag: 'For clubs & schools', monthly: 49.95, yearly: 499.5, credits: 900, popular: true, team: '3DEEZI TEAM designers included: 15 designs a month', features: ['Everything in Creator', '900 AI credits each month', '5 team seats', 'Shared logo & asset library', 'Approval workflow for committees', 'Priority generation'] },
   { id: 'pro', name: 'Pro Studio', tag: 'For brands & resellers', monthly: 149, yearly: 1490, credits: 3000, team: '3DEEZI TEAM designers included: 30 designs a month', features: ['Everything in Club', '3,000 AI credits each month', '15 team seats', 'Brand kit & commercial licence', 'Custom branding on mockups', 'Dedicated support'] },
 ];
-/** A$19 stays whole; a price with cents shows them (A$49.95, A$499.50). */
-const dollars = (n: number) => Number.isInteger(n) ? String(n) : n.toFixed(2);
+/** A$19 stays whole; a price with cents shows them (A$49.95, A$499.50): the site's one price style (money.ts). */
+const dollars = (n: number) => formatMoney(n, 'AUD', { whole: true });
 /** The yearly price a month: whole dollars (A$16) unless the plan is priced in cents (Club: A$499.50 / 12 = A$41.63). */
-const perMonth = (p: { monthly: number; yearly: number }) => Number.isInteger(p.monthly) ? String(Math.round(p.yearly / 12)) : (Math.round(p.yearly / 12 * 100) / 100).toFixed(2);
+const perMonth = (p: { monthly: number; yearly: number }) => dollars(Number.isInteger(p.monthly) ? Math.round(p.yearly / 12) : Math.round(p.yearly / 12 * 100) / 100);
 const partnerPerks = ['Website integration', 'Your branding & garments', 'Team-led onboarding', 'Training & setup', 'Annual AI credit allowance', 'Priority partner support'];
 const partnerSteps = [['Apply', ClipboardList], ['Consultation', MessagesSquare], ['Onboarding', Handshake], ['Launch', Rocket]] as const;
 const costs = [['AI edit in the studio (“Ask 3DEEZI”)', 1], ['Convert an image to 3D', 1], ['Four AI designs', 2], ['AI print pattern', 3], ['Photoreal showcase image', 5], ['Make HD (an HD front and back presentation)', 10], ['Make it 3D (AI print sheet on the 3D kit)', 10]] as const;
@@ -30,7 +31,7 @@ export default function PricingPage({ onStart }: { onStart: () => void }) {
     <div className="plan-grid">{plans.map(p => <article key={p.id} className={`plan glow-panel ${p.popular ? 'popular' : ''}`}>
       {p.popular && <span className="plan-badge">MOST POPULAR</span>}
       <h2>{p.name}</h2><p className="muted">{p.tag}</p>
-      <div className="plan-price"><strong>{p.monthly ? `A$${yearly ? perMonth(p) : dollars(p.monthly)}` : 'Free'}</strong>{p.monthly > 0 && <span>/ month{yearly ? `, A$${dollars(p.yearly)} billed yearly` : ''}</span>}</div>
+      <div className="plan-price"><strong>{p.monthly ? (yearly ? perMonth(p) : dollars(p.monthly)) : 'Free'}</strong>{p.monthly > 0 && <span>/ month{yearly ? `, ${dollars(p.yearly)} billed yearly` : ''}</span>}</div>
       <p className="plan-credits"><Sparkles size={15} /> {p.credits.toLocaleString()} AI credits / month</p>
       <ul>{p.features.map(f => <li key={f}><Check size={15} />{f}</li>)}<li className="plan-team" data-testid="plan-team"><Users size={15} />{p.team}</li></ul>
       <button className={`button ${p.popular ? 'button-gradient' : 'button-outline'} full-width`} onClick={onStart}>{p.monthly ? 'Start 7-day free trial' : 'Start designing'}</button>

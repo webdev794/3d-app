@@ -296,9 +296,11 @@ void main() {
     // REVIEW & APPROVE ORDER: two garment styles (different sizes), one section each.
     expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
     expect(find.text('2 garment styles · 24 garments'), findsOneWidget);
-    // The price from the server's quote.
-    await seeIt(tester, find.text('AUD 1166.00'));
+    // The price from the server's quote, in the website's price style (task 9.85): "A$1,166.00", never "AUD 1166.00".
+    await seeIt(tester, find.text(r'A$1,166.00'));
     expect(find.text('Jersey x 12'), findsOneWidget);
+    expect(find.text(r'A$600.00'), findsOneWidget);
+    expect(find.textContaining('AUD', findRichText: true), findsNothing);
     await approve(tester);
     expect(find.byKey(const Key('order-reference')), findsOneWidget);
     expect(find.text('3DZ-00012'), findsOneWidget);
@@ -450,6 +452,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Create Order Form: a saved design names only rows of its own garment ("Netball bibs" on a jersey row is a Jersey)', (tester) async {
+    // QA U O4 (task 9.97): the "Netball bibs" design (a singlet) named every row it was on, a jersey row too; the
+    // server and the website now name only the design's own garment's rows (SP/W1/price-format.md).
+    final server = OrdersServer();
+    final c = signedIn(server);
+    final sample = c.projects.firstWhere((p) => p.garment == 'Singlet');
+    final j = ProjectStore.encode(sample)
+      ..['id'] = 'bibs-1'
+      ..['title'] = 'Firebirds bibs'
+      ..['remoteId'] = 77;
+    (j['kit'] as Map)['productName'] = 'Netball bibs';
+    c.projects.insert(0, ProjectStore.decode(jsonDecode(jsonEncode(j)) as Map<String, dynamic>, ProjectStore.images(sample)));
+    await mount(tester, OrderFormScreen(c));
+    await tester.enterText(find.widgetWithText(TextField, 'Team / organisation'), 'Firebirds');
+    // Row 1: the bibs design (it sets the singlet).
+    await tap(tester, find.text('No saved design'));
+    await tap(tester, find.text('Firebirds bibs').last);
+    await seeIt(tester, find.byKey(const Key('size-0-M')));
+    await tester.ensureVisible(find.byKey(const Key('size-0-M')));
+    await tester.enterText(find.byKey(const Key('size-0-M')), '7');
+    await tester.pumpAndSettle();
+    // Row 2: the same design, then the garment changed to a jersey.
+    await tap(tester, find.text('Add garment').last);
+    await tap(tester, find.text('No saved design').last);
+    await tap(tester, find.text('Firebirds bibs').last);
+    await tap(tester, find.text('Singlet').last);
+    await tap(tester, find.text('Jersey').last);
+    await seeIt(tester, find.byKey(const Key('size-1-L')));
+    await tester.ensureVisible(find.byKey(const Key('size-1-L')));
+    await tester.enterText(find.byKey(const Key('size-1-L')), '5');
+    await tester.pumpAndSettle();
+    await fillDelivery(tester, pickup: true);
+    await tap(tester, find.text('REVIEW ORDER'));
+    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
+    expect(find.textContaining('01 — NETBALL BIBS', findRichText: true), findsOneWidget);
+    await tester.scrollUntilVisible(find.textContaining('02 — JERSEY', findRichText: true), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.textContaining('02 — NETBALL BIBS', findRichText: true), findsNothing);
+    // Priced the same way: only the singlet row under the design's name.
+    await seeIt(tester, find.byType(PriceBox));
+    await tester.pumpAndSettle();
+    final quoted = (server.quotes.last['items'] as List).cast<Map>();
+    expect([for (final q in quoted) [q['label'], q['project_id'], q['garment']]], [['Netball bibs', 77, 'singlet'], [null, 77, 'jersey']]);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Create Order Form: REVIEW & APPROVE ORDER fits 360, 390 and 430 wide', (tester) async {
     for (final width in [360.0, 390.0, 430.0]) {
       final server = OrdersServer();
@@ -476,32 +523,81 @@ void main() {
     await tap(tester, find.text('Help me add sizes').last);
     await fillDelivery(tester);
     await tap(tester, find.text('REVIEW ORDER'));
-    // Australia by default: 960 + 100 shipping, GST 106.
-    await seeIt(tester, find.text('AUD 1166.00'));
+    // Australia by default: 960 + 100 shipping, GST 106 (prices as the website writes them, task 9.85).
+    await seeIt(tester, find.text(r'A$1,166.00'));
+    expect(find.text(r'A$100.00'), findsOneWidget);
+    expect(find.text(r'A$106.00'), findsOneWidget);
+    // The extras' prices too.
+    expect(find.text(r'A$150.00 per order'), findsOneWidget);
     // To New Zealand: shipping and GST change.
     await tap(tester, find.byKey(const Key('price-destination')));
     await tap(tester, find.text('New Zealand').last);
     expect(find.text('Shipping · New Zealand'), findsOneWidget);
-    expect(find.text('AUD 1331.00'), findsOneWidget);
+    expect(find.text(r'A$1,331.00'), findsOneWidget);
     // An extra.
     await tap(tester, find.text('Express production'));
     expect(find.text('Express production x 1'), findsOneWidget);
-    expect(find.text('AUD 1496.00'), findsOneWidget);
+    expect(find.text(r'A$1,496.00'), findsOneWidget);
     // A wrong code is named; a good one takes 10% off garments and extras.
     await tester.enterText(find.byKey(const Key('price-code')), 'NOPE');
     await tap(tester, find.text('Apply'));
     await tester.scrollUntilVisible(find.byKey(const Key('code-error')), 200, scrollable: find.byType(Scrollable).first);
     expect(find.byKey(const Key('code-error')), findsOneWidget);
-    expect(find.text('AUD 1496.00'), findsOneWidget);
+    expect(find.text(r'A$1,496.00'), findsOneWidget);
     await tester.enterText(find.byKey(const Key('price-code')), 'team10');
     await tap(tester, find.text('Apply'));
     expect(find.text('Team 10%'), findsOneWidget);
-    expect(find.text('AUD 1373.90'), findsOneWidget);
+    // The discount with the minus before the prefix, as on the website.
+    expect(find.text(r'-A$111.00'), findsOneWidget);
+    expect(find.text(r'A$1,373.90'), findsOneWidget);
+    expect(find.textContaining('AUD', findRichText: true), findsNothing);
     expect(server.quotes.last['pricing'], {'destination': 'NZ', 'extras': ['express'], 'discount_code': 'TEAM10'});
     // Approved with those choices: the invoice is the reviewed total.
     await approve(tester);
     expect(server.submitted.single['pricing'], {'destination': 'NZ', 'extras': ['express'], 'discount_code': 'TEAM10'});
-    expect(find.text('Invoice INV-1001: AUD 1373.90'), findsOneWidget);
+    expect(find.text(r'Invoice INV-1001: A$1,373.90'), findsOneWidget);
+    // Pay now's amount due.
+    expect(find.text(r'A$1,373.90 due'), findsOneWidget);
+  });
+
+  testWidgets('Review "Delivery to" follows section 1: Pick up (no list), New Zealand, International (task 9.97)', (tester) async {
+    // It showed "Australia" for a picked-up order or another country, while the price was for those (as the website).
+    final server = OrdersServer();
+    await mount(tester, OrderFormScreen(signedIn(server)));
+    await tester.enterText(find.widgetWithText(TextField, 'Team / organisation'), 'MANTIS Rugby League');
+    await tester.enterText(find.widgetWithText(TextField, '12 jerseys M, 12 shorts L, 6 hoodies XL'), '12 jerseys M, 12 shorts L');
+    await tap(tester, find.text('Help me add sizes').last);
+    await fillDelivery(tester, pickup: true);
+    await tap(tester, find.text('REVIEW ORDER'));
+    await seeIt(tester, find.byKey(const Key('price-pickup')));
+    await tester.pumpAndSettle();
+    expect(find.text('Pick up from 3DEEZI (no delivery)'), findsOneWidget);
+    expect(find.byKey(const Key('price-destination')), findsNothing);
+    expect((server.quotes.last['pricing'] as Map)['destination'], 'PICKUP');
+    Finder shows(String name) => find.descendant(of: find.byKey(const Key('price-destination')), matching: find.text(name));
+    // Delivered to New Zealand: the list shows New Zealand, the price is for New Zealand.
+    await tap(tester, find.text('BACK TO EDIT'));
+    await fromTop(tester);
+    await tap(tester, find.byKey(const Key('delivery-deliver')));
+    await typeIn(tester, 'Street address', '12 Smith Street');
+    await typeIn(tester, 'Suburb / town', 'Rotorua');
+    await typeIn(tester, 'Country', 'New Zealand');
+    await tap(tester, find.text('REVIEW ORDER'));
+    await seeIt(tester, find.byKey(const Key('price-destination')));
+    await tester.pumpAndSettle();
+    expect(shows('New Zealand'), findsOneWidget);
+    expect(shows('Australia'), findsNothing);
+    expect(find.byKey(const Key('price-pickup')), findsNothing);
+    expect((server.quotes.last['pricing'] as Map)['destination'], 'NZ');
+    // A country the price list has no price for: shown as itself (3DEEZI prices it).
+    await tap(tester, find.text('BACK TO EDIT'));
+    await typeIn(tester, 'Country', 'Fiji');
+    await tap(tester, find.text('REVIEW ORDER'));
+    await seeIt(tester, find.byKey(const Key('price-destination')));
+    await tester.pumpAndSettle();
+    expect(shows('International'), findsOneWidget);
+    expect((server.quotes.last['pricing'] as Map)['destination'], 'INTL');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('AI designer results: a reference picture can go on the 3D kit (guests sign in first)', (tester) async {
@@ -581,6 +677,20 @@ void main() {
     expect(orderGarmentFor('Shorts'), 'shorts');
     expect(orderGarmentFor('ziphoodie'), 'hoodie');
     expect(orderGarmentFor('Something new'), 'jersey');
+  });
+
+  test('a saved design names only rows of its own garment, as the server and website (task 9.97)', () {
+    // The same garment, or the row the order form lists it under.
+    for (final (design, row) in [('Singlet', 'singlet'), ('Jersey', 'jersey'), ('Zip hoodie', 'hoodie'), ('Polo with pocket', 'polo'), ('Varsity jacket', 'jacket'), ('Track jacket', 'jacket'), ('singlet', 'singlet')]) {
+      expect(isDesignRow(design, row), isTrue, reason: '$design on $row');
+    }
+    // Another garment's row keeps its own name; a full kit names no single row.
+    for (final (design, row) in [('Singlet', 'jersey'), ('Jersey', 'tee'), ('Hoodie', 'jacket'), ('Full Kit', 'jersey'), ('Full Kit', 'shorts'), ('Singlet', 'other'), ('', 'jersey')]) {
+      expect(isDesignRow(design, row), isFalse, reason: '$design on $row');
+    }
+    expect(designRowName('Singlet', ' Netball bibs ', 'singlet'), 'Netball bibs');
+    expect(designRowName('Singlet', 'Netball bibs', 'jersey'), '');
+    expect(designRowName('Singlet', '', 'singlet'), '');
   });
 
   test('miniBoard: the first three stages with counts; null without orders', () {

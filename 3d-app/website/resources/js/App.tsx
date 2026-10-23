@@ -71,7 +71,26 @@ export default function App() {
   useEffect(() => { setMenuOpen(false); window.scrollTo({ top: 0 }); }, [location.pathname]);
   useEffect(() => { if (notice) { const timer = setTimeout(() => setNotice(''), 6500); return () => clearTimeout(timer); } }, [notice]);
 
-  function requireAuth(action?: () => void) { if (user) action?.(); else { afterAuth.current = action || null; setAuthOpen(true); } }
+  // A sign-in-only button pressed while the saved session is still being checked (/auth/me, just after a page load)
+  // waits for the check: then it runs (signed in) or opens the sign-in window and runs after it (signed out). It
+  // never opens the sign-in window for a visitor who is signed in. Read through a ref, so an older copy of
+  // requireAuth held by a page sees the latest state too.
+  const session = useRef({ user, checkingSession });
+  session.current = { user, checkingSession };
+  const waitingAuth = useRef<{ action: (() => void) | null } | null>(null);
+  function requireAuth(action?: () => void) {
+    const now = session.current;
+    if (now.user) action?.();
+    else if (now.checkingSession) waitingAuth.current = { action: action || null };
+    else { afterAuth.current = action || null; setAuthOpen(true); }
+  }
+  useEffect(() => {
+    const waiting = waitingAuth.current;
+    if (!waiting || (checkingSession && !user)) return;
+    waitingAuth.current = null;
+    if (user) waiting.action?.();
+    else { afterAuth.current = waiting.action; setAuthOpen(true); }
+  }, [checkingSession, user]);
   function start(mode: 'ai' | 'dyo') { setDraft({ ...newDraft(), mode }); navigate(mode === 'ai' ? '/create/ai' : '/create/sport'); }
   // Design Your Own opened by its address or a plain link starts a new kit: a saved project, an AI design or a design
   // picture left in the draft must not come back on the new garment (and a save must not overwrite that project).

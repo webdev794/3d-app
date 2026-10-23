@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
+import '../money.dart';
 import '../sports_catalog.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
@@ -64,16 +65,9 @@ Color? _hexColour(String value) {
   return Color(int.parse('ff$hex', radix: 16));
 }
 
-/// "A$1,234.00", as the website's audMoney (en-AU grouping, two decimals).
-String _money(Object? amount, Object? currency) {
-  final n = double.tryParse('$amount') ?? 0;
-  final [whole, cents] = n.abs().toStringAsFixed(2).split('.');
-  final grouped = whole.replaceAllMapped(
-    RegExp(r'\B(?=(\d{3})+(?!\d))'),
-    (_) => ',',
-  );
-  return '${currency == null || currency == 'AUD' ? r'A$' : '$currency '}${n < 0 ? '-' : ''}$grouped.$cents';
-}
+/// "A$1,234.00", the website's price style (money.dart); "To be confirmed"
+/// without an amount.
+String _money(Object? amount, Object? currency) => moneyOr(amount, currency);
 
 /// TEAM prices include GST (client answers 2026-10-21).
 String _incl(Object? amount, Object? currency) =>
@@ -86,8 +80,11 @@ const teamRefundPolicy =
 /// The turnaround promise, with the server's numbers when the plan is loaded.
 String teamPromise(Map? allowance) {
   final t = (allowance?['turnaround'] as Map?) ?? const {};
-  return 'First design within ${t['first_draft_days'] ?? 3} business days';
+  return 'First design within ${_businessDays(t['first_draft_days'] ?? 3)}';
 }
+
+/// "1 business day", "3 business days" (the server's numbers).
+String _businessDays(Object n) => '$n business day${'$n' == '1' ? '' : 's'}';
 
 /// "Jersey, Shorts": every garment asked for (older requests: the one garment).
 String teamGarmentsText(Map r) {
@@ -168,12 +165,12 @@ class TeamGoodToKnow extends StatelessWidget {
             row(
               Icons.event_available_outlined,
               'Turnaround',
-              'First design within ${t['first_draft_days'] ?? 3} business days; each revision within ${t['revision_days'] ?? 2} business days (Monday to Friday). A request with a fee starts once it is paid.',
+              'First design within ${_businessDays(t['first_draft_days'] ?? 3)}; each revision within ${_businessDays(t['revision_days'] ?? 2)} (Monday to Friday). A request with a fee starts once it is paid.',
             ),
             row(
               Icons.refresh,
               'Revisions',
-              '${revisions == null ? 'Every request includes revisions.' : 'Your plan includes $revisions revisions per request.'} Need more? Ask your designer for an extra round; any fee is shown before it starts.',
+              '${revisions == null ? 'Every request includes revisions.' : 'Your plan includes $revisions revision${'$revisions' == '1' ? '' : 's'} per request.'} Need more? Ask your designer for an extra round; any fee is shown before it starts.',
             ),
             row(Icons.verified_user_outlined, 'Refunds', teamRefundPolicy),
           ],
@@ -2361,7 +2358,7 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
                 label: Text(
                   files.isEmpty
                       ? 'Add pictures or notes'
-                      : '${files.length} file(s) added',
+                      : '${files.length} file${files.length == 1 ? '' : 's'} added',
                 ),
               ),
               const SizedBox(height: 12),
@@ -2772,7 +2769,7 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
           const SizedBox(height: 6),
           Text(
             used < allowed
-                ? '${allowed - used} of $allowed revisions left'
+                ? '${allowed - used} of $allowed revision${allowed == 1 ? '' : 's'} left'
                 : pendingInvoice != null
                 ? 'Extra revision waiting for payment.'
                 : can['extra_revision'] == true

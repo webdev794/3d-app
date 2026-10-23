@@ -17,7 +17,8 @@ class NotificationController extends Controller
             'items' => $user->notifications()->latest()->limit(30)->get()->map(fn ($n) => [
                 'id' => $n->id,
                 'type' => class_basename($n->type),
-                'data' => $n->data,
+                // Older texts written as "AUD $1,870.00" read "A$1,870.00", as every price on the site (task 9.85).
+                'data' => is_array($n->data) ? array_map(fn ($v) => is_string($v) ? \App\Services\Pricing\Money::restyle($v) : $v, $n->data) : $n->data,
                 'read_at' => $n->read_at?->toIso8601String(),
                 'created_at' => $n->created_at?->toIso8601String(),
             ]),

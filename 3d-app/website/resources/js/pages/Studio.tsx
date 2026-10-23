@@ -38,6 +38,23 @@ const hoodieAreas: { key: HoodieArea; label: string }[] = [{ key: 'hood', label:
 const colourSlots = [{ key: 'main', label: 'Primary' }, { key: 'secondary', label: 'Secondary' }, { key: 'accent', label: 'Accent' }, { key: 'patternColor', label: 'Pattern' }] as const;
 const palettes = [['#0b1016', '#00c2cc', '#36e3ee'], ['#08233e', '#efb84a', '#ffffff'], ['#f2f4f6', '#0076cd', '#0b1830'], ['#261133', '#ad47da', '#fb92d3'], ['#0c2824', '#31c29a', '#ffffff'], ['#240c12', '#ec3e5b', '#f9e6d4']];
 const suggestions = ['Make it red and gold', 'Add bold chevrons', 'Darker body, brighter trims', 'Number 7 for SMITH', 'Give it a tribal shoulder print'];
+/**
+ * Patterns › Apply to area: only the areas the garment has, as the 3D viewer paints them (viewer zones.js). Shorts
+ * have no shoulders or sleeves and a singlet no sleeves (a pattern there painted nothing); the full kit's jersey has both.
+ */
+function patternAreas(garment: string, trackStyle?: string | null): { key: Zone; label: string }[] {
+  const shorts = garment === 'shorts';
+  return [
+    { key: 'body', label: shorts ? 'Body' : 'Chest & body' },
+    ...(shorts ? [] : [{ key: 'yoke' as const, label: 'Shoulders' }]),
+    ...(shorts || garment === 'singlet' ? [] : [{ key: 'sleeves' as const, label: 'Sleeves' }]),
+    { key: 'sides', label: 'Side panels' },
+    { key: 'hem', label: shorts ? 'Leg hems' : 'Hem' },
+    ...(garment === 'pocketpolo' ? [{ key: 'pocket' as const, label: 'Chest pocket' }] : []),
+    ...(isHoodie(garment) ? [{ key: 'pocket' as const, label: 'Kangaroo pocket' }, { key: 'hood' as const, label: 'Hood' }] : []),
+    ...(isTrack(garment) ? [{ key: 'hood' as const, label: trackStyle === 'hood' ? 'Hood' : 'Collar' }] : []),
+  ];
+}
 
 export default function Studio({ draft, onChange, catalog, requireAuth, onNotice, user, initialBoard = false }: { draft: Draft; onChange: (draft: Draft) => void; catalog: Catalog | null; requireAuth: (action?: () => void) => void; onNotice: (text: string) => void; user: User | null; initialBoard?: boolean }) {
   const [tool, setTool] = useState<Tool | null>(initialBoard ? 'logos' : 'colours');
@@ -48,6 +65,10 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
   const [dragging, setDragging] = useState<ArtworkDrop | null>(null);
   const [zone, setZone] = useState<Zone | 'all'>('all');
+  // The garment's own areas; after a garment change an area it doesn't have falls back to the whole garment.
+  const areas = patternAreas(draft.design.garment, draft.design.trackStyle);
+  const area = zone !== 'all' && areas.some(a => a.key === zone) ? zone : 'all';
+  useEffect(() => { if (area !== zone) setZone(area); }, [area, zone]);
   const [slot, setSlot] = useState<(typeof colourSlots)[number]['key']>('main');
   // GRADIENT PRESETS, the flyout beside the Colours panel.
   const [gradientOpen, setGradientOpen] = useState(false);
@@ -250,7 +271,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   function commit() { if (!liveBase.current) return; const base = liveBase.current; liveBase.current = null; setPast(history => [...history.slice(-39), base]); setFuture([]); }
   function undo() { const previous = past.at(-1); if (!previous) return; setFuture(items => [draft.design, ...items]); setPast(items => items.slice(0, -1)); onChange({ ...draft, design: previous, garment: previous.garment }); setDirty(true); }
   function redo() { const next = future[0]; if (!next) return; setPast(items => [...items, draft.design]); setFuture(items => items.slice(1)); onChange({ ...draft, design: next, garment: next.garment }); setDirty(true); }
-  function applyPattern(pattern: string) { edit(zone === 'all' ? { pattern: pattern === 'None' ? 'Solid' : pattern, patternImage: null, zones: {} } : { zones: { ...draft.design.zones, [zone]: pattern } }); }
+  function applyPattern(pattern: string) { edit(area === 'all' ? { pattern: pattern === 'None' ? 'Solid' : pattern, patternImage: null, zones: {} } : { zones: { ...draft.design.zones, [area]: pattern } }); }
   async function dropArtwork(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault(); const payload = dragging; setDragging(null);
     if (!payload || !viewer.current || !stage.current) return;
@@ -258,7 +279,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     try {
       const hit = await viewer.current.pick((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
       if (!hit.hit || !hit.part || !hit.side || hit.x === undefined || hit.y === undefined) { onNotice('Drop directly onto the garment or a 2D panel.'); return; }
-      if (payload.pattern && hit.zone) { edit({ zones: { ...latest.current.design.zones, [hit.zone]: payload.pattern } }); onNotice(`${payload.pattern} applied to the ${hit.zone}.`); return; }
+      if (payload.pattern && hit.zone) { const where = patternAreas(latest.current.design.garment, latest.current.design.trackStyle).find(a => a.key === hit.zone)?.label ?? hit.zone; edit({ zones: { ...latest.current.design.zones, [hit.zone]: payload.pattern } }); onNotice(`${payload.pattern} applied to the ${where.toLowerCase()}.`); return; }
       if (payload.asset) {
         const src = await readAsset(payload.asset); const currentLayers = latest.current.design.layers || [];
         if (currentLayers.length >= 40) { onNotice('A design can contain up to 40 artwork layers.'); return; }
@@ -365,7 +386,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
         <button className="button button-outline studio-mode-button" onClick={() => navigate('/artboard')}><PenTool size={16} /> Artboard</button><button className="button button-outline studio-mode-button" onClick={() => openBoard(!board)}>{board ? <Shirt size={16} /> : <Layers size={16} />}{board ? '3D view' : '2D panels'}</button>
         <button className="round-button" onClick={undo} disabled={!past.length} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 size={18} /></button>
         <button className="round-button" onClick={redo} disabled={!future.length} title="Redo (Ctrl+Y)" aria-label="Redo"><Redo2 size={18} /></button>
-        <button className="button button-outline" onClick={() => requireAuth(() => { setError(''); setName(draft.name === 'Untitled kit' ? '' : draft.name); setModal('save'); })}><Save size={16} /> Save{dirty && <i className="dirty-dot" aria-label="Unsaved changes" />}</button>
+        <button className="button button-outline studio-save" onClick={() => requireAuth(() => { setError(''); setName(draft.name === 'Untitled kit' ? '' : draft.name); setModal('save'); })}><Save size={16} /> Save{dirty && <i className="dirty-dot" aria-label="Unsaved changes" />}</button>
         <button className="button button-gradient" onClick={() => { setError(''); setModal('export'); }}><Download size={16} /> Export</button>
         <div className="dyo-menu"><button className="round-button" onClick={() => setMenu(m => !m)} aria-label="More" aria-expanded={menu}><MoreVertical size={18} /></button>
           {menu && <div className="menu-pop" onClick={() => setMenu(false)}>{aiEnabled && <button onClick={() => requireAuth(() => { setError(''); setModal('showcase'); })}><WandSparkles size={15} /> Photoreal showcase</button>}<button onClick={() => requireAuth(() => { if (!draft.id || dirty) { onNotice('Save your project first, then order it.'); setName(draft.name === 'Untitled kit' ? '' : draft.name); setModal('save'); } else setOrdering(true); })}><Package size={15} /> Order this kit</button><button onClick={() => navigate('/orders')}><Box size={15} /> My orders</button><button onClick={() => navigate('/create/ai')}><Sparkles size={15} /> New AI design</button><button onClick={() => navigate('/create/sport', { state: { keep: true } })}><Shirt size={15} /> Change sport</button><button onClick={() => navigate('/projects')}><Box size={15} /> My projects</button></div>}
@@ -398,11 +419,11 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             {gradientOpen && gradientSlot && <GradientFlyout slot={gradientSlot} slotLabel={colourSlots.find(c => c.key === gradientSlot)?.label.toUpperCase() ?? ''} gradient={zoneGradient} base={colourValue} fallback={gradientSlot === 'main' ? draft.design.secondary : draft.design.main} apply={applyGradient} preview={previewGradient} commit={commit} onClose={() => setGradientOpen(false)} anchor={colourPanel} opener={gradientButton} />}
           </>}
           {tool === 'patterns' && <>
-            <label className="field">Apply to area<select value={zone} onChange={e => setZone(e.target.value as Zone | 'all')}><option value="all">Whole garment</option><option value="body">Chest & body</option><option value="yoke">Shoulders</option><option value="sleeves">Sleeves</option><option value="sides">Side panels</option><option value="hem">Hem</option>{draft.design.garment === 'pocketpolo' && <option value="pocket">Chest pocket</option>}{isHoodie(draft.design.garment) && <><option value="pocket">Kangaroo pocket</option><option value="hood">Hood</option></>}{isTrack(draft.design.garment) && <option value="hood">{draft.design.trackStyle === 'hood' ? 'Hood' : 'Collar'}</option>}</select></label>
+            <label className="field">Apply to area<select value={area} onChange={e => setZone(e.target.value as Zone | 'all')}><option value="all">Whole garment</option>{areas.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}</select></label>
             <p className="field-hint">Choose a pattern for this area, or drag a pattern directly onto the garment.</p>
-            <div className="pattern-grid">{patternNames.map(pattern => { const active = (zone === 'all' ? draft.design.pattern : draft.design.zones?.[zone]) === pattern && (zone !== 'all' || !draft.design.patternImage); return <button className={active ? 'selected' : ''} key={pattern} draggable onDragStart={e => { e.dataTransfer.setData('text/plain', pattern); e.dataTransfer.effectAllowed = 'copy'; setDragging({ pattern }); }} onDragEnd={() => setDragging(null)} onClick={() => applyPattern(pattern)}><span className={`pattern-preview pattern-${pattern.toLowerCase()}`} style={{ '--pattern-color': draft.design.patternColor || draft.design.secondary } as React.CSSProperties} /><span>{pattern}{active && <Check size={14} />}</span></button>; })}</div>
+            <div className="pattern-grid">{patternNames.map(pattern => { const active = (area === 'all' ? draft.design.pattern : draft.design.zones?.[area]) === pattern && (area !== 'all' || !draft.design.patternImage); return <button className={active ? 'selected' : ''} key={pattern} draggable onDragStart={e => { e.dataTransfer.setData('text/plain', pattern); e.dataTransfer.effectAllowed = 'copy'; setDragging({ pattern }); }} onDragEnd={() => setDragging(null)} onClick={() => applyPattern(pattern)}><span className={`pattern-preview pattern-${pattern.toLowerCase()}`} style={{ '--pattern-color': draft.design.patternColor || draft.design.secondary } as React.CSSProperties} /><span>{pattern}{active && <Check size={14} />}</span></button>; })}</div>
             {aiEnabled && <div className="ai-pattern"><h4>AI PRINT FROM WORDS</h4><div className="inline-field"><input value={motif} onChange={e => setMotif(e.target.value)} onKeyDown={e => e.key === 'Enter' && aiPattern()} placeholder="e.g. Maori-inspired koru waves" maxLength={200} /><button className="button button-gradient" disabled={patternBusy || motif.trim().length < 3} onClick={aiPattern}>{patternBusy ? <LoaderCircle className="spin" size={16} /> : <WandSparkles size={16} />}</button></div>{draft.design.patternImage && <button className="button button-secondary full-width" onClick={() => edit({ patternImage: null })}><X size={14} /> Remove AI print</button>}</div>}
-            <label className="field">Pattern coverage<input type="range" min="0" max="1" step="0.05" value={draft.design.patternBody ?? 0.1} onChange={e => preview({ patternBody: Number(e.target.value) })} onPointerUp={commit} /><span className="field-hint">Shoulders → Full body</span></label>
+            <label className="field">Pattern coverage<input type="range" min="0" max="1" step="0.05" value={draft.design.patternBody ?? 0.1} onChange={e => preview({ patternBody: Number(e.target.value) })} onPointerUp={commit} /><span className="field-hint">{draft.design.garment === 'shorts' ? 'Leg hems → Full shorts' : draft.design.garment === 'fullkit' ? 'Shoulders & leg hems → Full kit' : 'Shoulders → Full body'}</span></label>
           </>}
           {tool === 'logos' && <><ArtworkPanel design={draft.design} edit={edit} shelved={shelved} viewer={viewer} selected={selectedLayer} onSelect={setSelectedLayer} requireAuth={requireAuth} onNotice={onNotice} onDrag={setDragging} ready={ready} board={board} onBoard={() => openBoard(true)} />
             {(draft.design.logoImage || draft.design.sponsorImage) && <h4>EXISTING FIXED LOGOS</h4>}

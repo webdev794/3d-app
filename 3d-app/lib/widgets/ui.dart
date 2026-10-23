@@ -44,6 +44,11 @@ class GradientButton extends StatelessWidget {
   final bool compact;
   @override
   Widget build(BuildContext context) => Semantics(
+    // A node of its own, as Material's buttons are: without it the button
+    // merged into the card around it (one "button" named by the whole card,
+    // e.g. TEAM's PAY NOW), and a SecondaryButton beside it sat inside that
+    // button, where screen readers on the web can't reach it.
+    container: true,
     button: true,
     enabled: onPressed != null,
     child: DecoratedBox(

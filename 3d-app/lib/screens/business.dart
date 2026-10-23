@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
+import '../money.dart';
 import '../order_names.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
@@ -1714,7 +1715,7 @@ class _OrderCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            '${o['quantity'] ?? 0} garments · ${sizes.entries.map((e) => '${e.key} ${e.value}').join(', ')}'
+            '${o['quantity'] ?? 0} garment${o['quantity'] == 1 ? '' : 's'} · ${sizes.entries.map((e) => '${e.key} ${e.value}').join(', ')}'
             '${players > 0 ? ' · $players player${players == 1 ? '' : 's'}' : ''}',
             style: const TextStyle(color: Palette.muted, fontSize: 11.5),
           ),
@@ -1722,9 +1723,8 @@ class _OrderCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                total == null
-                    ? 'Quote pending'
-                    : 'A\$${double.tryParse('$total')?.toStringAsFixed(2) ?? total}',
+                // "A$1,870.00", the website's price style (money.dart).
+                moneyOr(total, o['currency'], 'Quote pending'),
                 style: TextStyle(
                   color: total == null ? Palette.muted : Palette.cyan,
                   fontWeight: FontWeight.w700,

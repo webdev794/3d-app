@@ -93,55 +93,81 @@ class _AssistOverlayState extends State<AssistOverlay> {
                   constraints: BoxConstraints(
                     maxHeight: box.maxHeight - bottom - size - 30,
                   ),
-                  child: PointerInterceptor(child: _panel()),
+                  child: _overViewer(_panel()),
                 ),
               ),
-            Positioned(
-              right: 12,
-              bottom: bottom,
-              child: PointerInterceptor(child: _launcher(size: size)),
-            ),
+            Positioned(right: 12, bottom: bottom, child: _launcher(size: size)),
           ],
         ),
       );
     },
   );
 
-  Widget _launcher({required double size}) => Tooltip(
-    message: '3DEEZI ASSIST',
-    child: Semantics(
-      button: true,
-      label: a.open ? 'Hide 3DEEZI ASSIST' : 'Ask 3DEEZI ASSIST',
-      child: GestureDetector(
-        key: const ValueKey('assist-launcher'),
-        onTap: a.toggle,
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xf20a1a2c), Color(0xf2050d18)],
-            ),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Palette.cyan.withValues(alpha: .8),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Palette.cyan.withValues(alpha: .33),
-                blurRadius: 20,
+  /// [child] over the 3D view's web frame, which would otherwise take its
+  /// taps: a PointerInterceptor under it. On the web the interceptor is a
+  /// platform view that takes the keyboard focus and has no name, so screen
+  /// readers stopped on it and announced nothing: it is left out of the
+  /// semantics.
+  Widget _overViewer(Widget child) => Stack(
+    fit: StackFit.passthrough,
+    children: [
+      Positioned.fill(
+        child: ExcludeSemantics(
+          child: PointerInterceptor(child: const SizedBox.expand()),
+        ),
+      ),
+      child,
+    ],
+  );
+
+  /// The round launcher: one button for screen readers, named "Ask 3DEEZI
+  /// ASSIST" ("Hide 3DEEZI ASSIST" while the chat is open), that Tab reaches
+  /// and Enter presses.
+  Widget _launcher({required double size}) => Semantics(
+    container: true,
+    button: true,
+    label: a.open ? 'Hide 3DEEZI ASSIST' : 'Ask 3DEEZI ASSIST',
+    child: Tooltip(
+      message: '3DEEZI ASSIST',
+      // The button's name says it already.
+      excludeFromSemantics: true,
+      child: _overViewer(
+        Material(
+          type: MaterialType.transparency,
+          shape: const CircleBorder(),
+          child: InkWell(
+            key: const ValueKey('assist-launcher'),
+            customBorder: const CircleBorder(),
+            onTap: a.toggle,
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xf20a1a2c), Color(0xf2050d18)],
+                ),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Palette.cyan.withValues(alpha: .8),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Palette.cyan.withValues(alpha: .33),
+                    blurRadius: 20,
+                  ),
+                  const BoxShadow(
+                    color: Color(0x99000000),
+                    blurRadius: 24,
+                    offset: Offset(0, 10),
+                  ),
+                ],
               ),
-              const BoxShadow(
-                color: Color(0x99000000),
-                blurRadius: 24,
-                offset: Offset(0, 10),
-              ),
-            ],
+              child: Center(child: Sparkle(size: a.open ? 22 : 25)),
+            ),
           ),
-          child: Center(child: Sparkle(size: a.open ? 22 : 25)),
         ),
       ),
     ),
@@ -548,7 +574,11 @@ class _AssistOverlayState extends State<AssistOverlay> {
           builder: (context, _) {
             final enabled = !a.busy && _input.text.trim().isNotEmpty;
             return Semantics(
+              // A button of its own that says when it can't be pressed yet
+              // (nothing typed, or an answer coming).
+              container: true,
               button: true,
+              enabled: enabled,
               label: 'Send',
               child: GestureDetector(
                 onTap: enabled ? _send : null,
