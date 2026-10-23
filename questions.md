@@ -8,3 +8,10 @@ Questions waiting for your answer. Each one is also asked in the chat; once answ
 2. **New 3D look on the test site (2026-10-23):** tonight's file has the mannequin, folds and new lighting. Should everyone see them straight away on the test site, or only people who open the link with ?look=2? Making it the default was blocked by the safety check, so it needs your clear yes.
    (Reply "yes, new 3D look for everyone": I make it the default, and ?look=1 still shows the old look.)
 
+3. **Preferred suppliers (client ideas, 2026-10-23):**
+   - a) What should a supplier pay to be listed?
+     (A monthly or yearly listing price the client sets in Admin › Pricing, paid on the same payment page; no price fixed by us.)
+   - b) When a customer picks an outside preferred supplier in the order form, how does that supplier get the order?
+     (For now 3DEEZI's admin sees the supplier on the order and passes it on; supplier logins come later.)
+   - Answered 2026-10-23: Mantis is the owner's company (Mantis owns 3DEEZI). So the order form's "Made by" offers 3DEEZI and Mantis, both the owner's own, and those orders go straight to the owner. The preferred suppliers section is for OTHER companies, who apply and pay to be listed.
+

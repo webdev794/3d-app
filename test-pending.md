@@ -160,6 +160,14 @@ Every price reads like "A$495.00":
 
 ---
 
+## App Home: three order buttons and a Preferred suppliers strip (2026-10-23)
+1. App › Home: the four picture tiles are unchanged at the top. Below them, ORDERS with three buttons: Create order form, Upload your order, My orders. Then the "3DEEZI | PREFERRED SUPPLIERS – Coming soon." strip, then the Assist link and the Convert line.
+2. Each button opens its screen; Back returns to Home.
+3. Signed out, Create order form and Upload your order say "Sign in to place an order." and go to sign-in.
+4. On small phones the Home scrolls; nothing is cut off or overlapping.
+
+---
+
 ## Admin cards: text stays inside the boxes (2026-10-23)
 1. Admin › Projects: a long customer email ends with "…" inside the card; hover shows the full text.
 2. The same on Admin › 3DEEZI TEAM and the other admin lists, on a computer and a phone.

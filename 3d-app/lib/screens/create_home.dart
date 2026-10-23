@@ -12,12 +12,15 @@ import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
+import 'order_entry.dart' show OrderFormScreen, OrderUploadScreen;
 import 'team.dart' show TeamScreen;
 
 /// 4 · Home (client picture images/166.jpg, 2026-10-23): the 3DEEZI wordmark
 /// with the bell, "What would you like to create?", four picture tiles (AI
-/// DESIGNER, DESIGN YOUR OWN, ARTBOARD, 3DEEZI TEAM), the Assist link and a
-/// quiet Convert line.
+/// DESIGNER, DESIGN YOUR OWN, ARTBOARD, 3DEEZI TEAM); under them ORDERS
+/// (Create order form, Upload your order, My orders) and the Preferred
+/// suppliers strip (coming soon), then the Assist link and a quiet Convert
+/// line.
 class CreateHomeScreen extends StatelessWidget {
   const CreateHomeScreen(this.c, {super.key});
   final AppController c;
@@ -129,7 +132,13 @@ class CreateHomeScreen extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            // ORDERS and Preferred suppliers (client
+                            // 2026-10-23): under the tiles, which stay first.
+                            const SizedBox(height: 18),
+                            _OrdersRow(c),
+                            const SizedBox(height: 12),
+                            const _SuppliersStrip(),
+                            const SizedBox(height: 8),
                             const Center(child: _AssistLink()),
                             // One quiet line for Convert, which has no other
                             // way in (Plans & pricing is on Profile; ORDER
@@ -340,6 +349,266 @@ class _HomeTile extends StatelessWidget {
         ),
       );
     },
+  );
+}
+
+/// ORDERS: Create order form, Upload your order and My orders, the Orders
+/// tab's three ways in as compact buttons. Ordering needs an account: signed
+/// out, the form and the upload ask to sign in first (as on the Orders tab).
+class _OrdersRow extends StatelessWidget {
+  const _OrdersRow(this.c);
+  final AppController c;
+
+  void _order(BuildContext context, Widget Function() screen) {
+    if (!c.signedIn) {
+      showToast(context, 'Sign in to place an order.');
+      c.go(AppScreen.auth);
+      return;
+    }
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => screen()));
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Padding(
+        padding: EdgeInsets.only(left: 2, bottom: 8),
+        child: Text(
+          'ORDERS',
+          style: TextStyle(
+            fontFamily: 'Rajdhani',
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            letterSpacing: 2.2,
+            color: Palette.cyan,
+          ),
+        ),
+      ),
+      Row(
+        children: [
+          Expanded(
+            child: _OrderButton(
+              key: const ValueKey('home-order-form'),
+              icon: Icons.assignment_outlined,
+              label: 'Create order form',
+              onTap: () => _order(context, () => OrderFormScreen(c)),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _OrderButton(
+              key: const ValueKey('home-order-upload'),
+              icon: Icons.upload_file_outlined,
+              label: 'Upload your order',
+              onTap: () => _order(context, () => OrderUploadScreen(c)),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _OrderButton(
+              key: const ValueKey('home-my-orders'),
+              icon: Icons.local_shipping_outlined,
+              label: 'My orders',
+              onTap: () => c.go(AppScreen.orders),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+/// A compact ORDERS button: an icon over its label, with the tiles' cyan edge.
+class _OrderButton extends StatelessWidget {
+  const _OrderButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: label,
+    excludeSemantics: true,
+    onTap: onTap,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Palette.cyan.withValues(alpha: .16),
+            blurRadius: 10,
+            spreadRadius: -2,
+          ),
+        ],
+      ),
+      child: Material(
+        color: const Color(0xff07121d),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: const Color(0xff1fb6ff).withValues(alpha: .6),
+            width: 1.3,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 82,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: Palette.cyan, size: 26),
+                  const SizedBox(height: 7),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.15,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// 3DEEZI | PREFERRED SUPPLIERS, coming soon: a slim strip in the style of
+/// the Orders tab's Rewards strip. The suppliers page comes later; nothing
+/// to tap yet (the website's only partner form is the Corporate Partner
+/// application, not a supplier one, so there is no link).
+class _SuppliersStrip extends StatelessWidget {
+  const _SuppliersStrip();
+
+  static const _rule = Color(0xff3b4659);
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    key: const ValueKey('home-suppliers'),
+    label: '3DEEZI Preferred suppliers: coming soon',
+    excludeSemantics: true,
+    child: Container(
+      height: 60,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x9952d4ec)),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xff061322), Color(0xff030b15)],
+        ),
+        boxShadow: [
+          BoxShadow(color: Palette.cyan.withValues(alpha: .16), blurRadius: 12),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 64,
+            child: Center(
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Palette.cyan.withValues(alpha: .3),
+                      Palette.cyan.withValues(alpha: 0),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: Palette.cyan.withValues(alpha: .55),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Palette.cyan.withValues(alpha: .35),
+                      blurRadius: 12,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.handshake_outlined,
+                  color: Palette.cyan,
+                  size: 22,
+                ),
+              ),
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 40,
+            margin: const EdgeInsets.only(left: 2, right: 12),
+            color: _rule,
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const BrandLogo(width: 80),
+                        Container(
+                          width: 1,
+                          height: 16,
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          color: _rule,
+                        ),
+                        const Text(
+                          'PREFERRED SUPPLIERS',
+                          style: TextStyle(
+                            fontFamily: 'Rajdhani',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 20,
+                            height: 1,
+                            letterSpacing: .6,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'Coming soon.',
+                    maxLines: 1,
+                    style: TextStyle(fontSize: 13.5, color: Color(0xffe9f0f7)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 }
 
