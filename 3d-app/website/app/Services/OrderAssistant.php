@@ -50,7 +50,11 @@ class OrderAssistant
 
     private const SIZE_WORDS = [
         'extra extra large' => '2XL', 'extra large' => 'XL', 'extra small' => 'XS', 'x-large' => 'XL', 'xx-large' => '2XL', 'x-small' => 'XS', 'x large' => 'XL', 'xx large' => '2XL', 'x small' => 'XS',
-        'xxxxl' => '4XL', 'xxxl' => '3XL', 'xxl' => '2XL', '4xl' => '4XL', '3xl' => '3XL', '2xl' => '2XL', 'xlarge' => 'XL', 'xxlarge' => '2XL',
+        'xxxxxxxxl' => '8XL', 'xxxxxxxl' => '7XL', 'xxxxxxl' => '6XL', 'xxxxxl' => '5XL', 'xxxxl' => '4XL', 'xxxl' => '3XL', 'xxl' => '2XL',
+        '8xl' => '8XL', '7xl' => '7XL', '6xl' => '6XL', '5xl' => '5XL', '4xl' => '4XL', '3xl' => '3XL', '2xl' => '2XL', 'xlarge' => 'XL', 'xxlarge' => '2XL',
+        // Womens (W8 to W24) and kids (2Y to 16Y) sizes, as on the price list (Order::SIZES).
+        'w24' => 'W24', 'w22' => 'W22', 'w20' => 'W20', 'w18' => 'W18', 'w16' => 'W16', 'w14' => 'W14', 'w12' => 'W12', 'w10' => 'W10', 'w8' => 'W8',
+        '16y' => '16Y', '14y' => '14Y', '12y' => '12Y', '10y' => '10Y', '8y' => '8Y', '6y' => '6Y', '4y' => '4Y', '2y' => '2Y',
         'xl' => 'XL', 'xxs' => 'XS', 'xs' => 'XS', 'xsmall' => 'XS', 'small' => 'S', 'smalls' => 'S', 'sm' => 'S', 's' => 'S',
         'medium' => 'M', 'mediums' => 'M', 'med' => 'M', 'm' => 'M', 'large' => 'L', 'larges' => 'L', 'lg' => 'L', 'l' => 'L',
         'kids' => 'Kids', 'kid' => 'Kids', 'childrens' => 'Kids', 'children' => 'Kids', 'child' => 'Kids', 'juniors' => 'Kids', 'junior' => 'Kids',
@@ -157,9 +161,11 @@ class OrderAssistant
                     continue;
                 }
                 foreach ($group['garment'] === 'kit' ? ['jersey', 'shorts'] : [$group['garment'] ?? $read['garment']] as $garment) {
-                    $key = $garment.'|'.$read['sport'].'|'.$read['fit'];
-                    $items[$key] ??= ['garment' => $garment, 'sport' => $read['sport'], 'fit' => $read['fit'], 'sizes' => []];
+                    // One row per fit: womens (W10) and kids (10Y) sizes without a fit said go on their own row.
                     foreach ($group['sizes'] as $size => $n) {
+                        $fit = $read['fit'] ?? Order::fitFromSizes([$size => 1]);
+                        $key = $garment.'|'.$read['sport'].'|'.$fit;
+                        $items[$key] ??= ['garment' => $garment, 'sport' => $read['sport'], 'fit' => $fit, 'sizes' => []];
                         $items[$key]['sizes'][$size] = ($items[$key]['sizes'][$size] ?? 0) + $n;
                     }
                 }
@@ -171,6 +177,8 @@ class OrderAssistant
         }
         $items = array_values(array_map(function ($item) {
             $item['sizes'] = array_filter(array_merge(array_fill_keys(Order::SIZES, 0), $item['sizes']));
+            // Only womens or only kids sizes: that fit (the order form then shows that size set).
+            $item['fit'] ??= Order::fitFromSizes($item['sizes']);
 
             return $item;
         }, $items));
@@ -340,7 +348,8 @@ class OrderAssistant
         $instructions = <<<TEXT
         You read a customer's description of a sportswear order for 3DEEZI and list the garments with the quantity in each size.
         Garments (use the id): {$garments}. A "kit", "set" or "uniform" is one jersey plus one shorts per person: list both.
-        Sizes: XS, S, M, L, XL, 2XL (also XXL), 3XL (XXXL), 4XL, Kids. small = S, medium = M, large = L. Put 0 for sizes not ordered.
+        Sizes: mens XS, S, M, L, XL, 2XL (also XXL), 3XL (XXXL), 4XL, 5XL, 6XL, 7XL, 8XL; womens W8, W10, W12, W14, W16, W18, W20, W22, W24 (womens 12 = W12); kids 2Y, 4Y, 6Y, 8Y, 10Y, 12Y, 14Y, 16Y (youth 10 = 10Y); Kids only for kids sizes not on that list. small = S, medium = M, large = L. Put 0 for sizes not ordered.
+        Men's, women's and kids' sizes of the same garment are separate entries, one per fit.
         One entry per garment, sport and fit. Sport ids: {$this->list($sports)}, or "" when not said. Fit: mens, womens, youth, unisex, or "".
         Never invent quantities: a quantity without sizes, or sizes without quantities, go in "unclear" with the words used.
         team_name: the team, club or organisation if named, else "". notes: colours, names, numbers, logos or dates mentioned, else "".

@@ -25,7 +25,8 @@ void main() {
 
   test('sizes in the site order, youth sizes with Kids', () {
     expect(orderedSizes({'Kids': 1, '4XL': 1, 'Y8': 1, 'XS': 1, 'M': 2, '2XL': 1, '10Y': 1, 'S': 1, 'YXL': 1, 'L': 1, 'XL': 0}).map((e) => e.key).toList(),
-        ['XS', 'S', 'M', 'L', '2XL', '4XL', 'Y8', '10Y', 'YXL', 'Kids']);
+        // 10Y is a site size since 2026-10-22 (Kids 2Y–16Y); sizes the site doesn't list (Y8, YXL) still go with Kids.
+        ['XS', 'S', 'M', 'L', '2XL', '4XL', '10Y', 'Y8', 'YXL', 'Kids']);
   });
 
   test('garments from the rows: names, fit, totals, artwork for rows without pictures', () {

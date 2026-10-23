@@ -66,14 +66,79 @@ void main() {
     await tester.pump();
     expect(c.screen, AppScreen.aiDesigner);
     expect(find.text('What are we designing for Netball?'), findsOneWidget);
-    await tester.tap(find.text('Singlet'));
+    // Netball's own garments by their names (task 9.99), as in Design Your
+    // Own; the coming-soon skirt is not offered.
+    expect(find.text('Netball skirt'), findsNothing);
+    await tester.tap(find.text('Netball dress'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.generating);
     expect(c.aiSport, 'Netball');
     expect(c.aiGarment, 'Singlet');
     expect(c.garment, 'Singlet');
+    expect(c.productName, 'Netball dress');
     expect(c.brief, 'Teal and white with a wave pattern for the Stingrays');
     // Let the demo generation finish before the test ends.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('a "Hooded Tracksuit" chip gives the track jacket its hood, as in Design Your Own', (tester) async {
+    // Linked modules of 9.106: the AI's design never sets the hood, so the chip does.
+    final c = AppController()..screen = AppScreen.home;
+    c.trackStyle = 'collar';
+    await mountPhone(tester, c);
+    c.startAi();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('RUGBY LEAGUE'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'Black and cyan with lightning bolts for the Wildcats');
+    await tester.tap(find.byTooltip('Generate designs'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Hooded Tracksuit'));
+    await tester.pump();
+    await tester.tap(find.text('Hooded Tracksuit'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.generating);
+    expect((c.garment, c.productName, c.trackStyle), ('Track jacket', 'Hooded Tracksuit', 'hood'));
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('a plain "Track jacket" chip after a "Hooded Tracksuit" one is the collar track jacket (QA U)', (tester) async {
+    final c = AppController()..screen = AppScreen.home;
+    await mountPhone(tester, c);
+    c.startAi();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('RUGBY LEAGUE'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'Black and cyan with lightning bolts for the Wildcats');
+    await tester.tap(find.byTooltip('Generate designs'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Hooded Tracksuit'));
+    await tester.pump();
+    await tester.tap(find.text('Hooded Tracksuit'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.trackStyle, 'hood');
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 400));
+    // Back to the AI designer (same session): Soccer's plain track jacket.
+    c.go(AppScreen.aiDesigner);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(c.screen, AppScreen.aiDesigner);
+    await tester.ensureVisible(find.text('SOCCER'));
+    await tester.pump();
+    await tester.tap(find.text('SOCCER'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).last, 'Navy and gold with thin pinstripes for the Harbour FC');
+    await tester.tap(find.byTooltip('Generate designs'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Track jacket'));
+    await tester.pump();
+    await tester.tap(find.text('Track jacket'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.generating);
+    expect((c.garment, c.productName, c.trackStyle), ('Track jacket', 'Track jacket', 'collar'));
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 400));
   });

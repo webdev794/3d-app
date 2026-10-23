@@ -125,19 +125,29 @@ class _OrbitPainter extends CustomPainter {
 
 /// The floodlit stadium behind the showroom screens.
 class StageBackground extends StatelessWidget {
-  const StageBackground({super.key, required this.child, this.dim = false});
+  const StageBackground({
+    super.key,
+    required this.child,
+    this.dim = false,
+    this.image,
+  });
   final Widget child;
   final bool dim;
+
+  /// A picture of its own (assets/images/showroom/<image>.webp, e.g. a
+  /// sport's garment step); the shared stadium stage when null.
+  final String? image;
 
   @override
   Widget build(BuildContext context) => Stack(
     fit: StackFit.expand,
     children: [
       Image.asset(
-        'assets/images/showroom/stadium-stage.webp',
+        'assets/images/showroom/${image ?? 'stadium-stage'}.webp',
         fit: BoxFit.cover,
-        alignment: const Alignment(0, .35),
-        color: dim ? const Color(0x99000000) : null,
+        alignment: Alignment(image == null ? 0 : .25, .35),
+        // An own picture is sharper and only lightly dimmed.
+        color: dim ? Color(image == null ? 0x99000000 : 0x66000000) : null,
         colorBlendMode: dim ? BlendMode.darken : null,
       ),
       const DecoratedBox(

@@ -163,7 +163,10 @@ class OrderFormReader
                 }
             }
             $body = array_slice($rows, $at + 1);
-            if (count($sizeColumns) >= 2) {
+            // A size grid's heading is mostly sizes, each once ("Garment | S | M | L | Total"); a players row with a
+            // size totals table beside it ("10Y | WALKER | 1 | | 10Y | 3") is not one.
+            $filled = count(array_filter($head, fn ($h) => $h !== ''));
+            if (count($sizeColumns) >= 2 && count(array_unique($sizeColumns)) === count($sizeColumns) && count($sizeColumns) * 2 >= $filled - 1) {
                 return $this->grid($body, $sizeColumns, $garment === false ? null : $garment);
             }
             if ($size !== false && $qty !== false) {
@@ -297,7 +300,7 @@ class OrderFormReader
             $players[] = ['name' => mb_substr($name, 0, 40), 'number' => $number, 'size' => $size];
         }
         $ordered = array_filter(array_merge(array_fill_keys(Order::SIZES, 0), $sizes));
-        $item = ['garment' => 'jersey', 'sizes' => $ordered, 'players' => $players] + (array_keys($ordered) === ['Kids'] ? ['fit' => 'youth'] : []);
+        $item = ['garment' => 'jersey', 'sizes' => $ordered, 'players' => $players] + (Order::fitFromSizes($ordered) ? ['fit' => Order::fitFromSizes($ordered)] : []);
 
         return ['items' => [$item], 'players' => count($players), 'unknown' => array_slice($unknown, 0, 10)];
     }
@@ -339,7 +342,7 @@ class OrderFormReader
         return count($sizes) === 1 && trim($cell) !== '' && mb_strlen(trim($cell)) <= 12 ? (string) array_key_first($sizes) : null;
     }
 
-    /** A size in a table's size column: also youth sizes ("10Y", "Y12" => Kids). Headings use size() only. */
+    /** A size in a table's size column: also youth and womens sizes ("10Y", "Y12" => 10Y, 12Y; "Ladies 12" => W12). Headings use size() only. */
     private function cellSize(string $cell): ?string
     {
         return OrderFormAi::siteSize($cell) ?? $this->size($cell);

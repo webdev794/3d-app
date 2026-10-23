@@ -282,6 +282,8 @@ class TeamRequestTest extends TestCase
         $this->assertStringContainsString('Design request', $text);
         $this->assertStringContainsString('Rookie', $text);
         $this->assertStringNotContainsString('Garments', $text);
+        // The tax line names the real rate (QA T4d: it printed "GST (1%)").
+        $this->assertStringContainsString('(GST \(10%\))', $text);
         // Staff can't work on it before it is paid, unless they confirm.
         Sanctum::actingAs($admin);
         $this->patchJson("/api/v1/team-admin/requests/{$first['id']}/status", ['status' => 'in_progress'])->assertStatus(409);

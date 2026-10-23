@@ -271,17 +271,39 @@ class SurfaceCard extends StatelessWidget {
   );
 }
 
+/// The bottom bar (client pictures 166.jpg and 168.jpg): Home · Projects ·
+/// Orders · Profile. Assets is part of Projects (its button there, and in
+/// Profile), and My orders is part of the Orders tab.
 class BottomNav extends StatelessWidget {
   const BottomNav({super.key, required this.controller});
   final AppController controller;
+
+  /// The tab a screen belongs to.
+  static AppScreen tabOf(AppScreen screen) => switch (screen) {
+    AppScreen.assets => AppScreen.projects,
+    AppScreen.orders => AppScreen.orderHub,
+    _ => screen,
+  };
+
   @override
   Widget build(BuildContext context) {
     final entries = [
-      (AppScreen.home, Icons.auto_awesome_outlined, 'Create'),
-      (AppScreen.projects, Icons.folder_outlined, 'Projects'),
-      (AppScreen.assets, Icons.layers_outlined, 'Assets'),
-      (AppScreen.profile, Icons.person_outline_rounded, 'Profile'),
+      (AppScreen.home, Icons.home_outlined, Icons.home_rounded, 'Home'),
+      (
+        AppScreen.projects,
+        Icons.folder_outlined,
+        Icons.folder_rounded,
+        'Projects',
+      ),
+      (AppScreen.orderHub, null, null, 'Orders'),
+      (
+        AppScreen.profile,
+        Icons.person_outline_rounded,
+        Icons.person_rounded,
+        'Profile',
+      ),
     ];
+    final current = tabOf(controller.screen);
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xff080e14),
@@ -290,33 +312,47 @@ class BottomNav extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 5),
       child: Row(
         children: entries.map((e) {
-          final selected = controller.screen == e.$1;
+          final selected = current == e.$1;
+          final colour = selected ? Palette.cyan : const Color(0xffb9c5cf);
           return Expanded(
-            child: InkWell(
-              onTap: () => controller.go(e.$1),
-              borderRadius: BorderRadius.circular(10),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      e.$2,
-                      color: selected ? Palette.cyan : Palette.muted,
-                      size: 22,
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      e.$3,
-                      style: TextStyle(
-                        color: selected ? Palette.cyan : Palette.muted,
-                        fontSize: 10,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w400,
+            child: Semantics(
+              selected: selected,
+              child: InkWell(
+                key: ValueKey('nav-${e.$4.toLowerCase()}'),
+                onTap: () => controller.go(e.$1),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 24,
+                        child: e.$2 == null
+                            ? CubeIcon(
+                                filled: selected,
+                                color: colour,
+                                size: 23,
+                              )
+                            : Icon(
+                                selected ? e.$3 : e.$2,
+                                color: colour,
+                                size: 24,
+                              ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        e.$4,
+                        style: TextStyle(
+                          color: colour,
+                          fontSize: 11,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -325,6 +361,85 @@ class BottomNav extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The Orders tab's box: an isometric cube, solid when [filled].
+class CubeIcon extends StatelessWidget {
+  const CubeIcon({
+    super.key,
+    required this.filled,
+    required this.color,
+    this.size = 24,
+  });
+  final bool filled;
+  final Color color;
+  final double size;
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: size,
+    child: CustomPaint(painter: _CubePainter(filled, color)),
+  );
+}
+
+class _CubePainter extends CustomPainter {
+  const _CubePainter(this.filled, this.color);
+  final bool filled;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 24;
+    Offset p(double x, double y) => Offset(x * s, y * s);
+    final top = Path()
+      ..moveTo(p(12, 2.5).dx, p(12, 2.5).dy)
+      ..lineTo(p(20.5, 7).dx, p(20.5, 7).dy)
+      ..lineTo(p(12, 11.5).dx, p(12, 11.5).dy)
+      ..lineTo(p(3.5, 7).dx, p(3.5, 7).dy)
+      ..close();
+    final left = Path()
+      ..moveTo(p(3.5, 7).dx, p(3.5, 7).dy)
+      ..lineTo(p(12, 11.5).dx, p(12, 11.5).dy)
+      ..lineTo(p(12, 21.5).dx, p(12, 21.5).dy)
+      ..lineTo(p(3.5, 17).dx, p(3.5, 17).dy)
+      ..close();
+    final right = Path()
+      ..moveTo(p(20.5, 7).dx, p(20.5, 7).dy)
+      ..lineTo(p(20.5, 17).dx, p(20.5, 17).dy)
+      ..lineTo(p(12, 21.5).dx, p(12, 21.5).dy)
+      ..lineTo(p(12, 11.5).dx, p(12, 11.5).dy)
+      ..close();
+    if (filled) {
+      final hsl = HSLColor.fromColor(color);
+      canvas.drawPath(
+        top,
+        Paint()
+          ..color = hsl
+              .withLightness((hsl.lightness + .18).clamp(0, 1))
+              .toColor(),
+      );
+      canvas.drawPath(left, Paint()..color = color);
+      canvas.drawPath(
+        right,
+        Paint()
+          ..color = hsl
+              .withLightness((hsl.lightness - .14).clamp(0, 1))
+              .toColor(),
+      );
+      return;
+    }
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7 * s
+      ..strokeJoin = StrokeJoin.round
+      ..color = color;
+    canvas.drawPath(top, line);
+    canvas.drawPath(left, line);
+    canvas.drawPath(right, line);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CubePainter old) =>
+      old.filled != filled || old.color != color;
 }
 
 void showToast(BuildContext context, String message) {

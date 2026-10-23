@@ -11,7 +11,6 @@ import '../widgets/ui.dart';
 import 'business.dart';
 import 'image_editor.dart';
 import 'onboarding.dart' show editServer;
-import 'order_entry.dart' show OrderNowScreen;
 import 'team.dart' show TeamScreen;
 
 class _Tabs extends StatelessWidget {
@@ -173,6 +172,21 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       children: [
         TopBar(
           title: 'My projects',
+          // Assets left the bottom bar (client picture 168.jpg): it opens from here and from Profile.
+          leading: TextButton.icon(
+            key: const ValueKey('projects-assets'),
+            onPressed: () => c.go(AppScreen.assets),
+            style: TextButton.styleFrom(
+              foregroundColor: Palette.cyan,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+            icon: const Icon(Icons.layers_outlined, size: 19),
+            label: const Text(
+              'Assets',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            ),
+          ),
           trailing: [
             NotificationBell(c),
             IconButton(
@@ -309,7 +323,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${p.sport} · v${p.version} · ${p.age}',
+                                    // The sport's garment tile ("Netball dress"), when the kit has one.
+                                    '${p.sport}${p.kit.productName.isEmpty ? '' : ' · ${p.kit.productName}'} · v${p.version} · ${p.age}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -442,7 +457,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
     final canUpload = _tab == 'Logos' || _tab == 'Uploads';
     return Column(
       children: [
-        TopBar(title: 'Assets', subtitle: 'Logos · patterns · artwork', trailing: [NotificationBell(widget.c)]),
+        TopBar(
+          // Opened from Projects or Profile (no longer a bottom-bar tab).
+          onBack: c.back,
+          title: 'Assets',
+          subtitle: 'Logos · patterns · artwork',
+          trailing: [NotificationBell(widget.c)],
+        ),
         _Tabs(
           labels: const ['Logos', 'Patterns', 'Artwork', 'Uploads'],
           selected: _tab,
@@ -640,11 +661,11 @@ class ProfileScreen extends StatelessWidget {
               'Asset library',
               () => c.go(AppScreen.assets),
             ),
-            // Orders (as ORDERS on the website): the three ways to order.
+            // Orders (as ORDERS on the website): the Orders tab, the three ways to order.
             _row(
               Icons.receipt_long_outlined,
               'Orders',
-              () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => OrderNowScreen(c))),
+              () => c.go(AppScreen.orderHub),
             ),
             _row(
               Icons.local_shipping_outlined,
@@ -655,7 +676,9 @@ class ProfileScreen extends StatelessWidget {
             _row(
               Icons.groups_outlined,
               '3DEEZI TEAM',
-              () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => TeamScreen(c))),
+              () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute<void>(builder: (_) => TeamScreen(c))),
             ),
             _row(
               Icons.workspace_premium_outlined,

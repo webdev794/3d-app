@@ -12,6 +12,7 @@ import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app.dart' show ThreeDeeziApp;
 import 'package:three_deezi/ai_service.dart';
 import 'package:three_deezi/app_controller.dart';
+import 'package:three_deezi/assist.dart';
 import 'package:three_deezi/screens/ai_designer.dart';
 
 import 'flow_test.dart' show mountPhone;
@@ -524,7 +525,6 @@ void main() {
       );
       expect(onResults.overlaps(download), isFalse);
       for (final (s, gap) in [
-        (AppScreen.home, 92.0),
         (AppScreen.projects, 92.0),
         (AppScreen.studio, 172.0),
       ]) {
@@ -536,6 +536,26 @@ void main() {
           closeTo(gap, 1),
           reason: '$s keeps its place',
         );
+      }
+      // The Home and the Orders tab have their own Assist link instead: the
+      // round launcher shows there only while the chat is open (to close it).
+      final assist = AssistController.latest!;
+      for (final s in [AppScreen.home, AppScreen.orderHub]) {
+        c.go(s);
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(launcher, findsNothing, reason: '$s has its own link');
+        assist.show();
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(launcher, findsOneWidget, reason: '$s: the chat is open');
+        expect(
+          screen.height - tester.getRect(launcher).bottom,
+          closeTo(92, 1),
+          reason: '$s keeps its place',
+        );
+        await tester.tap(launcher);
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(assist.open, isFalse);
+        expect(launcher, findsNothing, reason: '$s: closed again');
       }
       await tester.pump(const Duration(seconds: 2));
     },

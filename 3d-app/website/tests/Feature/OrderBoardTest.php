@@ -423,7 +423,8 @@ class OrderBoardTest extends TestCase
 
     public function test_the_options_and_a_studio_kit_order_keep_working(): void
     {
-        $this->getJson('/api/v1/orders/options')->assertOk()->assertJsonPath('data.garments.0.id', 'jersey')->assertJsonPath('data.sizes.8', 'Kids')
+        $this->getJson('/api/v1/orders/options')->assertOk()->assertJsonPath('data.garments.0.id', 'jersey')->assertJsonPath('data.sizes.0', 'XS')->assertJsonPath('data.sizes.11', '8XL')->assertJsonPath('data.sizes.12', 'W8')->assertJsonPath('data.sizes.21', '2Y')
+            ->assertJsonPath('data.sizes.28', '16Y')->assertJsonPath('data.sizes.29', 'Kids')->assertJsonPath('data.size_sets.womens.8', 'W24')->assertJsonPath('data.fits.2.name', 'Kids')
             ->assertJsonPath('data.stages.1.label', 'Design & Approval')->assertJsonPath('data.files.max_files', 15);
         $project = $this->customer->projects()->create(['name' => 'Home kit', 'sport' => 'football', 'garment' => 'fullkit', 'design' => [], 'thumbnail' => 'data:image/png;base64,BBBB']);
         $id = $this->postJson('/api/v1/orders', ['project_id' => $project->id, 'contact_name' => 'Fab', 'design_final' => true, 'names' => 'none', 'sizes' => ['M' => 4]], ['Idempotency-Key' => 'studio-key-1'])

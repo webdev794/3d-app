@@ -52,7 +52,7 @@ export function trackColour(design: { main?: string; secondary?: string; accent?
     return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-20';
+const VIEWER_VERSION = '2026-10-20-21';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
@@ -109,6 +109,8 @@ export interface Design {
     layers?: ArtworkLayer[];
     marks?: Record<string, MarkPlace>;
     layout?: DesignLayout | null;
+    /** The sport's garment tile it was chosen as ("Netball dress", task 9.99): its name in the Studio, projects and orders; `garment` stays the 3D garment. Empty: a plain 3D garment. */
+    productName?: string;
 }
 
 export const defaultDesign: Design = {

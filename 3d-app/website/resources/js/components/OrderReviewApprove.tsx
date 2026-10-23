@@ -26,6 +26,7 @@ import { KitViewer, defaultDesign, type Design, type KitViewerHandle } from './K
 import type { Quote as PayQuote } from './OrderPayment';
 import { DownloadReviewPdf, ReviewSummaryChip, reviewGarmentsFrom, reviewLayoutFor, useOrderReviewMulti, type ReviewDelivery as MultiDelivery, type ReviewGarment as MultiGarment } from './OrderReviewGarments';
 import '../../css/order-review.css';
+import { ALL_SIZES, siteSize } from '../orderSizes';
 
 /* ================================================================================================ shapes */
 
@@ -82,7 +83,7 @@ const PICTURED = new Set(['jersey', 'shorts', 'tee', 'singlet', 'polo', 'socks',
 export const garmentThumb = (garment: string) => (PICTURED.has(garment) ? media(`showroom/garment-${garment}.webp`) : null);
 const TOPS = new Set(['jersey', 'singlet', 'tee', 'polo', 'hoodie', 'jacket', 'warmup', 'fullkit']);
 const BOTTOMS = new Set(['shorts', 'pants']);
-const SITE_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
+const SITE_SIZES = ALL_SIZES;
 const NO_GARMENTS: MultiGarment[] = [];
 const PICTURES = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 const SHEETS = ['xlsx', 'xls', 'csv', 'ods'];
@@ -96,7 +97,7 @@ const isPicture = (src: unknown): src is string => typeof src === 'string' && /^
 export const isYouthSize = (s: string) => /^(y|yth|youth|k|kid|kids|age|size)?\s*-?\s*\d{1,2}\s*(y|yr|yrs|years?|k)?$/i.test(s.trim());
 
 /**
- * The sizes ordered, in the site's order (XS … 4XL, Kids), then any other size the order form had: youth sizes
+ * The sizes ordered, in the site's order (XS … 8XL, W8 … W24, 2Y … 16Y, Kids), then any other size the order form had: youth sizes
  * (Y8, 10, Youth 12 …) by number, then the rest alphabetically. Only sizes with a quantity.
  */
 export function reviewSizes(garments: Pick<ReviewGarment, 'sizes'>[], siteOrder: readonly string[] = SITE_SIZES): string[] {
@@ -115,7 +116,8 @@ export function reviewSizes(garments: Pick<ReviewGarment, 'sizes'>[], siteOrder:
 
 /**
  * The Kids count split into the youth sizes the order form wrote ("10Y" 3, "12Y" 2), when those add up to it; otherwise
- * the sizes as they are. Only for showing: the order keeps its sizes (XS … 4XL, Kids).
+ * the sizes as they are. Only for showing: the order keeps its sizes. Orders since 2026-10-22 have the youth sizes
+ * themselves (2Y … 16Y), so this only changes older ones (and forms with sizes not on the list).
  */
 export function youthSplit(sizes: Record<string, number>, formSizes?: Record<string, number> | null): Record<string, number> {
   const kids = Number(sizes.Kids) || 0;
@@ -123,7 +125,10 @@ export function youthSplit(sizes: Record<string, number>, formSizes?: Record<str
   const youth = Object.entries(formSizes).filter(([s, n]) => isYouthSize(s) && (Number(n) || 0) > 0);
   if (!youth.length || youth.reduce((a, [, n]) => a + Number(n), 0) !== kids) return sizes;
   const { Kids: _kids, ...rest } = sizes;
-  return { ...rest, ...Object.fromEntries(youth.map(([s, n]) => [s.trim().toUpperCase(), Number(n)])) };
+  // "Y10" and "10 yrs" show as the site's 10Y; a size not on the list as written.
+  const split: Record<string, number> = { ...rest };
+  for (const [s, n] of youth) { const key = siteSize(s) ?? s.trim().toUpperCase(); split[key] = (split[key] ?? 0) + Number(n); }
+  return split;
 }
 
 /**

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowUp, Box, Check, ChevronDown, ChevronLeft, ChevronRight, Download, Ellipsis, ImagePlus, ImageUp, Lightbulb, LoaderCircle, Mic, MicOff, Paperclip, PenLine, Plus, RefreshCw, SendHorizontal, Sparkles, Undo2, WandSparkles, X } from 'lucide-react';
-import { api, media, saveBlob, type Catalog, type CatalogItem, type Concept } from '../api';
+import { api, ApiError, media, saveBlob, type Catalog, type CatalogItem, type Concept, type GarmentTile } from '../api';
 import type { Draft } from '../App';
 import type { Design } from '../types';
 import { DesignThumbnail } from './Library';
 import Loader from '../components/Loader';
 import ImageEditor, { EditImageButton } from '../components/ImageEditor';
 import { CategoryIcon } from '../components/GarmentIcon';
-import { allGarments, formatCount, friendlyError, garmentInBrief, garmentLabels, MAX_BRIEF, sportInBrief, SportRow, sportTiles, useVoice } from '../components/AiStage';
+import { allGarments, formatCount, friendlyError, garmentChips, garmentInBrief, garmentLabels, MAX_BRIEF, sportInBrief, SportRow, sportTiles, useVoice, type GarmentChip } from '../components/AiStage';
 import { ResultsViewer } from '../components/ResultsViewer';
 import '../../css/ai-designer.css';
 
@@ -113,33 +113,92 @@ function CategoryShortcuts({ sports, active, onPick }: { sports: CatalogItem[]; 
   </div>;
 }
 
-/** Step 2: choose the garment for the sport. */
-export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: { catalog: Catalog | null; draft: Draft; onSelect: (id: string) => void; onNext: () => void; onBack: () => void }) {
+/** A tile's picture (media/showroom/garment-<image>.webp); a missing one falls back to its 3D garment's, then the jersey's. */
+const tileArt = (t: GarmentTile) => garmentArt(t.image || t.garment || 'jersey');
+/**
+ * A sport's garment tiles (task 9.99, config/catalog.php `tiles`): its own names on our 3D garments. An older server
+ * without them gets one tile per garment the sport lists (or every garment).
+ */
+export function sportGarmentTiles(sport: CatalogItem | undefined, garments: CatalogItem[] = []): GarmentTile[] {
+  if (sport?.tiles?.length) return sport.tiles;
+  const ids = sport?.garments?.length ? sport.garments : [...garments].sort((a, b) => order(a.id) - order(b.id)).map(g => g.id);
+  return ids.flatMap(id => { const g = garments.find(x => x.id === id); return g ? [{ name: g.name, description: g.description, garment: g.id, fit: 'exact' as const, image: g.id }] : []; });
+}
+/** "More teamwear": every other 3D garment, by its own name (the sport's tiles already show theirs). */
+export function moreGarmentTiles(sport: CatalogItem | undefined, garments: CatalogItem[] = []): GarmentTile[] {
+  const used = new Set(sportGarmentTiles(sport, garments).map(t => t.garment));
+  return [...garments].sort((a, b) => order(a.id) - order(b.id)).filter(g => !used.has(g.id)).map(g => ({ name: g.name, description: g.description, garment: g.id, fit: 'exact' as const, image: g.id }));
+}
+/** The garment's name for a design: the sport tile it was chosen as ("Netball dress"), else the 3D garment's name. */
+export function productName(design: Pick<Design, 'garment' | 'productName'>, catalog?: Catalog | null): string {
+  return design.productName || catalog?.garments.find(g => g.id === design.garment)?.name || design.garment;
+}
+/** What choosing a tile puts on the draft: the 3D garment, the tile's name (empty for a plain 3D garment) and its settings. */
+export type GarmentChoice = { garment: string; productName: string; design?: GarmentTile['design'] };
+
+/**
+ * Step 2 (client visuals images/157.jpg and 160.jpg): "<SPORT> UNIFORMS & TEAMWEAR", the sport's own garment tiles (rows of
+ * four, a shorter last row centred) and "More teamwear" for every other 3D garment. A tile without a 3D model of its own
+ * says which garment the 3D preview uses; one with none close enough is COMING SOON and cannot be chosen.
+ */
+export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: { catalog: Catalog | null; draft: Draft; onSelect: (choice: GarmentChoice) => void; onNext: () => void; onBack: () => void }) {
   const sport = catalog?.sports.find(s => s.id === draft.sport);
-  const all = [...(catalog?.garments ?? [])].sort((a, b) => order(a.id) - order(b.id));
-  /** The sport's garments (catalog.php), most likely first; "All garments" shows the rest too. */
-  const suited = sport?.garments?.length ? sport.garments.filter(id => all.some(g => g.id === id)) : [];
-  const [showAll, setShowAll] = useState(false);
-  const limited = suited.length > 0 && suited.length < all.length && !showAll;
-  const garments = limited ? suited.map(id => all.find(g => g.id === id)!) : all;
-  // A garment this sport does not offer (left from another sport) gives way to the sport's first.
-  useEffect(() => { if (limited && !suited.includes(draft.garment)) onSelect(suited[0]); // eslint-disable-next-line react-hooks/exhaustive-deps
+  const all = catalog?.garments ?? [];
+  const tiles = sportGarmentTiles(sport, all);
+  const extra = sport?.more === false ? [] : moreGarmentTiles(sport, all);
+  const chosen = draft.design.productName;
+  /** The tile chosen: by its name; a plain 3D garment from "More teamwear" has an empty name. */
+  const current = (chosen ? tiles.find(t => t.name === chosen && t.garment === draft.garment) : undefined)
+    ?? (chosen === '' ? extra.find(t => t.garment === draft.garment) : undefined);
+  const [showMore, setShowMore] = useState(() => !!current && extra.includes(current));
+  // A tile's own settings, and none left from another tile: a plain track jacket after the Hooded Tracksuit kept the
+  // hood (QA U); without a style it is the plain (collar) track jacket, as when it is chosen first.
+  const pick = (t: GarmentTile, plain = false) => { if (t.garment) onSelect({ garment: t.garment, productName: plain ? '' : t.name, design: { trackStyle: undefined, ...t.design } }); };
+  // A new sport (or a garment left from another one) starts on the sport's first garment.
+  useEffect(() => { if (catalog && !current) { const first = tiles.find(t => t.fit !== 'soon'); if (first) pick(first); } // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalog, draft.sport]);
-  return <section className="showroom garment-step">
-    <div className="showroom-bg dim" style={{ backgroundImage: `url(${media('showroom/stadium-stage.webp')})` }} />
+  const title = sport?.heading ?? sport?.name ?? 'your sport';
+  // Per-sport display settings (config/catalog.php): names only, own subtitle, a hint line and an own background.
+  const described = sport?.descriptions !== false;
+  const subtitle = sport?.subtitle || `Choose what you want to design for ${title}.`;
+  const backdrop = sport?.backdrop || 'stadium-stage';
+  const tile = (t: GarmentTile, plain = false) => {
+    const soon = t.fit === 'soon' || !t.garment, selected = !soon && current === t;
+    const uses = t.fit === 'nearest' ? all.find(g => g.id === t.garment)?.name : undefined;
+    const body = <>
+      {selected && <span className="tile-check"><Check size={14} /></span>}
+      {soon && <span className="soon-badge">COMING SOON</span>}
+      <img src={tileArt(t)} className={t.image && t.image !== t.garment ? 'tile-photo' : undefined} alt="" loading="lazy" decoding="async" onError={e => { const fallback = garmentArt(t.garment ?? 'jersey'); if (!e.currentTarget.src.endsWith(fallback)) e.currentTarget.src = fallback; }} />
+      <strong>{t.name}</strong>{described && <small>{t.description}</small>}
+      {uses && described && <em className="tile-note">3D preview uses {uses.toLowerCase()}</em>}
+    </>;
+    // Names only: the description (and which 3D garment the preview uses) moves to the tooltip.
+    const tip = described ? undefined : [t.description, uses && `3D preview uses ${uses.toLowerCase()}`, soon && 'Coming soon'].filter(Boolean).join(' · ');
+    return soon ? <div key={t.name} className="garment-tile soon" aria-disabled="true" data-tile={t.name} title={tip}>{body}</div>
+      : <button key={`${plain ? 'more' : 'tile'}-${t.name}`} type="button" className={`garment-tile${selected ? ' selected' : ''}`} onClick={() => pick(t, plain)} onDoubleClick={onNext} aria-pressed={selected} data-tile={t.name} title={tip}>{body}</button>;
+  };
+  return <section className={`showroom garment-step${described ? '' : ' names-only'}`} data-sport={sport?.id}>
+    <div className={`showroom-bg dim${backdrop !== 'stadium-stage' ? ' own-backdrop' : ''}`} style={{ backgroundImage: `url(${media(`showroom/${backdrop}.webp`)})` }} />
     <div className="glow-panel garment-panel">
-      <div className="step-heading"><span className="step-number">2</span><div><h1>Select garment</h1><p>Choose what you want to design for {sport?.name || 'your sport'}.</p></div></div>
-      {!catalog ? <div className="empty-state"><LoaderCircle className="spin" /> Loading garments…</div> : <div className="garment-tiles">
-        {garments.map(g => <button key={g.id} className={`garment-tile ${draft.garment === g.id ? 'selected' : ''}`} onClick={() => onSelect(g.id)} onDoubleClick={onNext} aria-pressed={draft.garment === g.id}>
-          {draft.garment === g.id && <span className="tile-check"><Check size={14} /></span>}
-          <img src={garmentArt(g.id)} alt="" onError={e => { const fallback = garmentArt(g.id.includes('polo') ? 'polo' : 'jersey'); if (!e.currentTarget.src.endsWith(fallback)) e.currentTarget.src = fallback; }} /><strong>{g.name}</strong><small>{g.description}</small>
-        </button>)}
-        {comingSoon.map(g => <div key={g.id} className="garment-tile soon" aria-disabled="true"><span className="soon-badge">COMING SOON</span><img src={garmentArt(g.id)} alt="" /><strong>{g.name}</strong><small>{g.description}</small></div>)}
-      </div>}
-      {catalog && suited.length > 0 && suited.length < all.length && <button type="button" className="garment-more" aria-pressed={showAll} onClick={() => setShowAll(v => !v)}>{showAll ? `Only ${sport?.name ?? 'this sport'} garments` : 'Show all garments'}</button>}
-      <div className="garment-actions"><button className="button button-outline" onClick={onBack}><ArrowLeft size={18} /> Change sport</button><button className="button button-gradient" disabled={!catalog || !draft.garment} onClick={onNext}>Continue to studio <ArrowRight size={19} /></button></div>
+      <div className="step-heading"><span className="step-number">2</span><div><h1>{sport ? `${title} ${sport.group === 'apparel' ? 'teamwear' : 'uniforms & teamwear'}` : 'Select garment'}</h1><p>{subtitle}</p></div></div>
+      {!catalog ? <div className="empty-state"><LoaderCircle className="spin" /> Loading garments…</div> : <>
+        <div className="garment-tiles" role="group" aria-label={`${title} garments`}>{tiles.map(t => tile(t))}</div>
+        {extra.length > 0 && <button type="button" className="garment-more" aria-expanded={showMore} aria-controls="garment-more-tiles" onClick={() => setShowMore(v => !v)}>{showMore ? 'Less teamwear' : 'More teamwear'} <ChevronRight size={16} className={showMore ? 'is-open' : ''} /></button>}
+        {showMore && extra.length > 0 && <div id="garment-more-tiles" className="garment-tiles garment-tiles-more" role="group" aria-label="More teamwear">{extra.map(t => tile(t, true))}</div>}
+      </>}
+      <div className="garment-actions"><button className="button button-outline" onClick={onBack}><ArrowLeft size={18} /> Change sport</button>{sport?.select_hint && <p className="garment-hint">{sport.select_hint}</p>}<button className="button button-gradient" disabled={!catalog || !current} onClick={onNext}>Continue to studio <ArrowRight size={19} /></button></div>
     </div>
   </section>;
+}
+
+/**
+ * An AI reply checked before it is used: one without what it promised (no `data`, no picture: a proxy page, a cut-off
+ * reply) throws inside the caller's try, so the usual friendly error shows ("The AI designer is busy or unavailable…",
+ * with Try again) instead of a blank page (a missing picture read inside a state update unmounted the whole page).
+ */
+export function aiReply<T extends object>(reply: T | null | undefined, keys: (keyof T)[], message = ''): T {
+  if (!reply || typeof reply !== 'object' || keys.some(k => reply[k] == null || reply[k] === '')) throw new ApiError(message, 502);
+  return reply;
 }
 
 /** An attached picture: kept on this device until Generate (so it can be attached before signing in), then saved to Assets. */
@@ -204,7 +263,9 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   /** The sports tile chosen (optional), the garment chips (only when the brief names no garment) and the (+) menu. */
   const [tile, setTile] = useState<string | null>(null);
   const [askGarment, setAskGarment] = useState(false);
-  const [pickedGarment, setPickedGarment] = useState<string | null>(null);
+  const [pickedGarment, setPickedGarment] = useState<GarmentChip | null>(null);
+  /** The garment's name for the last brief (a chip such as "Netball dress"), for Try again. */
+  const lastProduct = useRef<GarmentChip | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   /** A friendly note that is not an error (a long paste was shortened). */
   const [note, setNote] = useState('');
@@ -250,25 +311,28 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   }, [plusOpen]);
 
   /** Generate: the sport from the tile (or the brief), the garment from the brief or a quick chip; then sign in if needed. */
-  function submit(garmentChoice?: string) {
+  function submit(garmentChoice?: GarmentChip) {
     voice.stop();
     const text = prompt.trim();
     if (!text && !references.length) { setError('Describe your design: the garment, colours, style or your team name.'); field.current?.focus(); return; }
     if (text.length < 10 && !references.length) { setError('Tell us a little more: colours, style or your team name (at least 10 characters).'); field.current?.focus(); return; }
     const sport = chosen ?? sportInBrief(text, tiles);
     // A garment picked for an earlier brief only when this sport offers it (Fishing has no shorts).
-    const garment = garmentChoice ?? garmentInBrief(text) ?? (pickedGarment && (sport?.garments ?? allGarments).includes(pickedGarment) ? pickedGarment : null);
-    if (!garment) { setError(''); setAskGarment(true); return; }
+    const named = garmentInBrief(text);
+    const choice: GarmentChip | null = garmentChoice ?? (named ? { garment: named, name: '' } : null) ?? (pickedGarment && (sport?.garments ?? allGarments).includes(pickedGarment.garment) ? pickedGarment : null);
+    if (!choice) { setError(''); setAskGarment(true); return; }
     if (garmentChoice) setPickedGarment(garmentChoice);
     setAskGarment(false); setError(''); setNote('');
     let brief = text.length >= 10 ? text : `Create a design from my attached artwork. ${text}`.trim();
     if (sport?.brief && !brief.toLowerCase().includes(sport.brief.split(' ')[0].toLowerCase())) brief = `${sport.brief}: ${brief}`;
-    requireAuth(() => void generate(brief, sport?.sport ?? draft.sport, garment));
+    requireAuth(() => void generate(brief, sport?.sport ?? draft.sport, choice.garment, choice));
   }
-  async function generate(brief: string, sport: string, garment: string) {
+  async function generate(brief: string, sport: string, garment: string, chip: GarmentChip | null = null) {
+    lastProduct.current = chip;
+    const product = chip?.garment === garment ? { productName: chip.name, ...chip.design } : { productName: '' };
     const mine = ++run.current, current = () => run.current === mine;
     setResults(true); setPlanning(true); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError('');
-    onChange({ ...draft, sport, garment, mode: 'ai', design: { ...draft.design, garment: garment as Design['garment'] }, patternMotif: undefined, pendingDrawing: undefined });
+    onChange({ ...draft, sport, garment, mode: 'ai', design: { ...draft.design, ...product, garment: garment as Design['garment'] }, patternMotif: undefined, pendingDrawing: undefined });
     // Pictures attached before signing in are saved now (in Assets, as references), so the AI can read them.
     let refs = references;
     try {
@@ -281,17 +345,17 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     try {
       if (!isAi) {
         // Preview mode (no AI on the server): four concepts from the wording, shown as 3D kit thumbnails.
-        const result = await api<{ concepts: Concept[] }>('/concepts', { method: 'POST', body: JSON.stringify(body) });
+        const result = aiReply(await api<{ concepts: Concept[] }>('/concepts', { method: 'POST', body: JSON.stringify(body) }), ['concepts']);
         if (current()) setOptions(result.concepts.map((c, i) => ({ ...c, rank: i + 1, busy: false })));
         return;
       }
       // Fast like ChatGPT (client 2026-10-21): the PRIMARY (the brief as written) starts rendering at once, while one short
       // planning call gives its 3D kit spec and three ranked alternatives; then the options render, all in parallel on a
       // normal server (the local one answers one request at a time). Results from an older brief are dropped.
-      const first: DesignOption = { id: `primary-${mine}`, rank: 1, name: 'Your design', description: 'Your brief, exactly as written.', design: { ...draft.design, garment: garment as Design['garment'] }, direction: { ownDesign: false }, image: null, busy: true };
+      const first: DesignOption = { id: `primary-${mine}`, rank: 1, name: 'Your design', description: 'Your brief, exactly as written.', design: { ...draft.design, ...product, garment: garment as Design['garment'] }, direction: { ownDesign: false }, image: null, busy: true };
       setOptions([first]);
       void render(first, wantHd ? 'high' : 'medium', mine, 'presentation');
-      const plan = await api<{ directions: DesignOption[] }>('/ai/designs', { method: 'POST', body: JSON.stringify(body) });
+      const plan = aiReply(await api<{ directions: DesignOption[] }>('/ai/designs', { method: 'POST', body: JSON.stringify(body) }), ['directions']);
       if (!current()) return;
       const [spec, ...rest] = plan.directions;
       const alternatives = rest.map(d => ({ ...d, image: null, busy: true }));
@@ -306,7 +370,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     if (!body || !option.direction) return;
     setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: true, pending: quality, view, error: undefined } : x));
     try {
-      const r = await api<{ image: string; quality: 'high' | 'medium'; view?: View }>('/ai/designs/render', { method: 'POST', body: JSON.stringify({ ...body, rank: option.rank, quality, view, direction: option.direction, name: option.name }) });
+      const r = aiReply(await api<{ image: string; quality: 'high' | 'medium'; view?: View }>('/ai/designs/render', { method: 'POST', body: JSON.stringify({ ...body, rank: option.rank, quality, view, direction: option.direction, name: option.name }) }), ['image']);
       if (current()) setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: false, image: r.image, quality: r.quality, view: r.view ?? view } : x));
     } catch (e) { if (current()) setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: false, error: friendlyError(e) } : x)); }
   }
@@ -328,7 +392,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
       setOptions(list => list.map(x => x.id === id ? { ...x, busy: true, pending: 'refine' } : x));
       try {
         const image = before.startsWith('data:image/') ? before : await new Promise<string>((resolve, reject) => { void fetch(before).then(r => r.blob()).then(b => { const f = new FileReader(); f.onload = () => resolve(String(f.result)); f.onerror = reject; f.readAsDataURL(b); }, reject); });
-        const r = await api<{ image: string }>('/ai/image-edit', { method: 'POST', body: JSON.stringify({ image, instruction: text }) }); // no size: the server keeps the picture's own proportions
+        const r = aiReply(await api<{ image: string }>('/ai/image-edit', { method: 'POST', body: JSON.stringify({ image, instruction: text }) }), ['image']); // no size: the server keeps the picture's own proportions
         if (!current()) return;
         setOptions(list => list.map(x => x.id === id ? { ...x, busy: false, image: r.image, previous: before } : x));
         setRefineText('');
@@ -361,7 +425,15 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     if (images.length > room) setError(`Only ${room} more picture${room === 1 ? '' : 's'} could be added: up to ${MAX_REFERENCES} in all.`);
   }
   // Not while MAKE IT 3D is drawing: it opens the Studio by itself with the print sheet (a concept would start its own AI print meanwhile).
-  const customize = (concept: Pick<Concept, 'name' | 'design' | 'motif'>) => { if (making3d) return; onChange({ ...draft, name: concept.name, design: concept.design, mode: 'ai', patternMotif: concept.motif, pendingDrawing: undefined }); onStudio(); };
+  /** The garment's name chosen with the brief ("Netball dress") stays with the design while it is the same 3D garment. */
+  // …and so does the chip's own setting (the hooded tracksuit's hood): the AI's plan does not know it (a "Hooded Tracksuit"
+  // otherwise opened in the Studio as a collar track jacket).
+  const named = (design: Design): Design => design.garment === draft.design.garment
+    ? { ...design, ...(lastProduct.current?.garment === design.garment ? lastProduct.current.design : undefined), productName: draft.design.productName }
+    : { ...design, productName: undefined };
+  // A new kit, as MAKE IT 3D and Convert open it: the draft can still hold a project opened earlier (the Studio's
+  // "New AI design"), and its Save must not overwrite that project with this design (QA U).
+  const customize = (concept: Pick<Concept, 'name' | 'design' | 'motif'>) => { if (making3d) return; onChange({ ...draft, id: undefined, version: undefined, name: concept.name, design: named(concept.design), mode: 'ai', patternMotif: concept.motif, pendingDrawing: undefined }); onStudio(); };
   /** "Open in 3D Designer" (MAKE IT 3D): the PRIMARY redrawn by the same AI as a flat front and back print sheet, then put on the 3D kit like a design picture. */
   async function makeIt3d() {
     const image = primary?.image;
@@ -371,7 +443,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     // The varsity jacket too (its letter, club name and number come from the design's wordmark and number).
     if (draft.garment === 'hoodie' || draft.garment === 'ziphoodie' || draft.garment === 'varsity' || draft.garment === 'trackjacket') {
       const logo = primary.design.logoImage || references.find(r => r.preview.startsWith('data:image/'))?.preview || null;
-      onChange({ ...draft, id: undefined, version: undefined, name: primary.name || draft.name, mode: 'ai', design: { ...primary.design, garment: draft.garment, layout: null, logoImage: logo }, patternMotif: primary.motif, pendingDrawing: undefined });
+      onChange({ ...draft, id: undefined, version: undefined, name: primary.name || draft.name, mode: 'ai', design: named({ ...primary.design, garment: draft.garment as Design['garment'], layout: null, logoImage: logo }), patternMotif: primary.motif, pendingDrawing: undefined });
       onStudio();
       onNotice?.(draft.garment === 'varsity' || draft.garment === 'trackjacket' ? `The ${draft.garment === 'varsity' ? 'varsity' : 'track'} jacket takes your design’s colours and logo; full print designs on it are coming.` : 'Hoodies take your design’s colours and logo; full print designs on hoodies are coming.');
       return;
@@ -379,16 +451,16 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     const mine = run.current, current = () => run.current === mine;
     setMaking3d(true); setError('');
     try {
-      const sheet = await api<{ asset: { id: number; name: string }; image: string }>('/ai/print-sheet', { method: 'POST', body: JSON.stringify({ image, sport: draft.sport, garment: draft.garment, reference_ids: references.flatMap(r => r.id ? [r.id] : []), name: primary?.name ?? '', front_only: primary?.view === 'front' }) });
+      const sheet = aiReply(await api<{ asset: { id: number; name: string }; image: string }>('/ai/print-sheet', { method: 'POST', body: JSON.stringify({ image, sport: draft.sport, garment: draft.garment, reference_ids: references.flatMap(r => r.id ? [r.id] : []), name: primary?.name ?? '', front_only: primary?.view === 'front' }) }), ['asset', 'image']);
       // Refine or another page meanwhile: the user stays where they went (the print sheet is kept in Assets).
       if (current()) putDrawing({ id: sheet.asset.id, name: sheet.asset.name, preview: sheet.image });
     } catch (e) { if (current()) setError(`Make it 3D: ${friendlyError(e)}`); } finally { if (current()) setMaking3d(false); }
   }
   /** The attached picture itself on the 3D kit (no AI): the Studio checks it, then puts it on exactly as drawn. */
-  const putDrawing = (picture: Reference) => { if (!picture.id) return; const top = (['singlet', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment']; onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'ai', design: { ...(primary?.design ?? draft.design), garment: top, layout: null }, patternMotif: undefined, pendingDrawing: { asset: picture.id, name: picture.name } }); onStudio(); };
+  const putDrawing = (picture: Reference) => { if (!picture.id) return; const top = (['singlet', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment']; onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'ai', design: named({ ...(primary?.design ?? draft.design), garment: top, layout: null }), patternMotif: undefined, pendingDrawing: { asset: picture.id, name: picture.name } }); onStudio(); };
 
   const full = references.length >= MAX_REFERENCES;
-  const garmentChoices = (chosen ?? sportInBrief(prompt, tiles))?.garments ?? allGarments;
+  const garmentChoices = garmentChips(chosen ?? sportInBrief(prompt, tiles));
   const stageProps = {
     onDragOver: (e: React.DragEvent) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropping(true); } },
     onDragLeave: (e: React.DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false); },
@@ -435,7 +507,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
         <input ref={upload} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" onChange={e => { void addFiles([...(e.target.files ?? [])]); e.target.value = ''; }} />
       </form>;
   const notes = <>
-      {askGarment && <div className="aid-ask" role="group" aria-label="Choose the garment"><span>What are we designing{chosen ? ` for ${chosen.label}` : ''}?</span>{garmentChoices.map(g => <button key={g} type="button" onClick={() => submit(g)}>{garmentLabels[g]}</button>)}</div>}
+      {askGarment && <div className="aid-ask" role="group" aria-label="Choose the garment"><span>What are we designing{chosen ? ` for ${chosen.label}` : ''}?</span>{garmentChoices.map(g => <button key={`${g.garment}-${g.name}`} type="button" onClick={() => submit(g)}>{g.name || garmentLabels[g.garment] || g.garment}</button>)}</div>}
       {error && <p className="aid-error" role="alert">{error}</p>}
       {note && !error && <p className="aid-info" role="status">{note}</p>}
   </>;
@@ -468,7 +540,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     });
     const main = !primary && planning ? <Loader overlay={false} title="Designing your kit…" subtitle="Four design directions from your brief and logos; the best becomes your primary design." steps={references.length ? ['Reading your brief and logos', 'Four design directions', 'Choosing the best', 'Rendering your designs'] : ['Reading your brief', 'Four design directions', 'Choosing the best', 'Rendering your designs']} seconds={isAi ? 30 : 3} />
       : primary ? art(primary, true)
-      : <div className="aid-art-error" role="alert"><p>{error || 'No designs came back.'}</p>{lastBrief.current && <button type="button" className="button button-outline" onClick={() => { const b = lastBrief.current!; requireAuth(() => void generate(b.prompt, b.sport, b.garment)); }}><RefreshCw size={15} /> Try again</button>}</div>;
+      : <div className="aid-art-error" role="alert"><p>{error || 'No designs came back.'}</p>{lastBrief.current && <button type="button" className="button button-outline" onClick={() => { const b = lastBrief.current!, chip = lastProduct.current; requireAuth(() => void generate(b.prompt, b.sport, b.garment, chip)); }}><RefreshCw size={15} /> Try again</button>}</div>;
     const canRefine = !!primary?.image && !primary.busy;
     return <section className={`aid-stage aid-results-stage${dropping ? ' dropping' : ''}${refineOpen ? ' refining' : ''}`} aria-label="Your designs" {...stageProps}>
       {background}
@@ -541,10 +613,10 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
   }
   async function convert() {
     setBusy(true); setError('');
-    try { setResult(await api('/ai/convert', { method: 'POST', body: JSON.stringify({ image }) })); }
+    try { setResult(aiReply(await api<NonNullable<typeof result>>('/ai/convert', { method: 'POST', body: JSON.stringify({ image }) }), ['design'], 'The converter sent an unexpected reply. Please try again.')); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  const open = () => { if (!result) return; onChange({ ...draft, id: undefined, version: undefined, name: result.name, sport: result.sport, garment: result.garment, mode: 'ai', design: { ...draft.design, ...result.design, patternImage: null, layout: null }, patternMotif: result.motif || undefined, pendingDrawing: undefined }); onStudio(); };
+  const open = () => { if (!result) return; onChange({ ...draft, id: undefined, version: undefined, name: result.name, sport: result.sport, garment: result.garment, mode: 'ai', design: { ...draft.design, ...result.design, patternImage: null, layout: null, productName: undefined }, patternMotif: result.motif || undefined, pendingDrawing: undefined }); onStudio(); };
   const [placing, setPlacing] = useState(false);
   /** The picture itself on the 3D kit (no AI): kept as a saved asset, checked in the Studio, put on exactly as drawn. */
   async function putDrawing() {
@@ -556,7 +628,7 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
       const form = new FormData(); form.append('file', new File([blob], `My design.${type === 'image/jpeg' ? 'jpg' : type.slice(6)}`, { type })); form.append('type', 'reference'); form.append('name', 'My design');
       const saved = await api<{ id: number; name: string }>('/assets', { method: 'POST', body: form });
       const top = (['singlet', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment'];
-      onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'dyo', design: { ...draft.design, garment: top, layout: null }, patternMotif: undefined, pendingDrawing: { asset: saved.id, name: saved.name || 'My design' } });
+      onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'dyo', design: { ...draft.design, garment: top, layout: null, productName: top === draft.design.garment ? draft.design.productName : undefined }, patternMotif: undefined, pendingDrawing: { asset: saved.id, name: saved.name || 'My design' } });
       onStudio();
     } catch (e) { setError((e as Error).message); } finally { setPlacing(false); }
   }

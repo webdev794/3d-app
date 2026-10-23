@@ -6,6 +6,7 @@ import GarmentIcon from '../components/GarmentIcon';
 import OrderFormReading from '../components/OrderFormReading';
 import { STAGES, StageBlocked, orderApi, uploadAdminFile, type Board, type BoardOrder, type FileKind, type OrderDetail, type OrderStatus, type StageProblem } from '../orderApi';
 import '../../css/admin-board.css';
+import { FIT_NAMES } from '../orderSizes';
 
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '');
@@ -157,7 +158,7 @@ function OrderPanel({ id, onClose, onNotice }: { id: number; onClose: () => void
 
       <div className="aob-grid">
         <section><h3>Garments and sizes</h3>
-          {order.items.length ? <ul className="aob-list">{order.items.map((item, i) => <li key={i}><strong>{item.name}</strong>{item.fit ? ` · ${item.fit}` : ''}{item.project_name ? ` · design “${item.project_name}”` : ''}<small>{Object.entries(item.sizes).map(([s, n]) => `${s} ${n}`).join(' · ')} = {item.quantity}{item.players?.length ? ` · ${item.players.length} names/numbers` : ''}</small></li>)}</ul>
+          {order.items.length ? <ul className="aob-list">{order.items.map((item, i) => <li key={i}><strong>{item.name}</strong>{item.fit ? ` · ${FIT_NAMES[item.fit] ?? item.fit}` : ''}{item.project_name ? ` · design “${item.project_name}”` : ''}<small>{Object.entries(item.sizes).map(([s, n]) => `${s} ${n}`).join(' · ')} = {item.quantity}{item.players?.length ? ` · ${item.players.length} names/numbers` : ''}</small></li>)}</ul>
             : <p className="muted">{order.quantity ? Object.entries(order.sizes).map(([s, n]) => `${s} ${n}`).join(' · ') : 'Sizes are in the uploaded order form.'}</p>}
           {order.notes && <p className="aob-notes">“{order.notes}”</p>}
           {order.needed_by && <p className="muted" data-testid="aob-date-required">Date required: <strong>{new Date(`${order.needed_by}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong></p>}

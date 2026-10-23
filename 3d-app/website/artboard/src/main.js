@@ -96,6 +96,104 @@ const canvas = new Canvas($('board'), {
   hoverCursor: 'default',
   moveCursor: 'default',
 });
+// Speed (9.102): while a selection of many objects is being moved, sized or turned, Fabric worked out every
+// selected object's handles again on every mouse move and once more at the drop. Only the selection's own box
+// shows handles then, and its objects' corners are kept relative to it (getCoords adds the selection's place),
+// so this is skipped; Fabric works each object out again when the selection ends (exitGroup → setCoords) and
+// on any other change (a nudge, Align …).
+let liveTransform = false;
+{
+  const nested = ActiveSelection.prototype._shouldSetNestedCoords;
+  ActiveSelection.prototype._shouldSetNestedCoords = function () { return !liveTransform && nested.call(this); };
+}
+for (const ev of ['mouse:up', 'selection:created', 'selection:updated', 'selection:cleared']) canvas.on(ev, () => { liveTransform = false; });
+// Speed (9.102): dragging, sizing or turning objects on a page with many objects drew every object again on every
+// mouse move. While the pointer is down, the objects that do not move are drawn once into pictures (those under the
+// moving ones together with the page, and each run of objects above them) and each frame only puts those pictures
+// back and draws what moves (the selection and connectors). Ends with the drag (or when anything is added or
+// removed, or the view changes). Not used when an object above the moving ones mixes its colours with what is under
+// it (blend modes), since the picture could not show that.
+const dragLayers = { on: false, moving: null, key: '', runs: null, enabled: true, made: [], makeCanvas: () => document.createElement('canvas') };
+let objectsVersion = 0;
+for (const ev of ['object:added', 'object:removed']) canvas.on(ev, () => { objectsVersion++; });
+/** The pictures' memory is given back at once (phones and Safari limit the memory all canvases may use). */
+function freeDragPictures() { for (const c of dragLayers.made) { c.width = 0; c.height = 0; } dragLayers.made = []; }
+function endDragLayers() {
+  const L = dragLayers;
+  L.on = false; L.moving = null; L.runs = null; L.key = '';
+  freeDragPictures();
+}
+for (const ev of ['object:moving', 'object:scaling', 'object:rotating', 'object:skewing']) canvas.on(ev, (e) => {
+  if (dragLayers.on || !dragLayers.enabled || !e.target || !canvas._currentTransform) return;
+  const t = e.target;
+  dragLayers.on = true; dragLayers.key = ''; dragLayers.runs = null;
+  dragLayers.moving = new Set([t, ...(t.type === 'activeselection' ? t.getObjects() : [])]);
+});
+for (const ev of ['mouse:up:before', 'object:modified', 'selection:created', 'selection:updated', 'selection:cleared']) canvas.on(ev, endDragLayers);
+{
+  const renderObjects = canvas._renderObjects;
+  const blendsBelow = (o) => (o.globalCompositeOperation && o.globalCompositeOperation !== 'source-over') || (o.type === 'group' && o.getObjects().some(blendsBelow));
+  const blit = (ctx, el) => { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(el, 0, 0); ctx.restore(); };
+  /** A new picture canvas at the page area's size. Always a new one: a canvas that already has its drawing context
+   *  keeps it even when there is no memory for its pixels, while a new one answers null (Safari's canvas limit). */
+  const picture = (w, h) => {
+    const c = dragLayers.makeCanvas();
+    dragLayers.made.push(c);
+    c.width = w; c.height = h;
+    const x = c.width === w && c.height === h ? c.getContext('2d') : null;
+    if (!x) throw new Error('no canvas memory');
+    return [c, x];
+  };
+  canvas._renderObjects = function (ctx, objects) {
+    const L = dragLayers;
+    if (!L.on || !this._currentTransform || ctx !== this.contextContainer || objects.length < 40) {
+      if (L.on && !this._currentTransform) endDragLayers();
+      return renderObjects.call(this, ctx, objects);
+    }
+    const el = this.lowerCanvasEl, m = ctx.getTransform();
+    const key = `${el.width}x${el.height}|${m.a},${m.b},${m.c},${m.d},${m.e},${m.f}|${objects.length}|${objectsVersion}`;
+    if (L.key === key && L.runs) {
+      for (const r of L.runs) { if (r.el) blit(ctx, r.el); else renderObjects.call(this, ctx, r.list); }
+      return;
+    }
+    // First frame of the drag (or something changed): split the objects into runs that move and runs that don't.
+    const runs = [];
+    for (const o of objects) {
+      const moves = L.moving.has(o) || !!o.connSpec || !!o.isHelper || (o.group && L.moving.has(o.group));
+      const last = runs.at(-1);
+      if (last && last.moves === moves) last.list.push(o); else runs.push({ moves, list: [o], el: null });
+    }
+    const firstMoving = runs.findIndex((r) => r.moves);
+    // At most 3 pictures (under, and two runs above): more scattered selections are drawn as usual.
+    if (!(firstMoving > 0 && runs.length <= 5 && !runs.slice(firstMoving).some((r) => !r.moves && r.list.some(blendsBelow)))) { endDragLayers(); renderObjects.call(this, ctx, objects); return; }
+    let drawn = 0; // objects drawn on the page area so far (a failure part-way draws the rest as usual)
+    freeDragPictures(); // the last ones (made again: the view or the objects changed)
+    try {
+      for (let i = 0; i < runs.length; i++) {
+        const r = runs[i];
+        if (r.moves) { renderObjects.call(this, ctx, r.list); drawn += r.list.length; continue; }
+        const [off, c2] = picture(el.width, el.height);
+        if (i === 0) {
+          // The page and everything under the moving objects: drawn as usual, then kept (with the background).
+          renderObjects.call(this, ctx, r.list); drawn += r.list.length;
+          c2.drawImage(el, 0, 0);
+        } else {
+          c2.setTransform(m); c2.imageSmoothingEnabled = ctx.imageSmoothingEnabled;
+          renderObjects.call(this, c2, r.list);
+          blit(ctx, off); drawn += r.list.length;
+        }
+        r.el = off;
+      }
+    } catch (err) {
+      console.warn('Artboard: drawing while dragging falls back to the usual way', err);
+      endDragLayers(); dragLayers.enabled = false;
+      renderObjects.call(this, ctx, objects.slice(drawn));
+      return;
+    }
+    L.runs = runs; L.key = key;
+  };
+}
+for (const ev of ['object:moving', 'object:scaling', 'object:rotating', 'object:skewing']) canvas.on(ev, (e) => { liveTransform = e.target?.type === 'activeselection'; });
 const handleStyle = { borderColor: '#1E7BFF', cornerColor: '#ffffff', cornerStrokeColor: '#1E7BFF', cornerStyle: 'rect', cornerSize: 9, transparentCorners: false, borderScaleFactor: 1.2, padding: 2 };
 // CorelDRAW handles (handles.js): one click shows the 6 sizing handles, a click on the selected object again the
 // rotate and slant handles with a centre of rotation; only with the Pick tool, not while Space is held (panning) and
@@ -189,12 +287,22 @@ function repairObject(o) {
 // Viewport: fit, zoom, pan, rulers, grid
 // ===================================================================
 let sizedAt = ''; // the canvas size last set (see resizeIfChanged)
-function resize() {
+function resize(draw = true) {
   sizedAt = `${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}`;
   canvas.setDimensions({ width: wrap.clientWidth, height: wrap.clientHeight });
   drawRulers();
-  // Resizing clears the canvas: draw it again straight away.
-  canvas.renderAll();
+  // Resizing clears the canvas: draw it again straight away (once: not again in the next frame as well).
+  if (draw) { canvas.renderAll(); canvas.cancelRequestedRender(); }
+}
+// Speed (9.102): selecting or picking a tool can make the property bar a row taller or shorter, so the page area
+// changes size. Its frame was drawn, then the canvas was sized again and drawn a second time (ResizeObserver, just
+// before the paint). The frame's drawing now checks the size first: the canvas is sized and drawn once.
+{
+  const renderAndReset = canvas.renderAndReset;
+  canvas.renderAndReset = function () {
+    if (sizedAt && `${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}` !== sizedAt) resize(false);
+    return renderAndReset.call(this);
+  };
 }
 function fit() {
   const pad = 40, w = wrap.clientWidth - pad * 2, h = wrap.clientHeight - pad * 2;
@@ -241,31 +349,38 @@ const touches = new Map();
 wrap.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'touch') touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (e.button === 1 || spaceDown || touches.size === 2 || (state.tool === 'pan' && e.button === 0)) {
-    panning = { x: e.clientX, y: e.clientY, dist: touches.size === 2 ? pinchDist() : 0, zoom: canvas.getZoom() };
+    // Two fingers pan from the point between them (the view jumped by half their distance when the second landed).
+    const at = touches.size === 2 ? pinchMid() : { x: e.clientX, y: e.clientY };
+    panning = { x: at.x, y: at.y, dist: touches.size === 2 ? pinchDist() : 0, zoom: canvas.getZoom() };
     canvas.selection = false;
     if (touches.size === 2) { canvas.discardActiveObject(); cancelDrag(); }
     e.preventDefault();
   }
 }, true);
 const pinchDist = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+const pinchMid = () => { const [a, b] = [...touches.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
 addEventListener('pointermove', (e) => {
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (!panning) return;
   // The mouse button was let go where the page didn't hear it (outside the window): stop panning.
   if (e.pointerType === 'mouse' && e.buttons === 0 && !spaceDown && state.tool !== 'pan') { panning = null; canvas.selection = PICK_LIKE.has(state.tool); return; }
-  const vpt = canvas.viewportTransform;
   if (touches.size === 2) {
-    const [a, b] = [...touches.values()], mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const mid = pinchMid();
     const r = wrap.getBoundingClientRect();
     if (panning.dist > 0) zoomAt(panning.zoom * pinchDist() / panning.dist, new Point(mid.x - r.left, mid.y - r.top));
     else panning.dist = pinchDist(); // a second finger joined a pan: pinch from here
+    // Read after the zoom: Fabric gives the canvas a new transform there, and writing the one read before back
+    // undid the zoom (a pinch only panned).
+    const vpt = canvas.viewportTransform;
     vpt[4] += mid.x - panning.x; vpt[5] += mid.y - panning.y;
     panning.x = mid.x; panning.y = mid.y;
+    canvas.setViewportTransform(vpt);
   } else {
+    const vpt = canvas.viewportTransform;
     vpt[4] += e.clientX - panning.x; vpt[5] += e.clientY - panning.y;
     panning.x = e.clientX; panning.y = e.clientY;
+    canvas.setViewportTransform(vpt);
   }
-  canvas.setViewportTransform(vpt);
   drawRulers();
 });
 const endPan = (e) => { touches.delete(e.pointerId); if (panning && touches.size < 2) { panning = null; canvas.selection = PICK_LIKE.has(state.tool); } };
@@ -444,6 +559,7 @@ let pages = [{ name: 'Page 1', objects: null }], pageIndex = 0, otherNums = new 
 const snapshot = () => JSON.stringify({ page: pageSize, guides: guides.get(), objects: userObjects().map((o) => o.toObject(EXTRA)), ...(pages.length > 1 ? { pages: pages.map((p, i) => ({ name: p.name, objects: i === pageIndex ? null : p.objects })), current: pageIndex } : pages[0].name !== 'Page 1' ? { pageName: pages[0].name } : {}) });
 function record() {
   if (restoring || muted) return;
+  if (recordFrame || recordTimer) { cancelAnimationFrame(recordFrame); clearTimeout(recordTimer); recordFrame = recordTimer = 0; }
   syncConnectors(); // connectors follow objects moved by any command
   const snap = snapshot();
   if (history.at(-1) === snap) return;
@@ -453,8 +569,25 @@ function record() {
   syncHistory();
   autosave(STORE, snap); // kept on this device a moment later (projects.js)
 }
+// Speed (9.102): a moved, sized, nudged or restyled object (object:modified) is drawn first and its undo step (the
+// whole design as text, slow on big designs) is taken straight after that frame. Anything that reads or adds undo
+// steps, and the next press, key or edit, takes a waiting step first, so every step stays exactly as before.
+let recordFrame = 0, recordTimer = 0;
+function recordSoon() {
+  if (restoring || muted || recordFrame || recordTimer) return;
+  recordFrame = requestAnimationFrame(() => { recordFrame = 0; clearTimeout(recordTimer); recordTimer = setTimeout(flushRecord); });
+  recordTimer = setTimeout(flushRecord, 150); // no frame comes (a page in the background)
+}
+function flushRecord() {
+  if (!recordFrame && !recordTimer) return;
+  cancelAnimationFrame(recordFrame); clearTimeout(recordTimer); recordFrame = recordTimer = 0;
+  record(); // (while a change is muted or undone, that change records it instead)
+}
+for (const ev of ['pointerdown', 'mousedown', 'touchstart', 'keydown', 'input', 'change', 'pagehide']) addEventListener(ev, flushRecord, true);
+document.addEventListener('visibilitychange', flushRecord, true);
 /** Several canvas changes as one undo step. */
 function batch(fn) {
+  flushRecord();
   muted++;
   try { return fn(); } finally { muted--; if (!muted) { refreshLayers(); record(); } }
 }
@@ -494,9 +627,9 @@ function syncHistory() {
   $('undo').disabled = history.length < 2;
   $('redo').disabled = !future.length;
 }
-async function undo() { if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); autosave(STORE, history.at(-1)); }
-async function redo() { if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); autosave(STORE, s); }
-for (const ev of ['object:added', 'object:removed', 'object:modified']) canvas.on(ev, (e) => { if (ev === 'object:added' && e?.target) ownCopies(e.target); if (muted) return; refreshLayers(); record(); });
+async function undo() { flushRecord(); if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); autosave(STORE, history.at(-1)); }
+async function redo() { flushRecord(); if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); autosave(STORE, s); }
+for (const ev of ['object:added', 'object:removed', 'object:modified']) canvas.on(ev, (e) => { if (ev === 'object:added' && e?.target) ownCopies(e.target); if (muted) return; refreshLayers(); if (ev === 'object:modified') { syncConnectors(); recordSoon(); } else record(); });
 
 const guides = createGuides({
   canvas, wrap, rulerH: $('rulerH'), rulerV: $('rulerV'), page,
@@ -704,14 +837,19 @@ function renderToolbox() {
   $('quickPick').classList.toggle('on', state.tool === 'select'); $('quickPan').classList.toggle('on', state.tool === 'pan');
   renderQuick();
   const nav = $('tools'), groups = new Map(TOOL_GROUPS);
+  // Speed (9.102): the toolbox is built once; picking a tool only lights its button and changes the buttons whose
+  // flyout tool changed (it was built again, icons and all, on every tool change).
+  if (toolButtons.size && [...toolButtons.values()].every((b) => b.parentElement === nav)) { for (const [gid, b] of toolButtons) toolButton(gid, groups.get(gid), b); return; }
   nav.innerHTML = '';
+  toolButtons.clear();
   for (const [section, gids] of TOOL_SECTIONS) {
     const h = document.createElement('div');
     h.className = 'tsec'; h.textContent = section;
     nav.append(h);
-    for (const gid of gids) nav.append(toolButton(gid, groups.get(gid)));
+    for (const gid of gids) { const b = toolButton(gid, groups.get(gid)); toolButtons.set(gid, b); nav.append(b); }
   }
 }
+const toolButtons = new Map();
 // Full-page preview (CorelDRAW's Full-Screen Preview, F9): everything else hidden, the page fitted to the whole
 // screen; a click or any key brings the menus and settings back as they were.
 let previewEnding = 0;
@@ -760,14 +898,23 @@ function quickDef(key) {
   if (kind === 'tool') return TOOLS[id] && id !== 'image' ? { label: TOOLS[id].label, icon: TOOLS[id].icon, run: () => setTool(id), tool: id } : null;
   return QUICK_CMD[id] ? { ...QUICK_CMD[id], run: () => ACTIONS[id]?.() } : null;
 }
+let quickShown = null;
 function renderQuick() {
   const box = $('quickPins');
+  // Speed (9.102): the same buttons as last time are only lit or unlit.
+  const key = JSON.stringify(state.quick ?? []);
+  if (quickShown === key && box.childElementCount === box.querySelectorAll(':scope>button[data-quick]').length) {
+    for (const b of box.children) { const d = quickDef(b.dataset.quick); b.classList.toggle('on', !!(d?.tool && state.tool === d.tool)); }
+    return;
+  }
+  quickShown = key;
   box.innerHTML = '';
   for (const key of state.quick ?? []) {
     const d = quickDef(key);
     if (!d) continue;
     const b = document.createElement('button');
     b.className = `ibtn${d.tool && state.tool === d.tool ? ' on' : ''}`;
+    b.dataset.quick = key;
     b.title = `${d.label} (your button: remove it with +)`;
     b.innerHTML = icon(d.icon);
     b.onclick = () => { closeMenus(); d.run(); };
@@ -801,11 +948,15 @@ $('propsHide').onclick = () => toggleUi('props', false);
 $('propsShow').onclick = () => toggleUi('props', true);
 $('quickPick').onclick = () => { closeMenus(); setTool('select'); };
 $('quickPan').onclick = () => { closeMenus(); setTool('pan'); };
-function toolButton(gid, tools) {
+function toolButton(gid, tools, b = null) {
   const cur = groupCurrent[gid] ?? tools[0][0], t = TOOLS[cur];
-  const b = document.createElement('button');
-  b.className = `tool${tools.some(([id]) => id === state.tool) ? ' on' : ''}`;
+  const fresh = !b;
+  b ??= document.createElement('button');
+  if (fresh) b.className = 'tool';
+  b.classList.toggle('on', tools.some(([id]) => id === state.tool));
+  if (!fresh && b.dataset.cur === cur) return b; // same flyout tool shown: nothing else changes
   b.dataset.group = gid;
+  b.dataset.cur = cur;
   b.title = `${t.label}${t.key ? ` (${t.key})` : ''}${tools.length > 1 ? ' · click again for more tools' : ''}`;
   b.innerHTML = `${icon(t.icon)}<span class="tl">${SHORT_LABEL[cur] ?? t.label}</span>${tools.length > 1 ? '<i class="corner"></i>' : ''}`;
   b.onclick = (e) => {
@@ -3212,6 +3363,7 @@ function contourBar(change) {
 canvas.on('object:modified', ({ target: g }) => {
   if (restoring || !isContourGroup(g) || !canvas.getObjects().includes(g)) return;
   if (Math.abs(g.scaleX - 1) < 1e-6 && Math.abs(g.scaleY - 1) < 1e-6 && !g.skewX && !g.skewY) return;
+  flushRecord();
   const own = !muted && history.at(-1) === snapshot(); // the change was just recorded as its own undo step
   muted++;
   try { applyContour('apply', { objs: [g], change: {}, quiet: true }); } finally { muted--; }
@@ -5556,7 +5708,9 @@ Object.assign(ACTIONS, {
 });
 syncMenus();
 document.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => { closeMenus(); ACTIONS[b.dataset.action]?.(); }));
-function closeMenus() { document.querySelectorAll('.menu.open, .fly.open').forEach((m) => m.classList.remove('open')); endFontPreview(); }
+// (A live list of what is open: closing menus runs on every click, and searching the whole page each time was slow.)
+const openEls = document.getElementsByClassName('open');
+function closeMenus() { for (const m of [...openEls]) if (m.classList.contains('menu') || m.classList.contains('fly')) m.classList.remove('open'); endFontPreview(); }
 document.querySelectorAll('.menu>button').forEach((b) => b.addEventListener('click', (e) => { const m = b.parentElement, open = m.classList.contains('open'); closeMenus(); if (!open) m.classList.add('open'); e.stopPropagation(); }));
 addEventListener('click', (e) => { if (!e.target.closest('.menu,.fly,.tool')) closeMenus(); });
 $('undo').onclick = undo; $('redo').onclick = redo;
@@ -5641,7 +5795,7 @@ function pagePreview() {
 let starter = null; // the YOUR TEAM text a new page starts with (see Start): untouched, the page counts as blank
 const projects = createProjects({
   $, toast, post, icon, escHtml, store: STORE, snapshot, open: openDocument, preview: pagePreview,
-  blank: () => (!userObjects().length || (history.length < 2 && userObjects().length === 1 && userObjects()[0] === starter)) && pages.every((p, i) => i === pageIndex || !p.objects?.length),
+  blank: () => (flushRecord(), !userObjects().length || (history.length < 2 && userObjects().length === 1 && userObjects()[0] === starter)) && pages.every((p, i) => i === pageIndex || !p.objects?.length),
   firstText: () => String(userObjects().find(isText)?.text ?? '').trim().slice(0, 60),
   finish: () => finishPowerClipEdit(), sendAgain: () => sendToStudio(),
 });
@@ -6993,7 +7147,7 @@ window.artboard = {
 // The account (projects.js): host {docs, signedIn, kit, garments, placements}, docsReply {id, ok, data}, openDoc {id}.
 Object.assign(window.artboard, projects.bridge);
 // Automated tests only (?debug): reach the canvas from the browser.
-if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, B, F: { Rect, IText, FabricImage, Group, Path }, geom: { mode: () => (geomWorker ? 'worker' : geomWorker === false ? 'page' : 'not started'), limit: (ms) => { GEOM_LIMIT = ms; }, stop: () => stopGeom(new Error('stopped')) }, projects, handles };
+if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, dragLayers, V, B, F: { Rect, IText, FabricImage, Group, Path }, geom: { mode: () => (geomWorker ? 'worker' : geomWorker === false ? 'page' : 'not started'), limit: (ms) => { GEOM_LIMIT = ms; }, stop: () => stopGeom(new Error('stopped')) }, projects, handles };
 addEventListener('message', (e) => { if (e.source === window.parent && typeof e.data === 'string') { try { window.artboard.receive(e.data); } catch { /* not for us */ } } });
 
 // ===================================================================

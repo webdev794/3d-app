@@ -360,7 +360,7 @@ export class KitPainter {
    * each stitch stands up and the fabric dips along the stitch rows, seams sink a little
    * and pucker, and turned-up hems show a soft ridge. Depends only on the garment shape.
    */
-  reliefMap() {
+  reliefMap({ pucker = false } = {}) {
     const W = this.canvas.width, H = this.canvas.height;
     const height = document.createElement('canvas');
     height.width = W; height.height = H;
@@ -375,6 +375,8 @@ export class KitPainter {
       const { stitches, seams, folds } = this.tailoring(back);
       this.side(back, g);
       stroke(seams, 'rgba(255,255,255,0.12)', .012, [.0035, .0035]);   // puckering across the seam
+      // Render tiers: deeper, less regular puckering (longer soft ripples over the short ones).
+      if (pucker) { stroke(seams, 'rgba(255,255,255,0.1)', .016, [.0035, .0035]); stroke(seams, 'rgba(255,255,255,0.12)', .022, [.007, .005]); }
       stroke(seams, 'rgba(0,0,0,0.32)', .0022);                        // the seam sinks
       stroke(folds, 'rgba(255,255,255,0.24)', .004);                   // turned-up hem edge
       stroke(stitches, 'rgba(0,0,0,0.24)', .0017);                     // fabric pulled down by the thread

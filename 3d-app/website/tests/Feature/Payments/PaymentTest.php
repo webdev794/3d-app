@@ -114,6 +114,11 @@ class PaymentTest extends TestCase
         $balance = $this->postJson('/api/v1/invoices/INV-1001/pay')->json('data.payment');
         $this->assertSame(['935.00', 'balance'], [$balance['amount'], $balance['kind']]);
         $this->postJson("/api/v1/payments/{$balance['id']}/test-complete", ['outcome' => 'succeeded'])->assertJsonPath('data.status', 'paid');
+        // The paid invoice's PDF (the receipt) names the real rate (QA T4d: "GST (1%)").
+        preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $this->get('/api/v1/invoices/INV-1001/pdf')->assertOk()->getContent(), $m);
+        $text = implode("\n", array_map(fn ($s) => @gzuncompress($s) ?: $s, $m[1]));
+        $this->assertStringContainsString('(GST \(10%\))', $text);
+        $this->assertStringContainsString('(Paid)', $text);
     }
 
     public function test_stripe_payment_intents_are_created_once_with_the_invoice_amount(): void

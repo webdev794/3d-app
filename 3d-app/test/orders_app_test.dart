@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:three_deezi/ai_service.dart' show DesignSpec;
 import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
+import 'package:three_deezi/project_store.dart';
 import 'package:three_deezi/screens/ai_designer.dart';
 import 'package:three_deezi/screens/library.dart' show ProfileScreen;
 import 'package:three_deezi/screens/order_entry.dart';
@@ -30,8 +31,26 @@ class OrdersServer {
   /// 3DEEZI AI's reading of the uploaded order form (POST /order-drafts/7/read); null: the AI is not there (404).
   Map<String, dynamic>? aiReading;
 
+  /// Garments with no price in Admin › Pricing yet (the server's quote_required reply: no total, no tax amount).
+  final unpriced = <String>{};
+
   /// Jerseys $50, shorts $30; express $150 an order; shipping AU $100, NZ $250; TEAM10 takes 10% off; GST 10%.
   Map<String, dynamic> quote(List items, Map<String, dynamic> pricing) {
+    final missing = [
+      for (final (k, i) in items.cast<Map>().indexed)
+        if (unpriced.contains(i['garment'])) {'code': 'garment_unpriced', 'message': 'No price is set for ${i['label'] ?? i['garment']} yet.', 'key': 'item-$k'},
+    ];
+    if (missing.isNotEmpty) {
+      return {
+        'status': 'quote_required', 'currency': 'AUD', 'total': null, 'reasons': missing,
+        'lines': [
+          for (final i in items.cast<Map>())
+            {'name': i['label'] ?? i['garment'], 'quantity': (i['sizes'] as Map).values.fold<int>(0, (a, b) => a + (b as num).toInt()), 'total': unpriced.contains(i['garment']) ? null : '50.00', 'priced': !unpriced.contains(i['garment'])},
+        ],
+        'shipping': {'name': 'Australia', 'amount': '100.00'},
+        'tax': {'name': 'GST', 'amount': null},
+      };
+    }
     final lines = [
       for (final i in items.cast<Map>())
         () {
@@ -300,6 +319,135 @@ void main() {
     addTearDown(() => openPayPage = (context, url, title) async {});
     await tap(tester, find.text('PAY NOW'));
     expect(opened, ['https://test.example/invoices/INV-1001?key=abc']);
+  });
+
+  testWidgets('Create Order Form: the fit chooses the sizes; a team adds the same garment in womens and kids sizes', (tester) async {
+    final server = OrdersServer();
+    await mount(tester, OrderFormScreen(signedIn(server)));
+    await tester.enterText(find.widgetWithText(TextField, 'Team / organisation'), 'MANTIS Rugby League');
+    Future<void> size(String key, String n) async {
+      await seeIt(tester, find.byKey(Key(key)));
+      await tester.ensureVisible(find.byKey(Key(key)));
+      await tester.enterText(find.byKey(Key(key)), n);
+      await tester.pumpAndSettle();
+    }
+
+    // Mens: XS to 4XL; More sizes adds 5XL to 8XL.
+    await seeIt(tester, find.byKey(const Key('size-0-XS')));
+    expect(find.byKey(const Key('size-0-4XL')), findsOneWidget);
+    expect(find.byKey(const Key('size-0-5XL')), findsNothing);
+    expect(find.byKey(const Key('size-0-Kids')), findsNothing);
+    await tap(tester, find.byKey(const Key('more-sizes-0')));
+    expect(find.byKey(const Key('size-0-8XL')), findsOneWidget);
+    await size('size-0-M', '4');
+    await size('size-0-6XL', '1');
+    // + Womens sizes, then + Kids sizes: the same garment again, just after it, in that fit.
+    await tap(tester, find.byKey(const Key('add-fit-0-womens')));
+    expect(find.byKey(const Key('size-1-W8')), findsOneWidget);
+    expect(find.byKey(const Key('size-1-W24')), findsNothing);
+    await size('size-1-W10', '3');
+    await tap(tester, find.byKey(const Key('add-fit-0-youth')));
+    expect(find.byKey(const Key('size-1-16Y')), findsOneWidget);
+    expect(find.byKey(const Key('size-1-2Y')), findsNothing);
+    await size('size-1-10Y', '2');
+    expect(find.text('Subtotal 2'), findsOneWidget);
+    await fillDelivery(tester, pickup: true);
+    await tap(tester, find.text('REVIEW ORDER'));
+    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
+    await approve(tester);
+    final items = (server.submitted.single['items'] as List).cast<Map>();
+    expect(items.map((i) => i['fit']), ['mens', 'youth', 'womens']);
+    expect(items.map((i) => i['garment']).toSet(), {'jersey'});
+    expect(items.map((i) => i['sizes']), [
+      {'M': 4, '6XL': 1},
+      {'10Y': 2},
+      {'W10': 3},
+    ]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Create Order Form: a design made as a sport garment ("Netball bibs") is reviewed and priced by that name', (tester) async {
+    // QA T4a: the review named it "Singlet" / "Netball singlet" while the placed order and invoice say "Netball bibs".
+    final server = OrdersServer();
+    final c = signedIn(server);
+    final sample = c.projects.firstWhere((p) => p.garment == 'Singlet');
+    final j = ProjectStore.encode(sample)
+      ..['id'] = 'bibs-1'
+      ..['title'] = 'Firebirds bibs'
+      ..['remoteId'] = 77;
+    (j['kit'] as Map)['productName'] = 'Netball bibs';
+    c.projects.insert(0, ProjectStore.decode(jsonDecode(jsonEncode(j)) as Map<String, dynamic>, ProjectStore.images(sample)));
+    await mount(tester, OrderFormScreen(c));
+    await tester.enterText(find.widgetWithText(TextField, 'Team / organisation'), 'Firebirds');
+    await tap(tester, find.text('No saved design'));
+    await tap(tester, find.text('Firebirds bibs').last);
+    await seeIt(tester, find.byKey(const Key('size-0-M')));
+    await tester.ensureVisible(find.byKey(const Key('size-0-M')));
+    await tester.enterText(find.byKey(const Key('size-0-M')), '7');
+    await tester.pumpAndSettle();
+    await fillDelivery(tester, pickup: true);
+    await tap(tester, find.text('REVIEW ORDER'));
+    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
+    expect(find.textContaining('NETBALL BIBS', findRichText: true), findsWidgets);
+    expect(find.textContaining('SINGLET', findRichText: true), findsNothing);
+    // Priced under its name, as the order will be (the server names the placed row the same way).
+    await seeIt(tester, find.byType(PriceBox));
+    await tester.pumpAndSettle();
+    final quoted = (server.quotes.last['items'] as List).cast<Map>().single;
+    expect([quoted['label'], quoted['project_id'], quoted['garment']], ['Netball bibs', 77, 'singlet']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Create Order Form: American Football designs ("Game Jersey", "Varsity Jacket") are reviewed by name; an unpriced jacket asks for a quote, no NaN', (tester) async {
+    // Linked modules of 9.106: the client's American Football tiles in the app's order form.
+    final server = OrdersServer()..unpriced.add('jacket');
+    final c = signedIn(server);
+    final sample = c.projects.firstWhere((p) => p.garment == 'Singlet');
+    Project design(String id, int remote, String title, String garment, String product) {
+      final j = ProjectStore.encode(sample)
+        ..['id'] = id
+        ..['title'] = title
+        ..['sport'] = 'American Football'
+        ..['garment'] = garment
+        ..['remoteId'] = remote;
+      (j['kit'] as Map)
+        ..['garment'] = garment
+        ..['productName'] = product;
+      return ProjectStore.decode(jsonDecode(jsonEncode(j)) as Map<String, dynamic>, ProjectStore.images(sample));
+    }
+
+    c.projects.insertAll(0, [design('nfl-1', 81, 'Wildcats game jersey', 'Jersey', 'Game Jersey'), design('nfl-2', 82, 'Wildcats varsity', 'Varsity jacket', 'Varsity Jacket')]);
+    await mount(tester, OrderFormScreen(c));
+    await tester.enterText(find.widgetWithText(TextField, 'Team / organisation'), 'Wildcats');
+    await tap(tester, find.text('No saved design'));
+    await tap(tester, find.text('Wildcats game jersey').last);
+    await seeIt(tester, find.byKey(const Key('size-0-M')));
+    await tester.ensureVisible(find.byKey(const Key('size-0-M')));
+    await tester.enterText(find.byKey(const Key('size-0-M')), '6');
+    await tester.pumpAndSettle();
+    await tap(tester, find.text('Add garment').last);
+    await tap(tester, find.text('No saved design').last);
+    await tap(tester, find.text('Wildcats varsity').last);
+    await seeIt(tester, find.byKey(const Key('size-1-L')));
+    await tester.ensureVisible(find.byKey(const Key('size-1-L')));
+    await tester.enterText(find.byKey(const Key('size-1-L')), '3');
+    await tester.pumpAndSettle();
+    await fillDelivery(tester, pickup: true);
+    await tap(tester, find.text('REVIEW ORDER'));
+    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
+    // Each garment's own section, by its name (the review is a list: scroll to the second), then the price.
+    expect(find.textContaining('GAME JERSEY', findRichText: true), findsWidgets);
+    await tester.scrollUntilVisible(find.textContaining('02 — VARSITY JACKET', findRichText: true), 300, scrollable: find.byType(Scrollable).first);
+    await seeIt(tester, find.byType(PriceBox));
+    await tester.pumpAndSettle();
+    final quoted = (server.quotes.last['items'] as List).cast<Map>();
+    expect([for (final q in quoted) [q['label'], q['project_id'], q['garment']]], [['Game Jersey', 81, 'jersey'], ['Varsity Jacket', 82, 'jacket']]);
+    // The jacket has no price yet: a quote is asked for, with the reason; never NaN or a broken total.
+    expect(find.textContaining('Quote required', findRichText: true), findsWidgets);
+    expect(find.textContaining('No price is set for Varsity Jacket yet.', findRichText: true), findsWidgets);
+    expect(find.textContaining('NaN', findRichText: true), findsNothing);
+    expect(find.textContaining('null', findRichText: true), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Create Order Form: REVIEW & APPROVE ORDER fits 360, 390 and 430 wide', (tester) async {

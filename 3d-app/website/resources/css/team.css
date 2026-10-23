@@ -36,10 +36,12 @@
 .tm-how h2{margin:0 0 18px;font-size:clamp(18px,1.6vw,22px);letter-spacing:.06em}
 .tm-loop{--row-h:58px;--mid:56px;position:relative;max-width:1180px;margin:0 auto}
 .tm-loop-row{position:relative;z-index:1;list-style:none;margin:0;display:flex;align-items:center}
-.tm-loop-row.is-top{padding:0 6%}
+.tm-loop-row.is-top{padding:0 6%;justify-content:center}
 .tm-loop-row.is-bottom{padding:0 12.5%;flex-direction:row-reverse}
 .tm-loop-row>li{display:flex;align-items:center;flex:1 1 auto;min-width:0}
 .tm-loop-row>li:last-child{flex:0 1 auto}
+/* A full top row overflows evenly on both sides, so the two end arcs keep the same reach. */
+.tm-loop-row.is-top>li{min-width:auto}
 .tm-loop-row.is-bottom>li{flex-direction:row-reverse}
 .tm-step{display:flex;align-items:center;gap:12px;flex:0 0 auto;min-width:0;height:var(--row-h);padding:0 16px 0 14px;border:1px solid #1fb6d466;border-radius:9px;background:linear-gradient(180deg,#0b1a2b,#07121f);box-shadow:0 0 14px #00d9ed14}
 .tm-step-num{display:grid;place-items:center;flex:none;width:30px;height:30px;border:1.5px solid #22d8ef;border-radius:50%;color:#eaf6fb;font:700 15px/1 var(--heading);box-shadow:0 0 8px #12e1f055}
@@ -52,10 +54,12 @@
 .tm-arrow::after{content:"";position:absolute;right:-3px;top:50%;transform:translateY(-50%);border-left:10px solid #22d8ef;border-top:6px solid transparent;border-bottom:6px solid transparent;filter:drop-shadow(0 0 3px #12e1f0)}
 .tm-loop-row.is-bottom .tm-arrow::after{right:auto;left:-3px;border-left:0;border-right:10px solid #22d8ef}
 .tm-loop-center{margin:0;height:var(--mid);display:flex;align-items:center;justify-content:center;gap:.3em;font:700 clamp(18px,1.75vw,25px)/1 var(--heading);letter-spacing:.04em;color:#f1f8fc;white-space:nowrap}
-.tm-loop-track{position:absolute;left:0;right:0;top:calc(var(--row-h) / 2);height:calc(var(--row-h) + var(--mid));border:2px solid #22d8efcc;border-radius:999px;box-shadow:0 0 14px #12e1f066,inset 0 0 14px #12e1f033;pointer-events:none}
-.tm-loop-head{position:absolute;z-index:1;top:calc(var(--row-h) * 1.5 + var(--mid));transform:translateY(-50%);border-right:10px solid #22d8ef;border-top:6px solid transparent;border-bottom:6px solid transparent;filter:drop-shadow(0 0 3px #12e1f0)}
-.tm-loop-head.is-right{right:calc(12.5% - 30px)}
-.tm-loop-head.is-left{left:calc(12.5% - 58px)}
+/* The end arcs: one SVG path over the whole section width, wide half-ovals out past the card rows (Team.tsx LoopArcs). */
+.tm-how{position:relative}
+.tm-loop-arcs{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:0}
+.tm-arc{fill:none;stroke:#2ae0f2;stroke-width:3;stroke-linecap:round}
+.tm-arc-glow{fill:none;stroke:#12e1f0;stroke-width:12;stroke-linecap:round;opacity:.3;filter:blur(4px)}
+.tm-arc-head{fill:#22d8ef;filter:drop-shadow(0 0 3px #12e1f0)}
 
 /* The form and YOUR DESIGN REQUEST. */
 .tm-columns{display:grid;grid-template-columns:minmax(0,1.78fr) minmax(320px,1fr);gap:18px;align-items:start;scroll-margin-top:96px}
@@ -274,15 +278,16 @@
 .tm-refund-note{margin:10px 0 0;font-size:12px}
 
 @media(max-width:1280px){
-  .tm-loop-row.is-top{padding:0 5.5%}
-  .tm-loop-row.is-bottom{padding:0 11%}
+  /* Wider insets than before, so the end arcs keep room to bulge out past the rows on a narrower section. */
+  .tm-loop-row.is-top{padding:0 7.5%}
+  .tm-loop-row.is-bottom{padding:0 13%}
   .tm-step{gap:10px;padding:0 12px}
   .tm-step-icon svg{width:21px;height:21px}
 }
 @media(max-width:1180px){
   .tm-loop{--row-h:64px}
-  .tm-loop-row.is-top{padding:0 4.5%}
-  .tm-loop-row.is-bottom{padding:0 10%}
+  .tm-loop-row.is-top{padding:0 7%}
+  .tm-loop-row.is-bottom{padding:0 12.5%}
   .tm-step{flex:0 1 auto;padding:0 10px}
   .tm-step-icon{display:none}
   .tm-step b{font-size:12.5px;white-space:normal}
@@ -292,12 +297,10 @@
   .tm-hero-words{display:none}
   .tm-detail-cols{grid-template-columns:1fr}
 }
-/* Tablets and phones: the loop becomes a list of steps joined by a line. */
-@media(max-width:999px){
-  .tm-columns{grid-template-columns:1fr}
-  .tm-check{position:static}
+/* Narrow desktops, tablets and phones: the loop becomes a list of steps joined by a line (below 1050 px the cards would wrap). */
+@media(max-width:1050px){
   .tm-loop{display:flex;flex-direction:column;max-width:none}
-  .tm-loop-track,.tm-loop-head,.tm-arrow{display:none}
+  .tm-loop-arcs,.tm-arrow{display:none}
   .tm-loop-center{order:-1;height:auto;justify-content:flex-start;margin:0 0 14px;font-size:20px;white-space:normal;flex-wrap:wrap}
   .tm-loop-row,.tm-loop-row.is-top,.tm-loop-row.is-bottom{flex-direction:column;align-items:stretch;gap:12px;padding:0}
   .tm-loop-row.is-bottom{margin-top:12px}
@@ -306,6 +309,10 @@
   .tm-step{flex:1;height:auto;min-height:58px;padding:9px 14px}
   .tm-step-icon{display:grid}
   .tm-step b,.tm-step small{white-space:normal}
+}
+@media(max-width:999px){
+  .tm-columns{grid-template-columns:1fr}
+  .tm-check{position:static}
 }
 @media(max-width:899px){
   .tm-hero{background-image:linear-gradient(90deg,#020912 0,#020912f0 40%,#020912a6 62%,#02091240 84%),linear-gradient(0deg,#020912 0,#02091200 18%),var(--tm-hero);background-size:100% 100%,100% 100%,cover;background-position:0 0,0 0,72% 40%}

@@ -12,6 +12,7 @@ import { buildLabel, paintLabel, mainColour } from './label.js';
 import { KitPainter, knitNormalMap } from './texture.js';
 import { createStudio } from './studio.js';
 import { qualityTier, TIERS, stadiumEnvironment, dressFabric, hdrBackdrop } from './render-quality.js';
+import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
 import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt } from './zones.js';
@@ -108,12 +109,13 @@ const reliefs = new Map();
 /** Adds the sewing relief on top of the fabric weave (both are normal maps, blended in the shader). */
 function addRelief(target, painter) {
   // A garment cut like a drawing has its own (only the latest such is kept).
-  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}:${painter.canvas.width}`;
+  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}:${painter.canvas.width}${Q ? ':pucker' : ''}`;
   if (painter.cut && !reliefs.has(key)) {
     for (const [k, old] of reliefs) if (k.startsWith('cut:')) { old.dispose(); reliefs.delete(k); }
   }
   if (!reliefs.has(key)) {
-    const relief = new THREE.CanvasTexture(painter.reliefMap());
+    // The tiers: the seams pucker a little more (texture.js), as sewn polyester does.
+    const relief = new THREE.CanvasTexture(painter.reliefMap(Q ? { pucker: true } : undefined));
     relief.anisotropy = renderer.capabilities.getMaxAnisotropy();
     reliefs.set(key, relief);
   }
@@ -192,7 +194,8 @@ function buildKit(kind) {
   if (key === currentKind) return;
   currentKind = key;
   const geometries = new Set();
-  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); [o.material].flat().forEach((m) => { m.map?.dispose(); m.dispose(); }); } });
+  // (The mannequin's finishes are kept: made once, so their shaders are not compiled again on every change.)
+  kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); [o.material].flat().forEach((m) => { if (m.userData.keep) return; m.map?.dispose(); m.dispose(); }); } });
   geometries.forEach((geometry) => geometry.dispose());
   parts.forEach((part) => { part.texture.dispose(); part.varsity?.finish.dispose(); });
   kit.clear();
@@ -203,7 +206,8 @@ function buildKit(kind) {
     // A layout's tee over its shorts (shown bigger, below) hangs a little fuller at the hem, over their waistband.
     const over = partKind === 'raglan' && layout && list.includes('shorts') ? { ...SPECS.raglan, hemFlare: 0.09 } : null;
     const style = partKind === 'trackjacket' && trackHood ? SPECS.trackjacketHood : null;
-    const garment = buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over ?? style });
+    // The tiers: the drape and wrinkles of worn cloth (flat: the garment as before).
+    const garment = buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over ?? style, detail: !!Q });
     const painter = new KitPainter(garment.frame, garment.outline, mobile ? 2048 : 4096, partKind);
     if (own) painter.cut = layout.key;
     // The finished edges (the hem follows a leg's side split), the waistband's width and the places a print
@@ -341,10 +345,12 @@ function buildKit(kind) {
     }
     // Collar rib or waistband along the top opening (a hoodie's neck is under its hood).
     const rim = new THREE.Mesh(
-      buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth),
+      buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth, Q ? 1.6 : 1),
       new THREE.MeshPhysicalMaterial({ roughness: 0.9, reflectivity: .2, sheen: 0.15, side: THREE.DoubleSide, sheenColor: new THREE.Color(0x7092a4), normalMap: knit, normalScale: new THREE.Vector2(.17, .17) }),
     );
     group.add(rim);
+    // The tiers: the rib's soft sheen catches the studio's light along the collar (or waistband).
+    if (Q) Object.assign(rim.material, { roughness: 0.78, sheen: 0.38, sheenRoughness: 0.5 });
     rim.visible = !hoodie && !track && !varsity;
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
     const label = partKind === 'shorts' ? null : buildLabel(garment);
@@ -366,6 +372,29 @@ function buildKit(kind) {
   frameKit();
   // The labels after framing (the camera frames the kit as it is without them).
   parts.forEach((part) => { if (part.label) part.rim.parent.add(part.label); });
+  // The tiers: the mannequin under the kit and its stand into the podium, also after framing (never picked).
+  if (Q) dressMannequin(list);
+}
+
+/** The mannequin under each part (mannequin.js), and one stand from the lowest of them into the podium. */
+let mannequinMat = null;
+function dressMannequin(list) {
+  mannequinMat ??= Object.assign(mannequinMaterial(), { userData: { keep: true } });
+  let low = Infinity, legs = null;
+  for (const part of parts) {
+    const group = part.rim.parent;
+    const form = buildMannequin(part.garment, mannequinMat, { over: list.includes('shorts') && part.painter.kind !== 'shorts' });
+    if (!form) continue;
+    group.add(form);
+    const s = group.scale.y;
+    form.children.forEach((m) => { m.geometry.computeBoundingBox(); low = Math.min(low, group.position.y + s * m.geometry.boundingBox.min.y); });
+    if (part.garment.body.legs) legs = group.position.y + s * (part.garment.body.crotch - 0.02);
+    // Its points are no longer needed (the garment object lives as long as the kit).
+    part.garment.body = null;
+  }
+  // The podium's top is at y -0.0675 (studio.js); the rod goes a little into it, so the kit's gentle bob never lifts it off.
+  const stand = Number.isFinite(low) ? buildStand(legs ?? low + 0.012, -0.075) : null;
+  if (stand) kit.add(stand);
 }
 
 /** Re-centres the camera on whatever is on the podium. */
@@ -981,6 +1010,38 @@ window.viewer = {
 };
 addEventListener('message', (e) => {
   if (e.source === window.parent && e.origin === location.origin && typeof e.data === 'string') window.viewer.receive(e.data);
+});
+
+// ---------- leaving
+/**
+ * When the page really goes (the host removed the viewer's frame: the website's pages, the app leaving the Studio), the
+ * graphics card is freed at once: every geometry, texture and render target, then the WebGL context itself. Otherwise
+ * a removed frame's context is freed only when the browser collects it, and a long session that opens the Studio many
+ * times can run out of WebGL contexts or graphics memory. A page kept in the back/forward cache (persisted) keeps all.
+ */
+let released = false;
+addEventListener('pagehide', (event) => {
+  if (event.persisted || released) return;
+  released = true;
+  try {
+    const textures = new Set([...reliefs.values()]);
+    scene.traverse((o) => {
+      o.geometry?.dispose();
+      for (const m of [o.material ?? []].flat()) {
+        for (const v of Object.values(m)) if (v?.isTexture) textures.add(v);
+        m.dispose();
+      }
+    });
+    if (scene.background?.isTexture) textures.add(scene.background);
+    if (scene.environment) textures.add(scene.environment);
+    textures.forEach((t) => t.dispose());
+    // The podium's mirror and floor reflections, the post-processing buffers and the environment's prefilter.
+    scene.traverse((o) => { if (o.isReflector) o.getRenderTarget().dispose(); });
+    composer.dispose();
+    pmrem.dispose();
+    renderer.dispose();
+    renderer.forceContextLoss();
+  } catch { /* leaving anyway */ }
 });
 
 (async () => {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api_client.dart';
 import '../app_controller.dart';
 import '../export_service.dart' show shareImage;
+import '../order_sizes.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/site_page_stub.dart'
@@ -45,6 +46,10 @@ Widget? _dataImage(Object? url, double size) {
     return null;
   }
 }
+
+/// A JSON object, or empty: PHP sends an empty array as `[]`, not `{}` (sizes of an uploaded order form, a new order's
+/// stages).
+Map<String, dynamic> _mapOf(Object? value) => value is Map ? value.cast<String, dynamic>() : const {};
 
 Widget _pill(String text, Color colour) => Container(
   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
@@ -470,10 +475,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final proofs = ((o['proofs'] as List?) ?? const []).cast<Map<String, dynamic>>();
     final tracking = (o['tracking'] as Map?)?.cast<String, dynamic>();
     final items = ((o['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
-    final sizes = (o['sizes'] as Map?)?.cast<String, dynamic>() ?? const {};
+    // The server sends an empty list for "no sizes" (an uploaded order form before 3DEEZI reads it).
+    final sizes = _mapOf(o['sizes']);
     final files = ((o['files'] as List?) ?? const []).cast<Map<String, dynamic>>().where((f) => f['kind'] != 'proof').toList();
     final updates = ((o['updates'] as List?) ?? const []).cast<Map<String, dynamic>>();
-    final reached = (o['stages_reached'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final reached = _mapOf(o['stages_reached']);
     const stages = [('received', 'Received'), ('design', 'Design'), ('production', 'Production'), ('shipped', 'Shipped'), ('delivered', 'Delivered')];
     final at = stages.indexWhere((s) => s.$1 == o['stage']);
     final waiting = o['approval'] == 'review' && proof != null;
@@ -584,9 +590,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${item['name']}${item['fit'] != null ? ' · ${item['fit']}' : ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          Text('${item['name']}${item['fit'] != null ? ' · ${fitNames[item['fit']] ?? item['fit']}' : ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
                           Text(
-                            ((item['sizes'] as Map?) ?? const {}).entries.map((e) => '${e.key} ${e.value}').join(' · '),
+                            _mapOf(item['sizes']).entries.map((e) => '${e.key} ${e.value}').join(' · '),
                             style: const TextStyle(color: Palette.muted, fontSize: 12),
                           ),
                         ],

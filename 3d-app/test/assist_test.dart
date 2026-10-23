@@ -10,6 +10,7 @@ import 'package:three_deezi/assist.dart';
 import 'package:three_deezi/widgets/assist_overlay.dart';
 
 import 'features_test.dart' show FakeStore;
+import 'flow_test.dart' show mountPhone;
 
 /// 3DEEZI ASSIST in the app, against a fake `/api/v1/assist`.
 void main() {
@@ -144,7 +145,8 @@ void main() {
         'reply': 'Compare them on [the plans page](/pricing).',
         'actions': [],
       };
-      final c = controller()..screen = AppScreen.home;
+      // The Home has its own Assist link instead (see below).
+      final c = controller()..screen = AppScreen.projects;
       final assist = AssistController(c);
       await tester.pumpWidget(
         MaterialApp(
@@ -174,6 +176,58 @@ void main() {
       await tester.pump();
       expect(c.screen, AppScreen.pricing);
       expect(assist.open, isFalse);
+    },
+  );
+
+  testWidgets(
+    'Home: "Ask 3DEEZI Assist" opens the chat; the round launcher only then',
+    (tester) async {
+      final c = controller()..screen = AppScreen.home;
+      await mountPhone(tester, c);
+      final launcher = find.byKey(const ValueKey('assist-launcher'));
+      expect(launcher, findsNothing);
+      final link = find.byKey(const ValueKey('home-assist-link'));
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      expect(find.text('AI help assistant'), findsOneWidget);
+      expect(find.text('How do I start designing?'), findsOneWidget);
+      // The launcher shows while the chat is open, and closes it.
+      expect(launcher, findsOneWidget);
+      await tester.tap(launcher);
+      await tester.pumpAndSettle();
+      expect(find.text('AI help assistant'), findsNothing);
+      expect(launcher, findsNothing);
+    },
+  );
+
+  testWidgets(
+    'the round launcher shows on every screen but Home, Orders and start-up',
+    (tester) async {
+      final c = controller();
+      final assist = AssistController(c);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 800,
+              child: AssistOverlay(assist),
+            ),
+          ),
+        ),
+      );
+      final launcher = find.byKey(const ValueKey('assist-launcher'));
+      for (final s in AppScreen.values) {
+        c.update(() => c.screen = s);
+        await tester.pump();
+        // Home and the Orders tab have their own Assist link instead.
+        final hidden =
+            AssistController.hiddenOn.contains(s) ||
+            s == AppScreen.home ||
+            s == AppScreen.orderHub;
+        expect(launcher, hidden ? findsNothing : findsOneWidget, reason: '$s');
+      }
     },
   );
 

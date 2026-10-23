@@ -4,7 +4,7 @@
  * My design requests (/team/requests) and one request with its progress, conversation, designs for review and the
  * final design (/team/requests/:id). Server: T1's team-api.md.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Box, CalendarClock, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheck, CreditCard, Download, FileText, ImageIcon, Info, LoaderCircle, MessageSquare, MessageSquareText, Palette, Paperclip, Pencil, Plus, RefreshCw, Send, Settings, ShieldCheck, Shirt, ShoppingBag, Truck, Upload, UserPen, Users, X } from 'lucide-react';
 import { ApiError, media, type Catalog, type User } from '../api';
@@ -127,7 +127,65 @@ export const TEAM_LOOP: { title: string; sub: string; icon: ReactNode }[] = [
   { title: 'Delivery', sub: 'Track your order', icon: <Truck /> },
 ];
 
+/** The two end arcs of the HOW IT WORKS loop as one SVG path, measured from the cards so they stay round at every
+ *  desktop width: wide half-ovals from card 4 out to the right and back into card 5, and from card 7 out to the left
+ *  and back into card 1 (the client's design, 2026-10-22). Exported for the regression check. */
+type CardBox = { left: number; right: number; top: number; bottom: number };
+export function loopArcs(box: { w: number }, c1: CardBox, c4: CardBox, c5: CardBox, c7: CardBox) {
+  const k = 0.5523, reach = (edge: number) => Math.min(150, Math.max(70, edge));
+  const yT = (c1.top + c1.bottom) / 2, yB = (c7.top + c7.bottom) / 2, yM = (yT + yB) / 2;
+  const yT4 = (c4.top + c4.bottom) / 2, yB5 = (c5.top + c5.bottom) / 2;
+  // The arcs bulge out to the section edge (at most 150 px past the top row, at least 70 px).
+  const xL = Math.max(6, c1.left - reach(c1.left - 6)), xR = Math.min(box.w - 6, c4.right + reach(box.w - 6 - c4.right));
+  const f = (n: number) => n.toFixed(1);
+  const left = `M${f(c7.left)} ${f(yB)}C${f(c7.left - k * (c7.left - xL))} ${f(yB)} ${f(xL)} ${f(yM + k * (yB - yM))} ${f(xL)} ${f(yM)}`
+    + `C${f(xL)} ${f(yM - k * (yM - yT))} ${f(c1.left - k * (c1.left - xL))} ${f(yT)} ${f(c1.left)} ${f(yT)}`;
+  const right = `M${f(c4.right)} ${f(yT4)}C${f(c4.right + k * (xR - c4.right))} ${f(yT4)} ${f(xR)} ${f(yM - k * (yM - yT4))} ${f(xR)} ${f(yM)}`
+    + `C${f(xR)} ${f(yM + k * (yB5 - yM))} ${f(c5.right + k * (xR - c5.right))} ${f(yB5)} ${f(c5.right)} ${f(yB5)}`;
+  // Arrow heads in the direction of travel: on the left arc just after card 7 (heading out and up), and into card 5.
+  const bez = (p: number[][], t: number) => {
+    const u = 1 - t;
+    const pt = [0, 1].map(i => u * u * u * p[0][i] + 3 * u * u * t * p[1][i] + 3 * u * t * t * p[2][i] + t * t * t * p[3][i]);
+    const d = [0, 1].map(i => 3 * u * u * (p[1][i] - p[0][i]) + 6 * u * t * (p[2][i] - p[1][i]) + 3 * t * t * (p[3][i] - p[2][i]));
+    return { x: pt[0], y: pt[1], a: Math.atan2(d[1], d[0]) * 180 / Math.PI };
+  };
+  const headL = bez([[c7.left, yB], [c7.left - k * (c7.left - xL), yB], [xL, yM + k * (yB - yM)], [xL, yM]], 0.42);
+  const headR = { x: c5.right + 16, y: yB5, a: 180 };
+  return { d: `${left}${right}`, heads: [headL, headR], xL, xR };
+}
+
+function LoopArcs({ loop }: { loop: React.RefObject<HTMLDivElement | null> }) {
+  const svg = useRef<SVGSVGElement>(null);
+  const [shape, setShape] = useState<{ w: number; h: number; d: string; heads: { x: number; y: number; a: number }[] } | null>(null);
+  useLayoutEffect(() => {
+    const el = loop.current, box = svg.current;
+    if (!el || !box) return;
+    const measure = () => {
+      const b = box.getBoundingClientRect();
+      const r = (sel: string) => { const n = el.querySelector(`${sel} .tm-step`); const q = n?.getBoundingClientRect(); return q && q.width ? { left: q.left - b.left, right: q.right - b.left, top: q.top - b.top, bottom: q.bottom - b.top } : null; };
+      const c1 = r('.s1'), c4 = r('.s4'), c5 = r('.s5'), c7 = r('.s7');
+      if (!b.width || !c1 || !c4 || !c5 || !c7) { setShape(null); return; }
+      const { d, heads } = loopArcs({ w: b.width }, c1, c4, c5, c7);
+      setShape({ w: b.width, h: b.height, d, heads });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box); ro.observe(el);
+    el.querySelectorAll('.tm-step').forEach(n => ro.observe(n));
+    document.fonts?.ready.then(measure).catch(() => {});
+    return () => ro.disconnect();
+  }, [loop]);
+  return <svg ref={svg} className="tm-loop-arcs" aria-hidden="true" viewBox={shape ? `0 0 ${shape.w} ${shape.h}` : undefined} data-testid="team-loop-arcs">
+    {shape && <>
+      <path className="tm-arc-glow" d={shape.d} />
+      <path className="tm-arc" d={shape.d} />
+      {shape.heads.map((h, i) => <path key={i} className="tm-arc-head" d="M0 0L-12 -6.5L-12 6.5Z" transform={`translate(${h.x.toFixed(1)} ${h.y.toFixed(1)}) rotate(${h.a.toFixed(1)})`} />)}
+    </>}
+  </svg>;
+}
+
 function HowItWorks() {
+  const loop = useRef<HTMLDivElement>(null);
   const card = (step: (typeof TEAM_LOOP)[number], i: number) => <div className="tm-step">
     <span className="tm-step-num">{i + 1}</span>
     <span className="tm-step-icon" aria-hidden="true">{step.icon}</span>
@@ -135,14 +193,13 @@ function HowItWorks() {
   </div>;
   return <section className="tm-how" aria-labelledby="tm-how-h">
     <h2 id="tm-how-h">HOW IT <span>WORKS</span></h2>
-    <div className="tm-loop">
-      <span className="tm-loop-track" aria-hidden="true" />
+    <div className="tm-loop" ref={loop}>
       <ol className="tm-loop-row is-top">{TEAM_LOOP.slice(0, 4).map((step, i) => <li key={step.title} className={`s${i + 1}`}>{card(step, i)}{i < 3 && <span className="tm-arrow" aria-hidden="true" />}</li>)}</ol>
       <p className="tm-loop-center">FROM IDEA TO <span>TEAMWEAR</span></p>
       <ol className="tm-loop-row is-bottom" start={5}>{TEAM_LOOP.slice(4).map((step, k) => <li key={step.title} className={`s${k + 5}`}>{card(step, k + 4)}{k < 2 && <span className="tm-arrow" aria-hidden="true" />}</li>)}</ol>
-      <span className="tm-loop-head is-right" aria-hidden="true" />
-      <span className="tm-loop-head is-left" aria-hidden="true" />
     </div>
+    {/* After the rows, so their ref is set when the arcs measure them. */}
+    <LoopArcs loop={loop} />
   </section>;
 }
 

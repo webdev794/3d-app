@@ -7,6 +7,7 @@ import { media, type Project } from '../api';
 import type { OrderDetail, OrderFile, OrderItem, OrderPlayer, Payment } from '../orderApi';
 import { audMoney } from '../teamApi';
 import { defaultDesign, type Design } from './KitViewer';
+import { ALL_SIZES } from '../orderSizes';
 
 /** One garment style of the review, as the sections and the PDF show it. */
 export interface ReviewGarment {
@@ -54,9 +55,9 @@ export function addressLine(a: ReviewDelivery['address']): string {
 /** How it is delivered, in words. */
 export const methodWords = (m: string | null | undefined) => (!m ? '' : m === 'deliver' ? 'Delivery' : m === 'pickup' ? 'Pick up' : m.charAt(0).toUpperCase() + m.slice(1).replace(/_/g, ' '));
 
-/** The site's sizes, in order (orders/options `sizes`); youth sizes sit with Kids, smallest first. */
-export const SITE_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
-const LETTER_RANK = ['XXS', '2XS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', 'XXXL', '3XL', '4XL', '5XL'];
+/** The site's sizes, in order (orders/options `sizes`: Mens XS–8XL, Womens W8–W24, Kids 2Y–16Y, the older Kids); other youth sizes sit with Kids, smallest first. */
+export const SITE_SIZES = ALL_SIZES;
+const LETTER_RANK = ['XXS', '2XS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', 'XXXL', '3XL', '4XL', '5XL', '6XL', '7XL', '8XL'];
 const YOUTH = /^(?:y(?:outh)?\s*-?\s*|k(?:ids?)?\s*-?\s*|jr\s*-?\s*)(\d{1,2}|xxs|xs|s|m|l|xl)$|^(\d{1,2})\s*y?$/i;
 /** Where a size goes: the site's order first; youth sizes (Y8, YXL, Kids 10, 12) where Kids is; others after. */
 function sizeRank(size: string, order: string[]): number {
@@ -124,7 +125,7 @@ export function colourName(hex?: string | null): string | null {
   return best[0];
 }
 
-const FIT_NAMES: Record<string, string> = { mens: 'Mens fit', womens: 'Womens fit', youth: 'Youth fit', unisex: 'Unisex fit' };
+const FIT_NAMES: Record<string, string> = { mens: 'Mens fit', womens: 'Womens fit', youth: 'Kids fit', unisex: 'Unisex fit' };
 const ART = new Set(['jersey', 'shorts', 'tee', 'singlet', 'polo', 'socks', 'hoodie']);
 export const isPicture = (src: unknown): src is string => typeof src === 'string' && /^(data:image\/|blob:|https?:\/\/|\/)/.test(src);
 /** An artwork file's picture (its thumbnail, or the page's preview of a file still uploading). */
@@ -147,8 +148,11 @@ export function reviewGarmentsFrom({ items, projects, artwork, options }: {
     const project = item.project_id ? projects?.find(p => p.id === item.project_id) ?? null : null;
     const sport = options?.sports?.find(s => s.id === item.sport)?.name;
     const garmentName = options?.garments?.find(g => g.id === item.garment)?.name ?? capital(item.garment);
-    const name = item.label || item.name || [sport, sport ? garmentName.toLowerCase() : garmentName].filter(Boolean).join(' ') || 'Garment';
     const d = project?.design;
+    // A saved design made as one of its sport's garments ("Netball bibs", task 9.99) is ordered by that name, as the
+    // order form's rows (OrderForm rowName) and the placed order (OrderSubmission) call it; a row's own label wins.
+    const product = typeof d?.productName === 'string' ? d.productName.trim() : '';
+    const name = item.label || item.name || product || [sport, sport ? garmentName.toLowerCase() : garmentName].filter(Boolean).join(' ') || 'Garment';
     const colours = [...new Set([colourName(d?.main), colourName(d?.secondary)].filter((c): c is string => !!c))].join(' / ');
     const fit = item.fit ? FIT_NAMES[item.fit] ?? `${options?.fits?.find(f => f.id === item.fit)?.name ?? capital(item.fit)} fit` : '';
     const own = projectPicture(project);

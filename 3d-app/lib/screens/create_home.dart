@@ -4,525 +4,370 @@ import 'package:flutter/material.dart';
 
 import '../ai_service.dart';
 import '../app_controller.dart';
+import '../assist.dart';
 import '../project_sync.dart';
 import '../sports_catalog.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
-import '../widgets/rewards_card.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
-import 'order_entry.dart' show OrderNowSection;
 import 'team.dart' show TeamScreen;
 
-/// 4 · Create home, as the website: a stadium hero, then four glowing
-/// paths (AI Powered, Design Your Own, Artboard, 3DEEZI TEAM).
-class CreateHomeScreen extends StatefulWidget {
+/// 4 · Home (client picture images/166.jpg, 2026-10-23): the 3DEEZI wordmark
+/// with the bell, "What would you like to create?", four picture tiles (AI
+/// DESIGNER, DESIGN YOUR OWN, ARTBOARD, 3DEEZI TEAM), the Assist link and a
+/// quiet Convert line.
+class CreateHomeScreen extends StatelessWidget {
   const CreateHomeScreen(this.c, {super.key});
   final AppController c;
-  @override
-  State<CreateHomeScreen> createState() => _CreateHomeScreenState();
-}
-
-class _CreateHomeScreenState extends State<CreateHomeScreen> {
-  final _paths = GlobalKey();
 
   @override
-  Widget build(BuildContext context) {
-    final c = widget.c;
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Hero(
-                  // The notification bell (signed in), as the website's header.
-                  bell: NotificationBell(c),
-                  onStart: () => Scrollable.ensureVisible(
-                    _paths.currentContext!,
-                    duration: const Duration(milliseconds: 450),
-                    curve: Curves.easeOut,
-                  ),
-                  onStudio: c.exploreStudio,
-                ),
-                Padding(
-                  key: _paths,
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const ScreenTitle(
-                        'How do you want to ',
-                        highlight: 'create?',
-                        size: 24,
-                      ),
-                      const SizedBox(height: 14),
-                      _PathCard(
-                        art: 'assets/images/art/home_ai.jpg',
-                        icon: Icons.auto_awesome,
-                        title: 'AI DESIGNER',
-                        sub: 'LET AI CREATE IT',
-                        body:
-                            'Describe your ideas and let 3DEEZI AI generate custom designs instantly.',
-                        action: 'CREATE WITH AI',
-                        onTap: c.startAi,
-                      ),
-                      const SizedBox(height: 16),
-                      _PathCard(
-                        art: 'assets/images/art/home_dyo.jpg',
-                        icon: Icons.view_in_ar_outlined,
-                        title: 'DESIGN YOUR OWN',
-                        sub: 'CREATE IT YOURSELF',
-                        body:
-                            'Use our 3D studio and professional design tools to bring your vision to life.',
-                        action: 'OPEN 3D DESIGNER',
-                        onTap: c.startDyo,
-                      ),
-                      const SizedBox(height: 16),
-                      _PathCard(
-                        illustration: const _MiniArtboard(),
-                        icon: Icons.draw_outlined,
-                        title: '3DEEZI ARTBOARD',
-                        sub: 'PROFESSIONAL EDITING',
-                        body:
-                            'Advanced 2D design tools for full control. Create, edit and perfect your artwork.',
-                        action: 'OPEN ARTBOARD',
-                        onTap: () => c.go(AppScreen.artboard),
-                      ),
-                      const SizedBox(height: 16),
-                      // 3DEEZI TEAM (client brief 2026-10-21): real designers
-                      // create it for you, as the website's fourth tile.
-                      _PathCard(
-                        art: 'assets/images/art/home_team.webp',
-                        icon: Icons.groups_outlined,
-                        title: '3DEEZI TEAM',
-                        sub: 'REAL DESIGNERS. REAL RESULTS.',
-                        body:
-                            'Don’t want to design it yourself? Our professional design team will create it for you.',
-                        action: 'GET A DESIGNER',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(builder: (_) => TeamScreen(c)),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      SecondaryButton(
-                        label: 'Convert an image to 3D',
-                        icon: Icons.document_scanner_outlined,
-                        onPressed: () => convertFlow(context, c),
-                      ),
-                      const SizedBox(height: 10),
-                      SecondaryButton(
-                        label: 'Plans & pricing',
-                        icon: Icons.workspace_premium_outlined,
-                        onPressed: () => c.go(AppScreen.pricing),
-                      ),
-                      // ORDER NOW WITH 3DEEZI, as on the website's homepage.
-                      const SizedBox(height: 24),
-                      OrderNowSection(c),
-                      // 3DEEZI Rewards (coming soon): keep it last on the home
-                      // screen. The space under it is where the round 3DEEZI
-                      // ASSIST button rests at the end of the scroll.
-                      const SizedBox(height: 24),
-                      const RewardsComingSoonCard(),
-                      const SizedBox(height: 66),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        BottomNav(controller: c),
-      ],
-    );
-  }
-}
-
-/// Floodlit stadium hero with the campaign line.
-class _Hero extends StatelessWidget {
-  const _Hero({required this.onStart, required this.onStudio, this.bell});
-  final VoidCallback onStart, onStudio;
-  final Widget? bell;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 450,
-    child: Stack(
-      fit: StackFit.expand,
-      children: [
-        artImage(
-          asset: 'assets/images/art/home_hero.webp',
-          alignment: const Alignment(.55, 0),
-        ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [Color(0xf2020509), Color(0x99020509), Color(0x00020509)],
-              stops: [0, .55, 1],
-            ),
-          ),
-        ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0x00000000), Color(0xff05090d)],
-              stops: [.7, 1],
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const BrandLogo(width: 120, tagline: true),
-                  const Spacer(),
-                  ?bell,
-                ],
-              ),
-              const Spacer(),
-              const Text(
-                'FROM IDEA TO YOUR TEAM’S NEXT KIT',
-                style: TextStyle(
-                  color: Palette.cyan,
-                  fontSize: 9.5,
-                  letterSpacing: 2.2,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(text: 'YOUR NEXT\n'),
-                    TextSpan(
-                      text: 'GAME CHANGER.\n',
-                      style: TextStyle(color: Palette.cyan),
-                    ),
-                    TextSpan(text: 'STARTS HERE.'),
-                  ],
-                ),
-                style: TextStyle(
-                  fontFamily: 'Rajdhani',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 36,
-                  height: .98,
-                  shadows: [Shadow(color: Color(0xaa000000), blurRadius: 12)],
-                ),
-              ),
-              const SizedBox(height: 8),
-              const SizedBox(
-                width: 260,
-                child: Text(
-                  'Create sportswear with AI, real-time 3D, and your own artwork.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: Color(0xffc9d6e0)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: 230,
-                child: GradientButton(
-                  label: 'START CREATING',
-                  icon: Icons.arrow_forward_rounded,
-                  compact: true,
-                  onPressed: onStart,
-                ),
-              ),
-              const SizedBox(height: 4),
-              TextButton.icon(
-                onPressed: onStudio,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                ),
-                icon: const Icon(Icons.view_in_ar_outlined, size: 17),
-                label: const Text(
-                  'EXPLORE THE 3D STUDIO  →',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-/// A creation path tile with the website's cyan glow.
-class _PathCard extends StatelessWidget {
-  const _PathCard({
-    this.art,
-    this.illustration,
-    required this.icon,
-    required this.title,
-    required this.sub,
-    required this.body,
-    required this.action,
-    required this.onTap,
-  });
-  final String? art;
-  final Widget? illustration;
-  final IconData icon;
-  final String title, sub, body, action;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: '$title $sub',
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Palette.cyan.withValues(alpha: .33),
-            blurRadius: 18,
-            spreadRadius: -1,
-          ),
-          BoxShadow(
-            color: Palette.cyan.withValues(alpha: .15),
-            blurRadius: 46,
-            spreadRadius: -4,
-          ),
-        ],
-      ),
-      child: Material(
-        color: const Color(0xff061725),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(
-            color: Palette.cyan.withValues(alpha: .67),
-            width: 2,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: SizedBox(
-            height: 252,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (art != null)
-                  artImage(asset: art!, alignment: const Alignment(.6, -.2)),
-                if (illustration != null)
-                  Align(alignment: Alignment.topRight, child: illustration),
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        Color(0xee020810),
-                        Color(0x55020810),
-                        Color(0x00020810),
-                      ],
-                      stops: [0, .6, 1],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(icon, color: Palette.cyan, size: 26),
-                          const SizedBox(width: 10),
-                          // Title, then the teal subtitle smaller and spaced (145.jpg).
-                          Expanded(
-                            child: Text.rich(
-                              TextSpan(
+  Widget build(BuildContext context) => Column(
+    children: [
+      Expanded(
+        child: Stack(
+          children: [
+            const Positioned.fill(child: _HomeBackdrop()),
+            LayoutBuilder(
+              builder: (context, box) {
+                // Phones fill the width; a tablet keeps the phone's layout.
+                final w = math.min(box.maxWidth, 500.0);
+                final title = (w * .082).clamp(25.0, 36.0);
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: Center(
+                    child: SizedBox(
+                      width: w,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              height: 52,
+                              child: Stack(
+                                alignment: Alignment.center,
                                 children: [
-                                  TextSpan(text: '$title\n'),
-                                  TextSpan(
-                                    text: sub,
-                                    style: const TextStyle(
-                                      color: Palette.cyan,
-                                      fontSize: 15,
-                                      letterSpacing: 1.2,
-                                      height: 1.5,
-                                    ),
+                                  BrandLogo(width: math.min(w * .6, 260)),
+                                  // The notification bell (signed in).
+                                  Positioned(
+                                    right: 0,
+                                    child: NotificationBell(c),
                                   ),
                                 ],
                               ),
-                              style: const TextStyle(
+                            ),
+                            const SizedBox(height: 14),
+                            Text.rich(
+                              const TextSpan(
+                                children: [
+                                  TextSpan(text: 'What would you like\nto '),
+                                  TextSpan(
+                                    text: 'create?',
+                                    style: TextStyle(color: Palette.cyan),
+                                  ),
+                                ],
+                              ),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: title,
+                                fontWeight: FontWeight.w800,
+                                height: 1.12,
+                                letterSpacing: -.3,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Choose how you want to start.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 15.5,
+                                color: Color(0xffd3dee8),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            _tileRow(
+                              _HomeTile(
+                                key: const ValueKey('home-tile-ai'),
+                                art: 'assets/images/art/home_tile_ai.webp',
+                                title: 'AI DESIGNER',
+                                sub: 'Describe your idea',
+                                onTap: c.startAi,
+                              ),
+                              _HomeTile(
+                                key: const ValueKey('home-tile-dyo'),
+                                art: 'assets/images/art/home_tile_dyo.webp',
+                                title: 'DESIGN YOUR OWN',
+                                sub: 'Build your kit in 3D',
+                                onTap: c.startDyo,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _tileRow(
+                              _HomeTile(
+                                key: const ValueKey('home-tile-artboard'),
+                                art:
+                                    'assets/images/art/home_tile_artboard.webp',
+                                title: 'ARTBOARD',
+                                sub: 'Create and edit artwork',
+                                onTap: () => c.go(AppScreen.artboard),
+                              ),
+                              // 3DEEZI TEAM (client brief 2026-10-21): real
+                              // designers create it for you.
+                              _HomeTile(
+                                key: const ValueKey('home-tile-team'),
+                                art: 'assets/images/art/home_tile_team.webp',
+                                title: '3DEEZI TEAM',
+                                sub: 'Let our designers help',
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => TeamScreen(c),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Center(child: _AssistLink()),
+                            // One quiet line for Convert, which has no other
+                            // way in (Plans & pricing is on Profile; ORDER
+                            // WITH 3DEEZI and Rewards are on the Orders tab).
+                            Center(
+                              child: TextButton.icon(
+                                key: const ValueKey('home-convert'),
+                                onPressed: () => convertFlow(context, c),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xff9fb0bf),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  minimumSize: const Size(0, 36),
+                                ),
+                                icon: const Icon(
+                                  Icons.document_scanner_outlined,
+                                  size: 16,
+                                ),
+                                label: const Text(
+                                  'Convert an image to 3D',
+                                  style: TextStyle(fontSize: 12.5),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+      BottomNav(controller: c),
+    ],
+  );
+
+  Widget _tileRow(Widget a, Widget b) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(child: a),
+      const SizedBox(width: 12),
+      Expanded(child: b),
+    ],
+  );
+}
+
+/// The home's dark navy backdrop with the faint large 3DEEZI emblem.
+class _HomeBackdrop extends StatelessWidget {
+  const _HomeBackdrop();
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -.55),
+            radius: 1.1,
+            colors: [Color(0xff0b2235), Color(0xff06111b), Color(0xff040a10)],
+            stops: [0, .55, 1],
+          ),
+        ),
+      ),
+      Align(
+        alignment: const Alignment(0, -.92),
+        child: FractionallySizedBox(
+          widthFactor: 1.25,
+          child: Opacity(
+            opacity: .07,
+            child: Image.asset(
+              'assets/images/emblem-final.png',
+              fit: BoxFit.contain,
+              color: const Color(0xff4fb8ff),
+              colorBlendMode: BlendMode.srcIn,
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+/// One home tile: a full-bleed picture with a glowing cyan border, the title
+/// and its sub-line at the bottom.
+class _HomeTile extends StatelessWidget {
+  const _HomeTile({
+    super.key,
+    required this.art,
+    required this.title,
+    required this.sub,
+    required this.onTap,
+  });
+  final String art, title, sub;
+  final VoidCallback onTap;
+
+  static const _fill = Color(0xff07121d);
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      // Lettering grows with the tile (168 px wide on a 390 px phone).
+      final s = (box.maxWidth / 168).clamp(.82, 1.45);
+      return AspectRatio(
+        aspectRatio: .8,
+        child: Semantics(
+          button: true,
+          label: '$title. $sub',
+          excludeSemantics: true,
+          onTap: onTap,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Palette.cyan.withValues(alpha: .32),
+                  blurRadius: 16,
+                  spreadRadius: -2,
+                ),
+              ],
+            ),
+            child: Material(
+              color: _fill,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(
+                  color: const Color(0xff1fb6ff).withValues(alpha: .85),
+                  width: 1.6,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onTap,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Image.asset(
+                          art,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.medium,
+                        ),
+                      ),
+                    ),
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Color(0x0007121d), _fill],
+                          stops: [.52, .8],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 8,
+                      right: 8,
+                      bottom: 12 * s,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              style: TextStyle(
                                 fontFamily: 'Rajdhani',
                                 fontWeight: FontWeight.w700,
-                                fontSize: 24,
-                                height: 1,
+                                fontSize: 21 * s,
+                                height: 1.1,
+                                letterSpacing: .3,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 3 * s),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              sub,
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 12.5 * s,
+                                color: const Color(0xffd3dee8),
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        // Leave room for the Artboard tile's picture.
-                        width: illustration == null ? null : 150,
-                        child: Text(
-                          illustration == null
-                              ? body
-                              : body.replaceAll('\n', ' '),
-                          maxLines: 4,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xffc9d6e0),
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      OutlinedButton.icon(
-                        onPressed: onTap,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Palette.cyan,
-                          side: const BorderSide(
-                            color: Palette.cyan,
-                            width: 1.4,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                        iconAlignment: IconAlignment.end,
-                        icon: const Icon(Icons.arrow_forward_rounded, size: 17),
-                        label: Text(
-                          action,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .6,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-/// The Artboard tile's picture: a tiny editor with the 3DEEZI emblem.
-class _MiniArtboard extends StatelessWidget {
-  const _MiniArtboard();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 170,
-    height: 150,
-    margin: const EdgeInsets.fromLTRB(0, 18, 14, 0),
-    decoration: BoxDecoration(
-      color: const Color(0xff0b1622),
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: const Color(0xff234257)),
-      boxShadow: [
-        BoxShadow(color: Palette.cyan.withValues(alpha: .18), blurRadius: 18),
-      ],
-    ),
-    child: Column(
-      children: [
-        Container(
-          height: 16,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: const BoxDecoration(
-            color: Color(0xff1a2233),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
-          ),
-          child: Row(
-            children: [
-              for (final c in const [
-                Color(0xffff5f57),
-                Color(0xfffebc2e),
-                Color(0xff28c840),
-              ])
-                Container(
-                  width: 6,
-                  height: 6,
-                  margin: const EdgeInsets.only(right: 4),
-                  decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-                ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Row(
-            children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 5, vertical: 6),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Icon(Icons.near_me_outlined, size: 13, color: Palette.cyan),
-                    Icon(Icons.draw_outlined, size: 13, color: Palette.muted),
-                    Icon(Icons.text_fields, size: 13, color: Palette.muted),
-                    Icon(Icons.layers_outlined, size: 13, color: Palette.muted),
+                    ),
                   ],
                 ),
               ),
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.fromLTRB(0, 6, 6, 6),
-                  color: Colors.white,
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Image.asset(
-                      'assets/images/emblem-final.png',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final c in const [
-                Palette.cyan,
-                Palette.blue,
-                Color(0xff7b4dff),
-                Color(0xffe8edf2),
-              ])
-                Container(
-                  width: 12,
-                  height: 12,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    color: c,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-            ],
+      );
+    },
+  );
+}
+
+/// "Need a hand? Ask 3DEEZI Assist →": opens the help chat.
+class _AssistLink extends StatelessWidget {
+  const _AssistLink();
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+    key: const ValueKey('home-assist-link'),
+    onPressed: () => AssistController.latest?.show(),
+    style: TextButton.styleFrom(
+      foregroundColor: Palette.cyan,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    ),
+    child: const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.auto_awesome, size: 22, color: Palette.cyan),
+        SizedBox(width: 10),
+        Flexible(
+          child: Text(
+            'Need a hand? Ask 3DEEZI Assist',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ),
+        SizedBox(width: 10),
+        Icon(Icons.arrow_forward_rounded, size: 20, color: Palette.cyan),
       ],
     ),
   );
@@ -850,14 +695,11 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   }
 
   void _design() {
-    final garments = sportNamed(dyoSports[_index].$1)?.garments ?? const [];
     GarmentScreen.showAll.value = false;
     widget.c.update(() {
       widget.c.sport = dyoSports[_index].$1;
-      // A garment this sport does not offer gives way to its first one.
-      if (garments.isNotEmpty && !garments.contains(widget.c.garment)) {
-        widget.c.garment = garments.first;
-      }
+      // The sport's first garment, unless the kit already is one of its tiles.
+      GarmentScreen.startOn(widget.c);
     });
     widget.c.go(AppScreen.garment);
   }
@@ -1021,7 +863,8 @@ class _ArrowButton extends StatelessWidget {
   );
 }
 
-/// The garments offered: (name, showroom art id).
+/// The 3D garments: (name, showroom art id). "More teamwear" offers the ones
+/// a sport's own tiles do not use.
 const garmentTiles = <(String, String)>[
   ('Full Kit', 'fullkit'),
   ('Jersey', 'jersey'),
@@ -1036,241 +879,397 @@ const garmentTiles = <(String, String)>[
   ('Varsity jacket', 'varsity'),
 ];
 
-/// Shown with the garments; not yet available in 3D.
+/// Shown in the Studio's garment list; not yet available in 3D.
 const comingSoonGarments = <(String, String)>[
   ('Socks', 'socks'),
   ('Shoes', 'shoes'),
 ];
 
-/// 9 · Select garment for the chosen sport.
+/// 9 · Step 2 (client visuals images/157.jpg and 160.jpg, task 9.99):
+/// "<SPORT> UNIFORMS & TEAMWEAR", the sport's own garment tiles
+/// (lib/sports_catalog.dart, as on the website) and "More teamwear" for every
+/// other 3D garment. A tile without a 3D model of its own says which garment
+/// the 3D preview uses; one with none close enough is COMING SOON.
 class GarmentScreen extends StatelessWidget {
   const GarmentScreen(this.c, {super.key});
   final AppController c;
 
-  /// "Show all garments": the sport's garments only until it is tapped (the
-  /// sport chooser resets it).
+  /// "More teamwear" open (the sport chooser closes it).
   static final showAll = ValueNotifier(false);
 
-  /// The garment tiles for [sport]: its garments (lib/sports_catalog.dart)
-  /// in its order, or all of them.
-  static List<(String, String)> tilesFor(String sport, {bool all = false}) {
-    final suited = sportNamed(sport)?.garments ?? const <String>[];
-    if (all || suited.isEmpty) return garmentTiles;
+  /// The sport's own tiles (an unknown sport: one per 3D garment).
+  static List<GarmentTile> tilesFor(String sport) {
+    final tiles = sportNamed(sport)?.tiles ?? const <GarmentTile>[];
+    if (tiles.isNotEmpty) return tiles;
+    return [for (final (name, _) in garmentTiles) GarmentTile(name, '', name)];
+  }
+
+  /// "More teamwear": the 3D garments the sport's tiles do not use (none for
+  /// the client's Rugby lists).
+  static List<GarmentTile> moreFor(String sport) {
+    final s = sportNamed(sport);
+    if (s != null && !s.more) return const [];
+    final used = {for (final t in tilesFor(sport)) t.garment};
     return [
-      for (final name in suited)
-        ...garmentTiles.where((g) => g.$1 == name),
+      for (final (name, _) in garmentTiles)
+        if (!used.contains(name)) GarmentTile(name, '', name),
     ];
   }
 
-  Widget _tile(
-    String name,
-    String art, {
-    bool selected = false,
-    bool soon = false,
-    VoidCallback? onTap,
-  }) => Opacity(
-    opacity: soon ? .55 : 1,
-    child: GlowCard(
-      selected: selected,
-      glow: selected,
-      onTap: onTap,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(10, soon ? 26 : 10, 10, 34),
-            child: Image.asset(
-              'assets/images/showroom/garment-$art.webp',
-              fit: BoxFit.contain,
-              // A garment without its picture yet shows its nearest one.
-              errorBuilder: (_, _, _) => Image.asset(
-                'assets/images/showroom/garment-${art.contains('polo') ? 'polo' : 'jersey'}.webp',
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-          if (selected)
-            const Positioned(
-              top: 9,
-              right: 9,
-              child: Icon(
-                Icons.check_circle_rounded,
-                color: Palette.cyan,
-                size: 22,
-              ),
-            ),
-          if (soon)
-            Positioned(
-              top: 8,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0x337560ff),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0x997560ff)),
-                  ),
-                  child: const Text(
-                    'COMING SOON',
-                    style: TextStyle(fontSize: 8.5, letterSpacing: 1.2),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
+  /// The tile the kit was chosen as: by its name; a plain 3D garment from
+  /// "More teamwear" has an empty name.
+  static GarmentTile? current(AppController c) {
+    if (c.productName.isNotEmpty) {
+      for (final t in tilesFor(c.sport)) {
+        if (t.name == c.productName && t.garment == c.garment) return t;
+      }
+      return null;
+    }
+    for (final t in moreFor(c.sport)) {
+      if (t.garment == c.garment) return t;
+    }
+    return null;
+  }
 
-  @override
-  Widget build(BuildContext context) => StageBackground(
-    dim: true,
-    child: Column(
-      children: [
-        TopBar(onBack: c.back),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Row(
+  /// Puts the tile on the kit: its 3D garment, its name and its settings.
+  static void choose(AppController c, GarmentTile t, {bool plain = false}) {
+    if (t.garment == null) return;
+    c.garment = t.garment!;
+    c.productName = plain ? '' : t.name;
+    // A tile without a style of its own is the plain (collar) track jacket,
+    // also after a hooded tile was chosen (QA U: the hood was kept).
+    c.trackStyle = t.trackStyle ?? 'collar';
+  }
+
+  /// A new sport (or a garment left from another one) starts on its first
+  /// garment that can be designed.
+  static void startOn(AppController c) {
+    final tiles = tilesFor(c.sport);
+    final mine =
+        c.productName.isNotEmpty &&
+        tiles.any((t) => t.name == c.productName && t.garment == c.garment);
+    if (mine) return;
+    for (final t in tiles) {
+      if (!t.soon) return choose(c, t);
+    }
+  }
+
+  /// The project's name when the kit opens: the tile's name ("Netball
+  /// dress"), with the sport first when the name does not say it.
+  static String projectNameFor(AppController c) {
+    final label = c.garmentLabel;
+    return label.toLowerCase().contains(c.sport.toLowerCase())
+        ? label
+        : '${c.sport} $label';
+  }
+
+  Widget _tile(
+    BuildContext context,
+    GarmentTile t, {
+    bool selected = false,
+    bool plain = false,
+    bool described = true,
+  }) {
+    final soon = t.soon;
+    final art = plain ? garmentIds[t.garment] ?? 'jersey' : t.art;
+    final uses = t.fit == 'nearest' ? t.garment : null;
+    return Semantics(
+      label: t.name,
+      selected: selected,
+      button: !soon,
+      child: Opacity(
+        opacity: soon ? .6 : 1,
+        child: GlowCard(
+          key: ValueKey('garment-tile-${t.name}'),
+          selected: selected,
+          glow: selected,
+          onTap: soon
+              ? () => showToast(context, '${t.name}: coming soon in 3D.')
+              : () => c.update(() => choose(c, t, plain: plain)),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Palette.cyan, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Palette.cyan.withValues(alpha: .45),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-                child: const Text(
-                  '2',
-                  style: TextStyle(
-                    fontFamily: 'Rajdhani',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
+              Padding(
+                padding: EdgeInsets.fromLTRB(8, soon ? 24 : 8, 8, 0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const ScreenTitle(
-                      'Select garment',
-                      size: 24,
-                      align: TextAlign.left,
-                    ),
-                    Text(
-                      'Choose what you want to design for ${c.sport}.',
-                      style: const TextStyle(
-                        color: Color(0xffc4d2df),
-                        fontSize: 12,
+                    Expanded(
+                      child: Image.asset(
+                        'assets/images/showroom/garment-$art.webp',
+                        fit: BoxFit.contain,
+                        // A picture still to come shows its 3D garment's.
+                        errorBuilder: (_, _, _) => Image.asset(
+                          'assets/images/showroom/garment-${garmentIds[t.garment] ?? 'jersey'}.webp',
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      t.name.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Rajdhani',
+                        fontSize: 15,
+                        height: 1.05,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .5,
+                      ),
+                    ),
+                    if (described && t.description.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          t.description,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xffb7c6d6),
+                            fontSize: 10.5,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    if (uses != null && described)
+                      Text(
+                        '3D preview uses ${uses.toLowerCase()}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xff5fdcea),
+                          fontSize: 9.5,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
+              if (selected)
+                const Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    color: Palette.cyan,
+                    size: 22,
+                  ),
+                ),
+              if (soon)
+                Positioned(
+                  top: 8,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0x337560ff),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0x997560ff)),
+                      ),
+                      child: const Text(
+                        'COMING SOON',
+                        style: TextStyle(fontSize: 8.5, letterSpacing: 1.2),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
-        Expanded(
-          child: ValueListenableBuilder(
-            valueListenable: showAll,
-            builder: (context, all, _) {
-              final tiles = tilesFor(c.sport, all: all);
-              final more = tilesFor(c.sport).length < garmentTiles.length;
-              return GridView.count(
-                crossAxisCount: 2,
-                padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: .9,
-                children: [
-                  for (final (name, art) in tiles)
-                    _tile(
-                      name,
-                      art,
-                      selected: c.garment == name,
-                      onTap: () => c.update(() => c.garment = name),
+      ),
+    );
+  }
+
+  SliverGrid _grid(List<Widget> children, {bool described = true}) =>
+      SliverGrid.count(
+        crossAxisCount: 2,
+        mainAxisSpacing: described ? 12 : 10,
+        crossAxisSpacing: described ? 12 : 10,
+        // Names only (the client's American Football list): shorter tiles.
+        childAspectRatio: described ? .68 : .92,
+        children: children,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final sport = sportNamed(c.sport);
+    final title = sport?.heading ?? c.sport;
+    final heading = sport?.group == 'apparel'
+        ? '$title teamwear'
+        : '$title uniforms & teamwear';
+    final tiles = tilesFor(c.sport), more = moreFor(c.sport);
+    final chosen = current(c);
+    // Per-sport settings (config/catalog.php): subtitle, hint, names only and
+    // an own background.
+    final described = sport?.descriptions ?? true;
+    final hint = sport?.selectHint;
+    return StageBackground(
+      dim: true,
+      image: sport?.backdrop,
+      child: Column(
+        children: [
+          TopBar(onBack: c.back),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Palette.cyan, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Palette.cyan.withValues(alpha: .45),
+                        blurRadius: 12,
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    '2',
+                    style: TextStyle(
+                      fontFamily: 'Rajdhani',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
                     ),
-                  for (final (name, art) in comingSoonGarments)
-                    _tile(
-                      name,
-                      art,
-                      soon: true,
-                      onTap: () =>
-                          showToast(context, '$name are coming soon in 3D.'),
-                    ),
-                  // The sport's garments first; this shows the rest too.
-                  if (more)
-                    GlowCard(
-                      onTap: () => showAll.value = !all,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ScreenTitle(heading, size: 22, align: TextAlign.left),
+                      Text(
+                        sport?.subtitle ??
+                            'Choose what you want to design for $title.',
+                        style: const TextStyle(
+                          color: Color(0xffc4d2df),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ValueListenableBuilder(
+              valueListenable: showAll,
+              builder: (context, all, _) => CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
+                    sliver: _grid([
+                      for (final t in tiles)
+                        _tile(
+                          context,
+                          t,
+                          described: described,
+                          selected:
+                              chosen != null &&
+                              c.productName == t.name &&
+                              chosen.garment == t.garment,
+                        ),
+                    ], described: described),
+                  ),
+                  if (more.isNotEmpty)
+                    SliverToBoxAdapter(
                       child: Center(
-                        child: Text(
-                          all
-                              ? 'ONLY ${c.sport.toUpperCase()} GARMENTS'
-                              : 'SHOW ALL GARMENTS',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Palette.cyan,
-                            letterSpacing: 1,
+                        child: TextButton(
+                          key: const ValueKey('more-teamwear'),
+                          onPressed: () => showAll.value = !all,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                all ? 'Less teamwear' : 'More teamwear',
+                                style: const TextStyle(
+                                  color: Palette.cyan,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Icon(
+                                all
+                                    ? Icons.expand_less_rounded
+                                    : Icons.chevron_right_rounded,
+                                color: Palette.cyan,
+                                size: 18,
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
+                  if (all && more.isNotEmpty)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
+                      sliver: _grid([
+                        for (final t in more)
+                          _tile(
+                            context,
+                            t,
+                            plain: true,
+                            selected:
+                                chosen != null &&
+                                c.productName.isEmpty &&
+                                chosen.garment == t.garment,
+                          ),
+                      ]),
+                    ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 10)),
                 ],
-              );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 6, 18, 8),
-          child: Column(
-            children: [
-              GradientButton(
-                label: 'CONTINUE TO STUDIO',
-                icon: Icons.arrow_forward_rounded,
-                onPressed: () {
-                  c.update(() => c.projectName = '${c.sport} ${c.garment}');
-                  c.go(AppScreen.studio);
-                },
               ),
-              TextButton.icon(
-                onPressed: c.back,
-                icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                label: const Text('Change sport'),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 6, 18, 8),
+            child: Column(
+              children: [
+                if (hint != null)
+                  Padding(
+                    key: const ValueKey('garment-hint'),
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      hint,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xff3fd2ee),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                GradientButton(
+                  label: 'CONTINUE TO STUDIO',
+                  icon: Icons.arrow_forward_rounded,
+                  onPressed: chosen == null
+                      ? null
+                      : () {
+                          c.update(() => c.projectName = projectNameFor(c));
+                          c.go(AppScreen.studio);
+                        },
+                ),
+                TextButton.icon(
+                  onPressed: c.back,
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text('Change sport'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// CONVERT: pick a photo, sketch or mockup and open it as an editable 3D kit.

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'order_review_garments.dart';
 import 'ui.dart';
+import '../order_sizes.dart';
 
 /// REVIEW & APPROVE ORDER in the app, as on the website (components/OrderReviewApprove.tsx, client design 2026-10-22):
 /// the 3-step bar (Upload files → Review & approve → Order sent), then
@@ -21,14 +22,18 @@ const _columns = {'jersey': 'JERSEYS', 'shorts': 'SHORTS', 'tee': 'TEES', 'singl
 bool isYouthSize(String s) => RegExp(r'^(y|yth|youth|k|kid|kids|age|size)?\s*-?\s*\d{1,2}\s*(y|yr|yrs|years?|k)?$', caseSensitive: false).hasMatch(s.trim());
 
 /// The Kids count split into the youth sizes the form wrote ({'10Y': 1, '16Y': 1}) when they add up to it; else as is.
-/// Only for showing: the order keeps its sizes (XS … 4XL, Kids).
+/// Only for showing: the order keeps its sizes. Orders since 2026-10-22 have the youth sizes themselves (2Y … 16Y),
+/// so this only changes older ones. "Y10" and "10 yrs" show as the site's 10Y.
 Map<String, int> youthSplit(Map<String, int> sizes, Map? formSizes) {
   final kids = sizes['Kids'] ?? 0;
   if (kids <= 0 || formSizes == null) return sizes;
-  final youth = <String, int>{
-    for (final e in formSizes.entries)
-      if (isYouthSize('${e.key}') && ((e.value as num?)?.toInt() ?? 0) > 0) '${e.key}'.trim().toUpperCase(): (e.value as num).toInt(),
-  };
+  final youth = <String, int>{};
+  for (final e in formSizes.entries) {
+    final n = (e.value as num?)?.toInt() ?? 0;
+    if (!isYouthSize('${e.key}') || n <= 0) continue;
+    final key = siteSize('${e.key}') ?? '${e.key}'.trim().toUpperCase();
+    youth[key] = (youth[key] ?? 0) + n;
+  }
   if (youth.isEmpty || youth.values.fold(0, (a, b) => a + b) != kids) return sizes;
   return {...(Map.of(sizes)..remove('Kids')), ...youth};
 }

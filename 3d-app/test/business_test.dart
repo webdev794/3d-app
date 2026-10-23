@@ -6,34 +6,46 @@ import 'features_test.dart' show FakeStore;
 import 'flow_test.dart' show mountPhone, tapText;
 
 void main() {
-  testWidgets('home has the three creation paths and plans', (tester) async {
+  testWidgets('home has the four creation tiles, Assist and Convert', (
+    tester,
+  ) async {
     final c = AppController(store: FakeStore())..screen = AppScreen.home;
     await mountPhone(tester, c);
     // A large phone: the test font is much wider than real text.
     tester.view.physicalSize = const Size(430, 900);
     await tester.pump();
-    expect(find.text('START CREATING'), findsOneWidget);
-    for (final label in [
-      'CREATE WITH AI',
-      'OPEN 3D DESIGNER',
-      'OPEN ARTBOARD',
-      'Plans & pricing',
+    // The client's home (images/166.jpg).
+    expect(find.textContaining('What would you like'), findsOneWidget);
+    expect(find.text('Choose how you want to start.'), findsOneWidget);
+    for (final (title, sub) in [
+      ('AI DESIGNER', 'Describe your idea'),
+      ('DESIGN YOUR OWN', 'Build your kit in 3D'),
+      ('ARTBOARD', 'Create and edit artwork'),
+      ('3DEEZI TEAM', 'Let our designers help'),
     ]) {
-      await tester.ensureVisible(find.text(label));
-      expect(find.text(label), findsOneWidget);
+      await tester.ensureVisible(find.text(title));
+      expect(find.text(title), findsOneWidget);
+      expect(find.text(sub), findsOneWidget);
     }
-    await tapText(tester, 'EXPLORE THE 3D STUDIO  →');
-    expect(c.screen, AppScreen.studio);
-    expect(c.mode, 'DYO');
-    c.update(() => c.screen = AppScreen.home);
-    await tester.pump(const Duration(milliseconds: 400));
-    await tapText(tester, 'OPEN ARTBOARD');
+    expect(find.text('Need a hand? Ask 3DEEZI Assist'), findsOneWidget);
+    // Convert has no other way in: one quiet line under the link. Plans &
+    // pricing is on Profile; ORDER WITH 3DEEZI and Rewards on Orders.
+    await tester.ensureVisible(find.text('Convert an image to 3D'));
+    expect(find.text('Convert an image to 3D'), findsOneWidget);
+    expect(find.text('Plans & pricing'), findsNothing);
+    await tapText(tester, 'ARTBOARD');
     expect(c.screen, AppScreen.artboard);
   });
 
   testWidgets('plans and the Corporate Partner offer', (tester) async {
-    final c = AppController(store: FakeStore())..screen = AppScreen.home;
+    // Plans & pricing opens from Profile (the Home keeps to its four tiles).
+    final c = AppController(store: FakeStore())..screen = AppScreen.profile;
     await mountPhone(tester, c);
+    await tester.scrollUntilVisible(
+      find.text('Plans & pricing'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tapText(tester, 'Plans & pricing');
     expect(c.screen, AppScreen.pricing);
     expect(find.text('Club'), findsOneWidget);

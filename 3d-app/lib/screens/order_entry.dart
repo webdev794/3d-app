@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
+import '../order_sizes.dart';
 import '../project_sync.dart';
 import '../widgets/site_page_stub.dart' if (dart.library.js_interop) '../widgets/site_page_web.dart' if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/order_form_read.dart';
@@ -286,7 +287,6 @@ Future<({String name, Uint8List bytes})?> _pick(String kind) async {
   return (name: file.name, bytes: await file.readAsBytes());
 }
 
-const _sizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
 const _garments = {
   'jersey': 'Jersey',
   'shorts': 'Shorts',
@@ -311,8 +311,18 @@ String orderGarmentFor(String garment) {
   return _garments.containsKey(row) ? row : 'jersey';
 }
 
-const _fits = {'mens': 'Mens', 'womens': 'Womens', 'youth': 'Youth', 'unisex': 'Unisex'};
+/// The fits (Order::FITS): the fit chooses the row's sizes (order_sizes.dart).
+const _fits = fitNames;
 const _maxBytes = 25 * 1024 * 1024;
+
+/// The small links under a garment's sizes ("+ 5XL–8XL", "+ Womens sizes").
+final _smallLink = TextButton.styleFrom(
+  padding: const EdgeInsets.symmetric(horizontal: 6),
+  minimumSize: const Size(0, 32),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  visualDensity: VisualDensity.compact,
+  textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+);
 
 String _newKey() => 'app-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 30)}';
 
@@ -329,6 +339,8 @@ class _Upload {
 class _Row {
   String garment = 'jersey', fit = 'mens';
   int? project;
+  /// "More sizes": the fit's rare sizes (5XL–8XL, W22–W24, 2Y–4Y).
+  bool more = false;
   final Map<String, int> sizes = {};
   String players = '';
   int get total => sizes.values.fold(0, (a, b) => a + b);
@@ -347,8 +359,10 @@ class _Row {
             () {
               final cells = line.split(RegExp(r'[,\t;]')).map((s) => s.trim()).toList();
               final number = cells.firstWhere((s) => RegExp(r'^\d{1,3}$').hasMatch(s), orElse: () => '');
-              final size = cells.firstWhere((s) => _sizes.contains(s.toUpperCase()), orElse: () => '').toUpperCase();
-              final name = cells.where((s) => s != number && s.toUpperCase() != size).join(' ');
+              // "M", "xxl", "10y", "W12" (order_sizes.dart siteSize).
+              final sizeCell = cells.firstWhere((s) => s != number && siteSize(s) != null, orElse: () => '');
+              final size = sizeCell.isEmpty ? '' : siteSize(sizeCell)!;
+              final name = cells.where((s) => s != number && s != sizeCell).join(' ');
               return {'name': name, 'number': number, if (size.isNotEmpty) 'size': size};
             }(),
       ],
@@ -889,8 +903,9 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
           rows.add(
             _Row()
               ..garment = _garments.containsKey(item['garment']) ? '${item['garment']}' : 'other'
-              ..fit = _fits.containsKey(item['fit']) ? '${item['fit']}' : 'mens'
-              ..sizes.addAll(((item['sizes'] as Map?) ?? const {}).map((k, v) => MapEntry('$k', (v as num).toInt()))),
+              ..sizes.addAll(((item['sizes'] as Map?) ?? const {}).map((k, v) => MapEntry('$k', (v as num).toInt())))
+              // Only womens or only kids sizes: that fit, so the row shows that size set.
+              ..fit = _fits.containsKey(item['fit']) ? '${item['fit']}' : fitFromSizes(((item['sizes'] as Map?) ?? const {}).map((k, v) => MapEntry('$k', (v as num).toInt()))) ?? 'mens',
           );
         }
         if (rows.isEmpty) rows.add(_Row());
@@ -1028,11 +1043,12 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                       }),
                     ),
                   const SizedBox(height: 10),
+                  // The fit's sizes: Mens XS–4XL (+ 5XL–8XL), Womens W8–W20 (+ W22, W24), Kids 6Y–16Y (+ 2Y, 4Y), and any size the row has.
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final s in _sizes.take(7))
+                      for (final s in rowSizes(r.fit, r.sizes, more: r.more))
                         SizedBox(
                           width: 64,
                           child: TextFormField(
@@ -1046,10 +1062,45 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Subtotal ${r.total}',
-                    style: const TextStyle(color: Palette.cyan, fontWeight: FontWeight.w700),
+                  // The subtotal, "More sizes", and the same garment in another fit (a team's mens, womens and kids each
+                  // get a row), on one line.
+                  Wrap(
+                    spacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          'Subtotal ${r.total}',
+                          style: const TextStyle(color: Palette.cyan, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      if (rareFor(r.fit).isNotEmpty)
+                        TextButton(
+                          key: Key('more-sizes-$i'),
+                          style: _smallLink,
+                          onPressed: () => setState(() => r.more = !r.more),
+                          child: Text(r.more ? 'Fewer sizes' : '+ ${rareText(rareFor(r.fit))}'),
+                        ),
+                      for (final f in const ['mens', 'womens', 'youth'])
+                        if (f != (r.fit == 'womens' || r.fit == 'youth' ? r.fit : 'mens'))
+                          TextButton(
+                            key: Key('add-fit-$i-$f'),
+                            style: _smallLink,
+                            onPressed: rows.length >= 30
+                                ? null
+                                : () => setState(
+                                    () => rows.insert(
+                                      i + 1,
+                                      _Row()
+                                        ..garment = r.garment
+                                        ..project = r.project
+                                        ..fit = f,
+                                    ),
+                                  ),
+                            child: Text('+ ${fitNames[f]} sizes'),
+                          ),
+                    ],
                   ),
                   ExpansionTile(
                     tilePadding: EdgeInsets.zero,
@@ -1108,13 +1159,24 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     );
   }
 
+  /// Rows using a design made as one of its sport's garments ("Netball bibs", task 9.99) are named by it on the review
+  /// and priced under it, as the placed order names them (the server's OrderSubmission); a row's own label wins.
+  List<Map<String, dynamic>> _named(Iterable<Object?> items) => [
+    for (final m in items.whereType<Map>().map((m) => m.cast<String, dynamic>()))
+      () {
+        final id = m['project_id'];
+        final product = id == null ? '' : c.projects.where((p) => p.remoteId != null && p.remoteId == id).firstOrNull?.kit.productName.trim() ?? '';
+        return product.isNotEmpty && '${m['label'] ?? ''}'.trim().isEmpty ? {...m, 'label': product.length > 60 ? product.substring(0, 60) : product} : m;
+      }(),
+  ];
+
   /// REVIEW & APPROVE ORDER (client design 2026-10-22, as on the website): one matching kit's combined review, or one
   /// section per garment style; delivery and notes with the price; the confirm box and APPROVE ORDER.
   Widget _review() {
-    final items = [
+    final items = _named([
       for (final r in rows)
         if (r.total > 0) r.toJson(),
-    ];
+    ]);
     final art = [
       for (final u in uploads)
         if (u.file != null && '${u.file!['thumb'] ?? ''}'.startsWith('data:')) '${u.file!['thumb']}',
@@ -1148,7 +1210,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
           children: [
             PriceChoices(c, pricing, (next) => setState(() => pricing = next)),
             // Priced as the order will be: the review's choice, else Deliver / Pick up and the country.
-            PriceBox(c, {'items': fields()['items'], 'pricing': {...pricing, if (pricing['destination'] == null && choiceDestination != null) 'destination': choiceDestination}},
+            PriceBox(c, {'items': _named((fields()['items'] as List?) ?? const []), 'pricing': {...pricing, if (pricing['destination'] == null && choiceDestination != null) 'destination': choiceDestination}},
                 key: ValueKey('${jsonEncode(pricing)}$choiceDestination')),
           ],
         ),

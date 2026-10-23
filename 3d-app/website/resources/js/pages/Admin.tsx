@@ -14,6 +14,7 @@ import { LifeBuoy } from 'lucide-react';
 import { InvoicesAdmin, PricingAdmin } from './AdminPricing';
 import { BadgeDollarSign, Receipt } from 'lucide-react';
 import '../../css/orders.css';
+import { ALL_SIZES, MENS_SIZES, RARE_SIZES, rareText, sizeGroups } from '../orderSizes';
 import AdminTeam from './AdminTeam';
 import { Palette } from 'lucide-react';
 
@@ -30,7 +31,7 @@ export interface Order {
 export type BackNames = 'same' | 'list' | 'none';
 /** One shirt's back: a list row has its size. */
 export interface Player { name: string; number: string; size?: string }
-interface AdminProject { id: number; name: string; sport: string; garment: string; mode: string; status: 'draft' | 'approved'; version: number; thumbnail: string | null; updated_at: string; orders_count: number; user?: { id: number; name: string; email: string } }
+interface AdminProject { id: number; name: string; sport: string; garment: string; mode: string; status: 'draft' | 'approved'; version: number; thumbnail: string | null; updated_at: string; orders_count: number; /** The sport's garment tile it was made as ("Netball dress"). */ product_name?: string | null; user?: { id: number; name: string; email: string } }
 interface Page<T> { data: T[]; current_page: number; last_page: number; total: number }
 interface TrendPoint { day: string; kits: number; orders: number }
 interface Stats { partners: number; new_partners: number; users: number; admins: number; projects: number; orders: number; approved: number; quotes: number; garments: number; revenue: number; by_status: Record<string, number>; recent: Order[]; trend: TrendPoint[]; sports: { sport: string; count: number }[] }
@@ -39,7 +40,26 @@ const PARTNER_STATUSES = ['new', 'contacted', 'onboarding', 'live', 'declined'];
 interface ApiSettings { configured: boolean; source: string; masked_key: string | null; text_model: string; image_model: string; planning_model?: string | null; hd_image_model?: string | null; production_lead_weeks?: number }
 interface DbInfo { driver: string; size: number | null; uploads: number; tables: { name: string; rows: number }[]; expired_tokens: number; php: string; laravel: string; backup: boolean }
 
-export const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Kids'];
+/** Every size in order (Order::SIZES): Mens XS–8XL, Womens W8–W24, Kids 2Y–16Y, then the older Kids column. */
+export const SIZES = ALL_SIZES;
+/**
+ * Quantities by size for one kit order ("Order this kit", the admin's order form): the Mens sizes XS–4XL, then
+ * "More sizes" for 5XL–8XL, the Womens (W8–W24) and Kids (2Y–16Y) sizes. Sizes with a quantity always show.
+ */
+export function SizeFields({ sizes, onChange, disabled, legend }: { sizes: Record<string, number>; onChange: (size: string, n: number) => void; disabled?: boolean; legend: React.ReactNode }) {
+  const has = (s: string) => (Number(sizes[s]) || 0) > 0;
+  const [more, setMore] = useState(() => SIZES.some(s => has(s) && (RARE_SIZES.includes(s) || !MENS_SIZES.includes(s))));
+  const groups = sizeGroups(SIZES).map(g => ({ ...g, sizes: g.sizes.filter(s => has(s) || (s !== 'Kids' && (more || (g.fit === 'mens' && !RARE_SIZES.includes(s))))) })).filter(g => g.sizes.length);
+  const full = { gridColumn: '1 / -1', margin: '4px 0 0', fontSize: 11.5, fontWeight: 700, color: '#c9d6e2', textAlign: 'left' as const };
+  return <fieldset className="size-grid" disabled={disabled}><legend>{legend}</legend>
+    {groups.map(g => [
+      ...(groups.length > 1 || more ? [<span key={`${g.fit}-h`} style={full}>{g.name} sizes</span>] : []),
+      ...g.sizes.map(s => <label key={s}><span>{s}</span><input type="number" min={0} max={10000} value={sizes[s] || ''} placeholder="0" aria-label={`Size ${s}`} onChange={e => onChange(s, Math.max(0, Math.min(10000, Math.floor(Number(e.target.value)) || 0)))} /></label>),
+    ])}
+    <button type="button" className="text-button" style={{ ...full, fontWeight: 600, color: '#5cc8ec', background: 'none', border: 0, padding: '2px 0', cursor: 'pointer' }} aria-expanded={more} onClick={() => setMore(m => !m)}>
+      {more ? 'Fewer sizes' : `+ More sizes: ${rareText(RARE_SIZES.filter(s => MENS_SIZES.includes(s)))}, Womens W8–W24, Kids 2Y–16Y`}</button>
+  </fieldset>;
+}
 export const STATUSES = ['pending', 'confirmed', 'in_production', 'shipped', 'delivered', 'cancelled'];
 export const statusLabel = (s: string) => s.replace('_', ' ').replace(/^./, c => c.toUpperCase());
 const money = (v: string | number | null, currency = 'AUD') => v === null || v === '' ? 'Quote pending' : new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(Number(v));
@@ -202,7 +222,7 @@ function ProjectsPanel({ catalog, onNotice }: { catalog: Catalog | null; onNotic
     {!result ? <div className="empty-state"><LoaderCircle className="spin" /></div> : <div className="project-cards">
       {result.data.map(p => <article key={p.id} className="project-card">
         <div className="project-thumb">{p.thumbnail ? <img src={p.thumbnail} alt="" loading="lazy" /> : <span>{garmentName(p.garment)}</span>}<span className={`status-pill s-${p.status === 'approved' ? 'delivered' : 'pending'}`}>{p.status === 'approved' ? 'Approved' : 'Draft'}</span></div>
-        <h3>{p.name}</h3><p className="muted">{sportName(p.sport)} · {garmentName(p.garment)} · v{p.version}</p>
+        <h3>{p.name}</h3><p className="muted">{sportName(p.sport)} · {p.product_name || garmentName(p.garment)} · v{p.version}</p>
         <p className="cell-sub">{p.user?.name} · {p.user?.email}</p>
         <p className="cell-sub">{p.orders_count} order{p.orders_count === 1 ? '' : 's'} · updated {date(p.updated_at)}</p>
         <div className="project-actions">
@@ -479,7 +499,7 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
   if (error) return <section className="glow-panel admin-card">{back}<p className="error-message">{error}</p></section>;
   if (!order) return <div className="empty-state"><LoaderCircle className="spin" /> Loading the order…</div>;
   const sportName = project ? catalog?.sports.find(s => s.id === project.sport)?.name ?? project.sport : '';
-  const garmentName = project ? catalog?.garments.find(g => g.id === project.garment)?.name ?? project.garment : '';
+  const garmentName = project ? project.design?.productName || (catalog?.garments.find(g => g.id === project.garment)?.name ?? project.garment) : '';
   const approved = project?.status === 'approved';
   // Changed after ordering: the project is at a newer version than the one ordered.
   const changed = !!(kept && current && order.project_version && (current.version ?? 0) > order.project_version);
@@ -636,7 +656,7 @@ function OrderForm({ order, onClose, onSaved }: { order: Order | null; onClose: 
     {order ? <p className="muted">Customer: <strong>{order.user?.name}</strong> ({order.user?.email})</p> : <div className="field-row"><label className="field">Find customer<input value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} placeholder="Name or email" /></label><label className="field">Customer<select required value={userId} onChange={e => { setUserId(e.target.value ? Number(e.target.value) : ''); setForm(f => ({ ...f, project_id: '' })); }}><option value="">Choose…</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name} · {c.email}</option>)}</select></label></div>}
     <div className="field-row"><label className="field">Kit (project)<select value={form.project_id} onChange={e => setForm({ ...form, project_id: e.target.value ? Number(e.target.value) : '' })}><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
       <label className="field">Status<select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label></div>
-    <fieldset className="size-grid" disabled={order?.names === 'list'}><legend>Quantities by size · {quantity} total{order?.names === 'list' ? ' · counted from the players list' : ''}</legend>{SIZES.map(s => <label key={s}><span>{s}</span><input type="number" min={0} max={10000} value={sizes[s] || ''} placeholder="0" onChange={e => setSizes({ ...sizes, [s]: Math.max(0, Number(e.target.value) || 0) })} /></label>)}</fieldset>
+    <SizeFields sizes={sizes} disabled={order?.names === 'list'} legend={<>Quantities by size · {quantity} total{order?.names === 'list' ? ' · counted from the players list' : ''}</>} onChange={(s, n) => setSizes({ ...sizes, [s]: n })} />
     <div className="field-row"><label className="field">Unit price (AUD)<input type="number" min={0} step="0.01" value={form.unit_price} onChange={e => setForm({ ...form, unit_price: e.target.value })} placeholder="Quote pending" /></label><label className="field">Total<input readOnly value={form.unit_price === '' ? 'Quote pending' : money(Number(form.unit_price) * quantity)} /></label></div>
     <div className="field-row"><label className="field">Contact name<input required maxLength={120} value={form.contact_name} onChange={e => setForm({ ...form, contact_name: e.target.value })} /></label><label className="field">Phone<input maxLength={40} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></label></div>
     <label className="field">Shipping address<textarea rows={2} maxLength={1000} value={form.shipping_address} onChange={e => setForm({ ...form, shipping_address: e.target.value })} /></label>

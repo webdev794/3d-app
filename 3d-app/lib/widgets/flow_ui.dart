@@ -74,11 +74,15 @@ class TopBar extends StatelessWidget {
     this.subtitle,
     this.center,
     this.trailing = const [],
+    this.leading,
   });
   final VoidCallback? onBack;
   final String? title, subtitle;
   final Widget? center;
   final List<Widget> trailing;
+
+  /// Shown on the left when there is no back arrow (Projects: its Assets button).
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -126,6 +130,8 @@ class TopBar extends StatelessWidget {
                 ),
               ),
             ),
+          if (onBack == null && leading != null)
+            Align(alignment: Alignment.centerLeft, child: leading),
           if (trailing.isNotEmpty)
             Align(
               alignment: Alignment.centerRight,

@@ -5,6 +5,7 @@ import 'package:three_deezi/app.dart';
 import 'package:three_deezi/app_controller.dart';
 
 import 'features_test.dart' show FakeStore;
+import 'garment_tiles_test.dart' show revealTap;
 
 Future<void> mountPhone(WidgetTester tester, AppController controller) async {
   tester.view.devicePixelRatio = 1;
@@ -69,8 +70,8 @@ void main() {
 
     await tapText(tester, 'Continue as guest (projects stay on this device)');
     expect(c.screen, AppScreen.home);
-    expect(find.text('CREATE WITH AI'), findsOneWidget);
-    expect(find.text('OPEN 3D DESIGNER'), findsOneWidget);
+    expect(find.text('AI DESIGNER'), findsOneWidget);
+    expect(find.text('DESIGN YOUR OWN'), findsOneWidget);
   });
 
   testWidgets('Design Your Own: carousel, garment, studio and undo', (
@@ -79,7 +80,7 @@ void main() {
     final c = AppController()..screen = AppScreen.home;
     await mountPhone(tester, c);
 
-    await tapText(tester, 'OPEN 3D DESIGNER');
+    await tapText(tester, 'DESIGN YOUR OWN');
     expect(c.screen, AppScreen.sport);
     expect(c.mode, 'DYO');
     expect(find.text('DESIGN RUGBY LEAGUE'), findsOneWidget);
@@ -93,8 +94,15 @@ void main() {
     expect(c.screen, AppScreen.garment);
 
     await tester.pumpAndSettle();
-    await tapText(tester, 'Full Kit');
+    // Basketball's own garments (task 9.99): its first one is chosen; the
+    // Full Kit is under More teamwear.
+    expect(find.text('BASKETBALL UNIFORMS & TEAMWEAR'), findsOneWidget);
+    expect(c.productName, 'Basketball singlet');
+    await revealTap(tester, 'More teamwear');
+    await revealTap(tester, 'FULL KIT');
+    await tester.pumpAndSettle();
     expect(c.garment, 'Full Kit');
+    expect(c.productName, isEmpty);
     await tapText(tester, 'CONTINUE TO STUDIO');
     expect(c.screen, AppScreen.studio);
     for (final tool in ['Colours', 'Patterns', 'Logos', 'Text', 'Garment']) {
@@ -137,7 +145,7 @@ void main() {
     final c = AppController()..screen = AppScreen.home;
     await mountPhone(tester, c);
 
-    await tapText(tester, 'CREATE WITH AI');
+    await tapText(tester, 'AI DESIGNER');
     expect(c.screen, AppScreen.aiDesigner);
     // The brief helpers now live in the (+) sheet of the prompt bar.
     await tester.tap(find.byTooltip('Attach and suggestions'));

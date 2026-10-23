@@ -568,3 +568,57 @@ button.kit-shot:hover{border-color:#00d9ed88}
 @media(max-width:600px){.carousel-count{display:none}}
 .garment-more{display:block;margin:14px auto 0;padding:7px 16px;border:1px solid #ffffff2e;border-radius:999px;background:none;color:#c4d2df;font-size:13px;cursor:pointer}
 .garment-more:hover,.garment-more:focus-visible{border-color:var(--glow);color:#fff}
+
+/* Garments per sport (task 9.99, client visuals 157.jpg and 160.jpg): rows of four tiles, a shorter last row centred
+   (Rugby's 11: 4 + 4 + 3); 3 across at 1024, 2 on tablets and phones. Name in capitals, a note when the 3D preview uses
+   another garment, "More teamwear ›" as a plain link. */
+.garment-tiles{--cols:4;--gap:16px;display:flex;flex-wrap:wrap;justify-content:center;gap:var(--gap)}
+.garment-tiles>.garment-tile{flex:0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));min-width:0}
+.garment-tile img{width:86%;margin-bottom:2px}
+/* The product photos (no 3D garment of their own yet) sit on a dark square: its edges fade into the tile. */
+.garment-tile img.tile-photo{-webkit-mask-image:radial-gradient(farthest-side,#000 78%,transparent 100%);mask-image:radial-gradient(farthest-side,#000 78%,transparent 100%)}
+/* The client's own Rugby and Netball tiles (images/161.jpg, 157.jpg) are cut out (transparent): no fade. */
+.garment-tile img.tile-photo:is([src*="/garment-rugby-"],[src*="/garment-netball-"]){-webkit-mask-image:none;mask-image:none}
+.garment-tile strong{font-family:var(--heading);text-transform:uppercase;letter-spacing:.04em;font-size:17px;line-height:1.15}
+.garment-tile small{font-size:12.5px;line-height:1.35;color:#b7c6d6}
+.garment-tile .tile-note{font-style:normal;font-size:11px;color:#5fdcea;opacity:.85}
+.garment-tile.soon{opacity:.6}
+.garment-tile.soon .soon-badge{top:12px}
+.garment-tiles-more{margin-top:16px}
+.garment-more{display:inline-flex;align-items:center;gap:4px;margin:16px auto 0;padding:6px 10px;border:0;border-radius:8px;background:none;color:#29d8f0;font-size:15px}
+.garment-more svg{transition:transform .2s}.garment-more svg.is-open{transform:rotate(90deg)}
+.garment-more:hover,.garment-more:focus-visible{color:#fff;text-decoration:underline;text-underline-offset:4px}
+.garment-panel>.garment-more{display:flex;width:fit-content}
+@media(max-width:1100px){.garment-tiles{--cols:3}}
+@media(max-width:900px){.garment-tiles{--cols:2;--gap:12px}.garment-tile strong{font-size:15px}.garment-tile small{font-size:11.5px}.step-heading h1{font-size:24px}}
+@media(max-width:480px){.garment-tiles{--gap:10px}.garment-tile{padding:10px 8px 12px}.garment-tile strong{font-size:14px}.step-heading{gap:12px}.step-heading h1{font-size:20px}.step-number{width:42px;height:42px;font-size:22px}}
+/* The garment step: 3DEEZI ASSIST is the round button here (as on the AI results), and the Change sport / Continue row
+   ends left of it at every width, so it never covers "Continue to studio". (100vw - 100%) / 2 is the room right of the row. */
+body:has(.garment-step) .assist-launcher{width:52px;height:52px;padding:0;justify-content:center;border-radius:50%}
+body:has(.garment-step) .assist-launcher span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.garment-actions{padding-right:max(0px,calc(104px - (100vw - 100%) / 2))}
+@media(max-width:560px){body:has(.garment-step) .assist-launcher{width:48px;height:48px}.garment-actions{padding-right:max(0px,calc(76px - (100vw - 100%) / 2))}}
+/* Garment step per-sport settings (config/catalog.php; client visual images/165.jpg, American Football): a hint line between
+   the buttons, an own background (sharper than the shared stadium), and names-only tiles in a compact 4 x 4 grid. */
+.garment-actions{align-items:center}
+.garment-hint{flex:1 1 0;min-width:0;margin:0;text-align:center;color:#3fd2ee;font-size:14px}
+.showroom-bg.own-backdrop{filter:brightness(.82) saturate(1.05);background-position:center 55%}
+.showroom-bg.own-backdrop:after{background:linear-gradient(180deg,#040a12aa 0,#040a1222 30%,transparent 60%,#040a1288 100%)}
+.garment-step.names-only .garment-panel{width:min(944px,100%);padding:18px 20px 20px}
+.garment-step.names-only .step-heading{gap:16px;margin-bottom:14px}
+.garment-step.names-only .step-heading h1{font-size:27px}
+.garment-step.names-only .step-heading p{font-size:15px}
+.garment-step.names-only .garment-tiles{--cols:4;--gap:10px}
+.garment-step.names-only .garment-tile{gap:4px;padding:8px 8px 10px;border-radius:10px;justify-content:flex-end}
+.garment-step.names-only .garment-tile img{width:100%;aspect-ratio:4/3;max-height:138px;margin-bottom:2px}
+.garment-step.names-only .garment-tile strong{font-size:15px}
+.garment-step.names-only .garment-tile.soon{opacity:.82}
+.garment-step.names-only .garment-tile.soon .soon-badge{top:6px}
+.garment-step.names-only .garment-tile.soon img{margin-top:0;width:100%}
+.garment-step.names-only .garment-actions{margin-top:16px}
+.garment-step.names-only .garment-actions .button{min-height:48px}
+.garment-step.names-only .garment-actions .button-gradient{min-width:236px}
+@media(max-width:1100px){.garment-step.names-only .garment-tiles{--cols:4}}
+@media(max-width:760px){.garment-step.names-only .garment-tiles{--cols:3}}
+@media(max-width:900px){.garment-hint{font-size:13px}}
+@media(max-width:520px){.garment-step.names-only .garment-tiles{--cols:2}.garment-step.names-only .garment-tile strong{font-size:14px}.garment-step.names-only .step-heading h1{font-size:20px}.garment-step.names-only .step-heading p{font-size:13px}.garment-hint{order:-1;flex-basis:100%}}

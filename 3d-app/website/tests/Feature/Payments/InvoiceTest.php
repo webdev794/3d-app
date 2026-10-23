@@ -189,6 +189,35 @@ class InvoiceTest extends TestCase
         $this->get('/api/v1/admin/invoices/'.Invoice::first()->id.'/pdf')->assertOk()->assertHeader('Content-Type', 'application/pdf');
     }
 
+    /** The PDF's text (its FlateDecode streams, unpacked). */
+    private function pdfText(string $raw): string
+    {
+        preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $raw, $m);
+
+        return implode("\n", array_map(fn ($s) => @gzuncompress($s) ?: $s, $m[1]));
+    }
+
+    public function test_the_pdf_names_the_tax_rate_in_full(): void
+    {
+        // QA T4d: "10" printed as "GST (1%)" (its zero trimmed as if it were "10.00").
+        $this->assertSame(['10', '10', '12.5', '20', '0', '100'], array_map([\App\Services\Pdf\InvoicePdf::class, 'percent'], ['10', '10.00', '12.50', 20, '0', '100']));
+        $customer = $this->customer();
+        $invoice = $this->issuedInvoice($customer);
+        Sanctum::actingAs($customer);
+        $text = $this->pdfText($this->get("/api/v1/invoices/{$invoice->number}/pdf")->assertOk()->getContent());
+        $this->assertStringContainsString('(GST \(10%\))', $text);
+        $this->assertStringNotContainsString('(1%', $text);
+
+        // A rate with decimals keeps them; 20% stays 20%.
+        foreach (['12.5' => '12.5', '20' => '20'] as $rate => $shown) {
+            BillingSettings::save(['tax_rate' => $rate]);
+            BillingSettings::flush();
+            $next = $this->submit($this->formOrder($customer));
+            $text = $this->pdfText($this->get("/api/v1/invoices/{$next->number}/pdf")->assertOk()->getContent());
+            $this->assertStringContainsString("(GST \({$shown}%\))", $text, $rate);
+        }
+    }
+
     public function test_customers_only_see_and_pay_their_own_invoices(): void
     {
         $owner = $this->customer();

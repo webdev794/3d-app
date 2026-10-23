@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import '../ai_service.dart';
 import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
+import '../sports_catalog.dart';
 import '../design_document.dart' show isHoodie, isVarsity, isTrack;
 import '../export_service.dart';
 import '../widgets/ai_stage.dart';
@@ -239,7 +240,7 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
 
   /// Generate: the sport from the tile (or the brief), the garment from the
   /// brief or a quick chip (asked only when the brief names none).
-  void _generate([String? garmentChoice]) {
+  void _generate([String? garmentChoice, String product = '']) {
     final text = _text.text.trim();
     if (text.isEmpty && c.references.isEmpty) {
       showToast(context, 'Describe your kit or add a reference image.');
@@ -274,6 +275,18 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
       c.aiGarment = garment;
       if (tile != null) c.sport = tile.sport;
       c.garment = garment;
+      // The chip's own name ("Netball dress", task 9.99) names the kit, and
+      // its own setting comes with it (a Hooded Tracksuit has the hood, as in
+      // Design Your Own; the AI's design does not set it).
+      c.productName = garmentChoice == garment ? product : '';
+      final own = c.productName.isEmpty
+          ? null
+          : sportNamed(c.sport)?.tiles
+                .where((t) => t.name == product && t.garment == garment)
+                .firstOrNull;
+      // Without a style of its own: the plain (collar) track jacket, also
+      // after a hooded chip earlier in this session (QA U).
+      c.trackStyle = own?.trackStyle ?? 'collar';
     });
     c.go(AppScreen.generating);
   }
@@ -282,8 +295,17 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
   Widget build(BuildContext context) {
     final chosen = aiQuickSports.where((s) => s.id == _tile).firstOrNull;
     final width = MediaQuery.sizeOf(context).width;
-    final garments =
-        (chosen ?? sportInBrief(_text.text))?.garments ?? aiAllGarments;
+    final chipSport = chosen ?? sportInBrief(_text.text);
+    // The sport's own garment tiles by their names (as in Design Your Own),
+    // else its garments.
+    final own = [
+      for (final t
+          in sportNamed(chipSport?.sport)?.tiles ?? const <GarmentTile>[])
+        if (!t.soon) (t.garment!, t.name),
+    ];
+    final garments = own.isNotEmpty
+        ? own
+        : [for (final g in chipSport?.garments ?? aiAllGarments) (g, '')];
     return Stack(
       children: [
         const Positioned.fill(child: AiStageBackdrop()),
@@ -348,8 +370,11 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                for (final g in garments)
-                                  ActionChipPill(g, onTap: () => _generate(g)),
+                                for (final (g, name) in garments)
+                                  ActionChipPill(
+                                    name.isEmpty ? g : name,
+                                    onTap: () => _generate(g, name),
+                                  ),
                               ],
                             ),
                           ),

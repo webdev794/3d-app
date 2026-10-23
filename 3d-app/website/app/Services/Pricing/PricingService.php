@@ -95,7 +95,8 @@ class PricingService
                 'list' => count(array_filter($players, $named)),
                 default => 0,
             };
-            $items[] = ['garment' => $kit['garment'] ?? 'jersey', 'sport' => $kit['sport'] ?? null, 'kit' => $kit['name'] ?? null,
+            // The sport's garment tile the kit was made as ("Netball dress", task 9.99) names the line.
+            $items[] = ['garment' => $kit['garment'] ?? 'jersey', 'sport' => $kit['sport'] ?? null] + (filled($kit['design']['productName'] ?? null) ? ['label' => (string) $kit['design']['productName']] : []) + ['kit' => $kit['name'] ?? null,
                 'quantity' => (int) $order->quantity, 'names' => $names];
         }
 
@@ -124,17 +125,20 @@ class PricingService
         $quantity = 0;
         $names = 0;
 
+        // The same garment in more than one fit (a team's mens, womens and kids rows) names its fit on each line.
+        $sameName = array_count_values(array_map(fn ($item) => is_array($item) ? self::itemName($item) : '', array_values($request['items'] ?? [])));
         foreach (array_values($request['items'] ?? []) as $i => $item) {
             if (! is_array($item)) {
                 continue;
             }
             $key = "item-$i";
+            $fit = Order::FITS[$item['fit'] ?? ''] ?? null;
             $count = $this->count($item);
             $quantity += $count;
             $names += $this->names($item, $count);
             $garment = (string) ($item['garment'] ?? 'other');
             $sport = filled($item['sport'] ?? null) ? (string) $item['sport'] : null;
-            $name = self::itemName($item).(filled($item['kit'] ?? null) ? ' ('.$item['kit'].')' : '');
+            $name = self::itemName($item).($fit && ($sameName[self::itemName($item)] ?? 0) > 1 ? " · {$fit}" : '').(filled($item['kit'] ?? null) ? ' ('.$item['kit'].')' : '');
             $unit = $overrides['lines'][$key] ?? $request['unit_price_cents'] ?? $this->garmentPrice($garment, $sport)?->amount_cents;
             if ($unit === null) {
                 $reasons[] = $garment === 'other'

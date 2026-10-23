@@ -60,6 +60,14 @@ class _AssistOverlayState extends State<AssistOverlay> {
       // check).
       if (AssistController.hiddenOn.contains(a.app.screen) || a.app.viewerModal)
         return const SizedBox.shrink();
+      // The Home has its own "Ask 3DEEZI Assist" link (client picture
+      // 166.jpg): the round launcher shows there only while the chat is open.
+      // The Orders tab too (168.jpg: "Need help? 3DEEZI Assist").
+      if ((a.app.screen == AppScreen.home ||
+              a.app.screen == AppScreen.orderHub) &&
+          !a.open) {
+        return const SizedBox.shrink();
+      }
       // A round button above the full-width buttons most screens end with;
       // on the Studio and Artboard above their tool bars, over the stage.
       final tool =

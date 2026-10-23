@@ -87,6 +87,17 @@ final class InvoicePdf
         return $cents === null ? '-' : trim(substr(Money::format($cents, $this->currency), strlen($this->currency) + 1));
     }
 
+    /**
+     * A tax rate as people write it: "10" or "10.00" -> "10", "12.5" -> "12.5", "0" -> "0". The rate is stored as
+     * (string) (float), so it has no decimal point to trim back to: only trailing decimals are cut, never a "10"'s zero.
+     */
+    public static function percent(string|int|float|null $rate): string
+    {
+        $text = rtrim(rtrim(number_format((float) $rate, 2, '.', ''), '0'), '.');
+
+        return $text === '' || $text === '-0' ? '0' : $text;
+    }
+
     private function date(?string $value): string
     {
         return $value ? Carbon::parse($value)->format('j M Y') : '-';
@@ -244,7 +255,17 @@ final class InvoicePdf
                     default => 'Per order',
                 };
             }
-            $height = 10 + 13 * count($name) + ($detail !== '' ? 11 : 0) + 4;
+            // Many sizes (XS to 8XL, W8 to W24, 2Y to 16Y) wrap onto more lines.
+            $details = [];
+            foreach ($detail !== '' ? explode(' · ', $detail) : [] as $part) {
+                $last = array_key_last($details);
+                if ($last !== null && $pdf->width($details[$last].' · '.$part, 8) <= 280) {
+                    $details[$last] .= ' · '.$part;
+                } else {
+                    $details[] = $part;
+                }
+            }
+            $height = 10 + 13 * count($name) + 11 * count($details) + 4;
             if ($this->y + $height > self::BOTTOM) {
                 $this->newPage();
                 $this->tableHeader();
@@ -253,8 +274,8 @@ final class InvoicePdf
             foreach ($name as $k => $line) {
                 $pdf->text(self::LEFT + 10, $y + 13 * $k, $line, 10, false, self::INK);
             }
-            if ($detail !== '') {
-                $pdf->text(self::LEFT + 10, $y + 13 * count($name) - 1.5, $detail, 8, false, self::MUTED);
+            foreach ($details as $k => $line) {
+                $pdf->text(self::LEFT + 10, $y + 13 * count($name) - 1.5 + 11 * $k, $line, 8, false, self::MUTED);
             }
             $pdf->text(372, $y, (string) ($row['quantity'] ?? 1), 10, false, self::INK, 'right');
             $pdf->text(462, $y, $this->short($row['unit_cents'] ?? null), 10, false, self::INK, 'right');
@@ -299,7 +320,7 @@ final class InvoicePdf
         $pdf->text($x, $y, 'Subtotal', 9.5, false, self::MUTED);
         $pdf->text(self::RIGHT - 10, $y, $this->short($this->invoice->subtotal_cents), 9.5, false, self::INK, 'right');
         $y += 18;
-        $taxLabel = ($tax['name'] ?? 'GST').' ('.rtrim(rtrim((string) ($tax['rate'] ?? '10'), '0'), '.').'%)';
+        $taxLabel = ($tax['name'] ?? 'GST').' ('.self::percent($tax['rate'] ?? '10').'%)';
         $pdf->text($x, $y, ($tax['applies'] ?? true) ? $taxLabel : ($tax['name'] ?? 'GST').' (not applicable)', 9.5, false, self::MUTED);
         $pdf->text(self::RIGHT - 10, $y, $this->short($this->invoice->tax_cents), 9.5, false, self::INK, 'right');
         $y += 12;

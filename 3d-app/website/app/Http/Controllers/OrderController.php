@@ -30,6 +30,9 @@ class OrderController extends Controller
             'sports' => collect(config('catalog.sports'))->map(fn ($s) => ['id' => $s['id'], 'name' => $s['name']])->values(),
             'fits' => collect(Order::FITS)->map(fn ($name, $id) => compact('id', 'name'))->values(),
             'sizes' => Order::SIZES,
+            // Each fit's sizes (Mens XS-8XL, Womens W8-W24, Kids 2Y-16Y), the rare ones behind "More sizes".
+            'size_sets' => Order::FIT_SIZES,
+            'rare_sizes' => Order::RARE_SIZES,
             'stages' => OrderStages::all(),
             'files' => [
                 'order_form' => ['extensions' => OrderFile::TYPES['order_form'], 'max_kb' => OrderFile::MAX_KB],
@@ -57,7 +60,7 @@ class OrderController extends Controller
         $projects = OrderView::itemProjects($orders, $request->user()->id);
 
         return response()->json(['data' => $orders->map(fn (Order $o) => array_merge(
-            Arr::except($o->attributesToArray(), [...Order::INTERNAL, 'kit_thumbnail', 'kit_name', 'kit_garment', 'files_count']),
+            Arr::except($o->attributesToArray(), [...Order::INTERNAL, 'kit_thumbnail', 'kit_name', 'kit_garment', 'kit_product', 'files_count']),
             ['project' => $o->project?->only(['id', 'name', 'garment', 'sport'])],
             OrderView::card($o, false, $projects),
         ))]);

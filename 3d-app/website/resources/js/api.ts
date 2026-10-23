@@ -2,7 +2,13 @@ import type { Design } from './types';
 
 export interface User { id: number; name: string; email: string; is_admin?: boolean; /** 3DEEZI TEAM designer (team-api.md 1): sees /designer. */ is_designer?: boolean; designer_all?: boolean; created_at?: string }
 export interface Project { id: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; status: 'draft' | 'approved'; design: Design; thumbnail?: string | null; version: number; created_at: string; updated_at: string }
-export interface CatalogItem { id: string; name: string; description: string; /** Sports only: which DYO filter it sits under. */ group?: 'sports' | 'apparel'; /** Sports only: the garments offered, most likely first. */ garments?: string[]; /** Sports only: the image model's style hint. */ prompt?: string }
+export interface CatalogItem { id: string; name: string; description: string; /** Sports only: which DYO filter it sits under. */ group?: 'sports' | 'apparel'; /** Sports only: the garments offered, most likely first. */ garments?: string[]; /** Sports only: the image model's style hint. */ prompt?: string; /** Sports only: its own garment tiles (config/catalog.php), in order. */ tiles?: GarmentTile[]; /** Sports only: the name in the garment step's heading when it differs ("Rugby"). */ heading?: string; /** Sports only: false when the garment step shows no "More teamwear" (the client's Rugby lists). */ more?: boolean; /** Sports only: the garment step's subtitle when it differs from "Choose what you want to design for <name>." */ subtitle?: string; /** Sports only: a line between "Change sport" and "Continue to studio" (none by default). */ select_hint?: string; /** Sports only: false when the tiles show names only (the client's American Football list). */ descriptions?: boolean; /** Sports only: the garment step's background, media/showroom/<backdrop>.webp (default stadium-stage). */ backdrop?: string }
+/**
+ * A sport's garment tile (task 9.99): its own name and description on one of our 3D garments. fit 'exact': that garment;
+ * 'nearest': no 3D model of its own yet, the 3D preview uses `garment`; 'soon': no 3D model yet (garment null, COMING SOON).
+ * `future`: the 3D garment still to build; `image`: media/showroom/garment-<image>.webp; `design`: settings the tile starts with.
+ */
+export interface GarmentTile { name: string; description: string; garment: string | null; fit: 'exact' | 'nearest' | 'soon'; future?: string; image: string; design?: { trackStyle?: 'collar' | 'hood' } }
 export interface Catalog { sports: CatalogItem[]; garments: CatalogItem[]; provider: {id: string; name: string; is_ai: boolean; available: boolean}; showcase_scenes?: string[] }
 export interface Concept { id: string; name: string; description: string; design: Design; preview?: string | null; motif?: string }
 export class ApiError extends Error {

@@ -54,7 +54,14 @@ class AssistMessage {
 /// 3DEEZI ASSIST in the app: the same help chat as on the website, answered
 /// by the website's server (`POST /assist`), with the same commands.
 class AssistController extends ChangeNotifier {
-  AssistController(this.app);
+  AssistController(this.app) {
+    latest = this;
+  }
+
+  /// The app's chat, for links that open it (the Home's "Ask 3DEEZI
+  /// Assist"). Null when no app is running.
+  static AssistController? latest;
+
   final AppController app;
 
   static const greeting =
@@ -103,6 +110,19 @@ class AssistController extends ChangeNotifier {
   void toggle() {
     open = !open;
     notifyListeners();
+  }
+
+  /// Opens the chat (the Home's Assist link).
+  void show() {
+    if (open) return;
+    open = true;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    if (identical(latest, this)) latest = null;
+    super.dispose();
   }
 
   void minimise() {
@@ -166,6 +186,7 @@ class AssistController extends ChangeNotifier {
     AppScreen.artboard => '/artboard',
     AppScreen.pricing => '/pricing',
     AppScreen.orders => '/orders',
+    AppScreen.orderHub => '/order-now',
     _ => '/',
   };
 
@@ -179,12 +200,20 @@ class AssistController extends ChangeNotifier {
     '/assets': 'Assets',
     '/dashboard': 'Projects',
     '/downloads': 'Projects',
-    // The website's Orders page: in the app, the home's ORDER NOW WITH 3DEEZI.
-    '/order-now': 'Home',
+    // The website's Orders page: in the app, the Orders tab.
+    '/order-now': 'Orders',
     '/orders': 'My orders',
+    // The Orders tab's Create Order Form and Upload Your Order.
+    '/orders/new': 'Create order form',
+    '/orders/upload': 'Upload your order',
     '/pricing': 'Plans',
     '/studio': 'the 3D Studio', '/artboard': 'the Artboard',
   };
+
+  /// Create Order Form ('form') or Upload Your Order ('upload') asked for by a
+  /// link or an `open` command (/orders/new, /orders/upload): the Orders tab
+  /// opens it and clears this.
+  static final orderEntry = ValueNotifier<String?>(null);
 
   /// Opens the app screen for a website path (from a link or an `open` command).
   void openPath(String path) {
@@ -200,6 +229,12 @@ class AssistController extends ChangeNotifier {
         app.go(AppScreen.assets);
       case '/orders':
         app.go(AppScreen.orders);
+      case '/order-now':
+        app.go(AppScreen.orderHub);
+      case '/orders/new' || '/orders/upload':
+        // The Orders tab opens it (signed out: sign in first), so the tab first.
+        app.go(AppScreen.orderHub);
+        orderEntry.value = page == '/orders/new' ? 'form' : 'upload';
       case '/pricing':
         app.go(AppScreen.pricing);
       case '/studio':

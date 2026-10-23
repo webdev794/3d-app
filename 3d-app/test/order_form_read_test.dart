@@ -106,6 +106,51 @@ void main() {
     expect(find.text('WALKER'), findsNothing);
   });
 
+  testWidgets('read rows show the sizes of their fit (Kids 10Y–16Y, Womens W, a mixed row with 6XL); + All sizes shows every size', (tester) async {
+    final reading = {
+      'source': 'ai',
+      'items': [
+        {'garment': 'jersey', 'fit': 'youth', 'name': 'Rugby League Jersey', 'sizes': {'10Y': 3, '16Y': 1}, 'players': [{'name': 'HALE', 'number': '6', 'size': '16Y'}]},
+        {'garment': 'jersey', 'fit': 'womens', 'name': 'Rugby League Jersey', 'sizes': {'W10': 2}},
+        {'garment': 'shorts', 'name': 'Rugby League Shorts', 'sizes': {'M': 2, '6XL': 1, 'W14': 1}},
+      ],
+      'details': [],
+      'unknown': [],
+      'form': {},
+    };
+    final rows = readRows(reading);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: OrderFormReadView(rows: rows, reading: reading, fileName: 'club.xlsx', correct: false, onCorrect: (_) {}, onChanged: () {}),
+          ),
+        ),
+      ),
+    );
+    // Kids row: 6Y–16Y (no Mens boxes); Womens: W8–W20; the mixed row: Mens XS–4XL plus its 6XL and W14.
+    expect(find.byKey(const Key('size-0-6Y')), findsOneWidget);
+    expect(find.byKey(const Key('size-0-M')), findsNothing);
+    expect(find.byKey(const Key('size-0-2Y')), findsNothing);
+    expect(tester.widget<TextField>(find.byKey(const Key('size-0-10Y'))).controller!.text, '3');
+    expect(find.byKey(const Key('size-1-W20')), findsOneWidget);
+    expect(find.byKey(const Key('size-1-XS')), findsNothing);
+    expect(find.byKey(const Key('size-2-4XL')), findsOneWidget);
+    expect(tester.widget<TextField>(find.byKey(const Key('size-2-6XL'))).controller!.text, '1');
+    expect(tester.widget<TextField>(find.byKey(const Key('size-2-W14'))).controller!.text, '1');
+    expect(find.textContaining('Total: 10 garments'), findsOneWidget);
+    // + All sizes on the Kids row: every size, and one added counts.
+    await tester.ensureVisible(find.byKey(const Key('all-sizes-0')));
+    await tester.tap(find.byKey(const Key('all-sizes-0')));
+    await tester.pump();
+    expect(find.byKey(const Key('size-0-2Y')), findsOneWidget);
+    expect(find.byKey(const Key('size-0-8XL')), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('size-0-2Y')), '1');
+    await tester.pump();
+    expect((rows[0]['sizes'] as Map)['2Y'], 1);
+    expect(cleanRows(rows)[0]['sizes'], {'10Y': 3, '16Y': 1, '2Y': 1});
+  });
+
   testWidgets('with nothing read there is nothing to fill in', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

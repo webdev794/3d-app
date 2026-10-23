@@ -803,9 +803,9 @@ void main() {
     await mount(tester, CreateHomeScreen(c));
     // The other three ways in are still there.
     for (final action in [
-      'CREATE WITH AI',
-      'OPEN 3D DESIGNER',
-      'OPEN ARTBOARD',
+      'AI DESIGNER',
+      'DESIGN YOUR OWN',
+      'ARTBOARD',
     ]) {
       await tester.scrollUntilVisible(
         find.text(action),
@@ -814,7 +814,7 @@ void main() {
       );
       expect(find.text(action), findsOneWidget);
     }
-    await tap(tester, find.text('GET A DESIGNER'));
+    await tap(tester, find.text('3DEEZI TEAM'));
     expect(find.byType(TeamScreen), findsOneWidget);
     expect(find.text('REAL DESIGNERS. REAL RESULTS.'), findsOneWidget);
   });
