@@ -222,8 +222,10 @@ export function buildMannequin(garment, material, { over = false } = {}) {
     for (const sg of [1, -1]) {
       const arm = all.filter((p) => p.l >= 0 && Math.sign(p.x) === sg);
       if (arm.length < 30) continue;
-      const lMax = arm.reduce((m, p) => Math.max(m, p.l), 0), bins = [];
-      for (let l = 0.035; l <= lMax - 0.004; l += 0.012) {
+      // A long sleeve's arm stops about 5 cm inside it: its rib cuff is drawn in narrower than the arm, and a rounded
+      // end there would show below the cuff. Through the cuff the opening then looks into shade.
+      const lMax = arm.reduce((m, p) => Math.max(m, p.l), 0), lEnd = body.long ? lMax - 0.05 : lMax - 0.004, bins = [];
+      for (let l = 0.035; l <= lEnd; l += 0.012) {
         const near = arm.filter((p) => Math.abs(p.l - l) < 0.008);
         if (near.length < 8) continue;
         const c = near.reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(near.length);
@@ -242,12 +244,13 @@ export function buildMannequin(garment, material, { over = false } = {}) {
         });
       });
       const dir = bins.at(-1).c.clone().sub(bins.at(-3).c).normalize();
-      // A short sleeve: the arm ends just past it, rounded off; a long one ends just inside its cuff.
+      // A short sleeve: the arm ends just past it, rounded off; a long one well inside it (above), its end kept short.
       const inSleeve = rings.length;
       if (!body.long) extend(rings, dir, 0.006, 0.03, 1);
-      roundEnd(rings, dir, 0.01);
-      // Dark up the sleeve, lighter towards its end, where the opening lets the light in.
-      add(rings, (ring, i) => (i < inSleeve - 2 ? INSIDE : i < inSleeve ? 0.5 : body.long ? 0.5 : 0.85));
+      roundEnd(rings, dir, body.long ? 0.006 : 0.01);
+      // Dark up the sleeve, lighter towards a short sleeve's end, where the opening lets the light in; a long sleeve's
+      // arm is in the sleeve's shade all along.
+      add(rings, (ring, i) => (body.long || i < inSleeve - 2 ? INSIDE : i < inSleeve ? 0.5 : 0.85));
     }
   }
   return group.children.length ? group : null;

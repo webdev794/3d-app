@@ -9,11 +9,12 @@ Updated 2026-10-23 13:10 (checkpoint at the session limit). Only what's needed t
 ## Running agents (started 2026-10-23 about 13:40)
 | Agent | Task | Notes |
 |---|---|---|
+| V2 ae8e48ab7079b58fd | 9.115: -24 SHIPPED (the mannequin arm stops inside every long sleeve). Now -25: the varsity cuff band as a round ribbed tube (new look only). At 91% told to finish the ship cleanly or park in its copy (SP\V2\checkpoint.md) | After it: code-only tar (copy SP/final-pack-1023q.sh with the next letter) so the user can check the sleeves on the test site |
 
 ## Next
 0. **Checkpoint 2026-10-23 at 85%.** Done: V2 (viewer -23: switch, touch-ups, hero look; showcase pictures in D:\3d-app\deploy-zips\3d-showcase\), W1, W3, A1, A2. W2 was told to stop at a safe point.
-   - Then run `bash SP/final-pack-1023q.sh` from the website folder: the CODE-ONLY evening tar 3deez-update-2026-10-23-q.tar.gz, with no database or uploads and the new look behind ?look=2.
-   - Then push to v2 with SP/final-push-v2.sh and a new message file.
+   - DONE 16:56: the CODE-ONLY evening tar `D:\3d-app\deploy-zips\3deez-update-2026-10-23-q.tar.gz` (382 files, 11 MB; no database or uploads; viewer -23 with the new look behind ?look=2; no new migrations, so only `php artisan optimize:clear` after extracting).
+   - DONE 16:58: pushed e31b62c to v2.
    - **Open question (questions.md 2): should the new 3D look be the default on the test site?** Making it the default (LOOK_DEFAULT '2' in viewer/src/main.js + VIEWER_VERSION -24 + node viewer/build.mjs) was BLOCKED by the permission check ("Production Deploy"), so it was reverted; it waits for the user's clear yes.
    - **User 2026-10-23 at 85%: "stop the testing part, we will do it in end, once main 3D task finalized."** No QA rounds until the 3D task is final. Then one full test round covering everything below.
    - Still to check later, when the machine is quiet: the app preview 30-visit check (V2 couldn't finish it under load); a QA round on today's last changes.
@@ -31,6 +32,7 @@ Updated 2026-10-23 13:10 (checkpoint at the session limit). Only what's needed t
    - Until the client approves, every live tar must carry the old viewer. SP/final-pack-1023p.sh swaps in SP\V2\backup; copy it with the next letter.
    - When approved: VIEWER_VERSION → 2026-10-20-22, pack normally, and add the ASSIST note from SP\V2\checkpoint.md.
    - Its small follow-ups are in that checkpoint.
+2b. **Next big task (user + client 2026-10-23): tasks.md 9.116.** AI designer › "Open in 3D designer" should pick the nearest 3D model and carry the whole AI design onto it, never refusing. Only noted; start it when the user says, with new agents.
 3. Pending list, in order:
    - tasks.md 9.97 small follow-ups (now includes QA U's open bugs: a design's name on other garments' order rows, requireAuth timing, ASSIST over the Pro Studio button);
    - 9.92 app Assets from the server;
@@ -45,11 +47,10 @@ Updated 2026-10-23 13:10 (checkpoint at the session limit). Only what's needed t
    - New tables or columns then need `php artisan migrate --force` on live: tell the user when a tar adds a migration. None has been added since -o.
 
 ## Where things are
-- **Live package:** `D:\3d-app\deploy-zips\3deez-update-2026-10-23-p2.tar.gz`: the same code as -p (2026-10-23 13:01) WITHOUT database.sqlite and storage/app, so Manoj Caresort's live account stays. Do not use -p, which carries our database.
-  - Contains everything done up to then, with the old 3D look. No new migrations since -o, so nothing to run on live.
+- **Live package:** `D:\3d-app\deploy-zips\3deez-update-2026-10-23-q.tar.gz` (16:56): code only, so live accounts stay, including Manoj Caresort. Earlier today: -p (with our database) was already extracted on live; -p2 = -p without the database.
   - Extract it in the live website folder (https://testcaresortwork.co.in/3deez/), then run `php artisan optimize:clear`.
   - Older packages: -o is in deploy-zips; the rest are in C:\3deezi-archive.
-- **GitHub:** main = 2d9b553; v2 = 6a5e0f2 (pushed 2026-10-23 13:10, includes 3D step 2). database.sqlite stays out of git. Local v6 = ec79628 with the work uncommitted.
+- **GitHub:** main = 2d9b553; v2 = e31b62c (pushed 2026-10-23 16:58). database.sqlite stays out of git. Local v6 = ec79628 with the work uncommitted.
 - **Scripts:** SP\final-pack-1023p.sh (pack, with the old-viewer swap), SP\final-push-main.sh and SP\final-push-v2.sh (push via a temp index).
 - **Briefs:**
   - rules: SP\qa-rules.md (locks wait 15 min), SP\viewer-protocol.md, SP\garment-brief.md, SP\team-api.md;
