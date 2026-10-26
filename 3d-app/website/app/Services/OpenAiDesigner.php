@@ -1131,7 +1131,7 @@ class OpenAiDesigner
                     'backName' => $string('The name on the back, exactly; empty if none. Never 3DEEZI.'),
                     'number' => $string('The player number on the back, digits only; empty if none.'),
                     'positionLetters' => $string('Playing position letters shown large (e.g. GS); empty if none.'),
-                    'crest' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['found', 'x0', 'y0', 'x1', 'y1'], 'description' => 'The club symbol (crest or logo) on the chest of the front view, as a box in fractions of the picture\'s width and height (0 = left/top, 1 = right/bottom).', 'properties' => [
+                    'crest' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['found', 'x0', 'y0', 'x1', 'y1'], 'description' => 'The club symbol (crest or logo) on the chest of the front view (the garment on the left when front and back are shown), as a box in fractions of the whole picture\'s width and height (0 = left/top, 1 = right/bottom). Measure carefully: the box tightly encloses the whole symbol and nothing else.', 'properties' => [
                         'found' => ['type' => 'boolean', 'description' => 'True when the front shows a club symbol on the chest.'],
                         'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.'),
                     ]],

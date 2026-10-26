@@ -708,6 +708,12 @@ async function checkLayout({ id, src, name = 'Print layout', asset = null, drawi
       // Only garment shapes are named front and back (a mock-up's detail panels, a photo's shapes are not); with no
       // clean pair the person is told, and chooses (the check screen will not put a non-garment shape on the kit).
       const usable = file.found.map(garmentShape);
+      // A picture from the host's own AI (`known`: task 9.116) with no garment shape to read: said at once, with no
+      // check screen that could only be cancelled (the host keeps the design's colours, crest and lettering).
+      if (known && !usable.some(Boolean)) {
+        post({ type: 'modal', open: false });
+        throw new Error('its garment shapes could not be read');
+      }
       file.found.forEach((p, i) => { if (!usable[i]) p.role = 'none'; });
       const big = Math.max(0, ...file.found.filter((_, i) => usable[i]).map((p) => (p.x1 - p.x0) * (p.y1 - p.y0)));
       const many = file.found.filter((p, i) => usable[i] && (p.x1 - p.x0) * (p.y1 - p.y0) > 0.5 * big).length > 2;

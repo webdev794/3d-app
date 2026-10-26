@@ -215,9 +215,11 @@ export function drawingSides(o, sleeved = false) {
     for (let k = neck.i; k !== neck.deep && below(k) <= 0.012 * H; k = (k + 1) % n) c.Nl = k;
     for (let k = neck.j; k !== neck.deep && below(k) <= 0.012 * H; k = (k - 1 + n) % n) c.Nr = k;
   }
+  const flat = neck ? null : flatNeck(o, x0, W, y0, H);
+  if (flat) { c.Nl = flat.l; c.Nr = flat.r; }
   c.Hr = argMax(o, (p) => p[0] + p[1]);
   c.Hl = argMax(o, (p) => -p[0] + p[1]);
-  if (neck) {
+  if (neck || flat) {
     // The armholes: the deepest dip down each side. A strap's outer corner is the sharpest outward turn between the
     // neck and the armhole's deepest point; the underarm is the sharpest between the strap and the hem.
     const deepest = (a, b) => dips.filter((p) => p !== neck && on(p.i, a, b) && on(p.j, a, b)).sort((m, q) => q.depth - m.depth)[0];
@@ -246,7 +248,8 @@ export function drawingSides(o, sleeved = false) {
     Object.assign(c, { Nl: near(at.N, -1), Nr: near(at.N, 1), Sr: near(at.S, 1), Ur: near(at.U, 1), Hr: near(at.H, 1), Hl: near(at.H, -1), Ul: near(at.U, -1), Sl: near(at.S, -1) });
   }
   // The neck's tip: its deepest point (a V's point).
-  c.T = farthest(o, c.Nl, c.Nr);
+  // A straight collar line (flatNeck) has no tip: its middle is.
+  c.T = flat ? middleOf(o, c.Nl, c.Nr, cx) : farthest(o, c.Nl, c.Nr);
   const sides = order.map((k, i) => path(o, c[k], c[order[(i + 1) % order.length]]));
   return { corners: c, sides, found: inOrder, neckDepth: neck ? neck.depth / H : 0 };
 }
@@ -259,6 +262,32 @@ export function drawingSides(o, sleeved = false) {
  * side; the cuff's corners are the two sharpest outward turns between the neck and the underarm. Corners that cannot
  * be told apart fall back to the tee's own places in the drawing's box.
  */
+/**
+ * The neck of a drawing whose outline has no dip there (task 9.116: AI flat sheets often draw the inside of the collar,
+ * so the top edge runs straight across): the ends of the straight top edge, when it is a neck's width and centred.
+ */
+function flatNeck(o, x0, W, y0, H) {
+  let l = -1, r = -1;
+  o.forEach((p, k) => {
+    if (p[1] > y0 + 0.015 * H) return;
+    if (l < 0 || p[0] < o[l][0]) l = k;
+    if (r < 0 || p[0] > o[r][0]) r = k;
+  });
+  if (l < 0 || r < 0) return null;
+  const span = (o[r][0] - o[l][0]) / W, mid = ((o[l][0] + o[r][0]) / 2 - x0) / W;
+  return span > 0.12 && span < 0.6 && Math.abs(mid - 0.5) < 0.08 ? { l, r } : null;
+}
+
+/** The point on the outline from index a to b nearest the middle line x = cx (its index). */
+function middleOf(o, a, b, cx) {
+  const n = o.length;
+  let best = a;
+  for (let k = a; ; k = (k + 1) % n) {
+    if (Math.abs(o[k][0] - cx) < Math.abs(o[best][0] - cx)) best = k;
+    if (k === b) return best;
+  }
+}
+
 function sleevedSides(o) {
   const xs = o.map((p) => p[0]), ys = o.map((p) => p[1]), n = o.length;
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
@@ -274,9 +303,11 @@ function sleevedSides(o) {
     for (let k = neck.i; k !== neck.deep && below(k) <= 0.012 * H; k = (k + 1) % n) c.Nl = k;
     for (let k = neck.j; k !== neck.deep && below(k) <= 0.012 * H; k = (k - 1 + n) % n) c.Nr = k;
   }
+  const flat = neck ? null : flatNeck(o, x0, W, y0, H);
+  if (flat) { c.Nl = flat.l; c.Nr = flat.r; }
   c.Hr = argMax(o, (p) => p[0] + p[1]);
   c.Hl = argMax(o, (p) => -p[0] + p[1]);
-  if (neck) {
+  if (neck || flat) {
     const deepest = (a, b) => dips.filter((p) => p !== neck && on(p.i, a, b) && on(p.j, a, b)).sort((m, q) => q.depth - m.depth)[0];
     const right = deepest(c.Nr, c.Hr), left = deepest(c.Hl, c.Nl);
     if (right && left) {
@@ -303,7 +334,8 @@ function sleevedSides(o) {
     const near = ([gx, gy], dir) => argMax(o, (p) => -Math.hypot(p[0] - (cx + (dir * gx * W) / (2 * half)), p[1] - (y0 + ((top - gy) / top) * H)));
     Object.assign(c, { Nl: near(g.N, -1), Nr: near(g.N, 1), CTr: near(g.CT, 1), CBr: near(g.CB, 1), Ur: near(g.U, 1), Hr: near(g.H, 1), Hl: near(g.H, -1), Ul: near(g.U, -1), CBl: near(g.CB, -1), CTl: near(g.CT, -1) });
   }
-  c.T = farthest(o, c.Nl, c.Nr);
+  // A straight collar line (flatNeck) has no tip: its middle is.
+  c.T = flat ? middleOf(o, c.Nl, c.Nr, cx) : farthest(o, c.Nl, c.Nr);
   const sides = order.map((k, i) => path(o, c[k], c[order[(i + 1) % order.length]]));
   return { corners: c, sides, found, neckDepth: neck ? neck.depth / H : 0 };
 }

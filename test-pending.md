@@ -4,6 +4,15 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## AI designer: Open in 3D designer gives the matching kit (2026-10-26; uses AI credits)
+1. Create › AI designer: "create soccer jersey in green" › Generate › Open in 3D Designer: "Reading your design…", then the check screen opens on Jersey › Put on the 3D kit: green with the picture's print, its crest, the name and number on the back.
+2. Save, reopen from My projects, More › Order this kit: the order form opens.
+3. A netball dress brief: opens on the singlet with the crest and position letters front and back, no name or number; the Numbers panel shows "Position letters".
+4. A rugby hoodie brief: opens on the hoodie in the picture's colours with its name and number (no print sheet step). If the crest crop looks wrong, replace it in Artwork.
+5. App: the same from the AI results.
+
+---
+
 ## Account menu and Edit profile (2026-10-26)
 1. Signed in: no DASHBOARD in the top bar; your letter circle sits next to the bell.
 2. Click the circle: your name and email, then Dashboard, My profile, Edit profile, Sign out; each opens its page.

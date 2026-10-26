@@ -1425,8 +1425,11 @@ class AiService {
                 'required': ['found', 'x0', 'y0', 'x1', 'y1'],
                 'description':
                     'The club symbol (crest or logo) on the chest of the '
-                    "front view, as a box in fractions of the picture's "
-                    'width and height (0 = left/top, 1 = right/bottom).',
+                    'front view (the garment on the left when front and back '
+                    "are shown), as a box in fractions of the whole picture's "
+                    'width and height (0 = left/top, 1 = right/bottom). '
+                    'Measure carefully: the box tightly encloses the whole '
+                    'symbol and nothing else.',
                 'properties': {
                   'found': {
                     'type': 'boolean',
