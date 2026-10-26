@@ -197,6 +197,31 @@ class SupplierTest extends TestCase
         $this->postJson('/api/v1/admin/orders', ['user_id' => $customer->id, 'contact_name' => 'Staff made', 'sizes' => ['M' => 3], 'supplier_id' => $makers['mantis']])->assertCreated()->assertJsonPath('data.made_by', 'Mantis');
     }
 
+    public function test_upload_your_order_keeps_who_makes_it(): void
+    {
+        $makers = $this->makers();
+        $applied = new Supplier(['name' => 'Waiting Co', 'status' => 'applied']);
+        $applied->save();
+        Sanctum::actingAs($this->customer());
+        $upload = fn (array $data) => tap($this->postJson('/api/v1/order-drafts', ['kind' => 'upload', 'data' => $data + array_diff_key($this->form(), ['source' => 1, 'items' => 1])])->assertCreated()->json('data.id'),
+            fn ($id) => $this->post("/api/v1/order-drafts/{$id}/files", ['kind' => 'order_form', 'file' => UploadedFile::fake()->createWithContent('order.csv', "Item,Size,Qty\nJersey,M,10\n")], ['Accept' => 'application/json'])->assertCreated());
+
+        // Made by Mantis, sent with the upload: kept on the order by id and name.
+        $id = $upload([]);
+        $mantis = $this->postJson("/api/v1/order-drafts/{$id}/submit", ['supplier_id' => $makers['mantis']], ['Idempotency-Key' => 'upload-mantis'])->assertCreated()->json('data');
+        $this->assertSame(['Mantis', $makers['mantis'], 'upload'], [$mantis['made_by'], $mantis['supplier_id'], Order::find($mantis['id'])->source]);
+        $this->assertSame('Mantis', $this->getJson("/api/v1/orders/{$mantis['id']}")->assertOk()->json('data.made_by'));
+
+        // Saved on the draft, it comes with the submit; no choice is 3DEEZI; a supplier not offered is refused.
+        $saved = $upload(['supplier_id' => $makers['mantis']]);
+        $this->assertSame('Mantis', $this->postJson("/api/v1/order-drafts/{$saved}/submit", [], ['Idempotency-Key' => 'upload-saved'])->assertCreated()->json('data.made_by'));
+        $plain = $upload([]);
+        $none = $this->postJson("/api/v1/order-drafts/{$plain}/submit", [], ['Idempotency-Key' => 'upload-plain'])->assertCreated()->json('data');
+        $this->assertSame(['3DEEZI', $makers['3deezi']], [$none['made_by'], $none['supplier_id']]);
+        $refused = $upload([]);
+        $this->postJson("/api/v1/order-drafts/{$refused}/submit", ['supplier_id' => $applied->id], ['Idempotency-Key' => 'upload-waiting'])->assertUnprocessable()->assertJsonValidationErrors(['supplier_id']);
+    }
+
     public function test_admins_manage_suppliers_and_the_listing_prices(): void
     {
         $makers = $this->makers();

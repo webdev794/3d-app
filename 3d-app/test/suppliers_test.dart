@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +13,7 @@ import 'package:three_deezi/screens/suppliers.dart';
 
 import 'features_test.dart' show FakeStore;
 import 'orders_app_test.dart' show OrdersServer, approve, fillDelivery, fromTop, mount, seeIt, tap;
+import 'orders_app_test.dart' as orders_test show typeIn;
 
 /// The makers as the server sends them (App\Models\Supplier::present): 3DEEZI (the default), Mantis (which owns
 /// 3DEEZI) and an approved outside supplier with a logo and a website.
@@ -365,5 +367,59 @@ void main() {
     final api = ApiClient(client: MockClient((_) async => http.Response('', 404)), baseUrl: 'https://test.example/3deez');
     expect(api.serverUrl('http://localhost/3deez/api/v1/suppliers/3/logo?v=2'), 'https://test.example/3deez/api/v1/suppliers/3/logo?v=2');
     expect(api.serverUrl('https://cdn.example/logo.png'), 'https://cdn.example/logo.png');
+  });
+
+  /// Upload Your Order with section 1 filled in and its order form uploaded.
+  Future<void> fillUpload(WidgetTester tester) async {
+    pickOrderFile = (kind) async => (name: 'order.csv', bytes: Uint8List.fromList(utf8.encode('Item,Size,Qty\nJersey,M,10\n')));
+    addTearDown(() => pickOrderFile = (kind) async => null);
+    await tap(tester, find.text('Edit'));
+    await orders_test.typeIn(tester, 'Team / organisation', 'Lions FC');
+    await fillDelivery(tester);
+    await tap(tester, find.text('Choose your order form'));
+    expect(find.text('Uploaded'), findsOneWidget);
+  }
+
+  testWidgets('Upload Your Order: Made by Mantis is sent with the upload and shown on the review', (tester) async {
+    final server = SuppliersServer();
+    await mount(tester, OrderUploadScreen(signedInTo(server)));
+    await fillUpload(tester);
+    // Made by, in section 3 under the instructions: 3DEEZI (default), Mantis, then the approved suppliers.
+    await seeIt(tester, find.byKey(const Key('made-by')));
+    expect(find.text('Made by 3DEEZI unless you choose one of our preferred suppliers.'), findsOneWidget);
+    await tap(tester, find.text('3DEEZI (default)'));
+    expect(find.text('Acme Teamwear'), findsWidgets);
+    await tap(tester, find.text('Mantis').last);
+    expect(tester.widget<Text>(find.byKey(const Key('made-by-hint'))).data, 'Custom sportswear and teamwear');
+    await tap(tester, find.text('REVIEW ORDER'));
+    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
+    await seeIt(tester, find.byKey(const Key('review-made-by')));
+    expect(tester.widget<Text>(find.byKey(const Key('review-made-by'))).data, 'Mantis');
+    await approve(tester);
+    expect(find.text('3DZ-00012'), findsOneWidget);
+    expect(server.orders.submitted.single['supplier_id'], 2);
+    expect(server.orders.submitted.single['team_name'], 'Lions FC');
+  });
+
+  testWidgets('Upload Your Order: no choice is 3DEEZI; an older site (no makers) shows no Made by', (tester) async {
+    final server = SuppliersServer();
+    await mount(tester, OrderUploadScreen(signedInTo(server)));
+    await fillUpload(tester);
+    await tap(tester, find.text('REVIEW ORDER'));
+    await seeIt(tester, find.byKey(const Key('review-made-by')));
+    expect(tester.widget<Text>(find.byKey(const Key('review-made-by'))).data, '3DEEZI');
+    await approve(tester);
+    expect(server.orders.submitted.single['supplier_id'], isNull);
+
+    final older = SuppliersServer(older: true);
+    await mount(tester, OrderUploadScreen(signedInTo(older), key: const ValueKey('older')));
+    await fillUpload(tester);
+    expect(find.byKey(const Key('made-by')), findsNothing);
+    await tap(tester, find.text('REVIEW ORDER'));
+    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
+    expect(find.byKey(const Key('review-made-by')), findsNothing);
+    await approve(tester);
+    expect(older.orders.submitted.single.containsKey('supplier_id'), isFalse);
+    expect(tester.takeException(), isNull);
   });
 }

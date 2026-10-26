@@ -11,6 +11,8 @@ import { OrderReviewApprove, OrderSentPanel, ReviewApproveHeader, garmentThumb, 
 import { ADDRESS_KEYS, DEFAULT_LEAD_WEEKS, DeliveryFieldsCard, MOBILE_MESSAGE, dateText, deliveryErrors, deliveryText, isAustralia, mobileError, todayText, validMobile } from '../components/OrderDeliveryFields';
 import { ALL_SIZES, FIT_NAMES } from '../orderSizes';
 import { moneyOr } from '../money';
+import { MadeByField } from './Suppliers';
+import type { MadeByOptions, Supplier } from '../supplierApi';
 import '../../css/order-upload.css';
 
 /** The two kinds of file this page uploads. */
@@ -94,7 +96,7 @@ function contactErrors(f: UploadFields) {
 }
 
 /* --- This browser's copy of the draft (localStorage), so nothing is lost before or after it reaches the server. --- */
-interface LocalDraft { v: 1; id?: number; data: UploadFields; files: OrderFile[]; items?: OrderItem[] | null; at: number }
+interface LocalDraft { v: 1; id?: number; data: UploadFields; files: OrderFile[]; items?: OrderItem[] | null; /** Made by: null is 3DEEZI. */ supplier_id?: number | null; at: number }
 const localKey = (owner: string) => `3deezi.orderUpload.${owner}`;
 function readLocal(owner: string): LocalDraft | null {
   try { const saved = JSON.parse(localStorage.getItem(localKey(owner)) || 'null'); return saved?.v === 1 ? saved : null; } catch { return null; }
@@ -209,6 +211,14 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   // The review's price choices: delivery destination, extras and a discount code (payments-api.md R3), sent with the order.
   const [pricing, setPricing] = useState<PricingChoice>({});
   const pricingRef = useRef(pricing);
+  /** "Made by" (preferred suppliers, as on Create Order Form): null is 3DEEZI (the default); the choices from GET /orders/options. */
+  const [supplierId, setSupplierIdState] = useState<number | null>(null);
+  const supplierRef = useRef<number | null>(null);
+  const setSupplierId = (id: number | null) => { supplierRef.current = id; setSupplierIdState(id); };
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const suppliersRef = useLatest(suppliers);
+  /** A saved choice no longer offered (a supplier hidden since) goes back to 3DEEZI. */
+  const offered = (id: unknown, list = suppliersRef.current) => { const n = Number(id) || null; return n && (!list.length || list.some(s => s.id === n)) ? n : null; };
   pricingRef.current = pricing;
   const [submitError, setSubmitError] = useState('');
   const [placed, setPlaced] = useState<OrderDetail | null>(null);
@@ -248,6 +258,8 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     if (sent.length) { data.items = sent; data.items_confirmed = itemsConfirmedRef.current; }
     const chosen = cleanPricing(pricingRef.current);
     if (chosen) data.pricing = chosen;
+    // Made by: always sent (null is 3DEEZI), so going back to 3DEEZI also clears a choice saved on the draft.
+    data.supplier_id = supplierRef.current;
     return data;
   };
 
@@ -258,7 +270,10 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   // The allowed file types and sizes come from the server (PUBLIC); the contract's values until then.
   /** The usual production and delivery time (Admin › Settings): a sooner date required gets a gentle warning. */
   const [leadWeeks, setLeadWeeks] = useState(DEFAULT_LEAD_WEEKS);
-  useEffect(() => { orderApi.options().then(o => { if (typeof o?.lead_time_weeks === 'number') setLeadWeeks(o.lead_time_weeks); if (o?.files?.order_form && o.files.artwork) setRules(o.files); if (Array.isArray(o?.garments)) setGarments(o.garments); }).catch(() => { /* keep the defaults */ }); }, []);
+  useEffect(() => { orderApi.options().then(o => { if (typeof o?.lead_time_weeks === 'number') setLeadWeeks(o.lead_time_weeks); if (o?.files?.order_form && o.files.artwork) setRules(o.files); if (Array.isArray(o?.garments)) setGarments(o.garments);
+    const makers = (o as unknown as MadeByOptions | undefined)?.suppliers ?? [];
+    setSuppliers(makers);
+    if (supplierRef.current && makers.length && !makers.some(s => s.id === supplierRef.current)) setSupplierId(null); }).catch(() => { /* keep the defaults */ }); }, []);
 
   /* --- Whose page this is: load their draft; a guest who signs in keeps what they typed. --- */
   useEffect(() => {
@@ -285,6 +300,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     loadFields(withDefaults({ ...EMPTY, ...pickFields(saved?.data), ...filled(pickFields(handed)) }));
     setDraftId(saved?.id);
     commit((saved?.files ?? []).map(fromRemote));
+    setSupplierId(offered(saved?.supplier_id));
     setItems(saved?.items ?? null); setItemsFor(''); setItemsConfirmed(false); setReadings([]); setAiState('idle'); setAiFound(false);
     setStep('edit'); setTried(false); setContactOpen(false); setContactTried(false); setServerErrors({}); setBanner(''); setPlaced(null);
     setSave({ state: 'idle' });
@@ -302,6 +318,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       const serverAt = Date.parse(d.updated_at ?? '') || 0;
       if (fromLink || serverAt > localAt) {
         loadFields(withDefaults({ ...EMPTY, ...pickFields(d.data) }));
+        setSupplierId(offered((d.data as DraftData).supplier_id));
         if (d.data.items?.length) setItems(d.data.items);
       }
       commit([...d.files.filter(f => f.kind === 'order_form' || f.kind === 'artwork').map(fromRemote), ...rowsRef.current.filter(r => !r.remote)]);
@@ -336,15 +353,15 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   // This browser's copy, kept as they type (not while another person's page is held, nor after sending).
   useEffect(() => {
     if (!owner || !loaded || held.current || step === 'sent') return;
-    const timer = setTimeout(() => writeLocal(owner, { v: 1, id: draftRef.current, data: fieldsRef.current, files: rowsRef.current.flatMap(r => (r.remote ? [r.remote] : [])), items: itemsRef.current, at: Date.now() }), 250);
+    const timer = setTimeout(() => writeLocal(owner, { v: 1, id: draftRef.current, data: fieldsRef.current, files: rowsRef.current.flatMap(r => (r.remote ? [r.remote] : [])), items: itemsRef.current, supplier_id: supplierRef.current, at: Date.now() }), 250);
     return () => clearTimeout(timer);
-  }, [owner, loaded, fields, draftId, version, items, step]);
+  }, [owner, loaded, fields, draftId, version, items, step, supplierId]);
   // The server's copy follows the details once the draft exists there.
   useEffect(() => {
     if (!dirty.current || !draftRef.current || !getToken() || step !== 'edit') return;
     const timer = setTimeout(() => { void saveNow(false); }, 1500);
     return () => clearTimeout(timer);
-  }, [fields]);
+  }, [fields, supplierId]);
 
   // Never lose the draft to a file dropped beside the boxes (the browser would open it), or to leaving mid-upload.
   useEffect(() => {
@@ -756,7 +773,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   }
   function startOver() {
     setPlaced(null); setStep('edit'); setTried(false); setServerErrors({}); setItems(null); setItemsFor(''); setReadings([]); setAiState('idle'); setAiFound(false); setSave({ state: 'idle' }); setContactOpen(false);
-    loadFields(withDefaults({ ...EMPTY }));
+    loadFields(withDefaults({ ...EMPTY })); setSupplierId(null);
     window.scrollTo({ top: 0 });
   }
   /** "I don't have an order form": Create Order Form, with the contact details already typed. */
@@ -787,6 +804,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       another={{ label: 'Upload another order', onClick: startOver }} />} />;
 
   const reviewing = step === 'review';
+  const madeByName = (suppliers.find(s => s.id === supplierId) ?? suppliers.find(s => s.default))?.name ?? '3DEEZI';
   const team = fields.team_name.trim();
   const accept = (kind: UploadKind) => rules[kind].extensions.map(e => `.${e}`).join(',');
   const fileList = (list: Row[], label: string) => list.length > 0 && <ul className="ou-files" aria-label={label}>
@@ -871,7 +889,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       layout={layout} rows={reviewRows} options={{ garments }} quote={(quote.quote ?? null) as unknown as PayQuote | null} quoteLoading={quote.state === 'loading'}
       onDownload={f => { const file = done.find(r => r.remote?.id === f.id)?.remote; if (file) void download(file); }} fetchFile={f => fetchFile(String(f.download))}
       delivery={{ contactName: fields.contact_name, team: fields.team_name, email: fields.contact_email, phone: fields.phone, phoneProblem: fields.phone.trim() && !validMobile(fields.phone) ? MOBILE_MESSAGE : null,
-        neededBy: fields.needed_by, neededByText: fields.needed_by ? dateText(fields.needed_by) : '', method: fields.delivery === 'pickup' ? 'pickup' : 'deliver', address: fields.delivery === 'pickup' ? null : deliveryText(fields), notes: fields.notes }}
+        neededBy: fields.needed_by, neededByText: fields.needed_by ? dateText(fields.needed_by) : '', method: fields.delivery === 'pickup' ? 'pickup' : 'deliver', address: fields.delivery === 'pickup' ? null : deliveryText(fields), notes: fields.notes, ...(suppliers.length > 1 ? { madeBy: madeByName } : {}) }}
       onEditDelivery={() => editAgain('contact')} onEditGarments={() => editAgain('files')}
       garmentEditor={<OrderFormRead items={items} note={readNote} unread={unread} sizes={SIZES} garments={garments} confirmed={itemsConfirmed} confirmTried={confirmTried} onConfirm={reviewItems.onConfirm}
         onSize={setItem} onGarment={setGarment} onRemove={removeItem} onPlayer={setPlayer} onAddRow={addRow} showConfirm={false} />}
@@ -903,6 +921,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
         </div>
         <OrderField label="Additional instructions" error={errorFor('notes')}><textarea id="ou-notes" className="op-input ou-notes" rows={3} maxLength={4000} value={fields.notes} onChange={e => setNotes(e.target.value)} placeholder="Anything else we should know about this order?" aria-invalid={!!errorFor('notes')} /></OrderField>
       </div>
+      <MadeByField suppliers={suppliers} value={supplierId} error={serverErrors.supplier_id?.[0]} onChange={id => { setSupplierId(id); dirty.current = true; setServerErrors(({ supplier_id: _gone, ...rest }) => rest); }} />
     </OrderSection>
   </>;
 
@@ -911,6 +930,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       rows={[{ key: 'form', label: 'Order form', value: formsDone.length ? `${plural(formsDone.length, 'file')} uploaded` : undefined, pending: pendingText(forms) },
         { key: 'art', label: 'Supporting artwork', value: artDone.length ? plural(artDone.length, 'file') : undefined, pending: pendingText(art) },
         { key: 'date', label: 'Date required', value: fields.needed_by ? dateText(fields.needed_by) : undefined, pending: 'Not added' },
+        ...(suppliers.length > 1 ? [{ key: 'made-by', label: 'Made by', value: madeByName, pending: '3DEEZI' }] : []),
         { key: 'delivery', label: fields.delivery === 'pickup' ? 'Pick up' : 'Delivery', value: fields.delivery === 'pickup' ? 'From 3DEEZI' : fields.suburb.trim() ? `To ${[fields.suburb.trim(), fields.state.trim().toUpperCase()].filter(Boolean).join(' ')}` : undefined, pending: 'Address needed' }]}
       hint="Sizes and quantities will be confirmed during review."
       footer={<p className={`ou-saved ${save.state === 'error' ? 'is-error' : ''}`} data-testid="save-state">{savedText}</p>} />

@@ -16,7 +16,9 @@ Tasks given today and on the last working day come first; older ones after.
 - Today's upload file is ready: `D:\3d-app\deploy-zips\3deez-update-2026-10-26-a.tar.gz` (398 files, 11 MB, code only, viewer -26 with the new look as the default, Artboard 2026-10-26-3).
   - After extracting: `php artisan optimize:clear`.
   - The suppliers tables set themselves up on first use on live, so no other command is needed.
-- Not pushed yet: push to v2 only when the user says.
+- Pushed to v2 = 28bd680 (2026-10-26 11:50, user asked).
+- Local database got the suppliers update (user OK; backup database-before-suppliers-2026-10-26.sqlite).
+- RUNNING: MB1 a22ea0736d169da65, "Made by" on Upload Your Order (website + app; questions.md 2c). When it's done, pack 2026-10-26-b (copy SP/final-pack-1026a.sh) and push to v2 again (the user asked for both today). Then the next tasks start.
 
 ## Next, in order
 1. **tasks.md 9.116 (client, given 2026-10-23): AI designer › "Open in 3D designer"** picks the nearest 3D model and carries the whole AI design onto it: the AI picture's colours, the chest symbol and, for netball, the position letters (the 3D falls back to the team name / "3DEEZI" today).

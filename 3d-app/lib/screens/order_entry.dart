@@ -1337,6 +1337,9 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
   bool readingNow = false;
   Future<Map<String, dynamic>?>? _reading;
   final _prefilled = <String>{};
+
+  /// Made by (preferred suppliers, as on Create Order Form): the maker chosen; null is 3DEEZI (the default).
+  int? supplierId;
   @override
   void initState() {
     super.initState();
@@ -1356,6 +1359,8 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
     'delivery': delivery,
     'address': address,
     if (pricing.isNotEmpty) 'pricing': pricing,
+    // Made by: sent whenever there is a choice (null is 3DEEZI, which also clears a choice saved on the draft).
+    if (makers.length > 1) 'supplier_id': MadeByField.idToSend(makers, supplierId),
   };
 
   _Upload? get form => uploads.where((u) => u.kind == 'order_form').firstOrNull;
@@ -1500,6 +1505,13 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
       OutlinedButton.icon(onPressed: () => addFile('artwork'), icon: const Icon(Icons.attach_file), label: const Text('Add logos, artwork or references')),
       const SizedBox(height: 10),
       _field(notes, 'Additional instructions', lines: 3),
+      // Made by, as on the website's upload (only when there is a choice).
+      MadeByField(
+        makers: makers,
+        value: supplierId,
+        onChanged: (id) => setState(() => supplierId = id),
+        onSeeSuppliers: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
+      ),
       errorText(),
       const SizedBox(height: 14),
       Row(
@@ -1603,6 +1615,8 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
             editContact = true;
           }),
           notes: notes.text.trim(),
+          // Who makes it, when the upload offered a choice (as the website's review).
+          madeBy: makers.length > 1 ? MadeByField.chosenOf(makers, supplierId)?.name : null,
           price: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

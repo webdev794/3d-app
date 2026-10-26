@@ -4,6 +4,12 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## "Made by" on Upload Your Order (2026-10-26)
+1. Orders › Upload Your Order: fill section 1 and upload a form. In section 3, "Made by" shows "3DEEZI (default)"; choose Mantis: Review order shows "Made by Mantis". Approve: My Orders and Admin › Orders say Made by Mantis.
+2. App › Orders › UPLOAD YOUR ORDER: the same.
+
+---
+
 ## Preferred suppliers in the app (2026-10-26)
 1. App › Home: under ORDERS, the "3DEEZI | PREFERRED SUPPLIERS — Made by makers we trust." strip; tap it: the suppliers list opens (Mantis with the 3DEEZI family badge, approved suppliers with logo, Makes, Where, Visit website).
 2. At the bottom, "Become a preferred supplier" with the prices; its button opens the website's form.
