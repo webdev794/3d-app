@@ -30,6 +30,8 @@ enum AppScreen {
   assets,
   profile,
   showcase,
+  // The Studio's Mockup: studio product photos (screens/product_mockup.dart).
+  mockup,
   artboard,
   pricing,
   orders,

@@ -14,6 +14,7 @@ import 'screens/orders_board.dart';
 import 'screens/orders_tab.dart';
 import 'screens/onboarding.dart';
 import 'screens/showcase.dart';
+import 'screens/product_mockup.dart';
 import 'screens/studio.dart';
 import 'widgets/assist_overlay.dart';
 import 'widgets/notification_bell.dart';
@@ -297,6 +298,7 @@ class _Phone extends StatelessWidget {
     AppScreen.assets => AssetsScreen(c),
     AppScreen.profile => ProfileScreen(c),
     AppScreen.showcase => ShowcaseScreen(c),
+    AppScreen.mockup => ProductMockupScreen(c),
     AppScreen.artboard => ArtboardScreen(c),
     AppScreen.pricing => PricingScreen(c),
     AppScreen.orders => OrdersBoardScreen(c),
@@ -332,7 +334,10 @@ class _PresentationRail extends StatelessWidget {
       AppScreen.home => 1,
       AppScreen.aiDesigner || AppScreen.generating || AppScreen.concepts => 2,
       AppScreen.sport || AppScreen.garment => 3,
-      AppScreen.studio || AppScreen.showcase || AppScreen.artboard => 4,
+      AppScreen.studio ||
+      AppScreen.showcase ||
+      AppScreen.mockup ||
+      AppScreen.artboard => 4,
       _ => 5,
     };
     return SingleChildScrollView(

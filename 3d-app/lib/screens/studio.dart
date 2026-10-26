@@ -10,6 +10,7 @@ import '../app_controller.dart';
 import '../assist.dart';
 import '../design_document.dart' show studioPatterns;
 import '../export_service.dart';
+import '../player_shot.dart';
 import '../project_sync.dart';
 import '../widgets/drag_tray.dart';
 import '../widgets/flow_ui.dart';
@@ -353,6 +354,35 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     _ask(text);
   }
 
+  /// See it on a player: the 3D front and back captures as the reference.
+  Future<void> _onPlayer() async {
+    if (_live3d && c.signedIn) {
+      setState(() => _busy = 'Capturing your kit…');
+      await c.captureViews();
+      if (!mounted) return;
+      setState(() => _busy = null);
+    }
+    final front = c.mockupFront ?? c.renderFront, back = c.mockupBack;
+    await openPlayerShot(
+      context,
+      c,
+      PlayerKit(
+        pictures: [?front, ?back],
+        sport: c.sport,
+        garment: c.garmentLabel,
+        name: c.projectName,
+        colours: [
+          ProjectSync.hex(c.mainColor),
+          ProjectSync.hex(c.secondaryColor),
+          ProjectSync.hex(c.accentColor),
+        ],
+        logoText: c.logoText,
+        backName: c.backName,
+        number: c.number,
+      ),
+    );
+  }
+
   Future<void> _leave(AppScreen next) async {
     if (_live3d) {
       setState(() => _busy = 'Capturing your kit…');
@@ -520,6 +550,15 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
             },
             onSave: () => _leave(AppScreen.saveProject),
             onShowcase: () => _leave(AppScreen.showcase),
+            onMockup: () {
+              // Like the website: signed out, it asks you to sign in first.
+              if (!c.signedIn) {
+                showToast(context, 'Sign in to make studio mockups.');
+                c.go(AppScreen.auth);
+                return;
+              }
+              _leave(AppScreen.mockup);
+            },
           ),
           // While a tool panel is open, the 3D takes this row's room too.
           if (!_preview && panel == null)
@@ -530,6 +569,11 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                   ActionChipPill(
                     'Artboard',
                     onTap: () => c.go(AppScreen.artboard),
+                  ),
+                  ActionChipPill(
+                    'See it on a player',
+                    icon: Icons.person_outline,
+                    onTap: _busy == null ? _onPlayer : null,
                   ),
                   ActionChipPill(
                     c.boardMode ? 'Back to 3D' : '2D panels',
@@ -999,19 +1043,20 @@ class _StudioBar extends StatelessWidget {
     required this.onPreview,
     required this.onSave,
     required this.onShowcase,
+    required this.onMockup,
   });
   final AppController c;
   final bool preview;
-  final VoidCallback onBack, onPreview, onSave, onShowcase;
+  final VoidCallback onBack, onPreview, onSave, onShowcase, onMockup;
 
-  // A fixed width per action, its label scaled down to fit: five actions and
-  // Back always fit a 360 px phone, even with larger iPhone text sizes (the
+  // A fixed width per action, its label scaled down to fit: six actions and
+  // Back (48 + 6 x 48 + padding) always fit a 360 px phone, even with larger iPhone text sizes (the
   // bar overflowed by 48 px at 375 and 390).
   Widget _action(String label, IconData icon, VoidCallback? onTap) => InkWell(
     borderRadius: BorderRadius.circular(10),
     onTap: onTap,
     child: SizedBox(
-      width: 54,
+      width: 48,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
         child: Column(
@@ -1059,6 +1104,7 @@ class _StudioBar extends StatelessWidget {
           onPreview,
         ),
         _action('Showcase', Icons.auto_awesome, onShowcase),
+        _action('Mockup', Icons.photo_camera_outlined, onMockup),
         _action('Save', Icons.bookmark_add_outlined, onSave),
       ],
     ),

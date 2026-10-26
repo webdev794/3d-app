@@ -1,28 +1,35 @@
 # Resume notes
 
-Updated 2026-10-26 12:50. Only what's needed to continue; finished work is in tasks.md, task-done-today.md and test-pending.md.
+Updated 2026-10-26 16:40. Only what's needed to continue; finished work is in tasks.md, task-done-today.md and test-pending.md.
 - SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`
 - Client pictures: `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\images\NNN.jpg/png`
 
 ## After a restart
 1. Stop leftover test servers and browsers (php not on :8000, node iso scripts, playwright chrome / msedge, flutter_tester); check SP\*.lock.
-2. Resume the running agent below with SendMessage ("continue from your checkpoint; safe steps; report"). If its ID doesn't work, start a new agent with tasks.md 9.116 and SP\AI3D\checkpoint.md.
+2. Resume the running agents below with SendMessage ("continue; safe steps; report"). If an ID doesn't work, start a new agent with the task from tasks.md 9.128.
 
-## Running (9.126, started after the session renewed)
+## Running (started 2026-10-26 about 16:40)
 | Agent | Task | Notes |
 |---|---|---|
-| (done) AI3D ad0d30b5e059000b3 | 9.126 parts 1 + 3: the soccer 3D matches the picture (RANVERS → clean text); hoodie, jackets, shorts and full kit carry the AI picture's real pattern | Up to about US$1 more of AI checks; checkpoint SP\AI3D\checkpoint.md |
-| (done) OC1 ae97afe6003f312eb | 9.127 app Home order cards (images/184.jpg): client wants them "close to the website": big cards like the website homepage's order section (176.jpg: Need help ordering? / Order ready to go? / My orders, with pictures and buttons) | App only |
-| (done) NB1 ac00da321de303471 | 9.126 part 2: new `netball-dress` 3D garment (women's fitted shape, flared hem) + a female mannequin; the Netball dress tile uses it | garment-brief.md + viewer-protocol.md; no paid AI |
+| (done) PC1 ae12aed1b615bb420 | 9.128 C: "See it on a player" (photoreal athlete wearing the exact kit; website + app; Studio and AI results) | Up to about US$1 of AI checks |
+| (done) MK1 ab29b5b3d82863329 | 9.128 A: "Mockup" studio product pictures (front / back / 3/4, Yellow Images standard; website + app) | Up to about US$1; shares AI files with PC1 |
 
-After both: a code-only pack (copy SP/final-pack-1026d.sh with the next letter) and push to v2 when the user asks.
+9.128 B (bought / artist garment models) is ON HOLD: the client may buy models. Check each link before purchase (GLB/FBX, clean UVs, under 100k triangles, app/web licence).
 
-## State (2026-10-26 13:12)
-- All tasks given on 2026-10-23 and 2026-10-26 are DONE, including 9.116 (viewer -27; AI spend about US$0.89).
-- Latest live file: `D:\3d-app\deploy-zips\3deez-update-2026-10-26-d.tar.gz` (13:11, code only, includes a, b, c). After extracting: `php artisan optimize:clear`.
-- Latest live file: D:\3d-app\deploy-zips\3deez-update-2026-10-26-e.tar.gz (16:13; viewer -29: netball dress + female form, Open in 3D fixes, app Home order cards). NOT pushed yet (v2 = 8bb7268 = the -d file); push when the user asks. Next pack: copy SP/final-pack-1026e.sh with letter f.
-- 9.126 and 9.127 DONE. No agent running.
-- Small open items from NB1: the Tennis dress tile still uses the singlet (a one-line change); no separate "Dress" order line; ProjectRequest may refuse pocketpolo design-picture layouts (422).
+## State (2026-10-26 17:30)
+- All tasks through 9.128 A and C are DONE. 9.128 B (bought models) is ON HOLD.
+- 9.129 and 9.130 DONE. Latest live file: D:/3d-app/deploy-zips/3deez-update-2026-10-26-h.tar.gz (18:51, viewer -30 with the HQ jersey behind ?hq=1, includes hq-jersey.js). NOT pushed (v2 = ea00724 = -e). Next pack: copy SP/final-pack-1026h.sh with letter i. No agent running.
+- RUNNING: HQ1 a86778d06f5027069 (tasks.md 9.130): the client's professional soccer jersey model (C:/Users/Intel/Downloads/soccer-green-jersey-player-08) into our viewer as a high-quality jersey behind a flag; work copy SP/HQ1/.
+- SPLIT for speed (user 2026-10-26 ~17:58, "about half hour"): HQ1 a86778d06f5027069 = lead (load + optimise the GLB, ?hq=1 flag, integrate); HQ2 DONE: ?hq=1 phone frame time equals the old jersey (about 147 vs 143 ms at 4x CPU), hq-jersey.js is 1.43 MB (0.99 MB gzip), save/reopen OK, the old jersey is unaffected; it found arm stubs below the sleeves and a lumpy neck lid hiding the size label (sent to HQ1); HQ3 DONE: the AI print sheet works on ?hq=1 (the crash was HQ1's test script; fix in SP/HQ3/deliver). Timebox about 25 min; HQ1 parks cleanly if short (SP/HQ1/checkpoint.md).
+- Also running (small, 18:40): FX1 DONE: the chest badge now reads "3D" in Mockup / See it on a player (prompt fix, US$0.07). Follow-up: send whether the chest crest is the default 3D badge or a club logo, and add the "3D" line only for the default badge (else a club shield with letters could get "3D"). FX2 DONE: pattern_areas_test now checks the app's 12 garments against catalog.php (the dress included); passes.
+- Latest live file: D:\3d-app\deploy-zips\3deez-update-2026-10-26-f.tar.gz (17:27; includes Mockup and See it on a player). NOT pushed yet: v2 = ea00724, the -e file.
+- Next pack: copy SP/final-pack-1026f.sh with letter g.
+- Small open items:
+  - test/pattern_areas_test.dart expects 11 garments but there are now 12 (update the test);
+  - the tiny "3D" badge reads "30" in AI photos;
+  - the Tennis dress tile still uses the singlet;
+  - no "Dress" order line;
+  - ProjectRequest may refuse pocketpolo layouts (422).
 
 ## Next, in order
 1. **FIRST: tasks.md 9.126 (user 2026-10-26; spec SP\AI3D\fix-spec.md, pictures images/181–183.png).** Open in 3D gaps:

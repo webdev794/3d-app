@@ -4,6 +4,41 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## High quality jersey preview (2026-10-26; after the next upload)
+1. Open the website with ?hq=1 at the end of the address (e.g. https://testcaresortwork.co.in/3deez/?hq=1), then Design Your Own › a sport › Jersey › Studio: the new professional jersey on a body-shaped form.
+2. Change colours, pattern, crest, name and number and turn it: everything lands in the usual places.
+3. Save, reopen: the same.
+4. ?hq=0 brings back the usual jersey (which is still everyone's default).
+
+---
+
+## "See it on a player" with your own photo (2026-10-26; uses AI credits)
+1. Studio › "See it on a player" › "Upload a photo of a person": the note says the photo isn't kept unless you save the result.
+2. A GIF is refused; a JPG of a person shows a preview.
+3. Create picture: the same person in your kit, same face, pose and background. Download, Try again and Save to my assets work.
+4. A photo with no person: "That photo does not show a person…".
+5. App: the same from the Studio chip.
+
+---
+
+## "See it on a player" (2026-10-26; uses AI credits)
+1. Studio (signed in) › AI › "See it on a player" › Male, Action › Create picture: a player in your kit on the sport's field, same colours, crest and lettering.
+2. "Try another pose" makes a second picture; Download saves a .jpg; "Save to my assets" puts it in Assets.
+3. Netball dress: the Male button is off; a female player on a netball court.
+4. AI designer › a result › "See it on a player": works from the AI picture.
+5. Signed out: it asks you to sign in. App: Studio chip "See it on a player" and AI results ⋯ › the same.
+
+---
+
+## "Mockup" studio pictures (2026-10-26; uses AI credits)
+1. Studio (signed in) › side panel "Mockup" (or ⋮ › Mockup) › Light grey › MAKE MOCKUPS: Front, Back and 3/4 appear (about 2 minutes).
+2. The photos keep the colours, wordmark, name and number, on a clean studio background with fabric texture and a shadow.
+3. Download one, Download all (3 files), Save to my assets (3 "… mockup" pictures).
+4. Try White and Dark backgrounds. Signed out, it asks you to sign in.
+5. App: Studio top bar › Mockup: the same.
+
+---
+
 ## Netball dress in 3D on a female form; Open in 3D closer to the picture (2026-10-26)
 1. Design Your Own › Netball › Netball dress › Studio: a fitted dress with a flared skirt on a female form; turn it front, side, back.
 2. AI designer › "Black and gold netball dresses for the Panthers" › Open in 3D Designer: the check screen says Netball dress › Put on the 3D kit: the picture's print, crest and GS on the dress.

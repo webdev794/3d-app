@@ -13,6 +13,7 @@ import { KitPainter, knitNormalMap } from './texture.js';
 import { createStudio } from './studio.js';
 import { qualityTier, TIERS, stadiumEnvironment, dressFabric, hdrBackdrop } from './render-quality.js';
 import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
+import { hqWanted, loadHQ, hqJersey } from './hq.js';
 import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt } from './zones.js';
@@ -74,6 +75,8 @@ if (Q) { renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingEx
 const LOOK_DEFAULT = '2';
 const LOOK2 = !!Q && (params.get('look') ?? LOOK_DEFAULT) === '2';
 document.body.dataset.look = LOOK2 ? '2' : '1';
+// The "High quality" jersey (hq.js), a professional garment model, only with ?hq=1 for now (the jersey alone).
+const HQ = hqWanted(params);
 
 const scene = new THREE.Scene();
 scene.background = backdrop();
@@ -243,6 +246,13 @@ function buildKit(kind) {
     painter.points = garment.points;
     // The fabric as worn: a garment drawing keeps its shapes on it (layout-warp.js).
     painter.surface = garment.surface;
+    // ?hq=1: the jersey's fabric is the HQ model, printed from this jersey's atlas (hq.js).
+    let hq = null;
+    if (HQ && partKind === 'jersey' && window.HQ_JERSEY) {
+      // (A cut it cannot be laid onto keeps our own jersey.)
+      try { hq = hqJersey(garment, own ?? SPECS.jersey); } catch (error) { console.warn('HQ jersey:', error); }
+    }
+    const shape = hq?.geometry ?? garment.geometry;
     const texture = new THREE.CanvasTexture(painter.canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -252,8 +262,8 @@ function buildKit(kind) {
     const group = new THREE.Group();
     // The inside of the fabric, seen through the neck, hem and cuffs: the garment's own colour in shade (paintAll).
     const inside = new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.95, vertexColors: true, side: THREE.BackSide });
-    group.add(new THREE.Mesh(garment.geometry, inside));
-    const fabric = new THREE.Mesh(garment.geometry, partMaterial);
+    group.add(new THREE.Mesh(shape, inside));
+    const fabric = new THREE.Mesh(shape, partMaterial);
     fabric.userData.part = parts.length;
     fabric.castShadow = true;
     fabric.receiveShadow = true;
@@ -388,6 +398,8 @@ function buildKit(kind) {
       rim.material.normalScale.set(0.75, 0.75);
     }
     rim.visible = !hoodie && !track && !varsity;
+    // The HQ jersey's own collar piece, in the collar rib's material.
+    if (hq?.collar) { rim.geometry.dispose(); rim.geometry = hq.collar; }
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
     const label = partKind === 'shorts' ? null : buildLabel(garment);
     // Shorts: the drawstring out of the front of the waistband.
@@ -402,7 +414,7 @@ function buildKit(kind) {
     group.position.y = base + (LOOK2 ? garment.lift : 0);
     base += partKind === 'shorts' ? garment.frame.maxY * stretch - 0.06 : 0;
     kit.add(group);
-    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity });
+    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq });
   }
   // The tiers: each part's fabric (mesh, piqué, fleece...) woven into its printed materials (render-quality.js).
   if (Q) parts.forEach((part) => dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy()));
@@ -422,7 +434,9 @@ function dressMannequin(list) {
   let low = Infinity, foot = null;
   for (const part of parts) {
     const group = part.rim.parent;
-    const form = buildMannequin(part.garment, mannequinMat, { over: list.includes('shorts') && part.painter.kind !== 'shorts' });
+    // The HQ jersey: the body it was made on (hq.js), else our form made for the garment.
+    const form = part.hq?.avatar ? new THREE.Group().add(new THREE.Mesh(part.hq.avatar, mannequinMat))
+      : buildMannequin(part.garment, mannequinMat, { over: list.includes('shorts') && part.painter.kind !== 'shorts' });
     if (!form) continue;
     group.add(form);
     const s = group.scale.y;
@@ -1096,6 +1110,7 @@ addEventListener('pagehide', (event) => {
 
 (async () => {
   await environmentReady;
+  if (HQ) await loadHQ();
   await applyDesign(design);
   reveal();
   setTimeout(() => (controls.autoRotate = !params.has('still')), 1600);

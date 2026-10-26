@@ -13,6 +13,8 @@ import '../app_controller.dart';
 import '../sports_catalog.dart';
 import '../design_document.dart' show isHoodie, isVarsity, isTrack;
 import '../export_service.dart';
+import '../player_shot.dart';
+import '../project_sync.dart';
 import '../widgets/ai_stage.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/showroom.dart';
@@ -1453,6 +1455,25 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               }
             case 'studio':
               _open(index);
+            case 'player':
+              final s = o.spec;
+              openPlayerShot(
+                context,
+                c,
+                PlayerKit(
+                  pictures: [?o.image],
+                  sport: c.sport,
+                  garment: s.garment,
+                  name: s.designName,
+                  colours: [
+                    ProjectSync.hex(s.mainColor),
+                    ProjectSync.hex(s.secondaryColor),
+                    ProjectSync.hex(s.accentColor),
+                  ],
+                  logoText: s.logoText,
+                  backName: s.logoText,
+                ),
+              );
             default:
               if (action.startsWith('picture-')) {
                 _ReferencesToKit(
@@ -1485,6 +1506,12 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               value: 'undo',
               enabled: !o.busy,
               child: const Text('Undo last refine'),
+            ),
+          if (ai && o.image != null)
+            PopupMenuItem(
+              value: 'player',
+              enabled: !o.busy,
+              child: const Text('See it on a player'),
             ),
           const PopupMenuItem(
             value: 'studio',

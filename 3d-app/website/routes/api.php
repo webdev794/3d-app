@@ -72,7 +72,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/convert/cdr', [ConvertController::class, 'cdr'])->middleware('throttle:uploads');
         Route::post('/ai/pattern', [AiController::class, 'pattern'])->middleware('throttle:concepts');
         Route::post('/ai/showcase', [AiController::class, 'showcase'])->middleware('throttle:concepts');
+        // See it on a player (9.128 C): the kit on a photoreal athlete; saved to Assets only on request.
+        Route::post('/ai/player', [\App\Http\Controllers\PlayerShotController::class, 'make'])->middleware('throttle:concepts');
+        Route::post('/ai/player/save', [\App\Http\Controllers\PlayerShotController::class, 'save'])->middleware('throttle:uploads');
         Route::post('/ai/mockup', [AiController::class, 'mockup'])->middleware('throttle:concepts');
+        // The Studio's Mockup: studio product photos of the design (one view per call), and Save to my assets.
+        Route::post('/ai/product-mockup', [\App\Http\Controllers\MockupController::class, 'generate'])->middleware('throttle:concepts');
+        Route::post('/ai/product-mockup/save', [\App\Http\Controllers\MockupController::class, 'save'])->middleware('throttle:uploads');
         // The AI designer's results: four ranked directions, then one render each (PRIMARY HD, options medium).
         Route::post('/ai/designs', [AiController::class, 'designs'])->middleware('throttle:concepts');
         Route::post('/ai/designs/render', [AiController::class, 'renderDesign'])->middleware('throttle:concepts');

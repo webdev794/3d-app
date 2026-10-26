@@ -10,6 +10,7 @@ import ImageEditor, { EditImageButton } from '../components/ImageEditor';
 import { CategoryIcon } from '../components/GarmentIcon';
 import { allGarments, formatCount, friendlyError, garmentChips, garmentInBrief, garmentLabels, MAX_BRIEF, sportInBrief, SportRow, sportTiles, useVoice, type GarmentChip } from '../components/AiStage';
 import { ResultsViewer } from '../components/ResultsViewer';
+import { PlayerShotButton } from '../components/PlayerShot';
 import '../../css/ai-designer.css';
 
 export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
@@ -638,6 +639,9 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
             <button type="button" className="button button-gradient aid-open3d" disabled={!primary || making3d || (isAi ? !primary.image : false)} onClick={() => { if (!primary) return; if (primary.image) requireAuth(() => void makeIt3d()); else customize(primary); }} title={making3d ? 'Drawing the print sheet: the 3D Designer opens by itself' : 'The same design drawn flat, front and back, then put on the live 3D kit'}>{making3d ? <LoaderCircle className="spin" size={20} /> : <Box size={20} />}<span>{making3d ? 'Drawing the print sheet…' : 'Open in 3D Designer'}</span></button>
             <button type="button" className="aid-dl" disabled={!primary?.image} onClick={() => primary && void download(primary, shown + 1)} aria-label={`Download design ${shown + 1}`} title="Download this design"><Download size={22} /></button>
           </div>}
+          {!refineOpen && isAi && primary?.image && <PlayerShotButton className="button button-secondary full-width aid-player" requireAuth={requireAuth} disabled={!!primary.busy}
+            kit={{ sport: catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport, garment: productName(primary.design, catalog), name: primary.name, colours: [primary.design.main, primary.design.secondary, primary.design.accent], logoText: primary.design.logoText, backName: primary.design.backName || primary.design.logoText, number: primary.design.number }}
+            pictures={async () => primary.image ? [primary.image] : []} />}
           <div className={`aid-refine${refineOpen ? ' is-open' : ''}`}>
             <form className="aid-refine-row" onSubmit={e => { e.preventDefault(); refine(); }}>
               <Sparkles className="aid-refine-icon" size={19} aria-hidden="true" />

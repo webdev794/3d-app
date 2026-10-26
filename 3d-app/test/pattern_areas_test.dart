@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:three_deezi/app_controller.dart';
@@ -7,14 +9,15 @@ import 'package:three_deezi/widgets/studio_tools.dart';
 import 'features_test.dart' show FakeStore;
 import 'flow_test.dart' show mountPhone, tapText;
 
-/// The website's Studio › Patterns › Apply to area (resources/js/pages/Studio.tsx patternAreas, 2026-10-23), by
-/// website garment id: the areas the 3D viewer paints on each garment.
+/// The website's Studio › Patterns › Apply to area (resources/js/pages/Studio.tsx patternAreas, 2026-10-26), by
+/// website garment id: the areas the 3D viewer paints on each garment. The singlet and the netball dress are
+/// sleeveless (viewer zones.js: the dress has no sleeve area).
 List<String> websiteAreas(String id, {String? trackStyle}) {
   final shorts = id == 'shorts';
   return [
     shorts ? 'Body' : 'Chest & body',
     if (!shorts) 'Shoulders',
-    if (!shorts && id != 'singlet') 'Sleeves',
+    if (!shorts && id != 'singlet' && id != 'netball-dress') 'Sleeves',
     'Side panels',
     shorts ? 'Leg hems' : 'Hem',
     if (id == 'pocketpolo') 'Chest pocket',
@@ -36,7 +39,21 @@ List<String?> shownAreas(WidgetTester tester) => [
 
 void main() {
   test('every 3D garment offers the same areas as the website', () {
-    expect(garmentIds, hasLength(11));
+    // The app's garments are the website's 3D garments (config/catalog.php 'garments', name -> id), no more, no fewer.
+    final php = File('website/config/catalog.php').readAsStringSync();
+    final list = php.substring(php.indexOf("\n    'garments' => ["));
+    expect(garmentIds, {
+      for (final m in RegExp(
+        r"\['id' => '([^']+)', 'name' => '([^']+)'",
+      ).allMatches(list.substring(0, list.indexOf('\n    ],'))))
+        m[2]!: m[1]!,
+    });
+    // websiteAreas above names the same garments as the website's own rules, and the same sleeveless ones.
+    final tsx = File('website/resources/js/pages/Studio.tsx').readAsStringSync();
+    final rules = tsx.substring(tsx.indexOf('function patternAreas('), tsx.indexOf('export default function Studio('));
+    Set<String> named(String code) => {for (final m in RegExp(r"garment === '([\w-]+)'").allMatches(code)) m[1]!};
+    expect(named(rules), {'shorts', 'singlet', 'netball-dress', 'pocketpolo'});
+    expect(named(rules.split('\n').firstWhere((line) => line.contains("label: 'Sleeves'"))), {'singlet', 'netball-dress'});
     for (final MapEntry(key: garment, value: id) in garmentIds.entries) {
       expect(
         [for (final (_, label) in patternAreas(garment)) label],
@@ -50,6 +67,13 @@ void main() {
     );
     // No sleeves on the singlet; the full kit's jersey keeps them; shorts keep only what the viewer paints.
     expect([for (final (key, _) in patternAreas('Singlet')) key], isNot(contains('sleeves')));
+    // The netball dress: body, shoulders, side panels and hem, no sleeves.
+    expect(patternAreas('Netball dress'), [
+      ('body', 'Chest & body'),
+      ('yoke', 'Shoulders'),
+      ('sides', 'Side panels'),
+      ('hem', 'Hem'),
+    ]);
     expect([for (final (key, _) in patternAreas('Full Kit')) key], containsAll(['yoke', 'sleeves']));
     expect([for (final (key, _) in patternAreas('Shorts')) key], ['body', 'sides', 'hem']);
   });

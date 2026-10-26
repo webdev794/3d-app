@@ -1,0 +1,9 @@
+/* The Studio's Mockup dialog (ProductMockupDialog.tsx). */
+dialog.product-mockup-modal{width:min(880px,calc(100vw - 32px));padding:24px 26px 20px;overflow:auto}
+dialog.product-mockup-modal h2{margin:4px 40px 8px 0}
+.product-mockup-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+.pm-shot{margin:0;border-radius:12px;overflow:hidden;border:1px solid rgba(0,219,234,.3);display:flex;flex-direction:column}
+.pm-shot>img,.pm-shot>span{aspect-ratio:1;width:100%;object-fit:cover;display:grid;place-items:center;text-align:center;gap:6px;font-size:13px}
+.pm-light-grey>span{background:#e6e7e9;color:#5a6470}.pm-white>span{background:#fff;color:#5a6470}.pm-dark>span{background:#2a2c30;color:#b8c2cc}
+.pm-shot figcaption{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;min-height:36px;font-size:13px;background:#0b141b;color:#cfd9e1}
+@media (max-width:640px){dialog.product-mockup-modal{padding:18px 14px}.product-mockup-grid{grid-template-columns:1fr 1fr}.pm-shot:last-child{grid-column:span 2}}

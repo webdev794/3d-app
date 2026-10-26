@@ -196,7 +196,7 @@ class AssistController extends ChangeNotifier {
     AppScreen.studio ||
     AppScreen.saveProject ||
     AppScreen.export ||
-    AppScreen.showcase => '/studio',
+    AppScreen.showcase || AppScreen.mockup => '/studio',
     AppScreen.projects => '/projects',
     AppScreen.assets => '/assets',
     AppScreen.profile => '/dashboard',

@@ -1741,6 +1741,54 @@ class AiService {
     size: '1536x1024',
   );
 
+  /// The Studio's Mockup: one studio product photo from the 3D captures
+  /// (prompt from product_mockup.dart), faithful to the design.
+  Future<Uint8List> productMockup(String prompt, List<Uint8List> captures) =>
+      _edit(prompt, captures, size: '1024x1024', highFidelity: true);
+
+  /// See it on a player: the kit pictures worn by a photoreal athlete
+  /// (prompt from player_shot.dart), faithful to the design.
+  Future<Uint8List> playerShot(
+    String prompt,
+    List<Uint8List> pictures, {
+    String size = '1024x1536',
+  }) => _edit(prompt, pictures, size: size, highFidelity: true);
+
+  /// See it on a player with your own photo: a cheap check that the upload
+  /// shows a real person.
+  Future<bool> isPerson(Uint8List photo) async {
+    final json = await _post('/responses', {
+      'model': textModel,
+      'max_output_tokens': 100,
+      'input': [
+        {
+          'role': 'user',
+          'content': _content(
+            'Is this a photograph of a real person (at least the upper body '
+            'visible), for a clothing try-on?',
+            [photo],
+          ),
+        },
+      ],
+      'text': {
+        'format': {
+          'type': 'json_schema',
+          'name': 'person_check',
+          'strict': true,
+          'schema': {
+            'type': 'object',
+            'additionalProperties': false,
+            'required': ['person'],
+            'properties': {
+              'person': {'type': 'boolean'},
+            },
+          },
+        },
+      },
+    });
+    return jsonDecode(_outputText(json))['person'] == true;
+  }
+
   /// Back view that matches an existing front render.
   /// The back follows the sport's rules: netball shows its position letters
   /// and no name or number; 3DEEZI is the small word mark under the collar.

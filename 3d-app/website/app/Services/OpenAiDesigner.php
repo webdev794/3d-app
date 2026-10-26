@@ -353,6 +353,19 @@ class OpenAiDesigner
     }
 
     /**
+     * The Studio's "Mockup" (App\Services\ProductMockup builds the prompt): the 3D captures in, one
+     * studio product photo out, with high input fidelity so the design stays as made. Raw JPEG bytes.
+     *
+     * @param  array<int, string>  $captures  data URLs, the view to photograph first
+     */
+    public function productMockup(array $captures, string $prompt): string
+    {
+        return $this->highFidelityEdit($prompt, array_map(fn (string $c) => $this->decodeDataUrl($c), $captures), [
+            'size' => '1024x1024', 'quality' => 'medium', 'output_format' => 'jpeg', 'output_compression' => '90',
+        ]);
+    }
+
+    /**
      * One brief in, one finished HD presentation mockup out, the way people
      * use ChatGPT: front and back views with close-up detail panels. Logos the
      * user attaches are placed as the brief says (the club's symbol on the
