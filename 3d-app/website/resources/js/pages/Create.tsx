@@ -16,7 +16,7 @@ export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
 export const garmentArt = (garment: string) => media(`showroom/garment-${garment}.webp`);
 /** Shown in the garment step and the studio; not yet available in 3D. */
 export const comingSoon = [{ id: 'socks', name: 'Socks', description: 'Match socks with team bands.' }, { id: 'shoes', name: 'Shoes', description: 'Boots in your colours.' }];
-const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
+const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
 /** A garment's place on the garment step; one not listed yet goes last. */
 const order = (id: string) => { const i = garmentOrder.indexOf(id); return i < 0 ? garmentOrder.length : i; };
 
@@ -211,9 +211,33 @@ export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: {
  * with Try again) instead of a blank page (a missing picture read inside a state update unmounted the whole page).
  */
 /** The 3D garments a design picture (print sheet) goes on as drawn. */
-const drawnGarments = ['singlet', 'jersey', 'tee', 'polo', 'pocketpolo'];
+const drawnGarments = ['singlet', 'netball-dress', 'jersey', 'tee', 'polo', 'pocketpolo'];
 /** An AI picture read for the 3D kit (POST /ai/designs/read, task 9.116). */
-type DesignReading = { garment: string; seen: string; exact: boolean; hood: boolean; motif: string | null; crest: { x: number; y: number; w: number; h: number } | null; design: Partial<Design> };
+type DesignReading = { garment: string; seen: string; exact: boolean; hood: boolean; motif: string | null; crest: { x: number; y: number; w: number; h: number } | null; print?: { x: number; y: number; w: number; h: number } | null; design: Partial<Design> };
+/** The viewer's mark for a full-colour print patch (viewer texture.js PRINT_MARK): two exact pixels at its top left. */
+const PRINT_MARK = [[3, 222, 177], [17, 61, 233]];
+/**
+ * A patch of the AI picture's own print (`box` in fractions of it, a little inside its edges), as a marked PNG the 3D
+ * kit lays all over the body (task 9.126), with its repeat size in metres.
+ */
+export async function cropPrint(src: string, box: { x: number; y: number; w: number; h: number }): Promise<{ image: string; scale: number } | null> {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  const W = img.naturalWidth, H = img.naturalHeight, inset = 0.08;
+  const x0 = (box.x + box.w * inset) * W, y0 = (box.y + box.h * inset) * H, w = box.w * (1 - 2 * inset) * W, h = box.h * (1 - 2 * inset) * H;
+  if (w < 24 || h < 24) return null;
+  const k = Math.min(1, 512 / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * k); canvas.height = Math.round(h * k);
+  const g = canvas.getContext('2d')!;
+  g.drawImage(img, x0, y0, w, h, 0, 0, canvas.width, canvas.height);
+  const mark = g.createImageData(2, 1);
+  PRINT_MARK.forEach(([r, gr, b], i) => mark.data.set([r, gr, b, 255], i * 4));
+  g.putImageData(mark, 0, 0);
+  // About 1.3 m of garment across the whole picture (a front and back side by side): the patch's own size on the kit.
+  return { image: canvas.toDataURL('image/png'), scale: Math.min(0.6, Math.max(0.15, box.w * (1 - 2 * inset) * 1.6)) };
+}
 /** The club symbol cut from the AI picture (`box` in fractions of it, with a little margin), as a small PNG for the chest. */
 export async function cropCrest(src: string, box: { x: number; y: number; w: number; h: number }): Promise<string | null> {
   const img = new Image();
@@ -486,13 +510,15 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
       const garment = (read?.garment ?? draft.garment) as Design['garment'];
       const attached = primary.design.logoImage || references.find(r => r.preview.startsWith('data:image/'))?.preview || null;
       const logo = attached || (read?.crest ? await cropCrest(image, read.crest).catch(() => null) : null);
+      // The picture's own print on the body (no generic pattern when the picture shows one).
+      const print = read?.print ? await cropPrint(image, read.print).catch(() => null) : null;
       if (!current()) return;
       const shown = catalog?.garments.find(g => g.id === garment)?.name ?? garment;
       const note = read && !read.exact ? `Shown on our ${shown.toLowerCase()}: the closest 3D garment to your ${read.seen || 'design'}.` : '';
-      const design: Design = { ...primary.design, ...(read?.design ?? {}), garment, layout: null, logoImage: logo ?? primary.design.logoImage ?? null };
+      const design: Design = { ...primary.design, ...(read?.design ?? {}), garment, layout: null, logoImage: logo ?? primary.design.logoImage ?? null, ...(print ? { patternImage: print.image, patternScale: print.scale } : {}) };
       // In the picture's colours (no print sheet): the other garments, and the fallback when the print sheet fails.
       const inColours = (why: string) => {
-        onChange({ ...draft, id: undefined, version: undefined, garment, name: primary.name || draft.name, mode: 'ai', design: named(design), patternMotif: read?.motif ?? primary.motif, pendingDrawing: undefined });
+        onChange({ ...draft, id: undefined, version: undefined, garment, name: primary.name || draft.name, mode: 'ai', design: named(design), patternMotif: print ? undefined : read?.motif ?? primary.motif, pendingDrawing: undefined });
         onStudio();
         onNotice?.([note, why].filter(Boolean).join(' '));
       };
@@ -682,7 +708,7 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
       const type = ['image/png', 'image/jpeg', 'image/webp'].includes(blob.type) ? blob.type : 'image/png';
       const form = new FormData(); form.append('file', new File([blob], `My design.${type === 'image/jpeg' ? 'jpg' : type.slice(6)}`, { type })); form.append('type', 'reference'); form.append('name', 'My design');
       const saved = await api<{ id: number; name: string }>('/assets', { method: 'POST', body: form });
-      const top = (['singlet', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment'];
+      const top = (['singlet', 'netball-dress', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment'];
       onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'dyo', design: { ...draft.design, garment: top, layout: null, productName: top === draft.design.garment ? draft.design.productName : undefined }, patternMotif: undefined, pendingDrawing: { asset: saved.id, name: saved.name || 'My design' } });
       onStudio();
     } catch (e) { setError((e as Error).message); } finally { setPlacing(false); }

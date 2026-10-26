@@ -85,7 +85,8 @@ class ProjectRequest extends FormRequest
             'design.layout.hemFold' => ['sometimes', 'boolean'],
             'design.layout.joinLines' => ['sometimes', 'boolean'],
             'design.layout.parts' => ['sometimes', 'array', 'max:2'],
-            'design.layout.parts.*' => [Rule::in(['raglan', 'shorts', 'singlet', 'jersey', 'tee', 'polo'])],
+            // (The netball dress takes a design picture as the singlet does: task 9.126.)
+            'design.layout.parts.*' => [Rule::in(['raglan', 'shorts', 'singlet', 'netball-dress', 'jersey', 'tee', 'polo'])],
             'design.layers' => ['sometimes', 'array', 'max:40'],
             'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape,artboard'],
             // Artwork sent from the Artboard: the id of the design it came from (Edit in Artboard opens it again).

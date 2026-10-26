@@ -50,6 +50,8 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
     const pattern = (design.pattern || 'none').toLowerCase();
     const shorts = project.garment === 'shorts';
     const singlet = project.garment === 'singlet';
+    // The netball dress (task 9.126): fitted at the waist, its skirt flaring to the hem.
+    const dress = project.garment === 'netball-dress';
     const fullkit = project.garment === 'fullkit';
     const polo = project.garment === 'polo' || project.garment === 'pocketpolo';
     const hoodie = project.garment === 'hoodie' || project.garment === 'ziphoodie';
@@ -58,7 +60,7 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
     const crewNeck = project.garment === 'tee' || polo || hoodie || varsity || track;
     const zones = (design.zoneColors ?? {}) as Partial<Record<'hood' | 'lining' | 'rib' | 'pocket' | 'zip' | 'body' | 'sleeves' | 'ribStripe' | 'snaps' | 'pocketTrim' | 'shoulder' | 'side' | 'stripe' | 'collar' | 'cuffs', string>>;
     // A hoodie (and the varsity jacket) has long sleeves to the wrist.
-    const outline = shorts ? 'M99 71H221L230 229H169L160 158L151 229H90Z' : singlet ? 'M117 55L139 48Q160 75 181 48L203 55L195 108L207 242H113L125 108Z' : hoodie || varsity || track ? 'M107 67L138 49Q160 70 182 49L213 67L246 196L222 203L204 125L209 242H111L116 125L98 203L74 196Z' : 'M107 67L138 49Q160 70 182 49L213 67L256 119L221 144L204 125L209 242H111L116 125L99 144L64 119Z';
+    const outline = shorts ? 'M99 71H221L230 229H169L160 158L151 229H90Z' : dress ? 'M121 52L140 46Q160 70 180 46L199 52L195 98Q201 112 189 132L222 252H98L131 132Q119 112 125 98Z' : singlet ? 'M117 55L139 48Q160 75 181 48L203 55L195 108L207 242H113L125 108Z' : hoodie || varsity || track ? 'M107 67L138 49Q160 70 182 49L213 67L246 196L222 203L204 125L209 242H111L116 125L98 203L74 196Z' : 'M107 67L138 49Q160 70 182 49L213 67L256 119L221 144L204 125L209 242H111L116 125L99 144L64 119Z';
     return <svg className="lib-kit-svg" viewBox={fullkit ? '0 0 320 420' : '0 0 320 280'} role="img" aria-label={`${project.name} front design illustration`}>
         <defs>
             <linearGradient id={`${id}-shine`} x1="0" x2="1" y1="0" y2="1"><stop stopColor="white" stopOpacity=".2" /><stop offset=".4" stopColor="white" stopOpacity="0" /><stop offset="1" stopColor="black" stopOpacity=".42" /></linearGradient>

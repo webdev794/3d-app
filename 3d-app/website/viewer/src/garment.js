@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import Delaunator from 'delaunator';
-import { wornTop, wornShorts } from './worn.js';
+import { wornTop, wornShorts, wornDress } from './worn.js';
 import { POCKET, isHoodie, isTrack } from './zones.js';
 import { panelSampler, buildHood, buildKangaroo, buildRib, buildZip, cuffRingAbove } from './hoodie.js';
 import { buildTrackParts } from './trackjacket.js';
@@ -114,6 +114,35 @@ SPECS.trainingShorts = {
     // Loose behind: they hang straight down from the waistband over the seat.
     seat: 0.1,
   },
+};
+
+/**
+ * The netball dress (tasks.md 9.126): a women's fitted dress, cut for the female figure (figure.js; `form`), worn over
+ * it (worn.js wornDress). Sleeveless with a round scoop neck and bound armholes, the bodice fitted over the bust and in
+ * at the waist, then an A-line skirt over the hips flaring out to a hem at mid-thigh, sewn at the sides. Its own heights:
+ * the shoulder seam (the strap tops) at 0.88, the underarm at 0.676, the waist at 0.48, the hem at 0. `points`: the
+ * corners a garment drawing's are matched to (layout-warp.js DRAWN), as the singlet's.
+ */
+SPECS['netball-dress'] = {
+  half: [
+    [0, 0.765], [0.05, 0.79], [0.078, 0.835], [0.088, 0.88], [0.136, 0.88],
+    [0.14, 0.83], [0.152, 0.775], [0.176, 0.722], [0.205, 0.69], [0.224, 0.676],
+    [0.232, 0.63], [0.224, 0.585], [0.205, 0.53], [0.19, 0.48],
+    [0.198, 0.44], [0.222, 0.38], [0.25, 0.3], [0.278, 0.2], [0.306, 0.1], [0.326, 0.035],
+    [0.25, 0.014], [0.12, 0.002], [0, 0],
+  ],
+  neck: { drop: 0.125, half: 0.09 },
+  rim: { drop: 0.13, half: 0.11, radius: 0.0085 },
+  armholes: true,
+  armhole: { x0: 0.133, y0: 0.671, x1: 0.228 },
+  pit: [0.224, 0.676],
+  depth: 0.175,
+  chest: true,
+  dress: true,
+  form: 'female',
+  // Shown in the new look on the female form standing a little higher on its stand, so its thighs show below the hem.
+  lift: 0.08,
+  points: { N: [0.088, 0.88], S: [0.136, 0.88], U: [0.224, 0.676], H: [0.326, 0.035], T: [0, 0.765] },
 };
 
 // The pocket polo (pool and darts shirts): the polo with a stitched patch pocket on the wearer's left chest (zones.js
@@ -250,6 +279,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   const fineZone = (p) => {
     const ax = Math.abs(p.x);
     if (spec.legs) return (ax > 0.14 && p.y < waist - 0.05) || p.y > waist - 0.11 || Math.hypot(ax, p.y - crotchY) < 0.13;
+    // A dress: round the armholes and down the bodice's sides.
+    if (spec.dress) return Math.hypot(ax - spec.pit[0], p.y - spec.pit[1]) < 0.1 || (ax > 0.16 && ax < 0.26 && p.y > spec.pit[1] - 0.25 && p.y < spec.pit[1]);
     return spec.chest && ((ax > 0.15 && ax < 0.3 && p.y > 0.02 && p.y < 0.58) || Math.hypot(ax - 0.255, p.y - 0.53) < 0.11);
   };
   const points = [...poly];
@@ -280,18 +311,22 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   const n = points.length;
   const ramp = (a, b, v) => { const t = THREE.MathUtils.clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
   // Front and back meet on top of the shoulders along the shoulder seam.
-  const topMask = poly.map((q, i) => seam[i] && q.y > 0.64 && Math.abs(q.x) < (spec.cuff ? 0.262 : 0.2));
+  const topMask = poly.map((q, i) => seam[i] && q.y > (spec.dress ? maxY - 0.1 : 0.64) && Math.abs(q.x) < (spec.cuff ? 0.262 : 0.2));
   // The hem, so its band and folds sit an even distance from it all the way round.
   const hemMask = poly.map((q, i) => !seam[i] && q.y < minY + 0.03);
   const hemDistance = (p) => distanceToOutline(p, poly, hemMask);
-  const worn = spec.chest
+  // A dress is worn by the female figure (figure.js), its skirt flaring from the hips.
+  const worn = spec.dress
+    ? wornDress(spec, { topSeam: (p) => distanceToOutline(p, poly, topMask), outline: poly, hemDist: hemDistance })
+    : spec.chest
     ? wornTop(spec, { topSeam: (p) => distanceToOutline(p, poly, topMask), outline: poly, hemDist: hemDistance })
     : wornShorts(spec);
   const hemDist = points.map(hemDistance);
   const sleeveAt = points.map((p) => worn.sleeve(p));
   /** Drape folds fanning out from the armpit along rays, about 3 cm apart. */
   const pitFolds = (p, back, i) => {
-    if (!worn.pit) return 0;
+    // (A fitted dress lies smooth under the arms.)
+    if (!worn.pit || spec.dress) return 0;
     const vx = Math.abs(p.x) - worn.pit.x, vy = p.y - worn.pit.y, rho = Math.hypot(vx, vy);
     if (rho > 0.15) return 0;
     const sl = sleeveAt[i], ph = back ? 1.7 : 0;
@@ -304,6 +339,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
    *  a few centimetres apart that fade out upwards, more towards the sides. */
   const hemFolds = (p, back, i) => {
     if (spec.legs || sleeveAt[i]) return 0;
+    // A dress: its skirt's flutes instead (dressFolds).
+    if (spec.dress) return dressFolds(p, back);
     // Fleece: no hem band; the body gathers into its rib waistband in soft upright folds just above it.
     if (spec.fleece) {
       const ph = back ? 1.9 : 0.3;
@@ -318,7 +355,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   };
   /** Faint, wide stretch ripples along the sides (or the shorts' legs). */
   const sideRipple = (p, back) => {
-    if (spec.fleece) return 0;
+    if (spec.fleece || spec.dress) return 0;
     const ax = Math.abs(p.x), ph = back ? 2.6 : 0;
     const sides = spec.chest
       ? ramp(0.17, 0.22, ax) * ramp(0.5, 0.42, p.y) * ramp(0.03, 0.08, p.y)
@@ -328,7 +365,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   /** The back of a worn top: soft folds where the fabric gathers over the small of the back,
    *  rising from the middle towards the sides. */
   const backFolds = (p, back, i) => {
-    if (!back || !spec.chest || sleeveAt[i]) return 0;
+    if (!back || !spec.chest || sleeveAt[i] || spec.dress) return 0;
     const ax = Math.abs(p.x);
     // Fleece: a few broad soft folds over the small of the back.
     if (spec.fleece) return 0.0026 * Math.sin((p.y - 0.25 * ax) * 55 + 1.1 * Math.sin(ax * 9)) * ramp(0.3, 0.12, p.y) * ramp(0.04, 0.08, p.y);
@@ -357,6 +394,16 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     // Loose shorts: the drag folds fade out above the hem band too, and there are none behind (the client's shorts
     // are smooth there).
     return (spec.loose ? (back ? 0 : 0.0038) * ramp(0.035, 0.07, p.y) : 0.003) * drag + (spec.loose ? 0 : 0.0013) * gather + 0.0055 * fall;
+  };
+  /**
+   * A dress's skirt hangs in soft flutes where it flares: none over the hips, deepening towards the hem, eight round the
+   * skirt (two each side of the front and of the back, the side seams and the middles between them), wandering a
+   * little. The new look (detail) lets them fall a little deeper.
+   */
+  const dressFolds = (p, back) => {
+    const ax = Math.abs(p.x), th = THREE.MathUtils.clamp(ax / worn.half(p.y), 0, 1) * (Math.PI / 2), ph = back ? 0.9 : -0.7;
+    const depth = 0.0085 * (detail ? 1.35 : 1) * ramp(0.3, 0.02, p.y) ** 1.3 * (0.8 + 0.2 * Math.sin(3 * th + ph));
+    return depth * fold(8 * th + 0.45 * Math.sin(2 * th) * Math.sin(p.y * 9 + ph));
   };
   /**
    * Loose garments hang in soft folds: on a training tee from under the chest down to the hem, fuller towards the
@@ -474,6 +521,12 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     const h = 0.002 * heavy * (0.5 * Math.sin(p.x * 41 + y * 13 + ph + 1.7 * Math.sin(y * 23 + p.x * 7))
       + 0.35 * Math.sin(y * 57 - p.x * 29 + 2.1 + ph + 1.3 * Math.sin(p.x * 31)) + 0.15 * Math.sin((p.x + y) * 83 + 2 * ph));
     if (spec.loose) return h * ramp(0.012, 0.03, openDist[i]);
+    // A dress: soft level folds at the sides of the waist, where the fitted bodice gives way to the skirt.
+    if (spec.dress) {
+      const ax = Math.abs(p.x), d = worn.top - y;
+      const waist = 0.002 * ramp(0.1, 0.17, ax) * Math.exp(-(((d - 0.4) / 0.05) ** 2)) * fold((y + 0.1 * ax) * 105 + ph + side + 1.2 * Math.sin(ax * 27 + ph));
+      return (0.8 * h + foldGain * waist) * ramp(0.014, 0.034, openDist[i]);
+    }
     // The varsity jacket's leather sleeves are stiff: they keep their own shape (and sleeveFolds' few soft folds).
     if (spec.varsity && sl) return 0;
     let f = 0;
@@ -555,6 +608,13 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   const uvs = new Float32Array(n * 2 * 2);
   const colours = new Float32Array(n * 2 * 3);
   const backHeight = (p) => {
+    // A dress: its back neck raised as the singlet's, at its own height (its shoulder seam 0.142 m higher).
+    if (spec.dress) {
+      const dy = maxY - 0.738;
+      if (Math.abs(p.x) > .112 || p.y < .62 + dy) return p.y;
+      const weight = Math.exp(-((p.y - (.672 + dy + Math.abs(p.x) * .76)) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
+      return p.y + Math.max(0, .752 + dy - p.y) * weight;
+    }
     if (!spec.chest || Math.abs(p.x) > .112 || p.y < .62) return p.y;
     const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' || kind === 'pocketpolo' || isHoodie(kind) || isTrack(kind) ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
     const weight = Math.exp(-((p.y - neckLine) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
@@ -697,7 +757,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     pocket: spec.pocket ? buildPocket(spec.pocket, { points, faces, positions, normals, colours, uvAt }) : null,
     // Detail: the made fabric for the mannequin under it (mannequin.js): front then back points, which are on a
     // sleeve (how far along it, -1 on the body), shorts' crotch height.
-    body: detail ? { n, positions, sleeve: sleeveAt.map((s) => (s ? s.l : -1)), legs: !!spec.legs, crotch: crotchY, long: !!spec.long } : null,
+    // `form`: the figure it is made for (figure.js; a female form has its own hips and thighs), `top` its shoulder line.
+    body: detail ? { n, positions, sleeve: sleeveAt.map((s) => (s ? s.l : -1)), legs: !!spec.legs, crotch: crotchY, long: !!spec.long, form: spec.form ?? 'male', top: maxY, lift: spec.lift ?? 0 } : null,
     frame: { minX, maxX, minY, maxY, span },
     outline: poly,
     // Which outline points are finished edges (hems, leg openings with their splits, sleeve ends).
@@ -706,6 +767,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     neck,
     rimRadius: spec.rim.radius,
     rimWidth: spec.rim.width ?? (spec.legs ? 0.026 : 0.011),
+    // How much higher it stands on the podium in the new look (on its mannequin; 0 for most garments).
+    lift: spec.lift ?? 0,
     drawstring: !!spec.legs,
     /** Where a flat panel point sits on the worn garment (before creases). */
     at: (x, y, back = false) => worn.at(new THREE.Vector2(x, y), back),

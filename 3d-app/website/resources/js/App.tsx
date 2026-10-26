@@ -35,7 +35,7 @@ import { SupplierApplyPage, SuppliersPage } from './pages/Suppliers';
 
 export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string; /** A design picture (a saved asset) the Studio puts on the 3D kit when it opens (checked on screen first). */ pendingDrawing?: { asset: number; name: string; /** The garment is the one asked for (a 3DEEZI TEAM request): the check screen opens on it, not on a guess from the picture. */ known?: boolean; /** A note shown with the result (task 9.116: "Shown on our singlet: the closest 3D garment …"). */ note?: string } }
 export const newDraft = (): Draft => ({ name: 'Untitled kit', sport: 'rugby-league', garment: 'jersey', mode: 'dyo', design: { ...defaultDesign } });
-const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', polo: 'polo', pocketpolo: 'pocketpolo', 'polo with pocket': 'pocketpolo', hoodie: 'hoodie', ziphoodie: 'ziphoodie', 'zip hoodie': 'ziphoodie', varsity: 'varsity', 'varsity jacket': 'varsity', trackjacket: 'trackjacket', 'track jacket': 'trackjacket', 'track suit jacket': 'trackjacket', 'tracksuit jacket': 'trackjacket', fullkit: 'fullkit', 'full kit': 'fullkit' };
+const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', 'netball-dress': 'netball-dress', 'netball dress': 'netball-dress', dress: 'netball-dress', polo: 'polo', pocketpolo: 'pocketpolo', 'polo with pocket': 'pocketpolo', hoodie: 'hoodie', ziphoodie: 'ziphoodie', 'zip hoodie': 'ziphoodie', varsity: 'varsity', 'varsity jacket': 'varsity', trackjacket: 'trackjacket', 'track jacket': 'trackjacket', 'track suit jacket': 'trackjacket', 'tracksuit jacket': 'trackjacket', fullkit: 'fullkit', 'full kit': 'fullkit' };
 /** Seeded projects can store a null garment and older AI concepts a display name ("Jersey"); every draft gets a valid id so it stays saveable. */
 function normalizeDraft(draft: Draft): Draft {
   const pick = (g?: string | null) => (g ? garmentIds[String(g).toLowerCase()] : undefined);
@@ -119,7 +119,7 @@ export default function App() {
       setNotice(hoodie === 'trackjacket' ? 'The track jacket takes your design’s colours and logo; full print designs on it are coming. Your design picture is in your Assets.' : 'Hoodies take your design’s colours and logo; full print designs on hoodies are coming. Your design picture is in your Assets.');
       return;
     }
-    const known = ['singlet', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(picture.garment);
+    const known = ['singlet', 'netball-dress', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(picture.garment);
     const top = (known ? picture.garment : 'singlet') as Design['garment'];
     setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: top, mode: 'dyo', design: { ...base.design, garment: top, layout: null }, pendingDrawing: { asset: picture.asset, name: picture.name, known } });
     navigate('/studio');

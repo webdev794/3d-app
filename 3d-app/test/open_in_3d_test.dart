@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:three_deezi/ai_service.dart';
 import 'package:three_deezi/app_controller.dart';
-import 'package:three_deezi/screens/ai_designer.dart' show cropCrest;
+import 'package:three_deezi/screens/ai_designer.dart'
+    show cropCrest, cropPrint, printMark;
 
 /// "Open in 3D Designer" (task 9.116, client 2026-10-23): the AI picture is
 /// read for the nearest 3D garment we have and its own colours, pattern,
@@ -181,6 +182,37 @@ void main() {
       final px = (await out.toByteData(format: ui.ImageByteFormat.rawRgba))!;
       expect(px.getUint8((100 * 324 + 162) * 4 + 1), greaterThan(230));
       expect(px.getUint8((100 * 324 + 140) * 4), lessThan(100));
+    });
+  });
+
+  testWidgets('the print patch is cut with the viewer mark', (tester) async {
+    await tester.runAsync(() async {
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawRect(
+        const Rect.fromLTWH(0, 0, 400, 600),
+        Paint()..color = const Color(0xff5a102d),
+      );
+      final image = await recorder.endRecording().toImage(400, 600);
+      final png = (await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      ))!.buffer.asUint8List();
+      final patch = await cropPrint(
+        png,
+        const Rect.fromLTWH(0.2, 0.4, 0.3, 0.2),
+      );
+      final out = (await (await ui.instantiateImageCodec(
+        patch!,
+      )).getNextFrame()).image;
+      final px = (await out.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+      for (var i = 0; i < 2; i++) {
+        expect([
+          px.getUint8(i * 4),
+          px.getUint8(i * 4 + 1),
+          px.getUint8(i * 4 + 2),
+        ], printMark[i]);
+      }
+      // The rest is the picture.
+      expect(px.getUint8(10 * 4), 0x5a);
     });
   });
 }

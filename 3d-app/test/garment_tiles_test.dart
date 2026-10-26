@@ -59,12 +59,11 @@ void main() {
         find.text('Choose what you want to design for Netball.'),
         findsOneWidget,
       );
-      // The first garment that can be designed is chosen: the dress, on the
-      // singlet (no 3D dress yet), with the note.
+      // The first garment that can be designed is chosen: the dress, on its
+      // own 3D netball dress (task 9.126), no longer on the singlet.
       expect(c.productName, 'Netball dress');
-      expect(c.garment, 'Singlet');
+      expect(c.garment, 'Netball dress');
       expect(find.text('NETBALL DRESS'), findsOneWidget);
-      expect(find.text('3D preview uses singlet'), findsWidgets);
 
       // The skirt is coming soon: tapping it changes nothing.
       await revealTap(tester, 'NETBALL SKIRT');
@@ -95,7 +94,7 @@ void main() {
       expect(c.productName, isEmpty);
       expect(c.garmentLabel, 'Polo');
       c.undo();
-      expect((c.garment, c.productName), ('Singlet', 'Netball dress'));
+      expect((c.garment, c.productName), ('Netball dress', 'Netball dress'));
     },
   );
 

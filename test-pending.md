@@ -4,6 +4,23 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## Netball dress in 3D on a female form; Open in 3D closer to the picture (2026-10-26)
+1. Design Your Own › Netball › Netball dress › Studio: a fitted dress with a flared skirt on a female form; turn it front, side, back.
+2. AI designer › "Black and gold netball dresses for the Panthers" › Open in 3D Designer: the check screen says Netball dress › Put on the 3D kit: the picture's print, crest and GS on the dress.
+3. AI "create soccer jersey in green" › Open in 3D: the back reads RANGERS 10 cleanly.
+4. AI rugby hoodie or track jacket › Open in 3D: the picture's own print all over, crest, name and number (no plain side stripes).
+5. Save, reopen, Order this kit work for each. ?look=1 shows the old look.
+
+---
+
+## App Home: order part like the website (2026-10-26)
+1. App › Home, scroll past the tiles and the artwork bar: "ORDER NOW WITH 3DEEZI" and "Start an order. Upload your details. Follow its progress."
+2. Three big cards (Need help ordering?, Order ready to go?, My orders), each with a picture, texts and a gradient button.
+3. Signed out, the first two ask you to sign in; signed in, they open the order form and the upload screen; View my orders opens the Orders tab.
+4. Small phone and tablet: nothing cut off.
+
+---
+
 ## AI designer: Open in 3D designer gives the matching kit (2026-10-26; uses AI credits)
 1. Create › AI designer: "create soccer jersey in green" › Generate › Open in 3D Designer: "Reading your design…", then the check screen opens on Jersey › Put on the 3D kit: green with the picture's print, its crest, the name and number on the back.
 2. Save, reopen from My projects, More › Order this kit: the order form opens.

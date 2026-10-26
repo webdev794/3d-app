@@ -164,6 +164,9 @@ export const DRAWN = {
 };
 // The pocket polo is the polo's body with a chest pocket sewn on (garment.js SPECS.pocketpolo): the same corners.
 DRAWN.pocketpolo = DRAWN.polo;
+// The netball dress (garment.js SPECS['netball-dress']): sleeveless as the singlet, its corners at its own heights (the
+// hem's corners at the foot of its flared skirt).
+DRAWN['netball-dress'] = { N: [0.088, 0.88], S: [0.136, 0.88], U: [0.224, 0.676], H: [0.326, 0.035], T: [0, 0.765] };
 
 /** Whether a garment drawing's shape has sleeves: much wider across its top part than near its hem. */
 export function sleevedShape(o) {
@@ -215,6 +218,7 @@ export function drawingSides(o, sleeved = false) {
     for (let k = neck.i; k !== neck.deep && below(k) <= 0.012 * H; k = (k + 1) % n) c.Nl = k;
     for (let k = neck.j; k !== neck.deep && below(k) <= 0.012 * H; k = (k - 1 + n) % n) c.Nr = k;
   }
+  // No neck dip: the straight collar line is the neck.
   const flat = neck ? null : flatNeck(o, x0, W, y0, H);
   if (flat) { c.Nl = flat.l; c.Nr = flat.r; }
   c.Hr = argMax(o, (p) => p[0] + p[1]);
@@ -303,7 +307,9 @@ function sleevedSides(o) {
     for (let k = neck.i; k !== neck.deep && below(k) <= 0.012 * H; k = (k + 1) % n) c.Nl = k;
     for (let k = neck.j; k !== neck.deep && below(k) <= 0.012 * H; k = (k - 1 + n) % n) c.Nr = k;
   }
-  const flat = neck ? null : flatNeck(o, x0, W, y0, H);
+  // No neck dip, or only a sliver of one in a nearly straight collar line: the straight line is the neck.
+  let flat = !neck || neck.depth < 0.025 * H ? flatNeck(o, x0, W, y0, H) : null;
+  if (flat && neck && o[flat.r][0] - o[flat.l][0] < 1.5 * Math.abs(o[c.Nr][0] - o[c.Nl][0])) flat = null;
   if (flat) { c.Nl = flat.l; c.Nr = flat.r; }
   c.Hr = argMax(o, (p) => p[0] + p[1]);
   c.Hl = argMax(o, (p) => -p[0] + p[1]);
@@ -708,7 +714,9 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
         if (!panel) continue;
         const drawn = drawingSides(panel.outline, true), o = panel.outline, c = drawn.corners;
         const region = { back, inset: Math.max(3, 0.005 * (panel.x1 - panel.x0)), conform: true, surface: shape(back) };
-        if (back) out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: [0] });
+        // The back's neckline is left loose, except a straight one (AI flat sheets, task 9.126): loose, the middle of a
+        // straight collar line was pulled down into a V through the lettering ("RANVERS").
+        if (back) out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: drawn.neckDepth < 0.025 ? [] : [0] });
         else out.push({ ...region, sides: [g.edge(N[l], T), g.edge(T, N[r]), ...sides(l, r).slice(1)].map(px(back)), target: [path(o, c.Nl, c.T), path(o, c.T, c.Nr), ...drawn.sides.slice(1)] });
       }
       return out;

@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef,
 import { ApiError, fetchFile, getToken } from '../api';
 import { viewerLook } from '../viewerLook';
 
-export type Garment = 'jersey' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'varsity' | 'trackjacket' | 'singlet' | 'shorts' | 'fullkit';
+export type Garment = 'jersey' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'varsity' | 'trackjacket' | 'singlet' | 'netball-dress' | 'shorts' | 'fullkit';
 export type View = 'front' | 'side' | 'back';
 /** Colour / pattern areas; 'pocket' only on the pocket polo (pool and darts shirts). */
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem' | 'pocket' | 'hood';
@@ -53,7 +53,7 @@ export function trackColour(design: { main?: string; secondary?: string; accent?
     return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-27';
+const VIEWER_VERSION = '2026-10-20-29';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 

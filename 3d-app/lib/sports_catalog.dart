@@ -93,6 +93,8 @@ const garmentIds = {
   'Shorts': 'shorts',
   'Training Tee': 'tee',
   'Singlet': 'singlet',
+  // A women's fitted dress on the female figure (task 9.126).
+  'Netball dress': 'netball-dress',
   'Polo': 'polo',
   'Polo with pocket': 'pocketpolo',
   'Hoodie': 'hoodie',
@@ -366,11 +368,11 @@ const _sportTiles = <String, List<GarmentTile>>{
     ),
   ],
   'netball': [
-    GarmentTile.nearest(
+    // Its own 3D garment since 2026-10-26 (task 9.126).
+    GarmentTile(
       'Netball dress',
       'Fitted netball dress with skirt hem.',
-      'Singlet',
-      future: 'dress',
+      'Netball dress',
       image: 'netball-dress',
     ),
     GarmentTile.soon(

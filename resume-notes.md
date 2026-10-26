@@ -8,16 +8,29 @@ Updated 2026-10-26 12:50. Only what's needed to continue; finished work is in ta
 1. Stop leftover test servers and browsers (php not on :8000, node iso scripts, playwright chrome / msedge, flutter_tester); check SP\*.lock.
 2. Resume the running agent below with SendMessage ("continue from your checkpoint; safe steps; report"). If its ID doesn't work, start a new agent with tasks.md 9.116 and SP\AI3D\checkpoint.md.
 
-## Running
-None.
+## Running (9.126, started after the session renewed)
+| Agent | Task | Notes |
+|---|---|---|
+| (done) AI3D ad0d30b5e059000b3 | 9.126 parts 1 + 3: the soccer 3D matches the picture (RANVERS → clean text); hoodie, jackets, shorts and full kit carry the AI picture's real pattern | Up to about US$1 more of AI checks; checkpoint SP\AI3D\checkpoint.md |
+| (done) OC1 ae97afe6003f312eb | 9.127 app Home order cards (images/184.jpg): client wants them "close to the website": big cards like the website homepage's order section (176.jpg: Need help ordering? / Order ready to go? / My orders, with pictures and buttons) | App only |
+| (done) NB1 ac00da321de303471 | 9.126 part 2: new `netball-dress` 3D garment (women's fitted shape, flared hem) + a female mannequin; the Netball dress tile uses it | garment-brief.md + viewer-protocol.md; no paid AI |
+
+After both: a code-only pack (copy SP/final-pack-1026d.sh with the next letter) and push to v2 when the user asks.
 
 ## State (2026-10-26 13:12)
 - All tasks given on 2026-10-23 and 2026-10-26 are DONE, including 9.116 (viewer -27; AI spend about US$0.89).
 - Latest live file: `D:\3d-app\deploy-zips\3deez-update-2026-10-26-d.tar.gz` (13:11, code only, includes a, b, c). After extracting: `php artisan optimize:clear`.
-- NOT pushed yet: v2 = 0c11f3f (12:42); push the -d work when the user asks. Next pack: copy SP/final-pack-1026d.sh with letter e.
+- Latest live file: D:\3d-app\deploy-zips\3deez-update-2026-10-26-e.tar.gz (16:13; viewer -29: netball dress + female form, Open in 3D fixes, app Home order cards). NOT pushed yet (v2 = 8bb7268 = the -d file); push when the user asks. Next pack: copy SP/final-pack-1026e.sh with letter f.
+- 9.126 and 9.127 DONE. No agent running.
+- Small open items from NB1: the Tennis dress tile still uses the singlet (a one-line change); no separate "Dress" order line; ProjectRequest may refuse pocketpolo design-picture layouts (422).
 
 ## Next, in order
-1. (nothing running)
+1. **FIRST: tasks.md 9.126 (user 2026-10-26; spec SP\AI3D\fix-spec.md, pictures images/181–183.png).** Open in 3D gaps:
+   - (1) the soccer jersey's 3D isn't 100% like the picture (the back reads RANVERS);
+   - (2) netball needs a women's fitted dress shape and a female mannequin;
+   - (3) the hoodie, jackets, shorts and full kit must carry the AI picture's real pattern, not simple stripes.
+
+   Split across agents: (1) + (3) one agent, (2) a 3D garment agent (garment-brief.md + viewer-protocol.md). AI3D ad0d30b5e059000b3 knows this code.
 2. **One full test round:**
    - the app preview 30-visit check;
    - QA U's leftovers (SP\QAU\results.md);
@@ -44,7 +57,7 @@ None.
   - **Live tars are CODE-ONLY** (no database.sqlite, no storage/app), so the live accounts stay. **Never delete Manoj Caresort's live admin account.**
   - Live sets up new tables on first use (suppliers); tell the user if a tar needs `php artisan migrate --force`.
 - **Local database:** got the suppliers update on 2026-10-26 (backup C:\3deezi-archive\database-before-suppliers-2026-10-26.sqlite).
-- **GitHub:** main = 2d9b553; v2 = 0c11f3f. database.sqlite stays out of git. Local v6 = ec79628 with the work uncommitted.
+- **GitHub:** main = 2d9b553; v2 = 8bb7268. database.sqlite stays out of git. Local v6 = ec79628 with the work uncommitted.
 - **Scripts:**
   - SP\final-pack-1026c.sh: code-only pack (copy it with the next letter);
   - SP\final-push-v2.sh <message file>: push via a temp index;

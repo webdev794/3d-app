@@ -795,6 +795,7 @@ class OpenAiDesigner
             .($frontOnly ? "The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the small 3DEEZI word mark just under the collar, {$back}). " : '')
             .'the garment\'s front on the left and its back on the right, side by side, both complete and the same size, drawn flat and straight-on like a technical flat drawing, '
             .'on a plain pure white background with clear white space around and between them: a wide white gap between the front and the back, so their sleeves and edges never touch or overlap. '
+            .'Draw each neck opening as an empty white cut-out, as on a technical flat drawing: never show the inside of the garment, the inner collar or the neckline of the other side through it, and keep all lettering clear of the collar. '
             .'No mannequin, no person, no folds, no perspective, no lighting effects, no shadows, no scene. '
             .'Keep the design exactly: the same colours, graphics, gradients, lettering, logos, numbers and trims, in the same places and proportions, and the same garment shape (neck, armholes or sleeves, hem). '
             .($logos ? "The other {$logos} attached image(s) are the client's logos: reproduce them faithfully where the design shows them. " : '')
@@ -1067,13 +1068,14 @@ class OpenAiDesigner
 
     /**
      * Our 3D garments an AI picture can open on (task 9.116), each with what it stands for, so the nearest one is
-     * chosen for a garment we have no 3D model of (a netball dress is a singlet, a long-sleeve top a tee).
+     * chosen for a garment we have no 3D model of (a long-sleeve top is a tee; since task 9.126 a netball dress has its own).
      */
     public const READ_GARMENTS = [
         'jersey' => 'short-sleeve sports jersey (rugby, soccer, league, cricket shirts)',
         'polo' => 'polo shirt with a collar and buttons',
         'pocketpolo' => 'polo shirt with a chest pocket (pool, darts)',
-        'singlet' => 'anything sleeveless: singlets, tanks, netball dresses and bibs, basketball tops, AFL guernseys',
+        'singlet' => 'any other sleeveless top: singlets, tanks, bibs, basketball tops, AFL guernseys',
+        'netball-dress' => 'a fitted dress for women, with a skirt: netball dresses and tennis dresses',
         'tee' => 'training t-shirt or other crew-neck top, also long-sleeve tops',
         'hoodie' => 'pull-over hoodie',
         'ziphoodie' => 'full-zip hoodie',
@@ -1115,7 +1117,7 @@ class OpenAiDesigner
             'text' => ['format' => ['type' => 'json_schema', 'name' => 'design_for_3d', 'strict' => true, 'schema' => [
                 'type' => 'object',
                 'additionalProperties' => false,
-                'required' => ['seen', 'garment', 'exact', 'hood', 'mainColor', 'secondaryColor', 'accentColor', 'pattern', 'patternMotif', 'teamName', 'nameOnFront', 'backName', 'number', 'positionLetters', 'crest'],
+                'required' => ['seen', 'garment', 'exact', 'hood', 'mainColor', 'secondaryColor', 'accentColor', 'pattern', 'patternMotif', 'teamName', 'nameOnFront', 'backName', 'number', 'positionLetters', 'crest', 'printBox'],
                 'properties' => [
                     'seen' => $string('The garment in the picture in 1-3 words, e.g. "netball dress", "soccer jersey".'),
                     'garment' => ['type' => 'string', 'enum' => array_keys(self::READ_GARMENTS), 'description' => 'The nearest of our 3D garments.'],
@@ -1131,6 +1133,10 @@ class OpenAiDesigner
                     'backName' => $string('The name on the back, exactly; empty if none. Never 3DEEZI.'),
                     'number' => $string('The player number on the back, digits only; empty if none.'),
                     'positionLetters' => $string('Playing position letters shown large (e.g. GS); empty if none.'),
+                    'printBox' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['found', 'x0', 'y0', 'x1', 'y1'], 'description' => 'A patch of the front garment body that shows only its all-over print (graphics, stripes, texture): no crest, lettering, pocket, collar, seam, edge or background. A typical patch with the same mix of colours as the whole body (not its brightest part), as large as possible, as a box in fractions of the whole picture width and height. found is false when the body is plain.', 'properties' => [
+                        'found' => ['type' => 'boolean', 'description' => 'True when the body has a print and such a patch exists.'],
+                        'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.'),
+                    ]],
                     'crest' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['found', 'x0', 'y0', 'x1', 'y1'], 'description' => 'The club symbol (crest or logo) on the chest of the front view (the garment on the left when front and back are shown), as a box in fractions of the whole picture\'s width and height (0 = left/top, 1 = right/bottom). Measure carefully: the box tightly encloses the whole symbol and nothing else.', 'properties' => [
                         'found' => ['type' => 'boolean', 'description' => 'True when the front shows a club symbol on the chest.'],
                         'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.'),
@@ -1198,8 +1204,22 @@ class OpenAiDesigner
             }
         }
 
+        // A patch of the picture's own print (task 9.126): the hosts cut it from the picture and lay it on the body.
+        $pb = $s['printBox'] ?? null;
+        $print = null;
+        if (is_array($pb) && ($pb['found'] ?? false)) {
+            $x0 = max(0.0, min(1.0, (float) $pb['x0']));
+            $y0 = max(0.0, min(1.0, (float) $pb['y0']));
+            $x1 = max(0.0, min(1.0, (float) $pb['x1']));
+            $y1 = max(0.0, min(1.0, (float) $pb['y1']));
+            if ($x1 - $x0 > 0.04 && $y1 - $y0 > 0.03 && $x1 - $x0 < 0.5 && $y1 - $y0 < 0.5) {
+                $print = ['x' => $x0, 'y' => $y0, 'w' => $x1 - $x0, 'h' => $y1 - $y0];
+            }
+        }
+
         return [
             'garment' => $garment,
+            'print' => $print,
             'seen' => mb_substr(trim((string) ($s['seen'] ?? '')), 0, 40),
             'exact' => (bool) ($s['exact'] ?? true),
             'hood' => (bool) ($s['hood'] ?? false),
@@ -1220,7 +1240,7 @@ class OpenAiDesigner
                 ...($garment === 'trackjacket' ? ['trackStyle' => ($s['hood'] ?? false) ? 'hood' : 'collar'] : []),
                 ...($marks ? ['marks' => $marks] : []),
                 // Netball: the position letters large on the front too, below the crest (an editable text layer).
-                ...($m['positions'] ? ['layers' => [['id' => 'position-front', 'name' => 'Position letters', 'type' => 'text', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => 0.36, 'rot' => 0, 'text' => $letters, 'size' => 0.17, 'color' => $hex($s['accentColor'] ?? '', '#FFFFFF')]]] : []),
+                ...($m['positions'] ? ['layers' => [['id' => 'position-front', 'name' => 'Position letters', 'type' => 'text', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => $garment === 'netball-dress' ? 0.5 : 0.36, 'rot' => 0, 'text' => $letters, 'size' => 0.17, 'color' => $hex($s['accentColor'] ?? '', '#FFFFFF')]]] : []),
             ],
         ];
     }

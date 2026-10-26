@@ -76,6 +76,7 @@ void main() {
     'Shorts': 'shorts',
     'Training Tee': 'tee',
     'Singlet': 'singlet',
+    'Netball dress': 'netball-dress',
     'Polo': 'polo',
     'Polo with pocket': 'pocketpolo',
     'Hoodie': 'hoodie',
@@ -238,7 +239,7 @@ void main() {
       'Tracksuit',
       'Hoodie',
     ]);
-    expect(GarmentScreen.tilesFor('Netball').first.garment, 'Singlet');
+    expect(GarmentScreen.tilesFor('Netball').first.garment, 'Netball dress');
     expect(GarmentScreen.tilesFor('Netball')[1].soon, isTrue);
     // More teamwear: the 3D garments Netball's own tiles do not use.
     expect(GarmentScreen.moreFor('Netball').map((t) => t.garment), [

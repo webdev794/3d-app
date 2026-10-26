@@ -77,7 +77,8 @@ $sports = [
     // numbers: bibs carry the playing position letters (client 2026-10-26, images/175.jpg).
     ['id' => 'netball', 'name' => 'Netball', 'description' => 'Move together. Stand out together.', 'group' => 'sports',
         'names' => false, 'numbers' => false, 'positions' => ['GS', 'GA', 'WA', 'C', 'WD', 'GD', 'GK'], 'tiles' => [
-        $near('Netball dress', 'Fitted netball dress with skirt hem.', 'singlet', 'dress', 'netball-dress'),
+        // Its own 3D garment since 2026-10-26 (tasks.md 9.126): a women's fitted dress on the female figure.
+        $tile('Netball dress', 'Fitted netball dress with skirt hem.', 'netball-dress', 'netball-dress'),
         $soon('Netball skirt', 'Athletic skirt with team styling.', 'skirt', 'netball-skirt'),
         $tile('Singlet with bib', 'Netball singlet with removable bib.', 'singlet', 'netball-singlet-bib'),
         $tile('Training singlet', 'Lightweight top for training.', 'singlet', 'netball-training-singlet'),
@@ -361,6 +362,8 @@ return [
         ['id' => 'shorts', 'name' => 'Shorts', 'description' => 'Complete your team look.'],
         ['id' => 'tee', 'name' => 'Training Tee', 'description' => 'From warm-up to wind-down.'],
         ['id' => 'singlet', 'name' => 'Singlet', 'description' => 'Lightweight and ready to move.'],
+        // Task 9.126: a women's fitted netball dress (bust, waist, flared skirt to mid-thigh) on the female figure.
+        ['id' => 'netball-dress', 'name' => 'Netball dress', 'description' => 'Fitted dress for women, with a flared skirt hem.'],
         ['id' => 'polo', 'name' => 'Polo', 'description' => 'Represent your team off the field.'],
         // Being built (agent ac04db942c799feb7): a polo with a real chest pocket, player name and sponsor on the back.
         ['id' => 'pocketpolo', 'name' => 'Polo with pocket', 'description' => 'A chest pocket, your name and sponsor on the back.'],

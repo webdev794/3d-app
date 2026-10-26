@@ -43,7 +43,7 @@ export const allGarments = ['jersey', 'fullkit', 'shorts', 'tee', 'singlet', 'po
 export const quickSports: QuickSport[] = [
   { id: 'rugby-league', label: 'Rugby League', sport: 'rugby-league', garments: allGarments },
   { id: 'rugby-union', label: 'Rugby Union', sport: 'rugby-union', garments: allGarments },
-  { id: 'netball', label: 'Netball', sport: 'netball', garments: ['singlet', 'shorts', 'tee', 'polo'] },
+  { id: 'netball', label: 'Netball', sport: 'netball', garments: ['netball-dress', 'singlet', 'shorts', 'tee', 'polo'] },
   { id: 'football', label: 'Soccer', sport: 'football', garments: allGarments },
   { id: 'basketball', label: 'Basketball', sport: 'basketball', garments: ['singlet', 'fullkit', 'shorts', 'tee', 'polo'] },
   { id: 'fight-wear', label: 'Fight Wear', sport: 'fight-wear', brief: 'Fight wear', garments: ['tee', 'shorts', 'singlet'] },
@@ -53,7 +53,7 @@ export const quickSports: QuickSport[] = [
   { id: 'hockey', label: 'Hockey', sport: 'hockey', garments: allGarments },
   { id: 'training', label: 'Training', sport: 'training', garments: ['tee', 'singlet', 'shorts', 'polo', 'jersey'] },
 ];
-export const garmentLabels: Record<string, string> = { jersey: 'Jersey', fullkit: 'Full kit', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
+export const garmentLabels: Record<string, string> = { jersey: 'Jersey', fullkit: 'Full kit', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', 'netball-dress': 'Netball dress', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
 
 /**
  * The quick picks, then every other catalogue sport in catalogue order, each with the catalogue's garments for it. A quick
@@ -97,7 +97,9 @@ export function garmentInBrief(text: string): string | null {
   if (has(/\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b/)) return 'varsity';
   if (has(/\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b/)) return 'pocketpolo';
   if (has(/\bpolos?\b/)) return 'polo';
-  if (has(/\bsinglets?\b|\bvests?\b|\btank tops?\b|\bdress(es)?\b|\bbodysuits?\b/)) return 'singlet';
+  // A dress (netball, tennis) is the women's netball dress (task 9.126), no longer a singlet.
+  if (has(/\bdress(es)?\b/)) return 'netball-dress';
+  if (has(/\bsinglets?\b|\bvests?\b|\btank tops?\b|\bbodysuits?\b/)) return 'singlet';
   if (has(/\bt-?shirts?\b|\btees?\b|\bjackets?\b|\bhi-?vis\b|\brash ?guards?\b/)) return 'tee';
   if (shorts) return 'shorts';
   if (top) return 'jersey';

@@ -81,10 +81,10 @@ const withoutDestination = ({ destination: _was, ...rest }: PricingChoice): Pric
 const digits = (v: string, n = 3) => v.replace(/\D/g, '').slice(0, n);
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** The order row for a saved design's garment: a full kit starts as its jersey, a zip hoodie is a hoodie, the pocket polo a polo. */
-const PROJECT_ROWS: Record<string, string> = { fullkit: 'jersey', ziphoodie: 'hoodie', pocketpolo: 'polo', varsity: 'jacket', trackjacket: 'jacket' };
+const PROJECT_ROWS: Record<string, string> = { fullkit: 'jersey', ziphoodie: 'hoodie', pocketpolo: 'polo', varsity: 'jacket', trackjacket: 'jacket', 'netball-dress': 'singlet' };
 const orderGarment = (garment: string, o: { garments: Option[] }) => { const g = PROJECT_ROWS[garment] ?? garment; return o.garments.some(x => x.id === g) ? g : 'jersey'; };
 /** A saved design's garment as the Studio names it ("Zip hoodie", "Full kit"). */
-const DESIGN_GARMENTS: Record<string, string> = { fullkit: 'Full kit', tee: 'Training tee', pocketpolo: 'Polo with pocket', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
+const DESIGN_GARMENTS: Record<string, string> = { fullkit: 'Full kit', tee: 'Training tee', pocketpolo: 'Polo with pocket', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket', 'netball-dress': 'Netball dress' };
 const designGarment = (garment: string) => DESIGN_GARMENTS[garment] ?? capital(garment);
 const word = (garment: string, n: number) => (WORDS[garment] ?? WORDS.other)[n === 1 ? 0 : 1];
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v : '').slice(0, max);

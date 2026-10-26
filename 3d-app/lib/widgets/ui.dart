@@ -596,7 +596,7 @@ class JerseyPainter extends CustomPainter {
       canvas.restore();
       return;
     }
-    final singlet = c.garment == 'Singlet';
+    final singlet = c.garment == 'Singlet' || c.garment == 'Netball dress';
     final long = ['Hoodie', 'Jacket', 'Tracksuit'].contains(c.garment);
     final path = Path()
       ..moveTo(135, 48)

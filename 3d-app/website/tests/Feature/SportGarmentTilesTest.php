@@ -58,9 +58,10 @@ class SportGarmentTilesTest extends TestCase
         $sports = collect(config('catalog.sports'))->keyBy('id');
         $netball = $sports['netball']['tiles'];
         $this->assertSame(['Netball dress', 'Netball skirt', 'Singlet with bib', 'Training singlet', 'Training T-shirt', 'Netball bibs', 'Tracksuit', 'Hoodie'], array_column($netball, 'name'));
-        $this->assertSame(['singlet', null, 'singlet', 'singlet', 'tee', 'singlet', 'trackjacket', 'hoodie'], array_column($netball, 'garment'));
+        // The dress is its own 3D garment since task 9.126.
+        $this->assertSame(['netball-dress', null, 'singlet', 'singlet', 'tee', 'singlet', 'trackjacket', 'hoodie'], array_column($netball, 'garment'));
         $this->assertSame('Fitted netball dress with skirt hem.', $netball[0]['description']);
-        $this->assertSame(['nearest', 'soon'], [$netball[0]['fit'], $netball[1]['fit']]);
+        $this->assertSame(['exact', 'soon'], [$netball[0]['fit'], $netball[1]['fit']]);
         $this->assertNotSame(false, $sports['netball']['more'] ?? true);
 
         $league = $sports['rugby-league'];
@@ -145,7 +146,7 @@ class SportGarmentTilesTest extends TestCase
         $this->getJson('/api/v1/catalog')->assertOk()
             ->assertJsonPath('data.sports.4.id', 'netball')
             ->assertJsonPath('data.sports.4.tiles.0.name', 'Netball dress')
-            ->assertJsonPath('data.sports.4.tiles.0.garment', 'singlet')
+            ->assertJsonPath('data.sports.4.tiles.0.garment', 'netball-dress')
             ->assertJsonPath('data.sports.4.tiles.1.fit', 'soon');
     }
 

@@ -27,7 +27,7 @@ void main() {
   test('reads the garment and sport from a brief', () {
     expect(garmentInBrief('Navy polo with a gold crest'), 'Polo');
     expect(garmentInBrief('Rugby jersey and shorts'), 'Full Kit');
-    expect(garmentInBrief('A netball dress in teal'), 'Singlet');
+    expect(garmentInBrief('A netball dress in teal'), 'Netball dress');
     expect(garmentInBrief('Black and gold with stripes'), isNull);
     // Hoodies and the pocket polo are garments of their own (2026-10-21).
     expect(garmentInBrief('Navy club hoodie with a gold crest'), 'Hoodie');
@@ -76,8 +76,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.generating);
     expect(c.aiSport, 'Netball');
-    expect(c.aiGarment, 'Singlet');
-    expect(c.garment, 'Singlet');
+    // Its own 3D netball dress since task 9.126.
+    expect(c.aiGarment, 'Netball dress');
+    expect(c.garment, 'Netball dress');
     expect(c.productName, 'Netball dress');
     expect(c.brief, 'Teal and white with a wave pattern for the Stingrays');
     // Let the demo generation finish before the test ends.

@@ -120,6 +120,17 @@ class AiOpenIn3dTest extends TestCase
         $this->assertStringContainsString('never touch or overlap', OpenAiDesigner::printSheetPrompt('Football', 'Jersey'));
     }
 
+    public function test_the_pictures_print_patch_is_read_for_the_body(): void
+    {
+        $with = OpenAiDesigner::designFromReading(['garment' => 'hoodie', 'printBox' => ['found' => true, 'x0' => 0.17, 'y0' => 0.4, 'x1' => 0.31, 'y1' => 0.51]], 'Rugby League', 'hoodie');
+        $this->assertEqualsWithDelta(0.14, $with['print']['w'], 0.0001);
+        // A plain body, a speck or half the picture: no patch.
+        foreach ([['found' => false, 'x0' => 0.1, 'y0' => 0.1, 'x1' => 0.3, 'y1' => 0.3], ['found' => true, 'x0' => 0.1, 'y0' => 0.1, 'x1' => 0.11, 'y1' => 0.11], ['found' => true, 'x0' => 0, 'y0' => 0, 'x1' => 0.9, 'y1' => 0.9]] as $box) {
+            $this->assertNull(OpenAiDesigner::designFromReading(['printBox' => $box], 'Rugby League', 'hoodie')['print']);
+        }
+        $this->assertStringContainsString('empty white cut-out', OpenAiDesigner::printSheetPrompt('Football', 'Jersey'));
+    }
+
     public function test_reading_needs_a_login_a_key_and_a_picture(): void
     {
         $this->postJson('/api/v1/ai/designs/read', ['image' => self::PNG, 'sport' => 'football', 'garment' => 'jersey'])->assertUnauthorized();

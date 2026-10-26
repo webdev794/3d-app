@@ -523,6 +523,7 @@ class AppController extends ChangeNotifier {
           'Training Tee' => 'tee',
           'Polo' => 'polo',
           'Polo with pocket' => 'pocketpolo',
+          'Netball dress' => 'netball-dress',
           // Hoodies are long-sleeved: a drawing of one is read as a sleeved top.
           'Hoodie' ||
           'Zip hoodie' ||
@@ -552,6 +553,7 @@ class AppController extends ChangeNotifier {
         'tee' => 'Training Tee',
         'polo' => 'Polo',
         'pocketpolo' => 'Polo with pocket',
+        'netball-dress' => 'Netball dress',
         _ => 'Singlet',
       };
       layout = copyLayout({
@@ -1452,7 +1454,12 @@ class AppController extends ChangeNotifier {
   /// colours and pattern, with its club symbol ([logo]) and lettering
   /// (netball: the position letters, front and back, and no name). Opens the
   /// studio; the picture itself (the print sheet) may go on after.
-  void openReading(int index, DesignReading reading, {Uint8List? logo}) {
+  void openReading(
+    int index,
+    DesignReading reading, {
+    Uint8List? logo,
+    Uint8List? print,
+  }) {
     final concept = concepts[index];
     selectedConcept = index;
     sport = concept.spec.sport;
@@ -1482,7 +1489,8 @@ class AppController extends ChangeNotifier {
             'part': 'top',
             'side': 'front',
             'x': 0.0,
-            'y': 0.36,
+            // (Lower on the taller netball dress: as far under its shoulders.)
+            'y': reading.garment == 'Netball dress' ? 0.5 : 0.36,
             'rot': 0,
             'text': reading.letters,
             'size': 0.17,
@@ -1508,6 +1516,8 @@ class AppController extends ChangeNotifier {
         trackStyle = reading.hood ? 'hood' : 'collar';
       }
       if (logo != null) logoImage = logo;
+      // The picture's own print all over the body (task 9.126).
+      if (print != null) patternTile = print;
     });
     _undo.clear();
     renderFront = concept.image;

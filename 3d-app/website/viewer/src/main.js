@@ -195,6 +195,8 @@ const PARTS = {
   trackjacket: ['trackjacket'],
   varsity: ['varsity'],
   singlet: ['singlet'],
+  // The netball dress (tasks.md 9.126): a women's fitted dress on the female figure (figure.js).
+  'netball-dress': ['netball-dress'],
   shorts: ['shorts'],
   fullkit: ['shorts', 'jersey'],
 };
@@ -396,7 +398,8 @@ function buildKit(kind) {
     const stretch = partKind === 'shorts' && layout ? 1.12 : 1;
     group.scale.setScalar(stretch);
     // In a full kit the jersey sits over the shorts' waistband.
-    group.position.y = base;
+    // Look 2: a garment shown on a form with legs (the netball dress) stands a little higher (garment.js lift).
+    group.position.y = base + (LOOK2 ? garment.lift : 0);
     base += partKind === 'shorts' ? garment.frame.maxY * stretch - 0.06 : 0;
     kit.add(group);
     parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity });
@@ -591,7 +594,7 @@ function garmentShape(p) {
 /** The key a file read is kept by (a drawing is read differently from a print layout). */
 const fileKey = (asset, drawing) => (drawing ? `drawing:${asset}` : asset);
 /** The garments a drawing can go on, as the hosts name them. */
-const DRAWN_NAMES = { singlet: 'Singlet', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo', pocketpolo: 'Polo with pocket' };
+const DRAWN_NAMES = { singlet: 'Singlet', 'netball-dress': 'Netball dress', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo', pocketpolo: 'Polo with pocket' };
 /** The garment a drawing goes on: the one it was checked as (its parts), else the design's own top, else a singlet. */
 const drawnGarment = (...choices) => choices.find((g) => typeof g === 'string' && Object.hasOwn(DRAWN, g)) ?? 'singlet';
 /** The parts a layout's panels make: a raglan top, shorts, or both. */
@@ -722,7 +725,7 @@ async function checkLayout({ id, src, name = 'Print layout', asset = null, drawi
       // its shape: sleeves make it a jersey, tee or polo (the one asked for, else a jersey). The person can still change it.
       const main = file.found.find((p) => p.role === 'front') ?? file.found.find((p) => p.role === 'back');
       const sleeved = main ? sleevedShape(main.outline) : false;
-      const guess = known && Object.hasOwn(DRAWN, garment) ? garment : sleeved ? (['jersey', 'tee', 'polo', 'pocketpolo'].includes(garment) ? garment : ['jersey', 'tee', 'polo', 'pocketpolo'].includes(design.garment) ? design.garment : 'jersey') : 'singlet';
+      const guess = known && Object.hasOwn(DRAWN, garment) ? garment : sleeved ? (['jersey', 'tee', 'polo', 'pocketpolo'].includes(garment) ? garment : ['jersey', 'tee', 'polo', 'pocketpolo'].includes(design.garment) ? design.garment : 'jersey') : [garment, design.garment].includes('netball-dress') ? 'netball-dress' : 'singlet';
       options = {
         drawing: true,
         garments: Object.fromEntries(Object.keys(DRAWN).map((g) => [g, DRAWN_NAMES[g] ?? g])),

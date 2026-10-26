@@ -139,6 +139,7 @@ class KitViewer3DState extends State<KitViewer3D> {
     final design = jsonEncode({
       'garment': switch (c.garment) {
         'Singlet' => 'singlet',
+        'Netball dress' => 'netball-dress',
         'Training Tee' => 'tee',
         'Polo' => 'polo',
         'Polo with pocket' => 'pocketpolo',

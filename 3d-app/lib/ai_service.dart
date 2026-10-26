@@ -79,6 +79,7 @@ const designGarments = [
 const aiDesignGarments = [
   ...designGarments,
   'Polo with pocket',
+  'Netball dress',
   'Hoodie',
   'Zip hoodie',
   'Varsity jacket',
@@ -130,6 +131,7 @@ class DesignReading {
     required this.letters,
     this.nameOnFront = true,
     this.crest,
+    this.print,
   });
 
   /// The app's garment name ('Singlet', 'Training Tee', …).
@@ -146,6 +148,10 @@ class DesignReading {
   /// The club symbol's box in fractions of the picture, when it has one.
   final Rect? crest;
 
+  /// A patch of the body's own print (fractions of the picture), when it
+  /// has one: laid all over the 3D body (task 9.126).
+  final Rect? print;
+
   /// Our 3D garments by the website's ids, with what each stands for.
   static const garments = {
     'jersey': (
@@ -159,8 +165,12 @@ class DesignReading {
     ),
     'singlet': (
       'Singlet',
-      'anything sleeveless: singlets, tanks, netball dresses and bibs, '
-          'basketball tops, AFL guernseys',
+      'any other sleeveless top: singlets, tanks, bibs, basketball tops, '
+          'AFL guernseys',
+    ),
+    'netball-dress': (
+      'Netball dress',
+      'a fitted dress for women, with a skirt: netball dresses and tennis dresses',
     ),
     'tee': (
       'Training Tee',
@@ -181,6 +191,7 @@ class DesignReading {
   /// The garments a design picture (print sheet) goes on as drawn.
   static const drawn = [
     'Singlet',
+    'Netball dress',
     'Jersey',
     'Training Tee',
     'Polo',
@@ -232,6 +243,19 @@ class DesignReading {
         crest = r;
       }
     }
+    final pb = j['printBox'];
+    Rect? print;
+    if (pb is Map && pb['found'] == true) {
+      double at(String k) =>
+          ((pb[k] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0).toDouble();
+      final r = Rect.fromLTRB(at('x0'), at('y0'), at('x1'), at('y1'));
+      if (r.width > 0.04 &&
+          r.height > 0.03 &&
+          r.width < 0.5 &&
+          r.height < 0.5) {
+        print = r;
+      }
+    }
     final number = text(j['number']).replaceAll(RegExp(r'\D'), '');
     return DesignReading(
       garment:
@@ -257,6 +281,7 @@ class DesignReading {
       letters: letters,
       nameOnFront: j['nameOnFront'] != false,
       crest: crest,
+      print: print,
     );
   }
 }
@@ -1193,7 +1218,10 @@ class AiService {
         'straight-on like a technical flat drawing, on a plain pure white '
         'background with clear white space around and between them: a wide '
         'white gap between the front and the back, so their sleeves and '
-        'edges never touch or overlap. No '
+        'edges never touch or overlap. Draw each neck opening as an empty '
+        'white cut-out, as on a technical flat drawing: never show the inside '
+        'of the garment, the inner collar or the neckline of the other side '
+        'through it, and keep all lettering clear of the collar. No '
         'mannequin, no person, no folds, no perspective, no lighting effects, '
         'no shadows, no scene. Keep the design exactly: the same colours, '
         'graphics, gradients, lettering, logos, numbers and trims, in the same '
@@ -1354,6 +1382,7 @@ class AiService {
               'number',
               'positionLetters',
               'crest',
+              'printBox',
             ],
             'properties': {
               'seen': str(
@@ -1419,6 +1448,32 @@ class AiService {
                 'Playing position letters shown large (e.g. GS); empty if '
                 'none.',
               ),
+              'printBox': {
+                'type': 'object',
+                'additionalProperties': false,
+                'required': ['found', 'x0', 'y0', 'x1', 'y1'],
+                'description':
+                    'A patch of the front garment body that shows only its '
+                    'all-over print (graphics, stripes, texture): no crest, '
+                    'lettering, pocket, collar, seam, edge or background. A '
+                    'typical patch with the same mix of colours as the whole '
+                    'body (not its brightest part), as large as possible, as '
+                    'a box in fractions of the '
+                    'whole picture width and height. found is false when the '
+                    'body is plain.',
+                'properties': {
+                  'found': {
+                    'type': 'boolean',
+                    'description':
+                        'True when the body has a print and such a patch '
+                        'exists.',
+                  },
+                  'x0': number('Left edge.'),
+                  'y0': number('Top edge.'),
+                  'x1': number('Right edge.'),
+                  'y1': number('Bottom edge.'),
+                },
+              },
               'crest': {
                 'type': 'object',
                 'additionalProperties': false,

@@ -124,7 +124,9 @@ String? garmentInBrief(String text) {
   if (has(r"\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b")) return 'Varsity jacket';
   if (has(r'\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b')) return 'Polo with pocket';
   if (has(r'\bpolos?\b')) return 'Polo';
-  if (has(r'\bsinglets?\b|\bvests?\b|\btank tops?\b|\bdress(es)?\b|\bbodysuits?\b')) {
+  // A dress (netball, tennis) is the women's netball dress (task 9.126).
+  if (has(r'\bdress(es)?\b')) return 'Netball dress';
+  if (has(r'\bsinglets?\b|\bvests?\b|\btank tops?\b|\bbodysuits?\b')) {
     return 'Singlet';
   }
   if (has(r'\bt-?shirts?\b|\btees?\b|\bjackets?\b|\bhi-?vis\b|\brash ?guards?\b')) {

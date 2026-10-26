@@ -14,7 +14,8 @@ import 'orders_app_test.dart' show OrdersServer, signedIn, mount, tap;
 import 'suppliers_test.dart' show SuppliersServer;
 
 /// The client's Home (images/166.jpg, 2026-10-23): "What would you like to
-/// create?", a 2 × 2 grid of picture tiles, then ORDERS (three buttons), the
+/// create?", a 2 × 2 grid of picture tiles, then ORDER NOW WITH 3DEEZI (three
+/// big cards as on the website), the
 /// Preferred suppliers strip, the Assist link and Convert, without overflow
 /// from small phones to tablets; each tile and button opens its screen.
 void main() {
@@ -78,15 +79,62 @@ void main() {
         expect(question.right, lessThanOrEqualTo(bar.right));
         expect(find.byKey(const ValueKey('home-convert')), findsNothing);
         expect(find.text('Convert an image to 3D'), findsNothing);
-        expect(form.top, greaterThan(bar.bottom));
-        expect(upload.top, moreOrLessEquals(form.top));
-        expect(mine.top, moreOrLessEquals(form.top));
-        expect(upload.left, greaterThan(form.right));
-        expect(mine.left, greaterThan(upload.right));
-        expect(form.left, moreOrLessEquals(at('home-tile-ai').left));
-        expect(mine.right, moreOrLessEquals(at('home-tile-dyo').right));
-        expect(strip.top, greaterThan(form.bottom));
-        expect(strip.width, moreOrLessEquals(mine.right - form.left));
+        // ORDER NOW WITH 3DEEZI (client 2026-10-26, as on the website): the
+        // heading and its line, then three big cards stacked, each as wide
+        // as the tiles, with its picture and gradient button inside it.
+        final heading = at('home-orders-heading');
+        expect(heading.top, greaterThan(bar.bottom));
+        expect(heading.left, greaterThanOrEqualTo(bar.left));
+        expect(heading.right, lessThanOrEqualTo(bar.right));
+        expect(
+          tester
+              .getRect(
+                find.text(
+                  'Start an order. Upload your details. Follow its progress.',
+                ),
+              )
+              .top,
+          greaterThanOrEqualTo(heading.bottom),
+        );
+        expect(form.top, greaterThan(heading.bottom));
+        expect(upload.top, greaterThan(form.bottom));
+        expect(mine.top, greaterThan(upload.bottom));
+        for (final card in [form, upload, mine]) {
+          expect(card.left, moreOrLessEquals(at('home-tile-ai').left));
+          expect(card.right, moreOrLessEquals(at('home-tile-dyo').right));
+          expect(card.height, greaterThan(250));
+        }
+        for (final (card, key, button) in [
+          (form, 'home-order-form', 'CREATE ORDER FORM'),
+          (upload, 'home-order-upload', 'UPLOAD YOUR ORDER'),
+          (mine, 'home-my-orders', 'VIEW MY ORDERS'),
+        ]) {
+          // The button is the last of its words (the cyan sub-title of the
+          // form and upload cards says the same, as on the website).
+          final inside = find
+              .descendant(
+                of: find.byKey(ValueKey(key)),
+                matching: find.text(button),
+              )
+              .last;
+          final b = tester.getRect(inside);
+          expect(b.top, greaterThan(card.top), reason: key);
+          expect(b.bottom, lessThan(card.bottom), reason: key);
+          final picture = tester.getRect(
+            find.descendant(
+              of: find.byKey(ValueKey(key)),
+              matching: find.byType(Image),
+            ),
+          );
+          expect(picture.width, greaterThan(card.width * .8), reason: key);
+          expect(picture.bottom, lessThan(b.top), reason: key);
+        }
+        expect(find.text('NEED HELP ORDERING?'), findsOneWidget);
+        expect(find.text('ORDER READY TO GO?'), findsOneWidget);
+        expect(find.text('YOUR ORDERS. ONE PLACE.'), findsOneWidget);
+        expect(find.text('ORDERS'), findsNothing);
+        expect(strip.top, greaterThan(mine.bottom));
+        expect(strip.width, moreOrLessEquals(mine.width));
         expect(link.top, greaterThan(strip.bottom));
         expect(tester.takeException(), isNull);
       },
@@ -160,29 +208,30 @@ void main() {
     }
   });
 
-  testWidgets('Home: INSTANT 3D FROM ARTWORK is one button for screen readers', (
-    tester,
-  ) async {
-    final semantics = tester.ensureSemantics();
-    final c = AppController(store: FakeStore())..screen = AppScreen.home;
-    await mount(tester, CreateHomeScreen(c), width: 360);
-    final bar = find.byKey(const ValueKey('home-artwork-bar'));
-    await tester.ensureVisible(bar);
-    await tester.pumpAndSettle();
-    expect(find.text('INSTANT 3D FROM ARTWORK'), findsOneWidget);
-    expect(
-      tester.getSemantics(bar),
-      isSemantics(
-        label:
-            'Upload artwork here. Already have artwork ready? Turn your '
-            'finished design into an editable 3D kit in seconds.',
-        isButton: true,
-        hasTapAction: true,
-      ),
-    );
-    expect(tester.takeException(), isNull);
-    semantics.dispose();
-  });
+  testWidgets(
+    'Home: INSTANT 3D FROM ARTWORK is one button for screen readers',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final c = AppController(store: FakeStore())..screen = AppScreen.home;
+      await mount(tester, CreateHomeScreen(c), width: 360);
+      final bar = find.byKey(const ValueKey('home-artwork-bar'));
+      await tester.ensureVisible(bar);
+      await tester.pumpAndSettle();
+      expect(find.text('INSTANT 3D FROM ARTWORK'), findsOneWidget);
+      expect(
+        tester.getSemantics(bar),
+        isSemantics(
+          label:
+              'Upload artwork here. Already have artwork ready? Turn your '
+              'finished design into an editable 3D kit in seconds.',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
 
   testWidgets(
     "Home ORDERS: each button opens the Orders tab's screen; Back returns home",

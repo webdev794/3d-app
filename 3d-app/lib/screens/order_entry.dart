@@ -345,7 +345,8 @@ const _garments = {
 /// polo, as on the website's order form.
 String orderGarmentFor(String garment) {
   final id = ProjectSync.garments[garment] ?? garment.toLowerCase();
-  final row = const {'fullkit': 'jersey', 'ziphoodie': 'hoodie', 'pocketpolo': 'polo', 'varsity': 'jacket', 'trackjacket': 'jacket'}[id] ?? id;
+  // (The netball dress is ordered on a singlet row, named "Netball dress".)
+  final row = const {'fullkit': 'jersey', 'ziphoodie': 'hoodie', 'pocketpolo': 'polo', 'varsity': 'jacket', 'trackjacket': 'jacket', 'netball-dress': 'singlet'}[id] ?? id;
   return _garments.containsKey(row) ? row : 'jersey';
 }
 
@@ -357,7 +358,7 @@ String orderGarmentFor(String garment) {
 /// [designGarment]: the Studio's garment name ("Singlet") or id ("singlet").
 bool isDesignRow(String designGarment, String rowGarment) {
   final id = ProjectSync.garments[designGarment] ?? designGarment.trim().toLowerCase();
-  return id.isNotEmpty && (const {'ziphoodie': 'hoodie', 'pocketpolo': 'polo', 'varsity': 'jacket', 'trackjacket': 'jacket'}[id] ?? id) == rowGarment;
+  return id.isNotEmpty && (const {'ziphoodie': 'hoodie', 'pocketpolo': 'polo', 'varsity': 'jacket', 'trackjacket': 'jacket', 'netball-dress': 'singlet'}[id] ?? id) == rowGarment;
 }
 
 /// The name a saved design gives an order row ("Netball bibs"), or '' when it has none or the row is another garment.

@@ -1217,14 +1217,16 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
           c.logoImage ??
           (c.references.isNotEmpty ? c.references.first : null) ??
           (box == null ? null : await cropCrest(image, box));
+      final printBox = reading.print;
+      final print = printBox == null ? null : await cropPrint(image, printBox);
       if (c.resultsRun != run || c.screen != AppScreen.concepts) return;
       closest = reading.exact
           ? ''
           : 'Shown on our ${garment.toLowerCase()}: the closest 3D garment '
                 'to your ${reading.seen.isEmpty ? 'design' : reading.seen}. ';
       c.artwork.add(image);
-      c.openReading(index, reading, logo: logo);
-      _printFor(reading.motif);
+      c.openReading(index, reading, logo: logo, print: print);
+      if (print == null) _printFor(reading.motif);
     }
     // A design picture goes on a singlet, jersey, tee or polo (with or
     // without the pocket) only: other garments take the design's colours,
@@ -2290,6 +2292,56 @@ Future<Uint8List?> cropCrest(Uint8List picture, Rect box) async {
       out.height.toInt(),
     );
     final data = await crest.toByteData(format: ui.ImageByteFormat.png);
+    return data?.buffer.asUint8List();
+  } on Object {
+    return null;
+  }
+}
+
+/// The viewer's mark for a full-colour print patch (viewer texture.js
+/// PRINT_MARK): two exact pixels at its top left.
+const printMark = [
+  [3, 222, 177],
+  [17, 61, 233],
+];
+
+/// A patch of the AI picture's own print ([box] in fractions of it, a little
+/// inside its edges), as a marked PNG the 3D kit lays all over the body
+/// (task 9.126).
+Future<Uint8List?> cropPrint(Uint8List picture, Rect box) async {
+  try {
+    final codec = await ui.instantiateImageCodec(picture);
+    final image = (await codec.getNextFrame()).image;
+    final w = image.width.toDouble(), h = image.height.toDouble();
+    const inset = 0.08;
+    final src = Rect.fromLTWH(
+      (box.left + box.width * inset) * w,
+      (box.top + box.height * inset) * h,
+      box.width * (1 - 2 * inset) * w,
+      box.height * (1 - 2 * inset) * h,
+    );
+    if (src.width < 24 || src.height < 24) return null;
+    final k = math.min(1.0, 512 / math.max(src.width, src.height));
+    final ow = (src.width * k).round(), oh = (src.height * k).round();
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder)
+      ..drawImageRect(
+        image,
+        src,
+        Rect.fromLTWH(0, 0, ow.toDouble(), oh.toDouble()),
+        Paint()..filterQuality = FilterQuality.high,
+      );
+    for (var i = 0; i < printMark.length; i++) {
+      final [r, g, b] = printMark[i];
+      canvas.drawRect(
+        Rect.fromLTWH(i.toDouble(), 0, 1, 1),
+        Paint()
+          ..color = Color.fromARGB(255, r, g, b)
+          ..isAntiAlias = false,
+      );
+    }
+    final out = await recorder.endRecording().toImage(ow, oh);
+    final data = await out.toByteData(format: ui.ImageByteFormat.png);
     return data?.buffer.asUint8List();
   } on Object {
     return null;

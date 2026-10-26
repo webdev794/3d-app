@@ -29,10 +29,11 @@ export const placements = [
  */
 export function offGarment(layer: Pick<ArtworkLayer, 'x' | 'y' | 'part' | 'side'>, garment: string) {
     const shorts = (layer.part ?? 'top') === 'shorts';
-    const plain = shorts || ['jersey', 'tee', 'polo', 'pocketpolo', 'raglan', 'fullkit', 'singlet', 'shorts'].includes(garment);
-    const reach = shorts ? 0.32 : garment === 'singlet' ? 0.27 : plain ? 0.43 : 0.7;
+    const plain = shorts || ['jersey', 'tee', 'polo', 'pocketpolo', 'raglan', 'fullkit', 'singlet', 'netball-dress', 'shorts'].includes(garment);
+    // The netball dress (task 9.126): its skirt out to x .33 at the hem, its straps up to y .88.
+    const reach = shorts ? 0.32 : garment === 'singlet' ? 0.27 : garment === 'netball-dress' ? 0.34 : plain ? 0.43 : 0.7;
     if (layer.y < -0.02 || Math.abs(layer.x) > reach) return true;
-    if (layer.y <= (shorts ? 0.44 : 0.76)) return false;
+    if (layer.y <= (shorts ? 0.44 : garment === 'netball-dress' ? 0.89 : 0.76)) return false;
     const hooded = ['hoodie', 'ziphoodie', 'trackjacket'].includes(garment);
     const pieces = plain ? 0 : hooded ? (layer.side === 'back' ? 1.21 : 0) : 1.21;
     return layer.y > pieces || Math.abs(layer.x) > 0.52;

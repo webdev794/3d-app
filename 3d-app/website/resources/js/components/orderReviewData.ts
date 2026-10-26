@@ -171,10 +171,11 @@ export function projectPicture(p: Project | null | undefined): string | null {
   return isPicture(p.thumbnail) ? p.thumbnail : isPicture(front) ? front : null;
 }
 const garmentPicture = (garment: string) => (ART.has(garment) ? media(`showroom/garment-${garment}.webp`) : null);
-const PROJECT_ROWS: Record<string, string> = { fullkit: 'jersey', ziphoodie: 'hoodie', pocketpolo: 'polo', varsity: 'jacket', trackjacket: 'jacket' };
+// (The netball dress is ordered on a singlet row, named by its product "Netball dress": task 9.126.)
+const PROJECT_ROWS: Record<string, string> = { fullkit: 'jersey', ziphoodie: 'hoodie', pocketpolo: 'polo', varsity: 'jacket', trackjacket: 'jacket', 'netball-dress': 'singlet' };
 export const rowGarmentOf = (designGarment: string) => PROJECT_ROWS[designGarment] ?? designGarment;
 /** The rows a saved design's own garment is listed under, for its name: as PROJECT_ROWS, but a full kit names no single row. */
-const NAME_ROWS: Record<string, string> = { ziphoodie: 'hoodie', pocketpolo: 'polo', varsity: 'jacket', trackjacket: 'jacket' };
+const NAME_ROWS: Record<string, string> = { ziphoodie: 'hoodie', pocketpolo: 'polo', varsity: 'jacket', trackjacket: 'jacket', 'netball-dress': 'singlet' };
 /**
  * Whether an order row is the saved design's own garment, so the design's product name may name it (the server's
  * Order::isDesignRow): a "Netball bibs" singlet design on a Rugby League jersey row is that jersey (task 9.97), and a
@@ -186,7 +187,7 @@ export function designRowName(project: Pick<Project, 'garment' | 'design'> | nul
   const product = typeof project?.design?.productName === 'string' ? project.design.productName.trim() : '';
   return product && isDesignRow(project?.garment, rowGarment) ? product : '';
 }
-const VIEWER_TOPS = new Set(['jersey', 'tee', 'polo', 'pocketpolo', 'singlet', 'hoodie', 'ziphoodie', 'varsity', 'trackjacket']);
+const VIEWER_TOPS = new Set(['jersey', 'tee', 'polo', 'pocketpolo', 'singlet', 'netball-dress', 'hoodie', 'ziphoodie', 'varsity', 'trackjacket']);
 
 /**
  * What the 3D viewer draws for a row: that garment ALONE in its design (a full kit's shorts row: the shorts only; its

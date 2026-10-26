@@ -47,7 +47,7 @@ function patternAreas(garment: string, trackStyle?: string | null): { key: Zone;
   return [
     { key: 'body', label: shorts ? 'Body' : 'Chest & body' },
     ...(shorts ? [] : [{ key: 'yoke' as const, label: 'Shoulders' }]),
-    ...(shorts || garment === 'singlet' ? [] : [{ key: 'sleeves' as const, label: 'Sleeves' }]),
+    ...(shorts || garment === 'singlet' || garment === 'netball-dress' ? [] : [{ key: 'sleeves' as const, label: 'Sleeves' }]),
     { key: 'sides', label: 'Side panels' },
     { key: 'hem', label: shorts ? 'Leg hems' : 'Hem' },
     ...(garment === 'pocketpolo' ? [{ key: 'pocket' as const, label: 'Chest pocket' }] : []),
@@ -372,7 +372,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       onNotice('Your design export is ready.');
     } catch (e) { setError((e as Error).message || 'Export failed. Please try again.'); } finally { setBusy(false); }
   }
-  const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
+  const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
   const garments = [...(catalog?.garments ?? [])].sort((a, b) => garmentOrder.indexOf(a.id) - garmentOrder.indexOf(b.id));
   const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); setGradientOpen(false); };
   const colourValue = slot === 'patternColor' ? (draft.design.patternColor || draft.design.secondary) : draft.design[slot];

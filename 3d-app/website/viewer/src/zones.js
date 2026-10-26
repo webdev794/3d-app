@@ -73,10 +73,22 @@ const HOODIE = {
   hood: [[-0.7, 0, 0.7, 0.8]],
 };
 
+/** The netball dress (garment.js): a women's dress, sleeveless, with a skirt (its own heights: the hem at 0, the
+ *  shoulder seam at 0.88, the waist at 0.48). */
+export const isDress = (kind) => kind === 'netball-dress';
+const DRESS = {
+  // The straps and the upper chest and back.
+  yoke: [[-0.3, 0.72, 0.3, 0.95]],
+  // The side panels: from the underarm down the bodice's and the skirt's sides.
+  sides: [[0.17, 0, 0.36, 0.68]],
+  hem: [[-0.36, 0, 0.36, 0.12]],
+  body: [[-0.2, 0.12, 0.2, 0.72]],
+};
+
 // The varsity jacket (varsity.js): the hoodie's long sleeves, no hood.
 const { hood: _hood, ...VARSITY_ZONES } = HOODIE;
 
-const table = (kind) => (kind === 'shorts' ? SHORTS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : TOP);
+const table = (kind) => (kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : TOP);
 
 /** Rectangles [x0, y0, x1, y1] for a zone, mirrored to both sides of the body. */
 export function zoneRects(kind, zone) {

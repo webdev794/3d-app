@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FIGURES, torsoAt } from './figure.js';
 
 // The mannequin under a garment (render tiers, 2026-10-23): a display form shaped from the made garment itself, so the
 // cloth reads as worn rather than floating. A torso (a top), or hips and thighs (shorts), the neck and the upper arms,
@@ -140,6 +141,127 @@ function extend(rings, dir, length, taper, steps = 4) {
 }
 
 /**
+ * The innermost fabric point in each direction round a level slice centred on (cx, cz) (BINS radii, null where there is
+ * none), from points within `dy` of the height y.
+ */
+function fabricRadii(points, y, cx, cz, dy = 0.008) {
+  const r = new Array(BINS).fill(null);
+  for (const p of points) {
+    if (Math.abs(p.y - y) > dy) continue;
+    const u = p.x - cx, v = p.z - cz, k = Math.floor(((Math.atan2(v, u) / (2 * Math.PI)) + 1) * BINS) % BINS, d = Math.hypot(u, v);
+    if (r[k] == null || d < r[k]) r[k] = d;
+  }
+  return r;
+}
+
+/** A level ring of the female figure's own shape (figure.js): an ellipse, fuller behind over the seat. */
+function figureRing(figure, top, y, kept) {
+  const drop = top - y, [a, b, fwd] = torsoAt(figure, drop);
+  const seat = figure.seat * ramp(figure.waist + 0.05, figure.hip - 0.02, drop) * ramp(figure.crotch + 0.04, figure.hip, drop);
+  return Array.from({ length: BINS }, (_, k) => {
+    const th = (2 * Math.PI * (k + 0.5)) / BINS, c = Math.cos(th), s = Math.sin(th);
+    // Behind (s < 0) the seat: two rounded cheeks either side of the middle.
+    const z = fwd + b * s - (s < 0 ? seat * Math.abs(s) * (0.75 + 0.25 * Math.abs(Math.sin(2 * th))) : 0);
+    const p = new THREE.Vector3(a * c, y, z), r = Math.hypot(p.x, p.z);
+    // Never outside the fabric (a fitted skirt over the hips): kept a few millimetres inside it.
+    const lim = kept?.[k];
+    if (lim != null && r > lim) p.multiplyScalar(lim / r).setY(y);
+    return p;
+  });
+}
+
+/**
+ * A shoulder of the female form (sg: +1 the wearer's left), seen through a sleeveless garment's armhole: from beside the
+ * neck out to a rounded arm plate, level slices across it (each an ellipse in its own up / forward plane) kept inside
+ * the fabric round it (the straps over it, the bodice in front and behind). Its rings, inner end first.
+ */
+function shoulderRings(trunk, figure, top, sg) {
+  const S = figure.shoulder, rings = [];
+  for (let x = S.from; x <= S.to + 1e-6; x += 0.01) {
+    // The shoulder's top slopes down from beside the neck to the arm plate (under the strap); its foot is level.
+    const t = (x - S.from) / (S.to - S.from), yTop = top - 0.008 - S.slope * Math.max(0, x - 0.09), yFoot = top - S.drop - S.height;
+    const ry = (yTop - yFoot) / 2, rz = S.depth * (1 - 0.15 * t), yc = (yTop + yFoot) / 2, zc = -0.004;
+    const near = trunk.filter((p) => Math.sign(p.x) === sg && Math.abs(Math.abs(p.x) - x) < 0.006 && p.y > yc - ry - 0.03);
+    const lim = new Array(BINS).fill(null);
+    for (const p of near) {
+      const u = p.z - zc, v = p.y - yc, k = Math.floor(((Math.atan2(v, u) / (2 * Math.PI)) + 1) * BINS) % BINS, d = Math.hypot(u, v);
+      if (lim[k] == null || d < lim[k]) lim[k] = d;
+    }
+    rings.push(Array.from({ length: BINS }, (_, k) => {
+      const th = (2 * Math.PI * (k + 0.5)) / BINS, c = Math.cos(th), s = Math.sin(th);
+      const ra = 1 / Math.hypot(c / rz, s / ry), r = lim[k] != null ? Math.min(ra, lim[k] - 0.006) : ra;
+      return new THREE.Vector3(sg * x, yc + Math.max(0.01, r) * s, zc + Math.max(0.01, r) * c);
+    }));
+  }
+  return rings;
+}
+
+/**
+ * A female form (figure.js): the bodice from the made garment (fitted: its own shape), then the hips from the figure
+ * (a skirt stands away from them) down to the crotch, closed there, and the thighs from inside the hips on past the
+ * hem, where they end, rounded; the stand goes up into the wearer's left one. Returns the torso's rings (top down) and
+ * the thighs' (each top down), or null.
+ */
+function femaleForm(trunk, body, figure, openingFoot, minY) {
+  const top = body.top, waistY = top - figure.waist, crotchY = top - figure.crotch;
+  const bodice = horizontalRings(trunk, waistY, openingFoot - 0.004, 0.007).reverse();
+  if (bodice.length < 4) return null;
+  // The hips: each ring the figure's, kept inside the fabric round it.
+  const hips = [];
+  for (let y = waistY - 0.012; y >= crotchY + 0.015; y -= 0.012) {
+    const kept = fabricRadii(trunk, y, 0, 0).map((r) => (r == null ? null : r - 0.006));
+    hips.push(figureRing(figure, top, y, kept));
+  }
+  // Where the bodice meets the hips the two are blended over a few rings.
+  const last = bodice.at(-1), first = hips[0];
+  if (last && first) for (let k = 1; k <= 2; k++) hips[k - 1] = first.map((p, i) => p.clone().lerp(last[i], 0.35 / k).setY(p.y));
+  const torso = [...bodice, ...hips];
+  const thighs = [];
+  const T = figure.thigh;
+  for (const sg of [1, -1]) {
+    const rings = [];
+    // On past the hem (further when the garment stands higher on its stand: body.lift), well above the podium.
+    const y0 = crotchY + 0.06, y1 = minY - 0.035 - (body.lift ?? 0);
+    for (let y = y0; y >= y1 - 1e-6; y -= 0.012) {
+      // Rounder and narrower down the leg, a little forward at the top.
+      const t = THREE.MathUtils.clamp((y0 - y) / (y0 - (top - 0.9)), 0, 1.3), r = T.top + (T.mid - T.top) * t, cz = 0.006 * (1 - t);
+      const cx = sg * (T.x - 0.006 * t);
+      const kept = fabricRadii(trunk, y, cx, cz).map((v) => (v == null ? null : v - 0.006));
+      rings.push(Array.from({ length: BINS }, (_, k) => {
+        const th = (2 * Math.PI * (k + 0.5)) / BINS, lim = kept[k];
+        const rr = lim != null ? Math.min(r * (k < BINS / 2 ? 0.96 : 1), lim) : r;
+        return new THREE.Vector3(cx + rr * Math.cos(th), y, cz + rr * 0.95 * Math.sin(th));
+      }));
+    }
+    thighs.push(rings);
+  }
+  return { torso, thighs, shoulders: [1, -1].map((sg) => shoulderRings(trunk, figure, top, sg)) };
+}
+
+/** The neck: rising from inside the torso through the neck opening, a little forward at the top, cut level. */
+function addNeck(garment, add) {
+  const neck = garment.neck ?? [], up = new THREE.Vector3(0, 1, 0);
+  if (neck.length > 4) {
+    const zs = neck.map((p) => p.z), back = Math.min(...zs), ny = Math.min(...neck.map((p) => p.y)), top = Math.max(...neck.map((p) => p.y));
+    const cz = back + 0.064, room = Math.min(...neck.map((p) => Math.hypot(p.x, p.z - cz)));
+    const R = Math.min(0.056, room * 0.86);
+    const rings = [];
+    // Cut level low in the opening (a display form's neck block), so the neck label inside the back, with its
+    // size, still shows above it.
+    const cutY = ny + 0.18 * (top - ny);
+    for (const [y, s, lean] of [[ny - 0.06, 1.45, -0.004], [ny - 0.02, 1.16, 0], [cutY - 0.012, 1.03, 0.003], [cutY, 1, 0.004]]) {
+      rings.push(Array.from({ length: BINS }, (_, k) => {
+        const th = (2 * Math.PI * (k + 0.5)) / BINS;
+        return new THREE.Vector3(R * s * Math.cos(th), y, cz + lean + R * s * 0.92 * Math.sin(th));
+      }));
+    }
+    roundEnd(rings, up, 0.004);
+    // Seen through the neck opening, in the collar's shade.
+    add(rings, () => 0.55);
+  }
+}
+
+/**
  * The mannequin for one garment part (garment.body from buildGarment with detail on). `over`: a top worn over shorts
  * (the shorts' own form carries the hips). Returns a group in the garment's coordinates, or null.
  */
@@ -180,6 +302,34 @@ export function buildMannequin(garment, material, { over = false } = {}) {
       add(leg, below(minY));
       group.userData.feet.push(leg.at(-1).reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(BINS));
     }
+  } else if (FIGURES[body.form]) {
+    // A women's garment (the netball dress): the female form, its bodice from the garment, its hips and thighs its own.
+    const openingFoot = garment.neck?.length ? Math.min(...garment.neck.map((p) => p.y)) : maxY;
+    const form = femaleForm(trunk, body, FIGURES[body.form], Math.min(maxY, openingFoot), minY);
+    if (!form) return null;
+    const { torso, thighs, shoulders } = form;
+    const top = torso[0], c = new THREE.Vector3();
+    top.forEach((p) => c.add(p));
+    c.divideScalar(top.length);
+    const cap = [[0.82, 0.008], [0.55, 0.013]].map(([s, d]) => top.map((p) => p.clone().sub(c).multiplyScalar(s).add(c).addScaledVector(up, d)));
+    torso.unshift(...cap.reverse());
+    roundEnd(torso, down, 0.03);
+    // All inside the dress: in its shade.
+    add(torso, () => INSIDE);
+    for (const leg of thighs) {
+      if (leg.length < 2) continue;
+      roundEnd(leg, down, 0.012);
+      add(leg, below(minY));
+      group.userData.feet.push(leg.at(-1).reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(BINS));
+    }
+    // The shoulders, rounded off at the arm plates: in shade inside, lit towards the armholes.
+    shoulders.forEach((rings, i) => {
+      if (rings.length < 3) return;
+      const inner = rings.length;
+      roundEnd(rings, new THREE.Vector3(i ? -1 : 1, 0, 0), 0.018);
+      add(rings, (ring, k) => INSIDE + (0.6 - INSIDE) * ramp(inner - 5, inner + 1, k));
+    });
+    addNeck(garment, add);
   } else {
     // A top: the torso from the hem (below it when the top is worn alone: the hips) to the shoulders.
     // Up to the foot of the neck opening (above it the shoulders stay hollow, so the neck label inside the back
@@ -197,26 +347,7 @@ export function buildMannequin(garment, material, { over = false } = {}) {
     roundEnd(torso, down, 0.008);
     add(torso, below(minY));
 
-    // The neck: rising from inside the torso through the neck opening, a little forward at the top, cut level.
-    const neck = garment.neck ?? [];
-    if (neck.length > 4) {
-      const zs = neck.map((p) => p.z), back = Math.min(...zs), ny = Math.min(...neck.map((p) => p.y)), top = Math.max(...neck.map((p) => p.y));
-      const cz = back + 0.064, room = Math.min(...neck.map((p) => Math.hypot(p.x, p.z - cz)));
-      const R = Math.min(0.056, room * 0.86);
-      const rings = [];
-      // Cut level low in the opening (a display form's neck block), so the neck label inside the back, with its
-      // size, still shows above it.
-      const cutY = ny + 0.18 * (top - ny);
-      for (const [y, s, lean] of [[ny - 0.06, 1.45, -0.004], [ny - 0.02, 1.16, 0], [cutY - 0.012, 1.03, 0.003], [cutY, 1, 0.004]]) {
-        rings.push(Array.from({ length: BINS }, (_, k) => {
-          const th = (2 * Math.PI * (k + 0.5)) / BINS;
-          return new THREE.Vector3(R * s * Math.cos(th), y, cz + lean + R * s * 0.92 * Math.sin(th));
-        }));
-      }
-      roundEnd(rings, up, 0.004);
-      // Seen through the neck opening, in the collar's shade.
-      add(rings, () => 0.55);
-    }
+    addNeck(garment, add);
 
     // Upper arms: along each sleeve, from just inside the armhole on past a short sleeve's end.
     for (const sg of [1, -1]) {

@@ -26,7 +26,8 @@ List<(String, String)> patternAreas(String garment, {String? trackStyle}) {
   return [
     ('body', shorts ? 'Body' : garmentZones['body']!),
     if (!shorts) ('yoke', garmentZones['yoke']!),
-    if (!shorts && garment != 'Singlet') ('sleeves', garmentZones['sleeves']!),
+    if (!shorts && garment != 'Singlet' && garment != 'Netball dress')
+      ('sleeves', garmentZones['sleeves']!),
     ('sides', garmentZones['sides']!),
     ('hem', shorts ? 'Leg hems' : garmentZones['hem']!),
     if (garment == 'Polo with pocket') ('pocket', garmentZones['pocket']!),
