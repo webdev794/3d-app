@@ -204,9 +204,15 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       try {
         const src = await readImage(await fetchFile(`/assets/${pending.asset}/file`));
         const patch = await checkDrawing(viewer.current!, src, pending.name, pending.asset, latest.current.design.garment, !!pending.known);
-        if (patch) { edit(patch, { pendingDrawing: undefined }); onNotice('Your design is on the 3D kit as drawn. Save the project to keep it.'); }
-        else onChange({ ...latest.current, pendingDrawing: undefined });
-      } catch (e) { onChange({ ...latest.current, pendingDrawing: undefined }); onNotice(`Design picture: ${(e as Error).message}`); }
+        // The picture carries its own lettering: the position letters read from it (task 9.116) are not added again.
+        const layers = latest.current.design.layers?.filter(l => !l.id.startsWith('position-'));
+        if (patch) { edit({ ...patch, ...(layers && layers.length !== latest.current.design.layers?.length ? { layers } : {}) }, { pendingDrawing: undefined }); onNotice([pending.note, 'Your design is on the 3D kit as drawn. Save the project to keep it.'].filter(Boolean).join(' ')); }
+        else { onChange({ ...latest.current, pendingDrawing: undefined }); if (pending.note) onNotice(pending.note); }
+      } catch (e) {
+        onChange({ ...latest.current, pendingDrawing: undefined });
+        // An AI design (task 9.116) is already on the kit in its colours, symbol and lettering: never a refusal.
+        onNotice(pending.note !== undefined || latest.current.mode === 'ai' && pending.known ? [pending.note, `The picture itself could not go on the 3D kit (${(e as Error).message}), so the kit takes your design’s colours, symbol and lettering.`].filter(Boolean).join(' ') : `Design picture: ${(e as Error).message}`);
+      }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.pendingDrawing, ready]);
@@ -439,7 +445,10 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
           </>}
           {tool === 'numbers' && <>
             <div className="number-preview" style={{ color: draft.design.accent, background: draft.design.main }}><small>{draft.design.backName || 'YOUR NAME'}</small><strong>{draft.design.number || '23'}</strong></div>
-            <label className="field">Player number<input inputMode="numeric" value={draft.design.number} maxLength={3} onChange={e => edit({ number: e.target.value.replace(/\D/g, '') })} placeholder="23" /></label>
+            {/* Netball (task 9.116): the position letters (GS, WD…) in the number's place. */}
+            {catalog?.sports.find(s => s.id === draft.sport)?.positions?.length
+              ? <label className="field">Position letters<input value={draft.design.number} maxLength={3} onChange={e => edit({ number: e.target.value.replace(/[^A-Za-z]/g, '').toUpperCase() })} placeholder="GS" /></label>
+              : <label className="field">Player number<input inputMode="numeric" value={draft.design.number} maxLength={3} onChange={e => edit({ number: e.target.value.replace(/\D/g, '') })} placeholder="23" /></label>}
             <label className="field">Player name<input value={draft.design.backName || ''} maxLength={20} onChange={e => edit({ backName: e.target.value })} placeholder="YOUR NAME" /></label>
             <button className="button button-secondary full-width" onClick={() => { setView('back'); setRotating(false); }}>View the back <ArrowRight size={16} /></button>
           </>}

@@ -310,6 +310,27 @@ class AiController extends Controller
         }
     }
 
+    /**
+     * "Open in 3D Designer" (task 9.116): the AI design picture read for the editable 3D kit: the nearest 3D garment we
+     * have (never a refusal), the picture's colours, pattern, team name, back lettering and the club symbol's place.
+     */
+    public function readDesign(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $data = $request->validate([
+            'image' => ['required', 'string', 'max:12000000', 'regex:#^data:image/(png|jpeg|webp);base64,#'],
+            'sport' => ['required', Rule::in(array_column(config('catalog.sports'), 'id'))],
+            'garment' => ['required', Rule::in(array_column(config('catalog.garments'), 'id'))],
+        ]);
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        set_time_limit(90);
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $data['sport'])['name'];
+        try {
+            return response()->json(['data' => $designer->readDesign($data['image'], $sport, $data['garment'])]);
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+    }
+
     /** Keeps a generated image in the user's private Assets. */
     private function store(Request $request, string $jpeg, string $type, string $name): array
     {

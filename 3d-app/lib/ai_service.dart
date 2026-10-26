@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -30,6 +31,7 @@ const _base = 'https://api.openai.com/v1';
 
 const designPatterns = ['Velocity', 'Chevron', 'Stripes', 'Solid'];
 const designFabrics = ['Standard', 'Mesh', 'Pro', 'Eco'];
+
 /// Every sport name, as lib/sports_catalog.dart (a const list for the JSON
 /// schema; test/sports_catalog_test.dart checks the two match).
 const designSports = [
@@ -104,6 +106,159 @@ class KitEdit {
 
   /// A custom print to generate, when the request asked for one.
   final String? motif;
+}
+
+/// An AI design picture read for the editable 3D kit (task 9.116; the
+/// website's OpenAiDesigner::readDesign): the nearest 3D garment we have
+/// (never a refusal: [exact] is false when it is only the closest), the
+/// picture's own colours, the nearest pattern, its lettering and where its
+/// club symbol is.
+class DesignReading {
+  const DesignReading({
+    required this.garment,
+    required this.seen,
+    required this.exact,
+    required this.hood,
+    required this.mainColor,
+    required this.secondaryColor,
+    required this.accentColor,
+    required this.pattern,
+    required this.motif,
+    required this.teamName,
+    required this.backName,
+    required this.number,
+    required this.letters,
+    this.nameOnFront = true,
+    this.crest,
+  });
+
+  /// The app's garment name ('Singlet', 'Training Tee', …).
+  final String garment, seen, pattern, motif, teamName, backName, number;
+
+  /// Netball's position letters (GS…); empty for other sports.
+  final String letters;
+  final bool exact, hood;
+
+  /// The team name is written across the front (else only the crest is).
+  final bool nameOnFront;
+  final Color mainColor, secondaryColor, accentColor;
+
+  /// The club symbol's box in fractions of the picture, when it has one.
+  final Rect? crest;
+
+  /// Our 3D garments by the website's ids, with what each stands for.
+  static const garments = {
+    'jersey': (
+      'Jersey',
+      'short-sleeve sports jersey (rugby, soccer, league, cricket shirts)',
+    ),
+    'polo': ('Polo', 'polo shirt with a collar and buttons'),
+    'pocketpolo': (
+      'Polo with pocket',
+      'polo shirt with a chest pocket (pool, darts)',
+    ),
+    'singlet': (
+      'Singlet',
+      'anything sleeveless: singlets, tanks, netball dresses and bibs, '
+          'basketball tops, AFL guernseys',
+    ),
+    'tee': (
+      'Training Tee',
+      'training t-shirt or other crew-neck top, also long-sleeve tops',
+    ),
+    'hoodie': ('Hoodie', 'pull-over hoodie'),
+    'ziphoodie': ('Zip hoodie', 'full-zip hoodie'),
+    'varsity': ('Varsity jacket', 'varsity or letterman jacket'),
+    'trackjacket': (
+      'Track jacket',
+      'full-zip track jacket or tracksuit top (with a stand-up collar or a '
+          'hood)',
+    ),
+    'shorts': ('Shorts', 'shorts alone'),
+    'fullkit': ('Full Kit', 'a top and shorts shown together as one kit'),
+  };
+
+  /// The garments a design picture (print sheet) goes on as drawn.
+  static const drawn = [
+    'Singlet',
+    'Jersey',
+    'Training Tee',
+    'Polo',
+    'Polo with pocket',
+  ];
+
+  /// The reading from the model's JSON, made safe: an unknown garment is the
+  /// one asked for, a bad colour a safe one, netball always has letters.
+  factory DesignReading.fromJson(
+    Map<String, dynamic> j, {
+    required String sport,
+    required String asked,
+  }) {
+    String text(Object? v) => '${v ?? ''}'.trim();
+    String clean(Object? v) {
+      final t = text(v)
+          .replaceAll(RegExp(r'\b3\s?DEEZI\b', caseSensitive: false), '')
+          .trim()
+          .toUpperCase();
+      return t.length > 20 ? t.substring(0, 20) : t;
+    }
+
+    Color colour(Object? v, int fallback) {
+      final hex = text(v).replaceAll('#', '');
+      final value = RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(hex)
+          ? int.parse(hex, radix: 16)
+          : fallback;
+      return Color(0xff000000 | value);
+    }
+
+    final positions = sportNamed(sport)?.positions ?? const <String>[];
+    var letters = text(
+      j['positionLetters'],
+    ).toUpperCase().replaceAll(RegExp('[^A-Z]'), '');
+    if (positions.isNotEmpty && !positions.contains(letters)) {
+      letters = positions.first;
+    }
+    if (positions.isEmpty) letters = '';
+    final box = j['crest'];
+    Rect? crest;
+    if (box is Map && box['found'] == true) {
+      double at(String k) =>
+          ((box[k] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0).toDouble();
+      final r = Rect.fromLTRB(at('x0'), at('y0'), at('x1'), at('y1'));
+      if (r.width > 0.015 &&
+          r.height > 0.01 &&
+          r.width < 0.4 &&
+          r.height < 0.4) {
+        crest = r;
+      }
+    }
+    final number = text(j['number']).replaceAll(RegExp(r'\D'), '');
+    return DesignReading(
+      garment:
+          garments[j['garment']]?.$1 ??
+          (aiDesignGarments.contains(asked) ? asked : 'Jersey'),
+      seen: text(j['seen']),
+      exact: j['exact'] != false,
+      hood: j['hood'] == true,
+      mainColor: colour(j['mainColor'], 0x0b1016),
+      secondaryColor: colour(j['secondaryColor'], 0x04d9e8),
+      accentColor: colour(j['accentColor'], 0xffffff),
+      // A picture with graphics is never a plain kit (the model often
+      // answers Solid for an all-over print).
+      pattern:
+          designPatterns.contains(j['pattern']) &&
+              !(j['pattern'] == 'Solid' && text(j['patternMotif']).isNotEmpty)
+          ? j['pattern'] as String
+          : 'Velocity',
+      motif: text(j['patternMotif']),
+      teamName: clean(j['teamName']),
+      backName: clean(j['backName']),
+      number: number.length > 3 ? number.substring(0, 3) : number,
+      letters: letters,
+      nameOnFront: j['nameOnFront'] != false,
+      crest: crest,
+    );
+  }
 }
 
 class AiException implements Exception {
@@ -639,7 +794,11 @@ class AiService {
       } else if (!names || !numbers)
         'back':
             'The back design: the small 3DEEZI word mark just under the '
-            'collar, then ${names ? 'the team name $outline; no numbers anywhere' : numbers ? 'a large player number (e.g. 01) $outline; no player names anywhere' : 'no player names and no numbers anywhere'}; '
+            'collar, then ${names
+                ? 'the team name $outline; no numbers anywhere'
+                : numbers
+                ? 'a large player number (e.g. 01) $outline; no player names anywhere'
+                : 'no player names and no numbers anywhere'}; '
             'plus graphics.',
     };
   }
@@ -1026,21 +1185,23 @@ class AiService {
         ? 'a large number, no player names'
         : 'no player names and no numbers';
     return 'The first attached image shows a $sport $garment design. Redraw '
-      'exactly the same design as a flat print artwork sheet for the '
-      'factory: '
-      '${frontOnly ? 'The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the small 3DEEZI word mark just under the collar, $back). ' : ''}'
-      'the garment\'s front on the left and its back on the right, '
-      'side by side, both complete and the same size, drawn flat and '
-      'straight-on like a technical flat drawing, on a plain pure white '
-      'background with clear white space around and between them. No '
-      'mannequin, no person, no folds, no perspective, no lighting effects, '
-      'no shadows, no scene. Keep the design exactly: the same colours, '
-      'graphics, gradients, lettering, logos, numbers and trims, in the same '
-      'places and proportions, and the same garment shape (neck, armholes or '
-      'sleeves, hem). '
-      '${logos > 0 ? 'The other $logos attached image(s) are the client\'s logos: reproduce them faithfully where the design shows them. ' : ''}'
-      'No labels, captions, measurements, hangers, sewn-in neck labels or '
-      'extra text.';
+        'exactly the same design as a flat print artwork sheet for the '
+        'factory: '
+        '${frontOnly ? 'The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the small 3DEEZI word mark just under the collar, $back). ' : ''}'
+        'the garment\'s front on the left and its back on the right, '
+        'side by side, both complete and the same size, drawn flat and '
+        'straight-on like a technical flat drawing, on a plain pure white '
+        'background with clear white space around and between them: a wide '
+        'white gap between the front and the back, so their sleeves and '
+        'edges never touch or overlap. No '
+        'mannequin, no person, no folds, no perspective, no lighting effects, '
+        'no shadows, no scene. Keep the design exactly: the same colours, '
+        'graphics, gradients, lettering, logos, numbers and trims, in the same '
+        'places and proportions, and the same garment shape (neck, armholes or '
+        'sleeves, hem). '
+        '${logos > 0 ? 'The other $logos attached image(s) are the client\'s logos: reproduce them faithfully where the design shows them. ' : ''}'
+        'No labels, captions, measurements, hangers, sewn-in neck labels or '
+        'extra text.';
   }
 
   /// "Make it 3D": the mockup redrawn by the same model as a flat front and
@@ -1060,7 +1221,235 @@ class AiService {
       size: '1536x1024',
       quality: 'high',
       highFidelity: true,
-    );
+    ).then(separateHalves);
+  }
+
+  /// A print sheet whose front and back touch (task 9.116: the image model
+  /// sometimes draws the sleeves overlapping, and the 3D check then reads
+  /// both as one garment): cut at the middle and moved apart with white
+  /// between (a PNG). A sheet with a clear gap is kept as it is.
+  static Future<Uint8List> separateHalves(Uint8List sheet) async {
+    try {
+      final codec = await ui.instantiateImageCodec(sheet);
+      final image = (await codec.getNextFrame()).image;
+      final w = image.width, h = image.height;
+      if (w < 64 || h < 64) return sheet;
+      final data = (await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      ))!;
+      bool white(int x) {
+        for (var y = 0; y < h; y += 3) {
+          final i = (y * w + x) * 4;
+          if (data.getUint8(i) < 225 ||
+              data.getUint8(i + 1) < 225 ||
+              data.getUint8(i + 2) < 225) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      for (var x = (w * 0.38).toInt(); x <= (w * 0.62).toInt(); x += 2) {
+        if (white(x)) return sheet;
+      }
+      final gap = (w * 0.08).round(), half = w ~/ 2;
+      final recorder = ui.PictureRecorder();
+      final paint = Paint();
+      Canvas(recorder)
+        ..drawRect(
+          Rect.fromLTWH(0, 0, (w + gap).toDouble(), h.toDouble()),
+          Paint()..color = const Color(0xffffffff),
+        )
+        ..drawImageRect(
+          image,
+          Rect.fromLTWH(0, 0, half.toDouble(), h.toDouble()),
+          Rect.fromLTWH(0, 0, half.toDouble(), h.toDouble()),
+          paint,
+        )
+        ..drawImageRect(
+          image,
+          Rect.fromLTWH(
+            half.toDouble(),
+            0,
+            (w - half).toDouble(),
+            h.toDouble(),
+          ),
+          Rect.fromLTWH(
+            (half + gap).toDouble(),
+            0,
+            (w - half).toDouble(),
+            h.toDouble(),
+          ),
+          paint,
+        );
+      final out = await recorder.endRecording().toImage(w + gap, h);
+      final png = await out.toByteData(format: ui.ImageByteFormat.png);
+      return png == null ? sheet : png.buffer.asUint8List();
+    } on Object {
+      return sheet;
+    }
+  }
+
+  /// "Open in 3D Designer" (task 9.116): the AI design [picture] read for
+  /// the editable 3D kit, as the website's /ai/designs/read (one cheap call).
+  Future<DesignReading> readDesign(
+    Uint8List picture, {
+    required String sport,
+    required String garment,
+  }) async {
+    final positions = sportNamed(sport)?.positions ?? const <String>[];
+    final list = [
+      for (final e in DesignReading.garments.entries) '${e.key}: ${e.value.$2}',
+    ].join('; ');
+    final lettersRule = positions.isEmpty
+        ? ''
+        : ' This sport shows playing position letters '
+              '(${positions.join(', ')}) instead of names and numbers.';
+    final text =
+        'This picture is an AI design of a ${sportForAi(sport)} garment (the '
+        'client asked for: $garment). Read it so the same design can be put '
+        'on our editable 3D garment.\nOur 3D garments: $list.\n'
+        'Choose the nearest of them to the main garment in the picture; when '
+        'the picture shows something we have no model of, choose the closest '
+        'and set exact to false. Take the colours exactly as they look in the '
+        "picture (not from the brief): the body's main colour, the second "
+        'colour of its panels and graphics, and the accent colour of its '
+        'lettering and trims. Read every text exactly as written. 3DEEZI is '
+        'our brand and never the team name.$lettersRule';
+    Map<String, Object> str(String d) => {'type': 'string', 'description': d};
+    Map<String, Object> number(String d) => {
+      'type': 'number',
+      'description': d,
+    };
+    final json = await _post('/responses', {
+      'model': textModel,
+      'input': [
+        {'role': 'system', 'content': _system},
+        {
+          'role': 'user',
+          'content': _content(text, [picture]),
+        },
+      ],
+      'text': {
+        'format': {
+          'type': 'json_schema',
+          'name': 'design_for_3d',
+          'strict': true,
+          'schema': {
+            'type': 'object',
+            'additionalProperties': false,
+            'required': [
+              'seen',
+              'garment',
+              'exact',
+              'hood',
+              'mainColor',
+              'secondaryColor',
+              'accentColor',
+              'pattern',
+              'patternMotif',
+              'teamName',
+              'nameOnFront',
+              'backName',
+              'number',
+              'positionLetters',
+              'crest',
+            ],
+            'properties': {
+              'seen': str(
+                'The garment in the picture in 1-3 words, e.g. "netball '
+                'dress", "soccer jersey".',
+              ),
+              'garment': {
+                'type': 'string',
+                'enum': DesignReading.garments.keys.toList(),
+                'description': 'The nearest of our 3D garments.',
+              },
+              'exact': {
+                'type': 'boolean',
+                'description':
+                    "True when the picture's garment is that kind of "
+                    'garment, false when it is only the closest.',
+              },
+              'hood': {
+                'type': 'boolean',
+                'description': 'True when the garment has a hood.',
+              },
+              'mainColor': str(
+                "Hex of the body's main colour as seen, e.g. #0B6E3A.",
+              ),
+              'secondaryColor': str(
+                'Hex of the second colour (panels, graphics, stripes) as '
+                'seen.',
+              ),
+              'accentColor': str(
+                'Hex of the lettering and trims as seen; contrasts the main '
+                'colour.',
+              ),
+              'pattern': {
+                'type': 'string',
+                'enum': designPatterns,
+                'description':
+                    'The nearest of these patterns: Velocity (sweeping or '
+                    'flowing graphics, swirls, streaks), Chevron, Stripes '
+                    '(stripes or hoops), Solid (only a plain body with no '
+                    'graphics).',
+              },
+              'patternMotif': str(
+                "The body's signature print as a black-and-white pattern "
+                'description, max 20 words, no colours; empty when plain.',
+              ),
+              'teamName': str(
+                'The team or club name written on the garment (chest '
+                'wordmark or back), exactly; empty if none. Never 3DEEZI.',
+              ),
+              'nameOnFront': {
+                'type': 'boolean',
+                'description':
+                    'True when the team name is written across the front of '
+                    'the garment (not only on the back).',
+              },
+              'backName': str(
+                'The name on the back, exactly; empty if none. Never 3DEEZI.',
+              ),
+              'number': str(
+                'The player number on the back, digits only; empty if none.',
+              ),
+              'positionLetters': str(
+                'Playing position letters shown large (e.g. GS); empty if '
+                'none.',
+              ),
+              'crest': {
+                'type': 'object',
+                'additionalProperties': false,
+                'required': ['found', 'x0', 'y0', 'x1', 'y1'],
+                'description':
+                    'The club symbol (crest or logo) on the chest of the '
+                    "front view, as a box in fractions of the picture's "
+                    'width and height (0 = left/top, 1 = right/bottom).',
+                'properties': {
+                  'found': {
+                    'type': 'boolean',
+                    'description':
+                        'True when the front shows a club symbol on the '
+                        'chest.',
+                  },
+                  'x0': number('Left edge.'),
+                  'y0': number('Top edge.'),
+                  'x1': number('Right edge.'),
+                  'y1': number('Bottom edge.'),
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    final out = jsonDecode(_outputText(json));
+    if (out is! Map<String, dynamic>) {
+      throw AiException('The AI could not read this design. Please try again.');
+    }
+    return DesignReading.fromJson(out, sport: sport, asked: garment);
   }
 
   /// "Ask 3DEEZI to change anything": applies a plain-language request to
@@ -1282,7 +1671,11 @@ class AiService {
     'Keep the garment design EXACTLY as in the image: the same colours, panel layout, pattern, '
     // A kit without a number (netball) gets none added.
     'collar and trims, and the same ${back ? ((number ?? '').isNotEmpty ? 'back name and number' : 'back lettering') : 'chest wordmark and crest'} '
-    '(the wordmark reads exactly "$logoText"${back && (number ?? '').isNotEmpty ? ' and the number reads "$number"' : back ? ', with no number' : ''}). '
+    '(the wordmark reads exactly "$logoText"${back && (number ?? '').isNotEmpty
+        ? ' and the number reads "$number"'
+        : back
+        ? ', with no number'
+        : ''}). '
     'Do not add, remove or change any text, logos or graphics. Make the fabric photoreal: fine knit '
     'and mesh texture, natural folds and drape, flatlock stitching, slight sheen on the print. '
     'Professional lighting with realistic shadows, ultra-detailed, no watermark, no UI.',

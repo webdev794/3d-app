@@ -9,6 +9,7 @@ import '../widgets/site_page_stub.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/ui.dart';
 import 'business.dart';
+import 'edit_profile.dart';
 import 'image_editor.dart';
 import 'onboarding.dart' show editServer;
 import 'team.dart' show TeamScreen;
@@ -594,8 +595,12 @@ class ProfileScreen extends StatelessWidget {
     onTap: tap,
   );
 
+  // StatefulBuilder: Profile shows the new name and email after Edit profile.
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) =>
+      StatefulBuilder(builder: (context, refresh) => _build(context, refresh));
+
+  Widget _build(BuildContext context, StateSetter refresh) => Column(
     children: [
       TopBar(title: 'Profile', trailing: [NotificationBell(c)]),
       Expanded(
@@ -635,6 +640,16 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             _SyncCard(c),
+            // Edit profile (as the website's account menu): name, email, password.
+            if (c.signedIn) ...[
+              const SizedBox(height: 12),
+              _row(Icons.manage_accounts_outlined, 'Edit profile', () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => EditProfileScreen(c)),
+                );
+                refresh(() {});
+              }),
+            ],
             const SizedBox(height: 26),
             SurfaceCard(
               child: Row(

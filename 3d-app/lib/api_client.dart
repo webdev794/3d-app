@@ -111,6 +111,32 @@ class ApiClient {
   Future<ApiUser> login({required String email, required String password}) =>
       _signIn('/auth/login', {'email': email, 'password': password});
 
+  /// "Forgot password?": emails a 6-digit code (15 minutes). The answer is
+  /// the same whether or not an account uses [email].
+  Future<String> sendLoginCode(String email) async {
+    final data = await _send('POST', '/auth/code', body: {'email': email});
+    return (data as Map<String, dynamic>)['message'] as String? ?? '';
+  }
+
+  /// Signs in with the emailed code.
+  Future<ApiUser> loginWithCode({
+    required String email,
+    required String code,
+  }) => _signIn('/auth/code/login', {'email': email, 'code': code});
+
+  /// Sets a new password with the emailed code, then signs in.
+  Future<ApiUser> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+    required String passwordConfirmation,
+  }) => _signIn('/auth/code/reset', {
+    'email': email,
+    'code': code,
+    'password': password,
+    'password_confirmation': passwordConfirmation,
+  });
+
   Future<ApiUser> _signIn(String path, Map<String, dynamic> body) async {
     final data = await _send(
       'POST',
@@ -126,6 +152,31 @@ class ApiClient {
 
   Future<ApiUser> me() async =>
       ApiUser.fromJson(await _send('GET', '/auth/me') as Map<String, dynamic>);
+
+  /// Edit profile (as the website's /profile/edit): the name, and with the
+  /// current password a new email address and/or password. A new password
+  /// signs the account out on its other devices; this one stays signed in.
+  Future<ApiUser> updateProfile({
+    required String name,
+    String? email,
+    String? password,
+    String? passwordConfirmation,
+    String? currentPassword,
+  }) async => ApiUser.fromJson(
+    await _send(
+          'PATCH',
+          '/auth/me',
+          body: {
+            'name': name,
+            if (email != null) 'email': email,
+            if (password != null) 'password': password,
+            if (password != null)
+              'password_confirmation': passwordConfirmation ?? '',
+            if (currentPassword != null) 'current_password': currentPassword,
+          },
+        )
+        as Map<String, dynamic>,
+  );
 
   /// Revokes the token on the server; signing out locally never fails.
   Future<void> logout() async {
@@ -202,7 +253,11 @@ class ApiClient {
   /// Marks these notifications read (all of them without [ids]); returns the
   /// unread count left, or null when the server does not say.
   Future<int?> readNotifications({List<String>? ids}) async {
-    final r = await _send('POST', '/notifications/read', body: ids == null ? const {} : {'ids': ids});
+    final r = await _send(
+      'POST',
+      '/notifications/read',
+      body: ids == null ? const {} : {'ids': ids},
+    );
     return r is Map ? (r['unread'] as num?)?.toInt() : null;
   }
 
@@ -322,11 +377,18 @@ class ApiClient {
 
   /// A file kept with one of my orders (an order form, artwork, a proof).
   Future<Uint8List> downloadOrderFile(int id) async {
-    final request = http.Request('GET', Uri.parse('$baseUrl/api/v1/order-files/$id'))
-      ..headers.addAll({if (token != null) 'Authorization': 'Bearer $token'});
-    final response = await http.Response.fromStream(await _client.send(request));
+    final request = http.Request(
+      'GET',
+      Uri.parse('$baseUrl/api/v1/order-files/$id'),
+    )..headers.addAll({if (token != null) 'Authorization': 'Bearer $token'});
+    final response = await http.Response.fromStream(
+      await _client.send(request),
+    );
     if (response.statusCode != 200) {
-      throw ApiException('That file could not be downloaded.', status: response.statusCode);
+      throw ApiException(
+        'That file could not be downloaded.',
+        status: response.statusCode,
+      );
     }
     return response.bodyBytes;
   }
@@ -780,8 +842,11 @@ class ApiClient {
 
   static String _message(int status, Object? json) {
     if (status == 401) return 'Your session has expired. Please sign in again.';
-    if (status == 429) return 'Too many attempts. Wait a minute and try again.';
     if (json is Map<String, dynamic>) {
+      // A 429 from the throttle has no field errors: the general line.
+      if (status == 429 && json['errors'] is! Map) {
+        return 'Too many attempts. Wait a minute and try again.';
+      }
       final errors = json['errors'];
       if (errors is Map && errors.isNotEmpty) {
         final first = errors.values.first;
@@ -790,6 +855,7 @@ class ApiClient {
       final message = json['message'];
       if (message is String && message.isNotEmpty) return message;
     }
+    if (status == 429) return 'Too many attempts. Wait a minute and try again.';
     if (status == 413) return _tooLarge;
     return 'The server could not complete the request (HTTP $status).';
   }

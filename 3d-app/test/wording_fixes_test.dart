@@ -26,7 +26,9 @@ Future<void> _show(WidgetTester tester, Widget child) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
-    MaterialApp(home: Scaffold(body: SingleChildScrollView(child: child))),
+    MaterialApp(
+      home: Scaffold(body: SingleChildScrollView(child: child)),
+    ),
   );
   await tester.pumpAndSettle();
 }
@@ -236,7 +238,10 @@ void main() {
     ) async {
       final c = AppController(store: FakeStore());
       addTearDown(c.dispose);
-      c.projects.removeRange(1, c.projects.length); // the first sample is an AI design
+      c.projects.removeRange(
+        1,
+        c.projects.length,
+      ); // the first sample is an AI design
       await _show(tester, SizedBox(height: 1400, child: ProfileScreen(c)));
       expect(find.text('Project'), findsOneWidget);
       expect(find.text('AI design'), findsOneWidget);
@@ -288,13 +293,15 @@ void main() {
         ),
       );
       addTearDown(c.dispose);
-      c.checkLayout = (src, name, asset, {drawing = false, garment}) async => {
-        'roles': ['front'],
-        'panels': [
-          {'role': 'front'},
-        ],
-        'parts': ['tee'],
-      };
+      c.checkLayout =
+          (src, name, asset, {drawing = false, garment, known = false}) async =>
+              {
+                'roles': ['front'],
+                'panels': [
+                  {'role': 'front'},
+                ],
+                'parts': ['tee'],
+              };
       expect(
         await c.importPrintLayout('club.pdf', Uint8List(8)),
         'Print layout on the 3D kit: 1 panel from club.pdf. Save the project to keep it.',
@@ -321,7 +328,11 @@ void main() {
             ),
           );
           expect(_pills(tester), [sub], reason: stage);
-          expect(find.text(stageLabel), stageLabel == sub ? findsWidgets : findsNothing, reason: stage);
+          expect(
+            find.text(stageLabel),
+            stageLabel == sub ? findsWidgets : findsNothing,
+            reason: stage,
+          );
           expect(tester.takeException(), isNull);
         }
       },

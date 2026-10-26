@@ -4,6 +4,28 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## Account menu and Edit profile (2026-10-26)
+1. Signed in: no DASHBOARD in the top bar; your letter circle sits next to the bell.
+2. Click the circle: your name and email, then Dashboard, My profile, Edit profile, Sign out; each opens its page.
+3. Admin: the shield next to the bell still opens the Admin panel.
+4. Phone: the circle's menu fits the screen; ☰ has an "Account" group with the same four.
+5. Edit profile: change your name › Save: a green message; the letter updates. Changing the email or password asks for your current password; a wrong one is refused.
+6. After a new password, sign out and sign in with it; the old one no longer works.
+7. App: Profile › Edit profile does the same.
+
+---
+
+## Forgot password with an emailed code (2026-10-26; live needs its mail settings)
+1. Sign-in window: a "Forgot password?" link under the password (not on Create account).
+2. Click it › SEND CODE: "If an account uses this email address, we have sent it a 6-digit code…"; the email arrives (check spam).
+3. A wrong code says it's not correct; the right code › SIGN IN signs you in.
+4. Sign out, again › "Set a new password": code + new password twice › SAVE AND SIGN IN: signed in; the old password no longer works.
+5. An email with no account gets the same message and no email.
+6. "Send a new code" waits 60 seconds; the old code stops working.
+7. App: Sign In › "Forgot password?" › the same.
+
+---
+
 ## "Made by" on Upload Your Order (2026-10-26)
 1. Orders › Upload Your Order: fill section 1 and upload a form. In section 3, "Made by" shows "3DEEZI (default)"; choose Mantis: Review order shows "Made by Mantis". Approve: My Orders and Admin › Orders say Made by Mantis.
 2. App › Orders › UPLOAD YOUR ORDER: the same.

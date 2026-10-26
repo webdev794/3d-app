@@ -722,12 +722,66 @@ class OpenAiDesigner
             $images[] = $this->decodeDataUrl($reference);
         }
 
-        return $this->highFidelityEdit(self::printSheetPrompt($sport, $garment, count($images) - 1, $frontOnly), $images, [
+        return self::separateHalves($this->highFidelityEdit(self::printSheetPrompt($sport, $garment, count($images) - 1, $frontOnly), $images, [
             'size' => '1536x1024',
             'quality' => 'high',
             'output_format' => 'jpeg',
             'output_compression' => '95',
-        ]);
+        ]));
+    }
+
+    /**
+     * A print sheet whose front and back touch (task 9.116: the image model sometimes draws the sleeves overlapping, and
+     * the 3D check then reads both as one garment, half front and half back): cut at the middle, where the prompt puts
+     * the gap, and moved apart with white between. A sheet with a clear gap, or one that cannot be read, is kept as is.
+     */
+    public static function separateHalves(string $jpeg): string
+    {
+        if (! function_exists('imagecreatefromstring')) {
+            return $jpeg;
+        }
+        $image = @imagecreatefromstring($jpeg);
+        if (! $image) {
+            return $jpeg;
+        }
+        $w = imagesx($image);
+        $h = imagesy($image);
+        if ($w < 64 || $h < 64) {
+            imagedestroy($image);
+
+            return $jpeg;
+        }
+        $white = function (int $x) use ($image, $h): bool {
+            for ($y = 0; $y < $h; $y += 3) {
+                $c = imagecolorat($image, $x, $y);
+                if ((($c >> 16) & 255) < 225 || (($c >> 8) & 255) < 225 || ($c & 255) < 225) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+        // A white column near the middle: the two are apart already.
+        for ($x = (int) ($w * 0.38); $x <= (int) ($w * 0.62); $x += 2) {
+            if ($white($x)) {
+                imagedestroy($image);
+
+                return $jpeg;
+            }
+        }
+        $gap = (int) round($w * 0.08);
+        $half = intdiv($w, 2);
+        $out = imagecreatetruecolor($w + $gap, $h);
+        imagefill($out, 0, 0, imagecolorallocate($out, 255, 255, 255));
+        imagecopy($out, $image, 0, 0, 0, 0, $half, $h);
+        imagecopy($out, $image, $half + $gap, 0, $half, 0, $w - $half, $h);
+        ob_start();
+        imagejpeg($out, null, 95);
+        $bytes = (string) ob_get_clean();
+        imagedestroy($image);
+        imagedestroy($out);
+
+        return $bytes !== '' ? $bytes : $jpeg;
     }
 
     public static function printSheetPrompt(string $sport, string $garment, int $logos = 0, bool $frontOnly = false): string
@@ -740,7 +794,7 @@ class OpenAiDesigner
         return "The first attached image shows a {$sport} {$garment} design. Redraw exactly the same design as a flat print artwork sheet for the factory: "
             .($frontOnly ? "The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the small 3DEEZI word mark just under the collar, {$back}). " : '')
             .'the garment\'s front on the left and its back on the right, side by side, both complete and the same size, drawn flat and straight-on like a technical flat drawing, '
-            .'on a plain pure white background with clear white space around and between them. '
+            .'on a plain pure white background with clear white space around and between them: a wide white gap between the front and the back, so their sleeves and edges never touch or overlap. '
             .'No mannequin, no person, no folds, no perspective, no lighting effects, no shadows, no scene. '
             .'Keep the design exactly: the same colours, graphics, gradients, lettering, logos, numbers and trims, in the same places and proportions, and the same garment shape (neck, armholes or sleeves, hem). '
             .($logos ? "The other {$logos} attached image(s) are the client's logos: reproduce them faithfully where the design shows them. " : '')
@@ -1007,6 +1061,166 @@ class OpenAiDesigner
                 'number' => mb_substr(preg_replace('/\D/', '', $s['number']), 0, 3),
                 'patternColor' => $this->mix($main, $secondary, 0.55),
                 'patternBody' => 0.08,
+            ],
+        ];
+    }
+
+    /**
+     * Our 3D garments an AI picture can open on (task 9.116), each with what it stands for, so the nearest one is
+     * chosen for a garment we have no 3D model of (a netball dress is a singlet, a long-sleeve top a tee).
+     */
+    public const READ_GARMENTS = [
+        'jersey' => 'short-sleeve sports jersey (rugby, soccer, league, cricket shirts)',
+        'polo' => 'polo shirt with a collar and buttons',
+        'pocketpolo' => 'polo shirt with a chest pocket (pool, darts)',
+        'singlet' => 'anything sleeveless: singlets, tanks, netball dresses and bibs, basketball tops, AFL guernseys',
+        'tee' => 'training t-shirt or other crew-neck top, also long-sleeve tops',
+        'hoodie' => 'pull-over hoodie',
+        'ziphoodie' => 'full-zip hoodie',
+        'varsity' => 'varsity or letterman jacket',
+        'trackjacket' => 'full-zip track jacket or tracksuit top (with a stand-up collar or a hood)',
+        'shorts' => 'shorts alone',
+        'fullkit' => 'a top and shorts shown together as one kit',
+    ];
+
+    /**
+     * "Open in 3D Designer" (task 9.116, client 2026-10-23 and 2026-10-26): reads an AI design picture for the editable
+     * 3D kit. One cheap planning call gives the nearest 3D garment we have (never a refusal: when the picture shows a
+     * garment we have no model of, the closest one, with `exact` false), the picture's own colours, the nearest pattern,
+     * the team name, the back name and number (netball: the position letters instead) and where the club symbol is.
+     *
+     * @return array{garment: string, seen: string, exact: bool, hood: bool, motif: ?string, crest: ?array{x: float, y: float, w: float, h: float}, design: array<string, mixed>}
+     */
+    public function readDesign(string $image, string $sport, string $asked): array
+    {
+        $m = self::sportMarkings($sport);
+        $garments = implode('; ', array_map(fn ($id, $what) => "{$id}: {$what}", array_keys(self::READ_GARMENTS), self::READ_GARMENTS));
+        $string = fn (string $d) => ['type' => 'string', 'description' => $d];
+        $number = fn (string $d) => ['type' => 'number', 'description' => $d];
+        $text = "This picture is an AI design of a {$sport} garment (the client asked for: {$asked}). Read it so the same design can be put on our editable 3D garment.\n"
+            ."Our 3D garments: {$garments}.\n"
+            .'Choose the nearest of them to the main garment in the picture; when the picture shows something we have no model of, choose the closest and set exact to false. '
+            .'Take the colours exactly as they look in the picture (not from the brief): the body\'s main colour, the second colour of its panels and graphics, and the accent colour of its lettering and trims. '
+            .'Read every text exactly as written. 3DEEZI is our brand and never the team name.'
+            .($m['positions'] ? ' This sport shows playing position letters ('.implode(', ', $m['positions']).') instead of names and numbers.' : '');
+        $json = $this->post('/responses', [
+            'model' => self::planningModel(),
+            'input' => [
+                ['role' => 'system', 'content' => self::SYSTEM],
+                ['role' => 'user', 'content' => [
+                    ['type' => 'input_text', 'text' => $text],
+                    ['type' => 'input_image', 'image_url' => $image],
+                ]],
+            ],
+            'text' => ['format' => ['type' => 'json_schema', 'name' => 'design_for_3d', 'strict' => true, 'schema' => [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'required' => ['seen', 'garment', 'exact', 'hood', 'mainColor', 'secondaryColor', 'accentColor', 'pattern', 'patternMotif', 'teamName', 'nameOnFront', 'backName', 'number', 'positionLetters', 'crest'],
+                'properties' => [
+                    'seen' => $string('The garment in the picture in 1-3 words, e.g. "netball dress", "soccer jersey".'),
+                    'garment' => ['type' => 'string', 'enum' => array_keys(self::READ_GARMENTS), 'description' => 'The nearest of our 3D garments.'],
+                    'exact' => ['type' => 'boolean', 'description' => 'True when the picture\'s garment is that kind of garment, false when it is only the closest.'],
+                    'hood' => ['type' => 'boolean', 'description' => 'True when the garment has a hood.'],
+                    'mainColor' => $string('Hex of the body\'s main colour as seen, e.g. #0B6E3A.'),
+                    'secondaryColor' => $string('Hex of the second colour (panels, graphics, stripes) as seen.'),
+                    'accentColor' => $string('Hex of the lettering and trims as seen; contrasts the main colour.'),
+                    'pattern' => ['type' => 'string', 'enum' => self::PATTERNS, 'description' => 'The nearest of these patterns: Velocity (sweeping or flowing graphics, swirls, streaks), Chevron, Stripes (stripes or hoops), Solid (only a plain body with no graphics).'],
+                    'patternMotif' => $string('The body\'s signature print as a black-and-white pattern description, max 20 words, no colours; empty when plain.'),
+                    'teamName' => $string('The team or club name written on the garment (chest wordmark or back), exactly; empty if none. Never 3DEEZI.'),
+                    'nameOnFront' => ['type' => 'boolean', 'description' => 'True when the team name is written across the front of the garment (not only on the back).'],
+                    'backName' => $string('The name on the back, exactly; empty if none. Never 3DEEZI.'),
+                    'number' => $string('The player number on the back, digits only; empty if none.'),
+                    'positionLetters' => $string('Playing position letters shown large (e.g. GS); empty if none.'),
+                    'crest' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['found', 'x0', 'y0', 'x1', 'y1'], 'description' => 'The club symbol (crest or logo) on the chest of the front view, as a box in fractions of the picture\'s width and height (0 = left/top, 1 = right/bottom).', 'properties' => [
+                        'found' => ['type' => 'boolean', 'description' => 'True when the front shows a club symbol on the chest.'],
+                        'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.'),
+                    ]],
+                ],
+            ]]],
+        ], 60);
+        $s = json_decode($this->outputText($json), true);
+        if (! is_array($s)) {
+            throw new RuntimeException('The AI could not read this design. Please try again.');
+        }
+
+        return self::designFromReading($s, $sport, $asked);
+    }
+
+    /**
+     * The 3D kit from a reading of the picture (readDesign): the garment it opens on, the colours, pattern and lettering.
+     * Netball's position letters go in the number's place and its back shows no name (the name mark is hidden).
+     */
+    public static function designFromReading(array $s, string $sport, string $asked = ''): array
+    {
+        $hex = function ($value, string $fallback) {
+            $v = ltrim(trim((string) $value), '#');
+
+            return preg_match('/^[0-9a-f]{6}$/i', $v) ? '#'.strtoupper($v) : $fallback;
+        };
+        $garment = array_key_exists($s['garment'] ?? '', self::READ_GARMENTS) ? $s['garment'] : (array_key_exists($asked, self::READ_GARMENTS) ? $asked : 'jersey');
+        $main = $hex($s['mainColor'] ?? '', '#0B1016');
+        $secondary = $hex($s['secondaryColor'] ?? '', '#04D9E8');
+        $mixed = sprintf('#%02X%02X%02X', ...array_map(fn ($a, $b) => (int) round($a + ($b - $a) * 0.55), sscanf($main, '#%02x%02x%02x'), sscanf($secondary, '#%02x%02x%02x')));
+        $clean = fn ($v) => mb_strtoupper(mb_substr(trim(preg_replace('/\b3\s?DEEZI\b/i', '', (string) $v)), 0, 20));
+        $m = self::sportMarkings($sport);
+        $team = $clean($s['teamName'] ?? '');
+        $letters = mb_substr(preg_replace('/[^A-Z]/', '', mb_strtoupper((string) ($s['positionLetters'] ?? ''))), 0, 3);
+        if ($m['positions'] && ! in_array($letters, $m['positions'], true)) {
+            $letters = $m['positions'][0];
+        }
+        $marks = [];
+        if ($m['positions']) {
+            // Netball: no names or numbers; the position letters in the number's place, no name above them.
+            $backName = '';
+            $num = $letters;
+            $marks['top_name'] = ['hidden' => true];
+        } else {
+            $backName = $m['names'] ? ($clean($s['backName'] ?? '') ?: $team) : '';
+            $num = $m['numbers'] ? mb_substr(preg_replace('/\D/', '', (string) ($s['number'] ?? '')), 0, 3) : '';
+            if ($m['numbers'] && $num === '') {
+                $num = '23';
+            }
+        }
+        // No team name on the picture's front: no chest wordmark (3DEEZI is never on the front, client 2026-10-26).
+        if ($team === '' || ($s['nameOnFront'] ?? true) === false) {
+            $marks['top_wordmark'] = ['hidden' => true];
+        }
+        $box = $s['crest'] ?? null;
+        $crest = null;
+        if (is_array($box) && ($box['found'] ?? false)) {
+            $x0 = max(0.0, min(1.0, (float) $box['x0']));
+            $y0 = max(0.0, min(1.0, (float) $box['y0']));
+            $x1 = max(0.0, min(1.0, (float) $box['x1']));
+            $y1 = max(0.0, min(1.0, (float) $box['y1']));
+            // A sensible crest only: not a speck, not half the picture.
+            if ($x1 - $x0 > 0.015 && $y1 - $y0 > 0.01 && $x1 - $x0 < 0.4 && $y1 - $y0 < 0.4) {
+                $crest = ['x' => $x0, 'y' => $y0, 'w' => $x1 - $x0, 'h' => $y1 - $y0];
+            }
+        }
+
+        return [
+            'garment' => $garment,
+            'seen' => mb_substr(trim((string) ($s['seen'] ?? '')), 0, 40),
+            'exact' => (bool) ($s['exact'] ?? true),
+            'hood' => (bool) ($s['hood'] ?? false),
+            'motif' => filled($s['patternMotif'] ?? null) ? mb_substr(trim((string) $s['patternMotif']), 0, 300) : null,
+            'crest' => $crest,
+            'design' => [
+                'garment' => $garment,
+                'main' => $main,
+                'secondary' => $secondary,
+                'accent' => $hex($s['accentColor'] ?? '', '#FFFFFF'),
+                // A picture with graphics is never a plain kit (the model often answers Solid for an all-over print).
+                'pattern' => in_array($s['pattern'] ?? null, self::PATTERNS, true) && ! ($s['pattern'] === 'Solid' && filled($s['patternMotif'] ?? null)) ? $s['pattern'] : 'Velocity',
+                'logoText' => $team !== '' ? $team : '3DEEZI',
+                'backName' => $backName,
+                'number' => $num,
+                'patternColor' => $mixed,
+                'patternBody' => 0.08,
+                ...($garment === 'trackjacket' ? ['trackStyle' => ($s['hood'] ?? false) ? 'hood' : 'collar'] : []),
+                ...($marks ? ['marks' => $marks] : []),
+                // Netball: the position letters large on the front too, below the crest (an editable text layer).
+                ...($m['positions'] ? ['layers' => [['id' => 'position-front', 'name' => 'Position letters', 'type' => 'text', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => 0.36, 'rot' => 0, 'text' => $letters, 'size' => 0.17, 'color' => $hex($s['accentColor'] ?? '', '#FFFFFF')]]] : []),
             ],
         ];
     }

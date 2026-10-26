@@ -1167,33 +1167,19 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     if (mounted) showToast(context, message);
   }
 
-  /// "Open in 3D Designer" (MAKE IT 3D): the primary drawn flat, front and
-  /// back, by the same AI, then on the 3D kit through the design-picture
-  /// check. Sample designs (no AI) open as editable kits.
+  /// "Open in 3D Designer" (task 9.116): the primary picture read first (one
+  /// cheap AI call) for the nearest 3D garment we have and its own colours,
+  /// pattern, symbol and lettering (netball: the position letters), opened
+  /// on that garment. A singlet, jersey, tee or polo then takes the picture
+  /// itself: the same AI draws it flat, front and back, and the design-picture
+  /// check puts it on as drawn. Never a refusal: the closest garment, with a
+  /// note saying so; any step that fails leaves the kit in the picture's
+  /// colours. Sample designs (no AI) open as editable kits.
   Future<void> _openIn3d() async {
     final index = _sel;
     final primary = c.concepts[index];
     final image = primary.image;
     if (image == null) return _open(index);
-    // A design picture goes on a singlet, jersey, tee or polo (with or
-    // without the pocket) only: a hoodie takes the design's colours, pattern
-    // and wordmark, with the first attached logo as its crest.
-    final onItself = c.aiGarment ?? c.garment;
-    if (isHoodie(onItself) || isVarsity(onItself) || isTrack(onItself)) {
-      _open(index);
-      if (c.logoImage == null && c.references.isNotEmpty) {
-        c.update(() => c.logoImage = c.references.first);
-      }
-      showToast(
-        context,
-        isTrack(onItself)
-            ? trackDesignNote
-            : isVarsity(onItself)
-            ? varsityDesignNote
-            : hoodieDesignNote,
-      );
-      return;
-    }
     // Kept for when this screen has gone (Back to create while drawing).
     final messenger = ScaffoldMessenger.of(context);
     void say(String text) => messenger.showSnackBar(
@@ -1203,7 +1189,66 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         backgroundColor: Palette.surface2,
       ),
     );
+    final run = c.resultsRun;
+    final asked = c.aiGarment ?? c.garment;
+    DesignReading? reading;
+    if (AiService.enabled) {
+      c.update(() => c.readingBusy = true);
+      try {
+        reading = await c.ai.readDesign(
+          image,
+          sport: primary.spec.sport,
+          garment: asked,
+        );
+      } on Object {
+        reading = null;
+      } finally {
+        c.update(() => c.readingBusy = false);
+      }
+      if (c.resultsRun != run || c.screen != AppScreen.concepts) return;
+    }
+    // Not read (no AI, or the reading failed): the design's own spec on the
+    // garment asked for, as before.
+    final garment = reading?.garment ?? asked;
+    var closest = '';
+    if (reading != null) {
+      final box = reading.crest;
+      final logo =
+          c.logoImage ??
+          (c.references.isNotEmpty ? c.references.first : null) ??
+          (box == null ? null : await cropCrest(image, box));
+      if (c.resultsRun != run || c.screen != AppScreen.concepts) return;
+      closest = reading.exact
+          ? ''
+          : 'Shown on our ${garment.toLowerCase()}: the closest 3D garment '
+                'to your ${reading.seen.isEmpty ? 'design' : reading.seen}. ';
+      c.artwork.add(image);
+      c.openReading(index, reading, logo: logo);
+      _printFor(reading.motif);
+    }
+    // A design picture goes on a singlet, jersey, tee or polo (with or
+    // without the pocket) only: other garments take the design's colours,
+    // pattern, symbol and lettering.
+    if (!DesignReading.drawn.contains(garment) &&
+        (reading != null ||
+            isHoodie(garment) ||
+            isVarsity(garment) ||
+            isTrack(garment))) {
+      if (reading == null) return _openOnGarment(index, garment);
+      say(
+        '$closest${closest.isEmpty ? 'Your ${garment.toLowerCase()} takes' : 'It takes'} '
+        'your design’s colours, pattern, symbol and lettering.',
+      );
+      return;
+    }
     if (!c.signedIn) {
+      if (reading != null) {
+        say(
+          '${closest}Sign in to put the picture itself on the 3D kit: the '
+          'print sheet is kept with your saved assets.',
+        );
+        return;
+      }
       say(
         'Sign in to make it 3D: the print sheet is kept with your saved '
         'assets.',
@@ -1214,14 +1259,27 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     c.mockupImage = image;
     final Uint8List sheet;
     try {
-      sheet = await c.mockupPrintSheet(frontOnly: primary.view == 'front');
+      sheet = await c.mockupPrintSheet(
+        frontOnly: primary.view == 'front',
+        garment: reading?.garment,
+      );
     } on AiException catch (e) {
-      if (c.screen == AppScreen.concepts) say('Make it 3D: ${e.message}');
+      if (reading != null) {
+        say(
+          '${closest}The flat print sheet could not be drawn (${e.message}), '
+          'so the kit takes your design’s colours, pattern, symbol and '
+          'lettering.',
+        );
+      } else if (c.screen == AppScreen.concepts) {
+        say('Make it 3D: ${e.message}');
+      }
       return;
     }
-    // Back to the brief (or a new Generate) meanwhile: the user stays where
-    // they went; the print sheet is kept in Artwork.
-    if (c.screen != AppScreen.concepts) {
+    // Back to the brief, a new Generate or another design opened meanwhile:
+    // the user stays where they went; the print sheet is kept in Artwork.
+    if (reading == null
+        ? c.screen != AppScreen.concepts
+        : c.screen != AppScreen.studio || c.selectedConcept != index) {
       say('Your print sheet is ready in Assets › Artwork.');
       return;
     }
@@ -1230,15 +1288,59 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
     try {
-      final done = await c.importDesignPicture('ai-print-sheet.jpg', sheet);
-      if (done != null) say(done);
+      // A sheet moved apart (AiService.separateHalves) is a PNG.
+      final done = await c.importDesignPicture(
+        sheet.length > 4 && sheet[0] == 0x89
+            ? 'ai-print-sheet.png'
+            : 'ai-print-sheet.jpg',
+        sheet,
+        known: reading != null,
+      );
+      if (done != null) say('$closest$done');
     } on Object catch (e) {
       say(
-        e is ApiException
+        reading != null
+            ? '${closest}The picture itself could not go on the 3D kit '
+                  '(${e is ApiException ? e.message : 'it was not read'}), so '
+                  'the kit takes your design’s colours, pattern, symbol '
+                  'and lettering.'
+            : e is ApiException
             ? e.message
             : 'The print sheet could not go on the 3D kit.',
       );
     }
+  }
+
+  /// The design's spec on [garment] (the picture could not be read): a
+  /// hoodie or jacket takes the first attached logo as its crest.
+  void _openOnGarment(int index, String garment) {
+    _open(index);
+    if (c.logoImage == null && c.references.isNotEmpty) {
+      c.update(() => c.logoImage = c.references.first);
+    }
+    if (isHoodie(garment) || isVarsity(garment) || isTrack(garment)) {
+      showToast(
+        context,
+        isTrack(garment)
+            ? trackDesignNote
+            : isVarsity(garment)
+            ? varsityDesignNote
+            : hoodieDesignNote,
+      );
+    }
+  }
+
+  /// The 3D kit's print pattern from the picture's motif, in the background
+  /// (a design picture put on meanwhile stays as drawn, without it).
+  void _printFor(String motif) {
+    if (!AiService.enabled || motif.isEmpty) return;
+    final spec = c.spec;
+    c.ai.generatePattern(motif).then((tile) {
+      c.aiPatterns.add(tile);
+      if (identical(c.spec, spec) && c.layout?['kind'] != 'drawing') {
+        c.update(() => c.patternTile = tile);
+      }
+    }, onError: (_) {});
   }
 
   void _backToCreate() {
@@ -1908,12 +2010,17 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
                     children: [
                       Expanded(
                         child: GradientButton(
-                          label: c.sheetBusy
+                          label: c.readingBusy
+                              ? 'Reading your design…'
+                              : c.sheetBusy
                               ? 'Drawing the print sheet…'
                               : 'Open in 3D Designer',
                           icon: Icons.view_in_ar_outlined,
                           onPressed:
-                              primary == null || c.sheetBusy || !hasPicture
+                              primary == null ||
+                                  c.sheetBusy ||
+                                  c.readingBusy ||
+                                  !hasPicture
                               ? null
                               : _openIn3d,
                         ),
@@ -2150,3 +2257,41 @@ const trackDesignNote =
 const hoodieDesignNote =
     'Hoodies take your design’s colours and logo; full print designs on '
     'hoodies are coming.';
+
+/// The club symbol cut from an AI picture ([box] in fractions of it, with a
+/// little margin), as a small PNG for the 3D kit's chest (task 9.116).
+Future<Uint8List?> cropCrest(Uint8List picture, Rect box) async {
+  try {
+    final codec = await ui.instantiateImageCodec(picture);
+    final image = (await codec.getNextFrame()).image;
+    final w = image.width.toDouble(), h = image.height.toDouble();
+    const pad = 0.12;
+    final src = Rect.fromLTRB(
+      math.max(0, (box.left - box.width * pad) * w),
+      math.max(0, (box.top - box.height * pad) * h),
+      math.min(w, (box.right + box.width * pad) * w),
+      math.min(h, (box.bottom + box.height * pad) * h),
+    );
+    if (src.width < 8 || src.height < 8) return null;
+    final k = math.min(1.0, 320 / math.max(src.width, src.height));
+    final out = Size(
+      (src.width * k).roundToDouble(),
+      (src.height * k).roundToDouble(),
+    );
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawImageRect(
+      image,
+      src,
+      Offset.zero & out,
+      Paint()..filterQuality = FilterQuality.high,
+    );
+    final crest = await recorder.endRecording().toImage(
+      out.width.toInt(),
+      out.height.toInt(),
+    );
+    final data = await crest.toByteData(format: ui.ImageByteFormat.png);
+    return data?.buffer.asUint8List();
+  } on Object {
+    return null;
+  }
+}

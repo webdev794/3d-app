@@ -16,12 +16,19 @@ Tasks given today and on the last working day come first; older ones after.
 - Today's upload file is ready: `D:\3d-app\deploy-zips\3deez-update-2026-10-26-a.tar.gz` (398 files, 11 MB, code only, viewer -26 with the new look as the default, Artboard 2026-10-26-3).
   - After extracting: `php artisan optimize:clear`.
   - The suppliers tables set themselves up on first use on live, so no other command is needed.
-- Pushed to v2 = 28bd680 (2026-10-26 11:50, user asked).
+- Pushed to v2 = 8963f9a (2026-10-26 12:00, user asked). Upload file: D:\3d-app\deploy-zips\3deez-update-2026-10-26-b.tar.gz (includes -a).
 - Local database got the suppliers update (user OK; backup database-before-suppliers-2026-10-26.sqlite).
-- RUNNING: MB1 a22ea0736d169da65, "Made by" on Upload Your Order (website + app; questions.md 2c). When it's done, pack 2026-10-26-b (copy SP/final-pack-1026a.sh) and push to v2 again (the user asked for both today). Then the next tasks start.
+- MB1 done: "Made by" on Upload Your Order (website + app). Next tasks start now (user). Next pack script: copy SP/final-pack-1026b.sh with letter c.
+
+## Running
+| Agent | Task | Notes |
+|---|---|---|
+| UM1 a1712eada4aaa6a83 | 9.124 account menu: Dashboard out of the menu bar; the letter circle opens Dashboard / My profile / Edit profile / Sign out; Edit profile page; app Profile gets Edit profile (images/179.png) | Started 2026-10-26 |
+| (done) RP1 ac70e1006ffdfa538 | 9.125 forgot password: emailed 6-digit code, sign in with the code or set a new password; website + app (images/180.png) | No real emails in tests; live needs mail settings |
+| AI3D ad0d30b5e059000b3 | 9.116, PARKED at 90% (user: latest tasks first); resume from SP\AI3D\checkpoint.md | Up to about US$1 of AI checks; website + app (+ viewer if needed: letters in the number slot) |
 
 ## Next, in order
-1. **tasks.md 9.116 (client, given 2026-10-23): AI designer › "Open in 3D designer"** picks the nearest 3D model and carries the whole AI design onto it: the AI picture's colours, the chest symbol and, for netball, the position letters (the 3D falls back to the team name / "3DEEZI" today).
+1. **tasks.md 9.116 (client, given 2026-10-23; RUNNING, AI3D): AI designer › "Open in 3D designer"** picks the nearest 3D model and carries the whole AI design onto it: the AI picture's colours, the chest symbol and, for netball, the position letters (the 3D falls back to the team name / "3DEEZI" today).
 2. **One full test round** (the user wanted it after the 3D work):
    - the app preview 30-visit check;
    - QA U's leftovers (SP\QAU\results.md);

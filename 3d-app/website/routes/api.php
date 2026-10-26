@@ -40,6 +40,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     // The Support page's contact form (/support): open to visitors; saved for Admin > Support and emailed to the team.
     Route::post('/support', [SupportMessageController::class, 'store'])->middleware('throttle:auth');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
+    // "Forgot password?": a 6-digit code by email, then sign in with it or set a new password (LoginCodeController).
+    Route::post('/auth/code', [\App\Http\Controllers\LoginCodeController::class, 'send'])->middleware('throttle:auth');
+    Route::post('/auth/code/login', [\App\Http\Controllers\LoginCodeController::class, 'login'])->middleware('throttle:auth');
+    Route::post('/auth/code/reset', [\App\Http\Controllers\LoginCodeController::class, 'reset'])->middleware('throttle:auth');
     // 3DEEZI ASSIST, the help chat on every page: open to visitors too.
     Route::post('/assist', [AssistController::class, 'chat'])->middleware('throttle:assist');
     // 3DEEZI Orders: the order forms' choices, and "Help me add sizes" (open to visitors, who fill the form before signing in).
@@ -48,7 +52,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
-        Route::patch('/auth/me', [AuthController::class, 'update']);
+        Route::patch('/auth/me', [AuthController::class, 'update'])->middleware('throttle:auth');
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/dashboard', [ProjectController::class, 'dashboard']);
         Route::get('/projects/{project}/versions', [ProjectController::class, 'versions'])->whereNumber('project');
@@ -73,6 +77,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/ai/designs', [AiController::class, 'designs'])->middleware('throttle:concepts');
         Route::post('/ai/designs/render', [AiController::class, 'renderDesign'])->middleware('throttle:concepts');
         Route::post('/ai/print-sheet', [AiController::class, 'printSheet'])->middleware('throttle:concepts');
+        Route::post('/ai/designs/read', [AiController::class, 'readDesign'])->middleware('throttle:concepts');
         Route::post('/ai/edit', [AiController::class, 'edit'])->middleware('throttle:concepts');
         Route::post('/ai/image-edit', [AiController::class, 'imageEdit'])->middleware('throttle:concepts');
         Route::post('/ai/convert', [AiController::class, 'convert'])->middleware('throttle:concepts');

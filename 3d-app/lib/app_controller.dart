@@ -10,6 +10,7 @@ import 'design_document.dart';
 import 'project_store.dart';
 import 'project_sync.dart';
 import 'session_store.dart';
+import 'sports_catalog.dart';
 
 /// The screens of the client's "Complete App Flow", in order.
 enum AppScreen {
@@ -195,6 +196,9 @@ class AppController extends ChangeNotifier {
   /// 2026-10-21); any design can be made HD later from its menu.
   bool wantMockup = false, mockupBusy = false, sheetBusy = false;
 
+  /// Open in 3D Designer is reading the AI picture (task 9.116).
+  bool readingBusy = false;
+
   /// The AI designer's current Generate: a new brief or Back to create ends
   /// it, so late pictures from an older brief are dropped.
   int resultsRun = 0;
@@ -261,6 +265,7 @@ class AppController extends ChangeNotifier {
     int asset, {
     bool drawing,
     String? garment,
+    bool known,
   })?
   checkLayout;
 
@@ -467,7 +472,14 @@ class AppController extends ChangeNotifier {
   /// PNG, JPG, WebP, PDF or SVG), kept with the saved assets, checked in the
   /// 3D view, then on the kit exactly as drawn (a singlet) as one undo step.
   /// Answers what to tell the user, or null when the check was cancelled.
-  Future<String?> importDesignPicture(String name, Uint8List bytes) async {
+  ///
+  /// [known]: the kit's garment is the one the picture was read as (an AI
+  /// design, task 9.116), so the check opens on it rather than on a guess.
+  Future<String?> importDesignPicture(
+    String name,
+    Uint8List bytes, {
+    bool known = false,
+  }) async {
     final lower = name.toLowerCase();
     final type = lower.endsWith('.pdf')
         ? 'application/pdf'
@@ -519,6 +531,7 @@ class AppController extends ChangeNotifier {
           'Jersey' => 'jersey',
           _ => 'singlet',
         },
+        known: known,
       );
     } on Object {
       forget();
@@ -548,6 +561,9 @@ class AppController extends ChangeNotifier {
         'kind': 'drawing',
         'parts': [top],
       });
+      // The picture carries its own lettering: the position letters read
+      // from it are not added again.
+      layers = layers.where((l) => l['id'] != positionLayer).toList();
     });
     return 'Your design is on the 3D kit as drawn ($name). '
         'Save the project to keep it.';
@@ -768,6 +784,37 @@ class AppController extends ChangeNotifier {
     () => api.register(
       name: name.trim(),
       email: email.trim(),
+      password: password,
+      passwordConfirmation: passwordConfirmation,
+    ),
+  );
+
+  /// "Forgot password?": emails a 6-digit code. Returns (message, error).
+  Future<(String?, String?)> sendLoginCode(String email) async {
+    try {
+      return (await api.sendLoginCode(email.trim()), null);
+    } on ApiException catch (e) {
+      return (null, e.message);
+    }
+  }
+
+  /// Signs in with the emailed code; null on success, otherwise a message.
+  Future<String?> signInWithCode({
+    required String email,
+    required String code,
+  }) =>
+      _account(() => api.loginWithCode(email: email.trim(), code: code.trim()));
+
+  /// Sets a new password with the emailed code and signs in.
+  Future<String?> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+    required String passwordConfirmation,
+  }) => _account(
+    () => api.resetPassword(
+      email: email.trim(),
+      code: code.trim(),
       password: password,
       passwordConfirmation: passwordConfirmation,
     ),
@@ -1299,7 +1346,10 @@ class AppController extends ChangeNotifier {
   /// "Make it 3D": the same AI redraws the mockup as a flat front and back
   /// print sheet (kept in Artwork); the caller puts it on the 3D kit with
   /// [importDesignPicture].
-  Future<Uint8List> mockupPrintSheet({bool frontOnly = false}) async {
+  Future<Uint8List> mockupPrintSheet({
+    bool frontOnly = false,
+    String? garment,
+  }) async {
     final image = mockupImage;
     if (image == null) throw AiException('Create the HD mockup first.');
     sheetBusy = true;
@@ -1308,7 +1358,7 @@ class AppController extends ChangeNotifier {
       final sheet = await ai.printSheet(
         image,
         sport: sport,
-        garment: garment,
+        garment: garment ?? this.garment,
         logos: references,
         frontOnly: frontOnly,
       );
@@ -1396,6 +1446,81 @@ class AppController extends ChangeNotifier {
       unawaited(applyPrint(design.patternMotif));
     }
   }
+
+  /// "Open in 3D Designer" (task 9.116): the chosen AI design on the 3D
+  /// garment its picture was read as ([reading]), in the picture's own
+  /// colours and pattern, with its club symbol ([logo]) and lettering
+  /// (netball: the position letters, front and back, and no name). Opens the
+  /// studio; the picture itself (the print sheet) may go on after.
+  void openReading(int index, DesignReading reading, {Uint8List? logo}) {
+    final concept = concepts[index];
+    selectedConcept = index;
+    sport = concept.spec.sport;
+    applySpec(concept.spec);
+    garment = reading.garment;
+    final s = sportNamed(sport);
+    final team = reading.teamName;
+    edit(() {
+      mainColor = reading.mainColor;
+      secondaryColor = reading.secondaryColor;
+      accentColor = reading.accentColor;
+      pattern = reading.pattern;
+      if (team.isNotEmpty) logoText = team;
+      final hidden = <String, dynamic>{};
+      if (reading.letters.isNotEmpty) {
+        // Netball: the position letters in the number's place, no name above
+        // them, and large on the front below the crest.
+        backName = '';
+        number = reading.letters;
+        hidden['top_name'] = {'hidden': true};
+        layers = [
+          ...layers.where((l) => l['id'] != positionLayer),
+          {
+            'id': positionLayer,
+            'name': 'Position letters',
+            'type': 'text',
+            'part': 'top',
+            'side': 'front',
+            'x': 0.0,
+            'y': 0.36,
+            'rot': 0,
+            'text': reading.letters,
+            'size': 0.17,
+            'color':
+                '#${reading.accentColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}',
+          },
+        ];
+      } else {
+        backName = (s?.names ?? true)
+            ? (reading.backName.isNotEmpty ? reading.backName : logoText)
+            : '';
+        number = (s?.numbers ?? true)
+            ? (reading.number.isNotEmpty ? reading.number : '23')
+            : '';
+      }
+      // No team name in the picture: no chest wordmark (3DEEZI is never on
+      // the front, client 2026-10-26).
+      if (team.isEmpty || !reading.nameOnFront) {
+        hidden['top_wordmark'] = {'hidden': true};
+      }
+      marks = hidden;
+      if (reading.garment == 'Track jacket') {
+        trackStyle = reading.hood ? 'hood' : 'collar';
+      }
+      if (logo != null) logoImage = logo;
+    });
+    _undo.clear();
+    renderFront = concept.image;
+    renderBack = null;
+    projectName = concept.spec.designName;
+    show3d = true;
+    view = 'Front';
+    go(AppScreen.studio);
+  }
+
+  /// The netball position letters' text layer from a read AI picture: taken
+  /// off again when the picture itself goes on (it has its own lettering).
+  static const positionLayer = 'position-front';
 
   /// Opens the chosen AI concept in the Design Studio.
   void openConcept(int index) {

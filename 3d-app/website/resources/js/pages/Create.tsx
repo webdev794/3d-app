@@ -210,6 +210,25 @@ export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: {
  * reply) throws inside the caller's try, so the usual friendly error shows ("The AI designer is busy or unavailable…",
  * with Try again) instead of a blank page (a missing picture read inside a state update unmounted the whole page).
  */
+/** The 3D garments a design picture (print sheet) goes on as drawn. */
+const drawnGarments = ['singlet', 'jersey', 'tee', 'polo', 'pocketpolo'];
+/** An AI picture read for the 3D kit (POST /ai/designs/read, task 9.116). */
+type DesignReading = { garment: string; seen: string; exact: boolean; hood: boolean; motif: string | null; crest: { x: number; y: number; w: number; h: number } | null; design: Partial<Design> };
+/** The club symbol cut from the AI picture (`box` in fractions of it, with a little margin), as a small PNG for the chest. */
+export async function cropCrest(src: string, box: { x: number; y: number; w: number; h: number }): Promise<string | null> {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  const W = img.naturalWidth, H = img.naturalHeight, pad = 0.12;
+  const x0 = Math.max(0, (box.x - box.w * pad) * W), y0 = Math.max(0, (box.y - box.h * pad) * H);
+  const x1 = Math.min(W, (box.x + box.w * (1 + pad)) * W), y1 = Math.min(H, (box.y + box.h * (1 + pad)) * H);
+  if (x1 - x0 < 8 || y1 - y0 < 8) return null;
+  const k = Math.min(1, 320 / Math.max(x1 - x0, y1 - y0));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round((x1 - x0) * k); canvas.height = Math.round((y1 - y0) * k);
+  canvas.getContext('2d')!.drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/png');
+}
 export function aiReply<T extends object>(reply: T | null | undefined, keys: (keyof T)[], message = ''): T {
   if (!reply || typeof reply !== 'object' || keys.some(k => reply[k] == null || reply[k] === '')) throw new ApiError(message, 502);
   return reply;
@@ -448,30 +467,52 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   // A new kit, as MAKE IT 3D and Convert open it: the draft can still hold a project opened earlier (the Studio's
   // "New AI design"), and its Save must not overwrite that project with this design (QA U).
   const customize = (concept: Pick<Concept, 'name' | 'design' | 'motif'>) => { if (making3d) return; onChange({ ...draft, id: undefined, version: undefined, name: concept.name, design: named(concept.design), mode: 'ai', patternMotif: concept.motif, pendingDrawing: undefined }); onStudio(); };
-  /** "Open in 3D Designer" (MAKE IT 3D): the PRIMARY redrawn by the same AI as a flat front and back print sheet, then put on the 3D kit like a design picture. */
+  /**
+   * "Open in 3D Designer" (task 9.116): the PRIMARY picture read first (one cheap AI call) for the nearest 3D garment we
+   * have and its own colours, pattern, team name and lettering (netball: the position letters), with its club symbol
+   * cut from the picture when no logo was attached. A singlet, jersey, tee or polo then takes the picture itself: the
+   * same AI redraws it as a flat front and back print sheet, put on the kit like a design picture. Other garments (and
+   * any step that fails) open in the picture's colours. Never a refusal: the closest garment, with a note saying so.
+   */
   async function makeIt3d() {
     const image = primary?.image;
     if (!image || !primary) return;
-    // A design picture goes on a singlet, jersey, tee or polo (with or without the pocket) only: a hoodie takes the
-    // design's colours, pattern and wordmark, with the first attached logo as its crest (no print sheet is drawn).
-    // The varsity jacket too (its letter, club name and number come from the design's wordmark and number).
-    if (draft.garment === 'hoodie' || draft.garment === 'ziphoodie' || draft.garment === 'varsity' || draft.garment === 'trackjacket') {
-      const logo = primary.design.logoImage || references.find(r => r.preview.startsWith('data:image/'))?.preview || null;
-      onChange({ ...draft, id: undefined, version: undefined, name: primary.name || draft.name, mode: 'ai', design: named({ ...primary.design, garment: draft.garment as Design['garment'], layout: null, logoImage: logo }), patternMotif: primary.motif, pendingDrawing: undefined });
-      onStudio();
-      onNotice?.(draft.garment === 'varsity' || draft.garment === 'trackjacket' ? `The ${draft.garment === 'varsity' ? 'varsity' : 'track'} jacket takes your design’s colours and logo; full print designs on it are coming.` : 'Hoodies take your design’s colours and logo; full print designs on hoodies are coming.');
-      return;
-    }
     const mine = run.current, current = () => run.current === mine;
     setMaking3d(true); setError('');
     try {
-      const sheet = aiReply(await api<{ asset: { id: number; name: string }; image: string }>('/ai/print-sheet', { method: 'POST', body: JSON.stringify({ image, sport: draft.sport, garment: draft.garment, reference_ids: references.flatMap(r => r.id ? [r.id] : []), name: primary?.name ?? '', front_only: primary?.view === 'front' }) }), ['asset', 'image']);
+      const read = await api<DesignReading>('/ai/designs/read', { method: 'POST', body: JSON.stringify({ image, sport: draft.sport, garment: draft.garment }) })
+        .then(r => r && typeof r.garment === 'string' && r.design ? r : null, () => null);
+      if (!current()) return;
+      const garment = (read?.garment ?? draft.garment) as Design['garment'];
+      const attached = primary.design.logoImage || references.find(r => r.preview.startsWith('data:image/'))?.preview || null;
+      const logo = attached || (read?.crest ? await cropCrest(image, read.crest).catch(() => null) : null);
+      if (!current()) return;
+      const shown = catalog?.garments.find(g => g.id === garment)?.name ?? garment;
+      const note = read && !read.exact ? `Shown on our ${shown.toLowerCase()}: the closest 3D garment to your ${read.seen || 'design'}.` : '';
+      const design: Design = { ...primary.design, ...(read?.design ?? {}), garment, layout: null, logoImage: logo ?? primary.design.logoImage ?? null };
+      // In the picture's colours (no print sheet): the other garments, and the fallback when the print sheet fails.
+      const inColours = (why: string) => {
+        onChange({ ...draft, id: undefined, version: undefined, garment, name: primary.name || draft.name, mode: 'ai', design: named(design), patternMotif: read?.motif ?? primary.motif, pendingDrawing: undefined });
+        onStudio();
+        onNotice?.([note, why].filter(Boolean).join(' '));
+      };
+      if (!drawnGarments.includes(garment)) { inColours(note ? 'It takes your design’s colours, pattern, symbol and lettering.' : `Your ${shown.toLowerCase()} takes your design’s colours, pattern, symbol and lettering.`); return; }
+      let sheet: { asset: { id: number; name: string }; image: string };
+      try {
+        sheet = aiReply(await api<{ asset: { id: number; name: string }; image: string }>('/ai/print-sheet', { method: 'POST', body: JSON.stringify({ image, sport: draft.sport, garment, reference_ids: references.flatMap(r => r.id ? [r.id] : []), name: primary?.name ?? '', front_only: primary?.view === 'front' }) }), ['asset', 'image']);
+      } catch (e) {
+        if (current()) inColours(`The flat print sheet could not be drawn (${friendlyError(e)}), so the kit takes your design’s colours, pattern, symbol and lettering.`);
+        return;
+      }
       // Refine or another page meanwhile: the user stays where they went (the print sheet is kept in Assets).
-      if (current()) putDrawing({ id: sheet.asset.id, name: sheet.asset.name, preview: sheet.image });
-    } catch (e) { if (current()) setError(`Make it 3D: ${friendlyError(e)}`); } finally { if (current()) setMaking3d(false); }
+      if (current()) putDrawing({ id: sheet.asset.id, name: sheet.asset.name, preview: sheet.image }, design, note);
+    } finally { if (current()) setMaking3d(false); }
   }
-  /** The attached picture itself on the 3D kit (no AI): the Studio checks it, then puts it on exactly as drawn. */
-  const putDrawing = (picture: Reference) => { if (!picture.id) return; const top = (['singlet', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment']; onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'ai', design: named({ ...(primary?.design ?? draft.design), garment: top, layout: null }), patternMotif: undefined, pendingDrawing: { asset: picture.id, name: picture.name } }); onStudio(); };
+  /**
+   * The print sheet on the 3D kit (no AI): the Studio checks it on the garment the picture was read as, then puts it on
+   * exactly as drawn; the read design (colours, symbol, lettering) stays underneath if the check is cancelled or fails.
+   */
+  const putDrawing = (picture: Reference, read?: Design, note = '') => { if (!picture.id) return; const top = (drawnGarments.includes(read?.garment ?? draft.garment) ? read?.garment ?? draft.garment : 'singlet') as Design['garment']; onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'ai', design: named({ ...(read ?? primary?.design ?? draft.design), garment: top, layout: null }), patternMotif: undefined, pendingDrawing: { asset: picture.id, name: picture.name, known: !!read, note: note || undefined } }); onStudio(); };
 
   const full = references.length >= MAX_REFERENCES;
   const garmentChoices = garmentChips(chosen ?? sportInBrief(prompt, tiles));

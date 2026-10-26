@@ -26,6 +26,7 @@ What the client's real site needs before launch. The current live site is a test
 | `MAIL_MAILER` | `sendmail` for now | Uses the hosting's own mail, like `wp_mail()` on WordPress sites. Later `smtp`, with `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` |
 | `MAIL_FROM_ADDRESS` | | e.g. noreply@ the client's domain |
 | `MAIL_FROM_NAME` | `3DEEZI` | |
+| Mail check | | Email is needed for the "Forgot password?" codes (sign-in window, website and app) and Support messages. After setting the mail lines, try "Forgot password?" with your own email: the code should arrive within a minute (check spam; a from-address on the site's own domain helps) |
 | `PAYMENTS_PROVIDER` | (empty) or `airwallex` | Empty = Airwallex when its keys are set |
 | `AIRWALLEX_CLIENT_ID` | | Airwallex › Settings › Developer › API keys |
 | `AIRWALLEX_API_KEY` | | Same page (kept on the server only) |

@@ -231,6 +231,7 @@ class KitViewer3DState extends State<KitViewer3D> {
     int asset, {
     bool drawing = false,
     String? garment,
+    bool known = false,
   }) async {
     final result = await _request('checkLayout', {
       'src': src,
@@ -238,6 +239,7 @@ class KitViewer3DState extends State<KitViewer3D> {
       'asset': asset,
       if (drawing) 'drawing': true,
       'garment': ?garment,
+      if (known) 'known': true,
     }, wait: const Duration(minutes: 30));
     if (result?['error'] case final String error) throw ApiException(error);
     return result;
