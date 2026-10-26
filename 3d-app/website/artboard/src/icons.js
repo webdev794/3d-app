@@ -146,4 +146,7 @@ export const ICONS = {
   livesketch: '<path d="M3 17c4-7 7-9 11-9 3 0 5 1.5 7 4"/><path d="M4 19c4-6 7-8 10.5-8" opacity=".45"/><path d="M5 14c3-4 5-5 8-5.5" opacity=".45"/>',
   paintbrush: '<path d="M14.5 3.5l6 6-7.5 7.5-6-6z"/><path d="M7 11l-2.6 2.6a2.8 2.8 0 0 0 0 4l.1.1c-1 1.6-2.2 2.4-3.5 2.8 2.7.4 5.2-.3 6.9-2a2.8 2.8 0 0 0 0-4L11 17"/>',
   meshfill: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9.5c6-2 12 2 18 0M3 15c6-2 12 2 18 0M9.5 3c-2 6 2 12 0 18M15 3c-2 6 2 12 0 18" opacity=".55"/>',
+  // Phones' colour panel (9.119): Live preview, and 3DEEZI ASSIST's four-point sparkle.
+  bolt: '<path d="M13 2.5L5 13.5h6.2L10.5 21.5 19 10.2h-6.3z"/>',
+  sparkle: '<path d="M12 2.5c.6 4.9 4.6 8.9 9.5 9.5-4.9.6-8.9 4.6-9.5 9.5-.6-4.9-4.6-8.9-9.5-9.5 4.9-.6 8.9-4.6 9.5-9.5z"/>',
 };

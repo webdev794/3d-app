@@ -88,19 +88,38 @@ class _ArtboardScreenState extends State<ArtboardScreen> {
   int _assistId = 0;
   late final AssistRunner _assistRunner = _assist;
 
+  /// Phones: the page's colour panel is open under the artwork. It has its
+  /// own Assist button, so the round one makes way meanwhile (viewerModal).
+  bool _colourDock = false;
+
   AppController get c => widget.c;
 
   @override
   void initState() {
     super.initState();
+    c.addListener(_leftWithColourDock);
     if (ViewerHost.supported) {
       _host = ViewerHost(_onMessage, page: 'artboard', channel: 'Artboard');
     }
   }
 
+  /// Leaving the Artboard with the colour panel open (Send to 3D Studio, AI /
+  /// DYO, back): the next screen and the Assist button show without it
+  /// straight away.
+  void _leftWithColourDock() {
+    if (!_colourDock || c.screen == AppScreen.artboard) return;
+    _colourDock = false;
+    c.viewerModal = false;
+  }
+
   @override
   void dispose() {
+    c.removeListener(_leftWithColourDock);
     AssistBridge.unregister('artboard', _assistRunner);
+    if (_colourDock && c.viewerModal) {
+      c.viewerModal = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => c.update(() {}));
+    }
     for (final waiting in _assistWaiting.values) {
       waiting.completeError(AssistError('The Artboard was closed.'));
     }
@@ -234,6 +253,15 @@ class _ArtboardScreenState extends State<ArtboardScreen> {
         if (msg['mode'] == 'ai') c.startAi();
         if (msg['mode'] == 'dyo') c.startDyo();
         if (msg['mode'] == 'home') c.go(AppScreen.home);
+      case 'colourDock':
+        // The colour panel under the artwork opened or closed (phones).
+        _colourDock = msg['open'] == true;
+        c.update(() => c.viewerModal = _colourDock);
+      case 'assistOpen':
+        // The colour panel's Assist button (the panel has closed).
+        _colourDock = false;
+        if (c.viewerModal) c.update(() => c.viewerModal = false);
+        AssistController.latest?.show();
       case 'assist':
         final waiting = _assistWaiting.remove((msg['id'] as num?)?.toInt());
         final text = '${msg['text'] ?? ''}';

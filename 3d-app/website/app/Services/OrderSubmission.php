@@ -46,6 +46,8 @@ class OrderSubmission
      */
     public function submit(User $user, array $data, ?string $key): array
     {
+        // The "Made by" columns are checked (and set up on shared hosting) before the order's transaction starts.
+        \App\Models\Supplier::ready();
         try {
             $order = DB::transaction(fn () => $this->create($user, $data, $key));
         } catch (UniqueConstraintViolationException $e) {
@@ -79,8 +81,10 @@ class OrderSubmission
                 $data['pricing'] = ['destination' => $destination] + (is_array($data['pricing'] ?? null) ? $data['pricing'] : []);
             }
         }
-        $order = $user->orders()->make(Arr::except($data, ['design_final', 'project_version', 'draft_id', 'idempotency_key', 'items', 'pricing', 'delivery', 'address']));
+        $order = $user->orders()->make(Arr::except($data, ['design_final', 'project_version', 'draft_id', 'idempotency_key', 'items', 'pricing', 'delivery', 'address', 'supplier_id']));
         $order->forceFill(['idempotency_key' => $key]);
+        // Who makes it (preferred suppliers, task 9.118): the one chosen, else 3DEEZI.
+        \App\Models\Supplier::assign($order, $data['supplier_id'] ?? null);
         // The customer's pricing choices, for the invoice (payments-api.md R3).
         if (self::hasPricing()) {
             $order->forceFill(['pricing' => \App\Services\Pricing\PricingService::cleanChoices($data['pricing'] ?? null)]);

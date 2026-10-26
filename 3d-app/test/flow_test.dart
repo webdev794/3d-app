@@ -122,12 +122,17 @@ void main() {
           (w.decoration! as BoxDecoration).shape == BoxShape.circle &&
           (w.decoration! as BoxDecoration).color == const Color(0xffe92137),
     );
+    // The Colours panel opens under the 3D (173.jpg); its colour row
+    // scrolls sideways.
+    await tester.ensureVisible(swatches.first);
+    await tester.pumpAndSettle();
     await tester.tap(swatches.first);
     await tester.pump();
     expect(c.mainColor, const Color(0xffe92137));
     expect(c.canUndo, isTrue);
-    Navigator.of(tester.element(swatches.first)).pop();
+    await tester.tap(find.byKey(const ValueKey('colour-done')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('colour-done')), findsNothing);
 
     await tapText(tester, 'Undo');
     expect(c.mainColor, before);

@@ -33,7 +33,9 @@ class InvoiceController extends Controller
         return response()->json(['data' => $invoices->map(fn (Invoice $i) => Invoice::summary($i) + [
             'order' => $i->order ? ['id' => $i->order->id, 'number' => $i->order->number, 'name' => $i->snapshot['order']['name'] ?? $i->order->number]
                 // A 3DEEZI TEAM design request's invoice (no order).
-                : ($i->team_request_id ? ['id' => null, 'team_request_id' => $i->team_request_id, 'number' => $i->snapshot['order']['number'] ?? null, 'name' => $i->snapshot['order']['name'] ?? null] : null),
+                : ($i->team_request_id ? ['id' => null, 'team_request_id' => $i->team_request_id, 'number' => $i->snapshot['order']['number'] ?? null, 'name' => $i->snapshot['order']['name'] ?? null]
+                    // A preferred supplier's listing invoice (SUP-...).
+                    : (($i->snapshot['order']['source'] ?? null) === 'supplier' ? ['id' => null, 'source' => 'supplier', 'number' => $i->snapshot['order']['number'] ?? null, 'name' => $i->snapshot['order']['name'] ?? null] : null)),
         ])->values()]);
     }
 
@@ -209,6 +211,8 @@ class InvoiceController extends Controller
                 'items' => $snap['order']['items'] ?? [],
                 // "team": a 3DEEZI TEAM design request (or extra revision round), so the totals don't say "Garments".
                 'source' => $order ? 'order' : ($invoice->team_request_id || ($snap['order']['source'] ?? null) === 'team' ? 'team' : ($snap['order']['source'] ?? null)),
+                // Who makes the order (3DEEZI, Mantis or a preferred supplier), as on the invoice.
+                'made_by' => $snap['order']['made_by'] ?? null,
             ],
             'customer' => $snap['customer'] ?? null,
             'seller' => ($snap['seller'] ?? BillingSettings::seller()) + ['logo' => BillingSettings::logoDataUrl()],

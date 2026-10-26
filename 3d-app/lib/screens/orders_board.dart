@@ -11,6 +11,7 @@ import '../widgets/site_page_stub.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/ui.dart';
 import 'order_entry.dart';
+import 'suppliers.dart' show madeByOf;
 
 // 3DEEZI Orders in the app (the website's /orders and its API, orders-api.md):
 // my orders by stage on phones (stage tabs), each order's garments, files,
@@ -311,6 +312,8 @@ class OrderBoardCard extends StatelessWidget {
             '${(o['quantity'] as num? ?? 0) > 0 ? '${o['quantity']} garment${o['quantity'] == 1 ? '' : 's'}' : 'Sizes in your order form'}${'${o['needed_by'] ?? ''}'.isNotEmpty && o['completed'] != true ? ' · required ${_day(o['needed_by'])}' : ''}',
             style: const TextStyle(fontSize: 12.5),
           ),
+          // Who makes it, when that is one of the preferred suppliers (3DEEZI makes the others).
+          if (madeByOf(o) case final maker?) ...[const SizedBox(height: 6), _MadeBy(maker)],
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
@@ -343,6 +346,23 @@ class OrderBoardCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Made by Mantis" (preferred suppliers), on an order's card and page.
+class _MadeBy extends StatelessWidget {
+  const _MadeBy(this.maker);
+  final String maker;
+  @override
+  Widget build(BuildContext context) => Row(
+    key: const Key('order-made-by'),
+    children: [
+      const Icon(Icons.factory_outlined, size: 15, color: Palette.cyan),
+      const SizedBox(width: 6),
+      Expanded(
+        child: Text('Made by $maker', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5)),
+      ),
+    ],
+  );
 }
 
 class _GarmentChip extends StatelessWidget {
@@ -494,6 +514,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         if (status.isNotEmpty) Wrap(key: const Key('order-status'), spacing: 6, children: [_pill(status, _tone(sub['label'] == null ? 'blue' : sub['tone']))]),
         // The invoice: its status and, while unpaid, Pay now (the status is read again on the way back).
         PaymentStrip(widget.c, (o['payment'] as Map?)?.cast<String, dynamic>(), onBack: _load),
+        // Who makes it, when that is one of the preferred suppliers.
+        if (madeByOf(o) case final maker?) Padding(padding: const EdgeInsets.only(top: 10), child: _MadeBy(maker)),
         const SizedBox(height: 14),
         // The five stages, with the date each was reached.
         Row(

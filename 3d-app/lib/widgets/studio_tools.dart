@@ -989,6 +989,8 @@ class StudioZoneTool extends StatelessWidget {
           child: DropdownButtonFormField<String>(
             key: ValueKey('$area-${c.zones[area]}'),
             initialValue: c.zones[area] ?? '',
+            // Fits the narrow panel under the 3D on a 360 px phone.
+            isExpanded: true,
             decoration: InputDecoration(labelText: label),
             items: [
               const DropdownMenuItem(

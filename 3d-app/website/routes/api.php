@@ -15,6 +15,7 @@ use App\Http\Controllers\OrderFileController;
 use App\Http\Controllers\PartnerApplicationController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SupportMessageController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TeamRequestController;
 use App\Http\Middleware\EnsureTeamStaff;
 use App\Services\OpenAiDesigner;
@@ -33,6 +34,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::get('/convert/formats', [ConvertController::class, 'formats']);
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:auth');
     Route::post('/partners/apply', [PartnerApplicationController::class, 'store'])->middleware('throttle:auth');
+    // Preferred suppliers (task 9.118): the page's list with the listing prices, and their logos (public).
+    Route::get('/suppliers', [SupplierController::class, 'index']);
+    Route::get('/suppliers/{supplier}/logo', [SupplierController::class, 'logo'])->whereNumber('supplier');
     // The Support page's contact form (/support): open to visitors; saved for Admin > Support and emailed to the team.
     Route::post('/support', [SupportMessageController::class, 'store'])->middleware('throttle:auth');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
@@ -90,6 +94,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/order-drafts/{draft}/files', [OrderDraftController::class, 'storeFile'])->whereNumber('draft')->middleware('throttle:uploads');
         Route::delete('/order-drafts/{draft}/files/{file}', [OrderDraftController::class, 'destroyFile'])->whereNumber(['draft', 'file']);
         Route::get('/order-files/{file}', [OrderFileController::class, 'show'])->whereNumber('file');
+        // Become a preferred supplier: apply (with the logo and plan), my listing, pay for another month or year.
+        Route::post('/suppliers/apply', [SupplierController::class, 'apply'])->middleware('throttle:uploads');
+        Route::get('/suppliers/mine', [SupplierController::class, 'mine']);
+        Route::post('/suppliers/mine/renew', [SupplierController::class, 'renew'])->middleware('throttle:payments');
         Route::get('/notifications', [NotificationController::class, 'index']);
         Route::post('/notifications/read', [NotificationController::class, 'read']);
 
@@ -142,6 +150,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::apiResource('orders', Admin\OrderController::class)->whereNumber('order');
             Route::apiResource('projects', Admin\ProjectController::class)->only(['index', 'update', 'destroy'])->whereNumber('project');
             Route::apiResource('partners', Admin\PartnerController::class)->only(['index', 'update', 'destroy'])->whereNumber('partner');
+            // Admin > Suppliers and the listing prices (Admin > Pricing).
+            Route::get('/suppliers/prices', [Admin\SupplierAdminController::class, 'prices'])->name('suppliers.prices');
+            Route::put('/suppliers/prices', [Admin\SupplierAdminController::class, 'prices'])->name('suppliers.prices.update');
+            Route::get('/suppliers', [Admin\SupplierAdminController::class, 'index'])->name('suppliers');
+            Route::post('/suppliers', [Admin\SupplierAdminController::class, 'store'])->name('suppliers.store');
+            Route::patch('/suppliers/{supplier}', [Admin\SupplierAdminController::class, 'update'])->whereNumber('supplier')->name('suppliers.update');
+            Route::post('/suppliers/{supplier}/logo', [Admin\SupplierAdminController::class, 'uploadLogo'])->whereNumber('supplier')->name('suppliers.logo');
+            Route::delete('/suppliers/{supplier}/logo', [Admin\SupplierAdminController::class, 'deleteLogo'])->whereNumber('supplier')->name('suppliers.logo.delete');
+            Route::delete('/suppliers/{supplier}', [Admin\SupplierAdminController::class, 'destroy'])->whereNumber('supplier')->name('suppliers.destroy');
             Route::apiResource('support-messages', Admin\SupportMessageController::class)->only(['index', 'update', 'destroy'])->whereNumber('support_message');
             Route::get('/settings', [Admin\SettingsController::class, 'show'])->name('settings');
             Route::put('/settings', [Admin\SettingsController::class, 'update'])->name('settings.update');

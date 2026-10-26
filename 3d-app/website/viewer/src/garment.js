@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import Delaunator from 'delaunator';
 import { wornTop, wornShorts } from './worn.js';
 import { POCKET, isHoodie, isTrack } from './zones.js';
-import { panelSampler, buildHood, buildKangaroo, buildRib, buildZip } from './hoodie.js';
+import { panelSampler, buildHood, buildKangaroo, buildRib, buildZip, cuffRingAbove } from './hoodie.js';
 import { buildTrackParts } from './trackjacket.js';
 import { buildVarsityParts } from './varsity.js';
 
@@ -678,7 +678,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   const vertex = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
   const neck = [...neckIdx.map((i) => vertex(i)), ...neckIdx.slice().reverse().map((i) => vertex(n + i))];
   const uvAt = (x, y) => [(0.5 * (x - minX)) / span, (y - minY) / span];
-  const partsCtx = () => ({ poly, seam, points, faces, positions, normals, colours, n, nb, maxY, minY, neck: spec.neck, uvAt,
+  const partsCtx = () => ({ poly, seam, points, faces, positions, normals, colours, n, nb, maxY, minY, neck: spec.neck, uvAt, detail,
     uvBack: (x, y) => [0.5 + (0.5 * (maxX - x)) / span, (y - minY) / span],
     surface: (x, y, back) => { const p = new THREE.Vector2(x, y), v = worn.at(p, back); if (back) v.y += backHeight(p) - p.y; return v; },
     at: (x, y, back) => worn.at(new THREE.Vector2(x, y), back) });
@@ -752,7 +752,9 @@ function buildHoodieParts(spec, ctx) {
     const loop = [...idx.map(vtx), ...idx.slice().reverse().map((i) => vtx(n + i))];
     const m = new THREE.Vector2(sgn * mid.x, mid.y), inn = new THREE.Vector2(sgn * inward.x, inward.y);
     const dir = ctx.at(m.x, m.y, false).sub(ctx.at(m.x + inn.x * 0.03, m.y + inn.y * 0.03, false)).normalize();
-    ribs.push(buildRib(loop, { dir, length: 0.062, squeeze: 0.12 }));
+    // Look 2: a round rib tube over the sleeve's end, from 3 cm up the sleeve (hoodie.js cuffRingAbove).
+    const ring = ctx.detail ? cuffRingAbove(ctx, ca, cb, sgn, dir) : null;
+    ribs.push(ring ? buildRib(ring, { dir, length: 0.03 + 0.062, squeeze: 0.05 }) : buildRib(loop, { dir, length: 0.062, squeeze: 0.12 }));
   }
   const pocket = buildKangaroo(full, { zip: !!spec.zip });
   // The zip: down the centre front from the waistband's foot to the neck.

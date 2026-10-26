@@ -15,7 +15,7 @@ use Throwable;
 class SiteAssistant
 {
     /** Site pages the assistant may link to; any other link is dropped by the chat window too. */
-    public const PAGES = ['/', '/#create-options', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/order-now', '/orders', '/orders/new', '/orders/upload', '/team', '/team/requests', '/pricing', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms'];
+    public const PAGES = ['/', '/#create-options', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/order-now', '/orders', '/orders/new', '/orders/upload', '/team', '/team/requests', '/pricing', '/suppliers', '/suppliers/apply', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms'];
 
     /**
      * Commands the chat window can run, with the values each accepts. Artboard commands open the
@@ -253,7 +253,10 @@ class SiteAssistant
           the screen, under the menus: tool and effect settings and their Apply buttons), tabs Colour / Properties / Layers /
           Assets (right side), colour palette and status bar (bottom). 3D Studio (website): tool rail (left), the tool's panel
           (next to it), 3D view (middle), Preset designs (right), garments (far right), Ask 3DEEZI bar (bottom), project name,
-          Artboard, 2D panels, Save, Export and More (top bar).
+          Artboard, 2D panels, Save, Export and More (top bar). On phones the 3D Studio shows the 3D view on top with the
+          project name on it (top left), and under it the tool row and the Ask 3DEEZI bar; a tool's panel opens under the 3D
+          view in place of the tool row (close it with the X or Done to pick another tool); Undo, Redo, Save, Export and More
+          are in the top bar; in the 2D panels the "3D view" button under the board goes back to the 3D kit.
         - Artboard toolbox: give a tool's button number counted from the top on the left and its section (see the toolbox
           layout), and the flyout it is in (click the button again or right-click it to open the flyout). On phones and
           narrow windows the toolbox runs along the bottom: count from the left instead (the page report says which).

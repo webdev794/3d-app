@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowUp, Box, Check, ChevronDown, ChevronLeft, ChevronRight, Download, Ellipsis, ImagePlus, ImageUp, Lightbulb, LoaderCircle, Mic, MicOff, Paperclip, PenLine, Plus, RefreshCw, SendHorizontal, Sparkles, Undo2, WandSparkles, X } from 'lucide-react';
 import { api, ApiError, media, saveBlob, type Catalog, type CatalogItem, type Concept, type GarmentTile } from '../api';
 import type { Draft } from '../App';
-import type { Design } from '../types';
+import { defaultDesign, type Design } from '../types';
 import { DesignThumbnail } from './Library';
 import Loader from '../components/Loader';
 import ImageEditor, { EditImageButton } from '../components/ImageEditor';
@@ -132,6 +132,20 @@ export function moreGarmentTiles(sport: CatalogItem | undefined, garments: Catal
 /** The garment's name for a design: the sport tile it was chosen as ("Netball dress"), else the 3D garment's name. */
 export function productName(design: Pick<Design, 'garment' | 'productName'>, catalog?: Catalog | null): string {
   return design.productName || catalog?.garments.find(g => g.id === design.garment)?.name || design.garment;
+}
+/**
+ * The back name and number when a kit's sport changes (client 2026-10-26: "netball you don't have numbers or names"),
+ * from the catalogue's rules ('names' / 'numbers' false): a sport without them drops the sample ones (anything typed
+ * stays), and leaving such a sport gives an empty back the sample name and number again. Other sports keep theirs.
+ */
+export function backForSport(design: Pick<Design, 'backName' | 'number' | 'logoText'>, catalog: Catalog | null | undefined, from: string, to: string): Pick<Design, 'backName' | 'number'> {
+  const was = catalog?.sports.find(s => s.id === from), now = catalog?.sports.find(s => s.id === to);
+  let backName = design.backName ?? '', number = design.number ?? '';
+  if (now?.names === false && (backName === defaultDesign.backName || backName === design.logoText)) backName = '';
+  if (now?.numbers === false && number === defaultDesign.number) number = '';
+  if (now && now.names !== false && was?.names === false && !backName) backName = defaultDesign.backName ?? '';
+  if (now && now.numbers !== false && was?.numbers === false && !number) number = defaultDesign.number;
+  return { backName, number };
 }
 /** What choosing a tile puts on the draft: the 3D garment, the tile's name (empty for a plain 3D garment) and its settings. */
 export type GarmentChoice = { garment: string; productName: string; design?: GarmentTile['design'] };

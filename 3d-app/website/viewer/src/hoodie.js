@@ -337,6 +337,44 @@ export function ribNormalMap() {
 }
 
 /**
+ * Look 2: a round ring for a long sleeve's rib cuff. The sleeve's own end is pressed flat (its drawn cuff bows away
+ * from the straight line between the corners, so the made sleeve closes there), and a band sewn on that edge hangs as
+ * a flat strip. This ring is taken round the sleeve itself `above` metres up from the cuff line, where it is still
+ * round: the outermost fabric in each direction round the arm, a few millimetres outside it (room for the
+ * sleeve's flattened end inside). A band from it covers the sleeve's
+ * end. `ca`, `cb`: the cuff's corners (flat pattern, right half); `sgn`: the side; `dir`: along the arm, outwards.
+ */
+export function cuffRingAbove({ points, positions, n }, ca, cb, sgn, dir, above = 0.03) {
+  const ab = cb.clone().sub(ca), L = ab.length(), u = ab.clone().divideScalar(L);
+  const mid = ca.clone().lerp(cb, 0.5), inward = new THREE.Vector2(-u.y, u.x);
+  if (inward.dot(new THREE.Vector2(0.258, 0.61).sub(mid)) < 0) inward.negate();
+  const near = [];
+  for (let i = 0; i < n; i++) {
+    const p = points[i];
+    if (Math.sign(p.x) !== sgn) continue;
+    const q = new THREE.Vector2(Math.abs(p.x), p.y).sub(ca), t = q.dot(u) / L, d = q.dot(inward);
+    if (t < -0.15 || t > 1.15 || Math.abs(d - above) > 0.008) continue;
+    for (const j of [i, n + i]) near.push(new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]));
+  }
+  if (near.length < 12) return null;
+  const C = near.reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(near.length);
+  const e1 = new THREE.Vector3().crossVectors(dir, Math.abs(dir.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0)).normalize();
+  const e2 = new THREE.Vector3().crossVectors(dir, e1).normalize();
+  const K = 48, r = new Array(K).fill(0);
+  for (const p of near) {
+    const o = p.clone().sub(C), x = o.dot(e1), y = o.dot(e2);
+    const k = Math.floor(((Math.atan2(y, x) / (2 * Math.PI)) + 1) * K) % K;
+    r[k] = Math.max(r[k], Math.hypot(x, y));
+  }
+  for (let k = 0; k < K; k++) if (!r[k]) { let a = k, b = k; while (!r[a]) a = (a - 1 + K) % K; while (!r[b]) b = (b + 1) % K; r[k] = (r[a] + r[b]) / 2; }
+  const smooth = r.map((v, k) => (r[(k - 1 + K) % K] + 2 * v + r[(k + 1) % K]) / 4);
+  return smooth.map((v, k) => {
+    const th = (2 * Math.PI * (k + 0.5)) / K, rr = Math.max(v, r[k]) + 0.0045;
+    return C.clone().addScaledVector(e1, rr * Math.cos(th)).addScaledVector(e2, rr * Math.sin(th));
+  });
+}
+
+/**
  * A rib-knit band sewn on at an edge (a hoodie's cuffs and waistband): from just inside the garment's edge it runs on
  * `length` metres along `dir`, drawn in a little (`squeeze`) as rib does, round over at its end and a little way back
  * up inside. `loop`: the edge's points in order round it (closed unless `open`, as a zip hoodie's split waistband).

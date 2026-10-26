@@ -157,7 +157,9 @@ class InvoiceAdminController extends Controller
                 'name' => $invoice->snapshot['order']['name'] ?? ($invoice->order->team_name ?: $invoice->order->contact_name), 'status' => $invoice->order->status]
                 // A 3DEEZI TEAM design request's invoice: the request (TEAM-...) in the order's place.
                 : ($invoice->team_request_id ? ['id' => null, 'team_request_id' => $invoice->team_request_id, 'number' => $invoice->snapshot['order']['number'] ?? null,
-                    'name' => $invoice->snapshot['order']['name'] ?? null, 'status' => null] : null),
+                    'name' => $invoice->snapshot['order']['name'] ?? null, 'status' => null]
+                    // A preferred supplier's listing invoice (SUP-...).
+                    : (($invoice->snapshot['order']['source'] ?? null) === 'supplier' ? ['id' => null, 'source' => 'supplier', 'number' => $invoice->snapshot['order']['number'] ?? null, 'name' => $invoice->snapshot['order']['name'] ?? null, 'status' => null] : null)),
             'customer' => $invoice->user ? ['id' => $invoice->user->id, 'name' => $invoice->user->name, 'email' => $invoice->user->email] : null,
             'created_at' => $invoice->created_at?->toIso8601String(),
             'emailed_at' => $invoice->emailed_at?->toIso8601String(),

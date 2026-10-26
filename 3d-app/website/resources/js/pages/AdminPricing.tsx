@@ -9,6 +9,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { BadgeDollarSign, Ban, Building2, CheckCircle2, ChevronLeft, ChevronRight, Copy, CreditCard, Download, Eye, FileText, LoaderCircle, Mail, Pencil, Plus, Receipt, RotateCcw, Search, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { api, fetchFile, saveBlob } from '../api';
 import { PaymentStatusPill, money, type PaymentSummary, type Quote } from '../components/OrderPayment';
+import { SupplierListingPrices } from './AdminSuppliers';
 
 type Kind = 'garment' | 'extra' | 'shipping' | 'discount';
 interface Rule { id: number; kind: Kind; code: string | null; sport: string | null; name: string; price: string; per_item: string; percent: string | null; unit: 'garment' | 'player' | 'order' | null; auto: boolean; min_quantity: number | null; taxable: boolean; active: boolean; sort: number }
@@ -87,7 +88,7 @@ export function PricingAdmin({ onNotice }: { onNotice: (text: string) => void })
           {!rules.length && <tr><td colSpan={heads[kind].length + 2} className="muted">{kind === 'garment' ? 'No garment prices yet: every order needs a quote until you add them.' : 'None yet.'}</td></tr>}
         </tbody></table></div>
       </section>;
-    })}</div>}
+    })}<SupplierListingPrices onNotice={onNotice} /></div>}
     {tab === 'business' && <BusinessSettings state={state} onSaved={next => { setState(next); onNotice('Settings saved.'); }} onNotice={onNotice} />}
     {tab === 'payments' && <PaymentsSetup state={state} onNotice={onNotice} />}
     {editing && <RuleForm kind={editing.kind} rule={editing.rule} state={state} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onNotice('Price saved.'); load(); }} />}

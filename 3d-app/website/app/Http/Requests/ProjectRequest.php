@@ -132,6 +132,19 @@ class ProjectRequest extends FormRequest
         ];
     }
 
+    /**
+     * An emptied player number stays empty: Laravel turns '' into null, and the 3D kit draws its sample 23 for a
+     * missing number, so a kit without a number (netball designs, client 2026-10-26) showed 23 again once saved.
+     */
+    protected function prepareForValidation(): void
+    {
+        $design = $this->input('design');
+        if (is_array($design) && array_key_exists('number', $design) && $design['number'] === null) {
+            $design['number'] = '';
+            $this->merge(['design' => $design]);
+        }
+    }
+
     private function imageSourceRule(): \Closure
     {
         return function (string $attribute, mixed $value, \Closure $fail) {

@@ -92,6 +92,8 @@ class OrderRequest extends FormRequest
             'confirm_without_approval' => $admin ? ['sometimes', 'boolean'] : ['prohibited'],
             'confirm_unpaid' => $admin ? ['sometimes', 'boolean'] : ['prohibited'],
             'override_reason' => $admin ? ['sometimes', 'nullable', 'string', 'max:500'] : ['prohibited'],
+            // Who makes it (preferred suppliers, task 9.118): 3DEEZI (none sent), Mantis or an approved supplier; staff may pick any.
+            'supplier_id' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'design_final' => $kit ? ['accepted'] : ['sometimes', 'boolean'],
             // The version of the kit the customer saw, when known: a newer one has to be checked first.
             'project_version' => $admin ? ['prohibited'] : ['sometimes', 'nullable', 'integer', 'min:1'],
@@ -158,6 +160,7 @@ class OrderRequest extends FormRequest
             'idempotency_key.regex' => 'The idempotency key is 8 to 80 letters, digits, - or _.',
             'tracking_url.url' => 'The tracking link must start with http:// or https://.',
             'assigned_to.exists' => 'Assign the order to a staff member (an administrator).',
+            'supplier_id.integer' => 'Choose who makes your order from the list.',
         ];
     }
 
@@ -177,6 +180,11 @@ class OrderRequest extends FormRequest
                         $validator->errors()->add("address.$field", $message);
                     }
                 }
+            }
+            // "Made by": one of the choices offered (an approved supplier), or any supplier for staff.
+            if ($this->filled('supplier_id') && ! $validator->errors()->has('supplier_id') && \App\Models\Supplier::ready()
+                && ! \App\Models\Supplier::forOrder($this->input('supplier_id'), $this->routeIs('admin.*'))) {
+                $validator->errors()->add('supplier_id', 'Choose who makes your order from the list: that supplier is not available.');
             }
             // Every garment row has a quantity.
             foreach (is_array($this->input('items')) ? array_values($this->input('items')) : [] as $i => $item) {

@@ -176,6 +176,46 @@
 .mini-swatches{display:flex;position:absolute;left:35px;bottom:9px;gap:5px}
 .mini-swatches>span{width:9px;height:9px;border-radius:2px;background:#00dcf0}.mini-swatches>span:nth-child(2){background:#0962ff}.mini-swatches>span:nth-child(3){background:#923cff}.mini-swatches>span:nth-child(4){background:#f4f8ff}
 
+/* INSTANT 3D FROM ARTWORK (Home.tsx, client 2026-10-26): a cyan heading between two glowing rules, then one wide
+   panel as wide as the four cards: the artwork-to-3D picture, the question and its line, the gradient button.
+   The whole panel opens Convert. Tablets put the button under the words; phones stack it (see the end of the file). */
+.instant-3d{position:relative;z-index:3;margin:calc(46 * var(--u)) 0 0 calc(95 * var(--u));width:calc(1410 * var(--u))}
+.i3d-title{display:flex;align-items:center;justify-content:center;gap:calc(22 * var(--u));margin:0 0 calc(16 * var(--u));font-family:var(--heading);font-weight:700;font-size:max(17px,calc(27 * var(--u)));line-height:1.1;letter-spacing:.14em;color:#21e3f2;text-align:center;text-shadow:0 0 calc(16 * var(--u)) #12e1f070}
+.i3d-title::before,.i3d-title::after{content:"";flex:0 1 calc(150 * var(--u));height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#12e1f0d9);box-shadow:0 0 8px #12e1f080}
+.i3d-title::after{background:linear-gradient(270deg,transparent,#12e1f0d9)}
+.i3d-panel{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:calc(34 * var(--u));padding:calc(14 * var(--u)) calc(30 * var(--u)) calc(14 * var(--u)) calc(22 * var(--u));border:1.5px solid #12e1f0b3;border-radius:calc(22 * var(--u));overflow:hidden;color:#eaf4fc;text-align:left;
+  background:radial-gradient(ellipse 24% 140% at 9% 50%,#1569b852,transparent 70%),radial-gradient(ellipse 26% 160% at 100% 50%,#6d74ff1f,transparent 70%),linear-gradient(180deg,#071a2bf2,#04101cf2);
+  box-shadow:0 0 18px #00d9ed45,0 0 46px #00d9ed1f,inset 0 0 26px #00d9ed12;transition:border-color .2s,transform .2s,box-shadow .2s}
+.i3d-panel::before{content:"";position:absolute;left:10%;right:10%;top:0;height:1px;background:linear-gradient(90deg,transparent,#9ff6ffb3,transparent);pointer-events:none}
+.i3d-panel:hover{transform:translateY(-3px);border-color:#36e3ee;box-shadow:0 0 26px #00d9ed88,0 0 70px #00d9ed33,inset 0 0 30px #00d9ed22}
+.i3d-panel:focus-visible{outline:2px solid #7df3ff;outline-offset:3px}
+/* The picture: a flat jersey artwork on the artboard (selection frame and handles), the 3D step, the 3D kit. */
+.i3d-visual{position:relative;display:flex;align-items:center;width:calc(282 * var(--u));height:calc(108 * var(--u))}
+.i3d-sheet{position:relative;flex:none;display:grid;place-items:center;width:calc(80 * var(--u));height:calc(94 * var(--u));border:1px solid #00d9edc4;border-radius:calc(3 * var(--u));transform:rotate(-6deg);transition:transform .3s;
+  background:repeating-linear-gradient(90deg,transparent 0 calc(11 * var(--u)),#36536d29 calc(11 * var(--u)) calc(12 * var(--u))),repeating-linear-gradient(0deg,#061420 0 calc(11 * var(--u)),#36536d29 calc(11 * var(--u)) calc(12 * var(--u)));
+  box-shadow:0 calc(10 * var(--u)) calc(20 * var(--u)) #000b,0 0 calc(16 * var(--u)) #12c8f02e}
+.i3d-sheet>svg{width:78%;height:auto}
+.i3d-sheet>i{position:absolute;width:6px;height:6px;background:#d5ffff;border:1px solid #00d9ed}
+.i3d-sheet>i:nth-of-type(1){top:-3px;left:-3px}.i3d-sheet>i:nth-of-type(2){top:-3px;right:-3px}.i3d-sheet>i:nth-of-type(3){bottom:-3px;left:-3px}.i3d-sheet>i:nth-of-type(4){bottom:-3px;right:-3px}
+.i3d-arrow{position:relative;flex:1;align-self:stretch;display:grid;place-items:center}
+.i3d-arrow::before{content:"";position:absolute;left:10%;right:9%;top:50%;height:2px;margin-top:-1px;border-radius:2px;background:linear-gradient(90deg,#12e1f02e,#12e1f0 45%,#8c5cff);box-shadow:0 0 8px #12e1f0a6}
+.i3d-arrow::after{content:"";position:absolute;right:9%;top:50%;width:7px;height:7px;border-top:2px solid #8c5cff;border-right:2px solid #8c5cff;transform:translate(1px,-50%) rotate(45deg)}
+.i3d-arrow>b{position:relative;z-index:1;display:grid;place-items:center;width:max(30px,calc(40 * var(--u)));height:max(30px,calc(40 * var(--u)));border-radius:50%;background:linear-gradient(135deg,#12e2f1,#6d74ff);color:#04192b;font:700 max(12px,calc(15 * var(--u)))/1 var(--heading);letter-spacing:.04em;box-shadow:0 0 0 calc(4 * var(--u)) #071a2b,0 0 calc(18 * var(--u)) #12e1f0a6}
+.i3d-kit{position:relative;flex:none;width:calc(104 * var(--u));height:calc(104 * var(--u))}
+.i3d-kit::before{content:"";position:absolute;inset:6% 0 0;border-radius:50%;background:radial-gradient(ellipse at 50% 58%,#2f86ff8c,#1f7bff26 50%,transparent 72%);filter:blur(calc(4 * var(--u)))}
+.i3d-kit::after{content:"";position:absolute;left:16%;right:16%;bottom:1%;height:calc(12 * var(--u));border-radius:50%;background:radial-gradient(ellipse at center,#b4f3ffa6,#3a9bff4d 45%,transparent 72%);filter:blur(calc(2 * var(--u)))}
+.i3d-kit>img{position:relative;z-index:1;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 0 calc(8 * var(--u)) #1e8bff80) drop-shadow(0 calc(8 * var(--u)) calc(12 * var(--u)) #000c);transition:transform .3s}
+.i3d-panel:hover .i3d-kit>img{transform:scale(1.06)}
+.i3d-panel:hover .i3d-sheet{transform:rotate(-9deg) translateX(-2px)}
+.i3d-copy{display:flex;flex-direction:column;gap:calc(8 * var(--u));min-width:0}
+.i3d-copy>strong{font-family:var(--heading);font-weight:700;font-size:max(20px,calc(36 * var(--u)));line-height:1.05;letter-spacing:.04em;color:#fff;text-wrap:balance}
+.i3d-copy>span{font-size:max(13px,calc(18 * var(--u)));line-height:1.45;color:#cfdbe6;text-wrap:balance}
+.i3d-button{display:flex;align-items:center;justify-content:center;gap:calc(12 * var(--u));min-height:max(46px,calc(60 * var(--u)));padding:0 calc(30 * var(--u));border-radius:999px;background:linear-gradient(100deg,#12e2f1,#1cc6f6 32%,#3f8cff 66%,#8c5cff);color:#03182a;
+  font-family:var(--heading);font-weight:700;font-size:max(13px,calc(19 * var(--u)));letter-spacing:.12em;white-space:nowrap;box-shadow:0 0 22px #12e1f04d,inset 0 1px 0 #ffffff59;transition:box-shadow .2s,filter .2s}
+.i3d-button>svg{width:max(17px,calc(22 * var(--u)));height:max(17px,calc(22 * var(--u)));flex:none}
+.i3d-panel:hover .i3d-button{box-shadow:0 0 30px #12e1f080,inset 0 1px 0 #ffffff59;filter:brightness(1.06)}
+@media(prefers-reduced-motion:reduce){.i3d-panel,.i3d-sheet,.i3d-kit>img,.i3d-button{transition:none}.i3d-panel:hover,.i3d-panel:hover .i3d-kit>img{transform:none}.i3d-panel:hover .i3d-sheet{transform:rotate(-6deg)}}
+
 
 /* Screens wider than the design (over 1920 px): the arena, its floor and the smoke fade into the dark page on the right. */
 @media(min-width:1940px){
@@ -269,4 +309,31 @@
 @media(max-width:599px){
   .creation-paths{grid-template-columns:1fr;gap:14px}
   .path-visual{height:min(46vw,190px)}
+}
+
+/* INSTANT 3D FROM ARTWORK on tablets: as wide as the cards, the button beside the words (under them below 900 px). */
+@media(max-width:1199px){
+  .instant-3d{margin:30px 0 0;width:auto}
+  .i3d-title{font-size:21px;margin-bottom:12px}
+  .i3d-panel{gap:22px;padding:14px 24px 14px 16px;border-radius:18px}
+  .i3d-copy>strong{font-size:26px}
+  .i3d-copy>span{font-size:14px}
+  .i3d-button{min-height:48px;padding:0 24px;font-size:14px}
+}
+@media(max-width:899px){
+  .i3d-panel{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"visual copy" "visual button";row-gap:14px}
+  .i3d-visual{grid-area:visual}
+  .i3d-copy{grid-area:copy;align-self:end}
+  .i3d-button{grid-area:button;justify-self:start;align-self:start}
+}
+/* Phones: after the four tiles, stacked and centred: the picture, the words, then a full-width button. */
+@media(max-width:759px){
+  .instant-3d{order:4;margin-top:28px}
+  .i3d-title{gap:12px;font-size:clamp(15px,4.7vw,20px);letter-spacing:.1em}
+  .i3d-title::before,.i3d-title::after{flex-basis:24px}
+  .i3d-panel{grid-template-columns:minmax(0,1fr);grid-template-areas:"visual" "copy" "button";justify-items:center;row-gap:12px;padding:14px 16px 18px;border-radius:16px;text-align:center}
+  .i3d-copy{align-self:auto;gap:6px}
+  .i3d-copy>strong{font-size:clamp(20px,6vw,25px)}
+  .i3d-copy>span{font-size:13.5px}
+  .i3d-button{justify-self:stretch;min-height:48px;padding:0 14px;font-size:13.5px;letter-spacing:.08em}
 }

@@ -13,14 +13,15 @@ import '../widgets/notification_bell.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
 import 'order_entry.dart' show OrderFormScreen, OrderUploadScreen;
+import 'suppliers.dart' show SuppliersScreen;
 import 'team.dart' show TeamScreen;
 
 /// 4 · Home (client picture images/166.jpg, 2026-10-23): the 3DEEZI wordmark
 /// with the bell, "What would you like to create?", four picture tiles (AI
-/// DESIGNER, DESIGN YOUR OWN, ARTBOARD, 3DEEZI TEAM); under them ORDERS
-/// (Create order form, Upload your order, My orders) and the Preferred
-/// suppliers strip (coming soon), then the Assist link and a quiet Convert
-/// line.
+/// DESIGNER, DESIGN YOUR OWN, ARTBOARD, 3DEEZI TEAM); under them the INSTANT
+/// 3D FROM ARTWORK bar (Convert, client 2026-10-26), ORDERS (Create order
+/// form, Upload your order, My orders) and the Preferred suppliers strip
+/// (its screen), then the Assist link.
 class CreateHomeScreen extends StatelessWidget {
   const CreateHomeScreen(this.c, {super.key});
   final AppController c;
@@ -132,39 +133,19 @@ class CreateHomeScreen extends StatelessWidget {
                                 ),
                               ),
                             ),
+                            // INSTANT 3D FROM ARTWORK (client 2026-10-26, as
+                            // on the website's home page): Convert's way in,
+                            // above ORDERS (it replaced a small grey line).
+                            const SizedBox(height: 18),
+                            _ArtworkBar(onTap: () => convertFlow(context, c)),
                             // ORDERS and Preferred suppliers (client
                             // 2026-10-23): under the tiles, which stay first.
-                            const SizedBox(height: 18),
+                            const SizedBox(height: 16),
                             _OrdersRow(c),
                             const SizedBox(height: 12),
-                            const _SuppliersStrip(),
+                            _SuppliersStrip(c),
                             const SizedBox(height: 8),
                             const Center(child: _AssistLink()),
-                            // One quiet line for Convert, which has no other
-                            // way in (Plans & pricing is on Profile; ORDER
-                            // WITH 3DEEZI and Rewards are on the Orders tab).
-                            Center(
-                              child: TextButton.icon(
-                                key: const ValueKey('home-convert'),
-                                onPressed: () => convertFlow(context, c),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: const Color(0xff9fb0bf),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  minimumSize: const Size(0, 36),
-                                ),
-                                icon: const Icon(
-                                  Icons.document_scanner_outlined,
-                                  size: 16,
-                                ),
-                                label: const Text(
-                                  'Convert an image to 3D',
-                                  style: TextStyle(fontSize: 12.5),
-                                ),
-                              ),
-                            ),
                             const SizedBox(height: 4),
                           ],
                         ),
@@ -352,6 +333,434 @@ class _HomeTile extends StatelessWidget {
   );
 }
 
+/// INSTANT 3D FROM ARTWORK (client 2026-10-26, as on the website's home
+/// page): a label like ORDERS, then one glowing panel with the artwork-to-3D
+/// picture, "ALREADY HAVE ARTWORK READY?", its line and a full-width
+/// UPLOAD ARTWORK HERE button. The whole panel starts Convert ([onTap]).
+class _ArtworkBar extends StatelessWidget {
+  const _ArtworkBar({required this.onTap});
+  final VoidCallback onTap;
+
+  static const _ink = Color(0xff03182a);
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Padding(
+        padding: EdgeInsets.only(left: 2, bottom: 8),
+        child: Text(
+          'INSTANT 3D FROM ARTWORK',
+          style: TextStyle(
+            fontFamily: 'Rajdhani',
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            letterSpacing: 2.2,
+            color: Palette.cyan,
+          ),
+        ),
+      ),
+      Semantics(
+        key: const ValueKey('home-artwork-bar'),
+        button: true,
+        label:
+            'Upload artwork here. Already have artwork ready? Turn your '
+            'finished design into an editable 3D kit in seconds.',
+        excludeSemantics: true,
+        onTap: onTap,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Palette.cyan.withValues(alpha: .28),
+                blurRadius: 16,
+                spreadRadius: -2,
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: const Color(0xff1fb6ff).withValues(alpha: .85),
+                width: 1.5,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Ink(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(-.78, -.3),
+                  radius: 1.1,
+                  colors: [Color(0xff0d3358), Color(0xff071a2b), Color(0xff04101c)],
+                  stops: [0, .45, 1],
+                ),
+              ),
+              child: InkWell(
+                onTap: onTap,
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    // Lettering and picture grow a little with the width
+                    // (332 px inside on a 360 px phone).
+                    final s = (box.maxWidth / 362).clamp(.9, 1.15);
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 140 * s,
+                                height: 80 * s,
+                                child: const FittedBox(child: _ArtworkTo3d()),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'ALREADY HAVE ARTWORK READY?',
+                                      style: TextStyle(
+                                        fontFamily: 'Rajdhani',
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 20 * s,
+                                        height: 1.05,
+                                        letterSpacing: .4,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      'Turn your finished design into an '
+                                      'editable 3D kit in seconds.',
+                                      style: TextStyle(
+                                        fontSize: 12.5 * s,
+                                        height: 1.3,
+                                        color: const Color(0xffd3dee8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          // The button: the website's cyan-to-violet pill.
+                          Container(
+                            height: 46,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(999),
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xff12e2f1),
+                                  Color(0xff1cc6f6),
+                                  Color(0xff3f8cff),
+                                  Color(0xff8c5cff),
+                                ],
+                                stops: [0, .32, .66, 1],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Palette.cyan.withValues(alpha: .3),
+                                  blurRadius: 14,
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.add_photo_alternate_outlined,
+                                  size: 19,
+                                  color: _ink,
+                                ),
+                                SizedBox(width: 8),
+                                Flexible(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      'UPLOAD ARTWORK HERE',
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontFamily: 'Rajdhani',
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 16.5,
+                                        letterSpacing: 1.5,
+                                        color: _ink,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 19,
+                                  color: _ink,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+/// The bar's picture, as on the website: a flat jersey artwork on the
+/// artboard (selection frame and handles), the glowing 3D step, the 3D kit.
+class _ArtworkTo3d extends StatelessWidget {
+  const _ArtworkTo3d();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 140,
+    height: 80,
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // The arrow from the artwork to the kit.
+        Positioned(
+          left: 44,
+          width: 40,
+          top: 39,
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(2),
+              gradient: const LinearGradient(
+                colors: [Color(0x4012e1f0), Color(0xff12e1f0), Color(0xff8c5cff)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Palette.cyan.withValues(alpha: .55),
+                  blurRadius: 6,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 78,
+          top: 36.5,
+          child: Transform.rotate(
+            angle: math.pi / 4,
+            child: Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Color(0xff8c5cff), width: 2),
+                  right: BorderSide(color: Color(0xff8c5cff), width: 2),
+                ),
+              ),
+            ),
+          ),
+        ),
+        // The kit, backlit.
+        Positioned(
+          left: 80,
+          top: 8,
+          width: 60,
+          height: 64,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(0, .15),
+                radius: .62,
+                colors: [Color(0x8c2f86ff), Color(0x261f7bff), Color(0x001f7bff)],
+                stops: [0, .5, 1],
+              ),
+            ),
+            child: Image.asset(
+              'assets/images/showroom/garment-jersey.webp',
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
+            ),
+          ),
+        ),
+        // The flat artwork on the artboard, tilted.
+        Positioned(
+          left: 2,
+          top: 10,
+          child: Transform.rotate(
+            angle: -6 * math.pi / 180,
+            child: Container(
+              width: 46,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xff061420),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: const Color(0xc400d9ed)),
+                boxShadow: [
+                  const BoxShadow(
+                    color: Color(0xb0000000),
+                    blurRadius: 10,
+                    offset: Offset(0, 5),
+                  ),
+                  BoxShadow(
+                    color: Palette.cyan.withValues(alpha: .18),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Center(
+                    child: CustomPaint(
+                      size: Size.square(36),
+                      painter: _FlatJerseyPainter(),
+                    ),
+                  ),
+                  for (final corner in const [
+                    Alignment.topLeft,
+                    Alignment.topRight,
+                    Alignment.bottomLeft,
+                    Alignment.bottomRight,
+                  ])
+                    Align(
+                      alignment: corner,
+                      child: Transform.translate(
+                        offset: Offset(corner.x * 3, corner.y * 3),
+                        child: Container(
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: const Color(0xffd5ffff),
+                            border: Border.all(color: const Color(0xff00d9ed)),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // The 3D step on the arrow.
+        Positioned(
+          left: 45,
+          top: 27,
+          child: Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xff12e2f1), Color(0xff6d74ff)],
+              ),
+              border: Border.all(color: const Color(0xff071a2b), width: 2.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Palette.cyan.withValues(alpha: .6),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: const Text(
+              '3D',
+              style: TextStyle(
+                fontFamily: 'Rajdhani',
+                fontWeight: FontWeight.w700,
+                fontSize: 10.5,
+                height: 1,
+                color: Color(0xff04192b),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// A flat jersey in the 3DEEZI kit style (the website's GarmentIcon jersey,
+/// 64-unit grid): navy with cyan and electric-blue flashes, a cyan collar.
+class _FlatJerseyPainter extends CustomPainter {
+  const _FlatJerseyPainter();
+
+  static final _body = parseSvgPath(
+    'M22 7 12 10.5 3 19.5 9.5 30 16 26.5V58H48V26.5L54.5 30 61 19.5 52 10.5 '
+    '42 7C40.3 12.6 36.6 15.4 32 15.4C27.4 15.4 23.7 12.6 22 7Z',
+  );
+  static final _collar = parseSvgPath(
+    'M22 7C23.7 12.6 27.4 15.4 32 15.4C36.6 15.4 40.3 12.6 42 7',
+  );
+  static final _flashes = [
+    (parseSvgPath('M44 14 58 14 30 62 16 62Z'), .9),
+    (parseSvgPath('M58 22 64 22 40 62 34 62Z'), .63),
+    (parseSvgPath('M4 36 10 33 4 60 0 60Z'), .5),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 64, size.height / 64);
+    const box = Rect.fromLTWH(0, 0, 64, 64);
+    canvas.drawPath(
+      _body,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xff173a63), Color(0xff0a1a30), Color(0xff040a14)],
+          stops: [0, .55, 1],
+        ).createShader(box),
+    );
+    canvas.save();
+    canvas.clipPath(_body);
+    for (final (path, opacity) in _flashes) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..shader = LinearGradient(
+            colors: [
+              const Color(0xff12e1f0).withValues(alpha: opacity),
+              const Color(0xff2a6bff).withValues(alpha: opacity),
+            ],
+          ).createShader(box),
+      );
+    }
+    canvas.restore();
+    canvas.drawPath(
+      _body,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..strokeJoin = StrokeJoin.round
+        ..color = const Color(0xff2b5f8c),
+    );
+    canvas.drawPath(
+      _collar,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..strokeJoin = StrokeJoin.round
+        ..color = const Color(0xff12e1f0),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_FlatJerseyPainter old) => false;
+}
+
 /// ORDERS: Create order form, Upload your order and My orders, the Orders
 /// tab's three ways in as compact buttons. Ordering needs an account: signed
 /// out, the form and the upload ask to sign in first (as on the Orders tab).
@@ -493,20 +902,26 @@ class _OrderButton extends StatelessWidget {
   );
 }
 
-/// 3DEEZI | PREFERRED SUPPLIERS, coming soon: a slim strip in the style of
-/// the Orders tab's Rewards strip. The suppliers page comes later; nothing
-/// to tap yet (the website's only partner form is the Corporate Partner
-/// application, not a supplier one, so there is no link).
+/// 3DEEZI | PREFERRED SUPPLIERS: a slim strip in the style of the Orders
+/// tab's Rewards strip. It opens the Preferred suppliers screen: the makers
+/// who work with 3DEEZI, and "Become a preferred supplier".
 class _SuppliersStrip extends StatelessWidget {
-  const _SuppliersStrip();
+  const _SuppliersStrip(this.c);
+  final AppController c;
 
   static const _rule = Color(0xff3b4659);
+
+  void _open(BuildContext context) => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c)));
 
   @override
   Widget build(BuildContext context) => Semantics(
     key: const ValueKey('home-suppliers'),
-    label: '3DEEZI Preferred suppliers: coming soon',
+    button: true,
+    label: '3DEEZI Preferred suppliers: made by makers we trust',
     excludeSemantics: true,
+    onTap: () => _open(context),
     child: Container(
       height: 60,
       decoration: BoxDecoration(
@@ -522,91 +937,106 @@ class _SuppliersStrip extends StatelessWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 64,
-            child: Center(
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Palette.cyan.withValues(alpha: .3),
-                      Palette.cyan.withValues(alpha: 0),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Palette.cyan.withValues(alpha: .55),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Palette.cyan.withValues(alpha: .35),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.handshake_outlined,
-                  color: Palette.cyan,
-                  size: 22,
-                ),
-              ),
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            margin: const EdgeInsets.only(left: 2, right: 12),
-            color: _rule,
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const BrandLogo(width: 80),
-                        Container(
-                          width: 1,
-                          height: 16,
-                          margin: const EdgeInsets.symmetric(horizontal: 8),
-                          color: _rule,
-                        ),
-                        const Text(
-                          'PREFERRED SUPPLIERS',
-                          style: TextStyle(
-                            fontFamily: 'Rajdhani',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 20,
-                            height: 1,
-                            letterSpacing: .6,
-                            color: Colors.white,
-                          ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: () => _open(context),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 64,
+                child: Center(
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          Palette.cyan.withValues(alpha: .3),
+                          Palette.cyan.withValues(alpha: 0),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: Palette.cyan.withValues(alpha: .55),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Palette.cyan.withValues(alpha: .35),
+                          blurRadius: 12,
                         ),
                       ],
                     ),
+                    child: const Icon(
+                      Icons.handshake_outlined,
+                      color: Palette.cyan,
+                      size: 22,
+                    ),
                   ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    'Coming soon.',
-                    maxLines: 1,
-                    style: TextStyle(fontSize: 13.5, color: Color(0xffe9f0f7)),
-                  ),
-                ],
+                ),
               ),
-            ),
+              Container(
+                width: 1,
+                height: 40,
+                margin: const EdgeInsets.only(left: 2, right: 12),
+                color: _rule,
+              ),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const BrandLogo(width: 80),
+                          Container(
+                            width: 1,
+                            height: 16,
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                            color: _rule,
+                          ),
+                          const Text(
+                            'PREFERRED SUPPLIERS',
+                            style: TextStyle(
+                              fontFamily: 'Rajdhani',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              height: 1,
+                              letterSpacing: .6,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Made by makers we trust.',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: Color(0xffe9f0f7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(left: 4, right: 10),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  color: Palette.cyan,
+                  size: 24,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     ),
   );
@@ -966,9 +1396,22 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   void _design() {
     GarmentScreen.showAll.value = false;
     widget.c.update(() {
-      widget.c.sport = dyoSports[_index].$1;
+      final c = widget.c, sport = dyoSports[_index].$1;
+      // Netball has no player names or numbers (client 2026-10-26): its kits
+      // start with an empty back; other sports keep the sample name and 23.
+      final back = backForSport(
+        c.sport,
+        sport,
+        backName: c.backName,
+        number: c.number,
+        sampleName: c.logoText,
+      );
+      c
+        ..sport = sport
+        ..backName = back.backName
+        ..number = back.number;
       // The sport's first garment, unless the kit already is one of its tiles.
-      GarmentScreen.startOn(widget.c);
+      GarmentScreen.startOn(c);
     });
     widget.c.go(AppScreen.garment);
   }

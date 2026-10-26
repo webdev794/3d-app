@@ -13,6 +13,10 @@
  *   'select_hint' (a line between "Change sport" and "Continue to studio"; none by default), 'descriptions' => false (tiles show
  *   names only), 'backdrop' (media/showroom/<backdrop>.webp behind the step; default stadium-stage), 'more' => false (no
  *   "More teamwear").
+ * The AI designer's marking rules for a sport (client 2026-10-26, images/175.jpg), each optional: 'names' => false (no
+ *   player names anywhere), 'numbers' => false (no numbers anywhere), 'positions' (the playing position letters shown
+ *   large on the front and back instead, as on netball bibs). Every sport gets the club's symbol on the chest and a small
+ *   3DEEZI word mark under the back collar (OpenAiDesigner::BRAND_RULES).
  */
 $tile = fn (string $name, string $description, string $garment, ?string $image = null) => ['name' => $name, 'description' => $description, 'garment' => $garment, 'fit' => 'exact', 'image' => $image ?? $garment];
 $near = fn (string $name, string $description, string $garment, string $future, ?string $image = null) => ['name' => $name, 'description' => $description, 'garment' => $garment, 'fit' => 'nearest', 'future' => $future, 'image' => $image ?? $garment];
@@ -69,8 +73,10 @@ $sports = [
         $near('Tracksuit', 'Full-zip jacket and matching pants.', 'trackjacket', 'tracksuit', 'tracksuit'),
         $tile('Varsity jacket', 'Letterman jacket for the team.', 'varsity'),
     ]],
-    // The client's own list, words and pictures (images/157.jpg; garment-netball-*.webp).
-    ['id' => 'netball', 'name' => 'Netball', 'description' => 'Move together. Stand out together.', 'group' => 'sports', 'tiles' => [
+    // The client's own list, words and pictures (images/157.jpg; garment-netball-*.webp). Netball has no player names or
+    // numbers: bibs carry the playing position letters (client 2026-10-26, images/175.jpg).
+    ['id' => 'netball', 'name' => 'Netball', 'description' => 'Move together. Stand out together.', 'group' => 'sports',
+        'names' => false, 'numbers' => false, 'positions' => ['GS', 'GA', 'WA', 'C', 'WD', 'GD', 'GK'], 'tiles' => [
         $near('Netball dress', 'Fitted netball dress with skirt hem.', 'singlet', 'dress', 'netball-dress'),
         $soon('Netball skirt', 'Athletic skirt with team styling.', 'skirt', 'netball-skirt'),
         $tile('Singlet with bib', 'Netball singlet with removable bib.', 'singlet', 'netball-singlet-bib'),

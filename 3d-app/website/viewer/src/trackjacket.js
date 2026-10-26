@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { KANGAROO, HOOD_TOP } from './zones.js';
-import { panelSampler, buildHood, buildRib, buildZip } from './hoodie.js';
+import { panelSampler, buildHood, buildRib, buildZip, cuffRingAbove } from './hoodie.js';
 
 // The track suit jacket (garment.js SPECS.trackjacket / trackjacketHood): smooth polyester, a full front zip finished
 // with a zip garage at the top, a stand-up collar (its own printed piece on the atlas) or the zip hoodie's hood,
@@ -147,7 +147,9 @@ export function buildTrackParts(spec, ctx) {
     const loop = [...idx.map(vtx), ...idx.slice().reverse().map((i) => vtx(n + i))];
     const m = new THREE.Vector2(sgn * midC.x, midC.y), inn = new THREE.Vector2(sgn * inward.x, inward.y);
     const dir = ctx.at(m.x, m.y, false).sub(ctx.at(m.x + inn.x * 0.03, m.y + inn.y * 0.03, false)).normalize();
-    ribs.push(buildRib(loop, { dir, length: 0.05, squeeze: 0.1 }));
+    // Look 2: a round rib tube over the sleeve's end, from 3 cm up the sleeve (hoodie.js cuffRingAbove).
+    const ring = ctx.detail ? cuffRingAbove(ctx, ca, cb, sgn, dir) : null;
+    ribs.push(ring ? buildRib(ring, { dir, length: 0.03 + 0.05, squeeze: 0.05 }) : buildRib(loop, { dir, length: 0.05, squeeze: 0.1 }));
   }
   // The front zip: from the hem band's foot up the centre front, then (collar) up the collar's front edge.
   const neckTop = spec.half[0][1] - 0.003, base = sampleFront(0, 0.004);

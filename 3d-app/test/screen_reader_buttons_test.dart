@@ -391,7 +391,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(SecondaryButton), findsWidgets, reason: tool);
         await expectEveryButtonOwn(tester, 'Studio $tool');
-        await tester.tapAt(const Offset(20, 20)); // closes the sheet
+        // The panel under the 3D closes with its ✕.
+        await tester.tap(find.byKey(const ValueKey('sheet-close')));
         await tester.pumpAndSettle();
       }
     });

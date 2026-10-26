@@ -91,6 +91,9 @@ final class OrderView
             'needed_by' => $order->needed_by?->toDateString(),
             'files_count' => (int) ($order->files_count ?? 0),
             'payment' => $payment,
+            // Who makes it (preferred suppliers, task 9.118): "3DEEZI" for orders placed before the choice existed.
+            'made_by' => \App\Models\Supplier::madeByOf($order),
+            'supplier_id' => $order->getAttribute('supplier_id'),
             'link' => '/orders/'.$order->id,
         ];
         if ($staff) {

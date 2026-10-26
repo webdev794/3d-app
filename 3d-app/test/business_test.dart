@@ -28,10 +28,14 @@ void main() {
       expect(find.text(sub), findsOneWidget);
     }
     expect(find.text('Need a hand? Ask 3DEEZI Assist'), findsOneWidget);
-    // Convert has no other way in: one quiet line under the link. Plans &
-    // pricing is on Profile; ORDER WITH 3DEEZI and Rewards on Orders.
-    await tester.ensureVisible(find.text('Convert an image to 3D'));
-    expect(find.text('Convert an image to 3D'), findsOneWidget);
+    // Convert's way in: the INSTANT 3D FROM ARTWORK bar above ORDERS (client
+    // 2026-10-26; it replaced a quiet line). Plans & pricing is on Profile;
+    // ORDER WITH 3DEEZI and Rewards on Orders.
+    await tester.ensureVisible(find.text('UPLOAD ARTWORK HERE'));
+    expect(find.text('INSTANT 3D FROM ARTWORK'), findsOneWidget);
+    expect(find.text('ALREADY HAVE ARTWORK READY?'), findsOneWidget);
+    expect(find.text('UPLOAD ARTWORK HERE'), findsOneWidget);
+    expect(find.text('Convert an image to 3D'), findsNothing);
     expect(find.text('Plans & pricing'), findsNothing);
     await tapText(tester, 'ARTBOARD');
     expect(c.screen, AppScreen.artboard);

@@ -102,7 +102,7 @@ class Order extends Model
     private const EDIT_LABELS = ['user_id' => 'customer', 'project_id' => 'kit', 'sizes' => 'sizes', 'items' => 'garments', 'unit_price' => 'unit price',
         'contact_name' => 'contact name', 'contact_email' => 'email', 'phone' => 'phone', 'shipping_address' => 'delivery address', 'notes' => 'instructions',
         'admin_notes' => 'internal notes', 'names' => 'names and numbers', 'players' => 'names and numbers', 'team_name' => 'name',
-        'needed_by' => 'needed-by date', 'assigned_to' => 'assigned staff', 'due_date' => 'due date'];
+        'needed_by' => 'needed-by date', 'assigned_to' => 'assigned staff', 'due_date' => 'due date', 'supplier_id' => 'made by'];
 
     protected function casts(): array
     {

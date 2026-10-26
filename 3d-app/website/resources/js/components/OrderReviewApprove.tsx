@@ -59,6 +59,8 @@ export interface ReviewDelivery {
   neededByText?: string;
   /** Shown under the mobile when the page's check finds it wrong. */
   phoneProblem?: string | null;
+  /** Who makes the order (preferred suppliers): shown when the form offered a choice. */
+  madeBy?: string | null;
 }
 /** The saved design an order is made from: its front and back are drawn by the 3D viewer, as on the admin kit page. */
 export interface ReviewDesign {
@@ -572,6 +574,7 @@ export function OrderReviewApprove(p: OrderReviewApproveProps) {
         {deliveryLink}
       </dd></div>
       <div><dt>Instructions</dt><dd className={delivery.notes?.trim() ? 'ora-notes' : 'is-empty'}>{delivery.notes?.trim() || 'None'}</dd></div>
+      {delivery.madeBy && <div><dt>Made by</dt><dd data-testid="review-made-by">{delivery.madeBy}</dd></div>}
       {layout === 'multi' && <div><dt>Uploaded files</dt><dd>{files.length ? <>{p.filesLabel ?? 'Order form & artwork'} · {plural(files.length, 'file')} <button type="button" className="op-link ora-inline-link" onClick={() => setFilesOpen(true)}>View files <ArrowRight size={15} /></button></> : <span className="is-empty">No files uploaded</span>}</dd></div>}
       {layout === 'kit' && <div className={`ora-price-row${priced ? ' is-priced' : ''}`}><dt>Pricing</dt><dd>{priced ? <div className="ora-price" data-testid="review-price">{p.price}</div> : <><span data-testid="pricing-pending">Pricing pending confirmation.</span>{p.priceNote && <small>{p.priceNote}</small>}</>}</dd></div>}
     </dl>

@@ -267,6 +267,14 @@ class AppController extends ChangeNotifier {
   /// The 3D view shows a screen of its own (the print layout check): what
   /// the app puts over the 3D view (view buttons, the chat button) hides.
   bool viewerModal = false;
+
+  /// How tall the Studio's controls under the 3D are (its tool bar, or the
+  /// tool panel while one is open): the round Assist button keeps above them.
+  final studioClearance = ValueNotifier<double>(0);
+
+  /// Closes the Studio's tool panel under the 3D; set while one is open, so
+  /// Android Back closes it before leaving the Studio.
+  VoidCallback? closeStudioPanel;
   bool boardMode = false;
   String? selectedLayerId;
 
@@ -1205,7 +1213,11 @@ class AppController extends ChangeNotifier {
     pattern = value.pattern;
     fabric = value.fabric;
     logoText = value.logoText;
-    backName = value.logoText;
+    // Netball has no player names or numbers (client 2026-10-26): its AI
+    // designs start with an empty back name and number.
+    final back = AiService.kitBack(value.sport, value.logoText);
+    backName = back.backName;
+    number = back.number ?? number;
   });
 
   // ---------- starting points

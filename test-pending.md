@@ -4,6 +4,99 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## Preferred suppliers in the app (2026-10-26)
+1. App › Home: under ORDERS, the "3DEEZI | PREFERRED SUPPLIERS — Made by makers we trust." strip; tap it: the suppliers list opens (Mantis with the 3DEEZI family badge, approved suppliers with logo, Makes, Where, Visit website).
+2. At the bottom, "Become a preferred supplier" with the prices; its button opens the website's form.
+3. Create order form: "Made by" at the end of section 1 (3DEEZI by default, Mantis, suppliers). Choose Mantis › Review shows "Made by Mantis" › Approve: My orders and the order page say "Made by Mantis".
+4. (Your computer's site shows Mantis only after the database update in questions.md 2a; the live site sets itself up.)
+
+---
+
+## Artboard on phones: compact colour panel (2026-10-26; after the next upload)
+1. Phone (or 390 wide): open the Artboard, tap "YOUR TEAM", tap the Fill colour at the top: the COLOUR panel opens under the design; the whole page stays visible above it; tools sit in a column on the left; HEX shows the text's colour.
+2. Drag in the wheel: the text recolours as you drag; Undo once goes back to before the drag.
+3. Type a HEX code, tap a recent colour, slide Opacity: each shows at once. Outline › a colour gives the text an outline. The eyedropper picks a colour from the page.
+4. Done closes the panel and the view comes back. "More" opens the full colour tab (gradients, palettes).
+5. On a computer, Fill opens the Colour tab on the right as before. In the app's Artboard the same panel works.
+
+---
+
+## Menu: one Projects dropdown (2026-10-26; after the next upload)
+1. Computer top menu: one PROJECTS ▾ next to ORDERS ▾ (no separate Approved / Assets / Convert).
+2. Point at PROJECTS: My projects, Convert, Approved, Assets. Choose Approved: it opens and PROJECTS stays lit. Clicking the word PROJECTS opens My projects.
+3. On those four pages, the tab row (Projects · Convert · Approved · Assets) moves between them; the current one is lit.
+4. Phone ☰: under PROJECTS the same four links.
+5. Signed out: My projects, Approved and Assets ask you to sign in; Convert opens. Typed addresses /projects, /approved, /assets, /convert still work. ORDERS works as before.
+
+---
+
+## Homepage "Instant 3D from artwork" bar; Convert out of the menu (2026-10-26; after the next upload)
+1. Homepage (computer): below the four create cards, "INSTANT 3D FROM ARTWORK" with a glowing bar: a small artwork → 3D picture, "ALREADY HAVE ARTWORK READY?", a short line and "UPLOAD ARTWORK HERE", just above the order cards.
+2. Click the bar or the button: the Convert page opens; uploading works; Back returns.
+3. Top menu on several pages and the phone ☰ menu: no "Convert" item (it moves into the Projects menu). Typing /convert still opens it.
+4. Phone: picture, words, then a full-width button; nothing sideways.
+5. App › Home: the same bar above ORDERS (the grey "Convert an image to 3D" line is gone); tapping it opens the picture picker.
+
+---
+
+## Studio on phones (website) (2026-10-26; after the next upload)
+On an iPhone (Safari) or Android phone: Design Your Own › a sport › a garment › Studio.
+1. The kit fills most of the screen. Top bar: Undo, Redo, Save, Export, More; the project name at the top left of the 3D. Under the 3D: the tool row and the Ask 3DEEZI bar with the round Assist button.
+2. Tap Colours: a compact panel opens under the kit and the whole kit stays visible: a small wheel on the left; swatch, eyedropper, +, HEX and Brightness on the right; Recent colours and Done underneath.
+3. Drag the wheel: the kit recolours as you drag. Type #D4202C in HEX: the kit turns red. Tap Done: the panel closes and the kit grows back.
+4. Open and close each tool (AI, Garment, Patterns, Artwork, Text, Numbers, Presets). Front / Back / Side / 360° / full screen work.
+5. Rename the kit on the 3D and Save; reopen it from My projects: name and colours are back.
+6. Artwork › Open 2D panels: "3D view" goes back to the kit.
+7. On a computer the Studio looks as before.
+8. App (same day): Design Your Own › Jersey › Studio: the 3D fills most of the screen, Front / Back / Side at the foot of the 3D. Colours opens a compact panel under the 3D (tabs, small wheel, swatch, HEX, Brightness, recent colours, Done); changes show live. Patterns, Logos, Text and Garment open under the 3D and close with ✕. On Android, Back closes the panel first.
+
+---
+
+## Preferred suppliers on the website (2026-10-26; after the next upload)
+1. Top menu › Suppliers: Mantis (3DEEZI family) and a "Become a preferred supplier" card with the monthly and yearly prices.
+2. Become a preferred supplier › sign in › fill in the company, what you make, where you are, a logo, Monthly › SEND AND PAY: the pay page says "Pay for your supplier listing" (stop there, or pay in test mode).
+3. Open it again: "Your listing" shows its progress and, after paying, "paid until".
+4. Admin › Suppliers: the company shows as Applied; press the tick to approve it: it appears on the Suppliers page and in the order form's "Made by".
+5. Admin › Pricing › Price list: the "Preferred supplier listing" card changes the monthly and yearly prices.
+6. Create Order Form › "Made by: Mantis" › review shows "Made by Mantis" › approve: the invoice PDF shows "Made by Mantis". An order without a choice is made by 3DEEZI.
+7. Admin › Orders and the order board: each order shows "Made by …", with a filter.
+8. Admin › Suppliers › Hidden: the supplier disappears from the page and the order form.
+9. On a phone, Suppliers is in the ☰ menu and the pages fit.
+
+---
+
+## 3D: the new look for everyone (2026-10-26; after the next upload)
+1. Open the Studio normally (no link): the kit shows on the dark mannequin with folds, ribbed collar and cuffs and showroom light.
+2. Add ?look=1 to the address: the old plain look; ?look=2 brings the new look back.
+3. Logos, names and numbers sit where they did. Admin › Orders › a kit picture shows the new look.
+
+---
+
+## Design Your Own netball starts with no name or number (2026-10-26)
+1. Create › Design Your Own › Netball › Netball dress › Studio: the back name and number are empty; nothing on the 3D back.
+2. Change sport to Rugby League: "YOUR NAME 23" comes back. A name you typed yourself is never wiped.
+3. App: the same.
+
+---
+
+## AI designer: netball bibs, club symbol on the chest, small 3DEEZI on the back (2026-10-26)
+Uses AI credits (a few cents per design).
+1. Create › AI designer › Netball › Netball dress › "Black and gold netball dresses for the Panthers" › Generate. All 4 designs: a normal-size crest on the chest (no big 3DEEZI logo), position letters such as GS large on the front and back, no names or numbers, a small 3DEEZI under the back collar.
+2. Again with your club logo attached: the logo sits crest-size on the chest; the back shows only 3DEEZI and the letters.
+3. Open a netball design in the 3D Designer: the player name and number are empty; save, reopen: still no number. Order it: nothing is filled in for the back.
+4. Rugby League with your logo: logo crest-size on the chest, team name and number on the back, small 3DEEZI under the collar.
+5. The same in the app's AI designer.
+
+---
+
+## 3D new look: varsity sleeve ends with round ribbed cuffs (2026-10-26; after the next upload)
+1. Open the test site once with ?look=2, then Design Your Own › any sport › Varsity Jacket › Studio.
+2. Turn the jacket (Front, Side, Back, 3/4): each sleeve ends in a round ribbed cuff joined to the sleeve, with the stripes all the way round; no thin strip or dark wrist below it.
+3. The same on the Hoodie, Zip hoodie and Track jacket cuffs.
+4. Without ?look=2 (or with ?look=1) the jackets look exactly as before.
+
+---
+
 ## Garment pictures match the design (Rugby, Netball) (2026-10-23)
 1. Create › Design Your Own › Rugby League (computer, 1440 wide): 11 tiles in black and cyan; the kit has the socks on its right with the feet turned out; Socks tile feet splayed; bucket hat with a wide brim; Jersey is a V-neck with cyan sleeves.
 2. Rugby: the same 11 pictures, first tile "Rugby Kit".

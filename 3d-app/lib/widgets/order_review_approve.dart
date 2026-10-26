@@ -320,6 +320,8 @@ List<Widget> orderReviewApprove(
   bool pickup = false,
   VoidCallback? onEditDelivery,
   String notes = '',
+  // Who makes the order (preferred suppliers): shown when the form offered a choice, as on the website.
+  String? madeBy,
   required Widget price,
   Widget? garmentsNote,
   Widget? editor,
@@ -421,6 +423,7 @@ List<Widget> orderReviewApprove(
         ),
       ),
       _fact('Instructions', Text(notes.isEmpty ? 'None' : notes, style: TextStyle(color: notes.isEmpty ? Palette.muted : null))),
+      if (madeBy != null) _fact('Made by', Text(madeBy, key: const Key('review-made-by'))),
       if (multi) filesRow,
       if (!multi) ...[
         const Padding(padding: EdgeInsets.only(top: 6, bottom: 4), child: Text('Pricing', style: TextStyle(color: Palette.muted, fontSize: 13))),

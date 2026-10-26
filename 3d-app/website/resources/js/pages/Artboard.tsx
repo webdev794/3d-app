@@ -4,9 +4,10 @@ import { api, baseUrl, saveBlob, type ApiError, type Project, type User } from '
 import type { Draft } from '../App';
 import { defaultDesign, type ArtworkLayer, type Design } from '../types';
 import { artboardOf, placements, readAsset, type ArtboardLayer, type LibraryAsset } from '../components/StudioArtwork';
+import { openAssist } from '../components/Assist';
 
 /** Bump when the editor (media/artboard/index.html) is rebuilt, so browsers load the new copy. */
-const EDITOR_VERSION = '2026-10-23-5';
+const EDITOR_VERSION = '2026-10-26-3';
 
 /** The garments artwork can be sent to (config/catalog.php), in the Studio's order, and the parts each has. */
 const GARMENTS: { id: Design['garment']; name: string }[] = [{ id: 'fullkit', name: 'Full Kit' }, { id: 'jersey', name: 'Jersey' }, { id: 'shorts', name: 'Shorts' }, { id: 'tee', name: 'Training Tee' }, { id: 'singlet', name: 'Singlet' }, { id: 'polo', name: 'Polo' }];
@@ -18,6 +19,8 @@ type Message = {
     id?: number; op?: string; template?: boolean; doc?: number; document?: string; preview?: string | null; version?: number;
     // Send to 3D Studio: the design it came from, where it goes and where on the garment.
     artboard?: number | null; target?: { kind?: string; garment?: string; project?: number | string }; placement?: string | null;
+    // Phones' colour panel under the artwork: {type: 'colourDock', open}.
+    open?: boolean;
 };
 
 /**
@@ -64,6 +67,8 @@ export default function ArtboardPage({ draft, onChange, user, onNotice, requireA
     setParams({}, { replace: true });
   }, [send, setParams]);
   useEffect(() => { if (docParam) { pendingDoc.current = docParam; openPending(); } }, [docParam, openPending]);
+  // Leaving the Artboard with its colour panel open: the 3DEEZI ASSIST button comes back.
+  useEffect(() => () => document.documentElement.removeAttribute('data-artboard-dock'), []);
   useEffect(() => { if (ready.current) { sendHost(); openPending(); } }, [user, sendHost, openPending]);
 
   useEffect(() => {
@@ -121,6 +126,10 @@ export default function ArtboardPage({ draft, onChange, user, onNotice, requireA
       if (msg.host !== 'web') return;
       // AI / DYO quick access on the Artboard's top bar (the artwork is already saved there).
       if (msg.type === 'start' && (msg.mode === 'ai' || msg.mode === 'dyo' || msg.mode === 'home')) { startRef.current(msg.mode); return; }
+      // Phones: while the colour panel is open under the artwork, the 3DEEZI ASSIST button makes way (assist.css); the
+      // panel has its own Assist button, which opens the chat.
+      if (msg.type === 'colourDock') { document.documentElement.toggleAttribute('data-artboard-dock', msg.open === true); return; }
+      if (msg.type === 'assistOpen') { document.documentElement.removeAttribute('data-artboard-dock'); openAssist(); return; }
       if (msg.type === 'docs' && typeof msg.id === 'number') { await docs(msg); return; }
       if (msg.type === 'signin') { requireAuth(); return; }
       if (msg.type === 'convertFile' && msg.data && msg.format === 'cdr') {

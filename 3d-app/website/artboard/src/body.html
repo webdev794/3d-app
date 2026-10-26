@@ -302,6 +302,30 @@
     <button class="ibtn" id="zoomPlus" title="Zoom in" data-icon="plus"></button>
     <button class="ibtn" id="fitBtn" title="Fit page" data-icon="fit"></button>
   </footer>
+
+  <!-- Phones: the colour panel under the artwork, so the whole design stays in view (client picture 173.jpg, 9.119).
+       Colours show on the design while you drag; Done closes it. Computers keep the Colour tab. -->
+  <section class="cdock" id="cdock" aria-label="Colour" hidden>
+    <div class="cd-chips">
+      <span class="cd-chip cd-fit"><button id="cdFit" type="button" title="Fit the whole page in view"><svg class="i" viewBox="0 0 24 24" data-cd-icon="fit"></svg><span>Fit</span></button><span class="cd-zoom" title="Zoom"><svg class="i cd-caret" viewBox="0 0 24 24" data-cd-icon="down"></svg><select id="cdZoom" aria-label="Zoom"><option value="" hidden>Zoom</option><option value="fit">Fit page</option><option value="50">50%</option><option value="100">100%</option><option value="150">150%</option><option value="200">200%</option><option value="400">400%</option></select></span></span>
+      <button class="cd-chip cd-live" id="cdLive" type="button" aria-pressed="true" title="Live preview: colours show on the design while you drag (off: when you let go)"><svg class="i" viewBox="0 0 24 24" data-cd-icon="bolt"></svg><span>Live preview</span></button>
+      <button class="cd-chip cd-assist" id="cdAssist" type="button" title="3DEEZI ASSIST: ask for help, or ask it to colour something for you"><svg class="i" viewBox="0 0 24 24" data-cd-icon="sparkle"></svg><span>Assist</span></button>
+    </div>
+    <div class="cd-card">
+      <div class="cd-head"><h4>Colour</h4><button class="ibtn" id="cdClose" type="button" data-icon="close" aria-label="Close the colour panel" title="Close"></button></div>
+      <div class="cd-row"><div class="cd-target" role="group" aria-label="Colour of"><button type="button" data-cdt="fill" class="on">Fill</button><button type="button" data-cdt="stroke">Outline</button></div>
+        <button class="cd-more" id="cdMore" type="button" title="Gradients, patterns, palettes, colour harmony and RGB / CMYK values" data-icon="more"><span>More</span></button></div>
+      <div class="cd-main">
+        <div class="cd-wheel" id="cdWheel" role="slider" aria-label="Colour wheel: the ring picks the colour, the square its lightness" tabindex="0"><canvas id="cdWheelCanvas"></canvas><i class="cd-ring-dot" id="cdRingDot"></i><i class="cd-sq-dot" id="cdSqDot"></i></div>
+        <div class="cd-side">
+          <div class="cd-now"><span class="cd-swatch" id="cdSwatch"></span><button class="cd-eye" id="cdEye" type="button" data-icon="eyedropper" aria-label="Pick a colour from the page" title="Pick a colour from the page: tap this, then tap the colour"></button></div>
+          <label class="cd-hex"><span>HEX</span><input id="cdHex" maxlength="7" spellcheck="false" autocomplete="off" autocapitalize="characters" aria-label="Hex colour"></label>
+          <div class="cd-op"><div class="cd-op-head"><span>Opacity</span><output id="cdOpVal">100%</output></div><input type="range" id="cdOp" min="0" max="100" value="100" aria-label="Opacity"></div>
+        </div>
+      </div>
+      <div class="cd-foot"><div class="cd-recent"><small>Recent colours</small><div id="cdRecent"></div></div><button class="cd-done" id="cdDone" type="button">Done</button></div>
+    </div>
+  </section>
 </div>
 <input type="file" id="fileImage" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,.cdr" multiple>
 <input type="file" id="fileExported" accept="image/svg+xml,.svg,image/png,.png" multiple>

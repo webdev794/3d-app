@@ -1,7 +1,8 @@
-import { ArrowRight, BatteryFull, Box, ChevronLeft, ChevronRight, Layers, Monitor, MousePointer2, Palette, PenTool, Shirt, Signal, Sparkles, Type, Users, Wifi } from 'lucide-react';
+import { ArrowRight, BatteryFull, Box, ChevronLeft, ChevronRight, ImageUp, Layers, Monitor, MousePointer2, Palette, PenTool, Shirt, Signal, Sparkles, Type, Users, Wifi } from 'lucide-react';
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { media } from '../api';
+import GarmentIcon from '../components/GarmentIcon';
 import StoreBadges, { AppleLogo, GooglePlayLogo } from '../components/StoreBadges';
 import RewardsBanner from '../components/RewardsBanner';
 import OrderNow from '../components/OrderNow';
@@ -72,6 +73,22 @@ export default function Home({onStart}:{onStart:(mode:'ai'|'dyo')=>void}) {
           <p>Don’t want to design it yourself? Our professional design team will create it for you.</p>
           <div className="path-visual pv-team" aria-hidden="true"><img src={media('images/art/home_team.webp')} alt="" loading="lazy" width={960} height={640}/></div>
           <span className="path-cta">GET A DESIGNER <ArrowRight/></span>
+        </Link>
+      </section>
+      {/* INSTANT 3D FROM ARTWORK (client 2026-10-26, 176.jpg, "make it according to you"): artwork the visitor already
+          has goes straight to Convert, which left the menu bar. Between the four ways to create and ORDER NOW; as wide
+          as the cards on computers, stacked on phones. 3DEEZI ASSIST folds when this scrolls into view (the first
+          [data-assist-fold], Assist.tsx), so the open chat never covers its button. */}
+      <section className="instant-3d" aria-labelledby="i3d-title" data-assist-fold="">
+        <h2 id="i3d-title" className="i3d-title">INSTANT 3D FROM ARTWORK</h2>
+        <Link to="/convert" className="i3d-panel" aria-label="Upload artwork here: turn your finished design into an editable 3D kit">
+          <span className="i3d-visual" aria-hidden="true">
+            <span className="i3d-sheet"><GarmentIcon garment="jersey"/><i/><i/><i/><i/></span>
+            <span className="i3d-arrow"><b>3D</b></span>
+            <span className="i3d-kit"><img src={media('showroom/garment-jersey.webp')} alt="" loading="lazy" width={640} height={640}/></span>
+          </span>
+          <span className="i3d-copy"><strong>ALREADY HAVE ARTWORK READY?</strong><span>Turn your finished design into an editable 3D kit in seconds.</span></span>
+          <span className="i3d-button"><ImageUp/> UPLOAD ARTWORK HERE <ArrowRight/></span>
         </Link>
       </section>
     </div></div>

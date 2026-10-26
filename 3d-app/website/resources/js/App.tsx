@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-ro
 import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, House, LoaderCircle, LogOut, Menu, PenTool, Shirt, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
 import { api, getToken, media, setToken, type Catalog, type Project, type User } from './api';
 import { defaultDesign, type Design } from './types';
-import { AiDesigner, ConvertPage, GarmentSelection, SportSelection } from './pages/Create';
+import { AiDesigner, ConvertPage, GarmentSelection, SportSelection, backForSport } from './pages/Create';
 import PricingPage from './pages/Pricing';
 import AdminPage from './pages/Admin';
 import OrdersBoardPage from './pages/OrdersBoard';
@@ -21,10 +21,13 @@ import NotificationBell from './components/NotificationBell';
 import { AboutPage, PrivacyPage, SupportPage, TermsPage } from './pages/InfoPages';
 import '../css/site-footer.css';
 import OrdersMenu from './components/OrdersMenu';
+// PROJECTS ▾ (client 2026-10-26): My projects, Convert, Approved and Assets in one menu, built like ORDERS ▾, and a tab row on their pages.
+import ProjectsMenu, { ProjectsTabs } from './components/ProjectsMenu';
 import { TeamPage, TeamRequestPage, TeamRequestsPage } from './pages/Team';
 import '../css/team-header.css';
 import { DesignerPage } from './pages/AdminTeam';
 import { QuickPills, useHeaderFit } from './components/QuickPills';
+import { SupplierApplyPage, SuppliersPage } from './pages/Suppliers';
 
 export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string; /** A design picture (a saved asset) the Studio puts on the 3D kit when it opens (checked on screen first). */ pendingDrawing?: { asset: number; name: string; /** The garment is the one asked for (a 3DEEZI TEAM request): the check screen opens on it, not on a guess from the picture. */ known?: boolean } }
 export const newDraft = (): Draft => ({ name: 'Untitled kit', sport: 'rugby-league', garment: 'jersey', mode: 'dyo', design: { ...defaultDesign } });
@@ -134,7 +137,7 @@ export default function App() {
     {!studio && <header ref={headerRef} className={`site-header ${location.pathname === '/' ? 'is-home' : ''}`}><div className="header-inner">
       <Link to="/" className="brand" aria-label="3DEEZI home"><img src={media('images/brand-final.png')} alt="3DEEZI" /><span>AI SPORTSWEAR DESIGNER</span></Link>
       <nav className={`main-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
-        <NavLink to="/" end className={() => 'nav-home'} onClick={() => setMenuOpen(false)}><House size={15} /> Home</NavLink><NavLink to="/" end>Create</NavLink><NavLink to="/convert">Convert</NavLink><NavLink to="/projects">Projects</NavLink><NavLink to="/approved">Approved</NavLink><NavLink to="/assets">Assets</NavLink><OrdersMenu onNavigate={() => setMenuOpen(false)} /><NavLink to="/team" className="nav-team">3DEEZI Team</NavLink><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}{user?.is_designer && !user.is_admin && <NavLink className="nav-admin" to="/designer"><PenTool size={15} /> Designer</NavLink>}
+        <NavLink to="/" end className={() => 'nav-home'} onClick={() => setMenuOpen(false)}><House size={15} /> Home</NavLink><NavLink to="/" end>Create</NavLink><ProjectsMenu onNavigate={() => setMenuOpen(false)} /><OrdersMenu onNavigate={() => setMenuOpen(false)} /><NavLink to="/suppliers">Suppliers</NavLink><NavLink to="/team" className="nav-team">3DEEZI Team</NavLink><NavLink to="/dashboard">Dashboard</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}{user?.is_designer && !user.is_admin && <NavLink className="nav-admin" to="/designer"><PenTool size={15} /> Designer</NavLink>}
         <button className="nav-quick" onClick={() => { setMenuOpen(false); start('ai'); }}><Sparkles size={15} /> AI Powered Sportswear</button><button className="nav-quick" onClick={() => { setMenuOpen(false); start('dyo'); }}><Shirt size={15} /> Design Your Own</button>
       </nav>
       <div className="header-actions">{user?.is_admin && <Link className="button button-outline admin-link" to="/admin" title="Admin"><ShieldCheck size={15} /><span className="admin-text">Admin</span></Link>}{user?.is_designer && !user.is_admin && <Link className="button button-outline admin-link designer-link" to="/designer" title="3DEEZI TEAM designer: my design requests"><PenTool size={15} /><span className="admin-text">Designer</span></Link>}<NotificationBell signedIn={!!user} />{user ? <Link className="account-link" to="/profile"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span>{user.name.split(' ')[0]}</span></Link> : <button className="button button-quiet" onClick={() => requireAuth()}>Sign in</button>}<QuickPills onStart={start} /><button className="icon-button mobile-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>{menuOpen ? <X /> : <Menu />}</button></div>
@@ -143,9 +146,10 @@ export default function App() {
     <main><Routes>
       <Route path="/" element={<Home onStart={start} />} />
       <Route path="/create/ai" element={<AiDesigner catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} onNotice={setNotice} />} />
-      <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={sport => setDraft(d => ({ ...d, sport, mode: 'dyo' }))} onNext={() => navigate('/create/garment')} />} />
+      <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={sport => setDraft(d => ({ ...d, sport, mode: 'dyo', design: { ...d.design, ...backForSport(d.design, catalog, d.sport, sport) } }))} onNext={() => navigate('/create/garment')} />} />
       <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={({ garment, productName, design }) => setDraft(d => ({ ...d, garment, design: { ...d.design, ...design, garment: garment as Design['garment'], productName } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport', { state: { keep: true } })} />} />
-      <Route path="/convert" element={<ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} />} />
+      {/* Convert is in the PROJECTS menu (client 2026-10-26): the Projects tab row above it, as on My projects, Approved and Assets. */}
+      <Route path="/convert" element={<><ProjectsTabs shell /><ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} /></>} />
       <Route path="/admin" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section/:itemId" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
@@ -167,6 +171,9 @@ export default function App() {
       <Route path="/team/requests" element={protectedPage(<TeamRequestsPage />)} />
       <Route path="/team/requests/:requestId" element={protectedPage(<TeamRequestPage onNotice={setNotice} onStudio={openDesignPicture} />)} />
       <Route path="/pricing" element={<PricingPage onStart={() => start('dyo')} />} />
+      {/* Preferred suppliers (task 9.118): the page and "Become a preferred supplier" (pages/Suppliers.tsx). */}
+      <Route path="/suppliers" element={<SuppliersPage user={user} />} />
+      <Route path="/suppliers/apply" element={<SupplierApplyPage user={user} checking={checkingSession} requireAuth={requireAuth} />} />
       <Route path="/downloads" element={<DownloadsPage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/support" element={<SupportPage user={user} />} />

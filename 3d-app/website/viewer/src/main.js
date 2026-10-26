@@ -70,7 +70,8 @@ if (Q) { renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingEx
 // the studio softbox. '1' = the tiers exactly as before step 2. The website sends ?look=2 only for a device that asked
 // for the preview (?look=2 on any page, until ?look=1); the apps never send it. When the client approves, LOOK_DEFAULT
 // becomes '2' and everyone gets step 2 (the one-line switch; then the next VIEWER_VERSION).
-const LOOK_DEFAULT = '1';
+// 2026-10-26: the user approved the new look for everyone; ?look=1 = the old look.
+const LOOK_DEFAULT = '2';
 const LOOK2 = !!Q && (params.get('look') ?? LOOK_DEFAULT) === '2';
 document.body.dataset.look = LOOK2 ? '2' : '1';
 

@@ -45,6 +45,16 @@ void main() {
           selectHint: field(text, 'select_hint'),
           descriptions: !text.contains("'descriptions' => false"),
           backdrop: field(text, 'backdrop'),
+          // The AI designer's marking rules (netball: no names or numbers,
+          // position letters instead).
+          names: !text.contains("'names' => false"),
+          numbers: !text.contains("'numbers' => false"),
+          positions: [
+            for (final p in RegExp(r"'([^']*)'").allMatches(
+              RegExp(r"'positions' => \[([^\]]*)\]").firstMatch(text)?[1] ?? '',
+            ))
+              p[1]!,
+          ],
           tiles: [
             for (final m in tileCall.allMatches(text))
               (
@@ -90,6 +100,9 @@ void main() {
       expect(s.selectHint, w.selectHint, reason: w.id);
       expect(s.descriptions, w.descriptions, reason: w.id);
       expect(s.backdrop, w.backdrop, reason: w.id);
+      expect(s.names, w.names, reason: w.id);
+      expect(s.numbers, w.numbers, reason: w.id);
+      expect(s.positions, w.positions, reason: w.id);
       if (s.backdrop != null) {
         expect(
           File('assets/images/showroom/${s.backdrop}.webp').existsSync(),
@@ -141,6 +154,11 @@ void main() {
     expect(ProjectSync.sports['Training / Gym'], 'training');
     expect(ProjectSync.sports['American Football'], 'american-football');
     expect(ProjectSync.sports['Darts & Pool'], 'darts');
+    // Netball's rules are read from the website's list, not left out.
+    final netball = website.firstWhere((w) => w.id == 'netball');
+    expect(netball.names, isFalse);
+    expect(netball.numbers, isFalse);
+    expect(netball.positions, ['GS', 'GA', 'WA', 'C', 'WD', 'GD', 'GK']);
   });
 
   test('every category has its pictures, symbol, AI tile and garments', () {

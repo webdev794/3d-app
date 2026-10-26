@@ -113,6 +113,10 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
           if (didPop) return;
           if (assist.open) {
             assist.minimise();
+          } else if (c.screen == AppScreen.studio &&
+              c.closeStudioPanel != null) {
+            // The Studio's tool panel under the 3D closes first.
+            c.closeStudioPanel!();
           } else {
             c.back();
           }

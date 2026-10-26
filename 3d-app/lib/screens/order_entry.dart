@@ -16,6 +16,7 @@ import '../widgets/order_review_approve.dart';
 import '../widgets/order_review_garments.dart';
 import '../widgets/ui.dart';
 import 'orders_board.dart';
+import 'suppliers.dart' show MadeByField, Supplier, SuppliersScreen;
 
 // 3DEEZI Orders in the app: Create Order Form and Upload Your Order, native, on
 // the same API as the website (drafts, file uploads with progress, one
@@ -503,13 +504,25 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   /// The usual production and delivery time in weeks (Admin › Settings, GET /orders/options): a sooner date required
   /// gets a gentle warning; the order can still be sent.
   int leadWeeks = defaultLeadWeeks;
-  Future<void> loadLeadWeeks() async {
+
+  /// The "Made by" choices (GET /orders/options' `suppliers`, preferred suppliers): 3DEEZI first, then Mantis and the
+  /// approved suppliers. None on an older server: the order is then 3DEEZI's, with nothing to choose.
+  List<Supplier> makers = const [];
+
+  /// The order form's choices: the lead time and the makers.
+  Future<void> loadOptions() async {
     try {
       final o = await c.api.orderOptions();
       final weeks = o['lead_time_weeks'];
-      if (weeks is num && mounted) setState(() => leadWeeks = weeks.toInt());
+      final found = Supplier.listOf(o['suppliers']);
+      if (mounted) {
+        setState(() {
+          if (weeks is num) leadWeeks = weeks.toInt();
+          makers = found;
+        });
+      }
     } catch (_) {
-      // The usual 4 weeks.
+      // The usual 4 weeks, made by 3DEEZI.
     }
   }
 
@@ -912,11 +925,14 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   Map<String, dynamic> pricing = {};
   String? helped;
 
+  /// Made by: the maker chosen; null is 3DEEZI (the default).
+  int? supplierId;
+
   @override
   void initState() {
     super.initState();
     initContact();
-    loadLeadWeeks();
+    loadOptions();
   }
 
   @override
@@ -941,6 +957,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     if (neededBy != null) 'needed_by': _ymd(neededBy!),
     'delivery': delivery,
     'address': address,
+    // Made by (preferred suppliers): only a maker other than 3DEEZI is sent, as the website does.
+    if (MadeByField.idToSend(makers, supplierId) case final id?) 'supplier_id': id,
   };
 
   int get total => rows.fold(0, (a, r) => a + r.total);
@@ -1023,6 +1041,13 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         contactFields(withPhone: false),
         _field(phone, 'Mobile', keyboard: TextInputType.phone),
         _whenWhere(),
+        // Made by, at the end of section 1 as on the website (only when there is a choice).
+        MadeByField(
+          makers: makers,
+          value: supplierId,
+          onChanged: (id) => setState(() => supplierId = id),
+          onSeeSuppliers: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
+        ),
         _section('2 · Garments & sizes'),
         SurfaceCard(
           child: Column(
@@ -1262,6 +1287,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         deliveryText: delivery == 'pickup' ? null : deliveryLine(delivery, address),
         onEditDelivery: () => setState(() => step = 'edit'),
         notes: notes.text.trim(),
+        // Who makes it, when the form offered a choice (as the website's review).
+        madeBy: makers.length > 1 ? MadeByField.chosenOf(makers, supplierId)?.name : null,
         price: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1314,7 +1341,7 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
   void initState() {
     super.initState();
     initContact();
-    loadLeadWeeks();
+    loadOptions();
     editContact = name.text.isEmpty;
   }
 

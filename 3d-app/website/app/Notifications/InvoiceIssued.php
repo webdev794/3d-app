@@ -32,7 +32,10 @@ class InvoiceIssued extends Notification
         $mail = (new MailMessage)
             ->subject("3DEEZI · Invoice {$invoice->number} · {$total}")
             ->greeting('Hi '.(explode(' ', trim((string) $notifiable->name))[0] ?: 'there').',')
-            ->line('Thanks for your order'.(filled($order['number'] ?? null) ? ' '.$order['number'] : '').(filled($order['name'] ?? null) ? ' ('.$order['name'].')' : '').". Your invoice {$invoice->number} is ready.")
+            ->line((($order['source'] ?? null) === 'supplier'
+                // A preferred supplier's listing (task 9.118).
+                ? 'Thanks for applying to be a 3DEEZI preferred supplier ('.($order['number'] ?? '').').'
+                : 'Thanks for your order'.(filled($order['number'] ?? null) ? ' '.$order['number'] : '').(filled($order['name'] ?? null) ? ' ('.$order['name'].')' : '').'.')." Your invoice {$invoice->number} is ready.")
             ->line("Amount due: {$total}".(($tax['amount_cents'] ?? 0) > 0 ? ' (includes '.($tax['name'] ?? 'GST').' '.Money::format($tax['amount_cents'], $invoice->currency).')' : '').'.'
                 .($invoice->due_at ? ' Please pay by '.$invoice->due_at->format('j M Y').'.' : ''))
             ->action('Review & pay', (string) $invoice->payUrl())
@@ -41,7 +44,9 @@ class InvoiceIssued extends Notification
         if ($bank !== '') {
             $mail->line("Prefer a bank transfer? {$bank} · Reference: {$invoice->number}");
         }
-        if (($invoice->snapshot['payment_rule']['rule'] ?? 'none') === 'full') {
+        if (($order['source'] ?? null) === 'supplier') {
+            $mail->line('We list your company once the invoice is paid and your application is approved.');
+        } elseif (($invoice->snapshot['payment_rule']['rule'] ?? 'none') === 'full') {
             $mail->line('Production starts once the invoice is paid in full.');
         }
         if (filled($invoice->snapshot['note'] ?? null)) {

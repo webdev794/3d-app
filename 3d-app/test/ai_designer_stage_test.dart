@@ -218,6 +218,33 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
+  // Client 2026-10-26 (images/175.jpg): netball has no player names or
+  // numbers, so a netball design from the AI opens in the Studio (and so in
+  // the order form) with no back name and no number; rugby keeps its own.
+  testWidgets('a netball AI design opens with no back name or number', (tester) async {
+    final c = AppController()..screen = AppScreen.home;
+    await mountPhone(tester, c);
+    for (final (brief, name, number) in [
+      ('A black and gold netball singlet for the Panthers', '', ''),
+      ('Black and teal rugby league jersey', 'MANTIS', '23'),
+    ]) {
+      c.startAi();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.enterText(find.descendant(of: find.byType(AiDesignerScreen), matching: find.byType(TextField)), brief);
+      await tester.tap(find.byTooltip('Generate designs'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(c.screen, AppScreen.concepts, reason: brief);
+      c.openConcept(0);
+      expect(c.screen, AppScreen.studio, reason: brief);
+      expect(c.backName, name, reason: brief);
+      expect(c.number, number, reason: brief);
+      await tester.pump(const Duration(seconds: 1));
+    }
+  });
+
   // QA AB follow-up: every garment a brief can name reaches the Studio offline.
   testWidgets('sample concepts open the garment of each brief in the Studio', (tester) async {
     final c = AppController()..screen = AppScreen.home;

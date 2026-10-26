@@ -514,3 +514,98 @@ dialog.send-dialog{max-width:min(600px,94vw)}
 #sendSignIn .mini{color:var(--cyan)}
 #sendSignIn[hidden]{display:none}
 @media (max-width:600px){.send-top{flex-direction:column}.send-pic{width:100%;height:110px}}
+
+/* ===== Phones: the colour panel under the artwork (client picture 173.jpg, 9.119) =====
+   Up to 600 px wide the Colour tab opens this compact panel below the page instead of the sheet over it: the page area
+   gets the room above (the toolbox moves to a rail at its left side, the colour strip and the status bar make way while
+   it is open) and the page is fitted into it, so the whole design stays in view. Computers keep the Colour tab. */
+.cdock{display:none}
+@media (max-width:600px){
+  .app>.cdock:not([hidden]){grid-row:4;display:flex;flex-direction:column;gap:6px;min-width:0;padding:6px 8px max(8px,env(safe-area-inset-bottom));background:#050c14;border-top:1px solid var(--line)}
+  .cdock-open .app{grid-template-rows:54px 48px minmax(0,1fr) auto}
+  .cdock-open .app>.foot,.cdock-open .palette{display:none}
+  .cdock-open .tools{top:0;bottom:0;right:auto;width:60px;flex-direction:column;gap:3px;overflow-x:hidden;overflow-y:auto;border-top:0;border-right:1px solid var(--line);padding:6px 4px;scrollbar-width:none}
+  .cdock-open .tools::-webkit-scrollbar{display:none}
+  .cdock-open .tool{width:100%;padding:6px 2px}
+  .cdock-open .tool .tl{max-width:100%;font-size:9px;overflow:hidden;text-overflow:ellipsis}
+  .cdock-open .canvas-wrap,.cdock-open.hide-palette .canvas-wrap{left:60px;top:0;bottom:0}
+  .cdock-open .hint,.cdock-open.hide-palette .hint{bottom:10px;left:calc(50% + 30px);max-width:calc(100% - 76px);white-space:normal;text-align:center}
+  .previewing .cdock{display:none!important}
+}
+.cd-chips{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;min-width:0}
+.cd-chips>.cd-fit{justify-self:start}.cd-chips>.cd-live{justify-self:center}.cd-chips>.cd-assist{justify-self:end}
+.cd-chip{position:relative;display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border:1px solid #1f4456;border-radius:999px;background:#07131d;color:#cdeef6;font-size:11.5px;font-weight:600;white-space:nowrap;flex:none}
+.cd-chip svg.i{width:14px;height:14px}
+.cd-fit{padding:0;gap:0}
+.cd-fit>button{display:inline-flex;align-items:center;gap:5px;height:100%;padding:0 4px 0 11px;border-radius:999px 0 0 999px}
+.cd-zoom{position:relative;display:grid;place-items:center;width:26px;height:100%;border-left:1px solid #1f4456}
+.cd-fit .cd-caret{width:13px;height:13px;color:#8fa3b6}
+.cd-zoom select{position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;border:0;font-size:16px}
+.cd-live{color:var(--cyan);border-color:#12e1f0aa;box-shadow:0 0 10px #12e1f040}
+.cd-live:before,.cd-live:after{content:"";position:absolute;top:50%;width:7px;height:12px;margin-top:-6px;border:solid #12e1f088;border-width:0 2px;border-radius:2px;transform:skewX(-14deg)}
+.cd-live:before{left:-12px}.cd-live:after{right:-12px}
+.cd-live[aria-pressed=false]{color:#8fa3b6;border-color:#1f4456;box-shadow:none}
+.cd-live[aria-pressed=false]:before,.cd-live[aria-pressed=false]:after{display:none}
+.cd-assist{color:#bff6fb}
+.cd-assist svg.i{color:var(--cyan);fill:#12e1f022;filter:drop-shadow(0 0 3px #12e1f0aa)}
+.cd-assist[hidden]{display:none}
+.cd-card{display:flex;flex-direction:column;gap:7px;min-width:0;padding:9px 12px 10px;border:1px solid #1d3b4c;border-radius:14px;background:linear-gradient(180deg,#0b1826,#08121c)}
+.cd-head{display:flex;align-items:center;gap:8px;min-height:26px}
+.cd-head h4{flex:1;margin:0;font-family:Rajdhani,Inter,sans-serif;font-size:15px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#eef6fb}
+.cd-head .ibtn{width:28px;height:28px;margin-right:-6px}
+.cd-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cd-target{display:grid;grid-template-columns:1fr 1fr;width:min(56%,210px);padding:2px;border:1px solid var(--line);border-radius:7px;background:#06101a}
+.cd-target button{height:26px;border-radius:5px;font-size:12px;font-weight:600;color:#b9c8d6}
+.cd-target button.on{background:var(--cyan);color:#02131c;box-shadow:0 0 10px #12e1f055}
+.cd-more{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 9px;border-radius:7px;color:#9fb3c4;font-size:12px}
+.cd-more svg.i{width:16px;height:16px}
+.cd-more:hover{color:var(--cyan)}
+.cd-main{--cdw:clamp(104px,min(38vw,20vh),168px);display:flex;align-items:center;gap:14px;min-width:0}
+.cd-wheel{position:relative;flex:none;width:var(--cdw);height:var(--cdw);touch-action:none;border-radius:50%;outline:none}
+.cd-wheel canvas{display:block;width:100%;height:100%}
+.cd-wheel:focus-visible{box-shadow:0 0 0 2px var(--cyan)}
+.cd-wheel i{position:absolute;left:0;top:0;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 0 1px #0009,0 1px 4px #000a;pointer-events:none}
+.cd-wheel .cd-sq-dot{width:14px;height:14px;margin:-7px 0 0 -7px;border-width:2px}
+.cd-side{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}
+.cd-now{display:flex;gap:8px}
+.cd-swatch{flex:1;height:32px;border-radius:6px;border:1px solid #ffffff2e;box-shadow:inset 0 0 0 1px #0005}
+.cd-eye{display:grid;place-items:center;width:38px;height:32px;flex:none;border:1px solid #2a4a5c;border-radius:6px;background:#07131d;color:#d6e6f0}
+.cd-eye svg.i{width:17px;height:17px}
+.cd-eye.on{border-color:var(--cyan);color:var(--cyan);box-shadow:var(--glow)}
+.cd-hex{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--muted)}
+.cd-hex input{flex:1;width:0;height:32px;padding:0 9px;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+.cd-op{display:flex;flex-direction:column;gap:5px}
+.cd-op-head{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.cd-op-head output{color:#d6e6f0}
+.cd-op input{--c:#12E1F0;-webkit-appearance:none;appearance:none;width:100%;height:12px;margin:2px 0;padding:0;border:0;border-radius:6px;background:linear-gradient(90deg,transparent,var(--c)),repeating-conic-gradient(#8d99a6 0 25%,#e3e8ee 0 50%) 0 0/8px 8px;box-shadow:inset 0 0 0 1px #0006}
+.cd-op input:focus{box-shadow:inset 0 0 0 1px #0006,0 0 0 1px var(--cyan)}
+.cd-op input::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--c);border:3px solid #fff;box-shadow:0 1px 4px #000a}
+.cd-op input::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--c);border:3px solid #fff;box-shadow:0 1px 4px #000a}
+.cd-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding-top:7px;border-top:1px solid #ffffff12}
+.cd-recent{min-width:0;display:flex;flex-direction:column;gap:5px}
+.cd-recent small{font-size:10.5px;color:var(--muted)}
+/* As many as fit on one row (the others wrap out of sight). */
+#cdRecent{display:flex;flex-wrap:wrap;gap:8px;height:30px;padding:2px;margin:-2px;overflow:hidden}
+#cdRecent button{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid #ffffff30;box-shadow:inset 0 0 0 1px #0005}
+#cdRecent button.on{border-color:#fff;box-shadow:0 0 0 2px var(--cyan)}
+.cd-done{flex:none;height:34px;padding:0 26px;border-radius:8px;background:linear-gradient(110deg,var(--cyan),#2fc6f5);color:#02131c;font-weight:800;font-size:13.5px;box-shadow:0 0 16px #12e1f066}
+/* Picking a colour from the page with the panel's eyedropper: taps on the page pick, they don't select. */
+.cd-pickcover{position:absolute;inset:0;z-index:9;cursor:crosshair;touch-action:none}
+/* Short phone screens (an iPhone SE in Safari, the app below its own header): a tighter colour panel, so the page
+   above it keeps more room. */
+@media (max-width:600px) and (max-height:700px){
+  .app>.cdock:not([hidden]){gap:4px;padding-top:4px}
+  .cd-chip{height:26px}
+  .cd-card{gap:5px;padding:7px 10px 8px}
+  .cd-head{min-height:22px}
+  .cd-head h4{font-size:14px}
+  .cd-target button{height:24px}
+  .cd-main{--cdw:clamp(96px,min(34vw,19vh),150px)}
+  .cd-side{gap:6px}
+  .cd-swatch,.cd-eye,.cd-hex input{height:28px}
+  .cd-foot{padding-top:5px}
+  .cd-recent{gap:3px}
+  #cdRecent button{width:24px;height:24px}
+  #cdRecent{height:28px}
+  .cd-done{height:30px}
+}

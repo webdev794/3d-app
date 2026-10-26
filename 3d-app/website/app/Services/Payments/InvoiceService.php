@@ -155,7 +155,9 @@ class InvoiceService
 
         return [
             'order' => ['id' => $order->id, 'number' => $order->number, 'name' => $name, 'source' => $order->source, 'quantity' => (int) $order->quantity,
-                'items' => $items, 'summary' => self::summaryText($items)],
+                'items' => $items, 'summary' => self::summaryText($items),
+                // Who makes it (preferred suppliers, task 9.118): 3DEEZI, Mantis or an outside supplier.
+                'made_by' => \App\Models\Supplier::madeByOf($order)],
             'customer' => [
                 'name' => $order->team_name ?: ($order->contact_name ?: $user?->name),
                 'contact' => $order->contact_name ?: $user?->name,
@@ -273,6 +275,14 @@ class InvoiceService
         if ($invoice->team_request_id ?? null) {
             try {
                 app(\App\Services\Team\TeamService::class)->invoicePaid($invoice);
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+        // A preferred supplier's listing invoice: paid in full, the listing runs a month or a year further.
+        if (($invoice->snapshot['order']['source'] ?? null) === 'supplier') {
+            try {
+                app(\App\Services\SupplierListing::class)->invoicePaid($invoice);
             } catch (Throwable $e) {
                 report($e);
             }

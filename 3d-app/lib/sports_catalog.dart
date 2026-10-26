@@ -19,6 +19,9 @@ class SportCategory {
     this.selectHint,
     this.descriptions = true,
     this.backdrop,
+    this.names = true,
+    this.numbers = true,
+    this.positions = const [],
   });
 
   /// The website's catalogue id (also the picture names: showroom/kit-<id>,
@@ -71,6 +74,14 @@ class SportCategory {
 
   /// The AI Designer tile's label when it differs from [name].
   final String? aiLabel;
+
+  /// The AI designer's marking rules (config/catalog.php 'names', 'numbers'
+  /// and 'positions'; client 2026-10-26, images/175.jpg): false when the
+  /// sport's kits carry no player names / no numbers anywhere, and the
+  /// playing position letters shown large on the front and back instead
+  /// (netball bibs: GS, GA, WA, C, WD, GD, GK).
+  final bool names, numbers;
+  final List<String> positions;
 
   /// The sport as the AI prompts name it: "Golf (golf: a premium ...)".
   String get forAi => hint == null ? name : '$name ($hint)';
@@ -1164,7 +1175,16 @@ const sportCategories = <SportCategory>[
   SportCategory('basketball', 'Basketball', 'sports', 'Singlet + Shorts'),
   SportCategory('football', 'Soccer', 'sports', 'Jersey + Shorts'),
   SportCategory('afl', 'AFL', 'sports', 'Guernsey + Shorts'),
-  SportCategory('netball', 'Netball', 'sports', 'Dress + Bodysuit'),
+  // No player names or numbers: bibs carry the playing position letters.
+  SportCategory(
+    'netball',
+    'Netball',
+    'sports',
+    'Dress + Bodysuit',
+    names: false,
+    numbers: false,
+    positions: ['GS', 'GA', 'WA', 'C', 'WD', 'GD', 'GK'],
+  ),
   SportCategory(
     'rugby-union',
     'Rugby Union',
@@ -1403,3 +1423,30 @@ SportCategory? sportWithId(String? id) {
 
 /// The sport as the AI prompts name it (with its style hint when it has one).
 String sportForAi(String name) => sportNamed(name)?.forAi ?? name;
+
+/// The back name and number when a kit's sport changes from [from] to [to]
+/// (client 2026-10-26: "netball you don't have numbers or names"; the
+/// website's backForSport): a sport without player names / numbers drops
+/// the sample ones ([sampleName], the kit's wordmark, and [sampleNumber]),
+/// anything typed stays; leaving such a sport gives an empty back the
+/// samples again. Other sports keep theirs.
+({String backName, String number}) backForSport(
+  String from,
+  String to, {
+  required String backName,
+  required String number,
+  required String sampleName,
+  String sampleNumber = '23',
+}) {
+  final was = sportNamed(from), now = sportNamed(to);
+  var name = backName, no = number;
+  if (now?.names == false && name == sampleName) name = '';
+  if (now?.numbers == false && no == sampleNumber) no = '';
+  if (now != null && now.names && was?.names == false && name.isEmpty) {
+    name = sampleName;
+  }
+  if (now != null && now.numbers && was?.numbers == false && no.isEmpty) {
+    no = sampleNumber;
+  }
+  return (backName: name, number: no);
+}

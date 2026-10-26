@@ -67,7 +67,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(shownAreas(tester), ['Chest & body', 'Shoulders', 'Side panels', 'Hem']);
       expect(find.text('Sleeves'), findsNothing);
-      await tester.tapAt(const Offset(20, 20)); // closes the sheet
+      // The panel under the 3D closes with its ✕.
+      await tester.tap(find.byKey(const ValueKey('sheet-close')));
       await tester.pumpAndSettle();
 
       c.update(() => c.garment = 'Shorts');

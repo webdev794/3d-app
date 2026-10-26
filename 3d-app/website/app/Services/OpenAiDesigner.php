@@ -37,7 +37,7 @@ class OpenAiDesigner
     /** Concepts are designed freely; the 3D kit's pattern list is only the nearest editable match. */
     public const FREE_DESIGN = 'Design each concept freely, like a premium sublimated teamwear brand: renderPrompt describes the whole design '
         .'(graphics such as lightning, speed lines, sharp angular shards, halftone dot fades, gradients and textures where they suit the theme; '
-        .'where the client\'s logo goes; the back name and number; trims), never a plain template with flat colour blocks. '
+        .'the club\'s crest on the chest; the lettering on the back; trims), never a plain template with flat colour blocks. '
         .'pattern is only the nearest built-in pattern for the editable 3D kit, and patternMotif is the custom print that carries the concept\'s graphics onto the 3D kit.';
 
     /**
@@ -47,10 +47,19 @@ class OpenAiDesigner
     public const OWN_LOGO = 'The attached logos belong to the client, who owns the right to use them: keep the client\'s logo, mascot and lettering exactly as supplied in every design, '
         .'never redraw, replace, simplify or "make original" the client\'s own logo or mascot.';
 
-    /** Kit colours like a top teamwear brand: from the logo's brand colours, dark and bold when the brief is, readable names and numbers. */
+    /** Kit colours like a top teamwear brand: from the logo's brand colours, dark and bold when the brief is, readable lettering. */
     public const COLOUR_RULES = 'Colours: take the kit colours only from the dominant brand colours of the client\'s logo or the brief, never from skin tones or tiny logo details. '
         .'For a cool, bold or aggressive brief with a logo, prefer a dark body (black or deep navy) with the logo\'s main colour as the graphics and white highlights. '
-        .'Back names and numbers are white with an outline in the accent colour, so they stand out from the graphics.';
+        .'The lettering on the back is white with an outline in the accent colour, so it stands out from the graphics.';
+
+    /**
+     * Every sport (client 2026-10-26, images/175.jpg: a huge 3DEEZI logo had filled the chest): the club's symbol on the
+     * chest at a normal crest size, and 3DEEZI only as a small word mark at the top of the back.
+     */
+    public const BRAND_RULES = 'Logos: the club\'s symbol goes on the chest at a normal crest size (about a hand\'s width, on the left chest or centred high on the chest), unless the brief or the client\'s own design places it differently: '
+        .'the client\'s own logo when one is attached, otherwise a simple original crest (a shield or roundel in the kit colours, with the team\'s initials when there is a team name). '
+        .'Never put a large 3DEEZI logo, the 3DEEZI emblem or the words "AI SPORTSWEAR DESIGNER" on the chest or anywhere on the front. '
+        .'3DEEZI appears only as a small 3DEEZI word mark at the top of the back, just under the collar, and nowhere else on the garment.';
 
     /**
      * The three alternatives look clearly different (client 2026-10-21: the BLITZ options were all dark blue with
@@ -64,24 +73,110 @@ class OpenAiDesigner
 
     /** Colours for a direction that sets its own body colour (an alternative): no dark body preference. */
     public const DIRECTION_COLOUR_RULES = 'Colours: from the client\'s logo or the brief, never from skin tones or tiny logo details, with the body colour the creative direction sets. '
-        .'Back names and numbers contrast clearly with the body, with an outline in the accent colour.';
+        .'The lettering on the back contrasts clearly with the body, with an outline in the accent colour.';
 
     /** Layouts an alternative can take; anything but all-over graphics replaces the "no flat panels" rule. */
     public const LAYOUTS = ['all-over graphics', 'bold panels', 'diagonal sash', 'hoops', 'stripes', 'minimal'];
 
     /** The art director's brief for the HD mockup (strict JSON). */
     private const DIRECTION_FIELDS = [
-        'summary' => 'One friendly sentence to the client saying what you will create, e.g. "I\'ll create a BLITZ training singlet in electric blue, black and white, with your logo as the centrepiece and lightning details flowing around the sides."',
+        'summary' => 'One friendly sentence to the client saying what you will create, e.g. "I\'ll create a BLITZ training singlet in electric blue, black and white, with your logo on the chest and lightning details flowing around the sides."',
         'ownDesign' => 'true only if an attached image is the client\'s own complete garment design (front and/or back fully designed) that must be kept exactly.',
         'teamName' => 'The team, club or brand name from the brief or the logo\'s wordmark, exactly as written; empty if none.',
         'palette' => 'The 3-4 kit colours with names and hex: the dominant brand colours of the client\'s logo or the brief (ignore skin tones and small details), high contrast, e.g. "electric blue #1E5BFF, black #0A0C12, white #FFFFFF".',
         'theme' => 'The theme and motifs drawn from the logo and brief, e.g. "speed and lightning: the mascot sprinting, jagged lightning edges".',
-        'front' => 'The front design: base colour (dark black or navy for a cool or bold brief with a logo), the main logo large as the centrepiece, and the sublimated graphics around it.',
-        'back' => 'The back design: the team name in bold white athletic lettering over a large white player number (e.g. 01) with an outline in the accent colour, when it suits the garment, plus graphics.',
+        'front' => 'The front design: base colour (dark black or navy for a cool or bold brief with a logo), the club\'s symbol on the chest at a normal crest size (the client\'s logo, or a simple crest when there is none; never a 3DEEZI logo), and the sublimated graphics around it.',
+        'back' => 'The back design: the small 3DEEZI word mark just under the collar, then the team name in bold white athletic lettering over a large white player number (e.g. 01) with an outline in the accent colour, when it suits the garment, plus graphics.',
         'graphics' => 'The all-over sublimated graphics: shapes, flow across the sides, textures (halftone, gradients, grunge) and colours.',
         'trims' => 'Collar, armhole or cuff binding, side panels and hem, in the palette.',
         'presentation' => 'The photo setting: dramatic and dark (night stadium, floodlights, haze in the kit\'s main colour, reflective floor) unless the brief asks for something else.',
     ];
+
+    /** The small 3DEEZI word mark the designs wear under the back collar (the only 3DEEZI branding, client 2026-10-26). */
+    public const WORD_MARK = 'media/images/brand-wordmark.png';
+
+    /**
+     * The sport's marking rules from the catalogue (config/catalog.php 'names', 'numbers' and 'positions'; client
+     * 2026-10-26, images/175.jpg): netball has no player names or numbers and shows the playing position letters
+     * instead. `$sport` is the catalogue id or name, with or without its style hint ("Golf (golf: ...)").
+     *
+     * @return array{names: bool, numbers: bool, positions: array<int, string>}
+     */
+    public static function sportMarkings(string $sport): array
+    {
+        $key = mb_strtolower(trim($sport));
+        $entry = collect(config('catalog.sports', []))->first(fn (array $s) => $key === mb_strtolower($s['id'])
+            || $key === mb_strtolower($s['name']) || str_starts_with($key, mb_strtolower($s['name']).' ('));
+
+        return [
+            'names' => (bool) ($entry['names'] ?? true),
+            'numbers' => (bool) ($entry['numbers'] ?? true),
+            'positions' => array_values((array) ($entry['positions'] ?? [])),
+        ];
+    }
+
+    /** What the sport's kits carry on the back (and, with playing positions, on the front), for every planning and image prompt. */
+    public static function markingRules(string $sport): string
+    {
+        ['names' => $names, 'numbers' => $numbers, 'positions' => $positions] = self::sportMarkings($sport);
+        if ($names && $numbers) {
+            return 'Below the word mark, the back carries the team name in bold athletic lettering over a large player number (for example 01) when it suits the garment.';
+        }
+        $rule = match (true) {
+            ! $names && ! $numbers => 'This sport has no player names and no numbers: never put a player name or any number anywhere on the garment (front, back, sides or hem). ',
+            ! $names => 'This sport has no player names: never put a player name anywhere on the garment; below the word mark the back carries a large player number (for example 01). ',
+            default => 'This sport has no numbers: never put a number anywhere on the garment; below the word mark the back carries the team name in bold athletic lettering. ',
+        };
+        if ($positions) {
+            $rule .= 'Instead, match wear shows the playing position letters, as on real bibs ('.implode(', ', $positions).'): '
+                .'one position only (for example '.$positions[0].'), in large bold athletic lettering centred on the front below the club\'s crest, '
+                .'and again large on the back below the word mark (on the bib when the garment has one). '
+                .'The back shows only the small word mark and the position letters: no team name, player name or number. '
+                .'Training and warm-up wear (tees, hoodies, jackets) shows no position letters.';
+        }
+
+        return trim($rule);
+    }
+
+    /** The lettering the planner varies and scores: "the team name and number", or "the position letters" (netball). */
+    public static function lettering(string $sport): string
+    {
+        $m = self::sportMarkings($sport);
+
+        return $m['positions'] ? 'the position letters' : match (true) {
+            $m['names'] && $m['numbers'] => 'the team name and number',
+            $m['names'] => 'the team name',
+            $m['numbers'] => 'the number',
+            default => 'the lettering',
+        };
+    }
+
+    /** The art direction's fields for the sport: its own back (and front) lettering. */
+    public static function directionFields(string $sport): array
+    {
+        ['names' => $names, 'numbers' => $numbers, 'positions' => $positions] = self::sportMarkings($sport);
+        $fields = self::DIRECTION_FIELDS;
+        $outline = 'in bold white athletic lettering with an outline in the accent colour';
+        if ($positions) {
+            $fields['front'] = 'The front design: base colour (dark black or navy for a cool or bold brief with a logo), the club\'s symbol on the chest at a normal crest size (the client\'s logo, or a simple crest when there is none; never a 3DEEZI logo), '
+                ."one playing position's letters (e.g. {$positions[0]}) large {$outline} centred below it, and the sublimated graphics around them.";
+            $fields['back'] = "The back design: the small 3DEEZI word mark just under the collar, then the same position letters large {$outline}; no team name, no player name and no number anywhere; plus graphics.";
+        } elseif (! $names || ! $numbers) {
+            $fields['back'] = 'The back design: the small 3DEEZI word mark just under the collar, then '
+                .($names ? "the team name {$outline}; no numbers anywhere" : ($numbers ? "a large player number (e.g. 01) {$outline}; no player names anywhere" : 'no player names and no numbers anywhere'))
+                .'; plus graphics.';
+        }
+
+        return $fields;
+    }
+
+    /** The editable 3D kit's back name and number for the sport: none where the sport has none (netball: also no order defaults). */
+    public static function kitBack(string $sport, string $logoText): array
+    {
+        $m = self::sportMarkings($sport);
+
+        return ['number' => $m['numbers'] ? '23' : '', 'backName' => $m['names'] ? $logoText : ''];
+    }
 
     /** The model that plans designs (art direction, the four designs, concepts); the ASSIST chat stays on the text model. */
     public static function planningModel(): string
@@ -124,9 +219,9 @@ class OpenAiDesigner
             .'Create exactly 4 clearly different concept directions, each designed the way a top custom sublimation sportswear brand would: '
             .'1) bold and aggressive, with dynamic all-over sublimated graphics drawn from the theme of the client\'s logo or brief, '
             .'2) classic and clean, 3) heritage or pattern-led, 4) modern minimal. Keep the team name consistent across all four. '
-            .self::FREE_DESIGN.' '.self::COLOUR_RULES;
+            .self::FREE_DESIGN.' '.self::COLOUR_RULES.' '.self::BRAND_RULES.' '.self::markingRules($sport);
         if ($references) {
-            $text .= "\nReference images are attached. Take the palette, motifs and mood from them (a logo's colours, mascot and lettering style set the theme), and make the client's main logo the chest centrepiece. If one shows the client's own finished garment design, make concept 1 follow it closely (its colours, pattern and lettering).";
+            $text .= "\nReference images are attached. Take the palette, motifs and mood from them (a logo's colours, mascot and lettering style set the theme), and make the client's main logo the crest on the chest. If one shows the client's own finished garment design, make concept 1 follow it closely (its colours, pattern and lettering).";
         }
         $content = [['type' => 'input_text', 'text' => $text]];
         foreach (array_slice($references, 0, 3) as $reference) {
@@ -157,9 +252,9 @@ class OpenAiDesigner
         }
 
         // Quick low-quality previews, generated in parallel (about 15 s). The
-        // client's logos go in first as real image inputs (the chest
-        // centrepiece), then the 3DEEZI logo for the emblem or neck label.
-        $logo = file_get_contents(public_path('media/images/logo_full.png'));
+        // client's logos go in first as real image inputs (the chest crest),
+        // then the 3DEEZI word mark (only ever small under the back collar).
+        $logo = file_get_contents(public_path(self::WORD_MARK));
         $clientImages = array_map(fn (string $r) => $this->decodeDataUrl($r), array_slice($references, 0, 3));
         $responses = Http::pool(fn (Pool $pool) => array_map(
             function (array $spec) use ($pool, $logo, $clientImages, $sport, $garment) {
@@ -168,7 +263,7 @@ class OpenAiDesigner
                     $request = $request->attach('image[]', $bytes, "reference-{$i}.".explode('/', $mime)[1], ['Content-Type' => $mime]);
                 }
 
-                return $request->attach('image[]', $logo, '3deezi-logo.png', ['Content-Type' => 'image/png'])
+                return $request->attach('image[]', $logo, '3deezi-word-mark.png', ['Content-Type' => 'image/png'])
                     ->post(self::BASE.'/images/edits', [
                         'model' => config('services.openai.image_model'),
                         'prompt' => self::conceptPreviewPrompt($sport, $garment, $spec['renderPrompt'], $spec['logoText'], count($clientImages)),
@@ -181,12 +276,13 @@ class OpenAiDesigner
             $specs,
         ));
 
-        return array_map(function (array $spec, int $index) use ($responses, $prompt, $garment) {
+        return array_map(function (array $spec, int $index) use ($responses, $prompt, $garment, $sport) {
             $preview = $responses[$index] instanceof Response && $responses[$index]->successful()
                 ? 'data:image/jpeg;base64,'.$responses[$index]->json('data.0.b64_json')
                 : null;
             $main = $this->hex($spec['mainColor']);
             $secondary = $this->hex($spec['secondaryColor']);
+            $logoText = mb_strtoupper(mb_substr($spec['logoText'], 0, 20));
 
             return [
                 'id' => substr(hash('sha256', json_encode($spec).$index), 0, 16),
@@ -200,9 +296,8 @@ class OpenAiDesigner
                     'secondary' => $secondary,
                     'accent' => $this->hex($spec['accentColor']),
                     'pattern' => in_array($spec['pattern'], self::PATTERNS, true) ? $spec['pattern'] : 'Chevron',
-                    'logoText' => mb_strtoupper(mb_substr($spec['logoText'], 0, 20)),
-                    'number' => '23',
-                    'backName' => mb_strtoupper(mb_substr($spec['logoText'], 0, 20)),
+                    'logoText' => $logoText,
+                    ...self::kitBack($sport, $logoText),
                     'patternColor' => $this->mix($main, $secondary, 0.55),
                     'patternBody' => 0.08,
                     'prompt' => $prompt,
@@ -239,7 +334,8 @@ class OpenAiDesigner
         $prompt = "Transform this 3D render of a {$meta['sport']} {$meta['garment']} into a premium photorealistic commercial sportswear photograph, "
             .(self::SCENES[$scene] ?? reset(self::SCENES)).'. '
             .'Keep the garment design EXACTLY as in the image: the same colours, panel layout, pattern, collar and trims, and the same '
-            .($back ? "back name and number (the name reads exactly \"{$logo}\" and the number reads \"{$number}\")" : "chest wordmark and crest (the wordmark reads exactly \"{$logo}\")")
+            // A kit without a number (netball) gets none added.
+            .($back ? (filled($number) ? "back name and number (the name reads exactly \"{$logo}\" and the number reads \"{$number}\")" : "back lettering (it reads exactly \"{$logo}\", with no number)") : "chest wordmark and crest (the wordmark reads exactly \"{$logo}\")")
             .'. Do not add, remove or change any text, logos or graphics. Make the fabric photoreal: fine knit and mesh texture, natural folds and drape, flatlock stitching, slight sheen on the print. Professional lighting with realistic shadows, ultra-detailed, no watermark, no UI.';
 
         $response = $this->withSafeModel((string) config('services.openai.image_model'), self::SAFE_IMAGE_MODEL, fn (string $model) => $this->send(fn () => $this->client()
@@ -259,8 +355,9 @@ class OpenAiDesigner
     /**
      * One brief in, one finished HD presentation mockup out, the way people
      * use ChatGPT: front and back views with close-up detail panels. Logos the
-     * user attaches are placed as the brief says; otherwise the garment wears
-     * the 3DEEZI emblem and wordmark. Returns raw JPEG bytes.
+     * user attaches are placed as the brief says (the club's symbol on the
+     * chest); otherwise a simple crest. 3DEEZI is only a small word mark under
+     * the back collar. Returns raw JPEG bytes.
      *
      * @param  array<int, string>  $references  data URLs (logos, sketches, photos)
      */
@@ -295,7 +392,7 @@ class OpenAiDesigner
             .'You are the art director of a top custom sublimation sportswear brand. Before the designer renders one hero mockup, write its creative direction. '
             .'Take the palette and theme from the client\'s logo (its colours, mascot, lettering style and motifs such as lightning, flames, claws or waves) or from the brief. '
             .'Design bold, fully sublimated graphics derived from that theme, flowing across the front, sides and back, never a plain template with flat colour blocks. '
-            .'The client\'s main logo goes large as the front centrepiece; the back carries the team name over a big number when it suits the garment. '
+            .self::BRAND_RULES.' '.self::markingRules($sport).' '
             .'Follow everything the brief specifies (colours, layout, background, text). If an attached image is the client\'s own complete garment design, set ownDesign to true and describe that design exactly instead of inventing one. '
             .self::COLOUR_RULES.' '
             .'Never use real club, league or brand logos other than the client\'s own. '.self::OWN_LOGO;
@@ -304,7 +401,7 @@ class OpenAiDesigner
             $content[] = ['type' => 'input_image', 'image_url' => $reference];
         }
         $properties = [];
-        foreach (self::DIRECTION_FIELDS as $field => $description) {
+        foreach (self::directionFields($sport) as $field => $description) {
             $properties[$field] = ['type' => $field === 'ownDesign' ? 'boolean' : 'string', 'description' => $description];
         }
         try {
@@ -326,9 +423,11 @@ class OpenAiDesigner
 
     /**
      * The HD mockup prompt: a bold sublimated design from the logo's theme,
-     * the logo as the front centrepiece, name and number on the back,
-     * front and back side by side in a dramatic dark setting (unless the
-     * brief asks otherwise); a client's own complete design is kept exactly.
+     * the club's symbol on the chest at crest size, the sport's own back
+     * lettering (netball: position letters, no names or numbers), the small
+     * 3DEEZI word mark under the back collar, front and back side by side in
+     * a dramatic dark setting (unless the brief asks otherwise); a client's
+     * own complete design is kept exactly.
      *
      * @param  ?array<string, mixed>  $direction  from artDirection()
      */
@@ -355,9 +454,9 @@ class OpenAiDesigner
             .($layout !== '' && $layout !== 'all-over graphics'
                 ? 'Follow the layout in the creative direction ('.$layout.'), finished with sublimated textures and fine detail, never a cheap flat template. '
                 : 'Never a plain template with flat colour blocks or simple side panels. ')
-            .'The client\'s main logo is the large centrepiece on the front, reproduced faithfully (the same artwork, colours and lettering). '
+            .self::BRAND_RULES.' '
             .(filled($direction['body'] ?? null) ? self::DIRECTION_COLOUR_RULES : self::COLOUR_RULES).' '
-            .'The back carries the team name in bold athletic lettering over a large player number (for example 01) when it suits the garment, with matching trims on the collar, armholes or cuffs and hem.'."\n"
+            .self::markingRules($sport).' Matching trims on the collar, armholes or cuffs and hem.'."\n"
             .($view === 'front'
                 // The option cards (client picture 138.jpg): one garment that reads well small.
                 ? 'Presentation: one square image of premium commercial product photography: a single garment, the front view only (straight on or a slight three-quarter turn), '
@@ -379,11 +478,11 @@ class OpenAiDesigner
             ? "The first {$count} attached image(s) come from the client: logos, references, or the client's own finished garment design (flat artwork, a sketch, a snapshot or a photo). "
                 .'If one of them shows a complete garment design, make the garment exactly that design: the same colours, pattern, panels, collar, trims, logos, text and numbers, front and back as shown; '
                 .'do not redesign or simplify it, just turn it into a real 3D garment presented as the brief asks. '
-                .'Reproduce any logos faithfully and place them where the brief says, where the design shows them, or in sensible positions (the main logo large on the front). '
-                .'The last attached image is the 3DEEZI logo: use it only for the small neck label, unless the brief asks for 3DEEZI branding; leave it out when the client\'s design carries its own brand.'
-            : 'The attached image is the 3DEEZI logo (emblem and wordmark). '
-                .'If the brief gives any wordmark, team, club or brand name, use exactly that text where the brief says and do NOT put 3DEEZI on the chest; then use the 3DEEZI emblem only on the small neck label. '
-                .'Only if the brief names no wordmark or brand at all, put the 3DEEZI wordmark across the chest and the 3DEEZI emblem as the crest, exactly as in the logo.';
+                .'Reproduce any logos faithfully (the same artwork, colours and lettering) and place them where the brief says, where the design shows them, or in sensible positions (the main logo on the chest at a normal crest size). '
+                .'The last attached image is the 3DEEZI word mark: use it only small at the top of the back, just under the collar, and nowhere else; leave it out when the client\'s design carries its own brand.'
+            : 'The attached image is the 3DEEZI word mark: use it only small at the top of the back, just under the collar, and nowhere else; do NOT put 3DEEZI on the chest or anywhere on the front. '
+                .'If the brief gives any wordmark, team, club or brand name, use exactly that text where the brief says. '
+                .'With no client logo, the chest carries a simple original crest at a normal crest size.';
 
         return $prompt.($count ? ' '.self::OWN_LOGO : '').' No watermarks, no extra brands.';
     }
@@ -391,9 +490,10 @@ class OpenAiDesigner
     /**
      * The AI designer's results (client visual 2026-10-21, images/138.jpg), fast like ChatGPT: the PRIMARY (the brief
      * exactly as written, under the full design rules) starts rendering at once; meanwhile this one short planning call
-     * gives its 3D kit spec and three clearly different alternatives (palette, motifs, layout, name and number
-     * treatment), scored and ranked best first as options 2-4. Every direction follows the logo, colour, neck label and
-     * brand rules. When the call fails or takes over `$timeout` seconds, ready-made takes on the brief are used
+     * gives its 3D kit spec and three clearly different alternatives (palette, motifs, layout, treatment of the sport's
+     * lettering), scored and ranked best first as options 2-4. Every direction follows the logo, colour, word mark,
+     * sport marking (netball: position letters) and brand rules. When the call fails or takes over `$timeout` seconds,
+     * ready-made takes on the brief are used
      * (`planned` false), so the pictures never wait.
      *
      * @param  array<int, string>  $references  data URLs (logos, sketches, photos)
@@ -404,7 +504,7 @@ class OpenAiDesigner
         try {
             return $this->plannedDirections($brief, $sport, $garment, $references, $timeout ?? (int) config('services.openai.plan_timeout', 45));
         } catch (RuntimeException) {
-            return $this->readyDirections($brief, $garment);
+            return $this->readyDirections($brief, $garment, $sport);
         }
     }
 
@@ -412,7 +512,7 @@ class OpenAiDesigner
      * Four designs without the planning call: the brief exactly as written first (the full design rules still
      * apply), then three clearly different takes on it.
      */
-    public function readyDirections(string $brief, string $garment): array
+    public function readyDirections(string $brief, string $garment, string $sport = ''): array
     {
         $takes = [
             ['Your brief', null],
@@ -430,7 +530,7 @@ class OpenAiDesigner
             'description' => $take[1] ? ucfirst(strtok($take[1], ':')).' take on your brief.' : 'Your brief, exactly as written.',
             'motif' => '',
             'direction' => $take[1] ? ['theme' => $take[1], 'ownDesign' => false] : ['ownDesign' => false],
-            'design' => $this->kitSpec(['pattern' => ['Velocity', 'Velocity', 'Stripes', 'Chevron'][$i], 'mainColor' => '#0B1016', 'secondaryColor' => '#04D9E8', 'accentColor' => '#FFFFFF'], $brief, $garment),
+            'design' => $this->kitSpec(['pattern' => ['Velocity', 'Velocity', 'Stripes', 'Chevron'][$i], 'mainColor' => '#0B1016', 'secondaryColor' => '#04D9E8', 'accentColor' => '#FFFFFF'], $brief, $garment, $sport),
         ], $takes, array_keys($takes));
     }
 
@@ -442,14 +542,14 @@ class OpenAiDesigner
             .($count ? "{$count} image(s) from the client are attached: logos, references or their own finished design.\n" : "No images are attached.\n")
             .'You are the art director of a top custom sublimation sportswear brand. The designer is already rendering the brief exactly as written; '
             .'give its editable 3D kit spec in `brief`. Then write exactly 3 clearly different alternative design directions in `directions`, '
-            .'each with its own palette, motifs, layout of the graphics and treatment of the team name and number. '
+            .'each with its own palette, motifs, layout of the graphics and treatment of '.self::lettering($sport).'. '
             .'Take the palette and theme from the client\'s logo (its colours, mascot, lettering style and motifs such as lightning, flames, claws or waves) or from the brief. '
             .'Bold, fully sublimated graphics derived from that theme, flowing across the front, sides and back, never a plain template with flat colour blocks. '
-            .'The client\'s main logo stays large as the front centrepiece, reproduced faithfully; the back carries the team name over a big number when it suits the garment. '
+            .self::BRAND_RULES.' The client\'s logo is reproduced faithfully. '.self::markingRules($sport).' '
             .'Follow everything the brief specifies (colours, layout, background, text) and keep the team name the same. '
             .self::COLOUR_RULES.' '
             .self::VARIETY_RULES.' '
-            .'Score each alternative 0-100 as the client would judge it: brief fit, logo fit, boldness and readability of the name and number. '
+            .'Score each alternative 0-100 as the client would judge it: brief fit, logo fit, boldness and readability of '.self::lettering($sport).'. '
             .'Every design, including the brief, gets its own different name. Be quick and brief: every text field is one short phrase of at most 20 words. '
             .'Never use real club, league or brand logos other than the client\'s own. '.self::OWN_LOGO;
         $content = [['type' => 'input_text', 'text' => $text]];
@@ -467,11 +567,12 @@ class OpenAiDesigner
             'logoText' => $string('Chest wordmark, max 12 characters. Use the team or brand name from the brief; if the brief names none, use 3DEEZI.'),
             'patternMotif' => $string('The signature print as a black-and-white pattern description for the 3D kit, max 20 words. No colours.'),
         ];
-        $alternative = $kit + ['score' => ['type' => 'integer', 'description' => '0-100: brief fit, logo fit, boldness and readability of the name and number.']];
+        $alternative = $kit + ['score' => ['type' => 'integer', 'description' => '0-100: brief fit, logo fit, boldness and readability of '.self::lettering($sport).'.']];
         $alternative['bodyColour'] = $string('The main body colour, name and hex, e.g. "white #FFFFFF"; different for each design.');
         $alternative['layout'] = ['type' => 'string', 'enum' => self::LAYOUTS, 'description' => 'The layout of the graphics; the alternatives use different layouts.'];
+        $fields = self::directionFields($sport);
         foreach (['palette', 'theme', 'front', 'back', 'graphics', 'trims'] as $field) {
-            $alternative[$field] = $string(self::DIRECTION_FIELDS[$field]);
+            $alternative[$field] = $string($fields[$field]);
         }
         $object = fn (array $properties) => ['type' => 'object', 'additionalProperties' => false, 'required' => array_keys($properties), 'properties' => $properties];
         $json = $this->post('/responses', [
@@ -493,7 +594,7 @@ class OpenAiDesigner
         // The alternatives best first (equal scores keep the AI's order), after the brief as written.
         $order = array_keys($specs);
         usort($order, fn (int $a, int $b) => [-(int) ($specs[$a]['score'] ?? 0), $a] <=> [-(int) ($specs[$b]['score'] ?? 0), $b]);
-        $entry = function (array $spec, int $rank, array $direction) use ($brief, $garment) {
+        $entry = function (array $spec, int $rank, array $direction) use ($brief, $garment, $sport) {
             return [
                 'id' => substr(hash('sha256', json_encode($spec).$rank), 0, 16),
                 'rank' => $rank,
@@ -503,7 +604,7 @@ class OpenAiDesigner
                 'description' => (string) ($spec['summary'] ?? ''),
                 'motif' => (string) ($spec['patternMotif'] ?? ''),
                 'direction' => [...array_map(fn ($v) => mb_substr(trim((string) $v), 0, 1500), $direction), 'ownDesign' => false],
-                'design' => $this->kitSpec($spec, $brief, $garment),
+                'design' => $this->kitSpec($spec, $brief, $garment, $sport),
             ];
         };
 
@@ -565,8 +666,8 @@ class OpenAiDesigner
         return (bool) preg_match('/\bsize\b|1024x1536|dimension|aspect ratio/i', $message);
     }
 
-    /** The editable 3D kit's spec for a design direction. */
-    private function kitSpec(array $spec, string $prompt, string $garment): array
+    /** The editable 3D kit's spec for a design direction (netball: no back name or number, so the Studio and orders add none). */
+    private function kitSpec(array $spec, string $prompt, string $garment, string $sport = ''): array
     {
         $main = $this->hex((string) ($spec['mainColor'] ?? ''));
         $secondary = $this->hex((string) ($spec['secondaryColor'] ?? ''));
@@ -579,20 +680,22 @@ class OpenAiDesigner
             'accent' => $this->hex((string) ($spec['accentColor'] ?? '')),
             'pattern' => in_array($spec['pattern'] ?? null, self::PATTERNS, true) ? $spec['pattern'] : 'Chevron',
             'logoText' => $logoText,
-            'number' => '23',
-            'backName' => $logoText,
+            ...self::kitBack($sport, $logoText),
             'patternColor' => $this->mix($main, $secondary, 0.55),
             'patternBody' => 0.08,
             'prompt' => $prompt,
         ];
     }
 
-    /** Renders a mockup prompt with the client's images and the 3DEEZI logo as real image inputs. Returns raw JPEG bytes. */
+    /**
+     * Renders a mockup prompt with the client's images and the 3DEEZI word mark (only the lettering, client 2026-10-26:
+     * the full logo had ended up huge on the chest) as real image inputs. Returns raw JPEG bytes.
+     */
     public function renderMockup(string $prompt, array $references = [], string $quality = 'high', string $size = '1536x1024'): string
     {
         $references = array_slice($references, 0, 4);
         $images = array_map(fn (string $r) => $this->decodeDataUrl($r), $references);
-        $images[] = ['image/png', file_get_contents(public_path('media/images/logo_full.png'))];
+        $images[] = ['image/png', file_get_contents(public_path(self::WORD_MARK))];
 
         return $this->highFidelityEdit($prompt, $images, [
             'model' => $quality === 'medium' ? config('services.openai.image_model') : self::hdImageModel(),
@@ -629,14 +732,19 @@ class OpenAiDesigner
 
     public static function printSheetPrompt(string $sport, string $garment, int $logos = 0, bool $frontOnly = false): string
     {
+        $m = self::sportMarkings($sport);
+        $back = $m['positions'] ? 'the same position letters large, no team name, no player name and no number'
+            : ($m['names'] && $m['numbers'] ? 'the team name in bold lettering over a large number'
+                : ($m['names'] ? 'the team name in bold lettering, no numbers' : ($m['numbers'] ? 'a large number, no player names' : 'no player names and no numbers')));
+
         return "The first attached image shows a {$sport} {$garment} design. Redraw exactly the same design as a flat print artwork sheet for the factory: "
-            .($frontOnly ? 'The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the team name in bold lettering over a large number). ' : '')
+            .($frontOnly ? "The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the small 3DEEZI word mark just under the collar, {$back}). " : '')
             .'the garment\'s front on the left and its back on the right, side by side, both complete and the same size, drawn flat and straight-on like a technical flat drawing, '
             .'on a plain pure white background with clear white space around and between them. '
             .'No mannequin, no person, no folds, no perspective, no lighting effects, no shadows, no scene. '
             .'Keep the design exactly: the same colours, graphics, gradients, lettering, logos, numbers and trims, in the same places and proportions, and the same garment shape (neck, armholes or sleeves, hem). '
             .($logos ? "The other {$logos} attached image(s) are the client's logos: reproduce them faithfully where the design shows them. " : '')
-            .'No labels, captions, measurements, hangers, neck labels or extra text.';
+            .'No labels, captions, measurements, hangers, sewn-in neck labels or extra text.';
     }
 
     /**
@@ -684,18 +792,25 @@ class OpenAiDesigner
         return ! str_starts_with($model, 'gpt-image-2.5');
     }
 
-    /** The quick concept preview: the concept's free design, the client's logo as the chest centrepiece. */
+    /**
+     * The quick concept preview (a front view): the concept's free design, the club's symbol on the chest at crest size,
+     * the sport's own front lettering (netball: position letters) and no 3DEEZI on the front.
+     */
     public static function conceptPreviewPrompt(string $sport, string $garment, string $design, string $logoText, int $clientImages): string
     {
+        // A team name is a wordmark on the front; 3DEEZI never is (client 2026-10-26).
+        $wordmark = filled($logoText) && mb_strtoupper(trim($logoText)) !== '3DEEZI' ? "Any team wordmark on the front reads exactly \"{$logoText}\". " : '';
+
         return "Premium photoreal product render of a {$sport} {$garment}, front view, centred and fully visible, on an invisible ghost mannequin "
             .'against a dramatic dark background with soft floodlight haze and a rim light in the kit\'s colours. '
             ."Design: {$design} A bold, fully sublimated print, never a plain template. "
             .($clientImages
-                ? "The first {$clientImages} attached image(s) come from the client: reproduce the client's main logo faithfully as the large chest centrepiece "
-                    ."(if one shows the client's own complete garment design, follow it). Any chest wordmark reads exactly \"{$logoText}\". "
-                    .'The last attached image is the 3DEEZI logo: use its emblem only on the small neck label. '
-                : "The chest wordmark reads exactly \"{$logoText}\". The attached image is the 3DEEZI logo: use its emblem as the chest crest. ")
-            .'No other logos or text.';
+                ? "The first {$clientImages} attached image(s) come from the client: reproduce the client's main logo faithfully as the crest on the chest, at a normal crest size "
+                    ."(if one shows the client's own complete garment design, follow it). "
+                : 'The chest carries a simple original crest at a normal crest size. ')
+            .$wordmark
+            .'The last attached image is the 3DEEZI word mark: it goes only small under the back collar, which this front view does not show, so never put 3DEEZI on the front. '
+            .self::markingRules($sport).' No other logos or text.';
     }
 
     /** Output sizes the image model can make. */
@@ -914,7 +1029,7 @@ class OpenAiDesigner
                 'accentColor' => $string('Hex for the wordmark and numbers; must contrast mainColor.'),
                 'pattern' => ['type' => 'string', 'enum' => self::PATTERNS],
                 'logoText' => $string('Chest wordmark, max 12 characters. Use the team or brand name from the brief; if the brief names none, use 3DEEZI.'),
-                'renderPrompt' => $string('Detailed visual description of the whole fully sublimated garment design for an image model: colours, graphics and how they flow across front, sides and back, textures, trims, collar, where the client logo and wordmark go, the back name and number. Free design, not limited to the pattern list. Garment only.'),
+                'renderPrompt' => $string('Detailed visual description of the whole fully sublimated garment design for an image model: colours, graphics and how they flow across front, sides and back, textures, trims, collar, the club\'s crest on the chest, the small 3DEEZI word mark under the back collar and the lettering the sport uses. Free design, not limited to the pattern list. Garment only.'),
                 'patternMotif' => $string('The concept signature print as a black-and-white pattern description for the 3D kit, max 25 words, e.g. "jagged lightning bolts and speed streaks with halftone dot fades". No colours.'),
             ],
         ];

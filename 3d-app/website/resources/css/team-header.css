@@ -12,7 +12,7 @@
   .site-header .header-inner{padding:0 30px;gap:14px}
   .site-header .brand,.site-header .brand img{width:165px}
   .site-header .brand>span{font-size:6.8px}
-  .site-header .main-nav a,.site-header .main-nav .nav-orders-trigger{font-size:12px}
+  .site-header .main-nav a,.site-header .main-nav .nav-menu-trigger{font-size:12px}
   .site-header .main-nav{gap:clamp(10px,calc((100cqw - 1170px) / 9),24px)}
   .site-header .header-actions{gap:4px}
 }
@@ -20,7 +20,7 @@
   .site-header .header-inner{padding:0 20px;gap:12px}
   .site-header .brand,.site-header .brand img{width:140px}
   .site-header .brand>span{font-size:5.8px}
-  .site-header .main-nav a,.site-header .main-nav .nav-orders-trigger{font-size:11px}
+  .site-header .main-nav a,.site-header .main-nav .nav-menu-trigger{font-size:11px}
   .site-header .main-nav{gap:clamp(9px,calc((100cqw - 1080px) / 9),16px)}
   .site-header .header-actions{gap:3px}
 }

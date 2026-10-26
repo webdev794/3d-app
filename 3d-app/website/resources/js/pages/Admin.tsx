@@ -19,6 +19,8 @@ import { moneyOr } from '../money';
 import AdminTeam from './AdminTeam';
 import { Palette } from 'lucide-react';
 import RemoveTestAccounts from './AdminTestAccounts';
+import SuppliersAdmin, { MadeByFilter, MadeBySelect } from './AdminSuppliers';
+import { Factory } from 'lucide-react';
 
 export interface AdminUser extends User { is_admin: boolean; is_designer?: boolean; designer_all?: boolean; projects_count?: number; orders_count?: number }
 export interface Order {
@@ -29,6 +31,7 @@ export interface Order {
   /** Names and numbers on the back: the same on every shirt (players holds the one), a list (one per player) or none. */
   names?: BackNames | null; players?: Player[] | null; /** The kit's version when it was ordered. */ project_version?: number | null;
   /** The invoice at a glance (total, paid, status); none before the order has one. */ payment?: Payment | null;
+  /** Who makes it (preferred suppliers): none on orders placed before the choice existed (3DEEZI). */ supplier_id?: number | null; made_by?: string | null;
 }
 export type BackNames = 'same' | 'list' | 'none';
 /** One shirt's back: a list row has its size. */
@@ -82,6 +85,7 @@ const sections = [
   { id: 'invoices', label: 'Invoices', icon: Receipt, title: 'Invoices', sub: 'Quotes to price, invoices, payments, refunds.' },
   { id: 'pricing', label: 'Pricing', icon: BadgeDollarSign, title: 'Pricing', sub: 'The price list, business details on invoices, tax and online payments.' },
   { id: 'partners', label: 'Partners', icon: Handshake, title: 'Corporate partners', sub: 'Companies applying to bring 3DEEZI to their website.' },
+  { id: 'suppliers', label: 'Suppliers', icon: Factory, title: 'Preferred suppliers', sub: 'Who makes orders: 3DEEZI, Mantis and the approved suppliers; applications and listings.' },
   { id: 'team', label: '3DEEZI TEAM', icon: Palette, title: '3DEEZI TEAM', sub: 'Design requests for our designers: assign, design, review and the allowances.' },
   { id: 'support', label: 'Support', icon: LifeBuoy, title: 'Support messages', sub: 'Messages sent with the contact form on the Support page.' },
   { id: 'database', label: 'Database Tools', icon: Database, title: 'Database tools', sub: 'Backups, housekeeping and health.' },
@@ -133,6 +137,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
           : section === 'projects' ? <ProjectsPanel catalog={catalog} onNotice={onNotice} />
           : section === 'settings' ? <SettingsPanel state={apiState} onSaved={setApiState} onNotice={onNotice} />
           : section === 'partners' ? <PartnersPanel onNotice={onNotice} />
+          : section === 'suppliers' ? <SuppliersAdmin onNotice={onNotice} />
           : section === 'team' ? <AdminTeam mode="admin" itemId={itemId} onNotice={onNotice} />
           : section === 'support' ? <SupportPanel onNotice={onNotice} />
           : section === 'database' ? <DatabasePanel onNotice={onNotice} />
@@ -386,7 +391,8 @@ function OrdersPanel({ onNotice }: { onNotice: (text: string) => void }) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
-  const { result, error, setPage, reload } = usePaged<Order>('/admin/orders', { search: query, ...(status ? { status } : {}) });
+  const [maker, setMaker] = useState('');
+  const { result, error, setPage, reload } = usePaged<Order>('/admin/orders', { search: query, ...(status ? { status } : {}), ...(maker ? { supplier: maker } : {}) });
   const [editing, setEditing] = useState<Order | 'new' | null>(null);
   const navigate = useNavigate();
   async function quickStatus(order: Order, next: string) {
@@ -397,10 +403,11 @@ function OrdersPanel({ onNotice }: { onNotice: (text: string) => void }) {
     <div className="admin-toolbar"><h2><Package size={18} /> Orders {result && <small>{result.total}</small>}</h2>
       <form className="admin-search" onSubmit={e => { e.preventDefault(); setQuery(search.trim()); }}><Search size={15} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Order number, customer or email" /></form>
       <select className="admin-select" value={status} onChange={e => setStatus(e.target.value)} aria-label="Filter by status"><option value="">All statuses</option>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
+      <MadeByFilter value={maker} onChange={setMaker} />
       <button className="button button-gradient" onClick={() => setEditing('new')}><Plus size={16} /> Add order</button></div>
     {error && <p className="error-message">{error}</p>}
     {!result ? <div className="empty-state"><LoaderCircle className="spin" /></div> : <div className="table-wrap"><table className="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>Kit</th><th>Sizes</th><th>Total</th><th>Status</th><th>Date</th><th /></tr></thead><tbody>
-      {result.data.map(o => <tr key={o.id}><td><strong>{o.number}</strong></td><td>{o.user?.name}<small className="cell-sub">{o.user?.email}</small></td><td>{o.project ? <div className="order-kit"><Link to={`/admin/orders/${o.id}`} className="order-kit-thumb" aria-label={`View the kit of ${o.number}`}>{o.project.thumbnail ? <img src={o.project.thumbnail} alt="" loading="lazy" /> : <Package size={20} />}</Link><div><strong>{o.project.name}</strong><Link className="order-kit-link" to={`/admin/orders/${o.id}`}>View kit</Link></div></div> : <span className="muted">No kit</span>}</td><td>{o.quantity}<small className="cell-sub">{sizeSummary(o.sizes)}</small>{o.names === 'list' && o.players?.length ? <small className="cell-sub">{o.players.length} player{o.players.length === 1 ? '' : 's'}</small> : null}</td><td data-testid="order-total">{orderPrice(o)}{o.payment && o.payment.status !== 'quote_required' && <small className="cell-sub">{orderPill(o)[0]}{Number(o.payment.amount_paid) > 0 && o.payment.status !== 'paid' ? ` · ${aud(o.payment.amount_paid, o.payment.currency)} paid` : ''}</small>}</td>
+      {result.data.map(o => <tr key={o.id}><td><strong>{o.number}</strong><small className="cell-sub" data-testid="order-made-by">Made by {o.made_by || '3DEEZI'}</small></td><td>{o.user?.name}<small className="cell-sub">{o.user?.email}</small></td><td>{o.project ? <div className="order-kit"><Link to={`/admin/orders/${o.id}`} className="order-kit-thumb" aria-label={`View the kit of ${o.number}`}>{o.project.thumbnail ? <img src={o.project.thumbnail} alt="" loading="lazy" /> : <Package size={20} />}</Link><div><strong>{o.project.name}</strong><Link className="order-kit-link" to={`/admin/orders/${o.id}`}>View kit</Link></div></div> : <span className="muted">No kit</span>}</td><td>{o.quantity}<small className="cell-sub">{sizeSummary(o.sizes)}</small>{o.names === 'list' && o.players?.length ? <small className="cell-sub">{o.players.length} player{o.players.length === 1 ? '' : 's'}</small> : null}</td><td data-testid="order-total">{orderPrice(o)}{o.payment && o.payment.status !== 'quote_required' && <small className="cell-sub">{orderPill(o)[0]}{Number(o.payment.amount_paid) > 0 && o.payment.status !== 'paid' ? ` · ${aud(o.payment.amount_paid, o.payment.currency)} paid` : ''}</small>}</td>
         <td><select className={`status-select s-${o.status}`} value={o.status} onChange={e => quickStatus(o, e.target.value)} aria-label={`Status of ${o.number}`}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></td><td>{date(o.created_at)}</td>
         <td className="row-actions"><button className="icon-button" onClick={() => navigate(`/admin/orders/${o.id}`)} aria-label={`View the kit of ${o.number}`} title="View kit"><Eye size={15} /></button><button className="icon-button" onClick={() => setEditing(o)} aria-label={`Edit ${o.number}`}><Pencil size={15} /></button><button className="icon-button danger" aria-label={`Delete ${o.number}`} onClick={() => confirmDelete(`order ${o.number}`, () => api(`/admin/orders/${o.id}`, { method: 'DELETE' }), () => { onNotice('Order deleted.'); reload(); }, onNotice)}><Trash2 size={15} /></button></td></tr>)}
       {!result.data.length && <tr><td colSpan={8} className="muted">No orders found.</td></tr>}
@@ -610,6 +617,7 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
       <section className="glow-panel admin-card"><h2>Customer</h2><dl className="kit-dl">
         <dt>Account</dt><dd>{order.user?.name ?? '—'}{order.user?.email && <small><a href={`mailto:${order.user.email}`}>{order.user.email}</a></small>}</dd>
         <dt>Contact</dt><dd>{order.contact_name}</dd>
+        <dt>Made by</dt><dd data-testid="kit-made-by">{order.made_by || '3DEEZI'}</dd>
         <dt>Phone</dt><dd>{order.phone ? <a href={`tel:${order.phone.replace(/[^\d+]/g, '')}`}>{order.phone}</a> : '—'}</dd>
         <dt>Date required</dt><dd>{order.needed_by ? new Date(`${order.needed_by}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</dd>
         <dt>Delivery address</dt><dd className="kit-pre">{order.shipping_address || '—'}</dd>
@@ -646,6 +654,7 @@ function OrderForm({ order, onClose, onSaved }: { order: Order | null; onClose: 
   const [customerSearch, setCustomerSearch] = useState('');
   const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
   const [form, setForm] = useState({ project_id: order?.project_id ?? '' as number | '', status: order?.status ?? 'pending', unit_price: order?.unit_price ?? '', contact_name: order?.contact_name ?? '', phone: order?.phone ?? '', shipping_address: order?.shipping_address ?? '', notes: order?.notes ?? '', admin_notes: order?.admin_notes ?? '' });
+  const [madeBy, setMadeBy] = useState<number | ''>(order?.supplier_id ?? '');
   const [sizes, setSizes] = useState<Record<string, number>>(() => Object.fromEntries(SIZES.map(s => [s, order?.sizes[s] ?? 0])));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -654,7 +663,9 @@ function OrderForm({ order, onClose, onSaved }: { order: Order | null; onClose: 
   const quantity = Object.values(sizes).reduce((a, b) => a + (Number(b) || 0), 0);
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
-    const body = { ...form, project_id: form.project_id || null, unit_price: form.unit_price === '' ? null : Number(form.unit_price), sizes: Object.fromEntries(Object.entries(sizes).filter(([, n]) => n > 0)), ...(order ? {} : { user_id: userId }) };
+    const body = { ...form, project_id: form.project_id || null, unit_price: form.unit_price === '' ? null : Number(form.unit_price), sizes: Object.fromEntries(Object.entries(sizes).filter(([, n]) => n > 0)), ...(order ? {} : { user_id: userId }),
+      // Made by: only sent when changed (an older order without one stays as it is).
+      ...(madeBy !== (order?.supplier_id ?? '') ? { supplier_id: madeBy || null } : {}) };
     try { await api(order ? `/admin/orders/${order.id}` : '/admin/orders', { method: order ? 'PATCH' : 'POST', body: JSON.stringify(body) }); onSaved(); }
     catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   }
@@ -662,6 +673,7 @@ function OrderForm({ order, onClose, onSaved }: { order: Order | null; onClose: 
     {order ? <p className="muted">Customer: <strong>{order.user?.name}</strong> ({order.user?.email})</p> : <div className="field-row"><label className="field">Find customer<input value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} placeholder="Name or email" /></label><label className="field">Customer<select required value={userId} onChange={e => { setUserId(e.target.value ? Number(e.target.value) : ''); setForm(f => ({ ...f, project_id: '' })); }}><option value="">Choose…</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name} · {c.email}</option>)}</select></label></div>}
     <div className="field-row"><label className="field">Kit (project)<select value={form.project_id} onChange={e => setForm({ ...form, project_id: e.target.value ? Number(e.target.value) : '' })}><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
       <label className="field">Status<select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label></div>
+    <MadeBySelect value={madeBy} onChange={setMadeBy} />
     <SizeFields sizes={sizes} disabled={order?.names === 'list'} legend={<>Quantities by size · {quantity} total{order?.names === 'list' ? ' · counted from the players list' : ''}</>} onChange={(s, n) => setSizes({ ...sizes, [s]: n })} />
     <div className="field-row"><label className="field">Unit price (A$)<input type="number" min={0} step="0.01" value={form.unit_price} onChange={e => setForm({ ...form, unit_price: e.target.value })} placeholder="Quote pending" /></label><label className="field">Total<input readOnly value={form.unit_price === '' ? 'Quote pending' : money(Number(form.unit_price) * quantity)} /></label></div>
     <div className="field-row"><label className="field">Contact name<input required maxLength={120} value={form.contact_name} onChange={e => setForm({ ...form, contact_name: e.target.value })} /></label><label className="field">Phone<input maxLength={40} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></label></div>

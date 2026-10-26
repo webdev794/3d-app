@@ -6,6 +6,7 @@ import { api, downloadFile, fetchFile } from '../api';
 import type { Project, User } from '../api';
 import type { Design } from '../types';
 import ImageEditor, { keepInAssets } from '../components/ImageEditor';
+import { ProjectsTabs } from '../components/ProjectsMenu';
 import './library.css';
 
 type PageActions = { onOpen: (project: Project) => void; onCreate: () => void };
@@ -153,6 +154,7 @@ export function ProjectsPage({ onOpen, onCreate, approvedOnly = false }: PageAct
         catch (err) { setActionError(message(err)); } finally { setBusy(null); }
     }
     return <main className="page-shell lib-page">
+        <ProjectsTabs />
         <div className="page-heading lib-heading"><h1>{approvedOnly ? 'Approved designs' : 'My projects'}</h1><button className="button button-primary" onClick={onCreate}><Plus size={17} /> New kit</button></div>
         {available.length > 0 && <div className="lib-toolbar"><div className="lib-tabs" aria-label="Filter projects">{[['all', 'All'], ['ai', 'AI designs'], ['dyo', 'My designs'], ...(!approvedOnly ? [['draft', 'Drafts']] : [])].map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="lib-search"><Search size={17} /><input type="search" placeholder="Search projects…" aria-label="Search projects" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>}
         {actionError && !deleting && <div className="lib-error lib-inline-error" role="alert">{actionError}<button onClick={() => setActionError('')} aria-label="Dismiss error"><X size={16} /></button></div>}
@@ -231,6 +233,7 @@ export function AssetsPage() {
         catch (err) { setActionError(message(err)); }
     }
     return <main className="page-shell lib-page">
+        <ProjectsTabs />
         <div className="page-heading lib-heading"><h1>Asset library</h1><button className="button button-primary" onClick={openUpload}><UploadCloud size={18} /> Upload asset</button></div>
         {!!data?.length && <div className="lib-toolbar"><div className="lib-tabs" aria-label="Filter assets">{[['all', 'All'], ['logo', 'Logos'], ['pattern', 'Patterns'], ['artwork', 'Artwork'], ['reference', 'References'], ['layout', 'Print layouts']].map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="lib-search"><Search size={17} /><input type="search" placeholder="Search assets…" aria-label="Search assets" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>}
         {notice && <div className="lib-notice" role="status"><CheckCircle2 size={17} />{notice}<button onClick={() => setNotice('')} aria-label="Dismiss notification"><X size={16} /></button></div>}

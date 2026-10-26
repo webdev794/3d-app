@@ -144,7 +144,7 @@ class AiDesignsTest extends TestCase
             $this->assertStringContainsString(OpenAiDesigner::PORTRAIT, $body);
             $this->assertStringContainsString('tall portrait image (2:3)', $body);
             $this->assertStringContainsString('the front view on the left and the back view on the right', $body);
-            $this->assertStringContainsString('only for the small neck label', $body);
+            $this->assertStringContainsString('3DEEZI word mark: use it only small at the top of the back, just under the collar', $body);
             $this->assertStringContainsString('fully sublimated all-over design', $body);
             $this->assertStringContainsString('name="input_fidelity"', $body);
         }

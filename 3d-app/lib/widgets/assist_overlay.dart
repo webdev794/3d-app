@@ -54,7 +54,7 @@ class _AssistOverlayState extends State<AssistOverlay> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: Listenable.merge([a, a.app]),
+    animation: Listenable.merge([a, a.app, a.app.studioClearance]),
     builder: (context, _) {
       // Also out of the way of the 3D view's own screens (the print layout
       // check).
@@ -75,7 +75,15 @@ class _AssistOverlayState extends State<AssistOverlay> {
           a.app.screen == AppScreen.artboard;
       // YOUR DESIGNS (AI results): beside the slim refine bar, clear of the
       // large design and the download button.
-      final bottom = tool
+      // The Studio says how tall its controls under the 3D are (the tool bar,
+      // or the tool panel while one is open, 173.jpg): just above them, never
+      // over the panel's controls.
+      final studio = a.app.screen == AppScreen.studio
+          ? a.app.studioClearance.value
+          : 0.0;
+      final bottom = studio > 0
+          ? studio + 8
+          : tool
           ? 172.0
           : a.app.screen == AppScreen.concepts
           ? 11.0

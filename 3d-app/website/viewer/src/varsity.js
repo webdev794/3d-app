@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { panelSampler, buildRib, ribNormalMap } from './hoodie.js';
+import { panelSampler, buildRib, ribNormalMap, cuffRingAbove } from './hoodie.js';
 
 // The varsity (letterman) jacket (garment.js SPECS.varsity): a wool body with leather sleeves, a snap-button front on a
 // raised placket, slanted welt pockets trimmed in leather, a rib collar, cuffs and waistband with contrast stripes and
@@ -184,7 +184,16 @@ export function buildVarsityParts(spec, ctx) {
     const cuff = buildRib(loop, { dir, length: V.rib.cuff, squeeze: 0.12 });
     let x0 = 0;
     const len = onAtlas(cuff, (a, t, l) => { x0 = sgn > 0 ? A.cuffX : -A.cuffX - l; return uvAt(x0 + a, A.cuffTop - t * V.rib.cuff); });
-    ribs.push(cuff);
+    // Look 2: a round rib tube over the sleeve's end, from 3 cm up the sleeve (hoodie.js cuffRingAbove), printed from
+    // the same piece of the atlas: the piece keeps its place and size; the tube's way round is fitted to its width and
+    // the part over the sleeve takes the band's top row, so the stripes stay near the end and run all round.
+    const ring = ctx.detail ? cuffRingAbove(ctx, ca, cb, sgn, dir) : null;
+    if (ring) {
+      const over = 0.03, tube = buildRib(ring, { dir, length: over + V.rib.cuff, squeeze: 0.05 });
+      onAtlas(tube, (a, t, l) => uvAt(x0 + (a * len) / l, A.cuffTop - Math.max(0, (t * (over + V.rib.cuff) - over) / V.rib.cuff) * V.rib.cuff));
+      cuff.dispose();
+      ribs.push(tube);
+    } else ribs.push(cuff);
     pieces.push({ back: false, rib: sgn > 0 ? 'cuffL' : 'cuffR', outline: rect(x0 - 0.004, A.cuffTop - V.rib.cuff - 0.004, x0 + len + 0.004, A.cuffTop + 0.011), x0, top: A.cuffTop, height: V.rib.cuff, dir: -1 });
   }
 

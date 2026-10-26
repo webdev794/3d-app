@@ -164,7 +164,9 @@ final class InvoicePdf
         // The invoice's details.
         $rows = array_filter([
             ['Invoice', (string) $this->invoice->number],
-            filled($order['number'] ?? null) ? ['Order', (string) $order['number']] : null,
+            filled($order['number'] ?? null) ? [($order['source'] ?? null) === 'supplier' ? 'Listing' : 'Order', (string) $order['number']] : null,
+            // Who makes the order (preferred suppliers, task 9.118).
+            filled($order['made_by'] ?? null) ? ['Made by', mb_strlen((string) $order['made_by']) > 22 ? rtrim(mb_substr((string) $order['made_by'], 0, 20)).'...' : (string) $order['made_by']] : null,
             ['Issued', $this->date($this->invoice->issued_at?->toIso8601String())],
             ['Due', $this->date($this->invoice->due_at?->toDateString())],
             $this->invoice->paid_at ? ['Paid', $this->date($this->invoice->paid_at->toIso8601String())] : null,

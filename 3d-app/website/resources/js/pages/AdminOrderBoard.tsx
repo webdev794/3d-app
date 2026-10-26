@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, ExternalLink, Eye, EyeOff, LoaderCircle, Lock, Paperclip, RefreshCw, Search, Send, Truck, Upload, X } from 'lucide-react';
-import { ApiError } from '../api';
+import { ApiError, api } from '../api';
+import { MadeByFilter } from './AdminSuppliers';
 import GarmentIcon from '../components/GarmentIcon';
 import OrderFormReading from '../components/OrderFormReading';
 import { STAGES, StageBlocked, orderApi, uploadAdminFile, type Board, type BoardOrder, type FileKind, type OrderDetail, type OrderStatus, type StageProblem } from '../orderApi';
@@ -12,6 +13,8 @@ import { formatMoney } from '../money';
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '');
 interface Pending { order: BoardOrder; status: OrderStatus; problems: StageProblem[] }
+/** Who makes it (preferred suppliers): 3DEEZI unless the order names another maker. */
+const madeBy = (order: BoardOrder) => (order as BoardOrder & { made_by?: string | null }).made_by || '3DEEZI';
 
 /**
  * Admin > Order board: every order in its stage. Drag a card to another stage (or use its Move menu); moving into
@@ -23,12 +26,17 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
   const [view, setView] = useState<'current' | 'completed'>('current');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
+  /** Made by (preferred suppliers): '' all, '3deezi' or a supplier's id. */
+  const [maker, setMaker] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<number | null>(null);
   const [over, setOver] = useState<OrderStatus | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
-  const load = useCallback(() => { orderApi.adminBoard(view, query).then(b => { setBoard(b); setError(''); }).catch(e => setError((e as Error).message)); }, [view, query]);
+  const load = useCallback(() => {
+    (maker ? api<Board>(`/admin/orders/board?${new URLSearchParams({ view, ...(query ? { search: query } : {}), supplier: maker })}`) : orderApi.adminBoard(view, query))
+      .then(b => { setBoard(b); setError(''); }).catch(e => setError((e as Error).message));
+  }, [view, query, maker]);
   useEffect(load, [load]);
 
   async function move(order: BoardOrder, status: OrderStatus, confirm?: { approval: boolean; unpaid: boolean; reason: string }) {
@@ -50,6 +58,7 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
     <div className="admin-toolbar">
       <h2>Order board {board && <small>{board.counts.current} current · {board.counts.completed} completed</small>}</h2>
       <form className="admin-search" onSubmit={e => { e.preventDefault(); setQuery(search.trim()); }}><Search size={15} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Reference, name, garment or customer" aria-label="Search orders" /></form>
+      <MadeByFilter value={maker} onChange={setMaker} />
       <div className="aob-views" role="group" aria-label="Orders to show">{(['current', 'completed'] as const).map(v => <button key={v} type="button" className={view === v ? 'on' : ''} aria-pressed={view === v} onClick={() => setView(v)}>{v === 'current' ? 'Current' : 'Completed'}</button>)}</div>
       <button type="button" className="button button-outline" onClick={load}><RefreshCw size={15} /> Refresh</button>
     </div>
@@ -70,6 +79,7 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
               <span className="aob-meta">{order.quantity ? `${order.quantity} garment${order.quantity === 1 ? '' : 's'}` : 'Sizes in the order form'} · {order.customer?.name}</span>
               <span className={`aob-pill tone-${order.sub_status.tone}`}>{order.sub_status.label}</span>
               {order.payment ? <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}</span> : <span className="aob-pill tone-grey">No invoice</span>}
+              {madeBy(order) !== '3DEEZI' && <span className="aob-pill tone-violet" data-testid="board-made-by">Made by {madeBy(order)}</span>}
               {order.latest_update && <span className="aob-latest">{order.latest_update.text}{order.latest_update.message && order.latest_update.text !== order.latest_update.message ? `: ${order.latest_update.message}` : ''}</span>}
               <span className="aob-dates">In {day(order.submitted_at)}{order.due_date ? ` · due ${day(order.due_date)}` : ''}{order.needed_by ? ` · required ${day(order.needed_by)}` : ''}{order.assignee ? ` · ${order.assignee}` : ''}</span>
             </button>

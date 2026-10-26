@@ -228,7 +228,7 @@ const state = {
   },
 };
 try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || (OLD_STORE && localStorage.getItem(`${OLD_STORE}.prefs`)) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
-const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, palettes: state.palettes, palette: state.palette, gradients: state.gradients, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint, conn: state.conn, ui: state.ui, quick: state.quick })); } catch { /* private mode */ } };
+const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, palettes: state.palettes, palette: state.palette, gradients: state.gradients, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint, conn: state.conn, ui: state.ui, quick: state.quick, dockLive: state.dockLive })); } catch { /* private mode */ } };
 
 const toast = (text, ms = 2800) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), ms); };
 const hint = (text) => { const h = $('hint'); h.textContent = text || ''; h.classList.toggle('show', !!text); };
@@ -287,6 +287,8 @@ function repairObject(o) {
 // Viewport: fit, zoom, pan, rulers, grid
 // ===================================================================
 let sizedAt = ''; // the canvas size last set (see resizeIfChanged)
+/** Phones' colour panel under the artwork (see "Phones: the colour panel" below). */
+const dock = { open: false, hsv: { h: 186, s: 0.92, v: 0.94 }, drag: null, view: null, fitted: null, picking: false, recent: '' };
 function resize(draw = true) {
   sizedAt = `${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}`;
   canvas.setDimensions({ width: wrap.clientWidth, height: wrap.clientHeight });
@@ -305,7 +307,8 @@ function resize(draw = true) {
   };
 }
 function fit() {
-  const pad = 40, w = wrap.clientWidth - pad * 2, h = wrap.clientHeight - pad * 2;
+  // Phones' colour panel: a narrow margin, so the page is as big as the room above the panel allows.
+  const pad = dock.open ? 14 : 40, w = wrap.clientWidth - pad * 2, h = wrap.clientHeight - pad * 2;
   if (w < 20 || h < 20) return; // no room yet (the page area is being laid out)
   const z = Math.min(w / page.width, h / page.height);
   canvas.setViewportTransform([z, 0, 0, z, (wrap.clientWidth - page.width * z) / 2, (wrap.clientHeight - page.height * z) / 2]);
@@ -855,6 +858,7 @@ const toolButtons = new Map();
 let previewEnding = 0;
 function startPreview() {
   if (previewState) return;
+  closeDock(); // phones' colour panel
   closeMenus(); $('quickPop').hidden = true;
   canvas.discardActiveObject();
   previewState = { vpt: canvas.viewportTransform.slice() };
@@ -975,8 +979,9 @@ function openToolFly(gid, b) {
   fly.dataset.group = gid;
   fly.innerHTML = tools.map(([id, label, ic, key], i) => `${i && FLY_BREAK.has(id) ? '<hr>' : ''}<button data-tool="${id}" class="${state.tool === id ? 'on' : ''}">${icon(ic)}${label}${key ? `<small>${key}</small>` : ''}</button>`).join('');
   fly.querySelectorAll('[data-tool]').forEach((x) => (x.onclick = () => { closeMenus(); setTool(x.dataset.tool); }));
-  // Beside the button (above the toolbox on phones), kept inside the window; a flyout taller than the room scrolls.
-  const phone = innerWidth <= 900;
+  // Beside the button (above the toolbox on phones; beside it again while the colour panel makes the toolbox a rail),
+  // kept inside the window; a flyout taller than the room scrolls.
+  const phone = innerWidth <= 900 && !dock.open;
   Object.assign(fly.style, phone
     ? { left: `${Math.max(6, Math.min(r.left, innerWidth - 250))}px`, top: 'auto', bottom: `${innerHeight - r.top + 6}px`, maxHeight: `${Math.max(120, r.top - 12)}px` }
     : { left: `${r.right + 6}px`, top: '8px', bottom: 'auto', maxHeight: `${innerHeight - 16}px` });
@@ -4264,6 +4269,7 @@ function syncProps(live = false) {
   if (!live) refreshLayers();
   syncTextBar();
   syncContext();
+  if (!live) dockSync(); // phones' colour panel shows the selection's colour
 }
 for (const ev of ['selection:created', 'selection:updated', 'selection:cleared', 'object:modified', 'object:scaling', 'object:moving', 'object:rotating']) canvas.on(ev, () => { if (state.tool === 'node' && ev === 'object:modified') nodes.refresh(); syncProps(ev === 'object:scaling' || ev === 'object:moving' || ev === 'object:rotating'); });
 
@@ -4803,6 +4809,7 @@ function setTarget(t) {
   state.target = t;
   for (const b of document.querySelectorAll('[data-target]')) b.classList.toggle('on', b.dataset.target === t);
   const hex = current(); hsv = hexToHsv(hex); $('hexIn').value = hex; $('hexChip').style.background = hex; showValues(hex); drawPicker(); drawHarmony();
+  dockSync();
 }
 // RGB and CMYK values for the current colour (CMYK is a plain conversion, no print profile).
 const toCmyk = ([r, g, b]) => { const k = 1 - Math.max(r, g, b) / 255; return k >= 1 ? [0, 0, 0, 100] : [r, g, b].map((v) => Math.round(((1 - v / 255 - k) / (1 - k)) * 100)).concat(Math.round(k * 100)); };
@@ -5305,6 +5312,7 @@ function syncGradFromSelection() {
     showFillRows();
     showPicker(current());
   }
+  dockSync(); // phones' colour panel: after the fill mode follows the selection
 }
 for (const ev of ['selection:created', 'selection:updated', 'selection:cleared']) canvas.on(ev, syncGradFromSelection);
 const patternSpec = () => ({ kind: $('patKind').value, size: Math.max(2, Math.min(100, Number($('patSize').value) || 10)), bg: $('patBg').value });
@@ -5972,15 +5980,269 @@ $('gridToggle').onchange = (e) => { state.grid = e.target.checked; savePrefs(); 
 $('zoomPct').onchange = (e) => (e.target.value === 'fit' ? fit() : zoomAt(baseZoom() * Number(e.target.value) / 100));
 $('zoomRange').oninput = (e) => zoomAt(baseZoom() * 2 ** (Number(e.target.value) / 100));
 $('zoomMinus').onclick = ACTIONS.zoomOut; $('zoomPlus').onclick = ACTIONS.zoomIn; $('fitBtn').onclick = fit;
-function openTab(name) {
+/** Opens a tab of the right panel. On phones the Colour tab is the colour panel under the artwork (full: the whole
+ *  Colour tab in the sheet, for gradients, patterns, palettes and colour values: the panel's More button). */
+function openTab(name, full = false) {
+  if (name === 'colour' && !full && openDock()) return;
+  closeDock();
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.id === `pane-${name}`));
   if (name === 'colour') requestAnimationFrame(drawPicker);
   $('side').classList.add('open');
 }
 document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => openTab(b.dataset.tab)));
-$('panelBtn').onclick = () => $('side').classList.toggle('open');
+$('panelBtn').onclick = () => {
+  const side = $('side');
+  if (side.classList.contains('open')) { side.classList.remove('open'); return; }
+  closeDock();
+  // Phones: the Colour tab is the colour panel, so the sheet opens on Properties (its tabs lead to the others).
+  if (phoneDock.matches && $('pane-colour').classList.contains('on')) openTab('props'); else side.classList.add('open');
+};
 $('closeSide').onclick = () => $('side').classList.remove('open');
+
+// ===================================================================
+// Phones: the colour panel under the artwork (client picture 173.jpg, 9.119)
+// Up to 600 px wide, Colour (the Fill and Outline chips, the Colour tab) opens a compact panel BELOW the page: a
+// small wheel (ring = colour, square = lightness), the colour, an eyedropper, HEX and opacity, recent colours and
+// Done. The page area shrinks to the room above (the toolbox becomes a rail at its side) and the page is fitted
+// into it, so the whole design stays in view. Colours show on the design while you drag (Live preview; off: when you
+// let go); each drag, typed colour, recent colour or opacity change is one undo step. Done or x closes it and the
+// view goes back to how it was. "Fit", "Live preview" and "Assist" sit just above it; on the website and in the app
+// the host's own Assist button makes way while it is open (message colourDock) and Assist opens the chat
+// (assistOpen).
+// ===================================================================
+const phoneDock = matchMedia('(max-width:600px)');
+state.dockLive = state.dockLive !== false;
+for (const svg of document.querySelectorAll('[data-cd-icon]')) svg.innerHTML = ICONS[svg.dataset.cdIcon] ?? '';
+$('cdAssist').hidden = !embedded();
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+/** The wheel's parts for a wheel this many CSS pixels wide: hue ring (outer / inner radius) and the square inside it. */
+function dockGeo(size) {
+  const c = size / 2, ro = c - 1, ri = ro - Math.max(10, size * 0.12), side = (ri - Math.max(5, size * 0.045)) * Math.SQRT2;
+  return { c, ro, ri, side, sx: c - side / 2, sy: c - side / 2 };
+}
+/** The colour the panel shows: the selected object's own fill or outline (a gradient: its picked colour), else the current one. */
+function dockColour() {
+  const o = one(), p = o?.type === 'group' ? paintParts(o)[0] ?? o : o;
+  if (state.target === 'fill') {
+    const spec = selGradient() ?? (p ? null : state.gradient);
+    if (spec) { const st = gradStops(spec); return hexOf(st[Math.min(gradActive, st.length - 1)]?.color) ?? state.fill; }
+    if (p?.patSpec?.ink) return hexOf(p.patSpec.ink) ?? state.fill;
+    return hexOf(p && typeof p.fill === 'string' ? p.fill : null) ?? state.fill;
+  }
+  const vs = o?.varSpec ?? p?.parent?.varSpec;
+  return hexOf(vs ? vs.colour : o?.textOutlines?.length ? o.textOutlines[0].c : p?.strokeWidth ? p.stroke : null) ?? state.stroke;
+}
+let dockRing = null; // the hue ring, drawn once for each size
+function drawDockWheel() {
+  const box = $('cdWheel'), cv = $('cdWheelCanvas'), size = box.clientWidth;
+  if (!dock.open || !size) return;
+  const dpr = Math.min(3, devicePixelRatio || 1), px = Math.round(size * dpr), geo = dockGeo(size);
+  if (cv.width !== px || cv.height !== px) { cv.width = cv.height = px; dockRing = null; }
+  if (!dockRing) {
+    dockRing = document.createElement('canvas');
+    dockRing.width = dockRing.height = px;
+    const r = dockRing.getContext('2d'), c = px / 2, ro = geo.ro * dpr, ri = geo.ri * dpr;
+    if (r.createConicGradient) {
+      // Red at the top, round clockwise.
+      const gr = r.createConicGradient(-Math.PI / 2, c, c);
+      for (let i = 0; i <= 6; i++) gr.addColorStop(i / 6, `hsl(${i * 60},100%,50%)`);
+      r.fillStyle = gr; r.beginPath(); r.arc(c, c, ro, 0, Math.PI * 2); r.moveTo(c + ri, c); r.arc(c, c, ri, 0, Math.PI * 2, true); r.fill('evenodd');
+    } else for (let d = 0; d < 360; d++) {
+      const a0 = ((d - 90.5) * Math.PI) / 180, a1 = ((d - 89) * Math.PI) / 180;
+      r.beginPath(); r.arc(c, c, ro, a0, a1); r.arc(c, c, ri, a1, a0, true); r.closePath(); r.fillStyle = `hsl(${d},100%,50%)`; r.fill();
+    }
+  }
+  const g = cv.getContext('2d'), x = geo.sx * dpr, y = geo.sy * dpr, s = geo.side * dpr;
+  g.clearRect(0, 0, px, px);
+  g.drawImage(dockRing, 0, 0);
+  g.fillStyle = `hsl(${dock.hsv.h},100%,50%)`; g.fillRect(x, y, s, s);
+  const w = g.createLinearGradient(x, 0, x + s, 0); w.addColorStop(0, '#fff'); w.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = w; g.fillRect(x, y, s, s);
+  const k = g.createLinearGradient(0, y, 0, y + s); k.addColorStop(0, 'rgba(0,0,0,0)'); k.addColorStop(1, '#000'); g.fillStyle = k; g.fillRect(x, y, s, s);
+  const a = ((dock.hsv.h - 90) * Math.PI) / 180, rm = (geo.ro + geo.ri) / 2;
+  Object.assign($('cdRingDot').style, { left: `${geo.c + Math.cos(a) * rm}px`, top: `${geo.c + Math.sin(a) * rm}px`, background: `hsl(${dock.hsv.h},100%,50%)` });
+  Object.assign($('cdSqDot').style, { left: `${geo.sx + dock.hsv.s * geo.side}px`, top: `${geo.sy + (1 - dock.hsv.v) * geo.side}px`, background: hsvToHex(dock.hsv) });
+}
+/** The panel for this colour; the wheel keeps its ring where it was for greys (they have no colour of their own). */
+function dockShow(hex) {
+  const h = hexToHsv(hex);
+  if (!h.s || !h.v) h.h = dock.hsv.h;
+  if (!h.v) h.s = dock.hsv.s;
+  dock.hsv = h;
+  dockPaint(hex);
+}
+function dockPaint(hex = hsvToHex(dock.hsv)) {
+  $('cdSwatch').style.background = hex;
+  $('cdWheel').setAttribute('aria-valuetext', hex);
+  if (document.activeElement !== $('cdHex')) $('cdHex').value = hex;
+  $('cdOp').style.setProperty('--c', hex);
+  for (const b of $('cdRecent').children) b.classList.toggle('on', b.dataset.c === hex);
+  drawDockWheel();
+}
+function dockRecent() {
+  const list = state.recent.length ? state.recent : ['#12E1F0', '#1E7BFF', '#7B4DFF', '#5D6B7B', '#000000', '#FFFFFF'];
+  if (dock.recent === list.join()) return;
+  dock.recent = list.join();
+  $('cdRecent').replaceChildren(...list.map((c) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.style.background = c; b.dataset.c = c; b.title = c; b.setAttribute('aria-label', `Use ${c}`);
+    b.onclick = () => { dockShow(c); dockCommit(c); };
+    return b;
+  }));
+}
+/** Shows the selection's colour, opacity and recent colours (not while the wheel is being dragged). */
+function dockSync() {
+  if (!dock.open || dock.drag) return;
+  for (const b of document.querySelectorAll('[data-cdt]')) b.classList.toggle('on', b.dataset.cdt === state.target);
+  const o = one(), op = Math.round((o ? o.opacity : state.opacity) * 100);
+  $('cdOp').value = String(op); $('cdOpVal').textContent = `${op}%`;
+  dockRecent();
+  dockShow(dockColour());
+}
+/** A colour while dragging: on the design straight away (Live preview), without an undo step yet. */
+function dockLive(hex) {
+  dockPaint(hex);
+  if (!state.dockLive) return;
+  muted++;
+  try { setColour(hex, { recent: false }); } finally { muted--; }
+}
+/** The colour chosen (the finger lifted, a recent colour, a typed HEX, the eyedropper): one undo step, a recent colour. */
+function dockCommit(hex) {
+  setColour(hex);
+  dockRecent();
+  dockPaint(hex);
+}
+function openDock() {
+  if (!phoneDock.matches) return false;
+  $('side').classList.remove('open');
+  if (!dock.open) {
+    dock.view = canvas.viewportTransform.slice();
+    dock.open = true;
+    $('cdock').hidden = false;
+    document.body.classList.add('cdock-open');
+    $('cdLive').setAttribute('aria-pressed', String(state.dockLive));
+    if (embedded()) post({ type: 'colourDock', open: true });
+    // The page area is smaller now: the whole page in view above the panel.
+    resizeIfChanged(); fit();
+    dock.fitted = canvas.viewportTransform.slice();
+  }
+  dockSync();
+  return true;
+}
+function closeDock() {
+  if (!dock.open) return;
+  dockPicking(false);
+  dock.open = false;
+  dock.drag = null;
+  $('cdock').hidden = true;
+  document.body.classList.remove('cdock-open');
+  if (embedded()) post({ type: 'colourDock', open: false });
+  resizeIfChanged();
+  // The view as it was before, unless it was zoomed or moved meanwhile (then the whole page).
+  const same = dock.fitted && canvas.viewportTransform.every((v, i) => Math.abs(v - dock.fitted[i]) < 1e-6);
+  if (same && dock.view?.every(Number.isFinite)) { canvas.setViewportTransform(dock.view); afterZoom(); } else fit();
+}
+phoneDock.addEventListener?.('change', () => { if (!phoneDock.matches) closeDock(); else if (dock.open) { resizeIfChanged(); fit(); dockSync(); } });
+// The window changed size (a phone's browser bars, the keyboard): the page stays fitted unless it was zoomed or moved.
+addEventListener('resize', () => {
+  if (!dock.open) return;
+  requestAnimationFrame(() => {
+    if (!dock.open) return;
+    const same = dock.fitted && canvas.viewportTransform.every((v, i) => Math.abs(v - dock.fitted[i]) < 1e-6);
+    resizeIfChanged();
+    if (same) { fit(); dock.fitted = canvas.viewportTransform.slice(); }
+    drawDockWheel();
+  });
+});
+$('cdWheel').addEventListener('pointerdown', (e) => {
+  if (e.button > 0) return;
+  const box = $('cdWheel'), r = box.getBoundingClientRect(), geo = dockGeo(r.width);
+  const d = Math.hypot(e.clientX - r.left - geo.c, e.clientY - r.top - geo.c);
+  if (d > geo.ro + 8) return;
+  e.preventDefault();
+  dock.drag = d >= geo.ri - 6 ? 'hue' : 'sv';
+  // The ring picks a colour: from white, grey or black it starts at the full colour.
+  if (dock.drag === 'hue') { if (dock.hsv.s < 0.08) dock.hsv.s = 1; if (dock.hsv.v < 0.15) dock.hsv.v = 1; }
+  try { box.setPointerCapture(e.pointerId); } catch { /* a finished touch */ }
+  const at = (ev) => {
+    const x = ev.clientX - r.left, y = ev.clientY - r.top;
+    if (dock.drag === 'hue') dock.hsv.h = (((Math.atan2(y - geo.c, x - geo.c) * 180) / Math.PI + 90) % 360 + 360) % 360;
+    else { dock.hsv.s = clamp01((x - geo.sx) / geo.side); dock.hsv.v = 1 - clamp01((y - geo.sy) / geo.side); }
+    dockLive(hsvToHex(dock.hsv));
+  };
+  at(e);
+  const move = (ev) => { if (dock.drag) at(ev); };
+  const up = () => {
+    box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up);
+    if (!dock.drag) return;
+    dock.drag = null;
+    dockCommit(hsvToHex(dock.hsv));
+  };
+  box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+});
+// Keyboard: arrows turn the ring (left / right) and change the lightness (up / down).
+$('cdWheel').addEventListener('keydown', (e) => {
+  const step = e.shiftKey ? 10 : 2, h = dock.hsv;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') h.h = (h.h + (e.key === 'ArrowRight' ? step : -step) + 360) % 360;
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') h.v = clamp01(h.v + (e.key === 'ArrowUp' ? step : -step) / 100);
+  else return;
+  e.preventDefault(); e.stopPropagation();
+  dockCommit(hsvToHex(h));
+});
+for (const b of document.querySelectorAll('[data-cdt]')) b.onclick = () => setTarget(b.dataset.cdt);
+$('cdHex').addEventListener('change', (e) => {
+  const hex = hexOf(`#${e.target.value.trim().replace(/^#/, '')}`);
+  if (!hex) { e.target.value = hsvToHex(dock.hsv); toast('Type a colour as 6 hex digits, e.g. #A51F3C'); return; }
+  e.target.value = hex;
+  dockShow(hex); dockCommit(hex);
+});
+$('cdHex').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+$('cdOp').addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  $('cdOpVal').textContent = `${v}%`;
+  if (!state.dockLive) return;
+  muted++;
+  try { applyToSelection({ opacity: v / 100 }); } finally { muted--; }
+});
+$('cdOp').addEventListener('change', (e) => {
+  state.opacity = clamp01(Number(e.target.value) / 100);
+  applyToSelection({ opacity: state.opacity });
+  syncProps();
+});
+$('cdLive').onclick = () => {
+  state.dockLive = !state.dockLive; savePrefs();
+  $('cdLive').setAttribute('aria-pressed', String(state.dockLive));
+  toast(state.dockLive ? 'Live preview on: colours show on the design while you drag' : 'Live preview off: the design changes when you let go');
+};
+$('cdFit').onclick = fit;
+$('cdZoom').onchange = (e) => { const v = e.target.value; e.target.value = ''; if (v === 'fit') fit(); else if (v) zoomAt(baseZoom() * Number(v) / 100); };
+$('cdDone').onclick = closeDock;
+$('cdClose').onclick = closeDock;
+$('cdMore').onclick = () => openTab('colour', true);
+$('cdAssist').onclick = () => { closeDock(); post({ type: 'assistOpen' }); };
+const DOCK_PICK_HINT = 'Tap a colour on the page';
+/** The panel's eyedropper: the next tap on the page picks the colour under it (it doesn't select anything). */
+function dockPicking(on) {
+  dock.picking = on;
+  $('cdEye').classList.toggle('on', on);
+  document.querySelector('.cd-pickcover')?.remove();
+  if (!on) { if ($('hint').textContent === DOCK_PICK_HINT) hint(''); return; }
+  const cover = document.createElement('div');
+  cover.className = 'cd-pickcover';
+  wrap.append(cover);
+  hint(DOCK_PICK_HINT);
+  cover.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    let target = null;
+    try { target = canvas.findTarget(e) ?? null; } catch { /* the screen colour then */ }
+    const c = colourAt(e, target?.isPage ? null : target);
+    dockPicking(false);
+    if (!c) { toast('No colour there: tap the design'); return; }
+    dockShow(c); dockCommit(c);
+    toast(`Picked ${c}`);
+  });
+}
+$('cdEye').onclick = () => dockPicking(!dock.picking);
 
 // ===================================================================
 // Text bar (CorelDRAW-style): font, size, bold, italic, underline, alignment.

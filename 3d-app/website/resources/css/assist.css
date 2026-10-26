@@ -70,6 +70,9 @@
    none of their buttons; on phones the open chat sits above the button. */
 @media (max-width:900px){.assist.assist-artboard{right:12px;bottom:139px}}
 @media (max-width:560px){.assist-artboard .assist-panel{bottom:195px;max-height:calc(100dvh - 205px)}}
+/* Phones: while the Artboard's colour panel is open under the artwork (Artboard.tsx sets data-artboard-dock), the
+   button makes way for it; the panel has its own Assist button, which opens the chat (9.119). */
+@media (max-width:600px){html[data-artboard-dock] .assist-artboard:not(.is-open){visibility:hidden;pointer-events:none}}
 /* Artboard: just the round icon, so it covers less of the work area (its name shows on hover). */
 .assist-artboard .assist-launcher{width:48px;height:48px;padding:0;gap:0;justify-content:center;border-radius:50%}
 .assist-artboard .assist-launcher span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

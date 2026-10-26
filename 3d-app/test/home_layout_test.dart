@@ -5,11 +5,13 @@ import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/screens/create_home.dart';
 import 'package:three_deezi/screens/order_entry.dart'
     show OrderFormScreen, OrderUploadScreen;
+import 'package:three_deezi/screens/suppliers.dart' show SuppliersScreen;
 import 'package:three_deezi/widgets/ui.dart' show BottomNav, BrandLogo;
 
 import 'features_test.dart' show FakeStore;
 import 'flow_test.dart' show mountPhone, tapText;
 import 'orders_app_test.dart' show OrdersServer, signedIn, mount, tap;
+import 'suppliers_test.dart' show SuppliersServer;
 
 /// The client's Home (images/166.jpg, 2026-10-23): "What would you like to
 /// create?", a 2 × 2 grid of picture tiles, then ORDERS (three buttons), the
@@ -48,15 +50,35 @@ void main() {
         expect(ai.left, greaterThanOrEqualTo(0));
         expect(dyo.right, lessThanOrEqualTo(size.width));
 
-        // Under the tiles: ORDERS (three buttons in one row, as wide as the
-        // tiles), the Preferred suppliers strip, the Assist link, Convert.
-        await tester.ensureVisible(find.byKey(const ValueKey('home-convert')));
+        // Under the tiles: the INSTANT 3D FROM ARTWORK bar (as wide as the
+        // tiles, its button inside it), ORDERS (three buttons in one row, as
+        // wide as the tiles), the Preferred suppliers strip, the Assist link.
+        // The old grey Convert line is gone.
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('home-assist-link')),
+        );
         await tester.pump();
         Rect at(String key) => tester.getRect(find.byKey(ValueKey(key)));
+        final bar = at('home-artwork-bar');
         final form = at('home-order-form'), upload = at('home-order-upload');
         final mine = at('home-my-orders'), strip = at('home-suppliers');
         final link = at('home-assist-link');
-        expect(form.top, greaterThan(at('home-tile-team').bottom));
+        expect(bar.top, greaterThan(at('home-tile-team').bottom));
+        expect(bar.left, moreOrLessEquals(at('home-tile-ai').left));
+        expect(bar.right, moreOrLessEquals(at('home-tile-dyo').right));
+        final button = tester.getRect(find.text('UPLOAD ARTWORK HERE'));
+        expect(button.top, greaterThan(bar.top));
+        expect(button.bottom, lessThan(bar.bottom));
+        expect(button.left, greaterThan(bar.left));
+        expect(button.right, lessThan(bar.right));
+        final question = tester.getRect(
+          find.text('ALREADY HAVE ARTWORK READY?'),
+        );
+        expect(question.bottom, lessThanOrEqualTo(button.top));
+        expect(question.right, lessThanOrEqualTo(bar.right));
+        expect(find.byKey(const ValueKey('home-convert')), findsNothing);
+        expect(find.text('Convert an image to 3D'), findsNothing);
+        expect(form.top, greaterThan(bar.bottom));
         expect(upload.top, moreOrLessEquals(form.top));
         expect(mine.top, moreOrLessEquals(form.top));
         expect(upload.left, greaterThan(form.right));
@@ -66,7 +88,6 @@ void main() {
         expect(strip.top, greaterThan(form.bottom));
         expect(strip.width, moreOrLessEquals(mine.right - form.left));
         expect(link.top, greaterThan(strip.bottom));
-        expect(at('home-convert').top, greaterThan(link.top));
         expect(tester.takeException(), isNull);
       },
     );
@@ -122,15 +143,45 @@ void main() {
     await tapText(tester, 'ARTBOARD');
     expect(c.screen, AppScreen.artboard);
 
-    // The quiet Convert line still starts Convert (no AI in tests: it says so).
-    c.update(() => c.screen = AppScreen.home);
-    await tester.pump(const Duration(milliseconds: 400));
-    await tapText(tester, 'Convert an image to 3D');
+    // The INSTANT 3D FROM ARTWORK bar starts Convert, as the grey line it
+    // replaced did (no AI in tests: it says so), from its button and from
+    // the rest of the panel.
+    for (final part in ['UPLOAD ARTWORK HERE', 'ALREADY HAVE ARTWORK READY?']) {
+      c.update(() => c.screen = AppScreen.home);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(seconds: 4)); // The last toast goes.
+      await tapText(tester, part);
+      expect(
+        find.text('Convert needs AI, which is not set up in this build.'),
+        findsOneWidget,
+        reason: part,
+      );
+      expect(c.screen, AppScreen.home);
+    }
+  });
+
+  testWidgets('Home: INSTANT 3D FROM ARTWORK is one button for screen readers', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final c = AppController(store: FakeStore())..screen = AppScreen.home;
+    await mount(tester, CreateHomeScreen(c), width: 360);
+    final bar = find.byKey(const ValueKey('home-artwork-bar'));
+    await tester.ensureVisible(bar);
+    await tester.pumpAndSettle();
+    expect(find.text('INSTANT 3D FROM ARTWORK'), findsOneWidget);
     expect(
-      find.text('Convert needs AI, which is not set up in this build.'),
-      findsOneWidget,
+      tester.getSemantics(bar),
+      isSemantics(
+        label:
+            'Upload artwork here. Already have artwork ready? Turn your '
+            'finished design into an editable 3D kit in seconds.',
+        isButton: true,
+        hasTapAction: true,
+      ),
     );
-    expect(c.screen, AppScreen.home);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 
   testWidgets(
@@ -186,25 +237,51 @@ void main() {
     },
   );
 
-  testWidgets('Home: Preferred suppliers, coming soon (nothing to tap yet)', (
-    tester,
-  ) async {
-    final semantics = tester.ensureSemantics();
-    final c = AppController(store: FakeStore())..screen = AppScreen.home;
-    await mount(tester, CreateHomeScreen(c), width: 360);
-    final strip = find.byKey(const ValueKey('home-suppliers'));
-    await tester.ensureVisible(strip);
-    await tester.pumpAndSettle();
-    expect(
-      find.bySemanticsLabel('3DEEZI Preferred suppliers: coming soon'),
-      findsOneWidget,
-    );
-    expect(find.text('PREFERRED SUPPLIERS'), findsOneWidget);
-    expect(find.text('Coming soon.'), findsOneWidget);
-    await tester.tap(strip);
-    await tester.pumpAndSettle();
-    expect(c.screen, AppScreen.home);
-    expect(tester.takeException(), isNull);
-    semantics.dispose();
-  });
+  testWidgets(
+    'Home: Preferred suppliers opens its screen (one button for screen '
+    'readers); Back returns home',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final c = AppController(
+        store: FakeStore(),
+        api: ApiClient(
+          client: SuppliersServer().client,
+          baseUrl: 'https://test.example',
+        ),
+      )..screen = AppScreen.home;
+      await mount(tester, CreateHomeScreen(c), width: 360);
+      final strip = find.byKey(const ValueKey('home-suppliers'));
+      await tester.ensureVisible(strip);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(strip),
+        isSemantics(
+          label: '3DEEZI Preferred suppliers: made by makers we trust',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      expect(find.text('PREFERRED SUPPLIERS'), findsOneWidget);
+      expect(find.text('Made by makers we trust.'), findsOneWidget);
+      expect(find.text('Coming soon.'), findsNothing);
+      await tester.tap(strip);
+      await tester.pumpAndSettle();
+      expect(find.byType(SuppliersScreen), findsOneWidget);
+      expect(find.text('Mantis'), findsOneWidget);
+      final become = find.byKey(const ValueKey('become-supplier'));
+      await tester.scrollUntilVisible(
+        become,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(become, findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(SuppliersScreen), findsNothing);
+      expect(c.screen, AppScreen.home);
+      expect(find.byKey(const ValueKey('home-tile-ai')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
 }

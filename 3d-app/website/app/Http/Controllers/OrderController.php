@@ -42,6 +42,9 @@ class OrderController extends Controller
             'completed_after_days' => Order::COMPLETED_AFTER_DAYS,
             // A date required sooner than this many weeks gets a gentle warning (Admin › Settings).
             'lead_time_weeks' => \App\Support\OrderDelivery::leadWeeks(),
+            // "Made by" (preferred suppliers, task 9.118): 3DEEZI (the default), Mantis, then the approved suppliers.
+            'suppliers' => \App\Models\Supplier::choices()->map->present()->values(),
+            'default_supplier_id' => \App\Models\Supplier::default()?->id,
         ]]);
     }
 

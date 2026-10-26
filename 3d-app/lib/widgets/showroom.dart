@@ -197,16 +197,29 @@ class GlowLine extends StatelessWidget {
 /// Hue ring around a saturation/brightness disc, a brightness slider, hex
 /// entry and recent colours. [onChanged] fires while dragging; [onDone] once
 /// a pick is finished (one undo step).
+///
+/// [compact] is the phone panel under the Studio's 3D (client picture
+/// 173.jpg): a small wheel on the left (about 40% of the width), the colour
+/// swatch, HEX and a brightness slider on the right, and one row of recent
+/// colours (then [swatches]) with [trailing] (the Done button) beside it.
 class ColorWheel extends StatefulWidget {
   const ColorWheel({
     super.key,
     required this.color,
     required this.onChanged,
     this.onDone,
+    this.compact = false,
+    this.swatches = const [],
+    this.trailing,
   });
   final Color color;
   final ValueChanged<Color> onChanged;
   final ValueChanged<Color>? onDone;
+  final bool compact;
+
+  /// Ready-made colours after the recent ones (compact only).
+  final List<Color> swatches;
+  final Widget? trailing;
 
   /// Shared across the session, newest first.
   static final List<Color> recent = [];
@@ -246,8 +259,16 @@ class _ColorWheelState extends State<ColorWheel> {
     widget.onChanged(color);
   }
 
-  void _done() {
-    final color = _hsv.toColor();
+  /// A swatch: exactly its colour (no round trip through HSV), one pick.
+  void _pickSwatch(Color color) {
+    setState(() => _hsv = HSVColor.fromColor(color));
+    _hex.text = _hexOf(color);
+    widget.onChanged(color);
+    _done(color);
+  }
+
+  void _done([Color? exact]) {
+    final color = exact ?? _hsv.toColor();
     ColorWheel.recent
       ..removeWhere((c) => c.toARGB32() == color.toARGB32())
       ..insert(0, color);
@@ -274,118 +295,118 @@ class _ColorWheelState extends State<ColorWheel> {
     }
   }
 
+  /// The hue ring and the saturation/brightness disc, square.
+  Widget _wheel(Color hue) => AspectRatio(
+    aspectRatio: 1,
+    child: LayoutBuilder(
+      builder: (context, box) {
+        final size = box.biggest;
+        final r = size.width / 2;
+        final ring = Offset.fromDirection(
+          (_hsv.hue - 90) * math.pi / 180,
+          r * .89,
+        );
+        final disc = r * .66;
+        final dot = Offset(
+          (_hsv.saturation * 2 - 1) * disc,
+          ((1 - _hsv.value) * 2 - 1) * disc,
+        );
+        return GestureDetector(
+          key: _key,
+          onPanStart: (e) => _pick(e.localPosition, size, start: true),
+          onPanUpdate: (e) => _pick(e.localPosition, size),
+          onPanEnd: (_) {
+            _ring = null;
+            _done();
+          },
+          onTapDown: (e) => _pick(e.localPosition, size, start: true),
+          onTapUp: (_) {
+            _ring = null;
+            _done();
+          },
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const SweepGradient(
+                      transform: GradientRotation(-math.pi / 2),
+                      colors: [
+                        Color(0xffff0000),
+                        Color(0xffffff00),
+                        Color(0xff00ff00),
+                        Color(0xff00ffff),
+                        Color(0xff0000ff),
+                        Color(0xffff00ff),
+                        Color(0xffff0000),
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Palette.cyan.withValues(alpha: .25),
+                        blurRadius: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: Padding(
+                  padding: EdgeInsets.all(r * .22),
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Palette.surface,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: Padding(
+                  padding: EdgeInsets.all(r - disc),
+                  child: ClipOval(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [Colors.white, hue]),
+                      ),
+                      child: const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0x00000000), Colors.black],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Smaller handles on the compact wheel (its ring is thinner).
+              _handle(size.center(ring), hue, size.width < 180 ? 18 : 24),
+              _handle(
+                size.center(dot),
+                _hsv.toColor(),
+                size.width < 180 ? 16 : 20,
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final hue = HSVColor.fromAHSV(1, _hsv.hue, 1, 1).toColor();
+    if (widget.compact) return _compactLayout(hue);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Expanded(
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: LayoutBuilder(
-                  builder: (context, box) {
-                    final size = box.biggest;
-                    final r = size.width / 2;
-                    final ring = Offset.fromDirection(
-                      (_hsv.hue - 90) * math.pi / 180,
-                      r * .89,
-                    );
-                    final disc = r * .66;
-                    final dot = Offset(
-                      (_hsv.saturation * 2 - 1) * disc,
-                      ((1 - _hsv.value) * 2 - 1) * disc,
-                    );
-                    return GestureDetector(
-                      key: _key,
-                      onPanStart: (e) =>
-                          _pick(e.localPosition, size, start: true),
-                      onPanUpdate: (e) => _pick(e.localPosition, size),
-                      onPanEnd: (_) {
-                        _ring = null;
-                        _done();
-                      },
-                      onTapDown: (e) =>
-                          _pick(e.localPosition, size, start: true),
-                      onTapUp: (_) {
-                        _ring = null;
-                        _done();
-                      },
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const SweepGradient(
-                                  transform: GradientRotation(-math.pi / 2),
-                                  colors: [
-                                    Color(0xffff0000),
-                                    Color(0xffffff00),
-                                    Color(0xff00ff00),
-                                    Color(0xff00ffff),
-                                    Color(0xff0000ff),
-                                    Color(0xffff00ff),
-                                    Color(0xffff0000),
-                                  ],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Palette.cyan.withValues(alpha: .25),
-                                    blurRadius: 18,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Positioned.fill(
-                            child: Padding(
-                              padding: EdgeInsets.all(r * .22),
-                              child: const DecoratedBox(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Palette.surface,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned.fill(
-                            child: Padding(
-                              padding: EdgeInsets.all(r - disc),
-                              child: ClipOval(
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [Colors.white, hue],
-                                    ),
-                                  ),
-                                  child: const DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          Color(0x00000000),
-                                          Colors.black,
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          _handle(size.center(ring), hue, 24),
-                          _handle(size.center(dot), _hsv.toColor(), 20),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
+            Expanded(child: _wheel(hue)),
             const SizedBox(width: 12),
             SizedBox(
               height: 200,
@@ -435,12 +456,7 @@ class _ColorWheelState extends State<ColorWheel> {
                   counterText: '',
                   labelText: 'HEX',
                 ),
-                onChanged: (text) {
-                  if (text.length != 6) return;
-                  final color = Color(0xff000000 | int.parse(text, radix: 16));
-                  setState(() => _hsv = HSVColor.fromColor(color));
-                  widget.onChanged(color);
-                },
+                onChanged: _hexChanged,
                 onSubmitted: (_) => _done(),
               ),
             ),
@@ -482,6 +498,196 @@ class _ColorWheelState extends State<ColorWheel> {
           ),
         ],
       ],
+    );
+  }
+
+  void _hexChanged(String text) {
+    if (text.length != 6) return;
+    final color = Color(0xff000000 | int.parse(text, radix: 16));
+    setState(() => _hsv = HSVColor.fromColor(color));
+    widget.onChanged(color);
+  }
+
+  static const _label = TextStyle(
+    fontSize: 10.5,
+    letterSpacing: 1.2,
+    color: Palette.muted,
+    fontWeight: FontWeight.w700,
+  );
+
+  /// The phone panel (173.jpg): wheel left; swatch, HEX and brightness right;
+  /// recent colours and [ColorWheel.trailing] below.
+  Widget _compactLayout(Color hue) {
+    final current = _hsv.toColor();
+    bool same(Color a, Color b) => a.toARGB32() == b.toARGB32();
+    final recent = ColorWheel.recent;
+    final more = [
+      for (final s in widget.swatches)
+        if (!recent.any((r) => same(r, s))) s,
+    ];
+    Widget swatch(Color color) {
+      final on = same(color, current);
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Semantics(
+          button: true,
+          selected: on,
+          label: 'Colour #${_hexOf(color)}',
+          child: GestureDetector(
+            onTap: () => _pickSwatch(color),
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: on ? Palette.cyan : Colors.white38,
+                  width: on ? 2.5 : 1.5,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        final wheel = (box.maxWidth * .38).clamp(112.0, 190.0);
+        return Column(
+          key: const ValueKey('colour-compact'),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SizedBox(width: wheel, child: _wheel(hue)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        key: const ValueKey('colour-swatch'),
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: current,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white24, width: 1.5),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Text('HEX', style: _label),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              key: const ValueKey('colour-hex'),
+                              controller: _hex,
+                              maxLength: 6,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp('[0-9a-fA-F]'),
+                                ),
+                              ],
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 13.5,
+                              ),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                prefixText: '# ',
+                                counterText: '',
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 9,
+                                ),
+                              ),
+                              onChanged: _hexChanged,
+                              onSubmitted: (_) => _done(),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Text('BRIGHTNESS', style: _label),
+                          const Spacer(),
+                          Text('${(_hsv.value * 100).round()}%', style: _label),
+                        ],
+                      ),
+                      SizedBox(
+                        height: 26,
+                        child: SliderTheme(
+                          data: SliderThemeData(
+                            trackHeight: 8,
+                            activeTrackColor: hue,
+                            inactiveTrackColor: Colors.black,
+                            thumbColor: Colors.white,
+                            overlayShape: SliderComponentShape.noOverlay,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 9,
+                            ),
+                          ),
+                          child: Slider(
+                            key: const ValueKey('colour-brightness'),
+                            value: _hsv.value,
+                            semanticFormatterCallback: (v) =>
+                                'Brightness ${(v * 100).round()}%',
+                            onChanged: (v) => _emit(_hsv.withValue(v)),
+                            onChangeEnd: (_) => _done(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              recent.isEmpty ? 'QUICK COLOURS' : 'RECENT COLOURS',
+              style: _label,
+            ),
+            const SizedBox(height: 5),
+            Row(
+              children: [
+                Expanded(
+                  // All built at once (at most 19), so every colour can be
+                  // scrolled to.
+                  child: SingleChildScrollView(
+                    key: const ValueKey('colour-strip'),
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      height: 34,
+                      child: Row(
+                        children: [
+                          for (final color in recent) swatch(color),
+                          if (recent.isNotEmpty && more.isNotEmpty)
+                            Container(
+                              width: 1,
+                              margin: const EdgeInsets.fromLTRB(2, 6, 10, 6),
+                              color: Palette.border,
+                            ),
+                          for (final color in more) swatch(color),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: 10),
+                  widget.trailing!,
+                ],
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 

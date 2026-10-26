@@ -288,9 +288,10 @@ class AiService {
             'Detailed visual description of the whole fully sublimated '
             'garment design for an image model: colours, graphics and how '
             'they flow across front, sides and back, textures, trims, collar, '
-            'where the client logo and wordmark go, the back name and number. '
-            'Free design, not limited to the pattern list. Garment only; no '
-            'background or camera details.',
+            'the club\'s crest on the chest, the small 3DEEZI word mark under '
+            'the back collar and the lettering the sport uses. Free design, '
+            'not limited to the pattern list. Garment only; no background or '
+            'camera details.',
       },
     },
   };
@@ -310,7 +311,8 @@ class AiService {
     final text = StringBuffer()
       ..writeln('Sport: ${sportForAi(sport)}')
       ..writeln('Garment: $garment')
-      ..writeln('Client brief: ${brief.trim().isEmpty ? '(none)' : brief}');
+      ..writeln('Client brief: ${brief.trim().isEmpty ? '(none)' : brief}')
+      ..writeln('$brandRules ${markingRules(sport)}');
     if (refs.isNotEmpty) {
       text.writeln(
         'Reference images are attached. Take colours, motifs and mood from '
@@ -375,7 +377,7 @@ class AiService {
       'graphics drawn from the theme of the client\'s logo or brief, 2) '
       'classic and clean, 3) heritage or pattern-led, 4) modern minimal. '
       'Keep the team name, sport and garment consistent across all four. '
-      '$freeDesign $colourRules',
+      '$freeDesign $colourRules $brandRules ${markingRules(sport ?? '')}',
     );
     if (references.isNotEmpty) {
       text.writeln(switch (mode) {
@@ -387,8 +389,8 @@ class AiService {
         _ =>
           'Reference images are attached. Take the palette, motifs and mood '
               'from them (a logo\'s colours, mascot and lettering style set '
-              'the theme), and make the client\'s main logo the chest '
-              'centrepiece.',
+              'the theme), and make the client\'s main logo the crest on the '
+              'chest.',
       });
     }
     final json = await _post('/responses', {
@@ -470,31 +472,43 @@ class AiService {
       'Design each concept freely, like a premium sublimated teamwear brand: '
       'renderPrompt describes the whole design (graphics such as lightning, '
       'speed lines, sharp angular shards, halftone dot fades, gradients and '
-      'textures where they suit the theme; where the client\'s logo goes; the '
-      'back name and number; trims), never a plain template with flat colour '
+      'textures where they suit the theme; the club\'s crest on the chest; the '
+      'lettering on the back; trims), never a plain template with flat colour '
       'blocks. pattern is only the nearest built-in pattern for the editable '
       '3D kit, and patternMotif is the custom print that carries the '
       'concept\'s graphics onto the 3D kit.';
 
-  /// The quick concept preview prompt: the concept's free design, the
-  /// client's logo as the chest centrepiece.
+  /// The quick concept preview prompt (a front view): the concept's free
+  /// design, the club's symbol on the chest at crest size, the sport's own
+  /// front lettering (netball: position letters) and no 3DEEZI on the front.
   static String conceptPreviewPrompt(
     String sport,
     String garment,
     String design,
     String logoText,
     int clientImages,
-  ) =>
-      'Premium photoreal product render of a $sport $garment, front view, '
-      'centred and fully visible, on an invisible ghost mannequin against a '
-      'dramatic dark background with soft floodlight haze and a rim light in '
-      'the kit\'s colours. Design: $design A bold, fully sublimated print, '
-      'never a plain template. '
-      '${clientImages > 0 ? 'The first $clientImages attached image(s) come from the client: reproduce the client\'s main logo faithfully as the large chest centrepiece (if one shows the client\'s own complete garment design, follow it). Any chest wordmark reads exactly "$logoText". The last attached image is the 3DEEZI logo: use its emblem only on the small neck label. ' : 'The chest wordmark reads exactly "$logoText". The attached image is the 3DEEZI logo: use its emblem as the chest crest. '}'
-      'No other logos or text.';
+  ) {
+    // A team name is a wordmark on the front; 3DEEZI never is.
+    final wordmark =
+        logoText.trim().isNotEmpty && logoText.trim().toUpperCase() != '3DEEZI'
+        ? 'Any team wordmark on the front reads exactly "$logoText". '
+        : '';
+    return 'Premium photoreal product render of a $sport $garment, front view, '
+        'centred and fully visible, on an invisible ghost mannequin against a '
+        'dramatic dark background with soft floodlight haze and a rim light in '
+        'the kit\'s colours. Design: $design A bold, fully sublimated print, '
+        'never a plain template. '
+        '${clientImages > 0 ? 'The first $clientImages attached image(s) come from the client: reproduce the client\'s main logo faithfully as the crest on the chest, at a normal crest size (if one shows the client\'s own complete garment design, follow it). ' : 'The chest carries a simple original crest at a normal crest size. '}'
+        '$wordmark'
+        'The last attached image is the 3DEEZI word mark: it goes only small '
+        'under the back collar, which this front view does not show, so never '
+        'put 3DEEZI on the front. ${markingRules(sport)} No other logos or '
+        'text.';
+  }
 
   /// A quick square concept render (about 12 s at low quality). The
-  /// client's logos go in first as real image inputs, then the 3DEEZI logo.
+  /// client's logos go in first as real image inputs, then the 3DEEZI word
+  /// mark.
   Future<Uint8List> renderConcept(
     DesignSpec spec, {
     List<Uint8List> references = const [],
@@ -516,28 +530,138 @@ class AiService {
 
   static Future<Uint8List>? _logo;
 
-  /// The 3DEEZI logo (emblem and wordmark) that branded mockups wear.
+  /// The 3DEEZI word mark the designs wear small under the back collar, the
+  /// only 3DEEZI branding (client 2026-10-26: the full logo had ended up
+  /// huge on the chest; the website's OpenAiDesigner::WORD_MARK).
+  static const wordMarkAsset = 'assets/images/brand-wordmark.png';
   static Future<Uint8List> _brandLogo() => _logo ??= rootBundle
-      .load('assets/images/logo_full.png')
+      .load(wordMarkAsset)
       .then((data) => data.buffer.asUint8List());
+
+  /// Every sport (client 2026-10-26, images/175.jpg; the same words as the
+  /// website's OpenAiDesigner::BRAND_RULES): the club's symbol on the chest
+  /// at a normal crest size, 3DEEZI only as a small word mark at the top of
+  /// the back.
+  static const brandRules =
+      'Logos: the club\'s symbol goes on the chest at a normal crest size '
+      '(about a hand\'s width, on the left chest or centred high on the '
+      'chest), unless the brief or the client\'s own design places it '
+      'differently: the client\'s own logo when one is attached, otherwise a '
+      'simple original crest (a shield or roundel in the kit colours, with '
+      'the team\'s initials when there is a team name). Never put a large '
+      '3DEEZI logo, the 3DEEZI emblem or the words "AI SPORTSWEAR DESIGNER" '
+      'on the chest or anywhere on the front. 3DEEZI appears only as a small '
+      '3DEEZI word mark at the top of the back, just under the collar, and '
+      'nowhere else on the garment.';
+
+  static SportCategory? _sport(String sport) =>
+      sportNamed(sport) ?? sportWithId(sport);
+
+  /// What the sport's kits carry on the back (and, with playing positions,
+  /// on the front), from lib/sports_catalog.dart (the same words as the
+  /// website's OpenAiDesigner::markingRules): netball has no player names or
+  /// numbers but the position letters.
+  static String markingRules(String sport) {
+    final s = _sport(sport);
+    final names = s?.names ?? true, numbers = s?.numbers ?? true;
+    final positions = s?.positions ?? const <String>[];
+    if (names && numbers) {
+      return 'Below the word mark, the back carries the team name in bold '
+          'athletic lettering over a large player number (for example 01) '
+          'when it suits the garment.';
+    }
+    final rule = StringBuffer(
+      !names && !numbers
+          ? 'This sport has no player names and no numbers: never put a '
+                'player name or any number anywhere on the garment (front, '
+                'back, sides or hem). '
+          : !names
+          ? 'This sport has no player names: never put a player name '
+                'anywhere on the garment; below the word mark the back '
+                'carries a large player number (for example 01). '
+          : 'This sport has no numbers: never put a number anywhere on the '
+                'garment; below the word mark the back carries the team name '
+                'in bold athletic lettering. ',
+    );
+    if (positions.isNotEmpty) {
+      rule.write(
+        'Instead, match wear shows the playing position letters, as on real '
+        'bibs (${positions.join(', ')}): one position only (for example '
+        '${positions.first}), in large bold athletic lettering centred on the '
+        'front below the club\'s crest, and again large on the back below '
+        'the word mark (on the bib when the garment has one). The back shows '
+        'only the small word mark and the position letters: no team name, '
+        'player name or number. Training and warm-up wear (tees, hoodies, '
+        'jackets) shows no position letters.',
+      );
+    }
+    return rule.toString().trim();
+  }
+
+  /// The editable 3D kit's back name and number for an AI design of
+  /// [sport] (the website's OpenAiDesigner::kitBack): none where the sport
+  /// has none (netball), so the Studio and the order form add none. A null
+  /// number keeps the kit's own.
+  static ({String backName, String? number}) kitBack(
+    String sport,
+    String logoText,
+  ) {
+    final s = _sport(sport);
+    return (
+      backName: (s?.names ?? true) ? logoText : '',
+      number: (s?.numbers ?? true) ? null : '',
+    );
+  }
+
+  /// The art direction's fields for the sport: its own back (and front)
+  /// lettering, as the website's OpenAiDesigner::directionFields.
+  static Map<String, String> directionFields(String sport) {
+    final s = _sport(sport);
+    final names = s?.names ?? true, numbers = s?.numbers ?? true;
+    final positions = s?.positions ?? const <String>[];
+    const outline =
+        'in bold white athletic lettering with an outline in the accent '
+        'colour';
+    return {
+      ..._directionFields,
+      if (positions.isNotEmpty) ...{
+        'front':
+            'The front design: base colour (dark black or navy for a cool or '
+            'bold brief with a logo), the club\'s symbol on the chest at a '
+            'normal crest size (the client\'s logo, or a simple crest when '
+            'there is none; never a 3DEEZI logo), one playing position\'s '
+            'letters (e.g. ${positions.first}) large $outline centred below '
+            'it, and the sublimated graphics around them.',
+        'back':
+            'The back design: the small 3DEEZI word mark just under the '
+            'collar, then the same position letters large $outline; no team '
+            'name, no player name and no number anywhere; plus graphics.',
+      } else if (!names || !numbers)
+        'back':
+            'The back design: the small 3DEEZI word mark just under the '
+            'collar, then ${names ? 'the team name $outline; no numbers anywhere' : numbers ? 'a large player number (e.g. 01) $outline; no player names anywhere' : 'no player names and no numbers anywhere'}; '
+            'plus graphics.',
+    };
+  }
 
   /// Kit colours like a top teamwear brand (the same words as the website):
   /// from the logo's brand colours, dark and bold when the brief is,
-  /// readable names and numbers.
+  /// readable lettering.
   /// Colours for an option with its own palette (no dark body preference).
   static const directionColourRules =
       'Colours: from the client\'s logo or the brief, never from skin tones '
       'or tiny logo details, with the body colour and palette the creative '
-      'direction sets. Back names and numbers contrast clearly with the body, '
-      'with an outline in the accent colour.';
+      'direction sets. The lettering on the back contrasts clearly with the '
+      'body, with an outline in the accent colour.';
 
   static const colourRules =
       'Colours: take the kit colours only from the dominant brand colours of '
       'the client\'s logo or the brief, never from skin tones or tiny logo '
       'details. For a cool, bold or aggressive brief with a logo, prefer a '
       'dark body (black or deep navy) with the logo\'s main colour as the '
-      'graphics and white highlights. Back names and numbers are white with '
-      'an outline in the accent colour, so they stand out from the graphics.';
+      'graphics and white highlights. The lettering on the back is white '
+      'with an outline in the accent colour, so it stands out from the '
+      'graphics.';
 
   /// The art director's brief for the HD mockup (strict JSON), the same as
   /// the website's.
@@ -545,7 +669,7 @@ class AiService {
     'summary':
         'One friendly sentence to the client saying what you will create, '
         'e.g. "I\'ll create a BLITZ training singlet in electric blue, black '
-        'and white, with your logo as the centrepiece and lightning details '
+        'and white, with your logo on the chest and lightning details '
         'flowing around the sides."',
     'ownDesign':
         'true only if an attached image is the client\'s own complete garment '
@@ -563,12 +687,14 @@ class AiService {
         'lightning: the mascot sprinting, jagged lightning edges".',
     'front':
         'The front design: base colour (dark black or navy for a cool or '
-        'bold brief with a logo), the main logo large as the centrepiece, '
-        'and the sublimated graphics around it.',
+        'bold brief with a logo), the club\'s symbol on the chest at a normal '
+        'crest size (the client\'s logo, or a simple crest when there is '
+        'none; never a 3DEEZI logo), and the sublimated graphics around it.',
     'back':
-        'The back design: the team name in bold white athletic lettering '
-        'over a large white player number (e.g. 01) with an outline in the '
-        'accent colour, when it suits the garment, plus graphics.',
+        'The back design: the small 3DEEZI word mark just under the collar, '
+        'then the team name in bold white athletic lettering over a large '
+        'white player number (e.g. 01) with an outline in the accent colour, '
+        'when it suits the garment, plus graphics.',
     'graphics':
         'The all-over sublimated graphics: shapes, flow across the sides, '
         'textures (halftone, gradients, grunge) and colours.',
@@ -600,9 +726,8 @@ class AiService {
         'lightning, flames, claws or waves) or from the brief. Design bold, '
         'fully sublimated graphics derived from that theme, flowing across '
         'the front, sides and back, never a plain template with flat colour '
-        'blocks. The client\'s main logo goes large as the front centrepiece; '
-        'the back carries the team name over a big number when it suits the '
-        'garment. Follow everything the brief specifies (colours, layout, '
+        'blocks. $brandRules ${markingRules(sport)} '
+        'Follow everything the brief specifies (colours, layout, '
         'background, text). If an attached image is the client\'s own '
         'complete garment design, set ownDesign to true and describe that '
         'design exactly instead of inventing one. $colourRules Never use real '
@@ -635,7 +760,9 @@ class AiService {
               'additionalProperties': false,
               'required': _directionFields.keys.toList(),
               'properties': {
-                for (final MapEntry(:key, :value) in _directionFields.entries)
+                for (final MapEntry(:key, :value) in directionFields(
+                  sport,
+                ).entries)
                   key: {
                     'type': key == 'ownDesign' ? 'boolean' : 'string',
                     'description': value,
@@ -656,10 +783,12 @@ class AiService {
   }
 
   /// The HD mockup prompt (the same words as the website): a bold
-  /// sublimated design from the logo's theme, the logo as the front
-  /// centrepiece, name and number on the back, front and back side by side
-  /// in a dramatic dark setting unless the brief asks otherwise; a client's
-  /// own complete design is kept exactly.
+  /// sublimated design from the logo's theme, the club's symbol on the chest
+  /// at crest size, the sport's own back lettering (netball: position
+  /// letters, no names or numbers), the small 3DEEZI word mark under the back
+  /// collar, front and back side by side in a dramatic dark setting unless
+  /// the brief asks otherwise; a client's own complete design is kept
+  /// exactly.
   static String mockupPrompt({
     required String brief,
     required String sport,
@@ -719,11 +848,9 @@ class AiService {
         'logo or brief (for example lightning, speed lines, sharp angular '
         'shards, halftone dot fades, gradients and textures) flowing across '
         'the front, sides and back. Never a plain template with flat colour '
-        'blocks or simple side panels. ${ownColours ? directionColourRules : colourRules} The client\'s main logo is the large '
-        'centrepiece on the front, reproduced faithfully (the same artwork, '
-        'colours and lettering). The back carries the team name in bold '
-        'athletic lettering over a large player number (for example 01) when '
-        'it suits the garment, with matching trims on the collar, armholes or '
+        'blocks or simple side panels. $brandRules '
+        '${ownColours ? directionColourRules : colourRules} '
+        '${markingRules(sport)} Matching trims on the collar, armholes or '
         'cuffs and hem.\n',
       )
       ..write(
@@ -768,19 +895,20 @@ class AiService {
                   'logos, text and numbers, front and back as shown; do not '
                   'redesign or simplify it, just turn it into a real 3D garment '
                   'presented as the brief asks. Reproduce any logos faithfully '
-                  'and place them where the brief says, where the design shows '
-                  'them, or in sensible positions (the main logo large on the '
-                  'front). The last attached image is the 3DEEZI logo: use it '
-                  'only for the small neck label, unless the brief asks for '
-                  '3DEEZI branding; leave it out when the client\'s design '
-                  'carries its own brand.'
-            : 'The attached image is the 3DEEZI logo (emblem and wordmark). If '
-                  'the brief gives any wordmark, team, club or brand name, use '
-                  'exactly that text where the brief says and do NOT put 3DEEZI '
-                  'on the chest; then use the 3DEEZI emblem only on the small '
-                  'neck label. Only if the brief names no wordmark or brand at '
-                  'all, put the 3DEEZI wordmark across the chest and the 3DEEZI '
-                  'emblem as the crest, exactly as in the logo.',
+                  '(the same artwork, colours and lettering) and place them '
+                  'where the brief says, where the design shows them, or in '
+                  'sensible positions (the main logo on the chest at a normal '
+                  'crest size). The last attached image is the 3DEEZI word '
+                  'mark: use it only small at the top of the back, just under '
+                  'the collar, and nowhere else; leave it out when the '
+                  'client\'s design carries its own brand.'
+            : 'The attached image is the 3DEEZI word mark: use it only small '
+                  'at the top of the back, just under the collar, and nowhere '
+                  'else; do NOT put 3DEEZI on the chest or anywhere on the '
+                  'front. If the brief gives any wordmark, team, club or brand '
+                  'name, use exactly that text where the brief says. With no '
+                  'client logo, the chest carries a simple original crest at a '
+                  'normal crest size.',
       )
       ..write(' No watermarks, no extra brands.');
     return prompt.toString();
@@ -884,11 +1012,23 @@ class AiService {
     String garment,
     int logos, {
     bool frontOnly = false,
-  }) =>
-      'The first attached image shows a $sport $garment design. Redraw '
+  }) {
+    final s = _sport(sport);
+    final names = s?.names ?? true, numbers = s?.numbers ?? true;
+    final back = s?.positions.isNotEmpty ?? false
+        ? 'the same position letters large, no team name, no player name and '
+              'no number'
+        : names && numbers
+        ? 'the team name in bold lettering over a large number'
+        : names
+        ? 'the team name in bold lettering, no numbers'
+        : numbers
+        ? 'a large number, no player names'
+        : 'no player names and no numbers';
+    return 'The first attached image shows a $sport $garment design. Redraw '
       'exactly the same design as a flat print artwork sheet for the '
       'factory: '
-      '${frontOnly ? 'The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the team name in bold lettering over a large number). ' : ''}'
+      '${frontOnly ? 'The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the small 3DEEZI word mark just under the collar, $back). ' : ''}'
       'the garment\'s front on the left and its back on the right, '
       'side by side, both complete and the same size, drawn flat and '
       'straight-on like a technical flat drawing, on a plain pure white '
@@ -899,7 +1039,9 @@ class AiService {
       'places and proportions, and the same garment shape (neck, armholes or '
       'sleeves, hem). '
       '${logos > 0 ? 'The other $logos attached image(s) are the client\'s logos: reproduce them faithfully where the design shows them. ' : ''}'
-      'No labels, captions, measurements, hangers, neck labels or extra text.';
+      'No labels, captions, measurements, hangers, sewn-in neck labels or '
+      'extra text.';
+  }
 
   /// "Make it 3D": the mockup redrawn by the same model as a flat front and
   /// back print sheet, which the Studio's design-picture check puts on the
@@ -1069,7 +1211,8 @@ class AiService {
         'centred and fully visible, floating (no mannequin, no people) on a '
         'near-black studio background with a subtle cyan rim light. '
         'Design: ${spec.renderPrompt} '
-        'The chest wordmark reads exactly "${spec.logoText}". '
+        '${spec.logoText.trim().toUpperCase() == '3DEEZI' ? 'The club\'s crest on the chest at a normal crest size; no 3DEEZI on the front.' : 'The chest wordmark reads exactly "${spec.logoText}".'} '
+        '${markingRules(sport)} '
         'Do not add any other logos, league badges, sponsor marks or text. '
         'Photorealistic fabric texture and stitching.';
     if (reference == null) return _generate(prompt);
@@ -1137,8 +1280,9 @@ class AiService {
     'sportswear photograph, '
     '${showcaseScenes[scene] ?? showcaseScenes.values.first}. '
     'Keep the garment design EXACTLY as in the image: the same colours, panel layout, pattern, '
-    'collar and trims, and the same ${back ? 'back name and number' : 'chest wordmark and crest'} '
-    '(the wordmark reads exactly "$logoText"${back && number != null ? ' and the number reads "$number"' : ''}). '
+    // A kit without a number (netball) gets none added.
+    'collar and trims, and the same ${back ? ((number ?? '').isNotEmpty ? 'back name and number' : 'back lettering') : 'chest wordmark and crest'} '
+    '(the wordmark reads exactly "$logoText"${back && (number ?? '').isNotEmpty ? ' and the number reads "$number"' : back ? ', with no number' : ''}). '
     'Do not add, remove or change any text, logos or graphics. Make the fabric photoreal: fine knit '
     'and mesh texture, natural folds and drape, flatlock stitching, slight sheen on the print. '
     'Professional lighting with realistic shadows, ultra-detailed, no watermark, no UI.',
@@ -1147,20 +1291,38 @@ class AiService {
   );
 
   /// Back view that matches an existing front render.
-  Future<Uint8List> renderBack(Uint8List front, DesignSpec spec) => _edit(
-    'Show the BACK view of this exact same garment: identical colours, '
-    'pattern, trims and materials, same studio background and lighting. '
-    'Name "${spec.logoText}" and a large number 23 across the upper back '
-    'where suitable for the garment. Nothing else added.',
-    [front],
-  );
+  /// The back follows the sport's rules: netball shows its position letters
+  /// and no name or number; 3DEEZI is the small word mark under the collar.
+  Future<Uint8List> renderBack(Uint8List front, DesignSpec spec) {
+    final s = _sport(spec.sport);
+    final positions = s?.positions ?? const <String>[];
+    final lettering = positions.isNotEmpty
+        ? 'The position letters ${positions.first} large across the back; no '
+              'team name, player name or number'
+        : (s?.names ?? true) && (s?.numbers ?? true)
+        ? 'Name "${spec.logoText}" and a large number 23 across the upper '
+              'back where suitable for the garment'
+        : (s?.names ?? true)
+        ? 'Name "${spec.logoText}" across the upper back; no number'
+        : (s?.numbers ?? true)
+        ? 'A large number 23 across the upper back; no player name'
+        : 'No player name and no number';
+    return _edit(
+      'Show the BACK view of this exact same garment: identical colours, '
+      'pattern, trims and materials, same studio background and lighting. '
+      'A small 3DEEZI word mark just under the collar. $lettering. Nothing '
+      'else added.',
+      [front],
+    );
+  }
 
   /// Applies a free-text change to an existing render.
   Future<Uint8List> reviseRender(Uint8List current, DesignSpec spec) => _edit(
     'Update this garment render to match this design, keeping the same '
     'camera angle, background and lighting, and changing only what differs: '
-    '${spec.renderPrompt} The chest wordmark reads exactly '
-    '"${spec.logoText}". No other logos or text.',
+    '${spec.renderPrompt} '
+    '${spec.logoText.trim().toUpperCase() == '3DEEZI' ? 'No 3DEEZI on the front.' : 'The chest wordmark reads exactly "${spec.logoText}".'} '
+    'No other logos or text.',
     [current],
   );
 

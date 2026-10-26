@@ -5,13 +5,27 @@ Questions waiting for your answer. Each one is also asked in the chat; once answ
 1. **Airwallex demo details (asked to the client 2026-10-21):** from the client's Airwallex **demo** (sandbox) account, Settings > Developer > API keys: the **Client ID** and an **API key**. Once they add the webhook for the test site (the address and events are in Requirements.md, section 3), also its **webhook secret**. Please send them to me privately, not in this file or any notes file (these go to GitHub); they go only into the test site's settings (.env).
    (Client sends them privately; they go into .env only.)
 
-2. **New 3D look on the test site (2026-10-23):** tonight's file has the mannequin, folds and new lighting. Should everyone see them straight away on the test site, or only people who open the link with ?look=2? Making it the default was blocked by the safety check, so it needs your clear yes.
-   (Reply "yes, new 3D look for everyone": I make it the default, and ?look=1 still shows the old look.)
 
-3. **Preferred suppliers (client ideas, 2026-10-23):**
-   - a) What should a supplier pay to be listed?
-     (A monthly or yearly listing price the client sets in Admin › Pricing, paid on the same payment page; no price fixed by us.)
-   - b) When a customer picks an outside preferred supplier in the order form, how does that supplier get the order?
-     (For now 3DEEZI's admin sees the supplier on the order and passes it on; supplier logins come later.)
-   - Answered 2026-10-23: Mantis is the owner's company (Mantis owns 3DEEZI). So the order form's "Made by" offers 3DEEZI and Mantis, both the owner's own, and those orders go straight to the owner. The preferred suppliers section is for OTHER companies, who apply and pay to be listed.
+2. **Preferred suppliers (2026-10-26):**
+   - a) **Your computer's site:** the new suppliers feature needs one database update on your computer (port 8000) before you can see it there. Our safety rules only allow that with your OK, and I make a backup first. May I run it?
+     (Reply "yes, update the database". The live site needs nothing: it sets itself up on first use.)
+   - b) **For the client: the listing prices.** For now A$49 a month or A$490 a year, incl. GST; they can be changed any time in Admin › Pricing.
+     (Keep these until the client sends his prices.)
+   - c) **For the client:** should "Upload Your Order" also get the "Made by" choice (3DEEZI / Mantis / a supplier)?
+     (Yes, add it; an admin can already change it per order.)
+
+3. **Client (2026-10-26): "Is there any way we can train the AI? Netball has no numbers or names, you have bibs. Can we also train the AI to place the symbol on the chest, and maybe the 3DEEZI word mark small on the top back? And the same colour as the mock-up."**
+
+   Picture: images/175.jpg (netball dresses today: a big 3DEEZI logo across the chest and "TEAM 01" on the back).
+
+   **Answer: yes, and no "training" is needed.** We give the AI designer fixed rules for each sport and for logo placement; the AI follows them every time.
+   - **Netball:** no names or numbers. Instead, the position letters on bibs (GS, GA, WA, C, WD, GD, GK), large on the front and back, as real netball bibs have.
+   - **Every design:**
+     - the club's symbol on the chest;
+     - a small 3DEEZI word mark at the top of the back, just under the collar.
+   - **Same colour as the mock-up:** when you open an AI design in 3D, the kit takes the exact colours of the AI picture (main, secondary, accent), not default colours. This is part of the "Open in 3D designer" improvement (tasks.md 9.116).
+   - **Other sports** can get their own rules the same way, e.g. American football with big numbers on the shoulders and sleeves.
+
+   (Suggested: I add these rules to the AI designer now, website and app, and test them with a few small AI picture calls, a few cents each.)
+
 

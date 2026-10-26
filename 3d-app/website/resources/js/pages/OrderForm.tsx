@@ -21,6 +21,8 @@ import { moneyOr } from '../money';
 import { DEFAULT_LEAD_WEEKS, DeliveryFieldsCard, EMPTY_DELIVERY, MOBILE_MESSAGE, choiceDestination, dateText, deliveryErrors, deliveryPayload, deliveryText, mobileError, pickDelivery, validMobile, type DeliveryErrors, type DeliveryFields } from '../components/OrderDeliveryFields';
 import { ALL_SIZES, SET_NAMES, rareText, rowSizes, siteSize, sizeFit, sizeGroups } from '../orderSizes';
 import '../../css/order-form.css';
+import { MadeByField } from './Suppliers';
+import type { MadeByOptions, Supplier } from '../supplierApi';
 
 /* ================================================================================================ API shapes */
 // Orders: orderApi.ts (orders-api.md). Prices: payments-api.md §2–3 (shapes below until its components are in).
@@ -34,7 +36,9 @@ interface PricingChoice { destination?: string; extras?: string[]; discount_code
 /** The order fields (orders-api.md §2) with the customer's pricing choices (payments-api.md R3). */
 interface FormFields { contact_name: string; contact_email: string; phone: string; team_name: string; notes: string; items: FormItem[]; pricing?: PricingChoice;
   /** The date required and Deliver / Pick up with the address (components/OrderDeliveryFields.tsx, 2026-10-22). */
-  needed_by: string; delivery: string; address: Record<string, string> }
+  needed_by: string; delivery: string; address: Record<string, string>;
+  /** "Made by" (preferred suppliers): none is 3DEEZI. */
+  supplier_id?: number }
 /** A garment read from "Help me add sizes" (the server's reader, or this page's own: it may have no garment yet). */
 interface AssistItem { garment: string | null; sport?: string | null; fit?: string | null; sizes: Record<string, number>; stated?: number }
 interface SizesReply { items: AssistItem[]; unknown?: string[] }
@@ -66,12 +70,12 @@ const WORDS: Record<string, [string, string]> = { jersey: ['jersey', 'jerseys'],
 
 interface PlayerRow { key: string; name: string; number: string; size: string }
 interface Row { key: string; garment: string; sport: string; fit: string; label: string; project_id: number | null; sizes: Record<string, number>; players: PlayerRow[]; open: boolean; more: boolean; file_ids: number[] }
-interface FormState { contact: ContactDetails; rows: Row[]; notes: string; pricing: PricingChoice; delivery: DeliveryFields }
+interface FormState { contact: ContactDetails; rows: Row[]; notes: string; pricing: PricingChoice; delivery: DeliveryFields; /** Made by: null is 3DEEZI (the default). */ supplier_id: number | null }
 
 let seq = 0;
 const makeKey = (prefix: string) => `${prefix}${Date.now().toString(36)}${(seq++).toString(36)}`;
 const newRow = (p: Partial<Row> = {}): Row => ({ key: makeKey('r'), garment: 'jersey', sport: '', fit: 'mens', label: '', project_id: null, sizes: {}, players: [], open: false, more: false, file_ids: [], ...p });
-const freshForm = (sport: string): FormState => ({ contact: emptyContact(), rows: [newRow({ sport, open: true })], notes: '', pricing: {}, delivery: { ...EMPTY_DELIVERY } });
+const freshForm = (sport: string): FormState => ({ contact: emptyContact(), rows: [newRow({ sport, open: true })], notes: '', pricing: {}, delivery: { ...EMPTY_DELIVERY }, supplier_id: null });
 const sum = (sizes: Record<string, number>) => Object.values(sizes).reduce((a, b) => a + (Number(b) || 0), 0);
 const withoutDestination = ({ destination: _was, ...rest }: PricingChoice): PricingChoice => rest;
 const digits = (v: string, n = 3) => v.replace(/\D/g, '').slice(0, n);
@@ -121,6 +125,7 @@ function toOrderFields(f: FormState, sizes: string[]): FormFields {
     }),
     ...(Object.keys(pricing).length ? { pricing } : {}),
     ...deliveryPayload(f.delivery),
+    ...(f.supplier_id ? { supplier_id: f.supplier_id } : {}),
   };
 }
 /** A draft keeps the order fields plus the screen's own keys (row ids, open rows, artwork per garment, blank player rows). */
@@ -136,6 +141,7 @@ function fromData(d: Loose | null | undefined, sizes: string[]): FormState {
     pricing: d?.pricing && typeof d.pricing === 'object' ? (d.pricing as PricingChoice) : {},
     // An older draft has none of these: Deliver, in Australia, until chosen.
     delivery: { ...EMPTY_DELIVERY, ...pickDelivery(d) },
+    supplier_id: Number(d?.supplier_id) || null,
     rows: items.slice(0, MAX_ROWS).map(it => {
       const s = cleanSizes(it?.sizes, sizes), project = Number(it?.project_id) || null;
       const players: Loose[] = Array.isArray(it?.players) ? it.players : [];
@@ -172,7 +178,7 @@ function serverProblems(e: ApiError): Record<string, string> {
   const p: Record<string, string> = {};
   for (const [key, messages] of Object.entries(e.errors ?? {})) {
     const row = key.match(/^items\.(\d+)\.(sizes|players)?/);
-    const at = row ? `items.${row[1]}.${row[2] ?? 'sizes'}` : ['contact_name', 'contact_email', 'team_name', 'phone', 'notes', 'items', 'needed_by', 'delivery'].includes(key) ? key
+    const at = row ? `items.${row[1]}.${row[2] ?? 'sizes'}` : ['contact_name', 'contact_email', 'team_name', 'phone', 'notes', 'items', 'needed_by', 'delivery', 'supplier_id'].includes(key) ? key
       : key.startsWith('address.') ? key.slice(8) : key === 'address' ? 'delivery' : 'general';
     p[at] = p[at] ? `${p[at]} ${messages[0]}` : messages[0];
   }
@@ -332,11 +338,21 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   /* ------------------------------------------------------------------------------ loading */
   /** The usual production and delivery time (Admin › Settings): a sooner date required gets a gentle warning. */
   const [leadWeeks, setLeadWeeks] = useState(DEFAULT_LEAD_WEEKS);
+  /** "Made by" choices (GET /orders/options): 3DEEZI first. */
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const madeByName = (suppliers.find(s => s.id === form.supplier_id) ?? suppliers.find(s => s.default))?.name ?? '3DEEZI';
+  // A saved choice no longer offered (a draft opened later, a supplier hidden since) goes back to 3DEEZI, as shown.
+  useEffect(() => { if (form.supplier_id && suppliers.length && !suppliers.some(s => s.id === form.supplier_id)) setFormState(f => ({ ...f, supplier_id: null })); }, [suppliers, form.supplier_id]);
   useEffect(() => {
     let live = true;
     orderApi.options().then(o => {
       if (!live || !o) return;
       if (typeof o.lead_time_weeks === 'number') setLeadWeeks(o.lead_time_weeks);
+      // Made by: 3DEEZI, Mantis and the approved suppliers; a choice no longer offered goes back to 3DEEZI.
+      const makers = (o as unknown as MadeByOptions).suppliers ?? [];
+      setSuppliers(makers);
+      const kept = formRef.current.supplier_id;
+      if (kept && makers.length && !makers.some(s => s.id === kept)) { formRef.current = { ...formRef.current, supplier_id: null }; setFormState(formRef.current); }
       setOptions(prev => ({
         garments: o.garments?.length ? o.garments : prev.garments, sports: o.sports?.length ? o.sports : prev.sports, fits: o.fits?.length ? o.fits : prev.fits, sizes: o.sizes?.length ? o.sizes : prev.sizes,
         files: { artwork: { ...prev.files.artwork, ...(o.files?.artwork ?? {}) }, max_files: o.files?.max_files ?? prev.files.max_files },
@@ -692,6 +708,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       `Team / organisation: ${f.contact.team_name.trim() || '(empty)'}. Contact name ${f.contact.contact_name.trim() ? 'filled' : 'empty'}, email ${f.contact.contact_email.trim() ? 'filled' : 'empty'}, phone ${f.contact.phone.trim() ? 'filled' : 'empty'}.`,
       `Garments (${f.rows.length}):`,
       ...f.rows.map((r, i) => `${i + 1}. ${rowName(r, options)}, ${options.fits.find(x => x.id === r.fit)?.name ?? 'no fit'}, ${r.project_id ? `saved design "${names(r) ?? r.project_id}"` : 'no saved design'}, sizes: ${sizesText(r.sizes, options.sizes) || 'not filled yet'}${r.players.length ? `, ${r.players.length} player names` : ''}.`),
+      `Made by: ${madeByName}${suppliers.length > 1 ? ` (choices: ${suppliers.map(s => s.name).join(', ')}; the "Made by" box in section 1)` : ''}.`,
       `Artwork files: ${files.length}. Design instructions: ${f.notes.trim() ? 'written' : 'empty'}. Draft ${draftRef.current ? 'saved in the account' : 'not saved to the account yet'}.`,
       'On this page: + ADD GARMENT adds a garment; "Add sizes" opens its size boxes, chosen by the Fit (Mens and Unisex XS to 4XL, "+ 5XL–8XL" for more; Womens W8 to W20, "+ W22, W24"; Kids 6Y to 16Y, "+ 2Y, 4Y"); "+ Womens sizes" / "+ Kids sizes" under a garment adds the same garment in that fit; the 3DEEZI Assist card has "Help me add sizes" (type e.g. "12 jerseys: 2 S, 4 M, 6 L") and "Use one of my saved designs"; "+ Add player names & numbers" takes a list (Paste from Excel); section 3 takes logos and artwork and the design instructions; Save draft keeps it in the account; REVIEW ORDER opens REVIEW & APPROVE ORDER with the mockups, sizes and price, then the confirm box and Approve Order place it and give a 3DZ- reference.',
     ].join('\n').slice(0, 2900);
@@ -762,7 +779,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
         fetchFile={f => fetchFile(String(f.download))}
         delivery={{ contactName: c.contact_name, team: c.team_name, email: c.contact_email, phone: c.phone, phoneProblem: c.phone.trim() && !validMobile(c.phone) ? MOBILE_MESSAGE : null,
           neededBy: form.delivery.needed_by, neededByText: form.delivery.needed_by ? dateText(form.delivery.needed_by) : '', method: form.delivery.delivery === 'pickup' ? 'pickup' : 'deliver',
-          address: form.delivery.delivery === 'pickup' ? null : deliveryText(form.delivery), notes: form.notes }}
+          address: form.delivery.delivery === 'pickup' ? null : deliveryText(form.delivery), notes: form.notes, ...(suppliers.length > 1 ? { madeBy: madeByName } : {}) }}
         onEditDelivery={() => toForm('of-contact')}
         onEditGarments={() => toForm('of-garments')}
         price={priced || (quote.loading && !quote.data) ? <PriceBreakdown quote={quote.data as unknown as PayQuote | null} loading={quote.loading} error={quote.error} /> : undefined}
@@ -786,6 +803,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
         <DeliveryFieldsCard value={form.delivery} errors={(tried ? problems : {}) as DeliveryErrors} leadWeeks={leadWeeks} onChange={next => setForm(f => ({ ...f, delivery: { ...f.delivery, ...next },
           // A "Delivery to" chosen on the review was for the earlier Deliver / Pick up or country: the price follows the new one.
           pricing: ('delivery' in next || 'country' in next) && f.pricing.destination ? withoutDestination(f.pricing) : f.pricing }))} />
+        <MadeByField suppliers={suppliers} value={form.supplier_id} error={shownErrors.supplier_id} onChange={supplier_id => setForm(f => ({ ...f, supplier_id }))} />
       </ContactDetailsCard></div>
       <OrderSection number={2} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
         action={<button type="button" className="op-link caps" onClick={addRow} disabled={form.rows.length >= MAX_ROWS}><Plus size={18} /> Add garment</button>}>

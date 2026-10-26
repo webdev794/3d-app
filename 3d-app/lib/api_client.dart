@@ -365,6 +365,19 @@ class ApiClient {
     return (data as Map?)?['message'] as String? ?? 'Application sent.';
   }
 
+  // ---------- preferred suppliers (task 9.118)
+  /// The Preferred suppliers page (public): `{suppliers, prices, ready}`, Mantis and the approved suppliers (3DEEZI
+  /// itself is left out) and the listing prices of "Become a preferred supplier". An older server has no such page.
+  Future<Map<String, dynamic>> suppliers() async =>
+      await _send('GET', '/suppliers') as Map<String, dynamic>;
+
+  /// A file the server names by its full address (a supplier's logo), fetched from the server this app talks to: the
+  /// server may know itself by another address (the app preview, a proxy).
+  String serverUrl(String url) {
+    final at = url.indexOf('/api/v1/');
+    return at < 0 || !configured ? url : '$baseUrl${url.substring(at)}';
+  }
+
   // ---------- saved assets
   /// Keeps a file with the user's saved assets (`POST /assets`, multipart);
   /// answers its id.

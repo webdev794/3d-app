@@ -150,17 +150,21 @@ export default function InvoicePayPage({ user, checking, requireAuth }: { user: 
   const paid = invoice.status === 'paid';
   const closed = invoice.status === 'refunded' || invoice.status === 'cancelled';
   const team = isTeam(invoice);
+  // A preferred supplier's listing (no order): its own wording and links.
+  const supplier = isSupplier(invoice);
   const head = paid ? { title: 'Payment received', sub: 'Thank you. Your invoice is paid in full.' }
     : closed ? { title: `Invoice ${invoice.status}`, sub: invoice.status === 'refunded' ? 'This invoice was refunded.' : 'This invoice was cancelled: nothing is due.' }
     : team ? (isRevision(invoice) ? { title: 'Pay for your extra revision round', sub: 'Your designer starts the revision once this is paid.' } : { title: 'Pay for your design request', sub: 'Your designer starts once this is paid.' })
+    : supplier ? { title: 'Pay for your supplier listing', sub: 'We list your company once 3DEEZI approves your application.' }
     : { title: 'Review & pay', sub: 'Your order is confirmed. Complete payment to continue.' };
   // A 3DEEZI TEAM invoice has no production or artwork approval.
-  const approvalBar = team ? invoice.notes : invoice.order.approval && invoice.order.approval !== 'approved'
+  const approvalBar = team || supplier ? invoice.notes : invoice.order.approval && invoice.order.approval !== 'approved'
     ? 'Artwork approval is required before production.'
     : invoice.payment_rule.rule === 'full' && !paid ? 'Production starts once your invoice is paid in full.' : invoice.notes;
 
   return <div className="page-shell pay-page">
-    {phone ? <Link to={team ? '/team/requests' : '/orders'} className="pay-back"><ArrowLeft size={17} /> {team ? 'My design requests' : 'My Orders'}</Link>
+    {phone ? <Link to={team ? '/team/requests' : supplier ? '/suppliers/apply' : '/orders'} className="pay-back"><ArrowLeft size={17} /> {team ? 'My design requests' : supplier ? 'Your listing' : 'My Orders'}</Link>
+      : supplier ? <nav className="pay-crumbs" aria-label="Breadcrumb"><Link to="/">Home</Link><i>/</i><Link to="/suppliers">Preferred suppliers</Link><i>/</i><Link to="/suppliers/apply">Your listing</Link><i>/</i><span>Invoice</span></nav>
       : team ? <nav className="pay-crumbs" aria-label="Breadcrumb"><Link to="/">Home</Link><i>/</i><Link to="/team">3DEEZI TEAM</Link><i>/</i><Link to="/team/requests">My design requests</Link><i>/</i><span>Invoice</span></nav>
       : <nav className="pay-crumbs" aria-label="Breadcrumb"><Link to="/">Home</Link><i>/</i><Link to="/orders">Orders</Link><i>/</i><Link to="/orders">My Orders</Link><i>/</i><span>Invoice</span></nav>}
     {invoice.gateway.banner && <div className="pay-test-banner" role="note"><TriangleAlert size={16} /> {invoice.gateway.banner}</div>}
@@ -172,7 +176,7 @@ export default function InvoicePayPage({ user, checking, requireAuth }: { user: 
       {phone ? <details className="pay-details glow-panel"><summary><FileText size={18} /> View invoice details <ChevronDown size={18} className="pay-chevron" /></summary><InvoiceCard invoice={invoice} keyParam={key} bare /></details>
         : <InvoiceCard invoice={invoice} keyParam={key} />}
       {paid || closed || invoice.status === 'part_paid' && !invoice.can_pay
-        ? <ResultCard invoice={invoice} keyParam={key} onOrders={() => navigate(team ? '/team/requests' : '/orders')} />
+        ? <ResultCard invoice={invoice} keyParam={key} onOrders={() => navigate(team ? '/team/requests' : supplier ? '/suppliers/apply' : '/orders')} />
         : <PaymentCard invoice={invoice} keyParam={key} phone={phone} onChange={setInvoice} />}
     </div>
     {approvalBar && <div className="pay-info glow-panel"><Info size={20} /><span>{approvalBar}</span></div>}
@@ -183,7 +187,9 @@ export default function InvoicePayPage({ user, checking, requireAuth }: { user: 
 const isTeam = (invoice: InvoiceData) => invoice.order.source === 'team';
 const isRevision = (invoice: InvoiceData) => isTeam(invoice) && invoice.order.summary === 'Extra revision round';
 /** "Order #3DZ-00012", or "Design request TEAM-1001". */
-const refOf = (invoice: InvoiceData) => isTeam(invoice) ? `Design request ${invoice.order.number}` : `Order #${invoice.order.number}`;
+const refOf = (invoice: InvoiceData) => isTeam(invoice) ? `Design request ${invoice.order.number}` : isSupplier(invoice) ? `Listing ${invoice.order.number}` : `Order #${invoice.order.number}`;
+/** A preferred supplier's listing invoice (task 9.118). */
+const isSupplier = (invoice: InvoiceData) => invoice.order.source === 'supplier';
 
 function PhoneHead({ invoice }: { invoice: InvoiceData }) {
   return <header className="pay-phone-head">
@@ -211,7 +217,7 @@ function InvoiceCard({ invoice, keyParam, bare = false }: { invoice: InvoiceData
     <table className="pay-items"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead>
       <tbody>{rows.map(r => <tr key={r.key}><td>{r.name}</td><td>{r.quantity}</td><td>{money(r.unit_price, c)}</td><td>{money(r.total, c)}</td></tr>)}</tbody></table>
     <dl className="pay-totals">
-      <div><dt>{invoice.order.source === 'team' ? (invoice.order.summary || 'Design request') : 'Garments'}</dt><dd>{money(q.garments_total, c)}</dd></div>
+      <div><dt>{invoice.order.source === 'team' ? (invoice.order.summary || 'Design request') : invoice.order.source === 'supplier' ? (invoice.order.summary || 'Listing') : 'Garments'}</dt><dd>{money(q.garments_total, c)}</dd></div>
       {Number(q.extras_total) > 0 && <div><dt>Extras</dt><dd>{money(q.extras_total, c)}</dd></div>}
       {q.shipping && <div><dt>Shipping</dt><dd>{money(q.shipping.amount, c)}</dd></div>}
       {q.discounts.map(d => <div key={d.name + d.code} className="is-discount"><dt>{d.name}</dt><dd>-{money(d.amount, c)}</dd></div>)}
@@ -242,10 +248,10 @@ function ResultCard({ invoice, keyParam, onOrders }: { invoice: InvoiceData; key
       {r.paid_at && <div><dt>Paid</dt><dd>{shortDate(r.paid_at)}</dd></div>}
       <div><dt>Method</dt><dd>{r.card ? `${brandName(r.card.brand)} •••• ${r.card.last4}` : r.method === 'bank_transfer' ? 'Bank transfer' : r.method === 'wallet' ? 'Wallet' : 'Card'}</dd></div>
     </dl> : <p className="muted">{invoice.status === 'refunded' ? 'The payment for this invoice was refunded.' : 'This invoice was cancelled. Nothing is due.'}</p>}
-    {paid && <p className="pay-result-note">{invoice.status === 'paid' ? `A receipt is on its way to your email. ${isTeam(invoice) ? 'Your designer can start now.' : 'Your order moves on to production once its design is approved.'}` : `Still to pay: ${money(invoice.amount_due, invoice.currency)}.`}</p>}
+    {paid && <p className="pay-result-note">{invoice.status === 'paid' ? `A receipt is on its way to your email. ${isTeam(invoice) ? 'Your designer can start now.' : isSupplier(invoice) ? 'We list your company once your application is approved.' : 'Your order moves on to production once its design is approved.'}` : `Still to pay: ${money(invoice.amount_due, invoice.currency)}.`}</p>}
     <div className="pay-result-actions">
       <button type="button" className="button button-outline" disabled={busy} onClick={async () => { setBusy(true); try { await downloadInvoice(invoice.number, keyParam); } finally { setBusy(false); } }}>{busy ? <LoaderCircle className="spin" size={15} /> : <FileText size={15} />} {paid ? 'Download receipt' : 'Download invoice'}</button>
-      <button type="button" className="button button-gradient" onClick={onOrders}>{isTeam(invoice) ? 'My design requests' : 'My Orders'} <ArrowRight size={15} /></button>
+      <button type="button" className="button button-gradient" onClick={onOrders}>{isTeam(invoice) ? 'My design requests' : isSupplier(invoice) ? 'Your listing' : 'My Orders'} <ArrowRight size={15} /></button>
     </div>
   </section>;
 }
