@@ -21,7 +21,7 @@ class PlayerShotTest extends TestCase
     private function body(array $extra = []): array
     {
         return $extra + ['images' => [self::PNG, self::PNG], 'sport' => 'Rugby League', 'garment' => 'Jersey', 'player' => 'male', 'pose' => 'action',
-            'colours' => ['navy #0A1F44', 'gold #F2B705'], 'logoText' => 'TITANS', 'backName' => 'SMITH', 'number' => '9'];
+            'colours' => ['body: #0A1F44', 'collar, cuffs, side panels and trims: #F2B705'], 'logoText' => 'TITANS', 'backName' => 'SMITH', 'number' => '9'];
     }
 
     public function test_signed_out_users_are_asked_to_sign_in(): void
@@ -48,7 +48,7 @@ class PlayerShotTest extends TestCase
 
             return str_contains($r->url(), '/images/edits') && $parts->where('name', 'image[]')->count() === 2
                 && str_contains($prompt, 'rugby field') && str_contains($prompt, '"TITANS"') && str_contains($prompt, '"SMITH"')
-                && str_contains($prompt, 'navy #0A1F44') && str_contains($prompt, 'male athlete')
+                && str_contains($prompt, 'body: #0a1f44 (navy)') && str_contains($prompt, 'trims: #f2b705 (bright gold)') && str_contains($prompt, 'male athlete')
                 && $parts->firstWhere('name', 'size')['contents'] === '1024x1536';
         });
 
@@ -79,6 +79,66 @@ class PlayerShotTest extends TestCase
         // A single AI design picture has its own crest: no "3D" badge.
         $this->assertStringNotContainsString('the number 30', PlayerShot::prompt($meta, 1));
         $this->assertStringNotContainsString('the number 30', PlayerShot::personPrompt($meta, 1));
+    }
+
+    public function test_colours_are_named_in_words(): void
+    {
+        // The kit of bug 2026-10-27 (images/192.png): ready-made palette 6.
+        $this->assertSame('near-black burgundy', PlayerShot::colourName('#240c12'));
+        $this->assertSame('bright pinkish red', PlayerShot::colourName('#EC3E5B'));
+        $this->assertSame('cream', PlayerShot::colourName('#f9e6d4'));
+        $this->assertSame('navy', PlayerShot::colourName('#0a1f44'));
+        $this->assertSame('black', PlayerShot::colourName('#0b1016'));
+        $this->assertSame('bright cyan', PlayerShot::colourName('#00c2cc'));
+        $this->assertSame('white', PlayerShot::colourName('#ffffff'));
+        $this->assertSame('bright red', PlayerShot::colourName('#c8102e'));
+        $this->assertSame('bright purple', PlayerShot::colourName('#7b2ff7'));
+        $this->assertSame('dark green', PlayerShot::colourName('#006400'));
+        $this->assertSame(
+            ['body: #240c12 (near-black burgundy)', 'pattern: thin lines, in a gradient of #ff8a00 (bright orange), #7b2ff7 (bright purple)'],
+            PlayerShot::namedColours(['body: #240C12', '', 'pattern: thin lines, in a gradient of #ff8a00, #7b2ff7']),
+        );
+    }
+
+    /** Bug 2026-10-27 (images/192-194): the user's photo in a footballer's red kit came out in other colours with invented kit shorts and socks. */
+    public function test_your_own_photo_changes_only_the_top_and_takes_the_kit_colours_by_area(): void
+    {
+        $meta = ['sport' => 'Football', 'garment' => 'Jersey', 'logoText' => '3DEEZI', 'backName' => 'YOUR NAME', 'number' => '23', 'colours' => [
+            'body: #240c12', 'pattern: thin chevron (V-shaped) lines evenly spaced from chest to hem, in #6a1e2b',
+            'collar, cuffs, side panels and trims: #ec3e5b', 'lettering (wordmark, name and number) and the small crest badge: #f9e6d4',
+        ]];
+        $prompt = PlayerShot::personPrompt($meta, 2);
+        $this->assertStringContainsString('replace ONLY their top (shirt, jersey or jacket) with the kit Jersey', $prompt);
+        $this->assertStringContainsString('their own shorts or trousers, socks and shoes (do not turn them into kit shorts or socks', $prompt);
+        $this->assertStringContainsString('Ignore the clothes the person wears in image 1', $prompt);
+        $this->assertStringContainsString('body: #240c12 (near-black burgundy); pattern: thin chevron (V-shaped) lines evenly spaced from chest to hem, in #6a1e2b (dark burgundy); collar, cuffs, side panels and trims: #ec3e5b (bright pinkish red)', $prompt);
+        $this->assertStringContainsString('use each one only for its own area', $prompt);
+        $this->assertStringContainsString('the blue and pink light, the dark backdrop and the podium are not part of the kit', $prompt);
+        $this->assertStringContainsString('No other colours, no gradients or patterns that the kit does not have', $prompt);
+        $this->assertStringContainsString('any visible back lettering reads exactly "YOUR NAME" with the number "23"', $prompt);
+        $this->assertStringNotContainsString('matching shorts', $prompt);
+        // A full kit swaps the shorts too; a dress the top and bottom; shorts only the shorts.
+        $this->assertStringContainsString("their shorts or trousers with the kit's matching shorts", PlayerShot::personPrompt(['garment' => 'Full Kit'] + $meta, 2));
+        $this->assertStringContainsString('with the kit dress', PlayerShot::personPrompt(['garment' => 'Netball dress'] + $meta, 2));
+        $this->assertStringContainsString('replace ONLY their shorts or trousers with the kit shorts', PlayerShot::personPrompt(['garment' => 'Shorts'] + $meta, 2));
+        // One AI picture: no colour list and no 3D lighting note; the picture is the reference.
+        $ai = PlayerShot::personPrompt(['colours' => []] + $meta, 1);
+        $this->assertStringContainsString('take its colours, pattern, trims, crest and logos from the kit picture', $ai);
+        $this->assertStringNotContainsString('stadium lights', $ai);
+    }
+
+    public function test_an_athlete_wears_only_the_users_garment_with_plain_shorts(): void
+    {
+        $meta = ['sport' => 'Football', 'garment' => 'Jersey', 'pose' => 'front', 'logoText' => '3DEEZI', 'colours' => ['body: #240c12']];
+        $prompt = PlayerShot::prompt($meta, 2);
+        $this->assertStringContainsString('Only the Jersey is the user\'s design: the athlete wears it with plain shorts and socks', $prompt);
+        $this->assertStringContainsString('body: #240c12 (near-black burgundy)', $prompt);
+        $this->assertStringContainsString('not part of the kit', $prompt);
+        $this->assertStringContainsString('The kit is the top and the matching shorts', PlayerShot::prompt(['garment' => 'Full Kit'] + $meta, 2));
+        $this->assertSame('top', PlayerShot::coverage('Hoodie'));
+        $this->assertSame('full', PlayerShot::coverage('Full Kit'));
+        $this->assertSame('dress', PlayerShot::coverage('Netball dress'));
+        $this->assertSame('shorts', PlayerShot::coverage('Shorts'));
     }
 
     public function test_it_validates_and_needs_ai(): void

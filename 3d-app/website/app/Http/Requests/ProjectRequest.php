@@ -7,6 +7,12 @@ use Illuminate\Validation\Rule;
 
 class ProjectRequest extends FormRequest
 {
+    /** The parts of a kit that can have a look of their own (task 9.134; viewer zones.js TOP_PARTS, SHORTS_PARTS). */
+    public const PARTS = ['front', 'back', 'leftSleeve', 'rightSleeve', 'collar', 'sides', 'hem', 'shortsFront', 'shortsBack', 'shortsSides', 'shortsHem', 'waistband'];
+
+    /** The fabric types (Colours › Fabric type; KitViewer.tsx fabricTypes, the apps' designFabrics). */
+    public const FABRICS = ['Standard', 'Mesh', 'Pro', 'Eco'];
+
     public function authorize(): bool
     {
         return $this->user() !== null;
@@ -24,7 +30,9 @@ class ProjectRequest extends FormRequest
             'garment' => [$required, Rule::in(array_column(config('catalog.garments'), 'id'))],
             'mode' => ['sometimes', Rule::in(['ai', 'dyo'])],
             'status' => ['sometimes', Rule::in(['draft', 'approved'])],
-            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,gradients,zones,zoneColors,trackStyle,layers,marks,layout,presetId,productName'],
+            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternColorOwn,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,gradients,zones,zoneColors,trackStyle,layers,marks,layout,presetId,productName,parts,fabric'],
+            // Colours › Fabric type (website and apps; the 3D viewer shows it). Unset or Standard: the garment's own.
+            'design.fabric' => ['sometimes', 'nullable', Rule::in(self::FABRICS)],
             'design.garment' => ['sometimes', Rule::in(array_column(config('catalog.garments'), 'id'))],
             'design.main' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.secondary' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
@@ -56,7 +64,31 @@ class ProjectRequest extends FormRequest
             'design.gradients.*.stops.*.at' => ['required', 'numeric', 'between:0,1'],
             'design.gradients.*.preset' => ['sometimes', 'nullable', 'string', 'max:40'],
             'design.zones' => ['sometimes', 'array:body,yoke,sleeves,sides,hem,pocket,hood'],
-            'design.zones.*' => ['string', Rule::in([...$patterns, 'None'])],
+            // An area takes a pattern name or the user's own pattern picture (Patterns › My patterns).
+            'design.zones.*' => ['string', 'max:4000000', function (string $attribute, mixed $value, \Closure $fail) use ($patterns) {
+                if (in_array($value, [...$patterns, 'None'], true)) {
+                    return;
+                }
+                ($this->imageSourceRule())($attribute, $value, $fail);
+            }],
+            // One part of the kit with a look of its own (task 9.134): its colour, a fade across it (to null: fading out
+            // into what is under it), a pattern on it only (a pattern name or the user's own picture) and that
+            // pattern's colour and opacity. A design without parts looks as before.
+            'design.parts' => ['sometimes', 'nullable', 'array:'.implode(',', self::PARTS)],
+            'design.parts.*' => ['nullable', 'array:colour,fade,pattern,patternColour,patternOpacity'],
+            'design.parts.*.colour' => ['sometimes', 'nullable', $color],
+            'design.parts.*.fade' => ['sometimes', 'nullable', 'array:from,to,angle'],
+            'design.parts.*.fade.from' => ['required_with:design.parts.*.fade', $color],
+            'design.parts.*.fade.to' => ['sometimes', 'nullable', $color],
+            'design.parts.*.fade.angle' => ['sometimes', 'numeric', 'between:-360,360'],
+            'design.parts.*.pattern' => ['sometimes', 'nullable', 'string', 'max:4000000', function (string $attribute, mixed $value, \Closure $fail) use ($patterns) {
+                if ($value === null || in_array($value, [...$patterns, 'None'], true)) {
+                    return;
+                }
+                ($this->imageSourceRule())($attribute, $value, $fail);
+            }],
+            'design.parts.*.patternColour' => ['sometimes', 'nullable', $color],
+            'design.parts.*.patternOpacity' => ['sometimes', 'nullable', 'numeric', 'between:0,1'],
             // Hoodies: each area's own colour (the hood, its lining, the rib cuffs and waistband, the pocket, the zip).
             'design.zoneColors' => ['sometimes', 'nullable', 'array:hood,lining,rib,pocket,zip,body,sleeves,ribStripe,snaps,pocketTrim,shoulder,side,stripe,collar,cuffs'],
             'design.zoneColors.*' => ['nullable', $color],
@@ -88,7 +120,9 @@ class ProjectRequest extends FormRequest
             // (The netball dress takes a design picture as the singlet does: task 9.126.)
             'design.layout.parts.*' => [Rule::in(['raglan', 'shorts', 'singlet', 'netball-dress', 'jersey', 'tee', 'polo'])],
             'design.layers' => ['sometimes', 'array', 'max:40'],
-            'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape,artboard'],
+            'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape,artboard,clip'],
+            // An object on one part of the kit only (task 9.134): cut to that part's edges.
+            'design.layers.*.clip' => ['sometimes', 'nullable', Rule::in(self::PARTS)],
             // Artwork sent from the Artboard: the id of the design it came from (Edit in Artboard opens it again).
             'design.layers.*.artboard' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'design.layers.*.id' => ['required', 'string', 'max:80', 'distinct:strict'],
@@ -111,6 +145,8 @@ class ProjectRequest extends FormRequest
             'design.number' => ['sometimes', 'nullable', 'string', 'max:3'],
             'design.backName' => ['sometimes', 'nullable', 'string', 'max:40'],
             'design.patternColor' => ['sometimes', 'nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            // The user chose the Pattern colour: the built-in and area patterns are painted in it (viewer texture.js).
+            'design.patternColorOwn' => ['sometimes', 'nullable', 'boolean'],
             'design.patternScale' => ['sometimes', 'numeric', 'min:0.1', 'max:10'],
             'design.patternBody' => ['sometimes', 'numeric', 'min:0', 'max:1'],
             'design.logoImage' => ['sometimes', 'nullable', 'string', 'max:4000000', $this->imageSourceRule()],

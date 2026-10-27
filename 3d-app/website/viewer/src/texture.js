@@ -2,7 +2,7 @@
 // (mirrored so it reads correctly from behind) on the right half. Everything
 // is drawn in garment coordinates (metres), so placement is exact.
 
-import { zoneRects, POCKET, hasPocket, isHoodie, isTrack, isDress, KANGAROO, kangarooEdge, HOOD_TOP } from './zones.js';
+import { zoneRects, POCKET, hasPocket, isHoodie, isTrack, isDress, KANGAROO, kangarooEdge, HOOD_TOP, partRegion, TOP_PARTS, SHORTS_PARTS } from './zones.js';
 import { POCKET_ZIP, pocketZipX } from './trackjacket.js';
 import { isVarsity, varsityTailoring, paintVarsity, paintVarsityMarks } from './varsity.js';
 
@@ -140,6 +140,31 @@ async function printTile(src) {
   return out;
 }
 
+/** A zone value that is an uploaded pattern picture (a data URL or a local image URL) rather than a pattern name. */
+/** Clips `g` (in garment metres) to a part's region (zones.js partRegion): its outlines, less each group cut out. */
+function regionClip(g, region) {
+  const trace = (poly) => { poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); };
+  g.beginPath();
+  // (Each outline its own way round: with the nonzero rule overlapping outlines add up.)
+  for (const poly of region.keep) trace(clockwise(poly));
+  g.clip();
+  for (const group of region.cut) {
+    if (!group.length) continue;
+    g.beginPath();
+    g.rect(-5, -5, 10, 10);
+    for (const poly of group) trace(poly);
+    g.clip('evenodd');
+  }
+}
+/** An outline turned one way round (for the nonzero rule). */
+function clockwise(poly) {
+  let area = 0;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) area += (poly[j][0] - poly[i][0]) * (poly[j][1] + poly[i][1]);
+  return area < 0 ? [...poly].reverse() : poly;
+}
+
+const isPicture = (v) => typeof v === 'string' && (v.startsWith('data:image/') || v.startsWith('/') || v.startsWith('http'));
+
 async function stencil(src, color) {
   const img = await loadImage(src);
   const c = document.createElement('canvas');
@@ -164,6 +189,15 @@ const hexRgb = (hex) => {
   const v = parseInt(hex.replace('#', ''), 16);
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 };
+
+/**
+ * The pattern's own colour (design.patternColor) when the user chose it (design.patternColorOwn: the Colours panel's
+ * Pattern tab, or a tap on the pattern): the built-in patterns and the area patterns are then painted in it. Without
+ * it, as before: the whole-garment pattern in a mix of the Primary and Secondary, the area patterns in the Secondary.
+ */
+export const ownPatternInk = (design) => (design.patternColorOwn && HEX.test(design.patternColor ?? '') ? design.patternColor : null);
+/** The area patterns' ink: the pattern's own colour, else the Secondary (as before). */
+const zoneInk = (design) => ownPatternInk(design) ?? design.secondary;
 
 const mix = (a, b, t) => {
   const [r1, g1, b1] = hexRgb(a), [r2, g2, b2] = hexRgb(b);
@@ -213,12 +247,172 @@ export class KitPainter {
   }
 
   /** Sets the transform so drawing happens in garment metres on one side. */
-  side(back, g = this.ctx) {
+  side(back, g = this.ctx, k = 1) {
     const { minX, maxX, minY, span } = this.frame;
-    const s = this.canvas.height / span;
-    if (back) g.setTransform(-s, 0, 0, -s, this.canvas.height + maxX * s, this.canvas.height + minY * s);
-    else g.setTransform(s, 0, 0, -s, -minX * s, this.canvas.height + minY * s);
+    const H = this.canvas.height * k, s = H / span;
+    if (back) g.setTransform(-s, 0, 0, -s, H + maxX * s, H + minY * s);
+    else g.setTransform(s, 0, 0, -s, -minX * s, H + minY * s);
     return s;
+  }
+
+  // ---------- parts (task 9.134): one part of the kit with its own look (design.parts)
+  /** This garment piece's parts that are printed (the collar and the waistband are 3D rib). */
+  get printedParts() {
+    return (this.partName === 'shorts' ? SHORTS_PARTS : TOP_PARTS).filter((key) => key !== 'collar' && key !== 'waistband');
+  }
+
+  /** A part's own look (design.parts[key]) when it has one this piece can show; else null. */
+  partStyle(design, key) {
+    const style = design.parts?.[key];
+    const rib = key === 'collar' || key === 'waistband';
+    if (!style || typeof style !== 'object' || (!rib && !this.printedParts.includes(key))) return null;
+    const own = HEX.test(style.colour ?? '') ? style.colour : null;
+    const fade = style.fade && HEX.test(style.fade.from ?? '') ? { from: style.fade.from, to: HEX.test(style.fade.to ?? '') ? style.fade.to : null, angle: Number(style.fade.angle) || 0 } : null;
+    const pattern = typeof style.pattern === 'string' && style.pattern && style.pattern !== 'None' ? style.pattern : null;
+    const raw = style.patternOpacity;
+    const opacity = raw === null || raw === undefined || !Number.isFinite(Number(raw)) ? 1 : Math.min(1, Math.max(0, Number(raw)));
+    if (!own && !fade && !pattern && opacity >= 1) return null;
+    const ink = HEX.test(style.patternColour ?? '') ? style.patternColour : HEX.test(design.patternColor ?? '') ? design.patternColor : design.secondary;
+    return { own, fade, pattern, opacity, ink };
+  }
+
+  /** Clips the context to a part on one side (garment metres on `g`, the print scaled by `k`); false when it is not there. */
+  clipPart(key, back, g = this.ctx, k = 1) {
+    const region = partRegion(this.kind, key, back);
+    if (!region || !region.keep.length) return false;
+    this.side(back, g, k);
+    regionClip(g, region);
+    return true;
+  }
+
+  /** A part's box in garment metres (its kept rectangles within the garment), for its fade. */
+  partBox(key, back) {
+    const region = partRegion(this.kind, key, back);
+    const { minX, maxX, minY } = this.frame, maxY = minY + this.frame.span;
+    if (!region) return [minX, minY, maxX, maxY];
+    // The front or back (kept everywhere but the other parts): the body's own box, from its zones.
+    const whole = region.keep.length === 1 && Math.max(...region.keep[0].map(([x]) => x)) - Math.min(...region.keep[0].map(([x]) => x)) > 3;
+    const rects = whole ? ['yoke', 'body', 'hem', 'sides'].flatMap((zone) => zoneRects(this.kind, zone)).map(([x0, y0, x1, y1]) => [[x0, y0], [x1, y1]]) : region.keep;
+    const xs = rects.flat().map(([x]) => x), ys = rects.flat().map(([, y]) => y);
+    // The body's own top: its shoulders, not the print's square.
+    const top = Math.min(maxY, Math.max(...ys), Math.max(...this.outline.map((p) => p.y)));
+    return [Math.max(minX, Math.min(...xs)), Math.max(minY, Math.min(...ys)), Math.min(maxX, Math.max(...xs)), top];
+  }
+
+  /** A fade across a box: from -> to (to null: fading out), angle 0 = top to bottom, 90 = left to right. */
+  fadeStyle({ from, to, angle }, [x0, y0, x1, y1]) {
+    const g = this.ctx, a = (angle * Math.PI) / 180, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const dx = Math.sin(a), dy = -Math.cos(a), r = (Math.abs(dx) * (x1 - x0) + Math.abs(dy) * (y1 - y0)) / 2 || 0.01;
+    const grad = g.createLinearGradient(cx - dx * r, cy - dy * r, cx + dx * r, cy + dy * r);
+    const [rr, gg, bb] = hexRgb(from);
+    grad.addColorStop(0, from);
+    grad.addColorStop(1, to ?? `rgba(${rr},${gg},${bb},0)`);
+    return grad;
+  }
+
+  /**
+   * A part's own look over what is under it (the clip already set): its colour (the kit's pattern is then not on it),
+   * or the kit's pattern made fainter (`base`: the kit's fill there); its fade; its own pattern at its opacity.
+   */
+  paintPartLook(design, style, box, base) {
+    const g = this.ctx, BIG = [-1.6, -0.2, 3.2, 1.8];
+    if (style.own) { g.fillStyle = style.own; g.fillRect(...BIG); }
+    else if (!style.pattern && style.opacity < 1 && base) {
+      g.save(); g.globalAlpha = 1 - style.opacity; g.fillStyle = base; g.fillRect(...BIG); g.restore();
+    }
+    if (style.fade) { g.fillStyle = this.fadeStyle(style.fade, box); g.fillRect(...BIG); }
+    if (style.pattern) {
+      g.save();
+      g.globalAlpha = style.opacity;
+      if (isPicture(style.pattern)) {
+        const tile = this._zoneTiles?.get(style.pattern.length + style.ink + style.pattern.slice(-64));
+        if (tile) {
+          const pattern = g.createPattern(tile, 'repeat');
+          const k = (design.patternScale ?? 0.3) / tile.width;
+          pattern.setTransform(new DOMMatrix([k, 0, 0, -k, 0, 0]));
+          g.fillStyle = pattern;
+          g.fillRect(...BIG);
+        }
+      } else if (style.pattern === 'Solid') { g.fillStyle = style.ink; g.fillRect(...BIG); }
+      else this.proceduralPattern(design, style.pattern, style.ink);
+      g.restore();
+    }
+  }
+
+  /** The kit's own fill under a part (the body's colour or gradient), to make the kit's pattern fainter on it. */
+  baseFill(design) {
+    const ownBody = isTrack(this.kind) && HEX.test(design.zoneColors?.body ?? '') ? design.zoneColors.body : null;
+    return ownBody ?? this.zoneFill(design, 'main');
+  }
+
+  /** The parts with their own look on one side, over the kit's colours and pattern (the outline's clip set). */
+  paintParts(design, back, { skip = [] } = {}) {
+    if (!design.parts) return;
+    const g = this.ctx;
+    for (const key of this.printedParts) {
+      if (skip.includes(key)) continue;
+      const style = this.partStyle(design, key);
+      if (!style) continue;
+      g.save();
+      if (this.clipPart(key, back)) this.paintPartLook(design, style, this.partBox(key, back), this.baseFill(design));
+      g.restore();
+    }
+    this.side(back);
+  }
+
+  /**
+   * The kit's AI pattern layer (drawn over the trims) kept off the parts with their own colour, and fainter on the
+   * parts whose pattern was made fainter: erased from `lg` (one side's square, in its pixels) before it is drawn.
+   */
+  erasePartsFrom(lg, design, back) {
+    if (!design.parts) return;
+    const H = this.canvas.height;
+    for (const key of this.printedParts) {
+      const style = this.partStyle(design, key);
+      if (!style || !(style.own || (!style.pattern && style.opacity < 1))) continue;
+      lg.save();
+      // The part's clip in print pixels, moved onto the side's own square (the back's starts at the print's middle).
+      lg.setTransform(1, 0, 0, 1, back ? -H : 0, 0);
+      const at = lg.getTransform();
+      this.side(back, lg);
+      lg.setTransform(at.multiply(lg.getTransform()));
+      const region = partRegion(this.kind, key, back);
+      if (region?.keep.length) {
+        regionClip(lg, region);
+        lg.setTransform(1, 0, 0, 1, 0, 0);
+        lg.globalCompositeOperation = 'destination-out';
+        lg.globalAlpha = style.own ? 1 : 1 - style.opacity;
+        lg.fillStyle = '#000';
+        lg.fillRect(0, 0, lg.canvas.width, lg.canvas.height);
+      }
+      lg.restore();
+    }
+  }
+
+  /** The whole part, white on a small mask (its glow on the 3D kit), `k` the mask's size against the print; null when not printed. */
+  partMask(key, k = 0.25) {
+    const keys = [key].flat();
+    this._mask ??= document.createElement('canvas');
+    const m = this._mask, W = Math.round(this.canvas.width * k), H = Math.round(this.canvas.height * k);
+    if (m.width !== W || m.height !== H) { m.width = W; m.height = H; }
+    const g = m.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, W, H);
+    let any = false;
+    for (const back of [false, true]) {
+      // (Several parts at once: every part a kit colour covers, task 9.137.)
+      for (const one of keys) {
+        g.save();
+        if (this.clipPart(one, back, g, k)) {
+          any = true;
+          g.setTransform(1, 0, 0, 1, 0, 0);
+          g.fillStyle = '#fff';
+          g.fillRect(back ? H : 0, 0, H, H);
+        }
+        g.restore();
+      }
+    }
+    return any ? m : null;
   }
 
   /** Text centred on (0, 0) of the current frame (y down), `size` in metres, squeezed to `maxWidth`. Returns its size. */
@@ -730,6 +924,31 @@ export class KitPainter {
       this._print = null;
     }
 
+    // Uploaded patterns dropped onto areas (design.zones values that are pictures): each a full-colour repeat (marked,
+    // printTile) or a stencil in the trim colour, loaded before painting.
+    this._zoneTiles ??= new Map();
+    for (const name of Object.values(design.zones ?? {})) {
+      if (!isPicture(name)) continue;
+      const key = name.length + (zoneInk(design) ?? '') + name.slice(-64);
+      if (this._zoneTiles.has(key)) continue;
+      if (this._zoneTiles.size > 12) this._zoneTiles.clear();
+      const print = await printTile(name).catch(() => null);
+      // (A full-colour print is marked, so a tap on it can tell it from a pattern in the kit's colours.)
+      if (print) print.fullColour = true;
+      this._zoneTiles.set(key, print ?? (await stencil(name, zoneInk(design)).catch(() => null)));
+    }
+    // A part's own uploaded pattern (design.parts): its full-colour repeat, or a stencil in its pattern colour.
+    for (const key of design.parts ? this.printedParts : []) {
+      const style = this.partStyle(design, key);
+      if (!style?.pattern || !isPicture(style.pattern)) continue;
+      const tileKey = style.pattern.length + style.ink + style.pattern.slice(-64);
+      if (this._zoneTiles.has(tileKey)) continue;
+      if (this._zoneTiles.size > 12) this._zoneTiles.clear();
+      const print = await printTile(style.pattern).catch(() => null);
+      if (print) print.fullColour = true;
+      this._zoneTiles.set(tileKey, print ?? (await stencil(style.pattern, style.ink).catch(() => null)));
+    }
+
     for (const back of [false, true]) {
       g.save();
       this.clipOutline(back);
@@ -742,12 +961,16 @@ export class KitPainter {
       const ink = zoneGradient(design, 'patternColor');
       // The picture's own print all over the body (printTile), else the chosen pattern.
       if (this._print) this.fullPrint(design, back);
-      else this.proceduralPattern(design, design.pattern, ink ? this.gradientStyle(ink) : undefined);
+      else this.proceduralPattern(design, design.pattern, ink ? this.gradientStyle(ink) : ownPatternInk(design) ?? undefined);
       const trim = this.zoneFill(design, 'secondary');
 
       const shorts = this.kind === 'shorts';
       const sleeves = SLEEVED.includes(this.kind);
       const hoodie = isHoodie(this.kind), track = isTrack(this.kind), varsity = isVarsity(this.kind);
+      // Parts with a look of their own (design.parts), over the kit's colour and pattern and under its trims: the side
+      // panels' own look goes on the panels themselves (below); the jackets' parts after their own areas.
+      const sideKey = shorts ? 'shortsSides' : 'sides', sideStyle = this.partStyle(design, sideKey);
+      if (!hoodie && !track && !varsity) this.paintParts(design, back, { skip: [sideKey] });
       g.fillStyle = trim;
       // Hoodies: no side panels or edge bands (their cuffs and waistband are rib, hoodie.js); the track jacket's own
       // panels are painted below (paintTrack); the varsity jacket has rib trims (varsity.js).
@@ -773,11 +996,22 @@ export class KitPainter {
         }
         g.closePath();
         g.fill();
+        if (sideStyle) {
+          g.save();
+          g.clip();
+          this.paintPartLook(design, sideStyle, this.partBox(sideKey, back), trim);
+          g.restore();
+          g.fillStyle = trim;
+        }
       }
       // Bands an even width all the way round: the cuffs, the hem (leg hems on shorts), and
       // the waistband. Each reaches a little past the edge so the rolled hem is banded too.
       if (!hoodie && !track && !varsity) for (const run of this.edges()) this.band(run.points, run.kind === 'cuff' ? CUFF_BAND : HEM_BAND);
-      if (shorts) g.fillRect(-0.4, (this.points?.CF?.[1] ?? 0.42) - 0.025, 0.8, 0.03);
+      if (shorts) {
+        g.fillStyle = this.partStyle(design, 'waistband')?.own ?? trim;
+        g.fillRect(-0.4, (this.points?.CF?.[1] ?? 0.42) - 0.025, 0.8, 0.03);
+        g.fillStyle = trim;
+      }
 
       // AI pattern across the shoulders and sleeves (the yoke), fading out.
       if (this._stencil) {
@@ -804,6 +1038,7 @@ export class KitPainter {
         mask.addColorStop(1, 'rgba(0,0,0,1)');
         lg.fillStyle = mask;
         lg.fillRect(0, 0, layer.width, layer.height);
+        this.erasePartsFrom(lg, design, back);
         g.setTransform(1, 0, 0, 1, 0, 0);
         g.drawImage(layer, back ? this.canvas.height : 0, 0);
       }
@@ -811,11 +1046,12 @@ export class KitPainter {
       if (hoodie) this.paintHoodie(design, back);
       if (track) this.paintTrack(design, back);
       if (varsity) paintVarsity(this, design, back);
+      if (hoodie || track || varsity) this.paintParts(design, back);
       this.paintZones(design, back);
 
-      // Collar trim: V-neck for jerseys and singlets, crew for tee and polo.
+      // Collar trim: V-neck for jerseys and singlets, crew for tee and polo (the collar's own colour: design.parts).
       this.side(back);
-      g.strokeStyle = trim;
+      g.strokeStyle = this.partStyle(design, 'collar')?.own ?? trim;
       g.lineWidth = 0.018;
       if (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo') {
         g.beginPath();
@@ -1104,6 +1340,11 @@ export class KitPainter {
     return (this._topEdges = runs);
   }
 
+  /** An uploaded area pattern's tile (its full-colour print, or its stencil in the area patterns' ink), once loaded. */
+  zoneTile(design, name) {
+    return this._zoneTiles?.get(name.length + (zoneInk(design) ?? '') + name.slice(-64));
+  }
+
   /** Patterns or colour blocks dropped onto areas (sleeves, shoulders, ...). */
   paintZones(design, back) {
     const g = this.ctx;
@@ -1120,11 +1361,21 @@ export class KitPainter {
       if (zone === 'hood') { for (const piece of this.piecesOn(true)) { piece.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.closePath(); } g.clip(); g.translate(0, HOOD_TOP - 0.78); g.beginPath(); }
       for (const [x0, y0, x1, y1] of zoneRects(this.kind, zone)) g.rect(x0, y0, x1 - x0, y1 - y0);
       g.clip();
-      if (name === 'Solid') {
-        g.fillStyle = this.zoneFill(design, 'secondary');
+      if (isPicture(name)) {
+        const tile = this.zoneTile(design, name);
+        if (tile) {
+          const pattern = g.createPattern(tile, 'repeat');
+          const k = (design.patternScale ?? 0.3) / tile.width;
+          // Upright on the canvas (the side's frame has y up, and the back is mirrored).
+          pattern.setTransform(new DOMMatrix([back ? -k : k, 0, 0, -k, 0, 0]));
+          g.fillStyle = pattern;
+          g.fillRect(-1.6, -0.1, 3.2, 1.6);
+        }
+      } else if (name === 'Solid') {
+        g.fillStyle = this.zoneFill(design, ownPatternInk(design) ? 'patternColor' : 'secondary');
         g.fillRect(-1.6, -0.1, 3.2, 1.6);
       } else {
-        this.proceduralPattern(design, name, this.zoneFill(design, 'secondary'));
+        this.proceduralPattern(design, name, this.zoneFill(design, ownPatternInk(design) ? 'patternColor' : 'secondary'));
       }
       g.restore();
     }
@@ -1152,6 +1403,8 @@ export class KitPainter {
       if (layer.type === 'image' && !img) continue;
       g.save();
       this.clipOutline(back);
+      // An object on one part only (task 9.134): cut to that part; not drawn where the part is not.
+      if (layer.clip && !this.clipPart(layer.clip, back)) { g.restore(); continue; }
       g.translate(layer.x, layer.y);
       g.scale(back ? -1 : 1, -1);
       g.rotate(((layer.rot ?? 0) * Math.PI) / 180);

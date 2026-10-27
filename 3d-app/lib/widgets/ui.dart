@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../app_controller.dart';
 
 class Palette {
@@ -447,11 +448,47 @@ class _CubePainter extends CustomPainter {
       old.filled != filled || old.color != color;
 }
 
+/// [child] drawn over the 3D view, a web frame that would otherwise take its
+/// taps and clicks (Flutter web): a PointerInterceptor under it, left out of
+/// the semantics as the Assist button's. [bleed] widens it past [child] (a
+/// toast's padding and close button); the parent's clip trims it.
+class OverViewer extends StatelessWidget {
+  const OverViewer({
+    super.key,
+    required this.child,
+    this.bleed = EdgeInsets.zero,
+  });
+  final Widget child;
+  final EdgeInsets bleed;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.passthrough,
+    clipBehavior: Clip.none,
+    children: [
+      Positioned(
+        left: -bleed.left,
+        top: -bleed.top,
+        right: -bleed.right,
+        bottom: -bleed.bottom,
+        child: ExcludeSemantics(
+          child: PointerInterceptor(child: const SizedBox.expand()),
+        ),
+      ),
+      child,
+    ],
+  );
+}
+
 void showToast(BuildContext context, String message) {
   ScaffoldMessenger.of(context).hideCurrentSnackBar();
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(message),
+      // Over the 3D (Preview) its close button still takes the click.
+      content: OverViewer(
+        bleed: const EdgeInsets.fromLTRB(24, 24, 96, 24),
+        child: Text(message),
+      ),
       behavior: SnackBarBehavior.floating,
       backgroundColor: Palette.surface2,
       showCloseIcon: true,

@@ -483,6 +483,10 @@ class ApiClient {
     return id;
   }
 
+  /// The account's saved assets (newest first), without their files.
+  Future<List<Map<String, dynamic>>> assets() async =>
+      (await _send('GET', '/assets') as List).cast<Map<String, dynamic>>();
+
   Future<void> deleteAsset(int id) => _send('DELETE', '/assets/$id');
 
   // ---------- Artboard designs and templates (the Artboard's File menu)

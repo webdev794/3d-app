@@ -189,6 +189,253 @@ void main() {
     );
   });
 
+  test('colours are named in words, as on the website', () {
+    // The kit of bug 2026-10-27 (images/192.png): ready-made palette 6.
+    expect(PlayerShot.colourName('#240c12'), 'near-black burgundy');
+    expect(PlayerShot.colourName('#EC3E5B'), 'bright pinkish red');
+    expect(PlayerShot.colourName('#f9e6d4'), 'cream');
+    expect(PlayerShot.colourName('#0a1f44'), 'navy');
+    expect(PlayerShot.colourName('#0b1016'), 'black');
+    expect(PlayerShot.colourName('#00c2cc'), 'bright cyan');
+    expect(PlayerShot.colourName('#ffffff'), 'white');
+    expect(PlayerShot.colourName('#c8102e'), 'bright red');
+    expect(PlayerShot.colourName('#7b2ff7'), 'bright purple');
+    expect(PlayerShot.colourName('#006400'), 'dark green');
+    expect(PlayerShot.colourName('#8b4513'), 'brown');
+    expect(PlayerShot.namedColours(['body: #240C12', '', 'trims: #ec3e5b']), [
+      'body: #240c12 (near-black burgundy)',
+      'trims: #ec3e5b (bright pinkish red)',
+    ]);
+  });
+
+  test('the Studio kit lists its colours by area (bug 2026-10-27)', () {
+    final c = AppController(store: FakeStore())
+      ..mainColor = const Color(0xff240c12)
+      ..secondaryColor = const Color(0xffec3e5b)
+      ..accentColor = const Color(0xfff9e6d4)
+      ..pattern = 'Chevron';
+    expect(kitColours(c), [
+      'body: #240c12',
+      'pattern: thin chevron (V-shaped) lines evenly spaced from chest to '
+          'hem, in #6a1e2c',
+      'collar, cuffs, side panels and trims: #ec3e5b',
+      'lettering (wordmark, name and number) and the small crest badge: '
+          '#f9e6d4',
+    ]);
+    // The pattern's own colour, a gradient body and a hoodie area.
+    c
+      ..patternColor = '#FFFFFF'
+      ..patternColorOwn = true
+      ..gradient = {
+        'from': '#ff8a00',
+        'to': '#7b2ff7',
+        'angle': 0,
+        'stops': [
+          {'color': '#7b2ff7', 'at': 1},
+          {'color': '#ff8a00', 'at': 0},
+          {'color': '#ff3d7f', 'at': 0.5},
+        ],
+      }
+      ..zoneColors = {'hood': '#00C2CC'};
+    final lines = kitColours(c);
+    expect(
+      lines.first,
+      'body: a gradient of #ff8a00, #ff3d7f, #7b2ff7 (top to bottom)',
+    );
+    expect(lines[1], endsWith('in #ffffff'));
+    expect(lines.last, 'hood: #00c2cc');
+    c.dispose();
+  });
+
+  test('your own photo in a jersey: only the top changes', () {
+    final p = PlayerShot.personPrompt(
+      sport: 'Football',
+      garment: 'Jersey',
+      colours: [
+        'body: #240c12',
+        'collar, cuffs, side panels and trims: #ec3e5b',
+      ],
+      logoText: '3DEEZI',
+      backName: 'YOUR NAME',
+      number: '23',
+      kitPictures: 2,
+    );
+    expect(
+      p,
+      contains(
+        'replace ONLY their top (shirt, jersey or jacket) with the kit Jersey',
+      ),
+    );
+    expect(p, contains('their own shorts or trousers, socks and shoes'));
+    expect(p, contains('Ignore the clothes the person wears in image 1'));
+    expect(p, contains('body: #240c12 (near-black burgundy); collar'));
+    expect(p, contains('not part of the kit'));
+    expect(p, isNot(contains('matching shorts')));
+    expect(
+      PlayerShot.prompt(sport: 'Football', garment: 'Jersey', pictures: 2),
+      contains('the athlete wears it with plain shorts and socks'),
+    );
+    expect(PlayerShot.coverage('Hoodie'), 'top');
+    expect(PlayerShot.coverage('Full Kit'), 'full');
+    expect(PlayerShot.coverage('Netball dress'), 'dress');
+    expect(PlayerShot.coverage('Shorts'), 'shorts');
+  });
+
+  testWidgets('the Studio sends fresh 3D pictures, never older captures', (
+    tester,
+  ) async {
+    final stale = Uint8List.fromList([1, 2, 3]);
+    final fresh = <String, Uint8List>{
+      'Front': Uint8List.fromList(base64Decode(_png)),
+      'Back': Uint8List.fromList([...base64Decode(_png), 0]),
+    };
+    final asked = <String>[];
+    final c = AppController(store: FakeStore())
+      ..user = const ApiUser(id: 7, name: 'Tester', email: 't@example.test')
+      ..mockupFront = stale
+      ..mockupBack = stale
+      ..captureMockup = (view) async {
+        asked.add(view);
+        return fresh[view];
+      };
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(600, 2000);
+    final busy = <String?>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => openPlayerShotFromStudio(
+                context,
+                c,
+                live3d: true,
+                busy: busy.add,
+              ),
+              child: const Text('go'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(asked, ['Front', 'Back']);
+    expect(busy, ['Capturing your kit…', null]);
+    final screen = tester.widget<PlayerShotScreen>(
+      find.byType(PlayerShotScreen),
+    );
+    expect(screen.kit.pictures, [fresh['Front'], fresh['Back']]);
+    expect(screen.kit.colours.first, startsWith('body: #'));
+    // No 3D on screen: no picture from an older capture, a hint instead.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => openPlayerShotFromStudio(
+                context,
+                c,
+                live3d: false,
+                busy: busy.add,
+              ),
+              child: const Text('again'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('again'));
+    await tester.pump();
+    expect(find.textContaining('Show your kit in 3D first'), findsOneWidget);
+    expect(find.byType(PlayerShotScreen), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 4));
+    c.dispose();
+    tester.view.reset();
+  });
+
+  testWidgets(
+    'on a phone the whole picture shows and the buttons stay on screen',
+    (tester) async {
+      // QA 2026-10-27: the website showed only the top of a 2:3 picture; the
+      // app keeps the whole picture (contain) and sizes it to the room left.
+      final ai = AiService(
+        apiKey: 'sk-test',
+        client: MockClient.streaming((request, body) async {
+          await body.toBytes();
+          return http.StreamedResponse(
+            Stream.value(
+              utf8.encode(
+                jsonEncode({
+                  'data': [
+                    {'b64_json': _png},
+                  ],
+                }),
+              ),
+            ),
+            200,
+          );
+        }),
+      );
+      final c = AppController(store: FakeStore())
+        ..user = const ApiUser(id: 7, name: 'Tester', email: 't@example.test');
+      final pic = Uint8List.fromList(base64Decode(_png));
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayerShotScreen(
+            c,
+            PlayerKit(
+              pictures: [pic, pic],
+              sport: 'Football',
+              garment: 'Jersey',
+            ),
+            ai: ai,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Create picture'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      for (var i = 0; i < 2; i++) {
+        await tester.tap(find.text('Try another pose'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+      }
+      // Three pictures: the thumbnails row shows too.
+      expect(find.byType(GestureDetector), findsWidgets);
+      for (final label in [
+        'Download',
+        'Try another pose',
+        'Save to my assets',
+      ]) {
+        final r = tester.getRect(find.text(label));
+        expect(r.top, greaterThanOrEqualTo(0), reason: label);
+        expect(r.bottom, lessThanOrEqualTo(844), reason: '$label on screen');
+      }
+      final picture = find.descendant(
+        of: find.byType(InteractiveViewer),
+        matching: find.byType(Image),
+      );
+      expect(tester.widget<Image>(picture).fit, BoxFit.contain);
+      final card = tester.getRect(find.byType(InteractiveViewer));
+      expect(card.height, greaterThanOrEqualTo(220));
+      expect(
+        card.bottom,
+        lessThan(tester.getRect(find.text('An athlete')).top),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 4));
+      c.dispose();
+      tester.view.reset();
+    },
+  );
+
   test('your own photo: keep the person, swap only the clothes', () {
     final p = PlayerShot.personPrompt(
       sport: 'Rugby League',

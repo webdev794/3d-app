@@ -73,26 +73,136 @@ class PlayerShot
         return str_contains(strtolower($garment), 'dress') ? 'female' : (in_array($asked, self::PLAYERS, true) ? $asked : 'male');
     }
 
+    /**
+     * A hex colour in plain words ("#240c12" → "near-black burgundy"). The image model reads a bare hex code
+     * loosely, so every colour goes with its name (bug 2026-10-27, images/193.jpg: the codes alone came out as a
+     * pink-to-purple gradient body with cream sleeves).
+     */
+    public static function colourName(string $hex): string
+    {
+        $hex = ltrim(trim($hex), '#');
+        if (! preg_match('/^[0-9a-f]{6}$/i', $hex)) {
+            return 'colour';
+        }
+        [$r, $g, $b] = array_map(fn (int $i) => hexdec(substr($hex, $i, 2)) / 255, [0, 2, 4]);
+        $max = max($r, $g, $b);
+        $min = min($r, $g, $b);
+        $d = $max - $min;
+        $l = ($max + $min) / 2;
+        $s = $d == 0 ? 0 : $d / (1 - abs(2 * $l - 1));
+        if ($d < 0.06 || $s < 0.12) {
+            return match (true) {
+                $l < 0.1 => 'black', $l < 0.22 => 'near-black charcoal', $l < 0.42 => 'dark grey',
+                $l < 0.68 => 'grey', $l < 0.9 => 'light grey', default => 'white',
+            };
+        }
+        $h = match (true) {
+            $max == $r => 60 * fmod(($g - $b) / $d + 6, 6),
+            $max == $g => 60 * (($b - $r) / $d + 2),
+            default => 60 * (($r - $g) / $d + 4),
+        };
+        $hue = match (true) {
+            $h < 10 || $h >= 338 => $l > 0.55 ? 'pinkish red' : 'red', $h < 20 => 'red-orange', $h < 40 => 'orange',
+            $h < 52 => 'gold', $h < 66 => 'yellow', $h < 90 => 'lime green', $h < 150 => 'green',
+            $h < 172 => 'teal green', $h < 195 => 'cyan', $h < 215 => 'sky blue', $h < 240 => 'blue',
+            $h < 258 => 'indigo', $h < 290 => 'purple', $h < 320 => 'magenta', default => 'pink',
+        };
+        $reds = in_array($hue, ['red', 'pinkish red', 'pink', 'magenta'], true);
+        $blues = in_array($hue, ['blue', 'indigo', 'sky blue'], true);
+        $warm = in_array($hue, ['red-orange', 'orange', 'gold', 'yellow'], true);
+        if ($l < 0.12) {
+            return 'near-black '.($reds ? 'burgundy' : ($blues ? 'navy' : $hue));
+        }
+        if ($l < 0.3) {
+            return match (true) {
+                $reds => 'dark burgundy', $blues => 'navy', $warm => 'dark brown', default => "dark {$hue}",
+            };
+        }
+        if ($warm && $l < 0.38) {
+            return 'brown';
+        }
+        if ($l > 0.85) {
+            return match (true) {
+                $warm => 'cream', $reds => 'pale pink', default => "very pale {$hue}",
+            };
+        }
+        if ($l > 0.7) {
+            return $reds ? 'light pink' : "light {$hue}";
+        }
+
+        return ($s > 0.7 ? 'bright ' : ($s < 0.35 ? 'muted ' : '')).($l < 0.4 ? 'deep ' : '').$hue;
+    }
+
+    /** The kit's colour list ("body: #240c12", …) with every hex code named in words. */
+    public static function namedColours(array $colours): array
+    {
+        $named = array_map(fn ($c) => preg_replace_callback('/#[0-9a-f]{6}\b/i', fn (array $m) => strtolower($m[0]).' ('.self::colourName($m[0]).')', trim((string) $c)), $colours);
+
+        return array_values(array_filter($named, fn ($c) => $c !== ''));
+    }
+
+    /** What the garment covers: 'top', 'full' (top and shorts), 'shorts' or 'dress'. */
+    public static function coverage(string $garment): string
+    {
+        $g = strtolower($garment);
+
+        return match (true) {
+            (bool) preg_match('/full ?kit/', $g) => 'full',
+            str_contains($g, 'dress') => 'dress',
+            (bool) preg_match('/\bshorts\b/', $g) => 'shorts',
+            default => 'top',
+        };
+    }
+
+    /**
+     * The kit to copy: its colours by area in words, then the lettering. The Studio's 3D renders (two pictures) are
+     * lit by blue and pink stadium light, which is not part of the kit; one AI picture shows the design in a studio.
+     */
+    private static function kitSection(array $meta, int $pictures): string
+    {
+        $colours = self::namedColours((array) ($meta['colours'] ?? []));
+        $renders = $pictures > 1;
+        $logo = mb_strtoupper(trim((string) ($meta['logoText'] ?? '')));
+
+        return ($colours
+                ? 'THE KIT, to copy exactly: '.implode('; ', $colours).'. These are its true colours: use each one only for its own area, and take the pattern\'s shape and placement, the trims, the crest and the logos from the kit pictures'
+                : 'THE KIT, to copy exactly: take its colours, pattern, trims, crest and logos from the kit picture')
+            .($renders ? '. The kit pictures are 3D renders under coloured stadium lights: the blue and pink light, the dark backdrop and the podium are not part of the kit' : '')
+            .'. No other colours, no gradients or patterns that the kit does not have. '
+            .'Lettering: the same crest and logos in the same places'
+            .($logo ? ", the team wordmark on the chest reads exactly \"{$logo}\"" : '')
+            .self::badge($pictures);
+    }
+
+    /** The back's name and number, when the back may be seen. */
+    private static function backLettering(array $meta, string $lead): string
+    {
+        $logo = mb_strtoupper(trim((string) ($meta['logoText'] ?? '')));
+        $back = mb_strtoupper(trim((string) ($meta['backName'] ?? ''))) ?: $logo;
+        $number = trim((string) ($meta['number'] ?? ''));
+
+        return $back ? "{$lead} reads exactly \"{$back}\"".($number ? " with the number \"{$number}\"" : '') : '';
+    }
+
     public static function prompt(array $meta, int $pictures): string
     {
         $player = self::player((string) ($meta['player'] ?? 'male'), (string) $meta['garment']);
         $pose = self::POSES[$meta['pose'] ?? 'front'] ?? self::POSES['front'];
-        // In capitals, as the 3D kit draws the wordmark and the back name.
-        $logo = mb_strtoupper(trim((string) ($meta['logoText'] ?? '')));
-        $back = mb_strtoupper(trim((string) ($meta['backName'] ?? ''))) ?: $logo;
-        $number = trim((string) ($meta['number'] ?? ''));
-        $colours = implode(', ', array_filter((array) ($meta['colours'] ?? [])));
         $refs = $pictures > 1 ? 'The reference images show the front and the back of the garment; they are only references for the design: make ONE single photograph, never a collage, split image or two panels.' : 'The reference image shows the garment design.';
+        // Only the user's garment carries the design (images/193.jpg: invented kit shorts and socks).
+        $wear = match (self::coverage((string) $meta['garment'])) {
+            'full' => 'The kit is the top and the matching shorts, both as in the kit pictures, with plain socks.',
+            'dress' => 'The dress is the whole kit, with plain socks.',
+            'shorts' => 'Only the shorts are the user\'s design: the athlete wears them with a plain top in a simple matching solid colour, with no logos, numbers or graphics on it.',
+            default => "Only the {$meta['garment']} is the user's design: the athlete wears it with plain shorts and socks in a simple matching solid colour, with no logos, numbers or graphics on them.",
+        };
 
         return "A premium photorealistic sports photograph of a real {$player} athlete wearing this exact {$meta['sport']} {$meta['garment']}, {$pose}, "
-            .self::setting((string) $meta['sport'], (string) $meta['garment']).'. '
-            ."{$refs} Reproduce the garment EXACTLY as in the reference: the same colours"
-            .($colours ? " ({$colours})" : '')
-            .', the same panel layout, print pattern and graphics, collar and trims, the same crest and logos in the same places'
-            .($logo ? ", the team wordmark on the chest reads exactly \"{$logo}\"" : '')
-            .self::badge($pictures)
-            .($back && ($meta['pose'] ?? '') !== 'front' ? ", where the back shows the lettering reads exactly \"{$back}\"".($number ? " with the number \"{$number}\"" : '') : '')
-            .'. Do not add, remove or change any text, logos or graphics; do not invent sponsors. The garment fits the athlete naturally with real fabric folds, stitching and slight sheen. '
+            .self::setting((string) $meta['sport'], (string) $meta['garment']).". {$refs} "
+            .self::kitSection($meta, $pictures)
+            .(($meta['pose'] ?? '') !== 'front' ? self::backLettering($meta, ', where the back shows the lettering') : '')
+            .". {$wear} "
+            .'Do not add, remove or change any text, logos or graphics; do not invent sponsors. The garment fits the athlete naturally with real fabric folds, stitching and slight sheen. '
             .'A believable athlete with a natural face and body, professional sports photography, sharp focus on the kit, cinematic lighting, shallow depth of field, ultra-detailed, no watermark, no UI, no text overlays.';
     }
 
@@ -105,24 +215,27 @@ class PlayerShot
         return $pictures > 1 ? ', '.ProductMockup::BADGE : '';
     }
 
-    /** The user's own photo: dress that person in the kit, keeping everything else. */
+    /**
+     * The user's own photo: dress that person in the kit, keeping everything else. Only the clothes the garment
+     * covers change (a jersey: the top; their own shorts, socks and shoes stay), and nothing of their old clothes
+     * carries over (bug 2026-10-27, images/193.jpg: purple kit shorts and socks were invented).
+     */
     public static function personPrompt(array $meta, int $kitPictures): string
     {
-        $logo = mb_strtoupper(trim((string) ($meta['logoText'] ?? '')));
-        $back = mb_strtoupper(trim((string) ($meta['backName'] ?? ''))) ?: $logo;
-        $number = trim((string) ($meta['number'] ?? ''));
-        $colours = implode(', ', array_filter((array) ($meta['colours'] ?? [])));
-        $full = preg_match('/full ?kit/i', (string) $meta['garment']);
+        $garment = (string) $meta['garment'];
+        [$swap, $keep] = match (self::coverage($garment)) {
+            'full' => ["replace their top with the kit's top and their shorts or trousers with the kit's matching shorts", ', and their own socks and shoes'],
+            'dress' => ['replace their top and their shorts, trousers or skirt with the kit dress', ', and their own socks and shoes'],
+            'shorts' => ['replace ONLY their shorts or trousers with the kit shorts', ', and their own top, socks and shoes'],
+            default => ["replace ONLY their top (shirt, jersey or jacket) with the kit {$garment}", ', and their own shorts or trousers, socks and shoes (do not turn them into kit shorts or socks, do not add a number or logo to them)'],
+        };
 
         return 'Image 1 is a photo of a real person. '.($kitPictures > 1 ? 'Images 2 and 3 show the front and back' : 'Image 2 shows the design')
-            ." of a {$meta['sport']} {$meta['garment']}. Edit image 1 only: replace the person's clothing with this exact garment"
-            .($full ? ' (the top and the matching shorts)' : '').', worn naturally and fitted to their body and pose. '
-            ."Keep the person's face, identity, skin, hair, body shape, pose, hands, framing, lighting and background exactly as in image 1; change nothing else. "
-            .'Reproduce the garment EXACTLY: the same colours'.($colours ? " ({$colours})" : '')
-            .', panel layout, print pattern and graphics, collar and trims, the same crest and logos in the same places'
-            .($logo ? ", the team wordmark on the chest reads exactly \"{$logo}\"" : '')
-            .self::badge($kitPictures)
-            .($back ? ", any visible back lettering reads exactly \"{$back}\"".($number ? " with the number \"{$number}\"" : '') : '')
+            ." of a {$meta['sport']} {$garment} (the kit). Edit image 1 only: {$swap}, worn naturally and fitted to their body and pose. "
+            ."Keep the person's face, identity, skin, hair, body shape, pose, hands, framing, lighting and background exactly as in image 1{$keep}; change nothing else. "
+            .'Ignore the clothes the person wears in image 1: none of their colours, logos, badges, numbers or patterns may appear on the kit. '
+            .self::kitSection($meta, $kitPictures)
+            .self::backLettering($meta, ', any visible back lettering')
             .'. Do not add, remove or change any text, logos or graphics. Real fabric folds and stitching, photoreal, ONE single photograph (not a collage), no watermark, no text overlays.';
     }
 

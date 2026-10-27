@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, Eye, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, TriangleAlert, Users, X, Clock } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type User } from '../api';
-import { KitViewer, defaultDesign, varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, type Design, type KitViewerHandle } from '../components/KitViewer';
+import { KitViewer, defaultDesign, varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, fabricLabel, type Design, type KitViewerHandle } from '../components/KitViewer';
 import { Columns3 } from 'lucide-react';
 import AdminOrderBoard from './AdminOrderBoard';
 import OrderFormReading from '../components/OrderFormReading';
@@ -592,7 +592,8 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
           {colours.filter(([, c]) => c).map(([name, c]) => <li key={name}><i style={{ background: c }} /><span>{name}</span><code>{c!.toUpperCase()}</code></li>)}
         </ul></section>
         <section className="glow-panel admin-card"><h2>Pattern and text</h2><dl className="kit-dl">
-          <dt>Pattern</dt><dd>{d.pattern || '—'}{zones.length > 0 && <small>{zones.map(([z, p]) => `${ZONE_NAMES[z] ?? z}: ${p}`).join(' · ')}</small>}</dd>
+          <dt>Fabric</dt><dd>{fabricLabel({ ...d, garment: d.garment ?? project?.garment })}</dd>
+          <dt>Pattern</dt><dd>{d.pattern || '—'}{zones.length > 0 && <small>{zones.map(([z, p]) => `${ZONE_NAMES[z] ?? z}: ${/^(data:image\/|\/|https?:)/.test(String(p)) ? 'My pattern' : p}`).join(' · ')}</small>}</dd>
           {shownImage(d.patternImage) && <><dt>Print pattern</dt><dd><img className="kit-mini" src={d.patternImage!} alt="The kit's print pattern" /></dd></>}
           <dt>Front text</dt><dd>{d.logoText || '—'}</dd>
           {shownImage(d.logoImage) && <><dt>Logo</dt><dd><img className="kit-mini" src={d.logoImage!} alt="Logo" /></dd></>}

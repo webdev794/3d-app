@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -7,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'ai_service.dart';
 import 'app_controller.dart';
 import 'export_service.dart';
+import 'part_editing.dart';
+import 'project_sync.dart';
 import 'screens/product_mockup.dart' show ProductMockup;
 import 'widgets/flow_ui.dart';
 import 'widgets/ui.dart';
@@ -93,6 +96,152 @@ class PlayerShot {
   static String _badge(int pictures) =>
       pictures > 1 ? ', ${ProductMockup.badge}' : '';
 
+  /// A hex colour in plain words ("#240c12" → "near-black burgundy"); the
+  /// image model reads a bare hex code loosely (bug 2026-10-27,
+  /// images/193.jpg). The same rules as the website's PlayerShot::colourName.
+  static String colourName(String hex) {
+    final m = RegExp(r'^#?([0-9a-fA-F]{6})$').firstMatch(hex.trim());
+    if (m == null) return 'colour';
+    final v = int.parse(m[1]!, radix: 16);
+    final r = (v >> 16 & 255) / 255, g = (v >> 8 & 255) / 255;
+    final b = (v & 255) / 255;
+    final mx = math.max(r, math.max(g, b)), mn = math.min(r, math.min(g, b));
+    final d = mx - mn, l = (mx + mn) / 2;
+    final s = d == 0 ? 0.0 : d / (1 - (2 * l - 1).abs());
+    if (d < 0.06 || s < 0.12) {
+      return l < 0.1
+          ? 'black'
+          : l < 0.22
+          ? 'near-black charcoal'
+          : l < 0.42
+          ? 'dark grey'
+          : l < 0.68
+          ? 'grey'
+          : l < 0.9
+          ? 'light grey'
+          : 'white';
+    }
+    final h = mx == r
+        ? 60 * (((g - b) / d + 6) % 6)
+        : mx == g
+        ? 60 * ((b - r) / d + 2)
+        : 60 * ((r - g) / d + 4);
+    final hue = h < 10 || h >= 338
+        ? (l > 0.55 ? 'pinkish red' : 'red')
+        : h < 20
+        ? 'red-orange'
+        : h < 40
+        ? 'orange'
+        : h < 52
+        ? 'gold'
+        : h < 66
+        ? 'yellow'
+        : h < 90
+        ? 'lime green'
+        : h < 150
+        ? 'green'
+        : h < 172
+        ? 'teal green'
+        : h < 195
+        ? 'cyan'
+        : h < 215
+        ? 'sky blue'
+        : h < 240
+        ? 'blue'
+        : h < 258
+        ? 'indigo'
+        : h < 290
+        ? 'purple'
+        : h < 320
+        ? 'magenta'
+        : 'pink';
+    final reds = const ['red', 'pinkish red', 'pink', 'magenta'].contains(hue);
+    final blues = const ['blue', 'indigo', 'sky blue'].contains(hue);
+    final warm = const ['red-orange', 'orange', 'gold', 'yellow'].contains(hue);
+    if (l < 0.12) {
+      return 'near-black ${reds
+          ? 'burgundy'
+          : blues
+          ? 'navy'
+          : hue}';
+    }
+    if (l < 0.3) {
+      return reds
+          ? 'dark burgundy'
+          : blues
+          ? 'navy'
+          : warm
+          ? 'dark brown'
+          : 'dark $hue';
+    }
+    if (warm && l < 0.38) return 'brown';
+    if (l > 0.85) {
+      return warm
+          ? 'cream'
+          : reds
+          ? 'pale pink'
+          : 'very pale $hue';
+    }
+    if (l > 0.7) return reds ? 'light pink' : 'light $hue';
+    return '${s > 0.7
+        ? 'bright '
+        : s < 0.35
+        ? 'muted '
+        : ''}${l < 0.4 ? 'deep ' : ''}$hue';
+  }
+
+  /// The kit's colour list ("body: #240c12", …) with every hex code named.
+  static List<String> namedColours(List<String> colours) => [
+    for (final c in colours)
+      if (c.trim().isNotEmpty)
+        c.trim().replaceAllMapped(
+          RegExp(r'#[0-9a-fA-F]{6}\b'),
+          (m) => '${m[0]!.toLowerCase()} (${colourName(m[0]!)})',
+        ),
+  ];
+
+  /// What the garment covers: 'top', 'full' (top and shorts), 'shorts' or
+  /// 'dress'.
+  static String coverage(String garment) {
+    final g = garment.toLowerCase();
+    if (RegExp(r'full ?kit').hasMatch(g)) return 'full';
+    if (g.contains('dress')) return 'dress';
+    if (RegExp(r'\bshorts\b').hasMatch(g)) return 'shorts';
+    return 'top';
+  }
+
+  /// The kit to copy: its colours by area in words, then the lettering. The
+  /// Studio's 3D renders (two pictures) are lit by blue and pink stadium
+  /// light, which is not part of the kit.
+  static String _kitSection(
+    List<String> colours,
+    String logoText,
+    int pictures,
+  ) {
+    final named = namedColours(colours);
+    final logo = logoText.trim().toUpperCase();
+    return '${named.isNotEmpty ? 'THE KIT, to copy exactly: ${named.join('; ')}. These are its true colours: use each one only for its own area, and take the pattern\'s shape and placement, the trims, the crest and the logos from the kit pictures' : 'THE KIT, to copy exactly: take its colours, pattern, trims, crest and logos from the kit picture'}'
+        '${pictures > 1 ? '. The kit pictures are 3D renders under coloured stadium lights: the blue and pink light, the dark backdrop and the podium are not part of the kit' : ''}'
+        '. No other colours, no gradients or patterns that the kit does not '
+        'have. Lettering: the same crest and logos in the same places'
+        '${logo.isEmpty ? '' : ', the team wordmark on the chest reads exactly "$logo"'}'
+        '${_badge(pictures)}';
+  }
+
+  /// The back's name and number, in capitals as the 3D kit draws them.
+  static String _backLettering(
+    String logoText,
+    String backName,
+    String number,
+    String lead,
+  ) {
+    final logo = logoText.trim().toUpperCase();
+    final back = backName.trim().isEmpty ? logo : backName.trim().toUpperCase();
+    if (back.isEmpty) return '';
+    return '$lead reads exactly "$back"'
+        '${number.trim().isEmpty ? '' : ' with the number "${number.trim()}"'}';
+  }
+
   static String prompt({
     required String sport,
     required String garment,
@@ -105,26 +254,33 @@ class PlayerShot {
     int pictures = 1,
   }) {
     final who = PlayerShot.player(player, garment);
-    // In capitals, as the 3D kit draws the wordmark and the back name.
-    final logo = logoText.trim().toUpperCase();
-    final back = backName.trim().isEmpty ? logo : backName.trim().toUpperCase();
     final refs = pictures > 1
         ? 'The reference images show the front and the back of the garment; '
               'they are only references for the design: make ONE single '
               'photograph, never a collage, split image or two panels.'
         : 'The reference image shows the garment design.';
-    final c = colours.where((e) => e.isNotEmpty).join(', ');
+    // Only the user's garment carries the design (images/193.jpg).
+    final wear = switch (coverage(garment)) {
+      'full' =>
+        'The kit is the top and the matching shorts, both as in the kit '
+            'pictures, with plain socks.',
+      'dress' => 'The dress is the whole kit, with plain socks.',
+      'shorts' =>
+        'Only the shorts are the user\'s design: the athlete wears them with '
+            'a plain top in a simple matching solid colour, with no logos, '
+            'numbers or graphics on it.',
+      _ =>
+        'Only the $garment is the user\'s design: the athlete wears it with '
+            'plain shorts and socks in a simple matching solid colour, with no '
+            'logos, numbers or graphics on them.',
+    };
     return 'A premium photorealistic sports photograph of a real $who athlete '
         'wearing this exact $sport $garment, ${poses[pose] ?? poses['front']}, '
-        '${setting(sport, garment)}. $refs Reproduce the garment EXACTLY as in '
-        'the reference: the same colours${c.isEmpty ? '' : ' ($c)'}, the same '
-        'panel layout, print pattern and graphics, collar and trims, the same '
-        'crest and logos in the same places'
-        '${logo.isEmpty ? '' : ', the team wordmark on the chest reads exactly "$logo"'}'
-        '${_badge(pictures)}'
-        '${back.isNotEmpty && pose != 'front' ? ', where the back shows the lettering reads exactly "$back"${number.trim().isEmpty ? '' : ' with the number "${number.trim()}"'}' : ''}'
-        '. Do not add, remove or change any text, logos or graphics; do not '
-        'invent sponsors. The garment fits the athlete naturally with real '
+        '${setting(sport, garment)}. $refs '
+        '${_kitSection(colours, logoText, pictures)}'
+        '${pose != 'front' ? _backLettering(logoText, backName, number, ', where the back shows the lettering') : ''}'
+        '. $wear Do not add, remove or change any text, logos or graphics; do '
+        'not invent sponsors. The garment fits the athlete naturally with real '
         'fabric folds, stitching and slight sheen. A believable athlete with a '
         'natural face and body, professional sports photography, sharp focus '
         'on the kit, cinematic lighting, shallow depth of field, ultra-detailed, '
@@ -132,6 +288,9 @@ class PlayerShot {
   }
 
   /// Your own photo: that person dressed in the kit, everything else kept.
+  /// Only what the garment covers changes (a jersey: the top; their own
+  /// shorts, socks and shoes stay), and nothing of their old clothes carries
+  /// over (bug 2026-10-27, images/193.jpg).
   static String personPrompt({
     required String sport,
     required String garment,
@@ -141,24 +300,37 @@ class PlayerShot {
     String number = '',
     int kitPictures = 1,
   }) {
-    final logo = logoText.trim().toUpperCase();
-    final back = backName.trim().isEmpty ? logo : backName.trim().toUpperCase();
-    final c = colours.where((e) => e.isNotEmpty).join(', ');
-    final full = RegExp(r'full ?kit', caseSensitive: false).hasMatch(garment);
+    final (swap, keep) = switch (coverage(garment)) {
+      'full' => (
+        'replace their top with the kit\'s top and their shorts or trousers '
+            'with the kit\'s matching shorts',
+        ', and their own socks and shoes',
+      ),
+      'dress' => (
+        'replace their top and their shorts, trousers or skirt with the kit '
+            'dress',
+        ', and their own socks and shoes',
+      ),
+      'shorts' => (
+        'replace ONLY their shorts or trousers with the kit shorts',
+        ', and their own top, socks and shoes',
+      ),
+      _ => (
+        'replace ONLY their top (shirt, jersey or jacket) with the kit $garment',
+        ', and their own shorts or trousers, socks and shoes (do not turn them '
+            'into kit shorts or socks, do not add a number or logo to them)',
+      ),
+    };
     return 'Image 1 is a photo of a real person. '
         '${kitPictures > 1 ? 'Images 2 and 3 show the front and back' : 'Image 2 shows the design'}'
-        ' of a $sport $garment. Edit image 1 only: replace the person\'s '
-        'clothing with this exact garment'
-        '${full ? ' (the top and the matching shorts)' : ''}, worn naturally '
-        'and fitted to their body and pose. Keep the person\'s face, identity, '
-        'skin, hair, body shape, pose, hands, framing, lighting and background '
-        'exactly as in image 1; change nothing else. Reproduce the garment '
-        'EXACTLY: the same colours${c.isEmpty ? '' : ' ($c)'}, panel layout, '
-        'print pattern and graphics, collar and trims, the same crest and '
-        'logos in the same places'
-        '${logo.isEmpty ? '' : ', the team wordmark on the chest reads exactly "$logo"'}'
-        '${_badge(kitPictures)}'
-        '${back.isEmpty ? '' : ', any visible back lettering reads exactly "$back"${number.trim().isEmpty ? '' : ' with the number "${number.trim()}"'}'}'
+        ' of a $sport $garment (the kit). Edit image 1 only: $swap, worn '
+        'naturally and fitted to their body and pose. Keep the person\'s face, '
+        'identity, skin, hair, body shape, pose, hands, framing, lighting and '
+        'background exactly as in image 1$keep; change nothing else. Ignore '
+        'the clothes the person wears in image 1: none of their colours, '
+        'logos, badges, numbers or patterns may appear on the kit. '
+        '${_kitSection(colours, logoText, kitPictures)}'
+        '${_backLettering(logoText, backName, number, ', any visible back lettering')}'
         '. Do not add, remove or change any text, logos or graphics. Real '
         'fabric folds and stitching, photoreal, ONE single photograph (not a '
         'collage), no watermark, no text overlays.';
@@ -198,9 +370,214 @@ class PlayerKit {
     this.backName = '',
     this.number = '',
   });
+
+  /// The Studio's kit with fresh pictures of its live 3D.
+  factory PlayerKit.fromStudio(AppController c, List<Uint8List> pictures) =>
+      PlayerKit(
+        pictures: pictures,
+        sport: c.sport,
+        garment: c.garmentLabel,
+        name: c.projectName,
+        colours: kitColours(c),
+        logoText: c.logoText,
+        backName: c.backName,
+        number: c.number,
+      );
   final List<Uint8List> pictures;
   final String sport, garment, name, logoText, backName, number;
+
+  /// The kit's colours by area ("body: #240c12", …): see [kitColours].
   final List<String> colours;
+}
+
+final _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
+
+/// The 3D kit's patterns in words (viewer/src/texture.js patternTile).
+const _patternWords = {
+  'Chevron': 'thin chevron (V-shaped) lines evenly spaced from chest to hem',
+  'Stripes': 'thin vertical pinstripes',
+  'Velocity': 'angled speed stripes down both sides of the chest',
+  'Hoops': 'horizontal hoops across the body',
+  'Dots': 'a fine all-over dot pattern',
+  'Diagonal': 'thin diagonal lines across the body',
+  'Tribal': 'bands of small interlocking triangles across the body',
+  'Camo': 'a camouflage pattern',
+};
+
+String _gradientWords(Map<dynamic, dynamic> g) {
+  final list = g['stops'];
+  final stops = list is List && list.length >= 2
+      ? ([...list]..sort(
+              (a, b) =>
+                  ((a['at'] as num?) ?? 0).compareTo((b['at'] as num?) ?? 0),
+            ))
+            .map((s) => '${s['color']}')
+            .toList()
+      : ['${g['from']}', '${g['to']}'];
+  final angle = (g['angle'] as num?) ?? 0;
+  final way = angle == 0
+      ? 'top to bottom'
+      : angle == 90
+      ? 'left to right'
+      : 'at ${angle.round()}°';
+  return 'a gradient of ${stops.join(', ')} ($way)';
+}
+
+/// The Studio kit's colours by area, in the 3D kit's own rules (body, the
+/// pattern's ink, trims, lettering, areas): the image model needs to know
+/// which colour goes where (bug 2026-10-27, images/193.jpg). The same list as
+/// the website's kitColours (PlayerShot.tsx).
+List<String> kitColours(AppController c) {
+  String hex(Color x) => ProjectSync.hex(x);
+  final own = c.patternColorOwn == true && _hex.hasMatch(c.patternColor ?? '')
+      ? c.patternColor!.toLowerCase()
+      : null;
+  final bodyArea = c.zoneColors['body'];
+  final gradients = c.gradients ?? const {};
+  final lines = [
+    'body: ${bodyArea != null && _hex.hasMatch(bodyArea)
+        ? bodyArea.toLowerCase()
+        : c.gradient != null
+        ? _gradientWords(c.gradient!)
+        : hex(c.mainColor)}',
+  ];
+  final words = _patternWords[c.pattern];
+  if (c.layout != null) {
+    lines.add('print: the factory print exactly as in the kit pictures');
+  } else if (c.patternTile != null) {
+    lines.add('print: a custom all-over print, exactly as in the kit pictures');
+  } else if (words != null) {
+    final g = gradients['patternColor'];
+    final ink = g is Map
+        ? _gradientWords(g)
+        : own ?? hex(Color.lerp(c.mainColor, c.secondaryColor, 0.35)!);
+    lines.add('pattern: $words, in $ink');
+  } else {
+    lines.add('pattern: none, a plain body');
+  }
+  for (final e in c.zones.entries) {
+    final zone = _patternWords[e.value];
+    if (zone != null) {
+      lines.add('${e.key} pattern: $zone, in ${own ?? hex(c.secondaryColor)}');
+    }
+  }
+  final trims = gradients['secondary'];
+  lines.add(
+    'collar, cuffs, side panels and trims: '
+    '${trims is Map ? _gradientWords(trims) : hex(c.secondaryColor)}',
+  );
+  lines.add(
+    'lettering (wordmark, name and number)'
+    '${c.logoImage != null ? '' : ' and the small crest badge'}: '
+    '${hex(c.accentColor)}',
+  );
+  for (final e in c.zoneColors.entries) {
+    if (e.key != 'body' && _hex.hasMatch(e.value)) {
+      final area = e.key.replaceAllMapped(
+        RegExp('[A-Z]'),
+        (m) => ' ${m[0]!.toLowerCase()}',
+      );
+      lines.add('$area: ${e.value.toLowerCase()}');
+    }
+  }
+  // The parts with a look of their own (task 9.134), as the website.
+  lines.addAll(fitColourLines(partColourLines(c), 14 - lines.length));
+  return lines;
+}
+
+/// The parts with a look of their own (task 9.134) in words, one line each
+/// ("left sleeve: #e92137, a fade of #ffc52f to clear (top to bottom)"): the
+/// same lines as the website's partColourLines (PlayerShot.tsx).
+List<String> partColourLines(AppController c) => [
+  for (final key in c.changedParts)
+    if (_partWords(c.partStyleOf(key)) case final words when words.isNotEmpty)
+      '${partLabel(key).toLowerCase()}: $words',
+];
+
+String _partWords(PartStyle s) {
+  final opacity = s.patternOpacity, fade = s.fade, pattern = s.pattern;
+  final at = opacity == null ? '' : ' at ${(opacity * 100).round()}% opacity';
+  String way(double angle) {
+    final a = angle % 360;
+    return a == 0
+        ? 'top to bottom'
+        : a == 90
+        ? 'left to right'
+        : a == 180
+        ? 'bottom to top'
+        : a == 270
+        ? 'right to left'
+        : 'at ${a.round()}°';
+  }
+
+  return [
+    if (s.colour case final colour?) colour.toLowerCase(),
+    if (fade != null)
+      'a fade of ${fade.from.toLowerCase()} to '
+          '${fade.to?.toLowerCase() ?? 'clear'} (${way(fade.angle)})',
+    if (pattern != null)
+      '${RegExp(r'^(data:|/|https?:)').hasMatch(pattern) ? 'a custom print, exactly as in the kit pictures' : _patternWords[pattern] ?? pattern.toLowerCase()}'
+          '${s.patternColour == null ? '' : ' in ${s.patternColour!.toLowerCase()}'}$at'
+    else if (opacity != null)
+      opacity == 0 ? 'no pattern' : 'the kit pattern$at',
+  ].join(', ');
+}
+
+/// [lines] within the server's limits (PlayerShotController: 14 lines of at
+/// most 200 characters): each on its own line while [room] lasts, else
+/// several to a line. The same rule as the website's fitColourLines.
+List<String> fitColourLines(List<String> lines, int room) {
+  String clip(String s) => s.length > 200 ? s.substring(0, 200) : s;
+  if (room <= 0 || lines.isEmpty) return const [];
+  if (lines.length <= room) return [for (final l in lines) clip(l)];
+  final packed = <String>[];
+  for (final l in lines) {
+    if (packed.isNotEmpty && packed.last.length + 2 + l.length <= 200) {
+      packed.last = '${packed.last}; $l';
+    } else {
+      packed.add(clip(l));
+    }
+  }
+  return packed.take(room).toList();
+}
+
+/// The Studio's "See it on a player": fresh front and back pictures of the
+/// live 3D kit, taken now; never older captures or the AI render (bug
+/// 2026-10-27). Signed out, it asks you to sign in.
+Future<void> openPlayerShotFromStudio(
+  BuildContext context,
+  AppController c, {
+  required bool live3d,
+  required void Function(String? busy) busy,
+}) async {
+  if (!c.signedIn) {
+    await openPlayerShot(context, c, PlayerKit.fromStudio(c, const []));
+    return;
+  }
+  final capture = c.captureMockup;
+  if (!live3d || capture == null) {
+    showToast(
+      context,
+      'Show your kit in 3D first: the picture is made from the 3D kit.',
+    );
+    return;
+  }
+  busy('Capturing your kit…');
+  Uint8List? front, back;
+  try {
+    front = await capture('Front');
+    back = await capture('Back');
+  } on Object {
+    front = null;
+  } finally {
+    busy(null);
+  }
+  if (!context.mounted) return;
+  if (front == null) {
+    showToast(context, 'The 3D kit could not be captured. Please try again.');
+    return;
+  }
+  await openPlayerShot(context, c, PlayerKit.fromStudio(c, [front, ?back]));
 }
 
 /// Opens "See it on a player"; signed out, it asks you to sign in first.
@@ -247,6 +624,19 @@ class _PlayerShotScreenState extends State<PlayerShotScreen> {
   late String _who = widget.photo == null ? 'player' : 'photo';
   late Uint8List? _photo = widget.photo;
   bool _busy = false;
+
+  /// The controls under the picture and their height, measured after each
+  /// layout (see build).
+  final _controlsKey = GlobalKey();
+  double _controlsHeight = 260;
+
+  void _measureControls() {
+    final h = _controlsKey.currentContext?.size?.height;
+    if (h != null && mounted && (h - _controlsHeight).abs() > 0.5) {
+      setState(() => _controlsHeight = h);
+    }
+  }
+
   final List<Uint8List> _shots = [];
   final Set<int> _saved = {};
   int _at = -1;
@@ -421,168 +811,210 @@ class _PlayerShotScreenState extends State<PlayerShotScreen> {
               subtitle: 'Your kit, worn for real',
             ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                children: [
-                  AspectRatio(
-                    aspectRatio: 2 / 3,
-                    child: GlowCard(
-                      child: Stack(
-                        fit: StackFit.expand,
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  // The picture takes the room the controls leave (measured
+                  // after each layout), so the buttons stay on screen; the
+                  // whole picture always shows (contain), from 220 px up to a
+                  // 2:3 card (QA 2026-10-27, as the website's dialog).
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _measureControls(),
+                  );
+                  final picture = (box.maxHeight - 24 - _controlsHeight)
+                      .clamp(220.0, math.max(220.0, (box.maxWidth - 32) * 1.5))
+                      .toDouble();
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    children: [
+                      SizedBox(
+                        height: picture,
+                        child: GlowCard(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              if (shown != null)
+                                InteractiveViewer(
+                                  maxScale: 4,
+                                  child: artImage(
+                                    bytes: shown,
+                                    fit: BoxFit.contain,
+                                  ),
+                                )
+                              else
+                                Opacity(
+                                  opacity: .5,
+                                  child: artImage(
+                                    bytes: kit.pictures.first,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              if (_busy)
+                                const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircularProgressIndicator(),
+                                      SizedBox(height: 10),
+                                      Text(
+                                        'Creating your picture… about 1 min',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Column(
+                        key: _controlsKey,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (shown != null)
-                            InteractiveViewer(
-                              maxScale: 4,
-                              child: artImage(
-                                bytes: shown,
-                                fit: BoxFit.contain,
-                              ),
-                            )
-                          else
-                            Opacity(
-                              opacity: .5,
-                              child: artImage(
-                                bytes: kit.pictures.first,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          if (_busy)
-                            const FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
+                          if (_shots.length > 1) ...[
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 64,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
                                 children: [
-                                  CircularProgressIndicator(),
-                                  SizedBox(height: 10),
-                                  Text('Creating your picture… about 1 min'),
+                                  for (var i = 0; i < _shots.length; i++)
+                                    GestureDetector(
+                                      onTap: () => setState(() => _at = i),
+                                      child: Container(
+                                        margin: const EdgeInsets.only(right: 8),
+                                        width: 44,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: i == _at
+                                                ? Palette.cyan
+                                                : Colors.transparent,
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: artImage(bytes: _shots[i]),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_shots.length > 1) ...[
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 64,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          for (var i = 0; i < _shots.length; i++)
-                            GestureDetector(
-                              onTap: () => setState(() => _at = i),
-                              child: Container(
-                                margin: const EdgeInsets.only(right: 8),
-                                width: 44,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: i == _at
-                                        ? Palette.cyan
-                                        : Colors.transparent,
-                                    width: 2,
+                          ],
+                          const SizedBox(height: 14),
+                          _chips(
+                            const {
+                              'player': 'An athlete',
+                              'photo': 'Upload a photo of a person',
+                            },
+                            _who,
+                            (v) => _who = v,
+                          ),
+                          const SizedBox(height: 8),
+                          if (_who == 'photo') ...[
+                            Row(
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: _busy ? null : _pickPhoto,
+                                  icon: const Icon(Icons.photo_outlined),
+                                  label: Text(
+                                    _photo == null
+                                        ? 'Choose a photo'
+                                        : 'Change photo',
                                   ),
                                 ),
-                                child: artImage(bytes: _shots[i]),
+                                const SizedBox(width: 10),
+                                if (_photo != null)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: SizedBox(
+                                      height: 56,
+                                      width: 42,
+                                      child: artImage(bytes: _photo),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Your photo is only used to make this picture. It isn\'t '
+                              'kept unless you save the result.',
+                              style: TextStyle(
+                                color: Palette.muted,
+                                fontSize: 12,
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  _chips(
-                    const {
-                      'player': 'An athlete',
-                      'photo': 'Upload a photo of a person',
-                    },
-                    _who,
-                    (v) => _who = v,
-                  ),
-                  const SizedBox(height: 8),
-                  if (_who == 'photo') ...[
-                    Row(
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _busy ? null : _pickPhoto,
-                          icon: const Icon(Icons.photo_outlined),
-                          label: Text(
-                            _photo == null ? 'Choose a photo' : 'Change photo',
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        if (_photo != null)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: SizedBox(
-                              height: 56,
-                              width: 42,
-                              child: artImage(bytes: _photo),
+                          ] else ...[
+                            _chips(
+                              const {
+                                'male': 'Male player',
+                                'female': 'Female player',
+                              },
+                              _player,
+                              (v) => _player = v,
+                              off: PlayerShot.womenOnly(kit.garment)
+                                  ? {'male'}
+                                  : {},
+                            ),
+                            const SizedBox(height: 8),
+                            _chips(
+                              PlayerShot.poseNames,
+                              _pose,
+                              (v) => _pose = v,
+                            ),
+                          ],
+                          const SizedBox(height: 14),
+                          if (shown == null)
+                            GradientButton(
+                              label: _busy ? 'Creating…' : 'Create picture',
+                              icon: Icons.person_outline,
+                              onPressed:
+                                  _busy || (_who == 'photo' && _photo == null)
+                                  ? null
+                                  : _make,
+                            )
+                          else
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: _busy ? null : _download,
+                                  icon: const Icon(Icons.download),
+                                  label: const Text('Download'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _busy ? null : _another,
+                                  icon: const Icon(Icons.refresh),
+                                  label: Text(
+                                    _who == 'photo'
+                                        ? 'Try again'
+                                        : 'Try another pose',
+                                  ),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _busy || _saved.contains(_at)
+                                      ? null
+                                      : _save,
+                                  icon: const Icon(Icons.bookmark_add_outlined),
+                                  label: Text(
+                                    _saved.contains(_at)
+                                        ? 'Saved'
+                                        : 'Save to my assets',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Each picture uses one AI generation, like the showcase.',
+                            style: TextStyle(
+                              color: Palette.muted,
+                              fontSize: 12,
                             ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Your photo is only used to make this picture. It isn\'t '
-                      'kept unless you save the result.',
-                      style: TextStyle(color: Palette.muted, fontSize: 12),
-                    ),
-                  ] else ...[
-                    _chips(
-                      const {'male': 'Male player', 'female': 'Female player'},
-                      _player,
-                      (v) => _player = v,
-                      off: PlayerShot.womenOnly(kit.garment) ? {'male'} : {},
-                    ),
-                    const SizedBox(height: 8),
-                    _chips(PlayerShot.poseNames, _pose, (v) => _pose = v),
-                  ],
-                  const SizedBox(height: 14),
-                  if (shown == null)
-                    GradientButton(
-                      label: _busy ? 'Creating…' : 'Create picture',
-                      icon: Icons.person_outline,
-                      onPressed: _busy || (_who == 'photo' && _photo == null)
-                          ? null
-                          : _make,
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _busy ? null : _download,
-                          icon: const Icon(Icons.download),
-                          label: const Text('Download'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _busy ? null : _another,
-                          icon: const Icon(Icons.refresh),
-                          label: Text(
-                            _who == 'photo' ? 'Try again' : 'Try another pose',
-                          ),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _busy || _saved.contains(_at)
-                              ? null
-                              : _save,
-                          icon: const Icon(Icons.bookmark_add_outlined),
-                          label: Text(
-                            _saved.contains(_at)
-                                ? 'Saved'
-                                : 'Save to my assets',
-                          ),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Each picture uses one AI generation, like the showcase.',
-                    style: TextStyle(color: Palette.muted, fontSize: 12),
-                  ),
-                ],
+                        ],
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],

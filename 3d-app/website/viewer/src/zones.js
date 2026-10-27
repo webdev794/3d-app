@@ -111,3 +111,81 @@ export function zoneAt(kind, x, y, side) {
   }
   return 'body';
 }
+
+// ---------- parts (task 9.134): the pieces a tap selects and the part panel edits (design.parts keys)
+/** The parts of a top and of shorts. Left / right are the wearer's (+x on both sides of the print, as the pocket). */
+export const TOP_PARTS = ['front', 'back', 'leftSleeve', 'rightSleeve', 'collar', 'sides', 'hem'];
+export const SHORTS_PARTS = ['shortsFront', 'shortsBack', 'shortsSides', 'shortsHem', 'waistband'];
+/** The garments whose collar or hood is a piece of its own on the back of the print (above y 0.8). */
+const hoodPiece = (kind) => isHoodie(kind) || isTrack(kind);
+/** Tops without sleeves: what their sleeve area holds is the body's. */
+const sleeveless = (kind) => kind === 'singlet' || isDress(kind);
+/** The garments with printed side panels (texture.js; shorts: the side stripes). The jackets have none. */
+const panelled = (kind) => !isHoodie(kind) && !isTrack(kind) && kind !== 'varsity';
+
+const quad = (p0, p1, p2, n = 12) => Array.from({ length: n + 1 }, (_, i) => {
+  const t = i / n, u = 1 - t;
+  return [u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]];
+});
+/** One side panel as painted (texture.js), on the +x side: a top's, the dress's or the shorts' side stripe. */
+function panelOutline(kind) {
+  if (kind === 'shorts') return [[0.19, 0.43], [0.232, 0], [0.3, 0], [0.3, 0.43]];
+  if (isDress(kind)) return [...quad([0.203, 0.69], [0.158, 0.52], [0.172, 0.4]), ...quad([0.172, 0.4], [0.196, 0.18], [0.252, -0.01]).slice(1), [0.4, -0.01], [0.4, 0.7]];
+  return [...quad([0.262, 0.54], [0.215, 0.3], [0.23, 0]), [0.3, 0], [0.3, 0.54]];
+}
+const mirror = (poly) => poly.map(([x, y]) => [-x, y]).reverse();
+/** The side panels (both sides) as outlines. */
+const panels = (kind) => { const one = panelOutline(kind); return [one, mirror(one)]; };
+const box = ([x0, y0, x1, y1]) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+function inPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** The part at a garment point (its zone from zoneAt, its side, x and y); null on a hood (its own AREAS colours). */
+export function partAt(kind, zone, side, x, y) {
+  // A garment with painted side panels: only the panel itself is the side panels' part.
+  if (zone === 'sides' && panelled(kind) && Number.isFinite(y) && !panels(kind).some((poly) => inPoly(x, y, poly))) {
+    zone = zoneRects(kind, 'hem').some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1) ? 'hem' : 'body';
+  }
+  if (kind === 'shorts') return zone === 'sides' ? 'shortsSides' : zone === 'hem' ? 'shortsHem' : side === 'back' ? 'shortsBack' : 'shortsFront';
+  if (zone === 'hood') return null;
+  if (zone === 'sleeves' && !sleeveless(kind)) return x >= 0 ? 'leftSleeve' : 'rightSleeve';
+  if (zone === 'sides' || zone === 'hem') return zone;
+  return side === 'back' ? 'back' : 'front';
+}
+
+/**
+ * Where a part is on one side of the print, in garment metres: outlines to keep (`keep`, their union) and groups of
+ * outlines to cut out (`cut`, each group one zone that zoneAt checks before it); null when the part is not printed on
+ * that side (the collar and the waistband are 3D rib, not print). On a garment with painted side panels the panels are
+ * the side panels' part, and the body and hem run on under them (the panels are painted over them).
+ */
+export function partRegion(kind, key, back) {
+  const R = (zone) => zoneRects(kind, zone).map(box);
+  const ALL = [box([-1.6, -0.2, 1.6, 1.6])];
+  const half = (rects, sign) => rects.filter(([x0, , x1]) => (sign > 0 ? x0 >= 0 : x1 <= 0)).map(box);
+  const sides = panelled(kind) ? [] : R('sides');
+  if (kind === 'shorts') {
+    if (key === 'shortsSides') return { keep: panels(kind), cut: [] };
+    if (key === 'shortsHem') return { keep: R('hem'), cut: [] };
+    if (key === (back ? 'shortsBack' : 'shortsFront')) return { keep: ALL, cut: [R('hem')] };
+    return null;
+  }
+  // Pieces of their own above the body on the print: a hood or track collar (back), the varsity's rib pieces (both).
+  const hood = hoodPiece(kind) && back ? [[box([-1.6, 0.8, 1.6, 1.6])]] : kind === 'varsity' ? [[box([-1.6, 0.81, 1.6, 1.6])]] : [];
+  if (key === 'leftSleeve' || key === 'rightSleeve') {
+    if (sleeveless(kind)) return null;
+    const keep = half(zoneRects(kind, 'sleeves'), key === 'leftSleeve' ? 1 : -1);
+    return keep.length ? { keep, cut: [] } : null;
+  }
+  if (key === 'sides') return panelled(kind) ? { keep: panels(kind), cut: [] } : { keep: R('sides'), cut: [R('sleeves'), R('yoke'), ...hood] };
+  if (key === 'hem') return { keep: R('hem'), cut: [R('sleeves'), R('yoke'), sides, ...hood] };
+  // (A sleeveless top's sleeve area is its body's.)
+  if (key === (back ? 'back' : 'front')) return { keep: ALL, cut: [sleeveless(kind) ? [] : R('sleeves'), sides, R('hem'), ...hood] };
+  return null;
+}

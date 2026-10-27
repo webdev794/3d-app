@@ -16,7 +16,8 @@ import '../widgets/ui.dart';
 
 /// Opens a supplier's website, or the website's "Become a preferred supplier" page, as the Profile's website rows do
 /// (replaced in tests).
-Future<void> Function(BuildContext context, String url, String title) openSupplierPage = openSitePage;
+Future<void> Function(BuildContext context, String url, String title)
+openSupplierPage = openSitePage;
 
 /// One maker, as GET /suppliers and GET /orders/options' `suppliers` send it.
 @immutable
@@ -49,7 +50,9 @@ class Supplier {
       makes: _text(json['makes']),
       location: _text(json['location']),
       // Only a web address opens (the server adds the https://).
-      website: RegExp(r'^https?://', caseSensitive: false).hasMatch(site) ? site : null,
+      website: RegExp(r'^https?://', caseSensitive: false).hasMatch(site)
+          ? site
+          : null,
       logoUrl: logo.isEmpty ? null : logo,
       isDefault: json['default'] == true,
     );
@@ -115,7 +118,13 @@ String _text(Object? value) => value == null ? '' : '$value'.trim();
   final monthly = price(prices['monthly']), yearly = price(prices['yearly']);
   if (monthly == null || yearly == null) return null;
   final tax = _text(prices['tax_name']);
-  return (monthly: monthly, yearly: yearly, tax: prices['tax_included'] == true && tax.isNotEmpty ? ' (incl. $tax)' : '');
+  return (
+    monthly: monthly,
+    yearly: yearly,
+    tax: prices['tax_included'] == true && tax.isNotEmpty
+        ? ' (incl. $tax)'
+        : '',
+  );
 }
 
 /// Who makes an order (its `made_by`), for My orders and the order's page: only a maker other than 3DEEZI, which
@@ -167,8 +176,12 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
       final page = await widget.c.api.suppliers();
       if (!mounted) return;
       setState(() {
-        _makers = Supplier.listOf(page['suppliers']).where((s) => !s.isDefault).toList();
-        _prices = page['prices'] is Map ? (page['prices'] as Map).cast<String, dynamic>() : null;
+        _makers = Supplier.listOf(
+          page['suppliers'],
+        ).where((s) => !s.isDefault).toList();
+        _prices = page['prices'] is Map
+            ? (page['prices'] as Map).cast<String, dynamic>()
+            : null;
         _answered = true;
       });
     } catch (_) {
@@ -180,10 +193,15 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   @override
   Widget build(BuildContext context) {
     final makers = _makers;
-    final shown = makers == null ? null : (makers.isEmpty ? const [Supplier.threeDeezi] : makers);
+    final shown = makers == null
+        ? null
+        : (makers.isEmpty ? const [Supplier.threeDeezi] : makers);
     return Scaffold(
       backgroundColor: Palette.bg,
-      appBar: AppBar(backgroundColor: Palette.bg, title: const Text('Preferred suppliers')),
+      appBar: AppBar(
+        backgroundColor: Palette.bg,
+        title: const Text('Preferred suppliers'),
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: LayoutBuilder(
@@ -210,7 +228,10 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                       child: _SupplierCard(
                         s,
                         api: widget.c.api,
-                        onVisit: s.website == null ? null : () => openSupplierPage(context, s.website!, s.name),
+                        onVisit: s.website == null
+                            ? null
+                            : () =>
+                                  openSupplierPage(context, s.website!, s.name),
                       ),
                     ),
                   if (_answered)
@@ -315,7 +336,11 @@ class _SupplierCard extends StatelessWidget {
                             color: Colors.white,
                           ),
                         ),
-                        if (s.owner) const Padding(padding: EdgeInsets.only(top: 6), child: _FamilyBadge()),
+                        if (s.owner)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: _FamilyBadge(),
+                          ),
                       ],
                     ),
                   ),
@@ -323,11 +348,21 @@ class _SupplierCard extends StatelessWidget {
               ),
               if (s.summary.isNotEmpty) ...[
                 const SizedBox(height: 14),
-                Text(s.summary, style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xffc4d0df))),
+                Text(
+                  s.summary,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: Color(0xffc4d0df),
+                  ),
+                ),
               ],
-              if (s.makes.isNotEmpty || s.location.isNotEmpty) const SizedBox(height: 12),
-              if (s.makes.isNotEmpty) _Fact(Icons.checkroom_outlined, 'Makes', s.makes),
-              if (s.location.isNotEmpty) _Fact(Icons.place_outlined, 'Where', s.location),
+              if (s.makes.isNotEmpty || s.location.isNotEmpty)
+                const SizedBox(height: 12),
+              if (s.makes.isNotEmpty)
+                _Fact(Icons.checkroom_outlined, 'Makes', s.makes),
+              if (s.location.isNotEmpty)
+                _Fact(Icons.place_outlined, 'Where', s.location),
             ],
           ),
         ),
@@ -338,14 +373,22 @@ class _SupplierCard extends StatelessWidget {
             onPressed: onVisit,
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white,
-              side: BorderSide(color: Palette.cyan.withValues(alpha: .65), width: 1.3),
+              side: BorderSide(
+                color: Palette.cyan.withValues(alpha: .65),
+                width: 1.3,
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Visit website', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                Text(
+                  'Visit website',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
                 SizedBox(width: 10),
                 Icon(Icons.open_in_new, size: 16),
               ],
@@ -378,7 +421,12 @@ class _FamilyBadge extends StatelessWidget {
           child: Text(
             '3DEEZI family',
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: .4, color: Color(0xff7cf0ff)),
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: .4,
+              color: Color(0xff7cf0ff),
+            ),
           ),
         ),
       ],
@@ -408,7 +456,11 @@ class _Fact extends StatelessWidget {
                 child: Text(
                   label,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Palette.muted),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Palette.muted,
+                  ),
                 ),
               ),
             ],
@@ -416,7 +468,14 @@ class _Fact extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(value, style: const TextStyle(fontSize: 12.5, height: 1.35, color: Color(0xffe6eef8))),
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.35,
+              color: Color(0xffe6eef8),
+            ),
+          ),
         ),
       ],
     ),
@@ -477,7 +536,10 @@ class SupplierLogo extends StatelessWidget {
                 fit: BoxFit.contain,
                 frameBuilder: (context, child, frame, sync) => ColoredBox(
                   color: Colors.white,
-                  child: Padding(padding: const EdgeInsets.all(6), child: child),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: child,
+                  ),
                 ),
                 errorBuilder: (context, error, stack) => empty,
               ),
@@ -495,8 +557,16 @@ class _JoinCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = prices;
-    const strong = TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Colors.white);
-    const plain = TextStyle(fontSize: 13.5, height: 1.5, color: Color(0xffdfe9f5));
+    const strong = TextStyle(
+      fontWeight: FontWeight.w800,
+      fontSize: 15,
+      color: Colors.white,
+    );
+    const plain = TextStyle(
+      fontSize: 13.5,
+      height: 1.5,
+      color: Color(0xffdfe9f5),
+    );
     return Container(
       key: const ValueKey('become-supplier'),
       padding: const EdgeInsets.all(20),
@@ -522,8 +592,15 @@ class _JoinCard extends StatelessWidget {
                 Container(
                   width: 52,
                   height: 52,
-                  decoration: BoxDecoration(color: const Color(0x1a00d9ed), borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.storefront_outlined, color: Palette.cyan, size: 26),
+                  decoration: BoxDecoration(
+                    color: const Color(0x1a00d9ed),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.storefront_outlined,
+                    color: Palette.cyan,
+                    size: 26,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 const Text.rich(
@@ -548,12 +625,20 @@ class _JoinCard extends StatelessWidget {
                 const Text(
                   'Make teamwear? Get listed here and in the order form’s “Made by” choice for every team ordering on '
                   '3DEEZI.',
-                  style: TextStyle(fontSize: 13, height: 1.6, color: Palette.muted),
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: Palette.muted,
+                  ),
                 ),
                 if (p != null) ...[
                   const SizedBox(height: 12),
                   if (p.monthly == 'Free' && p.yearly == 'Free')
-                    const Text('Listing is free at the moment.', key: Key('listing-prices'), style: plain)
+                    const Text(
+                      'Listing is free at the moment.',
+                      key: Key('listing-prices'),
+                      style: plain,
+                    )
                   else
                     Text.rich(
                       TextSpan(
@@ -616,7 +701,9 @@ class MadeByField extends StatelessWidget {
   static int? idToSend(List<Supplier> makers, int? value) {
     if (makers.length < 2) return null;
     final chosen = chosenOf(makers, value);
-    return chosen == null || chosen.id == fallbackOf(makers)?.id ? null : chosen.id;
+    return chosen == null || chosen.id == fallbackOf(makers)?.id
+        ? null
+        : chosen.id;
   }
 
   @override
@@ -639,22 +726,34 @@ class MadeByField extends StatelessWidget {
           key: ValueKey('made-by-${chosen.id}'),
           isExpanded: true,
           initialValue: chosen.id,
-          decoration: const InputDecoration(labelText: 'Made by', border: OutlineInputBorder(), isDense: true),
+          decoration: const InputDecoration(
+            labelText: 'Made by',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
           items: [
             for (final s in makers)
               DropdownMenuItem(
                 value: s.id,
-                child: Text('${s.name}${s.id == fallback.id ? ' (default)' : ''}', overflow: TextOverflow.ellipsis),
+                child: Text(
+                  '${s.name}${s.id == fallback.id ? ' (default)' : ''}',
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
           ],
-          onChanged: (id) => onChanged(id == null || id == fallback.id ? null : id),
+          onChanged: (id) =>
+              onChanged(id == null || id == fallback.id ? null : id),
         ),
         Padding(
           padding: const EdgeInsets.only(top: 4, bottom: 6),
           child: Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(hint, key: const Key('made-by-hint'), style: const TextStyle(color: Palette.muted, fontSize: 12)),
+              Text(
+                hint,
+                key: const Key('made-by-hint'),
+                style: const TextStyle(color: Palette.muted, fontSize: 12),
+              ),
               if (onSeeSuppliers != null)
                 TextButton(
                   onPressed: onSeeSuppliers,
@@ -663,7 +762,10 @@ class MadeByField extends StatelessWidget {
                     minimumSize: const Size(0, 32),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   child: const Text('See the suppliers'),
                 ),

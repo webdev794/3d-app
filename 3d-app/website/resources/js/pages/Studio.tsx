@@ -1,28 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Box, Camera, Check, ChevronRight, Package, Download, Expand, Grid2X2, Pencil,Hash, ImagePlus, Layers, LoaderCircle, Maximize, MoreVertical, Palette, Plus, Redo2, RotateCcw, Save, SendHorizontal, Shirt, SlidersHorizontal, Sparkles, Type, Undo2, WandSparkles, X, PenTool, FileText, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowRight, Box, Camera, Check, ChevronRight, Component, Package, Download, Expand, Grid2X2, Pencil,Hash, ImagePlus, Layers, LoaderCircle, Maximize, MoreVertical, Palette, Plus, Redo2, RotateCcw, Save, SendHorizontal, Shirt, SlidersHorizontal, Sparkles, Type, Undo2, WandSparkles, X, PenTool, FileText, ZoomIn, ZoomOut } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type Project, type User } from '../api';
 import { OrderKitDialog } from './Orders';
 import { paymentPath } from '../components/OrderReviewApprove';
 import { designSheetPdf } from '../designSheet';
 import { type Design, type View, type Zone, type ArtworkLayer } from '../types';
-import KitViewer, { type KitViewerHandle, type HoodieArea, isHoodie, isVarsity, varsityAreas, varsityColour, isTrack, trackAreas, trackColour, trackAreaLabel } from '../components/KitViewer';
+import PartsPanel, { type PartSpot } from '../components/PartsPanel';
+import { isShortsPart, partColours, partLabels, partsOf, type PartKey } from '../parts';
+import KitViewer, { type ColourPick, type KitViewerHandle, type PartPick, type HoodieArea, isHoodie, isVarsity, varsityAreas, varsityColour, isTrack, trackAreas, trackColour, trackAreaLabel, fabricTypes, fabricNotes, fabricOf } from '../components/KitViewer';
 import ColorWheel from '../components/ColorWheel';
 import { comingSoon, garmentArt, productName } from './Create';
 import type { Draft } from '../App';
+import { OwnPatterns, isPatternPicture, modeOf } from '../components/OwnPatterns';
 import { ArtworkPanel, PresetPanel, checkDrawing, designSignature, ownPatch, patternNames, readAsset, readImage, type ArtworkDrop, type OwnDesign, type ShelvedLayouts } from '../components/StudioArtwork';
 import { defaultDesign } from '../types';
 import { onAssist } from '../assistBridge';
 import { EditImageButton } from '../components/ImageEditor';
-import { PlayerShotButton } from '../components/PlayerShot';
+import { PlayerShotButton, kitColours } from '../components/PlayerShot';
 import ProductMockupDialog from '../components/ProductMockupDialog';
 import GradientFlyout, { gradientOf, gradientPatch, makeGradient, stopsOf, cssGradient, type GradientSlot } from '../components/GradientFlyout';
 import type { Gradient } from '../components/KitViewer';
 import '../../css/studio-tools.css';
 
-type Tool = 'ai' | 'garment' | 'colours' | 'patterns' | 'logos' | 'text' | 'numbers' | 'presets';
+type Tool = 'ai' | 'garment' | 'colours' | 'parts' | 'patterns' | 'logos' | 'text' | 'numbers' | 'presets';
 type Message = { from: 'you' | '3deezi'; text: string };
-const tools = [{ id: 'ai', label: 'AI', icon: Sparkles }, { id: 'garment', label: 'Garment', icon: Shirt }, { id: 'colours', label: 'Colours', icon: Palette }, { id: 'patterns', label: 'Patterns', icon: Grid2X2 }, { id: 'logos', label: 'Artwork', icon: ImagePlus }, { id: 'text', label: 'Text', icon: Type }, { id: 'numbers', label: 'Numbers', icon: Hash }, { id: 'presets', label: 'Presets', icon: Layers }] as const;
+const tools = [{ id: 'ai', label: 'AI', icon: Sparkles }, { id: 'garment', label: 'Garment', icon: Shirt }, { id: 'colours', label: 'Colours', icon: Palette }, { id: 'parts', label: 'Parts', icon: Component }, { id: 'patterns', label: 'Patterns', icon: Grid2X2 }, { id: 'logos', label: 'Artwork', icon: ImagePlus }, { id: 'text', label: 'Text', icon: Type }, { id: 'numbers', label: 'Numbers', icon: Hash }, { id: 'presets', label: 'Presets', icon: Layers }] as const;
 /** A colour (#hex, rgb() or a name such as "dark blue") as #rrggbb, or null. */
 function cssColour(text: string) {
   const g = document.createElement('canvas').getContext('2d')!;
@@ -34,7 +37,21 @@ function cssColour(text: string) {
   return null;
 }
 /** The design keys a design picture or print layout hides (Studio uncover). */
-const lookKeys = ['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones'] as const;
+const isHex = (v?: string | null): v is string => !!v && /^#[0-9a-f]{6}$/i.test(v);
+const mixHex = (a: string, b: string, t: number) => `#${[1, 3, 5].map(i => { const x = parseInt(a.slice(i, i + 2), 16), y = parseInt(b.slice(i, i + 2), 16); return Math.round(x + (y - x) * t).toString(16).padStart(2, '0'); }).join('')}`;
+/**
+ * The colour the 3D kit really paints the pattern in (viewer texture.js), for the PATTERN tab: the user's own Pattern
+ * colour; else (as before) a mix of the Primary and Secondary for the whole-garment pattern, the Secondary when only
+ * areas have patterns, the Pattern colour for an uploaded pattern in Kit colours.
+ */
+export function patternInkOf(d: Design): string {
+  if (d.patternColorOwn && isHex(d.patternColor)) return d.patternColor;
+  if (d.patternImage) return isHex(d.patternColor) ? d.patternColor : d.secondary;
+  const whole = !!d.pattern && d.pattern !== 'Solid' && d.pattern !== 'None';
+  if (!whole && Object.values(d.zones ?? {}).some(z => z && z !== 'None')) return d.secondary;
+  return isHex(d.main) && isHex(d.secondary) ? mixHex(d.main, d.secondary, 0.35) : d.patternColor || d.secondary;
+}
+const lookKeys = ['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'parts'] as const;
 /** A hoodie's own colour areas in the Colours panel (the zip only on the zip hoodie). */
 const hoodieAreas: { key: HoodieArea; label: string }[] = [{ key: 'hood', label: 'Hood' }, { key: 'lining', label: 'Hood lining' }, { key: 'rib', label: 'Cuffs & waistband' }, { key: 'pocket', label: 'Pocket' }, { key: 'zip', label: 'Zip' }];
 const colourSlots = [{ key: 'main', label: 'Primary' }, { key: 'secondary', label: 'Secondary' }, { key: 'accent', label: 'Accent' }, { key: 'patternColor', label: 'Pattern' }] as const;
@@ -73,6 +90,69 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const area = zone !== 'all' && areas.some(a => a.key === zone) ? zone : 'all';
   useEffect(() => { if (area !== zone) setZone(area); }, [area, zone]);
   const [slot, setSlot] = useState<(typeof colourSlots)[number]['key']>('main');
+  // Tap the kit to pick a colour (Colours panel): the area row it picked lights up for a moment; the tip shows until the first tap.
+  const [pickedArea, setPickedArea] = useState<string | null>(null);
+  const [tapTip, setTapTip] = useState(() => { try { return localStorage.getItem('3deezi.tapColourTip') !== 'seen'; } catch { return true; } });
+  const pickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // An uploaded pattern in Full colour keeps its own colours: the Pattern tab says how to recolour it.
+  const [fullColourPattern, setFullColourPattern] = useState(false);
+  useEffect(() => {
+    let live = true;
+    const pictures = [draft.design.patternImage, ...Object.values(draft.design.zones ?? {})].filter(isPatternPicture);
+    if (!pictures.length) { setFullColourPattern(false); return; }
+    void Promise.all(pictures.map(src => modeOf(src).catch(() => 'kit' as const))).then(modes => { if (live) setFullColourPattern(modes.includes('full')); });
+    return () => { live = false; };
+  }, [draft.design.patternImage, draft.design.zones]);
+  // Parts (task 9.134): the part chosen in the Parts panel (a tap on the kit or its list), where it was tapped, and the
+  // part a tap in the Colours panel was on (its "Edit on its own" link).
+  const [partSel, setPartSel] = useState<PartKey | null>(null);
+  const [partSpot, setPartSpot] = useState<PartSpot | null>(null);
+  const [colourPart, setColourPart] = useState<PartKey | null>(null);
+  const openPart = (key: PartKey, flash = true) => { setPartSel(key); setPartSpot(null); setTool('parts'); setGradientOpen(false); if (flash) viewer.current?.glowPart({ part: isShortsPart(key) ? 'shorts' : 'top', key }); };
+  // What you tap is what you change (task 9.137): a tap on the pattern changes the pattern.
+  const [partFocus, setPartFocus] = useState<{ section: 'pattern'; at: number } | null>(null);
+  const onPartPick = (picked: PartPick) => {
+    const onPattern = picked.slot === 'pattern' || picked.slot === 'pattern-image';
+    if (onPattern && tool !== 'parts') {
+      // No panel open: Colours on the PATTERN tab.
+      setTool('colours'); setSlot('patternColor'); setGradientOpen(false); setColourPart(picked.partKey ?? null);
+      if (picked.slot === 'pattern-image') onNotice('Switch to Kit colours to recolour this pattern.');
+      viewer.current?.glowPart({ keys: coveredParts('patternColor') });
+      return;
+    }
+    if (!picked.partKey) { onNotice('That piece takes its colours in Colours (its own areas).'); return; }
+    setPartSel(picked.partKey);
+    setPartSpot(picked.side && typeof picked.x === 'number' && typeof picked.y === 'number' ? { key: picked.partKey, side: picked.side, x: picked.x, y: picked.y } : null);
+    setTool('parts');
+    // Parts open: the tapped part, on its PATTERN section when the tap was on the pattern.
+    setPartFocus(onPattern ? { section: 'pattern', at: Date.now() } : null);
+  };
+  /** Every part a kit colour covers (task 9.137), to light them all: changing that colour changes all of them. */
+  function coveredParts(slot: 'main' | 'secondary' | 'accent' | 'patternColor'): PartKey[] {
+    const d = latest.current.design, own = d.parts ?? {};
+    return partsOf(d.garment).filter(key => {
+      const style = own[key];
+      if (slot === 'patternColor') return !style?.colour && !style?.pattern && style?.patternOpacity !== 0 && key !== 'collar' && key !== 'waistband';
+      if (style?.colour) return false;
+      const trim = key === 'sides' || key === 'shortsSides' || key === 'collar' || key === 'waistband';
+      return slot === 'secondary' ? trim : slot === 'main' ? !trim : false;
+    });
+  }
+  const onColourPick = (picked: ColourPick) => {
+    setColourPart(picked.partKey ?? null);
+    if (tapTip) { setTapTip(false); try { localStorage.setItem('3deezi.tapColourTip', 'seen'); } catch { /* private window */ } }
+    if (picked.slot === 'pattern-image') { onNotice('Switch to Kit colours to recolour this pattern.'); setSlot('patternColor'); return; }
+    const slotNow = picked.slot === 'pattern' ? 'patternColor' : picked.slot;
+    setSlot(slotNow);
+    // Light up every part this colour covers (both sleeves, the body...), so it is clear what will change.
+    const covered = coveredParts(slotNow);
+    if (covered.length > 1) viewer.current?.glowPart({ keys: covered });
+    setGradientOpen(false);
+    setPickedArea(picked.area);
+    clearTimeout(pickTimer.current);
+    pickTimer.current = setTimeout(() => setPickedArea(null), 1600);
+    if (picked.area) requestAnimationFrame(() => colourPanel.current?.querySelector(`[data-area="${picked.area}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  };
   // GRADIENT PRESETS, the flyout beside the Colours panel.
   const [gradientOpen, setGradientOpen] = useState(false);
   const colourPanel = useRef<HTMLElement>(null);
@@ -148,7 +228,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
         else if (key === 'wordmark') { patch.logoText = v.toUpperCase().slice(0, 20); said.push(`wordmark ${patch.logoText}`); }
         else if (['main', 'secondary', 'accent', 'patternColor'].includes(key)) {
           const hex = cssColour(v); if (!hex) throw new Error(`"${v}" is not a colour I know.`);
-          patch[key as 'main' | 'secondary' | 'accent' | 'patternColor'] = hex; said.push(`${colourSlots.find(c => c.key === key)?.label ?? key} ${hex}`);
+          patch[key as 'main' | 'secondary' | 'accent' | 'patternColor'] = hex; if (key === 'patternColor') patch.patternColorOwn = true; said.push(`${colourSlots.find(c => c.key === key)?.label ?? key} ${hex}`);
         } else if (key === 'pattern') {
           const name = patternNames.find(n => n.toLowerCase() === v.toLowerCase()); if (!name) throw new Error(`Patterns are: ${patternNames.join(', ')}.`);
           Object.assign(patch, { pattern: name === 'None' ? 'Solid' : name, patternImage: null, zones: {} }); said.push(`pattern ${name}`);
@@ -282,6 +362,18 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   function undo() { const previous = past.at(-1); if (!previous) return; setFuture(items => [draft.design, ...items]); setPast(items => items.slice(0, -1)); onChange({ ...draft, design: previous, garment: previous.garment }); setDirty(true); }
   function redo() { const next = future[0]; if (!next) return; setPast(items => [...items, draft.design]); setFuture(items => items.slice(1)); onChange({ ...draft, design: next, garment: next.garment }); setDirty(true); }
   function applyPattern(pattern: string) { edit(area === 'all' ? { pattern: pattern === 'None' ? 'Solid' : pattern, patternImage: null, zones: {} } : { zones: { ...draft.design.zones, [area]: pattern } }); }
+  /** Drag to kit: the part under the pointer glows live (about 30 times a second; the last place is always sent). */
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hoverPoint = useRef<{ x: number; y: number } | null>(null);
+  function hoverAt(clientX: number, clientY: number) {
+    const rect = (stage.current?.querySelector('.studio-viewer iframe') ?? stage.current)?.getBoundingClientRect();
+    if (!rect) return;
+    hoverPoint.current = { x: (clientX - rect.left) / rect.width, y: (clientY - rect.top) / rect.height };
+    if (hoverTimer.current) return;
+    viewer.current?.dragHover(hoverPoint.current);
+    hoverTimer.current = setTimeout(() => { hoverTimer.current = undefined; if (hoverPoint.current) viewer.current?.dragHover(hoverPoint.current); }, 33);
+  }
+  useEffect(() => { if (!dragging) { clearTimeout(hoverTimer.current); hoverTimer.current = undefined; hoverPoint.current = null; viewer.current?.dragHover(null); } }, [dragging]);
   async function dropArtwork(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault(); const payload = dragging; setDragging(null);
     if (!payload || !viewer.current || !stage.current) return;
@@ -290,7 +382,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     try {
       const hit = await viewer.current.pick((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
       if (!hit.hit || !hit.part || !hit.side || hit.x === undefined || hit.y === undefined) { onNotice('Drop directly onto the garment or a 2D panel.'); return; }
-      if (payload.pattern && hit.zone) { const where = patternAreas(latest.current.design.garment, latest.current.design.trackStyle).find(a => a.key === hit.zone)?.label ?? hit.zone; edit({ zones: { ...latest.current.design.zones, [hit.zone]: payload.pattern } }); onNotice(`${payload.pattern} applied to the ${where.toLowerCase()}.`); return; }
+      if (payload.pattern && hit.zone) { const where = patternAreas(latest.current.design.garment, latest.current.design.trackStyle).find(a => a.key === hit.zone)?.label ?? hit.zone; edit({ zones: { ...latest.current.design.zones, [hit.zone]: payload.pattern } }); onNotice(`${payload.label ?? payload.pattern} applied to the ${where.toLowerCase()}.`); return; }
       if (payload.asset) {
         const src = await readAsset(payload.asset); const currentLayers = latest.current.design.layers || [];
         if (currentLayers.length >= 40) { onNotice('A design can contain up to 40 artwork layers.'); return; }
@@ -378,7 +470,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
   const garments = [...(catalog?.garments ?? [])].sort((a, b) => garmentOrder.indexOf(a.id) - garmentOrder.indexOf(b.id));
   const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); setGradientOpen(false); };
-  const colourValue = slot === 'patternColor' ? (draft.design.patternColor || draft.design.secondary) : draft.design[slot];
+  const colourValue = slot === 'patternColor' ? patternInkOf(draft.design) : draft.design[slot];
   // The selected colour zone's gradient (Accent stays solid: names, numbers and the wordmark).
   const gradientSlot: GradientSlot | null = slot === 'accent' ? null : slot;
   const zoneGradient = gradientSlot ? gradientOf(draft.design, gradientSlot) : null;
@@ -412,12 +504,21 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
         <div className="panel-head"><h2>{tools.find(t => t.id === tool)?.label}</h2><button className="icon-button" onClick={() => setTool(null)} aria-label="Close panel"><X size={18} /></button></div>
         <div className="panel-body">
           {tool === 'colours' && <>
+            {tapTip && <p className="field-hint tap-colour-tip">Tip: tap the kit to pick a colour.</p>}
+            {colourPart && <button type="button" className="button button-secondary full-width part-only" onClick={() => openPart(colourPart)}>Only the {partLabels[colourPart].toLowerCase()} <ChevronRight size={15} /></button>}
+            {slot === 'patternColor' && partsOf(draft.design.garment).filter(k => draft.design.parts?.[k]?.pattern || draft.design.parts?.[k]?.colour).map(k => <p key={k} className="field-hint part-own-note">{draft.design.parts?.[k]?.pattern ? `The ${partLabels[k].toLowerCase()} has its own pattern colour (Parts).` : `The ${partLabels[k].toLowerCase()} has its own plain colour (Parts): the pattern is not on it.`}</p>)}
             <div className="slot-tabs" role="tablist">{colourSlots.map(s => <button key={s.key} role="tab" aria-selected={slot === s.key} className={slot === s.key ? 'active' : ''} onClick={() => setSlot(s.key)}>{s.label}</button>)}</div>
-            <ColorWheel value={colourValue} onChange={hex => preview({ [slot]: hex })} onCommit={commit} onDone={() => { setTool(null); setGradientOpen(false); }} />
-            <h4>READY-MADE PALETTES</h4><div className="preset-palettes">{palettes.map((palette, index) => <button key={index} aria-label={`Apply palette ${index + 1}`} onClick={() => edit({ main: palette[0], secondary: palette[1], accent: palette[2], patternColor: palette[1] })}>{palette.map((c, i) => <span key={i} style={{ background: c }} />)}</button>)}</div>
-            {isHoodie(draft.design.garment) && <div className="hoodie-areas"><h4>HOODIE AREAS</h4>{hoodieAreas.filter(a => a.key !== 'zip' || draft.design.garment === 'ziphoodie').map(a => { const own = draft.design.zoneColors?.[a.key]; const fallback = a.key === 'lining' || a.key === 'zip' ? draft.design.secondary : draft.design.main; return <label key={a.key} className="hoodie-area"><input type="color" aria-label={`${a.label} colour`} value={own || fallback} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{a.label}</span>{own ? <button type="button" className="icon-button" aria-label={`${a.label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.key === 'lining' || a.key === 'zip' ? 'Secondary' : 'Primary'}</small>}</label>; })}</div>}
-            {isVarsity(draft.design.garment) && <div className="hoodie-areas varsity-areas"><h4>VARSITY AREAS</h4>{varsityAreas.map(a => { const own = draft.design.zoneColors?.[a.key]; return <label key={a.key} className="hoodie-area"><input type="color" aria-label={`${a.label} colour`} value={varsityColour(draft.design, a.key)} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{a.label}</span>{own ? <button type="button" className="icon-button" aria-label={`${a.label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.follows}</small>}</label>; })}</div>}
-            {isTrack(draft.design.garment) && <div className="hoodie-areas track-areas"><h4>TRACK JACKET AREAS</h4>{trackAreas.map(a => { const own = draft.design.zoneColors?.[a.key]; const label = trackAreaLabel(a.key, draft.design.trackStyle); return <label key={a.key} className="hoodie-area"><input type="color" aria-label={`${label} colour`} value={trackColour(draft.design, a.key)} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{label}</span>{own ? <button type="button" className="icon-button" aria-label={`${label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.follows}</small>}</label>; })}</div>}
+            {slot === 'patternColor' && fullColourPattern && <p className="field-hint full-colour-tip">Switch to Kit colours to recolour this pattern.</p>}
+            <ColorWheel value={colourValue} onChange={hex => preview(slot === 'patternColor' ? { patternColor: hex, patternColorOwn: true } : { [slot]: hex })} onCommit={commit} onDone={() => { setTool(null); setGradientOpen(false); }} />
+            <h4>READY-MADE PALETTES</h4><div className="preset-palettes">{palettes.map((palette, index) => <button key={index} aria-label={`Apply palette ${index + 1}`} onClick={() => edit({ main: palette[0], secondary: palette[1], accent: palette[2], patternColor: palette[1], patternColorOwn: null })}>{palette.map((c, i) => <span key={i} style={{ background: c }} />)}</button>)}</div>
+            {isHoodie(draft.design.garment) && <div className="hoodie-areas"><h4>HOODIE AREAS</h4>{hoodieAreas.filter(a => a.key !== 'zip' || draft.design.garment === 'ziphoodie').map(a => { const own = draft.design.zoneColors?.[a.key]; const fallback = a.key === 'lining' || a.key === 'zip' ? draft.design.secondary : draft.design.main; return <label key={a.key} data-area={a.key} className={`hoodie-area ${pickedArea === a.key ? 'picked' : ''}`}><input type="color" aria-label={`${a.label} colour`} value={own || fallback} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{a.label}</span>{own ? <button type="button" className="icon-button" aria-label={`${a.label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.key === 'lining' || a.key === 'zip' ? 'Secondary' : 'Primary'}</small>}</label>; })}</div>}
+            {isVarsity(draft.design.garment) && <div className="hoodie-areas varsity-areas"><h4>VARSITY AREAS</h4>{varsityAreas.map(a => { const own = draft.design.zoneColors?.[a.key]; return <label key={a.key} data-area={a.key} className={`hoodie-area ${pickedArea === a.key ? 'picked' : ''}`}><input type="color" aria-label={`${a.label} colour`} value={varsityColour(draft.design, a.key)} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{a.label}</span>{own ? <button type="button" className="icon-button" aria-label={`${a.label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.follows}</small>}</label>; })}</div>}
+            {isTrack(draft.design.garment) && <div className="hoodie-areas track-areas"><h4>TRACK JACKET AREAS</h4>{trackAreas.map(a => { const own = draft.design.zoneColors?.[a.key]; const label = trackAreaLabel(a.key, draft.design.trackStyle); return <label key={a.key} data-area={a.key} className={`hoodie-area ${pickedArea === a.key ? 'picked' : ''}`}><input type="color" aria-label={`${label} colour`} value={trackColour(draft.design, a.key)} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{label}</span>{own ? <button type="button" className="icon-button" aria-label={`${label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.follows}</small>}</label>; })}</div>}
+            {/* The fabric the kit is made of (the 3D viewer shows it: mesh holes, a satin sheen, a matt cotton feel); the varsity is wool and leather. */}
+            <div className="fabric-controls"><h4>FABRIC TYPE</h4>{isVarsity(draft.design.garment)
+              ? <p className="field-hint">The varsity jacket is wool with leather sleeves: it keeps its own fabric.</p>
+              : <><div className="slot-tabs" role="radiogroup" aria-label="Fabric type">{fabricTypes.map(type => { const on = fabricOf(draft.design) === type; return <button key={type} type="button" role="radio" aria-checked={on} className={on ? 'active' : ''} onClick={() => { if (!on) edit({ fabric: type }); }}>{type}</button>; })}</div>
+                <p className="field-hint">{fabricNotes[fabricOf(draft.design)]} Zoom in on the 3D kit to see it up close.</p></>}</div>
             <div className="gradient-controls"><h4>GRADIENT FILL</h4>{gradientSlot ? <>
               <button ref={gradientButton} type="button" className="gradient-choose" aria-expanded={gradientOpen} onClick={() => setGradientOpen(o => !o)}>CHOOSE GRADIENT <ChevronRight size={17} /></button>
               {zoneGradient && zoneStops ? <>
@@ -433,6 +534,8 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             <label className="field">Apply to area<select value={area} onChange={e => setZone(e.target.value as Zone | 'all')}><option value="all">Whole garment</option>{areas.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}</select></label>
             <p className="field-hint">Choose a pattern for this area, or drag a pattern directly onto the garment.</p>
             <div className="pattern-grid">{patternNames.map(pattern => { const active = (area === 'all' ? draft.design.pattern : draft.design.zones?.[area]) === pattern && (area !== 'all' || !draft.design.patternImage); return <button className={active ? 'selected' : ''} key={pattern} draggable onDragStart={e => { e.dataTransfer.setData('text/plain', pattern); e.dataTransfer.effectAllowed = 'copy'; setDragging({ pattern }); }} onDragEnd={() => setDragging(null)} onClick={() => applyPattern(pattern)}><span className={`pattern-preview pattern-${pattern.toLowerCase()}`} style={{ '--pattern-color': draft.design.patternColor || draft.design.secondary } as React.CSSProperties} /><span>{pattern}{active && <Check size={14} />}</span></button>; })}</div>
+            <OwnPatterns design={draft.design} area={area} areaLabel={areas.find(a => a.key === area)?.label ?? 'Whole garment'} signedIn={!!user} requireAuth={requireAuth} edit={edit} onNotice={onNotice} onDrag={setDragging} />
+            {(isPatternPicture(draft.design.patternImage) || Object.values(draft.design.zones ?? {}).some(isPatternPicture)) && <label className="field">Pattern size<input type="range" min="0.1" max="1" step="0.05" value={draft.design.patternScale ?? 0.3} onChange={e => preview({ patternScale: Number(e.target.value) })} onPointerUp={commit} /><span className="field-hint">Small repeats → large repeats</span></label>}
             {aiEnabled && <div className="ai-pattern"><h4>AI PRINT FROM WORDS</h4><div className="inline-field"><input value={motif} onChange={e => setMotif(e.target.value)} onKeyDown={e => e.key === 'Enter' && aiPattern()} placeholder="e.g. Maori-inspired koru waves" maxLength={200} /><button className="button button-gradient" disabled={patternBusy || motif.trim().length < 3} onClick={aiPattern}>{patternBusy ? <LoaderCircle className="spin" size={16} /> : <WandSparkles size={16} />}</button></div>{draft.design.patternImage && <button className="button button-secondary full-width" onClick={() => edit({ patternImage: null })}><X size={14} /> Remove AI print</button>}</div>}
             <label className="field">Pattern coverage<input type="range" min="0" max="1" step="0.05" value={draft.design.patternBody ?? 0.1} onChange={e => preview({ patternBody: Number(e.target.value) })} onPointerUp={commit} /><span className="field-hint">{draft.design.garment === 'shorts' ? 'Leg hems → Full shorts' : draft.design.garment === 'fullkit' ? 'Shoulders & leg hems → Full kit' : 'Shoulders → Full body'}</span></label>
           </>}
@@ -446,6 +549,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             <div className="studio-tip"><Type size={18} /><p>Short team names create a stronger, more readable wordmark.</p></div>
             <button className="button button-secondary full-width" onClick={() => { setTool('logos'); openBoard(true); }}><Plus size={16} /> Add movable text in 2D panels</button>
           </>}
+          {tool === 'parts' && <PartsPanel focus={partFocus} design={draft.design} selected={partSel} spot={partSpot} onSelect={key => openPart(key)} edit={edit} preview={preview} commit={commit} onNotice={onNotice} onDone={() => setTool(null)} />}
           {tool === 'numbers' && <>
             <div className="number-preview" style={{ color: draft.design.accent, background: draft.design.main }}><small>{draft.design.backName || 'YOUR NAME'}</small><strong>{draft.design.number || '23'}</strong></div>
             {/* Netball (task 9.116): the position letters (GS, WD…) in the number's place. */}
@@ -453,7 +557,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
               ? <label className="field">Position letters<input value={draft.design.number} maxLength={3} onChange={e => edit({ number: e.target.value.replace(/[^A-Za-z]/g, '').toUpperCase() })} placeholder="GS" /></label>
               : <label className="field">Player number<input inputMode="numeric" value={draft.design.number} maxLength={3} onChange={e => edit({ number: e.target.value.replace(/\D/g, '') })} placeholder="23" /></label>}
             <label className="field">Player name<input value={draft.design.backName || ''} maxLength={20} onChange={e => edit({ backName: e.target.value })} placeholder="YOUR NAME" /></label>
-            <button className="button button-secondary full-width" onClick={() => { setView('back'); setRotating(false); }}>View the back <ArrowRight size={16} /></button>
+            <button className="button button-secondary full-width" onClick={() => { setView('back'); setRotating(false); viewer.current?.turnTo('back'); }}>View the back <ArrowRight size={16} /></button>
           </>}
           {tool === 'garment' && <div className="panel-garments">{garments.map(g => <button key={g.id} className={draft.design.garment === g.id ? 'selected' : ''} onClick={() => edit({ garment: g.id as Design['garment'] })}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span>{draft.design.garment === g.id && <Check size={15} />}</button>)}</div>}
           {tool === 'garment' && isTrack(draft.design.garment) && <div className="track-style"><h4>TRACK JACKET STYLE</h4><div className="slot-tabs" role="radiogroup" aria-label="Track jacket style">{([['collar', 'Stand-up collar'], ['hood', 'Hood']] as const).map(([id, label]) => { const on = (draft.design.trackStyle ?? 'collar') === id; return <button key={id} type="button" role="radio" aria-checked={on} className={on ? 'active' : ''} onClick={() => edit({ trackStyle: id })}>{label}</button>; })}</div></div>}
@@ -467,18 +571,18 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             <div className="prompt-chips">{suggestions.map(s => <button key={s} type="button" disabled={asking || !aiEnabled} onClick={() => askAi(s)}>{s}</button>)}</div>
             {aiEnabled && <button className="button button-secondary full-width" onClick={() => requireAuth(() => { setError(''); setModal('showcase'); })}><WandSparkles size={16} /> Photoreal showcase</button>}
             {aiEnabled && <button className="button button-secondary full-width" onClick={() => requireAuth(() => setMockupOpen(true))}><Camera size={16} /> Mockup</button>}
-            {aiEnabled && <PlayerShotButton disabled={!ready} requireAuth={requireAuth} kit={{ sport: catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport, garment: productName(draft.design, catalog), name: draft.name, colours: [draft.design.main, draft.design.secondary, draft.design.accent], logoText: draft.design.logoText, backName: draft.design.backName || draft.design.logoText, number: draft.design.number }} pictures={async () => viewer.current ? [await viewer.current.capture('front'), await viewer.current.capture('back')] : []} />}
+            {aiEnabled && <PlayerShotButton disabled={!ready} requireAuth={requireAuth} kit={{ sport: catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport, garment: productName(draft.design, catalog), name: draft.name, colours: kitColours(draft.design), logoText: draft.design.logoText, backName: draft.design.backName || draft.design.logoText, number: draft.design.number }} pictures={async () => viewer.current ? [await viewer.current.capture('front'), await viewer.current.capture('back')] : []} />}
           </div>}
           {error && !modal && <p className="error-message" role="alert">{error}</p>}
         </div>
       </section>}
 
       <div className={`dyo-stage ${viewerModal ? 'viewer-modal' : ''}`} ref={stage}>
-        <KitViewer ref={viewer} design={draft.design} view={view} rotating={rotating} board={board} onLayers={layers => edit({ layers })} onMarks={marks => edit({ marks })} onModal={setViewerModal} onLayoutError={message => onNotice(`Print layout: ${message} The kit is shown without it (Artwork › Factory print layout).`)} onSelection={setSelectedLayer} onReady={() => setReady(true)} className="studio-viewer" />
-        {dragging && <div className="studio-drop-target" onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }} onDrop={dropArtwork}><span>Drop {dragging.pattern ? `${dragging.pattern} on an area` : 'artwork onto your garment'}</span></div>}
+        <KitViewer ref={viewer} colourPick={tool === 'colours' && !board} onColourPick={onColourPick} partPick={(tool === 'parts' || tool === null) && !board} onPartPick={onPartPick} design={draft.design} view={view} rotating={rotating} board={board} onLayers={layers => edit({ layers })} onMarks={marks => edit({ marks })} onModal={setViewerModal} onLayoutError={message => onNotice(`Print layout: ${message} The kit is shown without it (Artwork › Factory print layout).`)} onSelection={setSelectedLayer} onReady={() => setReady(true)} className="studio-viewer" />
+        {dragging && <div className="studio-drop-target" onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; hoverAt(e.clientX, e.clientY); }} onDragLeave={() => { hoverPoint.current = null; viewer.current?.dragHover(null); }} onDrop={dropArtwork}><span>Drop {dragging.pattern ? `${dragging.label ?? dragging.pattern} on an area` : 'artwork onto your garment'}</span></div>}
         {board && <div className="artboard-controls"><span>Drag anything to move it · corners resize · top handle rotates · scroll or pinch to zoom</span><div className="board-buttons"><button className="board-to-3d" onClick={() => openBoard(false)} title="Back to the 3D kit"><Shirt size={14} /> 3D view</button><button disabled={!ready} onClick={() => viewer.current?.zoomBoard('out')} aria-label="Zoom out" title="Zoom out"><ZoomOut size={15} /></button><button disabled={!ready} onClick={() => viewer.current?.zoomBoard('in')} aria-label="Zoom in" title="Zoom in"><ZoomIn size={15} /></button><button disabled={!ready} onClick={() => viewer.current?.zoomBoard('fit')} title="Show the whole board"><Maximize size={14} /> Fit</button>{Object.keys(draft.design.marks ?? {}).length > 0 && <button onClick={() => edit({ marks: {} })} title="Put the wordmark, crest, sponsor, name and number back where they were (shows any you removed)"><RotateCcw size={14} /> Reset layout</button>}<button disabled={!ready || busy} onClick={() => void exportDesign('artboard')}><Download size={14} /> Export board</button></div></div>}
         <div className="stage-chips"><label className="stage-name" title="Project name"><input value={draft.name} maxLength={120} placeholder="Project name" onChange={e => { onChange({ ...draft, name: e.target.value }); setDirty(true); }} aria-label="Project name" /><Pencil size={12} aria-hidden="true" /></label>{patternBusy &&<span><LoaderCircle className="spin" size={13} /> Creating AI print…</span>}<span>{catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport} · {draft.design.layout ? `${draft.design.layout.kind === 'drawing' ? 'Design picture' : 'Print layout'} · ${draft.design.layout.name}` : productName(draft.design, catalog)}</span></div>
-        <div className="view-controls">{(['front', 'back', 'side'] as View[]).map(v => <button key={v} className={view === v && !rotating ? 'active' : ''} onClick={() => { setView(v); setRotating(false); }}>{v}</button>)}<button className={rotating ? 'active' : ''} onClick={() => setRotating(r => !r)} aria-pressed={rotating}><RotateCcw size={14} /> 360°</button><button className="fullscreen" aria-label="Fullscreen preview" onClick={() => { stage.current?.requestFullscreen?.().catch(() => onNotice('Fullscreen is unavailable in this browser.')); }}><Expand size={16} /></button></div>
+        <div className="view-controls">{(['front', 'back', 'side'] as View[]).map(v => <button key={v} className={view === v && !rotating ? 'active' : ''} onClick={() => { setView(v); setRotating(false); viewer.current?.turnTo(v); }}>{v}</button>)}<button className={rotating ? 'active' : ''} onClick={() => setRotating(r => !r)} aria-pressed={rotating}><RotateCcw size={14} /> 360°</button><button className="fullscreen" aria-label="Fullscreen preview" onClick={() => { stage.current?.requestFullscreen?.().catch(() => onNotice('Fullscreen is unavailable in this browser.')); }}><Expand size={16} /></button></div>
       </div>
 
       <aside className="studio-presets-aside" aria-label="Ready to use designs"><PresetPanel design={draft.design} edit={edit} onNotice={onNotice} own={ownState.own} onOwn={restoreOwn} beforePreset={beforePreset} /></aside>
@@ -496,7 +600,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     <input type="file" hidden ref={askUpload} accept="image/png,image/jpeg,image/webp" onChange={async e => { const file = e.target.files?.[0]; e.target.value = ''; if (!file) return; if (file.size > 5 * 1024 * 1024) { onNotice('Use a reference image smaller than 5 MB.'); return; } setAskImage(await blobData(file)); }} />
 
     {ordering && user && draft.id && <OrderKitDialog projectId={draft.id} projectName={draft.name} user={user} onClose={() => setOrdering(false)} onOrdered={order => { setOrdering(false); const pay = paymentPath(order); if (pay) { onNotice(`Order ${order.number} sent.`); navigate(pay); } else onNotice(`Order ${order.number} sent · we’ll confirm the price.`); }} />}
-    {mockupOpen && <ProductMockupDialog viewer={viewer} ready={ready} onClose={() => setMockupOpen(false)} onNotice={onNotice} meta={{ name: draft.name, sport: catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport, garment: productName(draft.design, catalog), logoText: draft.design.logoText, backName: draft.design.backName, number: draft.design.number, colors: [draft.design.main, draft.design.secondary, draft.design.accent] }} />}
+    {mockupOpen && <ProductMockupDialog viewer={viewer} ready={ready} onClose={() => setMockupOpen(false)} onNotice={onNotice} meta={{ name: draft.name, sport: catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport, garment: productName(draft.design, catalog), logoText: draft.design.logoText, backName: draft.design.backName, number: draft.design.number, colors: [...new Set([draft.design.main, draft.design.secondary, draft.design.accent].map(c => c.toLowerCase()).concat(partColours(draft.design.parts)))] }} />}
     {modal && <dialog ref={dialog} className="modal compact-modal" onCancel={() => !busy && setModal(null)}><button className="icon-button modal-close" disabled={busy} onClick={() => setModal(null)} aria-label="Close dialog"><X /></button><span className="eyebrow">{modal === 'save' ? 'KEEP THE GOOD IDEAS' : modal === 'showcase' ? 'PHOTOREAL SHOWCASE' : 'READY TO SHARE'}</span><h2>{modal === 'save' ? 'Save your project.' : modal === 'showcase' ? 'Your design, for real.' : 'Take your design with you.'}</h2>{modal === 'showcase' ? <div className="showcase-panel"><p className="muted">The live 3D kit is captured and turned into a photoreal marketing image. The design itself stays exactly as you made it.</p><div className="showcase-frame">{showcases.length ? <img src={showcases[selectedShowcase]} alt="Photoreal showcase of your design" /> : <span>{busy ? 'Creating your showcase… about a minute' : 'Choose a scene and generate.'}</span>}{busy && <LoaderCircle className="spin showcase-spinner" size={28} />}</div>{showcases.length > 1 && <div className="showcase-strip">{showcases.map((src, i) => <button key={i} className={i === selectedShowcase ? 'selected' : ''} onClick={() => setSelectedShowcase(i)}><img src={src} alt={`Showcase ${i + 1}`} /></button>)}</div>}<div className="prompt-chips">{(catalog?.showcase_scenes || []).map(s => <button type="button" key={s} className={scene === s ? 'selected' : ''} disabled={busy} onClick={() => setScene(s)}>{s}</button>)}</div><div className="prompt-chips">{([['Front', false], ['Back', true]] as const).map(([label, back]) => <button type="button" key={label} className={showcaseBack === back ? 'selected' : ''} disabled={busy} onClick={() => setShowcaseBack(back)}>{label}</button>)}</div>{error && <p className="error-message" role="alert">{error}</p>}<div className="showcase-actions"><button className="button button-gradient" disabled={busy || !ready} onClick={generateShowcase}>{busy ? <LoaderCircle className="spin" size={17} /> : <WandSparkles size={17} />}{busy ? 'GENERATING…' : 'GENERATE SHOWCASE'}</button>{showcases.length > 0 && <button className="button button-secondary" disabled={busy} onClick={async () => saveBlob(await (await fetch(showcases[selectedShowcase])).blob(), `${(draft.name || '3deezi-kit').replace(/[^a-z0-9-]/gi, '-').toLowerCase()}-showcase-${selectedShowcase + 1}.jpg`)}><Download size={16} /> Download</button>}{showcases.length > 0 && <EditImageButton disabled={busy} src={showcases[selectedShowcase]} title={`Showcase ${selectedShowcase + 1}`} fileName={`${(draft.name || '3deezi-kit').replace(/[^a-z0-9-]/gi, '-').toLowerCase()}-showcase-${selectedShowcase + 1}`} ai={aiEnabled} requireAuth={requireAuth} keepAs={`${draft.name || 'Kit'} showcase (edited)`} onUse={image => { const at = selectedShowcase; setShowcases(items => items.map((s, i) => i === at ? image : s)); onNotice('Showcase updated · also saved in your Assets.'); }} />}</div><p className="field-hint">Every showcase is also saved in your Assets.</p></div> : modal === 'save' ? <form onSubmit={save}><p className="muted">{draft.id ? `Save a new version of your kit. Version ${draft.version || 1} will stay in your history.` : 'Your kit will be saved to your personal Projects library.'}</p><label className="field">Project name<input autoFocus value={name} onChange={e => setName(e.target.value)} required maxLength={120} placeholder="e.g. Coastal Warriors — Home kit" /></label><div className="save-summary"><span>{catalog?.sports.find(s => s.id === draft.sport)?.name}</span><span>{productName(draft.design, catalog)}</span><span>VERSION {(draft.version || 0) + 1}</span></div>{error && <p className="error-message" role="alert">{error}</p>}<button className="button button-gradient full-width" disabled={busy || !name.trim()}>{busy ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}SAVE PROJECT<ArrowRight size={17} /></button></form> : <><p className="muted">Download your print panels, a 3D scene capture, a PDF design sheet or the editable design specification.</p><div className="export-options"><button disabled={busy || !ready} onClick={() => exportDesign('artboard')}><Layers /><span><strong>2D print panels</strong><small>Front and back print panels / PNG image</small></span><Download size={18} /></button><button disabled={busy || !ready} onClick={() => exportDesign('png')}><Box /><span><strong>3D mockup</strong><small>Current view · PNG image</small></span><Download size={18} /></button><button disabled={busy || !ready} onClick={() => exportDesign('front-back')}><Shirt /><span><strong>Front & back</strong><small>Two views · One PNG image</small></span><Download size={18} /></button><button disabled={busy || !ready} onClick={() => exportDesign('pdf')}><FileText /><span><strong>Design sheet</strong><small>Front & back views, colours and details · PDF</small></span><Download size={18} /></button><button disabled={busy} onClick={() => exportDesign('json')}><Grid2X2 /><span><strong>Design specification</strong><small>Colours, pattern, and player details · JSON</small></span><Download size={18} /></button></div>{busy && <p className="export-progress"><LoaderCircle className="spin" size={17} /> Preparing your download…</p>}{error && <p className="error-message" role="alert">{error}</p>}<p className="field-hint">Mockups are for design review. These exports do not include manufacturing patterns or a production tech pack.</p></>}</dialog>}
   </div>;
 }

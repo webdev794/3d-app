@@ -111,8 +111,7 @@ const _categorySymbol = <String, String>{
 };
 
 /// The outline a category id draws (its own id when it has no entry).
-String categorySymbol(String category) =>
-    _categorySymbol[category] ?? category;
+String categorySymbol(String category) => _categorySymbol[category] ?? category;
 
 /// A category's outline symbol, [size] square, in [color].
 class CategoryIcon extends StatelessWidget {
@@ -130,8 +129,7 @@ class CategoryIcon extends StatelessWidget {
   Widget build(BuildContext context) => CustomPaint(
     size: Size.square(size),
     painter: _OutlinePainter(
-      categoryOutlines[categorySymbol(category)] ??
-          categoryOutlines['tee']!,
+      categoryOutlines[categorySymbol(category)] ?? categoryOutlines['tee']!,
       color,
     ),
   );

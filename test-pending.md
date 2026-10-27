@@ -4,6 +4,70 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## Studio Parts (2026-10-27; website, and the app below)
+1. Studio › Parts › Left sleeve: it lights up. Own colour › red: only that sleeve turns red.
+2. Tap the kit's body: Front is chosen and lights up. Add a fade, pick a colour, press →: the front fades left to right.
+3. Back › Pattern: Hoops, green, opacity 60 %: soft green hoops on the back only.
+4. Left sleeve › type CAP › Text; opacity 50 %: it shows only on that sleeve.
+5. Close the panel and tap a sleeve: Parts opens on that sleeve.
+6. Colours: tap the body › PRIMARY, plus "Edit the front on its own ›", which opens Parts.
+7. Colours › palette 6 › PATTERN tab: it shows #6A1E2C (the colour on the kit).
+8. Save, reopen: everything is still there. The design sheet PDF has a PARTS section.
+9. Old designs look the same. Front / Back / Side still work.
+
+In the app (Design Your Own › Rugby League › Jersey › Studio):
+1. Tap the left sleeve: only it lights up and the LEFT SLEEVE panel opens under the 3D.
+2. COLOUR › red: only that sleeve turns red. "Follow kit colour" puts it back.
+3. FADE: tap an arrow, pick a From colour: the sleeve fades.
+4. PATTERN › Hoops, lower the opacity: soft hoops on that sleeve only. "No pattern" clears that sleeve only.
+5. OBJECTS: type a word, tap +: it shows on that sleeve only.
+6. In the part row pick Back: the kit turns round and the back lights up.
+7. Undo / Redo, Reset part and Done work.
+8. Save, close, reopen: the sleeve is the same. An older project looks exactly as before.
+
+---
+
+## See it on a player wears the exact kit (2026-10-27; uses AI credits)
+1. Studio: a jersey with ready-made palette 6 › AI › See it on a player › Upload a photo of a person (someone in a different coloured kit) › Create: only their top becomes your jersey (dark wine body, thin chevron lines, pinkish-red collar and cuffs, cream 3DEEZI and "3D" badge); their face, pose, background and their own shorts and socks stay.
+2. "An athlete": the jersey matches; plain shorts and socks.
+3. A navy and gold hoodie on your photo: navy with gold lines and hood lining; your own shorts stay.
+4. A Full Kit: both top and shorts become the kit.
+5. App: with the 3D shown, change a colour › "See it on a player": the picture uses the new colour; with the 3D hidden: "Show your kit in 3D first".
+
+---
+
+## Tap the kit to pick a colour (2026-10-27; website now, app after its fix)
+1. Studio, Colours open: tap the body → PRIMARY lights and a ring flashes; the collar → SECONDARY; the pattern lines → PATTERN; the wordmark → ACCENT. The tip disappears after the first tap.
+2. Change the colour on the wheel: every part using that colour changes.
+3. Drag the kit sideways: it turns; the tab stays.
+4. Tap the kit, wait 10 s: the kit stays still. Front / Back / Side / 360° each work, also after dragging and on a phone.
+5. Hoodie: tap the pocket → the Pocket row lights; varsity / track jacket sleeves → their area row.
+6. PATTERN tab: pick red → the pattern turns red (whole kit and an area pattern). Save, reopen: still red. A palette brings back the kit colours.
+7. An uploaded pattern in Full colour: the PATTERN tab and a tap on it show "Switch to Kit colours to recolour this pattern."
+8. Patterns panel: drag a pattern over the kit → a ring follows the pointer; drop → it lands on that part.
+9. ?hq=1 jersey: tap the body and the collar → Primary / Secondary.
+
+---
+
+## High quality jersey in the app (2026-10-27)
+1. App › a Rugby League jersey › Studio: in the button row, scroll to "High quality jersey (preview)": unticked, the usual jersey.
+2. Tap it: the 3D reloads with the professional jersey, your colours, crest, name and number.
+3. Close and reopen the app: still on. Tap again: the usual jersey is back.
+4. Other garments: no button, 3D unchanged.
+
+---
+
+## Upload your own pattern (2026-10-27)
+1. Studio (signed in) › Patterns › MY PATTERNS › "+ Upload pattern" › a PNG/JPG/WebP under 5 MB: a new tile; the kit shows it in its own colours.
+2. "Kit colours": the picture is painted in the kit's colours; "Full colour" switches back.
+3. "Apply to area" › Sleeves › click the tile: only the sleeves change. Or drag the tile onto the kit.
+4. "Pattern size" makes the repeat bigger or smaller.
+5. Save, reopen: pattern and size kept. Design sheet PDF reads "My pattern".
+6. A GIF or a picture over 5 MB is refused. Delete a tile: it leaves My patterns; kits using it don't change.
+7. App: Patterns › My patterns › Upload pattern; the Drag to kit row has your patterns; website uploads show in the app too.
+
+---
+
 ## High quality jersey preview (2026-10-26; after the next upload)
 1. Open the website with ?hq=1 at the end of the address (e.g. https://testcaresortwork.co.in/3deez/?hq=1), then Design Your Own › a sport › Jersey › Studio: the new professional jersey on a body-shaped form.
 2. Change colours, pattern, crest, name and number and turn it: everything lands in the usual places.

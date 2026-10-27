@@ -10,7 +10,9 @@ import '../app_controller.dart';
 import '../money.dart';
 import '../order_sizes.dart';
 import '../project_sync.dart';
-import '../widgets/site_page_stub.dart' if (dart.library.js_interop) '../widgets/site_page_web.dart' if (dart.library.io) '../widgets/site_page_io.dart';
+import '../widgets/site_page_stub.dart'
+    if (dart.library.js_interop) '../widgets/site_page_web.dart'
+    if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/order_form_read.dart';
 import '../widgets/order_review_approve.dart';
 import '../widgets/order_review_garments.dart';
@@ -24,7 +26,8 @@ import 'suppliers.dart' show MadeByField, Supplier, SuppliersScreen;
 
 /// Opens the pay page: in the phone's own browser (Apple Pay, Google Pay), back
 /// here when the app resumes; inside the app only if no browser opens. (Replaced in tests.)
-Future<void> Function(BuildContext context, String url, String title) openPayPage = openPayLink;
+Future<void> Function(BuildContext context, String url, String title)
+openPayPage = openPayLink;
 
 /// "A$1,870.00", the website's price style (money.dart); "To be confirmed" without an amount.
 String _money(Object? amount, Object? currency) => moneyOr(amount, currency);
@@ -39,23 +42,35 @@ class PriceBox extends StatefulWidget {
 }
 
 class _PriceBoxState extends State<PriceBox> {
-  late final Future<Map<String, dynamic>> _quote = widget.c.api.pricingQuote(widget.body);
+  late final Future<Map<String, dynamic>> _quote = widget.c.api.pricingQuote(
+    widget.body,
+  );
   @override
   Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
     future: _quote,
     builder: (context, snap) {
       final q = snap.data;
-      if (snap.connectionState != ConnectionState.done) return const LinearProgressIndicator();
-      if (q == null) return const Text('Price confirmed by 3DEEZI after review.', style: TextStyle(color: Palette.muted));
+      if (snap.connectionState != ConnectionState.done)
+        return const LinearProgressIndicator();
+      if (q == null)
+        return const Text(
+          'Price confirmed by 3DEEZI after review.',
+          style: TextStyle(color: Palette.muted),
+        );
       if (q['status'] != 'priced') {
-        final reasons = ((q['reasons'] as List?) ?? const []).map((r) => '${(r as Map)['message']}').join(' ');
+        final reasons = ((q['reasons'] as List?) ?? const [])
+            .map((r) => '${(r as Map)['message']}')
+            .join(' ');
         return Text(
           'Quote required. ${reasons.isEmpty ? '3DEEZI confirms the price after review.' : reasons}',
           key: const Key('quote-required'),
           style: const TextStyle(color: Color(0xffffbc75)),
         );
       }
-      final lines = [...((q['lines'] as List?) ?? const []), ...((q['extras'] as List?) ?? const [])].cast<Map<String, dynamic>>();
+      final lines = [
+        ...((q['lines'] as List?) ?? const []),
+        ...((q['extras'] as List?) ?? const []),
+      ].cast<Map<String, dynamic>>();
       final shipping = (q['shipping'] as Map?)?['amount'];
       final tax = q['tax'] as Map?;
       return Column(
@@ -64,8 +79,16 @@ class _PriceBoxState extends State<PriceBox> {
           for (final l in lines)
             Row(
               children: [
-                Expanded(child: Text('${l['name']} x ${l['quantity']}', style: const TextStyle(fontSize: 13))),
-                Text(_money(l['total'], q['currency']), style: const TextStyle(fontSize: 13)),
+                Expanded(
+                  child: Text(
+                    '${l['name']} x ${l['quantity']}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+                Text(
+                  _money(l['total'], q['currency']),
+                  style: const TextStyle(fontSize: 13),
+                ),
               ],
             ),
           if (shipping != null)
@@ -77,35 +100,66 @@ class _PriceBoxState extends State<PriceBox> {
                     style: const TextStyle(fontSize: 13),
                   ),
                 ),
-                Text(_money(shipping, q['currency']), style: const TextStyle(fontSize: 13)),
+                Text(
+                  _money(shipping, q['currency']),
+                  style: const TextStyle(fontSize: 13),
+                ),
               ],
             ),
-          for (final d in ((q['discounts'] as List?) ?? const []).cast<Map<String, dynamic>>())
+          for (final d
+              in ((q['discounts'] as List?) ?? const [])
+                  .cast<Map<String, dynamic>>())
             Row(
               children: [
                 Expanded(
-                  child: Text('${d['name']}', style: const TextStyle(fontSize: 13, color: Color(0xff3ddc84))),
+                  child: Text(
+                    '${d['name']}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xff3ddc84),
+                    ),
+                  ),
                 ),
-                Text('-${_money(d['amount'], q['currency'])}', style: const TextStyle(fontSize: 13, color: Color(0xff3ddc84))),
+                Text(
+                  '-${_money(d['amount'], q['currency'])}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xff3ddc84),
+                  ),
+                ),
               ],
             ),
           if (tax?['amount'] != null)
             Row(
               children: [
-                Expanded(child: Text('${tax?['name'] ?? 'Tax'}', style: const TextStyle(fontSize: 13))),
-                Text(_money(tax?['amount'], q['currency']), style: const TextStyle(fontSize: 13)),
+                Expanded(
+                  child: Text(
+                    '${tax?['name'] ?? 'Tax'}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+                Text(
+                  _money(tax?['amount'], q['currency']),
+                  style: const TextStyle(fontSize: 13),
+                ),
               ],
             ),
           const Divider(),
           Row(
             children: [
               const Expanded(
-                child: Text('TOTAL', style: TextStyle(fontWeight: FontWeight.w800)),
+                child: Text(
+                  'TOTAL',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
               Text(
                 _money(q['total'], q['currency']),
                 key: const Key('quote-total'),
-                style: const TextStyle(fontWeight: FontWeight.w800, color: Palette.cyan),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Palette.cyan,
+                ),
               ),
             ],
           ),
@@ -125,12 +179,23 @@ class _PriceBoxState extends State<PriceBox> {
 }
 
 /// Destination names the price list may not have (the server's PricingService::DESTINATIONS).
-const _destinationNames = {'AU': 'Australia', 'NZ': 'New Zealand', 'INTL': 'International', 'PICKUP': 'Pick up'};
+const _destinationNames = {
+  'AU': 'Australia',
+  'NZ': 'New Zealand',
+  'INTL': 'International',
+  'PICKUP': 'Pick up',
+};
 
 /// The review's price choices (payments-api.md R3): delivery destination, extras and a discount code with Apply.
 /// Each change goes to [onChanged], which asks for the price again.
 class PriceChoices extends StatefulWidget {
-  const PriceChoices(this.c, this.value, this.onChanged, {super.key, this.choice});
+  const PriceChoices(
+    this.c,
+    this.value,
+    this.onChanged, {
+    super.key,
+    this.choice,
+  });
   final AppController c;
   final Map<String, dynamic> value;
   final ValueChanged<Map<String, dynamic>> onChanged;
@@ -145,8 +210,11 @@ class PriceChoices extends StatefulWidget {
 }
 
 class _PriceChoicesState extends State<PriceChoices> {
-  late final Future<Map<String, dynamic>> _options = widget.c.api.pricingOptions();
-  late final _code = TextEditingController(text: '${widget.value['discount_code'] ?? ''}');
+  late final Future<Map<String, dynamic>> _options = widget.c.api
+      .pricingOptions();
+  late final _code = TextEditingController(
+    text: '${widget.value['discount_code'] ?? ''}',
+  );
 
   @override
   void dispose() {
@@ -170,24 +238,49 @@ class _PriceChoicesState extends State<PriceChoices> {
     builder: (context, snap) {
       final o = snap.data;
       if (o == null) return const SizedBox.shrink();
-      final destinations = ((o['destinations'] as List?) ?? const []).cast<Map<String, dynamic>>();
-      final extras = ((o['extras'] as List?) ?? const []).cast<Map<String, dynamic>>().where((e) => e['auto'] != true).toList();
-      final chosen = {...((widget.value['extras'] as List?) ?? const []).map((e) => '$e')};
+      final destinations = ((o['destinations'] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
+      final extras = ((o['extras'] as List?) ?? const [])
+          .cast<Map<String, dynamic>>()
+          .where((e) => e['auto'] != true)
+          .toList();
+      final chosen = {
+        ...((widget.value['extras'] as List?) ?? const []).map((e) => '$e'),
+      };
       // The price list's own code for a destination: its code, or a known place under another code (as the server).
       String? listed(Object? code) {
         final up = '${code ?? ''}'.trim().toUpperCase();
         if (up.isEmpty) return null;
         final named = _destinationNames[up]?.toLowerCase();
-        return destinations.where((d) => '${d['code']}'.toUpperCase() == up).map((d) => '${d['code']}').firstOrNull ??
-            (named == null ? null : destinations.where((d) => '${d['name']}'.trim().toLowerCase() == named).map((d) => '${d['code']}').firstOrNull);
+        return destinations
+                .where((d) => '${d['code']}'.toUpperCase() == up)
+                .map((d) => '${d['code']}')
+                .firstOrNull ??
+            (named == null
+                ? null
+                : destinations
+                      .where(
+                        (d) => '${d['name']}'.trim().toLowerCase() == named,
+                      )
+                      .map((d) => '${d['code']}')
+                      .firstOrNull);
       }
 
       final picked = '${widget.value['destination'] ?? ''}'.trim();
-      final pickup = widget.choice?.toUpperCase() == 'PICKUP' && (picked.isEmpty || picked.toUpperCase() == 'PICKUP' || picked == listed('PICKUP'));
-      final shown = picked.isNotEmpty ? picked : '${widget.choice ?? o['default_destination'] ?? (destinations.isEmpty ? '' : destinations.first['code'])}';
-      final selected = listed(shown) ?? (shown.isEmpty ? null : shown.toUpperCase());
+      final pickup =
+          widget.choice?.toUpperCase() == 'PICKUP' &&
+          (picked.isEmpty ||
+              picked.toUpperCase() == 'PICKUP' ||
+              picked == listed('PICKUP'));
+      final shown = picked.isNotEmpty
+          ? picked
+          : '${widget.choice ?? o['default_destination'] ?? (destinations.isEmpty ? '' : destinations.first['code'])}';
+      final selected =
+          listed(shown) ?? (shown.isEmpty ? null : shown.toUpperCase());
       final options = [
-        if (selected != null && !destinations.any((d) => '${d['code']}' == selected)) {'code': selected, 'name': _destinationNames[selected] ?? selected},
+        if (selected != null &&
+            !destinations.any((d) => '${d['code']}' == selected))
+          {'code': selected, 'name': _destinationNames[selected] ?? selected},
         ...destinations,
       ];
       return Column(
@@ -198,7 +291,10 @@ class _PriceChoicesState extends State<PriceChoices> {
               key: const Key('price-pickup'),
               padding: const EdgeInsets.only(bottom: 6),
               child: const InputDecorator(
-                decoration: InputDecoration(labelText: 'Delivery to', isDense: true),
+                decoration: InputDecoration(
+                  labelText: 'Delivery to',
+                  isDense: true,
+                ),
                 child: Text('Pick up from 3DEEZI (no delivery)'),
               ),
             )
@@ -210,8 +306,17 @@ class _PriceChoicesState extends State<PriceChoices> {
                 key: const Key('price-destination'),
                 isExpanded: true,
                 initialValue: selected,
-                decoration: const InputDecoration(labelText: 'Delivery to', isDense: true),
-                items: [for (final d in options) DropdownMenuItem(value: '${d['code']}', child: Text('${d['name']}'))],
+                decoration: const InputDecoration(
+                  labelText: 'Delivery to',
+                  isDense: true,
+                ),
+                items: [
+                  for (final d in options)
+                    DropdownMenuItem(
+                      value: '${d['code']}',
+                      child: Text('${d['name']}'),
+                    ),
+                ],
                 onChanged: (v) => _set('destination', v),
               ),
             ),
@@ -229,7 +334,10 @@ class _PriceChoicesState extends State<PriceChoices> {
                     : 'per garment'}',
                 style: const TextStyle(fontSize: 11),
               ),
-              onChanged: (on) => _set('extras', [...chosen.where((x) => x != '${e['code']}'), if (on == true) '${e['code']}']),
+              onChanged: (on) => _set('extras', [
+                ...chosen.where((x) => x != '${e['code']}'),
+                if (on == true) '${e['code']}',
+              ]),
             ),
           if (o['discount_codes'] == true)
             Row(
@@ -239,11 +347,18 @@ class _PriceChoicesState extends State<PriceChoices> {
                     key: const Key('price-code'),
                     controller: _code,
                     textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(labelText: 'Discount code', isDense: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Discount code',
+                      isDense: true,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(onPressed: () => _set('discount_code', _code.text.trim().toUpperCase()), child: const Text('Apply')),
+                OutlinedButton(
+                  onPressed: () =>
+                      _set('discount_code', _code.text.trim().toUpperCase()),
+                  child: const Text('Apply'),
+                ),
               ],
             ),
           const SizedBox(height: 10),
@@ -263,7 +378,13 @@ class PaymentStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = payment;
     if (p == null) return const SizedBox.shrink();
-    final tone = {'amber': const Color(0xffffb648), 'green': const Color(0xff3ddc84), 'blue': const Color(0xff3b8cff)}['${p['tone']}'] ?? Palette.muted;
+    final tone =
+        {
+          'amber': const Color(0xffffb648),
+          'green': const Color(0xff3ddc84),
+          'blue': const Color(0xff3b8cff),
+        }['${p['tone']}'] ??
+        Palette.muted;
     final canPay = p['can_pay'] == true && p['invoice_number'] != null;
     return Padding(
       padding: const EdgeInsets.only(top: 10),
@@ -280,17 +401,30 @@ class PaymentStrip extends StatelessWidget {
               child: Text(
                 '${p['label'] ?? p['status']}',
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: tone, fontSize: 11, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  color: tone,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(canPay && p['amount_due'] != null ? '${_money(p['amount_due'], p['currency'])} due' : '', style: const TextStyle(fontSize: 12))),
+          Expanded(
+            child: Text(
+              canPay && p['amount_due'] != null
+                  ? '${_money(p['amount_due'], p['currency'])} due'
+                  : '',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
           if (canPay)
             FilledButton(
               onPressed: () async {
                 try {
-                  final url = await c.api.invoicePayLink('${p['invoice_number']}');
+                  final url = await c.api.invoicePayLink(
+                    '${p['invoice_number']}',
+                  );
                   if (!context.mounted) return;
                   await openPayPage(context, url, 'Pay now');
                   // Back in the app: read the invoice again (the pay page has checked the payment by then).
@@ -308,7 +442,8 @@ class PaymentStrip extends StatelessWidget {
 }
 
 /// Picks a file for an order (replaced in tests).
-Future<({String name, Uint8List bytes})?> Function(String kind) pickOrderFile = _pick;
+Future<({String name, Uint8List bytes})?> Function(String kind) pickOrderFile =
+    _pick;
 
 Future<({String name, Uint8List bytes})?> _pick(String kind) async {
   final file = await openFile(
@@ -316,8 +451,37 @@ Future<({String name, Uint8List bytes})?> _pick(String kind) async {
       XTypeGroup(
         label: kind == 'order_form' ? 'Order forms' : 'Artwork',
         extensions: kind == 'order_form'
-            ? ['pdf', 'xlsx', 'xls', 'csv', 'ods', 'doc', 'docx', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'heic']
-            : ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'pdf', 'ai', 'eps', 'cdr', 'psd', 'tif', 'tiff', 'heic'],
+            ? [
+                'pdf',
+                'xlsx',
+                'xls',
+                'csv',
+                'ods',
+                'doc',
+                'docx',
+                'txt',
+                'png',
+                'jpg',
+                'jpeg',
+                'webp',
+                'heic',
+              ]
+            : [
+                'png',
+                'jpg',
+                'jpeg',
+                'webp',
+                'gif',
+                'svg',
+                'pdf',
+                'ai',
+                'eps',
+                'cdr',
+                'psd',
+                'tif',
+                'tiff',
+                'heic',
+              ],
       ),
     ],
   );
@@ -346,7 +510,16 @@ const _garments = {
 String orderGarmentFor(String garment) {
   final id = ProjectSync.garments[garment] ?? garment.toLowerCase();
   // (The netball dress is ordered on a singlet row, named "Netball dress".)
-  final row = const {'fullkit': 'jersey', 'ziphoodie': 'hoodie', 'pocketpolo': 'polo', 'varsity': 'jacket', 'trackjacket': 'jacket', 'netball-dress': 'singlet'}[id] ?? id;
+  final row =
+      const {
+        'fullkit': 'jersey',
+        'ziphoodie': 'hoodie',
+        'pocketpolo': 'polo',
+        'varsity': 'jacket',
+        'trackjacket': 'jacket',
+        'netball-dress': 'singlet',
+      }[id] ??
+      id;
   return _garments.containsKey(row) ? row : 'jersey';
 }
 
@@ -357,14 +530,30 @@ String orderGarmentFor(String garment) {
 /// names); a design on any other garment's row keeps that garment's name ("Netball bibs" on a jersey row is a Jersey).
 /// [designGarment]: the Studio's garment name ("Singlet") or id ("singlet").
 bool isDesignRow(String designGarment, String rowGarment) {
-  final id = ProjectSync.garments[designGarment] ?? designGarment.trim().toLowerCase();
-  return id.isNotEmpty && (const {'ziphoodie': 'hoodie', 'pocketpolo': 'polo', 'varsity': 'jacket', 'trackjacket': 'jacket', 'netball-dress': 'singlet'}[id] ?? id) == rowGarment;
+  final id =
+      ProjectSync.garments[designGarment] ?? designGarment.trim().toLowerCase();
+  return id.isNotEmpty &&
+      (const {
+                'ziphoodie': 'hoodie',
+                'pocketpolo': 'polo',
+                'varsity': 'jacket',
+                'trackjacket': 'jacket',
+                'netball-dress': 'singlet',
+              }[id] ??
+              id) ==
+          rowGarment;
 }
 
 /// The name a saved design gives an order row ("Netball bibs"), or '' when it has none or the row is another garment.
-String designRowName(String designGarment, String productName, String rowGarment) {
+String designRowName(
+  String designGarment,
+  String productName,
+  String rowGarment,
+) {
   final product = productName.trim();
-  return product.isNotEmpty && isDesignRow(designGarment, rowGarment) ? product : '';
+  return product.isNotEmpty && isDesignRow(designGarment, rowGarment)
+      ? product
+      : '';
 }
 
 /// The fits (Order::FITS): the fit chooses the row's sizes (order_sizes.dart).
@@ -380,7 +569,8 @@ final _smallLink = TextButton.styleFrom(
   textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
 );
 
-String _newKey() => 'app-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 30)}';
+String _newKey() =>
+    'app-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 30)}';
 
 /// One file on the draft: uploading (with progress), uploaded, or failed.
 class _Upload {
@@ -395,6 +585,7 @@ class _Upload {
 class _Row {
   String garment = 'jersey', fit = 'mens';
   int? project;
+
   /// "More sizes": the fit's rare sizes (5XL–8XL, W22–W24, 2Y–4Y).
   bool more = false;
   final Map<String, int> sizes = {};
@@ -413,13 +604,28 @@ class _Row {
         for (final line in const LineSplitter().convert(players))
           if (line.trim().isNotEmpty)
             () {
-              final cells = line.split(RegExp(r'[,\t;]')).map((s) => s.trim()).toList();
-              final number = cells.firstWhere((s) => RegExp(r'^\d{1,3}$').hasMatch(s), orElse: () => '');
+              final cells = line
+                  .split(RegExp(r'[,\t;]'))
+                  .map((s) => s.trim())
+                  .toList();
+              final number = cells.firstWhere(
+                (s) => RegExp(r'^\d{1,3}$').hasMatch(s),
+                orElse: () => '',
+              );
               // "M", "xxl", "10y", "W12" (order_sizes.dart siteSize).
-              final sizeCell = cells.firstWhere((s) => s != number && siteSize(s) != null, orElse: () => '');
+              final sizeCell = cells.firstWhere(
+                (s) => s != number && siteSize(s) != null,
+                orElse: () => '',
+              );
               final size = sizeCell.isEmpty ? '' : siteSize(sizeCell)!;
-              final name = cells.where((s) => s != number && s != sizeCell).join(' ');
-              return {'name': name, 'number': number, if (size.isNotEmpty) 'size': size};
+              final name = cells
+                  .where((s) => s != number && s != sizeCell)
+                  .join(' ');
+              return {
+                'name': name,
+                'number': number,
+                if (size.isNotEmpty) 'size': size,
+              };
             }(),
       ],
   };
@@ -440,9 +646,11 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   String step = 'edit';
   String? error;
   bool busy = false;
+
   /// REVIEW & APPROVE ORDER's box ("I confirm the selected garments, sizes, quantities and final mockups are correct").
   bool approved = false;
   Map<String, dynamic>? placed;
+
   /// The review's price choices (each screen keeps its own).
   Map<String, dynamic> get pricing;
   set pricing(Map<String, dynamic> value);
@@ -470,27 +678,45 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
     if (delivery == 'pickup') return 'PICKUP';
     if (delivery != 'deliver' || c0.isEmpty) return null;
     if (isAustralia(c0)) return 'AU';
-    return RegExp(r'^(new zealand|nz|aotearoa)$', caseSensitive: false).hasMatch(c0) ? 'NZ' : 'INTL';
+    return RegExp(
+          r'^(new zealand|nz|aotearoa)$',
+          caseSensitive: false,
+        ).hasMatch(c0)
+        ? 'NZ'
+        : 'INTL';
   }
 
   /// The review's "Delivery to" from section 1 (only a destination the price list has, and not one chosen there).
   Future<void> _presetDestination() async {
     try {
       final o = await c.api.pricingOptions();
-      final list = ((o['destinations'] as List?) ?? const []).whereType<Map>().toList();
+      final list = ((o['destinations'] as List?) ?? const [])
+          .whereType<Map>()
+          .toList();
       String? find(String code, RegExp name) =>
-          list.where((d) => '${d['code']}'.toUpperCase() == code).map((d) => '${d['code']}').firstOrNull ??
-          list.where((d) => name.hasMatch('${d['name']}')).map((d) => '${d['code']}').firstOrNull;
+          list
+              .where((d) => '${d['code']}'.toUpperCase() == code)
+              .map((d) => '${d['code']}')
+              .firstOrNull ??
+          list
+              .where((d) => name.hasMatch('${d['name']}'))
+              .map((d) => '${d['code']}')
+              .firstOrNull;
       final c0 = country.text.trim();
       final dest = delivery == 'pickup'
           ? find('PICKUP', RegExp(r'pick\s*-?\s*up', caseSensitive: false))
           : isAustralia(c0)
           ? find('AU', RegExp(r'^australia', caseSensitive: false))
-          : RegExp(r'^(new zealand|nz|aotearoa)$', caseSensitive: false).hasMatch(c0)
+          : RegExp(
+              r'^(new zealand|nz|aotearoa)$',
+              caseSensitive: false,
+            ).hasMatch(c0)
           ? find('NZ', RegExp('new zealand', caseSensitive: false))
           : find('INTL', RegExp('international', caseSensitive: false));
       // A destination set here before follows a changed choice (or is cleared, so the server takes it from the choice).
-      if (mounted && (pricing['destination'] == null || pricing['destination'] == autoDestination)) {
+      if (mounted &&
+          (pricing['destination'] == null ||
+              pricing['destination'] == autoDestination)) {
         setState(() {
           autoDestination = dest;
           pricing = {...pricing}..remove('destination');
@@ -528,7 +754,12 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   }
 
   /// What stops the order being sent from section 1 (mobile, date required, delivery or pick up), or null.
-  String? deliveryProblem() => uploadDetailsProblem(phone: phone.text, neededBy: neededBy, delivery: delivery, address: address);
+  String? deliveryProblem() => uploadDetailsProblem(
+    phone: phone.text,
+    neededBy: neededBy,
+    delivery: delivery,
+    address: address,
+  );
 
   /// Date required, Deliver or Pick up, and the delivery address.
   Widget _whenWhere() {
@@ -539,16 +770,25 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
       children: [
         OutlinedButton.icon(
           key: const Key('date-required'),
-          style: OutlinedButton.styleFrom(alignment: Alignment.centerLeft, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)),
+          style: OutlinedButton.styleFrom(
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          ),
           icon: const Icon(Icons.event, size: 18),
-          label: Text(neededBy == null ? 'Date required: choose when you need the garments' : 'Date required: ${_dayText(neededBy!)}'),
+          label: Text(
+            neededBy == null
+                ? 'Date required: choose when you need the garments'
+                : 'Date required: ${_dayText(neededBy!)}',
+          ),
           onPressed: () async {
             final first = DateTime(today.year, today.month, today.day);
             final picked = await showDatePicker(
               context: context,
               firstDate: first,
               lastDate: first.add(const Duration(days: 730)),
-              initialDate: neededBy != null && !neededBy!.isBefore(first) ? neededBy! : first.add(const Duration(days: 28)),
+              initialDate: neededBy != null && !neededBy!.isBefore(first)
+                  ? neededBy!
+                  : first.add(const Duration(days: 28)),
               helpText: 'Date required',
             );
             if (picked != null && mounted) setState(() => neededBy = picked);
@@ -557,13 +797,20 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
         if (leadWarningText(neededBy, leadWeeks) case final warning?)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text(warning, key: const Key('lead-warning'), style: const TextStyle(color: Color(0xffffc27a), fontSize: 12)),
+            child: Text(
+              warning,
+              key: const Key('lead-warning'),
+              style: const TextStyle(color: Color(0xffffc27a), fontSize: 12),
+            ),
           ),
         const SizedBox(height: 10),
         Wrap(
           spacing: 10,
           children: [
-            for (final (value, label, icon) in const [('deliver', 'Deliver', Icons.local_shipping_outlined), ('pickup', 'Pick up', Icons.storefront_outlined)])
+            for (final (value, label, icon) in const [
+              ('deliver', 'Deliver', Icons.local_shipping_outlined),
+              ('pickup', 'Pick up', Icons.storefront_outlined),
+            ])
               ChoiceChip(
                 key: Key('delivery-$value'),
                 avatar: Icon(icon, size: 18),
@@ -575,7 +822,10 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
         ),
         const SizedBox(height: 10),
         if (delivery == 'pickup')
-          const Text('We’ll tell you when your order is ready to collect.', style: TextStyle(color: Palette.muted, fontSize: 12))
+          const Text(
+            'We’ll tell you when your order is ready to collect.',
+            style: TextStyle(color: Palette.muted, fontSize: 12),
+          )
         else ...[
           _field(street, 'Street address'),
           _field(suburb, 'Suburb / town'),
@@ -590,17 +840,32 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
                         child: DropdownButtonFormField<String>(
                           // Built again when the state is set from the order form (AI reader).
                           key: ValueKey('address-state-$auState'),
-                          initialValue: auStates.contains(auState) ? auState : null,
+                          initialValue: auStates.contains(auState)
+                              ? auState
+                              : null,
                           isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'State', border: OutlineInputBorder(), isDense: true),
-                          items: [for (final st in auStates) DropdownMenuItem(value: st, child: Text(st))],
+                          decoration: const InputDecoration(
+                            labelText: 'State',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: [
+                            for (final st in auStates)
+                              DropdownMenuItem(value: st, child: Text(st)),
+                          ],
                           onChanged: (v) => setState(() => auState = v ?? ''),
                         ),
                       )
                     : _field(region, 'State / region (optional)'),
               ),
               const SizedBox(width: 10),
-              Expanded(child: _field(postcode, au ? 'Postcode' : 'Postcode (if any)', keyboard: au ? TextInputType.number : null)),
+              Expanded(
+                child: _field(
+                  postcode,
+                  au ? 'Postcode' : 'Postcode (if any)',
+                  keyboard: au ? TextInputType.number : null,
+                ),
+              ),
             ],
           ),
           Padding(
@@ -608,7 +873,11 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
             child: TextField(
               controller: country,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(labelText: 'Country', border: OutlineInputBorder(), isDense: true),
+              decoration: const InputDecoration(
+                labelText: 'Country',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
             ),
           ),
         ],
@@ -623,7 +892,8 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
 
   Map<String, dynamic> fields();
 
-  Future<int> ensureDraft() async => draftId ??= ((await c.api.createOrderDraft(kind, fields()))['id'] as num).toInt();
+  Future<int> ensureDraft() async => draftId ??=
+      ((await c.api.createOrderDraft(kind, fields()))['id'] as num).toInt();
 
   Future<void> saveDraft() async {
     setState(() => busy = true);
@@ -656,7 +926,11 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
     });
     try {
       final id = await ensureDraft();
-      if (replacing?.file != null) await c.api.removeOrderDraftFile(id, (replacing!.file!['id'] as num).toInt());
+      if (replacing?.file != null)
+        await c.api.removeOrderDraftFile(
+          id,
+          (replacing!.file!['id'] as num).toInt(),
+        );
       final file = await c.api.uploadOrderFile(
         id,
         picked.bytes,
@@ -680,7 +954,10 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
     setState(() => uploads.remove(upload));
     if (draftId != null && upload.file != null) {
       try {
-        await c.api.removeOrderDraftFile(draftId!, (upload.file!['id'] as num).toInt());
+        await c.api.removeOrderDraftFile(
+          draftId!,
+          (upload.file!['id'] as num).toInt(),
+        );
       } on ApiException catch (e) {
         if (mounted) setState(() => error = e.message);
       }
@@ -695,7 +972,10 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
     });
     try {
       final id = await ensureDraft();
-      final order = await c.api.submitOrderDraft(id, key, {...fields(), ...extra});
+      final order = await c.api.submitOrderDraft(id, key, {
+        ...fields(),
+        ...extra,
+      });
       if (mounted)
         setState(() {
           placed = order;
@@ -727,7 +1007,13 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
                 size: 20,
               ),
               const SizedBox(width: 8),
-              Expanded(child: Text(u.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Expanded(
+                child: Text(
+                  u.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               Text(
                 u.error != null
                     ? 'Failed'
@@ -736,12 +1022,22 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
                     : '${(u.progress * 100).round()}%',
                 style: const TextStyle(color: Palette.muted, fontSize: 12),
               ),
-              if (onReplace != null) TextButton(onPressed: onReplace, child: const Text('Replace')),
-              IconButton(tooltip: 'Remove ${u.name}', onPressed: () => removeFile(u), icon: const Icon(Icons.close, size: 18)),
+              if (onReplace != null)
+                TextButton(onPressed: onReplace, child: const Text('Replace')),
+              IconButton(
+                tooltip: 'Remove ${u.name}',
+                onPressed: () => removeFile(u),
+                icon: const Icon(Icons.close, size: 18),
+              ),
             ],
           ),
-          if (u.file == null && u.error == null) LinearProgressIndicator(value: u.progress),
-          if (u.error != null) Text(u.error!, style: const TextStyle(color: Color(0xffff8a8a), fontSize: 12)),
+          if (u.file == null && u.error == null)
+            LinearProgressIndicator(value: u.progress),
+          if (u.error != null)
+            Text(
+              u.error!,
+              style: const TextStyle(color: Color(0xffff8a8a), fontSize: 12),
+            ),
         ],
       ),
     ),
@@ -782,7 +1078,11 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
           '${o['number']}',
           key: const Key('order-reference'),
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Palette.cyan),
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: Palette.cyan,
+          ),
         ),
         const SizedBox(height: 10),
         Text(
@@ -797,7 +1097,11 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
         const SizedBox(height: 20),
         GradientButton(
           label: 'VIEW MY ORDER',
-          onPressed: () => Navigator.of(context).pushReplacement(MaterialPageRoute<void>(builder: (_) => OrderDetailScreen(c, (o['id'] as num).toInt()))),
+          onPressed: () => Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => OrderDetailScreen(c, (o['id'] as num).toInt()),
+            ),
+          ),
         ),
       ],
     );
@@ -816,7 +1120,18 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
 
   @override
   void dispose() {
-    for (final t in [name, email, phone, team, notes, street, suburb, region, postcode, country]) {
+    for (final t in [
+      name,
+      email,
+      phone,
+      team,
+      notes,
+      street,
+      suburb,
+      region,
+      postcode,
+      country,
+    ]) {
       t.dispose();
     }
     super.dispose();
@@ -827,7 +1142,10 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
 /// (04xx xxx xxx, 0x xxxx xxxx, +61 4xx xxx xxx) or international (+ and 8 to 15 digits).
 bool validMobile(String value) {
   final phone = value.trim();
-  if (phone.isEmpty || phone.length > 40 || !RegExp(r'^\+?[\d\s().-]+$').hasMatch(phone)) return false;
+  if (phone.isEmpty ||
+      phone.length > 40 ||
+      !RegExp(r'^\+?[\d\s().-]+$').hasMatch(phone))
+    return false;
   final plain = phone.replaceAll(RegExp(r'[\s().-]'), '');
   if (plain.startsWith('+61')) return RegExp(r'^\+610?\d{9}$').hasMatch(plain);
   if (plain.startsWith('0')) return RegExp(r'^0\d{9}$').hasMatch(plain);
@@ -835,8 +1153,10 @@ bool validMobile(String value) {
 }
 
 const auStates = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
-bool isAustralia(String country) => const ['australia', 'au', 'aus'].contains(country.trim().toLowerCase());
-String _ymd(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+bool isAustralia(String country) =>
+    const ['australia', 'au', 'aus'].contains(country.trim().toLowerCase());
+String _ymd(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 String _dayText(DateTime d) =>
     '${const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.weekday - 1]} ${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]} ${d.year}';
 
@@ -847,8 +1167,11 @@ const defaultLeadWeeks = 4;
 String? leadWarningText(DateTime? neededBy, int weeks, {DateTime? today}) {
   if (neededBy == null || weeks <= 0) return null;
   final now = today ?? DateTime.now();
-  final day = DateTime(neededBy.year, neededBy.month, neededBy.day), start = DateTime(now.year, now.month, now.day);
-  if (day.isBefore(start) || !day.isBefore(start.add(Duration(days: weeks * 7)))) return null;
+  final day = DateTime(neededBy.year, neededBy.month, neededBy.day),
+      start = DateTime(now.year, now.month, now.day);
+  if (day.isBefore(start) ||
+      !day.isBefore(start.add(Duration(days: weeks * 7))))
+    return null;
   return 'Usually $weeks week${weeks == 1 ? '' : 's'} for production and delivery; we’ll confirm if we can meet your date.';
 }
 
@@ -863,40 +1186,64 @@ String? uploadDetailsProblem({
 }) {
   final now = today ?? DateTime.now();
   if (phone.trim().isEmpty) return 'Add a mobile number so we can reach you.';
-  if (!validMobile(phone)) return 'Enter a mobile number, e.g. 0412 345 678 or +61 412 345 678.';
+  if (!validMobile(phone))
+    return 'Enter a mobile number, e.g. 0412 345 678 or +61 412 345 678.';
   if (neededBy == null) return 'Choose the date you need the order by.';
-  if (DateTime(neededBy.year, neededBy.month, neededBy.day).isBefore(DateTime(now.year, now.month, now.day))) return 'The date required can’t be in the past.';
-  if (delivery != 'deliver' && delivery != 'pickup') return 'Choose delivery or pick up.';
+  if (DateTime(
+    neededBy.year,
+    neededBy.month,
+    neededBy.day,
+  ).isBefore(DateTime(now.year, now.month, now.day)))
+    return 'The date required can’t be in the past.';
+  if (delivery != 'deliver' && delivery != 'pickup')
+    return 'Choose delivery or pick up.';
   if (delivery == 'pickup') return null;
   String get(String k) => (address[k] ?? '').trim();
   if (get('street').isEmpty) return 'Add the street address for delivery.';
   if (get('suburb').isEmpty) return 'Add the suburb or town.';
   if (get('country').isEmpty) return 'Add the country.';
   if (isAustralia(get('country'))) {
-    if (!auStates.contains(get('state').toUpperCase())) return 'Choose the state.';
-    if (!RegExp(r'^\d{4}$').hasMatch(get('postcode'))) return 'Enter the 4-digit postcode.';
-  } else if (get('postcode').isNotEmpty && !RegExp(r'^[A-Za-z0-9 -]{2,10}$').hasMatch(get('postcode'))) {
+    if (!auStates.contains(get('state').toUpperCase()))
+      return 'Choose the state.';
+    if (!RegExp(r'^\d{4}$').hasMatch(get('postcode')))
+      return 'Enter the 4-digit postcode.';
+  } else if (get('postcode').isNotEmpty &&
+      !RegExp(r'^[A-Za-z0-9 -]{2,10}$').hasMatch(get('postcode'))) {
     return 'Check the postcode.';
   }
   return null;
 }
 
 /// The delivery address on one line, or the pick-up note.
-String deliveryLine(String delivery, Map<String, String> a) => delivery == 'pickup'
+String deliveryLine(String delivery, Map<String, String> a) =>
+    delivery == 'pickup'
     ? 'Pick up from 3DEEZI'
     : [
         a['street'] ?? '',
-        [a['suburb'] ?? '', (a['state'] ?? '').toUpperCase(), a['postcode'] ?? ''].map((v) => v.trim()).where((v) => v.isNotEmpty).join(' '),
+        [
+          a['suburb'] ?? '',
+          (a['state'] ?? '').toUpperCase(),
+          a['postcode'] ?? '',
+        ].map((v) => v.trim()).where((v) => v.isNotEmpty).join(' '),
         a['country'] ?? '',
       ].map((v) => v.trim()).where((v) => v.isNotEmpty).join(', ');
 
-Widget _field(TextEditingController controller, String label, {int lines = 1, TextInputType? keyboard}) => Padding(
+Widget _field(
+  TextEditingController controller,
+  String label, {
+  int lines = 1,
+  TextInputType? keyboard,
+}) => Padding(
   padding: const EdgeInsets.only(bottom: 10),
   child: TextField(
     controller: controller,
     maxLines: lines,
     keyboardType: keyboard,
-    decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), isDense: true),
+    decoration: InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      isDense: true,
+    ),
   ),
 );
 
@@ -904,7 +1251,12 @@ Widget _section(String text) => Padding(
   padding: const EdgeInsets.fromLTRB(0, 18, 0, 10),
   child: Text(
     text.toUpperCase(),
-    style: const TextStyle(color: Palette.cyan, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 1.2),
+    style: const TextStyle(
+      color: Palette.cyan,
+      fontWeight: FontWeight.w800,
+      fontSize: 12,
+      letterSpacing: 1.2,
+    ),
   ),
 );
 
@@ -959,7 +1311,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     'delivery': delivery,
     'address': address,
     // Made by (preferred suppliers): only a maker other than 3DEEZI is sent, as the website does.
-    if (MadeByField.idToSend(makers, supplierId) case final id?) 'supplier_id': id,
+    if (MadeByField.idToSend(makers, supplierId) case final id?)
+      'supplier_id': id,
   };
 
   int get total => rows.fold(0, (a, r) => a + r.total);
@@ -969,16 +1322,30 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     setState(() => busy = true);
     try {
       final read = await c.api.orderAssist(help.text.trim());
-      final items = ((read['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
+      final items = ((read['items'] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
       setState(() {
         if (rows.length == 1 && rows.first.total == 0) rows.clear();
         for (final item in items) {
           rows.add(
             _Row()
-              ..garment = _garments.containsKey(item['garment']) ? '${item['garment']}' : 'other'
-              ..sizes.addAll(((item['sizes'] as Map?) ?? const {}).map((k, v) => MapEntry('$k', (v as num).toInt())))
+              ..garment = _garments.containsKey(item['garment'])
+                  ? '${item['garment']}'
+                  : 'other'
+              ..sizes.addAll(
+                ((item['sizes'] as Map?) ?? const {}).map(
+                  (k, v) => MapEntry('$k', (v as num).toInt()),
+                ),
+              )
               // Only womens or only kids sizes: that fit, so the row shows that size set.
-              ..fit = _fits.containsKey(item['fit']) ? '${item['fit']}' : fitFromSizes(((item['sizes'] as Map?) ?? const {}).map((k, v) => MapEntry('$k', (v as num).toInt()))) ?? 'mens',
+              ..fit = _fits.containsKey(item['fit'])
+                  ? '${item['fit']}'
+                  : fitFromSizes(
+                          ((item['sizes'] as Map?) ?? const {}).map(
+                            (k, v) => MapEntry('$k', (v as num).toInt()),
+                          ),
+                        ) ??
+                        'mens',
           );
         }
         if (rows.isEmpty) rows.add(_Row());
@@ -1018,7 +1385,11 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         if (step == 'edit')
           IconButton(
             tooltip: 'Open on the website',
-            onPressed: () => openSitePage(context, c.api.sitePage('/orders/new'), 'Create order form'),
+            onPressed: () => openSitePage(
+              context,
+              c.api.sitePage('/orders/new'),
+              'Create order form',
+            ),
             icon: const Icon(Icons.open_in_new),
           ),
       ],
@@ -1047,25 +1418,41 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
           makers: makers,
           value: supplierId,
           onChanged: (id) => setState(() => supplierId = id),
-          onSeeSuppliers: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
+          onSeeSuppliers: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
         ),
         _section('2 · Garments & sizes'),
         SurfaceCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('3DEEZI ASSIST · Help me add sizes', style: TextStyle(fontWeight: FontWeight.w700)),
+              const Text(
+                '3DEEZI ASSIST · Help me add sizes',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: help,
-                decoration: const InputDecoration(hintText: '12 jerseys M, 12 shorts L, 6 hoodies XL', isDense: true, border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                  hintText: '12 jerseys M, 12 shorts L, 6 hoodies XL',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
               ),
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
-                child: OutlinedButton(onPressed: busy ? null : helpMe, child: const Text('Help me add sizes')),
+                child: OutlinedButton(
+                  onPressed: busy ? null : helpMe,
+                  child: const Text('Help me add sizes'),
+                ),
               ),
-              if (helped != null) Text(helped!, style: const TextStyle(color: Palette.muted, fontSize: 12)),
+              if (helped != null)
+                Text(
+                  helped!,
+                  style: const TextStyle(color: Palette.muted, fontSize: 12),
+                ),
             ],
           ),
         ),
@@ -1082,12 +1469,24 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                       Expanded(
                         child: DropdownButtonFormField<String>(
                           // A saved design sets the garment: show it.
-                          key: ValueKey('garment-${identityHashCode(r)}-${r.garment}'),
+                          key: ValueKey(
+                            'garment-${identityHashCode(r)}-${r.garment}',
+                          ),
                           isExpanded: true,
                           initialValue: r.garment,
-                          decoration: const InputDecoration(labelText: 'Garment', isDense: true),
-                          items: [for (final e in _garments.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
-                          onChanged: (v) => setState(() => r.garment = v ?? r.garment),
+                          decoration: const InputDecoration(
+                            labelText: 'Garment',
+                            isDense: true,
+                          ),
+                          items: [
+                            for (final e in _garments.entries)
+                              DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => r.garment = v ?? r.garment),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1095,14 +1494,25 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                         child: DropdownButtonFormField<String>(
                           isExpanded: true,
                           initialValue: r.fit,
-                          decoration: const InputDecoration(labelText: 'Fit', isDense: true),
-                          items: [for (final e in _fits.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
+                          decoration: const InputDecoration(
+                            labelText: 'Fit',
+                            isDense: true,
+                          ),
+                          items: [
+                            for (final e in _fits.entries)
+                              DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ),
+                          ],
                           onChanged: (v) => setState(() => r.fit = v ?? r.fit),
                         ),
                       ),
                       IconButton(
                         tooltip: 'Remove garment ${i + 1}',
-                        onPressed: rows.length < 2 ? null : () => setState(() => rows.remove(r)),
+                        onPressed: rows.length < 2
+                            ? null
+                            : () => setState(() => rows.remove(r)),
                         icon: const Icon(Icons.delete_outline),
                       ),
                     ],
@@ -1111,15 +1521,28 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                     DropdownButtonFormField<int?>(
                       isExpanded: true,
                       initialValue: r.project,
-                      decoration: const InputDecoration(labelText: 'Design', isDense: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Design',
+                        isDense: true,
+                      ),
                       items: [
-                        const DropdownMenuItem<int?>(value: null, child: Text('No saved design')),
-                        for (final p in designs) DropdownMenuItem<int?>(value: p.remoteId, child: Text(p.title)),
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('No saved design'),
+                        ),
+                        for (final p in designs)
+                          DropdownMenuItem<int?>(
+                            value: p.remoteId,
+                            child: Text(p.title),
+                          ),
                       ],
                       onChanged: (v) => setState(() {
                         r.project = v;
-                        final p = designs.where((p) => p.remoteId == v).firstOrNull;
-                        if (p != null) r.garment = orderGarmentFor(p.kit.garment);
+                        final p = designs
+                            .where((p) => p.remoteId == v)
+                            .firstOrNull;
+                        if (p != null)
+                          r.garment = orderGarmentFor(p.kit.garment);
                       }),
                     ),
                   const SizedBox(height: 10),
@@ -1136,8 +1559,14 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                             initialValue: r.sizes[s]?.toString() ?? '',
                             keyboardType: TextInputType.number,
                             textAlign: TextAlign.center,
-                            decoration: InputDecoration(labelText: s, isDense: true, border: const OutlineInputBorder()),
-                            onChanged: (v) => setState(() => r.sizes[s] = int.tryParse(v) ?? 0),
+                            decoration: InputDecoration(
+                              labelText: s,
+                              isDense: true,
+                              border: const OutlineInputBorder(),
+                            ),
+                            onChanged: (v) => setState(
+                              () => r.sizes[s] = int.tryParse(v) ?? 0,
+                            ),
                           ),
                         ),
                     ],
@@ -1152,7 +1581,10 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                         padding: const EdgeInsets.only(right: 8),
                         child: Text(
                           'Subtotal ${r.total}',
-                          style: const TextStyle(color: Palette.cyan, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                            color: Palette.cyan,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                       if (rareFor(r.fit).isNotEmpty)
@@ -1160,10 +1592,17 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                           key: Key('more-sizes-$i'),
                           style: _smallLink,
                           onPressed: () => setState(() => r.more = !r.more),
-                          child: Text(r.more ? 'Fewer sizes' : '+ ${rareText(rareFor(r.fit))}'),
+                          child: Text(
+                            r.more
+                                ? 'Fewer sizes'
+                                : '+ ${rareText(rareFor(r.fit))}',
+                          ),
                         ),
                       for (final f in const ['mens', 'womens', 'youth'])
-                        if (f != (r.fit == 'womens' || r.fit == 'youth' ? r.fit : 'mens'))
+                        if (f !=
+                            (r.fit == 'womens' || r.fit == 'youth'
+                                ? r.fit
+                                : 'mens'))
                           TextButton(
                             key: Key('add-fit-$i-$f'),
                             style: _smallLink,
@@ -1184,12 +1623,18 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                   ),
                   ExpansionTile(
                     tilePadding: EdgeInsets.zero,
-                    title: const Text('Player names & numbers (optional)', style: TextStyle(fontSize: 13)),
+                    title: const Text(
+                      'Player names & numbers (optional)',
+                      style: TextStyle(fontSize: 13),
+                    ),
                     children: [
                       TextFormField(
                         initialValue: r.players,
                         maxLines: 4,
-                        decoration: const InputDecoration(hintText: 'One per line: SMITH, 7, M', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          hintText: 'One per line: SMITH, 7, M',
+                          border: OutlineInputBorder(),
+                        ),
                         onChanged: (v) => r.players = v,
                       ),
                     ],
@@ -1198,10 +1643,18 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
               ),
             ),
           ),
-        TextButton.icon(onPressed: () => setState(() => rows.add(_Row())), icon: const Icon(Icons.add), label: const Text('Add garment')),
+        TextButton.icon(
+          onPressed: () => setState(() => rows.add(_Row())),
+          icon: const Icon(Icons.add),
+          label: const Text('Add garment'),
+        ),
         _section('3 · Artwork & instructions'),
         for (final u in uploads) fileRow(u),
-        OutlinedButton.icon(onPressed: () => addFile('artwork'), icon: const Icon(Icons.attach_file), label: const Text('Add logos, artwork or a reference')),
+        OutlinedButton.icon(
+          onPressed: () => addFile('artwork'),
+          icon: const Icon(Icons.attach_file),
+          label: const Text('Add logos, artwork or a reference'),
+        ),
         const SizedBox(height: 10),
         _field(notes, 'Design instructions', lines: 3),
         errorText(),
@@ -1209,7 +1662,10 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         Row(
           children: [
             Expanded(
-              child: OutlinedButton(onPressed: busy ? null : saveDraft, child: const Text('Save draft')),
+              child: OutlinedButton(
+                onPressed: busy ? null : saveDraft,
+                child: const Text('Save draft'),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -1244,12 +1700,31 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   /// design's own garment (designRowName): the design on another garment's row keeps that garment's name (task 9.97).
   /// A row's own label wins.
   List<Map<String, dynamic>> _named(Iterable<Object?> items) => [
-    for (final m in items.whereType<Map>().map((m) => m.cast<String, dynamic>()))
+    for (final m in items.whereType<Map>().map(
+      (m) => m.cast<String, dynamic>(),
+    ))
       () {
         final id = m['project_id'];
-        final project = id == null ? null : c.projects.where((p) => p.remoteId != null && p.remoteId == id).firstOrNull;
-        final product = project == null ? '' : designRowName(project.kit.garment, project.kit.productName, '${m['garment'] ?? ''}');
-        return product.isNotEmpty && '${m['label'] ?? ''}'.trim().isEmpty ? {...m, 'label': product.length > 60 ? product.substring(0, 60) : product} : m;
+        final project = id == null
+            ? null
+            : c.projects
+                  .where((p) => p.remoteId != null && p.remoteId == id)
+                  .firstOrNull;
+        final product = project == null
+            ? ''
+            : designRowName(
+                project.kit.garment,
+                project.kit.productName,
+                '${m['garment'] ?? ''}',
+              );
+        return product.isNotEmpty && '${m['label'] ?? ''}'.trim().isEmpty
+            ? {
+                ...m,
+                'label': product.length > 60
+                    ? product.substring(0, 60)
+                    : product,
+              }
+            : m;
       }(),
   ];
 
@@ -1262,7 +1737,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     ]);
     final art = [
       for (final u in uploads)
-        if (u.file != null && '${u.file!['thumb'] ?? ''}'.startsWith('data:')) '${u.file!['thumb']}',
+        if (u.file != null && '${u.file!['thumb'] ?? ''}'.startsWith('data:'))
+          '${u.file!['thumb']}',
     ];
     return ListView(
       // Its own list, so the review starts at its top (not where the form was scrolled to).
@@ -1272,31 +1748,59 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         context,
         first: 'Order details',
         layout: reviewLayout(items),
-        garments: multiGarmentsFrom(items, names: _garments, artwork: art.firstOrNull),
-        mockups: [for (var i = 0; i < art.length && i < 2; i++) (label: art.length > 1 ? 'ARTWORK ${i + 1}' : 'ARTWORK', src: art[i])],
+        garments: multiGarmentsFrom(
+          items,
+          names: _garments,
+          artwork: art.firstOrNull,
+        ),
+        mockups: [
+          for (var i = 0; i < art.length && i < 2; i++)
+            (
+              label: art.length > 1 ? 'ARTWORK ${i + 1}' : 'ARTWORK',
+              src: art[i],
+            ),
+        ],
         artworkOnly: true,
         files: [
           for (final u in uploads)
             if (u.file != null) u.name,
         ],
         filesLabel: 'Artwork',
-        contact: [name.text.trim(), team.text.trim()].where((v) => v.isNotEmpty).join(' · '),
+        contact: [
+          name.text.trim(),
+          team.text.trim(),
+        ].where((v) => v.isNotEmpty).join(' · '),
         email: email.text.trim(),
         mobile: phone.text.trim(),
         neededBy: neededBy == null ? null : _dayText(neededBy!),
         pickup: delivery == 'pickup',
-        deliveryText: delivery == 'pickup' ? null : deliveryLine(delivery, address),
+        deliveryText: delivery == 'pickup'
+            ? null
+            : deliveryLine(delivery, address),
         onEditDelivery: () => setState(() => step = 'edit'),
         notes: notes.text.trim(),
         // Who makes it, when the form offered a choice (as the website's review).
-        madeBy: makers.length > 1 ? MadeByField.chosenOf(makers, supplierId)?.name : null,
+        madeBy: makers.length > 1
+            ? MadeByField.chosenOf(makers, supplierId)?.name
+            : null,
         price: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            PriceChoices(c, pricing, (next) => setState(() => pricing = next), choice: choiceDestination),
+            PriceChoices(
+              c,
+              pricing,
+              (next) => setState(() => pricing = next),
+              choice: choiceDestination,
+            ),
             // Priced as the order will be: the review's choice, else Deliver / Pick up and the country.
-            PriceBox(c, {'items': _named((fields()['items'] as List?) ?? const []), 'pricing': {...pricing, if (pricing['destination'] == null && choiceDestination != null) 'destination': choiceDestination}},
-                key: ValueKey('${jsonEncode(pricing)}$choiceDestination')),
+            PriceBox(c, {
+              'items': _named((fields()['items'] as List?) ?? const []),
+              'pricing': {
+                ...pricing,
+                if (pricing['destination'] == null && choiceDestination != null)
+                  'destination': choiceDestination,
+              },
+            }, key: ValueKey('${jsonEncode(pricing)}$choiceDestination')),
           ],
         ),
         onEditGarments: () => setState(() => step = 'edit'),
@@ -1322,12 +1826,14 @@ class OrderUploadScreen extends StatefulWidget {
   State<OrderUploadScreen> createState() => _OrderUploadScreenState();
 }
 
-class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry {
+class _OrderUploadScreenState extends State<OrderUploadScreen>
+    with _OrderEntry {
   @override
   AppController get c => widget.controller;
   @override
   String get kind => 'upload';
   bool editContact = false, correct = false;
+
   /// The rows read from the order form, open to correct ("Edit sizes & garments" on the review).
   bool editingRows = false;
   Map<String, dynamic> pricing = {};
@@ -1361,11 +1867,13 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
     'address': address,
     if (pricing.isNotEmpty) 'pricing': pricing,
     // Made by: sent whenever there is a choice (null is 3DEEZI, which also clears a choice saved on the draft).
-    if (makers.length > 1) 'supplier_id': MadeByField.idToSend(makers, supplierId),
+    if (makers.length > 1)
+      'supplier_id': MadeByField.idToSend(makers, supplierId),
   };
 
   _Upload? get form => uploads.where((u) => u.kind == 'order_form').firstOrNull;
-  Map<String, dynamic>? get suggested => (form?.file?['suggested'] as Map?)?.cast<String, dynamic>();
+  Map<String, dynamic>? get suggested =>
+      (form?.file?['suggested'] as Map?)?.cast<String, dynamic>();
 
   @override
   void onUploaded(_Upload upload) {
@@ -1401,19 +1909,29 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
   void _prefill(Map<String, dynamic> s) {
     final key = '${s['file_id']}:${s['read_at']}';
     final f = (s['form'] as Map?)?.cast<String, dynamic>();
-    if (s['source'] != 'ai' || f == null || !mounted || !_prefilled.add(key)) return;
+    if (s['source'] != 'ai' || f == null || !mounted || !_prefilled.add(key))
+      return;
     setState(() {
       final date = DateTime.tryParse('${f['needed_by'] ?? ''}');
       final now = DateTime.now();
-      if (neededBy == null && date != null && !date.isBefore(DateTime(now.year, now.month, now.day))) neededBy = date;
-      if (phone.text.trim().isEmpty && '${f['phone'] ?? ''}'.isNotEmpty) phone.text = '${f['phone']}';
-      if (team.text.trim().isEmpty && '${f['team_name'] ?? ''}'.isNotEmpty) team.text = '${f['team_name']}';
+      if (neededBy == null &&
+          date != null &&
+          !date.isBefore(DateTime(now.year, now.month, now.day)))
+        neededBy = date;
+      if (phone.text.trim().isEmpty && '${f['phone'] ?? ''}'.isNotEmpty)
+        phone.text = '${f['phone']}';
+      if (team.text.trim().isEmpty && '${f['team_name'] ?? ''}'.isNotEmpty)
+        team.text = '${f['team_name']}';
       final a = (f['address'] as Map?)?.cast<String, dynamic>() ?? const {};
-      if (delivery != 'pickup' && street.text.trim().isEmpty && suburb.text.trim().isEmpty && '${a['street'] ?? ''}'.isNotEmpty) {
+      if (delivery != 'pickup' &&
+          street.text.trim().isEmpty &&
+          suburb.text.trim().isEmpty &&
+          '${a['street'] ?? ''}'.isNotEmpty) {
         street.text = '${a['street']}';
         suburb.text = '${a['suburb'] ?? ''}';
         postcode.text = '${a['postcode'] ?? ''}';
-        if ('${a['country'] ?? ''}'.isNotEmpty) country.text = '${a['country']}';
+        if ('${a['country'] ?? ''}'.isNotEmpty)
+          country.text = '${a['country']}';
         final st = '${a['state'] ?? ''}'.toUpperCase();
         if (isAustralia(country.text)) {
           if (auStates.contains(st)) auState = st;
@@ -1455,7 +1973,11 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
         if (step == 'edit')
           IconButton(
             tooltip: 'Open on the website',
-            onPressed: () => openSitePage(context, c.api.sitePage('/orders/upload'), 'Upload your order'),
+            onPressed: () => openSitePage(
+              context,
+              c.api.sitePage('/orders/upload'),
+              'Upload your order',
+            ),
             icon: const Icon(Icons.open_in_new),
           ),
       ],
@@ -1477,8 +1999,15 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
         SurfaceCard(
           child: Row(
             children: [
-              Expanded(child: Text('${name.text}${email.text.isEmpty ? '' : ' · ${email.text}'}\n${team.text.isEmpty ? 'Add your team name' : team.text}')),
-              TextButton(onPressed: () => setState(() => editContact = true), child: const Text('Edit')),
+              Expanded(
+                child: Text(
+                  '${name.text}${email.text.isEmpty ? '' : ' · ${email.text}'}\n${team.text.isEmpty ? 'Add your team name' : team.text}',
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(() => editContact = true),
+                child: const Text('Edit'),
+              ),
             ],
           ),
         ),
@@ -1488,8 +2017,13 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
       if (form != null)
         fileRow(form!, onReplace: () => addFile('order_form', replacing: form))
       else
-        OutlinedButton.icon(onPressed: () => addFile('order_form'), icon: const Icon(Icons.upload_file), label: const Text('Choose your order form')),
-      if (form?.file != null && (readingNow || reading != null || _prefilled.isNotEmpty))
+        OutlinedButton.icon(
+          onPressed: () => addFile('order_form'),
+          icon: const Icon(Icons.upload_file),
+          label: const Text('Choose your order form'),
+        ),
+      if (form?.file != null &&
+          (readingNow || reading != null || _prefilled.isNotEmpty))
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Text(
@@ -1500,10 +2034,17 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
             style: const TextStyle(color: Color(0xFF9FDCFF), fontSize: 12),
           ),
         ),
-      const Text('PDF, Excel, CSV, Word or a photo, up to 25 MB.', style: TextStyle(color: Palette.muted, fontSize: 11)),
+      const Text(
+        'PDF, Excel, CSV, Word or a photo, up to 25 MB.',
+        style: TextStyle(color: Palette.muted, fontSize: 11),
+      ),
       _section('3 · Artwork & notes (optional)'),
       for (final u in uploads.where((u) => u.kind == 'artwork')) fileRow(u),
-      OutlinedButton.icon(onPressed: () => addFile('artwork'), icon: const Icon(Icons.attach_file), label: const Text('Add logos, artwork or references')),
+      OutlinedButton.icon(
+        onPressed: () => addFile('artwork'),
+        icon: const Icon(Icons.attach_file),
+        label: const Text('Add logos, artwork or references'),
+      ),
       const SizedBox(height: 10),
       _field(notes, 'Additional instructions', lines: 3),
       // Made by, as on the website's upload (only when there is a choice).
@@ -1511,14 +2052,19 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
         makers: makers,
         value: supplierId,
         onChanged: (id) => setState(() => supplierId = id),
-        onSeeSuppliers: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
+        onSeeSuppliers: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
       ),
       errorText(),
       const SizedBox(height: 14),
       Row(
         children: [
           Expanded(
-            child: OutlinedButton(onPressed: busy ? null : saveDraft, child: const Text('Save draft')),
+            child: OutlinedButton(
+              onPressed: busy ? null : saveDraft,
+              child: const Text('Save draft'),
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1526,13 +2072,24 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
               label: 'REVIEW ORDER',
               compact: true,
               onPressed: () => setState(() {
-                final details = uploadDetailsProblem(phone: phone.text, neededBy: neededBy, delivery: delivery, address: address);
+                final details = uploadDetailsProblem(
+                  phone: phone.text,
+                  neededBy: neededBy,
+                  delivery: delivery,
+                  address: address,
+                );
                 error = name.text.trim().isEmpty
                     ? 'Add a contact name.'
                     : team.text.trim().isEmpty
                     ? 'Add your team or organisation name.'
-                    : details ?? (form?.file == null ? 'Upload your completed order form.' : null);
-                if (error != null && error != 'Upload your completed order form.' && details == null) editContact = true;
+                    : details ??
+                          (form?.file == null
+                              ? 'Upload your completed order form.'
+                              : null);
+                if (error != null &&
+                    error != 'Upload your completed order form.' &&
+                    details == null)
+                  editContact = true;
                 if (error == null) {
                   step = 'review';
                   approved = false;
@@ -1566,18 +2123,28 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
       for (final r in rows)
         {
           ...r,
-          'sizes': youthSplit({for (final e in ((r['sizes'] as Map?) ?? const {}).entries) '${e.key}': (e.value as num?)?.toInt() ?? 0}, r['_form'] as Map?),
+          'sizes': youthSplit({
+            for (final e in ((r['sizes'] as Map?) ?? const {}).entries)
+              '${e.key}': (e.value as num?)?.toInt() ?? 0,
+          }, r['_form'] as Map?),
         },
     ];
     final art = [
       for (final u in uploads)
-        if (u.kind == 'artwork' && u.file != null && '${u.file!['thumb'] ?? ''}'.startsWith('data:')) '${u.file!['thumb']}',
+        if (u.kind == 'artwork' &&
+            u.file != null &&
+            '${u.file!['thumb'] ?? ''}'.startsWith('data:'))
+          '${u.file!['thumb']}',
     ];
     final unread = ((reading?['unknown'] as List?) ?? const []).length;
     final file = form?.name ?? 'your order form';
     final note = [
-      if (reading?['source'] == 'ai') 'Read by 3DEEZI AI from $file.' else if (rows.isNotEmpty) 'Read from $file.',
-      if (unread > 0) '${unread == 1 ? 'One line' : '$unread lines'} of your form to check: 3DEEZI checks ${unread == 1 ? 'it' : 'them'} with you.',
+      if (reading?['source'] == 'ai')
+        'Read by 3DEEZI AI from $file.'
+      else if (rows.isNotEmpty)
+        'Read from $file.',
+      if (unread > 0)
+        '${unread == 1 ? 'One line' : '$unread lines'} of your form to check: 3DEEZI checks ${unread == 1 ? 'it' : 'them'} with you.',
     ].join(' ');
     return ListView(
       // Its own list, so the review starts at its top (not where the form was scrolled to).
@@ -1597,43 +2164,87 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
           context,
           first: 'Upload files',
           layout: reviewLayout(shown),
-          garments: multiGarmentsFrom(shown, names: _garments, artwork: art.firstOrNull),
-          mockups: [for (var i = 0; i < art.length && i < 2; i++) (label: art.length > 1 ? 'ARTWORK ${i + 1}' : 'ARTWORK', src: art[i])],
+          garments: multiGarmentsFrom(
+            shown,
+            names: _garments,
+            artwork: art.firstOrNull,
+          ),
+          mockups: [
+            for (var i = 0; i < art.length && i < 2; i++)
+              (
+                label: art.length > 1 ? 'ARTWORK ${i + 1}' : 'ARTWORK',
+                src: art[i],
+              ),
+          ],
           artworkOnly: true,
           files: [
             for (final u in uploads)
               if (u.file != null) u.name,
           ],
-          filesLabel: art.isNotEmpty || uploads.any((u) => u.kind == 'artwork' && u.file != null) ? 'Order form & artwork' : 'Order form',
-          contact: [name.text.trim(), team.text.trim()].where((v) => v.isNotEmpty).join(' · '),
+          filesLabel:
+              art.isNotEmpty ||
+                  uploads.any((u) => u.kind == 'artwork' && u.file != null)
+              ? 'Order form & artwork'
+              : 'Order form',
+          contact: [
+            name.text.trim(),
+            team.text.trim(),
+          ].where((v) => v.isNotEmpty).join(' · '),
           email: email.text.trim(),
           mobile: phone.text.trim(),
           neededBy: neededBy == null ? null : _dayText(neededBy!),
           pickup: delivery == 'pickup',
-          deliveryText: delivery == 'pickup' ? null : deliveryLine(delivery, address),
+          deliveryText: delivery == 'pickup'
+              ? null
+              : deliveryLine(delivery, address),
           onEditDelivery: () => setState(() {
             step = 'edit';
             editContact = true;
           }),
           notes: notes.text.trim(),
           // Who makes it, when the upload offered a choice (as the website's review).
-          madeBy: makers.length > 1 ? MadeByField.chosenOf(makers, supplierId)?.name : null,
+          madeBy: makers.length > 1
+              ? MadeByField.chosenOf(makers, supplierId)?.name
+              : null,
           price: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PriceChoices(c, pricing, (next) => setState(() => pricing = next), choice: choiceDestination),
+              PriceChoices(
+                c,
+                pricing,
+                (next) => setState(() => pricing = next),
+                choice: choiceDestination,
+              ),
               // Priced as the order will be: the review's choice, else section 1's (pick up, the country).
-              PriceBox(c, {
-                'items': correct ? items : const [],
-                'pricing': {...pricing, if (pricing['destination'] == null && choiceDestination != null) 'destination': choiceDestination},
-              }, key: ValueKey('$correct${jsonEncode(pricing)}$choiceDestination')),
+              PriceBox(
+                c,
+                {
+                  'items': correct ? items : const [],
+                  'pricing': {
+                    ...pricing,
+                    if (pricing['destination'] == null &&
+                        choiceDestination != null)
+                      'destination': choiceDestination,
+                  },
+                },
+                key: ValueKey(
+                  '$correct${jsonEncode(pricing)}$choiceDestination',
+                ),
+              ),
             ],
           ),
           garmentsNote: note.isEmpty
               ? null
               : Padding(
                   padding: const EdgeInsets.only(top: 10, bottom: 4),
-                  child: Text(note, key: const Key('read-summary'), style: const TextStyle(color: Palette.muted, fontSize: 12.5)),
+                  child: Text(
+                    note,
+                    key: const Key('read-summary'),
+                    style: const TextStyle(
+                      color: Palette.muted,
+                      fontSize: 12.5,
+                    ),
+                  ),
                 ),
           editor: OrderFormReadView(
             rows: rows,
@@ -1654,7 +2265,8 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
           busy: busy,
           error: errorText(),
           onBack: () => setState(() => step = 'edit'),
-          onApprove: () => confirm(items.isNotEmpty ? {'items': items} : const {}),
+          onApprove: () =>
+              confirm(items.isNotEmpty ? {'items': items} : const {}),
         ),
       ],
     );
@@ -1662,21 +2274,39 @@ class _OrderUploadScreenState extends State<OrderUploadScreen> with _OrderEntry 
 }
 
 /// One column of the Orders screen's mini board: the stage, its count and up to two orders.
-typedef MiniColumn = ({String name, int count, List<({String name, String ref, bool hot})> cards});
+typedef MiniColumn = ({
+  String name,
+  int count,
+  List<({String name, String ref, bool hot})> cards,
+});
 
 /// The first three stages of the customer's own board (`/orders/board`), as the Orders screen's My Orders card shows
 /// them; null when there are no orders in them.
 List<MiniColumn>? miniBoard(Map<String, dynamic>? board) {
-  const names = {'received': 'Received', 'design': 'Design', 'production': 'Production'};
-  final stages = ((board?['stages'] as List?) ?? const []).whereType<Map>().where((s) => names.containsKey(s['key'])).toList();
+  const names = {
+    'received': 'Received',
+    'design': 'Design',
+    'production': 'Production',
+  };
+  final stages = ((board?['stages'] as List?) ?? const [])
+      .whereType<Map>()
+      .where((s) => names.containsKey(s['key']))
+      .toList();
   final List<MiniColumn> columns = [
     for (final s in stages)
       (
         name: names[s['key']]!,
-        count: (s['count'] as num?)?.toInt() ?? ((s['orders'] as List?) ?? const []).length,
+        count:
+            (s['count'] as num?)?.toInt() ??
+            ((s['orders'] as List?) ?? const []).length,
         cards: [
-          for (final o in ((s['orders'] as List?) ?? const []).whereType<Map>().take(2))
-            (name: '${o['name'] ?? 'Order'}', ref: '#${o['number'] ?? o['id']}', hot: o['action'] == 'review_design' || o['approval'] == 'review'),
+          for (final o
+              in ((s['orders'] as List?) ?? const []).whereType<Map>().take(2))
+            (
+              name: '${o['name'] ?? 'Order'}',
+              ref: '#${o['number'] ?? o['id']}',
+              hot: o['action'] == 'review_design' || o['approval'] == 'review',
+            ),
         ],
       ),
   ];
@@ -1704,13 +2334,23 @@ class OrderNowSection extends StatelessWidget {
       _go(context, AppScreen.auth);
       return;
     }
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen()));
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => screen()));
   }
 
   @override
   Widget build(BuildContext context) {
     final big = page ? 1.18 : 1.0;
-    Widget tile(IconData icon, String title, String label, String body, String action, VoidCallback onTap, {Widget? extra}) => Padding(
+    Widget tile(
+      IconData icon,
+      String title,
+      String label,
+      String body,
+      String action,
+      VoidCallback onTap, {
+      Widget? extra,
+    }) => Padding(
       padding: EdgeInsets.only(bottom: page ? 16 : 12),
       child: SurfaceCard(
         onTap: onTap,
@@ -1725,11 +2365,19 @@ class OrderNowSection extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17 * big),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17 * big,
+                        ),
                       ),
                       Text(
                         label,
-                        style: TextStyle(color: Palette.cyan, fontWeight: FontWeight.w800, fontSize: 13 * big, letterSpacing: .8),
+                        style: TextStyle(
+                          color: Palette.cyan,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13 * big,
+                          letterSpacing: .8,
+                        ),
                       ),
                     ],
                   ),
@@ -1760,10 +2408,19 @@ class OrderNowSection extends StatelessWidget {
         children: [
           Text(
             'ORDER NOW WITH',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: page ? 26 : 20, letterSpacing: 1),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: page ? 26 : 20,
+              letterSpacing: 1,
+            ),
           ),
-          Image.asset('assets/images/brand-wordmark.png', height: page ? 21 : 16, semanticLabel: '3DEEZI'),
-          if (!page) const Icon(Icons.chevron_right, color: Palette.cyan, size: 22),
+          Image.asset(
+            'assets/images/brand-wordmark.png',
+            height: page ? 21 : 16,
+            semanticLabel: '3DEEZI',
+          ),
+          if (!page)
+            const Icon(Icons.chevron_right, color: Palette.cyan, size: 22),
         ],
       ),
     );
@@ -1780,15 +2437,23 @@ class OrderNowSection extends StatelessWidget {
             child: InkWell(
               key: const ValueKey('order-now-open'),
               borderRadius: BorderRadius.circular(10),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => OrderNowScreen(c))),
-              child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: heading),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => OrderNowScreen(c)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: heading,
+              ),
             ),
           ),
         const SizedBox(height: 4),
         Text(
           'Start an order. Upload your details. Follow its progress.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: page ? Palette.text : Palette.muted, fontSize: page ? 14.5 : 12.5),
+          style: TextStyle(
+            color: page ? Palette.text : Palette.muted,
+            fontSize: page ? 14.5 : 12.5,
+          ),
         ),
         SizedBox(height: page ? 20 : 14),
         tile(
@@ -1850,13 +2515,28 @@ class _MiniBoard extends StatelessWidget {
                         col.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(color: const Color(0x14ffffff), borderRadius: BorderRadius.circular(5)),
-                      child: Text('${col.count}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0x14ffffff),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        '${col.count}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1867,7 +2547,11 @@ class _MiniBoard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xff0b1828),
                       borderRadius: BorderRadius.circular(7),
-                      border: Border.all(color: card.hot ? Palette.cyan : const Color(0x12ffffff)),
+                      border: Border.all(
+                        color: card.hot
+                            ? Palette.cyan
+                            : const Color(0x12ffffff),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1876,13 +2560,19 @@ class _MiniBoard extends StatelessWidget {
                           card.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         Text(
                           card.ref,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 9.5, color: Palette.muted),
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            color: Palette.muted,
+                          ),
                         ),
                       ],
                     ),
@@ -1947,7 +2637,11 @@ class _OrderNowScreenState extends State<OrderNowScreen> {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xf205090d), Color(0x9905090d), Color(0xe605090d)],
+                colors: [
+                  Color(0xf205090d),
+                  Color(0x9905090d),
+                  Color(0xe605090d),
+                ],
               ),
             ),
           ),
@@ -1971,7 +2665,9 @@ class _OrderNowScreenState extends State<OrderNowScreen> {
                       ..style = PaintingStyle.stroke
                       ..strokeWidth = 2.5
                       ..color = const Color(0x8c3fb4ff),
-                    shadows: const [Shadow(color: Color(0xaa1f7dff), blurRadius: 24)],
+                    shadows: const [
+                      Shadow(color: Color(0xaa1f7dff), blurRadius: 24),
+                    ],
                   ),
                 ),
               ),

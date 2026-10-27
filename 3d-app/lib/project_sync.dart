@@ -38,6 +38,8 @@ class ProjectSync {
         'backName': _clip(k.backName, 40),
         'number': _clip(k.number, 3),
         'patternImage': dataUrl(k.patternTile),
+        if (k.patternScale != null) 'patternScale': k.patternScale,
+        if (k.patternBody != null) 'patternBody': k.patternBody,
         'logoImage': dataUrl(k.logoImage),
         'sponsorImage': dataUrl(k.sponsorImage),
         'layers': copyLayers(k.layers),
@@ -46,9 +48,21 @@ class ProjectSync {
         if (k.zoneColors.isNotEmpty) 'zoneColors': copyZones(k.zoneColors),
         // The track jacket's style (only on it: older servers refuse the field).
         if (k.garment == 'Track jacket') 'trackStyle': k.trackStyle,
+        if (k.patternColor != null) 'patternColor': k.patternColor,
+        // Every pattern in patternColor (only when set: older servers refuse
+        // the field).
+        if (k.patternColorOwn == true) 'patternColorOwn': true,
+        // The parts edited on their own (task 9.134; only when set: older
+        // servers refuse the field).
+        if (k.parts.isNotEmpty) 'parts': copyParts(k.parts),
         // The sport's garment tile ("Netball dress"; only when set: older
         // servers refuse the field).
         if (k.productName.isNotEmpty) 'productName': _clip(k.productName, 60),
+        // Colours › Fabric type, where the website reads it too (only when
+        // not Standard: older servers refuse the field; app.fabric keeps it
+        // for older apps).
+        if (designFabrics.contains(k.fabric) && k.fabric != 'Standard')
+          'fabric': k.fabric,
         'gradient': copyGradient(k.gradient),
         // Only when set: servers older than 2026-10-21 refuse the field.
         if (k.gradients != null) 'gradients': copyGradient(k.gradients),
@@ -109,11 +123,18 @@ class ProjectSync {
         pattern: studioPatterns.contains(d['pattern'])
             ? d['pattern'] as String
             : 'Solid',
-        fabric: app['fabric'] as String? ?? 'Standard',
+        // The website's design.fabric first, then the app's own (older saves).
+        fabric: designFabrics.contains(d['fabric'])
+            ? d['fabric'] as String
+            : designFabrics.contains(app['fabric'])
+            ? app['fabric'] as String
+            : 'Standard',
         logoText: d['logoText'] as String? ?? '',
         backName: d['backName'] as String? ?? '',
         number: d['number'] as String? ?? '',
         patternTile: bytes(d['patternImage']),
+        patternScale: (d['patternScale'] as num?)?.toDouble(),
+        patternBody: (d['patternBody'] as num?)?.toDouble(),
         logoImage: bytes(d['logoImage']),
         sponsorImage: bytes(d['sponsorImage']),
         spec: spec == null ? null : DesignSpec.fromJson(spec),
@@ -121,6 +142,11 @@ class ProjectSync {
         zones: copyZones(d['zones']),
         zoneColors: copyZones(d['zoneColors']),
         trackStyle: d['trackStyle'] == 'hood' ? 'hood' : 'collar',
+        patternColor: d['patternColor'] is String
+            ? d['patternColor'] as String
+            : null,
+        patternColorOwn: d['patternColorOwn'] == true ? true : null,
+        parts: copyParts(d['parts']),
         productName: d['productName'] is String
             ? d['productName'] as String
             : '',

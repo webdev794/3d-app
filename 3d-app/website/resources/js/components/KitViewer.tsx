@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { ApiError, fetchFile, getToken } from '../api';
 import { viewerLook } from '../viewerLook';
+import type { PartKey, PartStyle } from '../parts';
 
 export type Garment = 'jersey' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'varsity' | 'trackjacket' | 'singlet' | 'netball-dress' | 'shorts' | 'fullkit';
 export type View = 'front' | 'side' | 'back';
@@ -53,7 +54,7 @@ export function trackColour(design: { main?: string; secondary?: string; accent?
     return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-30';
+const VIEWER_VERSION = '2026-10-20-39';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
@@ -62,13 +63,15 @@ export interface ArtworkLayer {
     part: 'top' | 'shorts'; side: 'front' | 'back'; x: number; y: number;
     w?: number; h?: number; rot?: number; opacity?: number; src?: string;
     text?: string; size?: number; color?: string; shape?: 'rectangle' | 'ellipse' | 'triangle';
+    /** On one part of the kit only (task 9.134): cut to that part's edges. */
+    clip?: PartKey | null;
 }
 /**
  * Where a fixed mark sits when it was moved, resized, turned or hidden on the 2D panels (default place otherwise).
  * Keys: top_wordmark, top_sponsor, top_crest, top_name, top_number, shorts_crest, shorts_number, shorts_wordmark.
  */
 export interface MarkPlace { side?: 'front' | 'back'; x?: number; y?: number; scale?: number; rot?: number; hidden?: boolean }
-export interface GarmentPoint { hit: boolean; part?: 'top' | 'shorts'; side?: 'front' | 'back'; x?: number; y?: number; zone?: Zone }
+export interface GarmentPoint { hit: boolean; part?: 'top' | 'shorts'; side?: 'front' | 'back'; x?: number; y?: number; zone?: Zone; partKey?: PartKey | null }
 /**
  * A factory print layout on the kit: the file (one of the user's assets), each panel found in it named in the order
  * found ('none' = not used), whether the plain strip under the body panels is the hem fold, whether the white lines
@@ -97,6 +100,10 @@ export interface Design {
     /** Sponsor logo printed on the front below the wordmark. */
     sponsorImage?: string | null;
     patternColor?: string;
+    /** The Pattern colour was chosen by the user (Colours › Pattern, or a tap on the pattern): the built-in and area
+     * patterns are painted in it. Unset (older designs, presets, palettes): the whole-garment pattern in a mix of the
+     * Primary and Secondary and the area patterns in the Secondary, as before. */
+    patternColorOwn?: boolean | null;
     patternBody?: number;
     patternScale?: number;
     /** The Primary zone's gradient fill (the body); `gradients` holds the Secondary and Pattern zones' fills. */
@@ -107,11 +114,42 @@ export interface Design {
     zoneColors?: Partial<Record<HoodieArea | VarsityArea | TrackArea, string>> | null;
     /** The track jacket's style: its stand-up collar (default) or a hood. */
     trackStyle?: 'collar' | 'hood' | null;
+    /** Parts of the kit with a look of their own (task 9.134: Parts panel); absent = the kit as before. */
+    parts?: Partial<Record<PartKey, PartStyle>> | null;
     layers?: ArtworkLayer[];
     marks?: Record<string, MarkPlace>;
     layout?: DesignLayout | null;
     /** The sport's garment tile it was chosen as ("Netball dress", task 9.99): its name in the Studio, projects and orders; `garment` stays the 3D garment. Empty: a plain 3D garment. */
     productName?: string;
+    /** Colours › Fabric type (the 3D viewer's fabric: render-quality.js FABRIC_TYPES). Unset or Standard: the garment's own fabric. */
+    fabric?: FabricType | null;
+    /** A project saved by the apps: their own details (its fabric was only kept here before design.fabric existed). */
+    app?: { fabric?: string } & Record<string, unknown>;
+}
+
+/** Colours › Fabric type, as in the apps: Standard is each garment's own fabric. */
+export const fabricTypes = ['Standard', 'Mesh', 'Pro', 'Eco'] as const;
+export type FabricType = (typeof fabricTypes)[number];
+/** Each garment's own fabric (Standard), as the 3D viewer makes it (render-quality.js fabricOf). */
+const ownFabrics: Partial<Record<Garment, string>> = { jersey: 'eyelet mesh', singlet: 'eyelet mesh', shorts: 'eyelet mesh', fullkit: 'eyelet mesh', tee: "bird's-eye knit", polo: 'piqué', pocketpolo: 'piqué', hoodie: 'brushed fleece', ziphoodie: 'brushed fleece', trackjacket: 'fine knit', 'netball-dress': 'fine knit' };
+/** What each fabric type is, for the Studio and the design sheet. */
+export const fabricNotes: Record<FabricType, string> = {
+    Standard: "The garment's own fabric.",
+    Mesh: 'Open hexagonal mesh: light and breathable, the holes show up close.',
+    Pro: 'Smooth, tight performance knit with a satin sheen.',
+    Eco: 'Soft, matt cotton-feel knit of recycled yarn.',
+};
+/** The design's fabric type (an app project saved before design.fabric keeps it in design.app.fabric). */
+export function fabricOf(design: Pick<Design, 'fabric' | 'app'>): FabricType {
+    const chosen = design.fabric ?? design.app?.fabric;
+    return fabricTypes.find(type => type === chosen) ?? 'Standard';
+}
+/** The fabric in words: "Mesh (open hexagonal mesh)", "Standard (eyelet mesh)"; the varsity jacket's is its own. */
+export function fabricLabel(design: Pick<Design, 'fabric' | 'app'> & { garment?: string }): string {
+    if (isVarsity(design.garment ?? '')) return 'Wool body, leather sleeves';
+    const type = fabricOf(design);
+    const what = type === 'Standard' ? ownFabrics[design.garment as Garment] ?? 'fine knit' : { Mesh: 'open hexagonal mesh', Pro: 'satin performance knit', Eco: 'matt cotton-feel recycled knit' }[type];
+    return `${type} (${what})`;
 }
 
 export const defaultDesign: Design = {
@@ -133,6 +171,12 @@ export interface KitViewerHandle {
     capture: (view?: View) => Promise<string>;
     captureBoard: () => Promise<string>;
     pick: (x: number, y: number) => Promise<GarmentPoint>;
+    /** Drag to kit: the part under the pointer (normalised x, y) glows; null clears it. */
+    dragHover: (at: { x: number; y: number } | null) => void;
+    /** Turns the kit to a view now, even when that view is already chosen (the kit may have been turned or be idling round since). */
+    turnTo: (view: View) => void;
+    /** Lights up a whole part (hold: until glowPart(null)). */
+    glowPart: (at: { part?: 'top' | 'shorts'; key?: PartKey; keys?: PartKey[]; hold?: boolean } | null) => void;
     processImage: (src: string, options: { removeBg?: boolean; tolerance?: number; tint?: string | null }) => Promise<string>;
     select: (id: string | null) => void;
     /** Zooms the 2D panels. */
@@ -159,7 +203,17 @@ export interface KitViewerProps {
     onModal?: (open: boolean) => void;
     /** The design's print layout could not be put on the kit (the kit is shown without it). */
     onLayoutError?: (message: string) => void;
+    /** Tap the kit to pick a colour (the Colours panel open): the viewer then reports a short tap on the kit. */
+    colourPick?: boolean;
+    onColourPick?: (picked: ColourPick) => void;
+    /** Tap the kit to choose a part (the Parts panel, task 9.134): the viewer reports a short tap and lights the part. */
+    partPick?: boolean;
+    onPartPick?: (picked: PartPick) => void;
 }
+/** A part chosen by a tap: its key (null on a piece that is not a part: a hood), the garment piece and where it was tapped. */
+export interface PartPick { partKey: PartKey | null; part: 'top' | 'shorts'; side?: 'front' | 'back'; x?: number; y?: number; slot?: ColourPick['slot'] }
+/** A tapped part of the kit: the kit colour it follows and, on hoodies, the varsity and the track jacket, its own area. */
+export interface ColourPick { slot: 'main' | 'secondary' | 'accent' | 'pattern' | 'pattern-image'; area: HoodieArea | VarsityArea | TrackArea | null; zone: string; part?: 'top' | 'shorts'; partKey?: PartKey | null }
 
 interface CaptureRequest {
     view: View;
@@ -185,7 +239,7 @@ async function downloadLayout(asset: number) {
 
 /** Hosts the same bundled Three.js garment renderer used by the mobile app. */
 export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function KitViewer(
-    { design, view = 'front', rotating = false, onReady, className = '', board = false, onLayers, onMarks, onSelection, onModal, onLayoutError }, ref,
+    { design, view = 'front', rotating = false, onReady, className = '', board = false, onLayers, onMarks, onSelection, onModal, onLayoutError, colourPick = false, onColourPick, partPick = false, onPartPick }, ref,
 ) {
     const host = `website-kit-${useId().replace(/:/g, '')}`;
     const appBase = document.querySelector('meta[name="app-base"]')?.getAttribute('content')?.replace(/\/$/, '') || '';
@@ -211,12 +265,17 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     // Print layout files this page already has (the last one checked here), by asset id.
     const layoutSources = useRef(new Map<number, string>());
     const selectionCallback = useRef(onSelection);
+    const colourPickCallback = useRef(onColourPick);
+    const colourPickMode = useRef(colourPick);
+    const partPickCallback = useRef(onPartPick);
+    const partPickMode = useRef(partPick);
     const requests = useRef(new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }>());
     const captureQueue = useRef<CaptureRequest[]>([]);
     const activeCapture = useRef<CaptureRequest | null>(null);
     const designTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const flushRef = useRef<() => void>(() => {});
-    latestDesign.current = JSON.stringify({ layers: [], zones: {}, gradient: null, gradients: null, marks: {}, layout: null, ...design });
+    // The fabric always (Standard when unset; an app project's older place for it read too), so the next design never keeps the last one's.
+    latestDesign.current = JSON.stringify({ layers: [], zones: {}, gradient: null, gradients: null, marks: {}, layout: null, ...design, fabric: fabricOf(design) });
     latestView.current = { view, rotating };
     readyCallback.current = onReady;
     boardMode.current = board;
@@ -225,6 +284,8 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     modalCallback.current = onModal;
     layoutErrorCallback.current = onLayoutError;
     selectionCallback.current = onSelection;
+    colourPickCallback.current = onColourPick;
+    partPickCallback.current = onPartPick;
 
     const send = useCallback((cmd: string, arg: unknown) => {
         iframe.current?.contentWindow?.postMessage(JSON.stringify({ cmd, arg }), window.location.origin);
@@ -287,6 +348,9 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
 
     useImperativeHandle(ref, () => ({
         pick: (x, y) => request<GarmentPoint>('pick', { x, y }),
+        dragHover: (at) => { if (engineReady.current) send('dragHover', at); },
+        turnTo: (to) => { if (engineReady.current) send('setView', views[to]); },
+        glowPart: (at) => { if (engineReady.current) send('glowPart', at); },
         processImage: (src, options) => request<string>('processImage', { src, ...options }),
         select: (id) => send('select', id),
         zoomBoard: (how) => send('boardZoom', how),
@@ -332,6 +396,8 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             if (engineReady.current || failed.current) return;
             engineReady.current = true;
             send('board', boardMode.current);
+            send('colourPick', colourPickMode.current);
+            send('partPick', partPickMode.current);
             send('setView', latestView.current.rotating ? '360°' : views[latestView.current.view]);
             flushRef.current();
             // The viewer completes its entrance animation after 1.6 s and sets
@@ -348,7 +414,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         const receive = (event: MessageEvent) => {
             if (event.origin !== window.location.origin || event.source !== iframe.current?.contentWindow) return;
             if (typeof event.data !== 'string') return;
-            let message: { host?: string; type?: string; view?: string; data?: string; id?: string; error?: string; layers?: ArtworkLayer[]; marks?: Record<string, MarkPlace>; open?: boolean; asset?: number; message?: string };
+            let message: { host?: string; type?: string; view?: string; data?: string; id?: string; error?: string; layers?: ArtworkLayer[]; marks?: Record<string, MarkPlace>; open?: boolean; asset?: number; message?: string; hit?: boolean; slot?: ColourPick['slot']; area?: ColourPick['area']; zone?: string; part?: 'top' | 'shorts'; partKey?: PartKey | null; side?: 'front' | 'back'; x?: number; y?: number };
             try { message = JSON.parse(event.data); } catch { return; }
             if (!message || message.host !== host) return;
             if (message.type === 'layers' && Array.isArray(message.layers)) layerCallback.current?.(message.layers);
@@ -363,6 +429,8 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
                 void (kept ? Promise.resolve(kept) : downloadLayout(asset)).then((src) => send('layoutFile', { asset, src }), (error: Error) => send('layoutFile', { asset, error: error.message }));
             }
             if (message.type === 'layoutError') layoutErrorCallback.current?.(message.message || 'The print layout could not be loaded.');
+            if (message.type === 'colourPick' && message.hit && typeof message.slot === 'string') colourPickCallback.current?.({ slot: message.slot, area: message.area ?? null, zone: String(message.zone ?? ''), part: message.part, partKey: message.partKey ?? null });
+            if (message.type === 'partPick' && message.hit) partPickCallback.current?.({ partKey: message.partKey ?? null, part: message.part ?? 'top', side: message.side, x: message.x, y: message.y, slot: message.slot });
             if (message.type === 'selection') selectionCallback.current?.(message.id || null);
             if (message.id && requests.current.has(message.id)) {
                 const pending = requests.current.get(message.id)!; requests.current.delete(message.id); clearTimeout(pending.timeout);
@@ -413,6 +481,8 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
 
     useEffect(() => { flush(); }, [design, flush]);
     useEffect(() => { if (engineReady.current) send('board', board); }, [board, send]);
+    useEffect(() => { colourPickMode.current = colourPick; if (engineReady.current) send('colourPick', colourPick); }, [colourPick, send]);
+    useEffect(() => { partPickMode.current = partPick; if (engineReady.current) send('partPick', partPick); }, [partPick, send]);
     useEffect(() => {
         if (engineReady.current) send('setView', rotating ? '360°' : views[view]);
     }, [view, rotating, send]);

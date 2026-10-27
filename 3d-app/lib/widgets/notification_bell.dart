@@ -37,11 +37,16 @@ String notificationTitle(Map n) {
   final d = _data(n);
   final title = '${d['title'] ?? ''}'.trim();
   if (title.isNotEmpty) return title;
-  final parts = [d['number'], d['name']].where((v) => v != null && '$v'.trim().isNotEmpty).map((v) => '$v');
+  final parts = [
+    d['number'],
+    d['name'],
+  ].where((v) => v != null && '$v'.trim().isNotEmpty).map((v) => '$v');
   return parts.isEmpty ? 'Notification' : parts.join(' · ');
 }
 
-bool isTeamNotification(Map n) => _data(n)['team_request_id'] != null || '${_data(n)['link'] ?? ''}'.startsWith('/team/');
+bool isTeamNotification(Map n) =>
+    _data(n)['team_request_id'] != null ||
+    '${_data(n)['link'] ?? ''}'.startsWith('/team/');
 
 /// The signed-in person's notifications, shared by every bell of one [AppController].
 class NotificationFeed extends ChangeNotifier {
@@ -52,7 +57,8 @@ class NotificationFeed extends ChangeNotifier {
   static final _feeds = Expando<NotificationFeed>();
 
   /// The feed of [c] (made on first use).
-  static NotificationFeed of(AppController c) => _feeds[c] ??= NotificationFeed._(c);
+  static NotificationFeed of(AppController c) =>
+      _feeds[c] ??= NotificationFeed._(c);
 
   static const pollEvery = Duration(minutes: 1);
 
@@ -91,8 +97,13 @@ class NotificationFeed extends ChangeNotifier {
       final n = await c.api.notifications();
       // Signed out, or signed in as someone else, meanwhile: not their list.
       if (!c.signedIn || c.user?.id != user) return;
-      items = ((n['items'] as List?) ?? const []).whereType<Map>().map((m) => m.cast<String, dynamic>()).toList();
-      unread = (n['unread'] as num?)?.toInt() ?? items.where((i) => i['read_at'] == null).length;
+      items = ((n['items'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((m) => m.cast<String, dynamic>())
+          .toList();
+      unread =
+          (n['unread'] as num?)?.toInt() ??
+          items.where((i) => i['read_at'] == null).length;
       loaded = true;
       notifyListeners();
     } on Object {
@@ -114,7 +125,10 @@ class NotificationFeed extends ChangeNotifier {
     _life ??= AppLifecycleListener(
       onStateChange: (s) {
         final was = _hidden;
-        _hidden = s == AppLifecycleState.paused || s == AppLifecycleState.hidden || s == AppLifecycleState.detached;
+        _hidden =
+            s == AppLifecycleState.paused ||
+            s == AppLifecycleState.hidden ||
+            s == AppLifecycleState.detached;
         if (was && !_hidden && c.signedIn) unawaited(refresh());
       },
     );
@@ -128,16 +142,24 @@ class NotificationFeed extends ChangeNotifier {
     _life = null;
   }
 
-  int unreadWhere(bool Function(Map n)? only) =>
-      only == null ? unread : items.where((n) => n['read_at'] == null && only(n)).length;
+  int unreadWhere(bool Function(Map n)? only) => only == null
+      ? unread
+      : items.where((n) => n['read_at'] == null && only(n)).length;
 
   /// Marks [ids] read (all without ids) here at once, then on the server.
   Future<void> markRead([List<String>? ids]) async {
     final now = DateTime.now().toUtc().toIso8601String();
-    final marked = ids == null ? 0 : items.where((n) => ids.contains(n['id']) && n['read_at'] == null).length;
+    final marked = ids == null
+        ? 0
+        : items
+              .where((n) => ids.contains(n['id']) && n['read_at'] == null)
+              .length;
     items = [
       for (final n in items)
-        if ((ids == null || ids.contains(n['id'])) && n['read_at'] == null) {...n, 'read_at': now} else n,
+        if ((ids == null || ids.contains(n['id'])) && n['read_at'] == null)
+          {...n, 'read_at': now}
+        else
+          n,
     ];
     unread = ids == null ? 0 : (unread - marked).clamp(0, 1 << 30);
     notifyListeners();
@@ -180,23 +202,36 @@ class NotificationFeed extends ChangeNotifier {
 
 /// Opens the screen a notification is about: its 3DEEZI TEAM request, its
 /// order (the order shows its invoice and PAY NOW), or an invoice's pay page.
-Future<void> openNotification(BuildContext context, AppController c, Map n) async {
+Future<void> openNotification(
+  BuildContext context,
+  AppController c,
+  Map n,
+) async {
   final d = _data(n);
   final link = '${d['link'] ?? ''}';
-  int? idIn(String prefix) => link.startsWith(prefix) ? int.tryParse(link.substring(prefix.length).split(RegExp('[/?#]')).first) : null;
+  int? idIn(String prefix) => link.startsWith(prefix)
+      ? int.tryParse(link.substring(prefix.length).split(RegExp('[/?#]')).first)
+      : null;
   final nav = Navigator.of(context);
-  final team = (d['team_request_id'] as num?)?.toInt() ?? idIn('/team/requests/');
+  final team =
+      (d['team_request_id'] as num?)?.toInt() ?? idIn('/team/requests/');
   if (team != null) {
-    await nav.push(MaterialPageRoute<void>(builder: (_) => TeamRequestScreen(c, team)));
+    await nav.push(
+      MaterialPageRoute<void>(builder: (_) => TeamRequestScreen(c, team)),
+    );
     return;
   }
   final order = (d['order_id'] as num?)?.toInt() ?? idIn('/orders/');
   if (order != null) {
-    await nav.push(MaterialPageRoute<void>(builder: (_) => OrderDetailScreen(c, order)));
+    await nav.push(
+      MaterialPageRoute<void>(builder: (_) => OrderDetailScreen(c, order)),
+    );
     return;
   }
   if (link.startsWith('/invoices/')) {
-    final number = Uri.decodeComponent(link.substring('/invoices/'.length).split(RegExp('[/?#]')).first);
+    final number = Uri.decodeComponent(
+      link.substring('/invoices/'.length).split(RegExp('[/?#]')).first,
+    );
     final messenger = ScaffoldMessenger.maybeOf(context);
     try {
       final url = await c.api.invoicePayLink(number);
@@ -211,7 +246,13 @@ Future<void> openNotification(BuildContext context, AppController c, Map n) asyn
 /// some notifications (the 3DEEZI TEAM bell shows TEAM ones); [onClosed] runs
 /// after the sheet and any screen opened from it close.
 class NotificationBell extends StatefulWidget {
-  const NotificationBell(this.c, {super.key, this.only, this.title = 'Notifications', this.onClosed});
+  const NotificationBell(
+    this.c, {
+    super.key,
+    this.only,
+    this.title = 'Notifications',
+    this.onClosed,
+  });
   final AppController c;
   final bool Function(Map n)? only;
   final String title;
@@ -245,7 +286,8 @@ class _NotificationBellState extends State<NotificationBell> {
       backgroundColor: Palette.surface,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => NotificationsSheet(widget.c, only: widget.only, title: widget.title),
+      builder: (_) =>
+          NotificationsSheet(widget.c, only: widget.only, title: widget.title),
     );
     if (!mounted) return;
     if (tapped != null) await openNotification(context, widget.c, tapped);
@@ -283,7 +325,12 @@ class _NotificationBellState extends State<NotificationBell> {
 /// the unread ones read; the unread dots stay for this look. Tapping one
 /// closes the sheet with that notification.
 class NotificationsSheet extends StatefulWidget {
-  const NotificationsSheet(this.c, {super.key, this.only, this.title = 'Notifications'});
+  const NotificationsSheet(
+    this.c, {
+    super.key,
+    this.only,
+    this.title = 'Notifications',
+  });
   final AppController c;
   final bool Function(Map n)? only;
   final String title;
@@ -309,7 +356,10 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
       if (!mounted) return;
       final shown = _shown();
       setState(() => _items = shown);
-      final unread = [for (final n in shown) if (n['read_at'] == null) '${n['id']}'];
+      final unread = [
+        for (final n in shown)
+          if (n['read_at'] == null) '${n['id']}',
+      ];
       if (unread.isEmpty) return;
       // The website marks all of them read when its bell opens; a filtered bell marks only its own.
       unawaited(_feed.markRead(widget.only == null ? null : unread));
@@ -325,7 +375,10 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
         child: Column(
           children: [
             ListTile(
-              title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              title: Text(
+                widget.title,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
               // A way out on an iPhone (no Back button); a tap above the sheet closes it too.
               trailing: IconButton(
                 key: const ValueKey('sheet-close'),
@@ -338,19 +391,44 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
               child: items == null
                   ? const Center(child: CircularProgressIndicator())
                   : items.isEmpty
-                  ? const Center(child: Text('You have no notifications yet.', style: TextStyle(color: Palette.muted)))
+                  ? const Center(
+                      child: Text(
+                        'You have no notifications yet.',
+                        style: TextStyle(color: Palette.muted),
+                      ),
+                    )
                   : ListView(
                       children: [
                         for (final n in items)
                           ListTile(
                             key: ValueKey('notification-${n['id']}'),
-                            leading: Icon(n['read_at'] == null ? Icons.circle : Icons.circle_outlined, size: 10, color: Palette.cyan),
-                            title: Text(notificationTitle(n), style: TextStyle(fontWeight: n['read_at'] == null ? FontWeight.w700 : FontWeight.w500)),
+                            leading: Icon(
+                              n['read_at'] == null
+                                  ? Icons.circle
+                                  : Icons.circle_outlined,
+                              size: 10,
+                              color: Palette.cyan,
+                            ),
+                            title: Text(
+                              notificationTitle(n),
+                              style: TextStyle(
+                                fontWeight: n['read_at'] == null
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if ('${_data(n)['text'] ?? ''}'.isNotEmpty) Text('${_data(n)['text']}'),
-                                Text(notificationAgo(n['created_at']), style: const TextStyle(color: Palette.muted, fontSize: 11)),
+                                if ('${_data(n)['text'] ?? ''}'.isNotEmpty)
+                                  Text('${_data(n)['text']}'),
+                                Text(
+                                  notificationAgo(n['created_at']),
+                                  style: const TextStyle(
+                                    color: Palette.muted,
+                                    fontSize: 11,
+                                  ),
+                                ),
                               ],
                             ),
                             onTap: () => Navigator.pop(context, n),

@@ -640,7 +640,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
             <button type="button" className="aid-dl" disabled={!primary?.image} onClick={() => primary && void download(primary, shown + 1)} aria-label={`Download design ${shown + 1}`} title="Download this design"><Download size={22} /></button>
           </div>}
           {!refineOpen && isAi && primary?.image && <PlayerShotButton className="button button-secondary full-width aid-player" requireAuth={requireAuth} disabled={!!primary.busy}
-            kit={{ sport: catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport, garment: productName(primary.design, catalog), name: primary.name, colours: [primary.design.main, primary.design.secondary, primary.design.accent], logoText: primary.design.logoText, backName: primary.design.backName || primary.design.logoText, number: primary.design.number }}
+            kit={{ sport: catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport, garment: productName(primary.design, catalog), name: primary.name, logoText: primary.design.logoText, backName: primary.design.backName || primary.design.logoText, number: primary.design.number }}
             pictures={async () => primary.image ? [primary.image] : []} />}
           <div className={`aid-refine${refineOpen ? ' is-open' : ''}`}>
             <form className="aid-refine-row" onSubmit={e => { e.preventDefault(); refine(); }}>

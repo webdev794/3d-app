@@ -16,7 +16,8 @@ import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
 import { hqWanted, loadHQ, hqJersey } from './hq.js';
 import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
-import { zoneAt } from './zones.js';
+import { zoneAt, partAt } from './zones.js';
+import { colourFor } from './colourpick.js';
 import { buildHoodCords, ribNormalMap, tubeAlong } from './hoodie.js';
 import { buildSnaps, varsityRibMap, quiltMap, finishMap, varsityColour } from './varsity.js';
 import { readLayout, findPanels, confirmPanels, hemFold, joinLines, drawPockets, ROLE_NAMES } from './layout.js';
@@ -263,6 +264,12 @@ function buildKit(kind) {
     // The inside of the fabric, seen through the neck, hem and cuffs: the garment's own colour in shade (paintAll).
     const inside = new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.95, vertexColors: true, side: THREE.BackSide });
     group.add(new THREE.Mesh(shape, inside));
+    // A part's glow (a tap, the part chosen in the host's part panel, a drag over it): the same surface, lit through
+    // the part's mask (KitPainter.partMask), drawn over the fabric; hidden until used, never picked or captured.
+    const glow = new THREE.Mesh(shape, new THREE.MeshBasicMaterial({ color: 0x9ff6ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    glow.userData.glow = true;
+    glow.visible = false;
+    glow.renderOrder = 5;
     const fabric = new THREE.Mesh(shape, partMaterial);
     fabric.userData.part = parts.length;
     fabric.castShadow = true;
@@ -414,7 +421,8 @@ function buildKit(kind) {
     group.position.y = base + (LOOK2 ? garment.lift : 0);
     base += partKind === 'shorts' ? garment.frame.maxY * stretch - 0.06 : 0;
     kit.add(group);
-    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq });
+    group.add(glow);
+    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow });
   }
   // The tiers: each part's fabric (mesh, piqué, fleece...) woven into its printed materials (render-quality.js).
   if (Q) parts.forEach((part) => dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy()));
@@ -526,7 +534,8 @@ async function paintAll() {
   for (const part of parts) {
     await part.painter.paint(design);
     part.texture.needsUpdate = true;
-    part.rim.material.color.set(layout && part.layoutRim ? part.layoutRim : design.secondary);
+    const ribOwn = part.painter.partStyle(design, part.painter.partName === 'shorts' ? 'waistband' : 'collar')?.own;
+    part.rim.material.color.set(layout && part.layoutRim ? part.layoutRim : ribOwn ?? design.secondary);
     // The inside: the print's (or the kit's) main colour, a little darker for shade; the label shows the kit's size.
     part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(0.72);
     if (part.label) paintLabel(part.label, design.size || 'L');
@@ -791,7 +800,7 @@ const raycaster = new THREE.Raycaster();
 function pickAt(nx, ny) {
   if (![nx, ny].every(Number.isFinite) || nx < 0 || nx > 1 || ny < 0 || ny > 1) return { hit: false };
   const onBoard = board.pick(nx, ny);
-  if (onBoard) return { hit: true, ...onBoard, zone: zoneAt(onBoard.kind, onBoard.x, onBoard.y, onBoard.side) };
+  if (onBoard) { const zone = zoneAt(onBoard.kind, onBoard.x, onBoard.y, onBoard.side); return { hit: true, ...onBoard, zone, partKey: partAt(onBoard.kind, zone, onBoard.side, onBoard.x, onBoard.y) }; }
   if (board.visible) return { hit: false };
   raycaster.setFromCamera(new THREE.Vector2(nx * 2 - 1, -(ny * 2 - 1)), camera);
   const meshes = [];
@@ -800,8 +809,196 @@ function pickAt(nx, ny) {
   if (!hit?.uv) return { hit: false };
   const painter = parts[hit.object.userData.part].painter;
   const at = painter.fromCanvas(hit.uv.x * painter.canvas.width, (1 - hit.uv.y) * painter.canvas.height);
-  return { hit: true, part: painter.partName, kind: painter.kind, ...at, zone: zoneAt(painter.kind, at.x, at.y, at.side) };
+  const zone = zoneAt(painter.kind, at.x, at.y, at.side);
+  return { hit: true, part: painter.partName, kind: painter.kind, ...at, zone, partKey: partAt(painter.kind, zone, at.side, at.x, at.y) };
 }
+
+// ---------- tap the kit to pick a colour (the Colours panel: host command colourPick on / off)
+let colourPicking = false;
+/** Tap the kit to choose a part (the host's part panel: command partPick on / off). */
+let partPicking = false;
+/** Which part of a kit group a mesh is: 'fabric', 'rim', 'rib', 'zip', 'cords', 'snaps', 'welt', 'inside', 'label', 'cord', 'metal'. */
+function partOf(o, part) {
+  const inGroup = (g) => { for (let x = o; x; x = x.parent) if (x === g) return true; return false; };
+  if (o === part.rim) return 'rim';
+  if (o.material === part.inside) return 'inside';
+  if (part.label && inGroup(part.label)) return 'label';
+  if (part.cord && inGroup(part.cord.group)) return o.material === part.cord.metal ? 'metal' : 'cord';
+  const h = part.hoodie, t = part.track, v = part.varsity;
+  if (h?.zip && inGroup(h.zip.group)) return 'zip';
+  if (h?.cords && inGroup(h.cords.group)) return 'cords';
+  if (h && o.material === h.rib) return 'rib';
+  if (h && o.material === h.channel) return 'channel';
+  if (t) {
+    if (t.zips.some((z) => inGroup(z.group))) return 'zip';
+    if (t.cords && inGroup(t.cords.group)) return 'cords';
+    if (o.material === t.rib) return 'rib';
+    if (o.material === t.garage || o.material === t.channel) return 'collarTrim';
+  }
+  if (v && o.material === v.snaps) return 'snaps';
+  if (v && o.material === v.rib) return 'vrib';
+  return 'fabric';
+}
+/** A tap at a normalised screen point -> {hit, slot, area, zone, part} and the 3D hit (for the glow). */
+function colourAt(nx, ny) {
+  if (board.visible) return { hit: false };
+  raycaster.setFromCamera(new THREE.Vector2(nx * 2 - 1, -(ny * 2 - 1)), camera);
+  const meshes = [];
+  parts.forEach((part) => part.rim.parent.traverse((o) => { if (o.isMesh && o.visible && !o.userData.glow) meshes.push(o); }));
+  const hit = raycaster.intersectObjects(meshes, false).find((h) => h.object.visible);
+  if (!hit) return { hit: false };
+  const part = parts.find((p) => { for (let x = hit.object; x; x = x.parent) if (x === p.rim.parent) return true; return false; });
+  if (!part) return { hit: false };
+  const painter = part.painter, kind = painter.kind;
+  let piece = partOf(hit.object, part);
+  const mat = Array.isArray(hit.object.material) ? hit.object.material[hit.face?.materialIndex ?? 0] : hit.object.material;
+  if ((part.hoodie?.lining ?? part.track?.lining ?? []).includes(mat)) piece = 'lining';
+  let zone = null, pixel = null, at = null;
+  if ((piece === 'fabric' || piece === 'vrib') && hit.uv) {
+    const px = hit.uv.x * painter.canvas.width, py = (1 - hit.uv.y) * painter.canvas.height;
+    at = painter.fromCanvas(px, py);
+    zone = zoneAt(kind, at.x, at.y, at.side);
+    try { const d = painter.ctx.getImageData(Math.floor(px), Math.floor(py), 1, 1).data; pixel = [d[0], d[1], d[2]]; } catch { /* no pixel */ }
+  }
+  const areaBy = { lining: part.track ? 'collar' : part.varsity ? null : 'lining', rib: part.track ? 'cuffs' : 'rib', zip: 'zip', channel: 'hood', collarTrim: 'collar', snaps: 'snaps', cords: part.hoodie ? 'lining' : null };
+  const fixedBy = { rim: 'secondary', cord: 'main', metal: 'accent', cords: part.track ? 'secondary' : null, label: 'main' };
+  let area = areaBy[piece] ?? null, fixed = fixedBy[piece] ?? null;
+  if (piece === 'inside') { if (part.varsity) area = 'lining'; else fixed = 'main'; }
+  if (piece === 'vrib' && zone !== 'body') area = null;
+  // A print layout's own colours are not the kit's: the zone decides.
+  const result = colourFor(design, { kind, zone: zone ?? (piece === 'rim' ? 'collar' : 'trim'), pixel: layout ? null : pixel, area, fixed, fullPrint: fullPrintAt(painter, zone) });
+  // The part (task 9.134): the print's part there, the collar or waistband rib; none on the jackets' own trims.
+  const partKey = piece === 'rim' ? (painter.partName === 'shorts' ? 'waistband' : 'collar') : piece === 'fabric' && at ? partAt(kind, zone, at.side, at.x, at.y) : null;
+  const where = at ? { side: at.side, x: at.x, y: at.y } : {};
+  return { hit: true, ...result, zone: zone ?? (piece === 'rim' ? 'collar' : 'trim'), part: painter.partName, partKey, ...where, garment: design.garment, point: hit.point, normal: hit.face?.normal ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : null, object: hit.object, material: piece === 'fabric' ? null : mat, piece: part };
+}
+/** Whether the pattern where `zone` is, is a full-colour uploaded print (its own colours, not the kit's). */
+function fullPrintAt(painter, zone) {
+  const picture = zone ? design.zones?.[zone] : null;
+  const tile = typeof picture === 'string' && picture !== 'None' ? painter.zoneTile(design, picture) : null;
+  return tile ? !!tile.fullColour : !!painter._print;
+}
+/**
+ * A whole part lights up (task 9.134): a flash, or held (the part chosen in the host's panel, a drag over it) until
+ * cleared; the collar and the waistband (3D rib) glow on their own. False when the part is not on this piece.
+ */
+let heldGlow = null;
+function partGlow(piece, key, { hold = false } = {}) {
+  if (!piece || !key) return false;
+  if (key === 'collar' || key === 'waistband') {
+    const m = piece.rim.material;
+    if (!piece.rim.visible || !m.emissive) return false;
+    gsap.killTweensOf(m.emissive);
+    const e = { v: hold ? 0.3 : 0.5 };
+    m.emissive.setScalar(e.v);
+    if (!hold) gsap.to(e, { v: 0, duration: 0.9, ease: 'power2.out', onUpdate: () => m.emissive.setScalar(e.v) });
+    if (hold) heldGlow = { piece, key };
+    return true;
+  }
+  const mask = piece.painter.partMask(key);
+  if (!mask) return false;
+  const mat = piece.glow.material;
+  if (!mat.map) { mat.map = new THREE.CanvasTexture(mask); mat.needsUpdate = true; } else mat.map.image = mask;
+  mat.map.needsUpdate = true;
+  piece.glow.visible = true;
+  gsap.killTweensOf(mat);
+  if (hold) { heldGlow = { piece, key }; gsap.to(mat, { opacity: 0.42, duration: 0.2 }); }
+  else { mat.opacity = 0.75; gsap.to(mat, { opacity: 0, duration: 1, ease: 'power2.out', onComplete: () => { if (heldGlow?.piece !== piece) piece.glow.visible = false; } }); }
+  return true;
+}
+/** The held glow goes out. */
+function clearGlow() {
+  const held = heldGlow;
+  heldGlow = null;
+  if (!held) return;
+  if (held.key === 'collar' || held.key === 'waistband') { held.piece.rim.material.emissive?.setScalar(0); return; }
+  const mat = held.piece.glow.material;
+  gsap.killTweensOf(mat);
+  gsap.to(mat, { opacity: 0, duration: 0.2, onComplete: () => { if (!heldGlow) held.piece.glow.visible = false; } });
+}
+/** The host's part panel: light up a part ({part: 'top' | 'shorts', key, hold}) or clear the held glow (null). */
+function glowPart(arg) {
+  if (!arg || !(arg.key || arg.keys?.length)) { clearGlow(); return; }
+  if (arg.hold) clearGlow();
+  // keys (task 9.137): several parts at once (every part a kit colour covers), on whichever piece each is.
+  const pieceOf = (key) => (/^shorts|^waistband/.test(key) ? 'shorts' : 'top');
+  const keys = arg.keys ?? [arg.key];
+  for (const piece of parts) {
+    const mine = keys.filter((key) => (arg.keys ? pieceOf(key) : arg.part ?? pieceOf(key)) === piece.painter.partName);
+    for (const rib of mine.filter((key) => key === 'collar' || key === 'waistband')) partGlow(piece, rib, { hold: !!arg.hold });
+    const printed = mine.filter((key) => key !== 'collar' && key !== 'waistband');
+    if (printed.length) partGlow(piece, printed.length === 1 ? printed[0] : printed, { hold: !!arg.hold });
+  }
+}
+/** The tapped part glows briefly: the whole part (task 9.134), else a bright ring where it was tapped and a separate trim's own glow. */
+function glowAt({ point, normal, material, piece, partKey }) {
+  if (partKey && partGlow(piece, partKey)) return;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.028, 0.044, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthTest: false, toneMapped: false, side: THREE.DoubleSide }));
+  ring.renderOrder = 999;
+  ring.position.copy(point);
+  if (normal) ring.lookAt(point.clone().add(normal)); else ring.lookAt(camera.position);
+  scene.add(ring);
+  const s = { k: 0.6, o: 0.95 };
+  gsap.to(s, { k: 2.2, o: 0, duration: 0.7, ease: 'power2.out', onUpdate: () => { ring.scale.setScalar(s.k); ring.material.opacity = s.o; }, onComplete: () => { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); } });
+  if (material?.emissive) {
+    const was = material.emissive.clone(), e = { v: 0.45 };
+    gsap.to(e, { v: 0, duration: 0.7, ease: 'power2.out', onUpdate: () => material.emissive.copy(was).lerp(new THREE.Color(0xffffff), e.v), onComplete: () => material.emissive.copy(was) });
+  }
+}
+/** Drag to kit: the part under the pointer glows while something is dragged over the kit (host command dragHover). */
+let hoverRing = null;
+function dragHover(arg) {
+  const at = arg && Number.isFinite(arg.x) && Number.isFinite(arg.y) ? arg : null;
+  const found = at ? colourAt(at.x, at.y) : { hit: false };
+  if (!found.hit) {
+    if (hoverRing) hoverRing.visible = false;
+    clearGlow();
+    if (at) post({ type: 'dragHover', hit: false });
+    return;
+  }
+  if (found.partKey) {
+    if (hoverRing) hoverRing.visible = false;
+    if (heldGlow?.piece !== found.piece || heldGlow?.key !== found.partKey) { clearGlow(); partGlow(found.piece, found.partKey, { hold: true }); }
+    const where = pickAt(at.x, at.y);
+    post({ type: 'dragHover', ...where, hit: where.hit !== false });
+    return;
+  }
+  clearGlow();
+  if (!hoverRing) {
+    hoverRing = new THREE.Mesh(new THREE.RingGeometry(0.03, 0.05, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false, toneMapped: false, side: THREE.DoubleSide }));
+    hoverRing.renderOrder = 999;
+    scene.add(hoverRing);
+  }
+  hoverRing.visible = true;
+  hoverRing.position.copy(found.point);
+  if (found.normal) hoverRing.lookAt(found.point.clone().add(found.normal)); else hoverRing.lookAt(camera.position);
+  const where = pickAt(at.x, at.y);
+  post({ type: 'dragHover', ...where, hit: where.hit !== false });
+}
+let tapDown = null;
+// Only a press that starts and ends on the 3D canvas itself (the main button, one finger) counts as a tap.
+canvas.addEventListener('pointerdown', (e) => { tapDown = e.isPrimary && e.button === 0 && e.target === canvas ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; });
+canvas.addEventListener('pointercancel', () => { tapDown = null; });
+canvas.addEventListener('pointerup', (e) => {
+  const down = tapDown;
+  tapDown = null;
+  if (!(colourPicking || partPicking) || !down || e.target !== canvas || performance.now() - down.t > 300 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+  // A colour tap is not a turn: the kit stays where it is (no idle auto-turn 6 s later, which made the host's
+  // Front / Back / Side buttons seem dead when that view was already chosen).
+  setTimeout(() => { clearTimeout(idle); controls.autoRotate = false; }, 0);
+  const r = canvas.getBoundingClientRect();
+  const found = colourAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  if (!found.hit) {
+    if (colourPicking) post({ type: 'colourPick', hit: false });
+    if (partPicking) post({ type: 'partPick', hit: false });
+    return;
+  }
+  // (A part chosen in the panel stays lit until the host says otherwise; the tap's flash is on top.)
+  glowAt(found);
+  const { point, normal, object, material, piece, ...msg } = found;
+  if (colourPicking) post({ type: 'colourPick', ...msg });
+  if (partPicking) post({ type: 'partPick', ...msg });
+});
 
 // ---------- controls
 const controls = new OrbitControls(camera, canvas);
@@ -839,7 +1036,8 @@ controls.addEventListener('change', () => {
 let lastTap = 0;
 canvas.addEventListener('pointerup', () => {
   const now = performance.now();
-  if (now - lastTap < 300) setView('Front');
+  // (Not while tapping the kit to pick colours: two quick taps there are two picks.)
+  if (now - lastTap < 300 && !colourPicking) setView('Front');
   lastTap = now;
 });
 
@@ -854,6 +1052,8 @@ function setView(view) {
   const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
   const s = new THREE.Spherical().setFromVector3(offset);
   controls.autoRotate = view === '360°';
+  // A chosen view stays: no idle auto-turn left over from an earlier drag.
+  clearTimeout(idle);
   if (angles[view] == null) return;
   let goal = angles[view];
   // Turn the short way round.
@@ -964,8 +1164,17 @@ function capture(view) {
     controls.target.copy(CENTER);
     setCamera({ ...HOME, theta: { Front: 0, Side: Math.PI / 2, Back: Math.PI }[view] ?? 0 });
   }
+  // (No glow in a picture: a part lit in the part panel, a drag's ring, a rib's glow.)
+  const lit = parts.filter((p) => p.glow?.visible), ring = hoverRing?.visible ? hoverRing : null;
+  const ribs = parts.map((p) => [p.rim.material.emissive, p.rim.material.emissive?.clone()]).filter(([e]) => e);
+  lit.forEach((p) => (p.glow.visible = false));
+  if (ring) ring.visible = false;
+  ribs.forEach(([e]) => e.setScalar(0));
   composer.render();
   const data = renderer.domElement.toDataURL('image/png');
+  lit.forEach((p) => (p.glow.visible = true));
+  if (ring) ring.visible = true;
+  ribs.forEach(([e, was]) => e.copy(was));
   controls.target.copy(target);
   camera.position.copy(saved);
   camera.lookAt(target);
@@ -1035,6 +1244,16 @@ window.viewer = {
   reset: () => setView('Front'),
   /** {id, x, y} normalised -> posts {type:'pick', id, hit, part, side, x, y, zone}. */
   pick: ({ id, x, y }) => post({ type: 'pick', id, ...pickAt(x, y) }),
+  /** Tap the kit to pick a colour: on (the Colours panel is open) or off. A short tap then posts {type:'colourPick', hit, slot, area, zone, part, garment}. */
+  colourPick: (on) => { colourPicking = !!on; },
+  /** Tap the kit to choose a part (task 9.134): a short tap posts {type:'partPick', hit, partKey, part, side, x, y, zone, slot, area} and lights the whole part. */
+  partPick: (on) => { partPicking = !!on; },
+  /** Lights up a whole part: {part: 'top' | 'shorts', key, hold?} (hold: until glowPart null). */
+  glowPart,
+  /** Drag to kit: {x, y} normalised glows the part there and posts {type:'dragHover', hit, part, side, x, y, zone}; null clears it. */
+  dragHover,
+  /** For automated checks: what a tap at a normalised point would pick (no glow, nothing posted). */
+  colourAt: (x, y) => { const { point, normal, object, material, piece, ...msg } = colourAt(x, y); return msg; },
   /** {id, src, removeBg, tint, maxSize} -> posts {type:'image', id, data | error}. */
   processImage: ({ id, src, ...options }) =>
     processImage(src, { ...options, ...options.options }).then(
@@ -1068,7 +1287,7 @@ window.viewer = {
   receive: (msg) => {
     try {
       const m = typeof msg === 'string' ? JSON.parse(msg) : msg;
-      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features'];
+      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features', 'colourPick', 'dragHover', 'partPick', 'glowPart'];
       if (m && allowed.includes(m.cmd)) Promise.resolve(window.viewer[m.cmd](m.arg)).catch((error) => post({ type: 'error', command: m.cmd, message: error.message }));
     } catch (error) { post({ type: 'error', message: error.message }); }
   },

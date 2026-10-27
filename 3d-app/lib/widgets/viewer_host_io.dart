@@ -14,6 +14,7 @@ class ViewerHost {
     void Function(String message) onMessage, {
     this.page = 'viewer',
     String channel = 'Viewer',
+    String query = '',
   }) {
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -22,7 +23,34 @@ class ViewerHost {
         channel,
         onMessageReceived: (m) => onMessage(m.message),
       )
-      ..loadFlutterAsset('assets/$page/index.html');
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) {
+            // iOS loads bundled files without a query: the page is opened
+            // once more with it (?hq=1), next to its files (hq-jersey.js).
+            if (_pendingQuery case final q?) {
+              _pendingQuery = null;
+              _web.runJavaScript(
+                "location.replace(location.pathname + '?$q');",
+              );
+            }
+          },
+        ),
+      );
+    if (query.isEmpty) {
+      _web.loadFlutterAsset('assets/$page/index.html');
+    } else if (Platform.isAndroid) {
+      // Android serves the bundled files at android_asset and ignores the
+      // query when it finds the file.
+      _web.loadRequest(
+        Uri.parse(
+          'file:///android_asset/flutter_assets/assets/$page/index.html?$query',
+        ),
+      );
+    } else {
+      _pendingQuery = query;
+      _web.loadFlutterAsset('assets/$page/index.html');
+    }
     final android = _web.platform;
     if (android is AndroidWebViewController) {
       android.setOnShowFileSelector(_pickFiles);
@@ -43,6 +71,7 @@ class ViewerHost {
   final String page;
 
   late final WebViewController _web;
+  String? _pendingQuery;
 
   /// Tests and desktop VMs have no WebView implementation registered.
   static bool get supported => WebViewPlatform.instance != null;
@@ -56,6 +85,9 @@ class ViewerHost {
       Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
     },
   );
+
+  /// A drag that started outside the view keeps its touch on phones.
+  set passThrough(bool on) {}
 
   void dispose() {}
 }

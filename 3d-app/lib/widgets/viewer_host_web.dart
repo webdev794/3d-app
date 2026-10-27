@@ -12,11 +12,13 @@ class ViewerHost {
     void Function(String message) onMessage, {
     String page = 'viewer',
     String channel = 'Viewer',
+    String query = '',
   }) {
     final id = '3deezi-$page-${_next++}';
     _viewType = id;
     _iframe = web.HTMLIFrameElement()
-      ..src = 'assets/assets/$page/index.html?host=$id'
+      ..src =
+          'assets/assets/$page/index.html?host=$id${query.isEmpty ? '' : '&$query'}'
       ..allow = 'fullscreen';
     _iframe.style
       ..border = 'none'
@@ -45,6 +47,10 @@ class ViewerHost {
 
   void send(String json) =>
       _iframe.contentWindow?.postMessage(json.toJS, '*'.toJS);
+
+  /// While a pattern or logo is dragged onto the kit with a mouse, the
+  /// pointer moves over the frame must reach the app (touch keeps them).
+  set passThrough(bool on) => _iframe.style.pointerEvents = on ? 'none' : '';
 
   Widget build() => HtmlElementView(viewType: _viewType);
 

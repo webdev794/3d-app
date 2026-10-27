@@ -32,6 +32,15 @@ const _base = 'https://api.openai.com/v1';
 const designPatterns = ['Velocity', 'Chevron', 'Stripes', 'Solid'];
 const designFabrics = ['Standard', 'Mesh', 'Pro', 'Eco'];
 
+/// What each fabric type is on the 3D kit (Colours › Fabric type; the same
+/// words as the website's KitViewer.tsx fabricNotes).
+const fabricNotes = {
+  'Standard': "The garment's own fabric.",
+  'Mesh': 'Open hexagonal mesh: light and breathable, the holes show up close.',
+  'Pro': 'Smooth, tight performance knit with a satin sheen.',
+  'Eco': 'Soft, matt cotton-feel knit of recycled yarn.',
+};
+
 /// Every sport name, as lib/sports_catalog.dart (a const list for the JSON
 /// schema; test/sports_catalog_test.dart checks the two match).
 const designSports = [

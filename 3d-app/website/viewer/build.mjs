@@ -44,8 +44,9 @@ const readerOut = path.join(path.dirname(out), 'pdf-reader.js');
 fs.writeFileSync(readerOut, reader.outputFiles[0].text);
 if (!process.argv.includes('--website-only')) fs.writeFileSync(path.join(root, 'assets/viewer/pdf-reader.js'), reader.outputFiles[0].text);
 // The "High quality" jersey's shape (?hq=1, src/hq.js): its own file beside the website's viewer, loaded only when
-// asked for. Not copied into the apps for now (they never ask for it).
+// asked for. The app gets it too (its Studio switch "High quality jersey (preview)" opens the viewer with ?hq=1).
 fs.copyFileSync(path.join(here, 'hq-jersey.js'), path.join(path.dirname(out), 'hq-jersey.js'));
+if (!process.argv.includes('--website-only')) fs.copyFileSync(path.join(here, 'hq-jersey.js'), path.join(root, 'assets/viewer/hq-jersey.js'));
 const presets = path.join(root, 'assets/presets.json');
 if (fs.existsSync(presets)) fs.copyFileSync(presets, path.join(root, 'website/public/media/presets.json'));
 console.log(`Cinematic website viewer built: ${path.relative(root, out)} (${Math.round(html.length / 1024)} KB)`);

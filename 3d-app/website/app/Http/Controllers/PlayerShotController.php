@@ -25,8 +25,9 @@ class PlayerShotController extends Controller
             'garment' => ['required', 'string', 'max:60'],
             'player' => ['sometimes', Rule::in(PlayerShot::PLAYERS)],
             'pose' => ['sometimes', Rule::in(array_keys(PlayerShot::POSES))],
-            'colours' => ['sometimes', 'array', 'max:8'],
-            'colours.*' => ['string', 'max:40'],
+            // The kit's colours by area ("body: #240c12", "collar, cuffs and trims: #ec3e5b", the pattern in words).
+            'colours' => ['sometimes', 'array', 'max:14'],
+            'colours.*' => ['string', 'max:200'],
             'logoText' => ['nullable', 'string', 'max:40'],
             'backName' => ['nullable', 'string', 'max:40'],
             'number' => ['nullable', 'string', 'max:3'],

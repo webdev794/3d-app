@@ -3,7 +3,8 @@
 // loaded from media/vendor only when someone downloads a sheet.
 import { media } from './api';
 import type { Design } from './types';
-import { varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel } from './components/KitViewer';
+import { varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, fabricLabel } from './components/KitViewer';
+import { allParts, partLabels, partSummary } from './parts';
 
 interface Pdf {
     setFont(name: string, style?: string): void;
@@ -133,12 +134,23 @@ export async function designSheetPdf(info: SheetInfo): Promise<Blob> {
         const names: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Rib cuffs', pocket: 'Pocket', zip: 'Zip' };
         for (const [area, hex] of areas) row(names[area] ?? title(area), `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}`);
     }
+    // Parts with a look of their own (task 9.134: the Parts panel), and the objects on one part only.
+    const ownParts = allParts.filter(key => d.parts?.[key]);
+    const onParts = (d.layers ?? []).filter(l => l.clip);
+    if (ownParts.length || onParts.length) {
+        heading('PARTS');
+        for (const key of ownParts) row(partLabels[key], partSummary(d.parts![key]!));
+        for (const l of onParts) row(`On ${partLabels[l.clip!].toLowerCase()}`, `${l.type === 'text' ? `Text "${l.text ?? ''}"` : l.type === 'image' ? l.name ?? 'Logo' : 'Shape'}${typeof l.opacity === 'number' && l.opacity < 1 ? ` · ${Math.round(l.opacity * 100)}% opacity` : ''}`);
+    }
+    // The fabric the kit is made of (Colours › Fabric type; Standard: the garment's own).
+    heading('FABRIC');
+    row('Fabric', fabricLabel(d));
     heading('PATTERN');
     row('Style', d.pattern);
     if (d.patternScale) row('Size', `${Math.round(d.patternScale * 100)}%`);
     if (d.patternImage) row('Custom', 'Pattern image');
     // Patterns set on single areas of the garment (body, yoke, sleeves, sides, hem).
-    for (const [zone, pattern] of Object.entries(d.zones ?? {})) if (pattern) row(title(zone), title(String(pattern)));
+    for (const [zone, pattern] of Object.entries(d.zones ?? {})) if (pattern) row(title(zone), /^(data:image\/|\/|https?:)/.test(String(pattern)) ? 'My pattern' : title(String(pattern)));
     heading('TEXT AND NUMBER');
     row('Front text', d.logoText);
     row('Back name', d.backName ?? '');

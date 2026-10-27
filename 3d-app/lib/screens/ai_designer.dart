@@ -14,7 +14,6 @@ import '../sports_catalog.dart';
 import '../design_document.dart' show isHoodie, isVarsity, isTrack;
 import '../export_service.dart';
 import '../player_shot.dart';
-import '../project_sync.dart';
 import '../widgets/ai_stage.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/showroom.dart';
@@ -1465,11 +1464,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
                   sport: c.sport,
                   garment: s.garment,
                   name: s.designName,
-                  colours: [
-                    ProjectSync.hex(s.mainColor),
-                    ProjectSync.hex(s.secondaryColor),
-                    ProjectSync.hex(s.accentColor),
-                  ],
+                  // The AI picture shows the true colours: no colour list.
                   logoText: s.logoText,
                   backName: s.logoText,
                 ),

@@ -76,10 +76,12 @@ class AssistController extends ChangeNotifier {
 
   /// Opens a website page (About, Support, Privacy, Terms) the way Profile's rows do: a new browser tab on the web,
   /// inside the app on phones (replaced in tests).
-  static Future<void> Function(BuildContext context, String url, String title) openSite = openSitePage;
+  static Future<void> Function(BuildContext context, String url, String title)
+  openSite = openSitePage;
 
   /// Convert an image to 3D, as the Home's Convert line (replaced in tests).
-  static Future<void> Function(BuildContext context, AppController app) convert = convertFlow;
+  static Future<void> Function(BuildContext context, AppController app)
+  convert = convertFlow;
 
   static const greeting =
       "Hi! I'm 3DEEZI ASSIST.\nWhat would you like help with?";
@@ -196,7 +198,8 @@ class AssistController extends ChangeNotifier {
     AppScreen.studio ||
     AppScreen.saveProject ||
     AppScreen.export ||
-    AppScreen.showcase || AppScreen.mockup => '/studio',
+    AppScreen.showcase ||
+    AppScreen.mockup => '/studio',
     AppScreen.projects => '/projects',
     AppScreen.assets => '/assets',
     AppScreen.profile => '/dashboard',
@@ -272,7 +275,10 @@ class AssistController extends ChangeNotifier {
       case '/convert':
         _overApp((context) => convert(context, app));
       case '/about' || '/support' || '/privacy' || '/terms':
-        _overApp((context) => openSite(context, app.api.sitePage(page), _pageNames[page]!));
+        _overApp(
+          (context) =>
+              openSite(context, app.api.sitePage(page), _pageNames[page]!),
+        );
       default:
         app.go(AppScreen.home);
     }
@@ -290,10 +296,16 @@ class AssistController extends ChangeNotifier {
   void _openTeam({required bool requests}) {
     final nav = navigator.currentState;
     if (nav == null) return app.go(AppScreen.home);
-    unawaited(nav.push(MaterialPageRoute<void>(builder: (_) => TeamScreen(app))));
+    unawaited(
+      nav.push(MaterialPageRoute<void>(builder: (_) => TeamScreen(app))),
+    );
     if (!requests) return;
     if (app.signedIn) {
-      unawaited(nav.push(MaterialPageRoute<void>(builder: (_) => TeamRequestsScreen(app))));
+      unawaited(
+        nav.push(
+          MaterialPageRoute<void>(builder: (_) => TeamRequestsScreen(app)),
+        ),
+      );
     } else {
       showToast(nav.context, 'Sign in to see your design requests.');
     }

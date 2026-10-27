@@ -73,10 +73,8 @@ final aiQuickSports = <AiQuickSport>[
 const maxBrief = 4000;
 
 /// 3620 → "3,620".
-String formatCount(int n) => n.toString().replaceAllMapped(
-  RegExp(r'\B(?=(\d{3})+(?!\d))'),
-  (_) => ',',
-);
+String formatCount(int n) =>
+    n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
 
 /// Keeps the brief to [maxBrief] characters: a longer paste keeps the first
 /// [maxBrief] and calls [onCut] (to say so) instead of failing silently.
@@ -106,7 +104,9 @@ String? garmentInBrief(String text) {
   final t = text.toLowerCase();
   bool has(String pattern) => RegExp(pattern).hasMatch(t);
   final top =
-      has(r'\bjerseys?\b|\bguernseys?\b|\bjumpers?\b|\bshirts?\b|\blong[- ]sleeves?\b') &&
+      has(
+        r'\bjerseys?\b|\bguernseys?\b|\bjumpers?\b|\bshirts?\b|\blong[- ]sleeves?\b',
+      ) &&
       !has(r'\bt-?shirts?\b|\bpolo shirts?\b');
   final shorts = has(r'\bshorts\b');
   if (has(r'\bfull[- ]?kits?\b|\bkits?\b|\buniforms?\b|\bstrips?\b') ||
@@ -115,21 +115,38 @@ String? garmentInBrief(String text) {
   }
   // The track suit jacket (a track top, a tracksuit's jacket) is its own 3D
   // garment, with a collar or a hood.
-  if (has(r'\btrack ?(?:suit )?(?:jackets?|tops?)\b|\btracksuit (?:jackets?|tops?)\b|\btrack suits?\b|\btracksuits?\b')) return 'Track jacket';
+  if (has(
+    r'\btrack ?(?:suit )?(?:jackets?|tops?)\b|\btracksuit (?:jackets?|tops?)\b|\btrack suits?\b|\btracksuits?\b',
+  ))
+    return 'Track jacket';
   // Hoodies are 3D garments of their own (a zip one too); "hood" alone
   // (a fishing shirt's hood, "childhood") is not one.
-  if (has(r'\bzip(?:ped)?[- ]?(?:up[- ]?|through[- ]?)?hood(?:ie|y)s?\b|\bfull[- ]zip hood(?:ie|y)s?\b')) return 'Zip hoodie';
-  if (has(r'\bhood(?:ie|y)s?\b|\bhooded (?:jumpers?|sweat\w*|tops?|pullovers?)\b')) return 'Hoodie';
+  if (has(
+    r'\bzip(?:ped)?[- ]?(?:up[- ]?|through[- ]?)?hood(?:ie|y)s?\b|\bfull[- ]zip hood(?:ie|y)s?\b',
+  ))
+    return 'Zip hoodie';
+  if (has(
+    r'\bhood(?:ie|y)s?\b|\bhooded (?:jumpers?|sweat\w*|tops?|pullovers?)\b',
+  ))
+    return 'Hoodie';
   // The varsity (letterman, baseball or college) jacket is its own 3D garment.
-  if (has(r"\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b")) return 'Varsity jacket';
-  if (has(r'\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b')) return 'Polo with pocket';
+  if (has(
+    r"\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b",
+  ))
+    return 'Varsity jacket';
+  if (has(
+    r'\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b',
+  ))
+    return 'Polo with pocket';
   if (has(r'\bpolos?\b')) return 'Polo';
   // A dress (netball, tennis) is the women's netball dress (task 9.126).
   if (has(r'\bdress(es)?\b')) return 'Netball dress';
   if (has(r'\bsinglets?\b|\bvests?\b|\btank tops?\b|\bbodysuits?\b')) {
     return 'Singlet';
   }
-  if (has(r'\bt-?shirts?\b|\btees?\b|\bjackets?\b|\bhi-?vis\b|\brash ?guards?\b')) {
+  if (has(
+    r'\bt-?shirts?\b|\btees?\b|\bjackets?\b|\bhi-?vis\b|\brash ?guards?\b',
+  )) {
     return 'Training Tee';
   }
   if (shorts) return 'Shorts';
@@ -155,7 +172,10 @@ AiQuickSport? sportInBrief(String text) {
     (r'soccer|\bfootball\b|\bfc\b', 'football'),
     (r'\bafl\b|aussie rules|australian rules|guernsey', 'afl'),
     (r'hockey', 'hockey'),
-    (r'boxing|\bmma\b|fight ?wear|martial arts|jiu.?jitsu|muay thai', 'fight-wear'),
+    (
+      r'boxing|\bmma\b|fight ?wear|martial arts|jiu.?jitsu|muay thai',
+      'fight-wear',
+    ),
     (r'fishing|angler', 'fishing'),
     (r'workwear|hi-?vis|tradie', 'workwear'),
     (r'\bgolf', 'golf'),
@@ -165,7 +185,10 @@ AiQuickSport? sportInBrief(String text) {
       'athletics',
     ),
     (r'swim|water ?polo|surf life', 'swimming'),
-    (r'darts|billiards|snooker|\bpool (?:shirt|team|player|league|club)', 'darts'),
+    (
+      r'darts|billiards|snooker|\bpool (?:shirt|team|player|league|club)',
+      'darts',
+    ),
     (r'cricket', 'cricket'),
     (r'softball|baseball', 'softball'),
     (r'volleyball', 'volleyball'),
@@ -226,7 +249,12 @@ class AiStageBackdrop extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0x9902060b), Color(0x0002060b), Color(0x0002060b), Color(0xff02060b)],
+              colors: [
+                Color(0x9902060b),
+                Color(0x0002060b),
+                Color(0x0002060b),
+                Color(0xff02060b),
+              ],
               stops: [0, .2, .72, 1],
             ),
           ),
@@ -271,7 +299,12 @@ class AiSportRow extends StatelessWidget {
                   width: on ? 2 : 1,
                 ),
                 boxShadow: on
-                    ? [BoxShadow(color: Palette.cyan.withValues(alpha: .45), blurRadius: 16)]
+                    ? [
+                        BoxShadow(
+                          color: Palette.cyan.withValues(alpha: .45),
+                          blurRadius: 16,
+                        ),
+                      ]
                     : const [],
               ),
               child: ClipRRect(
@@ -283,7 +316,8 @@ class AiSportRow extends StatelessWidget {
                       s.art,
                       fit: BoxFit.cover,
                       cacheWidth: 300,
-                      errorBuilder: (_, _, _) => const ColoredBox(color: Palette.surface),
+                      errorBuilder: (_, _, _) =>
+                          const ColoredBox(color: Palette.surface),
                     ),
                     const DecoratedBox(
                       decoration: BoxDecoration(
@@ -304,7 +338,11 @@ class AiSportRow extends StatelessWidget {
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                     Positioned(

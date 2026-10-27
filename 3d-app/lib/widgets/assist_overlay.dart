@@ -104,7 +104,11 @@ class _AssistOverlayState extends State<AssistOverlay> {
                   child: _overViewer(_panel()),
                 ),
               ),
-            Positioned(right: 12, bottom: bottom, child: _launcher(size: size)),
+            Positioned(
+              right: 12,
+              bottom: bottom,
+              child: _launcher(size: size),
+            ),
           ],
         ),
       );

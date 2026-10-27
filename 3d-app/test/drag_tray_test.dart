@@ -5,6 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/widgets/drag_tray.dart';
 
+import 'flow_test.dart' show tapText;
+import 'studio_panel_test.dart' show closeApp, openStudio;
+
 void main() {
   testWidgets(
     'dropping a pattern fills the area it lands on, a logo lands where dropped',
@@ -53,7 +56,7 @@ void main() {
       expect(
         asked.dx,
         closeTo(32 / 200, 1e-6),
-      ); // offset by half the drag preview
+      ); // the finger, under the middle of the drag preview
 
       final png = Uint8List.fromList([
         0x89,
@@ -81,4 +84,71 @@ void main() {
       );
     },
   );
+
+  testWidgets('dragging over the kit: the part under the finger glows live, '
+      'off the kit it clears, and the drop lands under the finger', (
+    tester,
+  ) async {
+    final c = await openStudio(tester, 390, 844);
+    // The 3D viewer's side: what it is asked to glow, and what is under the
+    // drop point.
+    final hovers = <Offset?>[];
+    c.hoverGarment = hovers.add;
+    // On the web the 3D frame lets the mouse through while dragging.
+    final through = <bool>[];
+    c.viewerPassThrough = through.add;
+    Offset? asked;
+    c.pickGarment = (x, y) async {
+      asked = Offset(x, y);
+      return {
+        'hit': true,
+        'part': 'top',
+        'side': 'front',
+        'x': 0.1,
+        'y': 0.5,
+        'zone': 'sleeves',
+      };
+    };
+    await tapText(tester, 'Drag to kit');
+    await tester.pumpAndSettle();
+    final tile = find.descendant(
+      of: find.byType(DragTray),
+      matching: find.text('Solid'),
+    );
+    final stage = tester.getRect(find.byType(DragTarget<KitDrop>));
+    // Over the kit's middle, then a quarter down: the glow follows.
+    final finger = await tester.startGesture(tester.getCenter(tile));
+    await tester.pump(const Duration(milliseconds: 300));
+    for (var i = 1; i <= 6; i++) {
+      await finger.moveTo(
+        Offset.lerp(tester.getCenter(tile), stage.center, i / 6)!,
+      );
+      await tester.pump();
+    }
+    expect(hovers.last!.dx, closeTo(.5, .01));
+    expect(hovers.last!.dy, closeTo(.5, .01));
+    final lower = Offset(stage.center.dx, stage.top + stage.height * .75);
+    await finger.moveTo(lower);
+    await tester.pump();
+    expect(hovers.last!.dy, closeTo(.75, .01));
+    // Off the kit (back over the tray): the glow is cleared.
+    await finger.moveTo(tester.getCenter(tile));
+    await tester.pump();
+    expect(hovers.last, isNull);
+    expect(asked, isNull);
+    // Back on and let go: cleared, and the drop lands under the finger.
+    await finger.moveTo(stage.center);
+    await tester.pump();
+    await finger.moveTo(lower);
+    await tester.pump();
+    expect(hovers.last, isNotNull);
+    await finger.up();
+    await tester.pumpAndSettle();
+    expect(hovers.last, isNull);
+    expect(asked!.dx, closeTo(.5, .01));
+    expect(asked!.dy, closeTo(.75, .01));
+    expect(c.zones['sleeves'], 'Solid');
+    expect(through, [true, false]);
+    await closeApp(tester, c);
+  });
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_service.dart';
 import 'api_client.dart';
@@ -61,13 +62,22 @@ class KitState {
     this.zones = const {},
     this.zoneColors = const {},
     this.trackStyle = 'collar',
+    this.patternColor,
+    this.patternColorOwn,
+    this.parts = const {},
     this.productName = '',
     this.gradient,
     this.gradients,
     this.marks = const {},
     this.layout,
+    this.patternScale,
+    this.patternBody,
   });
   final String garment, pattern, fabric, logoText, backName, number;
+
+  /// The pattern picture's repeat in metres (Patterns › Pattern size; null:
+  /// the viewer's 0.3) and how far a stencil pattern covers the body (0-1).
+  final double? patternScale, patternBody;
   final Color mainColor, secondaryColor, accentColor;
   final Uint8List? patternTile, logoImage, sponsorImage;
   final DesignSpec? spec;
@@ -79,6 +89,19 @@ class KitState {
 
   /// The track jacket's style: 'collar' (its stand-up collar) or 'hood'.
   final String trackStyle;
+
+  /// The pattern's own colour ('#rrggbb', the website's PATTERN); null = a
+  /// blend of the primary and secondary.
+  final String? patternColor;
+
+  /// True once the pattern colour is picked (PATTERN tab or a tap on the
+  /// pattern): the viewer then paints every pattern in it (the website's
+  /// design.patternColorOwn). Null: palettes and presets.
+  final bool? patternColorOwn;
+
+  /// Parts edited on their own (task 9.134, design.parts: a sleeve's own
+  /// colour, fade and pattern; see part_editing.dart). Empty: as before.
+  final Map<String, dynamic> parts;
 
   /// The sport's garment tile it was chosen as ("Netball dress", task 9.99);
   /// empty for a plain 3D garment. [garment] stays the 3D garment.
@@ -235,6 +258,21 @@ class AppController extends ChangeNotifier {
   String pattern = 'Chevron', fabric = 'Standard';
   String logoText = 'MANTIS', backName = 'MANTIS', number = '23';
   Uint8List? patternTile, logoImage, sponsorImage;
+
+  /// See [KitState.patternScale] and [KitState.patternBody].
+  double? patternScale, patternBody;
+
+  /// Patterns › My patterns: the account's own pattern pictures (saved
+  /// assets of type "pattern", shared with the website), loaded on demand.
+  List<({int id, String name, Uint8List bytes})>? ownPatterns;
+
+  /// How an own pattern goes on where the kit has no pattern picture yet:
+  /// 'full' (its own colours) or 'kit' (a stencil in the kit's colours). Where
+  /// it has one, the new pattern takes that picture's mode (own_patterns.dart).
+  String ownPatternMode = 'full';
+
+  /// Redraws the screens after a change outside [edit] (own_patterns.dart).
+  void changed() => notifyListeners();
   DesignSpec? spec;
   List<Map<String, dynamic>> layers = [];
   Map<String, String> zones = {};
@@ -244,6 +282,34 @@ class AppController extends ChangeNotifier {
 
   /// The track jacket's style: 'collar' (its stand-up collar) or 'hood'.
   String trackStyle = 'collar';
+
+  /// The pattern's own colour ('#rrggbb'); null = the primary/secondary blend.
+  String? patternColor;
+
+  /// See [KitState.patternColorOwn].
+  bool? patternColorOwn;
+
+  /// See [KitState.parts].
+  Map<String, dynamic> parts = {};
+
+  /// Set by the Studio while a tap on one part of the 3D kit opens its Part
+  /// panel (task 9.134): the viewer's 'partPick' message (partKey, part,
+  /// side, x, y). Null = part tapping is off.
+  void Function(Map<String, dynamic> pick)? partPick;
+
+  /// Part tapping turned on or off: the viewer is told.
+  void setPartPick(void Function(Map<String, dynamic> pick)? handler) {
+    partPick = handler;
+    notifyListeners();
+  }
+
+  /// Lights up a whole part on the 3D kit ({part: 'top' | 'shorts', key}),
+  /// a short flash; null clears it. Set by the 3D viewer.
+  void Function(Map<String, dynamic>? part)? glowPart;
+
+  /// The pattern colour while [patternColor] is unset.
+  Color get defaultPatternColor =>
+      Color.lerp(mainColor, secondaryColor, 0.55) ?? secondaryColor;
   Map<String, dynamic>? gradient;
 
   /// Gradient fills of the secondary and pattern zones (see gradient_presets.dart); [gradient] is the primary's.
@@ -275,6 +341,27 @@ class AppController extends ChangeNotifier {
   /// the app puts over the 3D view (view buttons, the chat button) hides.
   bool viewerModal = false;
 
+  /// "High quality jersey (preview)": the 3D jersey is the client's
+  /// professional CLO model (the viewer's ?hq=1). Off by default until the
+  /// client approves; remembered on this device. Only the jersey changes.
+  bool hqJersey = false;
+  static const hqJerseyKey = '3deezi.hqJersey';
+
+  /// Reads the device's own choices (the HQ jersey switch).
+  Future<void> restoreDevicePrefs() async {
+    try {
+      final on = (await SharedPreferences.getInstance()).getBool(hqJerseyKey);
+      if (on != null && on != hqJersey) update(() => hqJersey = on);
+    } catch (_) {}
+  }
+
+  void setHqJersey(bool on) {
+    update(() => hqJersey = on);
+    SharedPreferences.getInstance()
+        .then((p) => p.setBool(hqJerseyKey, on))
+        .catchError((Object _) => false);
+  }
+
   /// How tall the Studio's controls under the 3D are (its tool bar, or the
   /// tool panel while one is open): the round Assist button keeps above them.
   final studioClearance = ValueNotifier<double>(0);
@@ -282,6 +369,26 @@ class AppController extends ChangeNotifier {
   /// Closes the Studio's tool panel under the 3D; set while one is open, so
   /// Android Back closes it before leaving the Studio.
   VoidCallback? closeStudioPanel;
+
+  /// Set by the Studio's open Colours panel: a tap on the 3D kit hands it the
+  /// viewer's 'colourPick' message (slot, area). Null = tap-to-pick is off.
+  void Function(Map<String, dynamic> pick)? colourPick;
+
+  /// Drag to kit: the 3D viewer glows the part under the finger ([at] is
+  /// 0..1 over the 3D, as [pickGarment]); null clears the glow. Set by the
+  /// 3D viewer.
+  void Function(Offset? at)? hoverGarment;
+
+  /// While something is dragged from Drag to kit: the 3D view lets the
+  /// pointer through to the app (web, mouse). Set by the 3D viewer.
+  void Function(bool dragging)? viewerPassThrough;
+
+  /// The panel opened or closed: the viewer turns tap-to-pick on or off.
+  void setColourPick(void Function(Map<String, dynamic> pick)? handler) {
+    colourPick = handler;
+    notifyListeners();
+  }
+
   bool boardMode = false;
   String? selectedLayerId;
 
@@ -608,11 +715,16 @@ class AppController extends ChangeNotifier {
     k.zones,
     k.zoneColors,
     k.trackStyle,
+    k.patternColor,
+    k.patternColorOwn,
+    k.parts,
     k.productName,
     k.gradient,
     k.gradients,
     k.marks,
     k.layout,
+    k.patternScale,
+    k.patternBody,
   ]);
 
   /// YOUR DESIGN is on the kit now.
@@ -670,6 +782,11 @@ class AppController extends ChangeNotifier {
     gradients = copyGradient(design['gradients']);
     zones = copyZones(design['zones']);
     zoneColors = copyZones(design['zoneColors']);
+    patternColor = design['patternColor'] is String
+        ? design['patternColor'] as String
+        : null;
+    patternColorOwn = null;
+    parts = copyParts(design['parts']);
     patternTile = null;
     layout = copyLayout(design['layout']);
   });
@@ -702,6 +819,11 @@ class AppController extends ChangeNotifier {
   // ---------- renders and the studio
   Uint8List? renderFront, renderBack;
   String view = 'Front';
+
+  /// Counts Front / Back / Side presses: the 3D turns to the view on every
+  /// press, also when it is the view already chosen (the kit may have been
+  /// turned by hand since).
+  int viewPresses = 0;
 
   /// The studio shows the live 3D kit; false shows the AI render.
   bool show3d = true;
@@ -1145,6 +1267,7 @@ class AppController extends ChangeNotifier {
     zoneColors,
     gradient,
     gradients,
+    parts,
   ]);
 
   /// A design picture or print layout is painted instead of the colours,
@@ -1184,11 +1307,16 @@ class AppController extends ChangeNotifier {
     zones: copyZones(zones),
     zoneColors: copyZones(zoneColors),
     trackStyle: trackStyle,
+    patternColor: patternColor,
+    patternColorOwn: patternColorOwn,
+    parts: copyParts(parts),
     productName: productName,
     gradient: copyGradient(gradient),
     gradients: copyGradient(gradients),
     marks: copyMarks(marks),
     layout: copyLayout(layout),
+    patternScale: patternScale,
+    patternBody: patternBody,
   );
 
   void _restore(KitState k) {
@@ -1209,10 +1337,15 @@ class AppController extends ChangeNotifier {
     zones = copyZones(k.zones);
     zoneColors = copyZones(k.zoneColors);
     trackStyle = k.trackStyle;
+    patternColor = k.patternColor;
+    patternColorOwn = k.patternColorOwn;
+    parts = copyParts(k.parts);
     productName = k.productName;
     gradient = copyGradient(k.gradient);
     gradients = copyGradient(k.gradients);
     marks = copyMarks(k.marks);
+    patternScale = k.patternScale;
+    patternBody = k.patternBody;
     layout = copyLayout(k.layout);
     _shelveLayout();
     if (!layers.any((layer) => layer['id'] == selectedLayerId)) {
@@ -1553,6 +1686,7 @@ class AppController extends ChangeNotifier {
   /// Switches view, rendering the AI back view the first time it is needed.
   Future<String?> showView(String value) async {
     view = value;
+    viewPresses++;
     notifyListeners();
     final front = renderFront, design = spec;
     if (show3d ||

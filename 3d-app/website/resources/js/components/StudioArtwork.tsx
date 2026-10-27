@@ -6,7 +6,7 @@ import type { ArtworkLayer, Design } from '../types';
 import type { DesignLayout, KitViewerHandle } from './KitViewer';
 
 export type LibraryAsset = { id: number; name: string; type: string; src?: string };
-export type ArtworkDrop = { asset?: LibraryAsset; pattern?: string };
+export type ArtworkDrop = { asset?: LibraryAsset; pattern?: string; label?: string };
 export const patternNames = ['None', 'Solid', 'Chevron', 'Stripes', 'Velocity', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
 export const placements = [
     { id: 'left-chest', label: 'Left chest', side: 'front', part: 'top', x: 0.105, y: 0.6, w: 0.075 },
@@ -211,12 +211,12 @@ const readFavourites = (): string[] => { try { return JSON.parse(localStorage.ge
 /** The user's own design in this Studio (before the first preset, and as changed after it is chosen again), with a still of it. */
 export type OwnDesign = { design: Design; thumb?: string | null };
 /** The keys that make a design what it is (YOUR DESIGN compares them). */
-const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks'] as const;
+const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternColorOwn', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'parts', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks', 'fabric'] as const;
 /** "1 panel", "4 panels": a print layout's panels on the kit (its roles other than 'none'). */
 const panelCount = (roles: string[]) => { const n = roles.filter(role => role !== 'none').length; return `${n} panel${n === 1 ? '' : 's'}`; };
-export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys.map(key => key === 'zones' ? areas(d.zones) : key === 'layers' ? d.layers ?? [] : key === 'marks' ? d.marks ?? {} : key === 'zoneColors' ? (Object.keys(d.zoneColors ?? {}).length ? d.zoneColors : null) : d[key] ?? null));
+export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys.map(key => key === 'zones' ? areas(d.zones) : key === 'layers' ? d.layers ?? [] : key === 'marks' ? d.marks ?? {} : key === 'zoneColors' ? (Object.keys(d.zoneColors ?? {}).length ? d.zoneColors : null) : key === 'fabric' ? (d.fabric && d.fabric !== 'Standard' ? d.fabric : null) : d[key] ?? null));
 /** The whole design back, as one change (keys it lacks are cleared). */
-export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, zoneColors: null, ...d, zones: areas(d.zones) });
+export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, zoneColors: null, patternColorOwn: null, parts: null, fabric: null, ...d, zones: areas(d.zones) });
 
 /** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites); YOUR DESIGN first. */
 export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void; own?: OwnDesign | null; onOwn?: () => void; beforePreset?: () => Promise<void> }) {
@@ -242,7 +242,7 @@ export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }
         // layout on the kit (these hide the colours and pattern); keys older saves lack are cleared so the look matches.
         const replaced = design.layout ? (design.layout.kind === 'drawing' ? 'design picture' : 'print layout') : null;
         // A hoodie's own area colours go too: its lining, rib and zip then follow the preset's colours.
-        edit({ gradient: null, gradients: null, zoneColors: null, ...style, zones: areas(style.zones), patternImage: style.patternImage ?? null, layout: style.layout ?? null });
+        edit({ gradient: null, gradients: null, zoneColors: null, patternColorOwn: null, parts: null, ...style, zones: areas(style.zones), patternImage: style.patternImage ?? null, layout: style.layout ?? null });
         onNotice(replaced ? `${name} applied in place of your ${replaced}: Undo, or Artwork › ${replaced === 'design picture' ? 'My design picture' : 'Factory print layout'}, puts it back.` : `${name} applied. Your logos and player details are preserved.`);
     }
     function toggleFavourite(id: string) {

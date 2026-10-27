@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../ai_service.dart';
 import '../app_controller.dart';
 import '../export_service.dart';
+import '../part_editing.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
 
@@ -118,14 +119,17 @@ class _ProductMockupScreenState extends State<ProductMockupScreen> {
             logoText: c.logoText,
             backName: c.backName,
             number: c.number,
-            colors: [
+            // The kit's colours, then the parts' own (task 9.134), each
+            // once, as the website's Mockup.
+            colors: {
               for (final color in [
                 c.mainColor,
                 c.secondaryColor,
                 c.accentColor,
               ])
                 '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}',
-            ],
+              ...c.partColours,
+            }.toList(),
           ),
           switch (view) {
             'back' => [back, front],

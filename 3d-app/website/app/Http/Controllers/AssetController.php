@@ -19,12 +19,14 @@ class AssetController extends Controller
         // A factory print layout (Studio › Artwork) may be a PDF or SVG as well as a picture: it is read by the 3D
         // viewer, never shown as a page.
         $layout = $request->input('type') === 'layout';
+        // Patterns › My patterns: an own pattern picture, up to 5 MB.
+        $max = $request->input('type') === 'pattern' ? 5120 : 10240;
         $data = $request->validate([
             'name' => ['nullable', 'string', 'max:120'],
             'type' => ['required', 'in:logo,pattern,artwork,reference,layout'],
             'file' => $layout
                 ? ['required', 'file', 'mimes:pdf,svg,png,jpg,jpeg,webp', 'max:30720']
-                : ['required', 'file', 'image', 'mimes:png,jpg,jpeg,webp', 'max:10240', 'dimensions:max_width=8192,max_height=8192'],
+                : ['required', 'file', 'image', 'mimes:png,jpg,jpeg,webp', 'max:'.$max, 'dimensions:max_width=8192,max_height=8192'],
         ]);
         $file = $request->file('file');
         $path = $file->store('assets/'.$request->user()->id, 'local');

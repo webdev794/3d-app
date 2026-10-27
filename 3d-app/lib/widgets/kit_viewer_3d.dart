@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
@@ -29,15 +30,20 @@ class KitViewer3D extends StatefulWidget {
 }
 
 class KitViewer3DState extends State<KitViewer3D> {
-  late final ViewerHost _host;
+  late ViewerHost _host;
+
+  /// The viewer was opened with the HQ jersey (?hq=1); a change reopens it.
+  late bool _hq;
   bool _ready = false;
   String? _sentDesign, _sentView;
+  int? _sentPresses;
   Uint8List? _sentPattern, _sentLogo, _sentSponsor;
   final _captures = <String, Completer<Uint8List?>>{};
   final _requests = <String, Completer<Map<String, dynamic>?>>{};
   int _nextRequest = 0;
   bool? _sentBoard;
   String? _sentSelection;
+  bool? _sentPick, _sentPartPick;
 
   AppController get c => widget.controller;
 
@@ -45,14 +51,32 @@ class KitViewer3DState extends State<KitViewer3D> {
   void initState() {
     super.initState();
     if (!KitViewer3D.supported) return;
-    _host = ViewerHost(_onMessage);
+    _hq = c.hqJersey;
+    _host = _openHost();
     c.addListener(_sync);
     c.captureMockup = capture;
     c.captureBoard = captureBoard;
     c.processArtwork = processArtwork;
     c.pickGarment = pickGarment;
+    c.hoverGarment = _hoverGarment;
+    c.glowPart = _glowPart;
+    c.viewerPassThrough = _passThrough;
     c.zoomBoard = _zoomBoard;
     c.checkLayout = _checkLayout;
+  }
+
+  ViewerHost _openHost() => ViewerHost(_onMessage, query: _hq ? 'hq=1' : '');
+
+  /// The HQ jersey is chosen when the viewer starts: a new viewer, sent
+  /// everything again once it is ready.
+  void _reopen() {
+    _host.dispose();
+    _hq = c.hqJersey;
+    _ready = false;
+    _sentDesign = _sentView = _sentSelection = null;
+    _sentPattern = _sentLogo = _sentSponsor = null;
+    _sentBoard = _sentPick = _sentPartPick = null;
+    setState(() => _host = _openHost());
   }
 
   void _zoomBoard(String how) => _send('boardZoom', how);
@@ -69,6 +93,9 @@ class KitViewer3DState extends State<KitViewer3D> {
       if (c.viewerModal) c.viewerModal = false;
       if (c.processArtwork == processArtwork) c.processArtwork = null;
       if (c.pickGarment == pickGarment) c.pickGarment = null;
+      if (c.hoverGarment == _hoverGarment) c.hoverGarment = null;
+      if (c.glowPart == _glowPart) c.glowPart = null;
+      if (c.viewerPassThrough == _passThrough) c.viewerPassThrough = null;
       for (final pending in _captures.values) {
         if (!pending.isCompleted) pending.complete(null);
       }
@@ -92,6 +119,7 @@ class KitViewer3DState extends State<KitViewer3D> {
     switch (msg['type']) {
       case 'ready':
         setState(() => _ready = true);
+        _sentPick = _sentPartPick = null;
         // This app answers the viewer's requests for print layout files.
         _send('features', {'layouts': true});
         _sync();
@@ -111,6 +139,14 @@ class KitViewer3DState extends State<KitViewer3D> {
           _sentSelection = msg['id'] as String?;
           c.selectLayer(_sentSelection);
         }
+      case 'colourPick':
+        // A tap on the kit while the Colours panel is open (the viewer
+        // glows the part itself); a tap on empty space is ignored.
+        if (msg['hit'] == true) c.colourPick?.call(msg);
+      case 'partPick':
+        // A tap on one part of the kit (task 9.134; the viewer lights up the
+        // whole part): the Studio opens its Part panel.
+        if (msg['hit'] == true) c.partPick?.call(msg);
       case 'modal':
         c.update(() => c.viewerModal = msg['open'] == true);
       case 'layoutWanted':
@@ -135,7 +171,9 @@ class KitViewer3DState extends State<KitViewer3D> {
   /// Pushes only what changed: the design JSON is small, the pattern tile is
   /// sent once per new tile.
   void _sync() {
-    if (!_ready || !mounted) return;
+    if (!mounted) return;
+    if (c.hqJersey != _hq) return _reopen();
+    if (!_ready) return;
     final design = jsonEncode({
       'garment': switch (c.garment) {
         'Singlet' => 'singlet',
@@ -160,15 +198,24 @@ class KitViewer3DState extends State<KitViewer3D> {
       'number': c.number,
       'layers': c.layers,
       'zones': c.zones,
+      'patternScale': c.patternScale ?? 0.3,
+      'patternBody': c.patternBody ?? 0.06,
       'zoneColors': c.zoneColors,
       'trackStyle': c.trackStyle,
       'gradient': c.gradient,
       'gradients': c.gradients,
       'marks': c.marks,
       'layout': c.layout,
-      'patternColor': _hex(
-        Color.lerp(c.mainColor, c.secondaryColor, 0.55) ?? c.secondaryColor,
-      ),
+      'patternColor': c.patternColor ?? _hex(c.defaultPatternColor),
+      // The pattern's own colour paints the built-in and area patterns too
+      // (picked on the PATTERN tab or by tapping the pattern; viewer -37).
+      'patternColorOwn': c.patternColorOwn == true,
+      // The parts with a look of their own (task 9.134); always sent, so an
+      // empty one clears the last.
+      'parts': c.parts,
+      // Colours › Fabric type: mesh holes, a satin sheen, a matt cotton feel
+      // on the 3D kit (Standard: the garment's own fabric; viewer -39).
+      'fabric': c.fabric,
     });
     if (design != _sentDesign) {
       _sentDesign = design;
@@ -190,13 +237,25 @@ class KitViewer3DState extends State<KitViewer3D> {
       _send('setDesign', {'sponsorImage': ProjectSync.dataUrl(sponsor)});
     }
     final view = c.view;
-    if (view != _sentView) {
+    if (view != _sentView || c.viewPresses != _sentPresses) {
       _sentView = view;
+      _sentPresses = c.viewPresses;
       _send('setView', view);
     }
     if (_sentBoard != c.boardMode) {
       _sentBoard = c.boardMode;
       _send('board', c.boardMode);
+    }
+    final pick = c.colourPick != null;
+    if (_sentPick != pick) {
+      _sentPick = pick;
+      _send('colourPick', pick);
+    }
+    // Taps open a part's panel; not while the Colours panel takes them.
+    final parts = c.partPick != null && !pick && !c.boardMode;
+    if (_sentPartPick != parts) {
+      _sentPartPick = parts;
+      _send('partPick', parts);
     }
     if (_sentSelection != c.selectedLayerId) {
       _sentSelection = c.selectedLayerId;
@@ -282,6 +341,35 @@ class KitViewer3DState extends State<KitViewer3D> {
 
   Future<Map<String, dynamic>?> pickGarment(double x, double y) =>
       _request('pick', {'x': x, 'y': y});
+
+  /// Drag to kit: the finger's place, sent once a frame while a pattern or
+  /// logo is dragged over the kit (the viewer glows the part there); null
+  /// clears the glow at once.
+  void _passThrough(bool on) => _host.passThrough = on;
+
+  /// Lights up a whole part ({part, key}: a part chosen in the Part panel's
+  /// list); null clears the glow.
+  void _glowPart(Map<String, dynamic>? part) {
+    if (_ready) _send('glowPart', part);
+  }
+
+  Offset? _hoverAt;
+  bool _hoverQueued = false;
+  void _hoverGarment(Offset? at) {
+    _hoverAt = at;
+    if (at == null) {
+      if (_ready) _send('dragHover', null);
+      return;
+    }
+    if (_hoverQueued) return;
+    _hoverQueued = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _hoverQueued = false;
+      final at = _hoverAt;
+      if (at == null || !mounted || !_ready) return;
+      _send('dragHover', {'x': at.dx, 'y': at.dy});
+    });
+  }
 
   /// PNG of the kit from [view] ('Front', 'Side' or 'Back').
   Future<Uint8List?> capture(String view) {

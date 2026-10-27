@@ -59,6 +59,19 @@ Map<String, dynamic>? copyGradient(Object? value) => value is Map
     ? (jsonDecode(jsonEncode(value)) as Map).cast<String, dynamic>()
     : null;
 
+/// The parts edited on their own (task 9.134, the website's `design.parts`):
+/// `{leftSleeve: {colour, fade, pattern, patternColour, patternOpacity}}`,
+/// only the parts changed (see part_editing.dart). Empty: the kit as before.
+/// The server sends `[]` when there are none.
+Map<String, dynamic> copyParts(Object? value) => value is Map
+    ? {
+        for (final entry in value.entries)
+          if (entry.value is Map && (entry.value as Map).isNotEmpty)
+            '${entry.key}': (jsonDecode(jsonEncode(entry.value)) as Map)
+                .cast<String, dynamic>(),
+      }
+    : {};
+
 const garmentZones = {
   'body': 'Chest & body',
   'yoke': 'Shoulders',

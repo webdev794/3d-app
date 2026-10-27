@@ -41,7 +41,13 @@ Widget? _dataImage(Object? url, double size) {
     final bytes = UriData.parse(text).contentAsBytes();
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, gaplessPlayback: true),
+      child: Image.memory(
+        bytes,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+      ),
     );
   } on Object {
     return null;
@@ -50,7 +56,8 @@ Widget? _dataImage(Object? url, double size) {
 
 /// A JSON object, or empty: PHP sends an empty array as `[]`, not `{}` (sizes of an uploaded order form, a new order's
 /// stages).
-Map<String, dynamic> _mapOf(Object? value) => value is Map ? value.cast<String, dynamic>() : const {};
+Map<String, dynamic> _mapOf(Object? value) =>
+    value is Map ? value.cast<String, dynamic>() : const {};
 
 Widget _pill(String text, Color colour) => Container(
   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
@@ -59,11 +66,18 @@ Widget _pill(String text, Color colour) => Container(
     color: colour.withValues(alpha: .14),
     border: Border.all(color: colour.withValues(alpha: .6)),
   ),
-  child: Text(text, style: TextStyle(color: colour, fontSize: 11, fontWeight: FontWeight.w700)),
+  child: Text(
+    text,
+    style: TextStyle(color: colour, fontSize: 11, fontWeight: FontWeight.w700),
+  ),
 );
 
-Future<void> _openSite(BuildContext context, AppController c, String path, String title) =>
-    openSitePage(context, c.api.sitePage(path), title);
+Future<void> _openSite(
+  BuildContext context,
+  AppController c,
+  String path,
+  String title,
+) => openSitePage(context, c.api.sitePage(path), title);
 
 /// My orders by stage: tabs for the five stages (current or completed orders).
 class OrdersBoardScreen extends StatefulWidget {
@@ -108,13 +122,17 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
       ((_board?['stages'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
   Future<void> _openOrder(int id) async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => OrderDetailScreen(widget.c, id)));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => OrderDetailScreen(widget.c, id)),
+    );
     if (mounted) _load();
   }
 
   /// The native Create Order Form / Upload Your Order (each can still open the website's page).
   Future<void> _openEntry(Widget screen) async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => screen));
     if (mounted) _load();
   }
 
@@ -122,10 +140,15 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
   Widget build(BuildContext context) {
     final c = widget.c;
     final stages = _stages;
-    final stage = stages.isEmpty ? null : stages[_stage.clamp(0, stages.length - 1)];
-    final orders = ((stage?['orders'] as List?) ?? const []).cast<Map<String, dynamic>>();
-    final drafts = ((_board?['drafts'] as List?) ?? const []).cast<Map<String, dynamic>>();
-    final cancelled = ((_board?['cancelled'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final stage = stages.isEmpty
+        ? null
+        : stages[_stage.clamp(0, stages.length - 1)];
+    final orders = ((stage?['orders'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final drafts = ((_board?['drafts'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final cancelled = ((_board?['cancelled'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
     return Column(
       children: [
         TopBar(
@@ -178,8 +201,20 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: SegmentedButton<String>(
               segments: [
-                ButtonSegment(value: 'current', label: Text('Current ${(_board?['counts'] as Map?)?['current'] ?? ''}'.trim())),
-                ButtonSegment(value: 'completed', label: Text('Completed ${(_board?['counts'] as Map?)?['completed'] ?? ''}'.trim())),
+                ButtonSegment(
+                  value: 'current',
+                  label: Text(
+                    'Current ${(_board?['counts'] as Map?)?['current'] ?? ''}'
+                        .trim(),
+                  ),
+                ),
+                ButtonSegment(
+                  value: 'completed',
+                  label: Text(
+                    'Completed ${(_board?['counts'] as Map?)?['completed'] ?? ''}'
+                        .trim(),
+                  ),
+                ),
               ],
               selected: {_view},
               showSelectedIcon: false,
@@ -202,7 +237,10 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
                     child: ChoiceChip(
                       label: Text('${s['label']} ${s['count']}'),
                       selected: i == _stage,
-                      avatar: CircleAvatar(radius: 5, backgroundColor: _tone(s['tone'])),
+                      avatar: CircleAvatar(
+                        radius: 5,
+                        backgroundColor: _tone(s['tone']),
+                      ),
                       onSelected: (_) => setState(() => _stage = i),
                     ),
                   ),
@@ -224,10 +262,18 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
                             Padding(
                               padding: const EdgeInsets.only(bottom: 10),
                               child: SurfaceCard(
-                                onTap: () => _openSite(context, c, '${d['link']}', 'Continue your draft'),
+                                onTap: () => _openSite(
+                                  context,
+                                  c,
+                                  '${d['link']}',
+                                  'Continue your draft',
+                                ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.drafts_outlined, color: Palette.muted),
+                                    const Icon(
+                                      Icons.drafts_outlined,
+                                      color: Palette.muted,
+                                    ),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
@@ -235,7 +281,13 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
                                         style: const TextStyle(fontSize: 13),
                                       ),
                                     ),
-                                    const Text('Continue', style: TextStyle(color: Palette.cyan, fontSize: 12)),
+                                    const Text(
+                                      'Continue',
+                                      style: TextStyle(
+                                        color: Palette.cyan,
+                                        fontSize: 12,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -252,17 +304,30 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
                         for (final o in orders)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: OrderBoardCard(o, onTap: () => _openOrder((o['id'] as num).toInt())),
+                            child: OrderBoardCard(
+                              o,
+                              onTap: () => _openOrder((o['id'] as num).toInt()),
+                            ),
                           ),
                         if (_view == 'completed' && cancelled.isNotEmpty) ...[
                           const Padding(
                             padding: EdgeInsets.fromLTRB(2, 12, 0, 8),
-                            child: Text('Cancelled', style: TextStyle(color: Palette.muted, fontWeight: FontWeight.w700)),
+                            child: Text(
+                              'Cancelled',
+                              style: TextStyle(
+                                color: Palette.muted,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                           for (final o in cancelled)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: OrderBoardCard(o, onTap: () => _openOrder((o['id'] as num).toInt())),
+                              child: OrderBoardCard(
+                                o,
+                                onTap: () =>
+                                    _openOrder((o['id'] as num).toInt()),
+                              ),
                             ),
                         ],
                       ],
@@ -284,7 +349,8 @@ class OrderBoardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sub = (o['sub_status'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final garments = ((o['garments'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final garments = ((o['garments'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
     final latest = (o['latest_update'] as Map?)?.cast<String, dynamic>();
     final payment = (o['payment'] as Map?)?.cast<String, dynamic>();
     final action = o['action'];
@@ -293,18 +359,32 @@ class OrderBoardCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('${o['number']}', style: const TextStyle(color: Palette.muted, fontSize: 12)),
+          Text(
+            '${o['number']}',
+            style: const TextStyle(color: Palette.muted, fontSize: 12),
+          ),
           const SizedBox(height: 2),
-          Text('${o['name']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          Text(
+            '${o['name']}',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
               for (final g in garments.take(3))
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: _dataImage(g['thumbnail'], 52) ?? _GarmentChip('${g['name']}'),
+                  child:
+                      _dataImage(g['thumbnail'], 52) ??
+                      _GarmentChip('${g['name']}'),
                 ),
-              if (garments.isEmpty) _dataImage(o['cover'], 52) ?? const Icon(Icons.description_outlined, color: Palette.muted, size: 34),
+              if (garments.isEmpty)
+                _dataImage(o['cover'], 52) ??
+                    const Icon(
+                      Icons.description_outlined,
+                      color: Palette.muted,
+                      size: 34,
+                    ),
             ],
           ),
           const SizedBox(height: 8),
@@ -313,14 +393,21 @@ class OrderBoardCard extends StatelessWidget {
             style: const TextStyle(fontSize: 12.5),
           ),
           // Who makes it, when that is one of the preferred suppliers (3DEEZI makes the others).
-          if (madeByOf(o) case final maker?) ...[const SizedBox(height: 6), _MadeBy(maker)],
+          if (madeByOf(o) case final maker?) ...[
+            const SizedBox(height: 6),
+            _MadeBy(maker),
+          ],
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: [
               _pill('${sub['label'] ?? o['stage_label']}', _tone(sub['tone'])),
-              if (payment != null) _pill('${payment['label'] ?? payment['status']}', _tone(payment['tone'])),
+              if (payment != null)
+                _pill(
+                  '${payment['label'] ?? payment['status']}',
+                  _tone(payment['tone']),
+                ),
             ],
           ),
           if (latest != null) ...[
@@ -335,10 +422,24 @@ class OrderBoardCard extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
-              Expanded(child: Text('Submitted ${_day(o['submitted_at'])}', overflow: TextOverflow.ellipsis, style: const TextStyle(color: Palette.muted, fontSize: 11))),
+              Expanded(
+                child: Text(
+                  'Submitted ${_day(o['submitted_at'])}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Palette.muted, fontSize: 11),
+                ),
+              ),
               Text(
-                action == 'review_design' ? 'REVIEW DESIGN →' : action == 'track_delivery' ? 'TRACK DELIVERY →' : 'View order →',
-                style: const TextStyle(color: Palette.cyan, fontSize: 12, fontWeight: FontWeight.w700),
+                action == 'review_design'
+                    ? 'REVIEW DESIGN →'
+                    : action == 'track_delivery'
+                    ? 'TRACK DELIVERY →'
+                    : 'View order →',
+                style: const TextStyle(
+                  color: Palette.cyan,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -359,7 +460,11 @@ class _MadeBy extends StatelessWidget {
       const Icon(Icons.factory_outlined, size: 15, color: Palette.cyan),
       const SizedBox(width: 6),
       Expanded(
-        child: Text('Made by $maker', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5)),
+        child: Text(
+          'Made by $maker',
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12.5),
+        ),
       ),
     ],
   );
@@ -379,7 +484,12 @@ class _GarmentChip extends StatelessWidget {
       color: Palette.surface2,
       border: Border.all(color: Palette.border),
     ),
-    child: Text(name, textAlign: TextAlign.center, maxLines: 2, style: const TextStyle(fontSize: 9.5, color: Palette.text)),
+    child: Text(
+      name,
+      textAlign: TextAlign.center,
+      maxLines: 2,
+      style: const TextStyle(fontSize: 9.5, color: Palette.text),
+    ),
   );
 }
 
@@ -396,9 +506,20 @@ class _Message extends StatelessWidget {
         children: [
           const Icon(Icons.inventory_2_outlined, size: 42, color: Palette.cyan),
           const SizedBox(height: 12),
-          Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Palette.muted)),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Palette.muted),
+          ),
           const SizedBox(height: 16),
-          SizedBox(width: 220, child: GradientButton(label: action, compact: true, onPressed: onAction)),
+          SizedBox(
+            width: 220,
+            child: GradientButton(
+              label: action,
+              compact: true,
+              onPressed: onAction,
+            ),
+          ),
         ],
       ),
     ),
@@ -437,7 +558,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   /// Saves a file of the order (share sheet on phones, a download on the web).
   Future<void> _download(Map<String, dynamic> f) async {
     try {
-      final bytes = await widget.c.api.downloadOrderFile((f['id'] as num).toInt());
+      final bytes = await widget.c.api.downloadOrderFile(
+        (f['id'] as num).toInt(),
+      );
       final done = await shareImage(bytes, '${f['name']}');
       if (mounted) showToast(context, done);
     } on ApiException catch (e) {
@@ -455,10 +578,23 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Request changes'),
-          content: TextField(controller: field, maxLines: 3, maxLength: 2000, decoration: const InputDecoration(hintText: 'What should we change?')),
+          content: TextField(
+            controller: field,
+            maxLines: 3,
+            maxLength: 2000,
+            decoration: const InputDecoration(
+              hintText: 'What should we change?',
+            ),
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, field.text.trim()), child: const Text('Send')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, field.text.trim()),
+              child: const Text('Send'),
+            ),
           ],
         ),
       );
@@ -466,10 +602,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
     setState(() => _busy = true);
     try {
-      final o = await widget.c.api.answerProof(widget.id, approve: approve, proofId: proofId, message: message);
+      final o = await widget.c.api.answerProof(
+        widget.id,
+        approve: approve,
+        proofId: proofId,
+        message: message,
+      );
       if (!mounted) return;
       setState(() => _order = o);
-      showToast(context, approve ? 'Design approved. Thank you!' : 'Your changes were sent to the 3DEEZI team.');
+      showToast(
+        context,
+        approve
+            ? 'Design approved. Thank you!'
+            : 'Your changes were sent to the 3DEEZI team.',
+      );
     } on ApiException catch (e) {
       if (mounted) showToast(context, e.message);
     } finally {
@@ -482,9 +628,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final o = _order;
     return Scaffold(
       backgroundColor: Palette.bg,
-      appBar: AppBar(backgroundColor: Palette.bg, title: Text(o == null ? 'Order' : '${o['number']}')),
+      appBar: AppBar(
+        backgroundColor: Palette.bg,
+        title: Text(o == null ? 'Order' : '${o['number']}'),
+      ),
       body: o == null
-          ? Center(child: _error != null ? Text(_error!, style: const TextStyle(color: Palette.muted)) : const CircularProgressIndicator())
+          ? Center(
+              child: _error != null
+                  ? Text(_error!, style: const TextStyle(color: Palette.muted))
+                  : const CircularProgressIndicator(),
+            )
           : RefreshIndicator(onRefresh: _load, child: _details(o)),
     );
   }
@@ -493,29 +646,59 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final sub = (o['sub_status'] as Map?)?.cast<String, dynamic>() ?? const {};
     final status = '${sub['label'] ?? o['stage_label'] ?? ''}';
     final proof = (o['proof'] as Map?)?.cast<String, dynamic>();
-    final proofs = ((o['proofs'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final proofs = ((o['proofs'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
     final tracking = (o['tracking'] as Map?)?.cast<String, dynamic>();
-    final items = ((o['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final items = ((o['items'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
     // The server sends an empty list for "no sizes" (an uploaded order form before 3DEEZI reads it).
     final sizes = _mapOf(o['sizes']);
-    final files = ((o['files'] as List?) ?? const []).cast<Map<String, dynamic>>().where((f) => f['kind'] != 'proof').toList();
-    final updates = ((o['updates'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final files = ((o['files'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .where((f) => f['kind'] != 'proof')
+        .toList();
+    final updates = ((o['updates'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
     final reached = _mapOf(o['stages_reached']);
-    const stages = [('received', 'Received'), ('design', 'Design'), ('production', 'Production'), ('shipped', 'Shipped'), ('delivered', 'Delivered')];
+    const stages = [
+      ('received', 'Received'),
+      ('design', 'Design'),
+      ('production', 'Production'),
+      ('shipped', 'Shipped'),
+      ('delivered', 'Delivered'),
+    ];
     final at = stages.indexWhere((s) => s.$1 == o['stage']);
     final waiting = o['approval'] == 'review' && proof != null;
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
       children: [
-        Text('${o['name']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+        Text(
+          '${o['name']}',
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+        ),
         const SizedBox(height: 6),
         // The status once, as on the website's order page: the sub-status ("Order received", "Approval needed"), its
         // stage being in the steps below. The stage pill beside it repeated it ("Order Received", "Delivered").
-        if (status.isNotEmpty) Wrap(key: const Key('order-status'), spacing: 6, children: [_pill(status, _tone(sub['label'] == null ? 'blue' : sub['tone']))]),
+        if (status.isNotEmpty)
+          Wrap(
+            key: const Key('order-status'),
+            spacing: 6,
+            children: [
+              _pill(status, _tone(sub['label'] == null ? 'blue' : sub['tone'])),
+            ],
+          ),
         // The invoice: its status and, while unpaid, Pay now (the status is read again on the way back).
-        PaymentStrip(widget.c, (o['payment'] as Map?)?.cast<String, dynamic>(), onBack: _load),
+        PaymentStrip(
+          widget.c,
+          (o['payment'] as Map?)?.cast<String, dynamic>(),
+          onBack: _load,
+        ),
         // Who makes it, when that is one of the preferred suppliers.
-        if (madeByOf(o) case final maker?) Padding(padding: const EdgeInsets.only(top: 10), child: _MadeBy(maker)),
+        if (madeByOf(o) case final maker?)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: _MadeBy(maker),
+          ),
         const SizedBox(height: 14),
         // The five stages, with the date each was reached.
         Row(
@@ -524,10 +707,25 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               Expanded(
                 child: Column(
                   children: [
-                    Icon(i <= at ? Icons.check_circle : Icons.radio_button_unchecked, size: 18, color: i <= at ? Palette.cyan : Palette.border),
+                    Icon(
+                      i <= at
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      size: 18,
+                      color: i <= at ? Palette.cyan : Palette.border,
+                    ),
                     const SizedBox(height: 3),
-                    Text(s.$2, style: TextStyle(fontSize: 10, color: i <= at ? Palette.text : Palette.muted)),
-                    Text(_day(reached[s.$1]), style: const TextStyle(fontSize: 9, color: Palette.muted)),
+                    Text(
+                      s.$2,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: i <= at ? Palette.text : Palette.muted,
+                      ),
+                    ),
+                    Text(
+                      _day(reached[s.$1]),
+                      style: const TextStyle(fontSize: 9, color: Palette.muted),
+                    ),
                   ],
                 ),
               ),
@@ -540,18 +738,40 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               selected: waiting && p['id'] == proof['id'],
               child: Row(
                 children: [
-                  _dataImage(p['thumb'], 64) ?? const Icon(Icons.picture_as_pdf_outlined, size: 40, color: Palette.muted),
+                  _dataImage(p['thumb'], 64) ??
+                      const Icon(
+                        Icons.picture_as_pdf_outlined,
+                        size: 40,
+                        color: Palette.muted,
+                      ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Proof v${p['version'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
                         Text(
-                          {'pending': 'Waiting for your approval', 'approved': 'Approved ${_day(p['reviewed_at'])}', 'changes': 'Changes requested', 'superseded': 'Replaced by a newer version'}['${p['review_status']}'] ?? '',
-                          style: const TextStyle(color: Palette.muted, fontSize: 12),
+                          'Proof v${p['version'] ?? ''}',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        if (p['review_note'] != null) Text('“${p['review_note']}”', style: const TextStyle(fontSize: 12)),
+                        Text(
+                          {
+                                'pending': 'Waiting for your approval',
+                                'approved':
+                                    'Approved ${_day(p['reviewed_at'])}',
+                                'changes': 'Changes requested',
+                                'superseded': 'Replaced by a newer version',
+                              }['${p['review_status']}'] ??
+                              '',
+                          style: const TextStyle(
+                            color: Palette.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (p['review_note'] != null)
+                          Text(
+                            '“${p['review_note']}”',
+                            style: const TextStyle(fontSize: 12),
+                          ),
                       ],
                     ),
                   ),
@@ -562,9 +782,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(child: GradientButton(label: 'APPROVE DESIGN', compact: true, onPressed: _busy ? null : () => _answer(true, (proof['id'] as num?)?.toInt()))),
+                Expanded(
+                  child: GradientButton(
+                    label: 'APPROVE DESIGN',
+                    compact: true,
+                    onPressed: _busy
+                        ? null
+                        : () => _answer(true, (proof['id'] as num?)?.toInt()),
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: OutlinedButton(onPressed: _busy ? null : () => _answer(false, (proof['id'] as num?)?.toInt()), child: const Text('Request changes'))),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _busy
+                        ? null
+                        : () => _answer(false, (proof['id'] as num?)?.toInt()),
+                    child: const Text('Request changes'),
+                  ),
+                ),
               ],
             ),
           ],
@@ -576,25 +811,44 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               children: [
                 const Icon(Icons.local_shipping_outlined, color: Palette.cyan),
                 const SizedBox(width: 12),
-                Expanded(child: Text('${tracking['carrier'] ?? 'Courier'}${tracking['number'] != null ? ' · ${tracking['number']}' : ''}')),
+                Expanded(
+                  child: Text(
+                    '${tracking['carrier'] ?? 'Courier'}${tracking['number'] != null ? ' · ${tracking['number']}' : ''}',
+                  ),
+                ),
                 if ('${tracking['url'] ?? ''}'.startsWith('http'))
-                  TextButton(onPressed: () => openSitePage(context, '${tracking['url']}', 'Track your parcel'), child: const Text('Track')),
+                  TextButton(
+                    onPressed: () => openSitePage(
+                      context,
+                      '${tracking['url']}',
+                      'Track your parcel',
+                    ),
+                    child: const Text('Track'),
+                  ),
               ],
             ),
           ),
         ],
         // The date required and the delivery address or pick up (Upload Your Order, 2026-10-22); older orders have neither.
-        if ('${o['needed_by'] ?? ''}'.isNotEmpty || '${o['shipping_address'] ?? ''}'.trim().isNotEmpty) ...[
+        if ('${o['needed_by'] ?? ''}'.isNotEmpty ||
+            '${o['shipping_address'] ?? ''}'.trim().isNotEmpty) ...[
           const _Heading('Date required & delivery'),
           SurfaceCard(
             key: const Key('order-delivery-details'),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if ('${o['needed_by'] ?? ''}'.isNotEmpty) Text('Date required: ${_day(o['needed_by'])}'),
+                if ('${o['needed_by'] ?? ''}'.isNotEmpty)
+                  Text('Date required: ${_day(o['needed_by'])}'),
                 if ('${o['shipping_address'] ?? ''}'.trim().isNotEmpty) ...[
-                  if ('${o['needed_by'] ?? ''}'.isNotEmpty) const SizedBox(height: 8),
-                  Text('${o['shipping_address']}'.startsWith('Pick up') ? 'Pick up' : 'Delivery address', style: const TextStyle(color: Palette.muted, fontSize: 12)),
+                  if ('${o['needed_by'] ?? ''}'.isNotEmpty)
+                    const SizedBox(height: 8),
+                  Text(
+                    '${o['shipping_address']}'.startsWith('Pick up')
+                        ? 'Pick up'
+                        : 'Delivery address',
+                    style: const TextStyle(color: Palette.muted, fontSize: 12),
+                  ),
                   Text('${o['shipping_address']}'.trim()),
                 ],
               ],
@@ -609,28 +863,42 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               child: SurfaceCard(
                 child: Row(
                   children: [
-                    _dataImage(item['thumbnail'], 48) ?? _GarmentChip('${item['name']}'),
+                    _dataImage(item['thumbnail'], 48) ??
+                        _GarmentChip('${item['name']}'),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${item['name']}${item['fit'] != null ? ' · ${fitNames[item['fit']] ?? item['fit']}' : ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
                           Text(
-                            _mapOf(item['sizes']).entries.map((e) => '${e.key} ${e.value}').join(' · '),
-                            style: const TextStyle(color: Palette.muted, fontSize: 12),
+                            '${item['name']}${item['fit'] != null ? ' · ${fitNames[item['fit']] ?? item['fit']}' : ''}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            _mapOf(item['sizes']).entries
+                                .map((e) => '${e.key} ${e.value}')
+                                .join(' · '),
+                            style: const TextStyle(
+                              color: Palette.muted,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    Text('${item['quantity'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text(
+                      '${item['quantity'] ?? ''}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                   ],
                 ),
               ),
             )
         else
           Text(
-            sizes.isEmpty ? 'Sizes are in your uploaded order form; we confirm them with you.' : sizes.entries.map((e) => '${e.key} ${e.value}').join(' · '),
+            sizes.isEmpty
+                ? 'Sizes are in your uploaded order form; we confirm them with you.'
+                : sizes.entries.map((e) => '${e.key} ${e.value}').join(' · '),
             style: const TextStyle(color: Palette.muted),
           ),
         if (files.isNotEmpty) ...[
@@ -638,9 +906,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           for (final f in files)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: _dataImage(f['thumb'], 40) ?? const Icon(Icons.insert_drive_file_outlined),
-              title: Text('${f['name']}', maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text('${f['kind']}'.replaceAll('_', ' '), style: const TextStyle(color: Palette.muted, fontSize: 12)),
+              leading:
+                  _dataImage(f['thumb'], 40) ??
+                  const Icon(Icons.insert_drive_file_outlined),
+              title: Text(
+                '${f['name']}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                '${f['kind']}'.replaceAll('_', ' '),
+                style: const TextStyle(color: Palette.muted, fontSize: 12),
+              ),
               trailing: IconButton(
                 tooltip: 'Download ${f['name']}',
                 icon: const Icon(Icons.download),
@@ -655,15 +932,34 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(u['author'] == 'customer' ? Icons.person_outline : Icons.campaign_outlined, size: 18, color: Palette.cyan),
+                Icon(
+                  u['author'] == 'customer'
+                      ? Icons.person_outline
+                      : Icons.campaign_outlined,
+                  size: 18,
+                  color: Palette.cyan,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${u['text']}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      if (u['message'] != null && u['message'] != u['text']) Text('“${u['message']}”', style: const TextStyle(fontSize: 12.5)),
-                      Text('${u['author'] == 'customer' ? 'You' : '3DEEZI team'} · ${_day(u['created_at'])}', style: const TextStyle(color: Palette.muted, fontSize: 11)),
+                      Text(
+                        '${u['text']}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      if (u['message'] != null && u['message'] != u['text'])
+                        Text(
+                          '“${u['message']}”',
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                      Text(
+                        '${u['author'] == 'customer' ? 'You' : '3DEEZI team'} · ${_day(u['created_at'])}',
+                        style: const TextStyle(
+                          color: Palette.muted,
+                          fontSize: 11,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -681,6 +977,14 @@ class _Heading extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(0, 22, 0, 10),
-    child: Text(text.toUpperCase(), style: const TextStyle(color: Palette.cyan, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 1.2)),
+    child: Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        color: Palette.cyan,
+        fontWeight: FontWeight.w800,
+        fontSize: 12,
+        letterSpacing: 1.2,
+      ),
+    ),
   );
 }
