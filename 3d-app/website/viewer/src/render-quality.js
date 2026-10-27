@@ -81,11 +81,20 @@ void main() {
 }
 
 /**
- * The fabric each garment is made of: a mesh, a bird's-eye knit, piqué (polos), brushed fleece or a fine knit; none
- * for a garment with its own finish (such as the varsity's wool and leather), which is left as its maker set it.
+ * The fabric types a design can choose (design.fabric: the Studio's Fabric type in the website and the apps). Standard
+ * (or none) is each garment's own fabric; the others are the same on every garment: Mesh an open, breathable hexagonal
+ * mesh, Pro a smooth, tight performance knit with a satin sheen, Eco a matt, soft cotton-feel recycled knit.
  */
-export function fabricOf(kind, part) {
+export const FABRIC_TYPES = { Mesh: 'airmesh', Pro: 'pro', Eco: 'eco' };
+
+/**
+ * The fabric each garment is made of: the design's fabric type (`chosen`), else the garment's own: a mesh, a bird's-eye
+ * knit, piqué (polos), brushed fleece or a fine knit; none for a garment with its own finish (such as the varsity's wool
+ * and leather), which is left as its maker set it.
+ */
+export function fabricOf(kind, part, chosen) {
   if (part?.material?.roughnessMap || part?.material?.clearcoatMap) return null;
+  if (Object.hasOwn(FABRIC_TYPES, chosen)) return FABRIC_TYPES[chosen];
   if (part?.hoodie) return 'fleece';
   if (part?.track) return 'knit';
   return { jersey: 'mesh', singlet: 'mesh', shorts: 'mesh', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
@@ -133,6 +142,14 @@ const FABRICS = {
   fleece: { tile: 0.05, scale: 0.45, cavity: 0, strength: 6, make: () => ({ height: fleece() }) },
   // A fine knit (track jackets, and any garment without its own fabric).
   knit: { tile: 0.02, scale: 0.4, cavity: 0, strength: 2.5, make: () => ({ height: (u, v) => 0.5 + 0.5 * Math.cos(2 * Math.PI * (u + v) * 12) ** 3 }) },
+  // The fabric types (FABRIC_TYPES). Mesh: open hexagonal holes about 3.4 mm apart (half the fabric open), thin knitted
+  // walls between them; the holes show the shade behind them. (tileV: the tile's height, 10 rows of the hexagons.)
+  airmesh: { tile: 0.0272, tileV: 0.0272 * (10 * Math.sqrt(3) / 2) / 8, scale: 0.95, cavity: 0.55, rough: 0.66, sheen: 0.4, sheenRough: 0.45, strength: 4.5, make: () => hexMesh(8, 10, 0.35) },
+  // Pro: a tight, smooth performance knit (fine wales under a millimetre apart, hardly any relief) with a satin sheen.
+  pro: { tile: 0.024, scale: 0.32, cavity: 0, rough: 0.4, sheen: 0.9, sheenRough: 0.24, sheenColor: 0xd2dde8, strength: 2.5, make: () => microKnit(32, 26) },
+  // Eco: a soft, matt cotton-feel knit of recycled yarn: knitted loops about 1.2 mm across, the yarn's slubs a few
+  // millimetres long and a faint heathered (melange) shade.
+  eco: { tile: 0.06, scale: 0.6, cavity: 0.2, rough: 0.92, sheen: 0.14, sheenRough: 0.9, sheenColor: 0x8c99a6, strength: 4, make: () => cottonKnit(48, 44) },
 };
 function eyelets(n, rf) {
   const d = staggered(n), r = rf / n;
@@ -155,6 +172,61 @@ function pique(n) {
 function fleece() {
   const octaves = [[valueNoise(8, 11), 0.45], [valueNoise(16, 23), 0.25], [valueNoise(32, 37), 0.18], [valueNoise(64, 41), 0.12]];
   return (u, v) => octaves.reduce((s, [f, a]) => s + f(u, v) * a, 0);
+}
+
+/**
+ * A regular hexagonal mesh, `cols` x `rows` holes per tile (rows even, so it tiles): each hole a hexagon of inradius
+ * `rho` (holes `1` apart), with rounded knitted walls between.
+ */
+function hexMesh(cols, rows, rho) {
+  const h3 = Math.sqrt(3) / 2;
+  // Distance from (u, v) to the nearest hole's centre, in hexagon terms (the hexagon norm: 1 = a neighbour's centre).
+  const hex = (u, v) => {
+    const X = u * cols, Y = v * rows * h3;
+    const j0 = Math.round(Y / h3);
+    let best = 9;
+    for (let j = j0 - 1; j <= j0 + 1; j++) {
+      const shift = (((j % 2) + 2) % 2) * 0.5, i0 = Math.round(X - shift);
+      for (let i = i0 - 1; i <= i0 + 1; i++) {
+        const dx = Math.abs(X - (i + shift)), dy = Math.abs(Y - j * h3);
+        // Pointy-topped hexagons (flat sides left and right), as the holes of a knitted mesh sit.
+        best = Math.min(best, Math.max(dx, dx * 0.5 + dy * h3));
+      }
+    }
+    return best;
+  };
+  return {
+    height: (u, v) => {
+      const k = hex(u, v), wall = smooth(rho, rho + 0.1, k);
+      // Knitted loops along the walls.
+      const loops = 0.12 * (0.5 + 0.5 * Math.cos(2 * Math.PI * u * cols * 5)) * (0.5 + 0.5 * Math.cos(2 * Math.PI * v * rows * 3));
+      return 0.15 + wall * (0.75 + loops);
+    },
+    cavity: (u, v) => 1 - 0.9 * (1 - smooth(rho - 0.03, rho + 0.05, hex(u, v))),
+  };
+}
+/**
+ * The face of a single-jersey knit, `wales` columns and `courses` rows of loops per tile: in each column the two legs of
+ * every loop, leaning into a V, fullest halfway along the loop (0 between the columns, 1 on a leg).
+ */
+function knitLoops(u, v, wales, courses) {
+  const x = u * wales, fx = x - Math.floor(x) - 0.5, t = v * courses + 0.9 * Math.abs(fx);
+  return Math.cos(Math.PI * (2 * Math.abs(fx) - 0.5)) ** 2 * (0.6 + 0.4 * Math.sin(Math.PI * (t - Math.floor(t))));
+}
+/** A fine, tight knit: tiny loops in close columns, almost flat. */
+function microKnit(wales, courses) {
+  return { height: (u, v) => 0.4 + 0.6 * knitLoops(u, v, wales, courses) };
+}
+/**
+ * A soft knit of slubby recycled yarn: its loops, the yarn's thickness uneven in short streaks along the rows (slubs) and
+ * the melange's darker and lighter fibres, also in streaks along the rows.
+ */
+function cottonKnit(wales, courses) {
+  const slub = valueNoise(10, 53), fibre = valueNoise(64, 71), heather = valueNoise(16, 89);
+  return {
+    height: (u, v) => 0.45 * knitLoops(u, v, wales, courses) + 0.35 * slub(u, v * 4) + 0.2 * fibre(u, v),
+    cavity: (u, v) => 1 - 0.85 * smooth(0.35, 0.85, heather(u, v * 5) * 0.8 + fibre(u, v) * 0.2),
+  };
 }
 
 const SIZE = 256;
@@ -186,42 +258,66 @@ function bake(name) {
   return texture;
 }
 
+/** Each printed material's finish before any fabric was put on it (a fabric without its own roughness keeps it). */
+const finishes = new WeakMap();
+/** Each printed material's shade-of-the-holes strength (a shader uniform: a new fabric only changes its value). */
+const cavities = new WeakMap();
 /**
- * Puts the fabric's woven detail on a garment part's printed materials (those still on the shared knit map `knit`):
- * its normal map at the fabric's real size on this garment (`span`: metres one side of the print atlas covers), the
- * holes' shade over the print, and the fabric's roughness and sheen.
+ * Puts the fabric's woven detail on a garment part's printed materials (those on the shared knit map `knit` when the
+ * part is first dressed): its normal map at the fabric's real size on this garment (`span`: metres one side of the
+ * print atlas covers), the holes' shade over the print, and the fabric's roughness and sheen. `chosen`: the design's
+ * fabric type (FABRIC_TYPES; Standard or none: the garment's own). Called again when that changes; returns whether the
+ * part's fabric changed (the print itself never does).
  */
-export function dressFabric(group, part, knit, anisotropy) {
-  const name = fabricOf(part.painter.kind, part), f = FABRICS[name];
-  if (!f) return;
+export function dressFabric(group, part, knit, anisotropy, chosen) {
+  const name = fabricOf(part.painter.kind, part, chosen), f = FABRICS[name];
+  if (!f || part.fabric === name) return false;
+  if (!part.fabricMaterials) {
+    const seen = new Set();
+    group.traverse((o) => {
+      if (!o.isMesh) return;
+      for (const m of [o.material].flat()) if (m.normalMap === knit && m.map === part.texture) seen.add(m);
+    });
+    part.fabricMaterials = [...seen];
+    for (const m of seen) finishes.set(m, { roughness: m.roughness, sheen: m.sheen, sheenRoughness: m.sheenRoughness, sheenColor: m.sheenColor.clone(), clearcoat: m.clearcoat, clearcoatRoughness: m.clearcoatRoughness });
+  }
+  part.fabric = name;
   const span = part.painter.frame.span;
   const map = bake(name).clone();
-  map.repeat.set((2 * span) / f.tile, span / f.tile);
+  map.repeat.set((2 * span) / f.tile, span / (f.tileV ?? f.tile));
   map.anisotropy = anisotropy;
-  const seen = new Set();
-  group.traverse((o) => {
-    if (!o.isMesh) return;
-    for (const m of [o.material].flat()) {
-      if (seen.has(m) || m.normalMap !== knit || m.map !== part.texture) continue;
-      seen.add(m);
-      m.normalMap = map;
-      m.normalScale.set(f.scale, f.scale);
-      if (f.rough != null) Object.assign(m, { roughness: f.rough, sheen: f.sheen, sheenRoughness: f.sheenRough });
-      if (f.cavity) {
-        // The holes' shade on the print (after the print's colour is read, before lighting).
-        const before = m.onBeforeCompile, key = m.customProgramCacheKey;
-        m.onBeforeCompile = (shader, renderer) => {
-          before.call(m, shader, renderer);
-          shader.uniforms.fabricCavity = { value: f.cavity };
-          shader.fragmentShader = shader.fragmentShader
-            .replace('void main() {', 'uniform float fabricCavity;\nvoid main() {')
-            .replace('#include <map_fragment>', '#include <map_fragment>\n#ifdef USE_NORMALMAP\n\tdiffuseColor.rgb *= 1.0 - fabricCavity * ( 1.0 - texture2D( normalMap, vNormalMapUv ).a );\n#endif');
-        };
-        m.customProgramCacheKey = () => `${key.call(m)}|fabric-cavity`;
-      }
-      m.needsUpdate = true;
+  map.userData.own = true;   // this part's own copy, freed with the kit
+  const old = new Set();
+  for (const m of part.fabricMaterials) {
+    if (m.normalMap !== knit && m.normalMap?.userData.own) old.add(m.normalMap);
+    m.normalMap = map;
+    m.normalScale.set(f.scale, f.scale);
+    const was = finishes.get(m);
+    Object.assign(m, {
+      roughness: f.rough ?? was.roughness, sheen: f.sheen ?? was.sheen, sheenRoughness: f.sheenRough ?? was.sheenRoughness,
+      clearcoat: f.clearcoat ?? was.clearcoat, clearcoatRoughness: f.clearcoatRough ?? was.clearcoatRoughness,
+    });
+    if (f.sheenColor != null) m.sheenColor.setHex(f.sheenColor); else m.sheenColor.copy(was.sheenColor);
+    let cavity = cavities.get(m);
+    if (!cavity && f.cavity) {
+      // The holes' shade on the print (after the print's colour is read, before lighting).
+      cavity = { value: f.cavity };
+      cavities.set(m, cavity);
+      const before = m.onBeforeCompile, key = m.customProgramCacheKey;
+      m.onBeforeCompile = (shader, renderer) => {
+        before.call(m, shader, renderer);
+        shader.uniforms.fabricCavity = cavity;
+        shader.fragmentShader = shader.fragmentShader
+          .replace('void main() {', 'uniform float fabricCavity;\nvoid main() {')
+          .replace('#include <map_fragment>', '#include <map_fragment>\n#ifdef USE_NORMALMAP\n\tdiffuseColor.rgb *= 1.0 - fabricCavity * ( 1.0 - texture2D( normalMap, vNormalMapUv ).a );\n#endif');
+      };
+      m.customProgramCacheKey = () => `${key.call(m)}|fabric-cavity`;
     }
-  });
+    if (cavity) cavity.value = f.cavity;
+    m.needsUpdate = true;
+  }
+  old.forEach((t) => t.dispose());
+  return true;
 }
 
 /**

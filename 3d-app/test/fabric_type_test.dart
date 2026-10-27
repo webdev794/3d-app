@@ -14,7 +14,7 @@ import 'flow_test.dart' show tapText;
 import 'studio_panel_test.dart' show closeApp, openStudio;
 
 /// Studio › Colours › Gradient & fabric › Fabric type (Standard, Mesh, Pro,
-/// Eco): the 3D kit shows it (viewer -39), it is kept when saved and reopened
+/// Eco): the 3D kit shows it (viewer -40), it is kept when saved and reopened
 /// on the device and on the website (design.fabric, as the website saves it),
 /// and the varsity jacket keeps its own wool and leather.
 void main() {

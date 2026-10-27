@@ -1788,7 +1788,7 @@ class _ColoursToolState extends State<_ColoursTool> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SectionLabel('Fabric type'),
-              // The 3D kit shows it (viewer -39); the varsity keeps its wool
+              // The 3D kit shows it (viewer -40); the varsity keeps its wool
               // and leather.
               if (isVarsity(c.garment))
                 const Text(

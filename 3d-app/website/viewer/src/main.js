@@ -424,15 +424,26 @@ function buildKit(kind) {
     group.add(glow);
     parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow });
   }
-  // The tiers: each part's fabric (mesh, piqué, fleece...) woven into its printed materials (render-quality.js).
-  if (Q) parts.forEach((part) => dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy()));
-  // Look 2: the knit's relief a quarter deeper, so the mesh and its sheen read up close.
-  if (LOOK2) parts.forEach((part) => part.material.normalScale.multiplyScalar(1.25));
+  dressParts(true);
   frameKit();
   // The labels after framing (the camera frames the kit as it is without them).
   parts.forEach((part) => { if (part.label) part.rim.parent.add(part.label); });
   // Look 2: the mannequin under the kit and its stand into the podium, also after framing (never picked).
   if (LOOK2) dressMannequin(list);
+}
+
+/**
+ * The tiers: each part's fabric woven into its printed materials (render-quality.js): the design's fabric type
+ * (design.fabric: Mesh, Pro or Eco), else the garment's own (mesh, piqué, fleece...). On a new kit (`built`), and again
+ * whenever the fabric type changes (only the material: the print, names and numbers stay exactly where they are).
+ */
+function dressParts(built) {
+  if (!Q) return;
+  for (const part of parts) {
+    const dressed = dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy(), design.fabric);
+    // Look 2: the knit's relief a quarter deeper, so the mesh and its sheen read up close.
+    if (LOOK2 && (built || dressed)) part.material.normalScale.multiplyScalar(1.25);
+  }
 }
 
 /** The mannequin under each part (mannequin.js), and one stand from the lowest of them into the podium. */
@@ -529,6 +540,8 @@ function paintVarsityPart(part) {
 async function paintAll() {
   await prepareLayout();
   buildKit(design.garment);
+  // A new fabric type on the same kit.
+  dressParts(false);
   warpParts();
   await document.fonts.load('700 100px Rajdhani').catch(() => {});
   for (const part of parts) {

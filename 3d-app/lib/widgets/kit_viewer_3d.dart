@@ -214,7 +214,7 @@ class KitViewer3DState extends State<KitViewer3D> {
       // empty one clears the last.
       'parts': c.parts,
       // Colours › Fabric type: mesh holes, a satin sheen, a matt cotton feel
-      // on the 3D kit (Standard: the garment's own fabric; viewer -39).
+      // on the 3D kit (Standard: the garment's own fabric; viewer -40).
       'fabric': c.fabric,
     });
     if (design != _sentDesign) {

@@ -4,6 +4,12 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## Fabric type changes the 3D (2026-10-27)
+1. Studio › Colours › FABRIC TYPE (app: Colours › Gradient & fabric): tap Mesh, Pro, then Eco and zoom into the chest: holes, then a satin sheen, then a matt cotton look.
+2. Save, reopen: the fabric is still chosen. The design sheet PDF shows the FABRIC row.
+
+---
+
 ## Studio Parts (2026-10-27; website, and the app below)
 1. Studio › Parts › Left sleeve: it lights up. Own colour › red: only that sleeve turns red.
 2. Tap the kit's body: Front is chosen and lights up. Add a fade, pick a colour, press →: the front fades left to right.
@@ -24,6 +30,8 @@ In the app (Design Your Own › Rugby League › Jersey › Studio):
 6. In the part row pick Back: the kit turns round and the back lights up.
 7. Undo / Redo, Reset part and Done work.
 8. Save, close, reopen: the sleeve is the same. An older project looks exactly as before.
+9. No panel open, tap the pattern: Colours opens on the pattern colour.
+10. Open Colours, tap a sleeve: the colour changes both sleeves; "Only the left sleeve ›" changes just that one.
 
 ---
 

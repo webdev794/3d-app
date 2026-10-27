@@ -16,4 +16,4 @@ Questions waiting for your answer. Each one is also asked in the chat; once answ
 
 
 3. **Which "pattern button" stopped working (2026-10-27)?** The PATTERN tab inside Colours, or the Patterns button in the Studio's tool bar? And was it on the website or in the app?
-   (Suggested: both are being checked anyway by the agents fixing the taps; the answer just helps them find it faster.)
+   (Suggested: both are being checked anyway by the agents fixing the taps; the answer just helps them find it faster.) I tested it working in mobile now.
