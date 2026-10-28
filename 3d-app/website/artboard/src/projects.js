@@ -107,7 +107,7 @@ export function createProjects(ctx) {
   try { const m = JSON.parse(localStorage.getItem(META) || 'null'); if (m && typeof m === 'object') doc = { id: Number(m.id) > 0 ? Number(m.id) : null, name: String(m.name ?? '').slice(0, 120), version: Number(m.version) || null, dirty: !!m.dirty }; } catch { /* none */ }
   let host = null, afterSignIn = null, changes = 0, reqId = 0, busy = false;
   const waiting = new Map();
-  const writeMeta = () => { try { localStorage.setItem(META, JSON.stringify(doc)); } catch { /* storage full */ } showName(); };
+  const writeMeta = () => { try { localStorage.setItem(META, JSON.stringify(doc)); } catch { /* storage full */ } showName(); ctx.docChanged?.(); };
   onChange = () => { changes++; if (!doc.dirty) { doc.dirty = true; writeMeta(); } };
   let fullSaid = false;
   onFull = () => { if (fullSaid) return; fullSaid = true; toast('This design is too big to keep on this device: save it to your account (File > Save to my account) so it is not lost', 8000); };
@@ -504,5 +504,12 @@ export function createProjects(ctx) {
     /** For 3DEEZI ASSIST: which design is open. */
     describe: () => (doc.id ? `Design “${doc.name}” is open (saved in the account${doc.dirty ? ', with changes not saved there yet' : ''}). ` : ''),
     get doc() { return { ...doc }; },
+    /** Document tabs (task 9.141): the open tab's account details out, another tab's in (null: a new design). */
+    /** Document tabs (task 9.143): the design's new name; one in the account is saved again under it. */
+    rename: async (name) => {
+      doc = { ...doc, name: String(name).trim().slice(0, 120) }; writeMeta();
+      if (doc.id && hosted() && host.signedIn) await saveAndSay({ name: doc.name });
+    },
+    swapDoc: (next) => { const was = { ...doc }; doc = next ? { ...NONE, ...next } : { ...NONE }; writeMeta(); return was; },
   };
 }

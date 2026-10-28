@@ -4,6 +4,65 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## Edit items on the 3D kit; word looks (2026-10-28)
+1. Tap the 3D crest: a box and a bar appear. +, turn, Circle / Diamond change it; drag moves it (pinch on a phone).
+2. "Copy to other chest" puts it on the left chest. Tap MANTIS: change the words and colour.
+3. Tap the empty left chest: Add text here / Add logo here.
+4. TEXT: under Team wordmark tap 3D block, then Arch up; move Size and spacing. Name and number get looks too (Back view).
+5. Save, reopen: all kept. An older project looks unchanged.
+
+---
+
+## Presets: team and my presets (2026-10-28; after the database update)
+1. Admin: Studio › Presets › "Save as 3DEEZI preset"; it shows under 3DEEZI PRESETS.
+2. Admin › Presets: rename, move, set sport / garment, hide (gone from the Studio), show.
+3. Customer: sees it; "Save as my preset" shows under MY PRESETS; rename, delete. A second customer does not see it.
+4. Signed out: "Sign in to save your own presets." Same in the app.
+
+---
+
+## Save under a new name (2026-10-28)
+1. Studio: save "Client A"; Save again (same name) updates it.
+2. Save, type "Client B": the button says SAVE AS NEW PROJECT; My projects shows both, Client A unchanged.
+3. "SAVE AS NEW COPY" adds a third. Same in the app; Artboard: File › Save as…
+
+---
+
+## Artboard like CorelDRAW (2026-10-28)
+1. Draw a B-spline, Pick, click it: nodes and dashed lines, no box. Drag a node; double-click the line to add one; drag the line to move it; Ctrl+Z undoes.
+2. A rectangle or text still gets the box.
+3. Start a new line near another line's end: "node" shows; release joins them. Draw back to the first point: the shape closes.
+4. Nothing selected: the bar shows page W/H, Portrait / Landscape, Units, Nudge, Duplicate. Arrow keys move 0.1 mm; Ctrl+D copies 5 mm right and down.
+5. "+" at the top opens Untitled-2; each tab keeps its own design and undo; x asks first.
+6. Eyedropper: a colour circle follows the pointer.
+7. No page tabs at the bottom; an old multi-page design opens each page as a top tab.
+8. Double-click a tab, type a name, Enter: renamed (Esc cancels). Many tabs: ‹ › arrows appear.
+9. File › Export PDF downloads the page straight away.
+10. Select a text: the bar shows Effects (8 buttons). Contour, Envelope (drag the blue nodes), Outline, Shadow, Extrude, Block Shadow work; reload keeps them; PNG / PDF export includes them.
+
+---
+
+## Better 3D jersey (2026-10-28)
+1. Phone: open a jersey with FALCONS, then ?hq=1. Letters and stripes are crisper; mesh dots barely show on white letters; nothing dark above the HQ collar.
+2. Zoom into the crest: a sewn-on patch (rounded corners, raised edge, faint stitches, soft shadow).
+
+---
+
+## Colours: own colour line (2026-10-28)
+1. Parts › right sleeve › own colour. Colours, tap the left sleeve: "Only the left sleeve ›" at the top, and "Right sleeve has its own colour (set in Parts)".
+2. Tap "Use kit colour": the sleeve follows the kit again.
+
+---
+
+## Tap the kit: what you tap is what you change (website, 2026-10-28)
+1. Close every panel, tap the pattern: Colours opens on PATTERN (on a computer this one may still fail; please check).
+2. Colours, tap the left sleeve: "Only the left sleeve ›" opens Parts on that sleeve.
+3. Colours › PATTERN, change the colour: the pattern changes.
+4. In Parts, tap the pattern: that part opens on its PATTERN section.
+5. Also try with ?hq=1: the left sleeve changes alone.
+
+---
+
 ## App Home: LET'S CREATE (2026-10-28)
 1. Home shows LET'S CREATE and four picture tiles; each opens its screen (AI Designer, sport choice, Artboard, team).
 2. ARTWORK TO 3D › starts Convert. The Orders tab has the order form, upload order and My orders.

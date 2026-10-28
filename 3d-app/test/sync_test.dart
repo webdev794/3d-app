@@ -155,11 +155,11 @@ void main() {
       expect(sent['design']['sponsorImage'], startsWith('data:image/png'));
       expect(sent['design']['app']['sport'], 'Soccer');
 
-      // Saving again updates the same server project.
-      c.saveProject('Mantis Home v2');
+      // Saving again under the same name updates the same server project.
+      c.saveProject('Mantis Home');
       await pumpEventQueue();
       expect(server.projects.length, 1);
-      expect(server.projects[1]!['name'], 'Mantis Home v2');
+      expect(server.projects[1]!['name'], 'Mantis Home');
       expect(c.projects.first.remoteVersion, 2);
 
       // A project made on the website appears after a sync.

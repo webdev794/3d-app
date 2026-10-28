@@ -339,8 +339,8 @@ function avatar(place) {
   const pos = new Float32Array(q.length), occ = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const v = [0, 1, 2].map((c) => A.lo[c] + ((q[i * 3 + c] + 32768) / 65535) * (A.hi[c] - A.lo[c]));
-    // The neck cut level just above the collar (its top a flat lid).
-    v[1] = Math.min(v[1], HQ_NECK_TOP);
+    // The neck cut just inside the collar (its top a flat lid), so no dark neck shows above it.
+    v[1] = Math.min(v[1], HQ_NECK - 0.012);
     pos.set(place(v[0], v[1], v[2]), i * 3);
     // In the open above the collar (the neck), in the jersey's shade below it.
     occ[i] = v[1] > HQ_NECK ? 0.9 : v[1] > HQ_NECK - 0.03 ? 0.55 : 0.3;

@@ -1716,8 +1716,19 @@ class AppController extends ChangeNotifier {
       ? projects[selectedProject].version + 1
       : 1;
 
-  Future<bool> saveProject(String title, {Uint8List? thumbnail}) async {
-    final updating = selectedProject >= 0 && selectedProject < projects.length;
+  /// Saves the design. A saved project under a different name, or with
+  /// [asCopy], becomes a new project and the old one stays as it was (9.147).
+  Future<bool> saveProject(
+    String title, {
+    Uint8List? thumbnail,
+    bool asCopy = false,
+  }) async {
+    final had = selectedProject >= 0 && selectedProject < projects.length;
+    final updating =
+        had &&
+        !asCopy &&
+        (title.trim().isEmpty ||
+            title.trim() == projects[selectedProject].title.trim());
     final project = Project(
       id: updating ? projects[selectedProject].id : null,
       title: title.trim().isEmpty ? '$sport $garment' : title.trim(),
@@ -1725,7 +1736,7 @@ class AppController extends ChangeNotifier {
       garment: garment,
       mode: mode,
       kit: kit,
-      version: nextVersion,
+      version: updating || !had ? nextVersion : 1,
       updated: DateTime.now(),
       asset: updating ? projects[selectedProject].asset : null,
       thumbnail: thumbnail ?? mockupFront ?? renderFront,

@@ -18,7 +18,7 @@
         <button data-action="zoomIn">Zoom in</button><button data-action="zoomOut">Zoom out</button><button data-action="fit">Fit page</button><button data-action="preview">Full-page preview <small>F9</small></button><hr>
         <button data-action="rulers">Rulers on / off</button><button data-action="grid">Grid on / off</button><button data-action="clearGuides">Clear guidelines <small>drag from a ruler to add</small></button><hr><button data-action="snap_grid">Snap to grid</button><button data-action="snap_guides">Snap to guidelines</button><button data-action="snap_objects">Snap to objects</button><button data-action="snap_nodes">Snap to nodes</button><button data-action="snap_page">Snap to page</button></div></div>
       <div class="menu"><button>Layout</button><div class="drop">
-        <button data-action="pageAdd">Insert page</button><button data-action="pageDup">Duplicate page</button><button data-action="pageRename">Rename page <small>double-click its tab</small></button><button data-action="pageDelete">Delete page</button><hr>
+        <button data-action="pageAdd">New design tab</button><button data-action="pageDup">Duplicate design in a new tab</button><button data-action="pageRename">Rename page <small>double-click its tab</small></button><button data-action="pageDelete">Delete page</button><hr>
         <button data-action="pagePrev">Previous page <small>PgUp</small></button><button data-action="pageNext">Next page <small>PgDn</small></button><hr>
         <button data-action="layout">Centre to page <small>P</small></button></div></div>
       <div class="menu"><button>Object</button><div class="drop wide">
@@ -133,12 +133,23 @@
       <span id="fxDTwistWrap"><label>Turn °</label><input id="fxDTwist" type="number" step="15" style="width:62px"></span>
       <span id="fxDPushWrap"><label>Amount % (+ push, − pull)</label><input id="fxDPush" type="number" min="-100" max="100" step="5" style="width:56px"></span>
       <button class="btn small grad" id="fxDistort">Apply distortion</button></div>
-    <div class="ctx" id="ctx-envelope" hidden><span class="sep"></span><select id="fxEPreset" title="Envelope"><option value="arcUp">Arch up</option><option value="arcDown">Arch down</option><option value="bridge">Bridge</option><option value="valley">Valley</option><option value="bulge">Bulge</option><option value="pinch">Pinch</option><option value="wave">Wave (flag)</option><option value="taper">Taper</option></select><label>Amount mm</label><input id="fxEAmount" type="number" step="1" style="width:58px"><button class="btn small grad" id="fxEnvelope">Apply envelope</button></div>
+    <div class="ctx" id="ctx-envelope" hidden><span class="sep"></span><select id="fxEPreset" title="Envelope"><option value="arcUp">Arch up</option><option value="arcDown">Arch down</option><option value="bridge">Bridge</option><option value="valley">Valley</option><option value="bulge">Bulge</option><option value="pinch">Pinch</option><option value="wave">Wave (flag)</option><option value="taper">Taper</option></select><label>Amount mm</label><input id="fxEAmount" type="number" step="1" style="width:58px"><button class="btn small grad" id="fxEnvelope">Apply envelope</button><span class="ctx-note">or drag the blue nodes round the object</span></div>
     <div class="ctx" id="ctx-extrude" hidden><span class="sep"></span><label>Depth X mm</label><input id="fxXX" type="number" step="0.5" style="width:56px"><label>Y mm</label><input id="fxXY" type="number" step="0.5" style="width:56px"><label>Side colour</label><input id="fxXColour" type="color"><button class="btn small grad" id="fxExtrude">Apply extrude</button><button class="btn small" id="fxExtrudeOff">Remove</button></div>
     <div class="ctx" id="ctx-block" hidden><span class="sep"></span><label>Depth X mm</label><input id="fxBX" type="number" step="0.5" style="width:56px"><label>Y mm</label><input id="fxBY" type="number" step="0.5" style="width:56px"><label>Colour</label><input id="fxBColour" type="color"><button class="btn small grad" id="fxBlock">Apply block shadow</button><button class="btn small" id="fxBlockOff">Remove</button></div>
     <div class="ctx" id="ctx-mesh" hidden><span class="sep"></span><label>Colour</label><button class="chip" id="meshChip" title="Spot colour: the current fill colour (click to change it)"></button><label>Spot size mm</label><input id="fxMSize" type="number" min="1" step="5" style="width:58px"><label>Strength %</label><input id="fxMStrength" type="number" min="0" max="100" step="5" style="width:56px"><button class="btn small" id="fxMeshClear">Remove mesh colours</button></div>
     <div class="ctx" id="ctx-powerclip" hidden><span class="sep"></span><label>PowerClip</label><button class="btn small grad" id="pcEditBtn" title="Move or resize what is inside (or double-click the PowerClip)">Edit contents</button><button class="btn small grad" id="pcFinishBtn" title="Put the contents back inside the frame (Esc)">Finish editing</button><button class="btn small" id="pc-centre" title="Centre the contents in the frame">Centre</button><button class="btn small" id="pc-fit" title="Scale the contents to fit inside the frame">Fit inside</button><button class="btn small" id="pc-fill" title="Scale the contents to fill the whole frame">Fill frame</button><button class="btn small" id="pcExtractBtn" title="Take the contents out of the frame">Extract</button></div>
     <div class="ctx" id="ctx-table" hidden><span class="sep"></span><label>Rows</label><input id="tRows" type="number" min="1" max="30" style="width:56px"><label>Columns</label><input id="tCols" type="number" min="1" max="12" style="width:56px"></div>
+    <!-- Nothing selected (Pick): the document settings, as CorelDRAW's property bar (task 9.141). -->
+    <div class="ctx doc-bar" id="ctx-doc" hidden><span class="sep"></span>
+      <div class="prop" title="Page width"><label for="docW">W</label><input id="docW" type="number" min="0" step="any" aria-label="Page width"><label class="doc-unit">mm</label></div>
+      <div class="prop" title="Page height"><label for="docH">H</label><input id="docH" type="number" min="0" step="any" aria-label="Page height"><label class="doc-unit">mm</label></div>
+      <button class="ibtn" id="docPortrait" title="Portrait: the page taller than wide" aria-label="Portrait"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="3" width="10" height="18" rx="1"/></svg></button><button class="ibtn" id="docLandscape" title="Landscape: the page wider than tall" aria-label="Landscape"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="10" rx="1"/></svg></button>
+      <span class="sep"></span>
+      <div class="prop" title="Units for the rulers, position, size and page"><label for="docUnits">Units</label><select id="docUnits"><option value="mm">millimeters</option><option value="cm">centimeters</option><option value="in">inches</option><option value="px">pixels (300 DPI)</option></select></div>
+      <span class="sep"></span>
+      <div class="prop" title="Nudge distance: how far the arrow keys move the selected objects (Shift + arrow: 10 times as far)"><label for="docNudge">Nudge</label><input id="docNudge" type="number" min="0" step="0.1" aria-label="Nudge distance"><label class="doc-unit">mm</label></div>
+      <div class="prop" title="Duplicate distance: where Duplicate (Ctrl+D) puts the copy, across (X) and down (Y)"><label for="docDupX">Duplicate X</label><input id="docDupX" type="number" step="0.5" aria-label="Duplicate distance across"><label for="docDupY">Y</label><input id="docDupY" type="number" step="0.5" aria-label="Duplicate distance down"><label class="doc-unit">mm</label></div>
+    </div>
     <div class="ctx" id="ctx-eyedrop" hidden><span class="sep"></span><button class="ibtn" id="eyePick" title="Pick a colour (Shift+click)" data-icon="eyedropper"></button><button class="ibtn" id="eyeApply" title="Fill objects with the picked colour" data-icon="fill"></button><span class="chip" id="eyeChip" title="Picked colour"></span><label>Apply to</label><select id="eyeTo"><option value="fill">Fill</option><option value="stroke">Outline</option></select></div>
 
     <div class="textbar" id="textBar" hidden>
@@ -151,6 +162,8 @@
       <div class="prop tspace" title="Letter spacing: % of the font size (0 = normal, more spreads the letters out, less brings them closer)"><span class="ti" data-icon="letterSp"></span><input id="tLetter" type="number" step="5" min="-50" max="500" aria-label="Letter spacing in %"><label for="tLetter">%</label></div>
       <div class="prop tspace" title="Line spacing: % of normal (100 = normal) for text with several lines"><span class="ti" data-icon="lineSp"></span><input id="tLine" type="number" step="10" min="50" max="400" aria-label="Line spacing in %"><label for="tLine">%</label></div>
       <span class="sep"></span>
+      <span class="sep"></span>
+      <span class="tfx" role="group" aria-label="Effects for the text"><label>Effects</label><button class="ibtn" data-tfx="shadow" data-icon="shadow" title="Drop shadow"></button><button class="ibtn" data-tfx="contour" data-icon="contour" title="Contour: outlines inside or outside the letters"></button><button class="ibtn" data-tfx="blend" data-icon="blend" title="Blend: steps between two selected objects"></button><button class="ibtn" data-tfx="distort" data-icon="distort" title="Distort: zipper, twister, push and pull"></button><button class="ibtn" data-tfx="envelope" data-icon="envelope" title="Envelope: drag the nodes round the word to bend it, or pick a shape"></button><button class="ibtn" data-tfx="extrude" data-icon="extrude" title="Extrude: 3D sides"></button><button class="ibtn" data-tfx="blockshadow" data-icon="blockshadow" title="Block shadow"></button><button class="ibtn" data-tfx="outline" data-icon="outlineobj" title="Outline: thickness and colour of the letters' outline"></button></span>
       <button class="mini tout" id="tOutlineBtn" title="Outlines for names and numbers: one or two outlines behind the letters (the text stays editable)" data-icon="textOut">Outlines</button>
     </div>
     <span class="pathbar" id="pathBar" hidden><span class="sep"></span><span class="ti" data-icon="textPath" title="Text on a path"></span>
@@ -195,6 +208,9 @@
     <nav class="tools" id="tools" aria-label="Toolbox"></nav>
 
     <main class="stage" id="stage">
+      <!-- Document tabs (CorelDRAW): each tab is its own design with its own pages and Undo; * = changes not saved. -->
+      <div class="doc-tabs" id="docTabs" role="tablist" aria-label="Open designs"><button class="doc-tab-arrow" id="docTabLeft" type="button" title="Show the tabs to the left" hidden>‹</button><div class="doc-tab-list" id="docTabList"></div><button class="doc-tab-arrow" id="docTabRight" type="button" title="Show the tabs to the right" hidden>›</button><button class="doc-tab-add" id="docTabAdd" type="button" title="A new design in a new tab (the open designs stay open in their tabs)">+</button></div>
+      <div class="stage-in" id="stageIn">
       <button class="props-show" id="propsShow" data-icon="down" title="Show the property bar"><span>Property bar</span></button>
       <div class="corner"></div><canvas class="ruler h" id="rulerH"></canvas><canvas class="ruler v" id="rulerV"></canvas>
       <div class="canvas-wrap" id="canvasWrap"><canvas id="board"></canvas></div>
@@ -207,6 +223,7 @@
         <span class="pal-group" id="palDoc" hidden><span class="pal-label">Document</span></span>
         <span class="pal-group" id="palMain"></span>
         <button class="pal-more" id="palMore" type="button" data-icon="more" aria-label="Right-click menu" title="Right-click menu: tap this, then tap an item (an object, a page tab, a tool or a colour) to open its menu"></button>
+      </div>
       </div>
     </main>
 

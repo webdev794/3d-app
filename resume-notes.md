@@ -1,28 +1,29 @@
 # Resume notes
 
-Updated 2026-10-27 15:15. Session and weekly limits hit; all agents stopped mid-work (their work is saved; resume each with SendMessage "continue; safe steps; report").
-- SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`
-- Client pictures: SP's sibling folder images\NNN (latest 198)
-
-## Stopped agents to resume (in this order)
-| Agent | Task | State |
-|---|---|---|
-| TP1 a7e6f8271834e3ebb | 9.137 tap rule, website + viewer (spec SP\TP1\tap-rule.md) | was at the vite build |
-| PP1 ae3318d67a403ca33 | 9.137 tap rule in the app, then the 9.134 linked checks | mid app work |
-| UP1 a092986e02abf2fc4 | My patterns Full colour / Kit colours buttons after reopening (website, then app) | mid fix |
-| PC1 ae12aed1b615bb420 | See it on a player picture cut off (website, then app) | mid fix |
-| FB1 a87fb95499777095a | 9.136 fabric types change the 3D | its app tests passed |
-| QA V af2b2592c58ae0c57 | independent tester; app round, then re-check the fixes | report only, SP\QAV |
+Updated 2026-10-28 11:00. Only what's needed to continue.
+- SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder images\NNN (latest 201)
 
 ## State
-- Live file 3deez-update-2026-10-27-b.tar.gz (code-only) and live file -b and v2 = afe173e at 15:34 with everything up to then (some fixes above half done but building cleanly).
-- Not started (note only): 9.138 app Home simpler (images/197-198), 9.139 jersey look better (images/196; waiting for the user's go).
-- Waiting on the client: HQ jersey as default / buying models; Airwallex keys; supplier prices; live mail settings.
+- Live file: D:\3d-app\deploy-zips\3deez-update-2026-10-28-c.tar.gz (code-only, 10:49), being shown to the client. NOT pushed: v2 = 11594d7 (has the app Home, not the -c fixes).
+- Done since yesterday: 9.134 Parts, 9.136 fabric, 9.137 tap rule (website + app, pattern-only glow, viewer -41), 9.138 app Home, player picture fix, My patterns buttons fix.
 
-## Next
-1. Resume the stopped agents; fix what QA V finds; tick 9.134 / 9.136 / 9.137; pack 1027b.
-2. Then 9.138, 9.139 (when the user says).
-3. Full test round, small leftovers, COMING SOON models (see tasks.md).
+## Pending (from yesterday)
+1. Push -c work to v2 when the user says.
+2. QA V af2b2592c58ae0c57 (independent tester) stopped mid app round: re-check today's fixes on website + app.
+3. PP1 ae3318d67a403ca33 leftover Parts checks: website->app reopen, drag glow, My patterns, HQ jersey in the app, presets, order picture, thumbnails, Open in 3D, one paid player check (about US$0.15).
+4. TP1 a7e6f8271834e3ebb leftovers: phone checks with HQ / hoodie / full kit.
+5. App preview 8088 did not open the Studio in UP1's last test run (tests pass; user to check).
+6. DONE: clearer Colours messages (TP1).
+7. DONE 9.139 (stripes along seams left: needs the client OK).
+8. Offered: the website homepage like the new app Home.
+9. Later: full test round, small leftovers, COMING SOON models (tasks.md).
+10. Waiting on the client: HQ jersey as default / buying models; Airwallex keys; supplier prices; live mail settings.
+
+## Running
+
+## Running
+- ED1 aa2f05ae39bf637c5: 9.144 edit crest / text / logos on the 3D
+
 
 ## Rules
 - Keep this file short. task-done-today.md is shown to the client (only direct tasks).

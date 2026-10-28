@@ -219,6 +219,8 @@ const state = {
   live: { timer: 1, near: 15, smooth: 50 },
   paint: { brush: 'oil', size: 10, flow: 80 },
   conn: { radius: 5, arrows: 'none' },
+  // Nothing selected: nudge and duplicate distances in mm (task 9.141, CorelDRAW's defaults).
+  docSet: { nudge: 0.1, dupX: 5, dupY: 5 },
   media: { mode: 'preset', width: 6, smooth: 50, preset: 'taper', brush: 'dry', spray: 'stars', spacing: 12, sizeVar: 30, rotate: 'random', angle: 45 },
   fx: {
     blendSteps: 8, contourDir: 'outside', contourSteps: 1, contourOffset: 3, contourColour: '#000000', contourOutline: '#000000', contourJoin: 'round', shadowX: 2, shadowY: 2, shadowBlur: 4, shadowColour: '#000000', shadowOpacity: 50, transp: 'uniform', transpValue: 50, transpAngle: 0, transpMerge: 'normal',
@@ -227,8 +229,8 @@ const state = {
     innerX: 2, innerY: 2, innerBlur: 3, innerOpacity: 60, innerColour: '#000000', innerMerge: 'multiply',
   },
 };
-try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || (OLD_STORE && localStorage.getItem(`${OLD_STORE}.prefs`)) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
-const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, palettes: state.palettes, palette: state.palette, gradients: state.gradients, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint, conn: state.conn, ui: state.ui, quick: state.quick, dockLive: state.dockLive })); } catch { /* private mode */ } };
+try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || (OLD_STORE && localStorage.getItem(`${OLD_STORE}.prefs`)) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, docSet: { ...state.docSet, ...p.docSet }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
+const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, palettes: state.palettes, palette: state.palette, gradients: state.gradients, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint, conn: state.conn, docSet: state.docSet, ui: state.ui, quick: state.quick, dockLive: state.dockLive })); } catch { /* private mode */ } };
 
 const toast = (text, ms = 2800) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), ms); };
 const hint = (text) => { const h = $('hint'); h.textContent = text || ''; h.classList.toggle('show', !!text); };
@@ -725,7 +727,117 @@ const nodes = createNodeEditor({
   refill,
   extract: (o, d) => { const p = makePath(d, o); p.name = `${o.name} part`; batch(() => canvas.insertAt(canvas.getObjects().indexOf(o) + 1, p)); },
   changed: () => { syncContext(); syncProps(); },
+  connect: (p, exclude, own) => connectAt(p, exclude, own),
+  join: (o) => batch(() => { joinEnds(o); delete o.shapeSpec; delete o.connSpec; }),
 });
+// Connect to a node (task 9.140b, client 2026-10-28, images/206.jpg): drawing a line or curve, or dragging an end
+// node, near the end node of an open curve (or the start of the same one) snaps onto it; the pointer becomes an arrow
+// with a node mark and "node" shows beside it. Releasing there joins the two curves into one, or closes the shape.
+const CONNECT_TOOLS = new Set(['line', 'bezier', 'pen', 'polyline', 'bspline', 'draw', 'curve3']);
+const CONNECT_PX = 10;
+const connectCursor = () => svgCursor('<path d="M4 3v14l4-4 3 6 2-1-3-6h5z"/><rect x="16" y="16" width="5" height="5"/>', 4, 3, 'crosshair');
+let connectHover = null;
+/** The end nodes of the open curves on the page (not of `exclude`). */
+function curveEnds(exclude) {
+  const out = [];
+  for (const o of userObjects()) {
+    if (o === exclude || o.type !== 'path' || !o.visible || o.locked || o.connSpec || o.shapeSpec) continue;
+    let m; try { m = V.objectModel(o); } catch { continue; }
+    m.forEach((sp, s) => { if (!sp.closed && sp.nodes.length > 1) { out.push({ x: sp.nodes[0].x, y: sp.nodes[0].y, o, s, first: true }); out.push({ x: sp.nodes.at(-1).x, y: sp.nodes.at(-1).y, o, s, first: false }); } });
+  }
+  return out;
+}
+/** The end node (of another curve, or one of `own` points) near page point p, shown as the connect pointer; null clears it. */
+function connectAt(p, exclude = null, own = []) {
+  let best = null;
+  if (p) for (const c of [...own.map((q) => ({ x: q.x, y: q.y, own: true })), ...curveEnds(exclude)]) { const d = screenDist(p, c); if (d <= CONNECT_PX && (!best || d < best.d)) best = { ...c, d }; }
+  const was = connectHover;
+  connectHover = best;
+  if (best || was) { if (canvas.upperCanvasEl) canvas.upperCanvasEl.style.cursor = best ? connectCursor() : (state.tool === 'select' || state.tool === 'node' ? CURSORS.arrow : canvas.defaultCursor); canvas.requestRenderAll(); }
+  return best;
+}
+function drawConnectHint(ctx) {
+  if (!connectHover) return;
+  const r = canvas.getRetinaScaling(), v = canvas.viewportTransform, x = connectHover.x * v[0] + v[4], y = connectHover.y * v[3] + v[5];
+  ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
+  ctx.lineWidth = 2; ctx.strokeStyle = '#1E7BFF'; ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.rect(x - 5, y - 5, 10, 10); ctx.fill(); ctx.stroke();
+  ctx.font = '600 12px system-ui, sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff'; ctx.strokeText('node', x + 14, y + 26); ctx.fillStyle = '#1E7BFF'; ctx.fillText('node', x + 14, y + 26);
+  ctx.restore();
+}
+const flipSub = (sp) => { sp.nodes.reverse(); for (const nd of sp.nodes) [nd.hi, nd.ho] = [nd.ho, nd.hi]; };
+/** Joins an open curve whose end sits on another curve's end node (within tolPx) into one curve, or closes it when
+ * its two ends meet. Removes the other curve. True when something was joined. */
+function joinEnds(o, tolPx = 1.5) {
+  if (o?.type !== 'path') return false;
+  let m; try { m = V.objectModel(o); } catch { return false; }
+  if (m.length !== 1 || m[0].closed || m[0].nodes.length < 2) return false;
+  const sp = m[0], A = sp.nodes[0], Z = sp.nodes.at(-1);
+  const finish = () => { delete o.nodeTypes; V.setWorldPath(o, V.modelToD(m)); refill(o); o.setCoords(); return true; };
+  if (sp.nodes.length > 2 && screenDist(A, Z) <= tolPx) { A.hi = Z.hi ? { x: Z.hi.x - Z.x + A.x, y: Z.hi.y - Z.y + A.y } : A.hi; sp.nodes.pop(); sp.closed = true; return finish(); }
+  const ends = curveEnds(o);
+  for (const [end, isStart] of [[Z, false], [A, true]]) {
+    let hit = null;
+    for (const c of ends) { const d = screenDist(end, c); if (d <= tolPx && (!hit || d < hit.d)) hit = { ...c, d }; }
+    if (!hit) continue;
+    const other = V.objectModel(hit.o), B = other[hit.s];
+    if (isStart) flipSub(sp);
+    if (!hit.first) flipSub(B);
+    const a = sp.nodes.at(-1), b = B.nodes[0], dx = b.x - a.x, dy = b.y - a.y;
+    a.x = b.x; a.y = b.y; if (a.hi) a.hi = { x: a.hi.x + dx, y: a.hi.y + dy }; a.ho = b.ho; a.type = 'cusp';
+    sp.nodes.push(...B.nodes.slice(1));
+    // The joined curve's two ends met as well: closed.
+    if (sp.nodes.length > 2 && screenDist(sp.nodes[0], sp.nodes.at(-1)) <= tolPx) { const z = sp.nodes.pop(); sp.nodes[0].hi = z.hi; sp.closed = true; }
+    m.push(...other.filter((_, i) => i !== hit.s));
+    if (canvas.getObjects().includes(hit.o)) canvas.remove(hit.o);
+    return finish();
+  }
+  return false;
+}
+
+// Pick tool on a drawn curve (task 9.140, client 2026-10-28): no box, its nodes and control points (dashed lines)
+// show instead, as in CorelDRAW. Dragging a node or control point reshapes it, a double-click on the line adds a
+// node, dragging the rest of the curve moves it. Shapes, text, pictures and a multi-selection keep the box.
+function isPickCurve(o) { return !!o && o.type === 'path' && !o.group && !o.locked && !o.isPage && !o.isHelper && !o.shapeSpec && !o.connSpec && !o.varSpec && !o.paintSpec && !o.liveSpec && !o.mediaSpec && !o.fxPart && !o.powerClip; }
+const NO_HANDLES = { tl: false, tr: false, bl: false, br: false, ml: false, mr: false, mt: false, mb: false, mtr: false };
+const SIZING_HANDLES = { tl: true, tr: true, bl: true, br: true, ml: true, mr: true, mt: false, mb: false, mtr: false };
+let pickCurve = null, curveDrag = null, pickSig = '';
+function curveSig(o) { return [o.path, o.left, o.top, o.scaleX, o.scaleY, o.angle, o.skewX, o.skewY, o.flipX, o.flipY, o.width, o.height].join('|'); }
+function pickCurveSync() {
+  const o = state.tool === 'select' && !pickFrame ? canvas.getActiveObject() : null;
+  const want = isPickCurve(o) && canvas.getObjects().includes(o) ? o : null;
+  if (want === pickCurve) return;
+  if (pickCurve) {
+    const old = pickCurve; pickCurve = null; nodes.pickMode = false;
+    old.hasBorders = true; delete old.nodePick; old.setControlsVisibility(SIZING_HANDLES);
+    if (state.tool !== 'node') nodes.end();
+  }
+  if (want && nodes.start(want)) {
+    pickCurve = want; nodes.pickMode = true; pickSig = curveSig(want);
+    want.hasBorders = false; want.nodePick = true; want.setControlsVisibility(NO_HANDLES);
+    canvas.requestRenderAll();
+  }
+}
+for (const ev of ['selection:created', 'selection:updated', 'selection:cleared']) canvas.on(ev, () => pickCurveSync());
+// A press on a node or control point: the curve stays selected and does not move; the node editor takes the drag.
+canvas.on('mouse:down:before', (opt) => {
+  if (!pickCurve || state.tool !== 'select' || opt.e.button || opt.e.shiftKey || opt.e.ctrlKey || opt.e.metaKey) return;
+  const p = canvas.getScenePoint(opt.e);
+  if (!nodes.hitPoint(p)) return;
+  canvas._target = pickCurve;
+  curveDrag = { o: pickCurve, lx: pickCurve.lockMovementX, ly: pickCurve.lockMovementY };
+  pickCurve.lockMovementX = pickCurve.lockMovementY = true;
+  nodes.down(p, opt.e);
+});
+canvas.on('mouse:move', (opt) => { if (curveDrag) nodes.move(pointer(opt, 'node'), opt.e); });
+canvas.on('mouse:up', (opt) => {
+  if (!curveDrag) return;
+  const d = curveDrag; curveDrag = null;
+  nodes.up(canvas.getScenePoint(opt.e));
+  d.o.lockMovementX = d.lx; d.o.lockMovementY = d.ly;
+  pickSig = curveSig(d.o);
+});
+
 /** Topmost visible, unlocked object under a page point. */
 function objectAt(p) {
   const pt = new Point(p.x, p.y);
@@ -806,7 +918,7 @@ const TOOL_HINTS = {
   fill: 'Click an object to fill it with the current colour or gradient', 'shape:basic': 'Pick a shape on the property bar, then drag on the page',
   table: 'Drag to draw a table (rows and columns on the property bar) · type the cell text in Properties',
   distort: 'Select shapes or text, choose Zipper, Twister or Push and pull, then Apply distortion',
-  envelope: 'Select shapes or text, choose an envelope (arch, bridge, bulge …), then Apply envelope',
+  envelope: 'Drag the blue nodes round the selection to bend it, or choose an envelope (arch, bridge, bulge …) and click Apply envelope',
   extrude: 'Select shapes or text, set the depth (X, Y) and side colour, then Apply extrude',
   blockshadow: 'Select shapes or text, set the depth (X, Y) and colour, then Apply block shadow',
   meshfill: 'Click inside a shape or text to add a soft spot of the current colour · click again for more spots',
@@ -991,13 +1103,15 @@ function openToolFly(gid, b) {
 
 // Tool cursors: an eyedropper while picking a colour, a paint bucket while filling.
 const svgCursor = (body, x, y, fallback) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-width="4">${body}</g><g stroke="#000" stroke-width="1.6">${body}</g></svg>`)}") ${x} ${y}, ${fallback}`;
-const CURSORS = { pick: svgCursor(ICONS.eyedropper, 2, 22, 'crosshair'), bucket: svgCursor(ICONS.fill, 20, 22, 'copy') };
+// The Pick tool's pointer is its own toolbox arrow (user 2026-10-28, images/203.jpg).
+const CURSORS = { pick: svgCursor(ICONS.eyedropper, 2, 22, 'crosshair'), bucket: svgCursor(ICONS.fill, 20, 22, 'copy'), arrow: svgCursor(ICONS.select, 4, 3, 'default') };
+canvas.defaultCursor = canvas.hoverCursor = canvas.moveCursor = CURSORS.arrow;
 function toolCursor(tool) {
   if (tool === 'zoom') return 'zoom-in';
   if (tool === 'pan') return 'grab';
   if (tool === 'eyedropper') return eye.mode === 'apply' ? CURSORS.bucket : CURSORS.pick;
   if (tool === 'fill') return CURSORS.bucket;
-  return PICK_LIKE.has(tool) ? 'default' : 'crosshair';
+  return PICK_LIKE.has(tool) ? CURSORS.arrow : 'crosshair';
 }
 
 let toolTargets = [];
@@ -1032,10 +1146,11 @@ function setTool(tool) {
   applyToolFlags();
   syncProps(); // what counts as selected depends on the tool (Shape, Variable Outline)
   if (tool === 'node' && editFirst) nodes.start(editFirst);
+  try { pickCurveSync(); } catch { /* setTool before the Pick-curve code has loaded */ }
   if (tool === 'eyedropper') eye.mode = 'pick';
   canvas.defaultCursor = toolCursor(tool);
   // Over objects the cursor still shows the tool (Pick-like tools: the arrow).
-  canvas.hoverCursor = PICK_LIKE.has(tool) ? 'default' : canvas.defaultCursor;
+  canvas.hoverCursor = PICK_LIKE.has(tool) ? CURSORS.arrow : canvas.defaultCursor;
   setBrushRing(SCULPT.has(tool) || tool === 'smudge' ? { radius: state.shape.radius * MM } : tool === 'eraser' ? { radius: (state.shape.eraser * MM) / 2 } : null);
   if (tool.startsWith('shape:')) state.shape.set = tool.split(':')[1];
   renderToolbox();
@@ -1098,6 +1213,11 @@ const specFor = (tool) => { const s = state.shape; return tool === 'polygon' ? {
 const SNAP_TOOLS = new Set([...PATH_TOOLS, ...BOX_TOOLS, 'curve3', 'rect3', 'ellipse3', 'text', 'freetx', 'dimA', 'callout2']);
 function pointer(opt, tool) {
   const p = canvas.getScenePoint(opt.e);
+  if (CONNECT_TOOLS.has(tool)) {
+    const own = path && path.nodes.length > 1 ? [path.nodes[0]] : [];
+    const hit = connectAt(p, null, own);
+    if (hit) return new Point(hit.x, hit.y);
+  } else if (connectHover && tool !== 'node' && tool !== 'select') connectAt(null);
   if (!state.snap) return p;
   if (tool === 'node') return nodes.target ? guides.snapPoint(p, [nodes.target]) : p;
   if (!SNAP_TOOLS.has(tool) && !tool.startsWith('shape:')) return p;
@@ -1259,7 +1379,8 @@ canvas.on('mouse:up', (opt) => {
   if (!['rect', 'ellipse', 'line'].includes(d.tool)) o.shapeSpec = specFor(d.tool);
   o.selectable = true;
   o.setCoords();
-  canvas.add(o);
+  connectAt(null);
+  if (d.tool === 'line') batch(() => { joinEnds(o); canvas.add(o); }); else canvas.add(o);
   setTool('select');
   canvas.setActiveObject(o);
   canvas.requestRenderAll();
@@ -1272,16 +1393,25 @@ canvas.on('mouse:dblclick', (opt) => {
   if (state.tool === 'select' && opt.target?.powerClip) { editPowerClip(opt.target); return; }
   // A callout: double-click to change its text.
   if (state.tool === 'select' && opt.target?.toolName === 'Callout') { editCallout(opt.target); return; }
+  if (state.tool === 'select' && pickCurve) { nodes.dblclick(canvas.getScenePoint(opt.e)); pickSig = curveSig(pickCurve); return; }
   if (pcEdit && !opt.target) { finishPowerClipEdit(); return; }
   if (path) finishPath();
 });
-canvas.on('path:created', (e) => { style(e.path, { toolName: 'Freehand', strokeUniform: true }); e.path.name = `Freehand ${++counter}`; record(); refreshLayers(); });
+canvas.on('path:created', (e) => {
+  style(e.path, { toolName: 'Freehand', strokeUniform: true }); e.path.name = `Freehand ${++counter}`;
+  // Ends drawn near an end node (or near its own start) connect there, as in CorelDRAW.
+  connectAt(null);
+  muted++; try { joinEnds(e.path, CONNECT_PX); } finally { muted--; }
+  record(); refreshLayers();
+});
 // Overlays go on the main canvas only: Fabric fires after:render for its top layer too, which it does not clear
 // afterwards, so anything drawn there would stay on screen (a stale tool box after switching tools).
 canvas.on('after:render', ({ ctx }) => {
   if (exporting || previewState) return;
   if (ctx === canvas.contextTop) { if (topDrawn) drawTop(); return; }
-  guides.draw(ctx); nodes.draw(ctx); drawToolOverlay(ctx);
+  // The picked curve moved, was sized or undone: read its nodes again.
+  if (pickCurve && !curveDrag) { const sg = curveSig(pickCurve); if (sg !== pickSig) { pickSig = sg; nodes.refresh(); } }
+  guides.draw(ctx); nodes.draw(ctx); drawToolOverlay(ctx); drawConnectHint(ctx); drawEnvNodes(ctx);
   if (topDrawn) drawTop();
 });
 
@@ -1487,7 +1617,8 @@ function finishPath(close = false) {
     if (close) paint(o); else paintLine(o);
   }
   style(o);
-  canvas.add(o);
+  connectAt(null);
+  batch(() => { joinEnds(o); canvas.add(o); });
   setTool('select');
   canvas.setActiveObject(o);
 }
@@ -3586,6 +3717,75 @@ function applyDistort() {
   const fx = state.fx, mode = fx.distort, amount = mode === 'zipper' ? fx.zipSize * MM : mode === 'twister' ? fx.twist : fx.push;
   reshapeSelection((d, box) => V.distortD(d, mode, amount, { teeth: fx.zipTeeth, box }), DISTORT_LABEL[mode] ?? 'Distortion');
 }
+// Envelope nodes (task 9.145, as CorelDRAW): with the Envelope tool, 8 nodes sit round the selection (corners and
+// side middles). Dragging one shows the new envelope; releasing bends the objects into it (text becomes curves).
+const ENV_KEYS = ['tl', 't', 'tr', 'r', 'br', 'b', 'bl', 'l'];
+const ENV_UV = { tl: [0, 0], t: [0.5, 0], tr: [1, 0], r: [1, 0.5], br: [1, 1], b: [0.5, 1], bl: [0, 1], l: [0, 0.5] };
+let envDrag = null;
+function envBox() {
+  if (state.tool !== 'envelope') return null;
+  const objs = canvas.getActiveObjects().filter(shapeable);
+  if (!objs.length) return null;
+  const r = canvas.getActiveObject().getBoundingRect(); // page units
+  return { x: r.left, y: r.top, w: r.width, h: r.height };
+}
+const envNodeAt = (box, k, off = {}) => ({ x: box.x + ENV_UV[k][0] * box.w + (off[k]?.x ?? 0), y: box.y + ENV_UV[k][1] * box.h + (off[k]?.y ?? 0) });
+/** How far a point at (u, v) moves for the node moves `off` (corners bilinear, side middles bow their side). */
+function envMap(off) {
+  const o = (k) => off[k] ?? { x: 0, y: 0 }, s = Math.sin;
+  return (u, v) => {
+    const add = (acc, q, w) => { acc.x += q.x * w; acc.y += q.y * w; return acc; }, m = { x: 0, y: 0 };
+    add(m, o('tl'), (1 - u) * (1 - v)); add(m, o('tr'), u * (1 - v)); add(m, o('bl'), (1 - u) * v); add(m, o('br'), u * v);
+    const mid = (k, a, b) => ({ x: o(k).x - (o(a).x + o(b).x) / 2, y: o(k).y - (o(a).y + o(b).y) / 2 });
+    add(m, mid('t', 'tl', 'tr'), (1 - v) * s(Math.PI * u)); add(m, mid('b', 'bl', 'br'), v * s(Math.PI * u));
+    add(m, mid('l', 'tl', 'bl'), (1 - u) * s(Math.PI * v)); add(m, mid('r', 'tr', 'br'), u * s(Math.PI * v));
+    return m;
+  };
+}
+function drawEnvNodes(ctx) {
+  const box = envDrag?.box ?? envBox();
+  if (!box) return;
+  const off = envDrag?.off ?? {}, map = envMap(off), r = canvas.getRetinaScaling(), v = canvas.viewportTransform;
+  const S = (p) => ({ x: p.x * v[0] + v[4], y: p.y * v[3] + v[5] });
+  ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
+  // The envelope's edge: dashed, through the nodes.
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = '#1E7BFF'; ctx.lineWidth = 1.2; ctx.beginPath();
+  const N = 24, edge = [];
+  for (let i = 0; i <= N; i++) edge.push([i / N, 0]);
+  for (let i = 1; i <= N; i++) edge.push([1, i / N]);
+  for (let i = 1; i <= N; i++) edge.push([1 - i / N, 1]);
+  for (let i = 1; i <= N; i++) edge.push([0, 1 - i / N]);
+  edge.forEach(([u, w], i) => { const m = map(u, w), q = S({ x: box.x + u * box.w + m.x, y: box.y + w * box.h + m.y }); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); });
+  ctx.stroke(); ctx.setLineDash([]);
+  for (const k of ENV_KEYS) { const q = S(envNodeAt(box, k, off)); ctx.beginPath(); ctx.rect(q.x - 4.5, q.y - 4.5, 9, 9); ctx.fillStyle = envDrag?.key === k ? '#12E1F0' : '#ffffff'; ctx.fill(); ctx.strokeStyle = '#1E7BFF'; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.restore();
+}
+canvas.on('mouse:down:before', (opt) => {
+  if (state.tool !== 'envelope' || opt.e.button) return;
+  const box = envBox();
+  if (!box) return;
+  const p = canvas.getScenePoint(opt.e), k = ENV_KEYS.find((key) => screenDist(p, envNodeAt(box, key)) <= 9);
+  if (!k) return;
+  const o = canvas.getActiveObject();
+  canvas._target = o;
+  envDrag = { box, key: k, from: p, off: {}, o, lx: o.lockMovementX, ly: o.lockMovementY };
+  o.lockMovementX = o.lockMovementY = true;
+});
+canvas.on('mouse:move', (opt) => {
+  if (!envDrag) return;
+  const p = canvas.getScenePoint(opt.e);
+  envDrag.off = { [envDrag.key]: { x: p.x - envDrag.from.x, y: p.y - envDrag.from.y } };
+  canvas.requestRenderAll();
+});
+canvas.on('mouse:up', () => {
+  if (!envDrag) return;
+  const d = envDrag; envDrag = null;
+  d.o.lockMovementX = d.lx; d.o.lockMovementY = d.ly;
+  const m = d.off[d.key];
+  if (!m || Math.hypot(m.x, m.y) * canvas.getZoom() < 3) { canvas.requestRenderAll(); return; }
+  const map = envMap(d.off), box = { left: d.box.x, top: d.box.y, width: d.box.w, height: d.box.h };
+  reshapeSelection((path) => V.warpD(path, map, { box }), 'Envelope');
+});
 function applyEnvelope() {
   const fx = state.fx;
   reshapeSelection((d, box) => V.envelopeD(d, fx.envelope, fx.envAmount * MM, { box }), 'Envelope');
@@ -3771,6 +3971,19 @@ function colourAt(e, target) {
   const rgb = hexToRgb(px);
   return own.find((c) => hexToRgb(c).reduce((s, x, i) => s + Math.abs(x - rgb[i]), 0) < 30) ?? px;
 }
+// Eyedropper preview (task 9.142, as CorelDRAW): a small circle beside the pointer filled with the colour under it.
+const eyeLoupe = Object.assign(document.createElement('div'), { className: 'eye-loupe', hidden: true });
+document.body.append(eyeLoupe);
+canvas.on('mouse:move', (opt) => {
+  if (state.tool !== 'eyedropper' || eye.mode !== 'pick' || spaceDown) { eyeLoupe.hidden = true; return; }
+  const p = canvas.getScenePoint(opt.e), t = opt.target && !opt.target.isPage && !opt.target.isHelper ? opt.target : null;
+  const c = t || inPage(p) ? colourAt(opt.e, t) : null;
+  if (!c) { eyeLoupe.hidden = true; return; }
+  eyeLoupe.style.background = c;
+  eyeLoupe.style.left = `${opt.e.clientX + 16}px`; eyeLoupe.style.top = `${opt.e.clientY + 16}px`;
+  eyeLoupe.hidden = false;
+});
+canvas.on('mouse:out', () => { eyeLoupe.hidden = true; });
 function eyedropClick(opt, target, p) {
   if (eye.mode === 'pick' || opt.e.shiftKey || !eye.colour) {
     if (!target && !inPage(p)) { toast('Click a colour on the page'); return; }
@@ -4273,6 +4486,14 @@ function syncProps(live = false) {
 }
 for (const ev of ['selection:created', 'selection:updated', 'selection:cleared', 'object:modified', 'object:scaling', 'object:moving', 'object:rotating']) canvas.on(ev, () => { if (state.tool === 'node' && ev === 'object:modified') nodes.refresh(); syncProps(ev === 'object:scaling' || ev === 'object:moving' || ev === 'object:rotating'); });
 
+// Effects on the text bar (task 9.145): each opens its tool with the text still selected.
+document.querySelectorAll('[data-tfx]').forEach((b) => (b.onclick = () => {
+  const fx = b.dataset.tfx;
+  if (fx !== 'outline') { setTool(fx); return; }
+  const w = $('strokeWidth');
+  if (w.value === '0') { w.value = '1'; w.dispatchEvent(new Event('change')); }
+  w.focus(); toast('Outline: set its thickness here and its colour with the Outline colour box (or right-click a palette colour)');
+}));
 $('strokeWidth').onchange = (e) => {
   state.strokeWidth = Number(e.target.value);
   applyToSelection((o) => { const w = state.strokeWidth * MM; return { strokeWidth: w, stroke: w ? (o.stroke || state.stroke) : null, strokeDashArray: w ? strokeDash(w) : null, strokeUniform: true }; });
@@ -4423,15 +4644,17 @@ $('lock').onclick = () => { const o = one(); if (!o) return; setLocked(o, !o.loc
 $('group').onclick = () => groupToggle();
 function removeSelection() {
   if (state.tool === 'node' && nodes.target) { nodes.op('delete'); return; }
+  if (pickCurve && nodes.selectedCount && state.tool === 'select') { nodes.op('delete'); return; }
   const objs = canvas.getActiveObjects(); if (!objs.length) return;
   canvas.discardActiveObject(); batch(() => { for (const o of objs) canvas.remove(o); }); canvas.requestRenderAll();
 }
-async function duplicate(offset = 10 * MM, source = active()) {
+async function duplicate(offset = null, source = active()) {
   if (!source.length) return;
   canvas.discardActiveObject();
   const clones = [];
   muted++;
-  for (const o of source) { const c = await o.clone(EXTRA); c.set({ left: c.left + offset, top: c.top + offset }); c.name = `${o.name} copy`; style(c); canvas.add(c); clones.push(c); }
+  const ox = offset ?? (state.docSet.dupX ?? 5) * MM, oy = offset ?? (state.docSet.dupY ?? 5) * MM;
+  for (const o of source) { const c = await o.clone(EXTRA); c.set({ left: c.left + ox, top: c.top + oy }); c.name = `${o.name} copy`; style(c); canvas.add(c); clones.push(c); }
   // Connectors copied together with their objects join the copies.
   const copyOf = new Map(source.map((o, i) => [o.uid, clones[i].uid]).filter(([a, b]) => a && b && a !== b));
   for (const c of clones) if (c.connSpec) c.connSpec.ends = c.connSpec.ends.map((e) => (e?.uid && copyOf.has(e.uid) ? { ...e, uid: copyOf.get(e.uid) } : e));
@@ -4524,7 +4747,7 @@ function syncContext() {
   show('ctx-blend', t === 'blend'); show('ctx-contour', t === 'contour' || (pick && ctSel)); show('ctx-shadow', t === 'shadow'); show('ctx-inner', t === 'inner'); show('ctx-transp', t === 'transparency');
   show('ctx-distort', t === 'distort'); show('ctx-envelope', t === 'envelope'); show('ctx-extrude', t === 'extrude'); show('ctx-block', t === 'blockshadow');
   show('ctx-mesh', t === 'meshfill' || (pick && !!o?.fxMesh));
-  show('ctx-powerclip', !!pcEdit || (pick && !!o?.powerClip)); show('pcEditBtn', !pcEdit); show('pcFinishBtn', !!pcEdit); show('pcExtractBtn', !pcEdit); show('ctx-table', t === 'table'); show('ctx-eyedrop', t === 'eyedropper');
+  show('ctx-powerclip', !!pcEdit || (pick && !!o?.powerClip)); show('pcEditBtn', !pcEdit); show('pcFinishBtn', !!pcEdit); show('pcExtractBtn', !pcEdit); show('ctx-table', t === 'table'); show('ctx-eyedrop', t === 'eyedropper'); show('ctx-doc', pick && n === 0 && !pcEdit); if (pick && n === 0) syncDocBar();
   if (t === 'distort') { const m = state.fx.distort; show('fxDZipWrap', m === 'zipper'); show('fxDTwistWrap', m === 'twister'); show('fxDPushWrap', m === 'push'); }
   if (t === 'eyedropper') { $('eyeTo').value = state.target; $('eyeChip').style.background = eye.colour ?? current(); $('eyePick').classList.toggle('on', eye.mode === 'pick'); $('eyeApply').classList.toggle('on', eye.mode === 'apply'); }
   $('meshChip').style.background = state.fill;
@@ -5056,7 +5279,7 @@ function showPageInfo() {
   for (const [id, label] of [['posX', 'X'], ['posY', 'Y'], ['sizeW', 'Width'], ['sizeH', 'Height']]) $(id).title = `${label} (${unit().name})`;
 }
 $('units').value = state.units in UNITS ? state.units : 'mm';
-$('units').onchange = (e) => { state.units = e.target.value; savePrefs(); showPageInfo(); drawRulers(); syncProps(); toast(`Units: ${e.target.selectedOptions[0].textContent} (rulers, position, size and page)`); };
+$('units').onchange = (e) => { state.units = e.target.value; savePrefs(); showPageInfo(); drawRulers(); syncProps(); syncDocBar(); toast(`Units: ${e.target.selectedOptions[0].textContent} (rulers, position, size and page)`); };
 
 // Table card: text colour and font for every cell.
 $('tbFont').innerHTML = FONTS.map((x) => `<option>${x.family}</option>`).join('');
@@ -5478,6 +5701,7 @@ function setPage([w, h], record_ = true) {
   $('customSize').hidden = !!known;
   page.set({ width: w * MM, height: h * MM });
   showPageInfo();
+  syncDocBar();
   fit();
   if (record_) record();
 }
@@ -5493,6 +5717,161 @@ for (const id of ['pageW', 'pageH']) $(id).onchange = () => {
   const w = Math.round(fromUnits($('pageW').value) / MM * 10) / 10, h = Math.round(fromUnits($('pageH').value) / MM * 10) / 10;
   if (w >= 20 && h >= 20 && w <= 2000 && h <= 2000) setPage([w, h]); else toast(`Use a size between ${+inUnits(20 * MM)} and ${+inUnits(2000 * MM)} ${unit().name}`);
 };
+
+// Property bar with nothing selected (task 9.141, as CorelDRAW): page size, orientation, units, nudge and
+// duplicate distances. The page size and units are the same settings as on the status bar.
+function mmIn(mm) { return +(mm / unit().mm).toFixed(unit().dp + 1); }
+function mmFrom(v) { return Number(v) * unit().mm; }
+function syncDocBar() {
+  if (!$('docW')) return;
+  const [w, h] = pageSize, set = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+  set('docW', +inUnits(w * MM)); set('docH', +inUnits(h * MM));
+  set('docNudge', mmIn(state.docSet.nudge)); set('docDupX', mmIn(state.docSet.dupX)); set('docDupY', mmIn(state.docSet.dupY));
+  $('docUnits').value = state.units in UNITS ? state.units : 'mm';
+  for (const el of document.querySelectorAll('.doc-unit')) el.textContent = unit().name;
+  $('docPortrait').classList.toggle('on', h >= w); $('docLandscape').classList.toggle('on', w > h);
+}
+for (const id of ['docW', 'docH']) $(id).onchange = () => {
+  const w = Math.round(fromUnits($('docW').value) / MM * 10) / 10, h = Math.round(fromUnits($('docH').value) / MM * 10) / 10;
+  if (w >= 20 && h >= 20 && w <= 2000 && h <= 2000) setPage([w, h]); else { toast(`Use a size between ${+inUnits(20 * MM)} and ${+inUnits(2000 * MM)} ${unit().name}`); syncDocBar(); }
+};
+$('docPortrait').onclick = () => { const [w, h] = pageSize; if (w > h) setPage([h, w]); };
+$('docLandscape').onclick = () => { const [w, h] = pageSize; if (h > w) setPage([h, w]); };
+$('docUnits').onchange = (e) => setUnits(e.target.value);
+for (const [id, key] of [['docNudge', 'nudge'], ['docDupX', 'dupX'], ['docDupY', 'dupY']]) $(id).onchange = (e) => {
+  const v = mmFrom(e.target.value);
+  if (Number.isFinite(v) && (key !== 'nudge' || v > 0) && Math.abs(v) <= 1000) { state.docSet[key] = Math.round(v * 1000) / 1000; savePrefs(); }
+  syncDocBar();
+};
+
+// Document tabs (task 9.141, as CorelDRAW): several designs open at once, each with its own pages and Undo. The open
+// tab is the canvas (kept on this device as before); the others are kept on this device under their own key.
+// "*" marks changes not saved in the account; closing such a tab asks first.
+const TABS_KEY = `${STORE}.tabs`;
+let docTabs = [{ id: 1, meta: null }], docTab = 0, docBusy = false;
+const tabName = (t, i) => (i === docTab ? projects.doc.name : t.meta?.name) || `Untitled-${t.id}`;
+const tabDirty = (t, i) => (i === docTab ? projects.doc.dirty : !!t.meta?.dirty);
+function saveTabList() { try { localStorage.setItem(TABS_KEY, JSON.stringify({ tabs: docTabs.map((t) => ({ id: t.id, meta: t.meta })), open: docTabs[docTab].id })); } catch { /* storage full */ } }
+function docTabsStart() {
+  try {
+    const d = JSON.parse(localStorage.getItem(TABS_KEY) || 'null');
+    if (d && Array.isArray(d.tabs) && d.tabs.length) {
+      docTabs = d.tabs.filter((t) => Number(t?.id) > 0).map((t) => ({ id: Number(t.id), meta: t.meta ?? null }));
+      if (!docTabs.length) docTabs = [{ id: 1, meta: null }];
+      docTab = Math.max(0, docTabs.findIndex((t) => t.id === d.open));
+    }
+  } catch { /* none */ }
+  renderDocTabs();
+}
+function renderDocTabs() {
+  const box = $('docTabList');
+  if (!box) return;
+  box.innerHTML = docTabs.map((t, i) => `<div class="doc-tab${i === docTab ? ' on' : ''}" role="tab" aria-selected="${i === docTab}" data-doc="${i}" title="${escHtml(tabName(t, i))}${tabDirty(t, i) ? ' · changes not saved' : ''}"><span>${escHtml(tabName(t, i))}${tabDirty(t, i) ? '*' : ''}</span><button class="x" type="button" data-close="${i}" title="Close this design" aria-label="Close">×</button></div>`).join('');
+  requestAnimationFrame(() => { box.querySelector('.doc-tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); syncDocArrows(); });
+}
+async function gotoDocTab(i, fresh = false) {
+  if (docBusy || (i === docTab && !fresh)) return;
+  docBusy = true;
+  try {
+    finishPowerClipEdit(); flushRecord(); finishPath();
+    const cur = docTabs[docTab];
+    cur.history = history; cur.future = future;
+    saveNow(`${STORE}.tab.${cur.id}`, snapshot());
+    cur.meta = projects.swapDoc(fresh ? null : docTabs[i].meta);
+    let next;
+    if (fresh) { next = { id: Math.max(...docTabs.map((t) => t.id)) + 1, meta: null }; docTabs.push(next); docTab = docTabs.length - 1; }
+    else { next = docTabs[i]; docTab = i; }
+    canvas.discardActiveObject();
+    const snap = (!fresh && (next.history?.at(-1) ?? await loadLocal(`${STORE}.tab.${next.id}`))) || JSON.stringify({ page: pageSize, guides: [], objects: [] });
+    await restore(snap);
+    history = next.history ?? [snap]; future = next.future ?? [];
+    delete next.history; delete next.future;
+    syncHistory(); saveNow(STORE, snap); saveTabList(); renderDocTabs(); fit(); syncProps();
+    if (fresh) toast('A new design in its own tab: the others stay open in their tabs');
+    else if (pages.length > 1) { docBusy = false; await splitPagesToTabs(); }
+  } finally { docBusy = false; }
+}
+async function closeDocTab(i) {
+  const t = docTabs[i];
+  if (tabDirty(t, i) && !confirm(`Close “${tabName(t, i)}”? Its changes are not saved in your account and will be lost.`)) return;
+  if (docTabs.length === 1) { projects.swapDoc(null); await ACTIONS.new(); docTabs[0].meta = null; saveTabList(); renderDocTabs(); return; }
+  if (i === docTab) await gotoDocTab(i > 0 ? i - 1 : 1);
+  const k = docTabs.indexOf(t);
+  docTabs.splice(k, 1);
+  if (k < docTab) docTab--;
+  try { localStorage.removeItem(`${STORE}.tab.${t.id}`); } catch { /* none */ }
+  saveTabList(); renderDocTabs();
+}
+$('docTabList').addEventListener('click', (e) => {
+  const x = e.target.closest('[data-close]');
+  if (x) { e.stopPropagation(); closeDocTab(Number(x.dataset.close)); return; }
+  const tab = e.target.closest('[data-doc]');
+  if (tab) gotoDocTab(Number(tab.dataset.doc));
+});
+$('docTabAdd').onclick = () => gotoDocTab(docTab, true);
+// Task 9.143: each design is one page; the tabs on top replace the page tabs. A design with several pages (saved
+// before) opens with each extra page in its own tab, right after it, so nothing is lost.
+async function splitPagesToTabs() {
+  if (pages.length < 2) return;
+  const base = tabName(docTabs[docTab], docTab), gd = guides.get(), pg = pageSize;
+  let id = Math.max(...docTabs.map((t) => t.id));
+  const extra = [];
+  pages.forEach((p, i) => {
+    if (i === pageIndex) return;
+    id++;
+    saveNow(`${STORE}.tab.${id}`, JSON.stringify({ page: pg, guides: gd, objects: p.objects ?? [] }));
+    extra.push({ id, meta: { id: null, name: `${base} – ${p.name}`.slice(0, 120), version: null, dirty: true } });
+  });
+  const count = pages.length;
+  pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs();
+  docTabs.splice(docTab + 1, 0, ...extra);
+  history = [snapshot()]; future = []; syncHistory(); saveNow(STORE, history[0]);
+  saveTabList(); renderDocTabs();
+  toast(`This design had ${count} pages: each page is now open in its own tab along the top`, 6000);
+}
+async function duplicateDocTab() {
+  flushRecord();
+  const snap = snapshot(), name = `${tabName(docTabs[docTab], docTab)} copy`;
+  await gotoDocTab(docTab, true);
+  await restore(snap);
+  history = [snapshot()]; future = []; syncHistory(); saveNow(STORE, history[0]);
+  projects.swapDoc({ name, dirty: true });
+}
+/** Double-click a tab: its name becomes a box; Enter keeps the new name, Esc leaves it. */
+async function renameDocTab(i) {
+  if (i !== docTab) await gotoDocTab(i);
+  const tab = $('docTabList').querySelector(`[data-doc="${docTab}"]`), span = tab?.querySelector('span');
+  if (!span) return;
+  const input = Object.assign(document.createElement('input'), { value: tabName(docTabs[docTab], docTab), maxLength: 120 });
+  input.setAttribute('aria-label', 'Design name');
+  span.replaceWith(input); input.focus(); input.select();
+  let done = false;
+  const finish = async (keep) => {
+    if (done) return; done = true;
+    const name = input.value.trim();
+    if (keep && name && name !== tabName(docTabs[docTab], docTab)) await projects.rename(name);
+    renderDocTabs();
+  };
+  input.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); };
+  input.onblur = () => finish(true);
+  input.onclick = input.ondblclick = (e) => e.stopPropagation();
+}
+$('docTabList').addEventListener('dblclick', (e) => {
+  if (e.target.closest('[data-close], input')) return;
+  const tab = e.target.closest('[data-doc]');
+  if (tab) renameDocTab(Number(tab.dataset.doc));
+});
+// Arrows at both ends of the tab row when the tabs don't fit.
+function syncDocArrows() {
+  const b = $('docTabList'), over = b.scrollWidth > b.clientWidth + 1;
+  $('docTabLeft').hidden = !over || b.scrollLeft <= 0;
+  $('docTabRight').hidden = !over || b.scrollLeft + b.clientWidth >= b.scrollWidth - 1;
+}
+$('docTabLeft').onclick = () => $('docTabList').scrollBy({ left: -200, behavior: 'smooth' });
+$('docTabRight').onclick = () => $('docTabList').scrollBy({ left: 200, behavior: 'smooth' });
+$('docTabList').addEventListener('scroll', syncDocArrows);
+addEventListener('resize', syncDocArrows);
+
 
 // ===================================================================
 // Pages (CorelDRAW): a design can have several pages, all the same size. The page on screen lives on the canvas;
@@ -5621,8 +6000,8 @@ const SNAP_LABELS = { grid: 'Grid (5 mm)', guides: 'Guidelines', objects: 'Objec
 const ACTIONS = {
   fonts: () => { if ($('textBar').hidden) setTool('text'); setTimeout(() => $('tFont').click()); },
   new: async () => { finishPowerClipEdit(); if ((userObjects().length || pages.length > 1) && !confirm('Start a new document? Every page is cleared (Undo can restore it).')) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); projects.cleared(); },
-  pageAdd: () => insertPage(), pageDup: () => duplicatePage(), pageDelete: () => deletePage(), pagePrev: () => gotoPage(pageIndex - 1), pageNext: () => gotoPage(pageIndex + 1),
-  pageRename: () => { const tab = $('pageTabs').querySelector(`[data-page="${pageIndex}"]`); if (tab) startRename(tab, pageIndex); },
+  pageAdd: () => gotoDocTab(docTab, true), pageDup: () => duplicateDocTab(), pageDelete: () => closeDocTab(docTab), pagePrev: () => gotoDocTab(docTab - 1), pageNext: () => gotoDocTab(docTab + 1),
+  pageRename: () => renameDocTab(docTab),
   open: () => $('fileImage').click(),
   exportPng: () => exportPng(false), exportPage: () => exportPng(true), exportSvg, exportPdf,
   send: sendToStudio,
@@ -5792,6 +6171,7 @@ async function openDocument(json) {
   await window.artboard.load(json);
   history = [snapshot()]; future = []; syncHistory();
   saveNow(STORE, history[0]);
+  await splitPagesToTabs();
 }
 /** A picture of the page on screen (white page), for the account's lists; the selection stays selected. */
 function pagePreview() {
@@ -5806,6 +6186,7 @@ const projects = createProjects({
   blank: () => (flushRecord(), !userObjects().length || (history.length < 2 && userObjects().length === 1 && userObjects()[0] === starter)) && pages.every((p, i) => i === pageIndex || !p.objects?.length),
   firstText: () => String(userObjects().find(isText)?.text ?? '').trim().slice(0, 60),
   finish: () => finishPowerClipEdit(), sendAgain: () => sendToStudio(),
+  docChanged: () => renderDocTabs(),
 });
 Object.assign(ACTIONS, projects.actions);
 // Right-click menu: order (to front / back), duplicate, curves, lock, delete for the object under the pointer.
@@ -6733,20 +7114,20 @@ addEventListener('keydown', (e) => {
       const how = e.shiftKey ? (k === 'pageup' ? 'front' : 'back') : (k === 'pageup' ? 'forward' : 'backward');
       order(how);
       toast({ front: 'To the front of the page (Shift+PgUp)', back: 'To the back of the page (Shift+PgDn)', forward: 'Forward one (Ctrl+PgUp)', backward: 'Back one (Ctrl+PgDn)' }[how], 1800);
-    } else gotoPage(pageIndex + (k === 'pageup' ? -1 : 1));
+    } else gotoDocTab(docTab + (k === 'pageup' ? -1 : 1));
   }
   else if (k === 'delete' || k === 'backspace') { if (gradKeys && state.gradient) gradRemove(); else if (state.tool === 'anchor' && connView?.sel) deleteAnchor(connView.sel); else if (state.tool === 'varline' && varEdit) { if (varEdit.sel != null) deleteVarPoint(); else toast('Click a width point (it turns pink) to delete it; switch to Pick to delete the whole object'); } else removeSelection(); }
   else if (k === 'escape') {
     if (document.querySelector('.menu.open, .fly.open')) { closeMenus(); return; } // an open menu or list closes first
     if (pcEdit) { finishPowerClipEdit(); return; }
-    if (pickFrame) { pickFrame = null; hint(''); canvas.defaultCursor = 'default'; return; }
+    if (pickFrame) { pickFrame = null; hint(''); canvas.defaultCursor = CURSORS.arrow; return; }
     if (path) { finishPath(); return; }
     cancelCurve3(); attrSample = null;
     if (state.tool !== 'select') setTool('select'); else { canvas.discardActiveObject(); canvas.requestRenderAll(); }
   }
   else if (k === 'enter') finishPath();
   else if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(k)) {
-    const s = (e.shiftKey ? 10 : 1) * MM, dx = k === 'arrowleft' ? -s : k === 'arrowright' ? s : 0, dy = k === 'arrowup' ? -s : k === 'arrowdown' ? s : 0;
+    const s = (e.shiftKey ? 10 : 1) * (state.docSet.nudge || 0.1) * MM, dx = k === 'arrowleft' ? -s : k === 'arrowright' ? s : 0, dy = k === 'arrowup' ? -s : k === 'arrowdown' ? s : 0;
     if (state.tool === 'node' && nodes.nudge(dx, dy)) { e.preventDefault(); return; }
     if (active().length) { e.preventDefault(); applyToSelection((o) => ({ left: o.left + dx, top: o.top + dy })); }
   }
@@ -6757,7 +7138,7 @@ addEventListener('keyup', (e) => {
   if (e.key !== ' ' || !spaceDown) return;
   spaceDown = false;
   canvas.defaultCursor = toolCursor(state.tool);
-  canvas.hoverCursor = PICK_LIKE.has(state.tool) ? 'default' : canvas.defaultCursor;
+  canvas.hoverCursor = PICK_LIKE.has(state.tool) ? CURSORS.arrow : canvas.defaultCursor;
   canvas.setCursor(canvas.defaultCursor);
 });
 // The window and the page area both say when it changes size: the canvas is sized (and so cleared and drawn again)
@@ -6916,15 +7297,16 @@ const ASSIST = {
     return `${TOOLS[v].label} tool selected${n ? ` (button ${n} ${where})` : ''}${notice ? `. ${notice}` : ''}`;
   },
   /** Pages: add, duplicate, delete, next, previous, a page number, or rename:<name>. */
+  /** Designs are one page each, in tabs along the top (9.143): add, duplicate, delete, next, previous, a tab number, or rename:<name>. */
   page: (v) => {
     const s = String(v || '').trim(), n = Number(s);
-    if (s === 'add') { insertPage(); return `Page added after page ${pageIndex + 1}: it is open now (the tabs at the bottom left switch pages)`; }
-    if (s === 'duplicate') { duplicatePage(); return `Page ${pageIndex + 1} duplicated: the copy is open now`; }
-    if (s === 'delete') { if (pages.length < 2) throw new Error('The design has only one page: it cannot be deleted (File > New document clears it).'); deletePage(); return `Deleted ${pages[pageIndex].name} (Undo brings it back)`; }
-    if (s === 'next' || s === 'previous') { const i = pageIndex + (s === 'next' ? 1 : -1); if (!pages[i]) throw new Error(`There is no ${s} page (this is page ${pageIndex + 1} of ${pages.length}).`); gotoPage(i); return `Opened ${pages[i].name} (page ${i + 1} of ${pages.length})`; }
-    if (s.startsWith('rename:')) { renamePage(pageIndex, s.slice(7)); return `This page is now called ${pages[pageIndex].name}`; }
-    if (Number.isInteger(n) && n >= 1) { if (!pages[n - 1]) throw new Error(`There are ${pages.length} pages: there is no page ${n}.`); gotoPage(n - 1); return `Opened ${pages[n - 1].name} (page ${n} of ${pages.length})`; }
-    throw new Error('Page can be add, duplicate, delete, next, previous, a page number, or rename:<name>.');
+    if (s === 'add') { gotoDocTab(docTab, true); return 'A new design opened in its own tab (the tabs along the top of the page)'; }
+    if (s === 'duplicate') { duplicateDocTab(); return 'The design was copied into a new tab'; }
+    if (s === 'delete') { closeDocTab(docTab); return 'This design tab is closing'; }
+    if (s === 'next' || s === 'previous') { const i = docTab + (s === 'next' ? 1 : -1); if (!docTabs[i]) throw new Error(`There is no ${s} tab (this is tab ${docTab + 1} of ${docTabs.length}).`); gotoDocTab(i); return `Opened tab ${i + 1}`; }
+    if (s.startsWith('rename:')) { const name = s.slice(7).trim(); if (!name) throw new Error('Give a name after rename:'); projects.rename(name); return `This design is now called ${name}`; }
+    if (Number.isInteger(n) && n >= 1) { if (!docTabs[n - 1]) throw new Error(`There are ${docTabs.length} tabs: there is no tab ${n}.`); gotoDocTab(n - 1); return `Opened tab ${n}`; }
+    throw new Error('Page can be add, duplicate, delete, next, previous, a tab number, or rename:<name>.');
   },
   /** A variable outline profile (optionally :width in mm) for the selected shapes and lines, or remove. */
   varline: (v) => {
@@ -7398,7 +7780,7 @@ window.artboard = {
   },
   setAssets: (list) => { for (const a of list ?? []) addAsset(a.src, a.name || 'Asset'); },
   addImage: ({ src, name }) => { addAsset(src, name || 'Image'); return addImage(src, name || 'Image'); },
-  load: (json) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)).then((r) => { compactNums(); syncProps(); return r; }); },
+  load: (json) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)).then(async (r) => { compactNums(); await splitPagesToTabs(); syncProps(); return r; }); },
   clear: () => ACTIONS.new(),
   toast: (text) => toast(String(text ?? '')),
   receive: (msg) => {
@@ -7441,6 +7823,8 @@ addEventListener('message', (e) => { if (e.source === window.parent && typeof e.
   }
   history = [snapshot()];
   syncHistory();
+  docTabsStart();
+  await splitPagesToTabs();
   fit();
   syncProps();
   setTool('select');

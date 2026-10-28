@@ -13,6 +13,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderDraftController;
 use App\Http\Controllers\OrderFileController;
 use App\Http\Controllers\PartnerApplicationController;
+use App\Http\Controllers\PresetController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SupportMessageController;
 use App\Http\Controllers\SupplierController;
@@ -22,9 +23,8 @@ use App\Services\OpenAiDesigner;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->middleware('throttle:api')->group(function () {
-    Route::get('/presets', fn () => response()->json(['data' => json_decode(
-        file_get_contents(public_path('media/presets.json')), true, 512, JSON_THROW_ON_ERROR,
-    )]));
+    // Preset designs (task 9.148): the 3DEEZI presets; the own ones and saving are under auth below.
+    Route::get('/presets', [PresetController::class, 'index']);
     Route::get('/catalog', fn () => response()->json(['data' => array_merge(
         config('catalog'),
         OpenAiDesigner::enabled()
@@ -52,6 +52,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
+        Route::get('/presets/mine', [PresetController::class, 'mine']);
+        Route::post('/presets', [PresetController::class, 'store'])->middleware('throttle:uploads');
+        Route::patch('/presets/{preset}', [PresetController::class, 'update'])->whereNumber('preset');
+        Route::delete('/presets/{preset}', [PresetController::class, 'destroy'])->whereNumber('preset');
         Route::patch('/auth/me', [AuthController::class, 'update'])->middleware('throttle:auth');
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/dashboard', [ProjectController::class, 'dashboard']);
@@ -170,6 +174,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::post('/suppliers/{supplier}/logo', [Admin\SupplierAdminController::class, 'uploadLogo'])->whereNumber('supplier')->name('suppliers.logo');
             Route::delete('/suppliers/{supplier}/logo', [Admin\SupplierAdminController::class, 'deleteLogo'])->whereNumber('supplier')->name('suppliers.logo.delete');
             Route::delete('/suppliers/{supplier}', [Admin\SupplierAdminController::class, 'destroy'])->whereNumber('supplier')->name('suppliers.destroy');
+            // Admin > Presets (task 9.148): the 3DEEZI presets.
+            Route::get('/presets', [Admin\PresetAdminController::class, 'index'])->name('presets');
+            Route::post('/presets/order', [Admin\PresetAdminController::class, 'reorder'])->name('presets.order');
+            Route::patch('/presets/{preset}', [Admin\PresetAdminController::class, 'update'])->whereNumber('preset')->name('presets.update');
+            Route::delete('/presets/{preset}', [Admin\PresetAdminController::class, 'destroy'])->whereNumber('preset')->name('presets.destroy');
             Route::apiResource('support-messages', Admin\SupportMessageController::class)->only(['index', 'update', 'destroy'])->whereNumber('support_message');
             Route::get('/settings', [Admin\SettingsController::class, 'show'])->name('settings');
             Route::put('/settings', [Admin\SettingsController::class, 'update'])->name('settings.update');

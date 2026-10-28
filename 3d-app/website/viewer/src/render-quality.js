@@ -133,7 +133,7 @@ function valueNoise(cells, seed) {
 // missing, as for hoodies and the track jacket).
 const FABRICS = {
   // Breathable eyelet mesh: holes about 4 mm apart in staggered rows, fine knit loops between.
-  mesh: { tile: 0.0336, scale: 0.9, cavity: 0.3, rough: 0.6, sheen: 0.48, sheenRough: 0.38, strength: 4, make: () => eyelets(8, 0.3) },
+  mesh: { tile: 0.0336, scale: 0.75, cavity: 0.22, rough: 0.6, sheen: 0.48, sheenRough: 0.38, strength: 4, make: () => eyelets(8, 0.3) },
   // Bird's-eye knit: the same, finer and with small holes.
   birdseye: { tile: 0.0224, scale: 0.75, cavity: 0.2, rough: 0.62, sheen: 0.5, sheenRough: 0.4, strength: 3.5, make: () => eyelets(8, 0.2) },
   // Piqué: small raised honeycomb cells.
@@ -144,7 +144,7 @@ const FABRICS = {
   knit: { tile: 0.02, scale: 0.4, cavity: 0, strength: 2.5, make: () => ({ height: (u, v) => 0.5 + 0.5 * Math.cos(2 * Math.PI * (u + v) * 12) ** 3 }) },
   // The fabric types (FABRIC_TYPES). Mesh: open hexagonal holes about 3.4 mm apart (half the fabric open), thin knitted
   // walls between them; the holes show the shade behind them. (tileV: the tile's height, 10 rows of the hexagons.)
-  airmesh: { tile: 0.0272, tileV: 0.0272 * (10 * Math.sqrt(3) / 2) / 8, scale: 0.95, cavity: 0.55, rough: 0.66, sheen: 0.4, sheenRough: 0.45, strength: 4.5, make: () => hexMesh(8, 10, 0.35) },
+  airmesh: { tile: 0.0272, tileV: 0.0272 * (10 * Math.sqrt(3) / 2) / 8, scale: 0.85, cavity: 0.42, rough: 0.66, sheen: 0.4, sheenRough: 0.45, strength: 4.5, make: () => hexMesh(8, 10, 0.35) },
   // Pro: a tight, smooth performance knit (fine wales under a millimetre apart, hardly any relief) with a satin sheen.
   pro: { tile: 0.024, scale: 0.32, cavity: 0, rough: 0.4, sheen: 0.9, sheenRough: 0.24, sheenColor: 0xd2dde8, strength: 2.5, make: () => microKnit(32, 26) },
   // Eco: a soft, matt cotton-feel knit of recycled yarn: knitted loops about 1.2 mm across, the yarn's slubs a few
@@ -300,7 +300,7 @@ export function dressFabric(group, part, knit, anisotropy, chosen) {
     if (f.sheenColor != null) m.sheenColor.setHex(f.sheenColor); else m.sheenColor.copy(was.sheenColor);
     let cavity = cavities.get(m);
     if (!cavity && f.cavity) {
-      // The holes' shade on the print (after the print's colour is read, before lighting).
+      // The holes' shade on the print, softer on light print (letters, numbers) so the dots don't sit over them (after the print's colour is read, before lighting).
       cavity = { value: f.cavity };
       cavities.set(m, cavity);
       const before = m.onBeforeCompile, key = m.customProgramCacheKey;
@@ -309,7 +309,7 @@ export function dressFabric(group, part, knit, anisotropy, chosen) {
         shader.uniforms.fabricCavity = cavity;
         shader.fragmentShader = shader.fragmentShader
           .replace('void main() {', 'uniform float fabricCavity;\nvoid main() {')
-          .replace('#include <map_fragment>', '#include <map_fragment>\n#ifdef USE_NORMALMAP\n\tdiffuseColor.rgb *= 1.0 - fabricCavity * ( 1.0 - texture2D( normalMap, vNormalMapUv ).a );\n#endif');
+          .replace('#include <map_fragment>', '#include <map_fragment>\n#ifdef USE_NORMALMAP\n\tdiffuseColor.rgb *= 1.0 - fabricCavity * ( 1.0 - 0.65 * smoothstep( 0.25, 0.85, dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) ) * ( 1.0 - texture2D( normalMap, vNormalMapUv ).a );\n#endif');
       };
       m.customProgramCacheKey = () => `${key.call(m)}|fabric-cavity`;
     }

@@ -54,7 +54,7 @@ export function trackColour(design: { main?: string; secondary?: string; accent?
     return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-40';
+const VIEWER_VERSION = '2026-10-20-50';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
@@ -70,7 +70,9 @@ export interface ArtworkLayer {
  * Where a fixed mark sits when it was moved, resized, turned or hidden on the 2D panels (default place otherwise).
  * Keys: top_wordmark, top_sponsor, top_crest, top_name, top_number, shorts_crest, shorts_number, shorts_wordmark.
  */
-export interface MarkPlace { side?: 'front' | 'back'; x?: number; y?: number; scale?: number; rot?: number; hidden?: boolean }
+export interface MarkPlace { side?: 'front' | 'back'; x?: number; y?: number; scale?: number; rot?: number; hidden?: boolean; /** The crest's badge shape (task 9.144). */ shape?: 'shield' | 'circle' | 'square' | 'rounded' | 'diamond'; /** A word's own colour (task 9.144). */ color?: string; /** How a word looks (task 9.146). */ look?: WordLookStyle }
+/** A word's look on the kit (task 9.146): viewer/src/wordart.js. */
+export interface WordLookStyle { style?: 'plain' | 'outline' | 'shadow' | 'extrude' | 'contour'; width?: number; color?: string; shape?: 'straight' | 'archUp' | 'archDown' | 'wave' | 'bridge' | 'slant'; spacing?: number }
 export interface GarmentPoint { hit: boolean; part?: 'top' | 'shorts'; side?: 'front' | 'back'; x?: number; y?: number; zone?: Zone; partKey?: PartKey | null }
 /**
  * A factory print layout on the kit: the file (one of the user's assets), each panel found in it named in the order
@@ -209,6 +211,10 @@ export interface KitViewerProps {
     /** Tap the kit to choose a part (the Parts panel, task 9.134): the viewer reports a short tap and lights the part. */
     partPick?: boolean;
     onPartPick?: (picked: PartPick) => void;
+    /** Select the crest, words and logos on the 3D kit and edit them there (task 9.144, the Studio). */
+    objectEdit?: boolean;
+    /** A word edited on the 3D kit: the design field (logoText, backName, number) and its new value. */
+    onMarkText?: (field: 'logoText' | 'backName' | 'number', value: string) => void;
 }
 /** A part chosen by a tap: its key (null on a piece that is not a part: a hood), the garment piece and where it was tapped. */
 export interface PartPick { partKey: PartKey | null; part: 'top' | 'shorts'; side?: 'front' | 'back'; x?: number; y?: number; slot?: ColourPick['slot'] }
@@ -239,7 +245,7 @@ async function downloadLayout(asset: number) {
 
 /** Hosts the same bundled Three.js garment renderer used by the mobile app. */
 export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function KitViewer(
-    { design, view = 'front', rotating = false, onReady, className = '', board = false, onLayers, onMarks, onSelection, onModal, onLayoutError, colourPick = false, onColourPick, partPick = false, onPartPick }, ref,
+    { design, view = 'front', rotating = false, onReady, className = '', board = false, onLayers, onMarks, onSelection, onModal, onLayoutError, colourPick = false, onColourPick, partPick = false, onPartPick, objectEdit = false, onMarkText }, ref,
 ) {
     const host = `website-kit-${useId().replace(/:/g, '')}`;
     const appBase = document.querySelector('meta[name="app-base"]')?.getAttribute('content')?.replace(/\/$/, '') || '';
@@ -269,6 +275,8 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     const colourPickMode = useRef(colourPick);
     const partPickCallback = useRef(onPartPick);
     const partPickMode = useRef(partPick);
+    const objectEditMode = useRef(objectEdit);
+    const markTextCallback = useRef(onMarkText);
     const requests = useRef(new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }>());
     const captureQueue = useRef<CaptureRequest[]>([]);
     const activeCapture = useRef<CaptureRequest | null>(null);
@@ -286,6 +294,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     selectionCallback.current = onSelection;
     colourPickCallback.current = onColourPick;
     partPickCallback.current = onPartPick;
+    markTextCallback.current = onMarkText;
 
     const send = useCallback((cmd: string, arg: unknown) => {
         iframe.current?.contentWindow?.postMessage(JSON.stringify({ cmd, arg }), window.location.origin);
@@ -398,6 +407,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             send('board', boardMode.current);
             send('colourPick', colourPickMode.current);
             send('partPick', partPickMode.current);
+            send('objectEdit', objectEditMode.current);
             send('setView', latestView.current.rotating ? '360°' : views[latestView.current.view]);
             flushRef.current();
             // The viewer completes its entrance animation after 1.6 s and sets
@@ -432,6 +442,8 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             if (message.type === 'colourPick' && message.hit && typeof message.slot === 'string') colourPickCallback.current?.({ slot: message.slot, area: message.area ?? null, zone: String(message.zone ?? ''), part: message.part, partKey: message.partKey ?? null });
             if (message.type === 'partPick' && message.hit) partPickCallback.current?.({ partKey: message.partKey ?? null, part: message.part ?? 'top', side: message.side, x: message.x, y: message.y, slot: message.slot });
             if (message.type === 'selection') selectionCallback.current?.(message.id || null);
+            const words = message as { field?: string; value?: unknown };
+            if (message.type === 'markText' && (words.field === 'logoText' || words.field === 'backName' || words.field === 'number') && typeof words.value === 'string') markTextCallback.current?.(words.field, words.value);
             if (message.id && requests.current.has(message.id)) {
                 const pending = requests.current.get(message.id)!; requests.current.delete(message.id); clearTimeout(pending.timeout);
                 if (message.error) pending.reject(new Error(message.error)); else pending.resolve(message.type === 'image' ? message.data : message);
@@ -483,6 +495,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     useEffect(() => { if (engineReady.current) send('board', board); }, [board, send]);
     useEffect(() => { colourPickMode.current = colourPick; if (engineReady.current) send('colourPick', colourPick); }, [colourPick, send]);
     useEffect(() => { partPickMode.current = partPick; if (engineReady.current) send('partPick', partPick); }, [partPick, send]);
+    useEffect(() => { objectEditMode.current = objectEdit; if (engineReady.current) send('objectEdit', objectEdit); }, [objectEdit, send]);
     useEffect(() => {
         if (engineReady.current) send('setView', rotating ? '360°' : views[view]);
     }, [view, rotating, send]);

@@ -201,7 +201,8 @@ export function ArtworkPanel({ design, edit, shelved = {}, viewer, selected, onS
     </div>;
 }
 
-type Preset = { id: string; name: string; description: string; design: Partial<Design> };
+/** A preset (task 9.148): a 3DEEZI preset (team) or the signed-in user's own (mine, key = its row for rename and delete). */
+type Preset = { id: string; key?: number; name: string; description: string; design: Partial<Design>; thumbnail?: string | null; team?: boolean; mine?: boolean; sport?: string | null; garment?: string | null };
 /** Area patterns as an object ({} for none, also for the [] an empty one becomes in PHP). */
 const areas = (value: unknown): NonNullable<Design['zones']> => value && typeof value === 'object' && !Array.isArray(value) ? value as NonNullable<Design['zones']> : {};
 type Tab = 'all' | 'mine' | 'favourites';
@@ -219,8 +220,13 @@ export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys
 export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, zoneColors: null, patternColorOwn: null, parts: null, fabric: null, ...d, zones: areas(d.zones) });
 
 /** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites); YOUR DESIGN first. */
-export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void; own?: OwnDesign | null; onOwn?: () => void; beforePreset?: () => Promise<void> }) {
+export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset, user, snapshot }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void; own?: OwnDesign | null; onOwn?: () => void; beforePreset?: () => Promise<void>; user?: { is_admin?: boolean; is_designer?: boolean } | null; snapshot?: () => Promise<string | null | undefined> }) {
     const [presets, setPresets] = useState<Preset[]>([]);
+    // MY PRESETS (task 9.148): the signed-in user's private presets, shown first; null while loading or signed out.
+    const [myPresets, setMyPresets] = useState<Preset[] | null>(null);
+    const [saving, setSaving] = useState(false);
+    const signedIn = !!getToken();
+    const staff = !!(user?.is_admin || user?.is_designer);
     const [mine, setMine] = useState<Project[] | null>(null);
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('');
@@ -228,6 +234,31 @@ export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }
     const [favourites, setFavourites] = useState<string[]>(readFavourites);
     const [attempt, setAttempt] = useState(0);
     useEffect(() => { let active = true; setError(''); api<Preset[]>('/presets').then(data => { if (active) setPresets(data); }).catch(e => { if (active) setError((e as Error).message); }); return () => { active = false; }; }, [attempt]);
+    useEffect(() => { if (!signedIn) { setMyPresets(null); return; } let active = true; api<Preset[]>('/presets/mine').then(data => { if (active) setMyPresets(data); }).catch(() => { if (active) setMyPresets([]); }); return () => { active = false; }; }, [signedIn, attempt]);
+    /** "Save as my preset" / "Save as 3DEEZI preset": the current design, a still of the kit and a name. */
+    async function savePreset(team: boolean) {
+        const name = window.prompt(team ? 'Name for this 3DEEZI preset (everyone sees it)' : 'Name for your preset (only you see it)', '')?.trim();
+        if (!name) return;
+        setSaving(true);
+        try {
+            let thumbnail: string | null | undefined = null;
+            try { thumbnail = await snapshot?.(); } catch { /* saved without a still */ }
+            const saved = await api<Preset>('/presets', { method: 'POST', body: JSON.stringify({ name, design, thumbnail: thumbnail || null, team }) });
+            if (team) setPresets(list => [...list, saved]); else setMyPresets(list => [saved, ...(list ?? [])]);
+            onNotice(team ? `${name} saved as a 3DEEZI preset: everyone sees it now.` : `${name} saved in My presets.`);
+        } catch (e) { onNotice((e as Error).message); } finally { setSaving(false); }
+    }
+    async function renamePreset(preset: Preset) {
+        const name = window.prompt('New name for this preset', preset.name)?.trim();
+        if (!name || name === preset.name || !preset.key) return;
+        try { const saved = await api<Preset>(`/presets/${preset.key}`, { method: 'PATCH', body: JSON.stringify({ name }) }); setMyPresets(list => (list ?? []).map(p => p.key === saved.key ? saved : p)); }
+        catch (e) { onNotice((e as Error).message); }
+    }
+    async function deletePreset(preset: Preset) {
+        if (!preset.key || !window.confirm(`Delete the preset "${preset.name}"?`)) return;
+        try { await api(`/presets/${preset.key}`, { method: 'DELETE' }); setMyPresets(list => (list ?? []).filter(p => p.key !== preset.key)); onNotice(`${preset.name} deleted.`); }
+        catch (e) { onNotice((e as Error).message); }
+    }
     useEffect(() => {
         if (tab !== 'mine' || mine || !getToken()) return;
         api<Project[]>('/projects').then(setMine).catch(() => setMine([]));
@@ -251,7 +282,16 @@ export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }
         try { localStorage.setItem(FAVOURITES, JSON.stringify(next)); } catch { /* private mode */ }
     }
     const q = filter.toLowerCase();
-    const shownPresets = presets.filter(p => (tab === 'all' || favourites.includes(p.id)) && `${p.name} ${p.description} ${p.design.pattern}`.toLowerCase().includes(q));
+    const shows = (p: Preset) => (tab === 'all' || favourites.includes(p.id)) && `${p.name} ${p.description} ${p.design.pattern}`.toLowerCase().includes(q);
+    const shownPresets = presets.filter(shows);
+    const shownMyPresets = (myPresets ?? []).filter(shows);
+    const thumbOf = (preset: Preset) => preset.thumbnail || (preset.team === false ? '' : media(`presets/${preset.id}.webp`));
+    const presetCard = (preset: Preset) => <div key={preset.id} className={`preset-card ${matches(preset) ? 'selected' : ''}`}>
+        <button className="preset-apply" onClick={() => apply(preset.name, preset.design)} title={preset.description || `Apply ${preset.name}`} aria-pressed={matches(preset)}>{thumbOf(preset) ? <img className="preset-thumb" src={thumbOf(preset)} alt="" loading="lazy" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${preset.design.main},${preset.design.secondary})` }} />}<strong>{preset.name}</strong><small>{preset.mine ? 'My preset' : preset.design.pattern}</small></button>
+        <button className={`preset-star ${favourites.includes(preset.id) ? 'on' : ''}`} onClick={() => toggleFavourite(preset.id)} aria-label={favourites.includes(preset.id) ? `Remove ${preset.name} from favourites` : `Add ${preset.name} to favourites`}><Star size={14} /></button>
+        {preset.mine && <span className="preset-own-actions"><button onClick={() => void renamePreset(preset)} aria-label={`Rename ${preset.name}`} title="Rename"><PenTool size={12} /></button><button onClick={() => void deletePreset(preset)} aria-label={`Delete ${preset.name}`} title="Delete"><Trash2 size={12} /></button></span>}
+        {matches(preset) && <Check className="preset-check" size={15} />}
+    </div>;
     const shownMine = (mine ?? []).filter(p => p.name.toLowerCase().includes(q));
     const ownOn = !!own && designSignature(own.design) === designSignature(design);
     const ownCard = own && tab !== 'favourites' && (!q || 'your design'.includes(q)) ? <div className={`preset-card own-design ${ownOn ? 'selected' : ''}`}>
@@ -261,6 +301,10 @@ export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }
     return <div className="studio-presets">
         <div className="preset-heading"><div><span className="eyebrow">READY TO USE</span><h2>Preset designs</h2></div><span>{presets.length}</span></div>
         <div className="preset-tabs" role="tablist">{([['all', 'All designs'], ['mine', 'My designs'], ['favourites', 'Favourites']] as const).map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>
+        <div className="preset-save">
+            {signedIn ? <button className="button button-secondary" disabled={saving} onClick={() => void savePreset(false)}>{saving ? <LoaderCircle size={14} className="spin" /> : <Plus size={14} />} Save as my preset</button> : <p className="muted">Sign in to save your own presets.</p>}
+            {signedIn && staff && <button className="button button-secondary" disabled={saving} onClick={() => void savePreset(true)}><Plus size={14} /> Save as 3DEEZI preset</button>}
+        </div>
         <label className="artwork-search"><Search size={14} /><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search designs" aria-label="Search designs" /></label>
         {tab === 'mine' ? (
             !getToken() ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted">Sign in to see your saved designs here.</p></>
@@ -269,12 +313,11 @@ export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset }
             : <div className="studio-preset-grid">{ownCard}{shownMine.map(p => <button key={p.id} onClick={() => apply(p.name, p.design)} title={`Apply the look of ${p.name}`}>{p.thumbnail ? <img className="preset-thumb" src={p.thumbnail} alt="" loading="lazy" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${p.design.main},${p.design.secondary})` }} />}<strong>{p.name}</strong><small>Version {p.version}</small></button>)}</div>
         ) : error ? <div><p className="error-message" role="alert">{error}</p><button className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Retry presets</button></div>
         : !presets.length ? <p className="muted"><LoaderCircle size={14} className="spin" /> Loading designs…</p>
-        : !shownPresets.length ? <p className="muted">{tab === 'favourites' ? 'Tap the star on any design to keep it here.' : 'No designs match your search.'}</p>
-        : <div className="studio-preset-grid">{ownCard}{shownPresets.map(preset => <div key={preset.id} className={`preset-card ${matches(preset) ? 'selected' : ''}`}>
-            <button className="preset-apply" onClick={() => apply(preset.name, preset.design)} title={preset.description} aria-pressed={matches(preset)}><img className="preset-thumb" src={media(`presets/${preset.id}.webp`)} alt="" loading="lazy" /><strong>{preset.name}</strong><small>{preset.design.pattern}</small></button>
-            <button className={`preset-star ${favourites.includes(preset.id) ? 'on' : ''}`} onClick={() => toggleFavourite(preset.id)} aria-label={favourites.includes(preset.id) ? `Remove ${preset.name} from favourites` : `Add ${preset.name} to favourites`}><Star size={14} /></button>
-            {matches(preset) && <Check className="preset-check" size={15} />}
-        </div>)}</div>}
+        : !shownPresets.length && !shownMyPresets.length ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted">{tab === 'favourites' ? 'Tap the star on any design to keep it here.' : 'No designs match your search.'}</p></>
+        : <>
+            {(ownCard || shownMyPresets.length > 0) && <>{shownMyPresets.length > 0 && <h4 className="preset-group">MY PRESETS</h4>}<div className="studio-preset-grid">{ownCard}{shownMyPresets.map(presetCard)}</div></>}
+            {shownPresets.length > 0 && <><h4 className="preset-group">3DEEZI PRESETS</h4><div className="studio-preset-grid">{shownPresets.map(presetCard)}</div></>}
+        </>}
         <p className="field-hint">Choose a complete colour and print combination, then make it yours.</p>
     </div>;
 }

@@ -238,7 +238,7 @@ function buildKit(kind) {
     const style = partKind === 'trackjacket' && trackHood ? SPECS.trackjacketHood : null;
     // Look 2: the drape and wrinkles of worn cloth (otherwise the garment as before).
     const garment = buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over ?? style, detail: LOOK2 });
-    const painter = new KitPainter(garment.frame, garment.outline, mobile ? 2048 : 4096, partKind);
+    const painter = new KitPainter(garment.frame, garment.outline, printSize(), partKind);
     if (own) painter.cut = layout.key;
     // The finished edges (the hem follows a leg's side split), the waistband's width and the places a print
     // layout's pieces are matched to.
@@ -447,6 +447,15 @@ function dressParts(built) {
 }
 
 /** The mannequin under each part (mannequin.js), and one stand from the lowest of them into the podium. */
+/**
+ * The print atlas's size: 4096 on computers; on phones 3072 when the graphics allow it (sharper lines and lettering;
+ * painted once, so frame time is the same), else 2048 as before.
+ */
+function printSize() {
+  if (!mobile) return 4096;
+  return renderer.capabilities.maxTextureSize >= 4096 && (navigator.deviceMemory ?? 4) >= 3 ? 3072 : 2048;
+}
+
 let mannequinMat = null;
 function dressMannequin(list) {
   mannequinMat ??= Object.assign(mannequinMaterial(), { userData: { keep: true } });
@@ -564,6 +573,7 @@ async function paintAll() {
   ringMat.color.set(design.secondary).multiplyScalar(4);
   pool.material.color.set(design.secondary);
   await board.refresh();
+  if (selected) { outlineSelected(); if (!dragObj) drawBar(); }
 }
 
 /** A design from the host (website or app). */
@@ -883,7 +893,7 @@ function colourAt(nx, ny) {
   // The part (task 9.134): the print's part there, the collar or waistband rib; none on the jackets' own trims.
   const partKey = piece === 'rim' ? (painter.partName === 'shorts' ? 'waistband' : 'collar') : piece === 'fabric' && at ? partAt(kind, zone, at.side, at.x, at.y) : null;
   const where = at ? { side: at.side, x: at.x, y: at.y } : {};
-  return { hit: true, ...result, zone: zone ?? (piece === 'rim' ? 'collar' : 'trim'), part: painter.partName, partKey, ...where, garment: design.garment, point: hit.point, normal: hit.face?.normal ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : null, object: hit.object, material: piece === 'fabric' ? null : mat, piece: part };
+  return { hit: true, ...result, pixel, zone: zone ?? (piece === 'rim' ? 'collar' : 'trim'), part: painter.partName, partKey, ...where, garment: design.garment, point: hit.point, normal: hit.face?.normal ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : null, object: hit.object, material: piece === 'fabric' ? null : mat, piece: part };
 }
 /** Whether the pattern where `zone` is, is a full-colour uploaded print (its own colours, not the kit's). */
 function fullPrintAt(painter, zone) {
@@ -919,6 +929,28 @@ function partGlow(piece, key, { hold = false } = {}) {
   else { mat.opacity = 0.75; gsap.to(mat, { opacity: 0, duration: 1, ease: 'power2.out', onComplete: () => { if (heldGlow?.piece !== piece) piece.glow.visible = false; } }); }
   return true;
 }
+/** The pattern's pixels (those near the tapped ink colour) flash. False when none is found. */
+function patternGlow(piece, ink) {
+  const src = piece.painter.canvas, W = Math.round(src.width / 4), H = Math.round(src.height / 4);
+  const m = document.createElement('canvas'); m.width = W; m.height = H;
+  const g = m.getContext('2d'); g.drawImage(src, 0, 0, W, H);
+  const img = g.getImageData(0, 0, W, H), d = img.data;
+  let n = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const on = Math.abs(d[i] - ink[0]) + Math.abs(d[i + 1] - ink[1]) + Math.abs(d[i + 2] - ink[2]) < 60;
+    d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = on ? 255 : 0; if (on) n++;
+  }
+  if (!n) return false;
+  g.putImageData(img, 0, 0);
+  const mat = piece.glow.material;
+  if (!mat.map) { mat.map = new THREE.CanvasTexture(m); mat.needsUpdate = true; } else mat.map.image = m;
+  mat.map.needsUpdate = true;
+  piece.glow.visible = true;
+  gsap.killTweensOf(mat);
+  mat.opacity = 0.75;
+  gsap.to(mat, { opacity: 0, duration: 1, ease: 'power2.out', onComplete: () => { if (heldGlow?.piece !== piece) piece.glow.visible = false; } });
+  return true;
+}
 /** The held glow goes out. */
 function clearGlow() {
   const held = heldGlow;
@@ -944,7 +976,9 @@ function glowPart(arg) {
   }
 }
 /** The tapped part glows briefly: the whole part (task 9.134), else a bright ring where it was tapped and a separate trim's own glow. */
-function glowAt({ point, normal, material, piece, partKey }) {
+function glowAt({ point, normal, material, piece, partKey, slot, pixel }) {
+  // A tap on the pattern (task 9.137): only the pattern's own pixels (the tapped ink colour) light up.
+  if ((slot === 'pattern' || slot === 'pattern-image') && pixel && piece && patternGlow(piece, pixel)) return;
   if (partKey && partGlow(piece, partKey)) return;
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.028, 0.044, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthTest: false, toneMapped: false, side: THREE.DoubleSide }));
   ring.renderOrder = 999;
@@ -988,6 +1022,311 @@ function dragHover(arg) {
   const where = pickAt(at.x, at.y);
   post({ type: 'dragHover', ...where, hit: where.hit !== false });
 }
+// ---------- objects on the 3D kit (task 9.144): tap the crest, a word, the name, the number or a logo to select it;
+// drag to move, pinch or the bar to resize, turn, change the crest's shape, edit the words, remove. A tap on an empty
+// chest spot offers "Add logo here" / "Add text here". The host turns it on (command objectEdit) in its Studio; the
+// changes reach it as the board's do ({type:'marks'} / {type:'layers'}), words as {type:'markText', field, value}.
+let objectEditing = false, selected = null, addSpot = null, hostImages = false, dragObj = null;
+const MARK_LABEL = { wordmark: 'Team name', sponsor: 'Sponsor', crest: 'Crest', name: 'Back name', number: 'Number' };
+const MARK_FIELD = { wordmark: 'logoText', name: 'backName', number: 'number' };
+const SHAPE_LABEL = { shield: 'Shield', circle: 'Circle', square: 'Square', rounded: 'Rounded', diamond: 'Diamond' };
+const pieceFor = (part) => parts.find((p) => p.painter.partName === part);
+/** Every object drawn on a piece: its layers (on top) first, then the fixed marks. */
+function objectsOn(painter) {
+  return [
+    ...[...(painter.layerBoxes ?? [])].reverse().map((b) => ({ ...b, kind: 'layer' })),
+    ...(painter.marks ?? []).map((m) => ({ ...m, kind: 'mark' })),
+  ];
+}
+function inBox(o, side, x, y, pad = 0.012) {
+  if (o.side !== side || !Number.isFinite(o.w) || !Number.isFinite(o.h)) return false;
+  const back = side === 'back', t = (-(o.rot ?? 0) * Math.PI) / 180;
+  const vx = (x - o.x) * (back ? -1 : 1), vy = -(y - o.y);
+  const lx = vx * Math.cos(t) - vy * Math.sin(t), ly = vx * Math.sin(t) + vy * Math.cos(t);
+  return Math.abs(lx) <= o.w / 2 + pad && Math.abs(ly) <= o.h / 2 + pad;
+}
+function objectAt(found) {
+  if (!found?.hit || !Number.isFinite(found.x) || !Number.isFinite(found.y)) return null;
+  const piece = pieceFor(found.part);
+  if (!piece) return null;
+  const hits = objectsOn(piece.painter).filter((o) => inBox(o, found.side, found.x, found.y));
+  // The smallest one under the finger (a logo on top of a big word).
+  hits.sort((a, b) => a.w * a.h - b.w * b.h);
+  const o = hits[0];
+  return o ? { part: found.part, kind: o.kind, key: o.key, id: o.id, name: o.name } : null;
+}
+/** The selected object as drawn now. */
+function selectedBox() {
+  if (!selected) return null;
+  const piece = pieceFor(selected.part);
+  return piece ? objectsOn(piece.painter).find((o) => o.kind === selected.kind && (o.kind === 'mark' ? o.key === selected.key : o.id === selected.id)) ?? null : null;
+}
+const layerOf = (id) => (design.layers ?? []).find((l) => l.id === id);
+function markOf(key) { design.marks = { ...(design.marks ?? {}) }; return (design.marks[key] = { ...(design.marks[key] ?? {}) }); }
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const turn = (r) => ((((r + 180) % 360) + 360) % 360) - 180;
+function sendObjects(kind) {
+  if (kind === 'mark') post({ type: 'marks', marks: design.marks ?? {} });
+  else post({ type: 'layers', layers: design.layers ?? [] });
+}
+/** Change the selected object: {x, y} | {scaleBy} | {scale} (marks: absolute; layers: times the base) | {rotBy} | {shape} | {color} | {text} | {remove}. */
+function changeSelected(change, final = true) {
+  const box = selectedBox();
+  if (!box) return;
+  if (selected.kind === 'mark') {
+    const o = markOf(selected.key);
+    if ('x' in change) { o.x = clamp(change.x, -1, 1); o.y = clamp(change.y, -0.5, 1.5); }
+    if (change.scaleBy) o.scale = clamp((o.scale ?? 1) * change.scaleBy, 0.1, 6);
+    if (change.scale) o.scale = clamp(change.scale, 0.1, 6);
+    if (change.rotBy) o.rot = turn((o.rot ?? box.rot ?? 0) + change.rotBy);
+    if (change.shape) o.shape = change.shape;
+    if (change.color) o.color = change.color;
+    if (change.remove) o.hidden = true;
+  } else {
+    design.layers = (design.layers ?? []).map((l) => ({ ...l }));
+    const l = layerOf(selected.id);
+    if (!l) return;
+    if ('x' in change) { l.x = clamp(change.x, -1, 1); l.y = clamp(change.y, -0.5, 1.5); }
+    if (change.scaleBy || change.scale) {
+      const b = change.scale ? selected.base ?? {} : {}, k = change.scaleBy ?? change.scale;
+      if (l.type === 'text') l.size = clamp((b.size ?? l.size ?? 0.06) * k, 0.005, 0.4);
+      else { l.w = clamp((b.w ?? l.w ?? 0.1) * k, 0.005, 1); if (l.h != null) l.h = clamp((b.h ?? l.h) * k, 0.005, 1); }
+    }
+    if (change.rotBy) l.rot = turn((l.rot ?? 0) + change.rotBy);
+    if (change.color) l.color = change.color;
+    if ('text' in change) l.text = String(change.text).slice(0, 120);
+    if (change.remove) design.layers = design.layers.filter((x) => x.id !== selected.id);
+  }
+  const kind = box.kind;
+  if (change.remove) select(null);
+  repaintSoon();
+  if (final) sendObjects(kind);
+}
+function setMarkText(name, value) {
+  const field = MARK_FIELD[name];
+  if (!field) return;
+  value = name === 'number' ? String(value).replace(/\D/g, '').slice(0, 3) : String(value).slice(0, 40);
+  design[field] = value;
+  repaintSoon();
+  post({ type: 'markText', field, value });
+}
+
+// The outline: the selected object's box drawn on the part's glow layer (it follows the kit's shape).
+function outlineSelected() {
+  const box = selectedBox();
+  if (!box) { if (selected && !dragObj) select(null); return; }
+  const piece = pieceFor(selected.part), P = piece.painter, q = 0.5;
+  const m = document.createElement('canvas'); m.width = Math.round(P.canvas.width * q); m.height = Math.round(P.canvas.height * q);
+  const g = m.getContext('2d'), c = P.toCanvas(box.side === 'back', box.x, box.y);
+  g.scale(q, q); g.translate(c.x, c.y); g.scale(c.s, c.s); g.rotate(((box.rot ?? 0) * Math.PI) / 180);
+  const pad = 0.008, w = box.w + 2 * pad, h = box.h + 2 * pad, px = 1 / (c.s * q);
+  g.strokeStyle = '#fff'; g.lineWidth = 3 * px; g.setLineDash([10 * px, 6 * px]);
+  g.strokeRect(-w / 2, -h / 2, w, h);
+  g.setLineDash([]); g.fillStyle = '#fff';
+  const hs = 10 * px;
+  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) g.fillRect((x * w) / 2 - hs / 2, (y * h) / 2 - hs / 2, hs, hs);
+  if (heldGlow && heldGlow.key !== 'object') clearGlow();
+  for (const p of parts) if (p !== piece && p.glow) p.glow.visible = false;
+  const mat = piece.glow.material;
+  if (!mat.map) { mat.map = new THREE.CanvasTexture(m); mat.needsUpdate = true; } else mat.map.image = m;
+  mat.map.needsUpdate = true;
+  piece.glow.visible = true;
+  gsap.killTweensOf(mat);
+  mat.opacity = 0.95;
+  heldGlow = { piece, key: 'object' };
+}
+function select(obj) {
+  selected = obj;
+  addSpot = null;
+  if (obj) outlineSelected();
+  else if (heldGlow?.key === 'object') clearGlow();
+  drawBar();
+  post({ type: 'objectSelected', on: !!obj, kind: obj?.kind ?? null, key: obj?.key ?? null, id: obj?.id ?? null });
+}
+
+// The small bar over the kit.
+const bar = document.createElement('div');
+bar.id = 'object-bar';
+bar.setAttribute('role', 'toolbar');
+const barCss = document.createElement('style');
+barCss.textContent = `#object-bar{position:fixed;left:50%;top:52px;transform:translateX(-50%);z-index:30;display:none;flex-direction:column;gap:6px;align-items:stretch;width:max-content;max-width:calc(100vw - 16px);box-sizing:border-box;padding:8px 10px;border-radius:14px;background:rgba(14,18,26,.92);color:#fff;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+#object-bar.on{display:flex}#object-bar b{margin-right:2px}#object-bar button{min-height:34px;min-width:34px;padding:0 10px;border:1px solid rgba(255,255,255,.25);border-radius:9px;background:rgba(255,255,255,.08);color:#fff;font:inherit;cursor:pointer}
+#object-bar button:hover{background:rgba(255,255,255,.18)}#object-bar button[aria-pressed=true]{background:#2fd0e0;color:#071018;border-color:#2fd0e0}#object-bar button.danger{border-color:#ff7a7a;color:#ffb3b3}
+#object-bar input[type=range]{width:100px}#object-bar input[type=text]{width:130px;min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:#0b0f16;color:#fff;padding:0 8px;font:inherit}
+#object-bar input[type=color]{width:36px;height:32px;border:0;background:none;padding:0}#object-bar .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center;max-width:100%}
+@media (max-width:640px){#object-bar{left:8px;right:8px;transform:none;width:auto;top:auto;bottom:72px;padding:6px}#object-bar button{min-height:36px;padding:0 8px}#object-bar input[type=range]{width:80px}}`;
+document.head.append(barCss);
+document.body.append(bar);
+for (const t of ['pointerdown', 'pointerup', 'click', 'wheel', 'touchstart']) bar.addEventListener(t, (e) => e.stopPropagation());
+function el(tag, props = {}, ...kids) { const e = document.createElement(tag); for (const [k, v] of Object.entries(props)) { if (k.startsWith('aria') || k === 'title' || k === 'role') e.setAttribute(k === 'ariaLabel' ? 'aria-label' : k === 'ariaPressed' ? 'aria-pressed' : k, v); else e[k] = v; } e.append(...kids); return e; }
+function btn(label, onclick, extra = {}) { return el('button', { type: 'button', textContent: label, onclick, ...extra }); }
+function drawBar() {
+  bar.replaceChildren();
+  if (addSpot) {
+    bar.append(el('div', { className: 'row' }, el('b', { textContent: 'Empty spot' }),
+      btn('Add logo here', () => addHere('logo')),
+      btn('Add text here', () => addHere('text')),
+      btn('Upload picture here', () => addHere('upload')),
+      btn('✕', () => { addSpot = null; drawBar(); }, { ariaLabel: 'Close', title: 'Close' })));
+    bar.classList.add('on');
+    return;
+  }
+  const box = selectedBox();
+  if (!selected || !box) { bar.classList.remove('on'); return; }
+  const l = selected.kind === 'layer' ? layerOf(selected.id) : null;
+  const name = selected.kind === 'mark' ? MARK_LABEL[selected.name] ?? selected.name : l?.type === 'text' ? 'Text' : l?.name || 'Logo';
+  const size = el('input', { type: 'range', min: '0.3', max: '3', step: '0.05', title: 'Size', ariaLabel: 'Size' });
+  if (selected.kind === 'mark') size.value = String(design.marks?.[selected.key]?.scale ?? 1);
+  else { size.value = '1'; selected.base = { size: l?.size, w: l?.w, h: l?.h }; }
+  size.oninput = () => changeSelected({ scale: Number(size.value) }, false);
+  size.onchange = () => sendObjects(selected.kind);
+  bar.append(el('div', { className: 'row' }, el('b', { textContent: name }),
+    btn('−', () => changeSelected({ scaleBy: 1 / 1.12 }), { title: 'Smaller', ariaLabel: 'Smaller' }), size,
+    btn('+', () => changeSelected({ scaleBy: 1.12 }), { title: 'Bigger', ariaLabel: 'Bigger' }),
+    btn('⟲', () => changeSelected({ rotBy: -15 }), { title: 'Turn left', ariaLabel: 'Turn left' }),
+    btn('⟳', () => changeSelected({ rotBy: 15 }), { title: 'Turn right', ariaLabel: 'Turn right' }),
+    btn('Remove', () => changeSelected({ remove: true }), { className: 'danger' }),
+    btn('Done', () => select(null))));
+  if (selected.kind === 'mark' && selected.name === 'crest') {
+    const now = design.marks?.[selected.key]?.shape ?? 'shield';
+    bar.append(el('div', { className: 'row' }, el('span', { textContent: 'Shape' }),
+      ...Object.entries(SHAPE_LABEL).map(([k, v]) => btn(v, () => { changeSelected({ shape: k }); setTimeout(drawBar, 0); }, { ariaPressed: String(now === k) })),
+      btn('Copy to other chest', () => copyCrest(box))));
+  }
+  const text = selected.kind === 'mark' ? (MARK_FIELD[selected.name] ? String(design[MARK_FIELD[selected.name]] ?? '') : null) : l?.type === 'text' ? String(l.text ?? '') : null;
+  if (text !== null || l?.type === 'shape') {
+    const row = el('div', { className: 'row' });
+    if (text !== null) {
+      const input = el('input', { type: 'text', value: text, ariaLabel: 'Words', maxLength: selected.name === 'number' ? 3 : 40 });
+      input.oninput = () => (selected.kind === 'mark' ? setMarkText(selected.name, input.value) : changeSelected({ text: input.value }, false));
+      input.onchange = () => { if (selected?.kind === 'layer') sendObjects('layer'); };
+      input.addEventListener('keydown', (e) => e.stopPropagation());
+      row.append(el('span', { textContent: 'Words' }), input);
+    }
+    const now = selected.kind === 'mark' ? design.marks?.[selected.key]?.color ?? design.accent : l?.color ?? design.accent;
+    const colour = el('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(now ?? '') ? now : '#ffffff', ariaLabel: 'Colour', title: 'Colour' });
+    colour.oninput = () => changeSelected({ color: colour.value }, false);
+    colour.onchange = () => sendObjects(selected.kind);
+    row.append(el('span', { textContent: 'Colour' }), colour);
+    bar.append(row);
+  }
+  bar.classList.add('on');
+}
+const newId = (what) => `kit-${what}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+function addLayer(layer) {
+  design.layers = [...(design.layers ?? []), layer];
+  post({ type: 'layers', layers: design.layers });
+  addSpot = null;
+  selected = { part: layer.part, kind: 'layer', id: layer.id };
+  repaintSoon();
+}
+/** The club's logo, or the 3DEEZI shield drawn as a picture (a copy of the crest elsewhere is an ordinary logo layer). */
+function crestPicture() {
+  if (design.logoImage) return design.logoImage;
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), k = 256 / 0.074;
+  g.translate(128, 128); g.scale(k, k);
+  const pts = [[0, 0.034], [0.028, 0.018], [0.022, -0.02], [0, -0.036], [-0.022, -0.02], [-0.028, 0.018]];
+  g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, -y) : g.moveTo(x, -y))); g.closePath();
+  g.fillStyle = design.accent; g.fill();
+  g.fillStyle = design.main; g.font = '700 0.03px Rajdhani, Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('3D', 0, 0.002);
+  return c.toDataURL('image/png');
+}
+function copyCrest(box) {
+  addLayer({ id: newId('logo'), name: 'Crest copy', type: 'image', part: selected.part, side: box.side, x: clamp(-box.x, -1, 1), y: box.y, w: clamp(Math.max(box.w, 0.03), 0.005, 1), rot: 0, src: crestPicture() });
+}
+async function addHere(what) {
+  const at = addSpot;
+  if (!at) return;
+  const base = { part: at.part, side: at.side, x: at.x, y: at.y, rot: 0 };
+  if (what === 'text') return addLayer({ ...base, id: newId('text'), name: 'Text', type: 'text', text: 'TEXT', size: 0.035, color: design.accent });
+  if (what === 'logo') return addLayer({ ...base, id: newId('logo'), name: 'Logo', type: 'image', w: 0.07, src: crestPicture() });
+  const id = newId('img');
+  const got = await choosePicture(id);
+  if (!got) return;
+  const data = await processImage(got, { maxSize: 600 }).catch(() => null);
+  if (data) addLayer({ ...base, id, name: 'Logo', type: 'image', w: 0.07, src: data });
+}
+const pictureWaits = new Map();
+/** A picture from the device: the app's own picker (feature images), else a file input here. */
+function choosePicture(id) {
+  if (hostImages) return new Promise((resolve) => { pictureWaits.set(id, resolve); post({ type: 'wantImage', id }); });
+  return new Promise((resolve) => {
+    const input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp' });
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (!f) return resolve(null);
+      const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => resolve(null); r.readAsDataURL(f);
+    };
+    input.click();
+  });
+}
+function imageChosen({ id, data } = {}) { const w = pictureWaits.get(id); pictureWaits.delete(id); w?.(typeof data === 'string' && data ? data : null); }
+/** An empty spot on either chest (where a crest sits), on the front of a top. */
+function chestSpot(found) {
+  if (!found?.hit || found.part !== 'top' || found.side !== 'front') return false;
+  const crest = (pieceFor('top')?.painter.marks ?? []).find((m) => m.name === 'crest')?.def ?? { x: 0.105, y: 0.6 };
+  return Math.abs(Math.abs(found.x) - Math.abs(crest.x)) < 0.07 && Math.abs(found.y - crest.y) < 0.07;
+}
+/** A tap (task 9.144): an object wins over a part or colour tap. True when the tap was taken. */
+function objectTap(nx, ny) {
+  if (!objectEditing || board.visible) return false;
+  const found = pickAt(nx, ny);
+  const obj = objectAt(found);
+  if (obj) { select(obj); return true; }
+  if (selected) select(null);
+  if (chestSpot(found)) { addSpot = { part: found.part, side: found.side, x: found.x, y: found.y }; drawBar(); }
+  else if (addSpot) { addSpot = null; drawBar(); }
+  return false;
+}
+// Drag the selected object; a second finger resizes it (pinch).
+const fingers = new Map();
+const norm = (e) => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
+const scaleNow = () => (selected?.kind === 'mark' ? design.marks?.[selected.key]?.scale ?? 1 : 1);
+canvas.addEventListener('pointerdown', (e) => {
+  if (!objectEditing || !selected || board.visible) return;
+  if (dragObj) {
+    fingers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (fingers.size === 2) {
+      const [a, b] = [...fingers.values()], l = layerOf(selected.id);
+      dragObj.pinch = { d0: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, s0: scaleNow() };
+      if (l) selected.base = { size: l.size, w: l.w, h: l.h };
+    }
+    e.stopImmediatePropagation(); e.preventDefault(); return;
+  }
+  const found = pickAt(...norm(e)), obj = objectAt(found), box = selectedBox();
+  if (!obj || !box || obj.kind !== selected.kind || (obj.key ?? obj.id) !== (selected.key ?? selected.id)) return;
+  fingers.clear(); fingers.set(e.pointerId, [e.clientX, e.clientY]);
+  dragObj = { dx: box.x - found.x, dy: box.y - found.y, side: found.side, moved: false };
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* fine */ }
+  e.stopImmediatePropagation(); e.preventDefault();
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!dragObj) return;
+  e.stopImmediatePropagation();
+  if (fingers.has(e.pointerId)) fingers.set(e.pointerId, [e.clientX, e.clientY]);
+  if (dragObj.pinch && fingers.size >= 2) {
+    const [a, b] = [...fingers.values()], k = Math.hypot(a[0] - b[0], a[1] - b[1]) / dragObj.pinch.d0;
+    changeSelected({ scale: selected.kind === 'mark' ? dragObj.pinch.s0 * k : k }, false);
+    dragObj.moved = true; return;
+  }
+  const at = pickAt(...norm(e));
+  if (!at.hit || at.part !== selected.part || at.side !== dragObj.side) return;
+  dragObj.moved = true;
+  changeSelected({ x: at.x + dragObj.dx, y: at.y + dragObj.dy }, false);
+}, true);
+const endDrag = (e) => {
+  if (!dragObj) return;
+  fingers.delete(e.pointerId);
+  e.stopImmediatePropagation();
+  if (fingers.size) { dragObj.pinch = null; return; }
+  const moved = dragObj.moved;
+  dragObj = null;
+  if (moved) { sendObjects(selected.kind); drawBar(); }
+};
+canvas.addEventListener('pointerup', endDrag, true);
+canvas.addEventListener('pointercancel', endDrag, true);
 let tapDown = null;
 // Only a press that starts and ends on the 3D canvas itself (the main button, one finger) counts as a tap.
 canvas.addEventListener('pointerdown', (e) => { tapDown = e.isPrimary && e.button === 0 && e.target === canvas ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; });
@@ -995,12 +1334,22 @@ canvas.addEventListener('pointercancel', () => { tapDown = null; });
 canvas.addEventListener('pointerup', (e) => {
   const down = tapDown;
   tapDown = null;
-  if (!(colourPicking || partPicking) || !down || e.target !== canvas || performance.now() - down.t > 300 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+  if (!down || e.target !== canvas || performance.now() - down.t > 300 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+  // An object on the kit (task 9.144) wins over a part or colour tap.
+  { const r0 = canvas.getBoundingClientRect(); if (objectTap((e.clientX - r0.left) / r0.width, (e.clientY - r0.top) / r0.height)) { setTimeout(() => { clearTimeout(idle); controls.autoRotate = false; }, 0); return; } }
+  if (!(colourPicking || partPicking)) return;
   // A colour tap is not a turn: the kit stays where it is (no idle auto-turn 6 s later, which made the host's
   // Front / Back / Side buttons seem dead when that view was already chosen).
   setTimeout(() => { clearTimeout(idle); controls.autoRotate = false; }, 0);
   const r = canvas.getBoundingClientRect();
-  const found = colourAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  let found = colourAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  // A finger on a thin pattern stripe often lands just beside it: a pattern within ~8 px wins (task 9.137).
+  if (found.hit && found.slot !== 'pattern' && found.slot !== 'pattern-image') {
+    near: for (const d of [4, 8]) for (const [dx, dy] of [[0, d], [0, -d], [d, 0], [-d, 0], [d, d], [-d, -d], [d, -d], [-d, d]]) {
+      const m = colourAt((e.clientX + dx - r.left) / r.width, (e.clientY + dy - r.top) / r.height);
+      if (m.hit && (m.slot === 'pattern' || m.slot === 'pattern-image') && m.part === found.part) { found = m; break near; }
+    }
+  }
   if (!found.hit) {
     if (colourPicking) post({ type: 'colourPick', hit: false });
     if (partPicking) post({ type: 'partPick', hit: false });
@@ -1261,6 +1610,10 @@ window.viewer = {
   colourPick: (on) => { colourPicking = !!on; },
   /** Tap the kit to choose a part (task 9.134): a short tap posts {type:'partPick', hit, partKey, part, side, x, y, zone, slot, area} and lights the whole part. */
   partPick: (on) => { partPicking = !!on; },
+  /** Objects on the 3D kit (task 9.144): on in the host's Studio (a tap selects the crest, words, logos). */
+  objectEdit: (on) => { objectEditing = !!on; if (!on) { addSpot = null; if (selected) select(null); else drawBar(); } },
+  /** The app's answer to {type:'wantImage', id}: {id, data} (a data URL, or null when cancelled). */
+  imageChosen,
   /** Lights up a whole part: {part: 'top' | 'shorts', key, hold?} (hold: until glowPart null). */
   glowPart,
   /** Drag to kit: {x, y} normalised glows the part there and posts {type:'dragHover', hit, part, side, x, y, zone}; null clears it. */
@@ -1289,7 +1642,7 @@ window.viewer = {
   /** {asset, src | error}: the file the viewer asked for (layoutWanted). */
   layoutFile,
   /** What the host can do: {layouts: true} = it answers layoutWanted. */
-  features: (what = {}) => { if (what?.layouts) hostLayouts = true; },
+  features: (what = {}) => { if (what?.layouts) hostLayouts = true; if (what?.images) hostImages = true; },
   /** The design board's items and zoom (read only, for automated checks; not a host command). */
   boardItems: () => board.inspect(),
   captureBoard: async ({ id } = {}) => {
@@ -1300,7 +1653,7 @@ window.viewer = {
   receive: (msg) => {
     try {
       const m = typeof msg === 'string' ? JSON.parse(msg) : msg;
-      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features', 'colourPick', 'dragHover', 'partPick', 'glowPart'];
+      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features', 'colourPick', 'dragHover', 'partPick', 'glowPart', 'objectEdit', 'imageChosen'];
       if (m && allowed.includes(m.cmd)) Promise.resolve(window.viewer[m.cmd](m.arg)).catch((error) => post({ type: 'error', command: m.cmd, message: error.message }));
     } catch (error) { post({ type: 'error', message: error.message }); }
   },

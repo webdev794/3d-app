@@ -330,3 +330,8 @@
 .part-add-logo{display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
 .part-link{display:inline-flex;align-items:center;gap:4px;margin:0 0 10px;padding:0;border:0;background:none;color:var(--cyan);font-size:12px}
 .part-link:hover{text-decoration:underline}
+
+/* Presets (task 9.148): save buttons, the My presets / 3DEEZI presets headings, rename and delete on my presets. */
+.preset-save{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.preset-save .button{font-size:11px;padding:7px 10px;display:inline-flex;align-items:center;gap:5px}.preset-save .muted{margin:0;font-size:12px}
+.preset-group{font-size:10px;letter-spacing:.18em;color:#70e7ed;margin:12px 0 8px}
+.preset-card{position:relative}.preset-own-actions{position:absolute;left:4px;top:4px;display:flex;gap:3px}.preset-own-actions button{width:24px;height:24px;display:grid;place-items:center;border-radius:6px;border:1px solid #244454;background:#050e18e6;color:#cfe;cursor:pointer;padding:0}

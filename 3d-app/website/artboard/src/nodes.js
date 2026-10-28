@@ -16,6 +16,8 @@ const len = (v) => Math.hypot(v.x, v.y);
 export function createNodeEditor(cfg) {
   const { canvas } = cfg;
   let target = null, model = null, sel = new Set(), drag = null, marquee = null;
+  // Pick mode (Pick tool on a curve, as in CorelDRAW): every control point shows, on dashed lines.
+  let pickMode = false;
 
   const vpt = () => canvas.viewportTransform;
   const toScreen = (p) => ({ x: p.x * vpt()[0] + vpt()[4], y: p.y * vpt()[3] + vpt()[5] });
@@ -67,6 +69,13 @@ export function createNodeEditor(cfg) {
   // -----------------------------------------------------------------
   function visibleHandles() {
     const out = [];
+    if (pickMode && model) {
+      model.forEach((sp, s) => sp.nodes.forEach((nd, n) => {
+        if (nd.hi) out.push({ s, n, which: 'hi', p: nd.hi, from: nd });
+        if (nd.ho) out.push({ s, n, which: 'ho', p: nd.ho, from: nd });
+      }));
+      return out;
+    }
     for (const k of sel) {
       const [s, n] = unkey(k), sp = model[s], nd = sp?.nodes[n];
       if (!nd) continue;
@@ -101,9 +110,9 @@ export function createNodeEditor(cfg) {
   // -----------------------------------------------------------------
   function down(p, e) {
     if (!target) { const o = cfg.objectAt(p); if (o) start(o); return; }
-    const h = hitHandle(p);
+    // Pick mode shows every control point, so a node wins over a control point lying on it.
+    const n = hitNode(p), h = pickMode && n ? null : hitHandle(p);
     if (h) { drag = { kind: 'handle', ...h }; return; }
-    const n = hitNode(p);
     if (n) {
       const k = key(n.s, n.n);
       if (e.shiftKey) { if (sel.has(k)) sel.delete(k); else sel.add(k); }
@@ -142,6 +151,21 @@ export function createNodeEditor(cfg) {
     drag.moved = true;
     model = cloneModel(drag.orig);
     if (drag.kind === 'nodes') {
+      // One end node of an open curve dragged near another end node (this curve's other end or another curve's):
+      // it snaps there and the connect pointer shows; releasing joins them (task 9.140b).
+      drag.connect = null;
+      if (sel.size === 1 && cfg.connect) {
+        const [s0, n0] = unkey([...sel][0]), sp0 = drag.orig[s0];
+        if (sp0 && !sp0.closed && (n0 === 0 || n0 === sp0.nodes.length - 1) && sp0.nodes.length > 1) {
+          const nd0 = sp0.nodes[n0], want = { x: nd0.x + dx, y: nd0.y + dy };
+          const own = sp0.nodes.length > 2 ? [n0 === 0 ? sp0.nodes.at(-1) : sp0.nodes[0]] : [];
+          const hit = cfg.connect(want, target, own);
+          if (hit) { drag.connect = hit; return moveBy(hit.x - nd0.x, hit.y - nd0.y); }
+        }
+      } else cfg.connect?.(null);
+      return moveBy(dx, dy);
+    }
+    function moveBy(dx, dy) {
       for (const k of sel) {
         const nd = nodeAt(k);
         if (!nd) continue;
@@ -149,7 +173,9 @@ export function createNodeEditor(cfg) {
         if (nd.hi) { nd.hi.x += dx; nd.hi.y += dy; }
         if (nd.ho) { nd.ho.x += dx; nd.ho.y += dy; }
       }
-    } else if (drag.kind === 'segment') {
+      write();
+    }
+    if (drag.kind === 'segment') {
       // Reshape the curve so the grabbed point follows the pointer.
       const sp = model[drag.s], [a, b] = segEnds(sp, drag.i);
       if (!a.ho && !b.hi) { a.ho = lerp(a, b, 1 / 3); b.hi = lerp(a, b, 2 / 3); }
@@ -182,7 +208,11 @@ export function createNodeEditor(cfg) {
     }
     // A click (no drag) on one of several selected nodes picks just that node, as in CorelDRAW; dragging moves them all.
     if (drag?.kind === 'nodes' && !drag.moved && !drag.shift && sel.size > 1) { sel = new Set([drag.key]); cfg.changed?.(); canvas.requestRenderAll(); }
-    if (drag) { const moved = drag.kind === 'handle' || drag.moved; drag = null; if (moved) commit(); }
+    if (drag) {
+      const moved = drag.kind === 'handle' || drag.moved, joinNow = drag.connect && cfg.join;
+      drag = null; cfg.connect?.(null);
+      if (moved) { if (joinNow) { cfg.join(target); refresh(); cfg.changed?.(); } else commit(); } // the join is one Undo step
+    }
   }
   function dblclick(p) {
     if (!target) return;
@@ -475,7 +505,9 @@ export function createNodeEditor(cfg) {
     ctx.lineWidth = 1; ctx.strokeStyle = '#7B4DFF'; ctx.fillStyle = '#7B4DFF';
     for (const h of visibleHandles()) {
       const a = toScreen(h.from), b = toScreen(h.p);
+      ctx.setLineDash(pickMode ? [4, 3] : []);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(b.x, b.y, 3.5, 0, Math.PI * 2); ctx.fill();
     }
     // Nodes: squares (cusp) and circles (smooth); selected ones filled.
@@ -498,6 +530,11 @@ export function createNodeEditor(cfg) {
     start, end, refresh, down, move, up, dblclick, op, nudge, draw,
     brushDown, brushStep, brushUp,
     get target() { return target; },
+    get pickMode() { return pickMode; },
+    set pickMode(v) { pickMode = !!v; },
+    get dragging() { return !!drag; },
+    /** A node or control point under a page point (the Pick tool grabs these, the rest of the curve moves it). */
+    hitPoint(p) { return !!(target && model && (hitHandle(p) || hitNode(p))); },
     get selectedCount() { return sel.size; },
     get nodeCount() { return model ? model.reduce((a, s) => a + s.nodes.length, 0) : 0; },
     selectedType() { const t = [...sel].map((k) => nodeAt(k)?.type).filter(Boolean); return t.length && t.every((x) => x === t[0]) ? t[0] : null; },

@@ -29,14 +29,15 @@ export function createStudio(scene, renderer, mobile, quality = null) {
   // Photographic garment lighting: neutral key and fill, soft cool rims for separation. The tiers light it as a
   // stadium at night: a warm key, little fill, strong cool floodlights behind that trace the edges and the sheen.
   const key = new THREE.DirectionalLight(q ? 0xffe4c8 : 0xfff6ec, q ? 2.75 : 2.3);
-  key.position.set(-2, 2.4, 1.9);
+  // The tiers: the key a little more from the side, so the folds and drape cast soft shade (2026-10-28).
+  if (q) key.position.set(-2.5, 2.3, 1.45); else key.position.set(-2, 2.4, 1.9);
   key.castShadow = true;
   key.shadow.mapSize.set(q?.shadowSize ?? 1024, q?.shadowSize ?? 1024);
   Object.assign(key.shadow.camera, { left: -1.2, right: 1.2, top: 1.6, bottom: -.9, near: .1, far: 8 });
   key.shadow.bias = -.0002;
   key.shadow.normalBias = .008;
   if (q) key.shadow.radius = q.shadowRadius;
-  const fill = new THREE.DirectionalLight(q ? 0xc8dcf0 : 0xdce8f4, q ? .3 : .45);
+  const fill = new THREE.DirectionalLight(q ? 0xc8dcf0 : 0xdce8f4, q ? .24 : .45);
   fill.position.set(1.6, .9, 2);
   // Cool stadium floodlights, high behind the kit: they trace the edges and the fabric's sheen.
   const rimR = new THREE.DirectionalLight(q ? 0xa6d8ff : 0xbfe3ff, q ? 2.7 : 1.6);

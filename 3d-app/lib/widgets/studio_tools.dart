@@ -1324,9 +1324,254 @@ class StudioPresetsTool extends StatefulWidget {
 /// "Preset designs": ready-made looks (All), the user's saved kits (My
 /// designs) and starred presets (Favourites), as on the website.
 class _StudioPresetsToolState extends State<StudioPresetsTool> {
-  late final _presets = rootBundle
+  /// The bundled presets (pictures in assets/images/presets): the 3DEEZI
+  /// presets offline, and which ones have a bundled picture.
+  late final _bundled = rootBundle
       .loadString('assets/presets.json')
       .then((text) => jsonDecode(text) as List);
+
+  /// The 3DEEZI presets from the server (task 9.148), else the bundled ones.
+  late final Future<List> _presets = _loadTeam();
+
+  /// MY PRESETS: the signed-in user's private presets (null: not loaded).
+  List<Map<String, dynamic>>? _mine;
+  Set<String> _bundledIds = {};
+  bool _saving = false;
+
+  Future<List> _loadTeam() async {
+    final bundled = await _bundled;
+    _bundledIds = {for (final p in bundled.cast<Map>()) '${p['id']}'};
+    try {
+      if (c.api.configured) {
+        final remote = await c.api.presets();
+        if (remote.isNotEmpty) return remote;
+      }
+    } on Object {
+      // Offline: the bundled presets.
+    }
+    return bundled;
+  }
+
+  Future<void> _loadMine() async {
+    if (!c.signedIn) return;
+    try {
+      final mine = await c.api.myPresets();
+      if (mounted) setState(() => _mine = mine);
+    } on Object {
+      if (mounted) setState(() => _mine = const []);
+    }
+  }
+
+  Future<String?> _askName(String title, String initial) {
+    final field = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: field,
+          autofocus: true,
+          maxLength: 120,
+          decoration: const InputDecoration(hintText: 'Preset name'),
+          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, field.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).whenComplete(field.dispose);
+  }
+
+  /// "Save as my preset": the current design, a 3D still and a name; only
+  /// this user sees it.
+  Future<void> _saveMine() async {
+    final name = await _askName('Save as my preset', '');
+    if (name == null || name.isEmpty || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      Uint8List? still;
+      try {
+        still = await c.captureMockup?.call('Front');
+      } on Object {
+        // Saved without a still.
+      }
+      final design = ProjectSync.toServer(
+        Project(
+          title: name,
+          sport: c.sport,
+          garment: c.garment,
+          mode: c.mode,
+          kit: c.kit,
+          updated: DateTime.now(),
+        ),
+      )['design'];
+      final saved = await c.api.savePreset({
+        'name': name,
+        'design': design,
+        'thumbnail': ProjectSync.dataUrl(still),
+      });
+      if (!mounted) return;
+      setState(() => _mine = [saved, ...?_mine]);
+      showToast(context, '$name saved in My presets.');
+    } on Object catch (e) {
+      if (mounted) showToast(context, '$e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _renameMine(Map<String, dynamic> preset) async {
+    final name = await _askName('Rename preset', '${preset['name']}');
+    if (name == null || name.isEmpty || name == preset['name']) return;
+    try {
+      final saved = await c.api.renamePreset(preset['key'] as int, name);
+      if (mounted) {
+        setState(
+          () => _mine = [
+            for (final p in _mine ?? <Map<String, dynamic>>[])
+              p['key'] == saved['key'] ? saved : p,
+          ],
+        );
+      }
+    } on Object catch (e) {
+      if (mounted) showToast(context, '$e');
+    }
+  }
+
+  Future<void> _deleteMine(Map<String, dynamic> preset) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete preset?'),
+        content: Text('Delete "${preset['name']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await c.api.deletePreset(preset['key'] as int);
+      if (!mounted) return;
+      setState(
+        () => _mine = [
+          for (final p in _mine ?? <Map<String, dynamic>>[])
+            if (p['key'] != preset['key']) p,
+        ],
+      );
+      showToast(context, '${preset['name']} deleted.');
+    } on Object catch (e) {
+      if (mounted) showToast(context, '$e');
+    }
+  }
+
+  /// A preset's picture: the bundled one, the saved still, or its colours.
+  Widget _presetImage(Map preset) {
+    final id = '${preset['id']}';
+    final thumb = preset['thumbnail'];
+    if (_bundledIds.contains(id)) {
+      return Image.asset('assets/images/presets/$id.webp', fit: BoxFit.cover);
+    }
+    if (thumb is String && thumb.startsWith('data:')) {
+      try {
+        return Image.memory(
+          base64Decode(thumb.substring(thumb.indexOf(',') + 1)),
+          fit: BoxFit.cover,
+        );
+      } on Object {
+        // The colours below.
+      }
+    } else if (thumb is String && thumb.startsWith('http')) {
+      return Image.network(
+        thumb,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _swatch(preset),
+      );
+    }
+    return _swatch(preset);
+  }
+
+  Widget _swatch(Map preset) {
+    final d = (preset['design'] as Map?) ?? const {};
+    Color col(Object? v) =>
+        Color(int.tryParse('ff${'$v'.replaceAll('#', '')}', radix: 16) ??
+            0xff10202c);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [col(d['main']), col(d['secondary'])]),
+      ),
+    );
+  }
+
+  Widget _presetCard(Map preset, {bool mine = false}) {
+    final card = _card(
+      image: _presetImage(preset),
+      title: '${preset['name']}',
+      subtitle: mine
+          ? 'My preset'
+          : (preset['design'] as Map)['pattern'] as String? ?? '',
+      favouriteId: '${preset['id']}',
+      onTap: () => _apply(
+        '${preset['name']}',
+        (preset['design'] as Map).cast<String, dynamic>(),
+      ),
+    );
+    if (!mine) return card;
+    final p = preset.cast<String, dynamic>();
+    return Stack(
+      children: [
+        Positioned.fill(child: card),
+        Positioned(
+          right: 2,
+          top: 2,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Rename ${preset['name']}',
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xcc05101a),
+                ),
+                onPressed: () => _renameMine(p),
+                icon: const Icon(Icons.edit_outlined, size: 16),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Delete ${preset['name']}',
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xcc05101a),
+                ),
+                onPressed: () => _deleteMine(p),
+                icon: const Icon(Icons.delete_outline_rounded, size: 16),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static const _groupStyle = TextStyle(
+    fontSize: 10.5,
+    letterSpacing: 1.6,
+    fontWeight: FontWeight.w700,
+    color: Palette.cyan,
+  );
   static const _favouritesKey = '3deezi.favouritePresets';
   int _tab = 0;
   String _query = '';
@@ -1337,6 +1582,7 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
   @override
   void initState() {
     super.initState();
+    _loadMine();
     SharedPreferences.getInstance()
         .then((p) {
           if (mounted) {
@@ -1531,6 +1777,20 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
           ],
         ),
         const SizedBox(height: 10),
+        if (c.signedIn)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ActionChipPill(
+              _saving ? 'Saving…' : 'Save as my preset',
+              onTap: _saving ? null : _saveMine,
+            ),
+          )
+        else
+          const Text(
+            'Sign in to save your own presets.',
+            style: TextStyle(color: Palette.muted, fontSize: 12),
+          ),
+        const SizedBox(height: 10),
         TextField(
           onChanged: (v) => setState(() => _query = v),
           decoration: const InputDecoration(
@@ -1593,15 +1853,16 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                 return const Text('Presets could not be loaded.');
               if (!snapshot.hasData)
                 return const Center(child: CircularProgressIndicator());
-              final shown = [
-                for (final preset in snapshot.data!.cast<Map>())
-                  if ((_tab == 0 || _favourites.contains(preset['id'])) &&
-                      '${preset['name']} ${preset['description']}'
-                          .toLowerCase()
-                          .contains(q))
-                    preset,
-              ];
-              if (shown.isEmpty) {
+              bool shows(Map preset) =>
+                  (_tab == 0 || _favourites.contains(preset['id'])) &&
+                  '${preset['name']} ${preset['description']}'
+                      .toLowerCase()
+                      .contains(q);
+              final shown = snapshot.data!.cast<Map>().where(shows).toList();
+              final shownMine = (_mine ?? const <Map<String, dynamic>>[])
+                  .where(shows)
+                  .toList();
+              if (shown.isEmpty && shownMine.isEmpty) {
                 return Text(
                   _tab == 2
                       ? 'Tap the star on any design to keep it here.'
@@ -1609,24 +1870,28 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                   style: const TextStyle(color: Palette.muted),
                 );
               }
-              return _grid([
-                if (_tab == 0) ..._own(),
-                for (final preset in shown)
-                  _card(
-                    image: Image.asset(
-                      'assets/images/presets/${preset['id']}.webp',
-                      fit: BoxFit.cover,
-                    ),
-                    title: preset['name'] as String,
-                    subtitle:
-                        (preset['design'] as Map)['pattern'] as String? ?? '',
-                    favouriteId: preset['id'] as String,
-                    onTap: () => _apply(
-                      preset['name'] as String,
-                      (preset['design'] as Map).cast<String, dynamic>(),
-                    ),
-                  ),
-              ]);
+              // My presets first (with YOUR DESIGN), then the 3DEEZI presets.
+              final own = _tab == 0 ? _own() : const <Widget>[];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (shownMine.isNotEmpty) ...[
+                    const Text('MY PRESETS', style: _groupStyle),
+                    const SizedBox(height: 8),
+                  ],
+                  if (own.isNotEmpty || shownMine.isNotEmpty)
+                    _grid([
+                      ...own,
+                      for (final p in shownMine) _presetCard(p, mine: true),
+                    ]),
+                  if (shown.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Text('3DEEZI PRESETS', style: _groupStyle),
+                    const SizedBox(height: 8),
+                    _grid([for (final p in shown) _presetCard(p)]),
+                  ],
+                ],
+              );
             },
           ),
       ],

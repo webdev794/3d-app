@@ -96,7 +96,17 @@ class ProjectRequest extends FormRequest
             'design.trackStyle' => ['sometimes', 'nullable', Rule::in(['collar', 'hood'])],
             // The fixed marks moved, resized, turned or hidden on the 2D panels.
             'design.marks' => ['sometimes', 'array:top_wordmark,top_sponsor,top_crest,top_name,top_number,shorts_crest,shorts_number,shorts_wordmark'],
-            'design.marks.*' => ['array:side,x,y,scale,rot,hidden'],
+            'design.marks.*' => ['array:side,x,y,scale,rot,hidden,shape,color,look'],
+            // How a word looks (task 9.146): viewer/src/wordart.js.
+            'design.marks.*.look' => ['sometimes', 'nullable', 'array:style,width,color,shape,spacing'],
+            'design.marks.*.look.style' => ['sometimes', Rule::in(['plain', 'outline', 'shadow', 'extrude', 'contour'])],
+            'design.marks.*.look.width' => ['sometimes', 'numeric', 'between:0,0.3'],
+            'design.marks.*.look.color' => ['sometimes', $color],
+            'design.marks.*.look.shape' => ['sometimes', Rule::in(['straight', 'archUp', 'archDown', 'wave', 'bridge', 'slant'])],
+            'design.marks.*.look.spacing' => ['sometimes', 'numeric', 'between:-0.1,0.6'],
+            // Chosen on the 3D kit (task 9.144): the crest's badge shape and a word's own colour.
+            'design.marks.*.shape' => ['sometimes', Rule::in(['shield', 'circle', 'square', 'rounded', 'diamond'])],
+            'design.marks.*.color' => ['sometimes', $color],
             'design.marks.*.side' => ['sometimes', Rule::in(['front', 'back'])],
             'design.marks.*.x' => ['sometimes', 'numeric', 'between:-1,1'],
             'design.marks.*.y' => ['sometimes', 'numeric', 'between:-0.5,1.5'],

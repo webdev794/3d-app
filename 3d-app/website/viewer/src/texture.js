@@ -25,6 +25,7 @@ function pocketPath(c, d = 0, close = true) {
   if (close) c.closePath();
 }
 import { RAGLAN, raglanSeam } from './layout-warp.js';
+import { drawWord } from './wordart.js';
 
 /**
  * A hoodie's kangaroo pocket outline (zones.js KANGAROO) in garment metres, `d` metres inside its edge: the whole
@@ -231,6 +232,16 @@ export function zoneGradient(design, slot) {
   }
   stops.sort((a, b) => a.at - b.at);
   return { stops, angle: Number(gradient.angle) || 0 };
+}
+
+/** Whether a picture fills its box (its four corners solid), so it can be a badge with a stitched edge. */
+function opaqueCorners(img) {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 8;
+    const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, 8, 8);
+    const d = g.getImageData(0, 0, 8, 8).data;
+    return [0, 7, 56, 63].every((i) => d[i * 4 + 3] > 230);
+  } catch { return false; }
 }
 
 export class KitPainter {
@@ -457,18 +468,38 @@ export class KitPainter {
     g.scale(scale, scale);
     const size = draw(g);
     g.restore();
-    if (size) this.marks.push({ key, name, def, w0: size.w, h0: size.h });
+    if (size) this.marks.push({ key, name, def, w0: size.w, h0: size.h, side: back ? 'back' : 'front', x: num(o.x, def.x), y: num(o.y, def.y), rot: num(o.rot, def.rot ?? 0), w: size.w * scale, h: size.h * scale });
   }
 
   markText(design, name, def, str, size, color, maxWidth, outline) {
-    if (str) this.mark(design, name, def, () => this.centredText(str, size, color, maxWidth, outline));
+    const own = design.marks?.[`${this.partName}_${name}`]?.color;
+    const look = design.marks?.[`${this.partName}_${name}`]?.look;
+    const ink = /^#[0-9a-f]{6}$/i.test(own ?? '') ? own : color;
+    // A word's look (task 9.146: outline, shadow, 3D block, contour; arch, wave, bridge, slant; letter spacing).
+    if (str && look) this.mark(design, name, def, (g) => drawWord(g, str, size, ink, maxWidth, look, outline, design.main));
+    else if (str) this.mark(design, name, def, () => this.centredText(str, size, ink, maxWidth, outline));
   }
 
   /** An image mark fitted into boxW x boxH metres. */
   markImage(design, name, def, img, boxW, boxH) {
     this.mark(design, name, def, (g) => {
       const k = Math.min(boxW / img.width, boxH / img.height), w = img.width * k, h = img.height * k;
-      g.drawImage(img, -w / 2, -h / 2, w, h);
+      if (name !== 'crest') { g.drawImage(img, -w / 2, -h / 2, w, h); return { w, h }; }
+      // A badge shape chosen on the 3D kit (task 9.144): the picture inside that shape.
+      const shape = crestShape(design.marks?.[`${this.partName}_crest`]?.shape);
+      if (shape) {
+        const s = Math.max(w, h);
+        this.badge(g, (c) => shapePath(c, shape, s, s), () => { g.fillStyle = design.accent; g.fillRect(-s, -s, 2 * s, 2 * s); const k2 = 0.8; g.drawImage(img, (-w * k2) / 2, (-h * k2) / 2, w * k2, h * k2); }, s);
+        return { w: s, h: s };
+      }
+      // The crest as a sewn-on badge (2026-10-28): a picture filling its box gets rounded corners, a stitched
+      // edge and a raised rim; a cut-out logo keeps its shape, lifted by a soft shadow.
+      if (opaqueCorners(img)) {
+        const r = Math.min(w, h) * 0.12;
+        this.badge(g, (c) => c.roundRect(-w / 2, -h / 2, w, h, r), () => g.drawImage(img, -w / 2, -h / 2, w, h), Math.min(w, h));
+      } else {
+        g.save(); this.liftShadow(g, Math.min(w, h)); g.drawImage(img, -w / 2, -h / 2, w, h); g.restore();
+      }
       return { w, h };
     });
   }
@@ -476,15 +507,54 @@ export class KitPainter {
   /** The 3DEEZI shield with "3D" on it, until the club has a logo; `pts` are its corners (metres, y up). */
   markShield(design, name, def, pts, textSize, textMax) {
     this.mark(design, name, def, (g) => {
-      g.fillStyle = design.accent;
-      g.beginPath();
-      pts.forEach(([x, y], i) => (i ? g.lineTo(x, -y) : g.moveTo(x, -y)));
-      g.closePath();
-      g.fill();
-      this.centredText('3D', textSize, design.main, textMax);
       const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+      // Another badge shape chosen on the 3D kit (task 9.144); none = the usual shield.
+      const shape = crestShape(design.marks?.[`${this.partName}_${name}`]?.shape);
+      const sw = Math.max(...xs) - Math.min(...xs), sh = Math.max(...ys) - Math.min(...ys);
+      const path = shape ? (c) => shapePath(c, shape, sw, shape === 'circle' || shape === 'square' || shape === 'rounded' || shape === 'diamond' ? sw : sh) : (c) => { pts.forEach(([x, y], i) => (i ? c.lineTo(x, -y) : c.moveTo(x, -y))); c.closePath(); };
+      // A sewn-on badge: raised rim and stitched edge (texture.js badge).
+      this.badge(g, path, () => { g.fillStyle = design.accent; g.fillRect(-1, -1, 2, 2); }, Math.max(...xs) - Math.min(...xs));
+      this.centredText('3D', textSize, design.main, textMax);
       return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
     });
+  }
+
+  /** A soft shadow under what is drawn next, as if it stands off the fabric (`size`: the mark's size in metres). */
+  liftShadow(g, size) {
+    const m = g.getTransform(), px = Math.hypot(m.a, m.b);
+    g.shadowColor = 'rgba(0,0,0,0.38)';
+    g.shadowBlur = size * 0.05 * px;
+    g.shadowOffsetX = size * 0.012 * px;
+    g.shadowOffsetY = size * 0.022 * px;
+  }
+
+  /**
+   * A sewn-on badge: its shape (`path`, local metres, y down) lifted by a soft shadow, filled by `fill` (clipped to
+   * it), then a raised rim (light above, dark below) and a row of stitches just inside the edge.
+   */
+  badge(g, path, fill, size) {
+    g.save();
+    this.liftShadow(g, size);
+    g.fillStyle = 'rgba(0,0,0,0.5)';
+    g.beginPath(); path(g); g.fill();
+    g.restore();
+    g.save();
+    g.beginPath(); path(g); g.clip();
+    fill();
+    // The rim: lit from above, shaded below.
+    const rim = size * 0.05;
+    for (const [dy, style] of [[-rim * 0.25, 'rgba(255,255,255,0.32)'], [rim * 0.25, 'rgba(0,0,0,0.38)']]) {
+      g.save(); g.translate(0, -dy); g.beginPath(); path(g); g.restore();
+      g.lineWidth = rim; g.strokeStyle = style; g.stroke();
+    }
+    // The stitches, just inside the edge.
+    g.setLineDash([size * 0.03, size * 0.02]);
+    g.lineCap = 'round';
+    for (const [k, style, wd] of [[1, 'rgba(0,0,0,0.35)', 0.012], [1, 'rgba(255,255,255,0.75)', 0.007]]) {
+      g.save(); g.scale(0.86, 0.86); g.beginPath(); path(g); g.restore();
+      g.lineWidth = size * wd * k; g.strokeStyle = style; g.stroke();
+    }
+    g.restore();
   }
 
   /**
@@ -1115,7 +1185,8 @@ export class KitPainter {
       g.setTransform(1, 0, 0, 1, 0, 0);
       return this.canvas;
     }
-    const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text');
+    // Logos added on the 3D kit itself (task 9.144, ids 'kit-…': a crest copy on the other chest) keep the crest.
+    const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text' && !String(l.id ?? '').startsWith('kit-'));
     // The varsity jacket: a chenille letter (or the logo) on the chest, the club arched across the back, the name and
     // a big number under it, sleeve patches (varsity.js).
     if (isVarsity(this.kind)) {
@@ -1396,6 +1467,7 @@ export class KitPainter {
   /** User artwork and text, placed anywhere, sized and rotated (degrees, clockwise). */
   async paintLayers(design) {
     const g = this.ctx;
+    this.layerBoxes = [];
     for (const layer of design.layers ?? []) {
       if ((layer.part ?? 'top') !== this.partName) continue;
       const back = layer.side === 'back';
@@ -1416,6 +1488,7 @@ export class KitPainter {
         g.textBaseline = 'middle';
         g.fillStyle = layer.color ?? design.accent;
         g.fillText(String(layer.text ?? ''), 0, 0);
+        this.layerBoxes.push({ id: layer.id, side: layer.side, x: layer.x, y: layer.y, rot: layer.rot ?? 0, w: g.measureText(String(layer.text ?? '')).width, h: size });
       } else if (layer.type === 'shape') {
         const w = layer.w ?? 0.1, h = layer.h ?? w;
         g.fillStyle = layer.color ?? design.accent;
@@ -1424,9 +1497,11 @@ export class KitPainter {
         else if (layer.shape === 'triangle') { g.moveTo(0, -h / 2); g.lineTo(w / 2, h / 2); g.lineTo(-w / 2, h / 2); g.closePath(); }
         else g.rect(-w / 2, -h / 2, w, h);
         g.fill();
+        this.layerBoxes.push({ id: layer.id, side: layer.side, x: layer.x, y: layer.y, rot: layer.rot ?? 0, w, h });
       } else if (img) {
         const w = layer.w ?? 0.1, h = (w * img.height) / img.width;
         g.drawImage(img, -w / 2, -h / 2, w, h);
+        this.layerBoxes.push({ id: layer.id, side: layer.side, x: layer.x, y: layer.y, rot: layer.rot ?? 0, w, h });
       }
       g.restore();
     }
@@ -1485,7 +1560,7 @@ export class KitPainter {
    */
   async paintShortsMarks(design, logo, textOutline) {
     const g = this.ctx, layers = design.layers ?? [];
-    const ownArt = layers.some((l) => l.part === 'shorts' && l.side !== 'back' && l.type !== 'text');
+    const ownArt = layers.some((l) => l.part === 'shorts' && l.side !== 'back' && l.type !== 'text' && !String(l.id ?? '').startsWith('kit-'));
     const nearCrest = (l) => Math.hypot(Math.abs(l.x) - 0.105, l.y - 0.6);
     const topLogo = layers
       .filter((l) => l.type === 'image' && (l.part ?? 'top') === 'top' && l.side !== 'back' && (l.w ?? 0.1) <= 0.18 && Math.abs(l.x) < 0.26)
@@ -1540,4 +1615,15 @@ export function knitNormalMap(size = 512) {
   }
   g.putImageData(img, 0, 0);
   return c;
+}
+
+/** The crest badge shapes (task 9.144): the usual shield (none) or one of these. */
+export const CREST_SHAPES = ['circle', 'square', 'rounded', 'diamond', 'shield'];
+function crestShape(v) { return CREST_SHAPES.includes(v) && v !== 'shield' ? v : null; }
+/** A badge shape `w` x `h` metres centred on (0, 0) (y down). */
+function shapePath(c, shape, w, h) {
+  if (shape === 'circle') c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+  else if (shape === 'square') c.rect(-w / 2, -h / 2, w, h);
+  else if (shape === 'rounded') c.roundRect(-w / 2, -h / 2, w, h, Math.min(w, h) * 0.22);
+  else if (shape === 'diamond') { c.moveTo(0, -h / 2); c.lineTo(w / 2, 0); c.lineTo(0, h / 2); c.lineTo(-w / 2, 0); c.closePath(); }
 }

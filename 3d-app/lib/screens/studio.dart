@@ -23,7 +23,7 @@ import '../design_document.dart'
         trackAreas,
         varsityAreas;
 import '../export_service.dart';
-import '../part_editing.dart' show partLabel, partPiece, partsOf;
+import '../part_editing.dart' show PartEditing, partLabel, partPiece, partsOf;
 import '../player_shot.dart';
 import '../project_sync.dart';
 import '../widgets/drag_tray.dart';
@@ -34,6 +34,7 @@ import '../widgets/part_panel.dart';
 import '../widgets/showroom.dart';
 import '../widgets/studio_tools.dart';
 import '../widgets/ui.dart';
+import '../widgets/word_look.dart';
 import 'create_home.dart' show comingSoonGarments, garmentTiles;
 
 const _swatches = <Color>[
@@ -1555,7 +1556,13 @@ class _ColoursToolState extends State<_ColoursTool> {
       if (picture) _slot = 3;
       _pictureTip = picture;
       _area = area is String && _areas.containsKey(area) ? area : null;
-      _part = part is String && partsOf(c.garment).contains(part) ? part : null;
+      _part =
+          !picture &&
+              pick['slot'] != 'pattern' &&
+              part is String &&
+              partsOf(c.garment).contains(part)
+          ? part
+          : null;
       _dragging = false;
       _hint = false;
     });
@@ -1615,6 +1622,62 @@ class _ColoursToolState extends State<_ColoursTool> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
+      if (_part case final part? when widget.onPart != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            children: [
+              // Task 9.137: the tab's colour covers every part in it (both
+              // sleeves, the body); this button changes the tapped one only.
+              Expanded(
+                child: Text(
+                  'This colour is on every part shown in it.',
+                  style: const TextStyle(fontSize: 11.5, color: Palette.muted),
+                ),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('colour-part-link'),
+                onPressed: () => widget.onPart!(part),
+                iconAlignment: IconAlignment.end,
+                icon: const Icon(Icons.chevron_right, size: 16),
+                label: Text('Only the ${partLabel(part).toLowerCase()}'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Palette.cyan,
+                  side: const BorderSide(color: Palette.cyan),
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ),
+      // Parts with their own colour (Parts) don't follow the kit's colours.
+      for (final key in partsOf(c.garment))
+        if (c.partStyleOf(key).colour != null)
+          Row(
+            key: ValueKey('colour-own-$key'),
+            children: [
+              Expanded(
+                child: Text(
+                  '${partLabel(key)} has its own colour (set in Parts)',
+                  style: const TextStyle(fontSize: 12, color: Palette.muted),
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(
+                  () => c.setPartStyle(
+                    key,
+                    c.partStyleOf(key).copyWith(colour: null),
+                  ),
+                ),
+                child: const Text('Use kit colour'),
+              ),
+            ],
+          ),
       Container(
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
@@ -1697,39 +1760,6 @@ class _ColoursToolState extends State<_ColoursTool> {
           child: Text(
             'Switch to Kit colours to recolour this pattern.',
             style: TextStyle(fontSize: 12, color: Palette.muted),
-          ),
-        ),
-      if (_part case final part? when widget.onPart != null)
-        Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Row(
-            children: [
-              // Task 9.137: the tab's colour covers every part in it (both
-              // sleeves, the body); this button changes the tapped one only.
-              Expanded(
-                child: Text(
-                  'This colour is on every part shown in it.',
-                  style: const TextStyle(fontSize: 11.5, color: Palette.muted),
-                ),
-              ),
-              OutlinedButton.icon(
-                key: const ValueKey('colour-part-link'),
-                onPressed: () => widget.onPart!(part),
-                iconAlignment: IconAlignment.end,
-                icon: const Icon(Icons.chevron_right, size: 16),
-                label: Text('Only the ${partLabel(part).toLowerCase()}'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Palette.cyan,
-                  side: const BorderSide(color: Palette.cyan),
-                  textStyle: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ],
           ),
         ),
       if (_slot == 3 && _ownPatternParts.isNotEmpty)
@@ -2104,6 +2134,12 @@ class _TextToolState extends State<_TextTool> {
         textCapitalization: TextCapitalization.characters,
         onChanged: (v) => _set(() => widget.c.logoText = v.toUpperCase()),
       ),
+      WordLookEditor(
+        c: widget.c,
+        markKey: 'top_wordmark',
+        word: widget.c.logoText,
+        title: 'Wordmark',
+      ),
       const SectionLabel('Back name'),
       TextField(
         controller: _name,
@@ -2111,12 +2147,24 @@ class _TextToolState extends State<_TextTool> {
         textCapitalization: TextCapitalization.characters,
         onChanged: (v) => _set(() => widget.c.backName = v.toUpperCase()),
       ),
+      WordLookEditor(
+        c: widget.c,
+        markKey: 'top_name',
+        word: widget.c.backName,
+        title: 'Name',
+      ),
       const SectionLabel('Number'),
       TextField(
         controller: _number,
         maxLength: 2,
         keyboardType: TextInputType.number,
         onChanged: (v) => _set(() => widget.c.number = v),
+      ),
+      WordLookEditor(
+        c: widget.c,
+        markKey: 'top_number',
+        word: widget.c.number,
+        title: 'Number',
       ),
     ],
   );
@@ -2319,6 +2367,35 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
                               });
                             },
                     ),
+                    // 9.147: keep the saved project and start a new one.
+                    if (c.selectedProject >= 0) ...[
+                      const SizedBox(height: 10),
+                      SecondaryButton(
+                        label: 'SAVE AS NEW COPY',
+                        icon: Icons.copy_rounded,
+                        onPressed: _saving
+                            ? null
+                            : () async {
+                                setState(() => _saving = true);
+                                final success = await c.saveProject(
+                                  _name.text,
+                                  asCopy: true,
+                                );
+                                if (!mounted) return;
+                                setState(() {
+                                  _saving = false;
+                                  _done = success;
+                                });
+                              },
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'A different name also saves a new project; the '
+                        'saved one stays as it is.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Color(0xff8a9bb0), fontSize: 11),
+                      ),
+                    ],
                   ],
                 ),
         ),

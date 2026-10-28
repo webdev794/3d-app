@@ -21,6 +21,8 @@ import { Palette } from 'lucide-react';
 import RemoveTestAccounts from './AdminTestAccounts';
 import SuppliersAdmin, { MadeByFilter, MadeBySelect } from './AdminSuppliers';
 import { Factory } from 'lucide-react';
+import PresetsAdmin from './AdminPresets';
+import { Layers as PresetsIcon } from 'lucide-react';
 
 export interface AdminUser extends User { is_admin: boolean; is_designer?: boolean; designer_all?: boolean; projects_count?: number; orders_count?: number }
 export interface Order {
@@ -86,6 +88,7 @@ const sections = [
   { id: 'pricing', label: 'Pricing', icon: BadgeDollarSign, title: 'Pricing', sub: 'The price list, business details on invoices, tax and online payments.' },
   { id: 'partners', label: 'Partners', icon: Handshake, title: 'Corporate partners', sub: 'Companies applying to bring 3DEEZI to their website.' },
   { id: 'suppliers', label: 'Suppliers', icon: Factory, title: 'Preferred suppliers', sub: 'Who makes orders: 3DEEZI, Mantis and the approved suppliers; applications and listings.' },
+  { id: 'presets', label: 'Presets', icon: PresetsIcon, title: '3DEEZI presets', sub: 'The ready-made designs everyone sees in the Studio: rename, order, hide, sport and garment.' },
   { id: 'team', label: '3DEEZI TEAM', icon: Palette, title: '3DEEZI TEAM', sub: 'Design requests for our designers: assign, design, review and the allowances.' },
   { id: 'support', label: 'Support', icon: LifeBuoy, title: 'Support messages', sub: 'Messages sent with the contact form on the Support page.' },
   { id: 'database', label: 'Database Tools', icon: Database, title: 'Database tools', sub: 'Backups, housekeeping and health.' },
@@ -138,6 +141,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
           : section === 'settings' ? <SettingsPanel state={apiState} onSaved={setApiState} onNotice={onNotice} />
           : section === 'partners' ? <PartnersPanel onNotice={onNotice} />
           : section === 'suppliers' ? <SuppliersAdmin onNotice={onNotice} />
+          : section === 'presets' ? <PresetsAdmin catalog={catalog} onNotice={onNotice} />
           : section === 'team' ? <AdminTeam mode="admin" itemId={itemId} onNotice={onNotice} />
           : section === 'support' ? <SupportPanel onNotice={onNotice} />
           : section === 'database' ? <DatabasePanel onNotice={onNotice} />

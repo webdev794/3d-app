@@ -204,6 +204,26 @@ class ApiClient {
 
   Future<void> deleteProject(int id) => _send('DELETE', '/projects/$id');
 
+  // ---------- presets (task 9.148)
+  /// The 3DEEZI presets everyone sees.
+  Future<List<Map<String, dynamic>>> presets() async =>
+      (await _send('GET', '/presets') as List).cast<Map<String, dynamic>>();
+
+  /// The signed-in user's private presets ("My presets").
+  Future<List<Map<String, dynamic>>> myPresets() async =>
+      (await _send('GET', '/presets/mine') as List)
+          .cast<Map<String, dynamic>>();
+
+  /// Saves a design as "my preset" (name, design, thumbnail data URL).
+  Future<Map<String, dynamic>> savePreset(Map<String, dynamic> body) async =>
+      await _send('POST', '/presets', body: body) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> renamePreset(int key, String name) async =>
+      await _send('PATCH', '/presets/$key', body: {'name': name})
+          as Map<String, dynamic>;
+
+  Future<void> deletePreset(int key) => _send('DELETE', '/presets/$key');
+
   // ---------- orders and partners
   Future<List<Map<String, dynamic>>> orders() async =>
       (await _send('GET', '/orders') as List).cast<Map<String, dynamic>>();

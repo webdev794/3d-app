@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
@@ -43,7 +44,7 @@ class KitViewer3DState extends State<KitViewer3D> {
   int _nextRequest = 0;
   bool? _sentBoard;
   String? _sentSelection;
-  bool? _sentPick, _sentPartPick;
+  bool? _sentPick, _sentPartPick, _sentObjects;
 
   AppController get c => widget.controller;
 
@@ -75,7 +76,7 @@ class KitViewer3DState extends State<KitViewer3D> {
     _ready = false;
     _sentDesign = _sentView = _sentSelection = null;
     _sentPattern = _sentLogo = _sentSponsor = null;
-    _sentBoard = _sentPick = _sentPartPick = null;
+    _sentBoard = _sentPick = _sentPartPick = _sentObjects = null;
     setState(() => _host = _openHost());
   }
 
@@ -119,9 +120,10 @@ class KitViewer3DState extends State<KitViewer3D> {
     switch (msg['type']) {
       case 'ready':
         setState(() => _ready = true);
-        _sentPick = _sentPartPick = null;
+        _sentPick = _sentPartPick = _sentObjects = null;
         // This app answers the viewer's requests for print layout files.
-        _send('features', {'layouts': true});
+        // and picks pictures for "Upload picture here" on the kit (task 9.144).
+        _send('features', {'layouts': true, 'images': true});
         _sync();
       case 'capture':
         final data = msg['data'] as String?;
@@ -134,6 +136,19 @@ class KitViewer3DState extends State<KitViewer3D> {
         c.edit(() => c.layers = copyLayers(msg['layers']));
       case 'marks':
         c.edit(() => c.marks = copyMarks(msg['marks']));
+      case 'markText':
+        // A word edited on the 3D kit (task 9.144).
+        final value = '${msg['value'] ?? ''}';
+        switch (msg['field']) {
+          case 'logoText':
+            c.edit(() => c.logoText = value);
+          case 'backName':
+            c.edit(() => c.backName = value);
+          case 'number':
+            c.edit(() => c.number = value);
+        }
+      case 'wantImage':
+        unawaited(_pickImage('${msg['id'] ?? ''}'));
       case 'selection':
         if (c.selectedLayerId != msg['id']) {
           _sentSelection = msg['id'] as String?;
@@ -257,10 +272,37 @@ class KitViewer3DState extends State<KitViewer3D> {
       _sentPartPick = parts;
       _send('partPick', parts);
     }
+    // Tap the crest, words and logos on the kit to edit them (task 9.144).
+    final objects = !c.boardMode;
+    if (_sentObjects != objects) {
+      _sentObjects = objects;
+      _send('objectEdit', objects);
+    }
     if (_sentSelection != c.selectedLayerId) {
       _sentSelection = c.selectedLayerId;
       _send('select', c.selectedLayerId);
     }
+  }
+
+  /// "Upload picture here" on the kit: a picture from the gallery, sent back
+  /// as a data URL (null when cancelled).
+  Future<void> _pickImage(String id) async {
+    String? data;
+    try {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+      );
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        final png = bytes.length > 4 && bytes[0] == 0x89 && bytes[1] == 0x50;
+        data = 'data:image/${png ? 'png' : 'jpeg'};base64,${base64Encode(bytes)}';
+      }
+    } catch (_) {
+      data = null;
+    }
+    if (mounted) _send('imageChosen', {'id': id, 'data': data});
   }
 
   void _send(String cmd, Object? arg) =>

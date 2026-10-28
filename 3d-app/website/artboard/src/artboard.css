@@ -609,3 +609,26 @@ dialog.send-dialog{max-width:min(600px,94vw)}
   #cdRecent{height:28px}
   .cd-done{height:30px}
 }
+/* Document tabs along the top of the page area (task 9.141, CorelDRAW): the rest of the stage sits under them. */
+.stage{display:flex;flex-direction:column}
+.stage-in{position:relative;flex:1;min-height:0;min-width:0}
+.doc-tabs{flex:0 0 28px;display:flex;align-items:flex-end;gap:2px;padding:0 6px;background:#050c14;border-bottom:1px solid var(--line);min-width:0;overflow:hidden}
+.doc-tab-list{display:flex;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.doc-tab-list::-webkit-scrollbar{display:none}
+.doc-tab{display:flex;align-items:center;gap:6px;height:25px;padding:0 6px 0 12px;border:1px solid var(--line);border-bottom:0;border-radius:6px 6px 0 0;background:#0a141e;color:#9fb2c4;font-size:12px;white-space:nowrap;cursor:pointer;max-width:220px}
+.doc-tab span{overflow:hidden;text-overflow:ellipsis}
+.doc-tab.on{background:#0b1520;color:#fff;border-color:var(--cyan)}
+.doc-tab .x{border:0;background:none;color:inherit;width:18px;height:18px;border-radius:4px;font-size:14px;line-height:1;cursor:pointer;padding:0}
+.doc-tab .x:hover{background:#ffffff22}
+.doc-tab-add{height:25px;width:28px;border:1px solid var(--line);border-bottom:0;border-radius:6px 6px 0 0;background:#0a141e;color:var(--cyan);font-size:16px;cursor:pointer}
+.previewing .doc-tabs{display:none}
+.doc-bar .prop input[type=number]{width:64px}
+.eye-loupe{position:fixed;z-index:60;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1.5px #0b1520,0 2px 6px #0008;pointer-events:none}.eye-loupe[hidden]{display:none}
+/* Task 9.143: one page per design; the design tabs on top replace the page tabs. */
+.page-nav{display:none!important}
+.doc-tab-arrow{flex:0 0 auto;height:25px;width:22px;border:1px solid var(--line);border-bottom:0;border-radius:6px 6px 0 0;background:#0a141e;color:var(--cyan);font-size:15px;cursor:pointer;padding:0}
+.doc-tab-arrow[hidden]{display:none}
+.doc-tab input{width:140px;font:inherit;color:#fff;background:#06101a;border:1px solid var(--cyan);border-radius:4px;padding:1px 4px}
+/* Task 9.145: the Effects buttons on the text bar */
+.tfx{display:inline-flex;align-items:center;gap:2px}.tfx label{font-size:12px;color:var(--muted);margin-right:4px}
+.ctx-note{font-size:11px;color:var(--muted);margin-left:6px}
