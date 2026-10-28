@@ -4,7 +4,7 @@ Updated 2026-10-28 11:00. Only what's needed to continue.
 - SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder images\NNN (latest 201)
 
 ## State
-- Live file: D:\3d-app\deploy-zips\3deez-update-2026-10-28-c.tar.gz (code-only, 10:49), being shown to the client. NOT pushed: v2 = 11594d7 (has the app Home, not the -c fixes).
+- Live file: D:\3d-app\deploy-zips\3deez-update-2026-10-28-e.tar.gz (code-only, 15:27; live must run migrate if -d was not applied). v2 = 8b36f7b = -d (edit bar fix not pushed). Pushed: v2 = 8b36f7b (has the app Home, not the -c fixes).
 - Done since yesterday: 9.134 Parts, 9.136 fabric, 9.137 tap rule (website + app, pattern-only glow, viewer -41), 9.138 app Home, player picture fix, My patterns buttons fix.
 
 ## Pending (from yesterday)

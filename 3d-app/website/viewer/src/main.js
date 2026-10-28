@@ -1149,12 +1149,12 @@ const bar = document.createElement('div');
 bar.id = 'object-bar';
 bar.setAttribute('role', 'toolbar');
 const barCss = document.createElement('style');
-barCss.textContent = `#object-bar{position:fixed;left:50%;top:52px;transform:translateX(-50%);z-index:30;display:none;flex-direction:column;gap:6px;align-items:stretch;width:max-content;max-width:calc(100vw - 16px);box-sizing:border-box;padding:8px 10px;border-radius:14px;background:rgba(14,18,26,.92);color:#fff;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+barCss.textContent = `#object-bar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:30;display:none;flex-direction:column;gap:6px;align-items:stretch;width:max-content;max-width:calc(100vw - 16px);box-sizing:border-box;padding:8px 10px;border-radius:14px;background:rgba(14,18,26,.92);color:#fff;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35)}
 #object-bar.on{display:flex}#object-bar b{margin-right:2px}#object-bar button{min-height:34px;min-width:34px;padding:0 10px;border:1px solid rgba(255,255,255,.25);border-radius:9px;background:rgba(255,255,255,.08);color:#fff;font:inherit;cursor:pointer}
 #object-bar button:hover{background:rgba(255,255,255,.18)}#object-bar button[aria-pressed=true]{background:#2fd0e0;color:#071018;border-color:#2fd0e0}#object-bar button.danger{border-color:#ff7a7a;color:#ffb3b3}
 #object-bar input[type=range]{width:100px}#object-bar input[type=text]{width:130px;min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:#0b0f16;color:#fff;padding:0 8px;font:inherit}
 #object-bar input[type=color]{width:36px;height:32px;border:0;background:none;padding:0}#object-bar .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center;max-width:100%}
-@media (max-width:640px){#object-bar{left:8px;right:8px;transform:none;width:auto;top:auto;bottom:72px;padding:6px}#object-bar button{min-height:36px;padding:0 8px}#object-bar input[type=range]{width:80px}}`;
+@media (max-width:640px){#object-bar{left:28px;right:28px;transform:none;width:auto;bottom:74px;padding:6px;flex-direction:row;align-items:center;justify-content:flex-start;overflow-x:auto;overscroll-behavior:contain;touch-action:pan-x}#object-bar .row{flex-wrap:nowrap;max-width:none;flex:none;justify-content:flex-start}#object-bar span,#object-bar b{white-space:nowrap}#object-bar button{min-height:36px;padding:0 8px}#object-bar input[type=range]{width:80px}}`;
 document.head.append(barCss);
 document.body.append(bar);
 for (const t of ['pointerdown', 'pointerup', 'click', 'wheel', 'touchstart']) bar.addEventListener(t, (e) => e.stopPropagation());
@@ -1168,7 +1168,7 @@ function drawBar() {
       btn('Add text here', () => addHere('text')),
       btn('Upload picture here', () => addHere('upload')),
       btn('✕', () => { addSpot = null; drawBar(); }, { ariaLabel: 'Close', title: 'Close' })));
-    bar.classList.add('on');
+    bar.classList.add('on'); bar.scrollLeft = 0; requestAnimationFrame(() => { bar.scrollLeft = 0; });
     return;
   }
   const box = selectedBox();
@@ -1210,7 +1210,7 @@ function drawBar() {
     row.append(el('span', { textContent: 'Colour' }), colour);
     bar.append(row);
   }
-  bar.classList.add('on');
+  bar.classList.add('on'); bar.scrollLeft = 0; requestAnimationFrame(() => { bar.scrollLeft = 0; });
 }
 const newId = (what) => `kit-${what}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 function addLayer(layer) {

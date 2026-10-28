@@ -54,7 +54,7 @@ export function trackColour(design: { main?: string; secondary?: string; accent?
     return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-50';
+const VIEWER_VERSION = '2026-10-20-55';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
