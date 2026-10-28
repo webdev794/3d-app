@@ -23,7 +23,7 @@
 .aid-plus:hover,.aid-plus[aria-expanded=true]{border-color:#19d6ea;background:#10273a}
 .aid-field{flex:1;min-width:0;display:flex;align-items:center;min-height:50px}
 .aid-field textarea{display:block;width:100%;max-height:196px;padding:13px 8px;border:0;background:none;color:#eef5fc;font-size:clamp(15px,1.06vw,17px);line-height:1.45;resize:none;overflow-y:auto;outline:none;scrollbar-width:thin;scrollbar-color:#00d9ed44 transparent}
-.aid-field textarea::placeholder{color:#a3b2c2}
+.aid-field textarea::placeholder{color:#a3b2c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .aid-field textarea:focus-visible{outline:none}
 .aid-icon{display:grid;place-items:center;flex:none;width:44px;height:50px;padding:0;border:0;border-radius:12px;background:none;color:#dbe6ef;transition:color .2s,background .2s}
 .aid-icon:hover:not(:disabled){color:#fff;background:#ffffff0f}
@@ -77,6 +77,10 @@
 .aid-arrow:disabled{opacity:.3}
 .aid-strip{display:flex;gap:var(--gap);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:8px 4px}
 .aid-strip::-webkit-scrollbar{display:none}
+/* A soft fade on the cut-off side says there is more to scroll. */
+.aid-sports.has-next .aid-strip{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 48px),transparent)}
+.aid-sports.has-prev .aid-strip{-webkit-mask-image:linear-gradient(90deg,transparent,#000 48px);mask-image:linear-gradient(90deg,transparent,#000 48px)}
+.aid-sports.has-prev.has-next .aid-strip{-webkit-mask-image:linear-gradient(90deg,transparent,#000 48px,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(90deg,transparent,#000 48px,#000 calc(100% - 48px),transparent)}
 .aid-tile{position:relative;flex:0 0 max(112px,calc((100% - 7 * var(--gap)) / 8));aspect-ratio:154/192;padding:0;border:1px solid #ffffff24;border-radius:12px;overflow:hidden;background:#060c14;scroll-snap-align:start;box-shadow:0 10px 26px #0009;transition:transform .2s,border-color .2s,box-shadow .2s}
 .aid-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .35s}
 .aid-tile::after{content:"";position:absolute;inset:45% 0 0;background:linear-gradient(180deg,transparent,#02060bf0 78%)}
@@ -106,7 +110,11 @@
   .aid-files{padding-left:6px}
   .aid-menu{min-width:min(280px,calc(100vw - 48px))}
   .aid-sports{display:block;margin:clamp(22px,4svh,36px) -16px 0;width:calc(100% + 32px)}
-  .aid-arrow{display:none}
+  .aid-sports{position:relative}
+  .aid-arrow{position:absolute;z-index:2;top:50%;transform:translateY(-50%);width:36px;height:36px;box-shadow:0 2px 10px #000a}
+  .aid-arrow:first-child{left:6px}
+  .aid-arrow:last-child{right:6px}
+  .aid-arrow:disabled{visibility:hidden}
   .aid-strip{padding:8px 16px;scroll-padding:0 16px}
   .aid-tile{flex-basis:clamp(104px,30vw,132px)}
 }

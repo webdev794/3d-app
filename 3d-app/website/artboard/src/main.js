@@ -629,6 +629,7 @@ function pruneEmptyParts(o) {
   for (const k of o.getObjects()) { if (k.type === 'path' && k.path.length <= 1) o.remove(k); else pruneEmptyParts(k); }
 }
 function syncHistory() {
+  if (typeof renderDocTabs === 'function') try { renderDocTabs(); } catch { /* before the tabs exist */ }
   $('undo').disabled = history.length < 2;
   $('redo').disabled = !future.length;
 }
@@ -4487,7 +4488,16 @@ function syncProps(live = false) {
 for (const ev of ['selection:created', 'selection:updated', 'selection:cleared', 'object:modified', 'object:scaling', 'object:moving', 'object:rotating']) canvas.on(ev, () => { if (state.tool === 'node' && ev === 'object:modified') nodes.refresh(); syncProps(ev === 'object:scaling' || ev === 'object:moving' || ev === 'object:rotating'); });
 
 // Effects on the text bar (task 9.145): each opens its tool with the text still selected.
+$('tfxBtn').onclick = (e) => {
+  e.stopPropagation();
+  const f = $('tfxFly'), r = e.currentTarget.getBoundingClientRect();
+  if (!f.hidden) { f.hidden = true; return; }
+  f.hidden = false;
+  f.style.top = `${r.bottom + 4}px`; f.style.left = `${Math.max(8, Math.min(innerWidth - f.offsetWidth - 8, r.left))}px`;
+};
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#tfxFly, #tfxBtn')) $('tfxFly').hidden = true; });
 document.querySelectorAll('[data-tfx]').forEach((b) => (b.onclick = () => {
+  $('tfxFly').hidden = true;
   const fx = b.dataset.tfx;
   if (fx !== 'outline') { setTool(fx); return; }
   const w = $('strokeWidth');
@@ -5750,13 +5760,14 @@ for (const [id, key] of [['docNudge', 'nudge'], ['docDupX', 'dupX'], ['docDupY',
 const TABS_KEY = `${STORE}.tabs`;
 let docTabs = [{ id: 1, meta: null }], docTab = 0, docBusy = false;
 const tabName = (t, i) => (i === docTab ? projects.doc.name : t.meta?.name) || `Untitled-${t.id}`;
-const tabDirty = (t, i) => (i === docTab ? projects.doc.dirty : !!t.meta?.dirty);
-function saveTabList() { try { localStorage.setItem(TABS_KEY, JSON.stringify({ tabs: docTabs.map((t) => ({ id: t.id, meta: t.meta })), open: docTabs[docTab].id })); } catch { /* storage full */ } }
+// "*" only after a real change: a design in the account with changes it doesn't have, or a new one that was edited.
+const tabDirty = (t, i) => (i === docTab ? projects.doc.dirty && (!!projects.doc.id || history.length > 1 || !!t.changed) : !!t.meta?.dirty && (!!t.meta?.id || !!t.changed));
+function saveTabList() { try { localStorage.setItem(TABS_KEY, JSON.stringify({ tabs: docTabs.map((t) => ({ id: t.id, meta: t.meta, changed: !!t.changed })), open: docTabs[docTab].id })); } catch { /* storage full */ } }
 function docTabsStart() {
   try {
     const d = JSON.parse(localStorage.getItem(TABS_KEY) || 'null');
     if (d && Array.isArray(d.tabs) && d.tabs.length) {
-      docTabs = d.tabs.filter((t) => Number(t?.id) > 0).map((t) => ({ id: Number(t.id), meta: t.meta ?? null }));
+      docTabs = d.tabs.filter((t) => Number(t?.id) > 0).map((t) => ({ id: Number(t.id), meta: t.meta ?? null, changed: !!t.changed }));
       if (!docTabs.length) docTabs = [{ id: 1, meta: null }];
       docTab = Math.max(0, docTabs.findIndex((t) => t.id === d.open));
     }
@@ -5775,7 +5786,7 @@ async function gotoDocTab(i, fresh = false) {
   try {
     finishPowerClipEdit(); flushRecord(); finishPath();
     const cur = docTabs[docTab];
-    cur.history = history; cur.future = future;
+    cur.history = history; cur.future = future; cur.changed = !!cur.changed || history.length > 1;
     saveNow(`${STORE}.tab.${cur.id}`, snapshot());
     cur.meta = projects.swapDoc(fresh ? null : docTabs[i].meta);
     let next;
@@ -5793,8 +5804,8 @@ async function gotoDocTab(i, fresh = false) {
 }
 async function closeDocTab(i) {
   const t = docTabs[i];
-  if (tabDirty(t, i) && !confirm(`Close “${tabName(t, i)}”? Its changes are not saved in your account and will be lost.`)) return;
-  if (docTabs.length === 1) { projects.swapDoc(null); await ACTIONS.new(); docTabs[0].meta = null; saveTabList(); renderDocTabs(); return; }
+  if (tabDirty(t, i) && !(await projects.ask(`Close “${tabName(t, i)}”? Its changes are not saved in your account and will be lost.`, 'Close', 'Cancel'))) return;
+  if (docTabs.length === 1) { projects.swapDoc(null); await ACTIONS.new(true); docTabs[0].changed = false; docTabs[0].meta = null; saveTabList(); renderDocTabs(); return; }
   if (i === docTab) await gotoDocTab(i > 0 ? i - 1 : 1);
   const k = docTabs.indexOf(t);
   docTabs.splice(k, 1);
@@ -5809,18 +5820,33 @@ $('docTabList').addEventListener('click', (e) => {
   if (tab) gotoDocTab(Number(tab.dataset.doc));
 });
 $('docTabAdd').onclick = () => gotoDocTab(docTab, true);
+// ‹ › buttons with a soft fade at the cut-off end(s) when the text bar or the page settings don't fit (they scroll).
+for (const id of ['textBar', 'ctx-doc']) {
+  const bar = $(id), mk = (side) => Object.assign(document.createElement('button'), { type: 'button', className: `bar-more ${side}`, textContent: side === 'l' ? '‹' : '›', title: side === 'l' ? 'More to the left' : 'More to the right', hidden: true });
+  const L = mk('l'), R = mk('r');
+  bar.prepend(L); bar.append(R);
+  L.onclick = () => bar.scrollBy({ left: -220, behavior: 'smooth' });
+  R.onclick = () => bar.scrollBy({ left: 220, behavior: 'smooth' });
+  const sync = () => { const over = bar.scrollWidth > bar.clientWidth + 1; L.hidden = !over || bar.scrollLeft <= 1; R.hidden = !over || bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 1; };
+  bar.addEventListener('scroll', sync); addEventListener('resize', sync);
+  new ResizeObserver(sync).observe(bar);
+  new MutationObserver(sync).observe(bar, { attributes: true, attributeFilter: ['hidden'] });
+}
+// The text bar and the page settings share the first row of the property bar: the mouse wheel scrolls them sideways.
+for (const id of ['textBar', 'ctx-doc']) $(id).addEventListener('wheel', (e) => { const b = $(id); if (b.scrollWidth <= b.clientWidth || e.target.closest('select, input')) return; b.scrollLeft += e.deltaY || e.deltaX; e.preventDefault(); }, { passive: false });
 // Task 9.143: each design is one page; the tabs on top replace the page tabs. A design with several pages (saved
 // before) opens with each extra page in its own tab, right after it, so nothing is lost.
-async function splitPagesToTabs() {
+async function splitPagesToTabs(name = '') {
   if (pages.length < 2) return;
-  const base = tabName(docTabs[docTab], docTab), gd = guides.get(), pg = pageSize;
+  // The extra tabs are named after the design being opened (its account or template name when known).
+  const base = name || tabName(docTabs[docTab], docTab), gd = guides.get(), pg = pageSize;
   let id = Math.max(...docTabs.map((t) => t.id));
   const extra = [];
   pages.forEach((p, i) => {
     if (i === pageIndex) return;
     id++;
     saveNow(`${STORE}.tab.${id}`, JSON.stringify({ page: pg, guides: gd, objects: p.objects ?? [] }));
-    extra.push({ id, meta: { id: null, name: `${base} – ${p.name}`.slice(0, 120), version: null, dirty: true } });
+    extra.push({ id, changed: true, meta: { id: null, name: `${base} – ${p.name}`.slice(0, 120), version: null, dirty: true } });
   });
   const count = pages.length;
   pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs();
@@ -5999,7 +6025,7 @@ document.addEventListener('pointerdown', (e) => { const m = $('pageMenu'); if (!
 const SNAP_LABELS = { grid: 'Grid (5 mm)', guides: 'Guidelines', objects: 'Objects', nodes: 'Nodes', page: 'Page' };
 const ACTIONS = {
   fonts: () => { if ($('textBar').hidden) setTool('text'); setTimeout(() => $('tFont').click()); },
-  new: async () => { finishPowerClipEdit(); if ((userObjects().length || pages.length > 1) && !confirm('Start a new document? Every page is cleared (Undo can restore it).')) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); projects.cleared(); },
+  new: async (sure) => { sure = sure === true; finishPowerClipEdit(); if (!sure && (userObjects().length || pages.length > 1) && !(await projects.ask('Start a new document? Everything on the page is cleared (Undo can restore it).', 'Clear', 'Cancel'))) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); projects.cleared(); },
   pageAdd: () => gotoDocTab(docTab, true), pageDup: () => duplicateDocTab(), pageDelete: () => closeDocTab(docTab), pagePrev: () => gotoDocTab(docTab - 1), pageNext: () => gotoDocTab(docTab + 1),
   pageRename: () => renameDocTab(docTab),
   open: () => $('fileImage').click(),
@@ -6167,8 +6193,8 @@ document.fonts.ready.then(fitGoTabs);
 // Projects (projects.js): the design kept on this device and in the account (File > Save to my account, Open from my
 // account), templates, and Send to 3D Studio with the design linked to the artwork on the kit.
 /** Opens a whole design in place of the one on the page (from the account or a template): its own Undo starts. */
-async function openDocument(json) {
-  await window.artboard.load(json);
+async function openDocument(json, name) {
+  await window.artboard.load(json, name);
   history = [snapshot()]; future = []; syncHistory();
   saveNow(STORE, history[0]);
   await splitPagesToTabs();
@@ -7780,7 +7806,7 @@ window.artboard = {
   },
   setAssets: (list) => { for (const a of list ?? []) addAsset(a.src, a.name || 'Asset'); },
   addImage: ({ src, name }) => { addAsset(src, name || 'Image'); return addImage(src, name || 'Image'); },
-  load: (json) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)).then(async (r) => { compactNums(); await splitPagesToTabs(); syncProps(); return r; }); },
+  load: (json, name) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)).then(async (r) => { compactNums(); await splitPagesToTabs(typeof name === 'string' ? name : ''); syncProps(); return r; }); },
   clear: () => ACTIONS.new(),
   toast: (text) => toast(String(text ?? '')),
   receive: (msg) => {

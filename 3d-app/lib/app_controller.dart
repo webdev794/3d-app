@@ -785,9 +785,23 @@ class AppController extends ChangeNotifier {
     patternColor = design['patternColor'] is String
         ? design['patternColor'] as String
         : null;
-    patternColorOwn = null;
+    // The whole look, as the website applies it (task 9.148: a My preset
+    // carries its fabric, My pattern picture, pattern size and track style).
+    patternColorOwn = design['patternColorOwn'] == true ? true : null;
     parts = copyParts(design['parts']);
-    patternTile = null;
+    patternTile = ProjectSync.bytes(design['patternImage']);
+    if (design.containsKey('patternScale')) {
+      patternScale = (design['patternScale'] as num?)?.toDouble();
+    }
+    if (design.containsKey('patternBody')) {
+      patternBody = (design['patternBody'] as num?)?.toDouble();
+    }
+    if (design['trackStyle'] is String) {
+      trackStyle = design['trackStyle'] == 'hood' ? 'hood' : 'collar';
+    }
+    if (designFabrics.contains(design['fabric'])) {
+      fabric = design['fabric'] as String;
+    }
     layout = copyLayout(design['layout']);
   });
 
@@ -1715,6 +1729,17 @@ class AppController extends ChangeNotifier {
       selectedProject >= 0 && selectedProject < projects.length
       ? projects[selectedProject].version + 1
       : 1;
+
+  /// The version a save under [title] gets: a new name (or a copy) starts a
+  /// new project at Version 1.
+  int versionFor(String title) {
+    final had = selectedProject >= 0 && selectedProject < projects.length;
+    if (!had) return 1;
+    final t = title.trim();
+    return t.isEmpty || t == projects[selectedProject].title.trim()
+        ? nextVersion
+        : 1;
+  }
 
   /// Saves the design. A saved project under a different name, or with
   /// [asCopy], becomes a new project and the old one stays as it was (9.147).

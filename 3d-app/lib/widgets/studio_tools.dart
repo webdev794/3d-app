@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -1337,17 +1338,31 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
   List<Map<String, dynamic>>? _mine;
   Set<String> _bundledIds = {};
   bool _saving = false;
+  bool _offline = false;
+
+  /// A 3D still at most [size] px wide (the website's 360 px preview).
+  static Future<Uint8List?> _shrink(Uint8List? png, int size) async {
+    if (png == null) return null;
+    final codec = await ui.instantiateImageCodec(png, targetWidth: size);
+    final frame = await codec.getNextFrame();
+    final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    frame.image.dispose();
+    return data?.buffer.asUint8List() ?? png;
+  }
 
   Future<List> _loadTeam() async {
     final bundled = await _bundled;
     _bundledIds = {for (final p in bundled.cast<Map>()) '${p['id']}'};
     try {
       if (c.api.configured) {
-        final remote = await c.api.presets();
+        final remote = await c.api.presets().timeout(
+          const Duration(seconds: 10),
+        );
         if (remote.isNotEmpty) return remote;
       }
     } on Object {
-      // Offline: the bundled presets.
+      // Offline or slow: the bundled presets, with a note.
+      _offline = true;
     }
     return bundled;
   }
@@ -1355,7 +1370,9 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
   Future<void> _loadMine() async {
     if (!c.signedIn) return;
     try {
-      final mine = await c.api.myPresets();
+      final mine = await c.api.myPresets().timeout(
+        const Duration(seconds: 10),
+      );
       if (mounted) setState(() => _mine = mine);
     } on Object {
       if (mounted) setState(() => _mine = const []);
@@ -1398,7 +1415,7 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
     try {
       Uint8List? still;
       try {
-        still = await c.captureMockup?.call('Front');
+        still = await _shrink(await c.captureMockup?.call('Front'), 360);
       } on Object {
         // Saved without a still.
       }
@@ -1859,6 +1876,15 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                       .toLowerCase()
                       .contains(q);
               final shown = snapshot.data!.cast<Map>().where(shows).toList();
+              final note = _offline
+                  ? const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'The server did not answer: showing the built-in presets.',
+                        style: TextStyle(color: Palette.muted, fontSize: 11),
+                      ),
+                    )
+                  : null;
               final shownMine = (_mine ?? const <Map<String, dynamic>>[])
                   .where(shows)
                   .toList();
@@ -1875,6 +1901,7 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  ?note,
                   if (shownMine.isNotEmpty) ...[
                     const Text('MY PRESETS', style: _groupStyle),
                     const SizedBox(height: 8),

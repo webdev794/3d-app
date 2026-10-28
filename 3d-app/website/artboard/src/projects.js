@@ -289,7 +289,7 @@ export function createProjects(ctx) {
       return false;
     }
     if (!(await okToReplace(`Open “${d.name}”${from === 'kit' ? ' (the design of the artwork on your kit)' : ''}?`))) return false;
-    try { await ctx.open(d.document); } catch { toast(`“${d.name}” could not be opened: the design may be damaged`); return false; }
+    try { await ctx.open(d.document, d.name); } catch { toast(`“${d.name}” could not be opened: the design may be damaged`); return false; }
     doc = { id: d.id, name: d.name, version: d.version, dirty: false }; writeMeta();
     toast(from === 'kit' ? `“${d.name}” is open: change it, then Send to 3D Studio to update it on the kit` : `Opened “${d.name}” from your account`, 5000);
     return true;
@@ -305,7 +305,7 @@ export function createProjects(ctx) {
   /** A new design from a template (built-in or the user's own): not in the account until saved. */
   async function useTemplate(json, name) {
     if (!(await okToReplace(`Start a new design from the template “${name}”?`))) return false;
-    try { await ctx.open(json); } catch { toast(`The template “${name}” could not be opened`); return false; }
+    try { await ctx.open(json, name); } catch { toast(`The template “${name}” could not be opened`); return false; }
     doc = { ...NONE, name: String(name).slice(0, 120) }; writeMeta(); // the name it is saved under, unless changed
     toast(`New design from “${name}”: change the text and colours, then File > Save to my account`, 5000);
     return true;
@@ -510,6 +510,8 @@ export function createProjects(ctx) {
       doc = { ...doc, name: String(name).trim().slice(0, 120) }; writeMeta();
       if (doc.id && hosted() && host.signedIn) await saveAndSay({ name: doc.name });
     },
+    /** The in-page question box (the apps' web views answer no confirm() boxes). */
+    ask,
     swapDoc: (next) => { const was = { ...doc }; doc = next ? { ...NONE, ...next } : { ...NONE }; writeMeta(); return was; },
   };
 }

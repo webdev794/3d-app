@@ -1,3 +1,7 @@
+import 'dart:math' as math;
+import 'dart:ui' show PointerDeviceKind;
+
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -266,98 +270,242 @@ class AiStageBackdrop extends StatelessWidget {
 
 /// The sports row: a tile only sets the sport for the design (the screen
 /// stays); tap the chosen one again to clear it. Swipes sideways.
-class AiSportRow extends StatelessWidget {
+class AiSportRow extends StatefulWidget {
   const AiSportRow({super.key, required this.selected, required this.onSelect});
   final String? selected;
   final ValueChanged<String> onSelect;
 
   @override
+  State<AiSportRow> createState() => _AiSportRowState();
+}
+
+/// The row scrolls with a finger, a mouse drag or the wheel; round ‹ › buttons
+/// page it and a soft fade marks the cut-off side (client 2026-10-28).
+class _AiSportRowState extends State<AiSportRow> {
+  final _scroll = ScrollController();
+  bool _prev = false, _next = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_measure);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _measure() {
+    if (!mounted || !_scroll.hasClients) return;
+    final p = _scroll.position;
+    final prev = p.pixels > 2, next = p.pixels < p.maxScrollExtent - 2;
+    if (prev != _prev || next != _next) {
+      setState(() {
+        _prev = prev;
+        _next = next;
+      });
+    }
+  }
+
+  void _page(int dir) {
+    if (!_scroll.hasClients) return;
+    final p = _scroll.position;
+    final step = math.max(p.viewportDimension - 116, 116.0);
+    _scroll.animateTo(
+      (p.pixels + dir * step).clamp(0.0, p.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Widget _arrow(int dir) => Material(
+    key: ValueKey(dir < 0 ? 'ai-sports-prev' : 'ai-sports-next'),
+    color: const Color(0xcc03101a),
+    shape: CircleBorder(
+      side: BorderSide(color: Palette.cyan.withValues(alpha: .7), width: 1.5),
+    ),
+    elevation: 3,
+    child: InkWell(
+      customBorder: const CircleBorder(),
+      onTap: () => _page(dir),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Icon(
+          dir < 0 ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+          color: Colors.white,
+          size: 22,
+          semanticLabel: dir < 0 ? 'Previous sports' : 'More sports',
+        ),
+      ),
+    ),
+  );
+
+  @override
   Widget build(BuildContext context) => SizedBox(
     height: 140,
-    child: ListView.separated(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      itemCount: aiQuickSports.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 10),
-      itemBuilder: (context, i) {
-        final s = aiQuickSports[i];
-        final on = s.id == selected;
-        return Semantics(
-          button: true,
-          selected: on,
-          label: on ? '${s.label}, chosen' : 'Design for ${s.label}',
-          excludeSemantics: true,
-          child: GestureDetector(
-            onTap: () => onSelect(s.id),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: 106,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: on ? Palette.cyan : const Color(0x33ffffff),
-                  width: on ? 2 : 1,
-                ),
-                boxShadow: on
-                    ? [
-                        BoxShadow(
-                          color: Palette.cyan.withValues(alpha: .45),
-                          blurRadius: 16,
+    child: NotificationListener<ScrollMetricsNotification>(
+      onNotification: (_) {
+        _measure();
+        return false;
+      },
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (r) => LinearGradient(
+                colors: [
+                  _prev ? Colors.transparent : Colors.black,
+                  Colors.black,
+                  Colors.black,
+                  _next ? Colors.transparent : Colors.black,
+                ],
+                stops: [0, 40 / r.width, 1 - 40 / r.width, 1],
+              ).createShader(r),
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(dragDevices: PointerDeviceKind.values.toSet()),
+                child: Listener(
+                  // A plain mouse wheel (up/down) scrolls the row sideways.
+                  onPointerSignal: (e) {
+                    if (e is PointerScrollEvent &&
+                        e.scrollDelta.dx == 0 &&
+                        _scroll.hasClients) {
+                      final p = _scroll.position;
+                      _scroll.jumpTo(
+                        (p.pixels + e.scrollDelta.dy).clamp(
+                          0.0,
+                          p.maxScrollExtent,
                         ),
-                      ]
-                    : const [],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(11),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.asset(
-                      s.art,
-                      fit: BoxFit.cover,
-                      cacheWidth: 300,
-                      errorBuilder: (_, _, _) =>
-                          const ColoredBox(color: Palette.surface),
+                      );
+                    }
+                  },
+                  child: ListView.separated(
+                    controller: _scroll,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
                     ),
-                    const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Color(0x0002060b), Color(0xf002060b)],
-                          stops: [.45, .95],
+                    itemCount: aiQuickSports.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 10),
+                    itemBuilder: (context, i) {
+                      final s = aiQuickSports[i];
+                      final on = s.id == widget.selected;
+                      return Semantics(
+                        button: true,
+                        selected: on,
+                        label: on
+                            ? '${s.label}, chosen'
+                            : 'Design for ${s.label}',
+                        excludeSemantics: true,
+                        child: GestureDetector(
+                          onTap: () => widget.onSelect(s.id),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 106,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: on
+                                    ? Palette.cyan
+                                    : const Color(0x33ffffff),
+                                width: on ? 2 : 1,
+                              ),
+                              boxShadow: on
+                                  ? [
+                                      BoxShadow(
+                                        color: Palette.cyan.withValues(
+                                          alpha: .45,
+                                        ),
+                                        blurRadius: 16,
+                                      ),
+                                    ]
+                                  : const [],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(11),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Image.asset(
+                                    s.art,
+                                    fit: BoxFit.cover,
+                                    cacheWidth: 300,
+                                    errorBuilder: (_, _, _) => const ColoredBox(
+                                      color: Palette.surface,
+                                    ),
+                                  ),
+                                  const DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Color(0x0002060b),
+                                          Color(0xf002060b),
+                                        ],
+                                        stops: [.45, .95],
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    left: 4,
+                                    right: 4,
+                                    bottom: 16,
+                                    child: Text(
+                                      s.label.toUpperCase(),
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    left: 42,
+                                    right: 42,
+                                    bottom: 8,
+                                    child: Container(
+                                      height: 2,
+                                      color: Palette.cyan,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 4,
-                      right: 4,
-                      bottom: 16,
-                      child: Text(
-                        s.label.toUpperCase(),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 42,
-                      right: 42,
-                      bottom: 8,
-                      child: Container(height: 2, color: Palette.cyan),
-                    ),
-                  ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
           ),
-        );
-      },
+          if (_prev)
+            Positioned(
+              left: 6,
+              top: 0,
+              bottom: 0,
+              child: Center(child: _arrow(-1)),
+            ),
+          if (_next)
+            Positioned(
+              right: 6,
+              top: 0,
+              bottom: 0,
+              child: Center(child: _arrow(1)),
+            ),
+        ],
+      ),
     ),
   );
 }

@@ -587,8 +587,10 @@ class ProfileScreen extends StatelessWidget {
     ],
   );
 
+  // The arrows sit left of the round Assist button (bottom right), so it never
+  // covers them (QA 10-28: "Orders" and "My orders").
   Widget _row(IconData icon, String label, VoidCallback tap) => ListTile(
-    contentPadding: EdgeInsets.zero,
+    contentPadding: const EdgeInsets.only(right: 46),
     leading: Icon(icon, color: Palette.cyan, size: 22),
     title: Text(label, style: const TextStyle(fontSize: 13)),
     trailing: const Icon(Icons.chevron_right, size: 18),
@@ -605,7 +607,7 @@ class ProfileScreen extends StatelessWidget {
       TopBar(title: 'Profile', trailing: [NotificationBell(c)]),
       Expanded(
         child: ListView(
-          padding: const EdgeInsets.all(22),
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 90),
           children: [
             const Center(
               child: CircleAvatar(

@@ -99,7 +99,9 @@ class WordLookEditor extends StatelessWidget {
           min: .5,
           max: 2,
           onChanged: (v) => _patch({'scale': v}, live: true),
-          onChangeEnd: (v) => _patch({'scale': v}),
+          // One Undo step per drag: the old value is kept as it starts.
+          onChangeStart: (_) => c.edit(() {}),
+          onChangeEnd: (v) => _patch({'scale': v}, live: true),
         ),
         Text('Letter spacing', style: Theme.of(context).textTheme.bodySmall),
         Slider(
@@ -107,7 +109,9 @@ class WordLookEditor extends StatelessWidget {
           min: -.1,
           max: .6,
           onChanged: (v) => _setLook({'spacing': v}, live: true),
-          onChangeEnd: (v) => _setLook({'spacing': v}),
+          // One Undo step per drag: the old value is kept as it starts.
+          onChangeStart: (_) => c.edit(() {}),
+          onChangeEnd: (v) => _setLook({'spacing': v}, live: true),
         ),
         if (style != 'plain') ...[
           Text(
@@ -122,7 +126,9 @@ class WordLookEditor extends StatelessWidget {
             value: width.clamp(0, .3),
             max: .3,
             onChanged: (v) => _setLook({'width': v}, live: true),
-            onChangeEnd: (v) => _setLook({'width': v}),
+            // One Undo step per drag: the old value is kept as it starts.
+            onChangeStart: (_) => c.edit(() {}),
+            onChangeEnd: (v) => _setLook({'width': v}, live: true),
           ),
           Wrap(
             spacing: 8,
@@ -348,7 +354,10 @@ class _WordPainter extends CustomPainter {
                   _colour(look['color'])?.withValues(alpha: .8) ??
                   Colors.black54,
               blurRadius: size * math.max(.04, width),
-              offset: Offset(size * math.max(.04, width), size * math.max(.04, width)),
+              offset: Offset(
+                size * math.max(.04, width),
+                size * math.max(.04, width),
+              ),
             ),
           ]
         : null;

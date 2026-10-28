@@ -44,6 +44,8 @@ class KitViewer3DState extends State<KitViewer3D> {
   int _nextRequest = 0;
   bool? _sentBoard;
   String? _sentSelection;
+  String? _typedField;
+  DateTime _typedAt = DateTime(0);
   bool? _sentPick, _sentPartPick, _sentObjects;
 
   AppController get c => widget.controller;
@@ -139,13 +141,22 @@ class KitViewer3DState extends State<KitViewer3D> {
       case 'markText':
         // A word edited on the 3D kit (task 9.144).
         final value = '${msg['value'] ?? ''}';
-        switch (msg['field']) {
+        // A typing burst (the same word, under 3 s apart) is one Undo step.
+        final field = '${msg['field']}', now = DateTime.now();
+        final burst =
+            field == _typedField &&
+            now.difference(_typedAt) < const Duration(seconds: 3);
+        _typedField = field;
+        _typedAt = now;
+        void set(VoidCallback change) =>
+            burst ? c.update(change) : c.edit(change);
+        switch (field) {
           case 'logoText':
-            c.edit(() => c.logoText = value);
+            set(() => c.logoText = value);
           case 'backName':
-            c.edit(() => c.backName = value);
+            set(() => c.backName = value);
           case 'number':
-            c.edit(() => c.number = value);
+            set(() => c.number = value);
         }
       case 'wantImage':
         unawaited(_pickImage('${msg['id'] ?? ''}'));

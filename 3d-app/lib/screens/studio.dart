@@ -2105,6 +2105,24 @@ class _TextToolState extends State<_TextTool> {
   late final _number = TextEditingController(text: widget.c.number);
   bool _recorded = false;
 
+  @override
+  void initState() {
+    super.initState();
+    widget.c.addListener(_follow);
+  }
+
+  /// A word changed elsewhere (on the 3D kit, task 9.144, or by the AI) shows
+  /// here, so typing in the tab never puts the old word back.
+  void _follow() {
+    void keep(TextEditingController box, String now) {
+      if (box.text.toUpperCase() != now.toUpperCase()) box.text = now;
+    }
+
+    keep(_front, widget.c.logoText);
+    keep(_name, widget.c.backName);
+    keep(_number, widget.c.number);
+  }
+
   /// One Undo step for the whole text session.
   void _set(VoidCallback change) {
     if (_recorded) {
@@ -2117,6 +2135,7 @@ class _TextToolState extends State<_TextTool> {
 
   @override
   void dispose() {
+    widget.c.removeListener(_follow);
     _front.dispose();
     _name.dispose();
     _number.dispose();
@@ -2295,11 +2314,14 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
                         borderRadius: BorderRadius.circular(13),
                         border: Border.all(color: Palette.border),
                       ),
-                      child: Text(
-                        _done
-                            ? 'Version ${c.projects.first.version}'
-                            : 'Version ${c.nextVersion}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      child: ValueListenableBuilder(
+                        valueListenable: _name,
+                        builder: (_, name, _) => Text(
+                          _done
+                              ? 'Version ${c.projects.first.version}'
+                              : 'Version ${c.versionFor(name.text)}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ),
                   ),

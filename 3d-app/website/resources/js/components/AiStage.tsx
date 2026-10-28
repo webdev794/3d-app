@@ -153,8 +153,20 @@ export function SportRow({ tiles, selected, onSelect }: { tiles: QuickSport[]; s
   const [more, setMore] = useState({ prev: false, next: true });
   const measure = useCallback(() => { const el = strip.current; if (!el) return; const prev = el.scrollLeft > 2, next = el.scrollLeft + el.clientWidth < el.scrollWidth - 2; setMore(m => m.prev === prev && m.next === next ? m : { prev, next }); }, []);
   useEffect(() => { measure(); const el = strip.current; if (!el) return; const ro = new ResizeObserver(measure); ro.observe(el); return () => ro.disconnect(); }, [measure, tiles.length]);
+  // A mouse can scroll it too: the wheel scrolls sideways and a drag pulls the row (a drag is not a click on a tile).
+  useEffect(() => {
+    const el = strip.current; if (!el) return;
+    let down: { x: number; left: number; id: number } | null = null, moved = false;
+    const wheel = (e: WheelEvent) => { if (el.scrollWidth <= el.clientWidth + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; el.scrollLeft += e.deltaY; e.preventDefault(); };
+    const start = (e: PointerEvent) => { if (e.pointerType !== 'mouse' || e.button !== 0) return; down = { x: e.clientX, left: el.scrollLeft, id: e.pointerId }; moved = false; };
+    const move = (e: PointerEvent) => { if (!down) return; const dx = e.clientX - down.x; if (!moved && Math.abs(dx) > 6) { moved = true; el.setPointerCapture(down.id); el.style.scrollSnapType = 'none'; } if (moved) el.scrollLeft = down.left - dx; };
+    const end = () => { if (!down) return; down = null; el.style.scrollSnapType = ''; };
+    const click = (e: MouseEvent) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } };
+    el.addEventListener('wheel', wheel, { passive: false }); el.addEventListener('pointerdown', start); el.addEventListener('pointermove', move); el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); el.addEventListener('click', click, true);
+    return () => { el.removeEventListener('wheel', wheel); el.removeEventListener('pointerdown', start); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', end); el.removeEventListener('pointercancel', end); el.removeEventListener('click', click, true); };
+  }, []);
   const page = (dir: number) => { const el = strip.current; if (!el) return; const w = el.querySelector<HTMLElement>('.aid-tile')?.offsetWidth ?? 140; el.scrollBy({ left: dir * Math.max(el.clientWidth - w, w), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
-  return <div className={`aid-sports${more.prev || more.next ? '' : ' fits'}`}>
+  return <div className={`aid-sports${more.prev || more.next ? '' : ' fits'}${more.prev ? ' has-prev' : ''}${more.next ? ' has-next' : ''}`}>
     <button type="button" className="aid-arrow" onClick={() => page(-1)} disabled={!more.prev} aria-label="Previous sports"><ChevronLeft size={22} /></button>
     <div ref={strip} className="aid-strip" onScroll={measure} role="group" aria-label="Choose a sport (optional)">
       {tiles.map((s, i) => <button key={s.id} type="button" className="aid-tile" aria-pressed={selected === s.id} onClick={() => onSelect(s.id)} title={selected === s.id ? `${s.label}: chosen (click again to clear)` : `Design for ${s.label}`}>

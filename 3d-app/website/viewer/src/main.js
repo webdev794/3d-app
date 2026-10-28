@@ -573,7 +573,9 @@ async function paintAll() {
   ringMat.color.set(design.secondary).multiplyScalar(4);
   pool.material.color.set(design.secondary);
   await board.refresh();
-  if (selected) { outlineSelected(); if (!dragObj) drawBar(); }
+  // Not while the user types or slides in the bar (the host's echo would take the focus away).
+  // The bar is built once per selection (a repaint only moves the outline), so typing and sliding are never cut off.
+  if (selected) { outlineSelected(); if (barPending && !dragObj && !bar.contains(document.activeElement)) { barPending = false; drawBar(); } }
 }
 
 /** A design from the host (website or app). */
@@ -1026,6 +1028,7 @@ function dragHover(arg) {
 // drag to move, pinch or the bar to resize, turn, change the crest's shape, edit the words, remove. A tap on an empty
 // chest spot offers "Add logo here" / "Add text here". The host turns it on (command objectEdit) in its Studio; the
 // changes reach it as the board's do ({type:'marks'} / {type:'layers'}), words as {type:'markText', field, value}.
+let barPending = false;
 let objectEditing = false, selected = null, addSpot = null, hostImages = false, dragObj = null;
 const MARK_LABEL = { wordmark: 'Team name', sponsor: 'Sponsor', crest: 'Crest', name: 'Back name', number: 'Number' };
 const MARK_FIELD = { wordmark: 'logoText', name: 'backName', number: 'number' };
@@ -1071,7 +1074,8 @@ function sendObjects(kind) {
 }
 /** Change the selected object: {x, y} | {scaleBy} | {scale} (marks: absolute; layers: times the base) | {rotBy} | {shape} | {color} | {text} | {remove}. */
 function changeSelected(change, final = true) {
-  const box = selectedBox();
+  // A text layer emptied while typing is not drawn, but stays selected and editable.
+  const box = selectedBox() ?? (selected?.kind === 'layer' && layerOf(selected.id) ? { kind: 'layer' } : null);
   if (!box) return;
   if (selected.kind === 'mark') {
     const o = markOf(selected.key);
@@ -1108,13 +1112,22 @@ function setMarkText(name, value) {
   value = name === 'number' ? String(value).replace(/\D/g, '').slice(0, 3) : String(value).slice(0, 40);
   design[field] = value;
   repaintSoon();
-  post({ type: 'markText', field, value });
+  markTextPending[field] = value;
+  clearTimeout(markTextTimer);
+  markTextTimer = setTimeout(flushMarkText, 700);
+}
+let markTextTimer, markTextPending = {};
+function flushMarkText() {
+  clearTimeout(markTextTimer);
+  const all = markTextPending; markTextPending = {};
+  for (const [field, value] of Object.entries(all)) post({ type: 'markText', field, value });
 }
 
 // The outline: the selected object's box drawn on the part's glow layer (it follows the kit's shape).
 function outlineSelected() {
   const box = selectedBox();
-  if (!box) { if (selected && !dragObj) select(null); return; }
+  // (A word emptied while typing keeps its selection and the box being typed in.)
+  if (!box) { if (selected && !dragObj && !bar.contains(document.activeElement)) select(null); else if (heldGlow?.key === 'object') clearGlow(); return; }
   const piece = pieceFor(selected.part), P = piece.painter, q = 0.5;
   const m = document.createElement('canvas'); m.width = Math.round(P.canvas.width * q); m.height = Math.round(P.canvas.height * q);
   const g = m.getContext('2d'), c = P.toCanvas(box.side === 'back', box.x, box.y);
@@ -1136,6 +1149,7 @@ function outlineSelected() {
   heldGlow = { piece, key: 'object' };
 }
 function select(obj) {
+  flushMarkText();
   selected = obj;
   addSpot = null;
   if (obj) outlineSelected();
@@ -1199,7 +1213,7 @@ function drawBar() {
     if (text !== null) {
       const input = el('input', { type: 'text', value: text, ariaLabel: 'Words', maxLength: selected.name === 'number' ? 3 : 40 });
       input.oninput = () => (selected.kind === 'mark' ? setMarkText(selected.name, input.value) : changeSelected({ text: input.value }, false));
-      input.onchange = () => { if (selected?.kind === 'layer') sendObjects('layer'); };
+      input.onchange = () => { if (selected?.kind === 'layer') sendObjects('layer'); else flushMarkText(); };
       input.addEventListener('keydown', (e) => e.stopPropagation());
       row.append(el('span', { textContent: 'Words' }), input);
     }
@@ -1218,30 +1232,42 @@ function addLayer(layer) {
   post({ type: 'layers', layers: design.layers });
   addSpot = null;
   selected = { part: layer.part, kind: 'layer', id: layer.id };
+  barPending = true;
   repaintSoon();
 }
 /** The club's logo, or the 3DEEZI shield drawn as a picture (a copy of the crest elsewhere is an ordinary logo layer). */
-function crestPicture() {
-  if (design.logoImage) return design.logoImage;
+/** The crest as a picture, in its chosen badge shape (task 9.144): the club's logo or the 3DEEZI "3D" (a copy of the
+ * crest elsewhere is an ordinary logo layer). */
+async function crestPicture(shape = design.marks?.top_crest?.shape ?? design.marks?.front_crest?.shape) {
+  const round = shape && shape !== 'shield';
+  if (design.logoImage && !round) return design.logoImage;
+  const logo = design.logoImage ? await new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = design.logoImage; }) : null;
   const c = document.createElement('canvas'); c.width = c.height = 256;
   const g = c.getContext('2d'), k = 256 / 0.074;
   g.translate(128, 128); g.scale(k, k);
-  const pts = [[0, 0.034], [0.028, 0.018], [0.022, -0.02], [0, -0.036], [-0.022, -0.02], [-0.028, 0.018]];
-  g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, -y) : g.moveTo(x, -y))); g.closePath();
+  g.beginPath();
+  const s = 0.066;
+  if (shape === 'circle') g.ellipse(0, 0, s / 2, s / 2, 0, 0, Math.PI * 2);
+  else if (shape === 'square') g.rect(-s / 2, -s / 2, s, s);
+  else if (shape === 'rounded') g.roundRect(-s / 2, -s / 2, s, s, s * 0.22);
+  else if (shape === 'diamond') { g.moveTo(0, -s / 2); g.lineTo(s / 2, 0); g.lineTo(0, s / 2); g.lineTo(-s / 2, 0); g.closePath(); }
+  else { [[0, 0.034], [0.028, 0.018], [0.022, -0.02], [0, -0.036], [-0.022, -0.02], [-0.028, 0.018]].forEach(([x, y], i) => (i ? g.lineTo(x, -y) : g.moveTo(x, -y))); g.closePath(); }
   g.fillStyle = design.accent; g.fill();
-  g.fillStyle = design.main; g.font = '700 0.03px Rajdhani, Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('3D', 0, 0.002);
+  if (logo) { g.save(); g.clip(); const f = Math.min((s * 0.8) / logo.width, (s * 0.8) / logo.height); g.drawImage(logo, (-logo.width * f) / 2, (-logo.height * f) / 2, logo.width * f, logo.height * f); g.restore(); }
+  else { g.fillStyle = design.main; g.font = '700 0.03px Rajdhani, Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('3D', 0, 0.002); }
   return c.toDataURL('image/png');
 }
-function copyCrest(box) {
-  addLayer({ id: newId('logo'), name: 'Crest copy', type: 'image', part: selected.part, side: box.side, x: clamp(-box.x, -1, 1), y: box.y, w: clamp(Math.max(box.w, 0.03), 0.005, 1), rot: 0, src: crestPicture() });
+async function copyCrest(box) {
+  // The same shape and size, the turn mirrored, on the other chest.
+  const part = selected.part;
+  addLayer({ id: newId('logo'), name: 'Crest copy', type: 'image', part, side: box.side, x: clamp(-box.x, -1, 1), y: box.y, w: clamp(Math.max(box.w, 0.03), 0.005, 1), rot: turn(-(box.rot ?? 0)), src: await crestPicture(design.marks?.[selected.key]?.shape ?? 'shield') });
 }
 async function addHere(what) {
   const at = addSpot;
   if (!at) return;
   const base = { part: at.part, side: at.side, x: at.x, y: at.y, rot: 0 };
   if (what === 'text') return addLayer({ ...base, id: newId('text'), name: 'Text', type: 'text', text: 'TEXT', size: 0.035, color: design.accent });
-  if (what === 'logo') return addLayer({ ...base, id: newId('logo'), name: 'Logo', type: 'image', w: 0.07, src: crestPicture() });
+  if (what === 'logo') return addLayer({ ...base, id: newId('logo'), name: 'Logo', type: 'image', w: 0.07, src: await crestPicture() });
   const id = newId('img');
   const got = await choosePicture(id);
   if (!got) return;
