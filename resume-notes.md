@@ -15,7 +15,7 @@ Updated 2026-10-27 15:15. Session and weekly limits hit; all agents stopped mid-
 | QA V af2b2592c58ae0c57 | independent tester; app round, then re-check the fixes | report only, SP\QAV |
 
 ## State
-- Live file 3deez-update-2026-10-27-a.tar.gz (code-only) and v2 push made 2026-10-27 15:15 with everything up to then (some fixes above half done but building cleanly).
+- Live file 3deez-update-2026-10-27-b.tar.gz (code-only) and live file -b and v2 = afe173e at 15:34 with everything up to then (some fixes above half done but building cleanly).
 - Not started (note only): 9.138 app Home simpler (images/197-198), 9.139 jersey look better (images/196; waiting for the user's go).
 - Waiting on the client: HQ jersey as default / buying models; Airwallex keys; supplier prices; live mail settings.
 

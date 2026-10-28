@@ -51,91 +51,17 @@ void main() {
         expect(ai.left, greaterThanOrEqualTo(0));
         expect(dyo.right, lessThanOrEqualTo(size.width));
 
-        // Under the tiles: the INSTANT 3D FROM ARTWORK bar (as wide as the
-        // tiles, its button inside it), ORDERS (three buttons in one row, as
-        // wide as the tiles), the Preferred suppliers strip, the Assist link.
-        // The old grey Convert line is gone.
-        await tester.ensureVisible(
-          find.byKey(const ValueKey('home-assist-link')),
+        // Under the tiles: the slim ARTWORK TO 3D bar, as wide as the grid.
+        // The ordering cards and the suppliers strip left Home (2026-10-28).
+        final bar = tester.getRect(
+          find.byKey(const ValueKey('home-artwork-bar')),
         );
-        await tester.pump();
-        Rect at(String key) => tester.getRect(find.byKey(ValueKey(key)));
-        final bar = at('home-artwork-bar');
-        final form = at('home-order-form'), upload = at('home-order-upload');
-        final mine = at('home-my-orders'), strip = at('home-suppliers');
-        final link = at('home-assist-link');
-        expect(bar.top, greaterThan(at('home-tile-team').bottom));
-        expect(bar.left, moreOrLessEquals(at('home-tile-ai').left));
-        expect(bar.right, moreOrLessEquals(at('home-tile-dyo').right));
-        final button = tester.getRect(find.text('UPLOAD ARTWORK HERE'));
-        expect(button.top, greaterThan(bar.top));
-        expect(button.bottom, lessThan(bar.bottom));
-        expect(button.left, greaterThan(bar.left));
-        expect(button.right, lessThan(bar.right));
-        final question = tester.getRect(
-          find.text('ALREADY HAVE ARTWORK READY?'),
-        );
-        expect(question.bottom, lessThanOrEqualTo(button.top));
-        expect(question.right, lessThanOrEqualTo(bar.right));
-        expect(find.byKey(const ValueKey('home-convert')), findsNothing);
-        expect(find.text('Convert an image to 3D'), findsNothing);
-        // ORDER NOW WITH 3DEEZI (client 2026-10-26, as on the website): the
-        // heading and its line, then three big cards stacked, each as wide
-        // as the tiles, with its picture and gradient button inside it.
-        final heading = at('home-orders-heading');
-        expect(heading.top, greaterThan(bar.bottom));
-        expect(heading.left, greaterThanOrEqualTo(bar.left));
-        expect(heading.right, lessThanOrEqualTo(bar.right));
-        expect(
-          tester
-              .getRect(
-                find.text(
-                  'Start an order. Upload your details. Follow its progress.',
-                ),
-              )
-              .top,
-          greaterThanOrEqualTo(heading.bottom),
-        );
-        expect(form.top, greaterThan(heading.bottom));
-        expect(upload.top, greaterThan(form.bottom));
-        expect(mine.top, greaterThan(upload.bottom));
-        for (final card in [form, upload, mine]) {
-          expect(card.left, moreOrLessEquals(at('home-tile-ai').left));
-          expect(card.right, moreOrLessEquals(at('home-tile-dyo').right));
-          expect(card.height, greaterThan(250));
-        }
-        for (final (card, key, button) in [
-          (form, 'home-order-form', 'CREATE ORDER FORM'),
-          (upload, 'home-order-upload', 'UPLOAD YOUR ORDER'),
-          (mine, 'home-my-orders', 'VIEW MY ORDERS'),
-        ]) {
-          // The button is the last of its words (the cyan sub-title of the
-          // form and upload cards says the same, as on the website).
-          final inside = find
-              .descendant(
-                of: find.byKey(ValueKey(key)),
-                matching: find.text(button),
-              )
-              .last;
-          final b = tester.getRect(inside);
-          expect(b.top, greaterThan(card.top), reason: key);
-          expect(b.bottom, lessThan(card.bottom), reason: key);
-          final picture = tester.getRect(
-            find.descendant(
-              of: find.byKey(ValueKey(key)),
-              matching: find.byType(Image),
-            ),
-          );
-          expect(picture.width, greaterThan(card.width * .8), reason: key);
-          expect(picture.bottom, lessThan(b.top), reason: key);
-        }
-        expect(find.text('NEED HELP ORDERING?'), findsOneWidget);
-        expect(find.text('ORDER READY TO GO?'), findsOneWidget);
-        expect(find.text('YOUR ORDERS. ONE PLACE.'), findsOneWidget);
-        expect(find.text('ORDERS'), findsNothing);
-        expect(strip.top, greaterThan(mine.bottom));
-        expect(strip.width, moreOrLessEquals(mine.width));
-        expect(link.top, greaterThan(strip.bottom));
+        expect(bar.top, greaterThan(team.bottom));
+        expect(bar.left, moreOrLessEquals(ai.left));
+        expect(bar.right, moreOrLessEquals(team.right));
+        expect(bar.height, lessThan(90));
+        expect(find.byKey(const ValueKey('home-order-form')), findsNothing);
+        expect(find.byKey(const ValueKey('home-suppliers')), findsNothing);
         expect(tester.takeException(), isNull);
       },
     );
@@ -159,7 +85,7 @@ void main() {
       greaterThanOrEqualTo(47),
     );
     expect(
-      tester.getTopLeft(find.textContaining('What would you like')).dy,
+      tester.getTopLeft(find.textContaining('CREATE', findRichText: true)).dy,
       greaterThan(47),
     );
     expect(
@@ -194,7 +120,7 @@ void main() {
     // The INSTANT 3D FROM ARTWORK bar starts Convert, as the grey line it
     // replaced did (no AI in tests: it says so), from its button and from
     // the rest of the panel.
-    for (final part in ['UPLOAD ARTWORK HERE', 'ALREADY HAVE ARTWORK READY?']) {
+    for (final part in ['ARTWORK TO 3D']) {
       c.update(() => c.screen = AppScreen.home);
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(seconds: 4)); // The last toast goes.
@@ -209,7 +135,7 @@ void main() {
   });
 
   testWidgets(
-    'Home: INSTANT 3D FROM ARTWORK is one button for screen readers',
+    'Home: ARTWORK TO 3D is one button for screen readers',
     (tester) async {
       final semantics = tester.ensureSemantics();
       final c = AppController(store: FakeStore())..screen = AppScreen.home;
@@ -217,118 +143,16 @@ void main() {
       final bar = find.byKey(const ValueKey('home-artwork-bar'));
       await tester.ensureVisible(bar);
       await tester.pumpAndSettle();
-      expect(find.text('INSTANT 3D FROM ARTWORK'), findsOneWidget);
+      expect(find.text('ARTWORK TO 3D'), findsOneWidget);
       expect(
         tester.getSemantics(bar),
         isSemantics(
           label:
-              'Upload artwork here. Already have artwork ready? Turn your '
-              'finished design into an editable 3D kit in seconds.',
+              'Artwork to 3D',
           isButton: true,
           hasTapAction: true,
         ),
       );
-      expect(tester.takeException(), isNull);
-      semantics.dispose();
-    },
-  );
-
-  testWidgets(
-    "Home ORDERS: each button opens the Orders tab's screen; Back returns home",
-    (tester) async {
-      final c = signedIn(OrdersServer())..screen = AppScreen.home;
-      await mount(tester, CreateHomeScreen(c), width: 390);
-      await tap(tester, find.byKey(const ValueKey('home-order-form')));
-      expect(find.byType(OrderFormScreen), findsOneWidget);
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(find.byType(OrderFormScreen), findsNothing);
-      expect(find.byKey(const ValueKey('home-tile-ai')), findsOneWidget);
-      await tap(tester, find.byKey(const ValueKey('home-order-upload')));
-      expect(find.byType(OrderUploadScreen), findsOneWidget);
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(find.byType(OrderUploadScreen), findsNothing);
-      expect(find.byKey(const ValueKey('home-tile-ai')), findsOneWidget);
-      await tap(tester, find.byKey(const ValueKey('home-my-orders')));
-      expect(c.screen, AppScreen.orders);
-      // Back from My orders comes home.
-      c.back();
-      expect(c.screen, AppScreen.home);
-    },
-  );
-
-  testWidgets(
-    'Home ORDERS signed out: the form and the upload ask to sign in first',
-    (tester) async {
-      final server = OrdersServer();
-      final c = AppController(
-        store: FakeStore(),
-        api: ApiClient(client: server.client, baseUrl: 'https://test.example'),
-      )..screen = AppScreen.home;
-      await mount(tester, CreateHomeScreen(c), width: 390);
-      await tap(tester, find.byKey(const ValueKey('home-order-form')));
-      expect(find.byType(OrderFormScreen), findsNothing);
-      expect(find.text('Sign in to place an order.'), findsOneWidget);
-      expect(c.screen, AppScreen.auth);
-      c.screen = AppScreen.home;
-      await tap(tester, find.byKey(const ValueKey('home-order-upload')));
-      expect(find.byType(OrderUploadScreen), findsNothing);
-      expect(c.screen, AppScreen.auth);
-      expect(
-        server.requests.where((r) => r.url.path.contains('order')),
-        isEmpty,
-      );
-      // My orders opens (it shows its own "Sign in" message).
-      c.screen = AppScreen.home;
-      await tap(tester, find.byKey(const ValueKey('home-my-orders')));
-      expect(c.screen, AppScreen.orders);
-    },
-  );
-
-  testWidgets(
-    'Home: Preferred suppliers opens its screen (one button for screen '
-    'readers); Back returns home',
-    (tester) async {
-      final semantics = tester.ensureSemantics();
-      final c = AppController(
-        store: FakeStore(),
-        api: ApiClient(
-          client: SuppliersServer().client,
-          baseUrl: 'https://test.example',
-        ),
-      )..screen = AppScreen.home;
-      await mount(tester, CreateHomeScreen(c), width: 360);
-      final strip = find.byKey(const ValueKey('home-suppliers'));
-      await tester.ensureVisible(strip);
-      await tester.pumpAndSettle();
-      expect(
-        tester.getSemantics(strip),
-        isSemantics(
-          label: '3DEEZI Preferred suppliers: made by makers we trust',
-          isButton: true,
-          hasTapAction: true,
-        ),
-      );
-      expect(find.text('PREFERRED SUPPLIERS'), findsOneWidget);
-      expect(find.text('Made by makers we trust.'), findsOneWidget);
-      expect(find.text('Coming soon.'), findsNothing);
-      await tester.tap(strip);
-      await tester.pumpAndSettle();
-      expect(find.byType(SuppliersScreen), findsOneWidget);
-      expect(find.text('Mantis'), findsOneWidget);
-      final become = find.byKey(const ValueKey('become-supplier'));
-      await tester.scrollUntilVisible(
-        become,
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      expect(become, findsOneWidget);
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(find.byType(SuppliersScreen), findsNothing);
-      expect(c.screen, AppScreen.home);
-      expect(find.byKey(const ValueKey('home-tile-ai')), findsOneWidget);
       expect(tester.takeException(), isNull);
       semantics.dispose();
     },

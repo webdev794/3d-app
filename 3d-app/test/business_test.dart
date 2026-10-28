@@ -15,26 +15,20 @@ void main() {
     tester.view.physicalSize = const Size(430, 900);
     await tester.pump();
     // The client's home (images/166.jpg).
-    expect(find.textContaining('What would you like'), findsOneWidget);
-    expect(find.text('Choose how you want to start.'), findsOneWidget);
-    for (final (title, sub) in [
-      ('AI DESIGNER', 'Describe your idea'),
-      ('DESIGN YOUR OWN', 'Build your kit in 3D'),
-      ('ARTBOARD', 'Create and edit artwork'),
-      ('3DEEZI TEAM', 'Let our designers help'),
+    expect(find.textContaining('CREATE', findRichText: true), findsWidgets);
+    for (final title in [
+      'AI DESIGNER',
+      'DESIGN YOUR OWN',
+      'ARTBOARD',
+      'DESIGN TEAM',
     ]) {
       await tester.ensureVisible(find.text(title));
       expect(find.text(title), findsOneWidget);
-      expect(find.text(sub), findsOneWidget);
     }
+    expect(find.text('Describe your idea'), findsNothing);
     expect(find.text('Need a hand? Ask 3DEEZI Assist'), findsOneWidget);
-    // Convert's way in: the INSTANT 3D FROM ARTWORK bar above ORDERS (client
-    // 2026-10-26; it replaced a quiet line). Plans & pricing is on Profile;
-    // ORDER WITH 3DEEZI and Rewards on Orders.
-    await tester.ensureVisible(find.text('UPLOAD ARTWORK HERE'));
-    expect(find.text('INSTANT 3D FROM ARTWORK'), findsOneWidget);
-    expect(find.text('ALREADY HAVE ARTWORK READY?'), findsOneWidget);
-    expect(find.text('UPLOAD ARTWORK HERE'), findsOneWidget);
+    // Convert's way in: the slim ARTWORK TO 3D bar (client 2026-10-28).
+    expect(find.text('ARTWORK TO 3D'), findsOneWidget);
     expect(find.text('Convert an image to 3D'), findsNothing);
     expect(find.text('Plans & pricing'), findsNothing);
     await tapText(tester, 'ARTBOARD');

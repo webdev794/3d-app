@@ -12,8 +12,3 @@ Questions waiting for your answer. Each one is also asked in the chat; once answ
    C. "On a person": a "See it on a player" button puts the design on a realistic athlete picture with AI (the existing Photoreal showcase extended), on the website and in the app. About 2–3 days.
    Start with C and A now; B when the client agrees the budget.)
 
-
-
-
-3. **Which "pattern button" stopped working (2026-10-27)?** The PATTERN tab inside Colours, or the Patterns button in the Studio's tool bar? And was it on the website or in the app?
-   (Suggested: both are being checked anyway by the agents fixing the taps; the answer just helps them find it faster.) I tested it working in mobile now.

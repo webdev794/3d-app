@@ -4,6 +4,12 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## App Home: LET'S CREATE (2026-10-28)
+1. Home shows LET'S CREATE and four picture tiles; each opens its screen (AI Designer, sport choice, Artboard, team).
+2. ARTWORK TO 3D › starts Convert. The Orders tab has the order form, upload order and My orders.
+
+---
+
 ## Fabric type changes the 3D (2026-10-27)
 1. Studio › Colours › FABRIC TYPE (app: Colours › Gradient & fabric): tap Mesh, Pro, then Eco and zoom into the chest: holes, then a satin sheen, then a matt cotton look.
 2. Save, reopen: the fabric is still chosen. The design sheet PDF shows the FABRIC row.

@@ -795,7 +795,7 @@ void main() {
     expect(find.byType(TeamScreen), findsOneWidget);
   });
 
-  testWidgets('Home: the fourth tile, 3DEEZI TEAM, opens the TEAM screen', (
+  testWidgets('Home: the fourth tile, DESIGN TEAM, opens the TEAM screen', (
     tester,
   ) async {
     final server = TeamServer();
@@ -814,7 +814,7 @@ void main() {
       );
       expect(find.text(action), findsOneWidget);
     }
-    await tap(tester, find.text('3DEEZI TEAM'));
+    await tap(tester, find.text('DESIGN TEAM'));
     expect(find.byType(TeamScreen), findsOneWidget);
     expect(find.text('REAL DESIGNERS. REAL RESULTS.'), findsOneWidget);
   });
