@@ -12,3 +12,9 @@ Questions waiting for your answer. Each one is also asked in the chat; once answ
    C. "On a person": a "See it on a player" button puts the design on a realistic athlete picture with AI (the existing Photoreal showcase extended), on the website and in the app. About 2–3 days.
    Start with C and A now; B when the client agrees the budget.)
 
+
+4. **American Football Game Jersey length (2026-10-29):** the Game Jersey tile picture is short and wide (height about equal to shoulder width), while the Game Kit picture shows a longer jersey; our 3D is about 40% longer, like the Game Kit. Which should the Game Jersey follow?
+   (Suggested: keep the longer Game Kit length, since both tiles use one model and a longer jersey tucks into game pants.)
+
+5. **Tennis skirt / Hockey skort descriptions (2026-10-29):** the tiles say "Pleated skirt with inner shorts" / "Skirt with built-in shorts", but the client's pictures (and our 3D) show a plain A-line skirt with side panels.
+   (Decided, going ahead: the descriptions now match the pictures, e.g. "A-line skirt with side panels"; tile names stay. Tell me if pleats or inner shorts are wanted instead.)

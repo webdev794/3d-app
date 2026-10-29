@@ -18,6 +18,7 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>3DEEZI — Cinematic 3D Studio</title><style>
 @font-face{font-family:Rajdhani;font-weight:700;src:url(data:font/ttf;base64,${base64('assets/fonts/Rajdhani-Bold.ttf')}) format('truetype')}
+@font-face{font-family:JerseyBlock;font-weight:700;src:url(data:font/ttf;base64,${base64('assets/fonts/JerseyBlock.ttf')}) format('truetype')}
 html,body{margin:0;height:100%;overflow:hidden;background:#03070c;touch-action:none;-webkit-user-select:none;user-select:none}
 #stage{display:block;width:100%;height:100%;opacity:0;transition:opacity .8s ease}.ready #stage{opacity:1}
 </style></head><body><canvas id="stage"></canvas>

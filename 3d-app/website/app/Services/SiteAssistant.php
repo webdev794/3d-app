@@ -73,10 +73,10 @@ class SiteAssistant
         // 3D Studio
         'view' => 'front | back | side | 360: turns the 3D kit',
         'panel' => 'ai | garment | colours | patterns | logos | text | numbers | presets | close: opens that Studio tool panel (logos is the Artwork panel)',
-        'garment' => 'jersey | nfljersey (American football jersey) | compression (compression top) | shorts | tee | singlet | netball-dress (netball dress) | polo | pocketpolo (polo with pocket) | hoodie | ziphoodie (zip hoodie) | varsity (varsity / letterman jacket) | trackjacket (track suit jacket) | fullkit: switches the garment',
+        'garment' => 'jersey | nfljersey (American football jersey) | compression (compression top) | socks (knee-high team socks) | cap (team cap) | skirt (netball / tennis skirt, hockey skort) | shorts | tee | singlet | netball-dress (netball dress) | polo | pocketpolo (polo with pocket) | hoodie | ziphoodie (zip hoodie) | varsity (varsity / letterman jacket) | trackjacket (track suit jacket) | fullkit: switches the garment',
         'board' => '2d | 3d: switches between the 2D print panels and the 3D view',
         'design' => '<setting>=<value>,… changes the kit in the Studio straight away (one undo step): number (digits), name (player name on the back), '
-            .'wordmark (chest text), main | secondary | accent | patternColor (colours as #rrggbb), pattern (None, Solid, Chevron, Stripes, Velocity, Hoops, Dots, Diagonal, Tribal, Camo); '
+            .'wordmark (chest text), main | secondary | accent | patternColor (colours as #rrggbb), pattern (None, Solid, Chevron, Stripes, Velocity, Blades, Swirl, Hoops, Dots, Diagonal, Tribal, Camo); '
             .'e.g. number=29,name=SMITH',
         'studioAi' => 'the request in the words of the visitor, for the Studio AI (as typed in its "Ask 3DEEZI" bar): for any other change to the look of the kit '
             .'(styles, themes, a custom print, "make it look like …"); it needs the visitor signed in and uses an AI credit',
@@ -204,7 +204,7 @@ class SiteAssistant
             'help' => fn ($v) => true,
             'view' => '/^(front|back|side|360)$/',
             'panel' => '/^(ai|garment|colours|patterns|logos|text|numbers|presets|close)$/',
-            'garment' => '/^(jersey|nfljersey|compression|shorts|tee|singlet|netball-dress|polo|pocketpolo|hoodie|ziphoodie|varsity|trackjacket|fullkit)$/',
+            'garment' => '/^(jersey|nfljersey|compression|socks|cap|skirt|shorts|tee|singlet|netball-dress|polo|pocketpolo|hoodie|ziphoodie|varsity|trackjacket|fullkit)$/',
             'board' => '/^(2d|3d)$/',
         ];
         $out = [];

@@ -10,7 +10,7 @@ import PartsPanel, { type PartSpot } from '../components/PartsPanel';
 import { isShortsPart, partColours, partLabels, partsOf, withPart, type PartKey } from '../parts';
 import KitViewer, { type ColourPick, type KitViewerHandle, type PartPick, type HoodieArea, isHoodie, isVarsity, varsityAreas, varsityColour, isTrack, trackAreas, trackColour, trackAreaLabel, fabricTypes, fabricNotes, fabricOf } from '../components/KitViewer';
 import ColorWheel from '../components/ColorWheel';
-import { comingSoon, garmentArt, productName } from './Create';
+import { comingSoon, garmentArt, garmentLook, productName } from './Create';
 import type { Draft } from '../App';
 import { OwnPatterns, isPatternPicture, modeOf } from '../components/OwnPatterns';
 import { ArtworkPanel, PresetPanel, checkDrawing, checkPrintLayout, designSignature, ownPatch, patternNames, readAsset, readImage, type ArtworkDrop, type OwnDesign, type ShelvedLayouts } from '../components/StudioArtwork';
@@ -54,7 +54,7 @@ export function patternInkOf(d: Design): string {
 }
 const lookKeys = ['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'parts'] as const;
 /** A hoodie's own colour areas in the Colours panel (the zip only on the zip hoodie). */
-const hoodieAreas: { key: HoodieArea; label: string }[] = [{ key: 'hood', label: 'Hood' }, { key: 'lining', label: 'Hood lining' }, { key: 'rib', label: 'Cuffs & waistband' }, { key: 'pocket', label: 'Pocket' }, { key: 'zip', label: 'Zip' }];
+const hoodieAreas: { key: HoodieArea; label: string }[] = [{ key: 'hood', label: 'Hood' }, { key: 'lining', label: 'Hood lining' }, { key: 'rib', label: 'Cuffs & waistband' }, { key: 'pocket', label: 'Pocket' }, { key: 'zip', label: 'Zip' }, { key: 'stripe', label: 'Sleeve stripe' }];
 const colourSlots = [{ key: 'main', label: 'Primary' }, { key: 'secondary', label: 'Secondary' }, { key: 'accent', label: 'Accent' }, { key: 'patternColor', label: 'Pattern' }] as const;
 const palettes = [['#0b1016', '#00c2cc', '#36e3ee'], ['#08233e', '#efb84a', '#ffffff'], ['#f2f4f6', '#0076cd', '#0b1830'], ['#261133', '#ad47da', '#fb92d3'], ['#0c2824', '#31c29a', '#ffffff'], ['#240c12', '#ec3e5b', '#f9e6d4']];
 const suggestions = ['Make it red and gold', 'Add bold chevrons', 'Darker body, brighter trims', 'Number 7 for SMITH', 'Give it a tribal shoulder print'];
@@ -63,11 +63,11 @@ const suggestions = ['Make it red and gold', 'Add bold chevrons', 'Darker body, 
  * have no shoulders or sleeves and a singlet no sleeves (a pattern there painted nothing); the full kit's jersey has both.
  */
 function patternAreas(garment: string, trackStyle?: string | null): { key: Zone; label: string }[] {
-  const shorts = garment === 'shorts';
+  const shorts = garment === 'shorts', skirt = garment === 'skirt';
   return [
-    { key: 'body', label: shorts ? 'Body' : 'Chest & body' },
-    ...(shorts ? [] : [{ key: 'yoke' as const, label: 'Shoulders' }]),
-    ...(shorts || garment === 'singlet' || garment === 'netball-dress' ? [] : [{ key: 'sleeves' as const, label: 'Sleeves' }]),
+    { key: 'body', label: shorts || skirt ? 'Body' : 'Chest & body' },
+    ...(shorts || skirt ? [] : [{ key: 'yoke' as const, label: 'Shoulders' }]),
+    ...(shorts || skirt || garment === 'singlet' || garment === 'netball-dress' ? [] : [{ key: 'sleeves' as const, label: 'Sleeves' }]),
     { key: 'sides', label: 'Side panels' },
     { key: 'hem', label: shorts ? 'Leg hems' : 'Hem' },
     ...(garment === 'pocketpolo' ? [{ key: 'pocket' as const, label: 'Chest pocket' }] : []),
@@ -364,6 +364,12 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     const design = { ...current.design, ...patch };
     onChange({ ...current, ...extra, design, garment: design.garment }); setDirty(true);
   }
+  /** Another garment from the rail or the Garment panel opens looking like its picture there (garmentLook): one undo step. */
+  function switchGarment(id: string) {
+    const current = latest.current;
+    if (id === current.design.garment) return;
+    edit({ ...garmentLook(catalog, current.sport, id, current.design), garment: id as Design['garment'] });
+  }
   /** Live updates while dragging the colour wheel; `commit` makes them one undo step. */
   function preview(patch: Partial<Design>) { const current = latest.current; liveBase.current ??= { ...current.design }; onChange({ ...current, design: { ...current.design, ...uncover(patch, current.design) } }); setDirty(true); }
   /** Words typed on the 3D: a typing burst (the same word, under 3 s apart) is one undo step. */
@@ -484,7 +490,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       onNotice('Your design export is ready.');
     } catch (e) { setError((e as Error).message || 'Export failed. Please try again.'); } finally { setBusy(false); }
   }
-  const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'compression', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
+  const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'compression', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'socks', 'cap', 'skirt'];
   const garments = [...(catalog?.garments ?? [])].sort((a, b) => garmentOrder.indexOf(a.id) - garmentOrder.indexOf(b.id));
   const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); setGradientOpen(false); };
   const colourValue = slot === 'patternColor' ? patternInkOf(draft.design) : draft.design[slot];
@@ -530,7 +536,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             {slot === 'patternColor' && fullColourPattern && <p className="field-hint full-colour-tip">Switch to Kit colours to recolour this pattern.</p>}
             <ColorWheel value={colourValue} onChange={hex => preview(slot === 'patternColor' ? { patternColor: hex, patternColorOwn: true } : { [slot]: hex })} onCommit={commit} onDone={() => { setTool(null); setGradientOpen(false); }} />
             <h4>READY-MADE PALETTES</h4><div className="preset-palettes">{palettes.map((palette, index) => <button key={index} aria-label={`Apply palette ${index + 1}`} onClick={() => edit({ main: palette[0], secondary: palette[1], accent: palette[2], patternColor: palette[1], patternColorOwn: null })}>{palette.map((c, i) => <span key={i} style={{ background: c }} />)}</button>)}</div>
-            {isHoodie(draft.design.garment) && <div className="hoodie-areas"><h4>HOODIE AREAS</h4>{hoodieAreas.filter(a => a.key !== 'zip' || draft.design.garment === 'ziphoodie').map(a => { const own = draft.design.zoneColors?.[a.key]; const fallback = a.key === 'lining' || a.key === 'zip' ? draft.design.secondary : draft.design.main; return <label key={a.key} data-area={a.key} className={`hoodie-area ${pickedArea === a.key ? 'picked' : ''}`}><input type="color" aria-label={`${a.label} colour`} value={own || fallback} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{a.label}</span>{own ? <button type="button" className="icon-button" aria-label={`${a.label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.key === 'lining' || a.key === 'zip' ? 'Secondary' : 'Primary'}</small>}</label>; })}</div>}
+            {isHoodie(draft.design.garment) && <div className="hoodie-areas"><h4>HOODIE AREAS</h4>{hoodieAreas.filter(a => a.key !== 'zip' || draft.design.garment === 'ziphoodie').map(a => { const own = draft.design.zoneColors?.[a.key]; const fallback = a.key === 'lining' || a.key === 'zip' || a.key === 'stripe' ? draft.design.secondary : draft.design.main; return <label key={a.key} data-area={a.key} className={`hoodie-area ${pickedArea === a.key ? 'picked' : ''}`}><input type="color" aria-label={`${a.label} colour`} value={own || fallback} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{a.label}</span>{own ? <button type="button" className="icon-button" aria-label={`${a.label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.key === 'stripe' ? 'None' : a.key === 'lining' || a.key === 'zip' ? 'Secondary' : 'Primary'}</small>}</label>; })}</div>}
             {isVarsity(draft.design.garment) && <div className="hoodie-areas varsity-areas"><h4>VARSITY AREAS</h4>{varsityAreas.map(a => { const own = draft.design.zoneColors?.[a.key]; return <label key={a.key} data-area={a.key} className={`hoodie-area ${pickedArea === a.key ? 'picked' : ''}`}><input type="color" aria-label={`${a.label} colour`} value={varsityColour(draft.design, a.key)} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{a.label}</span>{own ? <button type="button" className="icon-button" aria-label={`${a.label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.follows}</small>}</label>; })}</div>}
             {isTrack(draft.design.garment) && <div className="hoodie-areas track-areas"><h4>TRACK JACKET AREAS</h4>{trackAreas.map(a => { const own = draft.design.zoneColors?.[a.key]; const label = trackAreaLabel(a.key, draft.design.trackStyle); return <label key={a.key} data-area={a.key} className={`hoodie-area ${pickedArea === a.key ? 'picked' : ''}`}><input type="color" aria-label={`${label} colour`} value={trackColour(draft.design, a.key)} onChange={e => preview({ zoneColors: { ...draft.design.zoneColors, [a.key]: e.target.value } })} onBlur={commit} /><span>{label}</span>{own ? <button type="button" className="icon-button" aria-label={`${label}: back to the kit colours`} title="Back to the kit colours" onClick={() => { const next = { ...draft.design.zoneColors }; delete next[a.key]; edit({ zoneColors: next }); }}><X size={13} /></button> : <small>{a.follows}</small>}</label>; })}</div>}
             {/* The fabric the kit is made of (the 3D viewer shows it: mesh holes, a satin sheen, a matt cotton feel); the varsity is wool and leather. */}
@@ -581,7 +587,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             <WordLook design={draft.design} markKey="top_number" word={draft.design.number || '23'} edit={edit} preview={preview} commit={commit} title="Number" />
             <button className="button button-secondary full-width" onClick={() => { setView('back'); setRotating(false); viewer.current?.turnTo('back'); }}>View the back <ArrowRight size={16} /></button>
           </>}
-          {tool === 'garment' && <div className="panel-garments">{garments.map(g => <button key={g.id} className={draft.design.garment === g.id ? 'selected' : ''} onClick={() => edit({ garment: g.id as Design['garment'] })}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span>{draft.design.garment === g.id && <Check size={15} />}</button>)}</div>}
+          {tool === 'garment' && <div className="panel-garments">{garments.map(g => <button key={g.id} className={draft.design.garment === g.id ? 'selected' : ''} onClick={() => switchGarment(g.id)}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span>{draft.design.garment === g.id && <Check size={15} />}</button>)}</div>}
           {tool === 'garment' && isTrack(draft.design.garment) && <div className="track-style"><h4>TRACK JACKET STYLE</h4><div className="slot-tabs" role="radiogroup" aria-label="Track jacket style">{([['collar', 'Stand-up collar'], ['hood', 'Hood']] as const).map(([id, label]) => { const on = (draft.design.trackStyle ?? 'collar') === id; return <button key={id} type="button" role="radio" aria-checked={on} className={on ? 'active' : ''} onClick={() => edit({ trackStyle: id })}>{label}</button>; })}</div></div>}
           {tool === 'presets' && <PresetPanel design={draft.design} edit={edit} onNotice={onNotice} own={ownState.own} onOwn={restoreOwn} beforePreset={beforePreset} user={user} snapshot={() => captureThumbnail(360)} />}
           {tool === 'ai' && <div className="ai-chat">
@@ -608,7 +614,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       </div>
 
       <aside className="studio-presets-aside" aria-label="Ready to use designs"><PresetPanel design={draft.design} edit={edit} onNotice={onNotice} own={ownState.own} onOwn={restoreOwn} beforePreset={beforePreset} user={user} snapshot={() => captureThumbnail(360)} /></aside>
-      <aside className="dyo-garments" aria-label="Garments">{garments.map(g => <button key={g.id} className={draft.design.garment === g.id ? 'selected' : ''} onClick={() => edit({ garment: g.id as Design['garment'] })} aria-pressed={draft.design.garment === g.id}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span></button>)}{comingSoon.map(g => <button key={g.id} className="soon" disabled title="Coming soon"><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span><small>SOON</small></button>)}</aside>
+      <aside className="dyo-garments" aria-label="Garments">{garments.map(g => <button key={g.id} className={draft.design.garment === g.id ? 'selected' : ''} onClick={() => switchGarment(g.id)} aria-pressed={draft.design.garment === g.id}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span></button>)}{comingSoon.map(g => <button key={g.id} className="soon" disabled title="Coming soon"><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span><small>SOON</small></button>)}</aside>
     </div>
 
     <form className="dyo-prompt" onSubmit={e => { e.preventDefault(); requireAuth(() => askAi()); }}>

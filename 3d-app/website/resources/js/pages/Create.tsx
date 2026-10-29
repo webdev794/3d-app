@@ -17,8 +17,8 @@ import '../../css/ai-designer.css';
 export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
 export const garmentArt = (garment: string) => media(`showroom/garment-${garment}.webp`);
 /** Shown in the garment step and the studio; not yet available in 3D. */
-export const comingSoon = [{ id: 'socks', name: 'Socks', description: 'Match socks with team bands.' }, { id: 'shoes', name: 'Shoes', description: 'Boots in your colours.' }];
-const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'compression', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
+export const comingSoon = [{ id: 'shoes', name: 'Shoes', description: 'Boots in your colours.' }];
+const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'compression', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'socks', 'cap', 'skirt'];
 /** A garment's place on the garment step; one not listed yet goes last. */
 const order = (id: string) => { const i = garmentOrder.indexOf(id); return i < 0 ? garmentOrder.length : i; };
 
@@ -151,6 +151,30 @@ export function backForSport(design: Pick<Design, 'backName' | 'number' | 'logoT
 }
 /** What choosing a tile puts on the draft: the 3D garment, the tile's name (empty for a plain 3D garment) and its settings. */
 export type GarmentChoice = { garment: string; productName: string; design?: GarmentTile['design'] };
+/** A garment tile's starting look (task 9.154) brings its number's colour and look: kept marks stay, the number's own go. */
+export function tileMarks(was: Design, tile?: Partial<Design>): Partial<Design> {
+  if (!tile?.marks) return {};
+  const { top_number: _n, top_frontNumber: _f, ...rest } = was.marks ?? {};
+  // Marks a bib tile hid (team name, crest, name) show again.
+  const kept = Object.fromEntries(Object.entries(rest).filter(([key, m]) => !(['top_wordmark', 'top_crest', 'top_name'].includes(key) && m?.hidden)));
+  // The picture's own objects (ids 'tile-…': position letters, the sleeve number) replace the last tile's.
+  const layers = [...(was.layers ?? []).filter(l => !l.id.startsWith('tile-')), ...(tile.layers ?? [])];
+  return { marks: { ...kept, ...(Array.isArray(tile.marks) ? {} : tile.marks) }, layers };
+}
+/**
+ * Another 3D garment from the Studio's garment rail or Garment panel (client 2026-10-29) opens looking like its picture
+ * there (garment-<id>.webp), so what is clicked is what opens, as its Design Your Own tile: the look of a tile with that
+ * picture (the sport's own first); a picture no tile shows takes the sport's first tile of that garment, else any sport's.
+ * What it puts on the design, as choosing the tile does (own uploads and text stay); undefined when there is none.
+ */
+export function garmentLook(catalog: Catalog | null | undefined, sport: string, garment: string, was: Design): Partial<Design> | undefined {
+  const sports = catalog?.sports ?? [];
+  const tiles = [...sports.filter(s => s.id === sport), ...sports.filter(s => s.id !== sport)].flatMap(s => s.tiles ?? []).filter(t => t.garment === garment);
+  const tile = tiles.find(t => t.image === garment) ?? tiles[0];
+  if (!tile) return undefined;
+  const design = { trackStyle: undefined, ...tile.design };
+  return { ...design, ...tileMarks(was, design) };
+}
 
 /**
  * Step 2 (client visuals images/157.jpg and 160.jpg): "<SPORT> UNIFORMS & TEAMWEAR", the sport's own garment tiles (rows of

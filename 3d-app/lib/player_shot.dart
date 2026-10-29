@@ -397,6 +397,8 @@ const _patternWords = {
   'Chevron': 'thin chevron (V-shaped) lines evenly spaced from chest to hem',
   'Stripes': 'thin vertical pinstripes',
   'Velocity': 'angled speed stripes down both sides of the chest',
+  'Blades': 'curved blade stripes sweeping up both sides from the hem',
+  'Swirl': 'a dense maze of winding lines, like brain coral, over the shoulders and sleeves',
   'Hoops': 'horizontal hoops across the body',
   'Dots': 'a fine all-over dot pattern',
   'Diagonal': 'thin diagonal lines across the body',

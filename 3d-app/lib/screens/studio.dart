@@ -35,7 +35,7 @@ import '../widgets/showroom.dart';
 import '../widgets/studio_tools.dart';
 import '../widgets/ui.dart';
 import '../widgets/word_look.dart';
-import 'create_home.dart' show comingSoonGarments, garmentTiles;
+import 'create_home.dart' show GarmentScreen, comingSoonGarments, garmentTiles;
 
 const _swatches = <Color>[
   Color(0xff0b1016),
@@ -2214,7 +2214,7 @@ class _GarmentTool extends StatelessWidget {
               selected: c.garment == name,
               onTap: soon
                   ? () => showToast(context, '$name are coming soon in 3D.')
-                  : () => c.edit(() => c.garment = name),
+                  : () => GarmentScreen.switchTo(c, name, art),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -2415,7 +2415,10 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
                         'A different name also saves a new project; the '
                         'saved one stays as it is.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xff8a9bb0), fontSize: 11),
+                        style: TextStyle(
+                          color: Color(0xff8a9bb0),
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ],

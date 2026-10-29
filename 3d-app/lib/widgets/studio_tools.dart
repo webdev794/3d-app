@@ -24,11 +24,11 @@ String _panels(int n) => '$n panel${n == 1 ? '' : 's'}';
 /// sleeves (its outline ends at x 0.254, the sleeve area starts at 0.27: a
 /// pattern there painted nothing); the full kit's jersey has both.
 List<(String, String)> patternAreas(String garment, {String? trackStyle}) {
-  final shorts = garment == 'Shorts';
+  final shorts = garment == 'Shorts', skirt = garment == 'Skirt';
   return [
-    ('body', shorts ? 'Body' : garmentZones['body']!),
-    if (!shorts) ('yoke', garmentZones['yoke']!),
-    if (!shorts && garment != 'Singlet' && garment != 'Netball dress')
+    ('body', shorts || skirt ? 'Body' : garmentZones['body']!),
+    if (!shorts && !skirt) ('yoke', garmentZones['yoke']!),
+    if (!shorts && !skirt && garment != 'Singlet' && garment != 'Netball dress')
       ('sleeves', garmentZones['sleeves']!),
     ('sides', garmentZones['sides']!),
     ('hem', shorts ? 'Leg hems' : garmentZones['hem']!),
@@ -1370,9 +1370,7 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
   Future<void> _loadMine() async {
     if (!c.signedIn) return;
     try {
-      final mine = await c.api.myPresets().timeout(
-        const Duration(seconds: 10),
-      );
+      final mine = await c.api.myPresets().timeout(const Duration(seconds: 10));
       if (mounted) setState(() => _mine = mine);
     } on Object {
       if (mounted) setState(() => _mine = const []);
@@ -1524,9 +1522,9 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
 
   Widget _swatch(Map preset) {
     final d = (preset['design'] as Map?) ?? const {};
-    Color col(Object? v) =>
-        Color(int.tryParse('ff${'$v'.replaceAll('#', '')}', radix: 16) ??
-            0xff10202c);
+    Color col(Object? v) => Color(
+      int.tryParse('ff${'$v'.replaceAll('#', '')}', radix: 16) ?? 0xff10202c,
+    );
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [col(d['main']), col(d['secondary'])]),

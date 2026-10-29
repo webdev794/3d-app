@@ -2,7 +2,7 @@
 // (mirrored so it reads correctly from behind) on the right half. Everything
 // is drawn in garment coordinates (metres), so placement is exact.
 
-import { zoneRects, POCKET, hasPocket, isHoodie, isTrack, isDress, KANGAROO, kangarooEdge, HOOD_TOP, partRegion, TOP_PARTS, SHORTS_PARTS } from './zones.js';
+import { zoneRects, zonePolys, NFL_PANEL, POCKET, hasPocket, isHoodie, isTrack, isDress, KANGAROO, kangarooEdge, HOOD_TOP, partRegion, TOP_PARTS, SHORTS_PARTS } from './zones.js';
 import { POCKET_ZIP, pocketZipX } from './trackjacket.js';
 import { isVarsity, varsityTailoring, paintVarsity, paintVarsityMarks } from './varsity.js';
 
@@ -26,6 +26,10 @@ function pocketPath(c, d = 0, close = true) {
 }
 import { RAGLAN, raglanSeam } from './layout-warp.js';
 import { drawWord } from './wordart.js';
+import { BRAND_WORDMARK, BRAND_MARK } from './brandmarks.js';
+import { SOCK_PARTS, paintSocks, sockTailoring, paintSockMarks } from './sockprint.js';
+import { SKIRT_PARTS, paintSkirt, skirtTailoring, paintSkirtMarks } from './skirtprint.js';
+import { CAP_PARTS, paintCap, capTailoring, paintCapMarks } from './capprint.js';
 
 /**
  * A hoodie's kangaroo pocket outline (zones.js KANGAROO) in garment metres, `d` metres inside its edge: the whole
@@ -208,11 +212,45 @@ const mix = (a, b, t) => {
 
 /** Contrast bands along the finished edges (metres): kept narrow, the same width at the hem
  *  (and leg hems) and round the sleeve ends, and even all the way round. */
-const HEM_BAND = 0.009, CUFF_BAND = 0.009;
+/** The football jersey's numbers' font (square block numerals, built into the viewer) and its yoke seam's height. */
+const NFL_FONT = 'JerseyBlock';
+/** The football jersey's numbers drawn this much narrower (their height kept), as the client's pictures' numerals (FX3). */
+const NFL_SQUEEZE = 0.78;
+/** A text object's own font (design.layers[].font, FX3): only a font the viewer carries (the jersey numerals). */
+export const LAYER_FONTS = [NFL_FONT];
+const layerFont = (layer) => (LAYER_FONTS.includes(layer?.font) ? layer.font : null);
+export const NFL_YOKE = 0.612;
+const HEM_BAND = 0.009, CUFF_BAND = 0.009, NFL_CUFF_BAND = 0.02;
+/** The Practice Jersey's shoulder stripe (texture.js paintNflTrims, FX3): its middle line on the +x side, [x, y, width]
+ *  in metres, from over the shoulder's top down along the armhole to the underarm. */
+const NFL_STRIPE = [[0.178, 0.738, 0.05], [0.218, 0.69, 0.066], [0.252, 0.645, 0.072], [0.268, 0.6, 0.062], [0.268, 0.56, 0.046], [0.26, 0.535, 0.024]];
+/** A band along a smooth curve through `pts` ([x, y, width]), its width eased between them: the outline, one edge
+ *  then back along the other. */
+function taperedBand(pts, steps = 8) {
+  const at = (i) => pts[Math.max(0, Math.min(pts.length - 1, i))];
+  const line = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+    for (let s = 0; s < steps || (i === pts.length - 2 && s === steps); s++) {
+      const t = s / steps, t2 = t * t, t3 = t2 * t;
+      line.push([0, 1, 2].map((k) => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3)));
+    }
+  }
+  const side = (k) => line.map(([x, y, w], i) => {
+    const [ax, ay] = line[Math.max(0, i - 1)], [bx, by] = line[Math.min(line.length - 1, i + 1)];
+    const dx = bx - ax, dy = by - ay, d = Math.hypot(dx, dy) || 1;
+    return [x - (k * dy * w) / 2 / d, y + (k * dx * w) / 2 / d];
+  });
+  return [...side(1), ...side(-1).reverse()];
+}
 /** The track jacket's sleeve sponsor: on the wearer's right sleeve panel (front), along the arm. */
 const TRACK_SPONSOR = { side: 'front', x: -0.38, y: 0.528, rot: -46 };
 
 
+/** The cover-stitch's look (stitches()): its shadow, the thread and a highlight, each [dx, dy, style, width]. */
+const STITCH_TONE = [[.00035, -.00045, 'rgba(0,0,0,0.42)', .0012], [0, 0, 'rgba(255,255,255,0.2)', .001], [-.00018, .00022, 'rgba(255,255,255,0.34)', .00045]];
+/** The compression top's dark thread, tone on tone, as the client's picture (FX3; as the skirt's and the cap's). */
+const COMPRESSION_THREAD = [[0.00035, -0.00045, 'rgba(0,0,0,0.55)', 0.0013], [0, 0, 'rgba(0,0,0,0.35)', 0.001], [-0.00018, 0.00022, 'rgba(255,255,255,0.1)', 0.00045]];
 const HEX = /^#[0-9a-f]{6}$/i;
 /**
  * A colour zone's gradient fill, or null when the zone is a solid colour. The Primary zone keeps the original
@@ -244,6 +282,88 @@ function opaqueCorners(img) {
   } catch { return false; }
 }
 
+/**
+ * The Swirl pattern's maze (alpha only, x -0.5..0.5 by y 0..0.82 at 1024 px a metre), made once. `sleeve`: the maze
+ * for the shoulders reaching over the top of a bare sleeve (FX3, the client's football and hockey jersey picture): strong
+ * over the shoulder and along the sleeve's top, fading out two thirds of the way to the cuff, the underside plain.
+ */
+const swirlCache = new Map();
+function swirlMask(sleeve = false) {
+  if (swirlCache.has(sleeve)) return swirlCache.get(sleeve);
+  const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const W = 1024, H = 840, c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const cg = c.getContext('2d'), img = cg.createImageData(W, H), d = img.data;
+  // Waves of one length (about 3.4 cm) in many directions: the zero lines of their sum wind like a maze.
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const waves = [];
+  for (let i = 0; i < 14; i++) {
+    const a = rnd() * Math.PI, k = (2 * Math.PI) / (0.028 * (0.85 + rnd() * 0.3));
+    waves.push([Math.cos(a) * k, Math.sin(a) * k, rnd() * Math.PI * 2]);
+  }
+  for (let j = 0; j < H; j++) {
+    const y = 0.82 - (j / H) * 0.82;
+    // Full strength above y 0.72, fading to under half by y 0.46 (the picture's dark lower sleeve and chest).
+    const fade = 0.45 + 0.55 * Math.min(1, Math.max(0, (y - 0.46) / 0.26));
+    for (let i = 0; i < W; i++) {
+      const x = -0.5 + i / 1024;
+      let f = 0;
+      for (const [kx, ky, ph] of waves) f += Math.cos(kx * x + ky * y + ph);
+      // The ridge: near the zero line, soft-edged (lines and gaps about even).
+      const v = Math.abs(f) / 3.74;
+      const a = v < 0.21 ? 1 : v < 0.29 ? (0.29 - v) / 0.08 : 0;
+      let reach = 1;
+      if (sleeve) {
+        // Along the sleeve from the shoulder (s) and down from its top edge (p), on the jersey's sleeve (garment.js).
+        const ax = Math.abs(x), on = sm(0.24, 0.27, ax);
+        const s = (ax - 0.258) * 0.84 - (y - 0.61) * 0.546, p = -(ax - 0.258) * 0.607 - (y - 0.688) * 0.795;
+        reach = 1 - on + on * (1 - sm(0.05, 0.13, s)) * (1 - sm(0.04, 0.09, p));
+      }
+      d[(j * W + i) * 4 + 3] = Math.round(a * fade * reach * 255);
+    }
+  }
+  cg.putImageData(img, 0, 0);
+  swirlCache.set(sleeve, c);
+  return c;
+}
+
+/**
+ * The compression top's own stitching (texture.js tailoring; the client's picture, FX3), on either side: a double
+ * cover-stitch 9 and 12.5 mm above the hem, right across (the side panels too); each cuff's hem stitched 1 cm in, with
+ * its turned edge; a stitch line along the side panel's inner edge and along the side seam; and one along each edge of
+ * the sleeve stripe (2.2 cm either side of the sleeve's underside seam). Taken from the outline, so it follows the shape.
+ */
+function compressionTailoring(p) {
+  const stitches = [], folds = [], poly = p.outline;
+  const line = (pts) => (c) => pts.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)));
+  const nearest = (x, y) => poly.reduce((best, q, i) => (Math.hypot(q.x - x, q.y - y) < Math.hypot(poly[best].x - x, poly[best].y - y) ? i : best), 0);
+  const between = (a, b) => {
+    const n = poly.length, run = [], step = (b - a + n) % n <= n / 2 ? 1 : -1;
+    for (let i = a; ; i = (i + step + n) % n) { run.push(poly[i]); if (i === b) break; }
+    return run;
+  };
+  const minY = Math.min(...poly.map((q) => q.y));
+  const hem = poly.filter((q) => q.y < minY + 0.02 && Math.abs(q.x) < 0.3).sort((a, b) => a.x - b.x);
+  if (hem.length > 1) {
+    const at = (d) => [{ x: hem[0].x - 0.02, y: hem[0].y + d }, ...hem.map((q) => ({ x: q.x, y: q.y + d })), { x: hem[hem.length - 1].x + 0.02, y: hem[hem.length - 1].y + d }];
+    for (const d of [0.009, 0.0125]) stitches.push(line(at(d)));
+  }
+  const [ax, ay] = p.points?.CT ?? [0.676, 0.272], [bx, by] = p.points?.CB ?? [0.624, 0.218];
+  const [x0, , , y1] = zoneRects(p.kind, 'sides')[0] ?? [];
+  for (const dir of [-1, 1]) {
+    const cuff = [{ x: dir * ax, y: ay }, { x: dir * bx, y: by }];
+    stitches.push(line(p.inset(cuff, 0.01, 0.004)));
+    folds.push(line(p.inset(cuff, 0.0016, 0.004)));
+    if (x0 != null) stitches.push(line([{ x: dir * (x0 + 0.003), y: minY - 0.01 }, { x: dir * (x0 + 0.003), y: y1 }]));
+    const side = between(nearest(dir * 0.255, 0.52), nearest(dir * 0.234, minY + 0.015));
+    if (side.length > 1) stitches.push(line(p.inset(side, 0.004)));
+  }
+  for (const run of p.sleeveUnderEdges()) if (run.length > 1) stitches.push(line(p.inset(run, 0.019)));
+  return { stitches, folds };
+}
+
 export class KitPainter {
   constructor(frame, outline, size = 2048, kind = 'jersey') {
     this.kind = kind;
@@ -269,6 +389,9 @@ export class KitPainter {
   // ---------- parts (task 9.134): one part of the kit with its own look (design.parts)
   /** This garment piece's parts that are printed (the collar and the waistband are 3D rib). */
   get printedParts() {
+    if (this.kind === 'socks') return SOCK_PARTS;
+    if (this.kind === 'skirt') return SKIRT_PARTS;
+    if (this.kind === 'cap') return CAP_PARTS;
     return (this.partName === 'shorts' ? SHORTS_PARTS : TOP_PARTS).filter((key) => key !== 'collar' && key !== 'waistband');
   }
 
@@ -427,10 +550,10 @@ export class KitPainter {
   }
 
   /** Text centred on (0, 0) of the current frame (y down), `size` in metres, squeezed to `maxWidth`. Returns its size. */
-  centredText(str, size, color, maxWidth, outline) {
+  centredText(str, size, color, maxWidth, outline, family) {
     const g = this.ctx;
     g.save();
-    g.font = `700 ${size}px Rajdhani, Inter, sans-serif`;
+    g.font = `700 ${size}px ${family ? `${family}, ` : ''}Rajdhani, Inter, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     const w = g.measureText(str).width;
@@ -471,13 +594,21 @@ export class KitPainter {
     if (size) this.marks.push({ key, name, def, w0: size.w, h0: size.h, side: back ? 'back' : 'front', x: num(o.x, def.x), y: num(o.y, def.y), rot: num(o.rot, def.rot ?? 0), w: size.w * scale, h: size.h * scale });
   }
 
-  markText(design, name, def, str, size, color, maxWidth, outline) {
+  markText(design, name, def, str, size, color, maxWidth, outline, family, squeeze = 1) {
     const own = design.marks?.[`${this.partName}_${name}`]?.color;
     const look = design.marks?.[`${this.partName}_${name}`]?.look;
     const ink = /^#[0-9a-f]{6}$/i.test(own ?? '') ? own : color;
+    // The default chest text 3DEEZI is the real brand wordmark (RL1); the user's own words, colour or look stay text.
+    if (name === 'wordmark' && str === '3DEEZI' && !own && !look && this._brandWord) {
+      const img = this._brandWord, w = Math.min(maxWidth, size * 4.2), h = (w * img.height) / img.width;
+      this.mark(design, name, def, (g) => { g.drawImage(img, -w / 2, -h / 2, w, h); return { w, h }; });
+      return;
+    }
     // A word's look (task 9.146: outline, shadow, 3D block, contour; arch, wave, bridge, slant; letter spacing).
-    if (str && look) this.mark(design, name, def, (g) => drawWord(g, str, size, ink, maxWidth, look, outline, design.main));
-    else if (str) this.mark(design, name, def, () => this.centredText(str, size, ink, maxWidth, outline));
+    // `squeeze`: the word drawn that much narrower, its height kept (the football jersey's numbers).
+    const narrow = (draw) => (g) => { if (squeeze !== 1) g.scale(squeeze, 1); const s = draw(g); return s && squeeze !== 1 ? { ...s, w: s.w * squeeze } : s; };
+    if (str && look) this.mark(design, name, def, narrow((g) => drawWord(g, str, size, ink, maxWidth, look, outline, design.main, family)));
+    else if (str) this.mark(design, name, def, narrow(() => this.centredText(str, size, ink, maxWidth, outline, family)));
   }
 
   /** An image mark fitted into boxW x boxH metres. */
@@ -511,6 +642,15 @@ export class KitPainter {
       // Another badge shape chosen on the 3D kit (task 9.144); none = the usual shield.
       const shape = crestShape(design.marks?.[`${this.partName}_${name}`]?.shape);
       const sw = Math.max(...xs) - Math.min(...xs), sh = Math.max(...ys) - Math.min(...ys);
+      // No badge shape chosen: the 3DEEZI "3" mark (RL1), as on the client's pictures.
+      if (!shape && this._brandMark) {
+        const img = this._brandMark, w = (Math.max(...ys) - Math.min(...ys)) * 1.3, h = (w * img.height) / img.width;
+        // The Game Jersey picture (FX3): the "3" mark on a small sewn badge at the V of the neck (design.zoneColors.badge).
+        const plate = this.kind === 'nfljersey' && HEX.test(design.zoneColors?.badge ?? '') ? design.zoneColors.badge : null;
+        if (plate) this.plate(g, w, plate);
+        g.drawImage(img, -w / 2, -h / 2, w, h);
+        return plate ? { w: w * 1.7, h: w * 1.12 } : { w, h };
+      }
       const path = shape ? (c) => shapePath(c, shape, sw, shape === 'circle' || shape === 'square' || shape === 'rounded' || shape === 'diamond' ? sw : sh) : (c) => { pts.forEach(([x, y], i) => (i ? c.lineTo(x, -y) : c.moveTo(x, -y))); c.closePath(); };
       // A sewn-on badge: raised rim and stitched edge (texture.js badge).
       this.badge(g, path, () => { g.fillStyle = design.accent; g.fillRect(-1, -1, 2, 2); }, Math.max(...xs) - Math.min(...xs));
@@ -520,6 +660,27 @@ export class KitPainter {
   }
 
   /** A soft shadow under what is drawn next, as if it stands off the fabric (`size`: the mark's size in metres). */
+  /**
+   * The small badge behind the football jersey's "3" mark at the V (the client's Game Jersey picture, FX3), `w` the
+   * mark's width (metres, centred, y down): a flat top under the V, wide shoulders, a point below, in `colour` with a
+   * dark sewn rim and a faint raised edge.
+   */
+  plate(g, w, colour) {
+    const path = (c) => { c.moveTo(-0.5 * w, -0.54 * w); c.lineTo(0.5 * w, -0.54 * w); c.lineTo(0.85 * w, 0); c.lineTo(0, 0.58 * w); c.lineTo(-0.85 * w, 0); c.closePath(); };
+    g.save();
+    this.liftShadow(g, w);
+    g.fillStyle = colour;
+    g.beginPath(); path(g); g.fill();
+    g.restore();
+    g.save();
+    g.lineJoin = 'round';
+    g.strokeStyle = 'rgba(0,0,0,0.75)'; g.lineWidth = w * 0.07;
+    g.beginPath(); path(g); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.13)'; g.lineWidth = w * 0.025;
+    g.save(); g.scale(0.84, 0.84); g.beginPath(); path(g); g.restore(); g.stroke();
+    g.restore();
+  }
+
   liftShadow(g, size) {
     const m = g.getTransform(), px = Math.hypot(m.a, m.b);
     g.shadowColor = 'rgba(0,0,0,0.38)';
@@ -564,6 +725,12 @@ export class KitPainter {
    * hem turned up inside). Shared by the painted stitches and the relief map.
    */
   tailoring(back) {
+    // The socks: their toe seam and welt (sockprint.js).
+    if (this.kind === 'socks') return sockTailoring();
+    // The skirt: its seams, the hem's stitching and the waistband's elastic (skirtprint.js).
+    if (this.kind === 'skirt') return skirtTailoring();
+    // The cap: its top-stitching and the brim's rows (capprint.js).
+    if (this.kind === 'cap') return capTailoring(back);
     const shorts = this.kind === 'shorts', sleeves = SLEEVED.includes(this.kind);
     const raglan = this.kind === 'raglan';
     const stitches = [], seams = [], folds = [];
@@ -626,6 +793,14 @@ export class KitPainter {
         for (const drop of [.0125, .0165]) stitches.push(neckline(drop, 0));
       }
     }
+    if (this.kind === 'compression') {
+      // The client's compression top picture (FX3): a double cover-stitch about 1 cm above the hem, across the side
+      // panels; each cuff's hem stitched about 1 cm in (and its turned edge); a stitch line along both edges of each
+      // side panel (its inner edge, and the side seam) and of each sleeve stripe; all in dark thread (`tone`).
+      const own = compressionTailoring(this);
+      stitches.push(...own.stitches);
+      folds.push(...own.folds);
+    }
     if (varsity) {
       const own = varsityTailoring(this, back);
       stitches.push(...own.stitches);
@@ -682,7 +857,7 @@ export class KitPainter {
         stitches.push((c) => { c.moveTo(dir * .2535, .683); c.quadraticCurveTo(dir * .269, .61, dir * .2565, .535); });
       }
     }
-    return { stitches, seams, folds };
+    return { stitches, seams, folds, ...(this.kind === 'compression' ? { tone: COMPRESSION_THREAD } : {}) };
   }
 
   /**
@@ -702,7 +877,7 @@ export class KitPainter {
       for (const draw of paths) { g.beginPath(); draw(g); g.stroke(); }
     };
     for (const back of [false, true]) {
-      const { stitches, seams, folds } = this.tailoring(back);
+      const { stitches, seams, folds, ridges = [] } = this.tailoring(back);
       this.side(back, g);
       stroke(seams, 'rgba(255,255,255,0.12)', .012, [.0035, .0035]);   // puckering across the seam
       // Render tiers: deeper, less regular puckering (longer soft ripples over the short ones).
@@ -711,6 +886,7 @@ export class KitPainter {
       stroke(folds, 'rgba(255,255,255,0.24)', .004);                   // turned-up hem edge
       stroke(stitches, 'rgba(0,0,0,0.24)', .0017);                     // fabric pulled down by the thread
       stroke(stitches, 'rgba(255,255,255,0.8)', .0011, [.0024, .0016]); // each stitch stands up
+      stroke(ridges, 'rgba(255,255,255,0.28)', .0019);                    // rounded raised crowns (the skirt's ruched elastic)
     }
     // Soften the profiles, then turn heights into normals.
     const soft = document.createElement('canvas');
@@ -735,14 +911,15 @@ export class KitPainter {
   /**
    * Raised cover-stitch along each path (drawn in garment metres): a soft shadow,
    * the thread, then a highlight on top, so stitches read tone-on-tone on any colour.
+   * `tone`: a garment's own thread (the skirt's dark thread, skirtprint.js).
    */
-  stitches(back, paths) {
+  stitches(back, paths, tone = STITCH_TONE) {
     const g = this.ctx;
     this.side(back);
     g.save();
     g.setLineDash([.0024, .0016]);
     g.lineCap = 'round';
-    for (const [dx, dy, style, width] of [[.00035, -.00045, 'rgba(0,0,0,0.42)', .0012], [0, 0, 'rgba(255,255,255,0.2)', .001], [-.00018, .00022, 'rgba(255,255,255,0.34)', .00045]]) {
+    for (const [dx, dy, style, width] of tone) {
       g.save();
       g.translate(dx, dy);
       g.strokeStyle = style;
@@ -941,6 +1118,61 @@ export class KitPainter {
         g.lineTo(0.5, y + 0.12);
         g.stroke();
       }
+    } else if (name === 'Swirl') {
+      // A dense maze of winding lines, like brain coral (the client's football and hockey jersey pictures, task 9.154;
+      // DT3): the ridges of a band-limited wave sum, drawn as a mask, strong up top and fading down the sleeve and chest.
+      const mask = swirlMask(this._swirlSleeve === true);
+      const c = document.createElement('canvas');
+      c.width = mask.width;
+      c.height = mask.height;
+      const cg = c.getContext('2d');
+      cg.drawImage(mask, 0, 0);
+      cg.globalCompositeOperation = 'source-in';
+      cg.fillStyle = typeof ink === 'string' ? ink : HEX.test(design.patternColor ?? '') ? design.patternColor : design.secondary;
+      cg.fillRect(0, 0, c.width, c.height);
+      // The mask's row 0 is the top (y 0.82); the side's frame has y up.
+      g.save();
+      g.translate(-0.5, 0.82);
+      g.scale(1 / c.width, -0.82 / c.height);
+      g.drawImage(c, 0, 0);
+      g.restore();
+    } else if (name === 'Blades') {
+      // Sharp flame-like blades (the client's Rugby League jersey, RL1 2026-10-29): thick pointed blades stacked up each
+      // side seam, pointing up towards the chest, and blades fanning out from each shoulder over the sleeve top, with the
+      // body colour showing between them; each has a lighter edge in the accent colour (cyan on the picture).
+      const glow = mix(ink, design.accent ?? ink, 0.7);
+      // A blade from its base (x0, y0)-(x1, y1) to a sharp tip (tx, ty), its edges bowed by `bow` (metres).
+      const blade = (x0, y0, x1, y1, tx, ty, bow) => {
+        const nx = -(ty - (y0 + y1) / 2), ny = tx - (x0 + x1) / 2, l = Math.hypot(nx, ny) || 1, ox = (nx / l) * bow, oy = (ny / l) * bow;
+        g.beginPath();
+        g.moveTo(x0, y0);
+        g.quadraticCurveTo((x0 + tx) / 2 + ox, (y0 + ty) / 2 + oy, tx, ty);
+        g.quadraticCurveTo((x1 + tx) / 2 + ox * 0.4, (y1 + ty) / 2 + oy * 0.4, x1, y1);
+        g.closePath();
+        g.fill();
+      };
+      for (const s of [-1, 1]) {
+        const paint = (x0, y0, x1, y1, tx, ty, bow) => {
+          g.fillStyle = ink;
+          blade(s * x0, y0, s * x1, y1, s * tx, ty, s * bow);
+          // The cyan edge: a thinner blade along its upper side.
+          g.fillStyle = glow;
+          blade(s * x0, y0, s * (x0 + (x1 - x0) * 0.3), y0 + (y1 - y0) * 0.3, s * tx, ty, s * bow);
+        };
+        // Up the side: four thick blades, the base on the side seam, the tip up and in, black between them.
+        for (let i = 0; i < 4; i++) {
+          const yb = -0.02 + i * 0.13;
+          paint(0.33, yb + 0.12, 0.33, yb, 0.15 + i * 0.025, yb + 0.25 - i * 0.02, 0.035);
+        }
+        // Long thin flames inside them, low down.
+        paint(0.2, -0.02, 0.26, -0.02, 0.12, 0.3, 0.02);
+        // Over the shoulder: three blades from the neck side fanning out along the sleeve top, towards the cuff.
+        paint(0.16, 0.78, 0.24, 0.75, 0.42, 0.56, 0.02);
+        paint(0.26, 0.73, 0.33, 0.7, 0.46, 0.5, 0.015);
+        paint(0.35, 0.68, 0.41, 0.65, 0.48, 0.47, 0.01);
+        // A thin blade over the collarbone, pointing down and in.
+        paint(0.17, 0.74, 0.22, 0.73, 0.1, 0.61, 0.01);
+      }
     } else if (name === 'Velocity') {
       g.globalAlpha = 0.85;
       for (let i = 0; i < 9; i++) {
@@ -1033,6 +1265,35 @@ export class KitPainter {
       if (this._print) this.fullPrint(design, back);
       else this.proceduralPattern(design, design.pattern, ink ? this.gradientStyle(ink) : ownPatternInk(design) ?? undefined);
       const trim = this.zoneFill(design, 'secondary');
+      // The socks: their hoops, top band, heel and toe (sockprint.js), then the areas' patterns and the seams.
+      // The cap: its brim, side sweeps, piping and eyelets (capprint.js), then the areas' patterns and the stitching.
+      if (this.kind === 'cap') {
+        paintCap(this, design, back, trim);
+        this.paintZones(design, back);
+        this.side(back);
+        const sewn = this.tailoring(back);
+        this.stitches(back, sewn.stitches, sewn.tone);
+        g.restore();
+        continue;
+      }
+      // The skirt: its side panels, waistband and seams (skirtprint.js), then the areas' patterns and the stitching.
+      if (this.kind === 'skirt') {
+        paintSkirt(this, design, back, trim);
+        this.paintZones(design, back);
+        this.side(back);
+        const sewn = this.tailoring(back);
+        this.stitches(back, sewn.stitches, sewn.tone);
+        g.restore();
+        continue;
+      }
+      if (this.kind === 'socks') {
+        paintSocks(this, design, back, trim);
+        this.paintZones(design, back);
+        this.side(back);
+        this.stitches(back, this.tailoring(back).stitches);
+        g.restore();
+        continue;
+      }
 
       const shorts = this.kind === 'shorts';
       const sleeves = SLEEVED.includes(this.kind);
@@ -1058,6 +1319,9 @@ export class KitPainter {
           g.lineTo(dir * 0.232, 0);
           g.lineTo(dir * 0.3, 0);
           g.lineTo(dir * 0.3, 0.43);
+        } else if (this.kind === 'nfljersey') {
+          // The football jersey's side panels: further round onto the front (zones.js NFL_PANEL).
+          NFL_PANEL.forEach(([x, y], i) => (i ? g.lineTo(dir * x, y) : g.moveTo(dir * x, y)));
         } else {
           // Side panels.
           g.moveTo(dir * 0.262, 0.54);
@@ -1077,7 +1341,10 @@ export class KitPainter {
       }
       // Bands an even width all the way round: the cuffs, the hem (leg hems on shorts), and
       // the waistband. Each reaches a little past the edge so the rolled hem is banded too.
-      if (!hoodie && !track && !varsity) for (const run of this.edges()) this.band(run.points, run.kind === 'cuff' ? CUFF_BAND : HEM_BAND);
+      // The American football jersey (the client's pictures, DT1): a plain hem and wide cuff bands.
+      const nfl = this.kind === 'nfljersey';
+      // The compression top: plain hem and cuffs (no bands).
+      if (!hoodie && !track && !varsity && this.kind !== 'compression') for (const run of this.edges()) { if (nfl && run.kind === 'hem') continue; this.band(run.points, run.kind === 'cuff' ? (nfl ? NFL_CUFF_BAND : CUFF_BAND) : HEM_BAND); }
       if (shorts) {
         g.fillStyle = this.partStyle(design, 'waistband')?.own ?? trim;
         g.fillRect(-0.4, (this.points?.CF?.[1] ?? 0.42) - 0.025, 0.8, 0.03);
@@ -1119,10 +1386,12 @@ export class KitPainter {
       if (varsity) paintVarsity(this, design, back);
       if (hoodie || track || varsity) this.paintParts(design, back);
       this.paintZones(design, back);
+      if (this.kind === 'nfljersey') this.paintNflTrims(design, back);
 
       // Collar trim: V-neck for jerseys and singlets, crew for tee and polo (the collar's own colour: design.parts).
       this.side(back);
-      g.strokeStyle = this.partStyle(design, 'collar')?.own ?? trim;
+      // (The compression top: a crew neck in the body's colour, as the client's picture.)
+      g.strokeStyle = this.partStyle(design, 'collar')?.own ?? (this.kind === 'compression' ? this.baseFill(design) : trim);
       g.lineWidth = 0.018;
       if (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || this.kind === 'compression') {
         g.beginPath();
@@ -1144,6 +1413,38 @@ export class KitPainter {
         g.lineTo(0, back ? 0.69 : 0.668);
         g.lineTo(0.095, 0.745);
         g.stroke();
+      }
+      // The compression top: thin raglan piping from the neck down to each underarm, front and back (the client's
+      // picture; CF1 2026-10-29), in the trim colour.
+      // (DT4: about 1 cm wide and running down the front of the chest to the underarm, as the picture's; and a stripe
+      // along each sleeve's underside from the underarm to the cuff.)
+      if (this.kind === 'compression') {
+        g.save();
+        g.strokeStyle = trim;
+        g.lineWidth = 0.009;
+        g.lineCap = 'round';
+        for (const dir of [-1, 1]) {
+          g.beginPath();
+          g.moveTo(dir * 0.088, back ? 0.744 : 0.738);
+          g.quadraticCurveTo(dir * 0.17, 0.69, dir * 0.256, 0.53);
+          g.stroke();
+        }
+        // Its seam: a fine dark line along the piping, a little to the sleeve side.
+        g.save();
+        g.strokeStyle = 'rgba(0,0,0,0.38)';
+        g.lineWidth = 0.0011;
+        for (const dir of [-1, 1]) {
+          g.beginPath();
+          g.moveTo(dir * 0.0905, back ? 0.746 : 0.74);
+          g.quadraticCurveTo(dir * 0.1725, 0.692, dir * 0.2585, 0.532);
+          g.stroke();
+        }
+        g.restore();
+        // The sleeve stripe: along the outline's underarm edge, 2.2 cm on each panel (the outline clips the rest).
+        g.lineWidth = 0.044;
+        g.lineJoin = 'round';
+        for (const run of this.sleeveUnderEdges()) { g.beginPath(); run.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke(); }
+        g.restore();
       }
       // Polo button placket.
       if ((this.kind === 'polo' || this.kind === 'pocketpolo') && !back) {
@@ -1170,8 +1471,9 @@ export class KitPainter {
         g.fillStyle = trim;
         g.fillRect(x0, top - hem * 0.42, x1 - x0, hem * 0.42);
       }
-      // Tailoring details are painted in the same panel coordinates as the kit.
-      this.stitches(back, this.tailoring(back).stitches);
+      // Tailoring details are painted in the same panel coordinates as the kit (in the garment's own thread, if any).
+      const sewn = this.tailoring(back);
+      this.stitches(back, sewn.stitches, sewn.tone);
       g.restore();
     }
 
@@ -1180,6 +1482,28 @@ export class KitPainter {
     const logo = (design.logoText || '').toUpperCase();
     const textOutline = mix(design.main, '#000000', 0.5);
     this.marks = [];
+    [this._brandWord, this._brandMark] = await brandImages();
+    // The socks: only the crest, on the shin.
+    // The cap: the crest on the front panel, the club's word under it.
+    if (this.kind === 'cap') {
+      await paintCapMarks(this, design, loadImage, textOutline);
+      await this.paintLayers(design);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      return this.canvas;
+    }
+    // The skirt: the crest low on the left front, the club's word under it.
+    if (this.kind === 'skirt') {
+      await paintSkirtMarks(this, design, loadImage, logo, textOutline);
+      await this.paintLayers(design);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      return this.canvas;
+    }
+    if (this.kind === 'socks') {
+      await paintSockMarks(this, design, loadImage);
+      await this.paintLayers(design);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      return this.canvas;
+    }
     if (this.kind === 'shorts') {
       await this.paintShortsMarks(design, logo, textOutline);
       await this.paintLayers(design);
@@ -1218,6 +1542,12 @@ export class KitPainter {
     else if (pocket) this.markText(design, 'wordmark', { side: 'front', x: -0.105, y: 0.56 }, logo, 0.036, design.accent, 0.12, textOutline);
     // The netball dress: its marks as far below its shoulders as a singlet's (DRESS_RAISE), a little narrower.
     else if (isDress(this.kind)) this.markText(design, 'wordmark', { side: 'front', x: 0, y: 0.47 + DRESS_RAISE }, logo, 0.075, design.accent, 0.26, textOutline);
+    // The American football jersey (task 9.113; the client's Game Jersey picture, DT1): the team name centred across
+    // the chest above the big front number.
+    else if (this.kind === 'nfljersey') this.markText(design, 'wordmark', { side: 'front', x: 0, y: 0.566 }, logo, 0.06, design.accent, 0.195, textOutline);
+    // The compression top (the client's picture; CF1 2026-10-29): the wordmark high across the chest, under the crest.
+    // (DT4: a little lower, the crest just above it and a little bigger, as the picture.)
+    else if (this.kind === 'compression') this.markText(design, 'wordmark', { side: 'front', x: 0, y: 0.533 }, logo, 0.05, design.accent, 0.2, textOutline);
     else this.markText(design, 'wordmark', { side: 'front', x: 0, y: 0.47 }, logo, 0.085, design.accent, 0.3, textOutline);
     // Sponsor logo: front, centred below the wordmark, fitted into 17 x 6.5 cm.
     if (design.sponsorImage) {
@@ -1243,9 +1573,14 @@ export class KitPainter {
     }
     // Uploaded club logo on the chest, fitted into a 7 cm box; else the 3DEEZI shield (none when the user's own
     // artwork is on the kit).
-    const crest = isDress(this.kind) ? { side: 'front', x: 0.1, y: 0.71 } : hoodie || track ? { side: 'front', x: 0.105, y: 0.575 } : pocket ? { side: 'front', x: (POCKET.x0 + POCKET.x1) / 2, y: (POCKET.bottom + POCKET.top - POCKET.hem) / 2 } : { side: 'front', x: 0.105, y: 0.6 };
-    if (this._logo) this.markImage(design, 'crest', crest, this._logo, pocket ? 0.075 : 0.07, pocket ? 0.075 : 0.07);
-    else if (!ownArt) this.markShield(design, 'crest', crest, [[0, 0.034], [0.028, 0.018], [0.022, -0.02], [0, -0.036], [-0.022, -0.02], [-0.028, 0.018]], 0.03, 0.04);
+    // The American football jersey: a small crest just under the V of the neck (the client's Game Jersey picture).
+    const nflCrest = this.kind === 'nfljersey', stacked = this.kind === 'compression';
+    // (The compression top: the crest centred above the wordmark.)
+    const crest = nflCrest ? { side: 'front', x: 0, y: 0.632 } : stacked ? { side: 'front', x: 0, y: 0.577 } : isDress(this.kind) ? { side: 'front', x: 0.1, y: 0.71 } : hoodie || track ? { side: 'front', x: 0.105, y: 0.575 } : pocket ? { side: 'front', x: (POCKET.x0 + POCKET.x1) / 2, y: (POCKET.bottom + POCKET.top - POCKET.hem) / 2 } : { side: 'front', x: 0.105, y: 0.6 };
+    // (FX3: the compression top's '3' mark a little wider, as the picture's: 85 px against 77.)
+    const crestK = nflCrest ? 0.38 : stacked ? 0.95 : 1;
+    if (this._logo) this.markImage(design, 'crest', crest, this._logo, nflCrest ? 0.045 : pocket ? 0.075 : 0.07, nflCrest ? 0.045 : pocket ? 0.075 : 0.07);
+    else if (!ownArt) this.markShield(design, 'crest', crest, [[0, 0.034], [0.028, 0.018], [0.022, -0.02], [0, -0.036], [-0.022, -0.02], [-0.028, 0.018]].map(([x, y]) => [x * crestK, y * crestK]), 0.03 * crestK, 0.04 * crestK);
     const backName = (design.backName || logo).toUpperCase();
     if (hoodie || (track && this.trackHood)) {
       this.markText(design, 'name', { side: 'back', x: 0, y: 0.43 }, backName, 0.055, design.accent, 0.3, textOutline);
@@ -1256,6 +1591,16 @@ export class KitPainter {
     } else if (isDress(this.kind)) {
       this.markText(design, 'name', { side: 'back', x: 0, y: 0.6 + DRESS_RAISE }, backName, 0.055, design.accent, 0.24, textOutline);
       this.markText(design, 'number', { side: 'back', x: 0, y: 0.38 + DRESS_RAISE }, String(design.number ?? '23'), 0.22, design.accent, 0.28, textOutline);
+    } else if (this.kind === 'nfljersey') {
+      // The American football jersey: the big number on the back and on the front too (as on the client's Game
+      // Jersey tile); the front one takes the Number's colour, look and hiding, and can be moved on its own.
+      const own = design.marks ?? {}, num = own.top_number ?? {};
+      const shared = { ...(num.color ? { color: num.color } : {}), ...(num.look ? { look: num.look } : {}), ...(num.hidden ? { hidden: true } : {}) };
+      const both = { ...design, marks: { ...own, top_frontNumber: { ...shared, ...own.top_frontNumber } } };
+      this.markText(design, 'name', { side: 'back', x: 0, y: 0.62 }, backName, 0.055, design.accent, 0.28, textOutline);
+      // Square block jersey numerals (JerseyBlock, the client's pictures).
+      this.markText(design, 'number', { side: 'back', x: 0, y: 0.37 }, String(design.number ?? '23'), 0.26, design.accent, 0.32, textOutline, NFL_FONT, NFL_SQUEEZE);
+      this.markText(both, 'frontNumber', { side: 'front', x: 0, y: 0.38 }, String(design.number ?? '23'), 0.24, design.accent, 0.3, textOutline, NFL_FONT, NFL_SQUEEZE);
     } else {
       this.markText(design, 'name', { side: 'back', x: 0, y: 0.6 }, backName, 0.06, design.accent, 0.28, textOutline);
       this.markText(design, 'number', { side: 'back', x: 0, y: 0.38 }, String(design.number ?? '23'), 0.24, design.accent, 0.3, textOutline);
@@ -1304,7 +1649,7 @@ export class KitPainter {
 
   /**
    * A hoodie's own colour zones on the atlas (design.zoneColors, hex): the hood's outer fabric (its piece on the back;
-   * otherwise the body's fill) and the kangaroo pocket (on the front, under the 3D pocket). The lining, rib, zip and
+   * otherwise the body's fill), the kangaroo pocket (on the front, under the 3D pocket) and the sleeve stripe. The lining, rib, zip and
    * drawstring are coloured on their own 3D parts (main.js).
    */
   paintHoodie(design, back) {
@@ -1328,6 +1673,17 @@ export class KitPainter {
       g.fillRect(-0.4, 0, 0.8, 0.4);
     }
     g.restore();
+    // The sleeve stripe (task 9.154, the client's hoodie picture): along the shoulder and the sleeve's top seam, from
+    // the neck to the cuff, 5 cm wide; none while it has no colour of its own (Hoodie areas).
+    if (own('stripe')) {
+      g.save();
+      this.side(back);
+      g.strokeStyle = own('stripe');
+      g.lineWidth = 0.05;
+      g.lineJoin = 'round';
+      for (const run of this.trackTopEdges()) { g.beginPath(); run.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke(); }
+      g.restore();
+    }
     if (!back) {
       // The hand openings' turned-in edges, a touch darker.
       g.save();
@@ -1396,6 +1752,21 @@ export class KitPainter {
   }
 
   /** The outline's top edge on each side (the shoulder seam and the sleeve's top seam, neck to cuff), as point runs. */
+  /** A long sleeve's underside (the outline's edge from the underarm to the cuff's lower corner), each side. */
+  sleeveUnderEdges() {
+    if (this._underEdges) return this._underEdges;
+    const poly = this.outline, n = poly.length;
+    const nearest = (x, y) => poly.reduce((best, p, i) => (Math.hypot(p.x - x, p.y - y) < Math.hypot(poly[best].x - x, poly[best].y - y) ? i : best), 0);
+    const runs = [];
+    for (const dir of [-1, 1]) {
+      const a = nearest(dir * 0.271, 0.529), b = nearest(dir * 0.613, 0.224), run = [];
+      const fwd = (b - a + n) % n, step = fwd <= n / 2 ? 1 : -1;
+      for (let i = a; ; i = (i + step + n) % n) { run.push(poly[i]); if (i === b) break; }
+      runs.push(run);
+    }
+    return (this._underEdges = runs);
+  }
+
   trackTopEdges() {
     if (this._topEdges) return this._topEdges;
     const poly = this.outline, n = poly.length;
@@ -1410,6 +1781,59 @@ export class KitPainter {
       runs.push(run);
     }
     return (this._topEdges = runs);
+  }
+
+  /**
+   * The American football jersey's own trims (the client's pictures, DT1), on one side: piping round its shoulder caps
+   * while they have a colour (Game Jersey: neck to underarm, and down the sleeve to the cuff, in the caps' colour); the
+   * shoulder stripe along the sleeve's top seam from the shoulder to the cuff (Practice Jersey: design.zoneColors.stripe);
+   * and, on the Mesh fabric, the yoke's seam across the chest and back (above it the cloth is smooth: render-quality.js).
+   */
+  paintNflTrims(design, back) {
+    const g = this.ctx, cap = design.zones?.yoke;
+    g.save();
+    this.side(back);
+    g.lineJoin = 'round';
+    g.lineCap = 'butt';
+    if (cap && cap !== 'None') {
+      g.strokeStyle = this.zoneFill(design, ownPatternInk(design) ? 'patternColor' : 'secondary');
+      g.lineWidth = 0.0065;
+      for (const dir of [-1, 1]) {
+        g.beginPath(); g.moveTo(dir * 0.1, 0.75); g.quadraticCurveTo(dir * 0.168, 0.628, dir * 0.262, 0.536); g.stroke();
+        g.beginPath(); g.moveTo(dir * 0.252, 0.592); g.lineTo(dir * 0.385, 0.537); g.stroke();
+      }
+    }
+    const stripe = HEX.test(design.zoneColors?.stripe ?? '') ? design.zoneColors.stripe : null;
+    if (stripe) {
+      // The Practice Jersey picture (FX3): a wide stripe down the front (and back) of each shoulder along the armhole,
+      // from the top of the shoulder to the underarm, widest over the shoulder, so it shows clearly from the front.
+      g.fillStyle = stripe;
+      for (const dir of [-1, 1]) {
+        g.beginPath();
+        taperedBand(NFL_STRIPE.map(([x, y, w]) => [dir * x, y, w])).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+        g.closePath();
+        g.fill();
+      }
+    }
+    // The Practice Jersey picture (FX3): a small cyan insert in the point of the V, notched at the top under the collar
+    // (design.zoneColors.vInsert; front only).
+    const vInsert = HEX.test(design.zoneColors?.vInsert ?? '') ? design.zoneColors.vInsert : null;
+    if (vInsert && !back) {
+      g.fillStyle = vInsert;
+      g.beginPath();
+      [[-0.0135, 0.668], [0, 0.662], [0.0135, 0.668], [0.0125, 0.648], [0, 0.637], [-0.0125, 0.648]].forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+      g.closePath();
+      g.fill();
+    }
+    if (design.fabric === 'Mesh') {
+      g.strokeStyle = 'rgba(0,0,0,0.3)';
+      g.lineWidth = 0.0025;
+      g.beginPath(); g.moveTo(-0.262, NFL_YOKE); g.lineTo(0.262, NFL_YOKE); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.07)';
+      g.lineWidth = 0.0012;
+      g.beginPath(); g.moveTo(-0.262, NFL_YOKE - 0.004); g.lineTo(0.262, NFL_YOKE - 0.004); g.stroke();
+    }
+    g.restore();
   }
 
   /** An uploaded area pattern's tile (its full-colour print, or its stencil in the area patterns' ink), once loaded. */
@@ -1431,7 +1855,31 @@ export class KitPainter {
       else if (zone === 'pocket') pocketPath(g);
       // The hood's patterns are drawn as on the body, moved up onto its piece.
       if (zone === 'hood') { for (const piece of this.piecesOn(true)) { piece.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.closePath(); } g.clip(); g.translate(0, HOOD_TOP - 0.78); g.beginPath(); }
-      for (const [x0, y0, x1, y1] of zoneRects(this.kind, zone)) g.rect(x0, y0, x1 - x0, y1 - y0);
+      // A garment's own area shape (zonePolys) first; else the Swirl on the shoulders of a sleeved top: a raglan piece
+      // from the neck down to the underarm, the chest and collar between them left plain (the client's football and
+      // hockey jersey pictures, DT3).
+      const polys = zonePolys(this.kind, zone);
+      if (polys) for (const poly of polys) { poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); }
+      else if (zone === 'yoke' && name === 'Swirl' && SLEEVED.includes(this.kind) && !isHoodie(this.kind) && !isTrack(this.kind)) {
+        // A bare sleeve (no pattern of its own): the shoulders' maze reaches over its top, fading out down the arm (FX3,
+        // the client's football and hockey jersey picture); else above the sleeve area only (it has its own pattern).
+        const bare = !design.zones?.sleeves || design.zones.sleeves === 'None';
+        this._swirlSleeve = bare;
+        for (const dir of [-1, 1]) {
+          g.moveTo(dir * 0.085, 0.85);
+          g.quadraticCurveTo(dir * 0.16, 0.66, dir * 0.262, 0.54);
+          if (bare) {
+            g.lineTo(dir * 0.262, -0.1);
+            g.lineTo(dir * 0.6, -0.1);
+          } else {
+            g.lineTo(dir * 0.27, 0.54);
+            g.lineTo(dir * 0.27, 0.76);
+            g.lineTo(dir * 0.6, 0.76);
+          }
+          g.lineTo(dir * 0.6, 0.85);
+          g.closePath();
+        }
+      } else for (const [x0, y0, x1, y1] of zoneRects(this.kind, zone)) g.rect(x0, y0, x1 - x0, y1 - y0);
       g.clip();
       if (isPicture(name)) {
         const tile = this.zoneTile(design, name);
@@ -1449,7 +1897,22 @@ export class KitPainter {
       } else {
         this.proceduralPattern(design, name, this.zoneFill(design, ownPatternInk(design) ? 'patternColor' : 'secondary'));
       }
+      this._swirlSleeve = false;
       g.restore();
+      // The raglan seam's thin piping in the accent colour, along the Swirl's edge (the pictures' cyan line).
+      if (zone === 'yoke' && name === 'Swirl' && !zonePolys(this.kind, zone) && SLEEVED.includes(this.kind) && !isHoodie(this.kind) && !isTrack(this.kind)) {
+        g.save();
+        this.side(back);
+        g.strokeStyle = HEX.test(design.accent ?? '') ? design.accent : design.secondary;
+        g.lineWidth = 0.005;
+        for (const dir of [-1, 1]) {
+          g.beginPath();
+          g.moveTo(dir * 0.085, 0.85);
+          g.quadraticCurveTo(dir * 0.16, 0.66, dir * 0.262, 0.54);
+          g.stroke();
+        }
+        g.restore();
+      }
     }
   }
 
@@ -1483,13 +1946,21 @@ export class KitPainter {
       g.rotate(((layer.rot ?? 0) * Math.PI) / 180);
       g.globalAlpha = layer.opacity ?? 1;
       if (layer.type === 'text') {
-        const size = layer.size ?? 0.06;
+        const size = layer.size ?? 0.06, str = String(layer.text ?? '');
+        // A text object's own font and word look (FX3, the American football jerseys' pictures: the bold slanted block
+        // "3" on the chest, the shoulder numbers); none = as before.
+        if (layerFont(layer) || layer.look) {
+          const { w, h } = drawWord(g, str, size, layer.color ?? design.accent, Infinity, layer.look ?? {}, null, design.main, layerFont(layer));
+          this.layerBoxes.push({ id: layer.id, side: layer.side, x: layer.x, y: layer.y, rot: layer.rot ?? 0, w, h });
+          g.restore();
+          continue;
+        }
         g.font = `700 ${size}px Rajdhani, Inter, sans-serif`;
         g.textAlign = 'center';
         g.textBaseline = 'middle';
         g.fillStyle = layer.color ?? design.accent;
-        g.fillText(String(layer.text ?? ''), 0, 0);
-        this.layerBoxes.push({ id: layer.id, side: layer.side, x: layer.x, y: layer.y, rot: layer.rot ?? 0, w: g.measureText(String(layer.text ?? '')).width, h: size });
+        g.fillText(str, 0, 0);
+        this.layerBoxes.push({ id: layer.id, side: layer.side, x: layer.x, y: layer.y, rot: layer.rot ?? 0, w: g.measureText(str).width, h: size });
       } else if (layer.type === 'shape') {
         const w = layer.w ?? 0.1, h = layer.h ?? w;
         g.fillStyle = layer.color ?? design.accent;
@@ -1527,6 +1998,15 @@ export class KitPainter {
     if (layer.type === 'shape') return { w: layer.w ?? 0.1, h: layer.h ?? layer.w ?? 0.1 };
     if (layer.type === 'text') {
       const g = this.ctx, size = layer.size ?? 0.06;
+      if (layerFont(layer) || layer.look) {
+        // Measured as drawn (texture.js paintLayers), with nothing painted.
+        g.save();
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.globalAlpha = 0;
+        const { w, h } = drawWord(g, String(layer.text ?? ''), size * 1000, '#000', Infinity, layer.look ?? {}, null, null, layerFont(layer));
+        g.restore();
+        return { w: w / 1000, h: h / 1000 };
+      }
       g.save();
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.font = `700 ${size * 1000}px Rajdhani, Inter, sans-serif`;
@@ -1579,6 +2059,12 @@ export class KitPainter {
     g.setTransform(1, 0, 0, 1, 0, 0);
     return this.canvas;
   }
+}
+
+/** The 3DEEZI wordmark and "3" mark pictures (brandmarks.js), loaded once. */
+let brandLoad = null;
+function brandImages() {
+  return (brandLoad ??= Promise.all([BRAND_WORDMARK, BRAND_MARK].map((src) => loadImage(src).catch(() => null))));
 }
 
 /** A small tileable knit normal map (pique dots), generated once. */

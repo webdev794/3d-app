@@ -689,6 +689,12 @@ class AppController extends ChangeNotifier {
           'Polo with pocket' => 'pocketpolo',
           'Netball dress' => 'netball-dress',
           'Football jersey' => 'nfljersey',
+          // Socks keep their own shape, with the design's colours.
+          'Socks' => 'socks',
+          // The cap keeps its own shape, with the design's colours.
+          'Cap' => 'cap',
+          // The skirt keeps its own shape, with the design's colours.
+          'Skirt' => 'skirt',
           // Hoodies are long-sleeved: a drawing of one is read as a sleeved top.
           'Hoodie' ||
           'Compression top' ||
@@ -825,6 +831,42 @@ class AppController extends ChangeNotifier {
     if (own == null) return;
     edit(() => _restore(own));
     _onPreset = false;
+  }
+
+  /// A garment tile's starting look (task 9.154, sports_catalog.dart
+  /// tileLook): its colours, pattern, colour areas, number and its look.
+  void startLook(Map<String, dynamic> look) {
+    mainColor = ProjectSync.color(look['main']);
+    secondaryColor = ProjectSync.color(look['secondary']);
+    accentColor = ProjectSync.color(look['accent']);
+    pattern = look['pattern'] as String;
+    patternColor = look['patternColor'] as String?;
+    patternColorOwn = look['patternColorOwn'] == true ? true : null;
+    zones = copyZones(look['zones']);
+    zoneColors = copyZones(look['zoneColors']);
+    // The picture's own objects ('tile-…') replace the last tile's.
+    layers = [
+      ...layers.where((l) => !'${l['id']}'.startsWith('tile-')),
+      ...(look['layers'] as List).cast<Map<String, dynamic>>(),
+    ];
+    // Parts with a look of their own (the rugby blades' black sides, the
+    // socks' cyan heel and toe), as the website applies them.
+    parts = copyParts(look['parts']);
+    gradient = null;
+    gradients = null;
+    number = look['number'] as String;
+    marks = {
+      for (final e in marks.entries)
+        if (e.key != 'top_number' &&
+            e.key != 'top_frontNumber' &&
+            // Marks a bib tile hid (team name, crest, name) show again.
+            !(const {'top_wordmark', 'top_crest', 'top_name'}.contains(e.key) &&
+                e.value is Map &&
+                (e.value as Map)['hidden'] == true))
+          e.key: e.value,
+      ...(look['marks'] as Map<String, dynamic>),
+    };
+    notifyListeners();
   }
 
   void _applyPreset(Map<String, dynamic> design) => edit(() {

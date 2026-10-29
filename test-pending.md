@@ -4,6 +4,51 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## Studio garment list opens the picture's design (2026-10-29)
+1. Netball › Netball dress › Studio, then click "Football jersey" on the right: the Game Jersey design (86, cyan shoulders and sides), no GS / WA letters. One Undo goes back to the dress. Same in the app.
+
+---
+
+## American Football jerseys, detail fixes (2026-10-29)
+1. Game Jersey: bold slanted chest 3, small 3s on the shoulders, the 3 mark on a small badge at the V, wide cyan side panels from the front.
+2. Practice Jersey: wide cyan shoulder stripes, mesh dots visible all over the body, black sides. Check in the app and on a phone too.
+
+---
+
+## 3D model: Skirt (2026-10-29)
+1. Design Your Own › Netball › Skirt (also Hockey skort, Tennis skirt): an A-line skirt with a gathered elastic waistband, cyan side panels, the 3DEEZI "3" above the wordmark low on the left front; matt fabric. Turn it: back and sides.
+
+---
+
+## American Football jerseys fixed (2026-10-29)
+1. Game Jersey: turn to the back: YOUR NAME is straight, no spike. Cyan caps over the shoulders with thin piping, black sleeves with cyan cuffs, black V collar with a cyan inner edge, square 86.
+2. Practice Jersey: a cyan stripe over each shoulder, smooth upper chest with mesh lower down, clean back name.
+
+---
+
+## 3D model: Cap (2026-10-29)
+1. Design Your Own › any sport › Cap: a five-panel cap with cyan piping, button, curved brim with stitching; the 3DEEZI "3" logo on the front. Parts: Brim, Under the brim, Piping, Side sweep.
+
+---
+
+## Socks and Rugby League jersey like the client pictures (2026-10-29)
+1. Rugby League › Socks: the 3DEEZI "3" logo on the shin, a real foot with a thin blue toe line, thin ankle lines, a small heel patch, a thick blue ribbed cuff; matt knitted look. Check on a phone too.
+2. Rugby League › Jersey › Continue to Studio: sharp blue blades with cyan edges up the sides and over the shoulders, black gaps, no solid blue sides; the chest shows the real 3DEEZI logo (3D white) and the "3" crest. Type your team name: it shows as text. Upload a crest: it replaces the "3".
+
+---
+
+## 3D model: Socks; garment pictures open in 3D (2026-10-29)
+1. Design Your Own › any sport › Socks: knee-high ribbed socks with cyan hoops and the crest on the shin; Parts: Top band, Hoops, Heel & toe.
+2. Pick any garment picture and Continue to Studio: the 3D looks like the picture (black with cyan in the same places). Game Jersey shows 86.
+3. Patterns: the new "Blades" pattern changes colour with the Pattern colour.
+
+---
+
+## 3D model: Compression top (2026-10-29)
+1. Design Your Own › American Football › Compression Top: a skin-tight long-sleeve top with slim sleeves and a round neck; crest, name and number work.
+
+---
+
 ## 3D model: Football jersey (2026-10-29)
 1. Design Your Own › American Football › Game Jersey: the 3D shows the wide shoulder-pad jersey (not the rugby jersey). Turn it: back name and number, sleeves.
 2. Practice Jersey: the same jersey, on Mesh fabric.

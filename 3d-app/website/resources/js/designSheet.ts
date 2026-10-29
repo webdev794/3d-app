@@ -131,7 +131,7 @@ export async function designSheetPdf(info: SheetInfo): Promise<Blob> {
         for (const a of trackAreas) { const hex = trackColour(d, a.key); row(short[a.key] ?? trackAreaLabel(a.key, d.trackStyle), `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}${d.zoneColors?.[a.key] ? '' : `   (${a.follows})`}`); }
     } else if (areas.length) {
         heading('HOODIE AREAS');
-        const names: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Rib cuffs', pocket: 'Pocket', zip: 'Zip' };
+        const names: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Rib cuffs', pocket: 'Pocket', zip: 'Zip', stripe: 'Sleeve stripe' };
         for (const [area, hex] of areas) row(names[area] ?? title(area), `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}`);
     }
     // Parts with a look of their own (task 9.134: the Parts panel), and the objects on one part only.

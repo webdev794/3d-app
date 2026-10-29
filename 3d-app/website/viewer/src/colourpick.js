@@ -8,7 +8,7 @@ const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
 /** What each area follows while it has no colour of its own (as KitViewer.tsx lists them). */
 const FOLLOWS = {
-  hoodie: { hood: 'main', lining: 'secondary', rib: 'main', pocket: 'main', zip: 'secondary' },
+  hoodie: { hood: 'main', lining: 'secondary', rib: 'main', pocket: 'main', zip: 'secondary', stripe: 'secondary' },
   varsity: { body: 'main', sleeves: 'secondary', rib: 'main', ribStripe: 'secondary', snaps: 'main', pocketTrim: 'secondary', lining: 'secondary' },
   trackjacket: { body: 'main', shoulder: 'secondary', side: 'secondary', stripe: 'accent', collar: 'main', cuffs: 'main', zip: 'secondary' },
 };
@@ -75,6 +75,9 @@ export function colourFor(design, { kind, zone, pixel, area, fixed, fullPrint = 
   if (family && area) return { slot: FOLLOWS[family][area], area };
   if (family === 'hoodie') {
     if (zone === 'hood' || zone === 'pocket') return { slot: 'main', area: zone };
+    // The sleeve stripe (only with a colour of its own): a tap on it picks it.
+    const stripe = own(design, 'stripe');
+    if (stripe && pixel && (zone === 'sleeves' || zone === 'yoke') && dist(pixel, rgb(stripe)) < 40) return { slot: 'secondary', area: 'stripe' };
     return { slot: pixel ? nearestSlot(design, pixel, 'main', fullPrint, zone) : 'main', area: null };
   }
   if (family) {

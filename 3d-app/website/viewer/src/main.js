@@ -12,6 +12,9 @@ import { buildLabel, paintLabel, mainColour } from './label.js';
 import { KitPainter, knitNormalMap } from './texture.js';
 import { createStudio } from './studio.js';
 import { qualityTier, TIERS, stadiumEnvironment, dressFabric, hdrBackdrop } from './render-quality.js';
+import { buildSocks } from './socks.js';
+import { buildSkirt } from './skirt.js';
+import { buildCap } from './cap.js';
 import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
 import { hqWanted, loadHQ, hqJersey } from './hq.js';
 import { createBoard } from './board.js';
@@ -205,6 +208,12 @@ const PARTS = {
   singlet: ['singlet'],
   // The netball dress (tasks.md 9.126): a women's fitted dress on the female figure (figure.js).
   'netball-dress': ['netball-dress'],
+  // Knee-high team socks (garment 3): their own builder (socks.js) and print (sockprint.js).
+  socks: ['socks'],
+  // The netball / tennis skirt and hockey skort (COMING SOON 10): its own builder (skirt.js) and print (skirtprint.js).
+  skirt: ['skirt'],
+  // The team cap (garment 4): its own builder (cap.js) and print (capprint.js).
+  cap: ['cap'],
   shorts: ['shorts'],
   fullkit: ['shorts', 'jersey'],
 };
@@ -213,7 +222,7 @@ function buildKit(kind) {
   // A print layout brings its own parts (a raglan top, shorts or both); the garment chosen shows its top, its
   // shorts or the full kit.
   let list = PARTS[PARTS[kind] ? kind : 'jersey'];
-  if (layout) {
+  if (layout && kind !== 'socks' && kind !== 'skirt' && kind !== 'cap') {
     // A garment drawing is of one top (the one it was checked as).
     const own = layout.drawing ? [layout.garment] : layoutParts(layout.panels);
     const pick = kind === 'fullkit' ? own : kind === 'shorts' ? own.filter((p) => p === 'shorts') : own.filter((p) => p !== 'shorts');
@@ -241,7 +250,7 @@ function buildKit(kind) {
     const over = partKind === 'raglan' && layout && list.includes('shorts') ? { ...SPECS.raglan, hemFlare: 0.09 } : null;
     const style = partKind === 'trackjacket' && trackHood ? SPECS.trackjacketHood : null;
     // Look 2: the drape and wrinkles of worn cloth (otherwise the garment as before).
-    const garment = buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over ?? style, detail: LOOK2 });
+    const garment = partKind === 'socks' ? buildSocks({ detail: LOOK2 }) : partKind === 'skirt' ? buildSkirt({ detail: LOOK2 }) : partKind === 'cap' ? buildCap({ detail: LOOK2 }) : buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over ?? style, detail: LOOK2 });
     const painter = new KitPainter(garment.frame, garment.outline, printSize(), partKind);
     if (own) painter.cut = layout.key;
     // The finished edges (the hem follows a leg's side split), the waistband's width and the places a print
@@ -392,13 +401,15 @@ function buildKit(kind) {
     }
     // Collar rib or waistband along the top opening (a hoodie's neck is under its hood).
     const rim = new THREE.Mesh(
-      buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth, LOOK2 ? 1.6 : 1),
+      // (A flat band of the body's fabric, the compression top's, lies almost flat: a thin fold, no rib's fullness.)
+      buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth, garment.rimFlat ? 0.4 : LOOK2 ? 1.6 : 1),
       new THREE.MeshPhysicalMaterial({ roughness: 0.9, reflectivity: .2, sheen: 0.15, side: THREE.DoubleSide, sheenColor: new THREE.Color(0x7092a4), normalMap: knit, normalScale: new THREE.Vector2(.17, .17) }),
     );
     group.add(rim);
     // Look 2: the rib's soft sheen catches the studio's light along the collar (or waistband), and its knit shows as
     // fine ribs across the band (about 3 mm apart round the neck).
-    if (LOOK2) {
+    if (garment.rimFlat) Object.assign(rim.material, { roughness: 0.84, sheen: 0.28, sheenRoughness: 0.7 });
+    else if (LOOK2) {
       Object.assign(rim.material, { roughness: 0.78, sheen: 0.38, sheenRoughness: 0.5 });
       ribMap ??= ribNormalMap();
       const ribs = ribMap.clone();
@@ -408,17 +419,20 @@ function buildKit(kind) {
       rim.material.normalMap = ribs;
       rim.material.normalScale.set(0.75, 0.75);
     }
-    rim.visible = !hoodie && !track && !varsity;
+    rim.visible = !hoodie && !track && !varsity && !garment.socks && !garment.skirt && !garment.cap;
     // The HQ jersey's own collar piece, in the collar rib's material.
     if (hq?.collar) { rim.geometry.dispose(); rim.geometry = hq.collar; }
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
-    const label = partKind === 'shorts' ? null : buildLabel(garment);
+    const label = partKind === 'shorts' || garment.socks || garment.skirt || garment.cap ? null : buildLabel(garment);
     // Shorts: the drawstring out of the front of the waistband.
     const cord = garment.drawstring ? buildDrawstring(garment) : null;
     if (cord) group.add(cord.group);
+    // The cap's eyelets: metal grommets round its air holes (cap.js).
+    if (garment.trims) group.add(garment.trims);
     // A layout's training shorts are shown longer than their flat pattern (as on the client's mock-ups), and as much
     // wider and deeper: the same proportions, only bigger.
-    const stretch = partKind === 'shorts' && layout ? 1.12 : 1;
+    // The cap is shown a little larger than life (cap.js CAP_DISPLAY), so it fills the stage as the others do.
+    const stretch = partKind === 'shorts' && layout ? 1.12 : garment.display ?? 1;
     group.scale.setScalar(stretch);
     // In a full kit the jersey sits over the shorts' waistband.
     // Look 2: a garment shown on a form with legs (the netball dress) stands a little higher (garment.js lift).
@@ -467,7 +481,7 @@ function dressMannequin(list) {
   for (const part of parts) {
     const group = part.rim.parent;
     // The HQ jersey: the body it was made on (hq.js), else our form made for the garment.
-    const form = part.hq?.avatar ? new THREE.Group().add(new THREE.Mesh(part.hq.avatar, mannequinMat))
+    const form = part.garment.form ? part.garment.form(mannequinMat) : part.hq?.avatar ? new THREE.Group().add(new THREE.Mesh(part.hq.avatar, mannequinMat))
       : buildMannequin(part.garment, mannequinMat, { over: list.includes('shorts') && part.painter.kind !== 'shorts' });
     if (!form) continue;
     group.add(form);
@@ -550,6 +564,20 @@ function paintVarsityPart(part) {
 }
 
 /** Repaints every part's print from the current design. */
+/**
+ * A stripe along the collar rib's inner edge (the V's opening: the top of its outside face and the fold), in `colour`;
+ * the rest keeps the rib's own colour. null: the rib all one colour, as before.
+ */
+function collarStripe(rim, colour) {
+  const m = rim.material, geo = rim.geometry, uv = geo.getAttribute('uv');
+  if (!colour) { if (m.vertexColors) { m.vertexColors = false; m.needsUpdate = true; } return; }
+  const base = m.color.clone(), own = new THREE.Color(colour), col = new Float32Array(uv.count * 3);
+  for (let i = 0; i < uv.count; i++) { const v = uv.getY(i), c = v > 0.34 && v < 0.62 ? own : base; col.set([c.r, c.g, c.b], i * 3); }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  m.color.set(0xffffff);
+  if (!m.vertexColors) { m.vertexColors = true; m.needsUpdate = true; }
+}
+
 async function paintAll() {
   await prepareLayout();
   buildKit(design.garment);
@@ -557,14 +585,24 @@ async function paintAll() {
   dressParts(false);
   warpParts();
   await document.fonts.load('700 100px Rajdhani').catch(() => {});
+  // The football jersey's square block numerals (texture.js NFL_FONT).
+  // (Also a text object's own font: texture.js LAYER_FONTS.)
+  if (design.garment === 'nfljersey' || (design.layers ?? []).some((l) => l?.font === 'JerseyBlock')) await document.fonts.load('700 100px JerseyBlock').catch(() => {});
   for (const part of parts) {
     await part.painter.paint(design);
     part.texture.needsUpdate = true;
     const ribOwn = part.painter.partStyle(design, part.painter.partName === 'shorts' ? 'waistband' : 'collar')?.own;
-    part.rim.material.color.set(layout && part.layoutRim ? part.layoutRim : ribOwn ?? design.secondary);
+    // (The compression top's crew neck: the body's colour.)
+    part.rim.material.color.set(layout && part.layoutRim ? part.layoutRim : ribOwn ?? (part.painter.kind === 'compression' ? design.main : design.secondary));
+    // The football jersey's collar: a stripe of its own along the V's inner edge (design.zoneColors.collarStripe).
+    const nfl = part.painter.kind === 'nfljersey', stripe = nfl && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.collarStripe ?? '') ? design.zoneColors.collarStripe : null;
+    collarStripe(part.rim, stripe);
     // The inside: the print's (or the kit's) main colour, a little darker for shade; the label shows the kit's size.
-    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(0.72);
-    if (part.label) paintLabel(part.label, design.size || 'L');
+    // The football jersey's wide sleeves show their inside from below: kept in shade (darker, little reflected light).
+    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(nfl ? 0.45 : 0.72);
+    part.inside.envMapIntensity = nfl ? 0.3 : 1;
+    // (The compression top: a black label with the cyan "3", as its picture.)
+    if (part.label) paintLabel(part.label, design.size || 'L', part.painter.kind === 'compression' ? 'mark' : 'word');
     if (part.hoodie) paintHoodie(part);
     if (part.track) paintTrack(part);
     if (part.varsity) paintVarsityPart(part);
@@ -726,7 +764,7 @@ function warpParts() {
   if (!layout) return;
   const byRole = Object.fromEntries(layout.panels.map((p) => [p.role, p]));
   for (const part of parts) {
-    if (part.painter.layoutBase) continue;
+    if (part.painter.layoutBase || part.garment.socks || part.garment.skirt || part.garment.cap) continue;
     const { painter } = part, shorts = painter.kind === 'shorts';
     painter.layoutBase = warpLayout(renderer, layout.image, regionsFor(painter, layout.panels, layout.image, { drawing: !!layout.drawing }), painter.canvas.width, painter.canvas.height);
     const main = shorts ? byRole.legL ?? byRole.legR : byRole.front ?? byRole.back;
@@ -1034,8 +1072,8 @@ function dragHover(arg) {
 // changes reach it as the board's do ({type:'marks'} / {type:'layers'}), words as {type:'markText', field, value}.
 let barPending = false;
 let objectEditing = false, selected = null, addSpot = null, hostImages = false, dragObj = null;
-const MARK_LABEL = { wordmark: 'Team name', sponsor: 'Sponsor', crest: 'Crest', name: 'Back name', number: 'Number' };
-const MARK_FIELD = { wordmark: 'logoText', name: 'backName', number: 'number' };
+const MARK_LABEL = { wordmark: 'Team name', sponsor: 'Sponsor', crest: 'Crest', name: 'Back name', number: 'Number', frontNumber: 'Front number' };
+const MARK_FIELD = { wordmark: 'logoText', name: 'backName', number: 'number', frontNumber: 'number' };
 const SHAPE_LABEL = { shield: 'Shield', circle: 'Circle', square: 'Square', rounded: 'Rounded', diamond: 'Diamond' };
 const pieceFor = (part) => parts.find((p) => p.painter.partName === part);
 /** Every object drawn on a piece: its layers (on top) first, then the fixed marks. */
@@ -1113,7 +1151,7 @@ function changeSelected(change, final = true) {
 function setMarkText(name, value) {
   const field = MARK_FIELD[name];
   if (!field) return;
-  value = name === 'number' ? String(value).replace(/\D/g, '').slice(0, 3) : String(value).slice(0, 40);
+  value = name === 'number' || name === 'frontNumber' ? String(value).replace(/\D/g, '').slice(0, 3) : String(value).slice(0, 40);
   design[field] = value;
   repaintSoon();
   markTextPending[field] = value;
@@ -1215,7 +1253,7 @@ function drawBar() {
   if (text !== null || l?.type === 'shape') {
     const row = el('div', { className: 'row' });
     if (text !== null) {
-      const input = el('input', { type: 'text', value: text, ariaLabel: 'Words', maxLength: selected.name === 'number' ? 3 : 40 });
+      const input = el('input', { type: 'text', value: text, ariaLabel: 'Words', maxLength: selected.name === 'number' || selected.name === 'frontNumber' ? 3 : 40 });
       input.oninput = () => (selected.kind === 'mark' ? setMarkText(selected.name, input.value) : changeSelected({ text: input.value }, false));
       input.onchange = () => { if (selected?.kind === 'layer') sendObjects('layer'); else flushMarkText(); };
       input.addEventListener('keydown', (e) => e.stopPropagation());

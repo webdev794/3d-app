@@ -170,6 +170,11 @@ SPECS.nfljersey = {
   loose: true,
   hemFlare: 0.02,
   pads: 0.06,
+  // Boxy (worn.js wrap): the body's section a superellipse of this power below the shoulders, flatter in front with
+  // fuller sides, so the side panels show from the front as in the client's picture.
+  boxy: 2.6,
+  // The back neck (garment.js backHeight): its middle 0.72 high, drawn up only above 0.652 (the back name's top is 0.6475).
+  backNeck: { centre: 0.72, from: 0.652 },
 };
 /**
  * Hoodies (fleece): long set-in sleeves angled down to the wrist (the cuff's corners CT / CB; worn.js `long`: the arm's
@@ -200,18 +205,26 @@ SPECS.ziphoodie = { ...SPECS.hoodie, zip: true };
  * (`tight.crease`) and the body's shape showing through (`tight.relief`). Its own spec, so a professional model
  * can replace it without touching the other garments.
  */
-const TIGHT_SLEEVE = [[0.258, 0.688], [0.3, 0.652], [0.47, 0.482], [0.676, 0.272], [0.624, 0.218], [0.44, 0.372], [0.31, 0.49], [0.258, 0.53]];
+// (CF1 2026-10-29, DT4's check against the client's picture: the sleeves 13 cm longer, so the cuffs reach just below
+// the hem.)
+const TIGHT_SLEEVE = [[0.258, 0.688], [0.3, 0.652], [0.47, 0.482], [0.768, 0.18], [0.716, 0.126], [0.44, 0.372], [0.31, 0.49], [0.258, 0.53]];
 SPECS.compression = {
-  half: [[0, 0.698], [0.052, 0.72], [0.09, 0.738], [0.19, 0.716], ...TIGHT_SLEEVE, [0.25, 0.42], [0.244, 0.3], [0.25, 0.16], [0.258, 0.03], [0.2, 0.012], [0.1, 0.002], [0, 0]],
+  half: [[0, 0.698], [0.052, 0.72], [0.09, 0.738], [0.19, 0.716], ...TIGHT_SLEEVE, [0.25, 0.42], [0.238, 0.3], [0.23, 0.17], [0.232, 0.075], [0.2, 0.066], [0.1, 0.061], [0, 0.06]],
   neck: { drop: 0.045, half: 0.094 },
-  rim: { drop: 0.05, half: 0.11, radius: 0.0075 },
-  cuff: [[0.676, 0.272], [0.624, 0.218]],
-  points: { CT: [0.676, 0.272], CB: [0.624, 0.218] },
+  // The collar: a smooth flat band of the body's fabric, about 1.5 cm deep (`flat`: no rib, main.js).
+  rim: { drop: 0.05, half: 0.11, radius: 0.0075, width: 0.015, flat: true },
+  cuff: [[0.768, 0.18], [0.716, 0.126]],
+  points: { CT: [0.768, 0.18], CB: [0.716, 0.126] },
   depth: 0.2,
   chest: true,
   crew: true,
-  long: { upper: 0.047, wrist: 0.034, length: 0.6 },
-  tight: { fit: 0.92, crease: 0.45, relief: 1.5 },
+  long: { upper: 0.047, wrist: 0.034, length: 0.73 },
+  // The arms held a little out from the body (degrees below level they hang at; 80 for the other tops).
+  armDrop: 74,
+  // (CF1 2026-10-29: shorter, to the hips, and closer still: skin-tight as the client's picture, no flare at the hem.)
+  // An athletic V (DT4): the chest and shoulders broader (`chest`), the waist narrower (`waist`), the chest and stomach
+  // muscles clearly shaped (`relief`).
+  tight: { fit: 0.88, crease: 0.4, relief: 2.4, chest: 0.07, waist: 0.15 },
 };
 
 /**
@@ -658,6 +671,19 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       const weight = Math.exp(-((p.y - (.672 + dy + Math.abs(p.x) * .76)) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
       return p.y + Math.max(0, .752 + dy - p.y) * weight;
     }
+    // Its own back neck (the football jersey, `backNeck`): a round line `centre` high in the middle, meeting the shoulder
+    // seams at the neck's sides. The cloth below it is drawn up evenly across the whole neck and only above `from`
+    // (clear of the back name), so the back is smooth and its print keeps its shape (no narrow pull in the middle).
+    if (spec.backNeck) {
+      const ax = Math.abs(p.x), { centre, from } = spec.backNeck, [, , [nx, ny]] = spec.half;
+      if (ax >= nx || p.y <= from) return p.y;
+      const curve = spec.half.slice(0, 3);
+      let k = 1;
+      while (k < curve.length - 1 && curve[k][0] < ax) k++;
+      const [x0, y0] = curve[k - 1], [x1, y1] = curve[k], edge = y0 + ((y1 - y0) * (ax - x0)) / (x1 - x0);
+      const lift = Math.max(0, centre + (ny - centre) * (ax / nx) ** 2 - edge), t = Math.min(1, (p.y - from) / Math.max(1e-4, edge - from));
+      return p.y + lift * t * t;
+    }
     if (!spec.chest || Math.abs(p.x) > .112 || p.y < .62) return p.y;
     const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' || kind === 'pocketpolo' || isHoodie(kind) || isTrack(kind) || kind === 'compression' ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
     const weight = Math.exp(-((p.y - neckLine) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
@@ -801,7 +827,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     // Detail: the made fabric for the mannequin under it (mannequin.js): front then back points, which are on a
     // sleeve (how far along it, -1 on the body), shorts' crotch height.
     // `form`: the figure it is made for (figure.js; a female form has its own hips and thighs), `top` its shoulder line.
-    body: detail ? { n, positions, sleeve: sleeveAt.map((s) => (s ? s.l : -1)), legs: !!spec.legs, crotch: crotchY, long: !!spec.long, pads: !!spec.pads, form: spec.form ?? 'male', top: maxY, lift: spec.lift ?? 0 } : null,
+    body: detail ? { n, positions, sleeve: sleeveAt.map((s) => (s ? s.l : -1)), legs: !!spec.legs, crotch: crotchY, long: !!spec.long, pads: !!spec.pads, tight: !!spec.tight, form: spec.form ?? 'male', top: maxY, lift: spec.lift ?? 0 } : null,
     frame: { minX, maxX, minY, maxY, span },
     outline: poly,
     // Which outline points are finished edges (hems, leg openings with their splits, sleeve ends).
@@ -810,6 +836,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     neck,
     rimRadius: spec.rim.radius,
     rimWidth: spec.rim.width ?? (spec.legs ? 0.026 : 0.011),
+    // A flat collar band of the body's fabric (the compression top), not a rib.
+    rimFlat: !!spec.rim.flat,
     // How much higher it stands on the podium in the new look (on its mannequin; 0 for most garments).
     lift: spec.lift ?? 0,
     drawstring: !!spec.legs,

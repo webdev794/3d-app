@@ -16,7 +16,7 @@ type Dashboard = { projects: number; drafts: number; approved: number; assets: n
 
 function message(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please try again.'; }
 /** The Studio's garment names ("Zip hoodie", "Polo with pocket"); others are title-cased ids. */
-const GARMENT_NAMES: Record<string, string> = { fullkit: 'Full kit', nfljersey: 'Football jersey', compression: 'Compression top', tee: 'Training tee', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
+const GARMENT_NAMES: Record<string, string> = { fullkit: 'Full kit', nfljersey: 'Football jersey', compression: 'Compression top', socks: 'Socks', cap: 'Cap', skirt: 'Skirt', tee: 'Training tee', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
 function title(value: string) { return value.replaceAll('-', ' ').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function date(value: string) { return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
 function bytes(value: number) { return value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / 1024 / 1024).toFixed(1)} MB`; }
@@ -40,6 +40,15 @@ function Feedback({ error, loading, onRetry }: { error: string; loading: boolean
     return null;
 }
 
+/**
+ * The 3DEEZI "3" mark, the crest a kit has until the club adds its logo (as on the 3D kit, viewer brandmarks.js), in
+ * its own 360 x 230 box: the silver bars and the blue middle bar and arrow.
+ */
+const BRAND_THREE = {
+    silver: 'M136 10H340L300 50H155L135 75H72ZM63 160H143L95 212H14Z',
+    blue: 'M151 76H281L229 128H98ZM316 64L356 125L269 212H107L156 160H250L274 124L270 110Z',
+};
+
 /** A lightweight preview reflects each saved design without starting a 3D canvas. */
 export function ProjectThumbnail({ project }: { project: { design: Partial<Design>; garment: string; name: string } }) {
     const id = useId().replaceAll(':', '');
@@ -58,6 +67,9 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
     const varsity = project.garment === 'varsity';
     const track = project.garment === 'trackjacket';
     const crewNeck = project.garment === 'tee' || polo || hoodie || varsity || track;
+    // The chest word; the default 3DEEZI in the brand's own colours (white 3D, cyan EEZI), as the 3D kit shows it.
+    const word = (design.logoText ?? '3DEEZI').toUpperCase().slice(0, 16);
+    const brandWord = word === '3DEEZI' && !design.marks?.top_wordmark?.color && !design.marks?.top_wordmark?.look;
     const zones = (design.zoneColors ?? {}) as Partial<Record<'hood' | 'lining' | 'rib' | 'pocket' | 'zip' | 'body' | 'sleeves' | 'ribStripe' | 'snaps' | 'pocketTrim' | 'shoulder' | 'side' | 'stripe' | 'collar' | 'cuffs', string>>;
     // A hoodie (and the varsity jacket) has long sleeves to the wrist.
     const outline = shorts ? 'M99 71H221L230 229H169L160 158L151 229H90Z' : dress ? 'M121 52L140 46Q160 70 180 46L199 52L195 98Q201 112 189 132L222 252H98L131 132Q119 112 125 98Z' : singlet ? 'M117 55L139 48Q160 75 181 48L203 55L195 108L207 242H113L125 108Z' : hoodie || varsity || track ? 'M107 67L138 49Q160 70 182 49L213 67L246 196L222 203L204 125L209 242H111L116 125L98 203L74 196Z' : 'M107 67L138 49Q160 70 182 49L213 67L256 119L221 144L204 125L209 242H111L116 125L99 144L64 119Z';
@@ -68,6 +80,8 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
             <clipPath id={`${id}-clip`}><path d={outline} /></clipPath>
             <pattern id={`${id}-pattern`} width="320" height="26" patternUnits="userSpaceOnUse"><path d="M60 0L160 25L260 0" fill="none" stroke={secondary} strokeWidth="3" opacity=".45" /></pattern>
             <pattern id={`${id}-velocity`} width="320" height="32" patternUnits="userSpaceOnUse"><path d="M60 0L130 22L130 28L60 8M260 0L190 22L190 28L260 8" fill={secondary} opacity=".45" /></pattern>
+            <linearGradient id={`${id}-silver`} x1="0" x2="1" y1="0" y2="1"><stop stopColor="#ffffff" /><stop offset="1" stopColor="#8b97a4" /></linearGradient>
+            <linearGradient id={`${id}-blue`} x1="0" x2="1" y1="0" y2="1"><stop stopColor="#3fe2ff" /><stop offset="1" stopColor="#1450e6" /></linearGradient>
         </defs>
         <ellipse cx="160" cy="145" rx="146" ry="134" fill={`url(#${id}-glow)`} />
         <ellipse cx="160" cy={fullkit ? 403 : 256} rx="83" ry="7" fill="black" opacity=".45" />
@@ -81,7 +95,7 @@ export function ProjectThumbnail({ project }: { project: { design: Partial<Desig
             {!shorts && <><path d="M79 89L113 77L130 241H112L116 125L100 145Z" fill={secondary} opacity=".72" /><path d="M241 89L207 77L190 241H208L204 125L220 145Z" fill={secondary} opacity=".72" /></>}
             <path d={outline} fill={`url(#${id}-shine)`} />
         </g>
-        {!shorts && <><path d={crewNeck ? 'M136 49Q160 82 184 49L179 46Q160 70 141 46Z' : 'M136 49L160 78L184 49L179 46L160 67L141 46Z'} fill={secondary} />{polo && <><path d="M155 62H165V104H155Z" fill={secondary} /><circle cx="160" cy="79" r="1.5" fill={accent} /><circle cx="160" cy="89" r="1.5" fill={accent} /><circle cx="160" cy="99" r="1.5" fill={accent} /></>}{design.logoImage?.startsWith('data:image/') ? <image href={design.logoImage} x="177" y="95" width="20" height="22" preserveAspectRatio="xMidYMid meet" /> : <><path d="M186 96L196 101L194 113L186 117L178 113L176 101Z" fill={accent} /><text x="186" y="109" fill={main} fontSize="7" textAnchor="middle" fontWeight="800">3D</text></>}<text x="160" y="147" fill={accent} textAnchor="middle" fontSize="18" fontWeight="800" fontFamily="Rajdhani, Inter, sans-serif" fontStyle="italic">{(design.logoText ?? '3DEEZI').toUpperCase().slice(0, 16)}</text></>}
+        {!shorts && <><path d={crewNeck ? 'M136 49Q160 82 184 49L179 46Q160 70 141 46Z' : 'M136 49L160 78L184 49L179 46L160 67L141 46Z'} fill={secondary} />{polo && <><path d="M155 62H165V104H155Z" fill={secondary} /><circle cx="160" cy="79" r="1.5" fill={accent} /><circle cx="160" cy="89" r="1.5" fill={accent} /><circle cx="160" cy="99" r="1.5" fill={accent} /></>}{design.logoImage?.startsWith('data:image/') ? <image href={design.logoImage} x="177" y="95" width="20" height="22" preserveAspectRatio="xMidYMid meet" /> : <g transform="translate(173.7 99.1) scale(.0667)"><path d={BRAND_THREE.blue} fill={`url(#${id}-blue)`} /><path d={BRAND_THREE.silver} fill={`url(#${id}-silver)`} /></g>}<text x="160" y="147" fill={accent} textAnchor="middle" fontSize="18" fontWeight="800" fontFamily="Rajdhani, Inter, sans-serif" fontStyle="italic">{brandWord ? <><tspan fill="#eef2f6">3D</tspan><tspan fill={`url(#${id}-blue)`}>EEZI</tspan></> : word}</text></>}
         {hoodie && <><path d="M138 49Q160 30 182 49Q160 62 138 49Z" fill={zones.lining || secondary} /><path d="M111 232H209M98 197L74 190M222 197L246 190" stroke={zones.rib || secondary} strokeWidth="6" />
             {project.garment === 'ziphoodie' ? <><path d="M160 58V236" stroke={zones.zip || secondary} strokeWidth="3" /><path d="M122 178L146 172V214H118ZM198 178L174 172V214H202Z" fill={zones.pocket || main} stroke={secondary} strokeOpacity=".6" /></> : <path d="M126 176H194L204 214H116Z" fill={zones.pocket || main} stroke={secondary} strokeOpacity=".6" />}</>}
         {varsity && <><path d="M107 67L74 196L98 203L116 125L119 73ZM213 67L246 196L222 203L204 125L201 73Z" fill={zones.sleeves || secondary} stroke={secondary} strokeOpacity=".55" strokeWidth="1.5" />

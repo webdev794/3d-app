@@ -187,6 +187,18 @@ class DesignReading {
       'Compression top',
       'skin-tight long-sleeve compression top or base layer',
     ),
+    'socks': (
+      'Socks',
+      'knee-high team socks with hoops (rugby, football, footy, hockey socks)',
+    ),
+    'cap': (
+      'Cap',
+      'six-panel team cap with a curved brim (ball cap, golf, cricket, cycling, club cap)',
+    ),
+    'skirt': (
+      'Skirt',
+      'a skirt alone: netball and tennis skirts, hockey skorts',
+    ),
     'netball-dress': (
       'Netball dress',
       'a fitted dress for women, with a skirt: netball dresses and tennis dresses',

@@ -7,7 +7,7 @@ import type { DesignLayout, KitViewerHandle } from './KitViewer';
 
 export type LibraryAsset = { id: number; name: string; type: string; src?: string };
 export type ArtworkDrop = { asset?: LibraryAsset; pattern?: string; label?: string };
-export const patternNames = ['None', 'Solid', 'Chevron', 'Stripes', 'Velocity', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
+export const patternNames = ['None', 'Solid', 'Chevron', 'Stripes', 'Velocity', 'Blades', 'Swirl', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
 export const placements = [
     { id: 'left-chest', label: 'Left chest', side: 'front', part: 'top', x: 0.105, y: 0.6, w: 0.075 },
     { id: 'right-chest', label: 'Right chest', side: 'front', part: 'top', x: -0.105, y: 0.6, w: 0.075 },
@@ -28,6 +28,12 @@ export const placements = [
  * not listed here are only checked loosely. (The 2D board only moves a layer onto the garment or one of its pieces.)
  */
 export function offGarment(layer: Pick<ArtworkLayer, 'x' | 'y' | 'part' | 'side'>, garment: string) {
+    // The socks' print (viewer socks.js): about 10 cm either side of the middle, from the toe (0) to the welt (.64).
+    // The cap's print (viewer cap.js): the crown about 15 cm either side of the middle, the brim below it (y 0 to .09).
+    // The skirt's print (viewer skirt.js): the hem at y 0 (31 cm either side of the middle), the waistband's top at .336.
+    if (garment === 'skirt') return layer.y < -0.01 || layer.y > 0.345 || Math.abs(layer.x) > 0.32;
+    if (garment === 'cap') return layer.y < 0 || layer.y > 0.26 || Math.abs(layer.x) > 0.16;
+    if (garment === 'socks') return layer.y < -0.02 || layer.y > 0.66 || Math.abs(layer.x) > 0.11;
     const shorts = (layer.part ?? 'top') === 'shorts';
     const plain = shorts || ['jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo', 'raglan', 'fullkit', 'singlet', 'netball-dress', 'shorts'].includes(garment);
     // The netball dress (task 9.126): its skirt out to x .33 at the hem, its straps up to y .88.

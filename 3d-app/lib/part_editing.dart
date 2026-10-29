@@ -29,6 +29,21 @@ const topParts = [
   'hem',
 ];
 
+/// The socks' own printed parts (with their front and back).
+const sockParts = ['sockBand', 'sockHoops', 'sockFoot'];
+
+/// The cap's own printed parts (with its front and back).
+const capParts = [
+  'capBrim',
+  'capUnder',
+  'capPiping',
+  'capSweep',
+  'capSweepLow',
+];
+
+/// The skirt's own printed part (with its front, back, side panels and hem).
+const skirtParts = ['skirtBand'];
+
 /// The shorts' parts (the Shorts, or the shorts of a Full Kit).
 const shortsParts = [
   'shortsFront',
@@ -51,6 +66,15 @@ const partLabels = {
   'shortsSides': 'Shorts side stripes',
   'shortsHem': 'Shorts hems',
   'waistband': 'Waistband',
+  'sockBand': 'Top band',
+  'sockHoops': 'Hoops',
+  'sockFoot': 'Heel & toe',
+  'capBrim': 'Brim',
+  'capUnder': 'Under the brim',
+  'capPiping': 'Piping',
+  'capSweep': 'Side sweep',
+  'capSweepLow': 'Lower side sweep',
+  'skirtBand': 'Waistband',
 };
 
 /// "Left sleeve" for 'leftSleeve'.
@@ -69,6 +93,9 @@ List<String> partsOf(String garment) => switch (garment) {
     'sides',
     'hem',
   ],
+  'Socks' => const ['front', 'back', ...sockParts],
+  'Cap' => const ['front', 'back', ...capParts],
+  'Skirt' => const ['front', 'back', 'sides', 'hem', ...skirtParts],
   'Shorts' => shortsParts,
   'Full Kit' => const [...topParts, ...shortsParts],
   _ => topParts,
@@ -251,7 +278,8 @@ class PartStyle {
       'leftSleeve' => (side: 'front', x: 0.37, y: 0.6),
       'rightSleeve' => (side: 'front', x: -0.37, y: 0.6),
       'collar' => (side: 'front', x: 0.0, y: 0.7),
-      // A singlet's side panel ends at its outline (x 0.254).
+      // A singlet's side panel ends at its outline (x 0.254); the skirt's are low on its sides.
+      'sides' when garment == 'Skirt' => (side: 'front', x: 0.23, y: 0.12),
       'sides' => (
         side: 'front',
         x: garment == 'Singlet' ? 0.227 : 0.265,
@@ -263,6 +291,7 @@ class PartStyle {
       'shortsSides' => (side: 'front', x: 0.26, y: 0.2),
       'shortsHem' => (side: 'front', x: -0.15, y: 0.05),
       'waistband' => (side: 'front', x: 0.0, y: 0.4),
+      'skirtBand' => (side: 'front', x: 0.0, y: 0.32),
       _ => (side: 'front', x: 0.0, y: 0.22),
     };
 
@@ -297,7 +326,13 @@ final _picture = RegExp(r'^(data:|/|https?:)');
 extension PartEditing on AppController {
   /// The parts with a look of their own, in the part list's order.
   List<String> get changedParts => [
-    for (final key in const [...topParts, ...shortsParts])
+    for (final key in const [
+      ...topParts,
+      ...shortsParts,
+      ...sockParts,
+      ...capParts,
+      ...skirtParts,
+    ])
       if (parts[key] is Map) key,
   ];
 
@@ -359,7 +394,8 @@ extension PartEditing on AppController {
 
   /// [key] back to the kit's colours and pattern, as one undo step; the
   /// objects on it stay (each has its own Remove), as the website's Reset.
-  void resetPart(String key) => edit(() => parts = copyParts(parts)..remove(key));
+  void resetPart(String key) =>
+      edit(() => parts = copyParts(parts)..remove(key));
 
   /// Puts [object] (a layer: image, text or shape) on [key] only, cut to its
   /// edges: where the part was tapped ([at]: {part, side, x, y} from the

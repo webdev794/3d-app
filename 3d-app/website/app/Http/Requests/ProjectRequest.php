@@ -21,7 +21,7 @@ class ProjectRequest extends FormRequest
     public function rules(): array
     {
         $required = $this->isMethod('post') ? 'required' : 'sometimes';
-        $patterns = ['Solid', 'Stripes', 'Chevron', 'Velocity', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
+        $patterns = ['Solid', 'Stripes', 'Chevron', 'Velocity', 'Blades', 'Swirl', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
         $color = 'regex:/^#[0-9a-fA-F]{6}$/';
 
         return [
@@ -90,7 +90,7 @@ class ProjectRequest extends FormRequest
             'design.parts.*.patternColour' => ['sometimes', 'nullable', $color],
             'design.parts.*.patternOpacity' => ['sometimes', 'nullable', 'numeric', 'between:0,1'],
             // Hoodies: each area's own colour (the hood, its lining, the rib cuffs and waistband, the pocket, the zip).
-            'design.zoneColors' => ['sometimes', 'nullable', 'array:hood,lining,rib,pocket,zip,body,sleeves,ribStripe,snaps,pocketTrim,shoulder,side,stripe,collar,cuffs'],
+            'design.zoneColors' => ['sometimes', 'nullable', 'array:hood,lining,rib,pocket,zip,body,sleeves,ribStripe,snaps,pocketTrim,shoulder,side,stripe,collar,cuffs,collarStripe'],
             'design.zoneColors.*' => ['nullable', $color],
             // The track jacket's style: its stand-up collar or a hood.
             'design.trackStyle' => ['sometimes', 'nullable', Rule::in(['collar', 'hood'])],

@@ -343,7 +343,8 @@ export function buildMannequin(garment, material, { over = false } = {}) {
     c.divideScalar(top.length);
     const cap = [[0.82, 0.008], [0.55, 0.013]].map(([s, d]) => top.map((p) => p.clone().sub(c).multiplyScalar(s).add(c).addScaledVector(up, d)));
     torso.unshift(...cap.reverse());
-    if (!over) extend(torso, down, 0.05, 0.045, 3);
+    // (Not under a skin-tight top: the client's compression top shows no form below its hem; CF1 2026-10-29.)
+    if (!over && !body.tight) extend(torso, down, 0.05, 0.045, 3);
     roundEnd(torso, down, 0.008);
     add(torso, below(minY));
 

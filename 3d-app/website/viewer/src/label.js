@@ -68,11 +68,33 @@ export function buildLabel(garment) {
   return mesh;
 }
 
-/** Draws the label: 3DEEZI and "AI SPORTSWEAR DESIGNER" in dark lettering on light fabric, and the size below. */
-export function paintLabel(label, size = 'L') {
-  if (label.userData.size === size) return;
+/**
+ * Draws the label: 3DEEZI and "AI SPORTSWEAR DESIGNER" in dark lettering on light fabric, and the size below.
+ * `style` 'mark': a black label with the cyan 3DEEZI "3" (the compression top's picture, DT4).
+ */
+export function paintLabel(label, size = 'L', style = 'word') {
+  if (label.userData.size === size && label.userData.style === style) return;
   label.userData.size = size;
+  label.userData.style = style;
   const map = label.material.map, c = map.image, g = c.getContext('2d'), w = c.width, h = c.height;
+  if (style === 'mark') {
+    g.fillStyle = '#1b1c1f';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,0.03)';
+    for (let y = 0; y < h; y += 6) g.fillRect(0, y, w, 2);
+    g.fillStyle = '#16b4f0';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.save();
+    // In the label's upper part, so it shows above the front of the collar.
+    g.translate(w / 2, h * 0.34);
+    g.transform(1, 0, -0.22, 1, 0, 0);
+    g.font = '700 230px Rajdhani, Inter, sans-serif';
+    g.fillText('3', 0, 0);
+    g.restore();
+    map.needsUpdate = true;
+    return;
+  }
   g.fillStyle = '#e6e7e9';
   g.fillRect(0, 0, w, h);
   // A faint woven texture and the stitching across the top and bottom.

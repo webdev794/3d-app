@@ -1,3 +1,7 @@
+import { sockPartAt, sockRegion } from './sockprint.js';
+import { skirtPartAt, skirtRegion, skirtZones } from './skirtprint.js';
+import { capPartAt, capRegion } from './capprint.js';
+
 // Garment areas a pattern can be dropped onto, in garment metres (y up,
 // hem at 0, x = 0 down the middle). Rectangles are mirrored left/right and
 // clipped to the garment outline when painted.
@@ -88,7 +92,33 @@ const DRESS = {
 // The varsity jacket (varsity.js): the hoodie's long sleeves, no hood.
 const { hood: _hood, ...VARSITY_ZONES } = HOODIE;
 
-const table = (kind) => (kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' || kind === 'compression' ? VARSITY_ZONES : TOP);
+// The socks (sockprint.js): one area, the whole sock (its parts are its band, hoops, heel and toe).
+const SOCKS = { body: [[-0.3, 0, 0.3, 0.7]] };
+
+// The cap (capprint.js): one area, the whole cap (its parts are its brim, piping and side sweeps).
+const CAP = { body: [[-0.3, 0, 0.3, 0.3]] };
+
+// The American football jersey (garment.js SPECS.nfljersey): its Shoulders area is the cap over each shoulder pad (the
+// client's Game Jersey picture), from the shoulder seam over the top of the sleeve, edged with piping (texture.js
+// paintNflTrims); the side panels come further round onto the front (NFL_PANEL).
+// FX3: the cap is a patch over the shoulder pad only, as in the picture: it ends part way along the sleeve, so the rest of
+// the sleeve (down to the cuff) stays black. The side area stops under the arm (the sleeve's underside stays black).
+export const NFL_CAP = [[0.17, 0.8], [0.17, 0.745], [0.205, 0.68], [0.24, 0.626], [0.258, 0.613], [0.3, 0.6], [0.33, 0.66], [0.35, 0.8]];
+const NFL = { ...TOP, yoke: [[0.17, 0.56, 0.35, 0.8]], sides: [[0.2, 0, 0.3, 0.5]] };
+/** A zone's own outlines (+x side and mirrored) where it is not a rectangle; null when its rectangles are its shape. */
+export function zonePolys(kind, zone) {
+  if (kind === 'nfljersey' && zone === 'yoke') return [NFL_CAP, NFL_CAP.map(([x, y]) => [-x, y]).reverse()];
+  return null;
+}
+
+// The skirt (skirtprint.js): its body, side panels and hem.
+// The compression top: the varsity's long sleeves; wide side panels from the armpit to the hem, seen from the front
+// (the client's picture; CF1 2026-10-29).
+// (DT4: a little wider, as the picture's.)
+// (CF1: its sleeves reach further, to just below the hem.)
+const COMPRESSION = { ...VARSITY_ZONES, sleeves: [[0.262, 0.1, 0.8, 0.76]], sides: [[0.15, 0, 0.27, 0.56]] };
+
+const table = (kind) => (kind === 'skirt' ? skirtZones() : kind === 'nfljersey' ? NFL : kind === 'cap' ? CAP : kind === 'socks' ? SOCKS : kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : kind === 'compression' ? COMPRESSION : TOP);
 
 /** Rectangles [x0, y0, x1, y1] for a zone, mirrored to both sides of the body. */
 export function zoneRects(kind, zone) {
@@ -105,8 +135,12 @@ export function zoneAt(kind, x, y, side) {
   }
   // The track jacket's collar (or hood) piece, above the back panel on the atlas.
   if (isTrack(kind) && side === 'back' && y > 0.8) return 'hood';
+  if (kind === 'socks' || kind === 'cap') return 'body';
+  // The football jersey's shoulder caps lie over the sleeves' tops: they come first.
+  if (zonePolys(kind, 'yoke')?.some((poly) => inPoly(x, y, poly))) return 'yoke';
   const order = kind === 'shorts' ? ['sides', 'hem', 'body'] : ['sleeves', 'yoke', 'sides', 'hem', 'body'];
   for (const zone of order) {
+    if (zone === 'yoke' && zonePolys(kind, zone)) continue;
     if (zoneRects(kind, zone).some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)) return zone;
   }
   return 'body';
@@ -131,8 +165,13 @@ const quad = (p0, p1, p2, n = 12) => Array.from({ length: n + 1 }, (_, i) => {
 function panelOutline(kind) {
   if (kind === 'shorts') return [[0.19, 0.43], [0.232, 0], [0.3, 0], [0.3, 0.43]];
   if (isDress(kind)) return [...quad([0.203, 0.69], [0.158, 0.52], [0.172, 0.4]), ...quad([0.172, 0.4], [0.196, 0.18], [0.252, -0.01]).slice(1), [0.4, -0.01], [0.4, 0.7]];
+  if (kind === 'nfljersey') return NFL_PANEL;
   return [...quad([0.262, 0.54], [0.215, 0.3], [0.23, 0]), [0.3, 0], [0.3, 0.54]];
 }
+/** The football jersey's side panel (+x side), as painted (texture.js): from the underarm, its inner edge well round
+ *  onto the front, so from the front it shows as wide as on the client's Game Jersey picture (FX3: about 7 % of the
+ *  body's half-width just under the arm, about 12 % at the waist, 18 % at the hem; the body turns away beyond x 0.19). */
+export const NFL_PANEL = [...quad([0.258, 0.53], [0.172, 0.51], [0.166, 0.4]), ...quad([0.166, 0.4], [0.15, 0.2], [0.144, 0]).slice(1), [0.3, 0], [0.3, 0.5]];
 const mirror = (poly) => poly.map(([x, y]) => [-x, y]).reverse();
 /** The side panels (both sides) as outlines. */
 const panels = (kind) => { const one = panelOutline(kind); return [one, mirror(one)]; };
@@ -148,10 +187,13 @@ function inPoly(x, y, poly) {
 
 /** The part at a garment point (its zone from zoneAt, its side, x and y); null on a hood (its own AREAS colours). */
 export function partAt(kind, zone, side, x, y) {
+  if (kind === 'skirt') return skirtPartAt(side, x, y);
   // A garment with painted side panels: only the panel itself is the side panels' part.
   if (zone === 'sides' && panelled(kind) && Number.isFinite(y) && !panels(kind).some((poly) => inPoly(x, y, poly))) {
     zone = zoneRects(kind, 'hem').some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1) ? 'hem' : 'body';
   }
+  if (kind === 'socks') return sockPartAt(side, x, y);
+  if (kind === 'cap') return capPartAt(side, x, y);
   if (kind === 'shorts') return zone === 'sides' ? 'shortsSides' : zone === 'hem' ? 'shortsHem' : side === 'back' ? 'shortsBack' : 'shortsFront';
   if (zone === 'hood') return null;
   if (zone === 'sleeves' && !sleeveless(kind)) return x >= 0 ? 'leftSleeve' : 'rightSleeve';
@@ -166,9 +208,12 @@ export function partAt(kind, zone, side, x, y) {
  * the side panels' part, and the body and hem run on under them (the panels are painted over them).
  */
 export function partRegion(kind, key, back) {
+  if (kind === 'skirt') return skirtRegion(key, back);
   const R = (zone) => zoneRects(kind, zone).map(box);
   const ALL = [box([-1.6, -0.2, 1.6, 1.6])];
   const half = (rects, sign) => rects.filter(([x0, , x1]) => (sign > 0 ? x0 >= 0 : x1 <= 0)).map(box);
+  if (kind === 'socks') return sockRegion(key, back);
+  if (kind === 'cap') return capRegion(key, back);
   const sides = panelled(kind) ? [] : R('sides');
   if (kind === 'shorts') {
     if (key === 'shortsSides') return { keep: panels(kind), cut: [] };

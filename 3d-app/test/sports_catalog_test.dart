@@ -79,6 +79,9 @@ void main() {
     'Netball dress': 'netball-dress',
     'Football jersey': 'nfljersey',
     'Compression top': 'compression',
+    'Socks': 'socks',
+    'Cap': 'cap',
+    'Skirt': 'skirt',
     'Polo': 'polo',
     'Polo with pocket': 'pocketpolo',
     'Hoodie': 'hoodie',
@@ -242,7 +245,9 @@ void main() {
       'Hoodie',
     ]);
     expect(GarmentScreen.tilesFor('Netball').first.garment, 'Netball dress');
-    expect(GarmentScreen.tilesFor('Netball')[1].soon, isTrue);
+    // The skirt has its own 3D skirt since 2026-10-29 (COMING SOON 10).
+    expect(GarmentScreen.tilesFor('Netball')[1].soon, isFalse);
+    expect(GarmentScreen.tilesFor('Netball')[1].garment, 'Skirt');
     // More teamwear: the 3D garments Netball's own tiles do not use.
     expect(GarmentScreen.moreFor('Netball').map((t) => t.garment), [
       'Full Kit',
@@ -250,6 +255,8 @@ void main() {
       'Shorts',
       'Football jersey',
       'Compression top',
+      'Socks',
+      'Cap',
       'Polo',
       'Polo with pocket',
       'Zip hoodie',
@@ -270,6 +277,7 @@ void main() {
       'Training Tee',
       'Hoodie',
       'Zip hoodie',
+      'Cap',
     ]);
     expect(
       GarmentScreen.tilesFor('Unknown sport').map((t) => t.garment),

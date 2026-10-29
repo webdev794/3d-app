@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-ro
 import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, House, LoaderCircle, LogOut, Menu, PenTool, Shirt, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
 import { api, getToken, media, setToken, type Catalog, type Project, type User } from './api';
 import { defaultDesign, type Design } from './types';
-import { AiDesigner, ConvertPage, GarmentSelection, SportSelection, backForSport } from './pages/Create';
+import { AiDesigner, ConvertPage, GarmentSelection, SportSelection, backForSport, tileMarks } from './pages/Create';
 import PricingPage from './pages/Pricing';
 import AdminPage from './pages/Admin';
 import OrdersBoardPage from './pages/OrdersBoard';
@@ -35,7 +35,7 @@ import { SupplierApplyPage, SuppliersPage } from './pages/Suppliers';
 
 export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string; /** A design picture (a saved asset) the Studio puts on the 3D kit when it opens (checked on screen first). */ pendingDrawing?: { asset: number; name: string; /** The garment is the one asked for (a 3DEEZI TEAM request): the check screen opens on it, not on a guess from the picture. */ known?: boolean; /** A note shown with the result (task 9.116: "Shown on our singlet: the closest 3D garment …"). */ note?: string; /** Artwork to 3D (task 9.153): 'layout' is a factory print layout (panels checked, then mapped), of file type `type`. */ kind?: 'layout'; type?: string } }
 export const newDraft = (): Draft => ({ name: 'Untitled kit', sport: 'rugby-league', garment: 'jersey', mode: 'dyo', design: { ...defaultDesign } });
-const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', nfljersey: 'nfljersey', 'football jersey': 'nfljersey', compression: 'compression', 'compression top': 'compression', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', 'netball-dress': 'netball-dress', 'netball dress': 'netball-dress', dress: 'netball-dress', polo: 'polo', pocketpolo: 'pocketpolo', 'polo with pocket': 'pocketpolo', hoodie: 'hoodie', ziphoodie: 'ziphoodie', 'zip hoodie': 'ziphoodie', varsity: 'varsity', 'varsity jacket': 'varsity', trackjacket: 'trackjacket', 'track jacket': 'trackjacket', 'track suit jacket': 'trackjacket', 'tracksuit jacket': 'trackjacket', fullkit: 'fullkit', 'full kit': 'fullkit' };
+const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', nfljersey: 'nfljersey', 'football jersey': 'nfljersey', compression: 'compression', 'compression top': 'compression', socks: 'socks', cap: 'cap', skirt: 'skirt', 'netball skirt': 'skirt', 'tennis skirt': 'skirt', skort: 'skirt', 'hockey skort': 'skirt', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', 'netball-dress': 'netball-dress', 'netball dress': 'netball-dress', dress: 'netball-dress', polo: 'polo', pocketpolo: 'pocketpolo', 'polo with pocket': 'pocketpolo', hoodie: 'hoodie', ziphoodie: 'ziphoodie', 'zip hoodie': 'ziphoodie', varsity: 'varsity', 'varsity jacket': 'varsity', trackjacket: 'trackjacket', 'track jacket': 'trackjacket', 'track suit jacket': 'trackjacket', 'tracksuit jacket': 'trackjacket', fullkit: 'fullkit', 'full kit': 'fullkit' };
 /** Seeded projects can store a null garment and older AI concepts a display name ("Jersey"); every draft gets a valid id so it stays saveable. */
 function normalizeDraft(draft: Draft): Draft {
   const pick = (g?: string | null) => (g ? garmentIds[String(g).toLowerCase()] : undefined);
@@ -119,6 +119,27 @@ export default function App() {
       setNotice(hoodie === 'trackjacket' ? 'The track jacket takes your design’s colours and logo; full print designs on it are coming. Your design picture is in your Assets.' : 'Hoodies take your design’s colours and logo; full print designs on hoodies are coming. Your design picture is in your Assets.');
       return;
     }
+    // Socks: the design picture's colours and logo on the socks themselves (a print sheet is drawn for tops).
+    if (picture.garment === 'socks') {
+      setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: 'socks', mode: 'dyo', design: { ...base.design, garment: 'socks', layout: null } });
+      navigate('/studio');
+      setNotice('The socks take your design’s colours and logo. Your design picture is in your Assets.');
+      return;
+    }
+    // The cap: the design picture's colours and logo on the cap itself (a print sheet is drawn for tops).
+    if (picture.garment === 'cap') {
+      setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: 'cap', mode: 'dyo', design: { ...base.design, garment: 'cap', layout: null } });
+      navigate('/studio');
+      setNotice('The cap takes your design’s colours and logo. Your design picture is in your Assets.');
+      return;
+    }
+    // The skirt: the design picture's colours and logo on the skirt itself (a print sheet is drawn for tops).
+    if (picture.garment === 'skirt') {
+      setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: 'skirt', mode: 'dyo', design: { ...base.design, garment: 'skirt', layout: null } });
+      navigate('/studio');
+      setNotice('The skirt takes your design’s colours and logo. Your design picture is in your Assets.');
+      return;
+    }
     const known = ['singlet', 'netball-dress', 'jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo'].includes(picture.garment);
     const top = (known ? picture.garment : 'singlet') as Design['garment'];
     setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: top, mode: 'dyo', design: { ...base.design, garment: top, layout: null }, pendingDrawing: { asset: picture.asset, name: picture.name, known } });
@@ -152,7 +173,7 @@ export default function App() {
       <Route path="/" element={<Home onStart={start} />} />
       <Route path="/create/ai" element={<AiDesigner catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} onNotice={setNotice} />} />
       <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={sport => setDraft(d => ({ ...d, sport, mode: 'dyo', design: { ...d.design, ...backForSport(d.design, catalog, d.sport, sport) } }))} onNext={() => navigate('/create/garment')} />} />
-      <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={({ garment, productName, design }) => setDraft(d => ({ ...d, garment, design: { ...d.design, ...design, garment: garment as Design['garment'], productName } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport', { state: { keep: true } })} />} />
+      <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={({ garment, productName, design }) => setDraft(d => ({ ...d, garment, design: { ...d.design, ...design, ...tileMarks(d.design, design), garment: garment as Design['garment'], productName } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport', { state: { keep: true } })} />} />
       {/* Convert is in the PROJECTS menu (client 2026-10-26): the Projects tab row above it, as on My projects, Approved and Assets. */}
       <Route path="/convert" element={<><ProjectsTabs shell /><ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} /></>} />
       <Route path="/admin" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />

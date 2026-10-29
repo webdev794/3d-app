@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -262,6 +263,42 @@ class _SwatchPainter extends CustomPainter {
               ..close(),
             f,
           );
+        }
+      case 'Swirl':
+        for (var y = 8.0; y < h; y += 16) {
+          for (var x = 8.0; x < w; x += 16) {
+            final path = Path();
+            for (var t = 0.0; t <= 10; t += 0.3) {
+              final r = 1 + t * 0.6;
+              final o = Offset(x + r * math.cos(t), y + r * math.sin(t));
+              if (t == 0) {
+                path.moveTo(o.dx, o.dy);
+              } else {
+                path.lineTo(o.dx, o.dy);
+              }
+            }
+            canvas.drawPath(path, p);
+          }
+        }
+      case 'Blades':
+        for (final s in const [-1.0, 1.0]) {
+          for (var i = 0; i < 3; i++) {
+            final x0 = w / 2 + s * w * (0.46 - i * 0.06);
+            final tip = w / 2 + s * w * (0.14 + i * 0.08);
+            canvas.drawPath(
+              Path()
+                ..moveTo(x0, h)
+                ..quadraticBezierTo(
+                  w / 2 + s * w * 0.18,
+                  h * 0.7,
+                  tip,
+                  h * (0.15 + i * 0.2),
+                )
+                ..quadraticBezierTo(w / 2 + s * w * 0.3, h * 0.7, x0 + s * 4, h)
+                ..close(),
+              f,
+            );
+          }
         }
       case 'Tribal':
         for (var y = 8.0; y < h; y += 18) {

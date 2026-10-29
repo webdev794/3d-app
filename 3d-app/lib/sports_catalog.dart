@@ -94,6 +94,12 @@ const garmentIds = {
   'Football jersey': 'nfljersey',
   // The compression top (NFL base layer): skin-tight long sleeves.
   'Compression top': 'compression',
+  // Knee-high team socks (garment 3).
+  'Socks': 'socks',
+  // The team cap (garment 4).
+  'Cap': 'cap',
+  // The netball / tennis skirt and hockey skort (COMING SOON 10).
+  'Skirt': 'skirt',
   'Shorts': 'shorts',
   'Training Tee': 'tee',
   'Singlet': 'singlet',
@@ -121,8 +127,10 @@ class GarmentTile {
     String? image,
     this.trackStyle,
     this.fabric,
+    String? look,
   }) : fit = 'exact',
        future = null,
+       _look = look,
        _image = image;
   const GarmentTile.nearest(
     this.name,
@@ -132,7 +140,9 @@ class GarmentTile {
     String? image,
     this.trackStyle,
     this.fabric,
+    String? look,
   }) : fit = 'nearest',
+       _look = look,
        _image = image;
   const GarmentTile.soon(
     this.name,
@@ -143,6 +153,7 @@ class GarmentTile {
       fit = 'soon',
       trackStyle = null,
       fabric = null,
+      _look = null,
       _image = image;
 
   final String name, description, fit;
@@ -158,12 +169,388 @@ class GarmentTile {
 
   /// The fabric type the tile starts with ('Mesh': the practice jersey), if any.
   final String? fabric;
+
+  /// The tile picture's look the kit starts with (task 9.154): see [tileLook];
+  /// unset, the look of its picture ([pictureLooks]).
+  final String? _look;
+  String? get look => soon
+      ? null
+      : _look ??
+            pictureLooks[art] ??
+            (const {
+                  'shorts',
+                  'trackjacket',
+                  'compression',
+                }.contains(garmentIds[garment])
+                ? 'sides'
+                : 'plain');
   final String? _image;
 
   bool get soon => garment == null;
 
   /// The picture: assets/images/showroom/garment-<art>.webp.
   String get art => _image ?? garmentIds[garment] ?? 'jersey';
+}
+
+/// A tile's starting look (task 9.154), as config/catalog.php `$look`: the
+/// tile pictures share the 3DEEZI look (black body, bright cyan areas).
+/// plain: black, no pattern; sides: cyan side panels; sleeves: cyan sleeves
+/// and side panels; sleevesOnly: cyan sleeves; swoosh: cyan sweeps (Velocity)
+/// with cyan sleeves; blades: royal blue and cyan blades up the sides and
+/// over the shoulders (Blades); shoulders: cyan shoulders and sleeves; nflgame / nflpractice: the American football jerseys.
+/// Each tile picture's look, as config/catalog.php `$pictureLooks`.
+const pictureLooks = {
+  'jersey': 'tribal',
+  'fullkit': 'tribalKit',
+  'rugby-jersey': 'blades',
+  'rugby-kit': 'blades',
+  'nfl-kit': 'nflgame',
+  'rash-guard': 'blades',
+  'rugby-polo': 'sleeves',
+  'tee': 'sleevesOnly',
+  'nfl-tee': 'sleevesOnly',
+  'rugby-tee': 'sleevesOnly',
+  'netball-tee': 'sleevesOnly',
+  'shooting-shirt': 'shooting',
+  'singlet': 'bladesSides',
+  'netball-training-singlet': 'bladesSides',
+  'afl-guernsey': 'bladesSides',
+  'netball-singlet-bib': 'bladesSides',
+  'netball-dress': 'bladesSides',
+  'team-hoodie': 'hoodie',
+  'nfl-hoodie': 'hoodie',
+  'netball-hoodie': 'hoodie',
+  'trackjacket': 'track',
+  'netball-tracksuit': 'track',
+  'tracksuit': 'trackSides',
+  'rugby-hooded-tracksuit': 'trackSides',
+  'nfl-hooded-tracksuit': 'trackSides',
+  'rugby-waterproof-jacket': 'waterproof',
+  'nfl-waterproof-jacket': 'waterproof',
+  'nfl-compression-top': 'sides',
+  'varsity': 'varsity',
+  'nfl-varsity': 'varsity',
+  'socks': 'socksHeel',
+  'rugby-socks': 'rugbySocks',
+  'cap': 'capSweep',
+  'nfl-cap': 'capSweep',
+};
+
+/// What a picture shows on top of its look, as config/catalog.php
+/// `$pictureExtras`: objects with ids 'tile-…' (a new tile takes them off).
+List<Map<String, dynamic>> _tileObjects(String? picture) {
+  List<Map<String, dynamic>> letters(String text) => [
+    for (final side in const ['front', 'back'])
+      {
+        'id': side == 'front' ? 'tile-position' : 'tile-position-back',
+        'name': 'Position',
+        'type': 'text',
+        'part': 'top',
+        'side': side,
+        'x': 0,
+        'y': 0.36,
+        'text': text,
+        'size': 0.16,
+        'color': '#ffffff',
+      },
+  ];
+  return switch (picture) {
+    'bibs' || 'netball-bibs' => letters('GS'),
+    'netball-singlet-bib' => letters('GA'),
+    'netball-dress' => letters('WA'),
+    // The Game Jersey picture (FX3): its chest "3" bold and slanted in the
+    // block jersey font with a light cyan edge, clear of the shoulder piping;
+    // small white "3"s with a cyan line (as the 86) on the shoulder tops.
+    'nfl-jersey' => [
+      {
+        'id': 'tile-sleeve',
+        'name': 'Chest number',
+        'type': 'text',
+        'part': 'top',
+        'side': 'front',
+        'x': 0.132,
+        'y': 0.632,
+        'text': '3',
+        'size': 0.072,
+        'color': '#16b4f0',
+        'font': 'JerseyBlock',
+        'look': {
+          'style': 'outline',
+          'width': 0.03,
+          'color': '#8fe0ff',
+          'shape': 'slant',
+        },
+      },
+      for (final dir in const [1, -1])
+        {
+          'id': dir > 0 ? 'tile-shoulder' : 'tile-shoulder-right',
+          'name': 'Shoulder number',
+          'type': 'text',
+          'part': 'top',
+          'side': 'front',
+          'x': 0.168 * dir,
+          'y': 0.692,
+          'rot': 14 * dir,
+          'text': '3',
+          'size': 0.056,
+          'color': '#ffffff',
+          'font': 'JerseyBlock',
+          'look': {'style': 'outline', 'width': 0.08, 'color': '#16b4f0'},
+        },
+    ],
+    // The Game Kit picture's cyan "3" sits on the left chest, level with the crest at the V.
+    'nfl-kit' => [
+      {
+        'id': 'tile-sleeve',
+        'name': 'Chest number',
+        'type': 'text',
+        'part': 'top',
+        'side': 'front',
+        'x': 0.15,
+        'y': 0.631,
+        'text': '3',
+        'size': 0.072,
+        'color': '#16b4f0',
+      },
+    ],
+    // The Compression Top picture: the "3" upright on the upper arm (seen from the front). (The small "3" is on the
+    // viewer's black neck label inside the back neck; nothing under the crew neck.)
+    'nfl-compression-top' => [
+      {
+        'id': 'tile-sleeve',
+        'name': 'Sleeve number',
+        'type': 'text',
+        'part': 'top',
+        'side': 'front',
+        'x': 0.34,
+        'y': 0.575,
+        'rot': -50,
+        'text': '3',
+        // FX3: a squared block numeral, taller, as the picture's.
+        'size': 0.09,
+        'color': '#16b4f0',
+        'font': 'JerseyBlock',
+      },
+    ],
+    _ => [],
+  };
+}
+
+Map<String, dynamic> tileLook(String name, {String? picture}) {
+  const cyan = '#16b4f0';
+  Map<String, String> solid(List<String> zones) => {
+    for (final z in zones) z: 'Solid',
+  };
+  Map<String, dynamic> number(String ink, String? line) => {
+    'number': '86',
+    'marks': {
+      'top_number': {
+        'color': ink,
+        if (line != null)
+          'look': {'style': 'outline', 'width': 0.07, 'color': line},
+      },
+    },
+  };
+  final looks = <String, Map<String, dynamic>>{
+    'plain': {},
+    'sides': {
+      'zones': solid(['sides']),
+    },
+    'sleeves': {
+      'zones': solid(['sleeves', 'sides']),
+    },
+    'sleevesOnly': {
+      'zones': solid(['sleeves']),
+    },
+    'varsity': {
+      'zoneColors': {
+        'body': '#27282a',
+        'sleeves': cyan,
+        'rib': '#27282a',
+        'ribStripe': cyan,
+      },
+    },
+    // The football / hockey jersey picture (DT3): a royal blue maze (Swirl)
+    // over the raglan shoulders and sleeves with cyan piping on the raglan
+    // seam, cyan side panels, a black collar, hem and cuffs.
+    // FX3: the maze on the shoulders up to the collar, fading out down the
+    // upper sleeves; the arms mostly plain (the Shoulders area only, which
+    // reaches over a bare sleeve).
+    'tribal': {
+      'secondary': '#27282a',
+      'patternColor': '#2a86cc',
+      'zones': {'yoke': 'Swirl'},
+      'parts': {
+        'sides': {'colour': cyan},
+      },
+    },
+    // The Full kit picture (DT3): a pale blue maze over the shoulders and
+    // sleeves, no side panels, black trims, the "3" mark centred above the
+    // wordmark.
+    'tribalKit': {
+      'secondary': '#27282a',
+      'patternColor': '#7cc8e2',
+      'zones': {'yoke': 'Swirl', 'sleeves': 'Swirl'},
+      'marks': {
+        'top_crest': {'x': 0, 'y': 0.655, 'scale': 1.3},
+      },
+    },
+    'bladesSides': {
+      'pattern': 'Blades',
+      'zones': solid(['sides']),
+    },
+    'shooting': {
+      'pattern': 'Blades',
+      'zones': solid(['sleeves']),
+    },
+    'swoosh': {
+      'pattern': 'Velocity',
+      'zones': solid(['sleeves']),
+    },
+    // The Rugby League jersey (RL1): royal blue blades with cyan edges over black,
+    // the side panels black under the blades.
+    'blades': {
+      'pattern': 'Blades',
+      'patternColor': '#1672f5',
+      'parts': {
+        'sides': {'colour': '#27282a', 'pattern': 'Blades'},
+      },
+    },
+    'shoulders': {
+      'zones': solid(['yoke', 'sleeves']),
+    },
+    // The hoodies: black, a wide cyan stripe along each sleeve (Hoodie areas ›
+    // Sleeve stripe), cyan hood lining.
+    'hoodie': {
+      'zoneColors': {'stripe': cyan},
+    },
+    // The track jackets (Track jacket areas): black shoulder panels, the cyan
+    // sleeve stripe and zips; side panels black ('track') or cyan
+    // ('trackSides'); the waterproof jacket's dark grey shell.
+    'track': {
+      'zoneColors': {
+        'shoulder': '#27282a',
+        'side': '#27282a',
+        'stripe': cyan,
+        'zip': cyan,
+      },
+    },
+    'trackSides': {
+      'zoneColors': {
+        'shoulder': '#27282a',
+        'side': cyan,
+        'stripe': cyan,
+        'zip': cyan,
+      },
+    },
+    'waterproof': {
+      'zoneColors': {
+        'body': '#24272b',
+        'shoulder': '#24272b',
+        'side': cyan,
+        'stripe': '#24272b',
+        'zip': cyan,
+      },
+    },
+    // The Game Kit picture (DT3): the "3" mark small at the V of the neck (the
+    // cyan "3" goes on the left chest).
+    'nflgame': {
+      'zones': solid(['sleeves', 'sides']),
+      'number': '86',
+      'marks': {
+        ...(number('#ffffff', cyan)['marks'] as Map<String, dynamic>),
+        'top_crest': {'x': 0, 'y': 0.655, 'scale': 0.6},
+      },
+    },
+    'nflpractice': number(cyan, null),
+    // The Game Jersey picture (DT1): a thin cyan line round the white 86, the
+    // front number a little bigger and higher.
+    // NF1: cyan shoulder caps over the pads (with piping), black sleeves, a
+    // black collar with a cyan stripe along its inner edge.
+    // FX3: the "3" mark at the V on a small black badge, as big as in the
+    // picture.
+    'nflgameJersey': {
+      'zones': solid(['yoke', 'sides']),
+      'parts': {
+        'collar': {'colour': '#0b0d10'},
+      },
+      'zoneColors': {'collarStripe': cyan, 'badge': '#27282a'},
+      'number': '86',
+      'marks': {
+        'top_number': {
+          'color': '#ffffff',
+          'look': {'style': 'outline', 'width': 0.02, 'color': cyan},
+        },
+        'top_frontNumber': {'y': 0.393, 'scale': 1.17},
+        'top_crest': {'x': 0, 'y': 0.628, 'scale': 1.3},
+      },
+    },
+    // The Practice Jersey picture (DT1): black collar, the cyan 86 just under
+    // the chest logo.
+    'nflpracticeJersey': {
+      // NF1: a cyan stripe over each shoulder, along the sleeve seam. FX3: the
+      // small cyan insert in the point of the V (the "3" mark a little lower).
+      'zoneColors': {'stripe': cyan, 'vInsert': cyan},
+      // FX3: black side panels (the picture has none).
+      'parts': {
+        'collar': {'colour': '#27282a'},
+        'sides': {'colour': '#27282a'},
+      },
+      'number': '86',
+      'marks': {
+        'top_number': {'color': cyan},
+        'top_frontNumber': {'y': 0.43},
+        'top_crest': {'x': 0, 'y': 0.6, 'scale': 2.2},
+        'top_wordmark': {'y': 0.548},
+      },
+    },
+    // The socks: cyan hoops (the trim colour); the pictures' cyan heel and toe, the rugby socks' cyan top band.
+    'socksHeel': {
+      'parts': {
+        'sockFoot': {'colour': cyan},
+      },
+    },
+    'rugbySocks': {
+      'parts': {
+        // The top band a deeper blue, as measured on the picture (website catalog.php).
+        'sockBand': {'colour': '#0b95dd'},
+        'sockFoot': {'colour': cyan},
+      },
+    },
+    // The cap: cyan piping (the trim colour); cyan and royal blue side sweeps, cyan under the brim.
+    'capSweep': {
+      'parts': {
+        'capSweep': {'colour': cyan},
+        'capSweepLow': {'colour': '#1a6ef0'},
+        'capUnder': {'colour': cyan},
+      },
+    },
+  };
+  return {
+    'main': '#27282a',
+    'secondary': cyan,
+    'accent': cyan,
+    'pattern': 'None',
+    'patternColor': cyan,
+    'patternColorOwn': true,
+    'zones': <String, String>{},
+    'number': '23',
+    'marks': <String, dynamic>{},
+    'zoneColors': <String, String>{},
+    'layers': _tileObjects(picture),
+    ...?looks[name],
+    // A bib's position letters stand alone (as config/catalog.php $letters).
+    if (_tileObjects(picture).any((l) => l['id'] == 'tile-position'))
+      'marks': {
+        for (final k in const [
+          'top_wordmark',
+          'top_crest',
+          'top_name',
+          'top_number',
+        ])
+          k: {'hidden': true},
+      },
+  };
 }
 
 const _sportTiles = <String, List<GarmentTile>>{
@@ -186,7 +573,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Shorts',
       image: 'rugby-shorts',
     ),
-    GarmentTile.soon('Socks', 'Knee-high match socks.', 'socks', 'rugby-socks'),
+    GarmentTile(
+      'Socks',
+      'Knee-high match socks.',
+      'Socks',
+      image: 'rugby-socks',
+    ),
     GarmentTile(
       'Polo',
       'Smart team polo with collar.',
@@ -213,7 +605,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'rugby-hooded-tracksuit',
       trackStyle: 'hood',
     ),
-    GarmentTile.soon('Cap', 'Curved brim sports cap.', 'cap', 'rugby-cap'),
+    GarmentTile('Cap', 'Curved brim sports cap.', 'Cap', image: 'rugby-cap'),
     GarmentTile.soon(
       'Bucket Hat',
       'Wide brim bucket hat.',
@@ -248,7 +640,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Shorts',
       image: 'rugby-shorts',
     ),
-    GarmentTile.soon('Socks', 'Knee-high match socks.', 'socks', 'rugby-socks'),
+    GarmentTile(
+      'Socks',
+      'Knee-high match socks.',
+      'Socks',
+      image: 'rugby-socks',
+    ),
     GarmentTile(
       'Polo',
       'Smart team polo with collar.',
@@ -275,7 +672,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'rugby-hooded-tracksuit',
       trackStyle: 'hood',
     ),
-    GarmentTile.soon('Cap', 'Curved brim sports cap.', 'cap', 'rugby-cap'),
+    GarmentTile('Cap', 'Curved brim sports cap.', 'Cap', image: 'rugby-cap'),
     GarmentTile.soon(
       'Bucket Hat',
       'Wide brim bucket hat.',
@@ -321,12 +718,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full-zip jacket for the bench and travel.',
       'Track jacket',
     ),
-    GarmentTile.soon(
-      'Football socks',
-      'Match socks with team bands.',
-      'socks',
-      'socks',
-    ),
+    GarmentTile('Football socks', 'Match socks with team bands.', 'Socks'),
   ],
   'basketball': [
     GarmentTile(
@@ -385,12 +777,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Netball dress',
       image: 'netball-dress',
     ),
-    GarmentTile.soon(
-      'Netball skirt',
-      'Athletic skirt with team styling.',
-      'skirt',
-      'netball-skirt',
-    ),
+    GarmentTile('Netball skirt', 'Athletic skirt with team styling.', 'Skirt', image: 'netball-skirt'),
     GarmentTile(
       'Singlet with bib',
       'Netball singlet with removable bib.',
@@ -461,22 +848,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full-zip jacket for the sideline.',
       'Track jacket',
     ),
-    GarmentTile.soon(
-      'Footy socks',
-      'Match socks with team bands.',
-      'socks',
-      'socks',
-    ),
+    GarmentTile('Footy socks', 'Match socks with team bands.', 'Socks'),
   ],
   'hockey': [
     GarmentTile('Hockey jersey', 'Match shirt in your team colours.', 'Jersey'),
     GarmentTile('Hockey shorts', 'Light shorts for fast play.', 'Shorts'),
-    GarmentTile.soon(
-      'Hockey skort',
-      'Skirt with built-in shorts.',
-      'skirt',
-      'netball-skirt',
-    ),
+    GarmentTile('Hockey skort', 'A-line skirt with side panels.', 'Skirt', image: 'netball-skirt'),
     GarmentTile(
       'Training tee',
       'Breathable tee for training and warm-ups.',
@@ -494,12 +871,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full-zip jacket for the sideline.',
       'Track jacket',
     ),
-    GarmentTile.soon(
-      'Hockey socks',
-      'Long socks with team bands.',
-      'socks',
-      'socks',
-    ),
+    GarmentTile('Hockey socks', 'Long socks with team bands.', 'Socks'),
   ],
   // The client's own list, words and pictures (images/165.jpg, 16 tiles,
   // names only; garment-nfl-*.webp).
@@ -517,6 +889,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Football jersey',
       image: 'nfl-jersey',
       fabric: 'Standard',
+      look: 'nflgameJersey',
     ),
     GarmentTile.soon(
       'Game Pants',
@@ -530,6 +903,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Football jersey',
       image: 'nfl-practice-jersey',
       fabric: 'Mesh',
+      look: 'nflpracticeJersey',
     ),
     GarmentTile(
       'Training Tee',
@@ -548,6 +922,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Long-sleeve base layer under the pads.',
       'Compression top',
       image: 'nfl-compression-top',
+      look: 'sides',
     ),
     GarmentTile.soon(
       'Compression Shorts',
@@ -555,11 +930,11 @@ const _sportTiles = <String, List<GarmentTile>>{
       'compression-shorts',
       'nfl-compression-shorts',
     ),
-    GarmentTile.soon(
+    GarmentTile(
       'Game Socks',
       'Knee-high socks with team hoops.',
-      'socks',
-      'nfl-socks',
+      'Socks',
+      image: 'nfl-socks',
     ),
     GarmentTile(
       'Hoodie',
@@ -589,7 +964,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'nfl-waterproof-jacket',
       trackStyle: 'hood',
     ),
-    GarmentTile.soon('Cap', 'Curved brim sports cap.', 'cap', 'nfl-cap'),
+    GarmentTile('Cap', 'Curved brim sports cap.', 'Cap', image: 'nfl-cap'),
     GarmentTile.soon(
       'Bucket Hat',
       'Wide brim bucket hat.',
@@ -617,12 +992,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full-zip layer for cool mornings.',
       'Zip hoodie',
     ),
-    GarmentTile.soon(
-      'Golf cap',
-      'Cap with an embroidered club logo.',
-      'cap',
-      'cap',
-    ),
+    GarmentTile('Golf cap', 'Cap with an embroidered club logo.', 'Cap'),
     GarmentTile.soon(
       'Bucket hat',
       'Sun-smart hat for the course.',
@@ -650,18 +1020,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       future: 'dress',
       image: 'netball-dress',
     ),
-    GarmentTile.soon(
-      'Tennis skirt',
-      'Pleated skirt with inner shorts.',
-      'skirt',
-      'netball-skirt',
-    ),
+    GarmentTile('Tennis skirt', 'A-line skirt with side panels.', 'Skirt', image: 'netball-skirt'),
     GarmentTile(
       'Track jacket',
       'Full-zip jacket for warm-ups.',
       'Track jacket',
     ),
-    GarmentTile.soon('Cap', 'Sun cap with your club logo.', 'cap', 'cap'),
+    GarmentTile('Cap', 'Sun cap with your club logo.', 'Cap'),
   ],
   'athletics': [
     GarmentTile(
@@ -734,7 +1099,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'team-hoodie',
     ),
     GarmentTile('Zip hoodie', 'Full-zip layer for travel.', 'Zip hoodie'),
-    GarmentTile.soon('Cap', 'Team cap with an embroidered logo.', 'cap', 'cap'),
+    GarmentTile('Cap', 'Team cap with an embroidered logo.', 'Cap'),
   ],
   'touch': [
     GarmentTile(
@@ -783,7 +1148,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'team-hoodie',
     ),
     GarmentTile('Track jacket', 'Full-zip jacket for travel.', 'Track jacket'),
-    GarmentTile.soon('Cricket cap', 'Cap in your club colours.', 'cap', 'cap'),
+    GarmentTile('Cricket cap', 'Cap in your club colours.', 'Cap'),
     GarmentTile.soon(
       'Bucket hat',
       'Wide-brim hat for the field.',
@@ -812,7 +1177,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Letterman jacket for the team.',
       'Varsity jacket',
     ),
-    GarmentTile.soon('Cap', 'Ball cap with your team logo.', 'cap', 'cap'),
+    GarmentTile('Cap', 'Ball cap with your team logo.', 'Cap'),
   ],
   'volleyball': [
     GarmentTile(
@@ -888,12 +1253,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full-zip jacket for cool starts.',
       'Track jacket',
     ),
-    GarmentTile.soon(
-      'Cycling cap',
-      'Cotton cap with a short peak.',
-      'cap',
-      'cap',
-    ),
+    GarmentTile('Cycling cap', 'Cotton cap with a short peak.', 'Cap'),
   ],
   'bmx': [
     GarmentTile.nearest(
@@ -921,7 +1281,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'team-hoodie',
     ),
     GarmentTile('Zip hoodie', 'Full-zip layer for travel.', 'Zip hoodie'),
-    GarmentTile.soon('Cap', 'Team cap with an embroidered logo.', 'cap', 'cap'),
+    GarmentTile('Cap', 'Team cap with an embroidered logo.', 'Cap'),
   ],
   'lawn-bowls': [
     GarmentTile('Bowls polo', 'Smart club polo for the green.', 'Polo'),
@@ -969,7 +1329,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Letterman jacket for the roster.',
       'Varsity jacket',
     ),
-    GarmentTile.soon('Cap', 'Team cap with an embroidered logo.', 'cap', 'cap'),
+    GarmentTile('Cap', 'Team cap with an embroidered logo.', 'Cap'),
   ],
   'training': [
     GarmentTile(
@@ -1072,7 +1432,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'bucket-hat',
       'bucket-hat',
     ),
-    GarmentTile.soon('Cap', 'Cap with your club logo.', 'cap', 'cap'),
+    GarmentTile('Cap', 'Cap with your club logo.', 'Cap'),
   ],
   'workwear': [
     GarmentTile('Hi-vis polo', 'Fluoro polo with your business logo.', 'Polo'),
@@ -1096,7 +1456,7 @@ const _sportTiles = <String, List<GarmentTile>>{
     ),
     GarmentTile('Zip hoodie', 'Full-zip layer for the yard.', 'Zip hoodie'),
     GarmentTile('Work shorts', 'Hard-wearing shorts for the job.', 'Shorts'),
-    GarmentTile.soon('Cap', 'Work cap with your business logo.', 'cap', 'cap'),
+    GarmentTile('Cap', 'Work cap with your business logo.', 'Cap'),
   ],
   'gymwear': [
     GarmentTile('Muscle singlet', 'Muscle-fit singlet for lifting.', 'Singlet'),
@@ -1144,7 +1504,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Varsity jacket',
     ),
     GarmentTile('Track jacket', 'Full-zip jacket for travel.', 'Track jacket'),
-    GarmentTile.soon('Club cap', 'Cap with your club crest.', 'cap', 'cap'),
+    GarmentTile('Club cap', 'Cap with your club crest.', 'Cap'),
   ],
   'school-leavers': [
     GarmentTile.nearest(

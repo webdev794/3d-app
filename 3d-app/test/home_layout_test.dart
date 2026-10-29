@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/screens/create_home.dart';
-import 'package:three_deezi/screens/order_entry.dart'
-    show OrderFormScreen, OrderUploadScreen;
-import 'package:three_deezi/screens/suppliers.dart' show SuppliersScreen;
 import 'package:three_deezi/widgets/ui.dart' show BottomNav, BrandLogo;
 
 import 'features_test.dart' show FakeStore;
 import 'flow_test.dart' show mountPhone, tapText;
-import 'orders_app_test.dart' show OrdersServer, signedIn, mount, tap;
-import 'suppliers_test.dart' show SuppliersServer;
+import 'orders_app_test.dart' show mount;
 
 /// The client's Home (images/166.jpg, 2026-10-23): "What would you like to
 /// create?", a 2 × 2 grid of picture tiles, then ORDER NOW WITH 3DEEZI (three

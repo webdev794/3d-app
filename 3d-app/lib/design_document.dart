@@ -94,6 +94,8 @@ const hoodieAreas = {
   'rib': 'Cuffs & waistband',
   'pocket': 'Pocket',
   'zip': 'Zip',
+  // Unset: no stripe (task 9.154).
+  'stripe': 'Sleeve stripe',
 };
 
 /// The varsity (letterman) jacket, as the app names it.
@@ -135,6 +137,8 @@ const studioPatterns = [
   'Stripes',
   'Chevron',
   'Velocity',
+  'Blades',
+  'Swirl',
   'Hoops',
   'Dots',
   'Diagonal',

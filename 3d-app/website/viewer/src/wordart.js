@@ -23,13 +23,14 @@ export function wordLook(look) {
 
 /**
  * Draws `str` centred on (0, 0) (y down) in `size`-high letters, no wider than `maxWidth`, with `look`; `line` is
- * the default line colour, `gap` the colour behind a contour's ring (the kit). Returns {w, h}.
+ * the default line colour, `gap` the colour behind a contour's ring (the kit), `family` a font tried before Rajdhani.
+ * Returns {w, h}.
  */
-export function drawWord(g, str, size, color, maxWidth, look, line, gap) {
+export function drawWord(g, str, size, color, maxWidth, look, line, gap, family) {
   const L = wordLook(look);
   const chars = [...String(str)];
   g.save();
-  g.font = `700 ${size}px Rajdhani, Inter, sans-serif`;
+  g.font = `700 ${size}px ${family ? `${family}, ` : ''}Rajdhani, Inter, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   const gapW = L.spacing * size, widths = chars.map((c) => g.measureText(c).width);

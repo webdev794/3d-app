@@ -65,10 +65,9 @@ void main() {
       expect(c.garment, 'Netball dress');
       expect(find.text('NETBALL DRESS'), findsOneWidget);
 
-      // The skirt is coming soon: tapping it changes nothing.
+      // The skirt has its own 3D skirt (COMING SOON 10, 2026-10-29).
       await revealTap(tester, 'NETBALL SKIRT');
-      expect(c.productName, 'Netball dress');
-      expect(find.text('COMING SOON'), findsOneWidget);
+      expect((c.garment, c.productName), ('Skirt', 'Netball skirt'));
 
       // The bibs, then the hoodie.
       await revealTap(tester, 'NETBALL BIBS');

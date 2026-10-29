@@ -456,7 +456,7 @@ function printedBack(order: KitOrder, d: SavedDesign): Partial<Design> {
 }
 const ZONE_NAMES: Record<string, string> = { body: 'Body', yoke: 'Yoke', sleeves: 'Sleeves', sides: 'Sides', hem: 'Hem', pocket: 'Pocket', hood: 'Hood' };
 /** A hoodie's own colour areas (design.zoneColors), as the Studio's HOODIE AREAS names them. */
-const AREA_NAMES: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Cuffs & waistband', pocket: 'Pocket', zip: 'Zip' };
+const AREA_NAMES: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Cuffs & waistband', pocket: 'Pocket', zip: 'Zip', stripe: 'Sleeve stripe' };
 const shownImage = (src?: string | null) => !!src && /^(data:image\/|https?:\/\/|\/)/.test(src);
 const fileType = (src: string) => (src.startsWith('data:image/jpeg') ? 'jpg' : 'png');
 

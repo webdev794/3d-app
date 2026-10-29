@@ -4,8 +4,14 @@
  */
 export const topParts = ['front', 'back', 'leftSleeve', 'rightSleeve', 'collar', 'sides', 'hem'] as const;
 export const shortsParts = ['shortsFront', 'shortsBack', 'shortsSides', 'shortsHem', 'waistband'] as const;
-export type PartKey = (typeof topParts)[number] | (typeof shortsParts)[number];
-export const allParts: PartKey[] = [...topParts, ...shortsParts];
+/** The socks' printed parts besides their front and back (viewer sockprint.js): the top band, the hoops, the heel and toe. */
+export const sockParts = ['sockBand', 'sockHoops', 'sockFoot'] as const;
+/** The cap's printed parts besides its front and back (viewer capprint.js): the brim, under the brim, the piping, the side sweeps. */
+export const capParts = ['capBrim', 'capUnder', 'capPiping', 'capSweep', 'capSweepLow'] as const;
+/** The skirt's own printed part besides its front, back, side panels and hem (viewer skirtprint.js): the waistband. */
+export const skirtParts = ['skirtBand'] as const;
+export type PartKey = (typeof topParts)[number] | (typeof shortsParts)[number] | (typeof sockParts)[number] | (typeof capParts)[number] | (typeof skirtParts)[number];
+export const allParts: PartKey[] = [...topParts, ...shortsParts, ...sockParts, ...capParts, ...skirtParts];
 
 /** A part's own look: every field optional; a part without any follows the kit. */
 export interface PartFade { from: string; to: string | null; angle: number }
@@ -25,6 +31,9 @@ export interface PartStyle {
 export const partLabels: Record<PartKey, string> = {
     front: 'Front', back: 'Back', leftSleeve: 'Left sleeve', rightSleeve: 'Right sleeve', collar: 'Collar', sides: 'Side panels', hem: 'Hem',
     shortsFront: 'Shorts front', shortsBack: 'Shorts back', shortsSides: 'Shorts side stripes', shortsHem: 'Shorts hems', waistband: 'Waistband',
+    sockBand: 'Top band', sockHoops: 'Hoops', sockFoot: 'Heel & toe',
+    capBrim: 'Brim', capUnder: 'Under the brim', capPiping: 'Piping', capSweep: 'Side sweep', capSweepLow: 'Lower side sweep',
+    skirtBand: 'Waistband',
 };
 /** The collar and the waistband are 3D rib: a colour only. */
 export const ribPart = (key: PartKey) => key === 'collar' || key === 'waistband';
@@ -35,6 +44,9 @@ export function partsOf(garment: string): PartKey[] {
     const jacket = ['hoodie', 'ziphoodie', 'trackjacket', 'varsity'].includes(garment);
     const sleeveless = garment === 'singlet' || garment === 'netball-dress';
     const top = topParts.filter(key => !(jacket && key === 'collar') && !(sleeveless && (key === 'leftSleeve' || key === 'rightSleeve')));
+    if (garment === 'socks') return ['front', 'back', ...sockParts];
+    if (garment === 'cap') return ['front', 'back', ...capParts];
+    if (garment === 'skirt') return ['front', 'back', 'sides', 'hem', ...skirtParts];
     if (garment === 'shorts') return [...shortsParts];
     if (garment === 'fullkit') return [...topParts, ...shortsParts];
     return top;
@@ -47,6 +59,13 @@ export const partSpots: Record<PartKey, { side: 'front' | 'back'; x: number; y: 
     collar: { side: 'front', x: 0, y: 0.7 }, sides: { side: 'front', x: 0.265, y: 0.3 }, hem: { side: 'front', x: 0, y: 0.07 },
     shortsFront: { side: 'front', x: -0.12, y: 0.25 }, shortsBack: { side: 'back', x: 0.12, y: 0.25 },
     shortsSides: { side: 'front', x: 0.26, y: 0.2 }, shortsHem: { side: 'front', x: -0.15, y: 0.05 }, waistband: { side: 'front', x: 0, y: 0.4 },
+    sockBand: { side: 'front', x: 0, y: 0.62 }, sockHoops: { side: 'front', x: 0, y: 0.56 }, sockFoot: { side: 'front', x: 0, y: 0.03 },
+    capBrim: { side: 'front', x: 0, y: 0.046 }, capUnder: { side: 'back', x: 0, y: 0.046 }, capPiping: { side: 'front', x: 0.102, y: 0.14 }, capSweep: { side: 'front', x: 0.135, y: 0.117 }, skirtBand: { side: 'front', x: 0, y: 0.32 }, capSweepLow: { side: 'front', x: 0.145, y: 0.096 },
+};
+
+/** A garment's own spot for a part, where it is elsewhere than the usual one (the skirt's side panels: viewer skirtprint.js). */
+export const garmentSpots: Record<string, Partial<Record<PartKey, { side: 'front' | 'back'; x: number; y: number }>>> = {
+    skirt: { sides: { side: 'front', x: 0.23, y: 0.12 } },
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;

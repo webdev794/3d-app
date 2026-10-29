@@ -3,7 +3,7 @@ import { ImagePlus, Plus, RotateCcw, Type, X } from 'lucide-react';
 import type { ArtworkLayer, Design } from '../types';
 import ColorWheel from './ColorWheel';
 import { patternNames, readImage } from './StudioArtwork';
-import { isShortsPart, partLabels, partSpots, partsOf, ribPart, withPart, type PartKey, type PartStyle } from '../parts';
+import { garmentSpots, isShortsPart, partLabels, partSpots, partsOf, ribPart, withPart, type PartKey, type PartStyle } from '../parts';
 
 /** Where the chosen part was tapped (new objects go there), else its usual place. */
 export interface PartSpot { key: PartKey; side: 'front' | 'back'; x: number; y: number }
@@ -50,7 +50,7 @@ export default function PartsPanel({ design, selected, spot, onSelect, edit, pre
   const objects = (design.layers ?? []).filter(l => l.clip === key);
   const setLayer = (id: string, patch: Partial<ArtworkLayer>, live = false) => (live ? preview : edit)({ layers: (design.layers ?? []).map(l => l.id === id ? { ...l, ...patch } : l) });
   const place = () => {
-    const at = spot && spot.key === key ? spot : key ? partSpots[key] : partSpots.front;
+    const at = spot && spot.key === key ? spot : key ? garmentSpots[design.garment]?.[key] ?? partSpots[key] : partSpots.front;
     return { part: key && isShortsPart(key) ? 'shorts' as const : 'top' as const, side: at.side, x: at.x, y: at.y };
   };
   const addText = () => {

@@ -1168,6 +1168,9 @@ const garmentTiles = <(String, String)>[
   ('Netball dress', 'netball-dress'),
   ('Football jersey', 'nfljersey'),
   ('Compression top', 'compression'),
+  ('Socks', 'socks'),
+  ('Cap', 'cap'),
+  ('Skirt', 'skirt'),
   ('Polo', 'polo'),
   ('Polo with pocket', 'pocketpolo'),
   ('Hoodie', 'hoodie'),
@@ -1238,6 +1241,36 @@ class GarmentScreen extends StatelessWidget {
     c.trackStyle = t.trackStyle ?? 'collar';
     // A tile with its own fabric type (the practice jersey's mesh) starts on it.
     if (t.fabric != null) c.fabric = t.fabric!;
+    // The tile picture's look (task 9.154): the kit opens looking like it.
+    if (t.look != null) c.startLook(tileLook(t.look!, picture: t.art));
+  }
+
+  /// Another 3D garment from the Studio's garment list (client 2026-10-29)
+  /// opens looking like its picture there (garment-<art>.webp), so what is
+  /// tapped is what opens, as its Design Your Own tile: the look of a tile
+  /// with that picture (the sport's own first), else the picture's own
+  /// ([pictureLooks]), else the sport's first tile of that garment (or any
+  /// sport's). Own uploads and text stay; one undo step.
+  static void switchTo(AppController c, String name, String art) {
+    if (name == c.garment) return;
+    final own = sportNamed(c.sport);
+    final tiles = [
+      ...tilesFor(c.sport),
+      for (final s in sportCategories)
+        if (s != own) ...s.tiles,
+    ].where((t) => !t.soon && t.garment == name).toList();
+    final t =
+        tiles.where((t) => t.art == art).firstOrNull ??
+        (pictureLooks[art] != null
+            ? GarmentTile(name, '', name, image: art)
+            : tiles.firstOrNull);
+    c.edit(() {
+      c.garment = name;
+      if (t == null) return;
+      c.trackStyle = t.trackStyle ?? 'collar';
+      if (t.fabric != null) c.fabric = t.fabric!;
+      if (t.look != null) c.startLook(tileLook(t.look!, picture: t.art));
+    });
   }
 
   /// A new sport (or a garment left from another one) starts on its first
@@ -2061,7 +2094,10 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
                 child: Text(
                   '${kind == _ArtworkKind.front ? 'This looks like a photo or mock-up with a background, not a logo: the whole picture would go on the chest.' : 'This looks like a photo or mock-up: the whole picture, background included, would repeat over the kit.'}'
                   '${AiService.enabled ? ' Choose “Picture of a garment” to put its design on the kit.' : ''}',
-                  style: const TextStyle(color: Color(0xffffd28a), fontSize: 12),
+                  style: const TextStyle(
+                    color: Color(0xffffd28a),
+                    fontSize: 12,
+                  ),
                 ),
               ),
             if (kind == _ArtworkKind.layout)

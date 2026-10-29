@@ -22,9 +22,33 @@ function along(pairs, y) {
  * Wraps a panel point round an ellipse whose front half is exactly as wide as the
  * panel at that height (half-width `half`), so the fabric fits without stretching.
  */
-function wrap(x, half, k, back) {
+function wrap(x, half, k, back, box = 2) {
   const a = (4 * half) / (Math.PI * ellipseF(k)), th = (THREE.MathUtils.clamp(Math.abs(x) / half, 0, 1) * Math.PI) / 2;
-  return { x: Math.sign(x) * a * Math.sin(th), z: (back ? -1 : 1) * k * a * Math.cos(th), a, th };
+  if (box <= 2.001) return { x: Math.sign(x) * a * Math.sin(th), z: (back ? -1 : 1) * k * a * Math.cos(th), a, th };
+  // `box` > 2: a squarer section (a superellipse of that power), as wide and as deep, flatter in front and behind with
+  // fuller corners at the sides (the football jersey hanging boxy over its pads). The panel is laid round it evenly
+  // along its edge, so the print keeps its proportions across the flat front.
+  const [px, pz] = boxPoint(k, box, THREE.MathUtils.clamp(Math.abs(x) / half, 0, 1));
+  return { x: Math.sign(x) * a * px, z: (back ? -1 : 1) * a * pz, a, th };
+}
+/** A superellipse quarter (half-width 1, depth k, power p) at the share s (0 front middle .. 1 side) of its length. */
+const boxTables = new Map();
+function boxPoint(k, p, s) {
+  const key = `${k.toFixed(3)}|${p.toFixed(2)}`;
+  let t = boxTables.get(key);
+  if (!t) {
+    const N = 96, e = 2 / p, pts = [];
+    for (let i = 0; i <= N; i++) { const f = (i / N) * (Math.PI / 2); pts.push([Math.sin(f) ** e, k * Math.cos(f) ** e]); }
+    const len = [0];
+    for (let i = 1; i <= N; i++) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    t = { pts, len: len.map((l) => l / len[N]) };
+    if (boxTables.size > 400) boxTables.clear();
+    boxTables.set(key, t);
+  }
+  let lo = 0, hi = t.len.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (t.len[mid] <= s) lo = mid; else hi = mid; }
+  const f = (s - t.len[lo]) / (t.len[hi] - t.len[lo] || 1);
+  return [t.pts[lo][0] + (t.pts[hi][0] - t.pts[lo][0]) * f, t.pts[lo][1] + (t.pts[hi][1] - t.pts[lo][1]) * f];
 }
 /** max(0, x) with its corner rounded over about `k`. */
 const softPlus = (x, k) => (x > 8 * k ? x : x < -8 * k ? 0 : k * Math.log1p(Math.exp(x / k)));
@@ -99,7 +123,9 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const taper = spec.fleece
     ? (y) => 1 + 0.025 * ramp(0.3, 0.1, y) - spec.fleece.hemIn * ramp(0.06, 0, y)
     : spec.tight
-    ? (y) => spec.tight.fit * (1 - 0.06 * ramp(0.5, 0.3, y) + 0.01 * ramp(0.25, 0.05, y))
+    // Skin-tight: the athletic V (`chest` broader over the chest and shoulders, `waist` narrower at the waist, a little
+    // fuller again over the hips to the hem).
+    ? (y) => spec.tight.fit * (1 + (spec.tight.chest ?? 0) * ramp(0.4, 0.56, y) - (spec.tight.waist ?? 0.08) * ramp(0.5, 0.3, y) * (1 - 0.3 * ramp(0.24, 0.06, y)))
     : spec.loose
     ? (y) => 1 + (spec.hemFlare ?? 0.03) * ramp(0.34, 0.04, y)
     : (y) => 1 - 0.045 * ramp(0.5, 0.3, y) + 0.015 * ramp(0.25, 0.05, y);
@@ -117,7 +143,7 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   };
 
   const torso = (p, back) => {
-    const w = wrap(p.x, wrapHalf(p.y), depthRatio(p.y), back), ax = Math.abs(p.x);
+    const w = wrap(p.x, wrapHalf(p.y), depthRatio(p.y), back, spec.boxy ? THREE.MathUtils.lerp(2, spec.boxy, ramp(0.7, 0.55, p.y)) : 2), ax = Math.abs(p.x);
     let z = w.z * Math.sqrt(ramp(0, 0.075, topSeam(p)));              // round over the shoulders to the seam
     z *= 1 - (back ? 0.36 : 0.3) * Math.exp(-(p.x ** 2) / 0.006) * ramp(back ? 0.6 : 0.58, back ? 0.7 : 0.68, p.y); // neck opening
     const s = taper(p.y) * (1 + 0.012 * ramp(0.019, 0.015, hemDist(p))); // the hem band, a little proud of the body
@@ -196,7 +222,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // then bends down along the arm, a little forward. Round the top it is fuller: the deltoid.
   const xP = torso(new THREE.Vector2(0.258, PIT), false).x, xS = torso(new THREE.Vector2(0.258, TOP), false).x;
   const C0 = new THREE.Vector2((xP + xS) / 2, (PIT + TOP) / 2), lean = (xS - xP) / (TOP - PIT);
-  const th0 = THREE.MathUtils.degToRad(25), th1 = THREE.MathUtils.degToRad(80), R = spec.pads ? 0.03 : 0.085, Lb = R * (th1 - th0);
+  // (`armDrop`: a top's own hang, the compression top's arms a little out from the body.)
+  const th0 = THREE.MathUtils.degToRad(25), th1 = THREE.MathUtils.degToRad(spec.armDrop ?? 80), R = spec.pads ? 0.03 : 0.085, Lb = R * (th1 - th0);
   const rB0 = 0.056;   // arm depth at the armhole
   // The arm's radius down the sleeve; a long sleeve (spec.long) narrows from the upper arm to the wrist.
   const r1 = spec.pads ? () => 0.05 + spec.pads * 0.2 : spec.long ? (a) => THREE.MathUtils.lerp(spec.long.upper, spec.long.wrist, ramp(0.1, spec.long.length, a)) : () => 0.05;
