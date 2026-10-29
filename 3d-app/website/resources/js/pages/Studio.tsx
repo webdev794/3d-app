@@ -13,7 +13,7 @@ import ColorWheel from '../components/ColorWheel';
 import { comingSoon, garmentArt, productName } from './Create';
 import type { Draft } from '../App';
 import { OwnPatterns, isPatternPicture, modeOf } from '../components/OwnPatterns';
-import { ArtworkPanel, PresetPanel, checkDrawing, designSignature, ownPatch, patternNames, readAsset, readImage, type ArtworkDrop, type OwnDesign, type ShelvedLayouts } from '../components/StudioArtwork';
+import { ArtworkPanel, PresetPanel, checkDrawing, checkPrintLayout, designSignature, ownPatch, patternNames, readAsset, readImage, type ArtworkDrop, type OwnDesign, type ShelvedLayouts } from '../components/StudioArtwork';
 import { defaultDesign } from '../types';
 import { onAssist } from '../assistBridge';
 import { EditImageButton } from '../components/ImageEditor';
@@ -285,7 +285,15 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     drawingStarted.current = pending.asset;
     void (async () => {
       try {
-        const src = await readImage(await fetchFile(`/assets/${pending.asset}/file`));
+        let src = await readImage(await fetchFile(`/assets/${pending.asset}/file`));
+        // Artwork to 3D (task 9.153): a print layout's panels checked, then each on its print area of the garment.
+        if (pending.kind === 'layout') {
+          if (pending.type) src = `data:${pending.type};base64,${src.slice(src.indexOf(',') + 1)}`;
+          const done = await checkPrintLayout(viewer.current!, src, pending.name, pending.asset, latest.current.design.garment);
+          if (done) { edit(done.patch, { pendingDrawing: undefined }); onNotice(`Your print layout is on the 3D kit: ${done.panels} panel${done.panels === 1 ? '' : 's'}. Change colours, names and numbers, then save.`); }
+          else { onChange({ ...latest.current, pendingDrawing: undefined }); onNotice('Print layout not put on. Use Artwork › Upload print layout to try again.'); }
+          return;
+        }
         const patch = await checkDrawing(viewer.current!, src, pending.name, pending.asset, latest.current.design.garment, !!pending.known);
         // The picture carries its own lettering: the position letters read from it (task 9.116) are not added again.
         const layers = latest.current.design.layers?.filter(l => !l.id.startsWith('position-'));
@@ -476,7 +484,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       onNotice('Your design export is ready.');
     } catch (e) { setError((e as Error).message || 'Export failed. Please try again.'); } finally { setBusy(false); }
   }
-  const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
+  const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
   const garments = [...(catalog?.garments ?? [])].sort((a, b) => garmentOrder.indexOf(a.id) - garmentOrder.indexOf(b.id));
   const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); setGradientOpen(false); };
   const colourValue = slot === 'patternColor' ? patternInkOf(draft.design) : draft.design[slot];

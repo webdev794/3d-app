@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { FIGURES, torsoAt } from './figure.js';
 
 // The mannequin under a garment (render tiers, 2026-10-23): a display form shaped from the made garment itself, so the
@@ -355,7 +355,7 @@ export function buildMannequin(garment, material, { over = false } = {}) {
       if (arm.length < 30) continue;
       // A long sleeve's arm stops about 5 cm inside it: its rib cuff is drawn in narrower than the arm, and a rounded
       // end there would show below the cuff. Through the cuff the opening then looks into shade.
-      const lMax = arm.reduce((m, p) => Math.max(m, p.l), 0), lEnd = body.long ? lMax - 0.05 : lMax - 0.004, bins = [];
+      const lMax = arm.reduce((m, p) => Math.max(m, p.l), 0), lEnd = body.long ? lMax - 0.05 : body.pads ? lMax - 0.03 : lMax - 0.004, bins = [];
       for (let l = 0.035; l <= lEnd; l += 0.012) {
         const near = arm.filter((p) => Math.abs(p.l - l) < 0.008);
         if (near.length < 8) continue;
@@ -370,18 +370,19 @@ export function buildMannequin(garment, material, { over = false } = {}) {
         return r.map((rad, k) => {
           const th = (2 * Math.PI * (k + 0.5)) / BINS;
           // A long sleeve bends and narrows to the wrist: the arm kept well inside it (only its cuff shows it).
-          const in_ = body.long ? Math.max(0.01, 0.8 * rad - 0.01) : Math.max(0.01, rad - 0.006);
+          // A shoulder-pad sleeve (the American football jersey) stands well off the arm: the arm stays thin, inside it.
+          const in_ = body.long ? Math.max(0.01, 0.8 * rad - 0.01) : body.pads ? Math.max(0.01, Math.min(rad - 0.012, 0.042)) : Math.max(0.01, rad - 0.006);
           return c.clone().addScaledVector(u, in_ * Math.cos(th)).addScaledVector(v, in_ * Math.sin(th));
         });
       });
       const dir = bins.at(-1).c.clone().sub(bins.at(-3).c).normalize();
       // A short sleeve: the arm ends just past it, rounded off; a long one well inside it (above), its end kept short.
       const inSleeve = rings.length;
-      if (!body.long) extend(rings, dir, 0.006, 0.03, 1);
+      if (!body.long && !body.pads) extend(rings, dir, 0.006, 0.03, 1);
       roundEnd(rings, dir, body.long ? 0.006 : 0.01);
       // Dark up the sleeve, lighter towards a short sleeve's end, where the opening lets the light in; a long sleeve's
       // arm is in the sleeve's shade all along.
-      add(rings, (ring, i) => (body.long || i < inSleeve - 2 ? INSIDE : i < inSleeve ? 0.5 : 0.85));
+      add(rings, (ring, i) => (body.long || body.pads || i < inSleeve - 2 ? INSIDE : i < inSleeve ? 0.5 : 0.85));
     }
   }
   return group.children.length ? group : null;

@@ -43,6 +43,6 @@ class SportsCatalogTest extends TestCase
     {
         $this->getJson('/api/v1/catalog')->assertOk()
             ->assertJsonPath('data.sports.7.id', 'american-football')
-            ->assertJsonPath('data.sports.7.garments.0', 'fullkit')->assertJsonPath('data.sports.7.garments.1', 'jersey'); // the client's list starts with Game Kit (images/165.jpg)
+            ->assertJsonPath('data.sports.7.garments.0', 'fullkit')->assertJsonPath('data.sports.7.garments.1', 'nfljersey'); // the client's list starts with Game Kit (images/165.jpg)
     }
 }

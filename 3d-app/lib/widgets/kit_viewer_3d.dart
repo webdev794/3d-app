@@ -76,6 +76,7 @@ class KitViewer3DState extends State<KitViewer3D> {
     _host.dispose();
     _hq = c.hqJersey;
     _ready = false;
+    c.viewerReady = false;
     _sentDesign = _sentView = _sentSelection = null;
     _sentPattern = _sentLogo = _sentSponsor = null;
     _sentBoard = _sentPick = _sentPartPick = _sentObjects = null;
@@ -92,7 +93,10 @@ class KitViewer3DState extends State<KitViewer3D> {
       if (c.captureMockup == capture) c.captureMockup = null;
       if (c.captureBoard == captureBoard) c.captureBoard = null;
       if (c.zoomBoard == _zoomBoard) c.zoomBoard = null;
-      if (c.checkLayout == _checkLayout) c.checkLayout = null;
+      if (c.checkLayout == _checkLayout) {
+        c.checkLayout = null;
+        c.viewerReady = false;
+      }
       if (c.viewerModal) c.viewerModal = false;
       if (c.processArtwork == processArtwork) c.processArtwork = null;
       if (c.pickGarment == pickGarment) c.pickGarment = null;
@@ -122,6 +126,7 @@ class KitViewer3DState extends State<KitViewer3D> {
     switch (msg['type']) {
       case 'ready':
         setState(() => _ready = true);
+        c.viewerReady = true;
         _sentPick = _sentPartPick = _sentObjects = null;
         // This app answers the viewer's requests for print layout files.
         // and picks pictures for "Upload picture here" on the kit (task 9.144).
@@ -204,6 +209,7 @@ class KitViewer3DState extends State<KitViewer3D> {
       'garment': switch (c.garment) {
         'Singlet' => 'singlet',
         'Netball dress' => 'netball-dress',
+        'Football jersey' => 'nfljersey',
         'Training Tee' => 'tee',
         'Polo' => 'polo',
         'Polo with pocket' => 'pocketpolo',
@@ -308,7 +314,8 @@ class KitViewer3DState extends State<KitViewer3D> {
       if (file != null) {
         final bytes = await file.readAsBytes();
         final png = bytes.length > 4 && bytes[0] == 0x89 && bytes[1] == 0x50;
-        data = 'data:image/${png ? 'png' : 'jpeg'};base64,${base64Encode(bytes)}';
+        data =
+            'data:image/${png ? 'png' : 'jpeg'};base64,${base64Encode(bytes)}';
       }
     } catch (_) {
       data = null;
@@ -378,12 +385,13 @@ class KitViewer3DState extends State<KitViewer3D> {
     String src, {
     bool removeBg = false,
     String? tint,
+    int maxSize = 1024,
   }) async {
     final result = await _request('processImage', {
       'src': src,
       'removeBg': removeBg,
       'tint': tint,
-      'maxSize': 1024,
+      'maxSize': maxSize,
     });
     if (result?['data'] is String) return result!['data'] as String;
     throw StateError(

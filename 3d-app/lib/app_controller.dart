@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'ai_service.dart';
 import 'api_client.dart';
 import 'design_document.dart';
+import 'own_patterns.dart';
 import 'project_store.dart';
 import 'project_sync.dart';
 import 'session_store.dart';
@@ -337,6 +338,10 @@ class AppController extends ChangeNotifier {
   })?
   checkLayout;
 
+  /// The Studio's 3D view has started and answers requests (Artwork to 3D
+  /// waits for it before the print layout check).
+  bool viewerReady = false;
+
   /// The 3D view shows a screen of its own (the print layout check): what
   /// the app puts over the 3D view (view buttons, the chat button) hides.
   bool viewerModal = false;
@@ -396,7 +401,12 @@ class AppController extends ChangeNotifier {
 
   /// Zooms the 2D panels: 'in', 'out' or 'fit'.
   void Function(String how)? zoomBoard;
-  Future<String> Function(String src, {bool removeBg, String? tint})?
+  Future<String> Function(
+    String src, {
+    bool removeBg,
+    String? tint,
+    int maxSize,
+  })?
   processArtwork;
   Future<Map<String, dynamic>?> Function(double x, double y)? pickGarment;
 
@@ -447,6 +457,49 @@ class AppController extends ChangeNotifier {
       'artboard': ?doc,
     });
     return 'added';
+  }
+
+  /// Artwork to 3D (task 9.153): a new kit of [sportName] on [garmentName]
+  /// for the user's own artwork, opened in the Studio.
+  void startArtworkKit(String sportName, String garmentName, String name) {
+    _resetDesign();
+    mode = 'DYO';
+    sport = sportName;
+    garment = garmentName;
+    projectName = name.isEmpty ? '$sportName $garmentName' : name;
+    _undo.clear();
+    go(AppScreen.studio);
+  }
+
+  /// One design or logo (a PNG data URL) on the front of the kit, to move and
+  /// resize there, or as an all-over print ([allOver]), as one undo step.
+  Future<void> placeArtwork(
+    String src,
+    String name, {
+    bool allOver = false,
+  }) async {
+    if (allOver) {
+      final picture = ProjectSync.bytes(src);
+      if (picture == null) return;
+      // In its own colours, repeated over the garment.
+      final png = await preparePattern(picture, 'full');
+      edit(() {
+        patternTile = png;
+        pattern = 'Solid';
+        patternScale = 0.16;
+        zones = {};
+      });
+      return;
+    }
+    addLayer({
+      'type': 'image',
+      'name': name,
+      'src': src,
+      'side': 'front',
+      'x': 0.0,
+      'y': garment == 'Shorts' ? 0.23 : 0.42,
+      'w': 0.24,
+    });
   }
 
   /// A new kit on [garment] (Send to 3D Studio from the Artboard).
@@ -508,12 +561,14 @@ class AppController extends ChangeNotifier {
   /// tell the user, or null when the check was cancelled.
   Future<String?> importPrintLayout(String name, Uint8List bytes) async {
     final lower = name.toLowerCase();
-    final type = lower.endsWith('.pdf')
+    final type = lower.endsWith('.pdf') || lower.endsWith('.ai')
         ? 'application/pdf'
         : lower.endsWith('.svg')
         ? 'image/svg+xml'
         : lower.endsWith('.png')
         ? 'image/png'
+        : lower.endsWith('.webp')
+        ? 'image/webp'
         : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
         ? 'image/jpeg'
         : null;
@@ -633,6 +688,7 @@ class AppController extends ChangeNotifier {
           'Polo' => 'polo',
           'Polo with pocket' => 'pocketpolo',
           'Netball dress' => 'netball-dress',
+          'Football jersey' => 'nfljersey',
           // Hoodies are long-sleeved: a drawing of one is read as a sleeved top.
           'Hoodie' ||
           'Zip hoodie' ||
@@ -663,6 +719,7 @@ class AppController extends ChangeNotifier {
         'polo' => 'Polo',
         'pocketpolo' => 'Polo with pocket',
         'netball-dress' => 'Netball dress',
+        'nfljersey' => 'Football jersey',
         _ => 'Singlet',
       };
       layout = copyLayout({

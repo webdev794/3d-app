@@ -102,13 +102,15 @@ class SportGarmentTilesTest extends TestCase
         $nfl = $sports['american-football'];
         $this->assertSame(['Game Kit', 'Game Jersey', 'Game Pants', 'Practice Jersey', 'Training Tee', 'Training Shorts', 'Compression Top', 'Compression Shorts',
             'Game Socks', 'Hoodie', 'Varsity Jacket', 'Hooded Tracksuit', 'Waterproof Jacket', 'Cap', 'Bucket Hat', 'Beanie'], array_column($nfl['tiles'], 'name'));
-        $this->assertSame(['fullkit', 'jersey', null, 'jersey', 'tee', 'shorts', 'tee', null, null, 'hoodie', 'varsity', 'trackjacket', 'trackjacket', null, null, null],
+        $this->assertSame(['fullkit', 'nfljersey', null, 'nfljersey', 'tee', 'shorts', 'tee', null, null, 'hoodie', 'varsity', 'trackjacket', 'trackjacket', null, null, null],
             array_column($nfl['tiles'], 'garment'));
         // Coming soon: pants, compression shorts, socks, cap, bucket hat, beanie, each naming the garment still to build.
         foreach ([2 => 'nfl-pants', 7 => 'compression-shorts', 8 => 'socks', 13 => 'cap', 14 => 'bucket-hat', 15 => 'beanie'] as $i => $future) {
             $this->assertSame(['soon', $future], [$nfl['tiles'][$i]['fit'], $nfl['tiles'][$i]['future']], $nfl['tiles'][$i]['name']);
         }
         $this->assertSame(['trackStyle' => 'hood'], $nfl['tiles'][11]['design']);
+        // The football jersey (task 9.113): Game Jersey on standard fabric, Practice Jersey on mesh.
+        $this->assertSame(['exact', ['fabric' => 'Standard'], 'exact', ['fabric' => 'Mesh']], [$nfl['tiles'][1]['fit'], $nfl['tiles'][1]['design'], $nfl['tiles'][3]['fit'], $nfl['tiles'][3]['design']]);
         $this->assertSame('Choose your game uniform, practice wear or sideline apparel.', $nfl['subtitle']);
         $this->assertSame('Select a garment to customise.', $nfl['select_hint']);
         $this->assertFalse($nfl['descriptions']);

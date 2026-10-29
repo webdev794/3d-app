@@ -4,14 +4,13 @@ Updated 2026-10-28 15:45. Only what's needed to continue.
 - SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder images\NNN (latest 211)
 
 ## State
-- Live file: D:\3d-app\deploy-zips\3deez-update-2026-10-28-e.tar.gz (code-only, 15:27). Live must run `php artisan migrate --force` (presets table) + `php artisan optimize:clear`.
-- GitHub v2 = 0ea5b1f (same as -e). main = 2d9b553.
+- Live file: D:\3d-app\deploy-zips\3deez-update-2026-10-28-f.tar.gz (code-only, 18:35). Live must run `php artisan migrate --force` (presets table) + `php artisan optimize:clear`.
+- GitHub v2 = b62f0ab (same as -f). main = 2d9b553.
 - Local database has the presets table (backup C:\3deezi-archive\database-before-presets-2026-10-28.sqlite).
 - Viewer 2026-10-20-55; Artboard EDITOR_VERSION 2026-10-28-5.
 
-## Running (user 2026-10-28: only ONE agent, slowly)
-- TF2 a641a714fc4f329c3: sport row check; TF3 a7465e18b762ee0e8: website <-> app reopen check (iso 8171-8179).
-- TF1 aedc3d57d0daa858d: app screens by hand (last); earlier: single tester + fixer; work list D:\3d-app\bugs.md (ticks there; the user follows it), log SP\QA-1028\TF1\log.md. All other agents stopped; do not restart them.
+## Running
+- GM1 a409383f8ad4205bd: 9.152 our own 3D models for COMING SOON garments, one at a time; plan + log in SP\GM1\. Each finished model gets its own named line in task-done-today.md.
 
 ## Pending
 1. Offered, not started: the website homepage like the new app Home; Admin mockup backgrounds / scenes (client may ask); my saved projects under Preset designs "My designs".

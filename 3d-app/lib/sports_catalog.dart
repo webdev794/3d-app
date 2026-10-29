@@ -90,6 +90,8 @@ class SportCategory {
 /// App garment name -> the website's 3D garment id (config/catalog.php).
 const garmentIds = {
   'Jersey': 'jersey',
+  // The American football jersey: shoulder-pad cut, cap sleeves (task 9.113).
+  'Football jersey': 'nfljersey',
   'Shorts': 'shorts',
   'Training Tee': 'tee',
   'Singlet': 'singlet',
@@ -116,6 +118,7 @@ class GarmentTile {
     String this.garment, {
     String? image,
     this.trackStyle,
+    this.fabric,
   }) : fit = 'exact',
        future = null,
        _image = image;
@@ -126,6 +129,7 @@ class GarmentTile {
     required String this.future,
     String? image,
     this.trackStyle,
+    this.fabric,
   }) : fit = 'nearest',
        _image = image;
   const GarmentTile.soon(
@@ -136,6 +140,7 @@ class GarmentTile {
   ) : garment = null,
       fit = 'soon',
       trackStyle = null,
+      fabric = null,
       _image = image;
 
   final String name, description, fit;
@@ -148,6 +153,9 @@ class GarmentTile {
 
   /// The track jacket's style the tile starts with ('hood'), if any.
   final String? trackStyle;
+
+  /// The fabric type the tile starts with ('Mesh': the practice jersey), if any.
+  final String? fabric;
   final String? _image;
 
   bool get soon => garment == null;
@@ -501,12 +509,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       future: 'nfl-kit',
       image: 'nfl-kit',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Game Jersey',
       'Shoulder-pad cut with big numbers.',
-      'Jersey',
-      future: 'nfl-jersey',
+      'Football jersey',
       image: 'nfl-jersey',
+      fabric: 'Standard',
     ),
     GarmentTile.soon(
       'Game Pants',
@@ -514,12 +522,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'nfl-pants',
       'nfl-pants',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Practice Jersey',
       'Mesh jersey for practice days.',
-      'Jersey',
-      future: 'nfl-jersey',
+      'Football jersey',
       image: 'nfl-practice-jersey',
+      fabric: 'Mesh',
     ),
     GarmentTile(
       'Training Tee',

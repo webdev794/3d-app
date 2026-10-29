@@ -21,7 +21,7 @@ class Order extends Model
 
     /** A saved design's garment that the order form lists under another row (a full kit is a jersey and shorts). */
     /** (The netball dress, task 9.126, is ordered on a singlet row, named by its product "Netball dress".) */
-    public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo', 'varsity' => 'jacket', 'trackjacket' => 'jacket', 'netball-dress' => 'singlet'];
+    public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo', 'nfljersey' => 'jersey', 'varsity' => 'jacket', 'trackjacket' => 'jacket', 'netball-dress' => 'singlet'];
 
     /**
      * Whether an order row is the saved design's own garment, so the design's product name ("Netball bibs", task 9.99)

@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -190,6 +190,8 @@ let currentKind = null;
 // The app's garment names map to one or more 3D parts.
 const PARTS = {
   jersey: ['jersey'],
+  // The American football jersey (tasks.md 9.113): shoulder-pad cut, cap sleeves (garment.js SPECS.nfljersey).
+  nfljersey: ['nfljersey'],
   tee: ['tee'],
   raglan: ['raglan'],
   polo: ['polo'],
@@ -434,7 +436,7 @@ function buildKit(kind) {
 
 /**
  * The tiers: each part's fabric woven into its printed materials (render-quality.js): the design's fabric type
- * (design.fabric: Mesh, Pro or Eco), else the garment's own (mesh, piqué, fleece...). On a new kit (`built`), and again
+ * (design.fabric: Mesh, Pro or Eco), else the garment's own (mesh, piquÃ©, fleece...). On a new kit (`built`), and again
  * whenever the fabric type changes (only the material: the print, names and numbers stay exactly where they are).
  */
 function dressParts(built) {
@@ -642,7 +644,7 @@ function garmentShape(p) {
 /** The key a file read is kept by (a drawing is read differently from a print layout). */
 const fileKey = (asset, drawing) => (drawing ? `drawing:${asset}` : asset);
 /** The garments a drawing can go on, as the hosts name them. */
-const DRAWN_NAMES = { singlet: 'Singlet', 'netball-dress': 'Netball dress', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo', pocketpolo: 'Polo with pocket' };
+const DRAWN_NAMES = { singlet: 'Singlet', 'netball-dress': 'Netball dress', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo', pocketpolo: 'Polo with pocket', nfljersey: 'Football jersey' };
 /** The garment a drawing goes on: the one it was checked as (its parts), else the design's own top, else a singlet. */
 const drawnGarment = (...choices) => choices.find((g) => typeof g === 'string' && Object.hasOwn(DRAWN, g)) ?? 'singlet';
 /** The parts a layout's panels make: a raglan top, shorts, or both. */
@@ -773,7 +775,7 @@ async function checkLayout({ id, src, name = 'Print layout', asset = null, drawi
       // its shape: sleeves make it a jersey, tee or polo (the one asked for, else a jersey). The person can still change it.
       const main = file.found.find((p) => p.role === 'front') ?? file.found.find((p) => p.role === 'back');
       const sleeved = main ? sleevedShape(main.outline) : false;
-      const guess = known && Object.hasOwn(DRAWN, garment) ? garment : sleeved ? (['jersey', 'tee', 'polo', 'pocketpolo'].includes(garment) ? garment : ['jersey', 'tee', 'polo', 'pocketpolo'].includes(design.garment) ? design.garment : 'jersey') : [garment, design.garment].includes('netball-dress') ? 'netball-dress' : 'singlet';
+      const guess = known && Object.hasOwn(DRAWN, garment) ? garment : sleeved ? (['jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo'].includes(garment) ? garment : ['jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo'].includes(design.garment) ? design.garment : 'jersey') : [garment, design.garment].includes('netball-dress') ? 'netball-dress' : 'singlet';
       options = {
         drawing: true,
         garments: Object.fromEntries(Object.keys(DRAWN).map((g) => [g, DRAWN_NAMES[g] ?? g])),
@@ -1181,7 +1183,7 @@ function drawBar() {
       btn('Add logo here', () => addHere('logo')),
       btn('Add text here', () => addHere('text')),
       btn('Upload picture here', () => addHere('upload')),
-      btn('✕', () => { addSpot = null; drawBar(); }, { ariaLabel: 'Close', title: 'Close' })));
+      btn('âœ•', () => { addSpot = null; drawBar(); }, { ariaLabel: 'Close', title: 'Close' })));
     bar.classList.add('on'); bar.scrollLeft = 0; requestAnimationFrame(() => { bar.scrollLeft = 0; });
     return;
   }
@@ -1195,10 +1197,10 @@ function drawBar() {
   size.oninput = () => changeSelected({ scale: Number(size.value) }, false);
   size.onchange = () => sendObjects(selected.kind);
   bar.append(el('div', { className: 'row' }, el('b', { textContent: name }),
-    btn('−', () => changeSelected({ scaleBy: 1 / 1.12 }), { title: 'Smaller', ariaLabel: 'Smaller' }), size,
+    btn('âˆ’', () => changeSelected({ scaleBy: 1 / 1.12 }), { title: 'Smaller', ariaLabel: 'Smaller' }), size,
     btn('+', () => changeSelected({ scaleBy: 1.12 }), { title: 'Bigger', ariaLabel: 'Bigger' }),
-    btn('⟲', () => changeSelected({ rotBy: -15 }), { title: 'Turn left', ariaLabel: 'Turn left' }),
-    btn('⟳', () => changeSelected({ rotBy: 15 }), { title: 'Turn right', ariaLabel: 'Turn right' }),
+    btn('âŸ²', () => changeSelected({ rotBy: -15 }), { title: 'Turn left', ariaLabel: 'Turn left' }),
+    btn('âŸ³', () => changeSelected({ rotBy: 15 }), { title: 'Turn right', ariaLabel: 'Turn right' }),
     btn('Remove', () => changeSelected({ remove: true }), { className: 'danger' }),
     btn('Done', () => select(null))));
   if (selected.kind === 'mark' && selected.name === 'crest') {
@@ -1436,10 +1438,10 @@ function setCamera({ radius, theta, phi }) {
 }
 
 function setView(view) {
-  const angles = { Front: -.15, Side: Math.PI / 2, Back: Math.PI, '360°': null };
+  const angles = { Front: -.15, Side: Math.PI / 2, Back: Math.PI, '360Â°': null };
   const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
   const s = new THREE.Spherical().setFromVector3(offset);
-  controls.autoRotate = view === '360°';
+  controls.autoRotate = view === '360Â°';
   // A chosen view stays: no idle auto-turn left over from an earlier drag.
   clearTimeout(idle);
   if (angles[view] == null) return;
@@ -1648,7 +1650,9 @@ window.viewer = {
   colourAt: (x, y) => { const { point, normal, object, material, piece, ...msg } = colourAt(x, y); return msg; },
   /** {id, src, removeBg, tint, maxSize} -> posts {type:'image', id, data | error}. */
   processImage: ({ id, src, ...options }) =>
-    processImage(src, { ...options, ...options.options }).then(
+    // A PDF (Artwork to 3D, task 9.153: a vector logo from the app) is drawn as a picture first, sharp at full size.
+    (/^data:application\/pdf/i.test(String(src ?? '').slice(0, 48)) ? readLayout(src, { long: Math.min(2048, Number(options.maxSize) || 1024) }).then((r) => r.image.toDataURL('image/png')) : Promise.resolve(src))
+      .then((s) => processImage(s, { ...options, ...options.options })).then(
       (data) => post({ type: 'image', id, data }),
       (e) => post({ type: 'image', id, error: e.message }),
     ),

@@ -1085,6 +1085,7 @@ class OpenAiDesigner
      */
     public const READ_GARMENTS = [
         'jersey' => 'short-sleeve sports jersey (rugby, soccer, league, cricket shirts)',
+        'nfljersey' => 'American football jersey: cut wide over shoulder pads, short cap sleeves, big numbers (game and practice jerseys)',
         'polo' => 'polo shirt with a collar and buttons',
         'pocketpolo' => 'polo shirt with a chest pocket (pool, darts)',
         'singlet' => 'any other sleeveless top: singlets, tanks, bibs, basketball tops, AFL guernseys',

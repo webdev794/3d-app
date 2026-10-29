@@ -89,6 +89,7 @@ const aiDesignGarments = [
   ...designGarments,
   'Polo with pocket',
   'Netball dress',
+  'Football jersey',
   'Hoodie',
   'Zip hoodie',
   'Varsity jacket',
@@ -177,6 +178,11 @@ class DesignReading {
       'any other sleeveless top: singlets, tanks, bibs, basketball tops, '
           'AFL guernseys',
     ),
+    'nfljersey': (
+      'Football jersey',
+      'American football jersey: cut wide over shoulder pads, short cap '
+          'sleeves, big numbers (game and practice jerseys)',
+    ),
     'netball-dress': (
       'Netball dress',
       'a fitted dress for women, with a skirt: netball dresses and tennis dresses',
@@ -202,6 +208,7 @@ class DesignReading {
     'Singlet',
     'Netball dress',
     'Jersey',
+    'Football jersey',
     'Training Tee',
     'Polo',
     'Polo with pocket',

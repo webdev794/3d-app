@@ -8,7 +8,7 @@ export interface CatalogItem { id: string; name: string; description: string; /*
  * 'nearest': no 3D model of its own yet, the 3D preview uses `garment`; 'soon': no 3D model yet (garment null, COMING SOON).
  * `future`: the 3D garment still to build; `image`: media/showroom/garment-<image>.webp; `design`: settings the tile starts with.
  */
-export interface GarmentTile { name: string; description: string; garment: string | null; fit: 'exact' | 'nearest' | 'soon'; future?: string; image: string; design?: { trackStyle?: 'collar' | 'hood' } }
+export interface GarmentTile { name: string; description: string; garment: string | null; fit: 'exact' | 'nearest' | 'soon'; future?: string; image: string; design?: { trackStyle?: 'collar' | 'hood'; fabric?: 'Standard' | 'Mesh' | 'Pro' | 'Eco' } }
 export interface Catalog { sports: CatalogItem[]; garments: CatalogItem[]; provider: {id: string; name: string; is_ai: boolean; available: boolean}; showcase_scenes?: string[] }
 export interface Concept { id: string; name: string; description: string; design: Design; preview?: string | null; motif?: string }
 export class ApiError extends Error {

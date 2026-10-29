@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../ai_service.dart';
+import '../api_client.dart';
 import '../app_controller.dart';
 import '../assist.dart';
 import '../project_sync.dart';
@@ -124,7 +127,9 @@ class CreateHomeScreen extends StatelessWidget {
                             // on the website's home page): Convert's way in,
                             // above ORDERS (it replaced a small grey line).
                             const SizedBox(height: 14),
-                            _ArtworkBar(onTap: () => convertFlow(context, c)),
+                            _ArtworkBar(
+                              onTap: () => artworkTo3dFlow(context, c),
+                            ),
                             const SizedBox(height: 8),
                             const Center(child: _AssistLink()),
                             const SizedBox(height: 4),
@@ -1159,6 +1164,7 @@ const garmentTiles = <(String, String)>[
   ('Training Tee', 'tee'),
   ('Singlet', 'singlet'),
   ('Netball dress', 'netball-dress'),
+  ('Football jersey', 'nfljersey'),
   ('Polo', 'polo'),
   ('Polo with pocket', 'pocketpolo'),
   ('Hoodie', 'hoodie'),
@@ -1227,6 +1233,8 @@ class GarmentScreen extends StatelessWidget {
     // A tile without a style of its own is the plain (collar) track jacket,
     // also after a hooded tile was chosen (QA U: the hood was kept).
     c.trackStyle = t.trackStyle ?? 'collar';
+    // A tile with its own fabric type (the practice jersey's mesh) starts on it.
+    if (t.fabric != null) c.fabric = t.fabric!;
   }
 
   /// A new sport (or a garment left from another one) starts on its first
@@ -1561,12 +1569,16 @@ class GarmentScreen extends StatelessWidget {
 }
 
 /// CONVERT: pick a photo, sketch or mockup and open it as an editable 3D kit.
-Future<void> convertFlow(BuildContext context, AppController c) async {
+Future<void> convertFlow(
+  BuildContext context,
+  AppController c, {
+  Uint8List? picture,
+}) async {
   if (!AiService.enabled) {
     showToast(context, 'Convert needs AI, which is not set up in this build.');
     return;
   }
-  final image = await pickPhoto(context);
+  final image = picture ?? await pickPhoto(context);
   if (image == null || !context.mounted) return;
   final navigator = Navigator.of(context);
   showDialog<void>(
@@ -1608,5 +1620,324 @@ Future<void> convertFlow(BuildContext context, AppController c) async {
     if (context.mounted) {
       showToast(context, 'Convert did not finish. Please try again.');
     }
+  }
+}
+
+/// What the user's artwork is (Artwork to 3D, task 9.153).
+enum _ArtworkKind { layout, front, allOver }
+
+/// ARTWORK TO 3D (task 9.153): the user's own artwork (PDF, SVG, AI, PNG,
+/// JPG or WebP) on the REAL 3D garment, editable in the Studio. A full print
+/// layout's panels are checked and mapped onto the garment's print areas; one
+/// design or logo goes on the front (to move and resize) or all over. The AI
+/// reading is only an extra ("AI preview picture").
+Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
+  final picked = await pickArtwork(context);
+  if (picked == null || !context.mounted) return;
+  var name = picked.name.isEmpty ? 'artwork.png' : picked.name;
+  final bytes = picked.bytes;
+  final lower = name.toLowerCase();
+  final head = latin1.decode(
+    bytes.sublist(0, math.min(1024, bytes.length)),
+    allowInvalid: true,
+  );
+  final pdf = head.contains('%PDF-');
+  if (lower.endsWith('.ai') || lower.endsWith('.eps')) {
+    if (!pdf) {
+      showToast(
+        context,
+        'This file cannot be read here. In your design app use Save As › PDF, '
+        'or Export › SVG, then upload that file.',
+      );
+      return;
+    }
+    name = name.replaceFirst(
+      RegExp(r'\.(ai|eps)$', caseSensitive: false),
+      '.pdf',
+    );
+  }
+  final svg =
+      !pdf && (name.toLowerCase().endsWith('.svg') || head.contains('<svg'));
+  final type = pdf
+      ? 'application/pdf'
+      : svg
+      ? 'image/svg+xml'
+      : bytes.length > 3 && bytes[0] == 0x89 && bytes[1] == 0x50
+      ? 'image/png'
+      : bytes.length > 11 && bytes[8] == 0x57 && bytes[9] == 0x45
+      ? 'image/webp'
+      : 'image/jpeg';
+  final ending = switch (type) {
+    'application/pdf' => 'pdf',
+    'image/svg+xml' => 'svg',
+    'image/png' => 'png',
+    'image/webp' => 'webp',
+    _ => 'jpg',
+  };
+  if (!RegExp(r'\.(pdf|svg|png|jpe?g|webp)$').hasMatch(name.toLowerCase())) {
+    name = '${name.replaceFirst(RegExp(r'\.[^.]*$'), '')}.$ending';
+  }
+  if (bytes.length > 30 * 1024 * 1024) {
+    showToast(context, 'Choose a file smaller than 30 MB.');
+    return;
+  }
+  // A wide picture is most likely a print layout (panels side by side).
+  var wide = pdf;
+  if (!pdf && !svg) {
+    try {
+      final image = await decodeImageFromList(bytes);
+      wide = image.width > image.height * 1.45;
+    } on Object {
+      wide = false;
+    }
+  }
+  if (!context.mounted) return;
+  final choice =
+      await showModalBottomSheet<
+        ({_ArtworkKind kind, String sport, String garment, bool ai})
+      >(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Palette.surface,
+        showDragHandle: true,
+        builder: (_) => _ArtworkSheet(
+          c: c,
+          name: name,
+          preview: pdf || svg ? null : bytes,
+          kind: wide ? _ArtworkKind.layout : _ArtworkKind.front,
+        ),
+      );
+  if (choice == null || !context.mounted) return;
+  if (choice.ai) {
+    await convertFlow(context, c, picture: bytes);
+    return;
+  }
+  if (!c.signedIn && choice.kind == _ArtworkKind.layout) {
+    showToast(
+      context,
+      'Sign in to use print layouts: the file is kept with your saved assets.',
+    );
+    c.go(AppScreen.auth);
+    return;
+  }
+  final messenger = ScaffoldMessenger.of(context);
+  void say(String text) {
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Palette.surface2,
+        showCloseIcon: true,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  c.startArtworkKit(
+    choice.sport,
+    choice.garment,
+    name.replaceFirst(RegExp(r'\.[^.]*$'), ''),
+  );
+  // The Studio's 3D kit starts first.
+  for (
+    var t = 0;
+    t < 300 &&
+        (!c.viewerReady || c.checkLayout == null || c.processArtwork == null);
+    t++
+  ) {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+  try {
+    if (choice.kind == _ArtworkKind.layout) {
+      say('Reading $name…');
+      final done = await c.importPrintLayout(name, bytes);
+      say(
+        done ??
+            'Print layout not put on. Use Artwork › Upload print layout to try again.',
+      );
+      return;
+    }
+    final process = c.processArtwork;
+    if (process == null) {
+      throw ApiException('The 3D kit is still starting. Please try again.');
+    }
+    // Vectors drawn sharp at print size; a PDF's white page left out.
+    final src = await process(
+      'data:$type;base64,${base64Encode(bytes)}',
+      removeBg: pdf,
+      maxSize: 1600,
+    );
+    final allOver = choice.kind == _ArtworkKind.allOver;
+    await c.placeArtwork(src, name, allOver: allOver);
+    say(
+      allOver
+          ? 'Your artwork is printed all over the kit. Save the project to keep it.'
+          : 'Your artwork is on the front. Drag and resize it in the 2D panels, then save.',
+    );
+  } on Object catch (e) {
+    say(
+      e is ApiException
+          ? e.message
+          : 'That artwork could not go on the 3D kit.',
+    );
+  }
+}
+
+class _ArtworkSheet extends StatefulWidget {
+  const _ArtworkSheet({
+    required this.c,
+    required this.name,
+    required this.preview,
+    required this.kind,
+  });
+  final AppController c;
+  final String name;
+  final Uint8List? preview;
+  final _ArtworkKind kind;
+
+  @override
+  State<_ArtworkSheet> createState() => _ArtworkSheetState();
+}
+
+class _ArtworkSheetState extends State<_ArtworkSheet> {
+  late _ArtworkKind kind = widget.kind;
+  late SportCategory sport =
+      sportCategories.where((s) => s.name == widget.c.sport).firstOrNull ??
+      sportCategories.first;
+  late String garment = _garments.contains(widget.c.garment)
+      ? widget.c.garment
+      : _garments.first;
+
+  List<String> get _garments =>
+      sport.garments.isEmpty ? const ['Jersey'] : sport.garments;
+
+  Widget _option(_ArtworkKind k, String title, String hint) => ListTile(
+    onTap: () => setState(() => kind = k),
+    dense: true,
+    contentPadding: EdgeInsets.zero,
+    leading: Icon(
+      kind == k ? Icons.radio_button_checked : Icons.radio_button_off,
+      color: kind == k ? Palette.cyan : Palette.muted,
+    ),
+    title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+    subtitle: Text(
+      hint,
+      style: const TextStyle(color: Palette.muted, fontSize: 12),
+    ),
+  );
+
+  static const _label = TextStyle(
+    color: Palette.cyan,
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final garments = _garments;
+    void done(bool ai) => Navigator.pop(context, (
+      kind: kind,
+      sport: sport.name,
+      garment: garment,
+      ai: ai,
+    ));
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          0,
+          20,
+          16 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const ScreenTitle('Artwork to 3D', size: 21),
+            const SizedBox(height: 4),
+            Text(
+              widget.name,
+              style: const TextStyle(color: Palette.muted, fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (widget.preview != null) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 120,
+                child: Image.memory(widget.preview!, fit: BoxFit.contain),
+              ),
+            ],
+            const SizedBox(height: 12),
+            const Text('WHAT IS IT?', style: _label),
+            _option(
+              _ArtworkKind.layout,
+              'Full print layout',
+              'Front, back and sleeve panels side by side. Each panel goes on its part of the garment.',
+            ),
+            _option(
+              _ArtworkKind.front,
+              'Logo or design on the front',
+              'Move and resize it on the 3D kit.',
+            ),
+            _option(
+              _ArtworkKind.allOver,
+              'All-over print',
+              'The design repeated over the whole garment.',
+            ),
+            const SizedBox(height: 8),
+            const Text('CHOOSE THE GARMENT', style: _label),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              initialValue: sport.name,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Sport'),
+              items: [
+                for (final s in sportCategories)
+                  DropdownMenuItem(value: s.name, child: Text(s.name)),
+              ],
+              onChanged: (v) => setState(() {
+                sport = sportCategories.firstWhere((s) => s.name == v);
+                if (!_garments.contains(garment)) garment = _garments.first;
+              }),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              key: ValueKey(sport.id),
+              initialValue: garments.contains(garment)
+                  ? garment
+                  : garments.first,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Garment'),
+              items: [
+                for (final g in garments)
+                  DropdownMenuItem(value: g, child: Text(g)),
+              ],
+              onChanged: (v) => setState(() => garment = v ?? garment),
+            ),
+            if (kind == _ArtworkKind.layout)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'The Studio shows each panel it found: check it is the front, back or a sleeve, then put it on.',
+                  style: TextStyle(color: Palette.muted, fontSize: 12),
+                ),
+              ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: () => done(false),
+              icon: const Icon(Icons.view_in_ar),
+              label: const Text('PUT IT ON THE 3D KIT'),
+            ),
+            if (AiService.enabled && widget.preview != null)
+              TextButton.icon(
+                onPressed: () => done(true),
+                icon: const Icon(Icons.auto_awesome, size: 18),
+                label: const Text('AI preview picture'),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }

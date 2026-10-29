@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -403,46 +404,134 @@ Widget artImage({
   return const ColoredBox(color: Palette.surface2);
 }
 
-/// Lets the user pick a photo (gallery or camera). Returns null if cancelled.
-Future<Uint8List?> pickPhoto(
-  BuildContext context, {
-  ImageSource? source,
-}) async {
-  final chosen =
-      source ??
-      await showModalBottomSheet<ImageSource>(
-        context: context,
-        backgroundColor: Palette.surface,
-        showDragHandle: true,
-        builder: (sheet) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('Photo library'),
-                onTap: () => Navigator.pop(sheet, ImageSource.gallery),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('Camera'),
-                onTap: () => Navigator.pop(sheet, ImageSource.camera),
-              ),
-            ],
-          ),
+/// Where a picture comes from: the photo library, the camera, or Files
+/// (documents, client picture 214.jpg).
+enum PhotoSource { gallery, camera, files }
+
+Future<PhotoSource?> _photoSource(BuildContext context) =>
+    showModalBottomSheet<PhotoSource>(
+      context: context,
+      backgroundColor: Palette.surface,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Photo library'),
+              onTap: () => Navigator.pop(sheet, PhotoSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Camera'),
+              onTap: () => Navigator.pop(sheet, PhotoSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_outlined),
+              title: const Text('Files'),
+              onTap: () => Navigator.pop(sheet, PhotoSource.files),
+            ),
+          ],
         ),
-      );
-  if (chosen == null) return null;
+      ),
+    );
+
+/// A file the user picked: its name and bytes.
+typedef PickedFile = ({String name, Uint8List bytes});
+
+Future<PickedFile?> _openDocument(
+  BuildContext context, {
+  bool vectors = false,
+}) async {
+  try {
+    final file = await openFile(
+      acceptedTypeGroups: [
+        XTypeGroup(
+          label: vectors ? 'Artwork' : 'Pictures',
+          extensions: [
+            if (vectors) ...['pdf', 'svg', 'ai', 'eps'],
+            'png',
+            'jpg',
+            'jpeg',
+            'webp',
+          ],
+          mimeTypes: [
+            if (vectors) ...[
+              'application/pdf',
+              'image/svg+xml',
+              'application/postscript',
+              'application/illustrator',
+            ],
+            'image/png',
+            'image/jpeg',
+            'image/webp',
+          ],
+          uniformTypeIdentifiers: [
+            if (vectors) ...[
+              'com.adobe.pdf',
+              'public.svg-image',
+              'com.adobe.illustrator.ai-image',
+              'com.adobe.encapsulated-postscript',
+            ],
+            'public.png',
+            'public.jpeg',
+            'org.webmproject.webp',
+          ],
+        ),
+      ],
+    );
+    if (file == null) return null;
+    return (name: file.name, bytes: await file.readAsBytes());
+  } on Object {
+    if (context.mounted) showToast(context, 'Could not open your files.');
+    return null;
+  }
+}
+
+Future<PickedFile?> _pickImage(BuildContext context, PhotoSource chosen) async {
   try {
     final file = await ImagePicker().pickImage(
-      source: chosen,
+      source: chosen == PhotoSource.camera
+          ? ImageSource.camera
+          : ImageSource.gallery,
       maxWidth: 1536,
       maxHeight: 1536,
       imageQuality: 88,
     );
-    return file == null ? null : await file.readAsBytes();
+    return file == null
+        ? null
+        : (name: file.name, bytes: await file.readAsBytes());
   } on Exception {
     if (context.mounted) showToast(context, 'Could not open the image picker.');
     return null;
   }
+}
+
+/// Lets the user pick a photo (photo library, camera or Files). Returns null
+/// if cancelled.
+Future<Uint8List?> pickPhoto(
+  BuildContext context, {
+  ImageSource? source,
+}) async {
+  final chosen = source == null
+      ? await _photoSource(context)
+      : source == ImageSource.camera
+      ? PhotoSource.camera
+      : PhotoSource.gallery;
+  if (chosen == null || !context.mounted) return null;
+  final picked = chosen == PhotoSource.files
+      ? await _openDocument(context)
+      : await _pickImage(context, chosen);
+  return picked?.bytes;
+}
+
+/// Artwork to 3D (task 9.153): a picture from the library or camera, or a
+/// vector file (PDF, SVG, AI, EPS) or picture from Files, with its name.
+Future<PickedFile?> pickArtwork(BuildContext context) async {
+  final chosen = await _photoSource(context);
+  if (chosen == null || !context.mounted) return null;
+  return chosen == PhotoSource.files
+      ? _openDocument(context, vectors: true)
+      : _pickImage(context, chosen);
 }

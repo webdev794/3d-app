@@ -115,9 +115,9 @@ $sports = [
         'subtitle' => 'Choose your game uniform, practice wear or sideline apparel.', 'select_hint' => 'Select a garment to customise.',
         'descriptions' => false, 'backdrop' => 'stage-american-football', 'more' => false, 'tiles' => [
             $near('Game Kit', 'Game jersey, pants and socks.', 'fullkit', 'nfl-kit', 'nfl-kit'),
-            $near('Game Jersey', 'Shoulder-pad cut with big numbers.', 'jersey', 'nfl-jersey', 'nfl-jersey'),
+            $tile('Game Jersey', 'Shoulder-pad cut with big numbers.', 'nfljersey', 'nfl-jersey') + ['design' => ['fabric' => 'Standard']],
             $soon('Game Pants', 'Game pants with belt and knee pads.', 'nfl-pants', 'nfl-pants'),
-            $near('Practice Jersey', 'Mesh jersey for practice days.', 'jersey', 'nfl-jersey', 'nfl-practice-jersey'),
+            $tile('Practice Jersey', 'Mesh jersey for practice days.', 'nfljersey', 'nfl-practice-jersey') + ['design' => ['fabric' => 'Mesh']],
             $tile('Training Tee', 'Breathable tee for training.', 'tee', 'nfl-tee'),
             $tile('Training Shorts', 'Lightweight shorts for practice.', 'shorts', 'nfl-training-shorts'),
             $near('Compression Top', 'Long-sleeve base layer under the pads.', 'tee', 'compression-top', 'nfl-compression-top'),
@@ -364,6 +364,8 @@ return [
         ['id' => 'singlet', 'name' => 'Singlet', 'description' => 'Lightweight and ready to move.'],
         // Task 9.126: a women's fitted netball dress (bust, waist, flared skirt to mid-thigh) on the female figure.
         ['id' => 'netball-dress', 'name' => 'Netball dress', 'description' => 'Fitted dress for women, with a flared skirt hem.'],
+        // Task 9.113: the American football jersey, cut wide over shoulder pads with short cap sleeves (Game / Practice Jersey).
+        ['id' => 'nfljersey', 'name' => 'Football jersey', 'description' => 'American football cut: wide over the shoulder pads, short cap sleeves.'],
         ['id' => 'polo', 'name' => 'Polo', 'description' => 'Represent your team off the field.'],
         // Being built (agent ac04db942c799feb7): a polo with a real chest pocket, player name and sponsor on the back.
         ['id' => 'pocketpolo', 'name' => 'Polo with pocket', 'description' => 'A chest pocket, your name and sponsor on the back.'],

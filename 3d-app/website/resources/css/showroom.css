@@ -628,3 +628,13 @@ body:has(.garment-step) .assist-launcher span{position:absolute;width:1px;height
 @media(max-width:760px){.garment-step.names-only .garment-tiles{--cols:3}}
 @media(max-width:900px){.garment-hint{font-size:13px}}
 @media(max-width:520px){.garment-step.names-only .garment-tiles{--cols:2}.garment-step.names-only .garment-tile strong{font-size:14px}.garment-step.names-only .step-heading h1{font-size:20px}.garment-step.names-only .step-heading p{font-size:13px}.garment-hint{order:-1;flex-basis:100%}}
+/* Artwork to 3D (task 9.153): what the artwork is, and the garment. */
+.convert-kinds{display:grid;gap:8px}
+.convert-kind{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #ffffff22;border-radius:10px;cursor:pointer}
+.convert-kind.is-on{border-color:var(--cyan);background:#00d9ed12}
+.convert-kind input{margin-top:3px;accent-color:var(--cyan)}
+.convert-kind span{display:grid;gap:2px}.convert-kind small{color:#8d9fb3;font-size:12px}
+.convert-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.convert-pick label{display:grid;gap:4px;font-size:12px;color:#8d9fb3}
+.convert-pick select{padding:9px 10px;border-radius:8px;border:1px solid #23506a;background:#06192a;color:#e8f4fb;font:inherit;font-size:14px;min-width:0}
+@media (max-width:520px){.convert-pick{grid-template-columns:1fr}.convert-drop{min-height:260px}}

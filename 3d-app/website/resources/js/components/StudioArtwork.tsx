@@ -29,7 +29,7 @@ export const placements = [
  */
 export function offGarment(layer: Pick<ArtworkLayer, 'x' | 'y' | 'part' | 'side'>, garment: string) {
     const shorts = (layer.part ?? 'top') === 'shorts';
-    const plain = shorts || ['jersey', 'tee', 'polo', 'pocketpolo', 'raglan', 'fullkit', 'singlet', 'netball-dress', 'shorts'].includes(garment);
+    const plain = shorts || ['jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo', 'raglan', 'fullkit', 'singlet', 'netball-dress', 'shorts'].includes(garment);
     // The netball dress (task 9.126): its skirt out to x .33 at the hem, its straps up to y .88.
     const reach = shorts ? 0.32 : garment === 'singlet' ? 0.27 : garment === 'netball-dress' ? 0.34 : plain ? 0.43 : 0.7;
     if (layer.y < -0.02 || Math.abs(layer.x) > reach) return true;
@@ -53,6 +53,19 @@ export async function checkDrawing(viewer: KitViewerHandle, src: string, name: s
     if (result.cancelled || !result.roles) return null;
     const top = (result.parts?.[0] ?? 'singlet') as Design['garment'];
     return { garment: top, layout: { asset, name: name.slice(0, 160), roles: result.roles, kind: 'drawing', parts: [top] } };
+}
+
+/**
+ * A factory print layout (saved as asset `asset`): its panels checked in the 3D viewer (each named front, back, a
+ * sleeve…), then the design change that maps each onto its print area, and how many panels (null when cancelled).
+ */
+export async function checkPrintLayout(viewer: KitViewerHandle, src: string, name: string, asset: number, current: string): Promise<{ patch: Partial<Design>; panels: number } | null> {
+    const result = await viewer.checkLayout(src, name, asset);
+    if (result.cancelled || !result.roles) return null;
+    // The garment shows what the layout makes: a top and shorts are the full kit.
+    const parts = result.parts ?? [];
+    const garment = (parts.includes('shorts') && parts.includes('raglan') ? 'fullkit' : parts.includes('shorts') ? 'shorts' : ['shorts', 'fullkit'].includes(current) ? 'tee' : current) as Design['garment'];
+    return { patch: { garment, layout: { asset, name: name.slice(0, 160), roles: result.roles, hemFold: result.hemFold !== false, joinLines: result.joinLines === true, parts: result.parts } }, panels: result.panels?.length ?? 0 };
 }
 
 /** The last design picture and print layout on the kit this visit, with the garment they were on (a preset or Remove takes them off; Artwork puts them back). */
@@ -122,14 +135,10 @@ export function ArtworkPanel({ design, edit, shelved = {}, viewer, selected, onS
         const saved = await api<LibraryAsset>('/assets', { method: 'POST', body: form });
         // A layout not put on the kit is not kept.
         const forget = () => api(`/assets/${saved.id}`, { method: 'DELETE' }).catch(() => undefined);
-        const result = await viewer.current.checkLayout(`data:${kind};base64,${data.slice(data.indexOf(',') + 1)}`, file.name, saved.id).catch(async (error) => { await forget(); throw error; });
-        if (result.cancelled || !result.roles) { await forget(); return; }
-        // The garment shows what the layout makes: a top and shorts are the full kit.
-        const parts = result.parts ?? [];
-        const garment = parts.includes('shorts') && parts.includes('raglan') ? 'fullkit' : parts.includes('shorts') ? 'shorts' : ['shorts', 'fullkit'].includes(design.garment) ? 'tee' : design.garment;
-        edit({ garment, layout: { asset: saved.id, name: file.name.slice(0, 160), roles: result.roles, hemFold: result.hemFold !== false, joinLines: result.joinLines === true, parts: result.parts } });
-        const panels = result.panels?.length ?? 0;
-        onNotice(`Print layout on the 3D kit: ${panels} panel${panels === 1 ? '' : 's'} from ${file.name}. Save the project to keep it.`);
+        const done = await checkPrintLayout(viewer.current, `data:${kind};base64,${data.slice(data.indexOf(',') + 1)}`, file.name, saved.id, design.garment).catch(async (error) => { await forget(); throw error; });
+        if (!done) { await forget(); return; }
+        edit(done.patch);
+        onNotice(`Print layout on the 3D kit: ${done.panels} panel${done.panels === 1 ? '' : 's'} from ${file.name}. Save the project to keep it.`);
     }); }
     /** My design picture: the finished design's front and back drawn flat, put on the 3D kit exactly as drawn. */
     async function importDrawing(file: File) { await task(async () => {

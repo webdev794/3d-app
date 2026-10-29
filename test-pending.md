@@ -4,6 +4,13 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## Artwork to 3D makes a real 3D garment (2026-10-29)
+1. Website: PROJECTS › Convert (ARTWORK TO 3D): upload a PDF / AI print layout, choose Full print layout, sport and garment, PUT IT ON THE 3D KIT; check panels are named Front / Back / sleeves, then Put on the 3D kit.
+2. Upload a logo SVG › Logo on the front: it sits on the chest, movable. All-over print: repeats over the kit.
+3. App: Home › ARTWORK TO 3D › Files: pick a PDF / SVG / AI; same steps.
+
+---
+
 ## Edit items on the 3D kit; word looks (2026-10-28)
 1. Tap the 3D crest: a box and a bar appear. +, turn, Circle / Diamond change it; drag moves it (pinch on a phone).
 2. "Copy to other chest" puts it on the left chest. Tap MANTIS: change the words and colour.

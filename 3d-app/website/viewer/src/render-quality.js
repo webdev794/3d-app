@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 
 // Render quality (2026-10-22): the tiers, the stadium's lighting environment, the fabric's woven detail and the
 // stadium photo's floodlights in high dynamic range. None of it changes what is printed where: the print atlas
@@ -89,7 +89,7 @@ export const FABRIC_TYPES = { Mesh: 'airmesh', Pro: 'pro', Eco: 'eco' };
 
 /**
  * The fabric each garment is made of: the design's fabric type (`chosen`), else the garment's own: a mesh, a bird's-eye
- * knit, piqué (polos), brushed fleece or a fine knit; none for a garment with its own finish (such as the varsity's wool
+ * knit, piquÃ© (polos), brushed fleece or a fine knit; none for a garment with its own finish (such as the varsity's wool
  * and leather), which is left as its maker set it.
  */
 export function fabricOf(kind, part, chosen) {
@@ -97,7 +97,7 @@ export function fabricOf(kind, part, chosen) {
   if (Object.hasOwn(FABRIC_TYPES, chosen)) return FABRIC_TYPES[chosen];
   if (part?.hoodie) return 'fleece';
   if (part?.track) return 'knit';
-  return { jersey: 'mesh', singlet: 'mesh', shorts: 'mesh', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
+  return { jersey: 'mesh', nfljersey: 'mesh', singlet: 'mesh', shorts: 'mesh', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
 }
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -136,7 +136,7 @@ const FABRICS = {
   mesh: { tile: 0.0336, scale: 0.75, cavity: 0.22, rough: 0.6, sheen: 0.48, sheenRough: 0.38, strength: 4, make: () => eyelets(8, 0.3) },
   // Bird's-eye knit: the same, finer and with small holes.
   birdseye: { tile: 0.0224, scale: 0.75, cavity: 0.2, rough: 0.62, sheen: 0.5, sheenRough: 0.4, strength: 3.5, make: () => eyelets(8, 0.2) },
-  // Piqué: small raised honeycomb cells.
+  // PiquÃ©: small raised honeycomb cells.
   pique: { tile: 0.026, scale: 0.8, cavity: 0.12, rough: 0.7, sheen: 0.42, sheenRough: 0.45, strength: 3, make: () => pique(8) },
   // Brushed fleece: soft, uneven fibres.
   fleece: { tile: 0.05, scale: 0.45, cavity: 0, strength: 6, make: () => ({ height: fleece() }) },

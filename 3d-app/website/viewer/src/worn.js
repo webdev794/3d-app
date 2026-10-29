@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { FIGURES, figureOf } from './figure.js';
 
 // The worn shape: flat front / back panels wrapped round an athletic body, so a
@@ -8,7 +8,7 @@ import { FIGURES, figureOf } from './figure.js';
 // in 3D changes. Garment metres, y up (hem at 0), front +z.
 
 const ramp = (a, b, v) => { const t = THREE.MathUtils.clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-/** Half the perimeter of an ellipse with semi-axes a and k·a is (π a / 2) · ellipseF(k) (Ramanujan). */
+/** Half the perimeter of an ellipse with semi-axes a and kÂ·a is (Ï€ a / 2) Â· ellipseF(k) (Ramanujan). */
 const ellipseF = (k) => 3 * (1 + k) - Math.sqrt((3 + k) * (1 + 3 * k));
 /** Piecewise-linear value at `key` through [key, value] pairs sorted by key. */
 function along(pairs, y) {
@@ -31,7 +31,7 @@ const softPlus = (x, k) => (x > 8 * k ? x : x < -8 * k ? 0 : k * Math.log1p(Math
 /** A rounded swelling: 1 in the middle, easing to 0 at radius 1 (u, v in radii). */
 const pillow = (u, v, inner) => { const r = Math.hypot(u, v); return r >= 1 ? 0 : 1 - ramp(inner, 1, r); };
 const groove = (d, w) => Math.exp(-(d * d) / (2 * w * w));
-/** Signed distance (+ above) from (x, y) to the line a→b, and how far along it (0..1). */
+/** Signed distance (+ above) from (x, y) to the line aâ†’b, and how far along it (0..1). */
 function line(x, y, [ax, ay], [bx, by]) {
   const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy), qx = x - ax, qy = y - ay;
   return { d: (qy * dx - qx * dy) / len, t: (qx * dx + qy * dy) / (len * len) };
@@ -120,6 +120,11 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     z *= 1 - (back ? 0.36 : 0.3) * Math.exp(-(p.x ** 2) / 0.006) * ramp(back ? 0.6 : 0.58, back ? 0.7 : 0.68, p.y); // neck opening
     const s = taper(p.y) * (1 + 0.012 * ramp(0.019, 0.015, hemDist(p))); // the hem band, a little proud of the body
     const y = level(p) + (spec.crew && !back ? neckDrop(ax) * ramp(0.05, 0, along(neckCurve, ax) - p.y) : 0);
+    // Shoulder pads (the American football jersey): the shoulders stand up and out over them, the chest a little deeper.
+    if (spec.pads) {
+      const up = ramp(0.5, 0.69, p.y), side = ramp(0.06, 0.2, ax);
+      return new THREE.Vector3(w.x * s * (1 + 0.5 * spec.pads * up), y + 0.2 * spec.pads * up * side, z * s * (1 + spec.pads * up));
+    }
     return new THREE.Vector3(w.x * s, y, z * s);
   };
 
@@ -147,14 +152,14 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   };
   if (!sleeved) return { at: torso, sleeve: () => null, relief, pit };
 
-  // Sleeves. In the flat pattern a sleeve runs from the armhole edge (x ≈ 0.258) to the
+  // Sleeves. In the flat pattern a sleeve runs from the armhole edge (x â‰ˆ 0.258) to the
   // cuff: s along it, t across it (+ towards the top seam).
   // m1: the middle of the cuff (a cut with its own cuff corners, as the raglan's, says where).
   const own = spec.points?.CT && spec.points?.CB ? [(spec.points.CT[0] + spec.points.CB[0]) / 2, (spec.points.CT[1] + spec.points.CB[1]) / 2] : [0.395, 0.521];
   const m0 = new THREE.Vector2(0.258, (PIT + TOP) / 2), m1 = new THREE.Vector2(own[0], own[1]);
   const d2 = m1.clone().sub(m0).normalize(), n2 = new THREE.Vector2(-d2.y, d2.x);
   const flat = (x, y) => { const qx = x - m0.x, qy = y - m0.y; return [qx * d2.x + qy * d2.y, qx * n2.x + qy * n2.y]; };
-  const c = -d2.y / n2.y;                       // s + c·t = 0 along the armhole edge
+  const c = -d2.y / n2.y;                       // s + cÂ·t = 0 along the armhole edge
   const hw0 = ((TOP - PIT) / 2) * n2.y;         // half the armhole edge, across the sleeve
   // The sleeve's top seam and underarm seam (t at each s), taken from the outline itself so
   // front and back meet exactly on the top and the underside of the arm, right up to the cuff.
@@ -178,7 +183,7 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     const [s0, t0] = list[i - 1], [s1, t1] = list[i];
     return t0 + ((t1 - t0) * (s - s0)) / (s1 - s0 || 1);
   };
-  /** Angle round the arm: -π/2 underneath, 0 at the front (back panel: the back), π/2 on top. */
+  /** Angle round the arm: -Ï€/2 underneath, 0 at the front (back panel: the back), Ï€/2 on top. */
   const phiAt = (s, t) => {
     const top = lookup(edges.top, s), under = lookup(edges.under, s);
     return Math.PI * (THREE.MathUtils.clamp((t - under) / (top - under), 0, 1) - 0.5);
@@ -189,10 +194,10 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // then bends down along the arm, a little forward. Round the top it is fuller: the deltoid.
   const xP = torso(new THREE.Vector2(0.258, PIT), false).x, xS = torso(new THREE.Vector2(0.258, TOP), false).x;
   const C0 = new THREE.Vector2((xP + xS) / 2, (PIT + TOP) / 2), lean = (xS - xP) / (TOP - PIT);
-  const th0 = THREE.MathUtils.degToRad(25), th1 = THREE.MathUtils.degToRad(80), R = 0.085, Lb = R * (th1 - th0);
+  const th0 = THREE.MathUtils.degToRad(25), th1 = THREE.MathUtils.degToRad(80), R = spec.pads ? 0.03 : 0.085, Lb = R * (th1 - th0);
   const rB0 = 0.056;   // arm depth at the armhole
   // The arm's radius down the sleeve; a long sleeve (spec.long) narrows from the upper arm to the wrist.
-  const r1 = spec.long ? (a) => THREE.MathUtils.lerp(spec.long.upper, spec.long.wrist, ramp(0.1, spec.long.length, a)) : () => 0.05;
+  const r1 = spec.pads ? () => 0.05 + spec.pads * 0.2 : spec.long ? (a) => THREE.MathUtils.lerp(spec.long.upper, spec.long.wrist, ramp(0.1, spec.long.length, a)) : () => 0.05;
   let rN0 = 0.075;                 // arm height at the armhole (solved below)
   const angle = (a) => THREE.MathUtils.clamp(th0 + a / R, th0, th1);
   /** Point on the arm's axis, a metres along it from the armhole. */

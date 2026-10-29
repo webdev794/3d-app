@@ -6,10 +6,11 @@ import type { Draft } from '../App';
 import { defaultDesign, type Design } from '../types';
 import { DesignThumbnail } from './Library';
 import Loader from '../components/Loader';
-import ImageEditor, { EditImageButton } from '../components/ImageEditor';
+import ImageEditor from '../components/ImageEditor';
 import { CategoryIcon } from '../components/GarmentIcon';
 import { allGarments, formatCount, friendlyError, garmentChips, garmentInBrief, garmentLabels, MAX_BRIEF, sportInBrief, SportRow, sportTiles, useVoice, type GarmentChip } from '../components/AiStage';
 import { ResultsViewer } from '../components/ResultsViewer';
+import { preparePattern } from '../components/OwnPatterns';
 import { PlayerShotButton } from '../components/PlayerShot';
 import '../../css/ai-designer.css';
 
@@ -17,7 +18,7 @@ export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
 export const garmentArt = (garment: string) => media(`showroom/garment-${garment}.webp`);
 /** Shown in the garment step and the studio; not yet available in 3D. */
 export const comingSoon = [{ id: 'socks', name: 'Socks', description: 'Match socks with team bands.' }, { id: 'shoes', name: 'Shoes', description: 'Boots in your colours.' }];
-const garmentOrder = ['fullkit', 'jersey', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
+const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
 /** A garment's place on the garment step; one not listed yet goes last. */
 const order = (id: string) => { const i = garmentOrder.indexOf(id); return i < 0 ? garmentOrder.length : i; };
 
@@ -212,7 +213,7 @@ export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: {
  * with Try again) instead of a blank page (a missing picture read inside a state update unmounted the whole page).
  */
 /** The 3D garments a design picture (print sheet) goes on as drawn. */
-const drawnGarments = ['singlet', 'netball-dress', 'jersey', 'tee', 'polo', 'pocketpolo'];
+const drawnGarments = ['singlet', 'netball-dress', 'jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo'];
 /** An AI picture read for the 3D kit (POST /ai/designs/read, task 9.116). */
 type DesignReading = { garment: string; seen: string; exact: boolean; hood: boolean; motif: string | null; crest: { x: number; y: number; w: number; h: number } | null; print?: { x: number; y: number; w: number; h: number } | null; design: Partial<Design> };
 /** The viewer's mark for a full-colour print patch (viewer texture.js PRINT_MARK): two exact pixels at its top left. */
@@ -683,61 +684,152 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
 }
 
 /** CONVERT: a photo, sketch or mockup (e.g. from ChatGPT) becomes an editable 3D design. */
+/** The garments a print layout or artwork can go on as drawn (our 3D models with print areas). */
+const artworkGarments = ['jersey', 'tee', 'polo', 'pocketpolo', 'nfljersey', 'singlet', 'netball-dress', 'raglan', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'shorts', 'fullkit'];
+type ArtworkKind = 'layout' | 'front' | 'allover';
+/** An artwork file read on the page: the file to keep (AI files as PDF), its type, and a preview picture. */
+type ArtworkFile = { file: File; type: string; name: string; preview: string; wide: boolean };
+
+/** A vector or picture as a PNG, `long` pixels on its longer side, transparent behind it (logos and all-over prints). */
+async function artworkPicture(art: ArtworkFile, long = 1600): Promise<string> {
+  let source: CanvasImageSource, w: number, h: number;
+  if (art.type === 'application/pdf') {
+    const pdfjs = await import('pdfjs-dist');
+    // @ts-ignore: the worker build has no types; pdf.js runs it on the page when it is set as globalThis.pdfjsWorker.
+    const worker = await import('pdfjs-dist/build/pdf.worker.mjs');
+    (globalThis as unknown as { pdfjsWorker?: unknown }).pdfjsWorker ??= worker;
+    const task = pdfjs.getDocument({ data: new Uint8Array(await art.file.arrayBuffer()) });
+    try {
+      const page = await (await task.promise).getPage(1);
+      const one = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: long / Math.max(one.width, one.height) });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
+      await page.render({ canvas, viewport, background: 'rgba(0,0,0,0)' }).promise;
+      return canvas.toDataURL('image/png');
+    } finally { void task.destroy(); }
+  }
+  const img = new Image();
+  img.src = await readFileData(art.file, art.type);
+  await img.decode();
+  w = img.naturalWidth || 1000; h = img.naturalHeight || 1000; source = img;
+  // Vectors are drawn sharp at full size; pictures are never enlarged.
+  const k = art.type === 'image/svg+xml' ? long / Math.max(w, h) : Math.min(1, long / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w * k)); canvas.height = Math.max(1, Math.round(h * k));
+  canvas.getContext('2d')!.drawImage(source, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/png');
+}
+const readFileData = (file: Blob, type: string) => new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => { const s = String(r.result); resolve(`data:${type};base64,${s.slice(s.indexOf(',') + 1)}`); }; r.onerror = () => reject(new Error('Unable to read this file.')); r.readAsDataURL(file); });
+
+/**
+ * ARTWORK TO 3D (task 9.153): the user's own artwork on the real 3D garment, editable in the Studio. A full print
+ * layout (front, back and sleeve panels side by side) is read into its panels and checked in the Studio; one design or
+ * logo goes on the front (moved and resized there) or as an all-over print. The AI reading is only an extra.
+ */
 export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }: { catalog: Catalog | null; draft: Draft; onChange: (draft: Draft) => void; requireAuth: (action?: () => void) => void; onStudio: () => void }) {
-  const [image, setImage] = useState('');
+  const [art, setArt] = useState<ArtworkFile | null>(null);
+  const [kind, setKind] = useState<ArtworkKind>('layout');
+  const [sport, setSport] = useState(draft.sport);
+  const [garment, setGarment] = useState(artworkGarments.includes(draft.garment) ? draft.garment : 'jersey');
   const [busy, setBusy] = useState(false);
+  const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ name: string; summary: string; sport: string; garment: string; motif: string | null; design: Design } | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const isAi = !!catalog?.provider.is_ai;
+  const sports = catalog?.sports ?? [];
+  const tiles = sports.find(s => s.id === sport)?.tiles ?? [];
+  const garmentChoices = [...new Map(tiles.filter(t => t.garment && artworkGarments.includes(t.garment)).map(t => [t.garment!, t.name])).entries()];
+  const choices = garmentChoices.length ? garmentChoices : artworkGarments.map(g => [g, catalog?.garments.find(c => c.id === g)?.name ?? garmentLabels[g] ?? g] as [string, string]);
+  useEffect(() => { if (choices.length && !choices.some(([g]) => g === garment)) setGarment(choices[0][0]); }, [sport]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function read(file: File) {
-    if (file.size > 8 * 1024 * 1024) { setError('Use an image smaller than 8 MB.'); return; }
-    const data = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(file); });
-    setImage(data); setResult(null); setError('');
+    setError(''); setResult(null);
+    if (file.size > 30 * 1024 * 1024) { setError('Use a file smaller than 30 MB.'); return; }
+    const lower = file.name.toLowerCase();
+    let type = /\.pdf$/.test(lower) ? 'application/pdf' : /\.svg$/.test(lower) ? 'image/svg+xml' : /\.png$/.test(lower) ? 'image/png' : /\.jpe?g$/.test(lower) ? 'image/jpeg' : /\.webp$/.test(lower) ? 'image/webp' : '';
+    let name = file.name;
+    if (/\.(ai|eps)$/.test(lower)) {
+      // Illustrator files saved PDF-compatible are PDFs inside; EPS (and older AI) files are PostScript, which a browser cannot draw.
+      const head = new TextDecoder().decode(await file.slice(0, 1024).arrayBuffer());
+      if (!head.includes('%PDF')) { setError(`${file.name} cannot be read here. In Illustrator (or your design app) use Save As › PDF, or Export › SVG, then upload that file.`); return; }
+      type = 'application/pdf'; name = file.name.replace(/\.(ai|eps)$/i, '.pdf');
+    }
+    if (!type) { setError('Choose a PDF, SVG, AI, PNG, JPG or WEBP file.'); return; }
+    const kept = new File([file], name, { type });
+    try {
+      const preview = type === 'application/pdf' ? await artworkPicture({ file: kept, type, name, preview: '', wide: false }, 1200) : await readFileData(kept, type);
+      const img = new Image(); img.src = preview; await img.decode().catch(() => undefined);
+      const wide = (img.naturalWidth || 1) / Math.max(1, img.naturalHeight || 1) > 1.45;
+      setArt({ file: kept, type, name, preview, wide });
+      // A wide sheet is most likely a print layout (panels side by side); anything else a single design or logo.
+      setKind(wide ? 'layout' : 'front');
+    } catch { setError(`${file.name} could not be opened. Try saving it again as PDF, SVG or PNG.`); }
   }
+
+  /** The artwork on the real 3D garment, then the Studio (where a print layout's panels are checked first). */
+  async function toStudio() {
+    if (!art) return;
+    setPlacing(true); setError('');
+    try {
+      const base = { ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? art.name.replace(/\.[a-z]+$/i, '').slice(0, 60) || 'My design' : draft.name, sport, garment, mode: 'dyo' as const, patternMotif: undefined, pendingDrawing: undefined };
+      // A fresh kit for the artwork (an earlier design's logos, print or layout are not carried over).
+      const design: Design = { ...defaultDesign, garment: garment as Design['garment'], layout: null, layers: [], patternImage: null };
+      if (kind === 'layout') {
+        const form = new FormData(); form.append('file', art.file); form.append('name', art.name.slice(0, 120)); form.append('type', 'layout');
+        const saved = await api<{ id: number; name: string }>('/assets', { method: 'POST', body: form });
+        onChange({ ...base, design, pendingDrawing: { asset: saved.id, name: saved.name || art.name, kind: 'layout', type: art.type, known: true } });
+      } else {
+        const src = await artworkPicture(art);
+        if (kind === 'allover') onChange({ ...base, design: { ...design, pattern: 'Solid', patternImage: await preparePattern(src, 'full'), patternScale: 0.16, zones: {} } });
+        else {
+          const layer = { id: crypto.randomUUID(), type: 'image' as const, name: art.name.slice(0, 120), src, side: 'front' as const, part: 'top' as const, x: 0, y: 0.42, w: 0.24 };
+          onChange({ ...base, design: { ...design, layers: [...(design.layers ?? []).filter(l => l.type !== 'image' || l.src !== src), layer] } });
+        }
+      }
+      onStudio();
+    } catch (e) { setError(friendlyError(e)); } finally { setPlacing(false); }
+  }
+
   async function convert() {
+    if (!art) return;
     setBusy(true); setError('');
-    try { setResult(aiReply(await api<NonNullable<typeof result>>('/ai/convert', { method: 'POST', body: JSON.stringify({ image }) }), ['design'], 'The converter sent an unexpected reply. Please try again.')); }
+    try { const image = await artworkPicture(art, 1280); setResult(aiReply(await api<NonNullable<typeof result>>('/ai/convert', { method: 'POST', body: JSON.stringify({ image }) }), ['design'], 'The converter sent an unexpected reply. Please try again.')); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const open = () => { if (!result) return; onChange({ ...draft, id: undefined, version: undefined, name: result.name, sport: result.sport, garment: result.garment, mode: 'ai', design: { ...draft.design, ...result.design, patternImage: null, layout: null, productName: undefined }, patternMotif: result.motif || undefined, pendingDrawing: undefined }); onStudio(); };
-  const [placing, setPlacing] = useState(false);
-  /** The picture itself on the 3D kit (no AI): kept as a saved asset, checked in the Studio, put on exactly as drawn. */
-  async function putDrawing() {
-    if (!image) return;
-    setPlacing(true); setError('');
-    try {
-      const blob = await (await fetch(image)).blob();
-      const type = ['image/png', 'image/jpeg', 'image/webp'].includes(blob.type) ? blob.type : 'image/png';
-      const form = new FormData(); form.append('file', new File([blob], `My design.${type === 'image/jpeg' ? 'jpg' : type.slice(6)}`, { type })); form.append('type', 'reference'); form.append('name', 'My design');
-      const saved = await api<{ id: number; name: string }>('/assets', { method: 'POST', body: form });
-      const top = (['singlet', 'netball-dress', 'jersey', 'tee', 'polo', 'pocketpolo'].includes(draft.garment) ? draft.garment : 'singlet') as Design['garment'];
-      onChange({ ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? 'My design' : draft.name, garment: top, mode: 'dyo', design: { ...draft.design, garment: top, layout: null, productName: top === draft.design.garment ? draft.design.productName : undefined }, patternMotif: undefined, pendingDrawing: { asset: saved.id, name: saved.name || 'My design' } });
-      onStudio();
-    } catch (e) { setError((e as Error).message); } finally { setPlacing(false); }
-  }
 
-  if (busy) return <Loader title="Converting your design…" subtitle="Reading colours, patterns and lettering from your image." steps={['Reading the image', 'Finding colours', 'Matching pattern and lettering', 'Preparing 3D garment']} seconds={18} />;
+  if (busy) return <Loader title="Making the AI preview…" subtitle="Reading colours, patterns and lettering from your artwork." steps={['Reading the artwork', 'Finding colours', 'Matching pattern and lettering']} seconds={18} />;
+  const kinds: { id: ArtworkKind; label: string; hint: string }[] = [
+    { id: 'layout', label: 'Full print layout', hint: 'Front, back and sleeve panels side by side, as the factory prints them. Each panel goes on its part of the garment.' },
+    { id: 'front', label: 'Logo or design on the front', hint: 'One design or logo on the front. Move and resize it on the 3D kit.' },
+    { id: 'allover', label: 'All-over print', hint: 'The design repeated over the whole garment.' },
+  ];
   return <div className="page-shell creation-page convert-page">
-    <div className="page-heading"><span className="eyebrow"><ImageUp size={14} /> CONVERT</span><h1>Any image. <span>Editable in 3D.</span></h1><p>Upload a photo, sketch or mockup (even one made in ChatGPT) and 3DEEZI turns it into a 3D kit you can edit.</p></div>
+    <div className="page-heading"><span className="eyebrow"><ImageUp size={14} /> ARTWORK TO 3D</span><h1>Your artwork. <span>On the real 3D kit.</span></h1><p>Upload your vector artwork or picture and it goes straight onto the 3D garment as its print, ready to edit, save and order.</p></div>
     <div className="convert-layout">
-      <div className="convert-image"><button className={`convert-drop glow-panel ${image ? 'has-image' : ''}`} onClick={() => input.current?.click()} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) void read(f); }}>
-        {image ? <img src={image} alt="Your uploaded design" /> : <><ImageUp size={34} /><strong>Drop an image or click to upload</strong><span>PNG, JPG or WEBP · up to 8 MB</span></>}
+      <div className="convert-image"><button className={`convert-drop glow-panel ${art ? 'has-image' : ''}`} onClick={() => input.current?.click()} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) void read(f); }}>
+        {art ? <img src={art.preview} alt="Your artwork" /> : <><ImageUp size={34} /><strong>Drop your artwork or click to upload</strong><span>PDF, SVG, AI · PNG, JPG or WEBP · up to 30 MB</span></>}
       </button>
-      {image && <EditImageButton className="button button-outline" src={image} title="Your image" fileName="3deezi-convert" ai={isAi} requireAuth={requireAuth} onUse={next => { setImage(next); setResult(null); setError(''); }} />}</div>
-      <input ref={input} type="file" hidden accept="image/png,image/jpeg,image/webp" onChange={e => { const f = e.target.files?.[0]; if (f) void read(f); e.target.value = ''; }} />
+      {art && <p className="field-hint">{art.name}{art.type === 'application/pdf' || art.type === 'image/svg+xml' ? ' · vector, printed sharp' : ''}</p>}</div>
+      <input ref={input} type="file" hidden accept=".pdf,.svg,.ai,.eps,.png,.jpg,.jpeg,.webp,application/pdf,image/svg+xml,application/postscript,image/png,image/jpeg,image/webp" onChange={e => { const f = e.target.files?.[0]; if (f) void read(f); e.target.value = ''; }} />
       <div className="convert-side glow-panel">
-        {result ? <><span className="eyebrow">WHAT WE FOUND</span><h2>{result.name}</h2><p className="muted">{result.summary}</p>
-          <div className="convert-facts"><span>{catalog?.sports.find(s => s.id === result.sport)?.name}</span><span>{catalog?.garments.find(g => g.id === result.garment)?.name}</span><span>{result.design.pattern}</span></div>
+        {result ? <><span className="eyebrow">AI PREVIEW</span><h2>{result.name}</h2><p className="muted">{result.summary}</p>
           <div className="convert-palette">{(['main', 'secondary', 'accent'] as const).map(k => <span key={k}><i style={{ background: result.design[k] }} />{result.design[k]}</span>)}</div>
-          {result.design.logoText && <p>Wordmark: <strong>{result.design.logoText}</strong></p>}
-          <button className="button button-gradient full-width" onClick={open}>OPEN IN 3D STUDIO <ArrowRight size={18} /></button></>
-          : <><span className="eyebrow">HOW IT WORKS</span><ol className="convert-steps"><li>Upload your image.</li><li>AI reads its colours, pattern and lettering.</li><li>Open it on the live 3D kit and keep designing.</li></ol>
-          {!isAi && <p className="field-hint">Conversion needs AI to be connected on the server.</p>}
+          <button className="button button-outline full-width" onClick={open}>OPEN AI PREVIEW IN 3D STUDIO <ArrowRight size={18} /></button>
+          <button className="button button-outline full-width" onClick={() => setResult(null)}><ArrowLeft size={16} /> Back to my artwork</button></>
+          : <><span className="eyebrow">1 · WHAT IS IT?</span>
+          <div className="convert-kinds" role="radiogroup" aria-label="What the artwork is">{kinds.map(k => <label key={k.id} className={`convert-kind${kind === k.id ? ' is-on' : ''}`}><input type="radio" name="artwork-kind" checked={kind === k.id} onChange={() => setKind(k.id)} /><span><strong>{k.label}</strong><small>{k.hint}</small></span></label>)}</div>
+          <span className="eyebrow">2 · CHOOSE THE GARMENT</span>
+          <div className="convert-pick">
+            <label>Sport<select value={sport} onChange={e => setSport(e.target.value)}>{sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <label>Garment<select value={garment} onChange={e => setGarment(e.target.value)}>{choices.map(([g, n]) => <option key={g} value={g}>{n}</option>)}</select></label>
+          </div>
+          {kind === 'layout' && <p className="field-hint">The Studio shows each panel it found: check it is the front, back or a sleeve, then put it on.</p>}
           {error && <p className="error-message" role="alert">{error}</p>}
-          <button className="button button-gradient full-width" disabled={!image || !isAi} onClick={() => requireAuth(convert)}><WandSparkles size={18} /> CONVERT TO 3D</button></>}
-        {image && <><button className="button button-outline full-width" disabled={placing || busy} onClick={() => requireAuth(() => void putDrawing())}>{placing ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />} PUT MY DESIGN ON THE 3D KIT</button><p className="field-hint">Already the finished design, front and back drawn side by side? Put it on the 3D kit exactly as drawn, no AI needed.</p></>}
+          <button className="button button-gradient full-width" disabled={!art || placing} onClick={() => requireAuth(() => void toStudio())}>{placing ? <LoaderCircle className="spin" size={18} /> : <Box size={18} />} PUT IT ON THE 3D KIT</button>
+          {art && isAi && <button className="button button-outline full-width" disabled={placing} onClick={() => requireAuth(() => void convert())}><WandSparkles size={16} /> AI preview picture</button>}</>}
       </div>
     </div>
   </div>;

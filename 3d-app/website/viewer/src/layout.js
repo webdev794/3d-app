@@ -400,6 +400,19 @@ export function findPanels(image, labels = [], { drawing = false } = {}) {
       if (free) free.role = role;
     }
   }
+  // A layout with no labels at all (an SVG or a picture, whose text cannot be read; task 9.153): a first guess for the
+  // check screen. The two biggest shapes are the front and the back in reading order, the next two (clearly smaller)
+  // the left and right sleeves.
+  if (!drawing && parts.length >= 2 && !parts.some((p) => p.role)) {
+    const big = [...parts].sort((m, n) => n.area - m.area);
+    const inOrder = (list) => list.sort((m, n) => (Math.abs(m.y0 - n.y0) < 0.25 * h ? m.x0 - n.x0 : m.y0 - n.y0));
+    const [f, b] = inOrder(big.slice(0, 2));
+    if (b.area > 0.6 * f.area && f.area > 0.6 * b.area) {
+      f.role = 'front'; b.role = 'back';
+      const sleeves = big.slice(2, 4).filter((p) => p.area < 0.75 * b.area && p.area > 0.1 * b.area);
+      if (sleeves.length === 2) { const [l, r] = inOrder(sleeves); l.role = 'sleeveL'; r.role = 'sleeveR'; }
+    }
+  }
   // An unnamed strip just above or below a named panel, as wide as most of it, belongs to that panel.
   for (const u of drawing ? [] : [...parts].filter((p) => !p.role).sort((a, b) => b.area - a.area)) {
     let best = null, bestGap = h * 0.03;

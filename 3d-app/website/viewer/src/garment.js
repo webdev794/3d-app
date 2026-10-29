@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import Delaunator from 'delaunator';
 import { wornTop, wornShorts, wornDress } from './worn.js';
 import { POCKET, isHoodie, isTrack } from './zones.js';
@@ -149,6 +149,28 @@ SPECS['netball-dress'] = {
 // POCKET), modelled as its own raised piece of fabric (buildPocket).
 SPECS.pocketpolo = { ...SPECS.polo, pocket: POCKET };
 
+/**
+ * The American football jersey (tasks.md 9.113): cut wide and boxy to go over shoulder pads. Short,
+ * wide cap sleeves angled out over the pads (the cuff's corners CT / CB), a V neck with a deep collar band, a loose body
+ * hanging straight from the chest. `pads`: how much the shoulders stand up and out (worn.js). Kept as its own spec, so a
+ * professional model can replace it without touching the other garments.
+ */
+SPECS.nfljersey = {
+  half: [
+    [0, 0.665], [0.05, 0.71], [0.09, 0.742],
+    [0.19, 0.722], [0.258, 0.69], [0.315, 0.656], [0.39, 0.6], [0.37, 0.545], [0.35, 0.49], [0.3, 0.512],
+    [0.258, 0.53], [0.25, 0.42], [0.244, 0.3], [0.25, 0.16], [0.258, 0.03], [0.2, 0.012], [0.1, 0.002], [0, 0],
+  ],
+  neck: { drop: 0.08, half: 0.094 },
+  rim: { drop: 0.088, half: 0.112, radius: 0.012 },
+  cuff: [[0.39, 0.6], [0.35, 0.49]],
+  points: { CT: [0.39, 0.6], CB: [0.35, 0.49] },
+  depth: 0.2,
+  chest: true,
+  loose: true,
+  hemFlare: 0.02,
+  pads: 0.06,
+};
 /**
  * Hoodies (fleece): long set-in sleeves angled down to the wrist (the cuff's corners CT / CB; worn.js `long`: the arm's
  * radius from the upper arm to the wrist, and the top seam's length), a lined hood lying down behind the neck
@@ -512,7 +534,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
    * fades out on the seams (crease), the open edges' bands and the neckline, so the trims stay even. Metres, + out.
    */
   // The hero garments (jersey, shorts, hoodies) drape most visibly; the others a little less.
-  const foldGain = ['jersey', 'shorts', 'hoodie', 'ziphoodie'].includes(kind) ? 2.7 : 2.1;
+  const foldGain = ['jersey', 'nfljersey', 'shorts', 'hoodie', 'ziphoodie'].includes(kind) ? 2.7 : 2.1;
   const detailFolds = (p, back, i) => {
     if (!detail) return 0;
     const ax = Math.abs(p.x), y = p.y, ph = back ? 1.9 : 0, side = p.x < 0 ? 0.7 : 0, sl = sleeveAt[i];
@@ -758,7 +780,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     // Detail: the made fabric for the mannequin under it (mannequin.js): front then back points, which are on a
     // sleeve (how far along it, -1 on the body), shorts' crotch height.
     // `form`: the figure it is made for (figure.js; a female form has its own hips and thighs), `top` its shoulder line.
-    body: detail ? { n, positions, sleeve: sleeveAt.map((s) => (s ? s.l : -1)), legs: !!spec.legs, crotch: crotchY, long: !!spec.long, form: spec.form ?? 'male', top: maxY, lift: spec.lift ?? 0 } : null,
+    body: detail ? { n, positions, sleeve: sleeveAt.map((s) => (s ? s.l : -1)), legs: !!spec.legs, crotch: crotchY, long: !!spec.long, pads: !!spec.pads, form: spec.form ?? 'male', top: maxY, lift: spec.lift ?? 0 } : null,
     frame: { minX, maxX, minY, maxY, span },
     outline: poly,
     // Which outline points are finished edges (hems, leg openings with their splits, sleeve ends).
