@@ -8,7 +8,7 @@ import { FIGURES, figureOf } from './figure.js';
 // in 3D changes. Garment metres, y up (hem at 0), front +z.
 
 const ramp = (a, b, v) => { const t = THREE.MathUtils.clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-/** Half the perimeter of an ellipse with semi-axes a and kÂ·a is (Ï€ a / 2) Â· ellipseF(k) (Ramanujan). */
+/** Half the perimeter of an ellipse with semi-axes a and k·a is (π a / 2) · ellipseF(k) (Ramanujan). */
 const ellipseF = (k) => 3 * (1 + k) - Math.sqrt((3 + k) * (1 + 3 * k));
 /** Piecewise-linear value at `key` through [key, value] pairs sorted by key. */
 function along(pairs, y) {
@@ -31,7 +31,7 @@ const softPlus = (x, k) => (x > 8 * k ? x : x < -8 * k ? 0 : k * Math.log1p(Math
 /** A rounded swelling: 1 in the middle, easing to 0 at radius 1 (u, v in radii). */
 const pillow = (u, v, inner) => { const r = Math.hypot(u, v); return r >= 1 ? 0 : 1 - ramp(inner, 1, r); };
 const groove = (d, w) => Math.exp(-(d * d) / (2 * w * w));
-/** Signed distance (+ above) from (x, y) to the line aâ†’b, and how far along it (0..1). */
+/** Signed distance (+ above) from (x, y) to the line a→b, and how far along it (0..1). */
 function line(x, y, [ax, ay], [bx, by]) {
   const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy), qx = x - ax, qy = y - ay;
   return { d: (qy * dx - qx * dy) / len, t: (qx * dx + qy * dy) / (len * len) };
@@ -98,6 +98,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // Fleece: straight down, a little fuller over the waistband, then gathered into it (its rib pulls the hem in).
   const taper = spec.fleece
     ? (y) => 1 + 0.025 * ramp(0.3, 0.1, y) - spec.fleece.hemIn * ramp(0.06, 0, y)
+    : spec.tight
+    ? (y) => spec.tight.fit * (1 - 0.06 * ramp(0.5, 0.3, y) + 0.01 * ramp(0.25, 0.05, y))
     : spec.loose
     ? (y) => 1 + (spec.hemFlare ?? 0.03) * ramp(0.34, 0.04, y)
     : (y) => 1 - 0.045 * ramp(0.5, 0.3, y) + 0.015 * ramp(0.25, 0.05, y);
@@ -152,14 +154,14 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   };
   if (!sleeved) return { at: torso, sleeve: () => null, relief, pit };
 
-  // Sleeves. In the flat pattern a sleeve runs from the armhole edge (x â‰ˆ 0.258) to the
+  // Sleeves. In the flat pattern a sleeve runs from the armhole edge (x ≈ 0.258) to the
   // cuff: s along it, t across it (+ towards the top seam).
   // m1: the middle of the cuff (a cut with its own cuff corners, as the raglan's, says where).
   const own = spec.points?.CT && spec.points?.CB ? [(spec.points.CT[0] + spec.points.CB[0]) / 2, (spec.points.CT[1] + spec.points.CB[1]) / 2] : [0.395, 0.521];
   const m0 = new THREE.Vector2(0.258, (PIT + TOP) / 2), m1 = new THREE.Vector2(own[0], own[1]);
   const d2 = m1.clone().sub(m0).normalize(), n2 = new THREE.Vector2(-d2.y, d2.x);
   const flat = (x, y) => { const qx = x - m0.x, qy = y - m0.y; return [qx * d2.x + qy * d2.y, qx * n2.x + qy * n2.y]; };
-  const c = -d2.y / n2.y;                       // s + cÂ·t = 0 along the armhole edge
+  const c = -d2.y / n2.y;                       // s + c·t = 0 along the armhole edge
   const hw0 = ((TOP - PIT) / 2) * n2.y;         // half the armhole edge, across the sleeve
   // The sleeve's top seam and underarm seam (t at each s), taken from the outline itself so
   // front and back meet exactly on the top and the underside of the arm, right up to the cuff.
@@ -183,7 +185,7 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     const [s0, t0] = list[i - 1], [s1, t1] = list[i];
     return t0 + ((t1 - t0) * (s - s0)) / (s1 - s0 || 1);
   };
-  /** Angle round the arm: -Ï€/2 underneath, 0 at the front (back panel: the back), Ï€/2 on top. */
+  /** Angle round the arm: -π/2 underneath, 0 at the front (back panel: the back), π/2 on top. */
   const phiAt = (s, t) => {
     const top = lookup(edges.top, s), under = lookup(edges.under, s);
     return Math.PI * (THREE.MathUtils.clamp((t - under) / (top - under), 0, 1) - 0.5);

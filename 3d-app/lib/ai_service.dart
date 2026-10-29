@@ -183,6 +183,10 @@ class DesignReading {
       'American football jersey: cut wide over shoulder pads, short cap '
           'sleeves, big numbers (game and practice jerseys)',
     ),
+    'compression': (
+      'Compression top',
+      'skin-tight long-sleeve compression top or base layer',
+    ),
     'netball-dress': (
       'Netball dress',
       'a fitted dress for women, with a skirt: netball dresses and tennis dresses',

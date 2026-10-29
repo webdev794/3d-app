@@ -3,7 +3,7 @@ import { ApiError, fetchFile, getToken } from '../api';
 import { viewerLook } from '../viewerLook';
 import type { PartKey, PartStyle } from '../parts';
 
-export type Garment = 'jersey' | 'nfljersey' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'varsity' | 'trackjacket' | 'singlet' | 'netball-dress' | 'shorts' | 'fullkit';
+export type Garment = 'jersey' | 'nfljersey' | 'compression' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'varsity' | 'trackjacket' | 'singlet' | 'netball-dress' | 'shorts' | 'fullkit';
 export type View = 'front' | 'side' | 'back';
 /** Colour / pattern areas; 'pocket' only on the pocket polo (pool and darts shirts). */
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem' | 'pocket' | 'hood';
@@ -54,7 +54,7 @@ export function trackColour(design: { main?: string; secondary?: string; accent?
     return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-62';
+const VIEWER_VERSION = '2026-10-20-65';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
@@ -133,7 +133,7 @@ export interface Design {
 export const fabricTypes = ['Standard', 'Mesh', 'Pro', 'Eco'] as const;
 export type FabricType = (typeof fabricTypes)[number];
 /** Each garment's own fabric (Standard), as the 3D viewer makes it (render-quality.js fabricOf). */
-const ownFabrics: Partial<Record<Garment, string>> = { jersey: 'eyelet mesh', nfljersey: 'eyelet mesh', singlet: 'eyelet mesh', shorts: 'eyelet mesh', fullkit: 'eyelet mesh', tee: "bird's-eye knit", polo: 'piqué', pocketpolo: 'piqué', hoodie: 'brushed fleece', ziphoodie: 'brushed fleece', trackjacket: 'fine knit', 'netball-dress': 'fine knit' };
+const ownFabrics: Partial<Record<Garment, string>> = { jersey: 'eyelet mesh', nfljersey: 'eyelet mesh', compression: 'smooth stretch knit', singlet: 'eyelet mesh', shorts: 'eyelet mesh', fullkit: 'eyelet mesh', tee: "bird's-eye knit", polo: 'piqué', pocketpolo: 'piqué', hoodie: 'brushed fleece', ziphoodie: 'brushed fleece', trackjacket: 'fine knit', 'netball-dress': 'fine knit' };
 /** What each fabric type is, for the Studio and the design sheet. */
 export const fabricNotes: Record<FabricType, string> = {
     Standard: "The garment's own fabric.",

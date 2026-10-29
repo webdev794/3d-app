@@ -484,7 +484,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       onNotice('Your design export is ready.');
     } catch (e) { setError((e as Error).message || 'Export failed. Please try again.'); } finally { setBusy(false); }
   }
-  const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
+  const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'compression', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
   const garments = [...(catalog?.garments ?? [])].sort((a, b) => garmentOrder.indexOf(a.id) - garmentOrder.indexOf(b.id));
   const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); setGradientOpen(false); };
   const colourValue = slot === 'patternColor' ? patternInkOf(draft.design) : draft.design[slot];

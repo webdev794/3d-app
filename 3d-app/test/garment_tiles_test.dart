@@ -202,7 +202,7 @@ void main() {
       await revealTap(tester, 'GAME PANTS');
       expect(c.productName, 'Game Kit');
       await revealTap(tester, 'GAME JERSEY');
-      expect((c.garment, c.productName), ('Jersey', 'Game Jersey'));
+      expect((c.garment, c.productName), ('Football jersey', 'Game Jersey'));
       expect(GarmentScreen.projectNameFor(c), 'American Football Game Jersey');
       await tester.pump(const Duration(seconds: 3));
     },

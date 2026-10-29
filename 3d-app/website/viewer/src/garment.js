@@ -194,6 +194,27 @@ SPECS.hoodie = {
 SPECS.ziphoodie = { ...SPECS.hoodie, zip: true };
 
 /**
+ * The compression top (NFL base layer, later the rash guard): a skin-tight long-sleeve stretch top. The hoodie's long
+ * set-in sleeves cut slim to the wrist (worn.js `long`), a low crew neck with a narrow bound collar, plain hemmed
+ * cuffs and hem (no rib), and `tight`: worn a size in, close to the body (worn.js), smooth, with only faint creases
+ * (`tight.crease`) and the body's shape showing through (`tight.relief`). Its own spec, so a professional model
+ * can replace it without touching the other garments.
+ */
+const TIGHT_SLEEVE = [[0.258, 0.688], [0.3, 0.652], [0.47, 0.482], [0.676, 0.272], [0.624, 0.218], [0.44, 0.372], [0.31, 0.49], [0.258, 0.53]];
+SPECS.compression = {
+  half: [[0, 0.698], [0.052, 0.72], [0.09, 0.738], [0.19, 0.716], ...TIGHT_SLEEVE, [0.25, 0.42], [0.244, 0.3], [0.25, 0.16], [0.258, 0.03], [0.2, 0.012], [0.1, 0.002], [0, 0]],
+  neck: { drop: 0.045, half: 0.094 },
+  rim: { drop: 0.05, half: 0.11, radius: 0.0075 },
+  cuff: [[0.676, 0.272], [0.624, 0.218]],
+  points: { CT: [0.676, 0.272], CB: [0.624, 0.218] },
+  depth: 0.2,
+  chest: true,
+  crew: true,
+  long: { upper: 0.047, wrist: 0.034, length: 0.6 },
+  tight: { fit: 0.92, crease: 0.45, relief: 1.5 },
+};
+
+/**
  * The track suit jacket (trackjacket.js): the hoodie's long set-in sleeves and fuller body gathered a little into a rib
  * hem band, smooth polyester, a full front zip, zipped side pockets and a stand-up collar (`track.style` 'collar') or
  * the zip hoodie's hood ('hood': design.trackStyle).
@@ -596,11 +617,11 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     return (h + foldGain * f) * ramp(0.014, 0.034, openDist[i]);
   };
   /** Crease height in metres (+ out, - in), pushed out along the body's surface. */
-  const crease = (p, back, i) => ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back, i) + shortsFolds(p, back) + drapeFolds(p, back, i) + sleeveFolds(p, back, i) + detailFolds(p, back, i));
+  const crease = (p, back, i) => (spec.tight?.crease ?? 1) * ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back, i) + shortsFolds(p, back) + drapeFolds(p, back, i) + sleeveFolds(p, back, i) + detailFolds(p, back, i));
   const neckEdge = poly.filter((q, i) => !seam[i] && q.y > maxY - spec.neck.drop && Math.abs(q.x) < spec.neck.half);
   const nearNeck = (p) => neckEdge.reduce((d, q) => Math.min(d, Math.hypot(p.x - q.x, p.y - q.y)), Infinity);
   /** The body under the fabric (worn.js), kept off the seams and the neckline so those stay even. */
-  const muscle = (p, back, i) => worn.relief(p, back) * ramp(0, 0.015, seamDist[i]) * ramp(0, 0.02, nearNeck(p));
+  const muscle = (p, back, i) => (spec.tight?.relief ?? 1) * worn.relief(p, back) * ramp(0, 0.015, seamDist[i]) * ramp(0, 0.02, nearNeck(p));
   /** How much lower the body's relief is than all round it (+ in a hollow). */
   const hollow = (p, back) => {
     let around = 0;
@@ -638,7 +659,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       return p.y + Math.max(0, .752 + dy - p.y) * weight;
     }
     if (!spec.chest || Math.abs(p.x) > .112 || p.y < .62) return p.y;
-    const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' || kind === 'pocketpolo' || isHoodie(kind) || isTrack(kind) ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
+    const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' || kind === 'pocketpolo' || isHoodie(kind) || isTrack(kind) || kind === 'compression' ? .707 + Math.abs(p.x) * .42 : .672 + Math.abs(p.x) * .76;
     const weight = Math.exp(-((p.y - neckLine) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
     return p.y + Math.max(0, .752 - p.y) * weight;
   };

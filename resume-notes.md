@@ -5,12 +5,12 @@ Updated 2026-10-28 15:45. Only what's needed to continue.
 
 ## State
 - Live file: D:\3d-app\deploy-zips\3deez-update-2026-10-28-f.tar.gz (code-only, 18:35). Live must run `php artisan migrate --force` (presets table) + `php artisan optimize:clear`.
-- GitHub v2 = b62f0ab (same as -f). main = 2d9b553.
+- GitHub v2 = 9b3fcd5 (2026-10-29: Artwork to 3D + Football jersey in progress; newer than live -f). main = 2d9b553.
 - Local database has the presets table (backup C:\3deezi-archive\database-before-presets-2026-10-28.sqlite).
 - Viewer 2026-10-20-55; Artboard EDITOR_VERSION 2026-10-28-5.
 
 ## Running
-- GM1 a409383f8ad4205bd: 9.152 our own 3D models for COMING SOON garments, one at a time; plan + log in SP\GM1\. Each finished model gets its own named line in task-done-today.md.
+- GM2 aa0f8a4709244f98c: 9.152 COMING SOON garments, continuing GM1 (1/31 Football jersey done); plan SP\GM1\plan.md, log SP\GM2\log.md.
 
 ## Pending
 1. Offered, not started: the website homepage like the new app Home; Admin mockup backgrounds / scenes (client may ask); my saved projects under Preset designs "My designs".

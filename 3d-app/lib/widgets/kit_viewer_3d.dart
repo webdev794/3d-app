@@ -210,6 +210,7 @@ class KitViewer3DState extends State<KitViewer3D> {
         'Singlet' => 'singlet',
         'Netball dress' => 'netball-dress',
         'Football jersey' => 'nfljersey',
+        'Compression top' => 'compression',
         'Training Tee' => 'tee',
         'Polo' => 'polo',
         'Polo with pocket' => 'pocketpolo',

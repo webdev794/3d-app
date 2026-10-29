@@ -120,7 +120,7 @@ $sports = [
             $tile('Practice Jersey', 'Mesh jersey for practice days.', 'nfljersey', 'nfl-practice-jersey') + ['design' => ['fabric' => 'Mesh']],
             $tile('Training Tee', 'Breathable tee for training.', 'tee', 'nfl-tee'),
             $tile('Training Shorts', 'Lightweight shorts for practice.', 'shorts', 'nfl-training-shorts'),
-            $near('Compression Top', 'Long-sleeve base layer under the pads.', 'tee', 'compression-top', 'nfl-compression-top'),
+            $tile('Compression Top', 'Long-sleeve base layer under the pads.', 'compression', 'nfl-compression-top'),
             $soon('Compression Shorts', 'Supportive base layer shorts.', 'compression-shorts', 'nfl-compression-shorts'),
             $soon('Game Socks', 'Knee-high socks with team hoops.', 'socks', 'nfl-socks'),
             $tile('Hoodie', 'Warm hoodie for the sideline.', 'hoodie', 'nfl-hoodie'),
@@ -366,6 +366,8 @@ return [
         ['id' => 'netball-dress', 'name' => 'Netball dress', 'description' => 'Fitted dress for women, with a flared skirt hem.'],
         // Task 9.113: the American football jersey, cut wide over shoulder pads with short cap sleeves (Game / Practice Jersey).
         ['id' => 'nfljersey', 'name' => 'Football jersey', 'description' => 'American football cut: wide over the shoulder pads, short cap sleeves.'],
+        // The compression top (NFL base layer): skin-tight long sleeves, crew neck, smooth stretch fabric.
+        ['id' => 'compression', 'name' => 'Compression top', 'description' => 'Skin-tight long-sleeve base layer in smooth stretch fabric.'],
         ['id' => 'polo', 'name' => 'Polo', 'description' => 'Represent your team off the field.'],
         // Being built (agent ac04db942c799feb7): a polo with a real chest pocket, player name and sponsor on the back.
         ['id' => 'pocketpolo', 'name' => 'Polo with pocket', 'description' => 'A chest pocket, your name and sponsor on the back.'],

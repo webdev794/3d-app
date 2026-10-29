@@ -18,7 +18,7 @@ export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
 export const garmentArt = (garment: string) => media(`showroom/garment-${garment}.webp`);
 /** Shown in the garment step and the studio; not yet available in 3D. */
 export const comingSoon = [{ id: 'socks', name: 'Socks', description: 'Match socks with team bands.' }, { id: 'shoes', name: 'Shoes', description: 'Boots in your colours.' }];
-const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
+const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'compression', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
 /** A garment's place on the garment step; one not listed yet goes last. */
 const order = (id: string) => { const i = garmentOrder.indexOf(id); return i < 0 ? garmentOrder.length : i; };
 
@@ -685,13 +685,41 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
 
 /** CONVERT: a photo, sketch or mockup (e.g. from ChatGPT) becomes an editable 3D design. */
 /** The garments a print layout or artwork can go on as drawn (our 3D models with print areas). */
-const artworkGarments = ['jersey', 'tee', 'polo', 'pocketpolo', 'nfljersey', 'singlet', 'netball-dress', 'raglan', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'shorts', 'fullkit'];
-type ArtworkKind = 'layout' | 'front' | 'allover';
+const artworkGarments = ['jersey', 'tee', 'polo', 'pocketpolo', 'nfljersey', 'compression', 'singlet', 'netball-dress', 'raglan', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'shorts', 'fullkit'];
+type ArtworkKind = 'layout' | 'front' | 'allover' | 'garment';
 /** An artwork file read on the page: the file to keep (AI files as PDF), its type, and a preview picture. */
-type ArtworkFile = { file: File; type: string; name: string; preview: string; wide: boolean };
+type ArtworkFile = { file: File; type: string; name: string; preview: string; wide: boolean; look: ArtworkLook };
+/** What a picture looks like: a photo or mockup (an opaque background, many colours), and its main colour (not its background). */
+type ArtworkLook = { photo: boolean; main: string };
+const plainLook: ArtworkLook = { photo: false, main: '#0b1016' };
+
+/** The look of a picture (task 9.153): read from a small copy, no AI. */
+async function artworkLook(src: string): Promise<ArtworkLook> {
+  const img = new Image(); img.src = src; await img.decode();
+  const n = 64, c = document.createElement('canvas'); c.width = n; c.height = n;
+  const g = c.getContext('2d', { willReadFrequently: true })!; g.drawImage(img, 0, 0, n, n);
+  const px = g.getImageData(0, 0, n, n).data;
+  const key = (i: number) => ((px[i] >> 4) << 8) | ((px[i + 1] >> 4) << 4) | (px[i + 2] >> 4);
+  // The background: the commonest colour round the edge (none when the edge is see-through).
+  const edge = new Map<number, number>(); let clear = 0, rim = 0;
+  for (let i = 0; i < n; i++) for (const [x, y] of [[i, 0], [i, n - 1], [0, i], [n - 1, i]]) { const at = (y * n + x) * 4; rim++; if (px[at + 3] < 40) clear++; else edge.set(key(at), (edge.get(key(at)) ?? 0) + 1); }
+  const bg = clear > rim * 0.3 ? -1 : [...edge.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? -1;
+  const near = (k: number, b: number) => b >= 0 && Math.abs((k >> 8) - (b >> 8)) + Math.abs(((k >> 4) & 15) - ((b >> 4) & 15)) + Math.abs((k & 15) - (b & 15)) <= 2;
+  const counts = new Map<number, { n: number; r: number; g: number; b: number }>();
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] < 40) continue;
+    const k = key(i); if (near(k, bg)) continue;
+    const e = counts.get(k) ?? { n: 0, r: 0, g: 0, b: 0 }; e.n++; e.r += px[i]; e.g += px[i + 1]; e.b += px[i + 2]; counts.set(k, e);
+  }
+  const top = [...counts.values()].sort((a, b) => b.n - a.n)[0];
+  const hex = (v: number) => Math.round(v).toString(16).padStart(2, '0');
+  // A photo: an opaque edge in many shades (a flat logo or layout has few colours, or a see-through or plain background).
+  const photo = clear < rim * 0.3 && edge.size > 24 && counts.size > 220;
+  return { photo, main: top ? `#${hex(top.r / top.n)}${hex(top.g / top.n)}${hex(top.b / top.n)}` : plainLook.main };
+}
 
 /** A vector or picture as a PNG, `long` pixels on its longer side, transparent behind it (logos and all-over prints). */
-async function artworkPicture(art: ArtworkFile, long = 1600): Promise<string> {
+async function artworkPicture(art: Pick<ArtworkFile, 'file' | 'type'>, long = 1600, jpeg = false): Promise<string> {
   let source: CanvasImageSource, w: number, h: number;
   if (art.type === 'application/pdf') {
     const pdfjs = await import('pdfjs-dist');
@@ -718,7 +746,7 @@ async function artworkPicture(art: ArtworkFile, long = 1600): Promise<string> {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(w * k)); canvas.height = Math.max(1, Math.round(h * k));
   canvas.getContext('2d')!.drawImage(source, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/png');
+  return jpeg ? canvas.toDataURL('image/jpeg', 0.9) : canvas.toDataURL('image/png');
 }
 const readFileData = (file: Blob, type: string) => new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => { const s = String(r.result); resolve(`data:${type};base64,${s.slice(s.indexOf(',') + 1)}`); }; r.onerror = () => reject(new Error('Unable to read this file.')); r.readAsDataURL(file); });
 
@@ -759,12 +787,14 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
     if (!type) { setError('Choose a PDF, SVG, AI, PNG, JPG or WEBP file.'); return; }
     const kept = new File([file], name, { type });
     try {
-      const preview = type === 'application/pdf' ? await artworkPicture({ file: kept, type, name, preview: '', wide: false }, 1200) : await readFileData(kept, type);
+      const preview = type === 'application/pdf' ? await artworkPicture({ file: kept, type }, 1200) : await readFileData(kept, type);
       const img = new Image(); img.src = preview; await img.decode().catch(() => undefined);
       const wide = (img.naturalWidth || 1) / Math.max(1, img.naturalHeight || 1) > 1.45;
-      setArt({ file: kept, type, name, preview, wide });
-      // A wide sheet is most likely a print layout (panels side by side); anything else a single design or logo.
-      setKind(wide ? 'layout' : 'front');
+      const look = await artworkLook(preview).catch(() => plainLook);
+      setArt({ file: kept, type, name, preview, wide, look });
+      // A photo or mockup of a garment (a background, many colours) is read by the AI; a wide flat sheet is most likely
+      // a print layout (panels side by side); anything else a single design or logo.
+      setKind(look.photo && isAi ? 'garment' : wide ? 'layout' : 'front');
     } catch { setError(`${file.name} could not be opened. Try saving it again as PDF, SVG or PNG.`); }
   }
 
@@ -775,7 +805,10 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
     try {
       const base = { ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? art.name.replace(/\.[a-z]+$/i, '').slice(0, 60) || 'My design' : draft.name, sport, garment, mode: 'dyo' as const, patternMotif: undefined, pendingDrawing: undefined };
       // A fresh kit for the artwork (an earlier design's logos, print or layout are not carried over).
-      const design: Design = { ...defaultDesign, garment: garment as Design['garment'], layout: null, layers: [], patternImage: null };
+      // The side panels and trims take the artwork's main colour (not the default kit's cyan); a logo's kit stays plain.
+      const look = art.look;
+      const design: Design = { ...defaultDesign, garment: garment as Design['garment'], layout: null, layers: [], patternImage: null, secondary: kind === 'front' ? defaultDesign.main : look.main, ...(kind === 'allover' ? { main: look.main } : {}) };
+      if (kind === 'garment') { await fromGarmentPicture(base, design); return; }
       if (kind === 'layout') {
         const form = new FormData(); form.append('file', art.file); form.append('name', art.name.slice(0, 120)); form.append('type', 'layout');
         const saved = await api<{ id: number; name: string }>('/assets', { method: 'POST', body: form });
@@ -792,6 +825,25 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
     } catch (e) { setError(friendlyError(e)); } finally { setPlacing(false); }
   }
 
+  /**
+   * A picture of a garment (a mock-up or photo, front and back): the AI path of "Open in 3D Designer" (task 9.116).
+   * The picture is read for its colours, crest and lettering, then the same AI redraws it as a flat front and back
+   * print sheet (screens, buttons and backgrounds left out), checked in the Studio and put on the kit as drawn.
+   */
+  async function fromGarmentPicture(base: Draft, plain: Design) {
+    if (!art) return;
+    const image = await artworkPicture(art, 1536, true);
+    const read = await api<DesignReading>('/ai/designs/read', { method: 'POST', body: JSON.stringify({ image, sport, garment }) })
+      .then(r => r && r.design ? r : null, () => null);
+    const logo = read?.crest ? await cropCrest(image, read.crest).catch(() => null) : null;
+    // The garment chosen here stays (the reading only gives the colours, crest and lettering); its side panels the
+    // picture's main colour unless the reading names a trim colour.
+    const design: Design = { ...plain, ...(read?.design ?? {}), garment: garment as Design['garment'], layout: null, layers: [], patternImage: null, logoImage: logo ?? null };
+    const sheet = aiReply(await api<{ asset: { id: number; name: string }; image: string }>('/ai/print-sheet', { method: 'POST', body: JSON.stringify({ image, sport, garment, reference_ids: [], name: base.name }) }), ['asset', 'image']);
+    onChange({ ...base, mode: 'ai', design, pendingDrawing: { asset: sheet.asset.id, name: sheet.asset.name, known: true } });
+    onStudio();
+  }
+
   async function convert() {
     if (!art) return;
     setBusy(true); setError('');
@@ -802,6 +854,7 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
 
   if (busy) return <Loader title="Making the AI preview…" subtitle="Reading colours, patterns and lettering from your artwork." steps={['Reading the artwork', 'Finding colours', 'Matching pattern and lettering']} seconds={18} />;
   const kinds: { id: ArtworkKind; label: string; hint: string }[] = [
+    ...(isAi ? [{ id: 'garment' as const, label: 'Picture of a garment (mockup / photo)', hint: 'A mock-up or photo of the garment, front and back. AI redraws it flat and puts it on the 3D kit, sides, crest and number included. Uses AI (a small fee per picture).' }] : []),
     { id: 'layout', label: 'Full print layout', hint: 'Front, back and sleeve panels side by side, as the factory prints them. Each panel goes on its part of the garment.' },
     { id: 'front', label: 'Logo or design on the front', hint: 'One design or logo on the front. Move and resize it on the 3D kit.' },
     { id: 'allover', label: 'All-over print', hint: 'The design repeated over the whole garment.' },
@@ -826,6 +879,9 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
             <label>Sport<select value={sport} onChange={e => setSport(e.target.value)}>{sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
             <label>Garment<select value={garment} onChange={e => setGarment(e.target.value)}>{choices.map(([g, n]) => <option key={g} value={g}>{n}</option>)}</select></label>
           </div>
+          {kind === 'front' && art?.look.photo && <p className="field-hint convert-warn" role="status">This looks like a photo or mock-up with a background, not a logo: the whole picture would go on the chest.{isAi ? ' Choose “Picture of a garment” to put its design on the kit.' : ''}</p>}
+          {kind === 'allover' && art?.look.photo && <p className="field-hint convert-warn" role="status">This looks like a photo or mock-up: the whole picture, background included, would repeat over the kit.{isAi ? ' Choose “Picture of a garment” to put its design on the kit.' : ''}</p>}
+          {kind === 'garment' && <p className="field-hint">Uses AI: about 30 seconds. The Studio then shows the front and back it drew for you to check.</p>}
           {kind === 'layout' && <p className="field-hint">The Studio shows each panel it found: check it is the front, back or a sleeve, then put it on.</p>}
           {error && <p className="error-message" role="alert">{error}</p>}
           <button className="button button-gradient full-width" disabled={!art || placing} onClick={() => requireAuth(() => void toStudio())}>{placing ? <LoaderCircle className="spin" size={18} /> : <Box size={18} />} PUT IT ON THE 3D KIT</button>

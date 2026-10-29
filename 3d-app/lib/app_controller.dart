@@ -691,6 +691,7 @@ class AppController extends ChangeNotifier {
           'Football jersey' => 'nfljersey',
           // Hoodies are long-sleeved: a drawing of one is read as a sleeved top.
           'Hoodie' ||
+          'Compression top' ||
           'Zip hoodie' ||
           'Varsity jacket' ||
           'Track jacket' => 'jersey',

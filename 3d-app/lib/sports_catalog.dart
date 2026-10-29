@@ -92,6 +92,8 @@ const garmentIds = {
   'Jersey': 'jersey',
   // The American football jersey: shoulder-pad cut, cap sleeves (task 9.113).
   'Football jersey': 'nfljersey',
+  // The compression top (NFL base layer): skin-tight long sleeves.
+  'Compression top': 'compression',
   'Shorts': 'shorts',
   'Training Tee': 'tee',
   'Singlet': 'singlet',
@@ -541,11 +543,10 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Shorts',
       image: 'nfl-training-shorts',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Compression Top',
       'Long-sleeve base layer under the pads.',
-      'Training Tee',
-      future: 'compression-top',
+      'Compression top',
       image: 'nfl-compression-top',
     ),
     GarmentTile.soon(

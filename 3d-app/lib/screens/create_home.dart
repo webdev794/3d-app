@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -15,6 +16,7 @@ import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
+import 'ai_designer.dart' show cropCrest;
 import 'team.dart' show TeamScreen;
 
 /// 4 · Home (client mock-up images/197.jpg, 2026-10-28): the 3DEEZI wordmark
@@ -1165,6 +1167,7 @@ const garmentTiles = <(String, String)>[
   ('Singlet', 'singlet'),
   ('Netball dress', 'netball-dress'),
   ('Football jersey', 'nfljersey'),
+  ('Compression top', 'compression'),
   ('Polo', 'polo'),
   ('Polo with pocket', 'pocketpolo'),
   ('Hoodie', 'hoodie'),
@@ -1624,7 +1627,7 @@ Future<void> convertFlow(
 }
 
 /// What the user's artwork is (Artwork to 3D, task 9.153).
-enum _ArtworkKind { layout, front, allOver }
+enum _ArtworkKind { layout, front, allOver, garment }
 
 /// ARTWORK TO 3D (task 9.153): the user's own artwork (PDF, SVG, AI, PNG,
 /// JPG or WebP) on the REAL 3D garment, editable in the Studio. A full print
@@ -1683,10 +1686,12 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
   }
   // A wide picture is most likely a print layout (panels side by side).
   var wide = pdf;
+  var look = (photo: false, main: null as Color?);
   if (!pdf && !svg) {
     try {
       final image = await decodeImageFromList(bytes);
       wide = image.width > image.height * 1.45;
+      look = await _artworkLook(image);
     } on Object {
       wide = false;
     }
@@ -1704,7 +1709,12 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
           c: c,
           name: name,
           preview: pdf || svg ? null : bytes,
-          kind: wide ? _ArtworkKind.layout : _ArtworkKind.front,
+          kind: look.photo && AiService.enabled
+              ? _ArtworkKind.garment
+              : wide
+              ? _ArtworkKind.layout
+              : _ArtworkKind.front,
+          photo: look.photo,
         ),
       );
   if (choice == null || !context.mounted) return;
@@ -1712,7 +1722,9 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
     await convertFlow(context, c, picture: bytes);
     return;
   }
-  if (!c.signedIn && choice.kind == _ArtworkKind.layout) {
+  if (!c.signedIn &&
+      (choice.kind == _ArtworkKind.layout ||
+          choice.kind == _ArtworkKind.garment)) {
     showToast(
       context,
       'Sign in to use print layouts: the file is kept with your saved assets.',
@@ -1739,6 +1751,15 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
     choice.garment,
     name.replaceFirst(RegExp(r'\.[^.]*$'), ''),
   );
+  // The side panels and trims take the artwork's main colour (not the
+  // default cyan); a logo's kit stays plain, its sides matching the body.
+  final main = look.main;
+  if (choice.kind == _ArtworkKind.front) {
+    c.secondaryColor = c.mainColor;
+  } else if (main != null) {
+    c.secondaryColor = main;
+    if (choice.kind == _ArtworkKind.allOver) c.mainColor = main;
+  }
   // The Studio's 3D kit starts first.
   for (
     var t = 0;
@@ -1749,6 +1770,49 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
   }
   try {
+    if (choice.kind == _ArtworkKind.garment) {
+      // A mock-up or photo of a garment: the AI path of "Open in 3D Designer"
+      // (task 9.116): its colours and crest read, then redrawn as a flat
+      // front and back print sheet, checked in the Studio.
+      say('Reading $name and drawing its flat print sheet (about 30 s)…');
+      DesignReading? reading;
+      try {
+        reading = await c.ai.readDesign(
+          bytes,
+          sport: choice.sport,
+          garment: choice.garment,
+        );
+      } on Object {
+        reading = null;
+      }
+      if (reading != null) {
+        final box = reading.crest;
+        final logo = box == null ? null : await cropCrest(bytes, box);
+        final r = reading;
+        c.edit(() {
+          c.mainColor = r.mainColor;
+          // The side panels: the picture's trim colour, not the default cyan.
+          c.secondaryColor = r.secondaryColor;
+          c.accentColor = r.accentColor;
+          if (logo != null) c.logoImage = logo;
+        });
+      }
+      final sheet = await c.ai.printSheet(
+        bytes,
+        sport: choice.sport,
+        garment: choice.garment,
+      );
+      c.artwork.add(sheet);
+      final done = await c.importDesignPicture(
+        sheet.length > 4 && sheet[0] == 0x89
+            ? 'ai-print-sheet.png'
+            : 'ai-print-sheet.jpg',
+        sheet,
+        known: reading != null,
+      );
+      say(done ?? 'The print sheet is kept in Assets › Artwork.');
+      return;
+    }
     if (choice.kind == _ArtworkKind.layout) {
       say('Reading $name…');
       final done = await c.importPrintLayout(name, bytes);
@@ -1784,13 +1848,82 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
   }
 }
 
+/// The look of a picture (task 9.153), read from a small copy, no AI: a
+/// photo or mock-up (an opaque edge in many shades, many colours) and its
+/// main colour without its background.
+Future<({bool photo, Color? main})> _artworkLook(ui.Image image) async {
+  const n = 64;
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder).drawImageRect(
+    image,
+    Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+    const Rect.fromLTWH(0, 0, n + 0.0, n + 0.0),
+    Paint()..filterQuality = FilterQuality.low,
+  );
+  final small = await recorder.endRecording().toImage(n, n);
+  final data = await small.toByteData(format: ui.ImageByteFormat.rawRgba);
+  if (data == null) return (photo: false, main: null);
+  final px = data.buffer.asUint8List();
+  int key(int i) => (px[i] >> 4) << 8 | (px[i + 1] >> 4) << 4 | px[i + 2] >> 4;
+  final edge = <int, int>{};
+  var clear = 0, rim = 0;
+  for (var i = 0; i < n; i++) {
+    for (final (x, y) in [(i, 0), (i, n - 1), (0, i), (n - 1, i)]) {
+      final at = (y * n + x) * 4;
+      rim++;
+      if (px[at + 3] < 40) {
+        clear++;
+      } else {
+        edge[key(at)] = (edge[key(at)] ?? 0) + 1;
+      }
+    }
+  }
+  final bg = clear > rim * 0.3 || edge.isEmpty
+      ? -1
+      : (edge.entries.toList()..sort((a, b) => b.value - a.value)).first.key;
+  bool near(int k, int b) =>
+      b >= 0 &&
+      ((k >> 8) - (b >> 8)).abs() +
+              (((k >> 4) & 15) - ((b >> 4) & 15)).abs() +
+              ((k & 15) - (b & 15)).abs() <=
+          2;
+  final counts = <int, List<int>>{};
+  for (var i = 0; i < px.length; i += 4) {
+    if (px[i + 3] < 40) continue;
+    final k = key(i);
+    if (near(k, bg)) continue;
+    final e = counts.putIfAbsent(k, () => [0, 0, 0, 0]);
+    e[0]++;
+    e[1] += px[i];
+    e[2] += px[i + 1];
+    e[3] += px[i + 2];
+  }
+  final top = counts.values.isEmpty
+      ? null
+      : counts.values.reduce((a, b) => a[0] >= b[0] ? a : b);
+  final photo = clear < rim * 0.3 && edge.length > 24 && counts.length > 220;
+  return (
+    photo: photo,
+    main: top == null
+        ? null
+        : Color.fromARGB(
+            255,
+            top[1] ~/ top[0],
+            top[2] ~/ top[0],
+            top[3] ~/ top[0],
+          ),
+  );
+}
+
 class _ArtworkSheet extends StatefulWidget {
   const _ArtworkSheet({
     required this.c,
     required this.name,
     required this.preview,
     required this.kind,
+    this.photo = false,
   });
+  final bool photo;
   final AppController c;
   final String name;
   final Uint8List? preview;
@@ -1870,6 +2003,12 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
             ],
             const SizedBox(height: 12),
             const Text('WHAT IS IT?', style: _label),
+            if (AiService.enabled && widget.preview != null)
+              _option(
+                _ArtworkKind.garment,
+                'Picture of a garment (mockup / photo)',
+                'A mock-up or photo of the garment, front and back. AI redraws it flat and puts it on the 3D kit, sides, crest and number included. Uses AI (a small fee per picture).',
+              ),
             _option(
               _ArtworkKind.layout,
               'Full print layout',
@@ -1915,6 +2054,16 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
               ],
               onChanged: (v) => setState(() => garment = v ?? garment),
             ),
+            if (widget.photo &&
+                (kind == _ArtworkKind.front || kind == _ArtworkKind.allOver))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  '${kind == _ArtworkKind.front ? 'This looks like a photo or mock-up with a background, not a logo: the whole picture would go on the chest.' : 'This looks like a photo or mock-up: the whole picture, background included, would repeat over the kit.'}'
+                  '${AiService.enabled ? ' Choose “Picture of a garment” to put its design on the kit.' : ''}',
+                  style: const TextStyle(color: Color(0xffffd28a), fontSize: 12),
+                ),
+              ),
             if (kind == _ArtworkKind.layout)
               const Padding(
                 padding: EdgeInsets.only(top: 8),

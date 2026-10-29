@@ -192,6 +192,8 @@ const PARTS = {
   jersey: ['jersey'],
   // The American football jersey (tasks.md 9.113): shoulder-pad cut, cap sleeves (garment.js SPECS.nfljersey).
   nfljersey: ['nfljersey'],
+  // The compression top (NFL base layer): skin-tight long sleeves (garment.js SPECS.compression).
+  compression: ['compression'],
   tee: ['tee'],
   raglan: ['raglan'],
   polo: ['polo'],
@@ -436,7 +438,7 @@ function buildKit(kind) {
 
 /**
  * The tiers: each part's fabric woven into its printed materials (render-quality.js): the design's fabric type
- * (design.fabric: Mesh, Pro or Eco), else the garment's own (mesh, piquÃ©, fleece...). On a new kit (`built`), and again
+ * (design.fabric: Mesh, Pro or Eco), else the garment's own (mesh, piqué, fleece...). On a new kit (`built`), and again
  * whenever the fabric type changes (only the material: the print, names and numbers stay exactly where they are).
  */
 function dressParts(built) {
@@ -1170,7 +1172,7 @@ barCss.textContent = `#object-bar{position:fixed;left:50%;bottom:78px;transform:
 #object-bar button:hover{background:rgba(255,255,255,.18)}#object-bar button[aria-pressed=true]{background:#2fd0e0;color:#071018;border-color:#2fd0e0}#object-bar button.danger{border-color:#ff7a7a;color:#ffb3b3}
 #object-bar input[type=range]{width:100px}#object-bar input[type=text]{width:130px;min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:#0b0f16;color:#fff;padding:0 8px;font:inherit}
 #object-bar input[type=color]{width:36px;height:32px;border:0;background:none;padding:0}#object-bar .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center;max-width:100%}
-@media (max-width:640px){#object-bar{left:28px;right:28px;transform:none;width:auto;bottom:74px;padding:6px;flex-direction:row;align-items:center;justify-content:flex-start;overflow-x:auto;overscroll-behavior:contain;touch-action:pan-x}#object-bar .row{flex-wrap:nowrap;max-width:none;flex:none;justify-content:flex-start}#object-bar span,#object-bar b{white-space:nowrap}#object-bar button{min-height:36px;padding:0 8px}#object-bar input[type=range]{width:80px}}`;
+@media (max-width:640px){#object-bar{left:28px;right:28px;transform:none;width:auto;bottom:74px;padding:6px;flex-direction:column;align-items:stretch;gap:5px}#object-bar .row{flex-wrap:wrap;max-width:100%;justify-content:center;gap:5px}#object-bar span,#object-bar b{white-space:nowrap}#object-bar button{min-height:36px;padding:0 8px}#object-bar input[type=range]{width:80px}}`;
 document.head.append(barCss);
 document.body.append(bar);
 for (const t of ['pointerdown', 'pointerup', 'click', 'wheel', 'touchstart']) bar.addEventListener(t, (e) => e.stopPropagation());
@@ -1183,7 +1185,7 @@ function drawBar() {
       btn('Add logo here', () => addHere('logo')),
       btn('Add text here', () => addHere('text')),
       btn('Upload picture here', () => addHere('upload')),
-      btn('âœ•', () => { addSpot = null; drawBar(); }, { ariaLabel: 'Close', title: 'Close' })));
+      btn('✕', () => { addSpot = null; drawBar(); }, { ariaLabel: 'Close', title: 'Close' })));
     bar.classList.add('on'); bar.scrollLeft = 0; requestAnimationFrame(() => { bar.scrollLeft = 0; });
     return;
   }
@@ -1197,10 +1199,10 @@ function drawBar() {
   size.oninput = () => changeSelected({ scale: Number(size.value) }, false);
   size.onchange = () => sendObjects(selected.kind);
   bar.append(el('div', { className: 'row' }, el('b', { textContent: name }),
-    btn('âˆ’', () => changeSelected({ scaleBy: 1 / 1.12 }), { title: 'Smaller', ariaLabel: 'Smaller' }), size,
+    btn('−', () => changeSelected({ scaleBy: 1 / 1.12 }), { title: 'Smaller', ariaLabel: 'Smaller' }), size,
     btn('+', () => changeSelected({ scaleBy: 1.12 }), { title: 'Bigger', ariaLabel: 'Bigger' }),
-    btn('âŸ²', () => changeSelected({ rotBy: -15 }), { title: 'Turn left', ariaLabel: 'Turn left' }),
-    btn('âŸ³', () => changeSelected({ rotBy: 15 }), { title: 'Turn right', ariaLabel: 'Turn right' }),
+    btn('⟲', () => changeSelected({ rotBy: -15 }), { title: 'Turn left', ariaLabel: 'Turn left' }),
+    btn('⟳', () => changeSelected({ rotBy: 15 }), { title: 'Turn right', ariaLabel: 'Turn right' }),
     btn('Remove', () => changeSelected({ remove: true }), { className: 'danger' }),
     btn('Done', () => select(null))));
   if (selected.kind === 'mark' && selected.name === 'crest') {
@@ -1438,10 +1440,10 @@ function setCamera({ radius, theta, phi }) {
 }
 
 function setView(view) {
-  const angles = { Front: -.15, Side: Math.PI / 2, Back: Math.PI, '360Â°': null };
+  const angles = { Front: -.15, Side: Math.PI / 2, Back: Math.PI, '360°': null };
   const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
   const s = new THREE.Spherical().setFromVector3(offset);
-  controls.autoRotate = view === '360Â°';
+  controls.autoRotate = view === '360°';
   // A chosen view stays: no idle auto-turn left over from an earlier drag.
   clearTimeout(idle);
   if (angles[view] == null) return;

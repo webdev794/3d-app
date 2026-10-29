@@ -16,7 +16,7 @@ type Dashboard = { projects: number; drafts: number; approved: number; assets: n
 
 function message(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please try again.'; }
 /** The Studio's garment names ("Zip hoodie", "Polo with pocket"); others are title-cased ids. */
-const GARMENT_NAMES: Record<string, string> = { fullkit: 'Full kit', nfljersey: 'Football jersey', tee: 'Training tee', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
+const GARMENT_NAMES: Record<string, string> = { fullkit: 'Full kit', nfljersey: 'Football jersey', compression: 'Compression top', tee: 'Training tee', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
 function title(value: string) { return value.replaceAll('-', ' ').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function date(value: string) { return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
 function bytes(value: number) { return value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / 1024 / 1024).toFixed(1)} MB`; }

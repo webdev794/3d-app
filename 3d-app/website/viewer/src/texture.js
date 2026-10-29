@@ -7,7 +7,7 @@ import { POCKET_ZIP, pocketZipX } from './trackjacket.js';
 import { isVarsity, varsityTailoring, paintVarsity, paintVarsityMarks } from './varsity.js';
 
 /** The tops with set-in or raglan sleeves. */
-const SLEEVED = ['jersey', 'nfljersey', 'tee', 'raglan', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity'];
+const SLEEVED = ['jersey', 'nfljersey', 'tee', 'raglan', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'compression'];
 
 /**
  * The chest pocket's outline (zones.js POCKET) in garment metres on the current transform: from the top's inner
@@ -101,7 +101,7 @@ const loadImage = (src) =>
     img.src = src;
   });
 
-/** Black-on-white AI artwork Ã¢â€ â€™ a stencil tinted in `color`. */
+/** Black-on-white AI artwork → a stencil tinted in `color`. */
 /**
  * The picture's own print (task 9.116): a full-colour patch cut from an AI design picture, marked by the hosts with two
  * exact pixels at its top left (PRINT_MARK, a lossless PNG). Returns it as a canvas (repeated as it is, so diagonal
@@ -592,7 +592,7 @@ export class KitPainter {
     // A deep gathered band (training shorts): the stitching runs right along its foot, where the gathers end.
     const deepBand = (this.rimWidth ?? 0.026) >= 0.035;
     const waistSeam = (this.points?.CF?.[1] ?? 0.42) - (this.rimWidth ?? 0.026) - (deepBand ? 0.0012 : 0.006);
-    const hoodie = isHoodie(this.kind), track = isTrack(this.kind), varsity = isVarsity(this.kind), longTop = hoodie || track || varsity;
+    const hoodie = isHoodie(this.kind), track = isTrack(this.kind), varsity = isVarsity(this.kind), longTop = hoodie || track || varsity || this.kind === 'compression';
     for (const inset of [0, .0032]) {
       // The varsity jacket's long sleeves are set in as a hoodie's.
       if (longTop) {
@@ -1044,7 +1044,8 @@ export class KitPainter {
       g.fillStyle = trim;
       // Hoodies: no side panels or edge bands (their cuffs and waistband are rib, hoodie.js); the track jacket's own
       // panels are painted below (paintTrack); the varsity jacket has rib trims (varsity.js).
-      for (const dir of hoodie || track || varsity ? [] : [-1, 1]) {
+      // The compression top: long sleeves set in over where the panels would be; plain sides (its cuffs and hem banded below).
+      for (const dir of hoodie || track || varsity || this.kind === 'compression' ? [] : [-1, 1]) {
         g.beginPath();
         if (isDress(this.kind)) {
           // The dress's side panels: in at the waist, out over the hips to the hem.
@@ -1123,7 +1124,7 @@ export class KitPainter {
       this.side(back);
       g.strokeStyle = this.partStyle(design, 'collar')?.own ?? trim;
       g.lineWidth = 0.018;
-      if (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo') {
+      if (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || this.kind === 'compression') {
         g.beginPath();
         g.moveTo(-0.092, 0.745);
         g.quadraticCurveTo(0, back ? 0.73 : 0.66, 0.092, 0.745);
@@ -1185,7 +1186,7 @@ export class KitPainter {
       g.setTransform(1, 0, 0, 1, 0, 0);
       return this.canvas;
     }
-    // Logos added on the 3D kit itself (task 9.144, ids 'kit-â€¦': a crest copy on the other chest) keep the crest.
+    // Logos added on the 3D kit itself (task 9.144, ids 'kit-…': a crest copy on the other chest) keep the crest.
     const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text' && !String(l.id ?? '').startsWith('kit-'));
     // The varsity jacket: a chenille letter (or the logo) on the chest, the club arched across the back, the name and
     // a big number under it, sleeve patches (varsity.js).
@@ -1583,7 +1584,7 @@ export class KitPainter {
 /** A small tileable knit normal map (pique dots), generated once. */
 /**
  * Technical polyester sports knit: a fine diagonal twill. Raised yarn ridges run
- * at 45Â° with recessed grooves between them, and the yarn crossings along each
+ * at 45° with recessed grooves between them, and the yarn crossings along each
  * ridge step from one ridge to the next (as a twill does). Tileable; 32 ridges per tile.
  */
 export function knitNormalMap(size = 512) {

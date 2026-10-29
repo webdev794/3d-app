@@ -4,6 +4,12 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## 3D model: Football jersey (2026-10-29)
+1. Design Your Own › American Football › Game Jersey: the 3D shows the wide shoulder-pad jersey (not the rugby jersey). Turn it: back name and number, sleeves.
+2. Practice Jersey: the same jersey, on Mesh fabric.
+
+---
+
 ## Artwork to 3D makes a real 3D garment (2026-10-29)
 1. Website: PROJECTS › Convert (ARTWORK TO 3D): upload a PDF / AI print layout, choose Full print layout, sport and garment, PUT IT ON THE 3D KIT; check panels are named Front / Back / sleeves, then Put on the 3D kit.
 2. Upload a logo SVG › Logo on the front: it sits on the chest, movable. All-over print: repeats over the kit.

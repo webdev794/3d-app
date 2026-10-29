@@ -17,7 +17,7 @@ function path(pts, i, j) {
   for (let k = i; ; k = (k + 1) % pts.length) { out.push(pts[k]); if (k === j) break; }
   return out;
 }
-/** The index (into the outline) of the point on the path i â†’ j farthest from the straight line i â€“ j. */
+/** The index (into the outline) of the point on the path i → j farthest from the straight line i – j. */
 function farthest(pts, i, j) {
   const a = pts[i], b = pts[j], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
   let best = i, dist = -1;
@@ -96,9 +96,9 @@ function sleevePanel(o) {
   const [cuffR, cuffL] = cut(path(o, CR, CL), 0.5);   // the cuff, split at its middle
   const M = neckL.at(-1), D = cuffR.at(-1);
   return {
-    // TL â†’ M â†’ D â†’ CL â†’ UL â†’ TL
+    // TL → M → D → CL → UL → TL
     left: [neckL, [M, D], cuffL, path(o, CL, UL), path(o, UL, TL)],
-    // M â†’ TR â†’ UR â†’ CR â†’ D â†’ M
+    // M → TR → UR → CR → D → M
     right: [neckR, path(o, TR, UR), path(o, UR, CR), cuffR, [D, M]],
   };
 }
@@ -121,16 +121,16 @@ function legPanel(o) {
   // Where the split's edge meets the hem on each side of the notch (its knee).
   const KL = farthest(o, NA, HL), KR = farthest(o, HR, NA);
   return {
-    // WL â†’ CT â†’ NA â†’ KL â†’ HL â†’ CRL â†’ WL
+    // WL → CT → NA → KL → HL → CRL → WL
     left: [waistL, [CT, o[NA]], path(o, NA, KL), path(o, KL, HL), path(o, HL, CRL), path(o, CRL, WL)],
-    // CT â†’ WR â†’ CRR â†’ HR â†’ KR â†’ NA â†’ CT
+    // CT → WR → CRR → HR → KR → NA → CT
     right: [waistR, path(o, WR, CRR), path(o, CRR, HR), path(o, HR, KR), path(o, KR, NA), [o[NA], CT]],
   };
 }
 
 // ---------- garment drawings (the finished garment's front and back drawn flat, layout.js findPanels `drawing`)
 /**
- * The point on the outline path a â†’ b (indices) where it turns most sharply outwards (a corner of the shape: the
+ * The point on the outline path a → b (indices) where it turns most sharply outwards (a corner of the shape: the
  * outline runs clockwise on screen), at least `margin` pixels from the path's ends; each turn is measured from the
  * direction `reach` pixels before the point to the direction `reach` pixels after it.
  */
@@ -207,7 +207,7 @@ export function drawingSides(o, sleeved = false) {
   const xs = o.map((p) => p[0]), ys = o.map((p) => p[1]), n = o.length;
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const W = x1 - x0, H = y1 - y0, cx = (x0 + x1) / 2;
-  const on = (k, a, b) => (k - a + n) % n <= (b - a + n) % n;   // index k is on the path a â†’ b
+  const on = (k, a, b) => (k - a + n) % n <= (b - a + n) % n;   // index k is on the path a → b
   const dips = pockets(o);
   const c = {};
   // The neck: the dip at the top nearest the middle; its ends are the top of the straps. Level strap tops lie on the
@@ -425,7 +425,7 @@ export function drawnSleeves(panel, kind, base) {
 /**
  * A photo mock-up's garments laid flat. A photo shows each garment round a body, turned a little: its centre line
  * (from the neck's tip down) is off the middle, and a point a part t of the way from it to a side shows only
- * sin(tÂ·90Â°) of the way (the far side most foreshortened). Row by row, each side is taken back to flat between the
+ * sin(t·90°) of the way (the far side most foreshortened). Row by row, each side is taken back to flat between the
  * centre line and that side's edge at the body (above the underarms, the underarms' width), so the centre line runs
  * straight down and the print sits where it does on the garment. The panels' outlines move with it, keeping the
  * corners found on the photo (straps, armholes, neck). Returns the page laid flat; the panels are changed in place.
@@ -468,8 +468,8 @@ export function unprojectPhoto(image, panels) {
       const left = span ? span[0] : at('Ul')[0], right = span ? span[1] : at('Ur')[0];
       return { mid: (left + right) / 2, half: (right - left) / 2 };
     };
-    // The garment round the body turned by an angle: a point at angle Î¸ round the body shows at middle + halfÂ·sin(Î¸ + turn).
-    // The turn is the one that makes the print mirror itself best about the centre line (Î¸ and -Î¸ alike) on the rows below
+    // The garment round the body turned by an angle: a point at angle θ round the body shows at middle + half·sin(θ + turn).
+    // The turn is the one that makes the print mirror itself best about the centre line (θ and -θ alike) on the rows below
     // the underarms (the logos are higher up), measured on three bands down the body that should agree.
     const hy = (at('Hl')[1] + at('Hr')[1]) / 2, rows = [];
     for (let k = 0; k < 36; k++) {
@@ -513,7 +513,7 @@ export function unprojectPhoto(image, panels) {
     const fE = 1 - Math.abs(turn) / (Math.PI / 2), fK = Math.min(0.5, fE - 0.25);
     const toTrue = (f) => (s * f > fK ? s * (fK + ((s * f - fK) * (fE - fK)) / (1 - fK)) : f);
     const toFlat = (f) => (s * f > fK ? s * (fK + ((s * f - fK) * (1 - fK)) / (fE - fK)) : f);
-    // Photo to flat (the outline's points), and flat to photo (the page's pixels): the flat row runs Î¸ from -90Â° to 90Â°.
+    // Photo to flat (the outline's points), and flat to photo (the page's pixels): the flat row runs θ from -90° to 90°.
     const flat = (x, r) => {
       const t = (x - r.mid) / r.half;
       if (!(r.half > 4) || Math.abs(t) > 1) return x;
@@ -801,7 +801,7 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
   const Q = { A: [0.086, 0.738], CT: [0.418, 0.566], CB: [0.372, 0.476], U: [0.258, 0.53], H: [0.258, 0.03], ...painter.points };
   const both = ([x, y]) => ({ 1: g.near(x, y), [-1]: g.near(-x, y) });
   const A = both(Q.A), CT = both(Q.CT), CB = both(Q.CB), U = both(Q.U), H = both(Q.H);
-  const seam = (dir) => raglanSeam(g.o[N[dir]], dir, 24, g.o[U[dir]]);   // neck â†’ underarm
+  const seam = (dir) => raglanSeam(g.o[N[dir]], dir, 24, g.o[U[dir]]);   // neck → underarm
   // Body panels, from the viewer's left: front seen from the front, back seen from behind.
   const body = (left, right) => [g.edge(N[left], N[right]), seam(right), g.edge(U[right], H[right]), g.edge(H[right], H[left]), g.edge(H[left], U[left]), [...seam(left)].reverse()];
   // A hem fold strip (layout.js hemFold) is sewn inside: the visible body ends at its top.
@@ -814,9 +814,9 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
     for (const r of bodies) out.push({ ...r, band: { side: 3, scale, zone, straight: true } });
   }
   // Sleeves: laid out outside up, the front of the left sleeve is its left half, of the right sleeve its right half.
-  // One half (neck end, top of the arm, cuff, underside, raglan seam) â€¦
+  // One half (neck end, top of the arm, cuff, underside, raglan seam) …
   const half1 = (dir) => [g.edge(N[dir], A[dir]), g.edge(A[dir], CT[dir]), g.edge(CT[dir], CB[dir]), g.edge(CB[dir], U[dir]), [...seam(dir)].reverse()];
-  // â€¦ and the other, starting at the top of the arm.
+  // … and the other, starting at the top of the arm.
   const half2 = (dir) => [g.edge(A[dir], N[dir]), seam(dir), g.edge(U[dir], CB[dir]), g.edge(CB[dir], CT[dir]), g.edge(CT[dir], A[dir])];
   for (const [role, dir] of [['sleeveL', 1], ['sleeveR', -1]]) {
     const panel = byRole[role];
@@ -1049,7 +1049,7 @@ function pointAt(line, cum, s) {
 /**
  * A garment drawing's mesh made as near to conformal as it can be: everywhere only turned and evenly scaled, never
  * sheared, so a round logo stays round and lettering keeps its proportions, while the edge stays on the drawing's
- * edge. Least squares of the Cauchyâ€“Riemann equations over the triangles (the mesh's page positions as unknowns), the
+ * edge. Least squares of the Cauchy–Riemann equations over the triangles (the mesh's page positions as unknowns), the
  * edge points free to slide along their side of the drawing (each a few times: solved along its direction there,
  * then put back on the side, in order), the corners and `fixed` points held. Starts from `targets` (the mean value
  * map) and refines them in place; left as they were if any triangle would turn over.

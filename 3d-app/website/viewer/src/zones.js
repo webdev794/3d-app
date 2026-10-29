@@ -88,7 +88,7 @@ const DRESS = {
 // The varsity jacket (varsity.js): the hoodie's long sleeves, no hood.
 const { hood: _hood, ...VARSITY_ZONES } = HOODIE;
 
-const table = (kind) => (kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : TOP);
+const table = (kind) => (kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' || kind === 'compression' ? VARSITY_ZONES : TOP);
 
 /** Rectangles [x0, y0, x1, y1] for a zone, mirrored to both sides of the body. */
 export function zoneRects(kind, zone) {
@@ -121,7 +121,7 @@ const hoodPiece = (kind) => isHoodie(kind) || isTrack(kind);
 /** Tops without sleeves: what their sleeve area holds is the body's. */
 const sleeveless = (kind) => kind === 'singlet' || isDress(kind);
 /** The garments with printed side panels (texture.js; shorts: the side stripes). The jackets have none. */
-const panelled = (kind) => !isHoodie(kind) && !isTrack(kind) && kind !== 'varsity';
+const panelled = (kind) => !isHoodie(kind) && !isTrack(kind) && kind !== 'varsity' && kind !== 'compression';
 
 const quad = (p0, p1, p2, n = 12) => Array.from({ length: n + 1 }, (_, i) => {
   const t = i / n, u = 1 - t;

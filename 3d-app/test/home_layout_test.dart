@@ -118,16 +118,18 @@ void main() {
     expect(c.screen, AppScreen.artboard);
 
     // The INSTANT 3D FROM ARTWORK bar starts Convert, as the grey line it
-    // replaced did (no AI in tests: it says so), from its button and from
+    // replaced did (it needs no AI), from its button and from
     // the rest of the panel.
     for (final part in ['ARTWORK TO 3D']) {
       c.update(() => c.screen = AppScreen.home);
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(seconds: 4)); // The last toast goes.
       await tapText(tester, part);
+      // Artwork to 3D (task 9.153) works without AI: it opens the file
+      // picker (nothing picked in tests), never the "needs AI" note.
       expect(
         find.text('Convert needs AI, which is not set up in this build.'),
-        findsOneWidget,
+        findsNothing,
         reason: part,
       );
       expect(c.screen, AppScreen.home);

@@ -102,7 +102,7 @@ class SportGarmentTilesTest extends TestCase
         $nfl = $sports['american-football'];
         $this->assertSame(['Game Kit', 'Game Jersey', 'Game Pants', 'Practice Jersey', 'Training Tee', 'Training Shorts', 'Compression Top', 'Compression Shorts',
             'Game Socks', 'Hoodie', 'Varsity Jacket', 'Hooded Tracksuit', 'Waterproof Jacket', 'Cap', 'Bucket Hat', 'Beanie'], array_column($nfl['tiles'], 'name'));
-        $this->assertSame(['fullkit', 'nfljersey', null, 'nfljersey', 'tee', 'shorts', 'tee', null, null, 'hoodie', 'varsity', 'trackjacket', 'trackjacket', null, null, null],
+        $this->assertSame(['fullkit', 'nfljersey', null, 'nfljersey', 'tee', 'shorts', 'compression', null, null, 'hoodie', 'varsity', 'trackjacket', 'trackjacket', null, null, null],
             array_column($nfl['tiles'], 'garment'));
         // Coming soon: pants, compression shorts, socks, cap, bucket hat, beanie, each naming the garment still to build.
         foreach ([2 => 'nfl-pants', 7 => 'compression-shorts', 8 => 'socks', 13 => 'cap', 14 => 'bucket-hat', 15 => 'beanie'] as $i => $future) {
