@@ -3,7 +3,9 @@
     <div class="brand"><img src="__LOGO__" alt="3DEEZI"><span>ARTBOARD</span></div>
     <nav class="menus" aria-label="Menu">
       <div class="menu"><button>File</button><div class="drop">
-        <button data-action="new">New page</button><button data-action="open">Import… <small>Ctrl+I · SVG, PNG, JPG, CDR</small></button><hr>
+        <button data-action="new">New document <small>clears every page</small></button><button data-action="templateNew">New from template… <small>starter layouts and yours</small></button><button data-action="docOpen">Open from my account… <small>Ctrl+O</small></button><hr>
+        <button data-action="docSave">Save to my account <small>Ctrl+S</small></button><button data-action="docSaveAs">Save as… <small>a new copy · Ctrl+Shift+S</small></button><button data-action="templateSave">Save as template… <small>reuse the layout</small></button><hr>
+        <button data-action="open">Import… <small>Ctrl+I · SVG, PNG, JPG, CDR</small></button><hr>
         <button data-action="exportPdf">Export PDF <small>vector · Ctrl+E</small></button><button data-action="exportSvg">Export SVG <small>vector</small></button>
         <button data-action="exportPng">Export artwork <small>transparent PNG</small></button><button data-action="exportPage">Export page <small>PNG 300 DPI</small></button><hr>
         <button data-action="send">Send to 3D Studio</button></div></div>
@@ -13,9 +15,11 @@
         <button data-action="duplicate">Duplicate <small>Ctrl+D</small></button><button data-action="delete">Delete <small>Del</small></button><hr>
         <button data-action="selectAll">Select all <small>Ctrl+A</small></button></div></div>
       <div class="menu"><button>View</button><div class="drop">
-        <button data-action="zoomIn">Zoom in</button><button data-action="zoomOut">Zoom out</button><button data-action="fit">Fit page</button><hr>
+        <button data-action="zoomIn">Zoom in</button><button data-action="zoomOut">Zoom out</button><button data-action="fit">Fit page</button><button data-action="preview">Full-page preview <small>F9</small></button><hr>
         <button data-action="rulers">Rulers on / off</button><button data-action="grid">Grid on / off</button><button data-action="clearGuides">Clear guidelines <small>drag from a ruler to add</small></button><hr><button data-action="snap_grid">Snap to grid</button><button data-action="snap_guides">Snap to guidelines</button><button data-action="snap_objects">Snap to objects</button><button data-action="snap_nodes">Snap to nodes</button><button data-action="snap_page">Snap to page</button></div></div>
       <div class="menu"><button>Layout</button><div class="drop">
+        <button data-action="pageAdd">New design tab</button><button data-action="pageDup">Duplicate design in a new tab</button><button data-action="pageRename">Rename page <small>double-click its tab</small></button><button data-action="pageDelete">Delete page</button><hr>
+        <button data-action="pagePrev">Previous page <small>PgUp</small></button><button data-action="pageNext">Next page <small>PgDn</small></button><hr>
         <button data-action="layout">Centre to page <small>P</small></button></div></div>
       <div class="menu"><button>Object</button><div class="drop wide">
         <button data-action="group">Group <small>Ctrl+G</small></button><button data-action="ungroup">Ungroup <small>Ctrl+U</small></button>
@@ -39,21 +43,39 @@
       <div class="menu"><button>Effects</button><div class="drop">
         <button data-action="blend">Blend</button><button data-action="contour">Contour</button><button data-action="shadow">Drop shadow</button><button data-action="transparency">Transparency</button><hr>
         <button data-action="distort">Distort</button><button data-action="envelope">Envelope</button><button data-action="extrude">Extrude</button><button data-action="blockshadow">Block shadow</button><button data-action="meshfill">Mesh fill <small>M</small></button></div></div>
-      <div class="menu"><button>Table</button><div class="drop"><button data-action="table">New table <small>drag on the page</small></button></div></div>
+      <div class="menu"><button>Bitmaps</button><div class="drop">
+        <button data-action="bitmap">Convert to bitmap <small>300 DPI</small></button><hr>
+        <button data-action="bmAdjust">Adjust… <small>brightness, contrast, blur</small></button><button data-action="bmGray">Grayscale on / off</button><button data-action="bmTint">Tint with the fill colour</button><button data-action="bmReset">Reset adjustments</button><hr>
+        <button data-action="bmBg">Remove plain background</button><button data-action="bmTrace">Trace bitmap <small>to vectors</small></button><button data-action="bmCrop">Crop bitmap <small>Crop tool</small></button></div></div>
       <div class="menu"><button>Text</button><div class="drop">
         <button data-action="text">Add text <small>F8</small></button><button data-action="fonts">Fonts…</button><hr>
         <button data-action="fitPath">Fit text to path</button><button data-action="straighten">Straighten text</button><hr>
         <button data-action="curves">Convert to curves <small>Ctrl+Q</small></button></div></div>
-      <div class="menu"><button>Help</button><div class="drop"><button data-action="help">Tools and shortcuts</button></div></div>
+      <div class="menu"><button>Table</button><div class="drop"><button data-action="table">New table <small>drag on the page</small></button></div></div>
+      <div class="menu"><button>Tools</button><div class="drop">
+        <h5>Units</h5><button data-action="units_mm">Millimetres</button><button data-action="units_cm">Centimetres</button><button data-action="units_in">Inches</button><button data-action="units_px">Pixels <small>300 DPI</small></button><hr>
+        <button data-action="snapToggle">Snap on / off</button><button data-action="snap_grid">Snap to grid</button><button data-action="snap_guides">Snap to guidelines</button><button data-action="snap_objects">Snap to objects</button><button data-action="snap_nodes">Snap to nodes</button><button data-action="snap_page">Snap to page</button><hr>
+        <button data-action="grid">Grid on / off</button><button data-action="rulers">Rulers on / off</button><button data-action="clearGuides">Clear guidelines</button><hr>
+        <button data-action="help">Keyboard shortcuts</button></div></div>
+      <div class="menu"><button>Window</button><div class="drop">
+        <h5>Dockers</h5><button data-action="dock_colour">Colour</button><button data-action="dock_props">Properties</button><button data-action="dock_layers">Layers <small>Object Manager</small></button><button data-action="dock_assets">Assets</button><hr>
+        <h5>Show</h5><button data-action="win_tools">Toolbox</button><button data-action="win_props">Property bar</button><button data-action="win_side">Dockers <small>right panel</small></button><button data-action="win_palette">Colour palette</button><button data-action="win_foot">Status bar</button><hr>
+        <button data-action="fullscreen">Full screen</button></div></div>
+      <div class="menu"><button>Help</button><div class="drop"><button data-action="help">Tools and shortcuts</button><button data-action="supportFile">Save page for support <small>a file to send us</small></button></div></div>
     </nav>
+    <div class="go-tabs" role="group" aria-label="Quick access">
+      <button class="go-tab ai" id="goAi" data-icon="qaAi" title="AI Powered Sportswear: describe your kit and AI designs it (your artwork stays here)"><span>AI</span></button>
+      <button class="go-tab" id="goDyo" data-icon="qaTee" title="Design Your Own: choose a sport and garment, then design it in the 3D Studio (your artwork stays here)"><span>DYO</span></button>
+      <button class="go-tab" id="goHome" data-icon="qaHome" title="Home: the 3DEEZI home page (your artwork stays here)"><span>HOME</span></button>
+    </div>
     <div class="top-actions">
       <button class="round" id="undo" title="Undo (Ctrl+Z)" data-icon="undo"></button>
       <button class="round" id="redo" title="Redo (Ctrl+Y)" data-icon="redo"></button>
-      <button class="btn" id="save" data-icon="save"><span class="lbl">Save</span></button>
-      <div class="menu"><button class="btn grad" data-icon="export"><span class="lbl">Export</span></button><div class="drop" style="right:0;left:auto">
+      <button class="btn" id="save" data-icon="save" title="Save"><span class="lbl">Save</span></button>
+      <div class="menu"><button class="btn grad" data-icon="export" title="Export"><span class="lbl">Export</span></button><div class="drop" style="right:0;left:auto">
         <button data-action="exportPdf">PDF <small>vector, print-ready</small></button><button data-action="exportSvg">SVG <small>vector</small></button>
         <button data-action="exportPng">Artwork <small>transparent PNG</small></button><button data-action="exportPage">Whole page <small>PNG 300 DPI</small></button></div></div>
-      <button class="btn send" id="sendBtn" data-icon="shirt"><span class="lbl">Send to 3D Studio</span></button>
+      <button class="btn send" id="sendBtn" data-icon="shirt" title="Send to 3D Studio"><span class="lbl">Send to 3D Studio</span></button>
       <button class="round mobile-only" id="panelBtn" title="Colour, properties, layers and assets" data-icon="panel"></button>
     </div>
   </header>
@@ -86,27 +108,48 @@
       <button class="ibtn" data-action="curves" title="Convert to curves (Ctrl+Q)" data-icon="tocurves"></button><button class="ibtn" data-action="breakApart" title="Break curve apart (Ctrl+K)" data-icon="breakapart"></button>
       <button class="ibtn" data-action="outline" title="Convert outline to object (Ctrl+Shift+Q)" data-icon="outlineobj"></button>
     </div>
-    <div class="ctx" id="ctx-brush" hidden><span class="sep"></span><label>Nib size</label><input id="cRadius" type="number" min="1" max="200" step="1" style="width:62px"><label>mm</label></div>
+    <div class="ctx" id="ctx-brush" hidden><span class="sep"></span><label>Nib size</label><input id="cRadius" type="number" min="1" max="200" step="1" style="width:62px"><label>mm</label><span id="twirlWrap" hidden><label>Direction</label><select id="cTwirlDir"><option value="cw">Clockwise</option><option value="ccw">Counter-clockwise</option></select></span></div>
+    <div class="ctx" id="ctx-media" hidden><span class="sep"></span><button class="btn small" data-media="preset">Preset</button><button class="btn small" data-media="brush">Brush</button><button class="btn small" data-media="spray">Sprayer</button><button class="btn small" data-media="calli">Calligraphic</button><button class="btn small" data-media="expr">Expression</button><label id="mWidthLabel">Width</label><input id="mWidth" type="number" min="0.5" max="200" step="0.5" style="width:62px"><label>mm</label><label>Smoothing</label><input id="mSmooth" type="number" min="0" max="100" style="width:56px"><span id="mPresetWrap"><select id="mPreset"></select></span><span id="mBrushWrap"><select id="mBrush"></select></span><span id="mSprayWrap"><select id="mSpray"></select><label>Spacing</label><input id="mSpacing" type="number" min="1" max="200" style="width:56px"><label>mm</label><label>Size ±</label><input id="mSizeVar" type="number" min="0" max="90" style="width:52px"><label>%</label><select id="mRotate"><option value="random">Random turn</option><option value="follow">Follow the stroke</option><option value="none">Upright</option></select></span><span id="mAngleWrap"><label>Nib angle</label><input id="mAngle" type="number" min="-90" max="90" style="width:56px"><label>°</label></span></div>
+    <div class="ctx" id="ctx-smart" hidden><span class="sep"></span><label>Shape recognition</label><select id="sdLevel"><option value="off">None (smooth curve)</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><label>Smoothing</label><input id="sdSmooth" type="number" min="0" max="100" style="width:56px"></div>
+    <div class="ctx" id="ctx-live" hidden><span class="sep"></span><label>Timer</label><input id="lsTimer" type="number" min="0" max="5" step="0.1" style="width:56px"><label>s</label><label>Join within</label><input id="lsNear" type="number" min="4" max="60" style="width:52px"><label>px</label><label>Smoothing</label><input id="lsSmooth" type="number" min="0" max="100" style="width:56px"></div>
+    <div class="ctx" id="ctx-paint" hidden><span class="sep"></span><label>Brush</label><select id="pbBrush"></select><label>Size</label><input id="pbSize" type="number" min="0.5" max="200" step="0.5" style="width:60px"><label>mm</label><label>Flow</label><input id="pbFlow" type="number" min="5" max="100" style="width:52px"><label>%</label></div>
+    <div class="ctx" id="ctx-inner" hidden><span class="sep"></span><label>X</label><input id="fxIX" type="number" step="0.5" style="width:52px"><label>Y</label><input id="fxIY" type="number" step="0.5" style="width:52px"><label>Feather</label><input id="fxIBlur" type="number" min="0" step="0.5" style="width:52px"><label>Opacity %</label><input id="fxIOpacity" type="number" min="0" max="100" style="width:52px"><input id="fxIColour" type="color" title="Shadow colour"><label>Merge</label><select id="fxIMerge" title="Multiply darkens the colours under the shadow; Normal lays the shadow colour over them"><option value="multiply">Multiply</option><option value="normal">Normal</option></select><button class="btn small grad" id="fxInner">Apply</button><button class="btn small" id="fxInnerOff">Remove</button></div>
+    <div class="ctx" id="ctx-var" hidden><span class="sep"></span><label>Profile</label><select id="varProfile"><option value="custom">Custom</option><option value="uniform">Uniform</option><option value="taper">Taper both ends</option><option value="taper-start">Taper at the start</option><option value="taper-end">Taper at the end</option><option value="bulge">Bulge</option><option value="pinch">Pinch</option><option value="wave">Wave</option></select><label id="varWidthLabel">Width</label><input id="varWidth" type="number" min="0" max="150" step="0.5" style="width:58px"><label>mm</label><label>Ends</label><select id="varCap"><option value="round">Round</option><option value="butt">Flat</option></select><button class="btn small" id="varDelPoint" title="Delete the picked width point (pink)">Delete point</button><button class="btn small" id="varRemove" title="Back to an ordinary outline">Remove</button></div>
+    <div class="ctx" id="ctx-conn" hidden><span class="sep"></span><span id="connTypeWrap"><label>Type</label><select id="connType"><option value="straight">Straight</option><option value="right">Right-angle</option><option value="rounded">Rounded right-angle</option></select></span><span id="connRadiusWrap"><label>Corner radius</label><input id="connRadius" type="number" min="0" max="100" step="0.5" style="width:58px"><label>mm</label></span><label>Arrowheads</label><select id="connArrows"><option value="none">None</option><option value="end">At the end</option><option value="start">At the start</option><option value="both">At both ends</option></select></div>
+    <div class="ctx" id="ctx-anchor" hidden><span class="sep"></span><button class="btn small" id="anchorDel" title="Delete the anchor picked on the page (pink)">Delete anchor</button><button class="btn small" id="anchorReset" title="Give the object of the picked anchor its four default anchors again">Reset anchors</button></div>
+    <div class="ctx" id="ctx-freetx" hidden><span class="sep"></span><button class="btn small" data-ft="rotate">Rotate</button><button class="btn small" data-ft="reflect">Reflect</button><button class="btn small" data-ft="scale">Scale</button><button class="btn small" data-ft="skew">Skew</button><label class="ft-dup"><input type="checkbox" id="ftDup"> Apply to duplicate</label></div>
+    <div class="ctx" id="ctx-impact" hidden><span class="sep"></span><label>Style</label><select id="cImpactStyle"><option value="radial">Radial</option><option value="parallel">Parallel</option></select><label>Lines</label><input id="cImpactLines" type="number" min="3" max="200" style="width:58px"><label id="cImpactInnerLabel">Empty centre</label><input id="cImpactInner" type="number" min="0" max="95" style="width:58px"><label>%</label><button class="btn small" id="cImpactShuffle" title="New random line lengths">Shuffle</button></div>
     <div class="ctx" id="ctx-poly" hidden><span class="sep"></span><label>Points / sides</label><input id="cPoints" type="number" min="3" max="60" style="width:58px"><span id="cSharpWrap"><label>Sharpness</label><input id="cSharp" type="number" min="1" max="99" style="width:58px"></span></div>
     <div class="ctx" id="ctx-spiral" hidden><span class="sep"></span><label>Revolutions</label><input id="cRevs" type="number" min="1" max="40" style="width:58px"><select id="cSpiralType"><option value="sym">Symmetrical</option><option value="log">Logarithmic</option></select><span id="cExpandWrap"><label>Expansion</label><input id="cExpand" type="number" min="1" max="100" style="width:58px"></span></div>
     <div class="ctx" id="ctx-graph" hidden><span class="sep"></span><label>Columns</label><input id="cCols" type="number" min="1" max="50" style="width:58px"><label>Rows</label><input id="cRows" type="number" min="1" max="50" style="width:58px"></div>
     <div class="ctx" id="ctx-rect" hidden><span class="sep"></span><label>Corner radius</label><input id="rectRadius" type="number" min="0" step="0.5" style="width:62px"><label>mm</label></div>
     <div class="ctx shape-gallery" id="ctx-shapes" hidden><span class="sep"></span><div id="shapeGallery" class="gallery"></div></div>
     <div class="ctx" id="ctx-blend" hidden><span class="sep"></span><label>Steps</label><input id="fxSteps" type="number" min="1" max="60" style="width:58px"><button class="btn small grad" id="fxBlend">Apply blend</button></div>
-    <div class="ctx" id="ctx-contour" hidden><span class="sep"></span><select id="fxCDir"><option value="outside">Outside</option><option value="inside">Inside</option></select><label>Steps</label><input id="fxCSteps" type="number" min="1" max="20" style="width:52px"><label>Offset mm</label><input id="fxCOffset" type="number" min="0.1" step="0.5" style="width:58px"><label>Colour</label><input id="fxCColour" type="color"><button class="btn small grad" id="fxContour">Apply contour</button></div>
+    <div class="ctx" id="ctx-contour" hidden><span class="sep"></span><select id="fxCDir"><option value="outside">Outside</option><option value="inside">Inside</option><option value="centre">To centre</option></select><span id="fxCStepsWrap"><label>Steps</label><input id="fxCSteps" type="number" min="1" max="20" style="width:52px"></span><label>Offset mm</label><input id="fxCOffset" type="number" min="0.1" step="0.5" style="width:58px"><label>Corners</label><select id="fxCJoin" title="Contour corners"><option value="miter">Miter</option><option value="round">Round</option><option value="bevel">Bevel</option></select><label>Fill</label><input id="fxCColour" type="color" title="Fill colour of the last step: the steps blend to it from the object's fill"><label>Outline</label><input id="fxCOutline" type="color" title="Outline colour of the last step (when the object has an outline): the steps blend to it from the object's outline"><button class="btn small grad" id="fxContour">Apply contour</button><button class="btn small" id="fxContourOff" title="Take the contour off: the original object again">Remove</button><button class="btn small" id="fxContourBreak" title="Separate the contour steps from the object: each becomes a shape of its own">Break apart</button></div>
     <div class="ctx" id="ctx-shadow" hidden><span class="sep"></span><label>X</label><input id="fxSX" type="number" step="0.5" style="width:52px"><label>Y</label><input id="fxSY" type="number" step="0.5" style="width:52px"><label>Feather</label><input id="fxSBlur" type="number" min="0" step="0.5" style="width:52px"><label>Opacity %</label><input id="fxSOpacity" type="number" min="0" max="100" style="width:52px"><input id="fxSColour" type="color"><button class="btn small grad" id="fxShadow">Apply</button><button class="btn small" id="fxShadowOff">Remove</button></div>
-    <div class="ctx" id="ctx-transp" hidden><span class="sep"></span><select id="fxTType"><option value="none">No transparency</option><option value="uniform">Uniform</option><option value="linear">Linear (fade)</option></select><label>Amount %</label><input id="fxTValue" type="number" min="0" max="100" style="width:56px"><span id="fxTAngleWrap"><label>Angle</label><input id="fxTAngle" type="number" step="15" style="width:56px"></span><button class="btn small grad" id="fxTransp">Apply</button></div>
+    <div class="ctx" id="ctx-transp" hidden><span class="sep"></span><select id="fxTType"><option value="none">No transparency</option><option value="uniform">Uniform</option><option value="linear">Linear (fade)</option><option value="radial">Radial (fade from the centre)</option></select><label>Amount %</label><input id="fxTValue" type="number" min="0" max="100" style="width:56px"><span id="fxTAngleWrap"><label>Angle</label><input id="fxTAngle" type="number" step="15" style="width:56px"></span><label>Merge</label><select id="fxTMerge" title="How the object mixes with what is under it"><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option><option value="darken">Darken</option><option value="lighten">Lighten</option><option value="color-burn">Colour burn</option><option value="color-dodge">Colour dodge</option><option value="difference">Difference</option><option value="exclusion">Exclusion</option><option value="hue">Hue</option><option value="saturation">Saturation</option><option value="color">Colour</option><option value="luminosity">Luminosity</option></select><button class="btn small grad" id="fxTransp">Apply</button></div>
     <div class="ctx" id="ctx-distort" hidden><span class="sep"></span><select id="fxDMode" title="Distortion"><option value="zipper">Zipper</option><option value="twister">Twister</option><option value="push">Push and pull</option></select>
       <span id="fxDZipWrap"><label>Tooth mm</label><input id="fxDZip" type="number" step="0.5" min="-50" max="50" style="width:56px"><label>Teeth</label><input id="fxDTeeth" type="number" min="2" max="300" style="width:56px"></span>
       <span id="fxDTwistWrap"><label>Turn °</label><input id="fxDTwist" type="number" step="15" style="width:62px"></span>
       <span id="fxDPushWrap"><label>Amount % (+ push, − pull)</label><input id="fxDPush" type="number" min="-100" max="100" step="5" style="width:56px"></span>
       <button class="btn small grad" id="fxDistort">Apply distortion</button></div>
-    <div class="ctx" id="ctx-envelope" hidden><span class="sep"></span><select id="fxEPreset" title="Envelope"><option value="arcUp">Arch up</option><option value="arcDown">Arch down</option><option value="bridge">Bridge</option><option value="valley">Valley</option><option value="bulge">Bulge</option><option value="pinch">Pinch</option><option value="wave">Wave (flag)</option><option value="taper">Taper</option></select><label>Amount mm</label><input id="fxEAmount" type="number" step="1" style="width:58px"><button class="btn small grad" id="fxEnvelope">Apply envelope</button></div>
+    <div class="ctx" id="ctx-envelope" hidden><span class="sep"></span><select id="fxEPreset" title="Envelope"><option value="arcUp">Arch up</option><option value="arcDown">Arch down</option><option value="bridge">Bridge</option><option value="valley">Valley</option><option value="bulge">Bulge</option><option value="pinch">Pinch</option><option value="wave">Wave (flag)</option><option value="taper">Taper</option></select><label>Amount mm</label><input id="fxEAmount" type="number" step="1" style="width:58px"><button class="btn small grad" id="fxEnvelope">Apply envelope</button><span class="ctx-note">or drag the blue nodes round the object</span></div>
     <div class="ctx" id="ctx-extrude" hidden><span class="sep"></span><label>Depth X mm</label><input id="fxXX" type="number" step="0.5" style="width:56px"><label>Y mm</label><input id="fxXY" type="number" step="0.5" style="width:56px"><label>Side colour</label><input id="fxXColour" type="color"><button class="btn small grad" id="fxExtrude">Apply extrude</button><button class="btn small" id="fxExtrudeOff">Remove</button></div>
     <div class="ctx" id="ctx-block" hidden><span class="sep"></span><label>Depth X mm</label><input id="fxBX" type="number" step="0.5" style="width:56px"><label>Y mm</label><input id="fxBY" type="number" step="0.5" style="width:56px"><label>Colour</label><input id="fxBColour" type="color"><button class="btn small grad" id="fxBlock">Apply block shadow</button><button class="btn small" id="fxBlockOff">Remove</button></div>
     <div class="ctx" id="ctx-mesh" hidden><span class="sep"></span><label>Colour</label><button class="chip" id="meshChip" title="Spot colour: the current fill colour (click to change it)"></button><label>Spot size mm</label><input id="fxMSize" type="number" min="1" step="5" style="width:58px"><label>Strength %</label><input id="fxMStrength" type="number" min="0" max="100" step="5" style="width:56px"><button class="btn small" id="fxMeshClear">Remove mesh colours</button></div>
     <div class="ctx" id="ctx-powerclip" hidden><span class="sep"></span><label>PowerClip</label><button class="btn small grad" id="pcEditBtn" title="Move or resize what is inside (or double-click the PowerClip)">Edit contents</button><button class="btn small grad" id="pcFinishBtn" title="Put the contents back inside the frame (Esc)">Finish editing</button><button class="btn small" id="pc-centre" title="Centre the contents in the frame">Centre</button><button class="btn small" id="pc-fit" title="Scale the contents to fit inside the frame">Fit inside</button><button class="btn small" id="pc-fill" title="Scale the contents to fill the whole frame">Fill frame</button><button class="btn small" id="pcExtractBtn" title="Take the contents out of the frame">Extract</button></div>
     <div class="ctx" id="ctx-table" hidden><span class="sep"></span><label>Rows</label><input id="tRows" type="number" min="1" max="30" style="width:56px"><label>Columns</label><input id="tCols" type="number" min="1" max="12" style="width:56px"></div>
+    <!-- Nothing selected (Pick): the document settings, as CorelDRAW's property bar (task 9.141). -->
+    <div class="ctx doc-bar" id="ctx-doc" hidden><span class="sep"></span>
+      <div class="prop" title="Page width"><label for="docW">W</label><input id="docW" type="number" min="0" step="any" aria-label="Page width"><label class="doc-unit">mm</label></div>
+      <div class="prop" title="Page height"><label for="docH">H</label><input id="docH" type="number" min="0" step="any" aria-label="Page height"><label class="doc-unit">mm</label></div>
+      <button class="ibtn" id="docPortrait" title="Portrait: the page taller than wide" aria-label="Portrait"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="3" width="10" height="18" rx="1"/></svg></button><button class="ibtn" id="docLandscape" title="Landscape: the page wider than tall" aria-label="Landscape"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="10" rx="1"/></svg></button>
+      <span class="sep"></span>
+      <div class="prop" title="Units for the rulers, position, size and page"><label for="docUnits">Units</label><select id="docUnits"><option value="mm">millimeters</option><option value="cm">centimeters</option><option value="in">inches</option><option value="px">pixels (300 DPI)</option></select></div>
+      <span class="sep"></span>
+      <div class="prop" title="Nudge distance: how far the arrow keys move the selected objects (Shift + arrow: 10 times as far)"><label for="docNudge">Nudge</label><input id="docNudge" type="number" min="0" step="0.1" aria-label="Nudge distance"><label class="doc-unit">mm</label></div>
+      <div class="prop" title="Duplicate distance: where Duplicate (Ctrl+D) puts the copy, across (X) and down (Y)"><label for="docDupX">Duplicate X</label><input id="docDupX" type="number" step="0.5" aria-label="Duplicate distance across"><label for="docDupY">Y</label><input id="docDupY" type="number" step="0.5" aria-label="Duplicate distance down"><label class="doc-unit">mm</label></div>
+    </div>
     <div class="ctx" id="ctx-eyedrop" hidden><span class="sep"></span><button class="ibtn" id="eyePick" title="Pick a colour (Shift+click)" data-icon="eyedropper"></button><button class="ibtn" id="eyeApply" title="Fill objects with the picked colour" data-icon="fill"></button><span class="chip" id="eyeChip" title="Picked colour"></span><label>Apply to</label><select id="eyeTo"><option value="fill">Fill</option><option value="stroke">Outline</option></select></div>
 
     <div class="textbar" id="textBar" hidden>
@@ -114,8 +157,22 @@
       <button class="fontpick" id="tFont" title="Font"><span id="tFontName">Rajdhani</span><svg class="i" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
       <div class="prop tsize"><input id="tSize" type="number" min="1" max="1000" step="1" title="Font size (mm)" aria-label="Font size in mm"><label for="tSize">mm</label></div>
       <button class="ibtn tstyle" id="tBold" title="Bold (Ctrl+B)"><b>B</b></button><button class="ibtn tstyle" id="tItalic" title="Italic (Ctrl+I)"><i>I</i></button><button class="ibtn tstyle" id="tUnder" title="Underline (Ctrl+U)"><u>U</u></button>
-      <button class="ibtn" id="tAlign-left" title="Align text left" data-icon="textL"></button><button class="ibtn" id="tAlign-center" title="Centre text" data-icon="textC"></button><button class="ibtn" id="tAlign-right" title="Align text right" data-icon="textR"></button>
+      <button class="ibtn" id="tAlign-left" title="Align text left" data-icon="textL"></button><button class="ibtn" id="tAlign-center" title="Centre text" data-icon="textC"></button><button class="ibtn" id="tAlign-right" title="Align text right" data-icon="textR"></button><button class="ibtn" id="tAlign-justify" title="Justify: each line fills the width (paragraph text and text with several lines)" data-icon="textJ"></button>
+      <span class="sep"></span>
+      <div class="prop tspace" title="Letter spacing: % of the font size (0 = normal, more spreads the letters out, less brings them closer)"><span class="ti" data-icon="letterSp"></span><input id="tLetter" type="number" step="5" min="-50" max="500" aria-label="Letter spacing in %"><label for="tLetter">%</label></div>
+      <div class="prop tspace" title="Line spacing: % of normal (100 = normal) for text with several lines"><span class="ti" data-icon="lineSp"></span><input id="tLine" type="number" step="10" min="50" max="400" aria-label="Line spacing in %"><label for="tLine">%</label></div>
+      <span class="sep"></span>
+      <button class="mini tfx-btn" id="tfxBtn" type="button" title="Effects for the text: shadow, contour, blend, distort, envelope, extrude, block shadow, outline" aria-haspopup="menu">Effects ▾</button>
+      <button class="mini tout" id="tOutlineBtn" title="Outlines for names and numbers: one or two outlines behind the letters (the text stays editable)" data-icon="textOut">Outlines</button>
     </div>
+    <span class="pathbar" id="pathBar" hidden><span class="sep"></span><span class="ti" data-icon="textPath" title="Text on a path"></span>
+        <div class="prop tpnum" title="Where the text starts along the path"><label for="tpOffset">Along</label><input id="tpOffset" type="number" step="5"><label>mm</label></div>
+        <div class="prop tpnum" title="Distance from the path: more lifts the text away from it, minus brings it closer"><label for="tpDist">Distance</label><input id="tpDist" type="number" step="1"><label>mm</label></div>
+        <select id="tpAlign" title="Which part of the letters sits on the path"><option value="baseline">Letters on the path</option><option value="center">Middle on the path</option><option value="ascender">Tops on the path</option><option value="descender">Bottoms on the path</option></select>
+        <button class="ibtn" id="tpSide" title="Place the text on the other side of the path" data-icon="flipV"></button>
+        <button class="mini" id="tpCentre" title="Centre the text along the path">Centre</button><button class="mini" id="tpStraight" title="Take the text off the path">Straighten</button>
+      </span>
+    <span class="fitbar" id="fitBar" hidden><span class="sep"></span><button class="mini" id="tpFit" title="Run the selected text along the selected curve or shape">Fit text to path</button></span>
     <!-- Object buttons always start the second row, in the same place for images, shapes and text. -->
     <span class="rowbreak" aria-hidden="true"></span>
     <button class="ibtn" id="alL" title="Align left (L)" data-icon="alL"></button><button class="ibtn" id="alC" title="Align centres horizontally (E): lines centres up in a column" data-icon="alC"></button><button class="ibtn" id="alR" title="Align right (R)" data-icon="alR"></button>
@@ -124,13 +181,26 @@
     <div class="xywh"><span>X</span><input id="posX" title="X (mm)"><span>W</span><input id="sizeW" title="Width (mm)"><span>Y</span><input id="posY" title="Y (mm)"><span>H</span><input id="sizeH" title="Height (mm)"></div>
     <button class="ibtn on" id="ratio" title="Keep proportions" data-icon="ratio"></button>
     <span class="sep"></span>
+    <div class="quick" role="group" aria-label="Quick buttons, always here"><button class="ibtn" id="quickPick" data-icon="select" title="Pick (V): select, move and resize"></button><button class="ibtn" id="quickPan" data-icon="pan" title="Pan (H): drag to move around the page"></button><button class="ibtn" id="quickPreview" data-icon="eye" title="Full-page preview (F9): only the page, on the whole screen · click or press Esc to come back"></button><span id="quickPins" class="quick-pins"></span><button class="ibtn" id="quickAdd" data-icon="plus" title="Add your own buttons here: tools and commands you use often"></button></div>
+    <span class="sep"></span>
     <button class="ibtn" id="flipH" title="Mirror horizontally" data-icon="flipH"></button><button class="ibtn" id="flipV" title="Mirror vertically" data-icon="flipV"></button>
     <button class="ibtn lbtn" id="front" title="To front (Shift+PgUp)" data-icon="front"><span>To front</span></button><button class="ibtn lbtn" id="back" title="To back (Shift+PgDn)" data-icon="back"><span>To back</span></button>
     <button class="ibtn" id="group" title="Group / ungroup (Ctrl+G / Ctrl+U)" data-icon="group"></button><button class="ibtn" id="dup" title="Duplicate (Ctrl+D)" data-icon="dup"></button>
     <button class="ibtn" id="lock" title="Lock" data-icon="lock"></button><button class="ibtn" id="del" title="Delete" data-icon="trash"></button>
+    <button class="ibtn props-hide" id="propsHide" data-icon="up" title="Hide the property bar: more room for the page (the tab at the top of the page brings it back)"></button>
   </div>
+  <div class="quick-pop" id="quickPop" hidden><h4>Your buttons</h4><p>Tick the tools and commands you use often: they get a button on the property bar, next to Pick and Pan.</p><div class="qp-cols"><div><h5>Tools</h5><div id="qpTools"></div></div><div><h5>Commands</h5><div id="qpCmds"></div></div></div></div>
 
-  <div class="fly font-fly" id="fontFly"><input id="fontSearch" placeholder="Search fonts" aria-label="Search fonts" autocomplete="off"><div id="fontList"></div></div>
+  <div class="fly outline-fly" id="outlineFly">
+    <b>Outlines behind the letters</b>
+    <div class="ol-row"><span>Outline 1</span><input id="ol1w" type="number" min="0" max="50" step="0.5" aria-label="Outline 1 width in mm"><label>mm</label><input id="ol1c" type="color" value="#000000" aria-label="Outline 1 colour"></div>
+    <div class="ol-row"><span>Outline 2</span><input id="ol2w" type="number" min="0" max="50" step="0.5" aria-label="Outline 2 width in mm"><label>mm</label><input id="ol2c" type="color" value="#FFFFFF" aria-label="Outline 2 colour"></div>
+    <p class="ol-note">Outline 1 is next to the letters, outline 2 around it; 0 mm = none. The text stays editable: double-click it to change the name or number.</p>
+    <button id="olNone" type="button">Remove the outlines</button>
+  </div>
+  <div class="fly tfx-fly" id="tfxFly" role="menu" hidden><button type="button" role="menuitem" data-tfx="shadow" title="Drop shadow"><span data-icon="shadow"></span>Drop shadow</button><button type="button" role="menuitem" data-tfx="contour" title="Contour: outlines inside or outside the letters"><span data-icon="contour"></span>Contour</button><button type="button" role="menuitem" data-tfx="blend" title="Blend: steps between two selected objects"><span data-icon="blend"></span>Blend</button><button type="button" role="menuitem" data-tfx="distort" title="Distort: zipper, twister, push and pull"><span data-icon="distort"></span>Distort</button><button type="button" role="menuitem" data-tfx="envelope" title="Envelope: drag the nodes round the word to bend it, or pick a shape"><span data-icon="envelope"></span>Envelope</button><button type="button" role="menuitem" data-tfx="extrude" title="Extrude: 3D sides"><span data-icon="extrude"></span>Extrude</button><button type="button" role="menuitem" data-tfx="blockshadow" title="Block shadow"><span data-icon="blockshadow"></span>Block shadow</button><button type="button" role="menuitem" data-tfx="outline" title="Outline: thickness and colour of the letters' outline"><span data-icon="outlineobj"></span>Outline</button></div>
+  <div class="fly font-fly" id="fontFly"><input id="fontSearch" placeholder="Search fonts" aria-label="Search fonts" autocomplete="off"><button class="mini font-up" id="fontUpload" type="button" title="Add your own fonts: a .zip as downloaded (for example from Google Fonts) or TTF, OTF or WOFF files (choose several for all the weights). They are kept on this device, under My fonts">Upload fonts… <small>.zip, TTF, OTF, WOFF</small></button><div id="fontList"></div><div class="font-ask" id="fontAsk" hidden><span id="fontAskText"></span><button class="btn small" id="fontAskYes">Remove</button><button class="btn small" id="fontAskNo">Cancel</button></div></div>
+  <input type="file" id="fontFile" multiple accept=".zip,.ttf,.otf,.woff,application/zip,font/ttf,font/otf,font/woff" hidden>
   <div class="fly tool-fly" id="toolFly"></div>
 <div class="fly ctx-menu" id="ctxMenu" role="menu"></div>
 
@@ -138,6 +208,10 @@
     <nav class="tools" id="tools" aria-label="Toolbox"></nav>
 
     <main class="stage" id="stage">
+      <!-- Document tabs (CorelDRAW): each tab is its own design with its own pages and Undo; * = changes not saved. -->
+      <div class="doc-tabs" id="docTabs" role="tablist" aria-label="Open designs"><button class="doc-tab-arrow" id="docTabLeft" type="button" title="Show the tabs to the left" hidden>‹</button><div class="doc-tab-list" id="docTabList"></div><button class="doc-tab-arrow" id="docTabRight" type="button" title="Show the tabs to the right" hidden>›</button><button class="doc-tab-add" id="docTabAdd" type="button" title="A new design in a new tab (the open designs stay open in their tabs)">+</button></div>
+      <div class="stage-in" id="stageIn">
+      <button class="props-show" id="propsShow" data-icon="down" title="Show the property bar"><span>Property bar</span></button>
       <div class="corner"></div><canvas class="ruler h" id="rulerH"></canvas><canvas class="ruler v" id="rulerV"></canvas>
       <div class="canvas-wrap" id="canvasWrap"><canvas id="board"></canvas></div>
       <div class="hint" id="hint"></div>
@@ -145,8 +219,11 @@
       <div class="palette" id="palette" aria-label="Colour palette">
         <button class="pc pal-x" id="palNone" title="No colour · click: no fill · right-click: no outline"></button>
         <span class="pal-sep"></span>
+        <span class="pal-group" id="palBrand" hidden><span class="pal-label" id="palBrandName"></span></span>
         <span class="pal-group" id="palDoc" hidden><span class="pal-label">Document</span></span>
         <span class="pal-group" id="palMain"></span>
+        <button class="pal-more" id="palMore" type="button" data-icon="more" aria-label="Right-click menu" title="Right-click menu: tap this, then tap an item (an object, a page tab, a tool or a colour) to open its menu"></button>
+      </div>
       </div>
     </main>
 
@@ -156,13 +233,13 @@
         <h3>Colour palette <button class="ibtn mobile-only" id="closeSide" data-icon="close"></button></h3>
         <div class="target"><button data-target="fill" class="on">Fill</button><button data-target="stroke">Outline</button></div>
         <select id="fillMode"><option value="solid">Uniform fill</option><option value="gradient">Linear gradient</option><option value="radial">Radial gradient</option><option value="pattern">Pattern fill</option></select>
-        <div class="grid2" id="gradRow" style="display:none"><label class="field">To colour<input type="color" id="gradTo" value="#7B4DFF"></label><label class="field">Angle<input type="number" id="gradAngle" value="0" step="15"></label></div>
+        <div class="grad-edit" id="gradRow" style="display:none"><div class="grad-bar" id="gradBar" title="Click the strip to add a colour · drag a square to move it · double-click a square to remove it"><div class="grad-track" id="gradTrack"></div><div class="grad-stops" id="gradStops"></div></div><p class="grad-help">The small squares under the strip are its colours. Click the strip to add a colour · click a square to pick it, then choose its colour in the colour picker below · drag a square sideways to move it · double-click a square (or pick it and press Delete) to remove it</p><div class="grad-tools"><label class="field" title="Where the picked colour sits along the gradient">Position %<input type="number" id="gradPos" min="0" max="100" step="1"></label><label class="field" id="gradAngleBox" title="Direction: 0 = top to bottom, 90 = left to right">Angle °<input type="number" id="gradAngle" value="0" step="15"></label></div><div class="grad-btns"><button class="mini" id="gradRev" data-icon="flipH" title="Reverse the colours (first becomes last)">Reverse</button><button class="mini" id="gradEven" data-icon="even" title="Space the colours evenly along the gradient">Space evenly</button><button class="mini" id="gradDel" data-icon="trash" title="Remove the picked colour (a gradient keeps at least two)">Remove</button></div><div class="grad-presets" id="gradPresets"></div></div>
         <div class="grid3" id="patRow" style="display:none"><label class="field">Pattern<select id="patKind"><option value="stripes">Stripes</option><option value="hoops">Hoops</option><option value="diagonal">Diagonal</option><option value="dots">Dots</option><option value="checks">Checks</option><option value="chevron">Chevron</option></select></label><label class="field">Size (mm)<input type="number" id="patSize" value="10" min="2" max="100"></label><label class="field">Background<input type="color" id="patBg" value="#FFFFFF"></label></div>
         <div class="picker-row"><div class="sv" id="sv"><canvas id="svCanvas"></canvas><i id="svDot"></i></div><div class="hue" id="hue"><canvas id="hueCanvas"></canvas><i id="hueDot"></i></div></div>
         <div class="hexrow"><span class="chip" id="hexChip"></span><input id="hexIn" maxlength="7" aria-label="Hex colour"></div>
         <div class="cvals"><label>R<input id="cR" type="number" min="0" max="255"></label><label>G<input id="cG" type="number" min="0" max="255"></label><label>B<input id="cB" type="number" min="0" max="255"></label></div>
         <div class="cvals four"><label>C<input id="cC" type="number" min="0" max="100"></label><label>M<input id="cM" type="number" min="0" max="100"></label><label>Y<input id="cY" type="number" min="0" max="100"></label><label>K<input id="cK" type="number" min="0" max="100"></label></div>
-        <div class="swatches" id="brandSw"></div>
+        <h3>Palette <span class="pal-head"><select id="palPick" aria-label="Palette"></select><button class="ibtn" id="palRename" data-icon="draw" title="Rename this palette" hidden></button><button class="ibtn" id="palDelete" data-icon="trash" title="Delete this palette" hidden></button></span></h3><div class="pal-name" id="palNameRow" hidden><input id="palName" maxlength="40" placeholder="Palette name, e.g. Lions FC" aria-label="Palette name"><button class="btn small" id="palNameOk">Save</button><button class="btn small" id="palNameCancel">Cancel</button></div><div class="pal-name pal-ask" id="palAsk" hidden><span id="palAskText"></span><button class="btn small" id="palAskYes">Delete</button><button class="btn small" id="palAskNo">Cancel</button></div><div class="swatches" id="brandSw"></div>
         <h3>Recent colours</h3><div class="swatches" id="recentSw"></div>
         <h3>Colour harmony <select id="harmonyMode" style="width:auto"><option value="analogous">Analogous</option><option value="complementary">Complementary</option><option value="triadic">Triadic</option><option value="shades">Shades</option></select></h3>
         <div class="harmony" id="harmony"></div>
@@ -176,7 +253,11 @@
           <div id="textProps" class="card" style="display:none">
             <label class="field">Font<select id="pFont"></select></label>
             <div class="grid2"><label class="field">Size (mm)<input id="pSize" type="number" min="2"></label><label class="field">Weight<select id="pWeight"><option value="400">Regular</option><option value="700">Bold</option><option value="900">Black</option></select></label></div>
-            <label class="field">Letter spacing<input id="pSpacing" type="number" step="20"></label>
+            <div class="grid2"><label class="field">Letter spacing (%)<input id="pSpacing" type="number" step="5" min="-50" max="500"></label><label class="field">Line spacing (%)<input id="pLine" type="number" step="10" min="50" max="400"></label></div>
+            <div class="ol-card"><b>Outlines for names and numbers</b><span class="ol-note">Behind the letters; the text stays editable. Outline 1 is next to the letters, outline 2 around it; 0 mm = none.</span>
+              <div class="ol-row"><span>Outline 1</span><input id="pol1w" type="number" min="0" max="50" step="0.5" aria-label="Outline 1 width in mm"><label>mm</label><input id="pol1c" type="color" value="#000000" aria-label="Outline 1 colour"></div>
+              <div class="ol-row"><span>Outline 2</span><input id="pol2w" type="number" min="0" max="50" step="0.5" aria-label="Outline 2 width in mm"><label>mm</label><input id="pol2c" type="color" value="#ffffff" aria-label="Outline 2 colour"></div>
+              <button class="mini" id="polNone" type="button">Remove the outlines</button></div>
             <button class="mini" data-action="curves" type="button">Convert to curves (Ctrl+Q)</button>
           </div>
           <div id="rectProps" class="card" style="display:none"><label class="field">Corner radius (mm)<input id="pRadius" type="number" min="0" step="0.5"></label></div>
@@ -221,9 +302,11 @@
   </div>
 
   <footer class="foot">
-    <span class="page">Page 1</span>
+    <div class="page-nav"><button class="ptab-arrow" id="pageLeft" type="button" title="Show the page tabs to the left" hidden>‹</button><div class="page-tabs" id="pageTabs" aria-label="Pages"></div><button class="ptab-arrow" id="pageRight" type="button" title="Show the page tabs to the right" hidden>›</button><button class="ptab add" id="pageAddBtn" type="button" title="Insert a page after this one (Layout > Insert page)">+</button></div>
+    <button id="docName" class="doc-name hide-sm" type="button" hidden></button>
     <span class="hide-sm">RGB</span><span class="hide-sm">300 DPI</span>
     <select id="pageSize" title="Page size"></select><span id="customSize" class="custom-size" hidden><input id="pageW" type="number" min="0" step="any" aria-label="Page width"> x <input id="pageH" type="number" min="0" step="any" aria-label="Page height"> <span id="pageUnit">mm</span></span><span id="pageInfo" class="hide-sm"></span>
+    <button id="selInfo" class="sel-info" type="button" hidden title="ID of the selected item: click to copy it"></button>
     <select id="units" class="hide-sm" title="Units for the rulers, position, size and page"><option value="mm">mm</option><option value="cm">cm</option><option value="in">inches</option><option value="px">pixels (300 DPI)</option></select>
     <span class="spacer"></span>
     <span id="buildInfo" class="hide-sm build-info"></span>
@@ -236,20 +319,101 @@
     <button class="ibtn" id="zoomPlus" title="Zoom in" data-icon="plus"></button>
     <button class="ibtn" id="fitBtn" title="Fit page" data-icon="fit"></button>
   </footer>
+
+  <!-- Phones: the colour panel under the artwork, so the whole design stays in view (client picture 173.jpg, 9.119).
+       Colours show on the design while you drag; Done closes it. Computers keep the Colour tab. -->
+  <section class="cdock" id="cdock" aria-label="Colour" hidden>
+    <div class="cd-chips">
+      <span class="cd-chip cd-fit"><button id="cdFit" type="button" title="Fit the whole page in view"><svg class="i" viewBox="0 0 24 24" data-cd-icon="fit"></svg><span>Fit</span></button><span class="cd-zoom" title="Zoom"><svg class="i cd-caret" viewBox="0 0 24 24" data-cd-icon="down"></svg><select id="cdZoom" aria-label="Zoom"><option value="" hidden>Zoom</option><option value="fit">Fit page</option><option value="50">50%</option><option value="100">100%</option><option value="150">150%</option><option value="200">200%</option><option value="400">400%</option></select></span></span>
+      <button class="cd-chip cd-live" id="cdLive" type="button" aria-pressed="true" title="Live preview: colours show on the design while you drag (off: when you let go)"><svg class="i" viewBox="0 0 24 24" data-cd-icon="bolt"></svg><span>Live preview</span></button>
+      <button class="cd-chip cd-assist" id="cdAssist" type="button" title="3DEEZI ASSIST: ask for help, or ask it to colour something for you"><svg class="i" viewBox="0 0 24 24" data-cd-icon="sparkle"></svg><span>Assist</span></button>
+    </div>
+    <div class="cd-card">
+      <div class="cd-head"><h4>Colour</h4><button class="ibtn" id="cdClose" type="button" data-icon="close" aria-label="Close the colour panel" title="Close"></button></div>
+      <div class="cd-row"><div class="cd-target" role="group" aria-label="Colour of"><button type="button" data-cdt="fill" class="on">Fill</button><button type="button" data-cdt="stroke">Outline</button></div>
+        <button class="cd-more" id="cdMore" type="button" title="Gradients, patterns, palettes, colour harmony and RGB / CMYK values" data-icon="more"><span>More</span></button></div>
+      <div class="cd-main">
+        <div class="cd-wheel" id="cdWheel" role="slider" aria-label="Colour wheel: the ring picks the colour, the square its lightness" tabindex="0"><canvas id="cdWheelCanvas"></canvas><i class="cd-ring-dot" id="cdRingDot"></i><i class="cd-sq-dot" id="cdSqDot"></i></div>
+        <div class="cd-side">
+          <div class="cd-now"><span class="cd-swatch" id="cdSwatch"></span><button class="cd-eye" id="cdEye" type="button" data-icon="eyedropper" aria-label="Pick a colour from the page" title="Pick a colour from the page: tap this, then tap the colour"></button></div>
+          <label class="cd-hex"><span>HEX</span><input id="cdHex" maxlength="7" spellcheck="false" autocomplete="off" autocapitalize="characters" aria-label="Hex colour"></label>
+          <div class="cd-op"><div class="cd-op-head"><span>Opacity</span><output id="cdOpVal">100%</output></div><input type="range" id="cdOp" min="0" max="100" value="100" aria-label="Opacity"></div>
+        </div>
+      </div>
+      <div class="cd-foot"><div class="cd-recent"><small>Recent colours</small><div id="cdRecent"></div></div><button class="cd-done" id="cdDone" type="button">Done</button></div>
+    </div>
+  </section>
 </div>
 <input type="file" id="fileImage" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,.cdr" multiple>
+<input type="file" id="fileExported" accept="image/svg+xml,.svg,image/png,.png" multiple>
+<dialog class="help corel" id="corelDialog">
+  <h3>Export from CorelDRAW first <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <p class="corel-lead"><b id="corelName">This file</b> is a CorelDRAW file (.cdr), which can't be opened here. Save a copy from CorelDRAW as SVG or PNG, then import that.</p>
+  <ol class="corel-steps">
+    <li>In CorelDRAW, open the design and choose <b>File › Export</b> (Ctrl+E).</li>
+    <li>Set <b>Save as type</b> to <b>SVG</b> to keep shapes and text editable here, or <b>PNG</b> for a picture (tick <b>Transparent background</b> for logos).</li>
+    <li>Click <b>Choose SVG or PNG</b> below and pick the exported file.</li>
+  </ol>
+  <p class="corel-tip">Text looks different after import? In CorelDRAW, convert the text to curves (Ctrl+Q) before exporting.</p>
+  <div class="corel-actions"><form method="dialog"><button>Close</button></form><button class="grad" id="corelPick">Choose SVG or PNG</button></div>
+</dialog>
+<dialog class="help corel" id="pdfDialog">
+  <h3>Export PDF <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <p class="corel-lead">This design has more than one page. Which pages go in the PDF?</p>
+  <div class="corel-actions"><form method="dialog"><button>Cancel</button></form><button id="pdfAll">All pages</button><button class="grad" id="pdfThis">This page only</button></div>
+</dialog>
+<dialog class="help docs" id="docsDialog">
+  <h3><span id="docsTitle">Open from my account</span> <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <div class="docs-bar"><div class="docs-tabs" role="tablist"><button type="button" data-docs-tab="designs" class="on">My designs</button><button type="button" data-docs-tab="templates">Templates</button></div><input id="docsFind" placeholder="Find by name" aria-label="Find by name" autocomplete="off"></div>
+  <div class="docs-grid" id="docsGrid"></div>
+  <p class="docs-note" id="docsNote"></p>
+</dialog>
+<dialog class="help corel" id="saveDialog">
+  <h3><span id="saveTitle">Save to my account</span> <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <p class="corel-lead" id="saveLead"></p>
+  <label class="save-field">Name<input id="saveName" maxlength="120" autocomplete="off"></label>
+  <p class="save-error" id="saveError" role="alert"></p>
+  <div class="corel-actions"><form method="dialog"><button>Cancel</button></form><button class="grad" id="saveOk">Save</button></div>
+</dialog>
+<dialog class="help corel send-dialog" id="sendDialog">
+  <h3>Send to 3D Studio <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <div class="send-top"><span class="send-pic"><img id="sendImg" alt="The artwork to send"></span>
+    <fieldset class="send-to"><legend>Put the artwork on</legend>
+      <label><input type="radio" name="sendTo" value="current" checked><span>The kit in the 3D Studio<small id="sendKitName"></small></span></label>
+      <label id="sendGarmentRow"><input type="radio" name="sendTo" value="garment"><span>A new kit<select id="sendGarment" aria-label="Garment for the new kit"></select><small>replaces the kit open in the Studio</small></span></label>
+      <label><input type="radio" name="sendTo" value="project"><span>One of my projects<select id="sendProject" aria-label="Project"></select><small>opens it in the Studio</small></span></label>
+    </fieldset></div>
+  <label class="save-field" id="sendPlaceRow">Place on<select id="sendPlace"></select></label>
+  <p class="send-update" id="sendUpdate" hidden>This design is already on that kit: its artwork there is updated in place (same position and size).</p>
+  <label class="save-field" id="sendNameRow">Design name <small>kept in your account, so you can change it later: Edit in Artboard in the Studio</small><input id="sendName" maxlength="120" autocomplete="off"></label>
+  <p class="corel-tip" id="sendSignIn" hidden>Only the picture is sent. <button type="button" class="mini">Sign in</button> to keep the editable design with it (Edit in Artboard in the Studio).</p>
+  <div class="corel-actions"><form method="dialog"><button>Cancel</button></form><button class="grad" id="sendOk">Send to 3D Studio</button></div>
+</dialog>
+<dialog class="help corel" id="askDialog">
+  <p class="corel-lead" id="askText"></p>
+  <div class="corel-actions"><button type="button" id="askNo">Cancel</button><button type="button" class="grad" id="askYes">OK</button></div>
+</dialog>
+<dialog class="help corel" id="fontDialog">
+  <h3>Add fonts <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
+  <p class="corel-lead">These files hold more than one font family. Tick the ones to add:</p>
+  <div class="font-choices" id="fontChoices"></div>
+  <div class="corel-actions"><form method="dialog"><button>Cancel</button></form><button class="grad" id="fontDialogAdd">Add fonts</button></div>
+</dialog>
 <div class="toast" id="toast" role="status"></div>
+<div class="page-menu drop" id="pageMenu" hidden></div>
+<div class="rc-tip" id="rcTip" role="tooltip" hidden><b>Right-click menu</b>Now tap an item: an object on the page, a page tab, a tool or a colour. Its right-click menu opens (on an empty part of the page: the page menu, to rename, duplicate or delete it).<small>On a phone or tablet you can also hold your finger on an item for a moment.</small><button type="button" id="rcCancel">Cancel</button></div>
 <dialog class="help" id="helpDialog">
   <h3>Tools and shortcuts <form method="dialog"><button class="ibtn" data-icon="close" aria-label="Close"></button></form></h3>
   <div class="help-cols">
     <div><h4>Tools</h4>
       <p><b>Pick</b> V · <b>Shape</b> (nodes) F10 · <b>Freehand</b> F5 · <b>Rectangle</b> F6 · <b>Ellipse</b> F7 · <b>Text</b> F8 · <b>Polygon</b> Y · <b>Star</b> S · <b>Graph paper</b> D · <b>Spiral</b> A · <b>Eraser</b> X · <b>Zoom</b> Z · <b>Pan</b> H · <b>Interactive fill</b> G · <b>Mesh fill</b> M · <b>Eyedropper</b> I (click a colour, then click objects to fill them)</p>
-      <p>Click a toolbox button again (or right-click it) to open its flyout: Smooth, Roughen, Attract, Repel, Knife, Bézier, Pen, B-Spline, Polyline, 3-Point Curve, Complex Star, basic shapes, dimensions, Blend, Contour, Drop Shadow, Transparency and more.</p></div>
+      <p>Artistic Media (Preset, Brush, Sprayer, Calligraphic, Expression; Painterly Brush and Variable Outline in its flyout) is the third button, below Pan. Smart Drawing and LiveSketch are in the Freehand flyout. A button with a small triangle has a flyout: click the button again, click the triangle or right-click it (on a phone, hold a finger on it); the button then shows the tool you used last. The Rectangle flyout has every shape tool: Rectangle, 3-Point Rectangle, Ellipse, 3-Point Ellipse, Polygon, Star, Complex Star, Graph Paper, Spiral, Impact and the basic, arrow, banner, callout and badge shapes. Interactive Fill, Mesh Fill and Smart Fill share one flyout; Contour, Blend, Drop Shadow, Inner Shadow, Block Shadow, Extrude, Distort and Envelope share another (Transparency and the Eyedropper have their own buttons). The other flyouts: Freehand Pick, Free Transform, Smooth, Smear, Twirl, Attract, Repel, Smudge, Roughen, Knife, Virtual Segment Delete, Bézier, Pen, B-Spline, Polyline, 3-Point Curve, Paragraph Text, dimensions (parallel, horizontal or vertical, angular, segment) and the 2-Leg Callout, connectors (straight, right-angle, rounded right-angle) and Anchor Editing.</p></div>
     <div><h4>Curves and nodes</h4>
       <p><b>Convert to curves</b> Ctrl+Q · <b>Outline to object</b> Ctrl+Shift+Q · <b>Combine</b> Ctrl+L · <b>Break apart</b> Ctrl+K</p>
       <p>Shape tool: drag nodes, handles or segments · double-click a curve to add a node, a node to delete it · drag a box to select nodes · Shift+click adds · arrows nudge · Alt+drag a handle breaks symmetry.</p>
       <p>Bézier / Pen: click for corner nodes, click-drag for smooth nodes, click the first node to close.</p></div>
     <div><h4>Arrange</h4>
+      <p><b>Size, rotate, slant</b> (Pick): one click on an object shows its 6 sizing handles: the corners resize, the left and right middles stretch the width (the height alone: the H box with Keep proportions off, or Shift + a corner). Click it again for the rotate and slant handles: drag a curved corner arrow to rotate (Ctrl or Shift: 15° steps), a side arrow to slant, the circle to move the centre of rotation; click again for the sizing handles. Dragging the object moves it in both. Double-click a text to type in it.</p>
       <p><b>Group</b> Ctrl+G · <b>Ungroup</b> Ctrl+U · <b>Duplicate</b> Ctrl+D · <b>Copy / paste</b> Ctrl+C / Ctrl+V</p>
       <p><b>Align</b> L R T B, E (centres horizontally), C (centres vertically), P (centre to page) · <b>Order</b> Shift+PgUp / Shift+PgDn, Ctrl+PgUp / Ctrl+PgDn</p>
       <p><b>Pan</b> Space+drag or middle mouse · <b>Zoom</b> Ctrl+wheel · <b>Import</b> Ctrl+I · <b>Export PDF</b> Ctrl+E</p></div>

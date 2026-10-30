@@ -52,6 +52,7 @@
 .artwork-layers img{width:27px;height:27px;object-fit:contain}
 .artwork-layers small{display:block;font-size:9px;color:#91aeba;margin-top:4px;text-transform:capitalize}
 .layer-properties{display:flex;flex-direction:column;gap:12px;padding-top:5px;border-top:1px solid #223745}
+.layer-properties .layer-off{margin:-4px 0 0;color:#ffbc75}
 .layer-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .layer-fields input{min-width:0;width:100%}
 .layer-actions{display:flex;gap:8px}
@@ -61,6 +62,10 @@
 .artwork-tint input[type=color]{width:44px;height:37px;padding:2px;border:1px solid #355162;background:#07131e;border-radius:6px}
 .artwork-tint>.button{flex:1}
 .gradient-controls{margin-top:24px;padding-top:4px;border-top:1px solid #26404e}
+/* Colours › Fabric type: Standard, Mesh, Pro, Eco (the 3D kit's fabric). */
+.fabric-controls{margin-top:24px;padding-top:4px;border-top:1px solid #26404e}
+.fabric-controls .slot-tabs{margin:12px 0 10px}
+.fabric-controls .field-hint{margin:0}
 .gradient-toggle{display:flex;gap:9px;align-items:center;font-size:12px;color:#abc1ce}
 .gradient-toggle input{accent-color:#00dfe4}
 .gradient-colours{display:flex;gap:12px;margin:16px 0}
@@ -69,7 +74,11 @@
 .studio-drop-target{position:absolute;inset:0;z-index:5;display:flex;align-items:flex-end;justify-content:center;padding:20px;background:#00c8d518;border:2px dashed #20e3ee;border-radius:14px}
 .studio-drop-target span{border:1px solid #1bd7e9;background:#031923eb;color:#cefbff;padding:12px 18px;border-radius:8px;font-size:12px;pointer-events:none}
 .artboard-controls{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;background:#05101bef;border-top:1px solid #22414f;color:#9bb6c6;font-size:10px}
-.artboard-controls>button{display:flex;align-items:center;gap:7px;border:1px solid #236476;background:#0c2936;color:#bbf9fc;border-radius:6px;padding:8px 12px;font-size:11px;white-space:nowrap}
+.artboard-controls button{display:flex;align-items:center;gap:7px;border:1px solid #236476;background:#0c2936;color:#bbf9fc;border-radius:6px;padding:8px 12px;font-size:11px;white-space:nowrap}
+.artboard-controls button:hover:not(:disabled){border-color:#00d9ed;color:#fff}.artboard-controls button:disabled{opacity:.45}
+.board-buttons{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+/* Phones: the board shows the hint itself, so this bar keeps only its buttons. */
+@media(max-width:700px){.artboard-controls{padding:8px 10px}.artboard-controls>span{display:none}.board-buttons{width:100%;justify-content:center}.artboard-controls button{padding:7px 10px}}
 .studio-extended.artboard-mode .stage-chips,.studio-extended.artboard-mode .view-controls{display:none}
 .studio-extended.artboard-mode .studio-presets-aside,.studio-extended.presets-in-panel .studio-presets-aside{display:none}
 .studio-extended.artboard-mode .dyo-body.panel-open,.studio-extended.presets-in-panel .dyo-body.panel-open{grid-template-columns:76px 300px minmax(280px,1fr) 96px}
@@ -86,8 +95,10 @@
 @media(max-width:520px){.studio-extended .dyo-top{padding:12px 10px}.studio-extended .dyo-actions{width:100%;justify-content:space-between}.studio-extended .dyo-actions>.button{font-size:11px;padding:9px 10px}.studio-extended .dyo-actions>.round-button{width:32px;height:32px}.studio-extended .dyo-name{max-width:none}.studio-extended .dyo-stage{min-height:380px;height:56vh}.studio-extended .studio-preset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.studio-extended .artboard-controls{padding:7px 9px}.artboard-controls>span{max-width:160px;line-height:1.5}.studio-extended .dyo-garments button{min-width:86px}.studio-extended .dyo-actions{gap:4px}}
 
 /* Preset designs: tabs, real 3D thumbnails, favourites */
-.preset-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:3px;border-radius:20px;border:1px solid #1c3344;background:#06101a;margin-bottom:10px}
-.preset-tabs button{border:0;background:none;border-radius:16px;padding:7px 2px;font-size:11px;font-weight:600;color:#9fb2c4;cursor:pointer;white-space:nowrap}
+.preset-tabs{display:grid;grid-template-columns:repeat(3,auto);gap:2px;padding:3px;border-radius:20px;border:1px solid #1c3344;background:#06101a;margin-bottom:10px;container-type:inline-size}
+.preset-tabs button{border:0;background:none;border-radius:16px;padding:7px 4px;font-size:11px;font-weight:600;color:#9fb2c4;cursor:pointer;white-space:nowrap}
+/* The narrow presets column (1251–1599 px screens): smaller labels, so Favourites stays inside its pill. */
+@container (max-width:215px){.preset-tabs button{font-size:10px;padding:7px 3px}}
 .preset-tabs button.on{color:#00e0e4;background:#05202d;box-shadow:inset 0 0 0 1.5px #00e0e4}
 .preset-card{position:relative;border:1px solid #243645;border-radius:9px;background:#040b12;overflow:hidden}
 .preset-card:hover{border-color:#39d0dc}
@@ -105,3 +116,222 @@
 .hex-field input{min-width:108px;padding-right:30px!important;font-size:13px!important}
 .save-colour{padding:0 10px!important;font-size:10.5px!important;white-space:nowrap}
 .save-colour{width:40px;height:40px;min-height:40px!important;padding:0!important;justify-content:center}
+
+/* Factory print layout (Artwork panel). */
+.print-layout-join{display:flex;gap:8px;align-items:flex-start;margin:0;font-size:12.5px;line-height:1.4;color:#9fb3c2;cursor:pointer}.print-layout-join input{margin-top:2px;accent-color:#12e1f0}
+.print-layout{margin-top:14px;padding:12px;border:1px solid #1c3a4c;border-radius:12px;background:#06121c;display:flex;flex-direction:column;gap:8px}
+.print-layout>strong{font-size:11px;letter-spacing:.12em;color:#9fb2c4}
+.print-layout .field-hint{margin:0}
+.print-layout-on{display:flex;align-items:center;gap:7px;margin:0;color:#7ff3d0;font-size:12px;word-break:break-word}
+.dyo-stage.viewer-modal .stage-chips,.dyo-stage.viewer-modal .view-controls,.dyo-stage.viewer-modal .stage-meta,.dyo-stage.viewer-modal .artboard-controls{display:none}
+/* GRADIENT PRESETS: the CHOOSE GRADIENT button in the Colours panel and the flyout beside it (a bottom sheet on phones). */
+.gradient-choose{display:flex;width:100%;align-items:center;justify-content:center;gap:6px;margin:10px 0 4px;padding:11px 12px;border:1.5px solid #00dfe4;border-radius:9px;background:#00dfe40d;color:#e9fbff;font:700 12px/1 inherit;letter-spacing:.12em;cursor:pointer;box-shadow:0 0 12px #00dfe41f;transition:background .15s,box-shadow .15s}
+.gradient-choose:hover,.gradient-choose[aria-expanded=true]{background:#00dfe424;box-shadow:0 0 18px #00dfe440}
+.gradient-stops-preview{height:22px;border-radius:6px;border:1px solid #2a4b5b;margin:-6px 0 12px;display:flex;align-items:center;justify-content:center}
+.gradient-stops-preview span{font-size:9px;font-weight:700;letter-spacing:.14em;color:#fff;text-shadow:0 1px 2px #000a}
+.gradient-off{display:flex;align-items:center;gap:6px;margin-top:4px;padding:7px 10px;border:1px solid #33515f;border-radius:8px;background:transparent;color:#a4becb;font-size:11px;cursor:pointer}
+.gradient-off:hover{color:#fff;border-color:#00dfe4}
+.gradient-flyout{position:fixed;z-index:60;width:310px;overflow:auto;padding:16px 16px 12px;border:1.5px solid #00d9ed66;border-radius:14px;background:linear-gradient(180deg,#0a1824f7,#050e18fa);box-shadow:0 0 22px #00d9ed26,0 18px 40px #000a;color:#e6f6fb;backdrop-filter:blur(6px)}
+.gradient-flyout .gf-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px}
+.gradient-flyout h3{margin:0;font-size:14px;font-weight:800;letter-spacing:.14em;color:#fff}
+.gradient-flyout .gf-head p{margin:5px 0 0;font-size:11.5px;color:#8fa6b3}
+.gradient-flyout .gf-head p b{margin-left:6px;padding:2px 6px;border:1px solid #00dfe455;border-radius:5px;font-size:9px;letter-spacing:.1em;color:#7cf3f8}
+.gradient-flyout .gf-head .icon-button{flex-shrink:0;margin:-4px -6px 0 0}
+.gf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 12px}
+.gf-grid button{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:0;border:0;background:none;color:#c9dbe4;cursor:pointer}
+.gf-swatch{position:relative;height:50px;border-radius:9px;border:1.5px solid #ffffff1f;box-shadow:inset 0 0 0 1px #0004;transition:border-color .15s,box-shadow .15s}
+.gf-grid button:hover .gf-swatch{border-color:#00dfe488}
+.gf-grid button.selected .gf-swatch{border:2px solid #00e5f0;box-shadow:0 0 12px #00e5f066}
+.gf-name{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-align:center}
+.gf-grid button.selected .gf-name{color:#fff}
+.gf-check{position:absolute;top:-7px;right:-7px;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#00e5f0;color:#03141c;box-shadow:0 0 8px #00e5f0aa}
+.gf-custom{margin-top:14px;padding-top:12px;border-top:1px solid #26404e}
+.gf-custom h4{margin:0 0 10px;font-size:11px;letter-spacing:.14em;color:#7cf3f8}
+.gf-bar{position:relative;height:26px;margin:0 9px 12px;border-radius:7px;border:1px solid #2a4b5b}
+.gf-bar button{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;padding:0;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #0008;cursor:pointer}
+.gf-bar button.active{width:22px;height:22px;margin:-11px 0 0 -11px;border-color:#00e5f0;box-shadow:0 0 0 2px #03141c,0 0 10px #00e5f0}
+.gf-stop-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:#a4becb}
+.gf-stop-row span{margin-right:auto}
+.gf-mini{display:inline-flex;align-items:center;gap:3px;padding:5px 8px;border:1px solid #33515f;border-radius:7px;background:#0b1a27;color:#d7eef6;font-size:10.5px;cursor:pointer}
+.gf-mini:disabled{opacity:.4;cursor:default}
+.gf-custom .color-wheel{margin-top:6px}
+.gf-foot{margin-top:14px;padding-top:12px;border-top:1px solid #26404e;text-align:center}
+.gf-create{display:inline-flex;align-items:center;gap:7px;padding:6px 8px;border:0;background:none;color:#00e5f0;font-size:12px;font-weight:800;letter-spacing:.12em;cursor:pointer}
+.gf-create:hover{color:#7cf3f8;text-shadow:0 0 8px #00e5f088}
+.gf-off{display:block;margin:6px auto 0;padding:4px 8px;border:0;background:none;color:#a4becb;font-size:11px;text-decoration:underline;cursor:pointer}
+.gf-foot p{margin:8px 0 0;font-size:11px;color:#71899a}
+@media(max-width:900px){
+  .gradient-flyout{z-index:1200;left:0!important;right:0;top:auto!important;bottom:0;width:auto;max-height:58vh!important;padding:10px 14px 12px;border-radius:16px 16px 0 0;border-bottom:0}
+  .gradient-flyout::before{content:'';display:block;width:42px;height:4px;margin:0 auto 8px;border-radius:2px;background:#3b5a69}
+  .gradient-flyout .gf-head{margin-bottom:8px}
+  .gf-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .gf-swatch{height:34px}
+  .gf-name{font-size:8.5px;letter-spacing:.04em}
+  .gf-foot{margin-top:10px;padding-top:8px}
+}
+/* Hoodies: each area's own colour (Colours panel). */
+.hoodie-areas{margin:16px 0 4px}
+.hoodie-area{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:13px;color:#d6e6ee}
+.hoodie-area input{width:44px;height:30px;padding:2px;background:#0b1a27;border:1px solid #2a4b5b;border-radius:6px;cursor:pointer}
+.hoodie-area span{flex:1}
+.hoodie-area small{font-size:11px;color:#7f98a6}
+.hoodie-area .icon-button{width:26px;height:26px}
+/* Phones: Save stays in the Studio top bar (2026-10-23); showroom.css hides the other outline buttons there at 600 px. */
+@media(max-width:600px){.dyo-actions .button-outline.studio-save{display:inline-flex}}
+
+/* ---------- Studio on phones (client 2026-10-23, 172.jpg and 173.jpg): the 3D kit fills most of the screen and a tool
+   panel opens as a compact panel BELOW it, never over it. Layout spec for the app: scratchpad P1\phone-layout.md.
+   Only for phones (up to 600 px); computers and tablets keep their layout. */
+.stage-name,.color-wheel .wheel-done,.brightness-label,.board-buttons .board-to-3d{display:none}
+@media(max-width:600px){
+  /* One screen, no page scroll: top bar, tool row, 3D view, the open panel, the Ask bar. */
+  .studio-extended.dyo{height:100vh;height:100dvh;min-height:0;overflow:hidden}
+  .studio-extended .dyo-top{flex-wrap:nowrap;height:auto;padding:5px 8px;gap:6px}
+  .studio-extended .dyo-brand{width:auto;max-width:none;flex:0 1 82px;min-width:56px}
+  .studio-extended .dyo-brand img{width:100%}
+  .studio-extended .dyo-brand span{display:none}
+  /* The project name moves onto the 3D view (.stage-name). */
+  .studio-extended .dyo-name{display:none}
+  .studio-extended .dyo-actions{width:auto;flex:1 1 auto;justify-content:flex-end;gap:5px;margin-left:auto}
+  .studio-extended .dyo-actions>.round-button,.studio-extended .dyo-menu>.round-button{width:32px;height:32px}
+  .studio-extended .dyo-actions>.button{min-height:34px;height:34px;padding:0 11px;font-size:11px;gap:6px}
+  .studio-extended .dyo-actions .dirty-dot{top:5px;right:7px}
+  .studio-extended .menu-pop{top:40px}
+  .studio-extended .dyo-body,.studio-extended .dyo-body.panel-open{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:6px;padding:6px 8px}
+  /* Order, as in the app's Studio: the 3D view, then the tool row and the Ask bar; an open tool panel takes the place of
+     the tool row (and of the Ask bar, except for the AI panel), so the 3D keeps its top and gets that room too. */
+  .studio-extended .dyo-stage{order:1}
+  .studio-extended .dyo-panel{order:2}
+  .studio-extended .dyo-rail{order:3;flex:none;gap:5px;scrollbar-width:none}
+  .studio-extended.tool-open .dyo-rail{display:none}
+  .studio-extended .dyo-rail::-webkit-scrollbar{display:none}
+  .studio-extended .dyo-rail button{min-width:56px;min-height:0;height:46px;padding:4px 2px;gap:3px;border-radius:11px}
+  .studio-extended .dyo-rail button svg{width:18px;height:18px}
+  .studio-extended .dyo-rail button span{font-size:9px}
+  .studio-extended .dyo-stage{flex:1 1 0;height:auto;min-height:150px;border-radius:14px}
+  .studio-extended .dyo-garments{display:none}
+  /* The header's 2D panels / 3D view switch is hidden on phones: the 2D panels' own bar has the way back. */
+  .studio-extended .board-buttons .board-to-3d{display:flex;border-color:#00d9ed;color:#e9fbff}
+  .studio-extended .artboard-controls{padding:6px 8px}
+  .studio-extended .board-buttons{gap:5px;flex-wrap:nowrap}
+  .studio-extended .artboard-controls button{padding:7px 8px;gap:5px}
+  /* The 2D board ends above its button bar, so the bar never covers the panels. */
+  .studio-extended.artboard-mode .studio-viewer{height:calc(100% - 44px)!important}
+  .studio-extended .studio-viewer,.studio-extended .studio-viewer>iframe{min-height:0!important}
+  /* The kit framed larger: a tall, narrow 3D view gets a frame up to 16% wider than the view, centred, so the viewer
+     frames the kit by the view's height instead of shrinking it to the narrow width (never in the 2D panels or the
+     viewer's own check screen, which must show whole). Studio.dropArtwork measures drops on the frame itself. */
+  .studio-extended:not(.artboard-mode) .dyo-stage:not(.viewer-modal) .studio-viewer{container-type:size}
+  .studio-extended:not(.artboard-mode) .dyo-stage:not(.viewer-modal) .studio-viewer>iframe{width:clamp(100cqw,75cqh,116cqw)!important;position:relative;left:50%;translate:-50% 0}
+  /* The project name and the sport and garment chip, top left on the 3D view. */
+  .studio-extended .stage-chips{top:8px;left:8px;right:8px;flex-direction:column;align-items:flex-start;gap:5px;pointer-events:none}
+  .studio-extended .stage-chips>*{pointer-events:auto}
+  .studio-extended .stage-chips span{padding:4px 9px;font-size:10px}
+  .studio-extended .stage-name{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding-right:10px;border-radius:20px;background:#05101acc;border:1px solid #00d9ed55;color:#7fd6e0;backdrop-filter:blur(8px)}
+  .studio-extended .stage-name:focus-within{border-color:var(--glow);box-shadow:0 0 10px #00d9ed44}
+  /* 16 px: iPhones zoom the page into smaller text fields. */
+  .studio-extended .stage-name input{width:min(54vw,210px);height:30px;border:0;background:none;color:#fff;font-size:16px;font-weight:600;padding:0 0 0 12px;outline:none;text-overflow:ellipsis}
+  .studio-extended .dyo-stage .view-controls{bottom:9px;padding:3px}
+  .studio-extended .dyo-stage .view-controls>button{min-width:0;padding:7px 12px;font-size:11.5px}
+  /* The tool panel: below the 3D view, a fixed share of the screen; its content scrolls inside it. The Colours panel is
+     as tall as its compact part (wheel 40% of the width, recent colours and Done); palettes and gradients scroll under it. */
+  .studio-extended .dyo-panel{flex:none;height:clamp(250px,41dvh,340px);max-height:none;border-radius:14px}
+  .studio-extended.tool-colours .dyo-panel{height:min(calc(.4 * (100vw - 43px) + 158px),50dvh)}
+  .studio-extended .panel-head{padding:5px 6px 0 14px}
+  .studio-extended .panel-head h2{font-size:14px}
+  .studio-extended .panel-head .icon-button{width:28px;height:28px}
+  .studio-extended .panel-body{padding:6px 12px 12px;gap:10px}
+  .studio-extended .slot-tabs button{padding:7px 3px}
+  /* Three garments, patterns and presets to a row, so a short panel shows more of them. */
+  .studio-extended .dyo-panel .panel-garments,.studio-extended .dyo-panel .studio-preset-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .studio-extended .dyo-panel .panel-garments button{padding:6px 4px;font-size:10.5px;text-align:center}
+  .studio-extended .dyo-panel .pattern-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px}
+  /* While the viewer's own check screen (print layout) is open, it gets the panel's room too. */
+  .studio-extended .dyo-body:has(.dyo-stage.viewer-modal) .dyo-panel{display:none}
+  /* The compact colour panel (173.jpg): a small wheel on the left; swatch, eyedropper and Save colour, HEX and the
+     brightness on the right; recent colours with Done under them. */
+  .studio-extended .dyo-panel .color-wheel{display:grid;grid-template-columns:minmax(0,40%) minmax(0,1fr) 36px 36px;column-gap:6px;row-gap:7px;align-items:center}
+  .studio-extended .dyo-panel .color-wheel>.wheel-row,.studio-extended .dyo-panel .color-wheel>.hex-row{display:contents}
+  .studio-extended .dyo-panel .wheel{grid-column:1;grid-row:1/span 4;width:calc(100% - 10px);margin-right:10px;align-self:center;box-shadow:0 0 14px #00d9ed2e}
+  .studio-extended .dyo-panel .wheel-handle{width:16px;height:16px;margin:-8px 0 0 -8px;border-width:2.5px}
+  .studio-extended .dyo-panel .ring-handle{width:19px;height:19px;margin:-9.5px 0 0 -9.5px}
+  .studio-extended .dyo-panel .swatch{grid-column:2;grid-row:1;width:100%;height:34px;border-radius:8px}
+  .studio-extended .dyo-panel .dropper{grid-column:3;grid-row:1;width:36px;height:36px;align-self:center}
+  .studio-extended .dyo-panel .save-colour{grid-column:4;grid-row:1;width:36px!important;height:36px!important;min-height:36px!important;align-self:center}
+  .studio-extended .dyo-panel .hex-field{grid-column:2/-1;grid-row:2;flex-direction:row;align-items:center;gap:8px}
+  .studio-extended .dyo-panel .hex-field input{flex:1;height:34px;min-width:0!important;font-size:16px!important;padding:0 32px 0 10px!important}
+  .studio-extended .dyo-panel .hex-field .icon-button{bottom:auto;top:50%;translate:0 -50%}
+  .studio-extended .dyo-panel .brightness-label{display:flex;justify-content:space-between;grid-column:2/-1;grid-row:3;align-self:end;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#9fb2c4}
+  .studio-extended .dyo-panel .brightness-label b{font-weight:600;color:#e3edf4;letter-spacing:.04em}
+  .studio-extended .dyo-panel .brightness{grid-column:2/-1;grid-row:4;align-self:start;writing-mode:horizontal-tb;direction:ltr;width:100%;height:10px;margin:4px 0;background:linear-gradient(90deg,#000,var(--top))}
+  .studio-extended .dyo-panel .recent-title{grid-column:1/-1;grid-row:5;margin:2px 0 0;font-size:10px}
+  .studio-extended .dyo-panel .recent-dots{grid-column:1/3;grid-row:6;gap:8px;flex-wrap:nowrap;overflow:hidden}
+  .studio-extended .dyo-panel .recent-dots button{flex:none;width:28px;height:28px}
+  .studio-extended .dyo-panel .wheel-done{display:inline-flex;grid-column:3/-1;grid-row:6;justify-content:center;min-height:34px;height:34px;padding:0 10px;border-radius:9px;font-size:12px;font-weight:700}
+  .studio-extended .dyo-panel .saved-title{grid-column:1/-1;grid-row:7;margin:2px 0 0;font-size:10px}
+  .studio-extended .dyo-panel .saved-dots{grid-column:1/-1;grid-row:8;gap:8px}
+  .studio-extended .dyo-panel .saved-dots button{width:28px;height:28px}
+  /* GRADIENT PRESETS keeps to the panel's part of the screen. */
+  .gradient-flyout{max-height:clamp(250px,46dvh,370px)!important}
+  /* The Ask bar: under the 3D view, beside the round Assist button; hidden while a tool panel is open (the AI panel
+     keeps it: it is that chat's input), so neither covers the panel's controls. */
+  .studio-extended .dyo-prompt{flex:none;position:relative;bottom:auto;margin:0 0 10px 8px;width:calc(100% - 80px);padding:5px 6px 5px 8px;gap:6px}
+  .studio-extended .dyo-prompt .round-button{width:36px;height:36px}
+  .studio-extended .dyo-prompt input{height:38px;font-size:16px;padding:0 4px}
+  .studio-extended .dyo-prompt .send-button{width:40px;height:40px}
+  .studio-extended.tool-open:not(.tool-ai) .dyo-prompt{display:none}
+  .assist.assist-studio{bottom:calc(11px + var(--assist-lift,0px))}
+  body:has(.studio-extended.tool-open:not(.tool-ai)) .assist-studio:not(.is-open){display:none}
+  /* Notices show under the top bar, not over the panel or the Ask bar. */
+  body:has(.studio-extended) .toast{top:52px;bottom:auto}
+}
+/* Patterns › My patterns (OwnPatterns.tsx): the upload tile, the user's own pattern tiles with a delete button. */
+.own-patterns h4{margin:4px 0 8px}
+.own-pattern-mode{display:flex;gap:6px;margin-bottom:10px}
+.own-pattern-mode>button{flex:1;padding:7px 8px;border:1px solid #ffffff17;border-radius:6px;background:#080f1b;color:#9dadc2;font-size:10px}
+.own-pattern-mode>button.selected{border-color:#00d9ed99;color:var(--cyan);background:#00d9ed0d}
+.own-pattern-mode>button{display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.own-pattern-mode>button:disabled{opacity:.45;cursor:default}
+.own-patterns .own-pattern-tip{margin:-2px 0 10px}
+.own-patterns .pattern-grid{margin-bottom:8px}
+.own-pattern-upload{padding:8px;border:1px dashed #00d9ed66;border-radius:7px;background:#00d9ed06;cursor:pointer;display:block}
+.own-pattern-upload>span:last-child{display:block;margin:10px 1px 3px;font-size:10px;color:var(--cyan)}
+.own-pattern-plus{display:flex!important;align-items:center;justify-content:center;color:var(--cyan)}
+.pattern-grid>button.own-pattern{position:relative}
+.own-pattern>span:nth-child(2){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.own-pattern-delete{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#050c16dd;color:#ff8f9a;border:1px solid #ffffff22}
+.hoodie-area.picked{outline:2px solid #36e3ee;outline-offset:3px;border-radius:6px;transition:outline-color .3s}
+.tap-colour-tip{margin:0 0 8px;color:#36e3ee}
+/* Parts (task 9.134): one part of the kit with its own look */
+.parts-panel>.field-hint{margin:0 0 10px}
+.part-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.part-chips button{position:relative;padding:7px 11px;border:1px solid #2a4b5b;border-radius:999px;background:#0b1a27;color:#c6d9e3;font-size:12px}
+.part-chips button.active{border-color:var(--cyan);color:#fff;background:#00d9ed1f;box-shadow:0 0 0 1px #00d9ed55 inset}
+.part-dot{position:absolute;top:3px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--cyan)}
+.part-head{display:flex;align-items:center;justify-content:space-between;margin:4px 0 2px}
+.part-head h3{margin:0;font-family:var(--heading);font-size:18px;letter-spacing:.06em}
+.text-button{display:inline-flex;align-items:center;gap:5px;padding:4px 6px;border:0;background:none;color:#a4becb;font-size:12px}
+.text-button:hover{color:var(--cyan)}
+.part-swatch{display:inline-block;width:12px;height:12px;margin:0 2px -2px;border:1px solid #ffffff55;border-radius:3px}
+.part-fade .gradient-colours{align-items:flex-end;margin:8px 0}
+.part-check{display:flex!important;align-items:center;gap:6px;white-space:nowrap}
+.part-check input{display:inline-block!important;width:auto!important;height:auto!important;margin:0!important}
+.part-dirs{display:flex;gap:6px;margin:4px 0 8px}
+.part-dirs button{flex:1;padding:6px 0;border:1px solid #2a4b5b;border-radius:8px;background:#0b1a27;color:#c6d9e3;font-size:15px}
+.part-dirs button.active{border-color:var(--cyan);color:var(--cyan)}
+.part-colour{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0;font-size:12px;color:#a4becb}
+.part-colour input{width:54px;height:32px;padding:2px;background:#0b1a27;border:1px solid #2a4b5b;border-radius:6px}
+.part-object{display:flex;align-items:center;gap:8px;margin:6px 0;padding:6px 8px;border:1px solid #213c4a;border-radius:8px;font-size:12px}
+.part-object img{width:28px;height:28px;object-fit:contain;background:#ffffff14;border-radius:4px}
+.part-object>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.part-opacity{display:flex;align-items:center;gap:6px;color:#a4becb;font-size:11px}
+.part-opacity input{width:84px}
+.part-add-text{margin:8px 0}
+.part-add-logo{display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+.part-link{display:inline-flex;align-items:center;gap:4px;margin:0 0 10px;padding:0;border:0;background:none;color:var(--cyan);font-size:12px}
+.part-link:hover{text-decoration:underline}
+
+/* Presets (task 9.148): save buttons, the My presets / 3DEEZI presets headings, rename and delete on my presets. */
+.preset-save{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.preset-save .button{font-size:11px;padding:7px 10px;display:inline-flex;align-items:center;gap:5px}.preset-save .muted{margin:0;font-size:12px}
+.preset-group{font-size:10px;letter-spacing:.18em;color:#70e7ed;margin:12px 0 8px}
+.preset-card{position:relative}.preset-own-actions{position:absolute;left:4px;top:4px;display:flex;gap:3px}.preset-own-actions button{width:24px;height:24px;display:grid;place-items:center;border-radius:6px;border:1px solid #244454;background:#050e18e6;color:#cfe;cursor:pointer;padding:0}

@@ -1,0 +1,14 @@
+/* "See it on a player" (components/PlayerShot.tsx). The whole picture shows in the window: a 2:3 player, a 3:2 team
+   photo or the person photo's own shape (QA 2026-10-27: a 2:3 picture in the 3:2 frame showed only head and chest).
+   The picture takes the room the window has, so the buttons stay on screen; on a short screen it gives way first. */
+dialog.player-shot[open]{display:flex;flex-direction:column;overflow:auto}
+dialog.player-shot .showcase-panel{flex:1 1 auto;min-height:0}
+dialog.player-shot .showcase-panel>*{flex-shrink:0}
+dialog.player-shot .showcase-frame.has-shot{flex-shrink:1;min-height:200px;max-height:68dvh}
+dialog.player-shot .showcase-frame.has-shot>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+dialog.player-shot .prompt-chips{margin:0}
+dialog.player-shot .showcase-actions{gap:8px}
+dialog.player-shot .showcase-actions .button{flex:1 1 auto;gap:8px;padding:10px 14px}
+dialog.player-shot .player-photo{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+dialog.player-shot .player-photo>img{height:56px;border-radius:8px;object-fit:cover}
+dialog.player-shot .player-photo>p{flex-basis:100%;margin:0}

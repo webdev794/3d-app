@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 /** AI patterns, Showcase, one-prompt mockups, design edits and image conversion (OpenAI, server-side). */
@@ -67,27 +68,165 @@ class AiController extends Controller
     public function mockup(Request $request, OpenAiDesigner $designer): JsonResponse
     {
         $data = $request->validate([
-            'prompt' => ['required', 'string', 'min:8', 'max:2000'],
+            'prompt' => ['required', 'string', 'min:8', 'max:4000'],
             'sport' => ['required', Rule::in(array_column(config('catalog.sports'), 'id'))],
             'garment' => ['required', Rule::in(array_column(config('catalog.garments'), 'id'))],
             'reference_ids' => ['sometimes', 'array', 'max:4'],
             'reference_ids.*' => ['required', 'integer', 'distinct', Rule::exists('assets', 'id')->where('user_id', $request->user()->id)],
         ]);
         abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
-        set_time_limit(330);
-        $references = Asset::whereIn('id', $data['reference_ids'] ?? [])->where('user_id', $request->user()->id)->get()
-            ->filter(fn (Asset $a) => Storage::disk('local')->exists($a->path))
-            ->map(fn (Asset $a) => 'data:'.$a->mime_type.';base64,'.base64_encode(Storage::disk('local')->get($a->path)))
-            ->values()->all();
-        $sport = collect(config('catalog.sports'))->firstWhere('id', $data['sport'])['name'];
+        // The art direction (up to 90 s) and the HD render (up to 300 s).
+        set_time_limit(420);
+        $references = $this->references($request, $data['reference_ids'] ?? []);
+        $sport = self::sportForAi($data['sport']);
         $garment = collect(config('catalog.garments'))->firstWhere('id', $data['garment'])['name'];
         try {
-            $jpeg = $designer->mockup($data['prompt'], $sport, $garment, $references);
+            $plan = $designer->mockupPlan($data['prompt'], $sport, $garment, $references);
+            $jpeg = $designer->renderMockup($plan['prompt'], $references);
         } catch (RuntimeException $e) {
             abort(502, $e->getMessage());
         }
 
-        return response()->json(['data' => $this->store($request, $jpeg, 'mockup', 'AI mockup · '.mb_substr($data['prompt'], 0, 80))], 201);
+        return response()->json(['data' => [
+            ...$this->store($request, $jpeg, 'mockup', 'AI mockup · '.mb_substr($data['prompt'], 0, 80)),
+            // What the AI set out to make, said to the client like ChatGPT does.
+            'direction' => $plan['direction']['summary'] ?? null,
+        ]], 201);
+    }
+
+    /**
+     * The AI designer's Generate, step 1 (client visual 2026-10-21, images/138.jpg): four design directions for the
+     * brief from one planning call, best first. #1 is the PRIMARY; each carries its 3D kit spec for the Studio.
+     */
+    public function designs(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $data = $request->validate($this->briefRules($request));
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        set_time_limit(180);
+        [$sport, $garment] = $this->names($data);
+        try {
+            $directions = $designer->designDirections($data['prompt'], $sport, $garment, $this->references($request, $data['reference_ids'] ?? []));
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+        // The designer gets the garment's display name; saved designs need the catalog id.
+        $directions = array_map(fn (array $d) => array_replace_recursive($d, ['design' => ['garment' => $data['garment']]]), $directions);
+
+        return response()->json(['data' => ['directions' => $directions, 'summary' => $directions[0]['description'] ?? null, 'planned' => $directions[0]['planned'] ?? false]]);
+    }
+
+    /**
+     * Step 2, one call per design so each card fills in as it arrives: the direction rendered as the presentation
+     * mockup with the client's logos as real image inputs. The PRIMARY (rank 1) and "Make HD" are high quality and
+     * kept in Assets; the three options are medium-quality previews.
+     */
+    public function renderDesign(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $text = ['nullable', 'string', 'max:1500'];
+        $data = $request->validate([
+            ...$this->briefRules($request),
+            'rank' => ['required', 'integer', 'between:1,4'],
+            'quality' => ['nullable', Rule::in(['high', 'medium'])],
+            // front: one garment for the option cards; presentation: front and back (the PRIMARY, Make HD).
+            'view' => ['nullable', Rule::in(['presentation', 'front'])],
+            'name' => ['nullable', 'string', 'max:80'],
+            'direction' => ['required', 'array'],
+            ...collect(['summary', 'teamName', 'palette', 'theme', 'front', 'back', 'graphics', 'trims', 'presentation', 'body', 'layout'])->mapWithKeys(fn ($k) => ["direction.{$k}" => $text])->all(),
+            'direction.ownDesign' => ['sometimes', 'boolean'],
+        ]);
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        $quality = $data['quality'] ?? 'medium';
+        // All four designs front and back in one tall picture (YOUR DESIGNS, 146.jpg, 2026-10-22); 'front' (one square front
+        // view, the old option cards) only when asked.
+        $view = $data['view'] ?? 'presentation';
+        set_time_limit(330);
+        [$sport, $garment] = $this->names($data);
+        try {
+            $jpeg = $designer->renderDirection($data['prompt'], $sport, $garment, $data['direction'], $this->references($request, $data['reference_ids'] ?? []), $quality, $view);
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+        $name = (($data['name'] ?? null) ?: 'AI design').' · '.mb_substr($data['prompt'], 0, 70);
+
+        return response()->json(['data' => [
+            ...($quality === 'high'
+                ? $this->store($request, $jpeg, 'mockup', 'AI mockup · '.$name)
+                : ['asset' => null, 'image' => 'data:image/jpeg;base64,'.base64_encode($jpeg)]),
+            'quality' => $quality,
+            'view' => $view,
+            'rank' => (int) $data['rank'],
+        ]], 201);
+    }
+
+    private function briefRules(Request $request): array
+    {
+        return [
+            'prompt' => ['required', 'string', 'min:8', 'max:4000'],
+            'sport' => ['required', Rule::in(array_column(config('catalog.sports'), 'id'))],
+            'garment' => ['required', Rule::in(array_column(config('catalog.garments'), 'id'))],
+            'reference_ids' => ['sometimes', 'array', 'max:4'],
+            'reference_ids.*' => ['required', 'integer', 'distinct', Rule::exists('assets', 'id')->where('user_id', $request->user()->id)],
+        ];
+    }
+
+    /** @return array{0: string, 1: string} the sport (with its style hint) and the garment, as the AI gets them */
+    private function names(array $data): array
+    {
+        return [
+            self::sportForAi($data['sport']),
+            collect(config('catalog.garments'))->firstWhere('id', $data['garment'])['name'],
+        ];
+    }
+
+    /**
+     * The sport's name for the planning and image prompts, with its catalogue style hint when it has one
+     * ("Golf (golf: a premium fitted performance polo, ...)"); sports without a hint read as before.
+     */
+    public static function sportForAi(string $id): string
+    {
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $id);
+        $hint = trim((string) ($sport['prompt'] ?? ''));
+
+        return $hint === '' ? $sport['name'] : "{$sport['name']} ({$hint})";
+    }
+
+    /**
+     * "Make it 3D": the mockup redrawn as a flat front and back print sheet,
+     * kept in Assets; the Studio's "My design picture" puts it on the 3D kit.
+     */
+    public function printSheet(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $data = $request->validate([
+            'image' => ['required', 'string', 'max:12000000', 'regex:#^data:image/(png|jpeg|webp);base64,#'],
+            'sport' => ['required', Rule::in(array_column(config('catalog.sports'), 'id'))],
+            'garment' => ['required', Rule::in(array_column(config('catalog.garments'), 'id'))],
+            'reference_ids' => ['sometimes', 'array', 'max:4'],
+            'reference_ids.*' => ['required', 'integer', 'distinct', Rule::exists('assets', 'id')->where('user_id', $request->user()->id)],
+            'name' => ['nullable', 'string', 'max:80'],
+            // The picture shows the front only (an option card made primary): the back is designed to match.
+            'front_only' => ['sometimes', 'boolean'],
+        ]);
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        set_time_limit(330);
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $data['sport'])['name'];
+        $garment = collect(config('catalog.garments'))->firstWhere('id', $data['garment'])['name'];
+        try {
+            $jpeg = $designer->printSheet($data['image'], $sport, $garment, $this->references($request, $data['reference_ids'] ?? []), (bool) ($data['front_only'] ?? false));
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+
+        return response()->json(['data' => $this->store($request, $jpeg, 'reference', 'Print sheet · '.(($data['name'] ?? null) ?: 'AI design'))], 201);
+    }
+
+    /** The user's own saved pictures as data URLs, in the order asked. */
+    private function references(Request $request, array $ids): array
+    {
+        return Asset::whereIn('id', $ids)->where('user_id', $request->user()->id)->get()
+            ->sortBy(fn (Asset $a) => array_search($a->id, $ids))
+            ->filter(fn (Asset $a) => Storage::disk('local')->exists($a->path))
+            ->map(fn (Asset $a) => 'data:'.$a->mime_type.';base64,'.base64_encode(Storage::disk('local')->get($a->path)))
+            ->values()->all();
     }
 
     /** "Ask 3DEEZI to change anything": a plain-language edit of the design. */
@@ -107,6 +246,51 @@ class AiController extends Controller
         }
     }
 
+    /**
+     * The image editor's "Describe edits" (AI concepts, mockups, showcases, assets): the picture
+     * changed as described, guided by an optional mask, a copy with the client's marks and
+     * numbered notes. Answers the new picture; the editor keeps it as a new version.
+     */
+    public function imageEdit(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $dataUrl = ['string', 'regex:#^data:image/(png|jpeg|webp);base64,#'];
+        $data = $request->validate([
+            'image' => ['required', 'max:12000000', ...$dataUrl],
+            'mask' => ['nullable', 'string', 'max:6000000', 'regex:#^data:image/png;base64,#'],
+            'marked' => ['nullable', 'max:8000000', ...$dataUrl],
+            'instruction' => ['required_without:notes', 'nullable', 'string', 'max:1000'],
+            'notes' => ['sometimes', 'array', 'max:20'],
+            'notes.*.text' => ['required', 'string', 'max:300'],
+            'notes.*.x' => ['required', 'numeric', 'between:0,1'],
+            'notes.*.y' => ['required', 'numeric', 'between:0,1'],
+            'size' => ['nullable', Rule::in(OpenAiDesigner::EDIT_SIZES)],
+        ], [
+            'instruction.required_without' => 'Describe the change you want, or add a note on the picture.',
+            'mask.regex' => 'The mask must be a PNG image.',
+        ]);
+        // The image model needs readable pictures and a mask the size of the picture.
+        $size = fn (?string $url) => $url ? (@getimagesizefromstring((string) base64_decode(substr($url, strpos($url, ',') + 1), true)) ?: null) : null;
+        $picture = $size($data['image']);
+        if (! $picture) {
+            throw ValidationException::withMessages(['image' => 'The picture could not be read. Use a PNG, JPEG or WebP image.']);
+        }
+        if (filled($data['mask'] ?? null) && array_slice($size($data['mask']) ?: [], 0, 2) !== array_slice($picture, 0, 2)) {
+            throw ValidationException::withMessages(['mask' => 'The mask must be the same size as the picture.']);
+        }
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        set_time_limit(330);
+        try {
+            [$mime, $bytes] = $designer->editImage(
+                $data['image'], (string) ($data['instruction'] ?? ''), $data['mask'] ?? null,
+                $data['marked'] ?? null, $data['notes'] ?? [], $data['size'] ?? null,
+            );
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+
+        return response()->json(['data' => ['image' => 'data:'.$mime.';base64,'.base64_encode($bytes)]]);
+    }
+
     /** Turns an uploaded kit photo or mockup into an editable 3D design. */
     public function convert(Request $request, OpenAiDesigner $designer): JsonResponse
     {
@@ -121,6 +305,27 @@ class AiController extends Controller
                 array_column(config('catalog.sports'), 'id'),
                 array_column(config('catalog.garments'), 'id'),
             )]);
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+    }
+
+    /**
+     * "Open in 3D Designer" (task 9.116): the AI design picture read for the editable 3D kit: the nearest 3D garment we
+     * have (never a refusal), the picture's colours, pattern, team name, back lettering and the club symbol's place.
+     */
+    public function readDesign(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $data = $request->validate([
+            'image' => ['required', 'string', 'max:12000000', 'regex:#^data:image/(png|jpeg|webp);base64,#'],
+            'sport' => ['required', Rule::in(array_column(config('catalog.sports'), 'id'))],
+            'garment' => ['required', Rule::in(array_column(config('catalog.garments'), 'id'))],
+        ]);
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        set_time_limit(90);
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $data['sport'])['name'];
+        try {
+            return response()->json(['data' => $designer->readDesign($data['image'], $sport, $data['garment'])]);
         } catch (RuntimeException $e) {
             abort(502, $e->getMessage());
         }

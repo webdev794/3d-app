@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 /** Admin: database health, backups and housekeeping. */
 class DatabaseController extends Controller
 {
-    private const TABLES = ['users', 'projects', 'project_versions', 'orders', 'assets', 'personal_access_tokens', 'sessions', 'cache', 'settings'];
+    private const TABLES = ['users', 'projects', 'project_versions', 'orders', 'assets', 'artboard_documents', 'personal_access_tokens', 'sessions', 'cache', 'settings'];
 
     public function show(): JsonResponse
     {

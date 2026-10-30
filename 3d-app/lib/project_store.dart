@@ -59,6 +59,7 @@ class ProjectStore {
     'remoteId': p.remoteId,
     'remoteVersion': p.remoteVersion,
     'pendingUpload': p.pendingUpload,
+    'approved': p.approved,
     'kit': {
       'garment': p.kit.garment,
       'mainColor': p.kit.mainColor.toARGB32(),
@@ -71,7 +72,18 @@ class ProjectStore {
       'number': p.kit.number,
       'layers': copyLayers(p.kit.layers),
       'zones': copyZones(p.kit.zones),
+      'patternScale': p.kit.patternScale,
+      'patternBody': p.kit.patternBody,
+      'zoneColors': copyZones(p.kit.zoneColors),
+      'trackStyle': p.kit.trackStyle,
+      if (p.kit.patternColor != null) 'patternColor': p.kit.patternColor,
+      if (p.kit.patternColorOwn == true) 'patternColorOwn': true,
+      if (p.kit.parts.isNotEmpty) 'parts': copyParts(p.kit.parts),
+      'productName': p.kit.productName,
       'gradient': copyGradient(p.kit.gradient),
+      'gradients': copyGradient(p.kit.gradients),
+      'marks': copyMarks(p.kit.marks),
+      'layout': copyLayout(p.kit.layout),
       'spec': p.kit.spec?.toJson(),
     },
   };
@@ -97,6 +109,7 @@ class ProjectStore {
       remoteVersion: j['remoteVersion'] as int?,
       // Projects saved before accounts existed upload on the next sync.
       pendingUpload: j['pendingUpload'] as bool? ?? true,
+      approved: j['approved'] as bool? ?? false,
       kit: KitState(
         garment: k['garment'] as String,
         mainColor: Color(k['mainColor'] as int),
@@ -113,7 +126,18 @@ class ProjectStore {
         spec: spec == null ? null : DesignSpec.fromJson(spec),
         layers: copyLayers(k['layers']),
         zones: copyZones(k['zones']),
+        patternScale: (k['patternScale'] as num?)?.toDouble(),
+        patternBody: (k['patternBody'] as num?)?.toDouble(),
+        zoneColors: copyZones(k['zoneColors']),
+        trackStyle: k['trackStyle'] == 'hood' ? 'hood' : 'collar',
+        patternColor: k['patternColor'] as String?,
+        patternColorOwn: k['patternColorOwn'] == true ? true : null,
+        parts: copyParts(k['parts']),
+        productName: k['productName'] as String? ?? '',
         gradient: copyGradient(k['gradient']),
+        gradients: copyGradient(k['gradients']),
+        marks: copyMarks(k['marks']),
+        layout: copyLayout(k['layout']),
       ),
     );
   }

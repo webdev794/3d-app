@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../app_controller.dart';
 
 class Palette {
@@ -44,6 +45,11 @@ class GradientButton extends StatelessWidget {
   final bool compact;
   @override
   Widget build(BuildContext context) => Semantics(
+    // A node of its own, as Material's buttons are: without it the button
+    // merged into the card around it (one "button" named by the whole card,
+    // e.g. TEAM's PAY NOW), and a SecondaryButton beside it sat inside that
+    // button, where screen readers on the web can't reach it.
+    container: true,
     button: true,
     enabled: onPressed != null,
     child: DecoratedBox(
@@ -271,17 +277,39 @@ class SurfaceCard extends StatelessWidget {
   );
 }
 
+/// The bottom bar (client pictures 166.jpg and 168.jpg): Home · Projects ·
+/// Orders · Profile. Assets is part of Projects (its button there, and in
+/// Profile), and My orders is part of the Orders tab.
 class BottomNav extends StatelessWidget {
   const BottomNav({super.key, required this.controller});
   final AppController controller;
+
+  /// The tab a screen belongs to.
+  static AppScreen tabOf(AppScreen screen) => switch (screen) {
+    AppScreen.assets => AppScreen.projects,
+    AppScreen.orders => AppScreen.orderHub,
+    _ => screen,
+  };
+
   @override
   Widget build(BuildContext context) {
     final entries = [
-      (AppScreen.home, Icons.auto_awesome_outlined, 'Create'),
-      (AppScreen.projects, Icons.folder_outlined, 'Projects'),
-      (AppScreen.assets, Icons.layers_outlined, 'Assets'),
-      (AppScreen.profile, Icons.person_outline_rounded, 'Profile'),
+      (AppScreen.home, Icons.home_outlined, Icons.home_rounded, 'Home'),
+      (
+        AppScreen.projects,
+        Icons.folder_outlined,
+        Icons.folder_rounded,
+        'Projects',
+      ),
+      (AppScreen.orderHub, null, null, 'Orders'),
+      (
+        AppScreen.profile,
+        Icons.person_outline_rounded,
+        Icons.person_rounded,
+        'Profile',
+      ),
     ];
+    final current = tabOf(controller.screen);
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xff080e14),
@@ -290,33 +318,47 @@ class BottomNav extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 5),
       child: Row(
         children: entries.map((e) {
-          final selected = controller.screen == e.$1;
+          final selected = current == e.$1;
+          final colour = selected ? Palette.cyan : const Color(0xffb9c5cf);
           return Expanded(
-            child: InkWell(
-              onTap: () => controller.go(e.$1),
-              borderRadius: BorderRadius.circular(10),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      e.$2,
-                      color: selected ? Palette.cyan : Palette.muted,
-                      size: 22,
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      e.$3,
-                      style: TextStyle(
-                        color: selected ? Palette.cyan : Palette.muted,
-                        fontSize: 10,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w400,
+            child: Semantics(
+              selected: selected,
+              child: InkWell(
+                key: ValueKey('nav-${e.$4.toLowerCase()}'),
+                onTap: () => controller.go(e.$1),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 24,
+                        child: e.$2 == null
+                            ? CubeIcon(
+                                filled: selected,
+                                color: colour,
+                                size: 23,
+                              )
+                            : Icon(
+                                selected ? e.$3 : e.$2,
+                                color: colour,
+                                size: 24,
+                              ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        e.$4,
+                        style: TextStyle(
+                          color: colour,
+                          fontSize: 11,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -327,11 +369,126 @@ class BottomNav extends StatelessWidget {
   }
 }
 
+/// The Orders tab's box: an isometric cube, solid when [filled].
+class CubeIcon extends StatelessWidget {
+  const CubeIcon({
+    super.key,
+    required this.filled,
+    required this.color,
+    this.size = 24,
+  });
+  final bool filled;
+  final Color color;
+  final double size;
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: size,
+    child: CustomPaint(painter: _CubePainter(filled, color)),
+  );
+}
+
+class _CubePainter extends CustomPainter {
+  const _CubePainter(this.filled, this.color);
+  final bool filled;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 24;
+    Offset p(double x, double y) => Offset(x * s, y * s);
+    final top = Path()
+      ..moveTo(p(12, 2.5).dx, p(12, 2.5).dy)
+      ..lineTo(p(20.5, 7).dx, p(20.5, 7).dy)
+      ..lineTo(p(12, 11.5).dx, p(12, 11.5).dy)
+      ..lineTo(p(3.5, 7).dx, p(3.5, 7).dy)
+      ..close();
+    final left = Path()
+      ..moveTo(p(3.5, 7).dx, p(3.5, 7).dy)
+      ..lineTo(p(12, 11.5).dx, p(12, 11.5).dy)
+      ..lineTo(p(12, 21.5).dx, p(12, 21.5).dy)
+      ..lineTo(p(3.5, 17).dx, p(3.5, 17).dy)
+      ..close();
+    final right = Path()
+      ..moveTo(p(20.5, 7).dx, p(20.5, 7).dy)
+      ..lineTo(p(20.5, 17).dx, p(20.5, 17).dy)
+      ..lineTo(p(12, 21.5).dx, p(12, 21.5).dy)
+      ..lineTo(p(12, 11.5).dx, p(12, 11.5).dy)
+      ..close();
+    if (filled) {
+      final hsl = HSLColor.fromColor(color);
+      canvas.drawPath(
+        top,
+        Paint()
+          ..color = hsl
+              .withLightness((hsl.lightness + .18).clamp(0, 1))
+              .toColor(),
+      );
+      canvas.drawPath(left, Paint()..color = color);
+      canvas.drawPath(
+        right,
+        Paint()
+          ..color = hsl
+              .withLightness((hsl.lightness - .14).clamp(0, 1))
+              .toColor(),
+      );
+      return;
+    }
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7 * s
+      ..strokeJoin = StrokeJoin.round
+      ..color = color;
+    canvas.drawPath(top, line);
+    canvas.drawPath(left, line);
+    canvas.drawPath(right, line);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CubePainter old) =>
+      old.filled != filled || old.color != color;
+}
+
+/// [child] drawn over the 3D view, a web frame that would otherwise take its
+/// taps and clicks (Flutter web): a PointerInterceptor under it, left out of
+/// the semantics as the Assist button's. [bleed] widens it past [child] (a
+/// toast's padding and close button); the parent's clip trims it.
+class OverViewer extends StatelessWidget {
+  const OverViewer({
+    super.key,
+    required this.child,
+    this.bleed = EdgeInsets.zero,
+  });
+  final Widget child;
+  final EdgeInsets bleed;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.passthrough,
+    clipBehavior: Clip.none,
+    children: [
+      Positioned(
+        left: -bleed.left,
+        top: -bleed.top,
+        right: -bleed.right,
+        bottom: -bleed.bottom,
+        child: ExcludeSemantics(
+          child: PointerInterceptor(child: const SizedBox.expand()),
+        ),
+      ),
+      child,
+    ],
+  );
+}
+
 void showToast(BuildContext context, String message) {
   ScaffoldMessenger.of(context).hideCurrentSnackBar();
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(message),
+      // Over the 3D (Preview) its close button still takes the click.
+      content: OverViewer(
+        bleed: const EdgeInsets.fromLTRB(24, 24, 96, 24),
+        child: Text(message),
+      ),
       behavior: SnackBarBehavior.floating,
       backgroundColor: Palette.surface2,
       showCloseIcon: true,
@@ -476,7 +633,7 @@ class JerseyPainter extends CustomPainter {
       canvas.restore();
       return;
     }
-    final singlet = c.garment == 'Singlet';
+    final singlet = c.garment == 'Singlet' || c.garment == 'Netball dress';
     final long = ['Hoodie', 'Jacket', 'Tracksuit'].contains(c.garment);
     final path = Path()
       ..moveTo(135, 48)

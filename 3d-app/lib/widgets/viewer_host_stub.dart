@@ -6,11 +6,14 @@ class ViewerHost {
     void Function(String message) onMessage, {
     String page = 'viewer',
     String channel = 'Viewer',
+    String query = '',
   });
 
   static bool get supported => false;
 
   void send(String json) {}
+
+  set passThrough(bool on) {}
 
   Widget build() => const SizedBox.shrink();
 

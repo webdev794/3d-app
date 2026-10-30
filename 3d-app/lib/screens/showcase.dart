@@ -7,6 +7,7 @@ import '../app_controller.dart';
 import '../export_service.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
+import 'image_editor.dart';
 
 /// Photoreal Showcase: turns the captured 3D kit into marketing images.
 class ShowcaseScreen extends StatefulWidget {
@@ -53,6 +54,25 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// The image editor on the shown showcase; Use replaces it and keeps a
+  /// copy in Assets › Artwork, as every showcase is.
+  Future<void> _edit(Uint8List image) async {
+    final index = _selected;
+    final edited = await openImageEditor(
+      context,
+      c,
+      bytes: image,
+      title: 'Showcase ${index + 1}',
+      fileName: '3deezi-showcase-${index + 1}',
+    );
+    if (edited == null || !mounted || index >= c.showcases.length) return;
+    c.update(() {
+      c.showcases[index] = edited;
+      c.artwork.add(edited);
+    });
+    showToast(context, 'Showcase updated · also saved in Assets › Artwork.');
   }
 
   Future<void> _share(Uint8List image) async {
@@ -123,6 +143,12 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
                           child: BusyBadge(
                             'Creating your showcase… about 1 min',
                           ),
+                        ),
+                      if (shown != null && !_busy)
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: EditImageChip(onTap: () => _edit(shown)),
                         ),
                     ],
                   ),

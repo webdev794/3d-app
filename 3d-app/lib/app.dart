@@ -4,13 +4,21 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app_controller.dart';
+import 'assist.dart';
 import 'screens/ai_designer.dart';
 import 'screens/artboard.dart';
+import 'screens/business.dart';
 import 'screens/create_home.dart';
+import 'screens/home_switcher.dart';
 import 'screens/library.dart';
+import 'screens/orders_board.dart';
+import 'screens/orders_tab.dart';
 import 'screens/onboarding.dart';
 import 'screens/showcase.dart';
+import 'screens/product_mockup.dart';
 import 'screens/studio.dart';
+import 'widgets/assist_overlay.dart';
+import 'widgets/notification_bell.dart';
 import 'widgets/ui.dart';
 
 class ThreeDeeziApp extends StatefulWidget {
@@ -22,14 +30,31 @@ class ThreeDeeziApp extends StatefulWidget {
 
 class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
   late final AppController c = widget.controller ?? AppController();
+  late final AssistController assist = AssistController(c);
+  // The notification bells' list, polled once a minute while the app is open and signed in.
+  late final NotificationFeed bell = NotificationFeed.of(c);
+
+  @override
+  void initState() {
+    super.initState();
+    bell.startPolling();
+    // The phone's saved Home (bubble or classic), read before Home opens.
+    HomeSwitcher.preload();
+  }
+
   @override
   void dispose() {
+    bell.stopPolling();
+    assist.dispose();
     if (widget.controller == null) c.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
+    // 3DEEZI ASSIST's links and open commands push the TEAM screens over the
+    // app and open Convert and the website's pages with it.
+    navigatorKey: assist.navigator,
     title: '3DEEZI · Sportswear Designer',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
@@ -80,19 +105,34 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
       dividerColor: Palette.border,
     ),
     home: AnimatedBuilder(
-      animation: c,
+      animation: Listenable.merge([c, assist]),
       builder: (context, _) => PopScope(
         canPop:
-            c.screen == AppScreen.home ||
-            c.screen == AppScreen.onboarding ||
-            c.screen == AppScreen.splash,
+            !assist.open &&
+            (c.screen == AppScreen.home ||
+                c.screen == AppScreen.onboarding ||
+                c.screen == AppScreen.splash),
         onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) c.back();
+          // Back closes the help chat first.
+          if (didPop) return;
+          if (assist.open) {
+            assist.minimise();
+          } else if (c.screen == AppScreen.studio &&
+              c.closeStudioPanel != null) {
+            // The Studio's tool panel under the 3D closes first.
+            c.closeStudioPanel!();
+          } else {
+            c.back();
+          }
         },
         child: LayoutBuilder(
           builder: (context, constraints) {
             final desktop = constraints.maxWidth >= 900;
-            final phone = _Phone(controller: c, framed: desktop);
+            final phone = _Phone(
+              controller: c,
+              assist: assist,
+              framed: desktop,
+            );
             return Scaffold(
               body: Container(
                 decoration: const BoxDecoration(
@@ -150,8 +190,13 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
 }
 
 class _Phone extends StatelessWidget {
-  const _Phone({required this.controller, required this.framed});
+  const _Phone({
+    required this.controller,
+    required this.assist,
+    required this.framed,
+  });
   final AppController controller;
+  final AssistController assist;
   final bool framed;
   @override
   Widget build(BuildContext context) => Container(
@@ -208,15 +253,22 @@ class _Phone extends StatelessWidget {
             ),
           ),
         Expanded(
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            body: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              child: KeyedSubtree(
-                key: ValueKey(controller.screen),
-                child: _screen(controller),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Scaffold(
+                backgroundColor: Colors.transparent,
+                body: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  child: KeyedSubtree(
+                    key: ValueKey(controller.screen),
+                    child: _screen(controller),
+                  ),
+                ),
               ),
-            ),
+              // 3DEEZI ASSIST, the help chat, over every screen.
+              AssistOverlay(assist),
+            ],
           ),
         ),
         if (framed || kIsWeb)
@@ -236,7 +288,7 @@ class _Phone extends StatelessWidget {
     AppScreen.splash => SplashScreen(c),
     AppScreen.onboarding => OnboardingScreen(c),
     AppScreen.auth => AuthScreen(c),
-    AppScreen.home => CreateHomeScreen(c),
+    AppScreen.home => HomeSwitcher(c),
     AppScreen.aiDesigner => AiDesignerScreen(c),
     AppScreen.generating => AiGeneratingScreen(c),
     AppScreen.concepts => ConceptsScreen(c),
@@ -249,7 +301,11 @@ class _Phone extends StatelessWidget {
     AppScreen.assets => AssetsScreen(c),
     AppScreen.profile => ProfileScreen(c),
     AppScreen.showcase => ShowcaseScreen(c),
+    AppScreen.mockup => ProductMockupScreen(c),
     AppScreen.artboard => ArtboardScreen(c),
+    AppScreen.pricing => PricingScreen(c),
+    AppScreen.orders => OrdersBoardScreen(c),
+    AppScreen.orderHub => OrdersTabScreen(c),
   };
 }
 
@@ -281,7 +337,10 @@ class _PresentationRail extends StatelessWidget {
       AppScreen.home => 1,
       AppScreen.aiDesigner || AppScreen.generating || AppScreen.concepts => 2,
       AppScreen.sport || AppScreen.garment => 3,
-      AppScreen.studio || AppScreen.showcase || AppScreen.artboard => 4,
+      AppScreen.studio ||
+      AppScreen.showcase ||
+      AppScreen.mockup ||
+      AppScreen.artboard => 4,
       _ => 5,
     };
     return SingleChildScrollView(

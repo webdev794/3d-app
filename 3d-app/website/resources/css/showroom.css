@@ -14,7 +14,7 @@
 .flow-steps>div.current>span,.flow-steps>div.complete>span{border-width:1.5px;border-color:var(--glow);box-shadow:0 0 8px #00d9ed88}
 .glow-panel{position:relative;border:1.5px solid #00d9ed66;border-radius:16px;background:linear-gradient(180deg,#071623e6,#050d16f2);box-shadow:0 0 0 1px #00d9ed14,0 0 26px #00d9ed26,inset 0 0 30px #00d9ed0d}
 .nav-mobile-only{display:none!important}
-.footer-link{color:#9fb2c4}.footer-link:hover{color:var(--cyan)}
+
 
 /* ---------- Loader: spinning emblem with orbits */
 .loader-overlay{min-height:calc(100dvh - 84px);display:grid;place-items:center;padding:40px 20px;background:radial-gradient(ellipse at 50% 40%,#0a2c3e 0,#040b14 62%)}
@@ -23,9 +23,10 @@
 .loader-card h2{font-family:var(--heading);font-size:30px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px}
 .loader-card>p{color:#8d9fb3;font-size:13px;margin:0 0 30px}
 .loader-inline .loader-card h2{font-size:20px}.loader-inline .loader-card>p{margin-bottom:18px}
-.loader-emblem{position:relative;width:220px;height:220px;margin:0 auto 32px;display:grid;place-items:center}
-.loader-inline .loader-emblem{width:150px;height:150px;margin-bottom:20px}
-.loader-emblem img{width:46%;filter:drop-shadow(0 0 14px #00d9edaa);animation:emblem-spin 2.6s cubic-bezier(.6,0,.4,1) infinite}
+/* --ring is the orbit circle's size; the emblem fills 65% of it and stays inside the inner orbit (inset 12%) as it spins */
+.loader-emblem{--ring:236px;position:relative;width:var(--ring);height:var(--ring);margin:0 auto 32px;display:grid;place-items:center}
+.loader-inline .loader-emblem{--ring:164px;margin-bottom:20px}
+.loader-emblem img{width:65%;max-width:none;height:auto;filter:drop-shadow(0 0 14px #00d9edaa);animation:emblem-spin 2.6s cubic-bezier(.6,0,.4,1) infinite}
 .loader-emblem .orbit{position:absolute;inset:0;border-radius:50%;border:2px solid transparent}
 .orbit-1{border-color:#00d9ed99 transparent #00d9ed22 transparent!important;box-shadow:0 0 24px #00d9ed33,inset 0 0 24px #00d9ed22;animation:spin 3.2s linear infinite}
 .orbit-2{inset:12%!important;border-color:transparent #7560ffaa transparent #36e3ee66!important;animation:spin 2.2s linear infinite reverse}
@@ -34,9 +35,9 @@
 .loader-spark.s1{animation:orbit-a 3.2s linear infinite}.loader-spark.s2{animation:orbit-b 2.2s linear infinite;background:#a99bff;box-shadow:0 0 12px #7560ff}.loader-spark.s3{animation:orbit-c 5s linear infinite;width:5px;height:5px}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes emblem-spin{0%{transform:perspective(500px) rotateY(0)}60%,100%{transform:perspective(500px) rotateY(360deg)}}
-@keyframes orbit-a{from{transform:translate(-50%,-50%) rotate(0) translateX(110px)}to{transform:translate(-50%,-50%) rotate(360deg) translateX(110px)}}
-@keyframes orbit-b{from{transform:translate(-50%,-50%) rotate(180deg) translateX(84px)}to{transform:translate(-50%,-50%) rotate(-180deg) translateX(84px)}}
-@keyframes orbit-c{from{transform:translate(-50%,-50%) rotate(90deg) translateX(126px)}to{transform:translate(-50%,-50%) rotate(450deg) translateX(126px)}}
+@keyframes orbit-a{from{transform:translate(-50%,-50%) rotate(0) translateX(calc(var(--ring) * .5))}to{transform:translate(-50%,-50%) rotate(360deg) translateX(calc(var(--ring) * .5))}}
+@keyframes orbit-b{from{transform:translate(-50%,-50%) rotate(180deg) translateX(calc(var(--ring) * .382))}to{transform:translate(-50%,-50%) rotate(-180deg) translateX(calc(var(--ring) * .382))}}
+@keyframes orbit-c{from{transform:translate(-50%,-50%) rotate(90deg) translateX(calc(var(--ring) * .573))}to{transform:translate(-50%,-50%) rotate(450deg) translateX(calc(var(--ring) * .573))}}
 .loader-inline .loader-spark{display:none}
 .loader-bar{height:4px;border-radius:4px;background:#ffffff12;overflow:hidden;margin-bottom:24px}
 .loader-bar span{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#00e0e4,#04c6f3,#7560ff);box-shadow:0 0 12px #00d9ed;transition:width .4s ease}
@@ -128,8 +129,11 @@
 .panel-head h2{font-family:var(--heading);font-size:24px;text-transform:uppercase;margin:0;letter-spacing:.04em}
 .panel-body{flex:1;overflow-y:auto;padding:8px 18px 18px;display:flex;flex-direction:column;gap:14px}
 .panel-body h4{font-size:11px;letter-spacing:.14em;color:#c9d6e2;margin:6px 0 0}
-.slot-tabs{display:grid;grid-template-columns:repeat(4,1fr);border:1.5px solid #ffffff1f;border-radius:24px;padding:3px;background:#06111b}
-.slot-tabs button{border:0;background:none;border-radius:20px;padding:9px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9fb2c4}
+.slot-tabs{display:grid;grid-template-columns:repeat(4,auto);border:1.5px solid #ffffff1f;border-radius:24px;padding:3px;background:#06111b;container-type:inline-size}
+.slot-tabs button{min-width:0;white-space:nowrap;border:0;background:none;border-radius:20px;padding:9px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9fb2c4}
+/* A narrow Colours panel: smaller labels, so all four tabs (and Pattern) stay inside the row. */
+@container (max-width:284px){.slot-tabs button{font-size:10px;letter-spacing:.03em;padding:8px 3px}}
+@container (max-width:240px){.slot-tabs button{font-size:9.5px;letter-spacing:.02em;padding:8px 2px}}
 .slot-tabs button.active{color:var(--cyan);border:1.5px solid var(--glow);box-shadow:0 0 10px #00d9ed66;background:#05202d}
 .inline-field{display:flex;gap:8px}.inline-field input{flex:1;min-width:0;height:42px;border-radius:9px;border:1px solid #ffffff22;background:#06111b;color:#fff;padding:0 12px}
 .inline-field .button{min-height:42px;padding:0 14px}
@@ -147,6 +151,8 @@
 .bubble.typing{display:flex;align-items:center;gap:8px;color:#8d9fb3}
 .dyo-stage{position:relative;min-height:0;border-radius:16px;overflow:hidden;border:1.5px solid #00d9ed44;box-shadow:0 0 26px #00d9ed1f}
 .dyo-stage .studio-viewer{position:absolute;inset:0}
+/* The stage keeps the third grid column: the tool panel (column 2) is not rendered while closed, which otherwise drops the stage into the 0-wide panel column. */
+.dyo-body>.dyo-stage{grid-column:3}
 .stage-chips{position:absolute;top:14px;left:14px;display:flex;gap:8px;z-index:5;flex-wrap:wrap}
 .stage-chips span{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:20px;background:#05101acc;border:1px solid #ffffff22;font-size:11px;color:#c9d6e2;backdrop-filter:blur(8px)}
 .dyo-stage .view-controls{bottom:16px;border-radius:30px;border:1.5px solid #00d9ed55;box-shadow:0 0 14px #00d9ed33;padding:5px}
@@ -197,7 +203,7 @@
 .mockup-result h2{font-family:var(--heading);font-size:34px;margin:10px 0}.mockup-result h2 span{color:var(--cyan)}
 .mockup-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
 .mockup-frame{aspect-ratio:3/2;border-radius:12px;overflow:hidden;background:#05090d;border:1px solid #00d9ed44}
-.mockup-frame img{width:100%;height:100%;object-fit:contain;background:#d9dadc}
+.mockup-frame>img{width:100%;height:100%;object-fit:contain;background:#d9dadc}
 .convert-layout{display:grid;grid-template-columns:1.4fr 1fr;gap:24px}
 .convert-drop{min-height:440px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#c9d6e2;cursor:pointer;padding:20px;border-style:dashed!important}
 .convert-drop svg{color:var(--cyan)}.convert-drop span{color:#8d9fb3;font-size:12px}
@@ -237,12 +243,12 @@
   .dyo-body,.dyo-body.panel-open{display:flex;flex-direction:column;padding:10px}
   .dyo-rail{flex-direction:row;overflow-x:auto;order:1}.dyo-rail button{min-width:74px;padding:9px 4px;font-size:11px}
   .dyo-stage{order:2;height:62vh;min-height:380px}.dyo-panel{order:3}.dyo-garments{order:4;flex-direction:row;overflow-x:auto}.dyo-garments button{min-width:96px}
-  .dyo-prompt{position:sticky;bottom:10px;z-index:20}
+  .dyo-prompt{position:sticky;bottom:10px;z-index:20;width:calc(100% - 94px);margin-left:14px;margin-right:auto}
   .convert-layout,.credit-table,.mockup-result{grid-template-columns:1fr}
   .carousel-arrow{top:auto;bottom:-6px;width:44px;height:44px}
 }
 @media(max-width:800px){.nav-mobile-only{display:flex!important}}
-@media(max-width:600px){.plan-grid{grid-template-columns:1fr}.carousel{height:360px}.carousel-item{--spread:92px;width:150px;margin-left:-75px}.carousel-item.is-active .carousel-label strong{font-size:18px}.showroom-head .back-link{position:static;margin-bottom:8px}.design-sport{min-width:0;width:100%}.garment-panel{padding:20px 16px}.garment-tiles{grid-template-columns:repeat(2,1fr)}.garment-actions .button{width:100%}.dyo-actions .button-outline{display:none}.loader-emblem{width:170px;height:170px}.dyo-prompt{width:calc(100% - 20px)}.dyo-prompt .round-button:nth-of-type(2){display:none}}
+@media(max-width:600px){.plan-grid{grid-template-columns:1fr}.carousel{height:360px}.carousel-item{--spread:92px;width:150px;margin-left:-75px}.carousel-item.is-active .carousel-label strong{font-size:18px}.showroom-head .back-link{position:static;margin-bottom:8px}.design-sport{min-width:0;width:100%}.garment-panel{padding:20px 16px}.garment-tiles{grid-template-columns:repeat(2,1fr)}.garment-actions .button{width:100%}.dyo-actions .button-outline{display:none}.loader-emblem{--ring:196px}.dyo-prompt{width:calc(100% - 86px);margin-left:10px}.dyo-prompt .round-button:nth-of-type(2){display:none}}
 
 /* ---------- Admin panel and orders */
 .admin-page{padding:36px 0 70px}
@@ -317,7 +323,7 @@
 .super-admin svg{color:var(--cyan)}
 .super-admin em{font-style:normal;font-size:9px;letter-spacing:.12em;padding:3px 7px;border-radius:10px;background:linear-gradient(110deg,#00e0e4,#7560ff);color:#031423;font-weight:800}
 .console-burger{display:none}
-.console-body{padding:24px 28px 50px;display:flex;flex-direction:column;gap:18px}
+.console-body{padding:24px 28px 84px;display:flex;flex-direction:column;gap:18px}
 .console-shortcuts{display:flex;gap:10px;justify-content:flex-end;margin-top:-6px}
 .console-shortcuts .button{min-height:40px;padding:0 16px;font-size:12px}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:4px}
@@ -333,7 +339,7 @@
 .trend .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#c9d6e2}
 .trend .legend i,.chart-tip i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .trend-plot{position:relative;margin-top:8px}
-.trend-plot svg{width:100%;height:auto;display:block;cursor:crosshair}
+.trend-plot svg{width:100%;height:auto;display:block;cursor:crosshair;overflow:visible}
 .trend-plot .grid{stroke:#ffffff12;stroke-width:1}
 .trend-plot .tick{fill:#7f93a6;font-size:11px;font-family:Inter,sans-serif}
 .trend-plot .crosshair{stroke:#ffffff55;stroke-width:1;stroke-dasharray:3 3}
@@ -354,6 +360,11 @@
 .project-card:hover{border-color:#00d9ed66}
 .project-card h3{margin:6px 0 0;font-size:15px}
 .project-card p{margin:0;font-size:12px}
+/* Admin › Projects: long text stays inside the card (picture 169, 2026-10-23). A project name wraps; the customer's
+   name and email keep one line with an ellipsis, the full text in its tooltip. */
+.project-card{min-width:0}
+.project-card h3,.project-card p{overflow-wrap:anywhere}
+.project-card .cell-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .project-thumb{position:relative;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#0f2a3a,#050c15);display:grid;place-items:center;color:#5d7083;font-size:12px}
 .project-thumb img{width:100%;height:100%;object-fit:contain}
 .project-thumb .status-pill{position:absolute;top:8px;left:8px;background:#05101acc}
@@ -381,7 +392,8 @@
   .console-burger{display:inline-flex}
   .console-top{padding:14px 16px;flex-wrap:wrap}
   .console-actions .button-outline{display:none}
-  .console-body{padding:16px}
+  /* The last row stays clear of the 3DEEZI ASSIST button (44 px, 18 px from the bottom) when scrolled to the end. */
+  .console-body{padding:16px 16px 84px}
 }
 
 /* Create cards: thicker glowing outline (client feedback) */
@@ -465,4 +477,165 @@
 .pm-ai small{text-align:center;color:#64748b;font-size:8px}.pm-ai small em{font-style:normal;font-weight:800;color:#0f172a}
 @media(max-width:1200px){.partner-plan{grid-template-columns:1fr 1fr}.partner-side{grid-column:1/-1}}
 @media(max-width:700px){.partner-plan{grid-template-columns:1fr;padding:22px 18px}.partner-perks{padding:18px 0 0;border-left:0;border-top:1px solid #ffffff1a}.pm-app{grid-template-columns:1fr 110px}.pm-garments{display:none}.pm-nav nav span:not(.on){display:none}.partner-steps li{font-size:11px}}
-.admin-table .cell-message{max-width:320px;white-space:pre-wrap;font-size:13px;color:#cbd5e1}
+.admin-table .cell-message{max-width:320px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;color:#cbd5e1}
+
+/* ---------- Admin: the kit's picture in the orders list, and an order's kit page */
+.order-kit{display:flex;align-items:center;gap:10px;min-width:190px}
+.order-kit-thumb{flex:none;width:58px;height:58px;border-radius:10px;overflow:hidden;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#12324a,#06111b);border:1px solid #ffffff1c;color:#5d7083}
+.order-kit-thumb:hover{border-color:#00d9ed88;box-shadow:0 0 12px #00d9ed44}
+.order-kit-thumb img{width:100%;height:100%;object-fit:cover}
+.order-kit strong{display:block;font-size:13px;margin-bottom:3px}
+.order-kit-link{font-size:12px;font-weight:700;color:var(--cyan)}
+.order-kit-link:hover{text-decoration:underline}
+.kit-page{display:flex;flex-direction:column;gap:18px}
+.kit-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.kit-head h2{font-family:var(--heading);font-size:28px;margin:0}
+.kit-head-actions{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.kit-shots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.kit-shots figure{margin:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+.kit-shot{aspect-ratio:4/5;width:100%;border-radius:14px;overflow:hidden;border:1px solid #ffffff1c;background:radial-gradient(circle at 50% 35%,#16354d,#050c15 75%);display:grid;place-items:center;padding:0;cursor:zoom-in}
+.kit-shot img{width:100%;height:100%;object-fit:contain}
+button.kit-shot:hover{border-color:#00d9ed88}
+.kit-shot.wait,.kit-shot.none{cursor:default;color:#8d9fb3;font-size:13px;gap:8px;text-align:center;padding:12px;align-content:center}
+.kit-shots figcaption{display:flex;align-items:center;justify-content:space-between;min-height:32px;font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#c9d6e2}
+.kit-dl{display:grid;grid-template-columns:140px 1fr;gap:10px 14px;margin:0;font-size:14px}
+.kit-dl dt{color:#8d9fb3;font-size:12px;letter-spacing:.04em;padding-top:2px}
+.kit-dl dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.kit-dl dd small{display:block;color:#8d9fb3;font-size:12px;margin-top:3px}
+.kit-dl a{color:var(--cyan)}
+.kit-colours{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.kit-colours li{display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:12px;font-size:14px}
+.kit-colours i{width:36px;height:36px;border-radius:9px;border:1px solid #ffffff33;box-shadow:inset 0 0 0 1px #0004}
+.kit-colours code{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#dbe7f1;background:#06111b;border:1px solid #ffffff1c;border-radius:6px;padding:3px 8px}
+.kit-mini{width:64px;height:64px;object-fit:contain;border-radius:8px;border:1px solid #ffffff1c;background:#06111b}
+.kit-brief{margin:0;font-size:15px;line-height:1.55;color:#dbe7f1;padding:14px 16px;border-radius:12px;background:#06111b;border-left:3px solid var(--cyan)}
+.kit-pre{white-space:pre-wrap}
+.kit-sizes td:last-child,.kit-sizes th:last-child{text-align:right}
+.kit-sizes tfoot td{font-weight:700;border-bottom:0}
+.kit-sizes tfoot tr:first-child td{border-top:1.5px solid #00d9ed44}
+.kit-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.kit-capture{position:fixed;left:-10000px;top:0;width:900px;height:1125px;pointer-events:none}
+.admin-modal.wide{width:min(1100px,calc(100vw - 30px))}
+.kit-zoom img{display:block;max-width:100%;max-height:76vh;margin:0 auto;border-radius:12px;background:radial-gradient(circle at 50% 35%,#16354d,#050c15 75%)}
+@media(max-width:800px){.kit-shots{grid-template-columns:1fr}.kit-dl{grid-template-columns:110px 1fr}.kit-head-actions{margin-left:0}}
+
+/* ---------- DYO quick-access tiles (client visual): ALL · SPORTS · APPAREL, then one row of 2D category tiles.
+   One row only: arrows page it on desktop, phones swipe it. The stage below shrinks to make room. */
+.sport-shortcuts{width:min(1260px,100%);display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:10px;touch-action:auto}
+.sport-filter{display:flex;gap:4px;border-bottom:1px solid #ffffff22}
+.sport-filter button{position:relative;padding:6px 18px 8px;border:0;background:none;color:#e9f1f7;font:700 14px/1 var(--heading);letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:color .2s}
+.sport-filter button:hover{color:#fff;text-shadow:0 0 10px #00d9ed88}
+.sport-filter button[aria-pressed=true]{color:var(--glow);text-shadow:0 0 12px #00d9ed66}
+.sport-filter button[aria-pressed=true]:after{content:'';position:absolute;left:6px;right:6px;bottom:-1px;height:2px;border-radius:2px;background:var(--glow);box-shadow:0 0 8px var(--glow)}
+.sport-filter button:focus-visible,.sport-strip-arrow:focus-visible,.sport-tile:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.sport-strip{display:flex;align-items:center;gap:14px;max-width:100%}
+.sport-strip-arrow{flex:none;width:44px;height:44px;border-radius:50%;border:1.5px solid #ffffffaa;background:#05101acc;color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 0 12px #00d9ed33;transition:.2s}
+.sport-strip-arrow:hover:not(:disabled){border-color:var(--glow);box-shadow:0 0 18px #00d9ed99}
+.sport-strip-arrow:disabled{opacity:.3;cursor:default}
+.sport-strip.fits .sport-strip-arrow{visibility:hidden}
+.sport-tiles{position:relative;display:flex;gap:12px;min-width:0;overflow-x:auto;overflow-y:hidden;padding:8px 4px;scroll-snap-type:x mandatory;scroll-padding-inline:4px;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.sport-tiles::-webkit-scrollbar{display:none}
+.sport-tiles.more-next{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 56px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 56px),transparent)}
+.sport-tiles.more-prev{-webkit-mask-image:linear-gradient(90deg,transparent,#000 56px);mask-image:linear-gradient(90deg,transparent,#000 56px)}
+.sport-tiles.more-prev.more-next{-webkit-mask-image:linear-gradient(90deg,transparent,#000 56px,#000 calc(100% - 56px),transparent);mask-image:linear-gradient(90deg,transparent,#000 56px,#000 calc(100% - 56px),transparent)}
+.sport-tile{flex:none;scroll-snap-align:start;width:128px;height:98px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:8px 6px;border-radius:12px;border:1.5px solid #00d9ed55;background:linear-gradient(180deg,#0a1b28eb,#050d16f2);color:var(--glow);cursor:pointer;transition:border-color .2s,box-shadow .2s,background .2s}
+.sport-tile svg{width:48px;height:48px;flex:none;filter:drop-shadow(0 0 5px #00d9ed66)}
+.sport-tile strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff;font:700 14px/1.05 var(--heading);letter-spacing:.06em;text-transform:uppercase}
+.sport-tile:hover{border-color:#00d9edaa;box-shadow:0 0 12px #00d9ed33}
+.sport-tile[aria-pressed=true]{border-color:#38f3ff;background:linear-gradient(180deg,#0c2a3af2,#06131df5);box-shadow:0 0 0 1px #38f3ff,0 0 14px #00d9edaa,inset 0 0 16px #00d9ed2e}
+.sport-tile[aria-pressed=true] svg{color:#5ff6ff;filter:drop-shadow(0 0 7px #00e5f5)}
+.showroom.sport-step .carousel{--kit-h:clamp(330px,calc(100dvh - 370px),880px)}
+@media(max-width:1100px){.sport-tile{width:114px;height:90px;gap:6px}.sport-tile svg{width:42px;height:42px}.sport-tile strong{font-size:13px}}
+@media(max-width:600px){
+  .showroom.sport-step .showroom-head{align-self:stretch}
+  .showroom.sport-step .showroom-head p{display:none}
+  .sport-shortcuts{margin-top:8px;gap:4px}
+  .sport-filter button{padding:6px 13px 8px;font-size:13px}
+  .sport-strip{width:calc(100% + 40px);margin:0 -20px;gap:0}
+  .sport-strip-arrow{display:none}
+  .sport-tiles{gap:10px;padding:7px 20px;scroll-padding-inline:20px}
+  .sport-tile{width:94px;height:80px;gap:5px;padding:6px 4px;border-radius:11px}
+  .sport-tile svg{width:34px;height:34px}
+  .sport-tile strong{font-size:12px;letter-spacing:.04em}
+  .showroom.sport-step .carousel{--kit-h:clamp(270px,calc(100dvh - 440px),480px)}
+}
+@media(prefers-reduced-motion:reduce){.sport-tiles{scroll-behavior:auto}}
+
+/* The DESIGN button belongs to the stage: it sticks to the bottom of the window while the kits are in view, then stops
+   at the end of the stage, so it never sits on the footer. On phones it rides above the 3DEEZI ASSIST launcher. */
+.showroom.sport-step>.design-sport{position:sticky;left:auto;bottom:20px;transform:none;align-self:center;margin-top:8px}
+.showroom.sport-step>.design-sport:hover{transform:translateY(-2px)}
+.showroom.sport-step{padding-bottom:30px}
+@media(max-width:600px){.showroom.sport-step>.design-sport{width:100%;bottom:calc(76px + env(safe-area-inset-bottom))}}
+
+/* 30 categories (task 9.79, 2026-10-21): a count instead of dots, and the garment step's "Show all garments". */
+.carousel-count{margin:42px 0 14px;font:600 13px/1 var(--font-display,inherit);letter-spacing:.12em;color:#c4d2df}
+.carousel-count b{color:var(--glow)}
+@media(max-width:600px){.carousel-count{display:none}}
+.garment-more{display:block;margin:14px auto 0;padding:7px 16px;border:1px solid #ffffff2e;border-radius:999px;background:none;color:#c4d2df;font-size:13px;cursor:pointer}
+.garment-more:hover,.garment-more:focus-visible{border-color:var(--glow);color:#fff}
+
+/* Garments per sport (task 9.99, client visuals 157.jpg and 160.jpg): rows of four tiles, a shorter last row centred
+   (Rugby's 11: 4 + 4 + 3); 3 across at 1024, 2 on tablets and phones. Name in capitals, a note when the 3D preview uses
+   another garment, "More teamwear ›" as a plain link. */
+.garment-tiles{--cols:4;--gap:16px;display:flex;flex-wrap:wrap;justify-content:center;gap:var(--gap)}
+.garment-tiles>.garment-tile{flex:0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));min-width:0}
+.garment-tile img{width:86%;margin-bottom:2px}
+/* The product photos (no 3D garment of their own yet) sit on a dark square: its edges fade into the tile. */
+.garment-tile img.tile-photo{-webkit-mask-image:radial-gradient(farthest-side,#000 78%,transparent 100%);mask-image:radial-gradient(farthest-side,#000 78%,transparent 100%)}
+/* The client's own Rugby and Netball tiles (images/161.jpg, 157.jpg) are cut out (transparent): no fade. */
+.garment-tile img.tile-photo:is([src*="/garment-rugby-"],[src*="/garment-netball-"]){-webkit-mask-image:none;mask-image:none}
+.garment-tile strong{font-family:var(--heading);text-transform:uppercase;letter-spacing:.04em;font-size:17px;line-height:1.15}
+.garment-tile small{font-size:12.5px;line-height:1.35;color:#b7c6d6}
+.garment-tile .tile-note{font-style:normal;font-size:11px;color:#5fdcea;opacity:.85}
+.garment-tile.soon{opacity:.6}
+.garment-tile.soon .soon-badge{top:12px}
+.garment-tiles-more{margin-top:16px}
+.garment-more{display:inline-flex;align-items:center;gap:4px;margin:16px auto 0;padding:6px 10px;border:0;border-radius:8px;background:none;color:#29d8f0;font-size:15px}
+.garment-more svg{transition:transform .2s}.garment-more svg.is-open{transform:rotate(90deg)}
+.garment-more:hover,.garment-more:focus-visible{color:#fff;text-decoration:underline;text-underline-offset:4px}
+.garment-panel>.garment-more{display:flex;width:fit-content}
+@media(max-width:1100px){.garment-tiles{--cols:3}}
+@media(max-width:900px){.garment-tiles{--cols:2;--gap:12px}.garment-tile strong{font-size:15px}.garment-tile small{font-size:11.5px}.step-heading h1{font-size:24px}}
+@media(max-width:480px){.garment-tiles{--gap:10px}.garment-tile{padding:10px 8px 12px}.garment-tile strong{font-size:14px}.step-heading{gap:12px}.step-heading h1{font-size:20px}.step-number{width:42px;height:42px;font-size:22px}}
+/* The garment step: 3DEEZI ASSIST is the round button here (as on the AI results), and the Change sport / Continue row
+   ends left of it at every width, so it never covers "Continue to studio". (100vw - 100%) / 2 is the room right of the row. */
+body:has(.garment-step) .assist-launcher{width:52px;height:52px;padding:0;justify-content:center;border-radius:50%}
+body:has(.garment-step) .assist-launcher span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.garment-actions{padding-right:max(0px,calc(104px - (100vw - 100%) / 2))}
+@media(max-width:560px){body:has(.garment-step) .assist-launcher{width:48px;height:48px}.garment-actions{padding-right:max(0px,calc(76px - (100vw - 100%) / 2))}}
+/* Garment step per-sport settings (config/catalog.php; client visual images/165.jpg, American Football): a hint line between
+   the buttons, an own background (sharper than the shared stadium), and names-only tiles in a compact 4 x 4 grid. */
+.garment-actions{align-items:center}
+.garment-hint{flex:1 1 0;min-width:0;margin:0;text-align:center;color:#3fd2ee;font-size:14px}
+.showroom-bg.own-backdrop{filter:brightness(.82) saturate(1.05);background-position:center 55%}
+.showroom-bg.own-backdrop:after{background:linear-gradient(180deg,#040a12aa 0,#040a1222 30%,transparent 60%,#040a1288 100%)}
+.garment-step.names-only .garment-panel{width:min(944px,100%);padding:18px 20px 20px}
+.garment-step.names-only .step-heading{gap:16px;margin-bottom:14px}
+.garment-step.names-only .step-heading h1{font-size:27px}
+.garment-step.names-only .step-heading p{font-size:15px}
+.garment-step.names-only .garment-tiles{--cols:4;--gap:10px}
+.garment-step.names-only .garment-tile{gap:4px;padding:8px 8px 10px;border-radius:10px;justify-content:flex-end}
+.garment-step.names-only .garment-tile img{width:100%;aspect-ratio:4/3;max-height:138px;margin-bottom:2px}
+.garment-step.names-only .garment-tile strong{font-size:15px}
+.garment-step.names-only .garment-tile.soon{opacity:.82}
+.garment-step.names-only .garment-tile.soon .soon-badge{top:6px}
+.garment-step.names-only .garment-tile.soon img{margin-top:0;width:100%}
+.garment-step.names-only .garment-actions{margin-top:16px}
+.garment-step.names-only .garment-actions .button{min-height:48px}
+.garment-step.names-only .garment-actions .button-gradient{min-width:236px}
+@media(max-width:1100px){.garment-step.names-only .garment-tiles{--cols:4}}
+@media(max-width:760px){.garment-step.names-only .garment-tiles{--cols:3}}
+@media(max-width:900px){.garment-hint{font-size:13px}}
+@media(max-width:520px){.garment-step.names-only .garment-tiles{--cols:2}.garment-step.names-only .garment-tile strong{font-size:14px}.garment-step.names-only .step-heading h1{font-size:20px}.garment-step.names-only .step-heading p{font-size:13px}.garment-hint{order:-1;flex-basis:100%}}
+/* Artwork to 3D (task 9.153): what the artwork is, and the garment. */
+.convert-kinds{display:grid;gap:8px}
+.convert-kind{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #ffffff22;border-radius:10px;cursor:pointer}
+.convert-kind.is-on{border-color:var(--cyan);background:#00d9ed12}
+.convert-kind input{margin-top:3px;accent-color:var(--cyan)}
+.convert-kind span{display:grid;gap:2px}.convert-kind small{color:#8d9fb3;font-size:12px}
+.convert-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.convert-pick label{display:grid;gap:4px;font-size:12px;color:#8d9fb3}
+.convert-pick select{padding:9px 10px;border-radius:8px;border:1px solid #23506a;background:#06192a;color:#e8f4fb;font:inherit;font-size:14px;min-width:0}
+@media (max-width:520px){.convert-pick{grid-template-columns:1fr}.convert-drop{min-height:260px}}
+.convert-warn{color:#ffd28a!important}

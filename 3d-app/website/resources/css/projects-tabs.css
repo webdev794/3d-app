@@ -1,0 +1,23 @@
+/* Projects · Convert · Approved · Assets (ProjectsTabs in ProjectsMenu.tsx): the pages of the header's PROJECTS menu
+   are one place (client 2026-10-26). Tabs in the header's style: uppercase Rajdhani, the current one cyan with the
+   header's glowing underline. Phones: four equal tabs across the page; on the narrowest the icons make way. */
+.lib-sections{display:flex;align-items:stretch;gap:4px;margin:-14px 0 26px;border-bottom:1px solid #ffffff12}
+.lib-sections a{position:relative;display:flex;align-items:center;gap:8px;padding:11px 16px 13px;border-radius:8px 8px 0 0;color:#8e9bb0;font-family:var(--heading);font-size:14px;font-weight:700;letter-spacing:.06em;line-height:1.2;text-transform:uppercase;white-space:nowrap;transition:color .15s,background-color .15s}
+.lib-sections svg{width:17px;height:17px;flex-shrink:0}
+.lib-sections a:hover{color:#e8f7fa;background:#ffffff05}
+.lib-sections a.active{color:var(--cyan)}
+.lib-sections a.active svg{filter:drop-shadow(0 0 5px #00d9ed99)}
+.lib-sections a.active::after{content:'';position:absolute;left:12px;right:12px;bottom:-1px;height:3px;border-radius:3px;background:var(--cyan);box-shadow:0 0 8px #00d9ed,0 0 18px #00d9edaa}
+.lib-sections a:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
+/* Above a page of its own (Convert, App.tsx): the row sits where the Library pages have it. */
+.lib-sections-shell{padding-top:50px}
+.lib-sections-shell+.creation-page{padding-top:0}
+@media(max-width:700px){
+  .lib-sections-shell{padding-top:30px}
+  .lib-sections{gap:0;margin:-6px 0 20px}
+  .lib-sections a{flex:1 1 0;min-width:0;justify-content:center;gap:5px;padding:11px 2px 12px;font-size:12.5px;letter-spacing:.03em}
+  .lib-sections a.active::after{left:6px;right:6px}
+  .lib-sections svg{width:14px;height:14px}
+}
+@media(max-width:374px){.lib-sections svg{display:none}}
+@media(prefers-reduced-motion:reduce){.lib-sections a{transition:none}}

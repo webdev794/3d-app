@@ -1,0 +1,10 @@
+[
+  { "id": "cyan-blue", "name": "CYAN / BLUE", "stops": [{ "color": "#12e1f0", "at": 0 }, { "color": "#2f6bff", "at": 1 }] },
+  { "id": "blue-violet", "name": "BLUE / VIOLET", "stops": [{ "color": "#2f6bff", "at": 0 }, { "color": "#8b3dff", "at": 1 }] },
+  { "id": "sunset", "name": "SUNSET", "stops": [{ "color": "#ff8a00", "at": 0 }, { "color": "#ff3d7f", "at": 0.5 }, { "color": "#7b2ff7", "at": 1 }] },
+  { "id": "black-red", "name": "BLACK / RED", "stops": [{ "color": "#0b0b0f", "at": 0 }, { "color": "#e10600", "at": 1 }] },
+  { "id": "black-gold", "name": "BLACK / GOLD", "stops": [{ "color": "#0b0b0f", "at": 0 }, { "color": "#d4a017", "at": 1 }] },
+  { "id": "teal-navy", "name": "TEAL / NAVY", "stops": [{ "color": "#00a19a", "at": 0 }, { "color": "#0b1f4d", "at": 1 }] },
+  { "id": "green-yellow", "name": "GREEN / YELLOW", "stops": [{ "color": "#19b34a", "at": 0 }, { "color": "#f5e200", "at": 1 }] },
+  { "id": "white-grey", "name": "WHITE / GREY", "stops": [{ "color": "#ffffff", "at": 0 }, { "color": "#8a929c", "at": 1 }] }
+]

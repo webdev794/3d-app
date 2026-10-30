@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, Copy, ImagePlus, Layers, LoaderCircle, Plus, Search, Trash2, Type, Upload, WandSparkles, Star } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowDown, ArrowUp, Check, Copy, FileUp, ImagePlus, Layers, LoaderCircle, PenTool, Plus, RotateCcw, Search, Trash2, Type, Upload, WandSparkles, Star } from 'lucide-react';
 import { api, fetchFile, getToken, media, type Project } from '../api';
 import type { ArtworkLayer, Design } from '../types';
-import type { KitViewerHandle } from './KitViewer';
+import type { DesignLayout, KitViewerHandle } from './KitViewer';
 
 export type LibraryAsset = { id: number; name: string; type: string; src?: string };
-export type ArtworkDrop = { asset?: LibraryAsset; pattern?: string };
-export const patternNames = ['None', 'Solid', 'Chevron', 'Stripes', 'Velocity', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
+export type ArtworkDrop = { asset?: LibraryAsset; pattern?: string; label?: string };
+export const patternNames = ['None', 'Solid', 'Chevron', 'Stripes', 'Velocity', 'Blades', 'Swirl', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
 export const placements = [
     { id: 'left-chest', label: 'Left chest', side: 'front', part: 'top', x: 0.105, y: 0.6, w: 0.075 },
     { id: 'right-chest', label: 'Right chest', side: 'front', part: 'top', x: -0.105, y: 0.6, w: 0.075 },
@@ -19,25 +20,85 @@ export const placements = [
     { id: 'shorts-left', label: 'Shorts left leg', side: 'front', part: 'shorts', x: 0.15, y: 0.2, w: 0.07 },
     { id: 'shorts-right', label: 'Shorts right leg', side: 'front', part: 'shorts', x: -0.15, y: 0.2, w: 0.07 },
 ] as const;
+/**
+ * A layer whose centre is clearly off the garment (the viewer clips it away, so it shows nowhere on the 3D kit), from the
+ * print outlines in garment metres, hem at y 0 (viewer 2026-10-20-18): tops up to y .746, shorts .427; sleeves out to
+ * x .421, long sleeves (hoodies, jackets) .688. Pieces printed above the body count as on it: the hood or the track
+ * jacket's collar on the back (y up to 1.206, x within .33), the varsity's ribs (y up to 1.056, x within .506); garments
+ * not listed here are only checked loosely. (The 2D board only moves a layer onto the garment or one of its pieces.)
+ */
+export function offGarment(layer: Pick<ArtworkLayer, 'x' | 'y' | 'part' | 'side'>, garment: string) {
+    // The socks' print (viewer socks.js): about 10 cm either side of the middle, from the toe (0) to the welt (.64).
+    // The cap's print (viewer cap.js): the crown about 15 cm either side of the middle, the brim below it (y 0 to .09).
+    // The skirt's print (viewer skirt.js): the hem at y 0 (31 cm either side of the middle), the waistband's top at .336.
+    // The bucket hat's print (viewer bucket.js): the brim and crown about 16 cm either side of the middle, up to the top.
+    if (garment === 'bucket-hat') return layer.y < 0 || layer.y > 0.32 || Math.abs(layer.x) > 0.17;
+    if (garment === 'skirt') return layer.y < -0.01 || layer.y > 0.345 || Math.abs(layer.x) > 0.32;
+    if (garment === 'cap') return layer.y < 0 || layer.y > 0.26 || Math.abs(layer.x) > 0.16;
+    if (garment === 'socks') return layer.y < -0.02 || layer.y > 0.66 || Math.abs(layer.x) > 0.11;
+    const shorts = (layer.part ?? 'top') === 'shorts';
+    const plain = shorts || ['jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo', 'raglan', 'fullkit', 'singlet', 'netball-dress', 'shorts'].includes(garment);
+    // The netball dress (task 9.126): its skirt out to x .33 at the hem, its straps up to y .88.
+    const reach = shorts ? 0.32 : garment === 'singlet' ? 0.27 : garment === 'netball-dress' ? 0.34 : plain ? 0.43 : 0.7;
+    if (layer.y < -0.02 || Math.abs(layer.x) > reach) return true;
+    if (layer.y <= (shorts ? 0.44 : garment === 'netball-dress' ? 0.89 : 0.76)) return false;
+    const hooded = ['hoodie', 'ziphoodie', 'trackjacket'].includes(garment);
+    const pieces = plain ? 0 : hooded ? (layer.side === 'back' ? 1.21 : 0) : 1.21;
+    return layer.y > pieces || Math.abs(layer.x) > 0.52;
+}
+/** Artwork sent from the Artboard keeps the id of the design it came from: Edit in Artboard opens it again, and sending it again updates the layer in place. */
+export type ArtboardLayer = ArtworkLayer & { artboard?: number };
+export const artboardOf = (layer?: ArtworkLayer | null) => { const id = (layer as ArtboardLayer | null | undefined)?.artboard; return typeof id === 'number' && id > 0 ? id : undefined; };
 export function readImage(blob: Blob) { return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Unable to read this image.')); reader.readAsDataURL(blob); }); }
 export async function readAsset(asset: LibraryAsset) { return asset.src || readImage(await fetchFile(`/assets/${asset.id}/file`)); }
+/**
+ * A design picture (the finished garment's front and back drawn flat, saved as asset `asset`): checked in the 3D
+ * viewer, then the design change that puts it on the kit exactly as drawn (null when the check was cancelled).
+ */
+export async function checkDrawing(viewer: KitViewerHandle, src: string, name: string, asset: number, garment: string, known = false): Promise<Partial<Design> | null> {
+    // known: the garment is the one asked for (a 3DEEZI TEAM request), so the check opens on it rather than on a guess from the picture.
+    const result = await viewer.checkLayout(src, name, asset, { drawing: true, garment, known });
+    if (result.cancelled || !result.roles) return null;
+    const top = (result.parts?.[0] ?? 'singlet') as Design['garment'];
+    return { garment: top, layout: { asset, name: name.slice(0, 160), roles: result.roles, kind: 'drawing', parts: [top] } };
+}
+
+/**
+ * A factory print layout (saved as asset `asset`): its panels checked in the 3D viewer (each named front, back, a
+ * sleeve…), then the design change that maps each onto its print area, and how many panels (null when cancelled).
+ */
+export async function checkPrintLayout(viewer: KitViewerHandle, src: string, name: string, asset: number, current: string): Promise<{ patch: Partial<Design>; panels: number } | null> {
+    const result = await viewer.checkLayout(src, name, asset);
+    if (result.cancelled || !result.roles) return null;
+    // The garment shows what the layout makes: a top and shorts are the full kit.
+    const parts = result.parts ?? [];
+    const garment = (parts.includes('shorts') && parts.includes('raglan') ? 'fullkit' : parts.includes('shorts') ? 'shorts' : ['shorts', 'fullkit'].includes(current) ? 'tee' : current) as Design['garment'];
+    return { patch: { garment, layout: { asset, name: name.slice(0, 160), roles: result.roles, hemFold: result.hemFold !== false, joinLines: result.joinLines === true, parts: result.parts } }, panels: result.panels?.length ?? 0 };
+}
+
+/** The last design picture and print layout on the kit this visit, with the garment they were on (a preset or Remove takes them off; Artwork puts them back). */
+export type ShelvedLayouts = Partial<Record<'drawing' | 'print', { layout: DesignLayout; garment: Design['garment'] }>>;
 
 interface ArtworkProps {
-    design: Design; edit: (patch: Partial<Design>) => void;
+    design: Design; edit: (patch: Partial<Design>) => void; shelved?: ShelvedLayouts;
     viewer: React.RefObject<KitViewerHandle | null>; selected: string | null; onSelect: (id: string | null) => void;
     requireAuth: (action?: () => void) => void; onNotice: (message: string) => void;
     onDrag: (payload: ArtworkDrop | null) => void; ready: boolean; board: boolean; onBoard: () => void;
 }
-export function ArtworkPanel({ design, edit, viewer, selected, onSelect, requireAuth, onNotice, onDrag, ready, board, onBoard }: ArtworkProps) {
+export function ArtworkPanel({ design, edit, shelved = {}, viewer, selected, onSelect, requireAuth, onNotice, onDrag, ready, board, onBoard }: ArtworkProps) {
     const [assets, setAssets] = useState<LibraryAsset[] | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('');
     const [placement, setPlacement] = useState('left-chest');
     const [tint, setTint] = useState('#ffffff');
+    const navigate = useNavigate();
     const fileInput = useRef<HTMLInputElement>(null);
+    const layoutInput = useRef<HTMLInputElement>(null);
+    const drawingInput = useRef<HTMLInputElement>(null);
     const layers = design.layers || [];
     const layer = layers.find(item => item.id === selected);
+    const layout = design.layout;
     const validPlacements = placements.filter(item => design.garment === 'shorts' ? item.part === 'shorts' : design.garment === 'fullkit' || item.part === 'top');
     const at = validPlacements.find(item => item.id === placement) || validPlacements[0];
     const patchLayer = (patch: Partial<ArtworkLayer>) => edit({ layers: layers.map(item => item.id === selected ? { ...item, ...patch } : item) });
@@ -47,7 +108,7 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
         const id = crypto.randomUUID();
         const { id: _placementId, label: _label, ...position } = at;
         edit({ layers: [...layers, { id, type: 'image', name, src, ...position }] }); onSelect(id); viewer.current?.select(id);
-        onNotice(`${name} placed on ${at.label.toLowerCase()}. Open Artboard to drag, resize and rotate it.`);
+        onNotice(`${name} placed on ${at.label.toLowerCase()}. Open 2D panels to drag, resize and rotate it.`);
     }
     async function load() { await task(async () => {
         const list = (await api<LibraryAsset[]>('/assets')).filter(item => ['logo', 'artwork', 'upload', 'pattern'].includes(item.type));
@@ -67,6 +128,41 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
         const src = await viewer.current!.processImage(layer.src!, options);
         patchLayer({ src }); onNotice(options.removeBg ? 'Plain background removed. Undo restores the original image.' : 'Artwork recoloured. Undo restores the original image.');
     }); }
+    /**
+     * A factory print layout: kept with the saved assets (so the project opens with it, here and in the app), checked in
+     * the 3D viewer, then put on the kit, the same way every time.
+     */
+    async function importLayout(file: File) { await task(async () => {
+        if (!/\.(pdf|svg|png|jpe?g)$/i.test(file.name)) throw new Error('Choose a PDF, SVG, PNG or JPG print layout.');
+        if (file.size > 30 * 1024 * 1024) throw new Error('Choose a print layout smaller than 30 MB.');
+        if (!viewer.current) throw new Error('The 3D kit is still starting. Please try again.');
+        // Named by the file's ending (some systems give no type for PDFs).
+        const kind = /\.pdf$/i.test(file.name) ? 'application/pdf' : /\.svg$/i.test(file.name) ? 'image/svg+xml' : /\.png$/i.test(file.name) ? 'image/png' : 'image/jpeg';
+        const data = await readImage(file);
+        const form = new FormData(); form.append('file', file); form.append('name', file.name.slice(0, 120)); form.append('type', 'layout');
+        const saved = await api<LibraryAsset>('/assets', { method: 'POST', body: form });
+        // A layout not put on the kit is not kept.
+        const forget = () => api(`/assets/${saved.id}`, { method: 'DELETE' }).catch(() => undefined);
+        const done = await checkPrintLayout(viewer.current, `data:${kind};base64,${data.slice(data.indexOf(',') + 1)}`, file.name, saved.id, design.garment).catch(async (error) => { await forget(); throw error; });
+        if (!done) { await forget(); return; }
+        edit(done.patch);
+        onNotice(`Print layout on the 3D kit: ${done.panels} panel${done.panels === 1 ? '' : 's'} from ${file.name}. Save the project to keep it.`);
+    }); }
+    /** My design picture: the finished design's front and back drawn flat, put on the 3D kit exactly as drawn. */
+    async function importDrawing(file: File) { await task(async () => {
+        if (!/\.(pdf|svg|png|jpe?g|webp)$/i.test(file.name)) throw new Error('Choose a PNG, JPG, WEBP, PDF or SVG picture of your design.');
+        if (file.size > 30 * 1024 * 1024) throw new Error('Choose a picture smaller than 30 MB.');
+        if (!viewer.current) throw new Error('The 3D kit is still starting. Please try again.');
+        const kind = /\.pdf$/i.test(file.name) ? 'application/pdf' : /\.svg$/i.test(file.name) ? 'image/svg+xml' : /\.png$/i.test(file.name) ? 'image/png' : /\.webp$/i.test(file.name) ? 'image/webp' : 'image/jpeg';
+        const data = await readImage(file);
+        const form = new FormData(); form.append('file', file); form.append('name', file.name.slice(0, 120)); form.append('type', 'layout');
+        const saved = await api<LibraryAsset>('/assets', { method: 'POST', body: form });
+        const forget = () => api(`/assets/${saved.id}`, { method: 'DELETE' }).catch(() => undefined);
+        const patch = await checkDrawing(viewer.current, `data:${kind};base64,${data.slice(data.indexOf(',') + 1)}`, file.name, saved.id, design.garment).catch(async (error) => { await forget(); throw error; });
+        if (!patch) { await forget(); return; }
+        edit(patch);
+        onNotice(`Your design is on the 3D kit as drawn (${file.name}). Save the project to keep it.`);
+    }); }
     function duplicate() { if (!layer || layers.length >= 40) return; const id = crypto.randomUUID(); edit({ layers: [...layers, { ...layer, id, name: `${layer.name || layer.type} copy`.slice(0, 120), x: Math.min(1, layer.x + 0.025), y: Math.max(-0.5, layer.y - 0.025) }] }); onSelect(id); viewer.current?.select(id); }
     function reorder(direction: number) { const index = layers.findIndex(item => item.id === selected); const to = index + direction; if (index < 0 || to < 0 || to >= layers.length) return; const result = [...layers]; [result[index], result[to]] = [result[to], result[index]]; edit({ layers: result }); }
     function newLayer(type: 'text' | 'shape', shape?: ArtworkLayer['shape']) {
@@ -76,10 +172,29 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
         onSelect(id); viewer.current?.select(id);
     }
     return <div className="artwork-panel">
-        <p className="field-hint">Add a logo or artwork, then drag it onto your garment. Every layer stays editable in Artboard.</p>
+        <p className="field-hint">Add a logo or artwork, then drag it onto your garment. Every layer stays editable in the 2D panels.</p>
         <label className="field">New artwork placement<select value={at.id} onChange={e => setPlacement(e.target.value)}>{validPlacements.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
         <button className="logo-upload" disabled={busy} onClick={() => requireAuth(() => fileInput.current?.click())}><Upload size={22} /><strong>Upload logo or artwork</strong><span>PNG, JPG or WEBP · up to 2 MB</span></button>
         <input ref={fileInput} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />
+        <div className="print-layout">
+            <strong>MY DESIGN PICTURE</strong>
+            <p className="field-hint">A finished picture of your design: the front and back of the garment drawn flat, side by side (a tech flat or a designer’s mock-up). It goes onto the 3D kit exactly as drawn: the whole pattern, your logos in their places, on a singlet, jersey, training tee or polo.</p>
+            {layout?.kind === 'drawing'
+                ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · on the 3D kit as drawn</p><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Design picture removed: back to your designed kit. Put my design picture back (here) or Undo returns it.'); }}>Remove design picture</button></>
+                : <>{shelved.drawing && <button className="button button-secondary full-width" disabled={busy} onClick={() => { const { layout: back, garment } = shelved.drawing!; edit({ garment, layout: back }); onNotice(`${back.name} is back on the 3D kit as drawn.`); }}><RotateCcw size={15} /> Put my design picture back · {shelved.drawing.layout.name}</button>}
+                    <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => drawingInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <ImagePlus size={15} />} Upload my design picture</button></>}
+            <input ref={drawingInput} hidden type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.svg,image/png,image/jpeg,image/webp,application/pdf,image/svg+xml" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importDrawing(file); }} />
+        </div>
+        <div className="print-layout">
+            <strong>FACTORY PRINT LAYOUT</strong>
+            <p className="field-hint">The finished print file from the factory (PDF, SVG or PNG with the cut panels laid flat and named FRONT BODY, LEFT SLEEVE …): each panel goes onto the 3D kit, the same way every time.</p>
+            {layout && layout.kind !== 'drawing'
+                ? <><p className="print-layout-on"><Check size={15} /> {layout.name} · {panelCount(layout.roles)} on the kit</p>
+                    <label className="print-layout-join"><input type="checkbox" checked={layout.joinLines !== false} onChange={e => edit({ layout: { ...layout, joinLines: e.target.checked } })} /> Join the sleeve bands to the sleeves (no white line between them)</label><button className="button button-outline full-width" disabled={busy} onClick={() => { edit({ layout: null }); onNotice('Print layout removed: back to your designed kit. Put the print layout back (here) or Undo returns it.'); }}>Remove print layout</button></>
+                : <>{shelved.print && <button className="button button-secondary full-width" disabled={busy} onClick={() => { const { layout: back, garment } = shelved.print!; edit({ garment, layout: back }); onNotice(`${back.name} is back on the 3D kit.`); }}><RotateCcw size={15} /> Put the print layout back · {shelved.print.layout.name}</button>}
+                    <button className="button button-secondary full-width" disabled={busy || !ready} onClick={() => requireAuth(() => layoutInput.current?.click())}>{busy ? <LoaderCircle className="spin" size={15} /> : <FileUp size={15} />} Upload print layout</button></>}
+            <input ref={layoutInput} hidden type="file" accept=".pdf,.svg,.png,.jpg,.jpeg,application/pdf,image/svg+xml,image/png,image/jpeg" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importLayout(file); }} />
+        </div>
         <button className="button button-secondary full-width" disabled={busy} onClick={() => requireAuth(load)}>{busy ? <LoaderCircle size={15} className="spin" /> : <ImagePlus size={15} />} Load your saved assets</button>
         {assets && <><label className="artwork-search"><Search size={14} /><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Find an asset" aria-label="Search assets" /></label><div className="artwork-library">{assets.filter(item => item.name.toLowerCase().includes(filter.toLowerCase())).map(asset => <button key={asset.id} disabled={busy} draggable={!!asset.src} title={`Add ${asset.name}, or drag onto the garment`} onDragStart={e => { e.dataTransfer.setData('text/plain', asset.name); e.dataTransfer.effectAllowed = 'copy'; onDrag({ asset }); }} onDragEnd={() => onDrag(null)} onClick={() => void task(async () => add(await readAsset(asset), asset.name))}>{asset.src ? <img src={asset.src} alt="" /> : <ImagePlus />}<span>{asset.name}</span></button>)}</div>{!assets.length && <p className="muted">No saved artwork yet. Upload an image to get started.</p>}</>}
         <h4>ADD A LAYER</h4><div className="artwork-add"><button onClick={() => newLayer('text')}><Type size={16} /> Text</button>{(['rectangle', 'ellipse', 'triangle'] as const).map(shape => <button key={shape} onClick={() => newLayer('shape', shape)}><span className={`shape-symbol ${shape}`} />{shape}</button>)}</div>
@@ -87,28 +202,48 @@ export function ArtworkPanel({ design, edit, viewer, selected, onSelect, require
         <div className="artwork-layers">{[...layers].reverse().map(item => <button key={item.id} className={item.id === selected ? 'selected' : ''} onClick={() => { onSelect(item.id); viewer.current?.select(item.id); }}>{item.type === 'image' ? <img src={item.src} alt="" /> : item.type === 'text' ? <Type size={18} /> : <span className={`shape-symbol ${item.shape}`} />}<span>{item.name || item.text || item.type}<small>{item.part === 'shorts' ? 'Shorts' : 'Top'} · {item.side}</small></span>{item.id === selected && <Check size={14} />}</button>)}{!layers.length && <p className="field-hint">Your added text, logos and shapes appear here.</p>}</div>
         {layer && <div className="layer-properties"><h4>SELECTED LAYER</h4>
             <label className="field">Layer name<input value={layer.name || ''} maxLength={120} onChange={e => patchLayer({ name: e.target.value })} /></label>
+            {artboardOf(layer) && <div className="artboard-link"><button className="button button-secondary full-width" onClick={() => navigate(`/artboard?doc=${artboardOf(layer)}`)}><PenTool size={15} /> Edit in Artboard</button><p className="field-hint">Made in the Artboard: change it there, then Send to 3D Studio again to update it here (same place and size).</p></div>}
             {layer.type === 'text' && <label className="field">Text<input value={layer.text || ''} maxLength={100} onChange={e => patchLayer({ text: e.target.value })} /></label>}
             <label className="field">Placement<select value="custom" onChange={e => { const next = validPlacements.find(item => item.id === e.target.value); if (next) { const { id: _id, label: _label, ...position } = next; patchLayer(position); } }}><option value="custom">Custom · {layer.side}</option>{validPlacements.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
             <div className="layer-fields"><label className="field">X (mm)<input type="number" min={-500} max={500} step={1} value={Math.round(layer.x * 1000)} onChange={e => patchLayer({ x: Math.max(-0.5, Math.min(0.5, Number(e.target.value) / 1000)) })} /></label><label className="field">Y (mm)<input type="number" min={0} max={1000} value={Math.round(layer.y * 1000)} onChange={e => patchLayer({ y: Math.max(0, Math.min(1, Number(e.target.value) / 1000)) })} /></label></div>
+            {offGarment(layer, design.garment) && <p className="field-hint layer-off" role="status" data-testid="layer-off-garment">Outside the garment — move it onto the {(layer.part ?? 'top') === 'shorts' ? 'shorts' : 'shirt'}.</p>}
             <div className="layer-fields"><label className="field">{layer.type === 'text' ? 'Text size' : 'Width'} (mm)<input type="number" min={10} max={layer.type === 'text' ? 400 : 600} value={Math.round((layer.type === 'text' ? layer.size ?? 0.06 : layer.w ?? 0.1) * 1000)} onChange={e => patchLayer({ [layer.type === 'text' ? 'size' : 'w']: Math.max(0.01, Math.min(layer.type === 'text' ? 0.4 : 0.6, Number(e.target.value) / 1000)) })} /></label><label className="field">Rotation (°)<input type="number" min={-360} max={360} value={layer.rot || 0} onChange={e => patchLayer({ rot: Math.max(-360, Math.min(360, Number(e.target.value))) })} /></label></div>
             {layer.type === 'shape' && <label className="field">Height (mm)<input type="number" min={10} max={600} value={Math.round((layer.h ?? 0.1) * 1000)} onChange={e => patchLayer({ h: Math.max(0.01, Math.min(0.6, Number(e.target.value) / 1000)) })} /></label>}
             <label className="field">Opacity · {Math.round((layer.opacity ?? 1) * 100)}%<input type="range" min={0.05} max={1} step={0.05} value={layer.opacity ?? 1} onChange={e => patchLayer({ opacity: Number(e.target.value) })} /></label>
             {layer.type === 'image' ? <><div className="artwork-tint"><input type="color" aria-label="Artwork tint" value={tint} onChange={e => setTint(e.target.value)} /><button className="button button-secondary" disabled={!ready || busy} onClick={() => void process({ tint })}>Apply colour</button></div><button className="button button-secondary full-width" disabled={!ready || busy} onClick={() => void process({ removeBg: true })}><WandSparkles size={15} /> Remove plain background</button><p className="field-hint">Best for logos with a solid background. Use Undo to restore the original.</p></> : <label className="field">Fill colour<input type="color" value={layer.color || design.accent} onChange={e => patchLayer({ color: e.target.value })} /></label>}
             <div className="layer-actions"><button title="Bring forward" aria-label="Bring layer forward" onClick={() => reorder(1)} disabled={layers.at(-1)?.id === selected}><ArrowUp size={16} /></button><button title="Send backward" aria-label="Send layer backward" onClick={() => reorder(-1)} disabled={layers[0]?.id === selected}><ArrowDown size={16} /></button><button title="Duplicate" aria-label="Duplicate layer" onClick={duplicate} disabled={layers.length >= 40}><Copy size={16} /></button><button title="Delete" aria-label="Delete layer" onClick={() => { edit({ layers: layers.filter(item => item.id !== selected) }); onSelect(null); viewer.current?.select(null); }}><Trash2 size={16} /></button></div>
         </div>}
-        {!board && <button className="button button-outline full-width" onClick={onBoard}><Layers size={15} /> Open Artboard</button>}
+        {!board && <button className="button button-outline full-width" onClick={onBoard}><Layers size={15} /> Open 2D panels</button>}
         {error && <p className="error-message" role="alert">{error}</p>}
     </div>;
 }
 
-type Preset = { id: string; name: string; description: string; design: Partial<Design> };
+/** A preset (task 9.148): a 3DEEZI preset (team) or the signed-in user's own (mine, key = its row for rename and delete). */
+type Preset = { id: string; key?: number; name: string; description: string; design: Partial<Design>; thumbnail?: string | null; team?: boolean; mine?: boolean; sport?: string | null; garment?: string | null };
+/** Area patterns as an object ({} for none, also for the [] an empty one becomes in PHP). */
+const areas = (value: unknown): NonNullable<Design['zones']> => value && typeof value === 'object' && !Array.isArray(value) ? value as NonNullable<Design['zones']> : {};
 type Tab = 'all' | 'mine' | 'favourites';
 const FAVOURITES = '3deezi.favouritePresets';
 const readFavourites = (): string[] => { try { return JSON.parse(localStorage.getItem(FAVOURITES) || '[]'); } catch { return []; } };
 
-/** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites). */
-export function PresetPanel({ design, edit, onNotice }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void }) {
+/** The user's own design in this Studio (before the first preset, and as changed after it is chosen again), with a still of it. */
+export type OwnDesign = { design: Design; thumb?: string | null };
+/** The keys that make a design what it is (YOUR DESIGN compares them). */
+const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternColorOwn', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'parts', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks', 'fabric'] as const;
+/** "1 panel", "4 panels": a print layout's panels on the kit (its roles other than 'none'). */
+const panelCount = (roles: string[]) => { const n = roles.filter(role => role !== 'none').length; return `${n} panel${n === 1 ? '' : 's'}`; };
+export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys.map(key => key === 'zones' ? areas(d.zones) : key === 'layers' ? d.layers ?? [] : key === 'marks' ? d.marks ?? {} : key === 'zoneColors' ? (Object.keys(d.zoneColors ?? {}).length ? d.zoneColors : null) : key === 'fabric' ? (d.fabric && d.fabric !== 'Standard' ? d.fabric : null) : d[key] ?? null));
+/** The whole design back, as one change (keys it lacks are cleared). */
+export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, zoneColors: null, patternColorOwn: null, parts: null, fabric: null, ...d, zones: areas(d.zones) });
+
+/** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites); YOUR DESIGN first. */
+export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset, user, snapshot }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void; own?: OwnDesign | null; onOwn?: () => void; beforePreset?: () => Promise<void>; user?: { is_admin?: boolean; is_designer?: boolean } | null; snapshot?: () => Promise<string | null | undefined> }) {
     const [presets, setPresets] = useState<Preset[]>([]);
+    // MY PRESETS (task 9.148): the signed-in user's private presets, shown first; null while loading or signed out.
+    const [myPresets, setMyPresets] = useState<Preset[] | null>(null);
+    const [saving, setSaving] = useState(false);
+    const signedIn = !!getToken();
+    const staff = !!(user?.is_admin || user?.is_designer);
     const [mine, setMine] = useState<Project[] | null>(null);
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('');
@@ -116,15 +251,47 @@ export function PresetPanel({ design, edit, onNotice }: { design: Design; edit: 
     const [favourites, setFavourites] = useState<string[]>(readFavourites);
     const [attempt, setAttempt] = useState(0);
     useEffect(() => { let active = true; setError(''); api<Preset[]>('/presets').then(data => { if (active) setPresets(data); }).catch(e => { if (active) setError((e as Error).message); }); return () => { active = false; }; }, [attempt]);
+    useEffect(() => { if (!signedIn) { setMyPresets(null); return; } let active = true; api<Preset[]>('/presets/mine').then(data => { if (active) setMyPresets(data); }).catch(() => { if (active) setMyPresets([]); }); return () => { active = false; }; }, [signedIn, attempt]);
+    /** "Save as my preset" / "Save as 3DEEZI preset": the current design, a still of the kit and a name. */
+    async function savePreset(team: boolean) {
+        const name = window.prompt(team ? 'Name for this 3DEEZI preset (everyone sees it)' : 'Name for your preset (only you see it)', '')?.trim();
+        if (!name) return;
+        setSaving(true);
+        try {
+            let thumbnail: string | null | undefined = null;
+            try { thumbnail = await snapshot?.(); } catch { /* saved without a still */ }
+            const saved = await api<Preset>('/presets', { method: 'POST', body: JSON.stringify({ name, design, thumbnail: thumbnail || null, team }) });
+            if (team) setPresets(list => [...list, saved]); else setMyPresets(list => [saved, ...(list ?? [])]);
+            onNotice(team ? `${name} saved as a 3DEEZI preset: everyone sees it now.` : `${name} saved in My presets.`);
+        } catch (e) { onNotice((e as Error).message); } finally { setSaving(false); }
+    }
+    async function renamePreset(preset: Preset) {
+        const name = window.prompt('New name for this preset', preset.name)?.trim();
+        if (!name || name === preset.name || !preset.key) return;
+        try { const saved = await api<Preset>(`/presets/${preset.key}`, { method: 'PATCH', body: JSON.stringify({ name }) }); setMyPresets(list => (list ?? []).map(p => p.key === saved.key ? saved : p)); }
+        catch (e) { onNotice((e as Error).message); }
+    }
+    async function deletePreset(preset: Preset) {
+        if (!preset.key || !window.confirm(`Delete the preset "${preset.name}"?`)) return;
+        try { await api(`/presets/${preset.key}`, { method: 'DELETE' }); setMyPresets(list => (list ?? []).filter(p => p.key !== preset.key)); onNotice(`${preset.name} deleted.`); }
+        catch (e) { onNotice((e as Error).message); }
+    }
     useEffect(() => {
         if (tab !== 'mine' || mine || !getToken()) return;
         api<Project[]>('/projects').then(setMine).catch(() => setMine([]));
     }, [tab, mine]);
-    function matches(preset: Preset) { return ['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternBody', 'gradient', 'zones'].every(key => preset.design[key as keyof Design] === undefined || JSON.stringify(design[key as keyof Design]) === JSON.stringify(preset.design[key as keyof Design])) && !design.patternImage; }
-    function apply(name: string, source: Partial<Design>) {
-        const { layers: _layers, garment: _garment, logoText: _wordmark, number: _number, backName: _name, logoImage: _logo, sponsorImage: _sponsor, ...style } = source;
-        // Older saves lack these keys: clear them so the look matches exactly.
-        edit({ gradient: null, zones: {}, ...style, patternImage: style.patternImage ?? null }); onNotice(`${name} applied. Your logos and player details are preserved.`);
+    // The presets file comes through PHP, which turns an empty {} into []: area patterns compare as {}.
+    const same = (key: keyof Design, value: unknown) => JSON.stringify(key === 'zones' ? areas(value) : value) === JSON.stringify(key === 'zones' ? areas(design.zones) : design[key]);
+    function matches(preset: Preset) { return (['main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternBody', 'gradient', 'zones'] as const).every(key => preset.design[key] === undefined || same(key, preset.design[key])) && !design.patternImage && !design.gradients && !design.layout; }
+    async function apply(name: string, source: Partial<Design>) {
+        await beforePreset?.().catch(() => undefined);
+        const { layers: _layers, garment: _garment, logoText: _wordmark, number: _number, backName: _name, logoImage: _logo, sponsorImage: _sponsor, marks: _marks, ...style } = source;
+        // The whole look: it replaces an AI print, the Secondary and Pattern gradients and a design picture or print
+        // layout on the kit (these hide the colours and pattern); keys older saves lack are cleared so the look matches.
+        const replaced = design.layout ? (design.layout.kind === 'drawing' ? 'design picture' : 'print layout') : null;
+        // A hoodie's own area colours go too: its lining, rib and zip then follow the preset's colours.
+        edit({ gradient: null, gradients: null, zoneColors: null, patternColorOwn: null, parts: null, ...style, zones: areas(style.zones), patternImage: style.patternImage ?? null, layout: style.layout ?? null });
+        onNotice(replaced ? `${name} applied in place of your ${replaced}: Undo, or Artwork › ${replaced === 'design picture' ? 'My design picture' : 'Factory print layout'}, puts it back.` : `${name} applied. Your logos and player details are preserved.`);
     }
     function toggleFavourite(id: string) {
         const next = favourites.includes(id) ? favourites.filter(f => f !== id) : [...favourites, id];
@@ -132,25 +299,42 @@ export function PresetPanel({ design, edit, onNotice }: { design: Design; edit: 
         try { localStorage.setItem(FAVOURITES, JSON.stringify(next)); } catch { /* private mode */ }
     }
     const q = filter.toLowerCase();
-    const shownPresets = presets.filter(p => (tab === 'all' || favourites.includes(p.id)) && `${p.name} ${p.description} ${p.design.pattern}`.toLowerCase().includes(q));
+    const shows = (p: Preset) => (tab === 'all' || favourites.includes(p.id)) && `${p.name} ${p.description} ${p.design.pattern}`.toLowerCase().includes(q);
+    const shownPresets = presets.filter(shows);
+    const shownMyPresets = (myPresets ?? []).filter(shows);
+    const thumbOf = (preset: Preset) => preset.thumbnail || (preset.team === false ? '' : media(`presets/${preset.id}.webp`));
+    const presetCard = (preset: Preset) => <div key={preset.id} className={`preset-card ${matches(preset) ? 'selected' : ''}`}>
+        <button className="preset-apply" onClick={() => apply(preset.name, preset.design)} title={preset.description || `Apply ${preset.name}`} aria-pressed={matches(preset)}>{thumbOf(preset) ? <img className="preset-thumb" src={thumbOf(preset)} alt="" loading="lazy" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${preset.design.main},${preset.design.secondary})` }} />}<strong>{preset.name}</strong><small>{preset.mine ? 'My preset' : preset.design.pattern}</small></button>
+        <button className={`preset-star ${favourites.includes(preset.id) ? 'on' : ''}`} onClick={() => toggleFavourite(preset.id)} aria-label={favourites.includes(preset.id) ? `Remove ${preset.name} from favourites` : `Add ${preset.name} to favourites`}><Star size={14} /></button>
+        {preset.mine && <span className="preset-own-actions"><button onClick={() => void renamePreset(preset)} aria-label={`Rename ${preset.name}`} title="Rename"><PenTool size={12} /></button><button onClick={() => void deletePreset(preset)} aria-label={`Delete ${preset.name}`} title="Delete"><Trash2 size={12} /></button></span>}
+        {matches(preset) && <Check className="preset-check" size={15} />}
+    </div>;
     const shownMine = (mine ?? []).filter(p => p.name.toLowerCase().includes(q));
+    const ownOn = !!own && designSignature(own.design) === designSignature(design);
+    const ownCard = own && tab !== 'favourites' && (!q || 'your design'.includes(q)) ? <div className={`preset-card own-design ${ownOn ? 'selected' : ''}`}>
+        <button className="preset-apply" onClick={onOwn} title="Back to your own design: its picture or layout, colours, patterns, gradients, artwork and garment" aria-pressed={ownOn}>{own!.thumb ? <img className="preset-thumb" src={own!.thumb} alt="" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${own!.design.main},${own!.design.secondary})` }} />}<strong>YOUR DESIGN</strong><small>{own!.design.layout ? (own!.design.layout.kind === 'drawing' ? 'Design picture' : 'Print layout') : 'Your own kit'}</small></button>
+        {ownOn && <Check className="preset-check" size={15} />}
+    </div> : null;
     return <div className="studio-presets">
         <div className="preset-heading"><div><span className="eyebrow">READY TO USE</span><h2>Preset designs</h2></div><span>{presets.length}</span></div>
         <div className="preset-tabs" role="tablist">{([['all', 'All designs'], ['mine', 'My designs'], ['favourites', 'Favourites']] as const).map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>
+        <div className="preset-save">
+            {signedIn ? <button className="button button-secondary" disabled={saving} onClick={() => void savePreset(false)}>{saving ? <LoaderCircle size={14} className="spin" /> : <Plus size={14} />} Save as my preset</button> : <p className="muted">Sign in to save your own presets.</p>}
+            {signedIn && staff && <button className="button button-secondary" disabled={saving} onClick={() => void savePreset(true)}><Plus size={14} /> Save as 3DEEZI preset</button>}
+        </div>
         <label className="artwork-search"><Search size={14} /><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search designs" aria-label="Search designs" /></label>
         {tab === 'mine' ? (
-            !getToken() ? <p className="muted">Sign in to see your saved designs here.</p>
-            : !mine ? <p className="muted"><LoaderCircle size={14} className="spin" /> Loading your designs…</p>
-            : !shownMine.length ? <p className="muted">No saved designs yet. Save a kit and it appears here.</p>
-            : <div className="studio-preset-grid">{shownMine.map(p => <button key={p.id} onClick={() => apply(p.name, p.design)} title={`Apply the look of ${p.name}`}>{p.thumbnail ? <img className="preset-thumb" src={p.thumbnail} alt="" loading="lazy" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${p.design.main},${p.design.secondary})` }} />}<strong>{p.name}</strong><small>Version {p.version}</small></button>)}</div>
+            !getToken() ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted">Sign in to see your saved designs here.</p></>
+            : !mine ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted"><LoaderCircle size={14} className="spin" /> Loading your designs…</p></>
+            : !shownMine.length ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted">No saved designs yet. Save a kit and it appears here.</p></>
+            : <div className="studio-preset-grid">{ownCard}{shownMine.map(p => <button key={p.id} onClick={() => apply(p.name, p.design)} title={`Apply the look of ${p.name}`}>{p.thumbnail ? <img className="preset-thumb" src={p.thumbnail} alt="" loading="lazy" /> : <span className="preset-thumb preset-thumb-empty" style={{ background: `linear-gradient(135deg,${p.design.main},${p.design.secondary})` }} />}<strong>{p.name}</strong><small>Version {p.version}</small></button>)}</div>
         ) : error ? <div><p className="error-message" role="alert">{error}</p><button className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Retry presets</button></div>
         : !presets.length ? <p className="muted"><LoaderCircle size={14} className="spin" /> Loading designs…</p>
-        : !shownPresets.length ? <p className="muted">{tab === 'favourites' ? 'Tap the star on any design to keep it here.' : 'No designs match your search.'}</p>
-        : <div className="studio-preset-grid">{shownPresets.map(preset => <div key={preset.id} className={`preset-card ${matches(preset) ? 'selected' : ''}`}>
-            <button className="preset-apply" onClick={() => apply(preset.name, preset.design)} title={preset.description} aria-pressed={matches(preset)}><img className="preset-thumb" src={media(`presets/${preset.id}.webp`)} alt="" loading="lazy" /><strong>{preset.name}</strong><small>{preset.design.pattern}</small></button>
-            <button className={`preset-star ${favourites.includes(preset.id) ? 'on' : ''}`} onClick={() => toggleFavourite(preset.id)} aria-label={favourites.includes(preset.id) ? `Remove ${preset.name} from favourites` : `Add ${preset.name} to favourites`}><Star size={14} /></button>
-            {matches(preset) && <Check className="preset-check" size={15} />}
-        </div>)}</div>}
+        : !shownPresets.length && !shownMyPresets.length ? <>{ownCard && <div className="studio-preset-grid">{ownCard}</div>}<p className="muted">{tab === 'favourites' ? 'Tap the star on any design to keep it here.' : 'No designs match your search.'}</p></>
+        : <>
+            {(ownCard || shownMyPresets.length > 0) && <>{shownMyPresets.length > 0 && <h4 className="preset-group">MY PRESETS</h4>}<div className="studio-preset-grid">{ownCard}{shownMyPresets.map(presetCard)}</div></>}
+            {shownPresets.length > 0 && <><h4 className="preset-group">3DEEZI PRESETS</h4><div className="studio-preset-grid">{shownPresets.map(presetCard)}</div></>}
+        </>}
         <p className="field-hint">Choose a complete colour and print combination, then make it yours.</p>
     </div>;
 }

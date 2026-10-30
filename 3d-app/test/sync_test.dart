@@ -21,6 +21,8 @@ final png = Uint8List.fromList([
 class FakeServer {
   final projects = <int, Map<String, dynamic>>{};
   final users = <String, String>{};
+  final orders = <Map<String, dynamic>>[];
+  final partners = <Map<String, dynamic>>[];
   var nextId = 1;
   late final client = MockClient(_handle);
 
@@ -47,8 +49,36 @@ class FakeServer {
               422,
             );
     }
+    if (path == '/partners/apply') {
+      if ((body['company'] ?? '').isEmpty) {
+        return http.Response(
+          '{"message":"The company field is required."}',
+          422,
+        );
+      }
+      partners.add(body);
+      return ok({'message': 'Thanks! The 3DEEZI team will contact you.'}, 201);
+    }
     if (r.headers['Authorization'] != 'Bearer tok') {
       return http.Response('{"message":"Unauthenticated."}', 401);
+    }
+    if (path == '/orders' && r.method == 'GET') return ok(orders);
+    if (path == '/orders' && r.method == 'POST') {
+      final sizes = (body['sizes'] as Map).cast<String, int>();
+      final order = <String, dynamic>{
+        ...body,
+        'id': orders.length + 1,
+        'number': '3DZ-${1000 + orders.length + 1}',
+        'status': 'pending',
+        'quantity': sizes.values.fold(0, (a, b) => a + b),
+        'total': null,
+        'project': {
+          'id': body['project_id'],
+          'name': projects[body['project_id']]?['name'],
+        },
+      };
+      orders.insert(0, order);
+      return ok(order, 201);
     }
     if (path == '/projects' && r.method == 'GET') {
       return ok(projects.values.toList());
@@ -125,11 +155,11 @@ void main() {
       expect(sent['design']['sponsorImage'], startsWith('data:image/png'));
       expect(sent['design']['app']['sport'], 'Soccer');
 
-      // Saving again updates the same server project.
-      c.saveProject('Mantis Home v2');
+      // Saving again under the same name updates the same server project.
+      c.saveProject('Mantis Home');
       await pumpEventQueue();
       expect(server.projects.length, 1);
-      expect(server.projects[1]!['name'], 'Mantis Home v2');
+      expect(server.projects[1]!['name'], 'Mantis Home');
       expect(c.projects.first.remoteVersion, 2);
 
       // A project made on the website appears after a sync.
@@ -210,4 +240,80 @@ void main() {
     expect(c.syncMessage, contains('expired'));
     expect(c.projects.first.pendingUpload, isTrue);
   });
+
+  test(
+    'approval syncs down; kits are ordered after uploading; partners apply',
+    () async {
+      final server = FakeServer();
+      final c = AppController(
+        store: FakeStore(),
+        api: ApiClient(client: server.client, baseUrl: 'https://test.example'),
+      );
+
+      // Partner applications need no account.
+      expect(
+        await c.api.applyPartner({
+          'company': 'Acme Sport',
+          'name': 'Jo',
+          'email': 'jo@acme.test',
+        }),
+        contains('contact you'),
+      );
+      expect(server.partners.single['company'], 'Acme Sport');
+      await expectLater(
+        c.api.applyPartner({'company': ''}),
+        throwsA(isA<ApiException>()),
+      );
+
+      // Ordering needs an account.
+      c
+        ..startDyo()
+        ..sport = 'Soccer';
+      c.saveProject('Club Home');
+      final kit = c.projects.first;
+      await expectLater(
+        c.orderKit(kit, {
+          'sizes': {'M': 2},
+          'contact_name': 'Jo',
+        }),
+        throwsA(isA<ApiException>()),
+      );
+
+      await c.register(
+        name: 'Fabian',
+        email: 'fabian@3deezi.com',
+        password: 'Password123!',
+        passwordConfirmation: 'Password123!',
+      );
+      await pumpEventQueue();
+      expect(kit.remoteId, isNotNull);
+
+      final order = await c.orderKit(kit, {
+        'sizes': {'M': 2, 'L': 3},
+        'contact_name': 'Jo',
+        'phone': '0400 000 000',
+      });
+      expect(order['number'], '3DZ-1001');
+      expect(server.orders.single['project_id'], kit.remoteId);
+      expect(server.orders.single['quantity'], 5);
+      c.orders = [];
+      await c.loadOrders();
+      expect(c.orders.single['project']['name'], 'Club Home');
+
+      // An administrator approves the kit on the website: the app picks it up
+      // although the version did not change.
+      server.projects[kit.remoteId!] = {
+        ...server.projects[kit.remoteId!]!,
+        'status': 'approved',
+      };
+      await c.syncProjects();
+      expect(
+        c.projects.firstWhere((p) => p.remoteId == kit.remoteId).approved,
+        isTrue,
+      );
+
+      await c.signOut();
+      expect(c.orders, isEmpty);
+    },
+  );
 }

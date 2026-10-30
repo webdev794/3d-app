@@ -1,0 +1,451 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import 'api_client.dart';
+import 'app_controller.dart';
+import 'screens/create_home.dart' show convertFlow;
+import 'screens/team.dart' show TeamRequestsScreen, TeamScreen;
+import 'widgets/site_page_stub.dart'
+    if (dart.library.js_interop) 'widgets/site_page_web.dart'
+    if (dart.library.io) 'widgets/site_page_io.dart';
+import 'widgets/ui.dart' show showToast;
+
+/// Runs one 3DEEZI ASSIST command on a screen; returns what it did, or throws
+/// an [AssistError] saying why it could not.
+typedef AssistRunner = Future<String> Function(String action, String value);
+
+class AssistError implements Exception {
+  AssistError(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+/// Screens that can run commands register here while they are open: the
+/// Artboard (once its page is ready) and the Studio.
+class AssistBridge {
+  static final _runners = <String, AssistRunner>{};
+
+  static void register(String target, AssistRunner runner) =>
+      _runners[target] = runner;
+
+  static void unregister(String target, AssistRunner runner) {
+    if (identical(_runners[target], runner)) _runners.remove(target);
+  }
+
+  static AssistRunner? of(String target) => _runners[target];
+}
+
+/// What a command did, shown under the answer (✓ or ⚠).
+@immutable
+class AssistDone {
+  const AssistDone(this.ok, this.text, {this.info = false});
+  final bool ok;
+  final String text;
+
+  /// Left as it was because it already was ("already has a drop shadow").
+  final bool info;
+}
+
+class AssistMessage {
+  AssistMessage.user(this.text) : fromUser = true, error = false;
+  AssistMessage.assistant(this.text, {this.error = false}) : fromUser = false;
+  final bool fromUser, error;
+  String text;
+  List<AssistDone>? done;
+}
+
+/// 3DEEZI ASSIST in the app: the same help chat as on the website, answered
+/// by the website's server (`POST /assist`), with the same commands.
+class AssistController extends ChangeNotifier {
+  AssistController(this.app) {
+    latest = this;
+  }
+
+  /// The app's chat, for links that open it (the Home's "Ask 3DEEZI
+  /// Assist"). Null when no app is running.
+  static AssistController? latest;
+
+  final AppController app;
+
+  /// The app's navigator (MaterialApp.navigatorKey): the pages that open over the app screens need it, 3DEEZI TEAM
+  /// and My design requests, Convert's picture sheet and the website's About, Support, Privacy and Terms.
+  final navigator = GlobalKey<NavigatorState>();
+
+  /// Opens a website page (About, Support, Privacy, Terms) the way Profile's rows do: a new browser tab on the web,
+  /// inside the app on phones (replaced in tests).
+  static Future<void> Function(BuildContext context, String url, String title)
+  openSite = openSitePage;
+
+  /// Convert an image to 3D, as the Home's Convert line (replaced in tests).
+  static Future<void> Function(BuildContext context, AppController app)
+  convert = convertFlow;
+
+  static const greeting =
+      "Hi! I'm 3DEEZI ASSIST.\nWhat would you like help with?";
+
+  bool open = false, busy = false;
+  final messages = <AssistMessage>[];
+
+  static const _artboardActions = {
+    'grid', 'snap', 'rulers', 'snapTo', 'tool', 'select', 'arrange', 'align', //
+    'mirror',
+    'group',
+    'duplicate',
+    'connect',
+    'varline',
+    'page',
+    'gradient',
+    'palette',
+    'textStyle',
+    'move',
+    'rotate',
+    'scale',
+    'size',
+    'fill', //
+    'outline',
+    'menu',
+    'effect',
+    'add',
+    'zoom',
+    'pageSize',
+    'units',
+    'tab',
+    'help',
+  };
+  static const _studioActions = {
+    'view', 'panel', 'garment', 'board', 'export', 'design', 'studioAi', //
+  };
+
+  /// Screens where the chat is not offered (start-up and AI generation).
+  static const hiddenOn = {
+    AppScreen.splash,
+    AppScreen.onboarding,
+    AppScreen.generating,
+  };
+
+  void toggle() {
+    open = !open;
+    notifyListeners();
+  }
+
+  /// Opens the chat (the Home's Assist link).
+  void show() {
+    if (open) return;
+    open = true;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    if (identical(latest, this)) latest = null;
+    super.dispose();
+  }
+
+  void minimise() {
+    open = false;
+    notifyListeners();
+  }
+
+  /// Ends the chat and clears it.
+  void endChat() {
+    messages.clear();
+    open = false;
+    notifyListeners();
+  }
+
+  /// Quick questions for the screen the visitor is on.
+  List<String> get suggestions => switch (app.screen) {
+    AppScreen.artboard => const [
+      'Which tool makes a curved team name?',
+      'Explain the Contour tool',
+      'How do I send my design to 3D?',
+    ],
+    AppScreen.studio || AppScreen.export || AppScreen.saveProject => const [
+      'How do I add my logo?',
+      'How do I add names and numbers?',
+      'How do I download my design?',
+    ],
+    AppScreen.pricing => const [
+      'Which plan suits my team?',
+      'What does an AI credit buy?',
+      'Is there a free plan?',
+    ],
+    AppScreen.aiDesigner ||
+    AppScreen.concepts ||
+    AppScreen.sport ||
+    AppScreen.garment => const [
+      'AI or Design Your Own: which should I use?',
+      'Can I turn a picture of a kit into 3D?',
+      'Can I design shorts or a full kit?',
+    ],
+    _ => const [
+      'How do I start designing?',
+      'Show me the Artboard',
+      'Which plan suits my team?',
+    ],
+  };
+
+  /// The website page that matches the app screen (the server's knowledge is
+  /// organised by page).
+  static String pathOf(AppScreen screen) => switch (screen) {
+    AppScreen.aiDesigner ||
+    AppScreen.generating ||
+    AppScreen.concepts => '/create/ai',
+    AppScreen.sport || AppScreen.garment => '/create/sport',
+    AppScreen.studio ||
+    AppScreen.saveProject ||
+    AppScreen.export ||
+    AppScreen.showcase ||
+    AppScreen.mockup => '/studio',
+    AppScreen.projects => '/projects',
+    AppScreen.assets => '/assets',
+    AppScreen.profile => '/dashboard',
+    AppScreen.artboard => '/artboard',
+    AppScreen.pricing => '/pricing',
+    AppScreen.orders => '/orders',
+    AppScreen.orderHub => '/order-now',
+    _ => '/',
+  };
+
+  static const _pageNames = {
+    '/': 'Home',
+    '/create/ai': 'AI Powered Sportswear',
+    '/create/sport': 'Design Your Own', //
+    // The Home's Convert line: the picture sheet.
+    '/convert': 'Convert an image to 3D',
+    // The TEAM screen, and My design requests over it.
+    '/team': '3DEEZI TEAM',
+    '/team/requests': 'My design requests',
+    // The website's own pages, as Profile opens them.
+    '/about': 'About',
+    '/support': 'Support',
+    '/privacy': 'Privacy',
+    '/terms': 'Terms',
+    '/projects': 'Projects',
+    '/approved': 'Projects',
+    '/assets': 'Assets',
+    '/dashboard': 'Projects',
+    '/downloads': 'Projects',
+    // The website's Orders page: in the app, the Orders tab.
+    '/order-now': 'Orders',
+    '/orders': 'My orders',
+    // The Orders tab's Create Order Form and Upload Your Order.
+    '/orders/new': 'Create order form',
+    '/orders/upload': 'Upload your order',
+    '/pricing': 'Plans',
+    '/studio': 'the 3D Studio', '/artboard': 'the Artboard',
+  };
+
+  /// Create Order Form ('form') or Upload Your Order ('upload') asked for by a
+  /// link or an `open` command (/orders/new, /orders/upload): the Orders tab
+  /// opens it and clears this.
+  static final orderEntry = ValueNotifier<String?>(null);
+
+  /// Opens the app screen for a website path (from a link or an `open` command).
+  void openPath(String path) {
+    final page = path.split('#').first.isEmpty ? '/' : path.split('#').first;
+    switch (page) {
+      case '/create/ai':
+        app.startAi();
+      case '/create/sport':
+        app.startDyo();
+      case '/projects' || '/approved' || '/dashboard' || '/downloads':
+        app.go(AppScreen.projects);
+      case '/assets':
+        app.go(AppScreen.assets);
+      case '/orders':
+        app.go(AppScreen.orders);
+      case '/order-now':
+        app.go(AppScreen.orderHub);
+      case '/orders/new' || '/orders/upload':
+        // The Orders tab opens it (signed out: sign in first), so the tab first.
+        app.go(AppScreen.orderHub);
+        orderEntry.value = page == '/orders/new' ? 'form' : 'upload';
+      case '/pricing':
+        app.go(AppScreen.pricing);
+      case '/studio':
+        app.go(AppScreen.studio);
+      case '/artboard':
+        app.go(AppScreen.artboard);
+      case '/team' || '/team/requests':
+        _openTeam(requests: page == '/team/requests');
+      case '/convert':
+        _overApp((context) => convert(context, app));
+      case '/about' || '/support' || '/privacy' || '/terms':
+        _overApp(
+          (context) =>
+              openSite(context, app.api.sitePage(page), _pageNames[page]!),
+        );
+      default:
+        app.go(AppScreen.home);
+    }
+  }
+
+  /// Runs [open] with the navigator's context; without the app's navigator (a chat on its own), the Home instead.
+  void _overApp(void Function(BuildContext context) open) {
+    final context = navigator.currentContext;
+    if (context == null) return app.go(AppScreen.home);
+    open(context);
+  }
+
+  /// 3DEEZI TEAM over the current screen, as the Home's tile opens it, and with [requests] My design requests over it
+  /// (as its VIEW MY REQUESTS; back goes to the TEAM screen). Signed out, the TEAM screen says to sign in first.
+  void _openTeam({required bool requests}) {
+    final nav = navigator.currentState;
+    if (nav == null) return app.go(AppScreen.home);
+    unawaited(
+      nav.push(MaterialPageRoute<void>(builder: (_) => TeamScreen(app))),
+    );
+    if (!requests) return;
+    if (app.signedIn) {
+      unawaited(
+        nav.push(
+          MaterialPageRoute<void>(builder: (_) => TeamRequestsScreen(app)),
+        ),
+      );
+    } else {
+      showToast(nav.context, 'Sign in to see your design requests.');
+    }
+  }
+
+  static bool isPage(String path) => _pageNames.containsKey(
+    path.split('#').first.isEmpty ? '/' : path.split('#').first,
+  );
+
+  Future<void> ask(String question) async {
+    final q = question.trim();
+    if (q.isEmpty || busy) return;
+    final history = [
+      for (final m in messages.where((m) => !m.error))
+        {'role': m.fromUser ? 'user' : 'assistant', 'content': m.text},
+      {'role': 'user', 'content': q},
+    ];
+    messages.add(AssistMessage.user(q));
+    busy = true;
+    open = true;
+    notifyListeners();
+    try {
+      // On the Artboard: what is on the page and selected, so the answer fits
+      // it ("the logo already has a drop shadow").
+      String? context;
+      final board = app.screen == AppScreen.artboard
+          ? AssistBridge.of('artboard')
+          : null;
+      if (board != null) {
+        context = await board('describe', '')
+            .timeout(const Duration(seconds: 3))
+            .then<String?>((v) => v, onError: (_) => null);
+      }
+      final r = await app.api.assist(
+        history.sublist(math.max(0, history.length - 12)),
+        page: pathOf(app.screen),
+        can: const ['commands'],
+        context: context,
+      );
+      final answer = AssistMessage.assistant(r.reply);
+      messages.add(answer);
+      notifyListeners();
+      if (r.actions.isNotEmpty) {
+        final done = await run(r.actions);
+        answer.done = done;
+        // The answer was written before the commands ran ("Done: …"): when
+        // nothing worked say so instead, and when only part worked say that first.
+        // "Already there" (info) is not a failure: the object was left as it was.
+        if (done.every((d) => !d.ok && !d.info)) {
+          answer.text = "I couldn't do that:";
+        } else if (done.any((d) => !d.ok && !d.info)) {
+          answer.text =
+              "**Part of this didn't work (see below).**\n${answer.text}";
+        } else if (done.any((d) => d.info)) {
+          answer.text = "That's already there, so I left it as it is:";
+        }
+        // The chat covers most of a phone screen: get out of the way to show what changed.
+        if (done.any((d) => d.ok)) open = false;
+      }
+    } on Object catch (e) {
+      // Never show a raw server error: only the messages written for people
+      // (wait, no connection, sign in …).
+      final status = e is ApiException ? e.status : null;
+      messages.add(
+        AssistMessage.assistant(
+          status == 429
+              ? "You're asking quickly. Please wait a moment and try again."
+              : e is ApiException && (status == null || status < 500)
+              ? e.message
+              : '3DEEZI ASSIST had a problem answering. Please try again in a moment.',
+          error: true,
+        ),
+      );
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Runs the commands in order, opening the Artboard or the Studio first.
+  Future<List<AssistDone>> run(List<(String, String)> actions) async {
+    final done = <AssistDone>[];
+    var unselected = false;
+    for (final (action, value) in actions) {
+      // The rest were planned for objects that could not be selected: don't
+      // apply them to whatever is selected now.
+      if (unselected) {
+        done.add(
+          const AssistDone(
+            false,
+            'Skipped: those objects could not be selected.',
+          ),
+        );
+        continue;
+      }
+      try {
+        if (action == 'open') {
+          if (!isPage(value)) throw AssistError('That page is not in the app.');
+          openPath(value);
+          done.add(
+            AssistDone(
+              true,
+              'Opened ${_pageNames[value.split('#').first.isEmpty ? '/' : value.split('#').first]}',
+            ),
+          );
+          continue;
+        }
+        final target = _artboardActions.contains(action)
+            ? 'artboard'
+            : _studioActions.contains(action)
+            ? 'studio'
+            : null;
+        if (target == null) throw AssistError("I can't do that here.");
+        final screen = target == 'artboard'
+            ? AppScreen.artboard
+            : AppScreen.studio;
+        if (app.screen != screen) app.go(screen);
+        final runner = await _waitFor(target);
+        done.add(AssistDone(true, await runner(action, value)));
+      } on Object catch (e) {
+        // "ALREADY: …": the object already had it and was left as it was.
+        final text = '$e', already = text.startsWith('ALREADY: ');
+        done.add(
+          AssistDone(false, already ? text.substring(9) : text, info: already),
+        );
+        unselected = action == 'select';
+      }
+    }
+    return done;
+  }
+
+  /// Waits (up to 20 s) for a screen to be ready for commands.
+  static Future<AssistRunner> _waitFor(String target) async {
+    for (var i = 0; i < 200; i++) {
+      final runner = AssistBridge.of(target);
+      if (runner != null) return runner;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    throw AssistError(
+      'The ${target == 'artboard' ? 'Artboard' : 'Studio'} did not open in time. Please try again.',
+    );
+  }
+}

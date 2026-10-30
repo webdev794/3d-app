@@ -1,17 +1,41 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../ai_service.dart';
+import '../api_client.dart' show ApiException;
+import '../own_patterns.dart';
 import '../app_controller.dart';
+import '../assist.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../design_document.dart'
+    show
+        hoodieAreas,
+        isHoodie,
+        isTrack,
+        isVarsity,
+        studioPatterns,
+        trackAreas,
+        varsityAreas;
 import '../export_service.dart';
+import '../part_editing.dart' show PartEditing, partLabel, partPiece, partsOf;
+import '../player_shot.dart';
+import '../project_sync.dart';
 import '../widgets/drag_tray.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/kit_viewer_3d.dart';
+import '../widgets/own_pattern_tools.dart';
+import '../widgets/part_panel.dart';
 import '../widgets/showroom.dart';
 import '../widgets/studio_tools.dart';
 import '../widgets/ui.dart';
-import 'create_home.dart' show comingSoonGarments, garmentTiles;
+import '../widgets/word_look.dart';
+import 'create_home.dart' show GarmentScreen, comingSoonGarments, garmentTiles;
 
 const _swatches = <Color>[
   Color(0xff0b1016),
@@ -47,14 +71,193 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
   /// The "Drag to kit" tray of assets and patterns.
   bool _tray = false;
   final _stageKey = GlobalKey();
+  final _viewerKey = GlobalKey();
+
+  /// The tool open in the panel under the 3D, or null.
+  String? _panel;
+
+  /// The Colours panel also shows Fabric type and Gradient fill.
+  bool _more = false;
+
+  /// The part the Part panel edits (task 9.134) and where it was tapped on
+  /// the kit ({part, side, x, y}: a new logo or text goes there).
+  String? _partKey;
+  Map<String, dynamic>? _partAt;
+
+  /// Task 9.137: the pattern tap that opened Colours (it starts on the
+  /// pattern colour), and a counter that opens the Part panel's PATTERN tab
+  /// (a pattern tap while it is open).
+  Map<String, dynamic>? _colourPick;
+  int? _partTab;
 
   AppController get c => widget.c;
   bool get _live3d => c.show3d && KitViewer3D.supported;
+  late final AssistRunner _assistRunner = _assist;
+
+  @override
+  void initState() {
+    super.initState();
+    AssistBridge.register('studio', _assistRunner);
+    // My patterns (Patterns and the Drag to kit row), from the account.
+    unawaited(c.loadOwnPatterns().catchError((Object _) {}));
+  }
 
   @override
   void dispose() {
+    AssistBridge.unregister('studio', _assistRunner);
+    if (c.closeStudioPanel == _closePanel) c.closeStudioPanel = null;
+    if (c.partPick == _onPartPick) {
+      c.partPick = null;
+      // After this frame: the Studio goes while the app rebuilds.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (c.partPick == null) c.setPartPick(null);
+      });
+    }
     _prompt.dispose();
     super.dispose();
+  }
+
+  /// 3DEEZI ASSIST commands: turn the kit, open a tool, switch the garment or
+  /// the 2D panels. Returns what was done.
+  Future<String> _assist(String action, String value) async {
+    switch (action) {
+      case 'view':
+        if (value == '360')
+          throw AssistError(
+            'The app has Front, Side and Back views (no 360° view).',
+          );
+        final view = const {
+          'front': 'Front',
+          'side': 'Side',
+          'back': 'Back',
+        }[value];
+        if (view == null)
+          throw AssistError('The views are front, side and back.');
+        if (c.boardMode) c.update(() => c.boardMode = false);
+        final error = await c.showView(view);
+        if (error != null) throw AssistError(error);
+        return '$view view';
+      case 'panel':
+        if (value == 'ai')
+          throw AssistError(
+            'Type your change in the "Ask 3DEEZI to change anything" bar.',
+          );
+        if (value == 'close') {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          _closePanel();
+          return 'Panel closed';
+        }
+        final tool = const {
+          'colours': 'Colours',
+          'patterns': 'Patterns',
+          'logos': 'Artwork',
+          'text': 'Text',
+          'numbers': 'Text',
+          'garment': 'Garment',
+          'presets': 'Presets',
+        }[value];
+        if (tool == null) throw AssistError('There is no such Studio panel.');
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        _openTool(tool);
+        return '$tool panel open';
+      case 'garment':
+        final name = ProjectSync.garments.entries
+            .where((e) => e.value == value)
+            .firstOrNull
+            ?.key;
+        if (name == null) throw AssistError('That garment is not available.');
+        c.edit(() => c.garment = name);
+        return 'Garment: $name';
+      case 'board':
+        if (!KitViewer3D.supported)
+          throw AssistError('2D panels are not available here.');
+        c.update(() => c.boardMode = value == '2d');
+        return value == '2d' ? '2D print panels' : '3D view';
+      case 'export':
+        final kind = const {
+          'png': ExportKind.mockup,
+          'front-back': ExportKind.frontBack,
+          'pdf': ExportKind.pdf,
+        }[value];
+        if (kind == null) {
+          throw AssistError(
+            'The app exports the 3D mockup, Front & back, high resolution, social, '
+            'design pack and PDF design sheet from Export.',
+          );
+        }
+        await c.captureViews(panels: kind == ExportKind.pdf);
+        return exportDesign(c, kind);
+      case 'design':
+        // Direct edits, as in the tools: number, name, wordmark, colours, pattern.
+        final said = <String>[];
+        final changes = <VoidCallback>[];
+        for (final pair in value.split(',').map((x) => x.trim())) {
+          if (pair.isEmpty) continue;
+          final i = pair.indexOf('=');
+          final key = i < 0 ? pair : pair.substring(0, i);
+          final v = i < 0 ? '' : pair.substring(i + 1).trim();
+          switch (key) {
+            case 'number':
+              final n = v.replaceAll(RegExp(r'\D'), '');
+              if (n.isEmpty) throw AssistError('The number needs digits.');
+              final digits = n.substring(0, n.length.clamp(0, 3));
+              changes.add(() => c.number = digits);
+              said.add('number $digits');
+            case 'name':
+              final name = v.toUpperCase();
+              changes.add(() => c.backName = name);
+              said.add('name $name');
+            case 'wordmark':
+              final text = v.toUpperCase();
+              changes.add(() => c.logoText = text);
+              said.add('wordmark $text');
+            case 'main' || 'secondary' || 'accent':
+              final m = RegExp(r'^#?([0-9a-fA-F]{6})$').firstMatch(v);
+              if (m == null) throw AssistError('"$v" is not a colour I know.');
+              final colour = Color(0xff000000 | int.parse(m[1]!, radix: 16));
+              changes.add(
+                () => switch (key) {
+                  'main' => c.mainColor = colour,
+                  'secondary' => c.secondaryColor = colour,
+                  _ => c.accentColor = colour,
+                },
+              );
+              said.add('$key #${m[1]}');
+            case 'pattern':
+              final name = studioPatterns
+                  .where((p) => p.toLowerCase() == v.toLowerCase())
+                  .firstOrNull;
+              final pattern =
+                  name ?? (v.toLowerCase() == 'none' ? 'Solid' : null);
+              if (pattern == null) {
+                throw AssistError(
+                  'Patterns are: ${studioPatterns.join(', ')}.',
+                );
+              }
+              changes.add(() => c.pattern = pattern);
+              said.add('pattern $pattern');
+            case 'patternColor':
+              said.add('pattern colour (not in the app)');
+            default:
+              throw AssistError('I can\'t set "$key" here.');
+          }
+        }
+        if (changes.isEmpty) throw AssistError('Nothing to change.');
+        c.edit(() {
+          for (final change in changes) {
+            change();
+          }
+        });
+        return 'Changed ${said.join(', ')}';
+      case 'studioAi':
+        // Anything else about the kit's look: the Studio AI, as if typed in
+        // the "Ask 3DEEZI" bar.
+        if (!AiService.enabled) {
+          throw AssistError('AI is not set up in this build.');
+        }
+        return 'Studio AI: ${await c.askAi(value)}';
+    }
+    throw AssistError("The Studio can't do that.");
   }
 
   // ---------- AI
@@ -169,6 +372,29 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     if (mounted) showToast(context, 'Sponsor placed on the front.');
   }
 
+  /// Patterns › Upload pattern: a picture kept with the account (website too)
+  /// and put on the whole garment.
+  Future<void> _uploadPattern() async {
+    if (!c.signedIn) {
+      showToast(context, 'Sign in to upload your own pattern.');
+      return;
+    }
+    final bytes = await pickPhoto(context);
+    if (bytes == null || !mounted) return;
+    setState(() => _busy = 'Uploading your pattern…');
+    try {
+      final n = (c.ownPatterns?.length ?? 0) + 1;
+      final message = await c.uploadOwnPattern('My pattern $n', bytes);
+      if (mounted) showToast(context, message);
+    } on ApiException catch (e) {
+      if (mounted) showToast(context, e.message);
+    } on Object {
+      if (mounted) showToast(context, 'This picture could not be read.');
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+  }
+
   Future<void> _addLogo() async {
     final bytes = await pickPhoto(context);
     if (bytes == null) return;
@@ -188,10 +414,21 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     _ask(text);
   }
 
+  /// See it on a player: fresh 3D front and back pictures as the reference,
+  /// never older captures (player_shot.dart).
+  Future<void> _onPlayer() => openPlayerShotFromStudio(
+    context,
+    c,
+    live3d: _live3d,
+    busy: (busy) {
+      if (mounted) setState(() => _busy = busy);
+    },
+  );
+
   Future<void> _leave(AppScreen next) async {
     if (_live3d) {
       setState(() => _busy = 'Capturing your kit…');
-      await c.captureViews();
+      await c.captureViews(panels: next == AppScreen.saveProject);
       if (!mounted) return;
       setState(() => _busy = null);
     }
@@ -224,6 +461,13 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     }
   }
 
+  /// The 3D may be drawn larger than the stage: drags and drops are placed
+  /// on the 3D's own box.
+  RenderBox? get _dropBox =>
+      (_viewerKey.currentContext ?? _stageKey.currentContext)
+              ?.findRenderObject()
+          as RenderBox?;
+
   // ---------- layout
   @override
   Widget build(BuildContext context) {
@@ -232,7 +476,17 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
       children: [
         Positioned.fill(
           child: _live3d
-              ? KitViewer3D(controller: c, height: double.infinity)
+              // Drawn a little larger than the box on a tall phone view, so
+              // the kit fills more of it (as on the website); the 2D panels
+              // and the viewer's own screens get exactly the box.
+              ? _Zoomed(
+                  enabled: !c.boardMode && !c.viewerModal,
+                  child: KitViewer3D(
+                    key: _viewerKey,
+                    controller: c,
+                    height: double.infinity,
+                  ),
+                )
               : c.renderFront != null && !c.show3d
               ? Padding(
                   padding: const EdgeInsets.all(12),
@@ -243,51 +497,83 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                 )
               : KitPreview(controller: c, height: double.infinity),
         ),
-        if (!_preview && !c.boardMode)
+        // Front / Back / Side at the foot of the 3D, as on the website
+        // (172.jpg): the sides stay clear for the kit.
+        if (!_preview && !c.boardMode && !c.viewerModal)
           Positioned(
-            left: 10,
-            top: 10,
-            child: Column(
-              children: [
-                for (final (view, icon) in const [
-                  ('Front', Icons.checkroom),
-                  ('Side', Icons.view_sidebar_outlined),
-                  ('Back', Icons.flip_outlined),
-                ]) ...[
-                  _ViewTile(
-                    label: view,
-                    icon: icon,
-                    selected: c.view == view,
-                    onTap: () async {
-                      final error = await c.showView(view);
-                      if (error != null && context.mounted) {
-                        showToast(context, error);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ],
+            left: 0,
+            right: 0,
+            bottom: 10,
+            child: Center(
+              // Over the 3D's web frame: its own taps, not the kit's.
+              child: OverViewer(
+                child: _ViewBar(
+                  view: c.view,
+                  onView: (view) async {
+                    final error = await c.showView(view);
+                    if (error != null && context.mounted) {
+                      showToast(context, error);
+                    }
+                  },
+                ),
+              ),
             ),
           ),
         if (!_preview &&
             !c.boardMode &&
+            !c.viewerModal &&
             c.renderFront != null &&
             KitViewer3D.supported)
           Positioned(
             right: 10,
             top: 10,
-            child: _ModeSwitch(
-              show3d: c.show3d,
-              onChanged: (v) => c.update(() {
-                c.show3d = v;
-                if (!v && c.view == 'Side') c.view = 'Front';
-              }),
+            child: OverViewer(
+              child: _ModeSwitch(
+                show3d: c.show3d,
+                onChanged: (v) => c.update(() {
+                  c.show3d = v;
+                  if (!v && c.view == 'Side') c.view = 'Front';
+                }),
+              ),
+            ),
+          ),
+        // The sport's garment tile the kit was chosen as ("Netball dress",
+        // task 9.99), as on the website's stage.
+        if (!_preview &&
+            !c.boardMode &&
+            !c.viewerModal &&
+            c.productName.isNotEmpty)
+          Positioned(
+            top: 12,
+            left: 70,
+            right: 70,
+            child: IgnorePointer(
+              child: Center(
+                child: Container(
+                  key: const ValueKey('studio-product'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xcc08131e),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0x3300d9ed)),
+                  ),
+                  child: Text(
+                    '${c.sport} · ${c.productName}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                ),
+              ),
             ),
           ),
         if (_busy != null || c.renderingBack || c.printBusy)
           Positioned(
-            bottom: 12,
+            // Above the Front / Back / Side bar.
+            bottom: !_preview && !c.boardMode && !c.viewerModal ? 56 : 12,
             left: 0,
             right: 0,
             child: Center(
@@ -302,237 +588,614 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
       ],
     );
 
-    return Column(
-      children: [
-        _StudioBar(
-          c: c,
-          preview: _preview,
-          onBack: c.back,
-          onPreview: () => setState(() => _preview = !_preview),
-          onSave: () => _leave(AppScreen.saveProject),
-          onShowcase: () => _leave(AppScreen.showcase),
-        ),
-        if (!_preview)
-          SizedBox(
-            height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: [
-                ActionChipPill(
-                  'Artboard',
-                  onTap: () => c.go(AppScreen.artboard),
-                ),
-                const SizedBox(width: 8),
-                ActionChipPill(
-                  c.boardMode ? 'Back to 3D' : '2D panels',
-                  selected: c.boardMode,
-                  onTap: KitViewer3D.supported
-                      ? () => c.update(() {
-                          c.show3d = true;
-                          c.boardMode = !c.boardMode;
-                        })
-                      : null,
-                ),
-                const SizedBox(width: 8),
-                ActionChipPill(
-                  'Drag to kit',
-                  selected: _tray,
-                  onTap: () => setState(() => _tray = !_tray),
-                ),
-                const SizedBox(width: 8),
-                ActionChipPill('Artwork', onTap: () => _openTool('Artwork')),
-                const SizedBox(width: 8),
-                ActionChipPill('Presets', onTap: () => _openTool('Presets')),
-                if (c.boardMode) ...[
-                  const SizedBox(width: 8),
-                  ActionChipPill(
-                    'Export board',
-                    onTap: _busy == null ? _exportBoard : null,
-                  ),
-                ],
-              ],
-            ),
+    final panel = _preview ? null : _panel;
+    // A tap on one part of the 3D kit opens its Part panel (task 9.134):
+    // while the kit shows in 3D, not in Preview, and not while the Colours
+    // panel picks colours with its taps.
+    final pickParts =
+        c.show3d &&
+        !_preview &&
+        !c.boardMode &&
+        !c.viewerModal &&
+        panel != 'Colours';
+    if (pickParts != (c.partPick == _onPartPick)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && pickParts != (c.partPick == _onPartPick)) {
+          c.setPartPick(pickParts ? _onPartPick : null);
+        }
+      });
+    }
+    return LayoutBuilder(
+      builder: (context, box) => Column(
+        children: [
+          _StudioBar(
+            c: c,
+            preview: _preview,
+            onBack: c.back,
+            onPreview: () {
+              // Preview shows the kit alone: the panel closes.
+              if (!_preview) _closePanel();
+              setState(() => _preview = !_preview);
+              if (_preview) c.studioClearance.value = 0;
+            },
+            onSave: () => _leave(AppScreen.saveProject),
+            onShowcase: () => _leave(AppScreen.showcase),
+            onMockup: () {
+              // Like the website: signed out, it asks you to sign in first.
+              if (!c.signedIn) {
+                showToast(context, 'Sign in to make studio mockups.');
+                c.go(AppScreen.auth);
+                return;
+              }
+              _leave(AppScreen.mockup);
+            },
           ),
-        if (_tray && !_preview) DragTray(c),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: DragTarget<KitDrop>(
-              onAcceptWithDetails: (details) async {
-                final box =
-                    _stageKey.currentContext?.findRenderObject() as RenderBox?;
-                if (box == null) return;
-                final note = await DragTray.drop(
-                  c,
-                  details.data,
-                  details.offset,
-                  box,
-                );
-                if (note != null && mounted) showToast(context, note);
-              },
-              builder: (context, candidates, _) => DecoratedBox(
-                position: DecorationPosition.foreground,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: candidates.isEmpty
-                      ? null
-                      : Border.all(color: Palette.cyan, width: 2.5),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: stage,
-                ),
-              ),
-            ),
-          ),
-        ),
-        if (!_preview) ...[
-          const SizedBox(height: 10),
-          _ToolTabs(onTap: _openTool),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
-              decoration: BoxDecoration(
-                color: Palette.surface,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: Palette.cyan.withValues(alpha: .75),
-                  width: 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Palette.cyan.withValues(alpha: .28),
-                    blurRadius: 16,
-                  ),
-                ],
-              ),
-              child: Row(
+          // While a tool panel is open, the 3D takes this row's room too.
+          if (!_preview && panel == null)
+            SizedBox(
+              height: 44,
+              child: ChipRow(
                 children: [
-                  IconButton(
-                    tooltip: 'Attach a reference image',
-                    onPressed: _busy != null
+                  ActionChipPill(
+                    'Artboard',
+                    onTap: () => c.go(AppScreen.artboard),
+                  ),
+                  ActionChipPill(
+                    'See it on a player',
+                    icon: Icons.person_outline,
+                    onTap: _busy == null ? _onPlayer : null,
+                  ),
+                  ActionChipPill(
+                    c.boardMode ? 'Back to 3D' : '2D panels',
+                    selected: c.boardMode,
+                    onTap: KitViewer3D.supported
+                        ? () => c.update(() {
+                            c.show3d = true;
+                            c.boardMode = !c.boardMode;
+                          })
+                        : null,
+                  ),
+                  // The client's professional jersey model, a preview until
+                  // approved (off by default, remembered on this device).
+                  if (c.garment == 'Jersey' &&
+                      !c.boardMode &&
+                      KitViewer3D.supported)
+                    ActionChipPill(
+                      'High quality jersey (preview)',
+                      key: const ValueKey('studio-hq-jersey'),
+                      icon: c.hqJersey
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank,
+                      selected: c.hqJersey,
+                      onTap: () {
+                        c.setHqJersey(!c.hqJersey);
+                        if (c.hqJersey) c.show3d = true;
+                      },
+                    ),
+                  // On the 2D panels its own buttons come first, so they show
+                  // on a phone without scrolling the row.
+                  if (c.boardMode) ...[
+                    // Pinch or drag on the panels works too; these are the
+                    // same zoom steps as the website's buttons.
+                    ActionChipPill(
+                      'Zoom −',
+                      onTap: () => c.zoomBoard?.call('out'),
+                    ),
+                    ActionChipPill(
+                      'Zoom +',
+                      onTap: () => c.zoomBoard?.call('in'),
+                    ),
+                    ActionChipPill(
+                      'Fit',
+                      onTap: () => c.zoomBoard?.call('fit'),
+                    ),
+                    if (c.marks.isNotEmpty)
+                      // The wordmark, crest, sponsor, name and number back in
+                      // their places (and shown again if removed).
+                      ActionChipPill(
+                        'Reset layout',
+                        onTap: () => c.edit(() => c.marks = {}),
+                      ),
+                    ActionChipPill(
+                      'Export board',
+                      onTap: _busy == null ? _exportBoard : null,
+                    ),
+                  ],
+                  ActionChipPill(
+                    'Drag to kit',
+                    selected: _tray,
+                    onTap: () => setState(() => _tray = !_tray),
+                  ),
+                  ActionChipPill('Artwork', onTap: () => _openTool('Artwork')),
+                  ActionChipPill('Presets', onTap: () => _openTool('Presets')),
+                ],
+              ),
+            ),
+          if (_tray && !_preview && panel == null) DragTray(c),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: DragTarget<KitDrop>(
+                // The part under the finger glows on the 3D while dragging.
+                onMove: (details) {
+                  final box = _dropBox;
+                  if (box != null) DragTray.hover(c, details.offset, box);
+                },
+                onLeave: (_) => c.hoverGarment?.call(null),
+                onAcceptWithDetails: (details) async {
+                  final box = _dropBox;
+                  if (box == null) return;
+                  final note = await DragTray.drop(
+                    c,
+                    details.data,
+                    details.offset,
+                    box,
+                  );
+                  if (note != null && mounted) showToast(context, note);
+                },
+                builder: (context, candidates, _) => DecoratedBox(
+                  position: DecorationPosition.foreground,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    border: candidates.isEmpty
                         ? null
-                        : () async {
-                            final image = await pickPhoto(context);
-                            if (image != null && mounted)
-                              setState(() => _askImage = image);
-                          },
-                    icon: _askImage == null
-                        ? const Icon(
-                            Icons.add_photo_alternate_outlined,
-                            size: 20,
-                            color: Palette.cyan,
-                          )
-                        : ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Image.memory(
-                              _askImage!,
-                              width: 26,
-                              height: 26,
-                              fit: BoxFit.cover,
+                        : Border.all(color: Palette.cyan, width: 2.5),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: stage,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // A tool opens as a compact panel under the 3D (client pictures
+          // 172.jpg and 173.jpg): the kit stays in view above it and every
+          // change shows on it live.
+          if (panel != null)
+            _HeightReport(
+              onHeight: _clearance,
+              child: _ToolPanel(
+                key: ValueKey('studio-panel-$panel'),
+                // The Part panel is named by its part ("Left sleeve").
+                title: panel == 'Part' ? partLabel(_partKey ?? '') : panel,
+                maxHeight: math.max(
+                  220,
+                  box.maxHeight *
+                      (panel == 'Colours' || panel == 'Part' ? .5 : .42),
+                ),
+                onClose: _closePanel,
+                action: panel == 'Colours'
+                    ? _PanelAction(
+                        key: const ValueKey('colour-more'),
+                        icon: _more ? Icons.expand_less_rounded : Icons.tune,
+                        label: _more ? 'Less' : 'Gradient & fabric',
+                        onTap: () => setState(() => _more = !_more),
+                      )
+                    : panel == 'Part' && _partKey != null
+                    ? PartResetAction(c, _partKey!)
+                    : null,
+                child: _panelBody(panel),
+              ),
+            )
+          else if (!_preview)
+            _HeightReport(
+              onHeight: _clearance,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 6),
+                  _ToolTabs(onTap: _openTool),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(2, 0, 4, 0),
+                      decoration: BoxDecoration(
+                        color: Palette.surface,
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(
+                          color: Palette.cyan.withValues(alpha: .75),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Palette.cyan.withValues(alpha: .28),
+                            blurRadius: 16,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Attach a reference image',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: _busy != null
+                                ? null
+                                : () async {
+                                    final image = await pickPhoto(context);
+                                    if (image != null && mounted)
+                                      setState(() => _askImage = image);
+                                  },
+                            icon: _askImage == null
+                                ? const Icon(
+                                    Icons.add_photo_alternate_outlined,
+                                    size: 20,
+                                    color: Palette.cyan,
+                                  )
+                                : ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.memory(
+                                      _askImage!,
+                                      width: 26,
+                                      height: 26,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                          ),
+                          Expanded(
+                            child: TextField(
+                              controller: _prompt,
+                              enabled: _busy == null,
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: (_) => _send(),
+                              style: const TextStyle(fontSize: 13),
+                              decoration: const InputDecoration(
+                                hintText: 'Ask 3DEEZI to change anything…',
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
+                                filled: false,
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: 11,
+                                ),
+                              ),
                             ),
                           ),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _prompt,
-                      enabled: _busy == null,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _send(),
-                      style: const TextStyle(fontSize: 13),
-                      decoration: const InputDecoration(
-                        hintText: 'Ask 3DEEZI to change anything…',
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        filled: false,
-                        contentPadding: EdgeInsets.symmetric(vertical: 13),
+                          IconButton.filled(
+                            tooltip: 'Send',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: _busy == null ? _send : null,
+                            style: IconButton.styleFrom(
+                              backgroundColor: Palette.cyan,
+                              foregroundColor: Colors.black,
+                            ),
+                            icon: const Icon(Icons.send_rounded, size: 18),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  IconButton.filled(
-                    tooltip: 'Send',
-                    onPressed: _busy == null ? _send : null,
-                    style: IconButton.styleFrom(
-                      backgroundColor: Palette.cyan,
-                      foregroundColor: Colors.black,
+                  SizedBox(
+                    height: 42,
+                    child: ChipRow(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+                      children: [
+                        for (final (label, action) in [
+                          (
+                            'Make it black',
+                            () => _ask('Make the main colour black'),
+                          ),
+                          ('Add pattern', _newPattern),
+                          (
+                            'Change collar',
+                            () => _ask(
+                              'Change the collar to a contrasting colour',
+                            ),
+                          ),
+                          ('Add logo', _addLogo),
+                        ])
+                          ActionChipPill(
+                            label,
+                            onTap: _busy == null ? action : null,
+                          ),
+                      ],
                     ),
-                    icon: const Icon(Icons.send_rounded, size: 18),
                   ),
+                  const SizedBox(height: 4),
                 ],
               ),
             ),
-          ),
-          SizedBox(
-            height: 46,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-              children: [
-                for (final (label, action) in [
-                  ('Make it black', () => _ask('Make the main colour black')),
-                  ('Add pattern', _newPattern),
-                  (
-                    'Change collar',
-                    () => _ask('Change the collar to a contrasting colour'),
-                  ),
-                  ('Add logo', _addLogo),
-                ]) ...[
-                  ActionChipPill(label, onTap: _busy == null ? action : null),
-                  const SizedBox(width: 8),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
         ],
-      ],
+      ),
     );
   }
 
-  void _openTool(String tool) => showModalBottomSheet<void>(
+  /// The height of the controls under the 3D, for the round Assist button.
+  void _clearance(double height) {
+    if (!mounted || (c.studioClearance.value - height).abs() < .5) return;
+    c.studioClearance.value = height;
+  }
+
+  /// The tool tabs open their panel under the 3D; Artwork and Preset designs
+  /// are tall tools and keep their sheet.
+  static const _panels = {
+    'Colours',
+    'Patterns',
+    'Logos',
+    'Text',
+    'Garment',
+    'Part',
+  };
+
+  void _openTool(String tool) {
+    if (_panels.contains(tool)) {
+      setState(() {
+        _panel = tool;
+        _more = false;
+        _preview = false;
+      });
+      c.closeStudioPanel = _closePanel;
+      return;
+    }
+    _closePanel();
+    _openSheet(tool);
+  }
+
+  void _closePanel() {
+    if (c.closeStudioPanel == _closePanel) c.closeStudioPanel = null;
+    if (_panel == null || !mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _panel = null;
+      _more = false;
+      _colourPick = null;
+    });
+  }
+
+  /// The viewer's 'partPick': a tap on one part of the kit (the viewer lights
+  /// it up) opens its Part panel, or moves the open one to it; a part
+  /// without one (a hoodie's hood) says where its colours are.
+  void _onPartPick(Map<String, dynamic> pick) {
+    if (!mounted || pick['hit'] != true || _preview) return;
+    final key = pick['partKey'];
+    // Task 9.137, what you tap is what you change: a tap on the pattern
+    // opens Colours on the pattern colour (no Part panel open), or the
+    // part's own PATTERN tab (its Part panel open).
+    final onPattern =
+        pick['slot'] == 'pattern' || pick['slot'] == 'pattern-image';
+    if (onPattern && (_panel != 'Part' || key is! String)) {
+      setState(() => _colourPick = pick);
+      _openTool('Colours');
+      return;
+    }
+    if (onPattern) _partTab = (_partTab ?? 0) + 1;
+    if (key is! String || !partsOf(c.garment).contains(key)) {
+      showToast(
+        context,
+        pick['zone'] == 'hood'
+            ? 'The hood keeps its own colours: change them in Colours.'
+            : 'This part keeps its own colours: change them in Colours.',
+      );
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _partKey = key;
+      _partAt = {
+        for (final field in const ['part', 'side', 'x', 'y'])
+          if (pick[field] != null) field: pick[field],
+      };
+    });
+    _openTool('Part');
+  }
+
+  Widget _panelBody(String tool) => switch (tool) {
+    'Colours' => _ColoursTool(
+      c,
+      more: _more,
+      onDone: _closePanel,
+      firstPick: _colourPick,
+      // A tapped part's own panel, lit up (as the website).
+      onPart: (key) {
+        setState(() {
+          _partKey = key;
+          _partAt = null;
+        });
+        _openTool('Part');
+        c.glowPart?.call({'part': partPiece(key), 'key': key});
+      },
+    ),
+    'Part' => PartPanel(
+      c,
+      partKey: _partKey ?? 'front',
+      at: _partAt,
+      patternTab: _partTab,
+      swatches: _swatches,
+      onPart: (key) => setState(() {
+        _partKey = key;
+        _partAt = null;
+      }),
+      onDone: _closePanel,
+    ),
+    'Patterns' => _PatternsTool(
+      c,
+      onGenerate: _newPattern,
+      onUpload: _uploadPattern,
+    ),
+    'Logos' => _LogosTool(c, onSponsor: _addSponsor, onUpload: _addLogo),
+    'Text' => _TextTool(c),
+    _ => _GarmentTool(c),
+  };
+
+  // A tall tool (Preset designs, Artwork) fills the screen: useSafeArea keeps
+  // it below the iPhone notch, and SheetTop gives it a ✕ and a drag handle
+  // (iPhones have no Back button; Android Back closes it too).
+  void _openSheet(String tool) => showModalBottomSheet<void>(
     context: context,
     backgroundColor: Palette.surface,
-    showDragHandle: true,
     isScrollControlled: true,
+    useSafeArea: true,
     builder: (sheet) => AnimatedBuilder(
       animation: c,
-      builder: (context, _) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          0,
-          20,
-          20 + MediaQuery.viewInsetsOf(context).bottom,
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SheetTop(),
+          Flexible(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                0,
+                20,
+                20 + MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: SingleChildScrollView(
+                child: tool == 'Artwork'
+                    ? StudioArtworkTool(c)
+                    : StudioPresetsTool(c),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Reports its child's height after layout (once per change).
+class _HeightReport extends SingleChildRenderObjectWidget {
+  const _HeightReport({required this.onHeight, super.child});
+  final ValueChanged<double> onHeight;
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderHeightReport(onHeight);
+  @override
+  void updateRenderObject(BuildContext context, _RenderHeightReport render) =>
+      render.onHeight = onHeight;
+}
+
+class _RenderHeightReport extends RenderProxyBox {
+  _RenderHeightReport(this.onHeight);
+  ValueChanged<double> onHeight;
+  double? _sent;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final height = size.height;
+    if (height == _sent) return;
+    _sent = height;
+    SchedulerBinding.instance.addPostFrameCallback((_) => onHeight(height));
+  }
+}
+
+/// The compact tool panel under the 3D (173.jpg): its name, an optional
+/// action and a ✕ on top, the tool below (scrolling when it is taller than
+/// [maxHeight]).
+class _ToolPanel extends StatelessWidget {
+  const _ToolPanel({
+    super.key,
+    required this.title,
+    required this.maxHeight,
+    required this.onClose,
+    required this.child,
+    this.action,
+  });
+  final String title;
+  final double maxHeight;
+  final VoidCallback onClose;
+  final Widget child;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+    constraints: BoxConstraints(maxHeight: maxHeight),
+    decoration: BoxDecoration(
+      color: Palette.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Palette.cyan.withValues(alpha: .3)),
+      boxShadow: const [
+        BoxShadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, -3)),
+      ],
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 2, 4, 0),
+          child: Row(
+            children: [
+              Text(
+                title.toUpperCase(),
+                maxLines: 1,
+                style: const TextStyle(
+                  fontFamily: 'Rajdhani',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  letterSpacing: .6,
+                  color: Palette.text,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Align(alignment: Alignment.centerRight, child: action),
+              ),
+              IconButton(
+                key: const ValueKey('sheet-close'),
+                tooltip: 'Close',
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(38, 34),
+                  padding: EdgeInsets.zero,
+                ),
+                onPressed: onClose,
+                icon: const Icon(Icons.close, color: Palette.text, size: 20),
+              ),
+            ],
+          ),
         ),
-        child: SingleChildScrollView(
-          child: switch (tool) {
-            'Colours' => _ColoursTool(c),
-            'Patterns' => _PatternsTool(
-              c,
-              onGenerate: () {
-                Navigator.pop(sheet);
-                _newPattern();
-              },
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 2, 12, 10),
+            child: child,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// A small text action in a tool panel's header ("Gradient & fabric").
+class _PanelAction extends StatelessWidget {
+  const _PanelAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: Palette.cyan),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Palette.cyan,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
-            'Logos' => _LogosTool(
-              c,
-              onSponsor: () {
-                Navigator.pop(sheet);
-                _addSponsor();
-              },
-              onUpload: () {
-                Navigator.pop(sheet);
-                _addLogo();
-              },
-            ),
-            'Text' => _TextTool(c),
-            'Artwork' => StudioArtworkTool(c),
-            'Presets' => StudioPresetsTool(c),
-            _ => _GarmentTool(c),
-          },
+          ],
         ),
       ),
     ),
@@ -547,32 +1210,43 @@ class _StudioBar extends StatelessWidget {
     required this.onPreview,
     required this.onSave,
     required this.onShowcase,
+    required this.onMockup,
   });
   final AppController c;
   final bool preview;
-  final VoidCallback onBack, onPreview, onSave, onShowcase;
+  final VoidCallback onBack, onPreview, onSave, onShowcase, onMockup;
 
+  // A fixed width per action, its label scaled down to fit: six actions and
+  // Back (48 + 6 x 48 + padding) always fit a 360 px phone, even with larger iPhone text sizes (the
+  // bar overflowed by 48 px at 375 and 390).
   Widget _action(String label, IconData icon, VoidCallback? onTap) => InkWell(
     borderRadius: BorderRadius.circular(10),
     onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: onTap == null ? Palette.border : Palette.text,
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 9.5,
-              color: onTap == null ? Palette.border : Palette.muted,
+    child: SizedBox(
+      width: 48,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: onTap == null ? Palette.border : Palette.text,
             ),
-          ),
-        ],
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  color: onTap == null ? Palette.border : Palette.muted,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -597,56 +1271,91 @@ class _StudioBar extends StatelessWidget {
           onPreview,
         ),
         _action('Showcase', Icons.auto_awesome, onShowcase),
+        _action('Mockup', Icons.photo_camera_outlined, onMockup),
         _action('Save', Icons.bookmark_add_outlined, onSave),
       ],
     ),
   );
 }
 
-class _ViewTile extends StatelessWidget {
-  const _ViewTile({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
+/// Front / Back / Side as one bar at the foot of the 3D (the website's look,
+/// 172.jpg).
+class _ViewBar extends StatelessWidget {
+  const _ViewBar({required this.view, required this.onView});
+  final String view;
+  final ValueChanged<String> onView;
+
   @override
-  Widget build(BuildContext context) => Material(
-    color: Palette.bg.withValues(alpha: .75),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(10),
-      side: BorderSide(color: selected ? Palette.cyan : Palette.border),
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('studio-views'),
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      color: const Color(0xd908131e),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: Palette.cyan.withValues(alpha: .35)),
     ),
-    child: InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: onTap,
-      child: SizedBox(
-        width: 48,
-        height: 50,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 19,
-              color: selected ? Palette.cyan : Palette.muted,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 9,
-                color: selected ? Palette.cyan : Palette.muted,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final v in const ['Front', 'Back', 'Side'])
+          Semantics(
+            button: true,
+            selected: view == v,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () => onView(v),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                constraints: const BoxConstraints(minWidth: 62),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: view == v ? Palette.cyan : Colors.transparent,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  v,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: view == v ? Colors.black : Palette.text,
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+      ],
     ),
+  );
+}
+
+/// The live 3D a little larger than its box, centred (the stage clips it), on
+/// a tall phone view: the kit fills about 85% of the view's width instead of
+/// about 75%, as on the website. A wide view (a tablet, or a short view while
+/// a tool panel is open) keeps the box; so do the 2D panels and the viewer's
+/// own screens ([enabled] false).
+class _Zoomed extends StatelessWidget {
+  const _Zoomed({required this.enabled, required this.child});
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final tall = box.maxHeight / math.max(1, box.maxWidth);
+      final zoom = enabled ? (1 + (tall - 1) * .4).clamp(1.0, 1.14) : 1.0;
+      final w = box.maxWidth * zoom, h = box.maxHeight * zoom;
+      return OverflowBox(
+        minWidth: w,
+        maxWidth: w,
+        minHeight: h,
+        maxHeight: h,
+        child: child,
+      );
+    },
   );
 }
 
@@ -710,11 +1419,11 @@ class _ToolTabs extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               onTap: () => onTap(label),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
+                padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Column(
                   children: [
-                    Icon(icon, size: 22, color: Palette.cyan),
-                    const SizedBox(height: 4),
+                    Icon(icon, size: 21, color: Palette.cyan),
+                    const SizedBox(height: 3),
                     Text(
                       label,
                       style: const TextStyle(
@@ -732,35 +1441,172 @@ class _ToolTabs extends StatelessWidget {
   );
 }
 
-// ---------- tool sheets
-class _SheetTitle extends StatelessWidget {
-  const _SheetTitle(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: ScreenTitle(text, size: 20, align: TextAlign.left),
-  );
-}
-
+// ---------- tool panels
+/// Colours (173.jpg): Primary / Secondary / Accent tabs, the compact wheel
+/// with its swatch, HEX and brightness, recent and quick colours and Done.
+/// [more] adds Fabric type and Gradient fill under them.
 class _ColoursTool extends StatefulWidget {
-  const _ColoursTool(this.c);
+  const _ColoursTool(
+    this.c, {
+    required this.more,
+    required this.onDone,
+    this.onPart,
+    this.firstPick,
+  });
   final AppController c;
+  final bool more;
+  final VoidCallback onDone;
+
+  /// The kit tap that opened the panel (a tap on the pattern, task 9.137).
+  final Map<String, dynamic>? firstPick;
+
+  /// Opens a tapped part's own panel (its "Edit … on its own" link).
+  final ValueChanged<String>? onPart;
   @override
   State<_ColoursTool> createState() => _ColoursToolState();
 }
 
 class _ColoursToolState extends State<_ColoursTool> {
   int _slot = 0;
+
+  /// A hoodie, varsity or track jacket area chosen by tapping the kit: the
+  /// wheel then sets that area's own colour (zoneColors); a tab clears it.
+  String? _area;
   bool _dragging = false;
+
+  /// The one-time "tap the kit" tip (remembered on the device).
+  static const hintKey = '3deezi.colourPickHint';
+  bool _hint = false;
+
+  /// A tap on an uploaded picture pattern (Full colour): it keeps its own
+  /// colours, so the tip says how to recolour it.
+  bool _pictureTip = false;
+
+  /// The part the last tap was on (task 9.134): a link edits it on its own,
+  /// as the website's Colours panel.
+  String? _part;
+
+  /// The parts with a pattern colour of their own (they keep it).
+  List<String> get _ownPatternParts => [
+    for (final key in partsOf(c.garment))
+      if (c.parts[key] case {'patternColour': String _}) key,
+  ];
   AppController get c => widget.c;
 
-  Color get _current => [c.mainColor, c.secondaryColor, c.accentColor][_slot];
-  void _set(Color v) => switch (_slot) {
-    0 => c.mainColor = v,
-    1 => c.secondaryColor = v,
-    _ => c.accentColor = v,
-  };
+  @override
+  void initState() {
+    super.initState();
+    c.colourPick = _onPick;
+    if (widget.firstPick case final pick?) {
+      final slot = pick['slot'];
+      _slot = slot == 'pattern' || slot == 'pattern-image' ? 3 : _slot;
+      _pictureTip = slot == 'pattern-image';
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && c.colourPick == _onPick) c.setColourPick(_onPick);
+    });
+    _loadHint();
+  }
+
+  Future<void> _loadHint() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(hintKey) == true) return;
+      await prefs.setBool(hintKey, true);
+      if (mounted) setState(() => _hint = true);
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    if (c.colourPick == _onPick) {
+      c.colourPick = null;
+      // After this frame: the panel closes while the Studio rebuilds.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (c.colourPick == null) c.setColourPick(null);
+      });
+    }
+    super.dispose();
+  }
+
+  Map<String, String> get _areas => isTrack(c.garment)
+      ? {...trackAreas, if (c.trackStyle == 'hood') 'collar': 'Hood'}
+      : isVarsity(c.garment)
+      ? varsityAreas
+      : isHoodie(c.garment)
+      ? {
+          for (final e in hoodieAreas.entries)
+            if (e.key != 'zip' || c.garment == 'Zip hoodie') e.key: e.value,
+        }
+      : const {};
+
+  /// The viewer's tapped part: its kit colour tab, or the area's own colour.
+  void _onPick(Map<String, dynamic> pick) {
+    if (!mounted) return;
+    final slot = const [
+      'main',
+      'secondary',
+      'accent',
+      'pattern',
+    ].indexOf('${pick['slot']}');
+    final picture = pick['slot'] == 'pattern-image';
+    final area = pick['area'], part = pick['partKey'];
+    setState(() {
+      if (slot >= 0) _slot = slot;
+      if (picture) _slot = 3;
+      _pictureTip = picture;
+      _area = area is String && _areas.containsKey(area) ? area : null;
+      _part =
+          !picture &&
+              pick['slot'] != 'pattern' &&
+              part is String &&
+              partsOf(c.garment).contains(part)
+          ? part
+          : null;
+      _dragging = false;
+      _hint = false;
+    });
+  }
+
+  Color get _slotColor =>
+      [c.mainColor, c.secondaryColor, c.accentColor, _patternInk][_slot];
+
+  /// The pattern's colour as the 3D shows it: its own once picked; before
+  /// that, as the viewer paints it (an uploaded or AI pattern in the colour
+  /// sent, a built-in pattern in a mix of the Primary and Secondary, area
+  /// patterns in the Secondary).
+  Color get _patternInk {
+    final sent = c.patternColor == null
+        ? c.defaultPatternColor
+        : ProjectSync.color(c.patternColor);
+    if (c.patternColorOwn == true || c.patternTile != null) return sent;
+    if (c.pattern != 'Solid' && c.pattern != 'None') {
+      return Color.lerp(c.mainColor, c.secondaryColor, .35) ?? sent;
+    }
+    return c.zones.values.any((z) => z != 'None') ? c.secondaryColor : sent;
+  }
+
+  Color get _current => _area != null && c.zoneColors[_area] != null
+      ? ProjectSync.color(c.zoneColors[_area])
+      : _slotColor;
+  void _set(Color v) {
+    if (_area case final area?) {
+      c.zoneColors = {...c.zoneColors, area: ProjectSync.hex(v)};
+      return;
+    }
+    switch (_slot) {
+      case 0:
+        c.mainColor = v;
+      case 1:
+        c.secondaryColor = v;
+      case 2:
+        c.accentColor = v;
+      default:
+        // By hand or after a tap on the pattern: every pattern in it.
+        c.patternColor = ProjectSync.hex(v);
+        c.patternColorOwn = true;
+    }
+  }
 
   /// The first change of a drag is one undo step; the rest follow live.
   void _change(Color v) {
@@ -776,7 +1622,62 @@ class _ColoursToolState extends State<_ColoursTool> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const _SheetTitle('Colours'),
+      if (_part case final part? when widget.onPart != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            children: [
+              // Task 9.137: the tab's colour covers every part in it (both
+              // sleeves, the body); this button changes the tapped one only.
+              Expanded(
+                child: Text(
+                  'This colour is on every part shown in it.',
+                  style: const TextStyle(fontSize: 11.5, color: Palette.muted),
+                ),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('colour-part-link'),
+                onPressed: () => widget.onPart!(part),
+                iconAlignment: IconAlignment.end,
+                icon: const Icon(Icons.chevron_right, size: 16),
+                label: Text('Only the ${partLabel(part).toLowerCase()}'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Palette.cyan,
+                  side: const BorderSide(color: Palette.cyan),
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ),
+      // Parts with their own colour (Parts) don't follow the kit's colours.
+      for (final key in partsOf(c.garment))
+        if (c.partStyleOf(key).colour != null)
+          Row(
+            key: ValueKey('colour-own-$key'),
+            children: [
+              Expanded(
+                child: Text(
+                  '${partLabel(key)} has its own colour (set in Parts)',
+                  style: const TextStyle(fontSize: 12, color: Palette.muted),
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(
+                  () => c.setPartStyle(
+                    key,
+                    c.partStyleOf(key).copyWith(colour: null),
+                  ),
+                ),
+                child: const Text('Use kit colour'),
+              ),
+            ],
+          ),
       Container(
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
@@ -790,37 +1691,47 @@ class _ColoursToolState extends State<_ColoursTool> {
               'Primary',
               'Secondary',
               'Accent',
+              'Pattern',
             ].indexed)
               Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _slot = i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _slot == i ? Palette.cyan : Colors.transparent,
-                        width: 1.5,
+                child: Semantics(
+                  button: true,
+                  selected: _slot == i,
+                  child: GestureDetector(
+                    key: ValueKey('colour-tab-$i'),
+                    onTap: () => setState(() {
+                      _slot = i;
+                      _area = null;
+                      _pictureTip = false;
+                    }),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _slot == i ? Palette.cyan : Colors.transparent,
+                          width: 1.5,
+                        ),
+                        boxShadow: _slot == i
+                            ? [
+                                BoxShadow(
+                                  color: Palette.cyan.withValues(alpha: .4),
+                                  blurRadius: 10,
+                                ),
+                              ]
+                            : null,
+                        color: _slot == i ? const Color(0xff05202d) : null,
                       ),
-                      boxShadow: _slot == i
-                          ? [
-                              BoxShadow(
-                                color: Palette.cyan.withValues(alpha: .4),
-                                blurRadius: 10,
-                              ),
-                            ]
-                          : null,
-                      color: _slot == i ? const Color(0xff05202d) : null,
-                    ),
-                    child: Text(
-                      label.toUpperCase(),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        letterSpacing: .8,
-                        fontWeight: FontWeight.w700,
-                        color: _slot == i ? Palette.cyan : Palette.muted,
+                      child: Text(
+                        label.toUpperCase(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          letterSpacing: .8,
+                          fontWeight: FontWeight.w700,
+                          color: _slot == i ? Palette.cyan : Palette.muted,
+                        ),
                       ),
                     ),
                   ),
@@ -829,65 +1740,179 @@ class _ColoursToolState extends State<_ColoursTool> {
           ],
         ),
       ),
-      const SizedBox(height: 16),
+      if (_area != null)
+        Padding(
+          key: const ValueKey('colour-area'),
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            '${_areas[_area]}: ${ProjectSync.hex(_current)}',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Palette.cyan,
+            ),
+          ),
+        ),
+      if (_pictureTip)
+        const Padding(
+          key: ValueKey('colour-picture-tip'),
+          padding: EdgeInsets.only(top: 6),
+          child: Text(
+            'Switch to Kit colours to recolour this pattern.',
+            style: TextStyle(fontSize: 12, color: Palette.muted),
+          ),
+        ),
+      if (_slot == 3 && _ownPatternParts.isNotEmpty)
+        Padding(
+          key: const ValueKey('colour-part-pattern-note'),
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            '${_ownPatternParts.map((k) => partLabel(k)).join(', ')} '
+            '${_ownPatternParts.length == 1 ? 'has its' : 'have their'} own '
+            'pattern colour (Parts).',
+            style: const TextStyle(fontSize: 12, color: Palette.muted),
+          ),
+        ),
+      if (_hint)
+        const Padding(
+          key: ValueKey('colour-pick-hint'),
+          padding: EdgeInsets.only(top: 6),
+          child: Text(
+            'Tip: tap the kit to pick a colour.',
+            style: TextStyle(fontSize: 12, color: Palette.muted),
+          ),
+        ),
+      const SizedBox(height: 8),
       ColorWheel(
-        key: ValueKey(_slot),
+        key: ValueKey('$_slot-$_area'),
+        compact: true,
         color: _current,
+        swatches: _swatches,
         onChanged: _change,
         onDone: (_) => _dragging = false,
+        trailing: FilledButton(
+          key: const ValueKey('colour-done'),
+          onPressed: widget.onDone,
+          style: FilledButton.styleFrom(
+            backgroundColor: Palette.cyan,
+            foregroundColor: Colors.black,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            minimumSize: const Size(76, 34),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: const Text(
+            'Done',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+        ),
       ),
-      const SizedBox(height: 14),
-      const SectionLabel('Quick colours'),
-      Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [
-          for (final color in _swatches)
-            GestureDetector(
-              onTap: () => c.edit(() => _set(color)),
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _current.toARGB32() == color.toARGB32()
-                        ? Palette.cyan
-                        : Palette.border,
-                    width: _current.toARGB32() == color.toARGB32() ? 3 : 1,
-                  ),
+      // Gradient & fabric opens under the wheel, below the panel's fold on a
+      // phone: it scrolls itself into view.
+      if (widget.more)
+        _ShowInView(
+          key: const ValueKey('colour-more-items'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionLabel('Fabric type'),
+              // The 3D kit shows it (viewer -40); the varsity keeps its wool
+              // and leather.
+              if (isVarsity(c.garment))
+                const Text(
+                  'The varsity jacket is wool with leather sleeves: it keeps '
+                  'its own fabric.',
+                  style: TextStyle(color: Palette.muted, fontSize: 12),
+                )
+              else ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final fabric in designFabrics)
+                      ActionChipPill(
+                        fabric,
+                        selected: c.fabric == fabric,
+                        onTap: () => c.edit(() => c.fabric = fabric),
+                      ),
+                  ],
                 ),
-              ),
-            ),
-        ],
-      ),
-      const SectionLabel('Fabric type'),
-      Wrap(
-        spacing: 8,
-        children: [
-          for (final fabric in designFabrics)
-            ActionChipPill(
-              fabric,
-              selected: c.fabric == fabric,
-              onTap: () => c.edit(() => c.fabric = fabric),
-            ),
-        ],
-      ),
-      StudioGradientTool(c),
+                const SizedBox(height: 8),
+                Text(
+                  '${fabricNotes[c.fabric] ?? fabricNotes['Standard']} Zoom in '
+                  'on the 3D kit to see it up close.',
+                  style: const TextStyle(color: Palette.muted, fontSize: 12),
+                ),
+              ],
+              if (_slot < 3) StudioGradientTool(c, slot: _slot),
+            ],
+          ),
+        ),
     ],
   );
 }
 
+/// Scrolls its child into view in the tool panel when it first shows, and the
+/// panel back to its top when it goes again (Gradient & fabric, then Less).
+class _ShowInView extends StatefulWidget {
+  const _ShowInView({super.key, required this.child});
+  final Widget child;
+  @override
+  State<_ShowInView> createState() => _ShowInViewState();
+}
+
+class _ShowInViewState extends State<_ShowInView> {
+  static const _move = Duration(milliseconds: 250);
+  ScrollableState? _scrollable;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollable = Scrollable.maybeOf(context);
+      Scrollable.ensureVisible(
+        context,
+        duration: _move,
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    // After the frame that takes it out, when the panel is shorter again.
+    final scrollable = _scrollable;
+    if (scrollable != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!scrollable.mounted) return;
+        final position = scrollable.position;
+        if (position.hasPixels && position.pixels > 0) {
+          position.animateTo(0, duration: _move, curve: Curves.easeOutCubic);
+        }
+      });
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class _PatternsTool extends StatelessWidget {
-  const _PatternsTool(this.c, {required this.onGenerate});
+  const _PatternsTool(
+    this.c, {
+    required this.onGenerate,
+    required this.onUpload,
+  });
   final AppController c;
-  final VoidCallback onGenerate;
+  final VoidCallback onGenerate, onUpload;
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const _SheetTitle('Patterns'),
       const SectionLabel('Panel style'),
       Wrap(
         spacing: 8,
@@ -920,6 +1945,7 @@ class _PatternsTool extends StatelessWidget {
           ],
         ),
       ),
+      OwnPatternsTool(c, onUpload: onUpload),
       const SizedBox(height: 12),
       SecondaryButton(
         label: AiService.enabled ? 'GENERATE AI PATTERN' : 'NEXT PANEL STYLE',
@@ -931,10 +1957,12 @@ class _PatternsTool extends StatelessWidget {
   );
 
   Widget _tile({
+    Key? key,
     required bool selected,
     required VoidCallback onTap,
     required Widget child,
   }) => Padding(
+    key: key,
     padding: const EdgeInsets.only(right: 10),
     child: SizedBox(
       width: 74,
@@ -958,7 +1986,6 @@ class _LogosTool extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const _SheetTitle('Logos'),
       const SectionLabel('Chest logo'),
       SizedBox(
         height: 74,
@@ -1078,6 +2105,24 @@ class _TextToolState extends State<_TextTool> {
   late final _number = TextEditingController(text: widget.c.number);
   bool _recorded = false;
 
+  @override
+  void initState() {
+    super.initState();
+    widget.c.addListener(_follow);
+  }
+
+  /// A word changed elsewhere (on the 3D kit, task 9.144, or by the AI) shows
+  /// here, so typing in the tab never puts the old word back.
+  void _follow() {
+    void keep(TextEditingController box, String now) {
+      if (box.text.toUpperCase() != now.toUpperCase()) box.text = now;
+    }
+
+    keep(_front, widget.c.logoText);
+    keep(_name, widget.c.backName);
+    keep(_number, widget.c.number);
+  }
+
   /// One Undo step for the whole text session.
   void _set(VoidCallback change) {
     if (_recorded) {
@@ -1090,6 +2135,7 @@ class _TextToolState extends State<_TextTool> {
 
   @override
   void dispose() {
+    widget.c.removeListener(_follow);
     _front.dispose();
     _name.dispose();
     _number.dispose();
@@ -1100,13 +2146,18 @@ class _TextToolState extends State<_TextTool> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const _SheetTitle('Text'),
       const SectionLabel('Front wordmark'),
       TextField(
         controller: _front,
         maxLength: 12,
         textCapitalization: TextCapitalization.characters,
         onChanged: (v) => _set(() => widget.c.logoText = v.toUpperCase()),
+      ),
+      WordLookEditor(
+        c: widget.c,
+        markKey: 'top_wordmark',
+        word: widget.c.logoText,
+        title: 'Wordmark',
       ),
       const SectionLabel('Back name'),
       TextField(
@@ -1115,12 +2166,24 @@ class _TextToolState extends State<_TextTool> {
         textCapitalization: TextCapitalization.characters,
         onChanged: (v) => _set(() => widget.c.backName = v.toUpperCase()),
       ),
+      WordLookEditor(
+        c: widget.c,
+        markKey: 'top_name',
+        word: widget.c.backName,
+        title: 'Name',
+      ),
       const SectionLabel('Number'),
       TextField(
         controller: _number,
         maxLength: 2,
         keyboardType: TextInputType.number,
         onChanged: (v) => _set(() => widget.c.number = v),
+      ),
+      WordLookEditor(
+        c: widget.c,
+        markKey: 'top_number',
+        word: widget.c.number,
+        title: 'Number',
       ),
     ],
   );
@@ -1133,7 +2196,6 @@ class _GarmentTool extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const _SheetTitle('Garment'),
       GridView.count(
         crossAxisCount: 3,
         shrinkWrap: true,
@@ -1152,7 +2214,7 @@ class _GarmentTool extends StatelessWidget {
               selected: c.garment == name,
               onTap: soon
                   ? () => showToast(context, '$name are coming soon in 3D.')
-                  : () => c.edit(() => c.garment = name),
+                  : () => GarmentScreen.switchTo(c, name, art),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -1199,7 +2261,7 @@ class SaveProjectScreen extends StatefulWidget {
 class _SaveProjectScreenState extends State<SaveProjectScreen> {
   late final _name = TextEditingController(
     text: widget.c.projectName.isEmpty
-        ? '${widget.c.sport} ${widget.c.garment}'
+        ? '${widget.c.sport} ${widget.c.garmentLabel}'
         : widget.c.projectName,
   );
   bool _done = false;
@@ -1252,11 +2314,14 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
                         borderRadius: BorderRadius.circular(13),
                         border: Border.all(color: Palette.border),
                       ),
-                      child: Text(
-                        _done
-                            ? 'Version ${c.projects.first.version}'
-                            : 'Version ${c.nextVersion}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      child: ValueListenableBuilder(
+                        valueListenable: _name,
+                        builder: (_, name, _) => Text(
+                          _done
+                              ? 'Version ${c.projects.first.version}'
+                              : 'Version ${c.versionFor(name.text)}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ),
                   ),
@@ -1271,7 +2336,7 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
               const SizedBox(height: 8),
               Text(
                 '${c.mode == 'AI' ? 'AI design' : 'Design Your Own'} · '
-                '${c.sport} · ${c.garment}',
+                '${c.sport} · ${c.garmentLabel}',
                 style: const TextStyle(color: Palette.muted, fontSize: 12),
               ),
             ],
@@ -1324,6 +2389,38 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
                               });
                             },
                     ),
+                    // 9.147: keep the saved project and start a new one.
+                    if (c.selectedProject >= 0) ...[
+                      const SizedBox(height: 10),
+                      SecondaryButton(
+                        label: 'SAVE AS NEW COPY',
+                        icon: Icons.copy_rounded,
+                        onPressed: _saving
+                            ? null
+                            : () async {
+                                setState(() => _saving = true);
+                                final success = await c.saveProject(
+                                  _name.text,
+                                  asCopy: true,
+                                );
+                                if (!mounted) return;
+                                setState(() {
+                                  _saving = false;
+                                  _done = success;
+                                });
+                              },
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'A different name also saves a new project; the '
+                        'saved one stays as it is.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xff8a9bb0),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
         ),
@@ -1389,6 +2486,12 @@ class _ExportScreenState extends State<ExportScreen> {
         Icons.photo_size_select_large_outlined,
         'Social Media Image',
         'Square / Story / Post',
+      ),
+      (
+        ExportKind.pdf,
+        Icons.picture_as_pdf_outlined,
+        'Design Sheet (PDF)',
+        'Front & back views, colours and details',
       ),
       (
         ExportKind.pack,

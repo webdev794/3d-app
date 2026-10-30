@@ -11,7 +11,7 @@ import { Point, util } from 'fabric';
 import paper from 'paper';
 import { PaperOffset } from 'paperjs-offset';
 import { parse as parseFont } from 'opentype.js';
-import { faceFor } from './fonts.mjs';
+import { faceFor, hasItalicFace } from './fonts.mjs';
 
 const KAPPA = 0.5522847498;
 const r3 = (n) => Math.round(n * 1000) / 1000;
@@ -164,8 +164,8 @@ export function setWorldPath(o, d) {
 // Text -> curves (opentype.js, laid out exactly like Fabric draws it)
 // ===================================================================
 const fontCache = new Map();
-export function getFont(family, weight) {
-  const file = faceFor(family, weight);
+export function getFont(family, weight, style = 'normal') {
+  const file = faceFor(family, weight, style);
   const data = file && window.__ABFONTS?.[file];
   if (!data) return null;
   if (!fontCache.has(file)) {
@@ -175,6 +175,8 @@ export function getFont(family, weight) {
   return fontCache.get(file);
 }
 export const fontAvailable = (family) => !!faceFor(family, 400);
+/** An uploaded font file (TTF, OTF or WOFF) read by opentype.js: throws when it is not a font it can read. */
+export const parseFontFile = (buffer) => parseFont(buffer);
 
 function textModel(o) {
   const m = o.calcTransformMatrix(), W = (p) => util.transformPoint(new Point(p.x, p.y), m);
@@ -192,9 +194,9 @@ function textModel(o) {
       const style = o.getCompleteStyleDeclaration(li, ci);
       x += box.kernedWidth - box.width;
       if (ch.trim()) {
-        const font = getFont(style.fontFamily, style.fontWeight);
+        const font = getFont(style.fontFamily, style.fontWeight, style.fontStyle);
         if (!font) throw new Error(`The font “${style.fontFamily}” can't be converted to curves. Choose a font from the Artboard list.`);
-        const size = style.fontSize, italic = style.fontStyle === 'italic' && !/italic/i.test(style.fontFamily);
+        const size = style.fontSize, italic = style.fontStyle === 'italic' && !/italic/i.test(style.fontFamily) && !hasItalicFace(style.fontFamily);
         // Glyph outline at the origin (baseline y = 0), then placed like Fabric.
         const place = onPath
           ? (p) => { const a = box.angle, px = p.x - box.width / 2, c = Math.cos(a), s = Math.sin(a); return W({ x: box.renderLeft + px * c - p.y * s, y: box.renderTop + px * s + p.y * c }); }
@@ -225,7 +227,7 @@ function textModel(o) {
 // paper.js: shaping, offsets, splitting
 // ===================================================================
 let ready = false;
-function P() { if (!ready) { paper.setup(new paper.Size(1, 1)); ready = true; } return paper; }
+function P() { if (!ready) { if (!paper.project) paper.setup(new paper.Size(1, 1)); ready = true; } return paper; }
 export function toPaper(d, fillRule = 'nonzero') {
   const item = new (P().CompoundPath)({ pathData: d, insert: false });
   item.fillRule = fillRule;
@@ -243,6 +245,8 @@ export function boolean(kind, aD, bD, { aRule, bRule } = {}) {
   return pathData(r);
 }
 export const isClosedD = (d) => closedItem(toPaper(d));
+/** Is the point inside the filled area of the path data (exact, not the bounding box)? */
+export function containsPoint(d, p) { const s = P(); return !!toPaper(d).contains(new s.Point(p.x, p.y)); }
 /** Split a compound result into separate shapes, keeping holes with their outer shape. */
 export function components(d) {
   const item = toPaper(d), kids = item.children ? item.children.slice() : [item];
@@ -269,25 +273,65 @@ export function strokeOutlineD(d, width, { join = 'round', cap = 'round' } = {})
   }
   return pathData(out);
 }
-/** Thin region along a polyline (knife cut) or a round brush (eraser). */
-export function strokeRegionD(points, width) {
+/** Thin region along a polyline (knife cut) or a round brush (eraser); taper 0-1 narrows it towards the end (smudge). */
+export function strokeRegionD(points, width, taper = 0) {
   const s = P();
   let region = null;
-  const r = Math.max(width / 2, 0.01);
+  const R = Math.max(width / 2, 0.01), last = Math.max(1, points.length - 1);
+  const rAt = (i) => R * (1 - Math.min(0.85, Math.max(0, taper)) * (i / last));
   for (let i = 0; i < points.length; i++) {
-    const p = points[i];
+    const p = points[i], r = rAt(i);
     let piece = new s.Path.Circle({ center: [p.x, p.y], radius: r, insert: false });
     if (i) {
-      const q = points[i - 1], dx = p.x - q.x, dy = p.y - q.y, l = Math.hypot(dx, dy);
+      const q = points[i - 1], dx = p.x - q.x, dy = p.y - q.y, l = Math.hypot(dx, dy), rq = rAt(i - 1);
       if (l > 1e-6) {
-        const nx = (-dy / l) * r, ny = (dx / l) * r;
-        const quad = new s.Path({ segments: [[q.x + nx, q.y + ny], [p.x + nx, p.y + ny], [p.x - nx, p.y - ny], [q.x - nx, q.y - ny]], closed: true, insert: false });
+        const nx = -dy / l, ny = dx / l;
+        const quad = new s.Path({ segments: [[q.x + nx * rq, q.y + ny * rq], [p.x + nx * r, p.y + ny * r], [p.x - nx * r, p.y - ny * r], [q.x - nx * rq, q.y - ny * rq]], closed: true, insert: false });
         piece = piece.unite(quad, { insert: false });
       }
     }
     region = region ? region.unite(piece, { insert: false }) : piece;
   }
   return pathData(region);
+}
+/**
+ * Virtual Segment Delete (CorelDRAW): the part of the outline nearest p (within tol) between its closest
+ * crossings, with itself or with the other outlines. Returns { cut, keep } path data (keep '' when nothing
+ * is left), or null when p is not on the outline.
+ */
+export function virtualSegment(d, othersD, p, tol) {
+  const s = P(), item = toPaper(d), pt = new s.Point(p.x, p.y);
+  const subs = item.children ? item.children.slice() : [item];
+  let best = null;
+  for (const sp of subs) { const loc = sp.getNearestLocation(pt); if (loc && (!best || loc.distance < best.loc.distance)) best = { sp, loc }; }
+  if (!best || best.loc.distance > tol) return null;
+  const sp = best.sp, L = sp.length, offsets = [];
+  const add = (locs) => { for (const x of locs ?? []) if (x && Number.isFinite(x.offset)) offsets.push(x.offset); };
+  add(sp.getIntersections());
+  for (const other of subs) if (other !== sp) add(sp.getIntersections(other));
+  for (const od of othersD) { try { add(sp.getIntersections(toPaper(od))); } catch { /* not a closed or valid outline */ } }
+  const eps = Math.max(1e-6, L * 1e-6);
+  const cuts = [...new Set(offsets.map((o) => Math.round(o * 1000) / 1000))].filter((o) => o > eps && o < L - eps).sort((a, b) => a - b);
+  const at = best.loc.offset, others = subs.filter((x) => x !== sp).map((x) => x.pathData);
+  let cut, kept = [];
+  if (!cuts.length && (sp.closed || true)) {
+    // No crossings: the whole line (or closed outline) is the segment.
+    cut = sp.pathData;
+  } else if (sp.closed) {
+    const a = cuts.filter((o) => o <= at).at(-1) ?? cuts.at(-1), b = cuts.find((o) => o > at) ?? cuts[0];
+    const c = sp.clone({ insert: false });
+    c.splitAt(a);
+    const len = (((b - a) % L) + L) % L || L, rest = c.splitAt(len);
+    cut = c.pathData; if (rest) kept.push(rest.pathData);
+  } else {
+    const a = cuts.filter((o) => o <= at).at(-1) ?? 0, b = cuts.find((o) => o > at) ?? L;
+    const c = sp.clone({ insert: false });
+    const tail = b < L - eps ? c.splitAt(b) : null;
+    const mid = a > eps ? c.splitAt(a) : null;
+    if (mid) { cut = mid.pathData; kept.push(c.pathData); } else cut = c.pathData;
+    if (tail) kept.push(tail.pathData);
+  }
+  return { cut, keep: [...others, ...kept].filter(Boolean).join(' ') };
 }
 /** Knife: a straight cut through a shape -> pieces (closed shapes) or split lines (open paths). */
 export function knifeD(d, a, b) {
@@ -312,35 +356,34 @@ export function knifeD(d, a, b) {
   }
   return pieces.length > 1 ? pieces : null;
 }
-/** Smart fill: the enclosed region at point p among the given closed shapes. */
-export function smartFillD(shapeDs, p) {
-  const s = P(), at = new s.Point(p.x, p.y);
-  const items = shapeDs.map((d) => toPaper(d)).filter((i) => closedItem(i));
-  const inside = items.filter((i) => i.contains(at)), outside = items.filter((i) => !i.contains(at));
-  if (!inside.length) return '';
-  let region = inside[0];
-  for (const i of inside.slice(1)) region = region.intersect(i, { insert: false });
-  for (const o of outside) if (o.bounds.intersects(region.bounds)) region = region.subtract(o, { insert: false });
-  return region.contains(at) ? pathData(region) : '';
-}
 /** Blend: n in-between outlines morphing a -> b (outer outlines, resampled). */
 export function blendDs(aD, bD, steps, samples = 96) {
   const s = P();
-  const outer = (d) => { const i = toPaper(d), kids = i.children ?? [i]; return kids.reduce((x, y) => (Math.abs(y.area) > Math.abs(x.area) ? y : x)); };
+  const kidsOf = (d) => { const i = toPaper(d); return i.children ? i.children.slice() : [i]; };
+  const ka = kidsOf(aD), kb = kidsOf(bD);
+  // Words and other shapes made of several outlines (task 9.145): when both have the same number of outlines (the same
+  // text in two sizes or colours), each outline blends into its partner, so every letter steps, not just the biggest.
+  const pairs = ka.length > 1 && ka.length === kb.length ? ka.map((k, i) => [k, kb[i]])
+    : [[ka.reduce((x, y) => (Math.abs(y.area) > Math.abs(x.area) ? y : x)), kb.reduce((x, y) => (Math.abs(y.area) > Math.abs(x.area) ? y : x))]];
   const sample = (path) => { const L = path.length, pts = []; for (let i = 0; i < samples; i++) pts.push(path.getPointAt((L * i) / samples)); return pts; };
-  const pa = outer(aD).clone({ insert: false }), pb = outer(bD).clone({ insert: false });
-  if (pa.clockwise !== pb.clockwise) pb.reverse();
-  const A = sample(pa); let B = sample(pb);
-  // Rotate B's start so the points line up with A's.
-  let best = 0, bestCost = Infinity;
-  for (let k = 0; k < samples; k++) { let c = 0; for (let i = 0; i < samples; i += 4) c += A[i].getDistance(B[(i + k) % samples]); if (c < bestCost) { bestCost = c; best = k; } }
-  B = B.map((_, i) => B[(i + best) % samples]);
+  const lined = pairs.map(([x, y]) => {
+    const pa = x.clone({ insert: false }), pb = y.clone({ insert: false });
+    if (pa.clockwise !== pb.clockwise) pb.reverse();
+    const A = sample(pa); let B = sample(pb);
+    // Rotate B's start so the points line up with A's.
+    let best = 0, bestCost = Infinity;
+    for (let k = 0; k < samples; k++) { let c = 0; for (let i = 0; i < samples; i += 4) c += A[i].getDistance(B[(i + k) % samples]); if (c < bestCost) { bestCost = c; best = k; } }
+    B = B.map((_, i) => B[(i + best) % samples]);
+    return { A, B, closed: pa.closed };
+  });
   const out = [];
   for (let st = 1; st <= steps; st++) {
     const t = st / (steps + 1);
-    const path = new s.Path({ segments: A.map((p, i) => p.add(B[i].subtract(p).multiply(t))), closed: pa.closed, insert: false });
-    path.smooth({ type: 'catmull-rom' });
-    out.push(path.pathData);
+    out.push(lined.map(({ A, B, closed }) => {
+      const path = new s.Path({ segments: A.map((p, i) => p.add(B[i].subtract(p).multiply(t))), closed, insert: false });
+      path.smooth({ type: 'catmull-rom' });
+      return path.pathData;
+    }).join(' '));
   }
   return out;
 }
@@ -389,6 +432,7 @@ function resample(pts, closed, step) {
 const perimeter = (pts, closed) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : s), 0)
   + (closed ? Math.hypot(pts[0].x - pts.at(-1).x, pts[0].y - pts.at(-1).y) : 0);
 /** Points back to path data: straight lines, or smooth curves fitted within `smooth` world units. */
+export function fitPartsD(parts, smooth = 0) { return partsToD(parts, smooth); }
 function partsToD(parts, smooth = 0) {
   if (!smooth) return parts.map((p) => `M ${p.pts.map((q) => `${r3(q.x)} ${r3(q.y)}`).join(' L ')}${p.closed ? ' Z' : ''}`).join(' ');
   const s = P();
@@ -426,6 +470,15 @@ export function distortD(d, mode, amount, { teeth = 30, box } = {}) {
     return { x: c.x + dx * f, y: c.y + dy * f };
   }) }));
   return partsToD(moved, 0.25);
+}
+/** Free envelope (task 9.145): each point moves by map(u, v) of its place in the box (0..1 across and down). */
+export function warpD(d, map, { box } = {}) {
+  const item = toPaper(d), b = boundsOf(item, box), W = b.width || 1, H = b.height || 1;
+  const parts = flatParts(item).map(({ closed, pts }) => ({ closed, pts: densify(pts, closed, Math.max(W, H) / 150).map((p) => {
+    const m = map(Math.min(1, Math.max(0, (p.x - b.x) / W)), Math.min(1, Math.max(0, (p.y - b.y) / H)));
+    return { x: p.x + m.x, y: p.y + m.y };
+  }) }));
+  return partsToD(parts, 0.25);
 }
 /** Envelope presets: points bend by their place in the box (amount in world units, as CorelDRAW's envelope modes). */
 export function envelopeD(d, preset, amount, { box } = {}) {
@@ -522,6 +575,34 @@ export function complexStarUnit(points, sharpness) {
     d += `${d ? ' ' : ''}${poly(loop)}`;
   }
   return d;
+}
+/**
+ * Impact (CorelDRAW): comic-style action lines in the 0-100 box. 'radial' = wedges pointing at an empty
+ * centre (inner = its size, % of the box); 'parallel' = speed lines, thick on the right with sharp tips that
+ * start at random points (inner = how far in they reach). seed keeps the random lengths when redrawn.
+ */
+export function impactUnit(style = 'radial', lines = 36, inner = 45, seed = 1) {
+  let q = Math.max(1, Math.floor(seed) % 2147483647);
+  const rnd = () => (q = (q * 16807) % 2147483647) / 2147483647;
+  const n = Math.max(3, Math.min(200, Math.round(lines))), k = Math.max(0, Math.min(95, inner)) / 100;
+  const parts = [];
+  if (style === 'parallel') {
+    for (let i = 0; i < n; i++) {
+      const y = ((i + 0.5) / n) * 100 + (rnd() - 0.5) * (40 / n), half = (100 / n) * (0.12 + rnd() * 0.22);
+      const tip = Math.min(92, 100 * k * (0.35 + rnd() * 1.1));
+      parts.push(`M ${r3(tip)} ${r3(y)} L 100 ${r3(y - half)} L 100 ${r3(y + half)} Z`);
+    }
+  } else {
+    // Out to the box's edge (corners too), so the burst fills the frame.
+    const edge = (a) => 50 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * 2 * Math.PI + (rnd() - 0.5) * (Math.PI / n), half = (Math.PI / n) * (0.25 + rnd() * 0.45);
+      const ri = edge(a) * Math.min(0.95, k * (0.75 + rnd() * 0.5));
+      const pt = (ang, r) => `${r3(50 + Math.cos(ang) * r)} ${r3(50 + Math.sin(ang) * r)}`;
+      parts.push(`M ${pt(a, ri)} L ${pt(a - half, edge(a - half))} L ${pt(a + half, edge(a + half))} Z`);
+    }
+  }
+  return parts.join(' ');
 }
 /** Spiral: symmetric (even spacing) or logarithmic (expansion %). */
 export function spiralUnit(revolutions, logarithmic, expansion = 50) {

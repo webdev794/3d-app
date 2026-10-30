@@ -1,0 +1,254 @@
+/* The AI designer's brief step (client visual 2026-10-21, images/ai-designer/): the logo, DESIGN WITHOUT LIMITS, one
+   prompt bar and the sports row, centred over a dark studio with the 3DEEZI emblem on the left and the kit on the right.
+   The bottom padding keeps the row clear of the 3DEEZI ASSIST button (bottom right). */
+.aid-stage{position:relative;isolation:isolate;overflow:hidden;min-height:calc(100svh - 82px);display:flex;align-items:center;justify-content:center;padding:clamp(28px,5vh,60px) 24px clamp(100px,13vh,130px);background:#02060b}
+.aid-bg{position:absolute;inset:0;z-index:-2}
+.aid-bg img{width:100%;height:100%;object-fit:cover;object-position:50% 58%}
+/* Readability: a soft dark pool behind the text and bar; the page fades into the footer. */
+.aid-stage::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 30% 40% at 50% 42%,#02060bb8,#02060b5c 62%,transparent),linear-gradient(180deg,#02060b8c,transparent 16%,transparent 78%,#02060b)}
+.aid-stage .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.aid-inner{width:min(1500px,100%);display:flex;flex-direction:column;align-items:center;text-align:center}
+
+.aid-logo{width:clamp(240px,31vw,560px);height:auto;mix-blend-mode:screen;filter:drop-shadow(0 8px 30px #000)}
+.aid-tagline{margin:clamp(12px,1.3vw,22px) 0 0;margin-right:-.42em;font:700 clamp(12px,1.32vw,23px)/1 var(--heading);letter-spacing:.42em;color:#f3f7fb;text-shadow:0 2px 14px #000}
+.aid-heading{margin:clamp(20px,2.3vw,40px) 0 clamp(26px,3vw,50px);margin-right:-.5em;font:600 clamp(15px,1.6vw,28px)/1 var(--heading);letter-spacing:.5em;color:#e8eef5;text-shadow:0 2px 16px #000}
+
+/* The prompt bar: a dark see-through pill with a subtle teal outline; long text grows it (the column stays centred). */
+.aid-prompt{position:relative;z-index:3;width:min(100%,clamp(330px,48vw,920px));padding:10px;border:1.5px solid #19d6eacc;border-radius:40px;background:linear-gradient(180deg,#07131ecc,#030a12e0);box-shadow:0 0 0 1px #00d9ed1f,0 0 22px #00d9ed3d,inset 0 0 18px #00d9ed12;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);text-align:left;transition:border-color .2s,box-shadow .2s}
+.aid-prompt:focus-within,.aid-stage.dropping .aid-prompt{border-color:#3fe6f5;box-shadow:0 0 0 1px #00d9ed4d,0 0 30px #00d9ed5c,inset 0 0 18px #00d9ed1c}
+.aid-prompt.has-files{border-radius:28px}
+.aid-row{display:flex;align-items:flex-end;gap:6px}
+.aid-plus-wrap{position:relative;flex:none}
+.aid-plus{display:grid;place-items:center;width:50px;height:50px;border:1px solid #ffffff26;border-radius:50%;background:#0e1b27;color:#eef6fc;transition:border-color .2s,background .2s}
+.aid-plus:hover,.aid-plus[aria-expanded=true]{border-color:#19d6ea;background:#10273a}
+.aid-field{flex:1;min-width:0;display:flex;align-items:center;min-height:50px}
+.aid-field textarea{display:block;width:100%;max-height:196px;padding:13px 8px;border:0;background:none;color:#eef5fc;font-size:clamp(15px,1.06vw,17px);line-height:1.45;resize:none;overflow-y:auto;outline:none;scrollbar-width:thin;scrollbar-color:#00d9ed44 transparent}
+.aid-field textarea::placeholder{color:#a3b2c2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aid-field textarea:focus-visible{outline:none}
+.aid-icon{display:grid;place-items:center;flex:none;width:44px;height:50px;padding:0;border:0;border-radius:12px;background:none;color:#dbe6ef;transition:color .2s,background .2s}
+.aid-icon:hover:not(:disabled){color:#fff;background:#ffffff0f}
+.aid-icon.is-on{color:#3fe6f5;animation:aid-listen 1.2s ease-in-out infinite}
+@keyframes aid-listen{50%{background:#00d9ed1f}}
+.aid-go{display:grid;place-items:center;flex:none;width:52px;height:52px;margin-left:4px;border:0;border-radius:50%;background:#14d8ec;color:#021219;box-shadow:0 0 18px #00d9ed80;transition:transform .2s,box-shadow .2s,background .2s}
+.aid-go:hover{background:#3fe6f5;transform:translateY(-1px);box-shadow:0 0 24px #00d9edaa}
+
+/* Attached pictures: inside the bar, above the text; they stay with this design session. */
+.aid-files{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:4px 8px 8px 56px;list-style:none}
+.aid-files li{position:relative;width:56px;height:56px;border:1px solid #ffffff2b;border-radius:10px;overflow:hidden;background:#0a141e}
+.aid-files img{width:100%;height:100%;object-fit:cover}
+.aid-files button{position:absolute;top:3px;right:3px;display:grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#000c;color:#fff}
+
+/* (+): attach, and the brief suggestions that used to be chips. */
+.aid-menu{position:absolute;left:0;top:calc(100% + 10px);z-index:20;display:flex;flex-direction:column;min-width:250px;padding:6px;border:1px solid #19d6ea66;border-radius:14px;background:#08121df7;box-shadow:0 18px 40px #000c,0 0 20px #00d9ed26;animation:aid-pop .16s ease-out}
+@keyframes aid-pop{from{opacity:0;transform:translateY(-4px)}}
+.aid-menu button{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:8px 10px;border:0;border-radius:9px;background:none;color:#e6eef6;font-size:14px;text-align:left}
+.aid-menu button:hover:not(:disabled){background:#ffffff10}
+.aid-menu button svg{flex:none;color:#3fe6f5}
+.aid-menu button span{flex:1}
+.aid-menu small{color:#8796a8;font-size:12px}
+.aid-menu-label{margin:6px 10px 2px;font-size:10.5px;font-weight:700;letter-spacing:.14em;color:#7f93a8;text-transform:uppercase}
+
+/* Asked only when the brief names no garment: quick chips, one tap continues. */
+.aid-ask{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;max-width:min(100%,920px);margin-top:14px;animation:aid-pop .2s ease-out}
+.aid-ask>span{margin-right:4px;color:#e8f2f9;font-size:14px;font-weight:600}
+.aid-ask button{min-height:36px;padding:7px 15px;border:1px solid #19d6ea8c;border-radius:999px;background:#05131fd9;color:#eaf6fb;font-size:13.5px;transition:background .2s,border-color .2s}
+.aid-ask button:hover{border-color:#3fe6f5;background:#0b2636}
+/* Over 3,500 characters: a small counter; the limit (4,000) shows in amber. */
+.aid-count{display:block;padding:0 64px 2px 0;text-align:right;color:#8fa0b3;font-size:12px;font-variant-numeric:tabular-nums}
+.aid-count.is-full{color:#ffc46b}
+.aid-info{margin:12px 0 0;padding:8px 14px;border-radius:10px;background:#0b2232e6;color:#cfeaf5;font-size:13.5px}
+.aid-error{margin:12px 0 0;padding:8px 14px;border-radius:10px;background:#2a1418e6;color:#ffd7d7;font-size:13.5px}
+.aid-options{display:flex;justify-content:center;min-height:22px;margin-top:14px}
+.aid-switch{display:inline-flex;align-items:center;gap:9px;color:#b9c7d4;font-size:13px;cursor:pointer;user-select:none}
+.aid-switch input{position:absolute;opacity:0;width:1px;height:1px}
+.aid-switch i{position:relative;width:32px;height:18px;border-radius:999px;background:#2a3846;transition:background .2s}
+.aid-switch i::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#dfe8f0;transition:transform .2s}
+.aid-switch input:checked+i{background:#14d8ec}
+.aid-switch input:checked+i::after{transform:translateX(14px);background:#021219}
+.aid-switch input:focus-visible+i{outline:2px solid var(--cyan);outline-offset:3px}
+.aid-note{color:#9aabbb;font-size:12.5px}
+
+/* The sports row: photo tiles, the chosen one in teal; arrows page it, phones swipe. */
+/* Wider than the bar: eight tiles in view on computers (as in the visual), the arrows outside them. */
+.aid-sports{--gap:clamp(8px,.85vw,14px);display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:clamp(10px,2vw,36px);width:100%;margin-top:clamp(22px,3vw,44px)}
+.aid-sports.fits .aid-arrow{visibility:hidden}
+.aid-arrow{display:grid;place-items:center;width:46px;height:46px;padding:0;border:1.5px solid #19d6eab3;border-radius:50%;background:#03101acc;color:#e6fbff;transition:background .2s,opacity .2s}
+.aid-arrow:hover:not(:disabled){background:#0b2636}
+.aid-arrow:disabled{opacity:.3}
+.aid-strip{display:flex;gap:var(--gap);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:8px 4px}
+.aid-strip::-webkit-scrollbar{display:none}
+/* A soft fade on the cut-off side says there is more to scroll. */
+.aid-sports.has-next .aid-strip{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 48px),transparent)}
+.aid-sports.has-prev .aid-strip{-webkit-mask-image:linear-gradient(90deg,transparent,#000 48px);mask-image:linear-gradient(90deg,transparent,#000 48px)}
+.aid-sports.has-prev.has-next .aid-strip{-webkit-mask-image:linear-gradient(90deg,transparent,#000 48px,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(90deg,transparent,#000 48px,#000 calc(100% - 48px),transparent)}
+.aid-tile{position:relative;flex:0 0 max(112px,calc((100% - 7 * var(--gap)) / 8));aspect-ratio:154/192;padding:0;border:1px solid #ffffff24;border-radius:12px;overflow:hidden;background:#060c14;scroll-snap-align:start;box-shadow:0 10px 26px #0009;transition:transform .2s,border-color .2s,box-shadow .2s}
+.aid-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .35s}
+.aid-tile::after{content:"";position:absolute;inset:45% 0 0;background:linear-gradient(180deg,transparent,#02060bf0 78%)}
+.aid-tile strong{position:absolute;z-index:1;left:6px;right:6px;bottom:22px;font:700 clamp(11.5px,.86vw,14.5px)/1.1 Inter,Arial,sans-serif;letter-spacing:.01em;color:#fff;text-transform:uppercase;text-align:center}
+.aid-tile i{position:absolute;z-index:1;left:50%;bottom:11px;width:22px;height:2px;margin-left:-11px;border-radius:2px;background:#19d6ea}
+.aid-tile:hover{transform:translateY(-3px);border-color:#19d6ea8c}
+.aid-tile:hover img{transform:scale(1.04)}
+.aid-tile[aria-pressed=true]{border:2px solid #2be2f2;box-shadow:0 0 0 1px #00d9ed4d,0 0 22px #00d9ed73}
+.aid-tile:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+
+@media(max-width:800px){.aid-stage{min-height:calc(100svh - 69px)}}
+/* Tablets: six tiles in view. */
+@media(max-width:1100px){.aid-tile{flex-basis:max(108px,calc((100% - 5 * var(--gap)) / 6))}.aid-prompt{width:min(100%,680px)}.aid-logo{width:clamp(260px,42vw,420px)}.aid-tagline{font-size:clamp(12px,1.7vw,16px)}.aid-heading{font-size:clamp(14px,2vw,19px)}}
+/* Phones: the bar stays central and full width, the row swipes edge to edge, Generate within thumb reach. */
+@media(max-width:759px){
+  .aid-stage{align-items:flex-start;padding:clamp(26px,6svh,56px) 16px 88px}
+  .aid-stage::before{background:radial-gradient(ellipse 70% 30% at 50% 36%,#02060bc4,#02060b66 65%,transparent),linear-gradient(180deg,#02060b99,transparent 22%,transparent 70%,#02060b)}
+  .aid-logo{width:min(74vw,330px)}
+  .aid-tagline{font-size:clamp(10px,3vw,13px);letter-spacing:.36em;margin-right:-.36em}
+  .aid-heading{font-size:clamp(13px,3.9vw,17px);letter-spacing:.34em;margin-right:-.34em;margin:clamp(14px,2.6svh,24px) 0 clamp(18px,3.4svh,30px)}
+  .aid-prompt{width:100%;padding:7px;border-radius:32px}
+  .aid-plus{width:42px;height:42px}
+  .aid-field{min-height:44px}
+  .aid-field textarea{padding:11px 6px;font-size:16px}
+  .aid-icon{width:36px;height:44px}
+  .aid-go{width:46px;height:46px;margin-left:2px}
+  .aid-files{padding-left:6px}
+  .aid-menu{min-width:min(280px,calc(100vw - 48px))}
+  .aid-sports{display:block;margin:clamp(22px,4svh,36px) -16px 0;width:calc(100% + 32px)}
+  .aid-sports{position:relative}
+  .aid-arrow{position:absolute;z-index:2;top:50%;transform:translateY(-50%);width:36px;height:36px;box-shadow:0 2px 10px #000a}
+  .aid-arrow:first-child{left:6px}
+  .aid-arrow:last-child{right:6px}
+  .aid-arrow:disabled{visibility:hidden}
+  .aid-strip{padding:8px 16px;scroll-padding:0 16px}
+  .aid-tile{flex-basis:clamp(104px,30vw,132px)}
+}
+/* Narrow phones: room for "Describe your design..." on one line beside the four buttons. */
+@media(max-width:420px){
+  .aid-prompt{padding:6px}
+  .aid-row{gap:2px}
+  .aid-plus{width:40px;height:40px}
+  .aid-icon{width:34px}
+  .aid-go{width:44px;height:44px}
+  .aid-field textarea{padding:11px 4px}
+  .aid-field textarea::placeholder{font-size:14.5px}
+}
+@media(prefers-reduced-motion:reduce){.aid-tile,.aid-tile img,.aid-go,.aid-menu,.aid-ask{transition:none;animation:none}.aid-icon.is-on{animation:none}}
+
+/* The results, YOUR DESIGNS (client visuals 2026-10-22 images/146.jpg, 2026-10-30 images/240.jpg): the heading with a
+   1 / 4 counter, one large wide frame that fills the space between the heading and the controls (the picture centred in
+   it, never cropped or stretched), the other designs as bigger cards stacked in a column at its right (a row under it on
+   phones), then one compact row: Open in 3D Designer, the download icon and See it on a player, and the slim "Refine this
+   design…" bar. Everything fits one screen. */
+.aid-results-stage{display:block;height:calc(100svh - 82px);min-height:560px;padding:10px 24px 18px}
+.aid-results-stage::before{background:linear-gradient(180deg,#02060bb3,#02060b73 30%,#02060b80 70%,#02060b)}
+.aid-results{--aid-side:clamp(150px,17vw,250px);display:grid;grid-template-columns:minmax(0,1fr) var(--aid-side);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head ." "view side" "controls .";gap:10px 22px;width:min(1280px,100%);height:100%;margin:0 auto}
+.aid-results-head{grid-area:head;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:44px}
+.aid-results-head h1{margin:0;font:700 clamp(19px,1.7vw,25px)/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.07em;color:#f2f8fd;text-shadow:0 2px 14px #000}
+.aid-back{justify-self:start;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:none;color:#eef6fc;text-shadow:0 2px 10px #000}
+.aid-back:hover{color:#3fe6f5;background:#ffffff0d}
+.aid-count-sel{justify-self:end;padding-right:6px;color:#9fb0c2;font:600 17px/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.aid-count-sel b{color:#3fe6f5;font-weight:700}
+/* The viewer: a wide frame over all the space left for it, the picture's own box centred in it (sized in px by ResultsViewer). */
+.aid-view-area{grid-area:view;position:relative;min-width:0;min-height:0}
+.aid-viewer{position:absolute;inset:0;border-radius:16px;box-shadow:0 0 0 1px #19d6ea40,0 0 30px #00d9ed26,0 18px 50px #000a}
+.aid-viewer-clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:#02070d}
+.aid-viewer-backdrop{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(30px) brightness(.48) saturate(1.1);transform:scale(1.15)}
+.aid-viewer-art{position:absolute;left:0;display:grid;place-items:center;overflow:hidden;animation:aid-swap .26s ease-out}
+.aid-viewer.is-fill .aid-viewer-art{inset:0;width:auto!important;height:auto!important}
+@keyframes aid-swap{from{opacity:0;transform:scale(.985)}}
+.aid-viewer-art .aid-art-img{position:relative;width:100%;height:100%;object-fit:contain;user-select:none}
+.aid-viewer-art .lib-design-thumbnail{width:100%;height:100%}
+.aid-viewer-art .loader-inline{height:100%;overflow:auto}
+.aid-art-blur{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(26px) brightness(.5);transform:scale(1.12)}
+.aid-art-busy{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#02060b8c;color:#3fe6f5;font-size:13px;text-align:center}
+.aid-art-wait{display:grid;place-items:center;width:100%;height:100%;color:#3fe6f5}
+.aid-art-wait.is-error{color:#ffb4b4}
+.aid-art-error{display:grid;justify-items:center;gap:10px;padding:16px;color:#ffd7d7;text-align:center}
+.aid-art-error p{margin:0;font-size:13.5px}
+/* ⋯ and full screen, top right on the picture. */
+.aid-viewer-tools{position:absolute;z-index:4;top:10px;right:10px;display:flex;gap:8px}
+.aid-round{display:grid;place-items:center;width:40px;height:40px;padding:0;border:1px solid #ffffff2e;border-radius:50%;background:#0a1520b3;color:#eef6fc;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background .2s,border-color .2s}
+.aid-round:hover:not(:disabled),.aid-round[aria-expanded=true]{border-color:#19d6ea;background:#0b2636e6}
+.aid-round:disabled{opacity:.4}
+.aid-kebab-wrap{position:relative}
+.aid-menu.aid-kebab-menu{left:auto;right:0;top:calc(100% + 6px);min-width:236px}
+/* The other designs: bigger cards stacked at the right of the frame (a row under it on phones); tap one to show it large. */
+.aid-side{grid-area:side;display:flex;flex-direction:column;gap:6px;min-width:0;min-height:0}
+.aid-thumbs{flex:1;min-height:0;display:flex;flex-direction:column;gap:14px}
+.aid-thumb-item{flex:1 1 0;min-height:0;max-height:300px;display:flex}
+.aid-thumb{position:relative;display:block;flex:1;width:100%;min-height:0;padding:4px;border:1px solid #3fe6f5cc;border-radius:14px;background:#02060b99;box-shadow:0 6px 18px #000b,0 0 12px #00d9ed33;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);cursor:pointer;transition:transform .18s,border-color .18s,box-shadow .18s}
+.aid-thumb:hover:not(:disabled){transform:translateY(-2px);border-color:#7ff3ff;box-shadow:0 8px 22px #000c,0 0 18px #00d9ed66}
+.aid-thumb:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.aid-thumb:disabled{cursor:default}
+.aid-thumb-art{position:relative;display:grid;place-items:center;width:100%;height:100%;border-radius:10px;overflow:hidden;background:#02070d}
+/* Pinned to the card (a percent height in the grid read the picture's own height and showed only its top: 242.png). */
+.aid-thumb-art .aid-art-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.aid-thumb-art .lib-design-thumbnail{width:100%;height:100%}
+.aid-thumb-num{position:absolute;top:8px;left:8px;display:grid;place-items:center;width:24px;height:24px;border:1.5px solid #3fe6f5;border-radius:50%;background:#02060bc7;color:#3fe6f5;font-size:12.5px;font-weight:700;line-height:1}
+.aid-thumbs-hint{display:block;color:#c9d6e2;font-size:12px;line-height:1.2;letter-spacing:.04em;text-align:center;text-shadow:0 1px 3px #000,0 0 8px #000}
+/* Controls: one compact row, then the slim refine bar. */
+.aid-controls{grid-area:controls;display:flex;flex-wrap:wrap;gap:10px;min-width:0}
+.aid-controls>*{flex:1 1 100%;min-width:0}
+.aid-controls>.aid-actions{flex:3 1 400px}
+.aid-controls>.aid-player{flex:1 1 200px;width:auto;margin:0}
+.aid-actions{display:flex;gap:10px}
+.aid-controls .aid-open3d{flex:1;min-width:0;min-height:54px;padding:10px 18px;gap:12px;border-radius:14px;background:linear-gradient(90deg,#17d8f0,#1aa6f6 55%,#2f7bff);color:#031423;font:700 clamp(16px,1.25vw,19px)/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.03em;box-shadow:0 0 22px #00d9ed4d}
+.aid-controls .aid-open3d:hover:not(:disabled){filter:brightness(1.08)}
+.aid-controls .aid-open3d:disabled{opacity:.55}
+.aid-open3d span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aid-dl{flex:none;display:grid;place-items:center;width:58px;min-height:52px;padding:0;border:1.5px solid #19d6eacc;border-radius:14px;background:#04101acc;color:#3fe6f5;transition:background .2s,border-color .2s}
+.aid-dl:hover:not(:disabled){background:#0b2636;border-color:#3fe6f5}
+.aid-dl:disabled{opacity:.45}
+.aid-refine{border:1.5px solid #19d6eab3;border-radius:28px;background:linear-gradient(180deg,#07131ecc,#030a12e6);box-shadow:0 0 18px #00d9ed2e,inset 0 0 14px #00d9ed12;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:border-color .2s,border-radius .2s}
+.aid-refine:focus-within{border-color:#3fe6f5}
+.aid-refine.is-open{border-radius:20px;padding-bottom:8px;max-height:min(62svh,560px);overflow-y:auto}
+.aid-refine-row{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 16px}
+.aid-refine.is-open .aid-refine-row{align-items:flex-end}
+.aid-refine-icon{flex:none;color:#3fe6f5;align-self:center}
+.aid-refine-field{flex:1;min-width:0;display:flex}
+.aid-refine-field textarea{display:block;width:100%;min-height:40px;padding:10px 6px;border:0;background:none;color:#eef5fc;font-size:16px;line-height:1.35;resize:none;outline:none}
+.aid-refine:not(.is-open) .aid-refine-field textarea{height:40px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.aid-refine-field textarea::placeholder{color:#a3b2c2}
+.aid-refine-field textarea:focus-visible{outline:none}
+.aid-refine-close{flex:none;display:grid;place-items:center;width:38px;height:42px;padding:0;border:0;border-radius:10px;background:none;color:#cfe0ec}
+.aid-refine-close:hover{background:#ffffff10}
+.aid-refine-go{flex:none;display:grid;place-items:center;width:42px;height:42px;padding:0;border:0;border-radius:50%;background:#14d8ec;color:#021219;box-shadow:0 0 14px #00d9ed80;transition:opacity .2s,background .2s}
+.aid-refine-go:hover:not(:disabled){background:#3fe6f5}
+.aid-refine-go:disabled{opacity:.4;box-shadow:none}
+.aid-refine-brief{display:grid;gap:6px;padding:4px 8px 0}
+.aid-refine-brief .aid-menu-label{margin:4px 8px 0}
+.aid-refine-brief .aid-prompt{width:100%;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.aid-refine-brief .aid-menu{top:auto;bottom:calc(100% + 8px)}
+.aid-controls .aid-error,.aid-controls .aid-info{margin:0}
+.aid-controls .aid-ask{margin-top:0}
+/* The full-screen picture: alone, pinch, scroll or double-tap to zoom. */
+.aid-full{position:fixed;inset:0;z-index:1000;background:#010409f7;animation:aid-pop .18s ease-out}
+.aid-full-stage{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;touch-action:none;cursor:zoom-in;padding:max(env(safe-area-inset-top),12px) max(env(safe-area-inset-right),12px) max(env(safe-area-inset-bottom),12px) max(env(safe-area-inset-left),12px)}
+.aid-full-stage img{max-width:100%;max-height:100%;object-fit:contain;transform-origin:50% 50%;user-select:none;-webkit-user-drag:none;will-change:transform}
+.aid-full-close{position:absolute;top:max(env(safe-area-inset-top),14px);right:max(env(safe-area-inset-right),14px);width:46px;height:46px}
+.aid-full-bar{position:absolute;left:50%;bottom:max(env(safe-area-inset-bottom),16px);transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:6px;border:1px solid #ffffff1f;border-radius:999px;background:#0a1520cc;color:#dce8f1;font-size:13px;font-variant-numeric:tabular-nums}
+.aid-full-bar span{min-width:44px;text-align:center}
+@media(max-width:800px){.aid-results-stage{height:calc(100svh - 69px)}}
+/* Tablets and small laptops: the controls end where the ASSIST button starts, so they stay clear of it. */
+@media(min-width:760px) and (max-width:1279px){.aid-results-stage{padding-bottom:84px}}
+/* Phones: the picture edge to edge, the controls clear of the ASSIST button. */
+@media(max-width:759px){
+  .aid-results-stage{min-height:600px;padding:2px 0 12px}
+  /* Portrait designs need the height: ASSIST becomes a round button beside the refine bar (as in the app). */
+  body:has(.aid-results-stage) .assist-launcher{width:52px;height:52px;padding:0;justify-content:center;border-radius:50%}
+  body:has(.aid-results-stage) .assist-launcher span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .aid-refine{margin-right:60px}
+  .aid-results{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-areas:"head" "view" "side" "controls";gap:8px}
+  .aid-results-head{padding:0 8px}
+  .aid-side{padding:0 14px}
+  .aid-side:empty{display:none}
+  .aid-thumbs{flex:none;flex-direction:row;gap:8px}
+  .aid-thumb-item{flex:1 1 0;height:clamp(78px,24vw,120px);max-height:none}
+  .aid-thumb{padding:3px;border-radius:12px}
+  .aid-thumb-art{border-radius:9px}
+  .aid-viewer{border-radius:0;box-shadow:none}
+  .aid-viewer-clip{border-radius:0}
+  .aid-controls{padding:0 14px}
+  .aid-controls .aid-open3d{min-height:52px;font-size:17px}
+  .aid-dl{width:54px;min-height:50px}
+  .aid-thumbs-hint{display:none}
+  .aid-thumb-num{top:4px;left:4px;width:20px;height:20px;font-size:11px}
+  .aid-menu.aid-kebab-menu{position:fixed;left:16px;right:16px;top:auto;bottom:96px;min-width:0}
+}
+@media(prefers-reduced-motion:reduce){.aid-viewer-art,.aid-full{animation:none}.aid-thumb{transition:none}}

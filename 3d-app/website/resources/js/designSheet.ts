@@ -3,6 +3,8 @@
 // loaded from media/vendor only when someone downloads a sheet.
 import { media } from './api';
 import type { Design } from './types';
+import { varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, fabricLabel } from './components/KitViewer';
+import { allParts, partLabels, partSummary } from './parts';
 
 interface Pdf {
     setFont(name: string, style?: string): void;
@@ -106,13 +108,49 @@ export async function designSheetPdf(info: SheetInfo): Promise<Blob> {
         pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(93, 107, 123); pdf.text(`RGB ${rgb.join(', ')}   CMYK ${cmykOf(rgb).join(', ')}`, x0 + 12, y + 3.8);
         y += 11;
     }
-    if (d.gradient) row('Gradient', `${d.gradient.from.toUpperCase()} to ${d.gradient.to.toUpperCase()}, ${d.gradient.angle}°`);
+    // Gradient fills, per colour zone: every stop (Sunset has three), and the angle.
+    for (const [label, g] of [['Primary', d.gradient], ['Secondary', d.gradients?.secondary], ['Pattern', d.gradients?.patternColor]] as const) {
+        if (!g) continue;
+        const stops = g.stops && g.stops.length >= 2 ? g.stops : [{ color: g.from, at: 0 }, { color: g.to, at: 1 }];
+        row(`${label} gradient`, `${stops.map(s => `${s.color.toUpperCase()} ${Math.round(s.at * 100)}%`).join(' > ')}, ${g.angle}°`);
+    }
+    // A hoodie's own colour areas (the Studio's HOODIE AREAS); unset ones follow the body and Secondary colours.
+    const areas = Object.entries(d.zoneColors ?? {}).filter((e): e is [string, string] => typeof e[1] === 'string' && !!e[1]);
+    if (d.garment === 'varsity') {
+        // The varsity jacket's VARSITY AREAS, each as the 3D kit shows it (its own colour or the one it follows).
+        heading('VARSITY AREAS');
+        // Short names: the label column is 27 mm wide ("Collar, cuffs & waistband" would run into its value).
+        const short: Record<string, string> = { body: 'Body', sleeves: 'Sleeves', rib: 'Rib trims', ribStripe: 'Rib stripes', snaps: 'Snaps', pocketTrim: 'Pocket trim', lining: 'Lining' };
+        for (const a of varsityAreas) { const hex = varsityColour(d, a.key); row(short[a.key] ?? a.label, `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}${d.zoneColors?.[a.key] ? '' : `   (${a.follows})`}`); }
+    } else if (d.garment === 'trackjacket') {
+        // The track jacket's TRACK JACKET AREAS, each as the 3D kit shows it, and its style (collar or hood).
+        heading('TRACK JACKET AREAS');
+        row('Style', d.trackStyle === 'hood' ? 'Hood' : 'Stand-up collar');
+        // Short labels: the sheet's label column is narrow.
+        const short: Partial<Record<string, string>> = { shoulder: 'Shoulder panels', cuffs: 'Cuffs & hem' };
+        for (const a of trackAreas) { const hex = trackColour(d, a.key); row(short[a.key] ?? trackAreaLabel(a.key, d.trackStyle), `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}${d.zoneColors?.[a.key] ? '' : `   (${a.follows})`}`); }
+    } else if (areas.length) {
+        heading('HOODIE AREAS');
+        const names: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Rib cuffs', pocket: 'Pocket', zip: 'Zip', stripe: 'Sleeve stripe' };
+        for (const [area, hex] of areas) row(names[area] ?? title(area), `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}`);
+    }
+    // Parts with a look of their own (task 9.134: the Parts panel), and the objects on one part only.
+    const ownParts = allParts.filter(key => d.parts?.[key]);
+    const onParts = (d.layers ?? []).filter(l => l.clip);
+    if (ownParts.length || onParts.length) {
+        heading('PARTS');
+        for (const key of ownParts) row(partLabels[key], partSummary(d.parts![key]!));
+        for (const l of onParts) row(`On ${partLabels[l.clip!].toLowerCase()}`, `${l.type === 'text' ? `Text "${l.text ?? ''}"` : l.type === 'image' ? l.name ?? 'Logo' : 'Shape'}${typeof l.opacity === 'number' && l.opacity < 1 ? ` · ${Math.round(l.opacity * 100)}% opacity` : ''}`);
+    }
+    // The fabric the kit is made of (Colours › Fabric type; Standard: the garment's own).
+    heading('FABRIC');
+    row('Fabric', fabricLabel(d));
     heading('PATTERN');
     row('Style', d.pattern);
     if (d.patternScale) row('Size', `${Math.round(d.patternScale * 100)}%`);
     if (d.patternImage) row('Custom', 'Pattern image');
     // Patterns set on single areas of the garment (body, yoke, sleeves, sides, hem).
-    for (const [zone, pattern] of Object.entries(d.zones ?? {})) if (pattern) row(title(zone), title(String(pattern)));
+    for (const [zone, pattern] of Object.entries(d.zones ?? {})) if (pattern) row(title(zone), /^(data:image\/|\/|https?:)/.test(String(pattern)) ? 'My pattern' : title(String(pattern)));
     heading('TEXT AND NUMBER');
     row('Front text', d.logoText);
     row('Back name', d.backName ?? '');

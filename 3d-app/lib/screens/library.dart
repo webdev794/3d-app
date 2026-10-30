@@ -3,8 +3,16 @@ import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/notification_bell.dart';
+import '../widgets/site_page_stub.dart'
+    if (dart.library.js_interop) '../widgets/site_page_web.dart'
+    if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/ui.dart';
+import 'business.dart';
+import 'edit_profile.dart';
+import 'image_editor.dart';
 import 'onboarding.dart' show editServer;
+import 'team.dart' show TeamScreen;
 
 class _Tabs extends StatelessWidget {
   const _Tabs({
@@ -94,6 +102,62 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (ok == true) widget.c.deleteProject(p);
   }
 
+  /// Long-press: order the kit or delete it (as the website's project menu).
+  Future<void> _actions(Project p) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Palette.surface,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                p.title,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(
+                p.approved
+                    ? 'Approved for production'
+                    : '${p.sport} · v${p.version}',
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, color: Palette.cyan),
+              title: const Text('Open in the studio'),
+              onTap: () => Navigator.pop(sheet, 'open'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.local_shipping_outlined,
+                color: Palette.cyan,
+              ),
+              title: const Text('Order this kit'),
+              onTap: () => Navigator.pop(sheet, 'order'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline,
+                color: Color(0xffff6b78),
+              ),
+              title: const Text('Delete'),
+              onTap: () => Navigator.pop(sheet, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    switch (action) {
+      case 'open':
+        widget.c.loadProject(p);
+      case 'order':
+        await showOrderKitSheet(context, widget.c, p);
+      case 'delete':
+        await _confirmDelete(p);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
@@ -101,6 +165,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       (p) => switch (_tab) {
         'AI Designs' => p.mode == 'AI',
         'DYO Designs' => p.mode == 'DYO',
+        'Approved' => p.approved,
         _ => true,
       },
     );
@@ -108,7 +173,23 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       children: [
         TopBar(
           title: 'My projects',
+          // Assets left the bottom bar (client picture 168.jpg): it opens from here and from Profile.
+          leading: TextButton.icon(
+            key: const ValueKey('projects-assets'),
+            onPressed: () => c.go(AppScreen.assets),
+            style: TextButton.styleFrom(
+              foregroundColor: Palette.cyan,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+            icon: const Icon(Icons.layers_outlined, size: 19),
+            label: const Text(
+              'Assets',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            ),
+          ),
           trailing: [
+            NotificationBell(c),
             IconButton(
               tooltip: 'New design',
               onPressed: () => c.go(AppScreen.home),
@@ -117,16 +198,27 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ],
         ),
         _Tabs(
-          labels: const ['All Designs', 'AI Designs', 'DYO Designs'],
+          labels: const [
+            'All Designs',
+            'AI Designs',
+            'DYO Designs',
+            'Approved',
+          ],
           selected: _tab,
           onSelect: (t) => setState(() => _tab = t),
         ),
         Expanded(
           child: shown.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No designs here yet.',
-                    style: TextStyle(color: Palette.muted),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: Text(
+                      _tab == 'Approved'
+                          ? 'Kits approved for production by 3DEEZI appear here.'
+                          : 'No designs here yet.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Palette.muted),
+                    ),
                   ),
                 )
               : GridView(
@@ -142,7 +234,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       GlowCard(
                         glow: false,
                         onTap: () => c.loadProject(p),
-                        onLongPress: () => _confirmDelete(p),
+                        onLongPress: () => _actions(p),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -169,6 +261,35 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                         size: 17,
                                         color: Palette.cyan,
                                         shadows: const [Shadow(blurRadius: 6)],
+                                      ),
+                                    ),
+                                  if (p.approved)
+                                    Positioned(
+                                      left: 7,
+                                      bottom: 7,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 7,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xe6052a1f),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xff34d399),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'APPROVED',
+                                          style: TextStyle(
+                                            color: Color(0xff34d399),
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: .8,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   if (p.localSaveError != null)
@@ -203,7 +324,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${p.sport} · v${p.version} · ${p.age}',
+                                    // The sport's garment tile ("Netball dress"), when the kit has one.
+                                    '${p.sport}${p.kit.productName.isEmpty ? '' : ' · ${p.kit.productName}'} · v${p.version} · ${p.age}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -290,6 +412,11 @@ class _AssetsScreenState extends State<AssetsScreen> {
                 title: const Text('Use as AI reference'),
                 onTap: () => Navigator.pop(sheet, 'reference'),
               ),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit image'),
+                onTap: () => Navigator.pop(sheet, 'edit'),
+              ),
             ],
           ),
         ),
@@ -307,6 +434,21 @@ class _AssetsScreenState extends State<AssetsScreen> {
       case 'reference':
         c.startAi();
         c.update(() => c.references.add(data));
+      case 'edit':
+        // The image editor; Save keeps the chosen version as a new picture.
+        if (!mounted) return;
+        final tab = _tab, list = _items;
+        final edited = await openImageEditor(
+          context,
+          c,
+          bytes: data,
+          title: tab,
+          fileName: '3deezi-${tab.toLowerCase()}',
+          useLabel: 'Save',
+        );
+        if (edited == null || !mounted) return;
+        setState(() => list.add(edited));
+        showToast(context, 'Saved as a new picture in $tab.');
     }
   }
 
@@ -316,7 +458,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
     final canUpload = _tab == 'Logos' || _tab == 'Uploads';
     return Column(
       children: [
-        const TopBar(title: 'Assets', subtitle: 'Logos · patterns · artwork'),
+        TopBar(
+          // Opened from Projects or Profile (no longer a bottom-bar tab).
+          onBack: c.back,
+          title: 'Assets',
+          subtitle: 'Logos · patterns · artwork',
+          trailing: [NotificationBell(widget.c)],
+        ),
         _Tabs(
           labels: const ['Logos', 'Patterns', 'Artwork', 'Uploads'],
           selected: _tab,
@@ -420,10 +568,11 @@ class ProfileScreen extends StatelessWidget {
   const ProfileScreen(this.c, {super.key});
   final AppController c;
 
-  Widget _stat(String value, String label) => Column(
+  /// A count over its noun: "1 Project", "6 Projects".
+  Widget _stat(int count, String noun) => Column(
     children: [
       Text(
-        value,
+        '$count',
         style: const TextStyle(
           fontFamily: 'Rajdhani',
           fontSize: 28,
@@ -431,25 +580,34 @@ class ProfileScreen extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
-      Text(label, style: const TextStyle(color: Palette.muted, fontSize: 10)),
+      Text(
+        count == 1 ? noun : '${noun}s',
+        style: const TextStyle(color: Palette.muted, fontSize: 10),
+      ),
     ],
   );
 
+  // The arrows sit left of the round Assist button (bottom right), so it never
+  // covers them (QA 10-28: "Orders" and "My orders").
   Widget _row(IconData icon, String label, VoidCallback tap) => ListTile(
-    contentPadding: EdgeInsets.zero,
+    contentPadding: const EdgeInsets.only(right: 46),
     leading: Icon(icon, color: Palette.cyan, size: 22),
     title: Text(label, style: const TextStyle(fontSize: 13)),
     trailing: const Icon(Icons.chevron_right, size: 18),
     onTap: tap,
   );
 
+  // StatefulBuilder: Profile shows the new name and email after Edit profile.
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) =>
+      StatefulBuilder(builder: (context, refresh) => _build(context, refresh));
+
+  Widget _build(BuildContext context, StateSetter refresh) => Column(
     children: [
-      const TopBar(title: 'Profile'),
+      TopBar(title: 'Profile', trailing: [NotificationBell(c)]),
       Expanded(
         child: ListView(
-          padding: const EdgeInsets.all(22),
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 90),
           children: [
             const Center(
               child: CircleAvatar(
@@ -463,8 +621,14 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            // The account's own name (its email when it has none); a guest is
+            // "Guest", never the demo name in AppController.name.
             Text(
-              c.name,
+              c.signedIn
+                  ? (c.user!.name.trim().isNotEmpty
+                        ? c.user!.name.trim()
+                        : c.user!.email)
+                  : 'Guest',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
             ),
@@ -478,19 +642,32 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             _SyncCard(c),
+            // Edit profile (as the website's account menu): name, email, password.
+            if (c.signedIn) ...[
+              const SizedBox(height: 12),
+              _row(Icons.manage_accounts_outlined, 'Edit profile', () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => EditProfileScreen(c)),
+                );
+                refresh(() {});
+              }),
+            ],
             const SizedBox(height: 26),
             SurfaceCard(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _stat('${c.projects.length}', 'Projects'),
+                  _stat(c.projects.length, 'Project'),
                   _stat(
-                    '${c.logos.length + c.aiPatterns.length + c.uploads.length + c.artwork.length}',
-                    'Assets',
+                    c.logos.length +
+                        c.aiPatterns.length +
+                        c.uploads.length +
+                        c.artwork.length,
+                    'Asset',
                   ),
                   _stat(
-                    '${c.projects.where((p) => p.mode == 'AI').length}',
-                    'AI designs',
+                    c.projects.where((p) => p.mode == 'AI').length,
+                    'AI design',
                   ),
                 ],
               ),
@@ -508,6 +685,43 @@ class ProfileScreen extends StatelessWidget {
               'Asset library',
               () => c.go(AppScreen.assets),
             ),
+            // Orders (as ORDERS on the website): the Orders tab, the three ways to order.
+            _row(
+              Icons.receipt_long_outlined,
+              'Orders',
+              () => c.go(AppScreen.orderHub),
+            ),
+            _row(
+              Icons.local_shipping_outlined,
+              'My orders',
+              () => c.go(AppScreen.orders),
+            ),
+            // 3DEEZI TEAM (as on the website's menu): request a designer, my design requests.
+            _row(
+              Icons.groups_outlined,
+              '3DEEZI TEAM',
+              () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute<void>(builder: (_) => TeamScreen(c))),
+            ),
+            _row(
+              Icons.workspace_premium_outlined,
+              'Plans & pricing',
+              () => c.go(AppScreen.pricing),
+            ),
+            const SizedBox(height: 22),
+            // The website's footer pages, opened signed in (same as the site's footer links).
+            for (final (icon, label, path) in const [
+              (Icons.info_outline, 'About', '/about'),
+              (Icons.support_agent_outlined, 'Support', '/support'),
+              (Icons.privacy_tip_outlined, 'Privacy', '/privacy'),
+              (Icons.description_outlined, 'Terms', '/terms'),
+            ])
+              _row(
+                icon,
+                label,
+                () => openSitePage(context, c.api.sitePage(path), label),
+              ),
             const SizedBox(height: 22),
             _row(
               Icons.dns_outlined,

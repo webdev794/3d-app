@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
+import 'forgot_password.dart';
 
 /// 1 · Splash: brand mark, wordmark and a loading bar.
 class SplashScreen extends StatefulWidget {
@@ -163,9 +164,17 @@ class AuthScreen extends StatelessWidget {
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      // With the keyboard up the form fills the screen: keep it below the
+      // iPhone notch and give it a ✕.
+      useSafeArea: true,
       backgroundColor: Palette.surface,
-      showDragHandle: true,
-      builder: (_) => AccountSheet(c, register: register),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SheetTop(),
+          Flexible(child: AccountSheet(c, register: register)),
+        ],
+      ),
     );
     if (ok == true && context.mounted) {
       showToast(context, 'Signed in as ${c.user?.email}. Projects now sync.');
@@ -294,6 +303,9 @@ class AccountSheet extends StatefulWidget {
 
 class _AccountSheetState extends State<AccountSheet> {
   late bool _register = widget.register;
+
+  /// "Forgot password?": the code flow shows in place of the form.
+  bool _forgot = false;
   final _name = TextEditingController(), _email = TextEditingController();
   final _password = TextEditingController(), _confirm = TextEditingController();
   bool _busy = false;
@@ -374,77 +386,122 @@ class _AccountSheetState extends State<AccountSheet> {
       22 + MediaQuery.viewInsetsOf(context).bottom,
     ),
     child: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ScreenTitle(_register ? 'Create your account' : 'Sign in', size: 22),
-          const SizedBox(height: 6),
-          const Text(
-            'Your projects save to your 3DEEZI account and open on the website too.',
-            style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.4),
-          ),
-          const SizedBox(height: 16),
-          if (_register) _field(_name, 'Full name'),
-          _field(_email, 'you@club.com', keyboard: TextInputType.emailAddress),
-          _field(
-            _password,
-            _register ? 'Password (8+ characters)' : 'Password',
-            secret: true,
-            last: !_register,
-          ),
-          if (_register)
-            _field(_confirm, 'Confirm password', secret: true, last: true),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                _error!,
-                style: const TextStyle(
-                  color: Color(0xffff6b6b),
-                  fontSize: 12.5,
+      child: _forgot
+          ? ForgotPasswordPanel(
+              widget.c,
+              email: _email.text,
+              onBack: () => setState(() {
+                _forgot = false;
+                _error = null;
+              }),
+              onSignedIn: () => Navigator.pop(context, true),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ScreenTitle(
+                  _register ? 'Create your account' : 'Sign in',
+                  size: 22,
                 ),
-              ),
-            ),
-          const SizedBox(height: 4),
-          _busy
-              ? const SizedBox(
-                  height: 52,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : GradientButton(
-                  label: _register ? 'CREATE ACCOUNT' : 'SIGN IN',
-                  onPressed: _submit,
+                const SizedBox(height: 6),
+                const Text(
+                  'Your projects save to your 3DEEZI account and open on the website too.',
+                  style: TextStyle(
+                    color: Palette.muted,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
                 ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: _busy
-                ? null
-                : () => setState(() {
-                    _register = !_register;
-                    _error = null;
-                  }),
-            child: Text(
-              _register
-                  ? 'Already have an account? Sign in'
-                  : 'New to 3DEEZI? Create an account',
-              style: const TextStyle(color: Palette.cyan, fontSize: 12.5),
+                const SizedBox(height: 16),
+                if (_register) _field(_name, 'Full name'),
+                _field(
+                  _email,
+                  'you@club.com',
+                  keyboard: TextInputType.emailAddress,
+                ),
+                _field(
+                  _password,
+                  _register ? 'Password (8+ characters)' : 'Password',
+                  secret: true,
+                  last: !_register,
+                ),
+                if (_register)
+                  _field(
+                    _confirm,
+                    'Confirm password',
+                    secret: true,
+                    last: true,
+                  ),
+                if (!_register)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() {
+                              _forgot = true;
+                              _error = null;
+                            }),
+                      child: const Text(
+                        'Forgot password?',
+                        style: TextStyle(color: Palette.cyan, fontSize: 12.5),
+                      ),
+                    ),
+                  ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(
+                        color: Color(0xffff6b6b),
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                _busy
+                    ? const SizedBox(
+                        height: 52,
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : GradientButton(
+                        label: _register ? 'CREATE ACCOUNT' : 'SIGN IN',
+                        onPressed: _submit,
+                      ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() {
+                          _register = !_register;
+                          _error = null;
+                        }),
+                  child: Text(
+                    _register
+                        ? 'Already have an account? Sign in'
+                        : 'New to 3DEEZI? Create an account',
+                    style: const TextStyle(color: Palette.cyan, fontSize: 12.5),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _busy ? null : _server,
+                  icon: const Icon(
+                    Icons.dns_outlined,
+                    size: 15,
+                    color: Palette.muted,
+                  ),
+                  label: Text(
+                    'Server: ${widget.c.api.host}',
+                    style: const TextStyle(
+                      color: Palette.muted,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          TextButton.icon(
-            onPressed: _busy ? null : _server,
-            icon: const Icon(
-              Icons.dns_outlined,
-              size: 15,
-              color: Palette.muted,
-            ),
-            label: Text(
-              'Server: ${widget.c.api.host}',
-              style: const TextStyle(color: Palette.muted, fontSize: 11.5),
-            ),
-          ),
-        ],
-      ),
     ),
   );
 }
