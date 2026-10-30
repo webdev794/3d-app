@@ -158,7 +158,8 @@ class SportGarmentTilesTest extends TestCase
         foreach ([['netball', 'Netball skirt'], ['hockey', 'Hockey skort'], ['tennis', 'Tennis skirt']] as [$sport, $name]) {
             $tile = collect($sports[$sport]['tiles'])->firstWhere('name', $name);
             $this->assertSame(['skirt', 'exact', 'netball-skirt'], [$tile['garment'], $tile['fit'], $tile['image']], $name);
-            $this->assertSame(['#27282a', '#16b4f0', 'None'], [$tile['design']['main'], $tile['design']['secondary'], $tile['design']['pattern']], $name);
+            // (The side panels' cyan as measured on the skirt picture, FM 2026-10-30.)
+            $this->assertSame(['#27282a', '#25c6f2', 'None'], [$tile['design']['main'], $tile['design']['secondary'], $tile['design']['pattern']], $name);
             $this->assertContains('skirt', $sports[$sport]['garments'], $sport);
         }
         $this->assertContains('skirt', array_column(config('catalog.garments'), 'id'));

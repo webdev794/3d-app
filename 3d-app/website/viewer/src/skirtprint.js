@@ -12,9 +12,11 @@ export const SKIRT_PARTS = ['front', 'back', 'sides', 'hem', 'skirtBand'];
 const HEM_TOP = 0.06;
 /**
  * The side panel's half-width round the side seam, as a share of the girth (the side seam is at a quarter): as the
- * picture's panels, which show about 31 of its 768 pixels wide under the waistband and 36 at the hem.
+ * picture's panels, which keep about the same width seen from the front, a little narrower at the hem (36, 36, 33, 32
+ * and 27 of its 768 pixels from under the waistband to the hem). As the skirt flares the panel turns away round the side,
+ * so it takes a smaller share of the wider girth towards the hem (FM 2026-10-30: it widened towards the hem before).
  */
-const sideShare = (y) => 0.063 + 0.0375 * Math.min(Math.max(y, 0), SKIRT_SEAM);
+const sideShare = (y) => 0.051 + 0.152 * Math.min(Math.max(y, 0), 0.22);
 /** The side panel's inner edge (its seam with the front or back) at height y, on the +x side. */
 const sideEdge = (y) => (0.25 - sideShare(y)) * skirtGirth(y);
 /** The inner edge from under the waistband down past the hem, as points. */
@@ -26,7 +28,7 @@ const box = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 
 /** Where the crest and the club's word sit: low on the wearer's left front, the word under the crest (the picture). */
 export const SKIRT_CREST = { side: 'front', x: 0.12, y: 0.079 };
-export const SKIRT_WORD = { side: 'front', x: 0.12, y: 0.047 };
+export const SKIRT_WORD = { side: 'front', x: 0.1175, y: 0.047 };
 
 /** The areas a pattern can be dropped onto (zones.js): the body, the side panels (in thin slices following their
  *  slanted seam) and the hem. */
@@ -87,61 +89,115 @@ function random(seed) {
 
 /**
  * The elastic's puckers, channel by channel between the stitched rows (garment metres): [x, pitch, bottom, top, dark,
- * light], the same every time. The cloth over the elastic bunches into upright puckers about 4 mm apart, uneven in
- * spacing and height, short in the narrow channels and longer in the wide middle one (DT4: the picture's ruching, not
- * a fine even rib).
+ * light, lean, wave, deep], the same every time. The cloth over the elastic bunches into fine upright puckers about
+ * 2-3 mm apart, short in the narrow channels and longer in the wide middle one, as the picture's (FM 2026-10-30: soft and
+ * rounded, no longer hard-edged blocks that read as a printed barcode). Round 3: bunched and uneven: puckers packed
+ * tight in bunches, with now and then a wider, deeper valley between bunches; nearly straight (a slight lean); most
+ * crowns dull, a few catching the light.
  */
 let puckerList = null;
 function puckers() {
   if (puckerList) return puckerList;
   const rnd = random(11), edges = [SKIRT_SEAM, ...[...SKIRT_ROWS].reverse(), SKIRT_LEN], out = [];
   for (let c = 0; c < edges.length - 1; c++) {
-    const y0 = edges[c] + 0.0004, y1 = edges[c + 1] - 0.0004, h = y1 - y0;
+    const y0 = edges[c] + 0.0005, y1 = edges[c + 1] - 0.0005, h = y1 - y0;
     for (let x = -0.5; x < 0.5;) {
-      const p = 0.004 * (0.65 + 0.7 * rnd()), a = y0 + h * 0.22 * rnd(), b = y1 - h * 0.22 * rnd();
-      out.push([x, p, a, b, 0.34 + 0.16 * rnd(), 0.1 + 0.1 * rnd()]);
+      // A bunch: tight puckers; then (one time in four or five) a wide, deep valley before the next.
+      const deep = rnd() < 0.22, p = 0.0024 * (deep ? 1.35 + 0.5 * rnd() : 0.6 + 0.55 * rnd()), a = y0 + h * 0.08 * rnd(), b = y1 - h * 0.08 * rnd();
+      // A slight wander up the channel (the gathered cloth buckles), out of step with its neighbours.
+      const wave = { amp: p * (0.01 + 0.03 * rnd()), len: 0.008 + 0.008 * rnd(), phase: 2 * Math.PI * rnd() }, lit = rnd();
+      out.push([x, p, a, b, (deep ? 0.62 : 0.4) + 0.2 * rnd(), 0.1 + 0.1 * lit * lit, (rnd() - 0.5) * Math.min(0.0009, h * 0.06), wave, deep]);
       x += p;
     }
   }
   return (puckerList = out);
 }
+/** A pucker's line from y0 up to y1, `dx` across from its left edge: leaning, and wandering in its wave. */
+function puckerPath(g, [x, , , , , , lean, wave], dx, y0, y1) {
+  const n = Math.max(2, Math.ceil((y1 - y0) / 0.0008));
+  g.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const y = y0 + ((y1 - y0) * i) / n, t = i / n;
+    const px = x + dx + lean * t + wave.amp * Math.sin((2 * Math.PI * (y - y0)) / wave.len + wave.phase);
+    if (i) g.lineTo(px, y); else g.moveTo(px, y);
+  }
+}
+/** A soft profile along a path: layered round-capped strokes, widest and faintest first (a rounded crown, no hard edge). */
+function softStroke(g, path, width, alpha, rgb, layers = [[1, 0.3], [0.62, 0.35], [0.3, 0.35]]) {
+  for (const [w, a] of layers) {
+    g.strokeStyle = `rgba(${rgb},${alpha * a})`;
+    g.lineWidth = width * w;
+    path(g);
+    g.stroke();
+  }
+}
+const straight = (x0, y0, x1, y1) => (g) => { g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); };
 
+/** How much darker the waistband's gathered face is than the skirt's cloth (round 3). */
+const BAND_SHADE = 0.1;
 /**
  * The elastic's ruching (garment metres, clipped to the waistband): the band is stitched in channels; the cloth over
- * the elastic is gathered into puckers, each a dark valley and a lit crown. Then the stitched rows, and the top edge
- * rolled over.
+ * the elastic is gathered into fine puckers, each a soft dark valley and a softly lit, rounded crown, leaning a little
+ * this way or that. Then the stitched rows, and the top edge rolled over: a lit crest with a shade under it.
  */
 function ruching(g) {
-  // Each pucker soft and rounded at its ends: a narrow dark valley, then a broad, faintly lit crown.
   g.save();
+  g.setLineDash([]);
   g.lineCap = 'round';
-  for (const [x, p, a, b, dark, light] of puckers()) {
-    const r = p * 0.11, cx = x + p * 0.62, w = p * 0.5;
-    g.strokeStyle = `rgba(0,0,0,${dark})`;
-    g.lineWidth = p * 0.22;
-    g.beginPath(); g.moveTo(x + r, a + r); g.lineTo(x + r, b - r); g.stroke();
-    g.strokeStyle = `rgba(255,255,255,${light * 0.6})`;
-    g.lineWidth = w;
-    g.beginPath(); g.moveTo(cx, a + w / 2); g.lineTo(cx, Math.max(a + w / 2, b - w / 2)); g.stroke();
+  g.lineJoin = 'round';
+  // Gathered cloth is mostly in its own shade: the band's face darker than the skirt's (the picture: 19-27 against
+  // the skirt's 26-29), lit only along the crowns (round 3).
+  g.fillStyle = `rgba(0,0,0,${BAND_SHADE})`;
+  g.fillRect(-0.5, SKIRT_SEAM, 1, SKIRT_LEN - SKIRT_SEAM);
+  for (const k of puckers()) {
+    const [, p, a, b, dark, light, , , deep] = k, r = p * 0.2;
+    softStroke(g, (c) => puckerPath(c, k, 0, a + r, b - r), p * (deep ? 0.9 : 0.5), dark, '0,0,0');
+    softStroke(g, (c) => puckerPath(c, k, p * 0.45, a + p * 0.5, Math.max(a + p * 0.5, b - p * 0.5)), p * 0.5, light, '255,255,255', [[1, 0.45], [0.5, 0.55]]);
   }
   g.restore();
-  // The stitched rows: a groove where the thread pulls the elastic in.
-  g.fillStyle = 'rgba(0,0,0,0.5)';
-  for (const y of SKIRT_ROWS) g.fillRect(-0.5, y - 0.0006, 1, 0.0012);
-  // The rolled top edge catches the light; the seam under the band sits in shade.
-  g.fillStyle = 'rgba(255,255,255,0.12)';
-  g.fillRect(-0.5, SKIRT_LEN - 0.0012, 1, 0.0012);
+  // The stitched rows: a soft groove where the thread pulls the elastic in.
+  for (const y of SKIRT_ROWS) {
+    g.fillStyle = 'rgba(0,0,0,0.16)'; g.fillRect(-0.5, y - 0.0011, 1, 0.0022);
+    g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(-0.5, y - 0.0005, 1, 0.001);
+  }
+  // The rolled top edge: its crest catches the light, then turns away into shade; the seam under the band in shade.
+  const roll = g.createLinearGradient(0, SKIRT_LEN, 0, SKIRT_LEN - 0.0042);
+  roll.addColorStop(0, 'rgba(255,255,255,0.04)');
+  roll.addColorStop(0.3, 'rgba(255,255,255,0.16)');
+  roll.addColorStop(0.62, 'rgba(0,0,0,0)');
+  roll.addColorStop(1, 'rgba(0,0,0,0.3)');
+  g.fillStyle = roll;
+  g.fillRect(-0.5, SKIRT_LEN - 0.0042, 1, 0.0042);
   g.fillStyle = 'rgba(0,0,0,0.4)';
   g.fillRect(-0.5, SKIRT_SEAM, 1, 0.0009);
+}
+
+/**
+ * The puckers' relief (texture.js reliefMap, a height map in garment metres): each a rounded crown rising softly from
+ * its valley, so the light runs smoothly over it; and the rolled top edge's crest.
+ */
+function ruchingRelief(g) {
+  g.save();
+  g.setLineDash([]);
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  for (const k of puckers()) {
+    const [, p, a, b, , , , , deep] = k;
+    softStroke(g, (c) => puckerPath(c, k, p * 0.45, a + p * 0.3, Math.max(a + p * 0.3, b - p * 0.3)), p * 0.7, 1, '255,255,255', [[1, 0.06], [0.66, 0.07], [0.36, 0.08], [0.16, 0.065]]);
+    softStroke(g, (c) => puckerPath(c, k, 0, a, b), p * (deep ? 0.6 : 0.36), deep ? 0.45 : 0.32, '0,0,0', [[1, 0.6], [0.5, 0.6]]);
+  }
+  softStroke(g, straight(-0.5, SKIRT_LEN - 0.0016, 0.5, SKIRT_LEN - 0.0016), 0.0034, 1, '255,255,255', [[1, 0.12], [0.6, 0.14], [0.3, 0.14]]);
+  g.restore();
 }
 
 /** The seams' shade: the centre seam (front and back), the side panels' seams and a soft shadow under the waistband. */
 function seamShade(g) {
   g.save();
-  g.fillStyle = 'rgba(0,0,0,0.5)';
+  g.fillStyle = 'rgba(0,0,0,0.65)';
   g.fillRect(-0.0005, -0.03, 0.001, SKIRT_SEAM + 0.03);
-  g.fillStyle = 'rgba(255,255,255,0.06)';
-  g.fillRect(0.0008, -0.03, 0.0006, SKIRT_SEAM + 0.03);
+  // Its folded edge on the -x side catches a little light (the picture, round 3: 2 px left of the dark line).
+  g.fillStyle = 'rgba(255,255,255,0.03)';
+  g.fillRect(-0.0016, -0.03, 0.0007, SKIRT_SEAM + 0.03);
   g.strokeStyle = 'rgba(0,0,0,0.42)';
   g.lineWidth = 0.0009;
   for (const dir of [1, -1]) {
@@ -159,9 +215,9 @@ function seamShade(g) {
 
 /**
  * How the skirt is made (painted stitches and the relief map, texture.js): the centre seam, the side panels' seams and
- * the waistband's seam; the centre seam top-stitched either side and each side panel's seam top-stitched on the body
- * side; the hem's two rows of cover-stitch at the top of the hem turned up inside, and its turned-up edge; the
- * elastic's stitched rows (as seams: sunk grooves) and its puckers (`ridges`: raised crowns in the relief). The thread
+ * the waistband's seam; the centre seam top-stitched on its -x side only (one faint row about 4.5 mm off, the
+ * picture's; round 3) and each side panel's seam top-stitched on the body side; the hem's two rows of cover-stitch at the top of the hem turned up inside, and its turned-up edge; the
+ * elastic's stitched rows (as seams: sunk grooves) and its puckers (`relief`: soft raised crowns). The thread
  * is dark, tone on tone (`tone`), as in the picture.
  */
 export function skirtTailoring() {
@@ -169,14 +225,19 @@ export function skirtTailoring() {
   const side = (dir, inset = 0) => (c) => edge().forEach(([x, y], i) => (i ? c.lineTo(dir * (x - inset), y) : c.moveTo(dir * (x - inset), y)));
   return {
     seams: [line(0, -0.03, 0, SKIRT_SEAM), side(1), side(-1), line(-0.5, SKIRT_SEAM, 0.5, SKIRT_SEAM), ...SKIRT_ROWS.map((y) => line(-0.5, y, 0.5, y))],
-    stitches: [line(-0.5, 0.014, 0.5, 0.014), line(-0.5, 0.0175, 0.5, 0.0175), line(-0.0045, -0.03, -0.0045, SKIRT_SEAM), line(0.0045, -0.03, 0.0045, SKIRT_SEAM), side(1, 0.0025), side(-1, 0.0025)],
+    stitches: [line(-0.5, 0.0143, 0.5, 0.0143), line(-0.5, 0.0173, 0.5, 0.0173), line(-0.0045, -0.03, -0.0045, SKIRT_SEAM), side(1, 0.0025), side(-1, 0.0025)],
     folds: [line(-0.5, 0.0195, 0.5, 0.0195)],
-    ridges: [(c) => puckers().forEach(([x, p, a, b]) => { c.moveTo(x + p * 0.66, a); c.lineTo(x + p * 0.66, b); })],
+    // The elastic's puckers and rolled edge, soft rounded crowns (FM 2026-10-30: texture.js strokes `ridges` flat).
+    relief: ruchingRelief,
     tone: SKIRT_THREAD,
+    // Fine, short stitches (about 1.2 mm a stitch, the picture's), barely raised (round 3: long dashes before).
+    dash: [0.0008, 0.0004],
+    stitchRelief: 0.4,
   };
 }
-/** Dark thread sunk in the cloth: its shadow, the thread, a faint glint (texture.js stitches()). */
-const SKIRT_THREAD = [[0.00035, -0.00045, 'rgba(0,0,0,0.5)', 0.0012], [0, 0, 'rgba(0,0,0,0.3)', 0.001], [-0.00018, 0.00022, 'rgba(255,255,255,0.1)', 0.00045]];
+/** Dark thread sunk in the cloth, tone on tone and barely seen: a faint shadow, the thread, a faint glint (texture.js
+ *  stitches(); round 3: fainter and finer, as the picture's). */
+const SKIRT_THREAD = [[0.0002, -0.00025, 'rgba(0,0,0,0.26)', 0.0008], [0, 0, 'rgba(0,0,0,0.16)', 0.0006], [-0.00012, 0.00015, 'rgba(255,255,255,0.1)', 0.0003]];
 
 /** The marks: the crest (the club's logo, else the 3DEEZI "3" mark) and the club's word under it (3DEEZI: the real
  *  wordmark), low on the wearer's left front. No names or numbers on a skirt. */
@@ -192,6 +253,36 @@ export async function paintSkirtMarks(painter, design, loadImage, logo, textOutl
   }
   const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text' && !String(l.id ?? '').startsWith('kit-'));
   if (painter._logo) painter.markImage(design, 'crest', SKIRT_CREST, painter._logo, 0.05, 0.05);
-  else if (!ownArt) painter.markShield(design, 'crest', SKIRT_CREST, [[0, 0.0185], [0.0155, 0.009], [0.012, -0.011], [0, -0.0185], [-0.012, -0.011], [-0.0155, 0.009]], 0.016, 0.022);
+  // (FM 2026-10-30: the "3" mark 6 % smaller, as the picture's.)
+  else if (!ownArt) painter.markShield(design, 'crest', SKIRT_CREST, [[0, 0.0174], [0.0146, 0.0085], [0.0113, -0.0103], [0, -0.0174], [-0.0113, -0.0103], [-0.0146, 0.0085]], 0.016, 0.022);
   painter.markText(design, 'wordmark', SKIRT_WORD, logo, 0.0267, design.accent, 0.12, textOutline);
 }
+
+/**
+ * The skirt's light (main.js puts it into the skirt's shader, after the lighting, before the tone mapping), as the
+ * client's studio picture (FM 2026-10-30): its black a neutral black all over and evenly lit, its cyan panels clean and
+ * bright, its print's whites white.
+ * - Neutral cloth (black, greys, white) takes no colour from the lights: the stage's warm key and cool fill and rims
+ *   tinted it brown on one side and blue on the other. Coloured cloth keeps its own hue at the lit brightness.
+ * - Dark cloth gets a soft fill from the side away from the key light (fixed in the world, so it stays right as the
+ *   skirt turns): the picture's black is about as light on the far side as on the near. Round 3: the key's share on
+ *   dark cloth a sixth less, the fill a little more, so the black sits at the picture's 24-29, not 30-34.
+ * - Light cloth (the panels): the key's highlight softened and the shade lifted a little, so the panels stay clean and
+ *   bright as the picture's instead of paling to white on one side and dulling on the other.
+ * - The print's whites (the logo) as white as the picture's.
+ */
+export const SKIRT_LIGHT = `{
+  vec3 skW = vec3( 0.2126, 0.7152, 0.0722 );
+  vec3 skAlb = max( diffuseColor.rgb, vec3( 1e-4 ) );
+  float skA = dot( skAlb, skW ), skL = max( dot( outgoingLight, skW ), 1e-6 );
+  float skMax = max( skAlb.r, max( skAlb.g, skAlb.b ) ), skSat = ( skMax - min( skAlb.r, min( skAlb.g, skAlb.b ) ) ) / skMax;
+  float skNeutral = 1.0 - smoothstep( 0.2, 0.4, skSat ), skDark = 1.0 - smoothstep( 0.05, 0.2, skA ), skBright = smoothstep( 0.1, 0.3, skA );
+  outgoingLight = mix( skAlb / skA, vec3( 1.0 ), skNeutral ) * skL;
+  vec3 skKey = normalize( ( viewMatrix * vec4( -0.67, 0.62, 0.39, 0.0 ) ).xyz );
+  float skAway = clamp( 0.5 - 0.5 * dot( normal, skKey ), 0.0, 1.0 );
+  outgoingLight *= 1.0 - 0.16 * skDark;
+  outgoingLight += mix( skAlb, vec3( skA ), skNeutral ) * 2.0 * skAway * skDark;
+  float skE = skL / skA, skEven = ( 1.0 + ( skE - 1.0 ) * ( skE > 1.0 ? 0.08 : 0.5 ) ) * 1.05;
+  outgoingLight *= mix( 1.0, skEven / skE, skBright );
+  outgoingLight = mix( outgoingLight, max( outgoingLight, skAlb * 2.0 ), smoothstep( 0.3, 0.6, skA ) * skNeutral );
+}`;

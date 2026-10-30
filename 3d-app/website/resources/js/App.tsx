@@ -171,7 +171,7 @@ export default function App() {
     {catalogError && <div className="server-banner" role="alert">{catalogError} <button onClick={loadCatalog}>Retry connection</button></div>}
     <main><Routes>
       <Route path="/" element={<Home onStart={start} />} />
-      <Route path="/create/ai" element={<AiDesigner catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} onNotice={setNotice} />} />
+      <Route path="/create/ai" element={<AiDesigner catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} onNotice={setNotice} signedIn={!!user} checking={checkingSession} onOpenProject={openProject} />} />
       <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={sport => setDraft(d => ({ ...d, sport, mode: 'dyo', design: { ...d.design, ...backForSport(d.design, catalog, d.sport, sport) } }))} onNext={() => navigate('/create/garment')} />} />
       <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={({ garment, productName, design }) => setDraft(d => ({ ...d, garment, design: { ...d.design, ...design, ...tileMarks(d.design, design), garment: garment as Design['garment'], productName } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport', { state: { keep: true } })} />} />
       {/* Convert is in the PROJECTS menu (client 2026-10-26): the Projects tab row above it, as on My projects, Approved and Assets. */}

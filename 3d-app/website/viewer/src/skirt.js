@@ -134,8 +134,54 @@ function folds(y, q, detail) {
   const gathers = (0.0035 * Math.exp(-under / 0.035) * soft + 0.0007 * Math.exp(-under / 0.007) * tight) * ramp(0, 0.0012, under);
   // The flutes the same on both sides of the middle (DT4: the side panels showed unevenly from the front).
   const flutes = 0.0026 * ramp(0.24, 0.01, y) * Math.cos(9 * t + 0.5 * Math.sin(3 * t));
-  return { band: 0, gathers: g * gathers, flutes: g * flutes };
+  // The drape (CF1 2026-10-29, the tile picture): broad soft folds falling the whole length from under the gathers to
+  // the hem, fuller towards it, each leaning a little (some one way, some the other: long diagonal highlights), a
+  // mirror image either side of the middle so the side panels stay even.
+  // (FM 2026-10-30: deeper and leaning more, so their long soft highlights show as on the picture; nearly as deep in
+  // the standard look as in look 2.)
+  // (FM round 3: the front's folds run round from the front's middle and the back's from the back's middle, each a
+  // mirror image about its own middle, blended over the sides. One phase from the front only stood still round the
+  // back's middle, so there the folds changed only with height: rings like a target on the upper back.)
+  const fall = (under - 0.02) / 0.28, front = ramp(-0.3, 0.3, Math.cos(t));
+  const pf = midPhase(t), pb = midPhase(t - Math.PI);
+  const drapeAt = (mt, s) => 0.6 * Math.cos(11 * mt + 3 * fall + 0.6 + s) + 0.4 * Math.cos(17 * mt - 2.4 * fall + 2.1 + s);
+  const drape = (detail ? 1 : 0.85) * (0.003 + 0.0046 * ramp(0.25, 0.03, y)) * ramp(0.015, 0.07, under)
+    * (front * drapeAt(pf, 0) + (1 - front) * drapeAt(pb, 1.3)) * DRAPE_LOW;
+  // The hanging folds (FM round 2, 2026-10-30, the tile picture): the gathers run on down as soft folds. Broad rounded
+  // ridges and narrow creases between them, as hanging cloth folds. `hang` (-1 crease .. 1 ridge, times its strength)
+  // also lightens the ridges in the baked shade.
+  // (FM round 3, the picture: many short folds right under the gathers, gone some 7 cm down; below them only a few
+  // long, uneven folds, some stronger than others, clear over the top third and fading on down, not an even curtain.)
+  const hangAt = (mt, s) => {
+    const short = ramp(0.004, 0.014, under) * (1 - ramp(0.03, 0.075, under)) * foldProfile(30 * mt + 1.2 * fall + 0.3 + s);
+    const strength = 0.6 + 0.4 * Math.cos(4.7 * mt + 1.1 + s);
+    const long = ramp(0.01, 0.04, under) * (HANG_LOW + (1 - HANG_LOW) * (1 - ramp(0.08, 0.24, under))) * strength
+      * foldProfile(16 * mt + 1.0 * Math.sin(3.3 * mt + 0.4 + s) - 1.2 * fall + 0.9 + s);
+    return HANG_SHORT * short + HANG_LONG * long;
+  };
+  const hang = front * hangAt(pf, 0) + (1 - front) * hangAt(pb, 1.7);
+  // (Shallower over the sides, so the side panels' edges and the outline stay straight, as on the picture.)
+  const hangDepth = (detail ? 1 : 0.9) * HANG_DEPTH * hang * (1 - 0.8 * ramp(0.7, 0.92, Math.abs(Math.sin(t))));
+  return { band: 0, gathers: g * gathers, flutes: g * flutes + drape + hangDepth, drape, hang };
 }
+/** How far round from a middle (t its angle from there): the same both ways, smooth across the middle, and moving on
+ *  steadily round to the sides (0 at the middle, 1.41 at the sides). */
+const midPhase = (t) => { const m = 2 * Math.abs(Math.sin(t / 2)); return Math.sqrt(m * m + 0.0025) - 0.05; };
+/** The broad drape's share left (FM round 2: the hanging folds carry the picture's folds now; the hem waved too much). */
+const DRAPE_LOW = 0.7;
+/** The hanging folds: their depth (metres), what is left of the long ones lower down, the short and long folds'
+ *  shares (FM round 3), and the baked shade's ridge light and crease dark. */
+const HANG_DEPTH = 0.0032, HANG_LOW = 0.4, HANG_SHORT = 0.6, HANG_LONG = 1.25, HANG_LIGHT = 2.4, HANG_DARK = 0.35;
+/** A hanging fold's profile over one turn of phase p: 1 on the broad rounded ridge, -1 in the narrow crease, mean 0. */
+const foldProfile = (p) => 1 - 2 * ((1 - Math.cos(p)) / 2) ** 1.7 - 0.26;
+/** The hem rising towards the sides (metres, at the sides; FM round 3: the picture's hem curves up more towards its
+ *  corners), and how far up the skirt the rise reaches. */
+/** How much the waistband's top edge is shaded, and the cloth under the band (FM round 3). */
+const EDGE_SHADE = 0.5, UNDER_SHADE = 0.2;
+const HEM_RISE = 0.0035, HEM_RISE_TOP = 0.16;
+/** The baked shade's tint (red, green; blue 1). Neutral since FM 2026-10-30: the skirt's light (skirtprint.js SKIRT_LIGHT)
+ *  keeps its black neutral under the stage's warm key and cool fill; the cool tint here turned the far side blue. */
+const SKIRT_COOL = [1, 1];
 function standOff(y, q, detail) {
   const f = folds(y, q, detail);
   return f.band + f.gathers + f.flutes;
@@ -153,7 +199,8 @@ function smoothAt(y, q) {
 /** The made skirt's point at (y, q): the smooth shape and its folds. */
 function clothAt(y, q, detail) {
   const s = smoothAt(y, q), d = standOff(y, q, detail);
-  return new THREE.Vector3(s.x + s.nx * d, y, s.z + s.nz * d);
+  const rise = HEM_RISE * Math.abs(Math.sin(2 * Math.PI * q)) ** 1.5 * (1 - ramp(0, HEM_RISE_TOP, y));
+  return new THREE.Vector3(s.x + s.nx * d, y + rise, s.z + s.nz * d);
 }
 
 /**
@@ -194,7 +241,10 @@ export function buildSkirt({ detail = false } = {}) {
       const q = j / N, x = back ? (0.5 - q) * girth[i] : q * girth[i];
       return back ? uvBack(x, Y[i]) : uvFront(x, Y[i]);
     };
-    const put = (p, n, t, shade) => { pos.push(p.x, p.y, p.z); nrm.push(n.x, n.y, n.z); uv.push(...t); col.push(shade, shade, shade); };
+    // (FM 2026-10-30: the baked shade a touch cool, so under the stage's warm key light the black stays the picture's
+    // neutral black, not brown.)
+    // (`light`: the folds' ridge light, added untinted so the ridges stay a neutral grey, FM round 2.)
+    const put = (p, n, t, shade, light = 0) => { pos.push(p.x, p.y, p.z); nrm.push(n.x, n.y, n.z); uv.push(...t); col.push(shade * SKIRT_COOL[0] + light, shade * SKIRT_COOL[1] + light, shade + light); };
     const strip = (start, rows) => {
       for (let r = 0; r < rows - 1; r++) for (let k = 0; k < M; k++) {
         const a = start + r * (M + 1) + k, b = a + 1, c = a + M + 1, d = c + 1;
@@ -208,9 +258,18 @@ export function buildSkirt({ detail = false } = {}) {
       for (const j of cols) {
         const jj = ((j % N) + N) % N, f = folds(y, j / N, detail);
         // Baked shade: the folds' valleys a touch darker, a soft shadow in the gathers right under the waistband.
-        const shadow = y < SKIRT_SEAM ? 0.16 * ramp(SKIRT_SEAM - 0.007, SKIRT_SEAM, y) : 0;
-        const v = THREE.MathUtils.clamp(1 + 70 * f.band + 85 * f.gathers + 25 * f.flutes - shadow, 0.62, 1.05);
-        put(grid[i][jj], normals[i][jj], flat(i, j), v);
+        // (FM round 3: and a broader soft shade some 5 cm down under the band, where the picture's black is darkest.)
+        const shadow = y < SKIRT_SEAM ? 0.16 * ramp(SKIRT_SEAM - 0.007, SKIRT_SEAM, y) + UNDER_SHADE * ramp(SKIRT_SEAM - 0.055, SKIRT_SEAM - 0.004, y) : 0;
+        // (FM 2026-10-30: the drape's ridges a little lighter and its valleys darker, as the picture's long soft highlights.)
+        // (FM round 2: the hanging folds' ridges lit much lighter, the picture's soft highlights on the black, and their
+        // creases darker; the light kept off the cyan side panels, which would wash out.)
+        const h = f.hang ?? 0, s = Math.abs(Math.sin((2 * Math.PI * j) / N)), body = 1 - ramp(0.8, 0.9, s);
+        const lit = HANG_LIGHT * body * Math.max(0, h) ** 1.3;
+        // (FM round 3: the waistband's top few millimetres, just under its rolled edge, in soft shade: the picture's edge is
+        // a dull round, about 40 bright, not a hard light line.)
+        const crest = 1 - EDGE_SHADE * ramp(SKIRT_LEN - 0.0055, SKIRT_LEN - 0.0012, y);
+        const v = crest * THREE.MathUtils.clamp(1 + 70 * f.band + 85 * f.gathers + 25 * f.flutes + 40 * (f.drape ?? 0) - shadow, 0.62, 1.15) - HANG_DARK * Math.max(0, -h);
+        put(grid[i][jj], normals[i][jj], flat(i, j), v, lit);
       }
     }
     strip(base, R);
@@ -226,7 +285,8 @@ export function buildSkirt({ detail = false } = {}) {
         const h = new THREE.Vector3(n0.x, 0, n0.z).normalize();
         const p = p0.clone().addScaledVector(h, -BAND_ROLL * (1 - Math.cos(a))).addScaledVector(up, a < Math.PI ? BAND_ROLL * Math.sin(a) : 0);
         const n = h.clone().multiplyScalar(Math.cos(a)).addScaledVector(up, Math.sin(a)).normalize();
-        put(p, n, flat(i, j), a < Math.PI ? 0.97 - 0.25 * (a / Math.PI) : 0.5 + 0.12 * ramp(SKIRT_LEN - 0.01, SKIRT_LEN, Y[i]));
+        // (FM round 3: the roll's top a soft dark round, not a hard light line: the picture's 42 against our 71.)
+        put(p, n, flat(i, j), a < Math.PI ? 0.97 - 0.42 * Math.sin(a) - 0.25 * (a / Math.PI) : 0.5 + 0.12 * ramp(SKIRT_LEN - 0.01, SKIRT_LEN, Y[i]));
       }
     }
     for (let k = 0; k < M; k++) { const a = base + k, b = a + 1, c = fold + k, d = c + 1; idx.push(a, c, b, b, c, d); }
@@ -326,7 +386,8 @@ function buildForm(material) {
   for (let y = SKIRT_LEN - 0.007; y >= crotchY + 0.012; y -= 0.006) hips.push(hipRing(y, 0.003));
   roundEnd(hips, down, 0.028);
   group.add(tube(hips, hips.map(() => INSIDE), material, { top: true }));
-  const T = FIG.thigh, y0 = crotchY + 0.06, yMid = SKIRT_LEN + WAIST_DROP - 0.9, y1 = -0.05;
+  // (CF1 2026-10-29: the thighs end inside the skirt, 3 cm above its hem: the client's picture shows no form below it.)
+  const T = FIG.thigh, y0 = crotchY + 0.06, yMid = SKIRT_LEN + WAIST_DROP - 0.9, y1 = 0.03;
   for (const sg of [1, -1]) {
     const legs = [], occ = [];
     for (let y = y0; y >= y1 - 1e-6; y -= 0.008) {

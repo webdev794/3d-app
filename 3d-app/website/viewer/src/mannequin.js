@@ -221,7 +221,8 @@ function femaleForm(trunk, body, figure, openingFoot, minY) {
   for (const sg of [1, -1]) {
     const rings = [];
     // On past the hem (further when the garment stands higher on its stand: body.lift), well above the podium.
-    const y0 = crotchY + 0.06, y1 = minY - 0.035 - (body.lift ?? 0);
+    // (The netball dress: the thighs end inside the skirt, so no stubs show under its hem, as on the client's picture.)
+    const y0 = crotchY + 0.06, y1 = minY + 0.05;
     for (let y = y0; y >= y1 - 1e-6; y -= 0.012) {
       // Rounder and narrower down the leg, a little forward at the top.
       const t = THREE.MathUtils.clamp((y0 - y) / (y0 - (top - 0.9)), 0, 1.3), r = T.top + (T.mid - T.top) * t, cz = 0.006 * (1 - t);

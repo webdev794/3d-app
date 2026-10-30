@@ -4,6 +4,22 @@ How to test each finished task. A task is removed from here once you've tested i
 
 ---
 
+## AI designer: Recent designs (2026-10-30; live needs php artisan migrate)
+1. Signed in, make AI designs, go back to the AI page: "Recent designs" shows the session (4 small pictures + prompt); click it: Your designs reopens with all 4, no new AI cost. Recent projects open in the Studio.
+2. As a guest: the last session is kept on the device, with a "Sign in to keep all your designs" link. Same in the app.
+
+---
+
+## 3D model FINAL: Netball dress (2026-10-30)
+1. Design Your Own › Netball › Netball dress: compare with its tile picture: smooth blue / cyan ribbons on the skirt, shaded side panels, WA bib, straight hem with stitching. Turn it round.
+
+---
+
+## AI designer: bigger preview (2026-10-30)
+1. Create AI designs: "Your designs" shows a wide picture, with the other 3 designs as cards on the right; tapping one shows it big. On a phone the cards sit in a row under the picture. Same in the app.
+
+---
+
 ## Studio garment list opens the picture's design (2026-10-29)
 1. Netball › Netball dress › Studio, then click "Football jersey" on the right: the Game Jersey design (86, cyan shoulders and sides), no GS / WA letters. One Undo goes back to the dress. Same in the app.
 

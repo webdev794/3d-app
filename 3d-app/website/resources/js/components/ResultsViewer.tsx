@@ -3,31 +3,20 @@ import { createPortal } from 'react-dom';
 import { Expand, Minus, Plus, X } from 'lucide-react';
 
 /**
- * The AI designer's results viewer (client visual 2026-10-22, images/146.jpg): one large design, as big as the space
- * between the heading and the controls allows, never cropped or stretched; the other designs float as small numbered
- * thumbnails in its bottom-right corner (over the background where there is room, under the garments otherwise). The
- * thumbnails are page elements only: downloads and the 3D Designer get the selected picture alone.
+ * The AI designer's results viewer (client visual 2026-10-22, images/146.jpg; wider 2026-10-30, images/240.jpg): one
+ * large design in a wide frame that fills the space between the heading and the controls, the picture centred in it at
+ * its own proportions (never cropped or stretched) over its blurred backdrop; the other designs as bigger cards stacked
+ * in a column at its right (in a row under it on phones). The cards are page elements only: downloads and the 3D
+ * Designer get the selected picture alone.
  */
 export type ViewerThumb = { index: number; label: string; disabled: boolean; content: ReactNode };
 
-export type ViewerLayout = { mode: 'below' | 'over' | 'fill'; vw: number; vh: number; iw: number; ih: number; top: number; tw: number; gap: number };
+export type ViewerLayout = { iw: number; ih: number; left: number; top: number };
 
-/**
- * Where the picture and the thumbnails go in a W×H area, for a picture of aspect `ar` (width / height) and `n` thumbnails.
- * - below: the picture is as wide as the area and leaves room under it, so the thumbnails sit under it over its blurred
- *   backdrop (clear of the garments) and the viewer still fills the area (no empty band);
- * - over: the picture fills the height; the thumbnails float inside its bottom-right corner;
- * - fill: no picture yet (loader or error), the whole area.
- */
-export function viewerLayout(W: number, H: number, ar: number, n: number, picture = true): ViewerLayout {
+/** The picture's box, centred in a W×H frame, for a picture of aspect `ar` (width / height): as big as it fits. */
+export function viewerLayout(W: number, H: number, ar: number): ViewerLayout {
   const iw = Math.max(0, Math.min(W, H * ar)), ih = ar ? iw / ar : 0;
-  const gap = W < 520 ? 6 : 10;
-  // About 20% of the viewer per thumbnail (client), smaller when three must fit, never under 56 px or over 150 px.
-  const tw = n ? Math.round(Math.max(56, Math.min(iw * 0.2, 150, (iw * 0.66 - (n - 1) * gap) / n))) : 0;
-  const cluster = n ? tw + 26 : 0;
-  if (!picture) return { mode: 'fill', vw: W, vh: H, iw: W, ih: H, top: 0, tw, gap };
-  if (n && H - ih >= cluster + 12) return { mode: 'below', vw: iw, vh: H, iw, ih, top: Math.max(0, Math.round((H - cluster - 12 - ih) / 2)), tw, gap };
-  return { mode: 'over', vw: iw, vh: ih, iw, ih, top: 0, tw, gap };
+  return { iw, ih, left: Math.round((W - iw) / 2), top: Math.round((H - ih) / 2) };
 }
 
 export function ResultsViewer({ id, image, alt, defaultRatio, main, thumbs, tools, onPick, busy }: {
@@ -56,30 +45,34 @@ export function ResultsViewer({ id, image, alt, defaultRatio, main, thumbs, tool
     return () => { live = false; };
   }, [image, ratios]);
   const ar = (image && ratios[image]) || defaultRatio;
-  const l = viewerLayout(box.w, box.h, ar, thumbs.length, !!image);
+  const l = viewerLayout(box.w, box.h, ar);
   const ready = box.w > 0 && box.h > 0;
-  return <div className="aid-view-area" ref={area}>
-    {ready && <div className={`aid-viewer is-${l.mode}`} style={{ width: l.vw, height: l.vh, '--tw': `${l.tw}px`, '--tg': `${l.gap}px` } as React.CSSProperties} aria-busy={busy}>
-      <div className="aid-viewer-clip">
-        {image && <img className="aid-viewer-backdrop" src={image} alt="" aria-hidden="true" />}
-        <div key={id} className="aid-viewer-art" style={{ top: l.top, width: l.iw, height: l.ih }} title={alt}>{main}</div>
-      </div>
-      <div className="aid-viewer-tools">
-        {tools}
-        {image && <button type="button" className="aid-round" onClick={() => setFull(true)} aria-label="Full screen" title="Full screen (pinch or scroll to zoom)"><Expand size={18} /></button>}
-      </div>
-      {thumbs.length > 0 && <div className="aid-thumbs" role="list" aria-label="Other designs">
-        <div className="aid-thumb-row">{thumbs.map(t => <div role="listitem" key={t.index}>
+  return <>
+    <div className="aid-view-area" ref={area}>
+      {ready && <div className={`aid-viewer${image ? '' : ' is-fill'}`} aria-busy={busy}>
+        <div className="aid-viewer-clip">
+          {image && <img className="aid-viewer-backdrop" src={image} alt="" aria-hidden="true" />}
+          <div key={id} className="aid-viewer-art" style={image ? { left: l.left, top: l.top, width: l.iw, height: l.ih } : undefined} title={alt}>{main}</div>
+        </div>
+        <div className="aid-viewer-tools">
+          {tools}
+          {image && <button type="button" className="aid-round" onClick={() => setFull(true)} aria-label="Full screen" title="Full screen (pinch or scroll to zoom)"><Expand size={18} /></button>}
+        </div>
+      </div>}
+      {full && image && <FullScreen src={image} alt={alt} onClose={() => setFull(false)} />}
+    </div>
+    <div className="aid-side">
+      {thumbs.length > 0 && <>
+        <small className="aid-thumbs-hint" aria-hidden="true">Tap to switch</small>
+        <div className="aid-thumbs" role="list" aria-label="Other designs">{thumbs.map(t => <div role="listitem" className="aid-thumb-item" key={t.index}>
           <button type="button" className="aid-thumb" disabled={t.disabled} onClick={() => onPick(t.index)} aria-label={t.label} title={t.label}>
             <span className="aid-thumb-art">{t.content}</span>
             <span className="aid-thumb-num" aria-hidden="true">{t.index + 1}</span>
           </button>
         </div>)}</div>
-        <small className="aid-thumbs-hint" aria-hidden="true">Tap to switch</small>
-      </div>}
-    </div>}
-    {full && image && <FullScreen src={image} alt={alt} onClose={() => setFull(false)} />}
-  </div>;
+      </>}
+    </div>
+  </>;
 }
 
 type View = { s: number; x: number; y: number };

@@ -166,7 +166,7 @@ void main() {
 
       // A thumbnail tapped: design 2 goes large at once with its picture,
       // design 1 moves into the thumbnails; nothing is rendered again.
-      expect(find.text('Tap to switch'), findsOneWidget);
+      expect(find.byKey(const ValueKey('design-others')), findsOneWidget);
       for (final i in [1, 2, 3]) {
         expect(find.byKey(ValueKey('thumb-$i')), findsOneWidget);
       }
@@ -282,30 +282,21 @@ void main() {
       );
       expect(art.width, closeTo(size.width, 1));
       expect(art.width / art.height, closeTo(1.5, .02));
-      // Three thumbnails, about 20% of the width, in the bottom-right corner, inside the viewer.
+      // The other three as cards in a row under the picture (client 240.jpg: out of the picture).
       final viewer = tester.getRect(
         find.byKey(const ValueKey('design-viewer')),
       );
-      for (final i in [1, 2, 3]) {
-        final t = tester.getRect(find.byKey(ValueKey('thumb-$i')));
-        expect(t.width, inInclusiveRange(56, size.width * .21));
-        expect(t.right, lessThanOrEqualTo(viewer.right));
-        expect(t.bottom, lessThanOrEqualTo(viewer.bottom));
-        expect(t.top, greaterThan(viewer.top + viewer.height * .5));
-        expect(
-          t.top,
-          greaterThanOrEqualTo(art.bottom),
-          reason: 'over the background, clear of the garments',
-        );
+      final cards = [
+        for (final i in [1, 2, 3])
+          tester.getRect(find.byKey(ValueKey('thumb-$i'))),
+      ];
+      for (final t in cards) {
+        expect(t.width, greaterThan(size.width * .25));
+        expect(t.top, greaterThanOrEqualTo(viewer.bottom));
+        expect(t.left, greaterThanOrEqualTo(0));
+        expect(t.right, lessThanOrEqualTo(size.width));
+        expect((t.top - cards.first.top).abs(), lessThan(1));
       }
-      expect(find.text('Tap to switch'), findsOneWidget);
-      final hint = tester.getRect(find.byKey(const ValueKey('tap-to-switch')));
-      expect(
-        hint.right,
-        lessThanOrEqualTo(viewer.right - 4),
-        reason: 'whole, inside the right padding',
-      );
-      expect(hint.left, greaterThan(viewer.left));
       // One compact row: Open in 3D Designer and the download icon; then the slim refine bar; all on screen.
       final open = tester.getRect(find.byType(GradientButton));
       final download = tester.getRect(
@@ -319,8 +310,9 @@ void main() {
       expect(find.text('Open in 3D Designer'), findsOneWidget);
       expect(refine.bottom, lessThanOrEqualTo(size.height));
       expect(refine.height, lessThan(60));
-      // No empty band: the viewer reaches the controls.
-      expect(open.top - viewer.bottom, lessThan(20));
+      // No empty band: the cards reach the controls.
+      expect(open.top - cards.first.bottom, lessThan(20));
+      expect(open.top, greaterThanOrEqualTo(cards.first.bottom));
     });
   }
 
@@ -464,24 +456,90 @@ void main() {
     },
   );
 
-  test('the layout keeps the picture whole and the thumbnails about 20%', () {
-    // A 3:2 picture on a phone: as wide as the screen, thumbnails under it.
-    final phone = resultsLayout(390, 560, 1.5, 3);
-    expect(phone.mode, ResultsMode.below);
+  test('the layout keeps the picture whole and centred in its frame', () {
+    // A 3:2 picture on a phone: as wide as the screen, centred in the height.
+    final phone = resultsLayout(390, 560, 1.5);
     expect(phone.iw, 390);
     expect(phone.ih, 260);
-    expect(phone.tw, 78);
-    // A portrait design (since 2026-10-22) on a phone: edge to edge and as tall as it allows, the thumbnails over its corner (146.jpg).
-    final tall = resultsLayout(390, 640, 2 / 3, 3);
-    expect(tall.mode, ResultsMode.over);
-    expect(tall.iw, 390);
-    expect(tall.ih, closeTo(585, .5));
-    expect(tall.tw, 78);
-    // On a computer: as tall as the stage, thumbnails over its corner.
-    final desk = resultsLayout(1200, 620, 1.5, 3);
-    expect(desk.mode, ResultsMode.over);
+    expect(phone.top, 150);
+    // A portrait design on a phone: as tall as the frame, centred across.
+    final tall = resultsLayout(390, 540, 2 / 3);
+    expect(tall.ih, 540);
+    expect(tall.iw, closeTo(360, .5));
+    expect(tall.left, 15);
+    // On a computer the frame is wide; the portrait picture sits in its middle.
+    final desk = resultsLayout(1000, 620, 2 / 3);
     expect(desk.ih, 620);
-    expect(desk.tw, 150);
+    expect(desk.left, closeTo((1000 - 620 * 2 / 3) / 2, .5));
+    // No picture yet: the whole frame.
+    final none = resultsLayout(1000, 620, 2 / 3, picture: false);
+    expect((none.iw, none.ih), (1000.0, 620.0));
+  });
+
+  // Client 240.jpg (2026-10-30): on a wide screen the large design fills a
+  // wide frame and the other three are bigger cards stacked at its right.
+  testWidgets('YOUR DESIGNS on a computer: wide frame, cards at the right', (
+    tester,
+  ) async {
+    const size = Size(1366, 768);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = size;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final tall = (await tester.runAsync(() => _png(200, 300)))!;
+    final c = _Controller()
+      ..concepts = [
+        for (final n in ['Brief', 'Voltage', 'Shards', 'Halftone'])
+          Concept(_spec(n))..image = tall,
+      ];
+    await tester.pumpWidget(
+      MaterialApp(home: Scaffold(body: ConceptsScreen(c))),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tester.takeException(), isNull);
+    final viewer = tester.getRect(find.byKey(const ValueKey('design-viewer')));
+    final art = tester.getRect(find.byKey(const ValueKey('design-0-picture')));
+    expect(
+      viewer.width,
+      greaterThan(size.width * .6),
+      reason: 'wide, not narrow',
+    );
+    expect(art.width / art.height, closeTo(2 / 3, .02));
+    expect((art.center.dx - viewer.center.dx).abs(), lessThan(1));
+    final cards = [
+      for (final i in [1, 2, 3])
+        tester.getRect(find.byKey(ValueKey('thumb-$i'))),
+    ];
+    for (final (n, t) in cards.indexed) {
+      expect(t.left, greaterThan(viewer.right), reason: 'outside the picture');
+      expect(t.right, lessThanOrEqualTo(size.width));
+      expect(t.width, greaterThanOrEqualTo(150));
+      if (n > 0) expect(t.top, greaterThan(cards[n - 1].bottom));
+      expect(t.bottom, lessThanOrEqualTo(viewer.bottom + 1));
+    }
+    // Each card shows the whole portrait design, not its top strip (242.png).
+    for (final i in [1, 2, 3]) {
+      final fits = tester
+          .widgetList<Image>(
+            find.descendant(
+              of: find.byKey(ValueKey('thumb-$i')),
+              matching: find.byType(Image),
+            ),
+          )
+          .map((e) => e.fit);
+      expect(fits, contains(BoxFit.contain));
+    }
+    // The controls under the large design, as wide as it.
+    final open = tester.getRect(find.byType(GradientButton));
+    final download = tester.getRect(
+      find.byKey(const ValueKey('download-design')),
+    );
+    expect(open.left, closeTo(viewer.left, 1));
+    expect(download.right, closeTo(viewer.right, 1));
+    expect(open.top, greaterThanOrEqualTo(viewer.bottom));
+    await tester.tap(find.byKey(const ValueKey('thumb-2')));
+    await tester.pumpAndSettle();
+    expect(c.selectedConcept, 2);
   });
 
   // ASSIST beside the slim refine bar on YOUR DESIGNS only; every other

@@ -136,7 +136,9 @@ function valueNoise(cells, seed) {
 // missing, as for hoodies and the track jacket).
 const FABRICS = {
   // The skirt's smooth stretch interlock: tiny knitted loops in close columns, a soft matt sheen (no plastic shine).
-  interlock: { tile: 0.012, scale: 0.5, cavity: 0.04, rough: 0.85, sheen: 0.22, sheenRough: 0.6, sheenColor: 0x9a9a9a, clearcoat: 0, strength: 1.1, make: () => microKnit(24, 20) },
+  // (CF1 2026-10-29: its sheen the jerseys' cool grey and a little less rough, so its black stays a neutral black as on
+  // the client's picture, not warm and greyed.)
+  interlock: { tile: 0.012, scale: 0.5, cavity: 0.04, rough: 0.8, sheen: 0.22, sheenRough: 0.5, sheenColor: 0x9fb4c6, clearcoat: 0, strength: 1.1, make: () => microKnit(24, 20) },
   // The cap's cotton twill (garment 4, CF1 2026-10-29): diagonal wales about 1 mm apart, each a row of yarn floats
   // (the weave's steps along the wale), the yarn uneven in short slubs, and a faint heathered shade over it; matt, a
   // soft fibre sheen, no plastic shine.

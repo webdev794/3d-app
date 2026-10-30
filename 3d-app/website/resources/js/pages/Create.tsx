@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowUp, Box, Check, ChevronDown, ChevronLeft, ChevronRight, Download, Ellipsis, ImagePlus, ImageUp, Lightbulb, LoaderCircle, Mic, MicOff, Paperclip, PenLine, Plus, RefreshCw, SendHorizontal, Sparkles, Undo2, WandSparkles, X } from 'lucide-react';
-import { api, ApiError, media, saveBlob, type Catalog, type CatalogItem, type Concept, type GarmentTile } from '../api';
+import { api, ApiError, media, saveBlob, type Catalog, type CatalogItem, type Concept, type GarmentTile, type Project } from '../api';
 import type { Draft } from '../App';
 import { defaultDesign, type Design } from '../types';
 import { DesignThumbnail } from './Library';
@@ -12,6 +12,7 @@ import { allGarments, formatCount, friendlyError, garmentChips, garmentInBrief, 
 import { ResultsViewer } from '../components/ResultsViewer';
 import { preparePattern } from '../components/OwnPatterns';
 import { PlayerShotButton } from '../components/PlayerShot';
+import { RecentDesigns, writeLocalSession, type AiSessionFull, type AiSessionOption, type AiSessionSummary, type LocalAiSession } from '../components/RecentDesigns';
 import '../../css/ai-designer.css';
 
 export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
@@ -310,6 +311,8 @@ async function uploadable(file: File): Promise<File> {
 
 /** One of the four designs a brief gives: its direction (from the AI's planning step), its 3D kit spec and its picture. */
 type DesignOption = { id: string; rank: number; name: string; description: string; design: Design; motif?: string; direction?: Record<string, unknown>; image?: string | null; quality?: 'high' | 'medium'; pending?: 'high' | 'medium' | 'refine'; busy: boolean; error?: string; view?: View; previous?: string };
+/** A design picture as a data URL (pictures can be blob: URLs after an edit). */
+const asData = async (src: string) => src.startsWith('data:image/') ? src : new Promise<string>((resolve, reject) => { void fetch(src).then(r => r.blob()).then(b => { const f = new FileReader(); f.onload = () => resolve(String(f.result)); f.onerror = reject; f.readAsDataURL(b); }, reject); });
 /** presentation: front and back side by side in one tall 2:3 picture (all four designs and Make HD, 146.jpg; landscape if the model turns the size down); front: one garment, square (the old option cards). */
 type View = 'presentation' | 'front';
 type BriefBody = { prompt: string; sport: string; garment: string; reference_ids: number[] };
@@ -322,7 +325,7 @@ const HD_CREDITS = 10;
  * (an HD presentation mockup, as wide as the prompt bar), the other three are medium previews in a column on the right. Each keeps its
  * 3D kit spec, so any of them opens in the Studio as an editable kit.
  */
-export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, onNotice }: { catalog: Catalog | null; draft: Draft; onChange: (draft: Draft) => void; requireAuth: (action?: () => void) => void; onStudio: () => void; onNotice?: (text: string) => void }) {
+export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, onNotice, signedIn = false, checking = false, onOpenProject }: { catalog: Catalog | null; draft: Draft; onChange: (draft: Draft) => void; requireAuth: (action?: () => void) => void; onStudio: () => void; onNotice?: (text: string) => void; /** Recent designs: the account's saved briefs (signed in) or the last one on this device. */ signedIn?: boolean; checking?: boolean; onOpenProject?: (project: Project) => void }) {
   const [prompt, setPrompt] = useState('');
   const [error, setError] = useState('');
   const [references, setReferences] = useState<Reference[]>([]);
@@ -358,6 +361,11 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   /** This brief's run: a new brief, Refine and leaving the page end it, so a late mockup or print sheet is dropped. */
   const run = useRef(0);
   useEffect(() => () => { run.current += 1; }, []);
+  /** Recent designs: this brief's saved session (its id and the pictures last sent, by place); a new brief or reopening another starts over. */
+  const session = useRef<{ token: number; id: number | null; sent: string[] }>({ token: 0, id: null, sent: [] });
+  const saving = useRef<Promise<void>>(Promise.resolve());
+  const latest = useRef<DesignOption[]>([]);
+  latest.current = options;
   const isAi = !!catalog?.provider.is_ai;
   const voice = useVoice(prompt, setPrompt, setError);
   const tiles = sportTiles(catalog?.sports);
@@ -414,6 +422,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     lastProduct.current = chip;
     const product = chip?.garment === garment ? { productName: chip.name, ...chip.design } : { productName: '' };
     const mine = ++run.current, current = () => run.current === mine;
+    session.current = { token: session.current.token + 1, id: null, sent: [] };
     setResults(true); setPlanning(true); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError('');
     onChange({ ...draft, sport, garment, mode: 'ai', design: { ...draft.design, ...product, garment: garment as Design['garment'] }, patternMotif: undefined, pendingDrawing: undefined });
     // Pictures attached before signing in are saved now (in Assets, as references), so the AI can read them.
@@ -463,6 +472,69 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   const download = async (o: DesignOption, n: number) => { setMenu(null); if (o.image) saveBlob(await (await fetch(o.image)).blob(), `3deezi-design-${n}${o.quality === 'high' ? '-hd' : ''}.jpg`); };
   /** "Back to create": the brief step with the brief, pictures, sport and switches kept; work still running is dropped. */
   const backToCreate = () => { run.current += 1; setResults(false); setPlanning(false); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError(''); };
+
+  // Recent designs (client 2026-10-30): once a brief's designs are in (and after Make HD, Regenerate, Refine or Edit image),
+  // they are saved to the account (only the pictures that changed are sent) and the last brief is kept on this device.
+  const ready = results && !planning && options.length > 0 && options.every(o => !o.busy) && options.some(o => o.image);
+  const pictures = ready ? options.flatMap(o => o.image ? [o.image] : []).join('\n') : '';
+  useEffect(() => {
+    if (!pictures || !lastBrief.current) return;
+    const brief = lastBrief.current, token = session.current.token;
+    const timer = setTimeout(() => {
+      const list = latest.current.filter(o => o.image && !o.busy);
+      const keep = (o: DesignOption): Omit<AiSessionOption, 'image'> => ({ name: o.name, description: o.description, quality: o.quality ?? null, view: o.view ?? null, motif: o.motif ?? null, direction: o.direction ?? null, design: o.design as unknown as Record<string, unknown> });
+      void writeLocalSession({ prompt: brief.prompt, sport: brief.sport, garment: brief.garment, at: new Date().toISOString(), options: list.map(o => ({ ...keep(o), image: o.image! })) });
+      if (!signedIn) return;
+      saving.current = saving.current.then(async () => {
+        const now = session.current;
+        // Reopened and unchanged: nothing to send (the list keeps its order).
+        if (now.token !== token || (now.id && list.length === now.sent.length && list.every((o, i) => o.image === now.sent[i]))) return;
+        try {
+          const images = await Promise.all(list.map(o => asData(o.image!)));
+          const body = { prompt: brief.prompt, sport: brief.sport, garment: brief.garment, source: 'web', reference_ids: brief.reference_ids, options: list.map((o, i) => ({ ...keep(o), ...(now.id && now.sent[i] === o.image ? {} : { image: images[i] }) })) };
+          const saved = await api<AiSessionSummary>(now.id ? `/ai/sessions/${now.id}` : '/ai/sessions', { method: now.id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+          if (session.current.token === token) session.current = { token, id: saved.id, sent: list.map(o => o.image!) };
+        } catch { /* Recent designs are a convenience: the designs on screen are unaffected. */ }
+      });
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [pictures, signedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** A Recent designs card: YOUR DESIGNS again with that brief's designs, ready to switch, refine, open in 3D or put on a player (no AI call). */
+  async function reopen(id: number) {
+    const mine = ++run.current;
+    session.current = { token: session.current.token + 1, id: null, sent: [] };
+    setResults(true); setPlanning(true); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError('');
+    try {
+      const s = await api<AiSessionFull>(`/ai/sessions/${id}`);
+      if (run.current === mine) showSession(s, id);
+    } catch (e) { if (run.current === mine) { setError(friendlyError(e)); setPlanning(false); } }
+  }
+  function showSession(s: Pick<AiSessionFull, 'prompt' | 'sport' | 'garment' | 'reference_ids' | 'options'>, id: number | null) {
+    const pick = (list: CatalogItem[] | undefined, v: string | null | undefined) => { const t = String(v ?? '').toLowerCase(); return list?.find(x => x.id === v || x.name.toLowerCase() === t || x.id === t.replace(/\s+/g, '-'))?.id; };
+    const sport = pick(catalog?.sports, s.sport) ?? draft.sport, garment = pick(catalog?.garments, s.garment) ?? draft.garment;
+    onChange({ ...draft, sport, garment, mode: 'ai', design: { ...draft.design, garment: garment as Design['garment'] }, patternMotif: undefined, pendingDrawing: undefined });
+    lastBrief.current = { prompt: s.prompt, sport, garment, reference_ids: s.reference_ids ?? [] };
+    lastProduct.current = null;
+    setPrompt(s.prompt);
+    const list = s.options.filter(o => o.image).map((o, i): DesignOption => {
+      // An app session keeps its colours in the app's spec.
+      const spec = (o.spec ?? {}) as Record<string, string | undefined>;
+      const fromApp: Partial<Design> = o.design ? {} : { ...(spec.mainColor && { main: spec.mainColor }), ...(spec.secondaryColor && { secondary: spec.secondaryColor }), ...(spec.accentColor && { accent: spec.accentColor }), ...(spec.logoText && { logoText: spec.logoText }) };
+      const own = (o.design ?? {}) as Partial<Design>;
+      return { id: `s${id ?? 'device'}-${i}`, rank: i + 1, name: o.name || `Design ${i + 1}`, description: o.description || '', design: { ...draft.design, ...fromApp, ...own, garment: garment as Design['garment'] }, motif: o.motif ?? undefined, direction: o.direction ?? undefined, image: o.image, quality: o.quality ?? 'medium', view: o.view ?? 'presentation', busy: false };
+    });
+    session.current = { token: session.current.token, id, sent: id ? list.map(o => o.image!) : [] };
+    setOptions(list); setSel(0); setPlanning(false);
+    if (!list.length) setError('The pictures of this design are no longer saved.');
+  }
+  /** The last brief on this device (signed out). */
+  function reopenLocal(s: LocalAiSession) {
+    run.current += 1;
+    session.current = { token: session.current.token + 1, id: null, sent: [] };
+    setResults(true); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError('');
+    showSession({ ...s, reference_ids: [] }, null);
+  }
   /** "Refine this design…": the selected picture changed as described by the AI image editor (the same as Edit image › Describe), in its own proportions. */
   function refine() {
     const o = primary, text = refineText.trim();
@@ -702,6 +774,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
       <div className="aid-options">{isAi
         ? <label className="aid-switch" title="Off: four designs as quick previews (about 40 seconds). On: your primary design is rendered in HD (about a minute, more credits). Any design can be made HD later from its ⋮ menu."><input type="checkbox" role="switch" checked={wantHd} onChange={e => setWantHd(e.target.checked)} /><i aria-hidden="true" />HD primary</label>
         : catalog && <span className="aid-note">Preview mode: AI is not connected on this server, so concepts are built from your wording.</span>}</div>
+      <RecentDesigns signedIn={signedIn} checking={checking} onOpen={id => void reopen(id)} onOpenLocal={reopenLocal} onOpenProject={onOpenProject} onSignIn={() => requireAuth()} />
       <SportRow tiles={tiles} selected={tile} onSelect={id => { setTile(t => t === id ? null : id); setAskGarment(false); setPickedGarment(null); }} />
     </div>
   </section>;

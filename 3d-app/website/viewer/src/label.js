@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 
 /** The neck label's size (metres) and how far below the back neck's edge it starts (under the collar rib). */
-const W = 0.056, H = 0.046, DROP = 0.013;
+const LABEL_W = 0.056, LABEL_H = 0.046, LABEL_DROP = 0.013;
+/** The netball dress's own: a small dark woven label, as inside the back neck of the client's dress (ND1). */
+const SMALL = { W: 0.024, H: 0.011, DROP: 0.009 };
 
 /**
  * The 3DEEZI neck label sewn inside the back neck of a top, centred just under the collar: a light fabric label,
@@ -9,6 +11,8 @@ const W = 0.056, H = 0.046, DROP = 0.013;
  * seen from the front through the neck opening. Returns the mesh; its picture is drawn by paintLabel.
  */
 export function buildLabel(garment) {
+  const small = garment.kind === 'netball-dress';
+  const { W, H, DROP } = small ? SMALL : { W: LABEL_W, H: LABEL_H, DROP: LABEL_DROP };
   // The back neck's middle: the point of the neck opening at the back nearest the centre line.
   const back = garment.neck.filter((p) => p.z < 0);
   const top = back.reduce((best, p) => (Math.abs(p.x) < Math.abs(best.x) ? p : best), back[0]);
@@ -65,6 +69,7 @@ export function buildLabel(garment) {
   map.anisotropy = 8;
   const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map, roughness: 0.92, side: THREE.FrontSide }));
   mesh.userData.size = null;
+  mesh.userData.dark = small;
   return mesh;
 }
 
@@ -77,6 +82,24 @@ export function paintLabel(label, size = 'L', style = 'word') {
   label.userData.size = size;
   label.userData.style = style;
   const map = label.material.map, c = map.image, g = c.getContext('2d'), w = c.width, h = c.height;
+  // The netball dress's small dark label: 3DEEZI in light grey on dark grey, stitched across its ends.
+  if (label.userData.dark) {
+    g.fillStyle = '#2e3034';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let y = 0; y < h; y += 10) g.fillRect(0, y, w, 3);
+    g.fillStyle = '#c3c7cc';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.save();
+    g.translate(w / 2, h / 2);
+    g.scale(1, 2.2);
+    g.font = '700 150px Rajdhani, Inter, sans-serif';
+    g.fillText('3DEEZI', 0, 0);
+    g.restore();
+    map.needsUpdate = true;
+    return;
+  }
   if (style === 'mark') {
     g.fillStyle = '#1b1c1f';
     g.fillRect(0, 0, w, h);

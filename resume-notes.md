@@ -1,71 +1,83 @@
 # Resume notes
 
-Updated 2026-10-29 18:50 (end of day). Only what's needed to continue.
-- SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder images\NNN (latest 218)
+Updated 2026-10-29 19:05. Only what's needed to continue.
+- SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder images\NNN (latest 235)
 
 ## State
-- Local folder on branch v6 (work uncommitted). GitHub v2 = a93a711 (all work to 2026-10-29). main = 2d9b553. v3: wait for the user's instructions.
-- Live file: D:\3d-app\deploy-zips\3deez-update-2026-10-28-f.tar.gz (older than v2). Live must run `php artisan migrate --force` (presets table) + `php artisan optimize:clear`.
+- Local folder on branch v6 (work uncommitted). GitHub v2 = ff141e6 (2026-10-29 18:51). main = 2d9b553. v3: wait for the user's instructions.
+- Live file: D:\3d-app\deploy-zips\3deez-update-2026-10-29-a.tar.gz (18:51, same as v2). Live must run `php artisan migrate --force` (presets table; and the new ai_sessions table from 2026-10-30) + `php artisan optimize:clear`.
+- Viewer about 2026-10-20-87.
 
-## Running (user 2026-10-29 15:00: ONLY 2 agents: one builder at a time + one tester; when the tester finds a bug, one fixer agent may run too: max 3; no second fixer, VS Code kept restarting)
-- Builder: ND1 a6bb230d2b8dc09cb: netball dress (log SP\WF1\netball-dress).
-- Fixer 2: FX3 a24d75d5309013901: football jersey leftovers (log SP\FX3).
-- User 2026-10-29: 4 agents (CF1, FX3, ND1, DT4); the user closed Edge to free memory (5.4 GB free). If VS Code crashes, go back to 2 (fixer + tester).
-- Fixer: CF1 finished cap (-78), socks colours and compression top (-80); DT4 checks them. Slot free (kept free: drive D nearly full).
-- Tester: DT4 ab0c631035b928e45: the skirt, then the cap after CF1; log SP\DT4\log.md. Older testers DT1-DT3 logs in SP.
+## Running (2026-10-30 12:4x: task w83efahnp, run wf_fcef5062-75b; resume with resumeFromRunId wf_fcef5062-75b; testers read SP\tester-checklist.md)
+- Workflow wf_d2dbde0a-e11 (stopped safely, no merge in progress; the skirt shape fixer had just copied CF1\paused into SP\FM\skirt\src, nothing merged yet) "finalize-models": one model at a time, in this order:
+  1. Skirt (the closest to final; first merge CF1's finished fixes from SP\CF1\paused);
+  2. Compression top;
+  3. American Football jerseys;
+  4. Cap;
+  5. Socks;
+  6. Football / Hockey jersey Swirl.
+- Per model: a shape fixer and a print fixer in parallel, then an independent tester, for up to 3 rounds until the tester says FINAL. The wrap-up step adds FINAL models to the bottom list of task-done-today.md. Logs are in SP\FM\<model>.
+- If it stopped (usage limit, VS Code restart): run Workflow with scriptPath C:\Users\Intel\.claude\projects\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\workflows\scripts\finalize-models-wf_d2dbde0a-e11.js and resumeFromRunId wf_d2dbde0a-e11. Finished steps are reused.
+- Keep at most 3-4 agents at once: memory and drive D are tight. Close leftover test browsers after restarts. Replies to the user: one short line.
 
-- User 2026-10-29: whenever an agent finishes its current model, start the next from the queues (keep 3-4 agents; replies to the user: one short line).
 
 
-## FOCUS MODE (user 2026-10-29 18:20): one model at a time. All fixers (CF1, FX3) work only on the current model; the tester (DT4) re-tests until it says FINAL; then the next model.
-- Order: 1 Compression top (now) -> 2 American Football jerseys -> 3 Skirt -> 4 Cap -> 5 Socks -> 6 Netball dress (ND1 paused) -> then the builder queue.
-- Paused for later: FX3 Swirl collar / shoulder fade; CF1 socks toe / ankle folds + skirt neutral black / drape folds / no thigh stubs: FINISHED in CF1\paused (not merged; other-garments check failed on memory), notes SP\CF1\log.md.
+## Open items by model (full lists in D:\3d-app\detail-checks.md)
+- **Skirt:**
+  - neutral black instead of warm brown;
+  - broad drape folds;
+  - no display-form thigh stubs under the hem.
+  All three are finished in SP\CF1\paused; the workflow merges them first.
+- **Compression top:**
+  - the arms stand too far out and are too long; the hem must be level with the cuffs;
+  - the front between the side panels is 25-35% too narrow;
+  - the panels are thin just above the hem (15 vs 28 px);
+  - the sleeve stripes should widen from 11 to 22 px toward the cuff.
+- **American Football jerseys:**
+  - Practice Jersey: the print (86, wordmark, "3") must be solid over the mesh;
+  - Game Jersey: the fabric dots show through the white 86;
+  - the shoulder numbers may be "8"s (the 86): check the picture first;
+  - the length waits for the user (questions.md 4).
+- **Cap:** the brim must be curved like the pictures.
+- **Socks:**
+  - the toe line is still wrong (user 2026-10-29, images/236 client vs 237 ours): the client's thin cyan line runs ACROSS THE TOP of the forefoot, near the toes; ours is a pale curved band round the toe tip;
+  - each tile needs its own layout:
+    - Football / Footy / Hockey: two hoops, a full cyan toe, no ankle lines;
+    - Game Socks: two wide hoops and a bigger "3";
+    - Rugby: a flat cyan "3";
+  - the top of the foot looks grey;
+  - CF1's toe / ankle folds are finished in SP\CF1\paused, not merged.
+- **Football / Hockey jersey Swirl** (merged at -87, the design now sits on the shoulders up to the neck):
+  - the maze beside the collar should be brighter and denser;
+  - check the Full kit's maze against its picture.
+- **Netball dress (2026-10-30 13:xx): viewer -113 merged by ND1 (black hip edges, bib black, creases both sides). ND2 ab9deec6b5a231533 now finishes the strips (narrower, saturated cyan / azure / royal, ribbon shading, no teal lines, side view); then DT6 re-tests; then push v2 + tar.** Older: NOT final (user 2026-10-30, images/243-245): big vertical folds below the waist missing; 3DEEZI logo must sit at the bust (ours too high). ND1 fixing, DT6 re-tests.** Earlier notes: ND1 a6bb230d2b8dc09cb merged 2026-10-30 (viewer -88, tile opens the picture look, brighter cyan); hem corners fixed (-91); DT6 ae5286b7978e8d925 detail-tests it, then the Rugby League jersey. Its working copy is close to the picture. Left: the hem corners hang in points at the side seams, and the cyan is a little dark. Log SP\WF1\netball-dress\log.md, side-by-side sbs-r6.png.
+- **Later** (from the testers):
+  - the jersey (football / hockey) wing collar with a V placket and a white inside, and side panels that show from the front;
+  - the Full kit's crew neck, cyan blades on the shorts, and socks;
+  - the Game Kit needs game pants with a belt and knee pads (COMING SOON plan item 12), socks and a front 86.
 
-## Open items by model (detail-checks.md sections 2, 5, 6, 7)
-- Compression top (viewer -86; CF1 shape landed): DT5 still finds arms out too far and too long, body too narrow and too short (front 66-75% of the picture width; hem must be level with the cuffs), sleeve stripes should widen 11 to 22 px. FX3 print / stitching LANDED in -86 (block sleeve 3, wider chest 3, dark stitching). Jerseys -84: narrower 86, smaller caps + black sleeves, Practice V insert; next: DT5 compares jerseys + compression on -86. FX3 Swirl fade finished but not merged (SP\FX3\log.md end).
-- Skirt: neutral black, drape folds, no thigh stubs (done in CF1\paused, not merged).
-- Socks: each tile needs its own layout (Football / Footy / Hockey: two hoops, full cyan toe, no ankle lines; Game Socks: two wide hoops, bigger 3; Rugby: flat cyan 3); top of foot looks grey. CF1 paused toe / ankle folds in CF1\paused.
-- Cap: brim flatter than the pictures' curved brim.
+## Builder queue (one at a time, after the models above; each has a log)
+1. (RF1 a5665e02d10f77ca7: shipped -90 the picture's shoulder stripes / claws / flames, "3DEEZI" under the crest, look 'rugbyLeague'; now: all-blue 3 crest on the rugby tiles + kit shorts check) Rugby League jersey: SP\WF1\rugby-league-jersey\log.md.
+2. Shooting shirt: SP\WF1\shooting-shirt\log.md.
+3. Basketball shorts: SP\WF1\basketball-shorts\log.md.
+4. Shorts: SP\WF1\shorts\log.md.
+5. Bucket hat: an unchecked start in SP\GM4\hat.
+6. Bibs.
+7. The detail pass on the other existing garments: rugby league kit, singlet, tee, polo, raglan, hoodie, track jacket, varsity, full kit.
+8. COMING SOON plan items 9 onwards: SP\GM1\plan.md.
 
-## Tomorrow first (DT5 findings 18:55, detail-checks.md sections 2 + 4)
-- Compression top: arms too far out and too long; hem must be level with the cuffs; front between panels 25-35% too narrow; panels thin just above the hem (15 vs 28 px); sleeve stripes should widen 11 to 22 px toward the cuff.
-- Practice Jersey: mesh holes run through the 86, wordmark and 3 mark: the print must be solid (main item).
-- Game Jersey: shoulder numbers may be 8s (the 86) not 3s, check the picture again; the fabric dots show through the white 86 up close.
-- Both jerseys: length waits for the user (questions.md 4).
+Prompts for these: the workflow script garment-detail-pass-wf_e3c2c5e1-acb.js (buildPrompt / detailPrompt).
 
-## Fixer queue (next fixer takes these in order; detail-checks.md)
-- (CF1 now) Socks: knit creases around the toe (user 2026-10-29).
-- Skirt (DT4): fabric sheen makes the black warm brown (render-quality interlock); broad soft drape folds missing; display form thigh stubs look like two black discs (picture has no form).
-- (FX3 now) Football jerseys leftovers (DT3, detail-checks.md section 4): Game chest "3" bold slanted bigger; small "3"s on the shoulder tops; V mark in a small badge; wide cyan side panels with a black inner strip still thin from the front; Practice shoulder stripes wide from the front; stacked logo bigger; mesh holes visible all over the body. Length waits for the user (questions.md 4).
-- DONE by CF1: compression top 8 differences (was: FX2 had started (stopped at the user's request, max 3 agents); its files in SP\FX2.
-- Jersey (football / hockey) wing collar with V placket and white inside; side panels hardly show from the front.
-- Full kit (swirl): crew neck; shorts with cyan blades on the lower outer legs; socks.
-- Game Kit: needs game pants with belt and knee pads (COMING SOON plan item 12), socks, front 86.
+## Next action (user 2026-10-30)
+- When DT6 calls the Netball dress FINAL: add it to the Finished list in task-done-today.md, then push all changes to v2 (final-push-v2.sh) and make a new code-only live tar (final-pack-1029a.sh style). Give the user the tar path and the live steps (migrate --force for presets + ai_sessions, optimize:clear).
 
-## Builder queue (start the next only when the current builder finishes; each has a progress log)
-2. Socks exact match, rest after CF1's toe-line fix; log SP\SK2.
-5. Rugby League jersey leftovers: SP\WF1\rugby-league-jersey\log.md.
-6. Shooting shirt: SP\WF1\shooting-shirt\log.md.
-7. Basketball shorts: SP\WF1\basketball-shorts\log.md.
-8. Shorts: SP\WF1\shorts\log.md.
-9. Then: bucket hat, bibs (GM4 log), rugby league kit, football jersey, singlet, tee, polo, raglan, hoodie, track jacket, varsity, full kit, then COMING SOON plan items 9+ (SP\GM1\plan.md).
-- FD1 ac5a188598cb64cc9 (tile looks) stopped at the limit while finishing screenshots; low priority.
-- Prompts for these: the workflow script garment-detail-pass-wf_e3c2c5e1-acb.js (buildPrompt / detailPrompt); use them for ONE agent at a time, not a workflow.
-
-- DT5 a01e0827338d866f3 (tester): nothing FINAL yet; football jersey shots saved, not yet compared; re-check the compression top / football jerseys as the fixers land, aim for FINAL; log SP\DT5\log.md.
-
-## Agent progress saved (2026-10-29 18:30; each also keeps a log)
-- DT4 ab0c631035b928e45 (tester): STOPPED (context full) after skirt fixes (-81) and compression / socks heel / cap fixes (-83). Start a NEW tester (DT5) from SP\DT4\log.md (last lines = re-check recipe) when CF1 + FX3 report the compression top. Warning: GM1\same.cjs gives false differences when the machine is busy; re-run before trusting.
-- CF1 a2248b0f4560b6960 (fixer): cap eyelets + fabric (-78), socks toe colour, compression top 8 points (-80); was on the socks toe shading; next = compression-top findings. Log SP\CF1.
-- FX3 a24d75d5309013901 (fixer): football jerseys (-82): bold chest 3, shoulder 3s, V badge, side panels, practice stripes / mesh / black sides; finishing V triangle, narrower 86, Game black sleeves. Swirl collar/shoulder fade paused. Log SP\FX3\log.md.
-- ND1 a6bb230d2b8dc09cb (builder): netball dress, paused by focus mode. Log SP\WF1\netball-dress\log.md.
-- Memory: commit memory ran out at 18:24 (website build emptied); 34 test browsers closed, website rebuilt. Keep agents to 3-4 and browsers closed.
-
-## Waiting on the client
-- Buying professional garment models; HQ jersey as default; Airwallex keys; supplier prices; live mail settings.
+## Waiting on the user / client
+- The Football jersey length (questions.md 4).
+- Buying professional garment models; the HQ jersey as default; Airwallex keys; supplier prices; live mail settings.
 
 ## Rules
 - Keep this file short; delete what's done. task-done-today.md is shown to the client (only direct tasks).
-- task-done-today.md bottom section "Finished 3D models (built, tested and final)": add a model ONLY when the detail tester passes it with no open differences (user 2026-10-29, for the client).
-- Never start my own suggestions without the user's yes.
-- Never sign up / sign in / save on 8000 (SP\iso-server.cjs). Push only when told. Live tars code-only; never delete Manoj Caresort. Local DB migrations: back up, then run. No keys in notes; php -l every PHP edit; no new packages; simple words.
+- task-done-today.md bottom section "Finished 3D models (built, tested and final)": add a model ONLY when the detail tester passes it with no open differences.
+- Never start my own suggestions without the user's yes. Finished fixes are merged at once; one-model-at-a-time only decides what starts next.
+- GM1\same.cjs gives false differences on a busy machine: re-run before trusting it.
+- Never sign up / sign in / save on 8000 (use SP\iso-server.cjs). Push only when told. Live tars are code-only; never delete Manoj Caresort. Local DB migrations: back up, then run. No keys in notes; php -l every PHP edit; no new packages; simple words.

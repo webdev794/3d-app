@@ -229,6 +229,167 @@ class AppController extends ChangeNotifier {
   /// it, so late pictures from an older brief are dropped.
   int resultsRun = 0;
   String? planError;
+
+  // ---------- Recent designs (client 2026-10-30, like ChatGPT keeps your
+  // chats; the website's /ai/sessions): each brief's designs are saved to the
+  // account once they are in (only changed pictures are sent) and the last
+  // brief is kept on this device; the AI Designer start screen reopens them.
+  int? aiSessionId;
+  List<Uint8List> _aiSessionSent = const [];
+  int _aiSessionToken = 0;
+  Future<void> _aiSaving = Future.value();
+
+  /// A new brief: its designs become a new session.
+  void newAiSession() {
+    _aiSessionToken++;
+    aiSessionId = null;
+    _aiSessionSent = const [];
+  }
+
+  /// After a design arrives or changes (render, Make HD, refine, edit):
+  /// saved once none is still rendering (an unchanged list is not sent).
+  void saveAiSessionSoon() => unawaited(_saveAiSession());
+
+  static String _dataUrl(Uint8List b) {
+    final mime = b.length > 3 && b[0] == 0x89 && b[1] == 0x50
+        ? 'image/png'
+        : b.length > 11 && b[8] == 0x57 && b[9] == 0x45
+        ? 'image/webp'
+        : 'image/jpeg';
+    return 'data:$mime;base64,${base64Encode(b)}';
+  }
+
+  Future<void> _saveAiSession() async {
+    if (concepts.any((o) => o.busy)) return;
+    final list = [
+      for (final o in concepts)
+        if (o.image != null) o,
+    ];
+    if (list.isEmpty || brief.trim().isEmpty) return;
+    final token = _aiSessionToken;
+    final images = [for (final o in list) o.image!];
+    Map<String, dynamic> keep(Concept o) => {
+      'name': o.spec.designName,
+      'description': o.spec.summary,
+      if (o.quality == 'high' || o.quality == 'medium') 'quality': o.quality,
+      if (o.view == 'presentation' || o.view == 'front') 'view': o.view,
+      'direction': o.direction,
+      'spec': o.spec.toJson(),
+    };
+    final local = {
+      'prompt': brief,
+      'sport': aiSport ?? sport,
+      'garment': aiGarment ?? garment,
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'options': [
+        for (final o in list) {...keep(o), 'image': _dataUrl(o.image!)},
+      ],
+    };
+    unawaited(const RecentDesignsStore().save(local));
+    if (!signedIn || !api.configured) return;
+    _aiSaving = _aiSaving.then((_) async {
+      if (token != _aiSessionToken) return;
+      final id = aiSessionId, sent = _aiSessionSent;
+      bool same(int i) => i < sent.length && identical(sent[i], images[i]);
+      if (id != null &&
+          sent.length == images.length &&
+          [for (var i = 0; i < images.length; i++) same(i)].every((x) => x)) {
+        return;
+      }
+      final body = {
+        'prompt': brief,
+        'sport': aiSport ?? sport,
+        'garment': aiGarment ?? garment,
+        'source': 'app',
+        'options': [
+          for (final (i, o) in list.indexed)
+            {
+              ...keep(o),
+              if (id == null || !same(i)) 'image': _dataUrl(o.image!),
+            },
+        ],
+      };
+      try {
+        final saved = id == null
+            ? await api.saveAiSession(body)
+            : await api.updateAiSession(id, body);
+        if (token != _aiSessionToken) return;
+        aiSessionId = (saved['id'] as num).toInt();
+        _aiSessionSent = images;
+      } on Object {
+        // Recent designs are a convenience: the designs on screen stay.
+      }
+    });
+  }
+
+  /// A Recent designs card: YOUR DESIGNS again with that brief's designs
+  /// (from the account, or the last brief on this device), with no AI call.
+  void showAiSession(Map<String, dynamic> s, {int? id}) {
+    String? pick(List<String> names, Object? v) {
+      String key(Object? x) =>
+          '$x'.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
+      return names.where((n) => key(n) == key(v)).firstOrNull;
+    }
+
+    final sportName = pick(designSports, s['sport']);
+    final garmentName = pick(aiDesignGarments, s['garment']);
+    final list = <Concept>[];
+    for (final o in (s['options'] as List? ?? const [])) {
+      final m = (o as Map).cast<String, dynamic>();
+      final url = m['image'] as String?;
+      final comma = url?.indexOf(',') ?? -1;
+      if (url == null || comma < 0) continue;
+      try {
+        final bytes = base64Decode(url.substring(comma + 1));
+        final design = (m['design'] as Map?)?.cast<String, dynamic>() ?? {};
+        final from = (m['spec'] as Map?)?.cast<String, dynamic>();
+        final spec = DesignSpec.fromJson(
+          from ??
+              {
+                'designName': m['name'] ?? 'Design ${list.length + 1}',
+                'detected': garmentName ?? garment,
+                'summary': m['description'] ?? '',
+                'findings': const <String>[],
+                'mainColor': design['main'] ?? '#101d2a',
+                'secondaryColor': design['secondary'] ?? '#00c2cc',
+                'accentColor': design['accent'] ?? '#ffffff',
+                'pattern': design['pattern'],
+                'fabric': design['fabric'],
+                'logoText': design['logoText'] ?? '',
+                'renderPrompt': '',
+                'patternMotif': m['motif'] ?? '',
+                'sport': sportName,
+                'garment': garmentName,
+              },
+        );
+        list.add(
+          Concept(
+              spec,
+              direction: (m['direction'] as Map?)?.cast<String, dynamic>(),
+            )
+            ..image = bytes
+            ..quality = m['quality'] as String?
+            ..view = m['view'] as String?,
+        );
+      } on Object {
+        continue;
+      }
+    }
+    if (list.isEmpty) return;
+    resultsRun++;
+    newAiSession();
+    brief = '${s['prompt'] ?? ''}';
+    aiSport = sportName;
+    aiGarment = garmentName;
+    references.clear();
+    concepts = list;
+    selectedConcept = 0;
+    planError = null;
+    aiSessionId = id;
+    _aiSessionSent = id == null ? const [] : [for (final o in list) o.image!];
+    go(AppScreen.concepts);
+  }
+
   Uint8List? mockupImage;
   String? mockupError, mockupDirection;
 
@@ -1938,6 +2099,41 @@ class AppController extends ChangeNotifier {
     final board = captureBoard;
     if (panels && board != null) {
       mockupPanels = await board().catchError((_) => null) ?? mockupPanels;
+    }
+  }
+}
+
+/// The last AI Designer brief on this device (guests, and anyone signed
+/// out): the prompt and its designs with their pictures (Recent designs).
+class RecentDesignsStore {
+  const RecentDesignsStore();
+  static const _key = '3deezi.ai.last';
+
+  Future<Map<String, dynamic>?> load() async {
+    try {
+      final raw = (await SharedPreferences.getInstance()).getString(_key);
+      final s = raw == null ? null : jsonDecode(raw) as Map<String, dynamic>;
+      return (s?['options'] as List?)?.isNotEmpty == true ? s : null;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Keeps it; when the device's storage is too small, the first design only.
+  Future<void> save(Map<String, dynamic> session) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      try {
+        await prefs.setString(_key, jsonEncode(session));
+      } on Object {
+        final options = session['options'] as List;
+        await prefs.setString(
+          _key,
+          jsonEncode({...session, 'options': options.take(1).toList()}),
+        );
+      }
+    } on Object {
+      // Storage blocked: Recent designs are a convenience.
     }
   }
 }

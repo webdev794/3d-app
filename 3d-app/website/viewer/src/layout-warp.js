@@ -168,7 +168,7 @@ DRAWN.pocketpolo = DRAWN.polo;
 DRAWN.nfljersey = { N: [0.09, 0.742], T: [0, 0.665], CT: [0.39, 0.6], CB: [0.35, 0.49], U: [0.258, 0.53], H: [0.258, 0.03] };
 // The netball dress (garment.js SPECS['netball-dress']): sleeveless as the singlet, its corners at its own heights (the
 // hem's corners at the foot of its flared skirt).
-DRAWN['netball-dress'] = { N: [0.088, 0.88], S: [0.136, 0.88], U: [0.224, 0.676], H: [0.326, 0.035], T: [0, 0.765] };
+DRAWN['netball-dress'] = { N: [0.104, 0.88], S: [0.168, 0.88], U: [0.25, 0.687], H: [0.405, 0.035], T: [0, 0.772] };
 
 /** Whether a garment drawing's shape has sleeves: much wider across its top part than near its hem. */
 export function sleevedShape(o) {

@@ -189,6 +189,25 @@ class ApiClient {
     }
   }
 
+  // ---------- Recent designs: the AI Designer's saved briefs (website /ai/sessions)
+  Future<Map<String, dynamic>> aiSessions({int limit = 8}) async =>
+      await _send('GET', '/ai/sessions?limit=$limit') as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> aiSession(int id) async =>
+      await _send('GET', '/ai/sessions/$id', long: true)
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> saveAiSession(Map<String, dynamic> body) async =>
+      await _send('POST', '/ai/sessions', body: body, long: true)
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> updateAiSession(
+    int id,
+    Map<String, dynamic> body,
+  ) async =>
+      await _send('PUT', '/ai/sessions/$id', body: body, long: true)
+          as Map<String, dynamic>;
+
   // ---------- projects
   Future<List<Map<String, dynamic>>> projects() async =>
       (await _send('GET', '/projects') as List).cast<Map<String, dynamic>>();

@@ -202,8 +202,8 @@ class GarmentTile {
 const pictureLooks = {
   'jersey': 'tribal',
   'fullkit': 'tribalKit',
-  'rugby-jersey': 'blades',
-  'rugby-kit': 'blades',
+  'rugby-jersey': 'rugbyLeague',
+  'rugby-kit': 'rugbyLeague',
   'nfl-kit': 'nflgame',
   'rash-guard': 'blades',
   'rugby-polo': 'sleeves',
@@ -234,6 +234,7 @@ const pictureLooks = {
   'rugby-socks': 'rugbySocks',
   'cap': 'capSweep',
   'nfl-cap': 'capSweep',
+  'netball-skirt': 'skirt',
 };
 
 /// What a picture shows on top of its look, as config/catalog.php
@@ -323,11 +324,13 @@ List<Map<String, dynamic>> _tileObjects(String? picture) {
         'part': 'top',
         'side': 'front',
         'x': 0.34,
-        'y': 0.575,
-        'rot': -50,
+        'y': 0.565,
+        'rot': -25,
         'text': '3',
-        // FX3: a squared block numeral, taller, as the picture's.
-        'size': 0.09,
+        // FX3: a squared block numeral, taller, as the picture's. (Upright from the front, tall and condensed, just
+        // inside the arm's outer edge.)
+        'size': 0.12,
+        'narrow': 0.5,
         'color': '#16b4f0',
         'font': 'JerseyBlock',
       },
@@ -414,6 +417,27 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'patternColor': '#1672f5',
       'parts': {
         'sides': {'colour': '#27282a', 'pattern': 'Blades'},
+      },
+    },
+    // The Rugby League jersey and kit (RF1, the sport's picture): the jersey's own
+    // Blades, black hem and cuffs, the cyan collar, a small 3DEEZI under the "3".
+    'rugbyLeague': {
+      'pattern': 'Blades',
+      'patternColor': '#1672f5',
+      'secondary': '#27282a',
+      'parts': {
+        'sides': {'colour': '#27282a', 'pattern': 'Blades'},
+        'collar': {'colour': cyan},
+      },
+      'zoneColors': {
+        'crestWord': cyan,
+        'crestMark': '#1e8ff0',
+        'cordTips': '#27282a',
+      },
+      // (The "3" all blue; the kit's shorts without the number and crest.)
+      'marks': {
+        'shorts_number': {'hidden': true},
+        'shorts_crest': {'hidden': true},
       },
     },
     'shoulders': {
@@ -525,6 +549,59 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'capUnder': {'colour': cyan},
       },
     },
+    // The skirt picture (netball skirt, hockey skort, tennis skirt): its side
+    // panels a lighter, greener cyan, as measured on the picture
+    // (website catalog.php).
+    'skirt': {'secondary': '#25c6f2'},
+    // The Netball dress picture (ND1, as config/catalog.php 'netballDress' and
+    // $dressBib): its own Blades (royal blue, azure and cyan ribbons down the
+    // sides), bright cyan armhole binding, a black neck; the 3DEEZI mark and
+    // wordmark on the chest, a black bib sewn on below with the white position
+    // letters, the same on the back; no name or number.
+    'netballDress': {
+      'main': '#1b1d20',
+      'secondary': '#00ccff',
+      'accent': '#00d0ff',
+      'pattern': 'Blades',
+      'patternColor': '#0458f0',
+      'parts': {
+        'sides': {'colour': '#1b1d20', 'pattern': 'Blades'},
+        'collar': {'colour': '#1b1d20'},
+      },
+      'marks': {
+        'top_name': {'hidden': true},
+        'top_number': {'hidden': true},
+      },
+      'layers': [
+        for (final side in const ['front', 'back'])
+          {
+            'id': side == 'front' ? 'tile-bib' : 'tile-bib-back',
+            'name': 'Position bib',
+            'type': 'shape',
+            'part': 'top',
+            'side': side,
+            'x': 0,
+            'y': side == 'front' ? 0.491 : 0.501,
+            'shape': 'rectangle',
+            'w': 0.218,
+            'h': 0.213,
+            'color': '#212326',
+          },
+        for (final side in const ['front', 'back'])
+          {
+            'id': side == 'front' ? 'tile-position' : 'tile-position-back',
+            'name': 'Position',
+            'type': 'text',
+            'part': 'top',
+            'side': side,
+            'x': 0,
+            'y': side == 'front' ? 0.464 : 0.474,
+            'text': 'WA',
+            'size': 0.185,
+            'color': '#ffffff',
+          },
+      ],
+    },
   };
   return {
     'main': '#27282a',
@@ -539,8 +616,10 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     'zoneColors': <String, String>{},
     'layers': _tileObjects(picture),
     ...?looks[name],
-    // A bib's position letters stand alone (as config/catalog.php $letters).
-    if (_tileObjects(picture).any((l) => l['id'] == 'tile-position'))
+    // A bib's position letters stand alone (as config/catalog.php $letters),
+    // unless the look sets its own marks (the netball dress keeps its logo).
+    if (looks[name]?['marks'] == null &&
+        _tileObjects(picture).any((l) => l['id'] == 'tile-position'))
       'marks': {
         for (final k in const [
           'top_wordmark',
@@ -549,6 +628,13 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
           'top_number',
         ])
           k: {'hidden': true},
+      },
+    // The Compression Top picture: the crest at its own place, stacked over
+    // the wordmark (as config/catalog.php $sleeveThree), so the Game Jersey
+    // tile's small high crest does not stay on.
+    if (picture == 'nfl-compression-top')
+      'marks': <String, dynamic>{
+        'top_crest': {'scale': 1},
       },
   };
 }
@@ -776,6 +862,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Fitted netball dress with skirt hem.',
       'Netball dress',
       image: 'netball-dress',
+      look: 'netballDress',
     ),
     GarmentTile('Netball skirt', 'Athletic skirt with team styling.', 'Skirt', image: 'netball-skirt'),
     GarmentTile(

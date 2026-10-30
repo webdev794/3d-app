@@ -91,6 +91,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/ai/edit', [AiController::class, 'edit'])->middleware('throttle:concepts');
         Route::post('/ai/image-edit', [AiController::class, 'imageEdit'])->middleware('throttle:concepts');
         Route::post('/ai/convert', [AiController::class, 'convert'])->middleware('throttle:concepts');
+        // Recent designs on the AI Designer page: each brief with its four designs, reopened with no new AI call.
+        Route::get('/ai/sessions', [\App\Http\Controllers\AiSessionController::class, 'index']);
+        Route::post('/ai/sessions', [\App\Http\Controllers\AiSessionController::class, 'store'])->middleware('throttle:uploads');
+        Route::get('/ai/sessions/{session}', [\App\Http\Controllers\AiSessionController::class, 'show'])->whereNumber('session');
+        Route::put('/ai/sessions/{session}', [\App\Http\Controllers\AiSessionController::class, 'update'])->whereNumber('session')->middleware('throttle:uploads');
+        Route::delete('/ai/sessions/{session}', [\App\Http\Controllers\AiSessionController::class, 'destroy'])->whereNumber('session');
         Route::get('/orders', [OrderController::class, 'index']);
         Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:uploads');
         // 3DEEZI Orders: my board, one order, design approval; drafts with their files; file downloads; notifications.

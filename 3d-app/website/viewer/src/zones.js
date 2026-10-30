@@ -83,9 +83,9 @@ export const isDress = (kind) => kind === 'netball-dress';
 const DRESS = {
   // The straps and the upper chest and back.
   yoke: [[-0.3, 0.72, 0.3, 0.95]],
-  // The side panels: from the underarm down the bodice's and the skirt's sides.
-  sides: [[0.17, 0, 0.36, 0.68]],
-  hem: [[-0.36, 0, 0.36, 0.12]],
+  // The side panels: from the underarm down the bodice's and the skirt's sides (its hem 0.405 out at the sides).
+  sides: [[0.17, 0, 0.45, 0.68]],
+  hem: [[-0.45, 0, 0.45, 0.12]],
   body: [[-0.2, 0.12, 0.2, 0.72]],
 };
 
@@ -106,8 +106,13 @@ const CAP = { body: [[-0.3, 0, 0.3, 0.3]] };
 export const NFL_CAP = [[0.17, 0.8], [0.17, 0.745], [0.205, 0.68], [0.24, 0.626], [0.258, 0.613], [0.3, 0.6], [0.33, 0.66], [0.35, 0.8]];
 const NFL = { ...TOP, yoke: [[0.17, 0.56, 0.35, 0.8]], sides: [[0.2, 0, 0.3, 0.5]] };
 /** A zone's own outlines (+x side and mirrored) where it is not a rectangle; null when its rectangles are its shape. */
+// The compression top's side panel (the client's picture): its inner edge runs straight up from the hem, then curves out
+// and narrows into the raglan piping at the underarm, so the panel goes on from the piping (no flat top across the side
+// of the chest: FM 2026-10-30). Its outer side runs on past the side seam.
+export const COMPRESSION_PANEL = [[0.15, -0.01], [0.15, 0.36], [0.157, 0.42], [0.172, 0.46], [0.195, 0.495], [0.222, 0.52], [0.244, 0.534], [0.27, 0.548], [0.27, -0.01]];
 export function zonePolys(kind, zone) {
   if (kind === 'nfljersey' && zone === 'yoke') return [NFL_CAP, NFL_CAP.map(([x, y]) => [-x, y]).reverse()];
+  if (kind === 'compression' && zone === 'sides') return [COMPRESSION_PANEL, COMPRESSION_PANEL.map(([x, y]) => [-x, y]).reverse()];
   return null;
 }
 
@@ -164,7 +169,7 @@ const quad = (p0, p1, p2, n = 12) => Array.from({ length: n + 1 }, (_, i) => {
 /** One side panel as painted (texture.js), on the +x side: a top's, the dress's or the shorts' side stripe. */
 function panelOutline(kind) {
   if (kind === 'shorts') return [[0.19, 0.43], [0.232, 0], [0.3, 0], [0.3, 0.43]];
-  if (isDress(kind)) return [...quad([0.203, 0.69], [0.158, 0.52], [0.172, 0.4]), ...quad([0.172, 0.4], [0.196, 0.18], [0.252, -0.01]).slice(1), [0.4, -0.01], [0.4, 0.7]];
+  if (isDress(kind)) return [...quad([0.21, 0.69], [0.175, 0.52], [0.19, 0.4]), ...quad([0.19, 0.4], [0.215, 0.18], [0.31, -0.01]).slice(1), [0.5, -0.01], [0.5, 0.7]];
   if (kind === 'nfljersey') return NFL_PANEL;
   return [...quad([0.262, 0.54], [0.215, 0.3], [0.23, 0]), [0.3, 0], [0.3, 0.54]];
 }

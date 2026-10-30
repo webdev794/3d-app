@@ -18,3 +18,6 @@ Questions waiting for your answer. Each one is also asked in the chat; once answ
 
 5. **Tennis skirt / Hockey skort descriptions (2026-10-29):** the tiles say "Pleated skirt with inner shorts" / "Skirt with built-in shorts", but the client's pictures (and our 3D) show a plain A-line skirt with side panels.
    (Decided, going ahead: the descriptions now match the pictures, e.g. "A-line skirt with side panels"; tile names stay. Tell me if pleats or inner shorts are wanted instead.)
+
+6. **Rugby League Jersey / Kit: which picture should the 3D follow? (2026-10-30)** The tile picture you click (garment-rugby-jersey.webp) shows cyan raglan shoulders, cyan cuffs and curved side blades; the kit tile picture also has shorts with cyan side panels and socks. But the 3D was made to follow the client's other picture (images/225: claw shoulders and tribal flames).
+   (Suggested: follow the TILE picture the customer clicks, since that's the rule for every tile; keep the claw / flame design as a separate preset.)

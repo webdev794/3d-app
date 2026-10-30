@@ -54,6 +54,11 @@ $look = function (string $name, array $extra = []): array {
         'swoosh' => ['pattern' => 'Velocity', 'zones' => $solid('sleeves')],
         // The Rugby League jersey (RL1): royal blue blades with cyan edges over black, the side panels black under the blades.
         'blades' => ['pattern' => 'Blades', 'patternColor' => '#1672f5', 'parts' => ['sides' => ['colour' => '#27282a', 'pattern' => 'Blades']]],
+        // The Rugby League jersey and kit (RF1 2026-10-30, the sport's picture kit-rugby-league.webp): the jersey's own
+        // Blades (the picture's flames, shoulder stripes and claws), black hem and cuffs (the trims), the cyan collar and a
+        // small 3DEEZI line under the "3" mark, the "3" all blue; the kit's shorts without the number and crest, with the picture's tribal side flames
+        // (the Blades) and black drawstring tips.
+        'rugbyLeague' => ['pattern' => 'Blades', 'patternColor' => '#1672f5', 'secondary' => '#27282a', 'parts' => ['sides' => ['colour' => '#27282a', 'pattern' => 'Blades'], 'collar' => ['colour' => $cyan]], 'zoneColors' => ['crestWord' => $cyan, 'crestMark' => '#1e8ff0', 'cordTips' => '#27282a'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['hidden' => true]]],
         'shoulders' => ['zones' => $solid('yoke', 'sleeves')],
         // The hoodies: black, a wide cyan stripe along each sleeve (Hoodie areas › Sleeve stripe), cyan hood lining.
         'hoodie' => ['zoneColors' => ['stripe' => $cyan]],
@@ -80,6 +85,13 @@ $look = function (string $name, array $extra = []): array {
         'rugbySocks' => ['parts' => ['sockBand' => ['colour' => '#0b95dd'], 'sockFoot' => ['colour' => $cyan]]],
         // The cap (garment 4): cyan piping (its trim colour); the pictures' cyan and royal blue side sweeps and cyan under the brim.
         'capSweep' => ['parts' => ['capSweep' => ['colour' => $cyan], 'capSweepLow' => ['colour' => '#1a6ef0'], 'capUnder' => ['colour' => $cyan]]],
+        // The skirt picture (netball skirt, hockey skort, tennis skirt): its side panels a lighter, greener cyan, as
+        // measured on the picture (FM 2026-10-30: 37,198,242).
+        'skirt' => ['secondary' => '#25c6f2'],
+        // The Netball dress picture (ND1, colours measured on it): its own Blades, royal blue, azure and cyan ribbons down
+        // the sides (the side panels printed in one with them), bright cyan armhole binding, a black neck.
+        'netballDress' => ['main' => '#1b1d20', 'secondary' => '#00ccff', 'accent' => '#00d0ff', 'pattern' => 'Blades', 'patternColor' => '#0458f0',
+            'parts' => ['sides' => ['colour' => '#1b1d20', 'pattern' => 'Blades'], 'collar' => ['colour' => '#1b1d20']]],
     ];
     return $extra + ($looks[$name] ?? []) + $base + ['number' => '23', 'marks' => []];
 };
@@ -140,7 +152,7 @@ $sports = [
     ['id' => 'netball', 'name' => 'Netball', 'description' => 'Move together. Stand out together.', 'group' => 'sports',
         'names' => false, 'numbers' => false, 'positions' => ['GS', 'GA', 'WA', 'C', 'WD', 'GD', 'GK'], 'tiles' => [
         // Its own 3D garment since 2026-10-26 (tasks.md 9.126): a women's fitted dress on the female figure.
-        $tile('Netball dress', 'Fitted netball dress with skirt hem.', 'netball-dress', 'netball-dress'),
+        $tile('Netball dress', 'Fitted netball dress with skirt hem.', 'netball-dress', 'netball-dress') + ['design' => $look('netballDress')],
         // Its own 3D garment since 2026-10-29 (COMING SOON 10): the A-line skirt with a gathered waistband.
         $tile('Netball skirt', 'Athletic skirt with team styling.', 'skirt', 'netball-skirt'),
         $tile('Singlet with bib', 'Netball singlet with removable bib.', 'singlet', 'netball-singlet-bib'),
@@ -413,13 +425,13 @@ $sports = [
  * look (the American football jerseys) keeps it; its other settings (fabric, track style) stay.
  */
 $pictureLooks = [
-    'jersey' => 'tribal', 'fullkit' => 'tribalKit', 'rugby-jersey' => 'blades', 'rugby-kit' => 'blades', 'nfl-kit' => 'nflgame', 'rash-guard' => 'blades',
+    'jersey' => 'tribal', 'fullkit' => 'tribalKit', 'rugby-jersey' => 'rugbyLeague', 'rugby-kit' => 'rugbyLeague', 'nfl-kit' => 'nflgame', 'rash-guard' => 'blades',
     'rugby-polo' => 'sleeves', 'tee' => 'sleevesOnly', 'nfl-tee' => 'sleevesOnly', 'rugby-tee' => 'sleevesOnly', 'netball-tee' => 'sleevesOnly', 'shooting-shirt' => 'shooting',
     'singlet' => 'bladesSides', 'netball-training-singlet' => 'bladesSides', 'afl-guernsey' => 'bladesSides', 'netball-singlet-bib' => 'bladesSides', 'netball-dress' => 'bladesSides',
     'team-hoodie' => 'hoodie', 'nfl-hoodie' => 'hoodie', 'netball-hoodie' => 'hoodie', 'nfl-compression-top' => 'sides',
     'trackjacket' => 'track', 'netball-tracksuit' => 'track', 'tracksuit' => 'trackSides', 'rugby-hooded-tracksuit' => 'trackSides', 'nfl-hooded-tracksuit' => 'trackSides',
     'rugby-waterproof-jacket' => 'waterproof', 'nfl-waterproof-jacket' => 'waterproof',
-    'socks' => 'socksHeel', 'rugby-socks' => 'rugbySocks', 'cap' => 'capSweep', 'nfl-cap' => 'capSweep',
+    'socks' => 'socksHeel', 'rugby-socks' => 'rugbySocks', 'cap' => 'capSweep', 'nfl-cap' => 'capSweep', 'netball-skirt' => 'skirt',
 ];
 $sideLooks = ['shorts', 'trackjacket', 'compression'];
 // What a picture shows on top of its look (objects with ids 'tile-…', which a new tile takes off again): netball
@@ -439,12 +451,25 @@ $gameThree = ['layers' => [
 ]];
 // The Compression Top picture (CF1 2026-10-29): the cyan "3" upright on the upper arm, seen from the front. (DT4: the
 // small "3" is on the black neck label inside the back neck, the viewer's own; nothing printed under the crew neck.)
-// (FX3: a squared block numeral, taller, as the picture's: the jersey font.)
-$sleeveThree = ['layers' => [
-    ['type' => 'text', 'id' => 'tile-sleeve', 'name' => 'Sleeve number', 'part' => 'top', 'side' => 'front', 'x' => 0.34, 'y' => 0.575, 'rot' => -50, 'text' => '3', 'size' => 0.09, 'color' => '#16b4f0', 'font' => 'JerseyBlock'],
+// (FX3: a squared block numeral, taller, as the picture's: the jersey font.) (FM print fixer 2026-10-30: upright from
+// the front, tall and condensed (`narrow`), just inside the arm's outer edge, no longer cut off by it.)
+// (Detail tester 2026-10-30: the crest at its own place, stacked over the wordmark as in the picture; without it the
+// Game Jersey tile's small high crest stayed on when this tile was picked after it.)
+$sleeveThree = ['marks' => ['top_crest' => ['scale' => 1]], 'layers' => [
+    ['type' => 'text', 'id' => 'tile-sleeve', 'name' => 'Sleeve number', 'part' => 'top', 'side' => 'front', 'x' => 0.34, 'y' => 0.565, 'rot' => -25, 'text' => '3', 'size' => 0.12, 'narrow' => 0.5, 'color' => '#16b4f0', 'font' => 'JerseyBlock'],
+]];
+// The Netball dress picture on its own 3D dress (ND1): the 3DEEZI mark and wordmark on the chest, a black bib sewn on
+// below them with the white position letters (tall condensed letters on the dress), the same on the back; no name or
+// number. (Keyed picture@garment: the Tennis dress tile shows the same picture on the singlet, with the bibs' letters.)
+$dressBib = ['marks' => ['top_name' => ['hidden' => true], 'top_number' => ['hidden' => true]], 'layers' => [
+    ['type' => 'shape', 'id' => 'tile-bib', 'name' => 'Position bib', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => 0.491, 'shape' => 'rectangle', 'w' => 0.218, 'h' => 0.213, 'color' => '#212326'],
+    ['type' => 'shape', 'id' => 'tile-bib-back', 'name' => 'Position bib', 'part' => 'top', 'side' => 'back', 'x' => 0, 'y' => 0.501, 'shape' => 'rectangle', 'w' => 0.218, 'h' => 0.213, 'color' => '#212326'],
+    ['type' => 'text', 'id' => 'tile-position', 'name' => 'Position', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => 0.464, 'text' => 'WA', 'size' => 0.185, 'color' => '#ffffff'],
+    ['type' => 'text', 'id' => 'tile-position-back', 'name' => 'Position', 'part' => 'top', 'side' => 'back', 'x' => 0, 'y' => 0.474, 'text' => 'WA', 'size' => 0.185, 'color' => '#ffffff'],
 ]];
 $pictureExtras = [
     'bibs' => $letters('GS'), 'netball-bibs' => $letters('GS'), 'netball-singlet-bib' => $letters('GA'), 'netball-dress' => $letters('WA'),
+    'netball-dress@netball-dress' => $dressBib,
     'nfl-kit' => $chestThree, 'nfl-compression-top' => $sleeveThree,
 ];
 $pictureLooks += ['varsity' => 'varsity', 'nfl-varsity' => 'varsity'];
@@ -455,7 +480,7 @@ foreach ($sports as &$sport) {
             $name = $pictureLooks[$t['image']] ?? (in_array($t['garment'], $sideLooks, true) ? 'sides' : 'plain');
             $t['design'] = $look($name, $t['design'] ?? []);
         }
-        $extra = $pictureExtras[$t['image']] ?? ($t['image'] === 'nfl-jersey' ? $gameThree : []);
+        $extra = $pictureExtras[$t['image'].'@'.$t['garment']] ?? $pictureExtras[$t['image']] ?? ($t['image'] === 'nfl-jersey' ? $gameThree : []);
         $t['design'] = array_merge($t['design'], $extra);
     }
     unset($t);

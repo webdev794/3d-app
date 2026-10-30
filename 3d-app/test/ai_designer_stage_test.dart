@@ -70,8 +70,8 @@ void main() {
     expect(c.screen, AppScreen.aiDesigner);
     expect(find.text('What are we designing for Netball?'), findsOneWidget);
     // Netball's own garments by their names (task 9.99), as in Design Your
-    // Own; the coming-soon skirt is not offered.
-    expect(find.text('Netball skirt'), findsNothing);
+    // Own; the skirt is a real 3D garment now, so it is offered too.
+    expect(find.text('Netball skirt'), findsOneWidget);
     await tester.tap(find.text('Netball dress'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.generating);

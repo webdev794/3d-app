@@ -14,6 +14,7 @@ import { createStudio } from './studio.js';
 import { qualityTier, TIERS, stadiumEnvironment, dressFabric, hdrBackdrop } from './render-quality.js';
 import { buildSocks } from './socks.js';
 import { buildSkirt } from './skirt.js';
+import { SKIRT_LIGHT } from './skirtprint.js';
 import { buildCap } from './cap.js';
 import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
 import { hqWanted, loadHQ, hqJersey } from './hq.js';
@@ -149,8 +150,11 @@ function addRelief(target, painter) {
     reliefs.set(key, relief);
   }
   const relief = reliefs.get(key);
-  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief');
+  // The skirt's own light (skirtprint.js SKIRT_LIGHT: its black neutral and even, its panels clean), on the tiers.
+  const skirtLight = painter.kind === 'skirt' && !!Q;
+  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '');
   target.onBeforeCompile = (shader) => {
+    if (skirtLight) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `${SKIRT_LIGHT}\n#include <opaque_fragment>`);
     shader.uniforms.reliefMap = { value: relief };
     // Look 2: the stitches and seams stand out a little more (the relief's slopes scaled up).
     const slopes = LOOK2 ? 'relief.xy * 1.7' : 'relief.xy';
@@ -272,6 +276,15 @@ function buildKit(kind) {
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     const partMaterial = material.clone();
     partMaterial.map = texture;
+    // The netball dress (ND1): its print lifted a little by its own light, so its blues read as bright as the client's
+    // evenly lit picture even on the side away from the studio's key light (its black stays black).
+    if (garment.kind === 'netball-dress') {
+      partMaterial.emissiveMap = texture;
+      partMaterial.emissive.setRGB(1, 1, 1);
+      partMaterial.emissiveIntensity = 0.24;
+      // (ND2: almost no grey sheen on it, so its strips stay saturated from the side too.)
+      partMaterial.sheen = 0.08;
+    }
     addRelief(partMaterial, painter);
     const group = new THREE.Group();
     // The inside of the fabric, seen through the neck, hem and cuffs: the garment's own colour in shade (paintAll).
@@ -419,7 +432,8 @@ function buildKit(kind) {
       rim.material.normalMap = ribs;
       rim.material.normalScale.set(0.75, 0.75);
     }
-    rim.visible = !hoodie && !track && !varsity && !garment.socks && !garment.skirt && !garment.cap;
+    // (The netball dress's scoop neck is bound and rolled as its armholes are: no collar rib.)
+    rim.visible = !hoodie && !track && !varsity && !garment.socks && !garment.skirt && !garment.cap && garment.kind !== 'netball-dress';
     // The HQ jersey's own collar piece, in the collar rib's material.
     if (hq?.collar) { rim.geometry.dispose(); rim.geometry = hq.collar; }
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
@@ -609,7 +623,9 @@ async function paintAll() {
     // The drawstring: the cord darker than the waistband it comes out of, eyelets and tips in the trim colour.
     if (part.cord) {
       part.cord.cord.color.set(layout && part.layoutRim ? part.layoutRim : design.main).multiplyScalar(0.82);
-      part.cord.metal.color.set(layout && part.layoutAccent ? part.layoutAccent : design.accent);
+      // (A tile's own colour for the eyelets and tips, design.zoneColors.cordTips: the Rugby League kit's black, RF1.)
+      const tips = /^#[0-9a-f]{6}$/i.test(design.zoneColors?.cordTips ?? '') ? design.zoneColors.cordTips : design.accent;
+      part.cord.metal.color.set(layout && part.layoutAccent ? part.layoutAccent : tips);
     }
   }
   ringMat.color.set(design.secondary).multiplyScalar(4);

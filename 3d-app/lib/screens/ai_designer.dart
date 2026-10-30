@@ -16,6 +16,7 @@ import '../export_service.dart';
 import '../player_shot.dart';
 import '../widgets/ai_stage.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/recent_designs.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
 import 'image_editor.dart';
@@ -404,7 +405,11 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                               ],
                             ),
                           ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 12),
+                        // Recent designs: the latest briefs and projects,
+                        // reopened with no new AI call.
+                        RecentDesignsStrip(c),
+                        const SizedBox(height: 14),
                         AiSportRow(
                           selected: _tile,
                           onSelect: (id) => setState(() {
@@ -942,6 +947,7 @@ class _ReferencesToKit extends StatelessWidget {
 /// create ends the run, so late pictures are dropped.
 void startResults(AppController c) {
   final run = ++c.resultsRun;
+  c.newAiSession();
   final primary = Concept(
     DesignSpec(
       designName: 'Your design',
@@ -1047,7 +1053,11 @@ Future<void> renderDesign(
   } on AiException catch (e) {
     if (run == c.resultsRun) o.error = e.message;
   } finally {
-    if (run == c.resultsRun) c.update(() => o.busy = false);
+    if (run == c.resultsRun) {
+      c.update(() => o.busy = false);
+      // Recent designs: saved once all the designs are in.
+      c.saveAiSessionSoon();
+    }
   }
 }
 
@@ -1148,6 +1158,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     );
     if (edited == null) return;
     c.update(() => concept.image = edited);
+    c.saveAiSessionSoon();
     if (mounted) showToast(context, 'Design picture updated.');
   }
 
@@ -1405,6 +1416,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
       final bytes = base64Decode(answer.substring(answer.indexOf(',') + 1));
       _previous[o] = image;
       c.update(() => o.image = bytes);
+      c.saveAiSessionSoon();
       _change.clear();
     } on ApiException catch (e) {
       if (run == c.resultsRun) {
@@ -1451,6 +1463,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               if (before != null) {
                 _previous[o] = null;
                 c.update(() => o.image = before);
+                c.saveAiSessionSoon();
               }
             case 'studio':
               _open(index);
@@ -1526,7 +1539,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     );
   }
 
-  Widget _picture(Concept? o, {required bool big}) {
+  Widget _picture(Concept? o, {required bool big, BoxFit? fit}) {
     if (o == null) {
       // Waiting for the plan while a Generate runs; otherwise nothing yet.
       return Center(
@@ -1547,7 +1560,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
           artImage(
             bytes: o.image,
             asset: o.asset,
-            fit: big ? BoxFit.contain : BoxFit.cover,
+            fit: fit ?? (big ? BoxFit.contain : BoxFit.cover),
           )
         else if (o.busy)
           Column(
@@ -1641,9 +1654,10 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     ),
   );
 
-  /// One floating thumbnail: a translucent dark frame with a thin cyan
-  /// border and the design's number; tap to show it large.
-  Widget _thumb(int index, double size) {
+  /// One card of another design: a translucent dark frame with a thin cyan
+  /// border and the design's number, the picture whole over its blurred
+  /// backdrop; tap to show it large.
+  Widget _thumb(int index) {
     final o = index < c.concepts.length ? c.concepts[index] : null;
     final ready =
         o != null &&
@@ -1651,6 +1665,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
             o.asset != null ||
             o.error != null ||
             o.direction == null);
+    final hasPicture = o != null && (o.image != null || o.asset != null);
     return Semantics(
       button: true,
       label: 'Design ${index + 1}: show this design',
@@ -1658,8 +1673,6 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         key: ValueKey('thumb-$index'),
         onTap: ready ? () => _select(index) : null,
         child: Container(
-          width: size,
-          height: size,
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             color: const Color(0x9902060b),
@@ -1675,13 +1688,20 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               fit: StackFit.expand,
               children: [
                 const ColoredBox(color: Color(0xff02070d)),
-                _picture(o, big: false),
+                if (hasPicture) ...[
+                  ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: artImage(bytes: o.image, asset: o.asset),
+                  ),
+                  const ColoredBox(color: Color(0x88000000)),
+                ],
+                _picture(o, big: false, fit: BoxFit.contain),
                 Positioned(
-                  top: 3,
-                  left: 3,
+                  top: 4,
+                  left: 4,
                   child: Container(
-                    width: 20,
-                    height: 20,
+                    width: 22,
+                    height: 22,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -1692,7 +1712,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
                       '${index + 1}',
                       style: const TextStyle(
                         color: Palette.cyan,
-                        fontSize: 11,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1706,9 +1726,73 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     );
   }
 
-  /// The large design with its backdrop, ⋯ and full screen, and the
-  /// thumbnails of the others (page elements only: never in a download).
-  Widget _viewer(Concept? primary, int sel, int total) => LayoutBuilder(
+  /// The other designs as bigger cards (client 2026-10-30, 240.jpg): stacked
+  /// in a column beside the large design on wide screens, in a row under it
+  /// on phones. Page elements only: never in a download.
+  Widget _others(List<int> others, {required bool wide}) {
+    if (others.isEmpty) return const SizedBox.shrink();
+    if (!wide) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        child: LayoutBuilder(
+          builder: (context, box) => SizedBox(
+            key: const ValueKey('design-others'),
+            height: (box.maxWidth * .24).clamp(78.0, 120.0),
+            child: Row(
+              children: [
+                for (final (n, i) in others.indexed) ...[
+                  if (n > 0) const SizedBox(width: 8),
+                  Expanded(child: _thumb(i)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, box) {
+        const gap = 14.0, hint = 22.0;
+        final h = math.max(
+          0.0,
+          math.min(
+            300.0,
+            (box.maxHeight - hint - gap * (others.length - 1)) / others.length,
+          ),
+        );
+        return Column(
+          key: const ValueKey('design-others'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(
+              height: hint,
+              child: Text(
+                'Tap to switch',
+                key: ValueKey('tap-to-switch'),
+                textAlign: TextAlign.center,
+                softWrap: false,
+                style: TextStyle(fontSize: 12, color: Color(0xffc9d6e2)),
+              ),
+            ),
+            for (final (n, i) in others.indexed) ...[
+              if (n > 0) const SizedBox(height: gap),
+              SizedBox(height: h, child: _thumb(i)),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  /// The large design in a wide frame over all the space it has (client
+  /// 2026-10-30: bigger, not so narrow), the picture centred at its own
+  /// proportions over its blurred backdrop (never cropped or stretched), with
+  /// ⋯ and full screen.
+  Widget _viewer(
+    Concept? primary,
+    int sel, {
+    required bool wide,
+  }) => LayoutBuilder(
     builder: (context, box) {
       final hasPicture = primary?.image != null || primary?.asset != null;
       final ratio =
@@ -1719,131 +1803,91 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               : primary?.view == 'front'
               ? 1.0
               : 2 / 3);
-      final others = [
-        if (primary != null)
-          for (var i = 0; i < total; i++)
-            if (i != sel) i,
-      ];
       final l = resultsLayout(
         box.maxWidth,
         box.maxHeight,
         ratio,
-        box.maxHeight < 170 ? 0 : others.length,
         picture: hasPicture,
       );
-      final over = l.mode == ResultsMode.over;
-      return Center(
-        child: SizedBox(
-          key: const ValueKey('design-viewer'),
-          width: l.vw,
-          height: l.vh,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(over ? 14 : 0),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      const ColoredBox(color: Color(0xff02070d)),
-                      if (hasPicture) ...[
-                        ImageFiltered(
-                          imageFilter: ui.ImageFilter.blur(
-                            sigmaX: 22,
-                            sigmaY: 22,
-                          ),
-                          child: artImage(
-                            bytes: primary!.image,
-                            asset: primary.asset,
-                          ),
+      final radius = BorderRadius.circular(wide ? 16 : 0);
+      return Container(
+        key: const ValueKey('design-viewer'),
+        width: box.maxWidth,
+        height: box.maxHeight,
+        foregroundDecoration: wide
+            ? BoxDecoration(
+                borderRadius: radius,
+                border: Border.all(color: Palette.cyan.withValues(alpha: .25)),
+              )
+            : null,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: radius,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const ColoredBox(color: Color(0xff02070d)),
+                    if (hasPicture) ...[
+                      ImageFiltered(
+                        imageFilter: ui.ImageFilter.blur(
+                          sigmaX: 22,
+                          sigmaY: 22,
                         ),
-                        const ColoredBox(color: Color(0x99000000)),
-                      ],
+                        child: artImage(
+                          bytes: primary!.image,
+                          asset: primary.asset,
+                        ),
+                      ),
+                      const ColoredBox(color: Color(0x99000000)),
                     ],
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              left: l.left,
+              top: l.top,
+              width: l.iw,
+              height: l.ih,
+              child: ClipRect(
+                key: ValueKey('design-$sel-picture'),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 240),
+                  child: KeyedSubtree(
+                    key: ValueKey('design-$sel-${identityHashCode(primary)}'),
+                    child: _picture(primary, big: true),
                   ),
                 ),
               ),
+            ),
+            if (primary != null)
               Positioned(
-                left: 0,
-                top: l.top,
-                width: l.iw,
-                height: l.ih,
-                child: ClipRRect(
-                  key: ValueKey('design-$sel-picture'),
-                  borderRadius: BorderRadius.circular(over ? 14 : 0),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    child: KeyedSubtree(
-                      key: ValueKey('design-$sel-${identityHashCode(primary)}'),
-                      child: _picture(primary, big: true),
-                    ),
-                  ),
+                top: 8,
+                right: 8,
+                child: Row(
+                  children: [
+                    _menu(sel),
+                    if (hasPicture) ...[
+                      const SizedBox(width: 8),
+                      _RoundButton(
+                        child: IconButton(
+                          tooltip: 'Full screen',
+                          padding: EdgeInsets.zero,
+                          onPressed: () => _fullScreen(primary),
+                          icon: const Icon(
+                            Icons.fullscreen_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              if (primary != null)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Row(
-                    children: [
-                      _menu(sel),
-                      if (hasPicture) ...[
-                        const SizedBox(width: 8),
-                        _RoundButton(
-                          child: IconButton(
-                            tooltip: 'Full screen',
-                            padding: EdgeInsets.zero,
-                            onPressed: () => _fullScreen(primary),
-                            icon: const Icon(
-                              Icons.fullscreen_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              if (l.tw > 0 && others.isNotEmpty)
-                Positioned(
-                  right: 12,
-                  bottom: 6,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Row(
-                        children: [
-                          for (final (n, i) in others.indexed) ...[
-                            if (n > 0) SizedBox(width: l.gap),
-                            _thumb(i, l.tw),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      // Kept inside the picture's right padding (QA 2026-10-22: "Tap to switc").
-                      const Padding(
-                        padding: EdgeInsets.only(right: 4),
-                        child: Text(
-                          'Tap to switch',
-                          key: ValueKey('tap-to-switch'),
-                          softWrap: false,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Color(0xffe6eef5),
-                            shadows: [
-                              Shadow(blurRadius: 3, offset: Offset(0, 1)),
-                              Shadow(blurRadius: 8),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
+          ],
         ),
       );
     },
@@ -1989,6 +2033,15 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         list.length == 1 && c.planError == null && list.first.direction != null
         ? 4
         : list.length;
+    final others = [
+      if (primary != null)
+        for (var i = 0; i < total; i++)
+          if (i != sel) i,
+    ];
+    final width = MediaQuery.sizeOf(context).width;
+    // Wide screens: the other designs in a column at the right (240.jpg).
+    final wide = width >= 720;
+    final side = (width * .17).clamp(150.0, 250.0);
     return Column(
       children: [
         TopBar(
@@ -2020,11 +2073,29 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               ),
           ],
         ),
-        Expanded(child: _viewer(primary, sel, total)),
+        Expanded(
+          child: wide
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: _viewer(primary, sel, wide: true)),
+                      const SizedBox(width: _sideGap),
+                      SizedBox(width: side, child: _others(others, wide: true)),
+                    ],
+                  ),
+                )
+              : _viewer(primary, sel, wide: false),
+        ),
+        if (!wide) _others(others, wide: false),
         TapRegion(
           onTapOutside: (_) => _collapse(),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            // Wide: the controls under the large design, as wide as it.
+            padding: wide
+                ? EdgeInsets.fromLTRB(16, 10, 16 + side + _sideGap, 10)
+                : const EdgeInsets.fromLTRB(12, 8, 12, 10),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2102,6 +2173,9 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
   }
 }
 
+/// The gap between the large design and the column of the other designs.
+const _sideGap = 20.0;
+
 /// A small round translucent button on the picture (⋯, full screen).
 class _RoundButton extends StatelessWidget {
   const _RoundButton({required this.child});
@@ -2164,75 +2238,23 @@ class _FullScreenPicture extends StatelessWidget {
   );
 }
 
-enum ResultsMode { below, over, fill }
-
-/// Where the large design and its thumbnails go in a [w]×[h] area, for a
-/// picture of aspect [ar] (width / height) and [n] thumbnails (the website's
-/// viewerLayout): `below` when the picture is as wide as the area and leaves
-/// room under it, so the thumbnails sit under it over its blurred backdrop
-/// and the viewer still fills the area; `over` when it fills the height (the
-/// thumbnails float inside its bottom-right corner); `fill` with no picture.
-({
-  ResultsMode mode,
-  double vw,
-  double vh,
-  double iw,
-  double ih,
-  double top,
-  double tw,
-  double gap,
-})
-resultsLayout(double w, double h, double ar, int n, {bool picture = true}) {
+/// Where the large design goes in its [w]×[h] frame, for a picture of aspect
+/// [ar] (width / height): as big as it fits, centred, never cropped or
+/// stretched (the website's viewerLayout); with no picture, the whole frame.
+({double iw, double ih, double left, double top}) resultsLayout(
+  double w,
+  double h,
+  double ar, {
+  bool picture = true,
+}) {
+  if (!picture) return (iw: w, ih: h, left: 0.0, top: 0.0);
   final iw = math.max(0.0, math.min(w, h * ar));
   final ih = ar > 0 ? iw / ar : 0.0;
-  final gap = w < 520 ? 6.0 : 10.0;
-  // About 20% of the picture per thumbnail, smaller when three must fit.
-  final tw = n == 0
-      ? 0.0
-      : math
-            .max(
-              56.0,
-              math.min(
-                math.min(iw * .2, 150.0),
-                (iw * .66 - (n - 1) * gap) / n,
-              ),
-            )
-            .roundToDouble();
-  final cluster = n == 0 ? 0.0 : tw + 24;
-  if (!picture) {
-    return (
-      mode: ResultsMode.fill,
-      vw: w,
-      vh: h,
-      iw: w,
-      ih: h,
-      top: 0.0,
-      tw: tw,
-      gap: gap,
-    );
-  }
-  if (n > 0 && h - ih >= cluster + 12) {
-    final top = math.max(0.0, ((h - cluster - 12 - ih) / 2).roundToDouble());
-    return (
-      mode: ResultsMode.below,
-      vw: iw,
-      vh: h,
-      iw: iw,
-      ih: ih,
-      top: top,
-      tw: tw,
-      gap: gap,
-    );
-  }
   return (
-    mode: ResultsMode.over,
-    vw: iw,
-    vh: ih,
     iw: iw,
     ih: ih,
-    top: 0.0,
-    tw: tw,
-    gap: gap,
+    left: ((w - iw) / 2).roundToDouble(),
+    top: ((h - ih) / 2).roundToDouble(),
   );
 }
 
