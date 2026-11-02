@@ -83,7 +83,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const sleeved = !!spec.cuff;
   let half, pit;
   if (sleeved) {
-    const neck = spec.half[2];   // where the neck opening meets the shoulder seam
+    // (A neck cut to a pointed V has more points: necks.js says where it meets the shoulder seam.)
+    const neck = spec.neckPoint ?? spec.half[2];   // where the neck opening meets the shoulder seam
     // A skin-tight top (the compression top) is cut narrower than the shared body below the armpit: wrapped on its own
     // side seam, so front and back meet right at the side and the seam closes down to the hem (on the shared one they
     // stopped some 8 degrees short, left open from the hem up to the waist, and the side panels thinned there: FM 2026-10-30).

@@ -197,7 +197,7 @@ export function paintCollarPrint(painter, collar, colours, back) {
   const g = painter.ctx, { foot } = neckEnds(painter);
   g.save();
   if (collar.insert === 'v') {
-    const top = foot + 0.012, tip = foot - 0.07, w = 0.062;
+    const top = foot + 0.012, tip = foot - 0.095, w = 0.072;
     g.fillStyle = colours.accent;
     g.beginPath(); g.moveTo(-w, top); g.lineTo(0, tip); g.lineTo(w, top); g.closePath(); g.fill();
     g.strokeStyle = colours.band; g.lineWidth = 0.013; g.lineJoin = 'miter';

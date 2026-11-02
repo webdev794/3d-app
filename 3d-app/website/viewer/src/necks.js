@@ -48,6 +48,9 @@ export function neckShape(kind, design, own = NECK_DEFAULTS[kind]) {
   const collar = rugbyCollar(design);
   // (The rugby collars are made on the jersey; elsewhere they fall back to their plain shape.)
   const want = collar ? (collar.shape === 'shallow' && kind !== 'jersey' ? 'v' : collar.shape) : design?.neck === 'round' || design?.neck === 'v' ? design.neck : null;
+  // (A V chosen in the Style panel, or a V-type collar, always gets its own deep, pointed V: the garment's own V (the
+  // jersey's, matched to its tile picture) stays only while nothing is chosen. User 2026-11-02, images/308-309.)
+  if (want === 'v' || want === 'shallow') return want;
   return want && want !== own ? want : null;
 }
 
@@ -69,23 +72,27 @@ export function neckCut(kind, spec, shape) {
   if (kind === 'singlet') {
     // The singlet: its scoop's foot (0.64) kept; the V straight from it to the strap's inner corner.
     const [nx, ny] = half[2], foot = half[0][1] + (shape === 'shallow' ? 0.03 : 0);
-    const neck = shape === 'round' ? [[0, 0.64], [0.06, 0.69], [nx, ny]] : [[0, foot], [nx / 2, (foot + ny) / 2], [nx, ny]];
+    const neck = shape === 'round' ? [[0, 0.64], [0.06, 0.69], [nx, ny]] : [[0, foot], [0.01, foot + ((ny - foot) * 0.01) / nx], [nx / 2, (foot + ny) / 2], [nx, ny]];
     return { ...spec, half: [...neck, ...half.slice(3)], neckShape: shape };
   }
   // Sleeved tops (jersey, tee, raglan, shooting shirt): the tee's crew neck, the jersey's V (6.6 cm deep) or a shallow V
   // (5 cm), each from the garment's own neck point.
   const [nx, ny] = half[2];
-  const foot = { round: 0.038, v: 0.066, shallow: 0.05 }[shape];
-  const mid = shape === 'round' ? [0.05, ny - 0.016] : shape === 'v' ? [0.05, ny - 0.026] : [0.05, ny - foot + (foot * 0.05) / nx];
-  const drop = { round: 0.045, v: 0.072, shallow: 0.056 }[shape];
+  // (The V: 10 cm deep, straight sides and a sharp point (a point 1 cm out on the same line keeps the spline from
+  // rounding it); the shallow V 5 cm, also straight and pointed.)
+  const foot = { round: 0.038, v: 0.1, shallow: 0.05 }[shape];
   const tip = ny - foot;
+  const on = (x) => [x, tip + (foot * x) / nx];
+  const neck = shape === 'round' ? [[0, tip], [0.05, ny - 0.016]] : [[0, tip], on(0.01), on(nx / 2)];
+  const drop = foot + 0.006;
   return {
     ...spec,
-    half: [[0, tip], mid, [nx, ny], ...half.slice(3)],
+    half: [...neck, [nx, ny], ...half.slice(3)],
     neck: { ...spec.neck, drop, half: Math.max(spec.neck.half, nx + 0.004) },
     rim: { ...spec.rim, drop: drop + 0.006 },
     crew: shape === 'round',
     neckShape: shape,
+    neckPoint: [nx, ny],
     // The back neck's line (garment.js backHeight): the crew neck's or the V's.
     neckLine: shape === 'round' ? (ax) => 0.707 + ax * 0.42 : shape === 'v' ? (ax) => tip + ax * 0.76 : (ax) => tip + ax * 0.6,
     neckTip: tip,

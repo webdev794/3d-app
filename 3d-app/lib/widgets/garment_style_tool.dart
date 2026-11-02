@@ -26,8 +26,12 @@ class GarmentStyleTool extends StatelessWidget {
 
   String get _product => c.productName.isNotEmpty ? c.productName : c.garment;
 
-  void _setNeck(String id) =>
-      c.edit(() => c.neck = id == ownNeck(c.garment, c.zoneColors) ? null : id);
+  void _setNeck(String id) => c.edit(
+    // A V is kept as chosen: the 3D gives it its own deep, pointed V.
+    () => c.neck = id == ownNeck(c.garment, c.zoneColors) && id != 'v'
+        ? null
+        : id,
+  );
 
   String get _trim {
     final own = c.partStyleOf('collar').colour;

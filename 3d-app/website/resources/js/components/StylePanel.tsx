@@ -56,7 +56,8 @@ function NeckArt({ id, design }: { id: string; design: Design }) {
 export function StylePanel({ design, sport, product, edit, onGarment, onMoreColours }: { design: Design; sport?: string | null; product: string; edit: (patch: Partial<Design>) => void; onGarment: () => void; onMoreColours: () => void }) {
     const neck = neckOf(design), own = ownNeck(design), rugby = hasRugbyStyle(sport, design.garment), collar = collarOf(design);
     const trim = trimOf(design), ownTrim = design.parts?.collar?.colour ?? null;
-    const setNeck = (id: string) => edit({ neck: id === own ? null : id });
+    // (A V is always kept as chosen: the 3D gives it its own deep, pointed V, also on a garment whose own neck is a V.)
+    const setNeck = (id: string) => edit({ neck: id === own && id !== 'v' ? null : id });
     const setTrim = (hex: string) => edit({ parts: withPart(design.parts, 'collar', { ...(design.parts?.collar ?? {}), colour: hex.toLowerCase() === design.secondary.toLowerCase() && !ownTrim ? null : hex }) });
     return <div className="garment-style">
         <label className="field">Product<button type="button" className="style-product" onClick={onGarment} aria-label={`Product: ${product}. Change garment`}><span>{product}</span><ChevronDown size={16} /></button></label>

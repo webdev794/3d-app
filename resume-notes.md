@@ -4,11 +4,12 @@ Updated 2026-11-02 (afternoon). Only what's needed to continue; older history is
 - SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder images\NNN (latest 307).
 
 ## State
-- Local folder on branch v6 (work uncommitted). GitHub: v3 = 31bf409 (2026-10-30 19:1x, all work to then), v2 = ffd179c, main = 2d9b553.
+- Local folder on branch v6 (work uncommitted). GitHub: v3 = 9f17e7b (2026-11-02 12:2x, all work to viewer -180), v2 = ffd179c, main = 2d9b553.
 - Today's push goes to **v3** (script SP\final-push-v3.sh: parents v3 + v2, tree = v2 + local work, no force; message file SP\push-v3-msg.txt, update it first).
 - Live = https://testcaresortwork.co.in/3deez/. The user extracts the tar there. Everything up to tar 3deez-update-2026-10-30-d.tar.gz is already uploaded, so today's tar needs ONLY files changed since then (plus public/build). Pack script SP\final-pack-1102a.sh (change it to a since-10-30-d list before running).
 - Live steps for today's tar: `php artisan migrate --force` (new column assets.source_id from UP1), then `php artisan optimize:clear`. PHP upload limits upload_max_filesize >= 26M, post_max_size >= 36M. Optional, for EPS / PSD files: Imagick, Ghostscript or a CloudConvert key.
-- At about 95% of the usage limit (user 2026-11-02): make the tar and push to v3.
+- DONE 12:20: tar D:\3d-app\deploy-zips\3deez-update-2026-11-02-a.tar.gz (103 files, 5.4 MB, only changes since 10-30-d, viewer -180) + v3 push 9f17e7b. NEXT at 98%: NK1 V-neck fix, then tar -b (SP\final-pack-1102b.sh, changes since 11-02-a) + v3 push again.
+- All other agents PAUSED 12:2x at safe points (logs: SP\FN\FN10\log.md queue, SP\CP1\log.md, SP\SM1\log.md, SP\NK1\log.md, SP\DT10\log.md).
 - Viewer is about 2026-10-20-177. Drive D has only about 1 GB free: keep test output small.
 
 ## Agents (2026-11-02). The user: models use only TWO agents (one tester + one fixer); other tasks get their own agent.
@@ -29,3 +30,5 @@ Updated 2026-11-02 (afternoon). Only what's needed to continue; older history is
 - Finished 3D models list: add a model ONLY when the tester passes it; move it back to Working on when the user raises a new point.
 - Go ahead with my suggested answers; questions only for logins, keys, integrations or money.
 - Never sign up / sign in / save on 8000 (use SP\iso-server.cjs). Push only when told. Live tars are code-only; never delete Manoj Caresort. Local DB migrations: back up, then run. No keys in notes; php -l every PHP edit; no new packages; never run flutter build web; simple words.
+- SM1 paused 12:3x: Signage & Marquees done (website + app). Marquee orders show 'Quote required' until an admin sets a Marquee price in Admin > Pricing. Next (SP\SM1\log.md): rerun the app tests sync / flow / bubble_home / home_switcher one at a time; check the app on a phone; optional app Export. CP1 paused: cap / bucket hat logos fixed (logo positions reset on garment change, website + app); beanie + 5-panel built (-178); bucket hat too white not yet looked at; tester must re-test caps / hat and test the beanie / 5-panel.
+- QUEUED (user 2026-11-02, images/310-311): 9.173 the Studio garment rail must show and select 'Tracksuit' for tracksuit tiles (now 'Track jacket'); website + app. Give to the next free agent; add to FN10's queue too (the basketball tracksuit blades / piping).
