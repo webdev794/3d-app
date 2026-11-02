@@ -560,7 +560,9 @@ export function wornDress(spec, { topSeam, outline = [], hemDist = (p) => p.y })
     z += back ? -seat(ax, p.y) : bust(ax, p.y);
     // (The hem band a touch proud only: the client's dress has a flat turned hem, ND1.)
     const s = 1;                                                     // the hem band flat (no rim showing under it)
-    return new THREE.Vector3(w.x * s, level(p), z * s);
+    // (FN12, DT10: the hem's corners round in, as the client's skirt: .61 of the height across at .95, not .66.)
+    const tuck = 1 - 0.11 * ramp(0.06, 0, p.y);
+    return new THREE.Vector3(w.x * s * tuck, level(p), z * s);
   };
   /** The body under the fabric behind (metres, + out): the shoulder blades and a shallow hollow down the spine. */
   const relief = (p, back) => {

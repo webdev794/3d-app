@@ -21,6 +21,7 @@ void main() {
     WidgetTester tester, {
     Size size = phone,
     bool reduceMotion = false,
+    double? frameWidth,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -36,7 +37,15 @@ void main() {
               data: MediaQuery.of(
                 context,
               ).copyWith(disableAnimations: reduceMotion),
-              child: HomeSwitcher(c),
+              child: frameWidth == null
+                  ? HomeSwitcher(c)
+                  : Center(
+                      child: SizedBox(
+                        width: frameWidth,
+                        height: 820,
+                        child: HomeSwitcher(c),
+                      ),
+                    ),
             ),
           ),
         ),
@@ -71,16 +80,26 @@ void main() {
     HomeSwitcher.debugBubbleByDefault = null;
   });
 
-  test('the classic home stays the default until the bubble passes testing '
-      '(flip this with kBubbleHomeDefault)', () {
-    expect(kBubbleHomeDefault, isFalse);
-    expect(HomeSwitcher.bubbleByDefault, isFalse);
+  test('phones open the bubble home by default (2026-11-02; flip this with '
+      'kBubbleHomeDefault)', () {
+    expect(kBubbleHomeDefault, isTrue);
+    expect(HomeSwitcher.bubbleByDefault, isTrue);
+  });
+
+  testWidgets('the desktop preview phone frame counts as a phone', (
+    tester,
+  ) async {
+    device({});
+    HomeSwitcher.debugBubbleByDefault = true;
+    await mountHome(tester, size: const Size(1400, 900), frameWidth: 418);
+    expect(bubble, findsOneWidget);
+    expect(classic, findsNothing);
   });
 
   testWidgets('default off: no saved choice on a phone shows the classic home '
       'with Try the new home', (tester) async {
     device({});
-    HomeSwitcher.debugBubbleByDefault =false;
+    HomeSwitcher.debugBubbleByDefault = false;
     await mountHome(tester);
     expect(classic, findsOneWidget);
     expect(bubble, findsNothing);
@@ -93,7 +112,7 @@ void main() {
     tester,
   ) async {
     device({});
-    HomeSwitcher.debugBubbleByDefault =true;
+    HomeSwitcher.debugBubbleByDefault = true;
     await mountHome(tester);
     expect(bubble, findsOneWidget);
     expect(classic, findsNothing);
@@ -103,7 +122,7 @@ void main() {
   testWidgets('default on: animations off (reduced motion) shows the classic '
       'home', (tester) async {
     device({});
-    HomeSwitcher.debugBubbleByDefault =true;
+    HomeSwitcher.debugBubbleByDefault = true;
     await mountHome(tester, reduceMotion: true);
     expect(classic, findsOneWidget);
     expect(bubble, findsNothing);
@@ -114,7 +133,7 @@ void main() {
 
   testWidgets('Classic view is remembered after a reload', (tester) async {
     device({});
-    HomeSwitcher.debugBubbleByDefault =true;
+    HomeSwitcher.debugBubbleByDefault = true;
     await mountHome(tester);
     expect(bubble, findsOneWidget);
     await tester.tap(find.text('Classic view'));
@@ -136,6 +155,7 @@ void main() {
     tester,
   ) async {
     device({});
+    HomeSwitcher.debugBubbleByDefault = false;
     await mountHome(tester);
     expect(classic, findsOneWidget);
     await tester.tap(tryNew);
@@ -154,7 +174,7 @@ void main() {
     tester,
   ) async {
     device({HomeSwitcher.styleKey: HomeSwitcher.classicAuto});
-    HomeSwitcher.debugBubbleByDefault =true;
+    HomeSwitcher.debugBubbleByDefault = true;
     await mountHome(tester);
     expect(classic, findsOneWidget);
     await tester.tap(tryNew);
@@ -164,11 +184,27 @@ void main() {
     expect(await savedStyle(), HomeSwitcher.bubble);
   });
 
+  testWidgets('an automatic classic saved before 2026-11-02 no longer blocks '
+      'the bubble', (tester) async {
+    device({HomeSwitcher.styleKey: HomeSwitcher.oldClassicAuto});
+    HomeSwitcher.debugBubbleByDefault = true;
+    await mountHome(tester);
+    expect(bubble, findsOneWidget);
+  });
+
+  testWidgets('the classic home offers Try the new home in the desktop '
+      'preview phone frame', (tester) async {
+    device({HomeSwitcher.styleKey: HomeSwitcher.classic});
+    await mountHome(tester, size: const Size(1400, 900), frameWidth: 418);
+    expect(classic, findsOneWidget);
+    expect(tryNew, findsOneWidget);
+  });
+
   testWidgets('a tablet always shows the classic home, without the button', (
     tester,
   ) async {
     device({HomeSwitcher.styleKey: HomeSwitcher.bubble});
-    HomeSwitcher.debugBubbleByDefault =true;
+    HomeSwitcher.debugBubbleByDefault = true;
     await mountHome(tester, size: tablet);
     expect(classic, findsOneWidget);
     expect(bubble, findsNothing);
@@ -178,21 +214,21 @@ void main() {
   testWidgets('default on: a slow phone moves to the classic home once, with '
       'a note', (tester) async {
     device({});
-    HomeSwitcher.debugBubbleByDefault =true;
+    HomeSwitcher.debugBubbleByDefault = true;
     HomeSwitcher.debugTimeFrames = true;
     await mountHome(tester);
     expect(bubble, findsOneWidget);
-    // 30 ms of build + raster per frame (the limit is about 22 ms).
+    // 40 ms of build + raster per frame (the limit is 30 ms).
     FrameTiming slow(int i) => FrameTiming(
-      vsyncStart: i * 40000,
-      buildStart: i * 40000,
-      buildFinish: i * 40000 + 15000,
-      rasterStart: i * 40000 + 15000,
-      rasterFinish: i * 40000 + 30000,
-      rasterFinishWallTime: i * 40000 + 30000,
+      vsyncStart: i * 50000,
+      buildStart: i * 50000,
+      buildFinish: i * 50000 + 20000,
+      rasterStart: i * 50000 + 20000,
+      rasterFinish: i * 50000 + 40000,
+      rasterFinishWallTime: i * 50000 + 40000,
     );
     tester.binding.platformDispatcher.onReportTimings!([
-      for (var i = 0; i < 70; i++) slow(i),
+      for (var i = 0; i < 500; i++) slow(i),
     ]);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -214,7 +250,8 @@ void main() {
       rasterFinishWallTime: ms * 1000,
     );
     expect(HomeSwitcher.tooSlow(List.filled(60, frame(12))), isFalse);
-    expect(HomeSwitcher.tooSlow(List.filled(60, frame(30))), isTrue);
+    expect(HomeSwitcher.tooSlow(List.filled(60, frame(22))), isFalse);
+    expect(HomeSwitcher.tooSlow(List.filled(60, frame(40))), isTrue);
     expect(HomeSwitcher.tooSlow(const []), isFalse);
   });
 }

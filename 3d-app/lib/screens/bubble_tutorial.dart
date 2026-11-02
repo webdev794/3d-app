@@ -14,6 +14,10 @@ class BubbleTutorial extends StatefulWidget {
   /// Saved on the device once the tutorial has been closed.
   static const seenKey = 'bubble_tutorial_seen';
 
+  /// True while the tutorial is open (the switcher's slow-phone check
+  /// waits for it).
+  static final showing = ValueNotifier<bool>(false);
+
   /// Whether the tutorial was already seen on this device; null when the
   /// device cannot keep it (then it is not shown).
   static Future<bool?> seen() async {
@@ -50,6 +54,12 @@ class BubbleTutorial extends StatefulWidget {
 
 class _BubbleTutorialState extends State<BubbleTutorial>
     with TickerProviderStateMixin {
+  @override
+  void initState() {
+    super.initState();
+    BubbleTutorial.showing.value = true;
+  }
+
   static const _length = Duration(seconds: 8);
   late final AnimationController _demo = AnimationController(
     vsync: this,
@@ -78,6 +88,7 @@ class _BubbleTutorialState extends State<BubbleTutorial>
 
   @override
   void dispose() {
+    BubbleTutorial.showing.value = false;
     _demo.dispose();
     _float.dispose();
     super.dispose();
@@ -122,113 +133,146 @@ class _BubbleTutorialState extends State<BubbleTutorial>
           stops: [0, .55, 1],
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-        child: Column(
-          children: [
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: Stack(
-                alignment: Alignment.center,
+      // Scrolls when the frame is short (the desktop preview), so the demo
+      // glass can stay large.
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final w = box.maxWidth - 32;
+          final demoH = (box.maxHeight - 330).clamp(w * .95, w / .72);
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Column(
                 children: [
-                  const BrandLogo(width: 150),
-                  Positioned(
-                    right: 0,
-                    child: TextButton(
-                      key: const ValueKey('tutorial-skip'),
-                      onPressed: widget.onDone,
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xffb9d8ea),
-                        minimumSize: const Size(48, 40),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const BrandLogo(width: 150),
+                        Positioned(
+                          right: 0,
+                          child: TextButton(
+                            key: const ValueKey('tutorial-skip'),
+                            onPressed: widget.onDone,
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xffb9d8ea),
+                              minimumSize: const Size(48, 40),
+                            ),
+                            child: const Text('Skip'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'A QUICK LOOK AROUND',
+                    textAlign: TextAlign.center,
+                    style: title,
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'See how it works in a few seconds.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xffb9d0e0), fontSize: 13.5),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: demoH,
+                    child: ExcludeSemantics(
+                      child: AnimatedBuilder(
+                        animation: Listenable.merge([_demo, _float]),
+                        builder: (context, _) =>
+                            _DemoGlass(time: _demo.value, float: _float.value),
                       ),
-                      child: const Text('Skip'),
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  // The step being shown, under the glass (never over a label).
+                  AnimatedBuilder(
+                    animation: _demo,
+                    builder: (context, _) => AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: Container(
+                        key: ValueKey(_DemoGlass.captionAt(_demo.value)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xb3061a36),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0x663fd4ff)),
+                        ),
+                        child: Text(
+                          _DemoGlass.captionAt(_demo.value),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _playerBar(),
+                  const SizedBox(height: 10),
+                  const Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'SWIPE. ',
+                          style: TextStyle(color: Color(0xff3fd4ff)),
+                        ),
+                        TextSpan(text: 'HIGHLIGHT. RELEASE.'),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Rajdhani',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 21,
+                      letterSpacing: .8,
+                      color: Color(0xffe8f8ff),
+                    ),
+                  ),
+                  const Text(
+                    'You can also tap any option.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xffc4d8e6), fontSize: 13.5),
+                  ),
+                  const SizedBox(height: 10),
+                  _StartButton(onTap: widget.onDone),
+                  const SizedBox(height: 2),
+                  TextButton(
+                    key: const ValueKey('tutorial-replay'),
+                    onPressed: _replay,
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xff3fd4ff),
+                      minimumSize: const Size(48, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: const Text(
+                      'Replay tutorial',
+                      style: TextStyle(
+                        decoration: TextDecoration.underline,
+                        decorationColor: Color(0xff3fd4ff),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Watch again anytime in Profile, under Help.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xff8fa8ba), fontSize: 11.5),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'A QUICK LOOK AROUND',
-              textAlign: TextAlign.center,
-              style: title,
-            ),
-            const SizedBox(height: 2),
-            const Text(
-              'See how it works in a few seconds.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xffb9d0e0), fontSize: 13.5),
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: ExcludeSemantics(
-                child: AnimatedBuilder(
-                  animation: Listenable.merge([_demo, _float]),
-                  // Kept at the home glass's own proportions.
-                  builder: (context, _) => Center(
-                    child: AspectRatio(
-                      aspectRatio: .66,
-                      child: _DemoGlass(time: _demo.value, float: _float.value),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            _playerBar(),
-            const SizedBox(height: 10),
-            const Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: 'SWIPE. ',
-                    style: TextStyle(color: Color(0xff3fd4ff)),
-                  ),
-                  TextSpan(text: 'HIGHLIGHT. RELEASE.'),
-                ],
-              ),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Rajdhani',
-                fontWeight: FontWeight.w700,
-                fontSize: 21,
-                letterSpacing: .8,
-                color: Color(0xffe8f8ff),
-              ),
-            ),
-            const Text(
-              'You can also tap any option.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xffc4d8e6), fontSize: 13.5),
-            ),
-            const SizedBox(height: 10),
-            _StartButton(onTap: widget.onDone),
-            const SizedBox(height: 2),
-            TextButton(
-              key: const ValueKey('tutorial-replay'),
-              onPressed: _replay,
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xff3fd4ff),
-                minimumSize: const Size(48, 36),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-              ),
-              child: const Text(
-                'Replay tutorial',
-                style: TextStyle(
-                  decoration: TextDecoration.underline,
-                  decorationColor: Color(0xff3fd4ff),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const Text(
-              'Watch again anytime in Profile, under Help.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xff8fa8ba), fontSize: 11.5),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -363,6 +407,16 @@ class _DemoGlass extends StatelessWidget {
     'Or just tap an option',
   ];
 
+  /// The step shown under the glass at demo time [t].
+  static String captionAt(double t) =>
+      _captions[t < .3
+          ? 0
+          : t < .58
+          ? 1
+          : t < .78
+          ? 2
+          : 3];
+
   /// 0→1 as [t] goes from [a] to [b], eased.
   static double _ramp(double t, double a, double b) =>
       Curves.easeInOut.transform(((t - a) / (b - a)).clamp(0.0, 1.0));
@@ -396,13 +450,6 @@ class _DemoGlass extends StatelessWidget {
           ? _ramp(t, .8, .84) * (1 - _ramp(t, .92, .96))
           : _ramp(t, .3, .36) * (1 - _ramp(t, .66, .74));
       final pull = swipe ? 1.0 : 0.0;
-      final caption = t < .3
-          ? 0
-          : t < .58
-          ? 1
-          : t < .78
-          ? 2
-          : 3;
       final lit = tapDyo ? _dyo : (aiLit ? _ai : null);
       final strong = (aiLit && t >= .36) || (tapDyo && t >= .82);
       return ClipRRect(
@@ -497,36 +544,6 @@ class _DemoGlass extends StatelessWidget {
                         ),
                       ),
                   ],
-                ),
-              ),
-            ),
-            // The step being shown, as a glass caption.
-            Positioned(
-              left: 0,
-              right: 0,
-              top: s.height * .6,
-              child: Center(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: Container(
-                    key: ValueKey(caption),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xb3061a36),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: const Color(0x663fd4ff)),
-                    ),
-                    child: Text(
-                      _captions[caption],
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ),

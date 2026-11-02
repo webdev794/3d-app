@@ -18,8 +18,8 @@ const A = 0.0905, B = 0.104;             // the head band's half-widths: side to
 const LOOSE = 0.0055;                    // the knit sits this far off the head
 const FOOT_Y = HEAD_Y - 0.042;           // the cuff's foot, low over the ears
 /** The cuff's height and how far it stands proud of the crown. */
-const CUFF_H = 0.062, PROUD = 0.0032;
-const CROWN_H = 0.104;                   // the crown above the cuff's top (a little slouch over the head)
+const CUFF_H = 0.072, PROUD = 0.0032;
+const CROWN_H = 0.165;  // (FN11, DT10: tall, not a squat dome)                   // the crown above the cuff's top (a little slouch over the head)
 const POM_R = 0.036;                     // the pom-pom's radius
 /** The print: the cuff from 0 to BEANIE_CUFF; the crown from BEANIE_CROWN up BEANIE_CROWN_LEN; the pom-pom above. */
 export const BEANIE_CUFF = CUFF_H + 0.006;
@@ -54,17 +54,19 @@ function cuffAt(s, v) {
   const f = phiAt(s), n = ring(f);
   // Out from the head: loose, plus the fold's thickness, rounding in at the foot and over the fold at the top.
   const round = 0.0024 * (Math.sqrt(Math.max(0, 1 - ((v - 0.5) / 0.5) ** 8)) - 1);
-  const d = LOOSE + PROUD + round;
+  const d = LOOSE + PROUD + round + 0.0009 * Math.abs(Math.sin(36 * f));
   return new THREE.Vector3(A * Math.sin(f) + n.x * d, FOOT_Y + v * CUFF_H, B * Math.cos(f) + n.y * d);
 }
 /** The crown at (arc s round its foot, v 0 at the cuff's top .. 1 at the top): a full dome (a superellipse). */
 const Y0 = FOOT_Y + CUFF_H - 0.004;
 function crownAt(s, v, plain = false) {
   const f = phiAt(s), n = ring(f), a = (v * Math.PI) / 2;
-  const r = Math.cos(a) ** (2 / 2.3), h = Math.sin(a) ** (2 / 2.3);
+  const r = Math.cos(a) ** (2 / 3.4), h = Math.sin(a) ** (2 / 3.4);
   // Soft knit: slow waves round it, gone towards the top.
   const wave = plain ? 0 : 0.0007 * Math.sin(5 * f + 0.7) * Math.sin(Math.PI * v) * (1 - v);
-  const d = LOOSE + wave;
+  // (FN11: clear vertical knit ribs, fading over the top.)
+  const rib = plain ? 0 : 0.0011 * Math.abs(Math.sin(36 * f)) * (1 - v) ** 0.6;
+  const d = LOOSE + wave + rib;
   return new THREE.Vector3((A * Math.sin(f) + n.x * d) * r, Y0 + CROWN_H * h, (B * Math.cos(f) + n.y * d) * r);
 }
 const TOP = crownAt(0, 1, true);
@@ -97,7 +99,7 @@ function normalOf(fn, a, b, da, db, out) {
 }
 
 /** Builds the beanie. Returns what buildGarment does (main.js treats it as a garment), with `form(material)`. */
-export function buildBeanie({ detail = false } = {}) { // eslint-disable-line no-unused-vars
+export function buildBeanie({ detail = false, pom = true } = {}) { // eslint-disable-line no-unused-vars
   const C = BEANIE_C, half = (C / 4) * 1.04;
   const minX = -half - 0.006, maxX = half + 0.006, minY = -0.004, maxY = BEANIE_POM.y + BEANIE_POM.h + 0.008;
   const span = Math.max(maxX - minX, maxY - minY) * 1.02;
@@ -135,8 +137,8 @@ export function buildBeanie({ detail = false } = {}) { // eslint-disable-line no
       push(p, n, flat(x, BEANIE_CROWN + v * LS), 1 - 0.16 * ramp(0.07, 0, v));
     });
   }
-  // The pom-pom (on the front half's print, above the crown).
-  grid(32, 96, (i, j) => {
+  // The pom-pom (on the front half's print, above the crown); the NFL beanie has none.
+  if (pom) grid(32, 96, (i, j) => {
     const w = i / 32, u = j / 96;
     const { p, n } = normalOf((a, b) => pomAt(a, THREE.MathUtils.clamp(b, 0.0001, 0.9999)), u, THREE.MathUtils.clamp(w, 0.002, 0.998), 0.002, 0.004, (q, nn) => (nn ? nn.dot(q.clone().sub(POM_C)) : q.clone().sub(POM_C).normalize()));
     push(p, n, uvFront(-C / 4 + u * (C / 2), BEANIE_POM.y + w * BEANIE_POM.h), 0.82 + 0.2 * w);

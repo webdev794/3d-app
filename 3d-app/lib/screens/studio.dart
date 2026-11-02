@@ -36,7 +36,8 @@ import '../widgets/garment_style_tool.dart';
 import '../widgets/studio_tools.dart';
 import '../widgets/ui.dart';
 import '../widgets/word_look.dart';
-import 'create_home.dart' show GarmentScreen, comingSoonGarments, garmentTiles;
+import 'create_home.dart'
+    show GarmentScreen, comingSoonGarments, garmentTiles, isTracksuit;
 
 const _swatches = <Color>[
   Color(0xff0b1016),
@@ -2223,15 +2224,24 @@ class _GarmentTool extends StatelessWidget {
         childAspectRatio: .85,
         children: [
           for (final (name, art, soon) in [
-            for (final (n, a) in garmentTiles) (n, a, false),
+            for (final (n, a) in garmentTiles) ...[
+              (n, a, false),
+              // Task 9.173: the tracksuit (jacket + pants) as its own item.
+              if (a == 'trackjacket') ('Tracksuit', 'tracksuit', false),
+            ],
             for (final (n, a) in comingSoonGarments) (n, a, true),
           ])
             GlowCard(
               radius: 12,
               glow: false,
-              selected: c.garment == name,
+              selected: art == 'tracksuit'
+                  ? isTracksuit(c)
+                  : c.garment == name &&
+                        !(art == 'trackjacket' && isTracksuit(c)),
               onTap: soon
                   ? () => showToast(context, '$name are coming soon in 3D.')
+                  : art == 'tracksuit'
+                  ? () => GarmentScreen.switchToSuit(c)
                   : () => GarmentScreen.switchTo(c, name, art),
               child: Stack(
                 fit: StackFit.expand,

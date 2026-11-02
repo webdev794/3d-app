@@ -126,7 +126,8 @@ export function buildTrackParts(spec, ctx) {
   const full = { ...ctx, sampleFront };
   const hoodStyle = spec.track?.style === 'hood';
   const collar = hoodStyle ? null : buildStandCollar(full, !!spec.track?.clean);
-  const hood = hoodStyle ? buildHood(full, { zip: true }) : null;
+  // (FN10 2026-11-02: the hooded tracksuits' hood stands open on the shoulders, as their pictures, hoodie.js `standing`.)
+  const hood = hoodStyle ? buildHood(full, { zip: true, standing: !!spec.track?.clean }) : null;
   const vtx = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
   // The hem band (split at the zip) and the cuffs.
   const hemIdx = poly.map((_, i) => i).filter((i) => !seam[i] && poly[i].y < minY + 0.03);

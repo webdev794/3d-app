@@ -51,8 +51,11 @@ export const TRACK_PANTS = {
 SPECS.trackpants = TRACK_PANTS;
 
 /** Builds the pants (garment.js's garment object): the waistband in the body's colour, no drawstring showing, no label. */
-export function buildTrackPants({ detail = false } = {}) {
-  const garment = buildGarment('trackpants', { spec: TRACK_PANTS, detail });
+// (FN11 2026-11-02, DT10: the Basketball tracksuit picture's pants are tapered joggers (zoneColors.sideBlade): the legs
+// narrow down to a ribbed ankle cuff.)
+const JOGGER = { ...TRACK_PANTS, worn: { ...TRACK_PANTS.worn, outLine: [[0, 0.098], [0.06, 0.1], [0.2, 0.128], [0.45, 0.156], [0.62, 0.176], [TP.crotch, 0.19], [0.85, 0.19], [TP.waist, 0.17]], legDepth: [0.05, 0.098] } };
+export function buildTrackPants({ detail = false, jogger = false } = {}) {
+  const garment = buildGarment('trackpants', { spec: jogger ? JOGGER : TRACK_PANTS, detail });
   garment.drawstring = false;
   garment.pants = true;
   garment.rimColour = 'main';
@@ -78,21 +81,51 @@ export function paintTrackPants(painter, design, back, trim) {
     g.closePath();
     g.fill();
   }
+  // The joggers (sideBlade): a royal blade down the stripe's inner half on the lower leg, zip pockets at the hips and a
+  // ribbed ankle cuff in the body colour.
+  if (HEX.test(zc.sideBlade ?? '')) {
+    const body = HEX.test(zc.body ?? '') ? zc.body : design.main;
+    for (const dir of [-1, 1]) {
+      const w = STRIPE[back ? 1 : 0];
+      if (!back) {
+        g.fillStyle = zc.sideBlade;
+        g.beginPath();
+        g.moveTo(dir * (pantsSideX(0.07) - w), 0.07);
+        g.lineTo(dir * (pantsSideX(0.07) - w * 0.45), 0.07);
+        g.lineTo(dir * (pantsSideX(0.42) - w * 0.85), 0.42);
+        g.lineTo(dir * (pantsSideX(0.42) - w), 0.42);
+        g.closePath();
+        g.fill();
+        // The zip pocket: a slanted dark zip line with a cyan pull, just in from the stripe.
+        const x0 = dir * (pantsSideX(0.8) - w - 0.03);
+        g.strokeStyle = '#0c0c0e'; g.lineWidth = 0.006;
+        g.beginPath(); g.moveTo(x0, 0.8); g.lineTo(x0 + dir * 0.012, 0.68); g.stroke();
+        g.fillStyle = g.strokeStyle = HEX.test(zc.pantsStripe ?? '') ? zc.pantsStripe : trim;
+        g.fillRect(x0 - 0.003, 0.785, 0.006, 0.014);
+      }
+    }
+    g.fillStyle = body;
+    g.fillRect(-0.8, -0.03, 1.6, 0.085);
+    g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 0.002;
+    for (let x = -0.4; x <= 0.4; x += 0.008) { g.beginPath(); g.moveTo(x, -0.03); g.lineTo(x, 0.055); g.stroke(); }
+    g.fillStyle = 'rgba(0,0,0,0.35)';
+    g.fillRect(-0.8, 0.053, 1.6, 0.004);
+  }
   // Under the 3D waistband: the body's colour.
   g.fillStyle = HEX.test(zc.body ?? '') ? zc.body : design.main;
   g.fillRect(-0.8, TP.waist - TP.band - 0.004, 1.6, TP.band + 0.05);
 }
 
 /** The marks: a small "3" with the club's word under it on the wearer's left thigh (each can be moved or hidden). */
-export const TP_CREST = { side: 'front', x: 0.17, y: 0.83 };
-export const TP_WORD = { side: 'front', x: 0.17, y: 0.806 };
+export const TP_CREST = { side: 'front', x: 0.17, y: 0.84 };
+export const TP_WORD = { side: 'front', x: 0.17, y: 0.802 };
 export async function paintTrackPantsMarks(painter, design, logo, textOutline, loadImage) {
   const crest = design.logoImage || null;
   if (crest !== painter._logoKey) {
     painter._logo = crest ? await loadImage(crest).catch(() => null) : null;
     painter._logoKey = crest;
   }
-  if (painter._logo) painter.markImage(design, 'crest', TP_CREST, painter._logo, 0.04, 0.032);
-  else painter.markShield(design, 'crest', TP_CREST, [[0, 0.014], [0.012, 0.008], [0.009, -0.008], [0, -0.014], [-0.009, -0.008], [-0.012, 0.008]], 0.016, 0.022);
-  painter.markText(design, 'wordmark', TP_WORD, logo, 0.014, design.accent, 0.06, textOutline);
+  if (painter._logo) painter.markImage(design, 'crest', TP_CREST, painter._logo, 0.064, 0.05);
+  else painter.markShield(design, 'crest', TP_CREST, [[0, 0.022], [0.019, 0.013], [0.014, -0.013], [0, -0.022], [-0.014, -0.013], [-0.019, 0.013]], 0.026, 0.035);
+  painter.markText(design, 'wordmark', TP_WORD, logo, 0.022, design.accent, 0.095, textOutline);
 }

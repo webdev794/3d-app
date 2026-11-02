@@ -64,8 +64,11 @@ function inPanel(s) {
 
 /** The crown's profile at t (0 the band, 1 the button): how far out (of the band) and how high; the front panels
  *  stand up straighter (structured), the back rounds over. */
+let FLAT = false;
 function profile(t, f) {
   const a = (t * Math.PI) / 2, front = Math.max(0, Math.cos(f)) ** 2;
+  // (FN11, DT10: the 5-panel cap's crown low and flat-topped.)
+  if (FLAT) return { r: Math.cos(a) ** (0.5 - 0.2 * front), h: 0.8 * H * Math.sin(a) ** 0.55 };
   return { r: Math.cos(a) ** (0.85 - 0.3 * front), h: H * Math.sin(a) ** 0.85 };
 }
 
@@ -139,7 +142,6 @@ const LM = (() => {
 export const CAP_TOP = LM;
 
 /** The 5-panel cap (CP1 2026-11-02, client: "5 PANEL CAPS"): the same wide front panel, its brim flatter (set by buildCap). */
-let FLAT = false;
 /** The brim at (u -1..1 across, w 0 at the band .. 1 at its edge), its middle surface. */
 function brimMid(u, w) {
   const s = u * BRIM_ARC, f = phiAt(s);
@@ -153,7 +155,7 @@ function brimMid(u, w) {
   const dip = -0.016 * ((1 - Math.cos(f)) / 2) ** 1.5;
   // (FN2 2026-10-30: curved as the pictures: the sides bend well down, and the whole brim arches down a little to its edge.)
   // (The 5-panel cap's brim is nearly flat: a slight tilt down, its sides hardly bent.)
-  out.y = FLAT ? BAND_Y + dip + 0.0012 - w * depth * 0.14 - 0.22 * u * u * w * depth - 0.002 * w * w
+  out.y = FLAT ? BAND_Y + dip + 0.0012 - w * depth * 0.05 - 0.07 * u * u * w * depth - 0.001 * w * w
     : BAND_Y + dip + 0.0012 - w * depth * 0.3 - 1.7 * u * u * w * depth - 0.006 * w * w;
   return out;
 }

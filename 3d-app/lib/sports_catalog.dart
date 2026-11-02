@@ -229,8 +229,8 @@ const pictureLooks = {
   'netball-bibs': 'netballBibs',
   'netball-dress': 'bladesSides',
   'team-hoodie': 'hoodie',
-  'nfl-hoodie': 'hoodie',
-  'netball-hoodie': 'hoodie',
+  'nfl-hoodie': 'nflHoodie',
+  'netball-hoodie': 'netballHoodie',
   'trackjacket': 'track',
   'netball-tracksuit': 'trackSuit',
   'tracksuit': 'bballTracksuit',
@@ -257,7 +257,7 @@ const pictureLooks = {
   'rugby-bucket-hat': 'hat',
   // (CP1: the beanie and 5-panel cap pictures: black with cyan trims.)
   'beanie': 'hat',
-  'nfl-beanie': 'hat',
+  'nfl-beanie': 'nflBeanie',
   'five-panel-cap': 'hat',
 };
 
@@ -485,27 +485,35 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'secondary': '#27282a',
       'patternColor': '#00688a',
       'zones': solid(['sleeves']),
+      'zoneColors': {'labelDark': '#2e3034'},
       'marks': {
-        'top_wordmark': {'y': 0.53},
+        'top_wordmark': {'y': 0.515, 'scale': 0.9},
+        'top_crest': {'y': 0.578, 'scale': 0.75},
       },
     },
+
     'teeCyan': {
       'secondary': '#27282a',
-      'patternColor': '#00a8f5',
+      'patternColor': '#008fdc',
       'zones': solid(['sleeves']),
+      'zoneColors': {'labelDark': '#2e3034'},
       'marks': {
-        'top_wordmark': {'y': 0.53},
-        'top_crest': {'x': 0, 'y': 0.6},
+        'top_wordmark': {'y': 0.5},
+        'top_crest': {'x': 0, 'y': 0.565, 'scale': 0.8},
       },
     },
+
     'teeSides': {
       'secondary': '#27282a',
-      'patternColor': '#00a8f5',
+      'patternColor': '#008fdc',
       'zones': solid(['sleeves', 'sides']),
+      'zoneColors': {'labelDark': '#2e3034'},
       'marks': {
-        'top_wordmark': {'y': 0.53},
+        'top_wordmark': {'y': 0.5},
+        'top_crest': {'y': 0.565},
       },
     },
+
     // (FN5 2026-10-30, the varsity picture's colours: a cool blue-black body
     // and rib, pale sky blue sleeves, the white felt border round the chest
     // "3" (the accent).)
@@ -722,10 +730,31 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // (FN5 2026-10-30, the hoodie picture: the stripe's bright cyan at the
     // shoulder, one small stacked logo centred on the chest.)
     'hoodie': {
-      'zoneColors': {'stripe': '#06d8f2'},
+      'main': '#161616',
+      'zoneColors': {'stripe': '#00f6fe'},
       'marks': {
         'top_crest': {'x': 0, 'y': 0.565, 'scale': 0.85},
         'top_wordmark': {'x': 0, 'y': 0.5, 'scale': 0.6},
+      },
+    },
+    'nflHoodie': {
+      'main': '#161616',
+      'zoneColors': {'stripe': '#00f6fe', 'stripeDeep': '#00f6fe'},
+      'marks': {
+        'top_crest': {'x': 0, 'y': 0.57, 'scale': 1.05},
+        'top_wordmark': {'x': 0, 'y': 0.495, 'scale': 0.78},
+      },
+    },
+    'netballHoodie': {
+      'main': '#161616',
+      'zoneColors': {
+        'stripe': '#00f6fe',
+        'stripeDeep': '#00f6fe',
+        'lining': '#1b1c1e',
+      },
+      'marks': {
+        'top_crest': {'x': 0.1, 'y': 0.565, 'scale': 0.7},
+        'top_wordmark': {'x': 0, 'y': 0.51, 'scale': 0.85},
       },
     },
     // The track jackets (Track jacket areas): black shoulder panels, the cyan
@@ -763,14 +792,15 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'marks': {
         'top_wordmark': {'x': -0.105, 'y': 0.575, 'scale': 1.0},
         'top_crest': {'x': 0.105, 'y': 0.575, 'scale': 1.0},
-        'shorts_crest': {'x': 0.17, 'y': 0.83},
-        'shorts_wordmark': {'x': 0.17, 'y': 0.806},
+        'shorts_crest': {'x': 0.17, 'y': 0.84},
+        'shorts_wordmark': {'x': 0.17, 'y': 0.802},
       },
     },
     'bballTracksuit': {
       'zoneColors': {
         'shoulder': '#27282a',
         'side': cyan,
+        'sideBlade': '#0a5ae6',
         'stripe': cyan,
         'zip': '#27282a',
         'pantsStripe': cyan,
@@ -778,8 +808,8 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'marks': {
         'top_crest': {'x': 0.105, 'y': 0.605, 'scale': 0.6},
         'top_wordmark': {'x': 0.105, 'y': 0.572, 'scale': 0.75},
-        'shorts_crest': {'x': 0.17, 'y': 0.83},
-        'shorts_wordmark': {'x': 0.17, 'y': 0.806},
+        'shorts_crest': {'x': 0.17, 'y': 0.84},
+        'shorts_wordmark': {'x': 0.17, 'y': 0.802},
       },
     },
     'rugbyTracksuit': {
@@ -793,8 +823,8 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'marks': {
         'top_wordmark': {'x': -0.105, 'y': 0.6, 'scale': 1.0},
         'top_crest': {'x': 0.105, 'y': 0.59, 'scale': 1.0},
-        'shorts_crest': {'x': 0.17, 'y': 0.83},
-        'shorts_wordmark': {'x': 0.17, 'y': 0.806},
+        'shorts_crest': {'x': 0.17, 'y': 0.84},
+        'shorts_wordmark': {'x': 0.17, 'y': 0.802},
       },
     },
     'nflTracksuit': {
@@ -804,12 +834,13 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'stripe': cyan,
         'zip': cyan,
         'pantsStripe': cyan,
+        'lining': cyan,
       },
       'marks': {
         'top_crest': {'x': 0.105, 'y': 0.605, 'scale': 0.6},
         'top_wordmark': {'x': 0.105, 'y': 0.572, 'scale': 0.75},
-        'shorts_crest': {'x': 0.17, 'y': 0.83},
-        'shorts_wordmark': {'x': 0.17, 'y': 0.806},
+        'shorts_crest': {'x': 0.17, 'y': 0.84},
+        'shorts_wordmark': {'x': 0.17, 'y': 0.802},
       },
     },
     'trackSides': {
@@ -898,7 +929,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'parts': {
         'sockFoot': {'colour': cyan},
         // FN10 2026-11-02: brighter hoops, as the picture renders them.
-        'sockHoops': {'colour': '#22e4ff'},
+        'sockHoops': {'colour': '#10ccff'},
       },
     },
     'rugbySocks': {
@@ -945,6 +976,11 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // The bucket hat pictures: a cyan bound edge; the general one's flat cyan
     // and royal blue shards (viewer hatprint.js).
     'hat': {'main': '#1b1c1e', 'secondary': '#05c3f2'},
+    'nflBeanie': {
+      'main': '#1b1c1e',
+      'secondary': '#05c3f2',
+      'zoneColors': {'beanieOne': '#05c3f2'},
+    },
     'hatShards': {
       'main': '#1b1c1e',
       'secondary': '#05c3f2',

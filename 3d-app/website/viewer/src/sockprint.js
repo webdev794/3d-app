@@ -24,8 +24,10 @@ const ANKLE = Array.from({ length: 8 }, (_, i) => { const y = SOCK_FOOT.heel + (
  */
 const LAYOUTS = {
   // (FN7 2026-10-30, DT8: the hoops a third deeper and the "3" 3.5 cm higher, as the picture.)
-  two: { band: 0.034, hoops: [[0.034, 0.058], [0.071, 0.095]], ankle: false, toeLine: false, crest: [0.145, 0.07] },
-  wide: { band: 0.057, hoops: [[0.057, 0.081], [0.096, 0.121]], ankle: false, toeLine: false, crest: [0.175, 0.08] },
+  // (FN10 2026-11-02, the user: the black top above the hoops as thin as on the pictures.)
+  // (FN11 2026-11-02, DT10: band .077 of the sock height as the picture, hoops .077-.118 and .145-.183.)
+  two: { band: 0.034, hoops: [[0.034, 0.052], [0.064, 0.081]], ankle: false, toeLine: false, crest: [0.14, 0.07] },
+  wide: { band: 0.03, hoops: [[0.03, 0.055], [0.069, 0.095]], ankle: false, toeLine: false, crest: [0.165, 0.08] },
   rugby: { band: 0.037, hoops: [[0.043, 0.09]], ankle: true, toeLine: true, crest: [0.215, 0.07] },
 };
 const HEX = /^#[0-9a-f]{6}$/i;

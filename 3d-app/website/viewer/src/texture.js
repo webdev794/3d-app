@@ -953,7 +953,7 @@ export class KitPainter {
       }
       // Collar: joined just below the neck trim, with two rows of stitching under it.
       // (A neck cut to a V, Garment style › Neck style: its V's own tip, necks.js.)
-      const crew = !this.vNeck && (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || longTop || this.crewNeck);
+      const crew = (back && !!this.backNeckEdge) || !this.vNeck && (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || longTop || this.crewNeck);
       const vTip = (this.neckTip ?? .672) - .004;
       // (The compression top: along its own neck edge, so the rows keep their depth all round; the shared curve, made for the
       // tee's neck, rose above its neck's middle and showed there as a "W": FM 2026-10-30.)
@@ -964,7 +964,7 @@ export class KitPainter {
         : (c) => { c.moveTo(-.089 + inset, .745 - drop); c.lineTo(0, (back ? .69 : vTip) - drop); c.lineTo(.089 - inset, .745 - drop); });
       // The varsity's collar is sewn round its own deeper neck (varsityTailoring).
       // The shooting shirt's wider V collar band: joined further down, its V deeper.
-      if (shoot && !this.neckShape) {
+      if (shoot && !this.neckShape && !(back && this.backNeckEdge)) {
         seams.push(shootNeckline(back, .0135));
         for (const drop of [.0165, .0205]) stitches.push(shootNeckline(back, drop));
       } else if (!varsity) {
@@ -1116,7 +1116,8 @@ export class KitPainter {
     const g = this.ctx;
     this.side(back);
     g.beginPath();
-    this.outline.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
+    // (A round back over a V front (necks.js liftZ): the back panel cut with its own round neck.)
+    (back && this.backOutline ? this.backOutline : this.outline).forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
     g.closePath();
     // Pieces of their own on the atlas (a hoodie's hood) are printed too.
     for (const piece of this.piecesOn(back)) {
@@ -1388,6 +1389,16 @@ export class KitPainter {
     };
     const LIGHT = 'rgba(0,200,255,0.9)', DEEP = 'rgba(0,40,170,0.9)';
     g.save();
+    // (FN12, DT10: the lit ridge beside each bib crease, painted in soft as the client's evenly lit picture (31-41 there),
+    // since the studio's key light leaves the wearer's left one dull.)
+    for (const sx of [-1, 1]) {
+      const grad = g.createLinearGradient(0, 0.6, 0, 0.37);
+      grad.addColorStop(0, 'rgba(70,72,76,0)'); grad.addColorStop(0.2, 'rgba(70,72,76,0.75)');
+      grad.addColorStop(0.75, 'rgba(70,72,76,0.75)'); grad.addColorStop(1, 'rgba(70,72,76,0)');
+      g.fillStyle = grad;
+      for (let L = 0; L < 5; L++) { g.globalAlpha = 0.3; const w = 0.012 - L * 0.002; g.fillRect(sx * 0.126 - w / 2, 0.37, w, 0.23); }
+      g.globalAlpha = 1;
+    }
     // The top's side panels azure shading down to royal blue under a cyan edge; on the skirt an azure ribbon round each
     // side, the cyan ribbon crossing over it to the hem, the royal ribbon (lighter towards the hem) inside them.
     // (Flat picture colours, no shading painted in: the 3D light gives the folds. Cyan at the bust, azure through the
@@ -1869,11 +1880,11 @@ export class KitPainter {
         g.beginPath();
         compressionNeck(this, 0).forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)));
         g.stroke();
-      } else if (this.neckShape && this.neckEdge?.length > 2 && !isDress(this.kind)) {
-        // A neck cut to another shape (Garment style › Neck style, necks.js): along its own edge.
+      } else if ((this.neckShape || (back && this.backNeckEdge)) && this.neckEdge?.length > 2 && !isDress(this.kind)) {
+        // A neck cut to another shape (Garment style › Neck style, necks.js): along its own edge (the back's own round one).
         g.lineJoin = 'round';
         g.beginPath();
-        this.neckEdge.forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)));
+        (back && this.backNeckEdge ? this.backNeckEdge : this.neckEdge).forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)));
         g.stroke();
       } else if (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || this.crewNeck) {
         g.beginPath();
@@ -2262,7 +2273,8 @@ export class KitPainter {
         const low = Math.min(...run.map((p) => p.y)), high = Math.max(...run.map((p) => p.y));
         const shade = g.createLinearGradient(0, high, 0, low);
         shade.addColorStop(0, own('stripe'));
-        shade.addColorStop(1, mix(own('stripe'), '#0333e0', 0.75));
+        // (FN11, DT10: the deep end as the picture's azure (0,143,253); a look's own stripeDeep (solid when it equals the stripe).)
+        shade.addColorStop(1, own('stripeDeep') ?? mix(own('stripe'), '#0050ff', 0.7));
         g.strokeStyle = shade;
         g.beginPath(); run.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke();
       }
@@ -2306,6 +2318,30 @@ export class KitPainter {
       g.lineTo(dir * 0.3, 0.47);
       g.closePath();
       g.fill();
+      // The Basketball tracksuit picture (FN10 2026-11-02): a royal blue blade up the front of each side panel from the
+      // hem, deep at the hem and fading to the panel's cyan by the waist (design.zoneColors.sideBlade).
+      if (!back && own('sideBlade')) {
+        g.save();
+        // The picture's side panel reaches well onto the front: from under the arm, curving forward to the hem.
+        g.beginPath();
+        // (FN11, DT10: further onto the front, bright cyan; the royal blade only low along its front edge.)
+        g.moveTo(dir * 0.24, 0.53);
+        g.quadraticCurveTo(dir * 0.15, 0.3, dir * 0.13, -0.02);
+        g.lineTo(dir * 0.3, -0.02);
+        g.lineTo(dir * 0.3, 0.53);
+        g.closePath();
+        g.fillStyle = own('side') ?? trim;
+        g.fill();
+        g.clip();
+        g.fillStyle = own('sideBlade');
+        g.beginPath();
+        g.moveTo(dir * 0.12, -0.02);
+        g.quadraticCurveTo(dir * 0.14, 0.12, dir * 0.165, 0.25);
+        g.quadraticCurveTo(dir * 0.18, 0.1, dir * 0.215, -0.02);
+        g.closePath();
+        g.fill();
+        g.restore();
+      }
     }
     // The stripe: along the outline's top edge (the shoulder and sleeve seam), 1.2 cm on the back panel; on the
     // front it runs well onto the front of the arm (the picture, DT7/FN8: about a third of the sleeve seen from the

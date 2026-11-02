@@ -8,10 +8,15 @@ const C = BEANIE_C, CUFF = BEANIE_CUFF, Y0 = BEANIE_CROWN, LS = BEANIE_CROWN_LEN
 /** The printed parts (design.parts keys): the crown's front and back, the cuff, the stripes, the pom-pom. */
 export const BEANIE_PARTS = ['front', 'back', 'beanieCuff', 'beanieStripe', 'beaniePom'];
 /** The stripes (as the mockup): one across the cuff's top, one across the crown above it; [y, height]. */
-const STRIPES = [[CUFF - 0.013, 0.011], [Y0 + 0.034, 0.012]];
+const TWO = [[CUFF - 0.012, 0.018], [Y0 + 0.042, 0.019]]; // (FN11, DT10: as thick as the picture's)
+// (FN11: the NFL beanie, design.zoneColors.beanieOne: one stripe at the cuff's top, no pom-pom, a big logo.)
+const ONE = [[CUFF - 0.008, 0.012]];
+let STRIPES = TWO;
+const HEX = /^#[0-9a-f]{6}$/i;
+const mode = (design) => { STRIPES = HEX.test(design?.zoneColors?.beanieOne ?? '') ? ONE : TWO; return STRIPES === ONE; };
 /** Where the crest sits: on the cuff's front, under its stripe; the club's word under it. */
-export const BEANIE_CREST = { side: 'front', x: 0, y: 0.035 };
-const BEANIE_WORD = { side: 'front', x: 0, y: 0.0135 };
+export const BEANIE_CREST = { side: 'front', x: 0, y: 0.036 };
+const BEANIE_WORD = { side: 'front', x: 0, y: 0.0115 };
 
 const inStripe = (y) => STRIPES.some(([s, h]) => y >= s - h / 2 && y <= s + h / 2);
 
@@ -43,10 +48,11 @@ const seeded = (seed) => () => { seed = (seed * 16807) % 2147483647; return seed
  */
 export function paintBeanie(painter, design, back, trim) {
   const g = painter.ctx;
+  const one = mode(design);
   const own = ['beanieCuff', 'beanieStripe', 'beaniePom'];
   painter.paintParts(design, back, { skip: own });
   for (const key of own) {
-    if (back && key === 'beaniePom') continue;
+    if ((back || one) && key === 'beaniePom') continue;
     const style = painter.partStyle(design, key);
     const fill = key === 'beanieStripe' || key === 'beaniePom' ? trim : null;
     if (!style && !fill) continue;
@@ -59,7 +65,7 @@ export function paintBeanie(painter, design, back, trim) {
   }
   painter.side(back);
   // The pom-pom's yarn: short strands of the body colour among the trim colour's, all over the ball.
-  if (!back) {
+  if (!back && !one) {
     const yarn = painter.partStyle(design, 'beaniePom')?.own ?? design.main ?? '#111214';
     const rnd = seeded(7);
     g.save();
@@ -83,6 +89,8 @@ const BEANIE_THREAD = [[0.00035, -0.00045, 'rgba(0,0,0,0.45)', 0.0012], [0, 0, '
 
 /** The marks: the crest on the cuff's front and the club's word under it (no names or numbers on a beanie). */
 export async function paintBeanieMarks(painter, design, loadImage, textOutline) {
+  mode(design);
+  const k = 1.9; // (FN11, DT10: the logo about twice as big)
   if (design.logoImage) {
     if (design.logoImage !== painter._logoKey) {
       painter._logo = await loadImage(design.logoImage).catch(() => null);
@@ -93,9 +101,9 @@ export async function paintBeanieMarks(painter, design, loadImage, textOutline) 
     painter._logoKey = null;
   }
   const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text' && !String(l.id ?? '').startsWith('kit-'));
-  if (painter._logo) painter.markImage(design, 'crest', BEANIE_CREST, painter._logo, 0.036, 0.022);
+  if (painter._logo) painter.markImage(design, 'crest', BEANIE_CREST, painter._logo, 0.036 * k, 0.022 * k);
   // No club logo yet: the 3DEEZI "3" mark (texture.js markShield draws the brand's own picture), as on the tile picture.
-  else if (!ownArt || design.marks?.top_crest?.side === 'back') painter.markShield(design, 'crest', BEANIE_CREST, [[0, 0.0105], [0.0095, 0.0058], [0.0074, -0.0063], [0, -0.0105], [-0.0074, -0.0063], [-0.0095, 0.0058]], 0.0095, 0.014);
+  else if (!ownArt || design.marks?.top_crest?.side === 'back') painter.markShield(design, 'crest', BEANIE_CREST, [[0, 0.0105], [0.0095, 0.0058], [0.0074, -0.0063], [0, -0.0105], [-0.0074, -0.0063], [-0.0095, 0.0058]].map(([x, y]) => [x * k, y * k]), 0.0095 * k, 0.014 * k);
   const word = (design.logoText ?? '').trim().toUpperCase();
-  if (word) painter.markText(design, 'wordmark', BEANIE_WORD, word, 0.015, design.accent, 0.08, textOutline);
+  if (word) painter.markText(design, 'wordmark', BEANIE_WORD, word, 0.015 * 1.6, design.accent, 0.08 * 1.6, textOutline);
 }

@@ -279,6 +279,7 @@ SPECS.trackjacketHood = { ...SPECS.trackjacket, track: { style: 'hood' } };
 // The Tracksuit tiles' jacket (FN10 2026-11-02, the user): a clean stand-up collar, as level at the back as at the zip and
 // standing straighter, so the stage's camera above does not look down into it (trackjacket.js buildStandCollar `clean`).
 SPECS.trackjacketSuit = { ...SPECS.trackjacket, track: { style: 'collar', clean: true } };
+SPECS.trackjacketHoodSuit = { ...SPECS.trackjacket, track: { style: 'hood', clean: true } };
 
 /**
  * The varsity (letterman) jacket: the hoodie's long set-in sleeves (leather) on a wool body bloused into a rib
@@ -629,7 +630,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   // The hero garments (jersey, shorts, hoodies) drape most visibly; the others a little less.
   const foldGain = ['jersey', 'nfljersey', 'shorts', 'hoodie', 'ziphoodie'].includes(kind) ? 2.7 : 2.1;
   const detailFolds = (p, back, i) => {
-    if (!detail) return 0;
+    // (The netball dress keeps its bib creases in every tier: FN12, DT10 measures without the render tiers.)
+    if (!detail && !spec.dress) return 0;
     const ax = Math.abs(p.x), y = p.y, ph = back ? 1.9 : 0, side = p.x < 0 ? 0.7 : 0, sl = sleeveAt[i];
     const heavy = spec.fleece ? 1.35 : spec.loose ? 0.6 : 1;
     // Slow, uneven undulations (wavelengths 7 to 15 cm).
@@ -643,8 +645,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       // (Smooth, as the client's dress: no ripples along the side panels, only a faint drape: DT6.)
       // An upright crease each side of the bib, just outside its edge, from under the bust towards the waist: a narrow
       // valley with a lit ridge beside it (the client's dress: ND1 / DT6).
-      const crease2 = back ? 0 : (-0.012 * Math.exp(-(((ax - 0.124) / 0.007) ** 2)) + 0.006 * Math.exp(-(((ax - 0.142) / 0.01) ** 2))) * ramp(0.39, 0.44, y) * ramp(0.58, 0.54, y);
-      return (0.25 * h + crease2) * ramp(0.014, 0.034, openDist[i]);
+      const crease2 = back ? 0 : (p.x > 0 ? 1.5 : 1) * (-0.012 * Math.exp(-(((ax - 0.124) / 0.007) ** 2)) + 0.006 * Math.exp(-(((ax - 0.142) / 0.01) ** 2))) * ramp(0.39, 0.44, y) * ramp(0.58, 0.54, y);
+      return ((detail ? 0.25 * h : 0) + crease2) * ramp(0.014, 0.034, openDist[i]);
     }
     // The varsity jacket's leather sleeves are stiff: they keep their own shape (and sleeveFolds' few soft folds).
     if (spec.varsity && sl) return 0;
@@ -724,7 +726,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     const ridge = spec.loose && !spec.legs ? 1 + (back ? 0.26 : 0.14) * Math.min(1, Math.max(0, crease(p, back, i) / 0.004)) : 1;
     // The netball dress: the lit ridge beside each bib crease caught by the light on both sides, as the client's evenly
     // lit picture (the studio's key light alone leaves the wearer's left one dull: DT8).
-    const bibRidge = spec.dress && detail && !back ? 1 + 0.3 * Math.exp(-(((Math.abs(p.x) - 0.142) / 0.01) ** 2)) * ramp(0.39, 0.44, p.y) * ramp(0.58, 0.54, p.y) : 1;
+    const bibRidge = spec.dress && !back ? 1 + (p.x > 0 ? 1.7 : 0.3) * Math.exp(-(((Math.abs(p.x) - 0.142) / 0.01) ** 2)) * ramp(0.39, 0.44, p.y) * ramp(0.58, 0.54, p.y) : 1;
     const muscles = 1 - 0.5 * THREE.MathUtils.clamp(hollow(p, back) / 0.006, 0, 1);
     let under = 1;
     if (worn.pit) {
@@ -763,19 +765,20 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     // seams at the neck's sides. The cloth below it is drawn up evenly across the whole neck and only above `from`
     // (clear of the back name), so the back is smooth and its print keeps its shape (no narrow pull in the middle).
     if (spec.backNeck) {
-      const ax = Math.abs(p.x), { centre, from } = spec.backNeck, [, , [nx, ny]] = spec.half;
+      // (A neck cut by necks.js may have more points: it says where the neck meets the shoulder seam.)
+      const ax = Math.abs(p.x), { centre, from } = spec.backNeck, [nx, ny] = spec.neckPoint ?? spec.half[2];
       if (ax >= nx || p.y <= from) return p.y;
-      const curve = spec.half.slice(0, 3);
+      const curve = spec.half.slice(0, Math.max(3, spec.half.findIndex(([x, y]) => x === nx && y === ny) + 1));
       let k = 1;
       while (k < curve.length - 1 && curve[k][0] < ax) k++;
       const [x0, y0] = curve[k - 1], [x1, y1] = curve[k], edge = y0 + ((y1 - y0) * (ax - x0)) / (x1 - x0);
       // (`round`: an elliptical arc, coming down to the neck's sides square, so with the front's round U the opening is one
       // smooth oval, as the compression top's picture: FM 2026-10-30.)
       const line = spec.backNeck.round ? ny + (centre - ny) * Math.sqrt(Math.max(0, 1 - (ax / nx) ** 2)) : centre + (ny - centre) * (ax / nx) ** 2;
-      const lift = Math.max(0, line - edge), t = Math.min(1, (p.y - from) / Math.max(1e-4, edge - from));
+      const lift = Math.max(0, line - edge), t = Math.min(1, (p.y - from) / Math.max(1e-4, edge - (spec.backNeck.whole ? 0.008 : 0) - from));
       // (Round: the 2 cm under the edge drawn up with it whole, so the collar's stitching keeps its depth all round; the cloth
       // lower down takes the stretch.)
-      return p.y + lift * (spec.backNeck.round ? 1 - (1 - t) ** 2 : t * t);
+      return p.y + lift * (spec.backNeck.round || spec.backNeck.whole ? 1 - (1 - t) ** 2 : t * t);
     }
     if (!spec.chest || Math.abs(p.x) > .112 || p.y < .62) return p.y;
     // (The shooting shirt's V is deeper: its back neck is raised from its own V.)
@@ -784,15 +787,26 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     const weight = Math.exp(-((p.y - neckLine) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
     return p.y + Math.max(0, .752 - p.y) * weight;
   };
+  // (`liftZ`, a neck with a round back over a V front (necks.js): the back is worn where it is lifted to, so its neckline
+  // is round seen from above too, not drawn in to a point at the V's foot.)
+  const backAt = (p) => {
+    const h = backHeight(p);
+    if (spec.liftZ && h !== p.y) return worn.at(new THREE.Vector2(p.x, h), true);
+    const v = worn.at(p, true);
+    v.y += h - p.y;
+    return v;
+  };
   for (let i = 0; i < n; i++) {
-    const p = points[i], f = worn.at(p, false), b = worn.at(p, true);
+    const p = points[i], f = worn.at(p, false), b = backAt(p);
     positions.set([f.x, f.y, f.z], i * 3);
-    positions.set([b.x, b.y + backHeight(p) - p.y, b.z], (n + i) * 3);
+    positions.set([b.x, b.y, b.z], (n + i) * 3);
     const front = shade(p, i, false), back = shade(p, i, true);
     colours.set([front, front, front], i * 3);
     colours.set([back, back, back], (n + i) * 3);
     uvs.set([(0.5 * (p.x - minX)) / span, (p.y - minY) / span], i * 2);
-    uvs.set([0.5 + (0.5 * (maxX - p.x)) / span, (p.y - minY) / span], (n + i) * 2);
+    // (`liftZ`: the back printed where it is raised to, as a plain round-neck back's own panel would be, so the front's V
+    // shows nowhere on the back's print (user 2026-11-02).)
+    uvs.set([0.5 + (0.5 * (maxX - p.x)) / span, ((spec.liftZ ? backHeight(p) : p.y) - minY) / span], (n + i) * 2);
   }
   // Front and back are sewn together: every seam point is shared exactly, and so are edge
   // points where the two already meet (the ends of the sleeve seams at the cuff).
@@ -915,7 +929,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   const uvAt = (x, y) => [(0.5 * (x - minX)) / span, (y - minY) / span];
   const partsCtx = () => ({ poly, seam, points, faces, positions, normals, colours, n, nb, maxY, minY, neck: spec.neck, uvAt, detail,
     uvBack: (x, y) => [0.5 + (0.5 * (maxX - x)) / span, (y - minY) / span],
-    surface: (x, y, back) => { const p = new THREE.Vector2(x, y), v = worn.at(p, back); if (back) v.y += backHeight(p) - p.y; return v; },
+    surface: (x, y, back) => { const p = new THREE.Vector2(x, y); return back ? backAt(p) : worn.at(p, false); },
     at: (x, y, back) => worn.at(new THREE.Vector2(x, y), back) });
   const hoodie = spec.hood ? buildHoodieParts(spec, partsCtx()) : null;
   // The varsity jacket: its rib collar, cuffs and waistband, placket, welt pockets and snaps (varsity.js).
@@ -945,6 +959,9 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     neckTip: spec.neckTip ?? null,
     // The neck opening's edge on the flat panel (left to right), for its printed collar trim.
     neckEdge: neckIdx.map((i) => ({ x: poly[i].x, y: poly[i].y })),
+    // A round back over a V front (necks.js liftZ): the back panel's own outline and neck edge, raised as worn.
+    backOutline: spec.liftZ ? poly.map((p) => ({ x: p.x, y: backHeight(p) })) : null,
+    backNeckEdge: spec.liftZ ? neckIdx.map((i) => ({ x: poly[i].x, y: backHeight(poly[i]) })) : null,
     rimWidth: spec.rim.width ?? (spec.legs ? 0.026 : 0.011),
     rimStand: spec.rim.stand ?? 0,
     rimOne: !!spec.rim.one,
@@ -957,9 +974,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     at: (x, y, back = false) => worn.at(new THREE.Vector2(x, y), back),
     /** The same with the back's raised neckline: the fabric's shape as worn (a garment drawing's map keeps shapes on it). */
     surface: (x, y, back = false) => {
-      const p = new THREE.Vector2(x, y), v = worn.at(p, back);
-      if (back) v.y += backHeight(p) - p.y;
-      return v;
+      const p = new THREE.Vector2(x, y);
+      return back ? backAt(p) : worn.at(p, false);
     },
   };
 }

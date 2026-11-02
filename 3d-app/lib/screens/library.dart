@@ -711,12 +711,15 @@ class ProfileScreen extends StatelessWidget {
               () => c.go(AppScreen.pricing),
             ),
             // Help (phones): the new home's quick look around, again.
-            if (MediaQuery.sizeOf(context).shortestSide < 600)
-              _row(
-                Icons.play_circle_outline,
-                'Help: replay the home tutorial',
-                () => BubbleTutorial.open(context),
-              ),
+            LayoutBuilder(
+              builder: (context, box) => phoneLayout(context, box.maxWidth)
+                  ? _row(
+                      Icons.play_circle_outline,
+                      'Help: replay the home tutorial',
+                      () => BubbleTutorial.open(context),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             const SizedBox(height: 22),
             // The website's footer pages, opened signed in (same as the site's footer links).
             for (final (icon, label, path) in const [

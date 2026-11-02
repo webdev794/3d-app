@@ -71,8 +71,9 @@ class CreateHomeScreen extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            if (onTryNewHome != null &&
-                                MediaQuery.sizeOf(context).shortestSide < 600)
+                            // Offered by the switcher on phones (and in the
+                            // desktop preview's phone frame).
+                            if (onTryNewHome != null)
                               Center(child: _TryNewHome(onTap: onTryNewHome!)),
                             const SizedBox(height: 14),
                             Text.rich(
@@ -1274,6 +1275,11 @@ const garmentTiles = <(String, String)>[
   ('Varsity jacket', 'varsity'),
 ];
 
+/// The kit is a tracksuit: the track jacket with its pants (task 9.173).
+bool isTracksuit(AppController c) =>
+    c.garment == 'Track jacket' &&
+    RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(c.zoneColors['pantsStripe'] ?? '');
+
 /// Shown in the Studio's garment list; not yet available in 3D.
 const comingSoonGarments = <(String, String)>[
   ('Socks', 'socks'),
@@ -1351,8 +1357,36 @@ class GarmentScreen extends StatelessWidget {
   /// with that picture (the sport's own first), else the picture's own
   /// ([pictureLooks]), else the sport's first tile of that garment (or any
   /// sport's). Own uploads and text stay; one undo step.
+  /// Task 9.173: the Studio's Tracksuit item (the track jacket over its pants,
+  /// shown by its look's pants stripe), from the sport's own tracksuit tile
+  /// (else any sport's). One undo step.
+  static void switchToSuit(AppController c) {
+    if (isTracksuit(c)) return;
+    final own = sportNamed(c.sport);
+    final t =
+        [
+              ...tilesFor(c.sport),
+              for (final s in sportCategories)
+                if (s != own) ...s.tiles,
+            ]
+            .where(
+              (t) =>
+                  !t.soon &&
+                  t.garment == 'Track jacket' &&
+                  t.look != null &&
+                  ((tileLook(t.look!)['zoneColors'] as Map?)?['pantsStripe'] !=
+                      null),
+            )
+            .firstOrNull;
+    if (t == null) return;
+    c.edit(() => choose(c, t));
+  }
+
   static void switchTo(AppController c, String name, String art) {
-    if (name == c.garment) return;
+    // (Track jacket from a tracksuit: the jacket alone.)
+    if (name == c.garment && !(name == 'Track jacket' && isTracksuit(c))) {
+      return;
+    }
     final own = sportNamed(c.sport);
     final tiles = [
       ...tilesFor(c.sport),

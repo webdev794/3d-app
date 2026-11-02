@@ -145,13 +145,15 @@ export function buildHood(ctx, { zip = false, standing = false } = {}) {
     if (standing) {
       // The wall: 34 rows from just under the seam up to its top, flaring out more the higher it goes; then the crown,
       // 12 rows rolling inward (towards the opening) over the top: forward over the back, a little in at the sides.
-      const H = 0.02 + 0.012 * ramp(0, 0.45, g) + 0.01 * ramp(0.45, 1, g);
-      const L = 0.3 + 0.5 * ramp(0.05, 0.5, g);
+      // (FN11 2026-11-02, DT10: the zip tracksuits' hood (zip + standing) stands up as a full hood behind the neck,
+      // about 8 cm over the collar at the back with a peaked top, its opening deep down to the zip.)
+      const H = zip ? 0.012 + 0.06 * ramp(0.08, 0.75, g) + 0.012 * ramp(0.8, 1, g) ** 2 : 0.02 + 0.012 * ramp(0, 0.45, g) + 0.01 * ramp(0.45, 1, g);
+      const L = zip ? 0.12 + 0.22 * ramp(0.05, 0.5, g) : 0.3 + 0.5 * ramp(0.05, 0.5, g);
       for (let k = 0; k <= 33; k++) {
         const h = -0.004 + ((H + 0.004) * k) / 33, t = Math.max(0, h) / H;
         local.push([0.0016 + over + Math.max(0, h) * Math.tan(L) * (0.45 + 0.55 * t), h]);
       }
-      const curl = 0.4 + 2.3 * ramp(0.12, 0.55, g), rc = 0.008 + 0.024 * ramp(0.12, 0.6, g);
+      const curl = zip ? 0.3 + 1.2 * ramp(0.12, 0.55, g) : 0.4 + 2.3 * ramp(0.12, 0.55, g), rc = zip ? 0.006 + 0.012 * ramp(0.12, 0.6, g) : 0.008 + 0.024 * ramp(0.12, 0.6, g);
       let [o, h] = local.at(-1), phi = Math.atan(Math.tan(L) * 1.55);
       for (let k = 1; k <= 12; k++) {
         const step = (rc * curl) / 12;
@@ -277,7 +279,7 @@ export function buildHoodCords(ctx, eyelets) {
     const dir = Math.sign(e.x) || 1, pts = [e.at.clone().addScaledVector(e.out, 0.002)];
     const y0 = e.at.y;
     for (let k = 1; k <= 9; k++) {
-      const t = k / 9, y = y0 - 0.012 - 0.2 * t, x = dir * (0.034 + 0.012 * t + 0.004 * Math.sin(t * 5));
+      const t = k / 9, y = y0 - 0.012 - 0.13 * t, x = dir * (0.034 + 0.012 * t + 0.004 * Math.sin(t * 5));
       const s = sampleFront(x, Math.min(y, 0.69));
       const P = s.p.clone().addScaledVector(s.n, 0.0055);
       P.x = x;

@@ -29,7 +29,7 @@ import { processImage } from './imagetools.js';
 import { zoneAt, partAt } from './zones.js';
 import { colourFor } from './colourpick.js';
 import { buildWingCollar, paintWingCollar } from './wingcollar.js';
-import { neckShape, neckCut, rugbyCollar } from './necks.js';
+import { neckShape, neckCut, rugbyCollar, roundBack } from './necks.js';
 import { collarSpec, fitSpec, collarColours, paintCollarBand, buildCollarParts } from './rugbycollars.js';
 import { buildHoodCords, ribNormalMap, tubeAlong } from './hoodie.js';
 import { buildSnaps, varsityRibMap, quiltMap, finishMap, varsityColour } from './varsity.js';
@@ -279,7 +279,10 @@ function buildKit(kind) {
   // A rugby jersey's collar from the library and its fit (Garment style, rugbycollars.js): on the jersey only.
   const collar = !layout && list.includes('jersey') ? rugbyCollar(design) : null;
   const fit = !layout && list.includes('jersey') && (design.fit === 'classic' || design.fit === 'tight') ? design.fit : null;
-  const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '');
+  // (The rugby / netball / NFL training tees (tile look zoneColors.teeFlare): sleeves standing out from the body and the
+  // body flaring to a wider hem, as their pictures: DT10.)
+  const teeFlare = list.includes('tee') && HEX6.test(design.zoneColors?.teeFlare ?? '');
+  const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '') + (kind === 'beanie' && HEX6.test(design.zoneColors?.beanieOne ?? '') ? ':nopom' : '') + (list.includes('trackpants') && HEX6.test(design.zoneColors?.sideBlade ?? '') ? ':jog' : '') + (teeFlare ? ':flare' : '');
   if (key === currentKind) return;
   currentKind = key;
   const geometries = new Set();
@@ -297,9 +300,9 @@ function buildKit(kind) {
     const over = partKind === 'raglan' && layout && list.includes('shorts') ? { ...SPECS.raglan, hemFlare: 0.09 } : null;
     // (The crew-neck jersey: the tee's neck on the jersey's raglan body; its fabric lies smoother, fewer creases and less
     // relief, as the Full kit picture's matt knit.)
-    const style = (partKind === 'polo' || partKind === 'pocketpolo') && zipPolo ? { ...SPECS[partKind], rim: { ...SPECS[partKind].rim, width: 0.03, stand: 0.021 }, crease: 0.45, relief: 0.6 } : partKind === 'trackjacket' && trackHood ? SPECS.trackjacketHood : partKind === 'trackjacket' && list.includes('trackpants') ? SPECS.trackjacketSuit : partKind === 'jersey' && crewKit ? { ...SPECS.jersey, half: SPECS.tee.half, neck: SPECS.tee.neck, rim: SPECS.tee.rim, crew: true, crease: 0.45, relief: 0.6 } : null;
+    const style = (partKind === 'polo' || partKind === 'pocketpolo') && zipPolo ? { ...SPECS[partKind], rim: { ...SPECS[partKind].rim, width: 0.03, stand: 0.021 }, crease: 0.45, relief: 0.6 } : partKind === 'trackjacket' && trackHood ? (list.includes('trackpants') ? SPECS.trackjacketHoodSuit : SPECS.trackjacketHood) : partKind === 'trackjacket' && list.includes('trackpants') ? SPECS.trackjacketSuit : partKind === 'tee' && teeFlare ? { ...SPECS.tee, armDrop: TEE_FLARE.armDrop, hemFlare: TEE_FLARE.hemFlare } : partKind === 'jersey' && crewKit ? { ...SPECS.jersey, half: SPECS.tee.half, neck: SPECS.tee.neck, rim: SPECS.tee.rim, crew: true, crease: 0.45, relief: 0.6 } : null;
     // Look 2: the drape and wrinkles of worn cloth (otherwise the garment as before).
-    const garment = partKind === 'socks' ? buildSocks({ detail: LOOK2, split: splitToe }) : partKind === 'bballshorts' ? buildBballShorts({ detail: LOOK2 }) : partKind === 'trackpants' ? buildTrackPants({ detail: LOOK2 }) : partKind === 'skirt' ? buildSkirt({ detail: LOOK2 }) : partKind === 'cap' ? buildCap({ detail: LOOK2, five: kind === 'five-panel-cap' }) : partKind === 'bucket-hat' ? buildBucketHat({ detail: LOOK2 }) : partKind === 'beanie' ? buildBeanie({ detail: LOOK2 }) : buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: neck || rugby || (fit && partKind === 'jersey') ? fitSpec(collarSpec(neckCut(partKind, own ?? over ?? style ?? SPECS[partKind], neck), rugby), partKind === 'jersey' ? fit : null) : own ?? over ?? style, detail: LOOK2 });
+    const garment = partKind === 'socks' ? buildSocks({ detail: LOOK2, split: splitToe }) : partKind === 'bballshorts' ? buildBballShorts({ detail: LOOK2 }) : partKind === 'trackpants' ? buildTrackPants({ detail: LOOK2, jogger: HEX6.test(design.zoneColors?.sideBlade ?? '') }) : partKind === 'skirt' ? buildSkirt({ detail: LOOK2 }) : partKind === 'cap' ? buildCap({ detail: LOOK2, five: kind === 'five-panel-cap' }) : partKind === 'bucket-hat' ? buildBucketHat({ detail: LOOK2 }) : partKind === 'beanie' ? buildBeanie({ detail: LOOK2, pom: !HEX6.test(design.zoneColors?.beanieOne ?? '') }) : buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: neck || rugby || (fit && partKind === 'jersey') ? fitSpec(collarSpec(neckCut(partKind, own ?? over ?? style ?? SPECS[partKind], neck), rugby), partKind === 'jersey' ? fit : null) : layout ? own ?? over ?? style : roundBack(partKind, own ?? over ?? style ?? SPECS[partKind]), detail: LOOK2 });
     const painter = new KitPainter(garment.frame, garment.outline, printSize(partKind), partKind);
     if (kind === 'five-panel-cap') painter.five = true;
     if (own) painter.cut = layout.key;
@@ -307,6 +310,8 @@ function buildKit(kind) {
     // A neck cut to another shape: its collar's seam and stitching follow it (texture.js tailoring).
     if (neck) Object.assign(painter, { neckShape: neck, crewNeck: neck === 'round', vNeck: neck !== 'round', neckTip: garment.neckTip ?? null });
     painter.neckEdge = garment.neckEdge;
+    painter.backOutline = garment.backOutline;
+    painter.backNeckEdge = garment.backNeckEdge;
     if (rugby) painter.rugbyCollar = rugby;
     // The finished edges (the hem follows a leg's side split), the waistband's width and the places a print
     // layout's pieces are matched to.
@@ -332,11 +337,13 @@ function buildKit(kind) {
     if (garment.kind === 'netball-dress') {
       partMaterial.emissiveMap = texture;
       partMaterial.emissive.setRGB(1, 1, 1);
-      partMaterial.emissiveIntensity = 0.24;
+      partMaterial.emissiveIntensity = 0.36;
       // (ND2: almost no grey sheen on it, so its strips stay saturated from the side too.)
-      partMaterial.sheen = 0.08;
+      partMaterial.sheen = 0;
+      // (FN12: less sky reflection too: it lifted the lit side's cyan pale, DT10.)
+      partMaterial.envMapIntensity = (partMaterial.envMapIntensity ?? 1) * 0.5;
       // (Less white shine on it, so its cyan stays deep on the side the key light falls on: DT8.)
-      partMaterial.specularIntensity = 0.45;
+      partMaterial.specularIntensity = 0.15;
     }
     // The compression top (FM print 2026-10-30): its print lifted by its own light too, so its azure panels, piping and
     // the chest logo read as deep and as bright as on the client's evenly lit picture on both sides (its black stays a
@@ -642,7 +649,9 @@ function paintHoodie(part) {
 function paintTrack(part) {
   const own = (key, fallback) => (HEX.test(design.zoneColors?.[key] ?? '') ? design.zoneColors[key] : fallback);
   const t = part.track, body = own('body', design.main), collar = own('collar', body);
-  t.lining.forEach((m) => m.color.set(collar).multiplyScalar(0.85));
+  // (FN11 2026-11-02: the NFL hooded tracksuit picture's cyan hood lining, zoneColors.lining.)
+  const lining = own('lining', null);
+  t.lining.forEach((m) => (lining ? m.color.set(lining) : m.color.set(collar).multiplyScalar(0.85)));
   t.rib.color.set(own('cuffs', body)).multiplyScalar(0.9);
   const zip = own('zip', design.secondary);
   for (const z of t.zips) { z.tape.color.set(zip).multiplyScalar(0.85); z.teeth.color.set(zip); }
@@ -720,7 +729,7 @@ async function paintAll() {
     if (part.rugby?.collar.inside) part.inside.color.set(part.rugby.collar.inside).multiplyScalar(0.8);
     part.inside.envMapIntensity = nfl ? 0.3 : 1;
     // (The compression top: a black label with the cyan "3", as its picture.)
-    if (part.label) paintLabel(part.label, design.size || 'L', part.painter.kind === 'compression' ? 'mark' : 'word');
+    if (part.label) paintLabel(part.label, design.size || 'L', part.painter.kind === 'compression' ? 'mark' : HEX6.test(design.zoneColors?.labelDark ?? '') ? 'dark' : 'word');
     if (part.hoodie) paintHoodie(part);
     if (part.track) paintTrack(part);
     if (part.varsity) paintVarsityPart(part);
@@ -752,7 +761,10 @@ const enqueuePaint = (work) => {
 function applyDesign(next) {
   return enqueuePaint(async () => {
     if (!next || typeof next !== 'object' || Array.isArray(next)) throw new Error('A design object is required.');
-    design = { ...design, ...next };
+    // (FN11 2026-11-02: a whole design from the host (with its garment) drops the keys JSON leaves out when unset, so a
+    // new tile never keeps the last one's track style, neck or fit: the Athletics track jacket once showed a hood.)
+    const whole = typeof next.garment === 'string' ? { trackStyle: null, neck: null, fit: null } : {};
+    design = { ...design, ...whole, ...next };
     await paintAll();
     post({ type: 'designApplied' });
   });
@@ -806,6 +818,7 @@ function garmentShape(p) {
 /** The key a file read is kept by (a drawing is read differently from a print layout). */
 const fileKey = (asset, drawing) => (drawing ? `drawing:${asset}` : asset);
 /** The garments a drawing can go on, as the hosts name them. */
+const TEE_FLARE = { armDrop: 50, hemFlare: 0.13 };
 const DRAWN_NAMES = { singlet: 'Singlet', 'netball-dress': 'Netball dress', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo', pocketpolo: 'Polo with pocket', nfljersey: 'Football jersey', 'shooting-shirt': 'Shooting shirt' };
 /** The garment a drawing goes on: the one it was checked as (its parts), else the design's own top, else a singlet. */
 const drawnGarment = (...choices) => choices.find((g) => typeof g === 'string' && Object.hasOwn(DRAWN, g)) ?? 'singlet';

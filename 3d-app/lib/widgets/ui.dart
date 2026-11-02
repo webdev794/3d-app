@@ -280,6 +280,15 @@ class SurfaceCard extends StatelessWidget {
 /// The bottom bar (client pictures 166.jpg and 168.jpg): Home · Projects ·
 /// Orders · Profile. Assets is part of Projects (its button there, and in
 /// Profile), and My orders is part of the Orders tab.
+/// Whether the app lays out as a phone: a real phone (shortest side under
+/// 600), or the app inside the desktop preview's phone frame (a window at
+/// least 900 wide, the app itself under 600). [appWidth] is the app's own
+/// width (from a LayoutBuilder). Tablets and wide screens are not phones.
+bool phoneLayout(BuildContext context, double appWidth) {
+  final window = MediaQuery.sizeOf(context);
+  return window.shortestSide < 600 || (window.width >= 900 && appWidth < 600);
+}
+
 class BottomNav extends StatelessWidget {
   const BottomNav({super.key, required this.controller});
   final AppController controller;
@@ -292,7 +301,12 @@ class BottomNav extends StatelessWidget {
   };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) =>
+        _build(context, phoneLayout(context, box.maxWidth)),
+  );
+
+  Widget _build(BuildContext context, bool phone) {
     final entries = [
       (AppScreen.home, Icons.home_outlined, Icons.home_rounded, 'Home'),
       (
@@ -313,7 +327,6 @@ class BottomNav extends StatelessWidget {
     // Phones: a floating glass capsule whose active item sits on a small
     // glowing glass pill (client home pictures 2026-10-30). Wider screens
     // keep the flat bar.
-    final phone = MediaQuery.sizeOf(context).width < 600;
     final row = Row(
       children: entries.map((e) {
         final selected = current == e.$1;

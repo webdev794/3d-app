@@ -139,7 +139,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
     }
     if (!_tutorialChecked) {
       _tutorialChecked = true;
-      if (MediaQuery.sizeOf(context).shortestSide < 600) _checkTutorial();
+      _checkTutorial();
     }
   }
 

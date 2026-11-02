@@ -4,17 +4,16 @@ import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_controller.dart';
-import '../widgets/ui.dart' show showToast;
+import '../widgets/ui.dart' show phoneLayout, showToast;
 import 'bubble_home.dart';
 import 'create_home.dart';
 
 /// Whether a phone with no saved choice opens the new bubble home.
 ///
-/// OFF until the tester passes the bubble home (2026-10-30): every phone
-/// opens the classic home, and the bubble shows only after "Try the new
-/// home". Turn it on after testing; slow phones and phones with animations
-/// off then still get the classic home.
-const bool kBubbleHomeDefault = false;
+/// ON since 2026-11-02 (the user checks the bubble on the preview): phones
+/// open the bubble home; slow phones and phones with animations off still
+/// get the classic home, and "Classic view" is remembered.
+const bool kBubbleHomeDefault = true;
 
 /// Home (client 2026-10-30): on phones the new glass-bubble home
 /// ([BubbleHomeScreen]) or the classic tile home ([CreateHomeScreen]), which
@@ -36,15 +35,23 @@ class HomeSwitcher extends StatefulWidget {
   static const styleKey = 'home_style';
   static const bubble = 'bubble',
       classic = 'classic',
-      classicAuto = 'classic_auto';
+          // 'classic_auto2' since 2026-11-02: an older automatic 'classic_auto'
+          // (often a desktop browser timing the framed preview) is ignored.
+          classicAuto =
+          'classic_auto2';
+
+  /// The automatic choice before 2026-11-02, read as nothing saved.
+  static const oldClassicAuto = 'classic_auto';
 
   /// A phone: its shortest side is under this.
   static const phoneSide = 600.0;
 
   /// Frames skipped while the bubble warms up, the frames then timed, and the
   /// average build + raster time over which the phone counts as slow.
-  static const warmUpFrames = 5, timedFrames = 60;
-  static const slowFrame = Duration(milliseconds: 22);
+  /// About 3 s of warm-up and 4 s timed (at 60 fps): only a clearly,
+  /// steadily slow phone moves to the classic home.
+  static const warmUpFrames = 180, timedFrames = 240;
+  static const slowFrame = Duration(milliseconds: 30);
 
   static const autoNote =
       'Switched to the classic home for smoother use. '
@@ -102,6 +109,7 @@ class _HomeSwitcherState extends State<HomeSwitcher> {
     try {
       final prefs = await SharedPreferences.getInstance();
       value = prefs.getString(HomeSwitcher.styleKey) ?? '';
+      if (value == HomeSwitcher.oldClassicAuto) value = '';
     } catch (_) {
       value = _unavailable;
     }
@@ -155,6 +163,12 @@ class _HomeSwitcherState extends State<HomeSwitcher> {
   }
 
   void _onTimings(List<FrameTiming> timings) {
+    // Not while the first-visit tutorial plays: start again after it.
+    if (BubbleTutorial.showing.value) {
+      _warm = 0;
+      _sample.clear();
+      return;
+    }
     for (final t in timings) {
       if (_warm < HomeSwitcher.warmUpFrames) {
         _warm++;
@@ -173,8 +187,16 @@ class _HomeSwitcherState extends State<HomeSwitcher> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final phone =
+  Widget build(BuildContext context) => LayoutBuilder(
+    // The app's own width: the desktop preview's phone frame is a phone.
+    builder: (context, box) =>
+        _build(context, phoneLayout(context, box.maxWidth)),
+  );
+
+  Widget _build(BuildContext context, bool phone) {
+    // Only a real phone is timed: a desktop browser drawing the preview's
+    // phone frame is not a slow phone.
+    final realPhone =
         MediaQuery.sizeOf(context).shortestSide < HomeSwitcher.phoneSide;
     final bubbleOn =
         phone &&
@@ -188,7 +210,7 @@ class _HomeSwitcherState extends State<HomeSwitcher> {
           // Classic, classic_auto, not read yet, or no storage.
           _ => false,
         };
-    _timeFrames(bubbleOn && _saved == '');
+    _timeFrames(bubbleOn && realPhone && _saved == '');
     if (bubbleOn) {
       return BubbleHomeScreen(
         widget.c,

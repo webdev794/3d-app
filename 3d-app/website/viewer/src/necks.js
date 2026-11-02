@@ -30,7 +30,7 @@ export const RUGBY_COLLARS = {
   rc008: { name: 'Polo collar, 3 buttons', shape: 'round', fold: true, piping: true, band: { width: 0.011 }, placket: { length: 0.12, buttons: 3 } },
   rc009: { name: 'Polo collar, 1 button', shape: 'round', fold: true, band: { width: 0.011 }, placket: { length: 0.075, buttons: 1 } },
   rc010: { name: 'Fold-down collar, crossover', shape: 'round', fold: true, insert: 'cross', band: { width: 0.011 } },
-  'shallow-v': { name: 'Custom shallow V', shape: 'shallow', band: { width: 0.022, stripes: [[0.12, 0.24, 'accent']] }, inside: '#d9dcdf' },
+  'shallow-v': { name: 'Custom shallow V', shape: 'shallow', band: { width: 0.022, stripes: [[0.12, 0.24, 'accent']] } },
 };
 
 /** The design's collar from the library (rugby jerseys), or null. */
@@ -55,6 +55,23 @@ export function neckShape(kind, design, own = NECK_DEFAULTS[kind]) {
 }
 
 /**
+ * The back neck of a cut neck (garment.js backHeight `backNeck`): a smooth round curve, its middle at the jersey's back
+ * neck height (0.752), easing down to the shoulder seams at the neck's sides, whatever the front's shape (user
+ * 2026-11-02, images/312-314: only the front is a V; the back of the neckline is a smooth round curve). The cloth is
+ * drawn up only above `from`, just under the front's foot, clear of the back name.
+ */
+const backNeck = (foot) => ({ centre: 0.752, from: Math.min(foot - 0.03, 0.64) });
+
+/**
+ * A garment's own V (the jersey's, the shooting shirt's: neck left unset) with the same round back (the tester, user
+ * 2026-11-02: every client picture shows a round back neck); its front exactly as matched to the tile pictures.
+ */
+export function roundBack(kind, spec) {
+  if (NECK_DEFAULTS[kind] !== 'v' || spec.backNeck || kind === 'netball-dress') return spec;
+  return { ...spec, neckPoint: spec.half[2], backNeck: backNeck(spec.half[0][1]), liftZ: true };
+}
+
+/**
  * The garment's spec with its neck cut to `shape` ('round', 'v', 'shallow'). The neck's end at the shoulder seam stays
  * where it is (so the shoulders, sleeves and the whole print atlas keep their places); only the opening's foot and its
  * curve change, with the collar band (rim), the open edge and the back neck's line to match.
@@ -73,7 +90,7 @@ export function neckCut(kind, spec, shape) {
     // The singlet: its scoop's foot (0.64) kept; the V straight from it to the strap's inner corner.
     const [nx, ny] = half[2], foot = half[0][1] + (shape === 'shallow' ? 0.03 : 0);
     const neck = shape === 'round' ? [[0, 0.64], [0.06, 0.69], [nx, ny]] : [[0, foot], [0.01, foot + ((ny - foot) * 0.01) / nx], [nx / 2, (foot + ny) / 2], [nx, ny]];
-    return { ...spec, half: [...neck, ...half.slice(3)], neckShape: shape };
+    return { ...spec, half: [...neck, ...half.slice(3)], neckShape: shape, neckPoint: [nx, ny], backNeck: backNeck(neck[0][1]), liftZ: true };
   }
   // Sleeved tops (jersey, tee, raglan, shooting shirt): the tee's crew neck, the jersey's V (6.6 cm deep) or a shallow V
   // (5 cm), each from the garment's own neck point.
@@ -93,6 +110,9 @@ export function neckCut(kind, spec, shape) {
     crew: shape === 'round',
     neckShape: shape,
     neckPoint: [nx, ny],
+    // (The shallow V's back drawn up whole near its edge: drawn up only at the edge it came out saw-toothed: DT10.)
+    backNeck: shape === 'shallow' ? { ...backNeck(tip), whole: true } : backNeck(tip),
+    liftZ: true,
     // The back neck's line (garment.js backHeight): the crew neck's or the V's.
     neckLine: shape === 'round' ? (ax) => 0.707 + ax * 0.42 : shape === 'v' ? (ax) => tip + ax * 0.76 : (ax) => tip + ax * 0.6,
     neckTip: tip,

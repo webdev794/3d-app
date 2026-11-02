@@ -83,7 +83,8 @@ export function paintLabel(label, size = 'L', style = 'word') {
   label.userData.style = style;
   const map = label.material.map, c = map.image, g = c.getContext('2d'), w = c.width, h = c.height;
   // The netball dress's small dark label: 3DEEZI in light grey on dark grey, stitched across its ends.
-  if (label.userData.dark) {
+  // (FN11 2026-11-02: style 'dark' (a tile look's design.zoneColors.labelDark) gives the same small dark label.)
+  if (label.userData.dark || style === 'dark') {
     g.fillStyle = '#2e3034';
     g.fillRect(0, 0, w, h);
     g.fillStyle = 'rgba(255,255,255,0.05)';
