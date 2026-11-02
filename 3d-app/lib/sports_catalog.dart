@@ -496,7 +496,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'secondary': '#27282a',
       'patternColor': '#008fdc',
       'zones': solid(['sleeves']),
-      'zoneColors': {'labelDark': '#2e3034'},
+      'zoneColors': {'labelDark': '#2e3034', 'teeFlare': '#27282a'},
       'marks': {
         'top_wordmark': {'y': 0.5},
         'top_crest': {'x': 0, 'y': 0.565, 'scale': 0.8},
@@ -507,7 +507,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'secondary': '#27282a',
       'patternColor': '#008fdc',
       'zones': solid(['sleeves', 'sides']),
-      'zoneColors': {'labelDark': '#2e3034'},
+      'zoneColors': {'labelDark': '#2e3034', 'teeFlare': '#27282a'},
       'marks': {
         'top_wordmark': {'y': 0.5},
         'top_crest': {'y': 0.565},

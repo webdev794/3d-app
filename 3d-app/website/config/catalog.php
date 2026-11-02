@@ -50,8 +50,8 @@ $look = function (string $name, array $extra = []): array {
         // (FN11 2026-11-02, DT10: the stacks 3-5% lower and the "3" smaller as the pictures; the sleeves' cyan deeper (the
         // stage lifted it); the small dark neck label, zoneColors.labelDark.)
         'teeTile' => ['secondary' => '#27282a', 'patternColor' => '#00688a', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034'], 'marks' => ['top_wordmark' => ['y' => 0.515, 'scale' => 0.9], 'top_crest' => ['y' => 0.578, 'scale' => 0.75]]],
-        'teeCyan' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034'], 'marks' => ['top_wordmark' => ['y' => 0.5], 'top_crest' => ['x' => 0, 'y' => 0.565, 'scale' => 0.8]]],
-        'teeSides' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves', 'sides'), 'zoneColors' => ['labelDark' => '#2e3034'], 'marks' => ['top_wordmark' => ['y' => 0.5], 'top_crest' => ['y' => 0.565]]],
+        'teeCyan' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5], 'top_crest' => ['x' => 0, 'y' => 0.565, 'scale' => 0.8]]],
+        'teeSides' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves', 'sides'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5], 'top_crest' => ['y' => 0.565]]],
         // (FN5 2026-10-30, the varsity picture's colours: a cool blue-black body and rib, pale sky blue sleeves, the white
         // felt border round the chest "3" (the accent).)
         'varsity' => ['accent' => '#ffffff', 'zoneColors' => ['body' => '#1a1e23', 'sleeves' => '#4fb2d0', 'rib' => '#1a1e23', 'ribStripe' => $cyan]],

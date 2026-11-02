@@ -763,7 +763,8 @@ function applyDesign(next) {
     if (!next || typeof next !== 'object' || Array.isArray(next)) throw new Error('A design object is required.');
     // (FN11 2026-11-02: a whole design from the host (with its garment) drops the keys JSON leaves out when unset, so a
     // new tile never keeps the last one's track style, neck or fit: the Athletics track jacket once showed a hood.)
-    const whole = typeof next.garment === 'string' ? { trackStyle: null, neck: null, fit: null } : {};
+    // (FN12: and its zone colours: a full kit's crewNeck left over made the Rugby League jersey's V round, images/320.)
+    const whole = typeof next.garment === 'string' ? { trackStyle: null, neck: null, fit: null, zoneColors: null } : {};
     design = { ...design, ...whole, ...next };
     await paintAll();
     post({ type: 'designApplied' });

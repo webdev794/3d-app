@@ -138,7 +138,7 @@ class _BubbleTutorialState extends State<BubbleTutorial>
       child: LayoutBuilder(
         builder: (context, box) {
           final w = box.maxWidth - 32;
-          final demoH = (box.maxHeight - 330).clamp(w * .95, w / .72);
+          final demoH = (box.maxHeight - 370).clamp(w * .85, w / .72);
           return SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
