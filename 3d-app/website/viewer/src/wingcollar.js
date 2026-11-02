@@ -53,6 +53,22 @@ export function buildWingCollar(neck) {
     mesh.raycast = () => {};
     group.add(mesh);
   }
+  // (FN13, DT11: the tile picture's white insert filling the V under the collar: a fan from the V's point over the front
+  // part of the neckline, set a few mm in behind it.)
+  const vi0 = pts.reduce((b, p, i) => (p.z > cz && p.y < pts[b].y ? i : b), 0);
+  const run = [];
+  for (let d = -N / 2; d <= N / 2; d++) { const i = (vi0 + d + N) % N, p = pts[i]; if (p.z > cz && sm(minY, maxY, p.y) < 0.85) run.push(p); }
+  const ip = [];
+  const tip = run[0].clone().lerp(run.at(-1), 0.5);
+  const inward = (p) => { const o = new THREE.Vector3(p.x - cx, 0, p.z - cz).normalize(); return p.clone().addScaledVector(o, -0.004); };
+  for (let k = 0; k + 1 < run.length; k++) for (const p of [tip, run[k], run[k + 1]]) { const q = p === tip ? tip.clone().setZ(tip.z - 0.004) : inward(p); ip.push(q.x, q.y, q.z); }
+  const ig = new THREE.BufferGeometry();
+  ig.setAttribute('position', new THREE.Float32BufferAttribute(ip, 3));
+  ig.computeVertexNormals();
+  const insert = new THREE.MeshStandardMaterial({ color: 0xe9ebee, roughness: 0.9, side: THREE.DoubleSide });
+  const im = new THREE.Mesh(ig, insert);
+  im.raycast = () => {};
+  group.add(im);
   group.visible = false;
   return { group, outer, inner };
 }

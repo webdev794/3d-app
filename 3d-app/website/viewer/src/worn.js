@@ -109,7 +109,7 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // across the gap between the body's side and the sleeve's underside (the line from the armpit to the cuff's lower
   // corner).
   const longCut = spec.long ? spec.cuff[1] : null;
-  const underX = (y) => 0.258 + ((PIT - y) * (longCut[0] - 0.258)) / (PIT - longCut[1]);
+  const AX = spec.armpitX ?? 0.258, underX = (y) => AX + ((PIT - y) * (longCut[0] - AX)) / (PIT - longCut[1]);
   const inSleeve = spec.long
     ? (p) => p.y < 0.7 && (p.y >= PIT ? half(p.y) - Math.abs(p.x) < 0 : Math.abs(p.x) > (half(p.y) + underX(p.y)) / 2)
     : (p) => sleeved && half(p.y) - Math.abs(p.x) < 0 && p.y > 0.44 && p.y < 0.7;
@@ -152,7 +152,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   };
 
   const torso = (p, back) => {
-    const w = wrap(p.x, wrapHalf(p.y), depthRatio(p.y), back, spec.boxy ? THREE.MathUtils.lerp(2, spec.boxy, ramp(0.7, 0.55, p.y)) : 2), ax = Math.abs(p.x);
+    // (FX-H 2026-11-02, DT11: `flat`: the hoodie's body flatter, so its width shows from the front, as the pictures.)
+    const w = wrap(p.x, wrapHalf(p.y), depthRatio(p.y) * (spec.flat ? 1 - spec.flat * ramp(0.6, 0.35, p.y) : 1), back, spec.boxy ? THREE.MathUtils.lerp(2, spec.boxy, ramp(0.7, 0.55, p.y)) : 2), ax = Math.abs(p.x);
     let z = w.z * Math.sqrt(ramp(0, 0.075, topSeam(p)));              // round over the shoulders to the seam
     z *= 1 - (back ? 0.36 : 0.3) * Math.exp(-(p.x ** 2) / 0.006) * ramp(back ? 0.6 : 0.58, back ? 0.7 : 0.68, p.y); // neck opening
     const s = taper(p.y) * (1 + 0.012 * ramp(0.019, 0.015, hemDist(p))); // the hem band, a little proud of the body
@@ -167,7 +168,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     }
     // A skin-tight top's own breadth across (`tight.wide`: [height, factor] pairs, side to side only): the client's
     // compression top is worn by a broad athlete, wide across the chest, the lats and the hips (FM 2026-10-30).
-    return new THREE.Vector3(w.x * s * (spec.tight?.wide ? along(spec.tight.wide, p.y) : 1), y, z * s);
+    // (`wideBody`: a loose top's body wider side to side below the underarm, the rugby jersey picture's: FX-R.)
+    return new THREE.Vector3(w.x * s * (spec.tight?.wide ? along(spec.tight.wide, p.y) : 1 + (spec.wideBody ?? 0) * ramp(0.6, 0.46, p.y)), y, z * s);
   };
 
   /**
@@ -444,7 +446,8 @@ export function wornShorts(spec = {}) {
     const top = ramp(0.02, CROTCH, p.y);
     // `outLine` ([y, x] pairs): the leg's outer side along its own line instead (the basketball shorts' one straight
     // line from the waist to the hem, FN9 2026-10-30).
-    const xIn = THREE.MathUtils.lerp(inLo, inHi, top), xOut = m.outLine ? along(m.outLine, p.y) : THREE.MathUtils.lerp(outLo, outHi, top);
+    // (`hemRound` [height, inset]: the leg's outer side curving in over the last few cm to a rounded hem corner: FX-R.)
+    const xIn = THREE.MathUtils.lerp(inLo, inHi, top), xOut = m.outLine ? along(m.outLine, p.y) : THREE.MathUtils.lerp(outLo, outHi, top) - (m.hemRound ? m.hemRound[1] * Math.max(0, 1 - p.y / m.hemRound[0]) ** 2 : 0);
     const rx = (xOut - xIn) / 2, xc = (xOut + xIn) / 2, rz = THREE.MathUtils.lerp(depthLo, depthHi, top), zc = 0.012 * top;
     // Evenly spaced round the oval, so prints on the legs keep their proportions.
     const e = (rx - rz) / (rx + rz), psi = phi, at = psi - (e / 2) * Math.sin(2 * psi);
@@ -561,7 +564,7 @@ export function wornDress(spec, { topSeam, outline = [], hemDist = (p) => p.y })
     // (The hem band a touch proud only: the client's dress has a flat turned hem, ND1.)
     const s = 1;                                                     // the hem band flat (no rim showing under it)
     // (FN12, DT10: the hem's corners round in, as the client's skirt: .61 of the height across at .95, not .66.)
-    const tuck = 1 - 0.11 * ramp(0.06, 0, p.y);
+    const tuck = 1 - 0.15 * ramp(0.06, 0, p.y);
     return new THREE.Vector3(w.x * s * tuck, level(p), z * s);
   };
   /** The body under the fabric behind (metres, + out): the shoulder blades and a shallow hollow down the spine. */

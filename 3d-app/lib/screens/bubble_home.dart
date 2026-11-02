@@ -33,53 +33,163 @@ class BubbleHomeScreen extends StatefulWidget {
 }
 
 /// One destination on the glass: [at] is its centre and [box] its size, as
-/// fractions of the glass area. [art] is the client's brush lettering, paint
-/// spatter and object cut out of their picture with clean transparent edges
-/// (the builder's cutout tool, from home-full.jpeg).
+/// fractions of the glass area. The five sit evenly round the centre "3"
+/// (a pentagon). Each shows one clean icon (the real jersey art for AI and
+/// DYO, a crisp glass badge for the others) and its [label] in one style.
 class _Spot {
-  const _Spot(this.id, this.name, this.art, this.at, this.box);
-  final String id, name, art;
+  const _Spot(
+    this.id,
+    this.name,
+    this.label,
+    this.at, {
+    this.jersey,
+    this.icon,
+  });
+  final String id, name, label;
   final Offset at;
-  final Size box;
+  final String? jersey;
+  final IconData? icon;
+  Size get box => const Size(.36, .23);
 }
 
 const _spots = [
   _Spot(
     'ai',
     'AI DESIGNER',
-    'assets/images/art/bubble_ai.webp',
-    Offset(.27, .27),
-    Size(.47, .31),
+    'AI',
+    Offset(.5, .165),
+    jersey: 'assets/images/art/bubble_jersey_ai.webp',
   ),
   _Spot(
     'dyo',
     'DESIGN YOUR OWN',
-    'assets/images/art/bubble_dyo.webp',
-    Offset(.73, .29),
-    Size(.47, .3),
+    'DYO',
+    Offset(.8, .4),
+    jersey: 'assets/images/art/bubble_jersey_dyo.webp',
   ),
   _Spot(
     'artboard',
     'ARTBOARD',
-    'assets/images/art/bubble_artboard.webp',
-    Offset(.265, .725),
-    Size(.32, .18),
+    'ARTBOARD',
+    Offset(.2, .4),
+    icon: Icons.draw_rounded,
   ),
   _Spot(
     'team',
     'DESIGN TEAM',
-    'assets/images/art/bubble_team.webp',
-    Offset(.76, .725),
-    Size(.27, .17),
+    'TEAM',
+    Offset(.31, .775),
+    icon: Icons.groups_rounded,
   ),
   _Spot(
     'to3d',
     'ARTWORK TO 3D',
-    'assets/images/art/bubble_to3d.webp',
-    Offset(.5, .835),
-    Size(.3, .2),
+    'TO 3D',
+    Offset(.69, .775),
+    icon: Icons.view_in_ar_rounded,
   ),
 ];
+
+/// One option's face: its icon over its label. [glow] tints it all cyan
+/// (the blurred glow behind a lit option).
+class _SpotFace extends StatelessWidget {
+  const _SpotFace(this.spot, {this.glow = false});
+  final _Spot spot;
+  final bool glow;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget icon;
+    if (spot.jersey != null) {
+      icon = Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          Image.asset(
+            spot.jersey!,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
+          if (spot.id == 'ai')
+            const Positioned(
+              right: 0,
+              top: 0,
+              child: Icon(
+                Icons.auto_awesome,
+                color: Color(0xffd8f8ff),
+                size: 22,
+                shadows: [Shadow(color: _cyan, blurRadius: 10)],
+              ),
+            ),
+        ],
+      );
+    } else {
+      icon = LayoutBuilder(
+        builder: (context, b) {
+          final d = math.min(b.maxWidth, b.maxHeight) * .74;
+          return Center(
+            child: Container(
+              width: d,
+              height: d,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const RadialGradient(
+                  center: Alignment(-.35, -.45),
+                  colors: [
+                    Color(0xff2a77c9),
+                    Color(0xff0c2f62),
+                    Color(0xff071c3e),
+                  ],
+                  stops: [0, .55, 1],
+                ),
+                border: Border.all(color: const Color(0xcc5fdcff), width: 1.6),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x6619b6ff), blurRadius: 14),
+                ],
+              ),
+              child: Icon(
+                spot.icon,
+                size: d * .52,
+                color: const Color(0xffe8fbff),
+                shadows: const [Shadow(color: _cyan, blurRadius: 12)],
+              ),
+            ),
+          );
+        },
+      );
+    }
+    final face = Column(
+      children: [
+        Expanded(child: icon),
+        const SizedBox(height: 2),
+        SizedBox(
+          height: 26,
+          child: FittedBox(
+            child: Text(
+              spot.label,
+              style: const TextStyle(
+                fontFamily: 'Rajdhani',
+                fontWeight: FontWeight.w700,
+                fontSize: 22,
+                height: 1,
+                letterSpacing: 1.2,
+                color: Color(0xffe6f9ff),
+                shadows: [Shadow(color: _cyan, blurRadius: 10)],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+    return glow
+        ? ColorFiltered(
+            colorFilter: const ColorFilter.mode(_cyan, BlendMode.srcIn),
+            child: face,
+          )
+        : face;
+  }
+}
 
 const _cyan = Color(0xff3fd4ff);
 
@@ -367,17 +477,9 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                     ),
                   ),
                 ),
-                // The way back to the tile home, small and readable.
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 2, 10, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: _ClassicButton(onTap: widget.onSwitchToClassic),
-                  ),
-                ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
                     child: LayoutBuilder(
                       builder: (context, box) => _glass(box.biggest),
                     ),
@@ -489,10 +591,10 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                             // The large subtle 3DEEZI mark behind the glass,
                             // shifting slightly with the finger.
                             Positioned(
-                              left: s.width * .2,
-                              right: s.width * .2,
-                              top: s.height * .345,
-                              height: s.height * .23,
+                              left: s.width * .3,
+                              right: s.width * .3,
+                              top: s.height * .41,
+                              height: s.height * .17,
                               child: Transform.translate(
                                 offset: drift + parallax,
                                 child: _GlassMark(bright: labelFor != null),
@@ -516,6 +618,12 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
               ),
             ),
           ),
+        ),
+        // The way back to the tile home, in the glass's top-left corner.
+        Positioned(
+          left: 2,
+          top: 0,
+          child: _ClassicButton(onTap: widget.onSwitchToClassic),
         ),
         if (labelFor != null) _label(labelFor),
       ],
@@ -542,13 +650,6 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
           )
         : Offset.zero;
     final ms = Duration(milliseconds: _reduce ? 0 : 180);
-    Widget art({Color? tint}) => Image.asset(
-      sp.art,
-      fit: BoxFit.contain,
-      color: tint,
-      colorBlendMode: tint == null ? null : BlendMode.srcIn,
-      errorBuilder: (_, _, _) => const SizedBox.expand(),
-    );
     return Positioned.fromRect(
       rect: box,
       child: Semantics(
@@ -574,7 +675,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                     duration: ms,
                     child: ImageFiltered(
                       imageFilter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
-                      child: art(tint: _cyan),
+                      child: _SpotFace(sp, glow: true),
                     ),
                   ),
                   AnimatedOpacity(
@@ -584,7 +685,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                       colorFilter: _brightness(
                         strong ? 1.32 : (lit ? 1.16 : 1),
                       ),
-                      child: art(),
+                      child: _SpotFace(sp),
                     ),
                   ),
                 ],
@@ -673,59 +774,25 @@ class _Backdrop extends StatelessWidget {
 
 /// The big 3DEEZI mark behind the glass, made glassy: a soft blue glow, a
 /// light-to-blue gradient body and a bright upper-left edge.
+/// The big mark behind the glass: the real 3DEEZI emblem (brand asset,
+/// 1456 x 904), unaltered, seen through the glass.
 class _GlassMark extends StatelessWidget {
   const _GlassMark({required this.bright});
   final bool bright;
 
   @override
-  Widget build(BuildContext context) {
-    Widget mark({Color? tint}) => Image.asset(
-      'assets/images/emblem-final.png',
-      fit: BoxFit.contain,
-      color: tint,
-      colorBlendMode: tint == null ? null : BlendMode.srcIn,
-      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-    );
-    return IgnorePointer(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Opacity(
-            opacity: bright ? .55 : .4,
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: mark(tint: const Color(0xff1e90ff)),
-            ),
-          ),
-          Transform.translate(
-            offset: const Offset(-1.5, -1.5),
-            child: Opacity(
-              opacity: bright ? .32 : .22,
-              child: mark(tint: Colors.white),
-            ),
-          ),
-          Opacity(
-            opacity: bright ? .62 : .48,
-            child: ShaderMask(
-              blendMode: BlendMode.srcIn,
-              shaderCallback: (r) => const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xff8fd0ff),
-                  Color(0xff3f8fe8),
-                  Color(0xff1a4ea8),
-                  Color(0xff3584e0),
-                ],
-                stops: [0, .35, .7, 1],
-              ).createShader(r),
-              child: mark(),
-            ),
-          ),
-        ],
+  Widget build(BuildContext context) => IgnorePointer(
+    child: AnimatedOpacity(
+      opacity: bright ? .62 : .45,
+      duration: const Duration(milliseconds: 200),
+      child: Image.asset(
+        'assets/images/emblem-final.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _DragHint extends StatelessWidget {
@@ -837,17 +904,17 @@ class _GlassPainter extends CustomPainter {
       // left and the lower corners, the sides drawn in a touch below the
       // middle, all gently breathing.
       var f =
-          .945 +
-          .03 * _bump(_ang(th, -2.15), .4) -
-          .012 * _bump(_ang(th, -1.25), .28) +
-          .015 * _bump(_ang(th, -.55), .4) +
-          .02 * _bump(_ang(th, 2.4), .45) +
-          .015 * _bump(_ang(th, .8), .42) -
-          .03 * _bump(_ang(th, .12), .3) -
-          .028 * _bump(_ang(th, math.pi - .05), .3) +
-          .012 * math.sin(2 * th + ph) +
-          .009 * math.sin(3 * th - 2 * ph + 1) +
-          .005 * math.sin(5 * th + 3 * ph);
+          .97 +
+          .012 * _bump(_ang(th, -2.15), .4) +
+          .008 * _bump(_ang(th, 2.4), .45) -
+          .012 * _bump(_ang(th, .12), .3) -
+          .012 * _bump(_ang(th, math.pi - .05), .3) +
+          // Small travelling ripples, like a real bubble's surface.
+          .007 * math.sin(3 * th + ph) +
+          .006 * math.sin(5 * th - 2 * ph + 1) +
+          .005 * math.sin(7 * th + 3 * ph) +
+          .004 * math.sin(9 * th - ph + 2) +
+          .003 * math.sin(11 * th + 2 * ph);
       var p = Offset(x, y) * f;
       if (pull > 0) {
         final diff = _ang(p.direction, dir);
@@ -1054,6 +1121,23 @@ class _GlassPainter extends CustomPainter {
           ..color = const Color(0xffb8eeff).withValues(alpha: strength * .45)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, .8),
       );
+    }
+    // Faint ripple rings echoing the wavy edge.
+    for (var k = 0; k < 3; k++) {
+      final sc = .9 - k * .1 + .008 * math.sin(ph + k);
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.scale(sc, sc);
+      canvas.translate(-c.dx, -c.dy);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6 / sc
+          ..color = const Color(0xff8fe2ff).withValues(alpha: .12 - k * .03)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
+      );
+      canvas.restore();
     }
     // Light gathering inside the edge.
     canvas.drawPath(

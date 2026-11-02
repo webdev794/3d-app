@@ -39,12 +39,14 @@ export function paintJerseySweeps(painter, design, back) {
   if (HEX.test(zc.raglan ?? '')) {
     g.fillStyle = zc.raglan;
     for (const dir of [-1, 1]) {
+      // (FX-R, DT10: a band along the raglan seam only, from the collar to the underarm; the sleeve below it black.)
       g.beginPath();
       g.moveTo(dir * 0.058, 0.9);
       g.lineTo(dir * 0.058, 0.69);
       g.quadraticCurveTo(dir * 0.15, 0.62, dir * 0.262, 0.54);
-      g.lineTo(dir * 0.7, 0.54);
-      g.lineTo(dir * 0.7, 0.9);
+      g.lineTo(dir * 0.262, 0.47);
+      g.lineTo(dir * 0.33, 0.47);
+      g.quadraticCurveTo(dir * 0.2, 0.62, dir * 0.15, 0.9);
       g.closePath();
       g.fill();
     }
@@ -53,7 +55,7 @@ export function paintJerseySweeps(painter, design, back) {
   if (HEX.test(zc.raglan ?? '')) {
     for (const run of painter.edges()) {
       if (run.kind === 'hem') { g.fillStyle = black; painter.band(run.points, 0.012); }
-      else if (run.kind === 'cuff') { g.fillStyle = zc.raglan; painter.band(run.points, 0.025); }
+      else if (run.kind === 'cuff') { g.fillStyle = zc.raglan; painter.band(run.points, 0.014); }
     }
   }
   for (const s of [1, -1]) {

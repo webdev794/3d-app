@@ -24,6 +24,9 @@ const SHORTS = {
   body: [[-0.2, 0.06, 0.2, 0.37]],
 };
 
+// (FN13, DT10: the tee's side panels 1.5 cm further forward, 2.5-4.5% of the width from the front as the pictures.)
+const TEE_ZONES = { ...TOP, sides: [[0.185, 0, 0.3, 0.55]] };
+
 export const ZONE_NAMES = { body: 'Chest & body', yoke: 'Shoulders', sleeves: 'Sleeves', sides: 'Side panels', hem: 'Hem', pocket: 'Chest pocket', hood: 'Hood' };
 
 /**
@@ -145,7 +148,7 @@ const COMPRESSION = { ...VARSITY_ZONES, sleeves: [[0.262, 0.1, 0.8, 0.76]], side
 // The bucket hat (hatprint.js): one area, the whole hat (its parts are its top, brim, underside and binding).
 const HAT = { body: [[-0.3, 0, 0.3, 0.36]] };
 
-const table = (kind) => (kind === 'bballshorts' ? BBALL_ZONES : kind === 'skirt' ? skirtZones() : kind === 'nfljersey' ? NFL : kind === 'bucket-hat' || kind === 'beanie' ? HAT : kind === 'cap' ? CAP : kind === 'socks' ? SOCKS : kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : kind === 'compression' ? COMPRESSION : TOP);
+const table = (kind) => (kind === 'tee' ? TEE_ZONES : kind === 'bballshorts' ? BBALL_ZONES : kind === 'skirt' ? skirtZones() : kind === 'nfljersey' ? NFL : kind === 'bucket-hat' || kind === 'beanie' ? HAT : kind === 'cap' ? CAP : kind === 'socks' ? SOCKS : kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : kind === 'compression' ? COMPRESSION : TOP);
 
 /**
  * A garment's areas that are not rectangles: outlines on the wearer's left (+x), mirrored (the shooting shirt's raglan

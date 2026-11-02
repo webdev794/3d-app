@@ -26,6 +26,7 @@ import '../export_service.dart';
 import '../part_editing.dart' show PartEditing, partLabel, partPiece, partsOf;
 import '../player_shot.dart';
 import '../project_sync.dart';
+import '../sports_catalog.dart' show GarmentTile, garmentIds, sportNamed, tileLook;
 import '../widgets/drag_tray.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/kit_viewer_3d.dart';
@@ -2211,6 +2212,79 @@ class _TextToolState extends State<_TextTool> {
 class _GarmentTool extends StatelessWidget {
   const _GarmentTool(this.c);
   final AppController c;
+
+  /// The tile picture's track jacket comes with its pants (a tracksuit).
+  static bool _suitTile(GarmentTile t) =>
+      t.look != null &&
+      (tileLook(t.look!)['zoneColors'] as Map?)?['pantsStripe'] != null;
+
+  /// The list's items (client 2026-11-02: the garments follow the selected
+  /// sport): the sport's Design Your Own tiles, in that order, with their
+  /// pictures and names (COMING SOON ones greyed). No sport or a typed one
+  /// ("Custom…") keeps every 3D garment. (name, art, soon, selected, onTap)
+  List<(String, String, bool, bool, VoidCallback?)> _items() {
+    final sport = sportNamed(c.sport);
+    if (sport == null || sport.tiles.isEmpty) {
+      return [
+        for (final (n, a) in garmentTiles) ...[
+          (
+            n,
+            a,
+            false,
+            c.garment == n && !(a == 'trackjacket' && isTracksuit(c)),
+            () => GarmentScreen.switchTo(c, n, a),
+          ),
+          // Task 9.173: the tracksuit (jacket + pants) as its own item.
+          if (a == 'trackjacket')
+            (
+              'Tracksuit',
+              'tracksuit',
+              false,
+              isTracksuit(c),
+              () => GarmentScreen.switchToSuit(c),
+            ),
+        ],
+        for (final (n, a) in comingSoonGarments) (n, a, true, false, null),
+      ];
+    }
+    final tiles = sport.tiles;
+    final on =
+        tiles
+            .where(
+              (t) =>
+                  !t.soon &&
+                  t.garment == c.garment &&
+                  c.productName.isNotEmpty &&
+                  t.name == c.productName,
+            )
+            .firstOrNull ??
+        (c.productName.isNotEmpty
+            ? null
+            : tiles
+                  .where(
+                    (t) =>
+                        !t.soon &&
+                        t.garment == c.garment &&
+                        (t.garment != 'Track jacket' ||
+                            _suitTile(t) == isTracksuit(c)),
+                  )
+                  .firstOrNull);
+    return [
+      for (final t in tiles)
+        (
+          t.name,
+          t.art,
+          t.soon,
+          identical(t, on),
+          t.soon ? null : () => c.edit(() => GarmentScreen.choose(c, t)),
+        ),
+      // A kit on a garment none of the tiles has (an older project) still
+      // shows what is on the 3D.
+      if (on == null)
+        (c.garmentLabel, garmentIds[c.garment] ?? 'jersey', false, true, null),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2223,26 +2297,15 @@ class _GarmentTool extends StatelessWidget {
         crossAxisSpacing: 10,
         childAspectRatio: .85,
         children: [
-          for (final (name, art, soon) in [
-            for (final (n, a) in garmentTiles) ...[
-              (n, a, false),
-              // Task 9.173: the tracksuit (jacket + pants) as its own item.
-              if (a == 'trackjacket') ('Tracksuit', 'tracksuit', false),
-            ],
-            for (final (n, a) in comingSoonGarments) (n, a, true),
-          ])
+          for (final (name, art, soon, selected, onTap) in _items())
             GlowCard(
+              key: ValueKey('studio-garment-$name'),
               radius: 12,
               glow: false,
-              selected: art == 'tracksuit'
-                  ? isTracksuit(c)
-                  : c.garment == name &&
-                        !(art == 'trackjacket' && isTracksuit(c)),
+              selected: selected,
               onTap: soon
-                  ? () => showToast(context, '$name are coming soon in 3D.')
-                  : art == 'tracksuit'
-                  ? () => GarmentScreen.switchToSuit(c)
-                  : () => GarmentScreen.switchTo(c, name, art),
+                  ? () => showToast(context, '$name: coming soon in 3D.')
+                  : onTap ?? () {},
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -2253,9 +2316,22 @@ class _GarmentTool extends StatelessWidget {
                       child: Image.asset(
                         'assets/images/showroom/garment-$art.webp',
                         fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => Image.asset(
+                          'assets/images/showroom/garment-jersey.webp',
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                   ),
+                  if (soon)
+                    const Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Text(
+                        'SOON',
+                        style: TextStyle(fontSize: 8, letterSpacing: 1),
+                      ),
+                    ),
                   Align(
                     alignment: Alignment.bottomCenter,
                     child: Container(

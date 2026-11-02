@@ -128,7 +128,9 @@ export function buildHood(ctx, { zip = false, standing = false } = {}) {
   const pos = [], uv = [], col = [];
   const lengths = [], edge = [], eyelets = [];
   for (let c = 0; c < cols; c++) {
-    const q = strip[c], S = q.p;
+    const q = strip[c], S = q.p.clone();
+    // (FN13, DT11: the zip hood's front edges come in to meet at the zip's top.)
+    if (zip && standing && !q.back) S.x -= Math.sign(S.x) * 0.011 * ramp(0.05, KANGAROO.zipGap, Math.abs(q.x));
     const hx = arc[mid] - arc[c];                     // + on the wearer's left, 0 at the back's middle
     const g = THREE.MathUtils.clamp(1 - Math.abs(hx) / half, 0, 1);
     const O = new THREE.Vector3(S.x, 0, S.z - C.z).normalize(), side = new THREE.Vector3().crossVectors(up, O);
@@ -147,14 +149,17 @@ export function buildHood(ctx, { zip = false, standing = false } = {}) {
       // 12 rows rolling inward (towards the opening) over the top: forward over the back, a little in at the sides.
       // (FN11 2026-11-02, DT10: the zip tracksuits' hood (zip + standing) stands up as a full hood behind the neck,
       // about 8 cm over the collar at the back with a peaked top, its opening deep down to the zip.)
-      const H = zip ? 0.012 + 0.06 * ramp(0.08, 0.75, g) + 0.012 * ramp(0.8, 1, g) ** 2 : 0.02 + 0.012 * ramp(0, 0.45, g) + 0.01 * ramp(0.45, 1, g);
-      const L = zip ? 0.12 + 0.22 * ramp(0.05, 0.5, g) : 0.3 + 0.5 * ramp(0.05, 0.5, g);
+      // (FX-H 2026-11-02, DT11: the pull-over's hood the same real hood, taller, its face edges low at the front: a deep V.)
+      const H = zip || true ? (zip ? 0.04 : 0.006) + (zip ? 0.106 : 0.15) * Math.sin((Math.PI / 2) * ramp(0.03, 1, g)) ** 1.4 : 0.02 + 0.012 * ramp(0, 0.45, g) + 0.01 * ramp(0.45, 1, g);
+      const L = zip || true ? 0.12 + 0.22 * ramp(0.05, 0.5, g) : 0.3 + 0.5 * ramp(0.05, 0.5, g);
       for (let k = 0; k <= 33; k++) {
         const h = -0.004 + ((H + 0.004) * k) / 33, t = Math.max(0, h) / H;
-        local.push([0.0016 + over + Math.max(0, h) * Math.tan(L) * (0.45 + 0.55 * t), h]);
+        // (FN13: the zip hood a real hood: up from the collar, bulging out a little, then rounding in to a crown
+        // peaking at the centre back; no flared funnel.)
+        local.push(zip || true ? [0.0016 + (zip ? 0 : over) + H * (0.34 * Math.sin(Math.PI * t) - (0.18 + 0.32 * g) * t * t), h] : [0.0016 + over + Math.max(0, h) * Math.tan(L) * (0.45 + 0.55 * t), h]);
       }
-      const curl = zip ? 0.3 + 1.2 * ramp(0.12, 0.55, g) : 0.4 + 2.3 * ramp(0.12, 0.55, g), rc = zip ? 0.006 + 0.012 * ramp(0.12, 0.6, g) : 0.008 + 0.024 * ramp(0.12, 0.6, g);
-      let [o, h] = local.at(-1), phi = Math.atan(Math.tan(L) * 1.55);
+      const curl = zip || true ? 0.25 : 0.4 + 2.3 * ramp(0.12, 0.55, g), rc = zip || true ? 0.004 : 0.008 + 0.024 * ramp(0.12, 0.6, g);
+      let [o, h] = local.at(-1), phi = zip || true ? -0.9 - 0.6 * g : Math.atan(Math.tan(L) * 1.55);
       for (let k = 1; k <= 12; k++) {
         const step = (rc * curl) / 12;
         phi -= curl / 12;
@@ -237,7 +242,7 @@ export function buildHood(ctx, { zip = false, standing = false } = {}) {
   // and roll (0: the side facing the neck is the lining, the other the outer fabric) and the fall (1: the outer
   // fabric outside, the lining under it).
   const P = (k) => new THREE.Vector3(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]);
-  const a = mid * ROWS + 32, flip = P(a + ROWS).sub(P(a)).cross(P(a + 1).sub(P(a))).dot(new THREE.Vector3(0, 0, -1)) < 0;
+  const a = mid * ROWS + (standing && zip ? 6 : 32), flip = P(a + ROWS).sub(P(a)).cross(P(a + 1).sub(P(a))).dot(new THREE.Vector3(0, 0, -1)) < 0;
   const groups = [[], []];
   for (let c = 0; c < cols - 1; c++) for (let r = 0; r < ROWS - 1; r++) {
     const a0 = c * ROWS + r, b0 = a0 + 1, c0 = a0 + ROWS, d0 = c0 + 1;
@@ -279,7 +284,7 @@ export function buildHoodCords(ctx, eyelets) {
     const dir = Math.sign(e.x) || 1, pts = [e.at.clone().addScaledVector(e.out, 0.002)];
     const y0 = e.at.y;
     for (let k = 1; k <= 9; k++) {
-      const t = k / 9, y = y0 - 0.012 - 0.13 * t, x = dir * (0.034 + 0.012 * t + 0.004 * Math.sin(t * 5));
+      const t = k / 9, y = y0 - 0.012 - 0.105 * t, x = dir * (0.034 + 0.012 * t + 0.004 * Math.sin(t * 5));
       const s = sampleFront(x, Math.min(y, 0.69));
       const P = s.p.clone().addScaledVector(s.n, 0.0055);
       P.x = x;

@@ -144,6 +144,7 @@
 .panel-garments button img{width:100%;aspect-ratio:1;object-fit:contain}
 .panel-garments button.selected{border:2px solid var(--glow);box-shadow:0 0 14px #00d9ed66}
 .panel-garments button svg{position:absolute;top:8px;right:8px;color:var(--cyan)}
+.panel-garments button.soon{opacity:.55;cursor:not-allowed}.panel-garments button.soon small{position:absolute;top:6px;right:6px;font-size:8px;letter-spacing:.1em;padding:2px 6px;border-radius:10px;background:#7560ff44;color:#d6d0ff}.dyo-garments button.soon{opacity:.6}
 .ai-chat{display:flex;flex-direction:column;gap:10px}
 .ai-hello{display:flex;gap:10px;padding:14px;border-radius:12px;border:1px solid #00d9ed44;background:#00d9ed0d;color:#c9d6e2;font-size:13px;line-height:1.5}.ai-hello svg{color:var(--cyan);flex:none}.ai-hello p{margin:0}
 .bubble{margin:0;padding:10px 13px;border-radius:12px 12px 12px 4px;background:#0c1d2b;border:1px solid #ffffff14;font-size:13px;line-height:1.45;max-width:92%}

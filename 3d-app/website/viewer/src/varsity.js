@@ -26,7 +26,7 @@ export const VARSITY = {
   collarGap: 0.006,
   hemGap: 0.0016,
   // (FN5 2026-10-30, DT7: narrow cuffs as the varsity pictures, 4.2 cm instead of 6.2.)
-  rib: { collar: 0.052, waist: 0.065, cuff: 0.042 },
+  rib: { collar: 0.04, waist: 0.065, cuff: 0.022 },
   atlas: { waistTop: 0.9, cuffTop: 1.045, cuffX: 0.08, collarBottom: 0.862 },
   stripes: [[0.6, 0.69], [0.78, 0.87]],
 };
@@ -147,7 +147,10 @@ const rect = (x0, y0, x1, y1) => [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y
  */
 export function buildVarsityParts(spec, ctx) {
   const { poly, seam, positions, n, minY, maxY, uvAt, uvBack } = ctx;
-  const V = VARSITY;
+  // (FX-V 2026-11-02: the NFL tile's boxy cut has deeper rib cuffs and waistband: spec.varsityRib.)
+  let V = spec.varsityRib ? { ...VARSITY, rib: { ...VARSITY.rib, ...spec.varsityRib } } : VARSITY;
+  // (FX-V: the NFL tile's V collar: the placket and the top snap lower, below the V's foot.)
+  if (spec.varsityV) V = { ...V, placket: { ...V.placket, top: spec.varsityV.placketTop }, snaps: [spec.varsityV.topSnap, ...V.snaps.slice(1)] };
   const sampleFront = panelSampler(ctx, false);
   const full = { ...ctx, sampleFront };
   const vtx = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
@@ -205,7 +208,15 @@ export function buildVarsityParts(spec, ctx) {
   const cg = V.collarGap;
   const frontR = neckIdx.filter((i) => poly[i].x >= cg).sort(byX), frontL = neckIdx.filter((i) => poly[i].x <= -cg).sort(byX);
   const collarLoop = [...frontR.map(vtx), ...neckIdx.slice().sort(byX).reverse().map((i) => vtx(n + i)), ...frontL.map(vtx)];
-  const collar = buildRib(collarLoop, { dir: new THREE.Vector3(0, 1, -0.32).normalize(), length: V.rib.collar, squeeze: 0.07, open: true });
+  // (FX-V 2026-11-02, the NFL varsity tile (spec.varsityCollarSmooth): a smooth knit band lying flatter, no waves: the
+  // neck edge's points smoothed so the band's top runs level.)
+  if (spec.varsityCollarSmooth) {
+    for (let pass = 0; pass < 24; pass++) {
+      const prev = collarLoop.map((p) => p.clone());
+      for (let k = 1; k < collarLoop.length - 1; k++) collarLoop[k].copy(prev[k - 1]).add(prev[k + 1]).multiplyScalar(0.25).addScaledVector(prev[k], 0.5);
+    }
+  }
+  const collar = buildRib(collarLoop, { dir: new THREE.Vector3(0, 1, spec.varsityCollarSmooth ? -0.6 : -0.32).normalize(), length: V.rib.collar, squeeze: spec.varsityCollarSqueeze ?? 0.07, open: true });
   let cl = 0;
   const collarLength = onAtlas(collar, (a, t, len) => { cl = len; return uvBack(len / 2 - a, A.collarBottom + t * V.rib.collar); });
   ribs.push(collar);
@@ -438,7 +449,8 @@ export function paintVarsity(painter, design, back) {
     g.fillStyle = rib;
     g.fillRect(x0, y0, x1 - x0, y1 - y0);
     g.fillStyle = stripe;
-    for (const [a, b] of VARSITY.stripes) {
+    // (FX-V: the NFL varsity tile's taller collar has its two stripes nearer the middle, so they show from the front.)
+    for (const [a, b] of piece.rib === 'collar' && painter.varsityBoxy ? [[0.3, 0.42], [0.55, 0.67]] : VARSITY.stripes) {
       const ya = piece.top + piece.dir * a * piece.height, yb = piece.top + piece.dir * b * piece.height;
       g.fillRect(x0, Math.min(ya, yb), x1 - x0, Math.abs(yb - ya));
     }
@@ -528,8 +540,8 @@ export function paintVarsityMarks(painter, design, { logo, logoImg, sponsorImg, 
   // over a small 3DEEZI on the right chest, across from the chenille letter; not over the club's own logo or artwork.)
   const mark = painter._brandMark, word = painter._brandWord;
   if (!logoImg && !ownArt && mark && word) {
-    painter.mark(design, 'brand', { side: 'front', x: -0.105, y: 0.555 }, (g) => {
-      const mw = 0.05, mh = (mw * mark.height) / mark.width, ww = 0.075, wh = (ww * word.height) / word.width, gap = 0.006, all = mh + gap + wh;
+    painter.mark(design, 'brand', { side: 'front', x: painter.varsityBoxy ? -0.125 : -0.105, y: 0.555 }, (g) => {
+      const big = painter.varsityBoxy ? 2.1 : 1, mw = 0.05 * big, mh = (mw * mark.height) / mark.width, ww = 0.075 * big, wh = (ww * word.height) / word.width, gap = 0.006, all = mh + gap + wh;
       g.drawImage(mark, -mw / 2, -all / 2, mw, mh);
       g.drawImage(word, -ww / 2, all / 2 - wh, ww, wh);
       return { w: ww, h: all };

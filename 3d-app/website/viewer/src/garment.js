@@ -40,6 +40,7 @@ export const SPECS = {
     crew: true,
     // (FN5 2026-10-30: loose, as the raglan, so it hangs smooth over the chest and belly as the client's tee pictures.)
     loose: true,
+    hemFlare: 0.07,   // (FN13, DT11: the hem 4% wider)
   },
   polo: {
     half: [[0, 0.712], [0.05, 0.73], [0.082, 0.742], ...TOP_BODY],
@@ -288,8 +289,9 @@ SPECS.trackjacketHoodSuit = { ...SPECS.trackjacket, track: { style: 'hood', clea
 SPECS.varsity = {
   ...SPECS.hoodie,
   half: [[0, 0.665], [0.05, 0.7], [0.095, 0.736], [0.19, 0.716], ...HOOD_SLEEVE, [0.25, 0.42], [0.244, 0.3], [0.25, 0.16], [0.258, 0.03], [0.2, 0.012], [0.1, 0.002], [0, 0]],
-  neck: { drop: 0.08, half: 0.1 },
-  rim: { drop: 0.085, half: 0.11, radius: 0.009 },
+  // (FX-V 2026-11-02, DT11: the collar wider and its rib lower (4 cm), as the picture's: 7% of the height at 10% down.)
+  neck: { drop: 0.08, half: 0.126 },
+  rim: { drop: 0.085, half: 0.136, radius: 0.009 },
   hood: false,
   varsity: true,
 };
@@ -297,6 +299,20 @@ SPECS.varsity = {
 // A raglan top has the tee's shape; only its sewing differs (raglan seams from the neck to the underarms instead of
 // set-in sleeves). Print layouts use it (layout-warp.js), as a loose training tee: it hangs from the chest in soft
 // folds instead of fitting the waist.
+// (FX-H 2026-11-02, DT11: the hoodie pictures' cut: a wider body and long sleeves hanging down near the hem; only the
+// hoodies, the track jackets and varsity keep the older cut copied above.)
+const HOODIE_SLEEVE = [[0.29, 0.69], [0.34, 0.652], [0.505, 0.47], [0.79, 0.16], [0.715, 0.09], [0.47, 0.345], [0.36, 0.47], [0.325, 0.52]];
+SPECS.hoodie = {
+  ...SPECS.hoodie,
+  half: [[0, 0.69], [0.055, 0.716], [0.1, 0.738], [0.2, 0.718], ...HOODIE_SLEEVE, [0.335, 0.42], [0.345, 0.3], [0.352, 0.16], [0.352, 0.03], [0.27, 0.012], [0.1, 0.002], [0, 0]],
+  cuff: [[0.79, 0.16], [0.715, 0.09]],
+  points: { CT: [0.79, 0.16], CB: [0.715, 0.09] },
+  long: { ...SPECS.hoodie.long, upper: 0.062, wrist: 0.045, length: 0.76 },
+  armDrop: 73,
+  armpitX: 0.325,
+  flat: 0.3,
+};
+SPECS.ziphoodie = { ...SPECS.hoodie, zip: true };
 SPECS.raglan = { ...SPECS.tee, loose: true, cuffKeep: 0.07 };
 
 // The basketball shooting shirt (shootingshirt.js): a loose raglan V-neck warm-up tee with wide short sleeves.

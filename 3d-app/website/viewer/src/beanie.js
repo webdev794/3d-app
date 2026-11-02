@@ -14,13 +14,14 @@ import * as THREE from 'three';
 export const BEANIE_DISPLAY = 1.6;
 const FLOOR = -0.0662 / BEANIE_DISPLAY;  // the podium's top (studio.js), in the part's own metres
 const HEAD_Y = FLOOR + 0.27;             // the display head's band line (as under the cap)
-const A = 0.0905, B = 0.104;             // the head band's half-widths: side to side, front to back
+const A = 0.0905 * 1.18, B = 0.104 * 1.12; // (FN13, DT11: wider)             // the head band's half-widths: side to side, front to back
 const LOOSE = 0.0055;                    // the knit sits this far off the head
 const FOOT_Y = HEAD_Y - 0.042;           // the cuff's foot, low over the ears
 /** The cuff's height and how far it stands proud of the crown. */
 const CUFF_H = 0.072, PROUD = 0.0032;
-const CROWN_H = 0.165;  // (FN11, DT10: tall, not a squat dome)                   // the crown above the cuff's top (a little slouch over the head)
-const POM_R = 0.036;                     // the pom-pom's radius
+const CROWN_H = 0.135; // (FN13, DT11: h/w 1.35)
+// was 0.165;  // (FN11, DT10: tall, not a squat dome)                   // the crown above the cuff's top (a little slouch over the head)
+const POM_R = 0.058;                     // the pom-pom's radius
 /** The print: the cuff from 0 to BEANIE_CUFF; the crown from BEANIE_CROWN up BEANIE_CROWN_LEN; the pom-pom above. */
 export const BEANIE_CUFF = CUFF_H + 0.006;
 
@@ -61,7 +62,7 @@ function cuffAt(s, v) {
 const Y0 = FOOT_Y + CUFF_H - 0.004;
 function crownAt(s, v, plain = false) {
   const f = phiAt(s), n = ring(f), a = (v * Math.PI) / 2;
-  const r = Math.cos(a) ** (2 / 3.4), h = Math.sin(a) ** (2 / 3.4);
+  const r = Math.cos(a) ** (2 / 2.3), h = Math.sin(a) ** (2 / 2.3); // (FN13, DT11: domed, was 3.4)
   // Soft knit: slow waves round it, gone towards the top.
   const wave = plain ? 0 : 0.0007 * Math.sin(5 * f + 0.7) * Math.sin(Math.PI * v) * (1 - v);
   // (FN11: clear vertical knit ribs, fading over the top.)

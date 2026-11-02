@@ -49,12 +49,15 @@ $look = function (string $name, array $extra = []): array {
         // netball-tee: bright cyan sleeves and side panels.
         // (FN11 2026-11-02, DT10: the stacks 3-5% lower and the "3" smaller as the pictures; the sleeves' cyan deeper (the
         // stage lifted it); the small dark neck label, zoneColors.labelDark.)
-        'teeTile' => ['secondary' => '#27282a', 'patternColor' => '#00688a', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034'], 'marks' => ['top_wordmark' => ['y' => 0.515, 'scale' => 0.9], 'top_crest' => ['y' => 0.578, 'scale' => 0.75]]],
+        'teeTile' => ['secondary' => '#27282a', 'patternColor' => '#00688a', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeLong' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.515, 'scale' => 0.9], 'top_crest' => ['y' => 0.578, 'scale' => 0.75]]],
         'teeCyan' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5], 'top_crest' => ['x' => 0, 'y' => 0.565, 'scale' => 0.8]]],
         'teeSides' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves', 'sides'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5], 'top_crest' => ['y' => 0.565]]],
         // (FN5 2026-10-30, the varsity picture's colours: a cool blue-black body and rib, pale sky blue sleeves, the white
         // felt border round the chest "3" (the accent).)
         'varsity' => ['accent' => '#ffffff', 'zoneColors' => ['body' => '#1a1e23', 'sleeves' => '#4fb2d0', 'rib' => '#1a1e23', 'ribStripe' => $cyan]],
+        // (FX-V 2026-11-02, DT11: the NFL Varsity Jacket picture: a wide, boxy cut with deep striped cuffs and waistband
+        // (zoneColors.varsityBoxy) and cyan snaps.)
+        'nflVarsity' => ['accent' => '#ffffff', 'zoneColors' => ['body' => '#1a1e23', 'sleeves' => '#4fb2d0', 'rib' => '#1a1e23', 'ribStripe' => $cyan, 'snaps' => $cyan, 'varsityBoxy' => '#1a1e23']],
         // The football / hockey jersey picture (DT3): a royal blue maze (Swirl) over the raglan shoulders and sleeves with
         // cyan piping on the raglan seam, cyan side panels, a black collar, hem and cuffs.
         // (FX3: the maze on the shoulders up to the collar, fading out down the upper sleeves; the arms mostly plain: the
@@ -103,11 +106,13 @@ $look = function (string $name, array $extra = []): array {
         // and the "3" over a small 3DEEZI low on the left leg (its tile objects below). (FN4: the cyan deeper, #00a2e8, so it renders as
         // saturated as the picture's under the stage lights; a matt fabric with hardly any sheen.) (RF1's claw and flame design, the
         // sport picture's, stays as the look 'rugbyLeague'.)
-        'rugbyTile' => ['secondary' => '#00a2e8', 'zoneColors' => ['raglan' => '#00a2e8', 'sweep' => '#00a2e8', 'sweepDeep' => '#0262f6'], 'parts' => ['shortsSides' => ['colour' => '#00a2e8'], 'shortsHem' => ['colour' => '#27282a']], 'marks' => ['top_wordmark' => ['y' => 0.505], 'shorts_number' => ['hidden' => true], 'shorts_crest' => ['hidden' => true]]],
+        'rugbyTile' => ['secondary' => '#00a2e8', 'zoneColors' => ['raglan' => '#00a2e8', 'sweep' => '#00a2e8', 'sweepDeep' => '#0262f6', 'sockToeLine' => '#2b91c1', 'sockMark' => '#0a93ee'], 'parts' => ['shortsSides' => ['colour' => '#00a2e8'], 'shortsHem' => ['colour' => '#27282a'], 'sockBand' => ['colour' => '#0b95dd'], 'sockHoops' => ['colour' => '#0b95dd'], 'sockFoot' => ['colour' => $cyan]], 'marks' => ['top_wordmark' => ['y' => 0.505], 'shorts_number' => ['hidden' => true], 'shorts_crest' => ['hidden' => true]]],
         // The shorts pictures (FN4 2026-10-30: shorts, rugby-shorts, rugby-training-shorts, nfl-training-shorts): cyan side
         // stripes, a black waistband and black hems, no number, black cord tips, the "3" over a 3DEEZI low on the left leg
         // (the word is a tile object below).
         'shortsTile' => ['secondary' => '#00a2e8', 'zones' => $solid('sides'), 'parts' => ['waistband' => ['colour' => '#27282a'], 'shortsHem' => ['colour' => '#27282a']], 'zoneColors' => ['cordTips' => '#27282a'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.13, 'y' => 0.115, 'scale' => 0.85]]],
+        'shortsPlainTile' => ['secondary' => '#00a2e8', 'zones' => $solid('sides'), 'parts' => ['waistband' => ['colour' => '#27282a'], 'shortsHem' => ['colour' => '#27282a']], 'zoneColors' => ['cordTips' => '#27282a', 'shortsPlain' => '#27282a'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.13, 'y' => 0.115, 'scale' => 0.85]]],
+        'rugbyShortsTile' => ['secondary' => '#00a2e8', 'zones' => $solid('sides'), 'parts' => ['waistband' => ['colour' => '#27282a'], 'shortsHem' => ['colour' => '#27282a']], 'zoneColors' => ['cordTips' => '#27282a', 'shortsPlain' => '#27282a', 'shortsNarrow' => '#27282a'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.13, 'y' => 0.115, 'scale' => 0.85]]],
         // The Singlet picture (FN4 2026-10-30, colours measured on it): black neck and armhole binding (Secondary black),
         // big flat blue shapes up each side reaching in to a point (viewer jerseysweeps.js paintSingletFlows: azure, a light
         // sky lobe, royal blue low), the wordmark a little higher, a smaller "3".
@@ -120,7 +125,7 @@ $look = function (string $name, array $extra = []): array {
         // pictures' own looks: a solid stripe (stripeDeep the same), netball's black lining and bigger wordmark with the
         // "3" to its right, nfl's bigger stacked logo.)
         'hoodie' => ['main' => '#161616', 'zoneColors' => ['stripe' => '#00f6fe'], 'marks' => ['top_crest' => ['x' => 0, 'y' => 0.565, 'scale' => 0.85], 'top_wordmark' => ['x' => 0, 'y' => 0.5, 'scale' => 0.6]]],
-        'nflHoodie' => ['main' => '#161616', 'zoneColors' => ['stripe' => '#00f6fe', 'stripeDeep' => '#00f6fe'], 'marks' => ['top_crest' => ['x' => 0, 'y' => 0.57, 'scale' => 1.05], 'top_wordmark' => ['x' => 0, 'y' => 0.495, 'scale' => 0.78]]],
+        'nflHoodie' => ['main' => '#161616', 'zoneColors' => ['stripe' => '#00f6fe', 'stripeDeep' => '#00f6fe', 'cord' => '#00f6fe'], 'marks' => ['top_crest' => ['x' => 0, 'y' => 0.57, 'scale' => 1.05], 'top_wordmark' => ['x' => 0, 'y' => 0.495, 'scale' => 0.78]]],
         'netballHoodie' => ['main' => '#161616', 'zoneColors' => ['stripe' => '#00f6fe', 'stripeDeep' => '#00f6fe', 'lining' => '#1b1c1e'], 'marks' => ['top_crest' => ['x' => 0.1, 'y' => 0.565, 'scale' => 0.7], 'top_wordmark' => ['x' => 0, 'y' => 0.51, 'scale' => 0.85]]],
         // The track jackets (Track jacket areas): black shoulder panels, the cyan sleeve stripe and zips; side panels
         // black ('track') or cyan ('trackSides'); the waterproof jacket's dark grey shell with cyan lower sides and zips.
@@ -531,7 +536,7 @@ $pictureLooks = [
     'team-hoodie' => 'hoodie', 'nfl-hoodie' => 'nflHoodie', 'netball-hoodie' => 'netballHoodie', 'nfl-compression-top' => 'sides',
     'trackjacket' => 'track', 'netball-tracksuit' => 'trackSuit', 'tracksuit' => 'bballTracksuit', 'rugby-hooded-tracksuit' => 'rugbyTracksuit', 'nfl-hooded-tracksuit' => 'nflTracksuit',
     'rugby-waterproof-jacket' => 'waterproof', 'nfl-waterproof-jacket' => 'waterproof',
-    'shorts' => 'shortsTile', 'rugby-shorts' => 'shortsTile', 'rugby-training-shorts' => 'shortsTile', 'nfl-training-shorts' => 'shortsTile',
+    'shorts' => 'shortsPlainTile', 'rugby-shorts' => 'rugbyShortsTile', 'rugby-training-shorts' => 'shortsTile', 'nfl-training-shorts' => 'shortsTile',
     'socks' => 'socksHeel', 'rugby-socks' => 'rugbySocks', 'nfl-socks' => 'gameSocks', 'cap' => 'capSweep', 'nfl-cap' => 'capSweep', 'netball-skirt' => 'skirt', 'basketball-shorts' => 'bballShorts',
     'bucket-hat' => 'hatShards', 'nfl-bucket-hat' => 'hat', 'rugby-bucket-hat' => 'hat',
     // (CP1: the beanie and the 5-panel cap pictures: black with bright cyan stripes, pom-pom and piping, the trim colour.)
@@ -600,7 +605,7 @@ $pictureExtras = [
     'rugby-kit' => $rugbyShorts,
     'shorts' => $shortsWord, 'rugby-shorts' => $shortsWord, 'rugby-training-shorts' => $shortsWord, 'nfl-training-shorts' => $shortsWord,
 ];
-$pictureLooks += ['varsity' => 'varsity', 'nfl-varsity' => 'varsity'];
+$pictureLooks += ['varsity' => 'varsity', 'nfl-varsity' => 'nflVarsity'];
 foreach ($sports as &$sport) {
     foreach ($sport['tiles'] as &$t) {
         if ($t['fit'] === 'soon') continue;

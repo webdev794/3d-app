@@ -498,12 +498,7 @@ class _DemoGlass extends StatelessWidget {
                               colorFilter: _BubbleHomeScreenState._brightness(
                                 lit == i ? (strong ? 1.3 : 1.15) : 1,
                               ),
-                              child: Image.asset(
-                                _spots[i].art,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, _, _) =>
-                                    const SizedBox.shrink(),
-                              ),
+                              child: _SpotFace(_spots[i]),
                             ),
                           ),
                         ),

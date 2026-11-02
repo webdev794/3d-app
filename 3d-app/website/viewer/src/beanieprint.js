@@ -8,9 +8,9 @@ const C = BEANIE_C, CUFF = BEANIE_CUFF, Y0 = BEANIE_CROWN, LS = BEANIE_CROWN_LEN
 /** The printed parts (design.parts keys): the crown's front and back, the cuff, the stripes, the pom-pom. */
 export const BEANIE_PARTS = ['front', 'back', 'beanieCuff', 'beanieStripe', 'beaniePom'];
 /** The stripes (as the mockup): one across the cuff's top, one across the crown above it; [y, height]. */
-const TWO = [[CUFF - 0.012, 0.018], [Y0 + 0.042, 0.019]]; // (FN11, DT10: as thick as the picture's)
+const TWO = [[CUFF + 0.016, 0.018], [Y0 + 0.075, 0.019]]; // (FN13, DT11: higher, at .41 / .63) // (FN11, DT10: as thick as the picture's)
 // (FN11: the NFL beanie, design.zoneColors.beanieOne: one stripe at the cuff's top, no pom-pom, a big logo.)
-const ONE = [[CUFF - 0.008, 0.012]];
+const ONE = [[CUFF + 0.037, 0.012]]; // (FN13, DT11: at .49)
 let STRIPES = TWO;
 const HEX = /^#[0-9a-f]{6}$/i;
 const mode = (design) => { STRIPES = HEX.test(design?.zoneColors?.beanieOne ?? '') ? ONE : TWO; return STRIPES === ONE; };

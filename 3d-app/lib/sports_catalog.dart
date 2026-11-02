@@ -240,9 +240,9 @@ const pictureLooks = {
   'nfl-waterproof-jacket': 'waterproof',
   'nfl-compression-top': 'sides',
   'varsity': 'varsity',
-  'nfl-varsity': 'varsity',
-  'shorts': 'shortsTile',
-  'rugby-shorts': 'shortsTile',
+  'nfl-varsity': 'nflVarsity',
+  'shorts': 'shortsPlainTile',
+  'rugby-shorts': 'rugbyShortsTile',
   'rugby-training-shorts': 'shortsTile',
   'nfl-training-shorts': 'shortsTile',
   'socks': 'socksHeel',
@@ -485,7 +485,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'secondary': '#27282a',
       'patternColor': '#00688a',
       'zones': solid(['sleeves']),
-      'zoneColors': {'labelDark': '#2e3034'},
+      'zoneColors': {'labelDark': '#2e3034', 'teeLong': '#27282a'},
       'marks': {
         'top_wordmark': {'y': 0.515, 'scale': 0.9},
         'top_crest': {'y': 0.578, 'scale': 0.75},
@@ -524,6 +524,20 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'sleeves': '#4fb2d0',
         'rib': '#1a1e23',
         'ribStripe': cyan,
+      },
+    },
+    // (FX-V 2026-11-02, DT11: the NFL Varsity Jacket picture: a wide, boxy cut
+    // with deep striped cuffs and waistband (zoneColors.varsityBoxy) and cyan
+    // snaps.)
+    'nflVarsity': {
+      'accent': '#ffffff',
+      'zoneColors': {
+        'body': '#1a1e23',
+        'sleeves': '#4fb2d0',
+        'rib': '#1a1e23',
+        'ribStripe': cyan,
+        'snaps': cyan,
+        'varsityBoxy': '#1a1e23',
       },
     },
     // The football / hockey jersey picture (DT3): a royal blue maze (Swirl)
@@ -680,10 +694,16 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'raglan': '#00a2e8',
         'sweep': '#00a2e8',
         'sweepDeep': '#0262f6',
+        // (FX-R, DT11: the kit's socks, as the Rugby socks look.)
+        'sockToeLine': '#2b91c1',
+        'sockMark': '#0a93ee',
       },
       'parts': {
         'shortsSides': {'colour': '#00a2e8'},
         'shortsHem': {'colour': '#27282a'},
+        'sockBand': {'colour': '#0b95dd'},
+        'sockHoops': {'colour': '#0b95dd'},
+        'sockFoot': {'colour': cyan},
       },
       'marks': {
         // (The wordmark a little higher, as the picture's: DT7.)
@@ -702,6 +722,33 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'shortsHem': {'colour': '#27282a'},
       },
       'zoneColors': {'cordTips': '#27282a'},
+      'marks': {
+        'shorts_number': {'hidden': true},
+        'shorts_crest': {'x': 0.13, 'y': 0.115, 'scale': 0.85},
+      },
+    },
+    // (FX-R, DT10: the Football and Rugby playing shorts: a rounder, narrower hem, no drawcord.)
+    'shortsPlainTile': {
+      'secondary': '#00a2e8',
+      'zones': solid(['sides']),
+      'parts': {
+        'waistband': {'colour': '#27282a'},
+        'shortsHem': {'colour': '#27282a'},
+      },
+      'zoneColors': {'cordTips': '#27282a', 'shortsPlain': '#27282a'},
+      'marks': {
+        'shorts_number': {'hidden': true},
+        'shorts_crest': {'x': 0.13, 'y': 0.115, 'scale': 0.85},
+      },
+    },
+    'rugbyShortsTile': {
+      'secondary': '#00a2e8',
+      'zones': solid(['sides']),
+      'parts': {
+        'waistband': {'colour': '#27282a'},
+        'shortsHem': {'colour': '#27282a'},
+      },
+      'zoneColors': {'cordTips': '#27282a', 'shortsPlain': '#27282a', 'shortsNarrow': '#27282a'},
       'marks': {
         'shorts_number': {'hidden': true},
         'shorts_crest': {'x': 0.13, 'y': 0.115, 'scale': 0.85},
@@ -739,7 +786,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     },
     'nflHoodie': {
       'main': '#161616',
-      'zoneColors': {'stripe': '#00f6fe', 'stripeDeep': '#00f6fe'},
+      'zoneColors': {'stripe': '#00f6fe', 'stripeDeep': '#00f6fe', 'cord': '#00f6fe'},
       'marks': {
         'top_crest': {'x': 0, 'y': 0.57, 'scale': 1.05},
         'top_wordmark': {'x': 0, 'y': 0.495, 'scale': 0.78},

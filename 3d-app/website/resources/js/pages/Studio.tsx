@@ -10,7 +10,9 @@ import PartsPanel, { type PartSpot } from '../components/PartsPanel';
 import { isShortsPart, partColours, partLabels, partsOf, withPart, type PartKey } from '../parts';
 import KitViewer, { type ColourPick, type KitViewerHandle, type PartPick, type HoodieArea, isHoodie, isVarsity, varsityAreas, varsityColour, isTrack, trackAreas, trackColour, trackAreaLabel, fabricTypes, fabricNotes, fabricOf } from '../components/KitViewer';
 import ColorWheel from '../components/ColorWheel';
-import { comingSoon, garmentArt, garmentLook, productName, sportLabel, tileMarks } from './Create';
+import { comingSoon, garmentArt, garmentLook, productName, sportGarmentTiles, sportLabel, tileMarks } from './Create';
+import { customName } from '../customChoice';
+import type { GarmentTile } from '../api';
 import type { Draft } from '../App';
 import { OwnPatterns, isPatternPicture, modeOf } from '../components/OwnPatterns';
 import { ArtworkPanel, PresetPanel, checkDrawing, checkPrintLayout, designSignature, ownPatch, patternNames, readAsset, readImage, type ArtworkDrop, type OwnDesign, type ShelvedLayouts } from '../components/StudioArtwork';
@@ -206,6 +208,10 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       return `${tools.find(t => t.id === value)?.label ?? value} panel open`;
     }
     if (action === 'garment') {
+      // The selected sport's own tile first (client 2026-11-02: Soccer stays Soccer apparel).
+      const own = railTiles.find(t => t.fit !== 'soon' && (t.garment === value || t.name.toLowerCase() === value.toLowerCase()));
+      if (own) { switchTile(own); return `Garment: ${own.name}`; }
+      if (railSport) throw new Error(`That garment is not one of the ${railSport.name} garments.`);
       const g = garments.find(item => item.id === value);
       if (!g) throw new Error('That garment is not available.');
       edit({ garment: g.id as Design['garment'] });
@@ -363,7 +369,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     setPast(history => [...history.slice(-39), liveBase.current ?? { ...current.design }]); liveBase.current = null; setFuture([]);
     patch = uncover(patch, current.design);
     // Another 3D garment is no longer the sport's tile it was chosen as ("Netball dress"): it takes its own name.
-    if (patch.garment && patch.garment !== current.design.garment && current.design.productName) patch = { ...patch, productName: undefined };
+    if (patch.garment && patch.garment !== current.design.garment && current.design.productName && !('productName' in patch)) patch = { ...patch, productName: undefined };
     const design = { ...current.design, ...patch };
     onChange({ ...current, ...extra, design, garment: design.garment }); setDirty(true);
   }
@@ -385,6 +391,13 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     if (id === current.design.garment && !(id === 'trackjacket' && isSuit(current.design))) return;
     const look = garmentLook(catalog, current.sport, id, current.design);
     edit({ ...look, ...(id === 'trackjacket' ? { zoneColors: look?.zoneColors ?? null, productName: '' } : {}), garment: id as Design['garment'] });
+  }
+  /** A sport tile from the garment lists (client 2026-11-02): opens as choosing it on Design Your Own does. */
+  function switchTile(t: GarmentTile) {
+    if (!t.garment || t.fit === 'soon') return;
+    const current = latest.current;
+    const design = { trackStyle: undefined, neck: undefined, fit: undefined, ...t.design };
+    edit({ ...design, ...tileMarks(current.design, design, t.garment), garment: t.garment as Design['garment'], productName: t.name });
   }
   const garmentOn = (id: string) => id === 'tracksuit' ? isSuit(draft.design) : id === draft.design.garment && !(id === 'trackjacket' && isSuit(draft.design));
   /** Live updates while dragging the colour wheel; `commit` makes them one undo step. */
@@ -511,6 +524,22 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const garments = [...(catalog?.garments ?? [])].sort((a, b) => garmentOrder.indexOf(a.id) - garmentOrder.indexOf(b.id));
   /** The garment lists' items: the 3D garments, with Tracksuit after Track jacket. */
   const garmentItems = garments.flatMap(g => g.id === 'trackjacket' ? [g, { id: 'tracksuit', name: 'Tracksuit' }] : [g]);
+  /**
+   * The garment lists follow the selected sport (client 2026-11-02): its Design Your Own tiles, in that order, with their
+   * pictures and names (COMING SOON ones greyed). No sport or a typed ("Custom…") one keeps every 3D garment.
+   */
+  const railSport = customName(draft.design.sportName) ? undefined : catalog?.sports.find(s => s.id === draft.sport);
+  const railTiles = railSport ? sportGarmentTiles(railSport, catalog?.garments ?? []) : [];
+  const hasStripe = (t: GarmentTile) => !!(t.design?.zoneColors as Record<string, string> | undefined)?.pantsStripe;
+  const tileOn = railTiles.find(t => t.fit !== 'soon' && t.garment === draft.design.garment && !!draft.design.productName && t.name === draft.design.productName)
+    ?? (draft.design.productName ? undefined : railTiles.find(t => t.fit !== 'soon' && t.garment === draft.design.garment && (t.garment !== 'trackjacket' || hasStripe(t) === isSuit(draft.design))));
+  type RailItem = { key: string; name: string; art: string; soon: boolean; on: boolean; open: () => void };
+  const railItems: RailItem[] = railSport
+    ? [...railTiles.map(t => ({ key: `t-${t.name}`, name: t.name, art: garmentArt(t.image || t.garment || 'jersey'), soon: t.fit === 'soon' || !t.garment, on: t === tileOn, open: () => switchTile(t) })),
+      // A kit on a garment none of the sport's tiles has (an older project) still shows what is on the 3D.
+      ...(tileOn ? [] : [{ key: `g-${draft.design.garment}`, name: productName(draft.design, catalog), art: garmentArt(draft.design.garment), soon: false, on: true, open: () => undefined }])]
+    : [...garmentItems.map(g => ({ key: `g-${g.id}`, name: g.name, art: garmentArt(g.id), soon: false, on: garmentOn(g.id), open: () => switchGarment(g.id) })),
+      ...comingSoon.map(g => ({ key: `s-${g.id}`, name: g.name, art: garmentArt(g.id), soon: true, on: false, open: () => undefined }))];
   const pick = (t: Tool) => { setTool(current => current === t ? null : t); setError(''); setGradientOpen(false); };
   const colourValue = slot === 'patternColor' ? patternInkOf(draft.design) : draft.design[slot];
   // The selected colour zone's gradient (Accent stays solid: names, numbers and the wordmark).
@@ -606,7 +635,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
             <WordLook design={draft.design} markKey="top_number" word={draft.design.number || '23'} edit={edit} preview={preview} commit={commit} title="Number" />
             <button className="button button-secondary full-width" onClick={() => { setView('back'); setRotating(false); viewer.current?.turnTo('back'); }}>View the back <ArrowRight size={16} /></button>
           </>}
-          {tool === 'garment' && <div className="panel-garments">{garmentItems.map(g => <button key={g.id} className={garmentOn(g.id) ? 'selected' : ''} onClick={() => switchGarment(g.id)}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span>{garmentOn(g.id) && <Check size={15} />}</button>)}</div>}
+          {tool === 'garment' && <div className="panel-garments" data-sport={railSport?.id}>{railItems.map(g => <button key={g.key} className={g.soon ? 'soon' : g.on ? 'selected' : ''} disabled={g.soon} title={g.soon ? 'Coming soon' : undefined} onClick={g.open} data-tile={g.name}><img src={g.art} alt="" onError={e => { const fb = garmentArt('jersey'); if (!e.currentTarget.src.endsWith(fb)) e.currentTarget.src = fb; }} /><span>{g.name}</span>{g.soon ? <small>SOON</small> : g.on && <Check size={15} />}</button>)}</div>}
           {tool === 'garment' && isTrack(draft.design.garment) && <div className="track-style"><h4>TRACK JACKET STYLE</h4><div className="slot-tabs" role="radiogroup" aria-label="Track jacket style">{([['collar', 'Stand-up collar'], ['hood', 'Hood']] as const).map(([id, label]) => { const on = (draft.design.trackStyle ?? 'collar') === id; return <button key={id} type="button" role="radio" aria-checked={on} className={on ? 'active' : ''} onClick={() => edit({ trackStyle: id })}>{label}</button>; })}</div></div>}
           {tool === 'style' && <StylePanel design={draft.design} sport={draft.sport} product={productName(draft.design, catalog)} edit={edit} onGarment={() => setTool('garment')} onMoreColours={() => openPart('collar')} />}
           {tool === 'presets' && <PresetPanel design={draft.design} edit={edit} onNotice={onNotice} own={ownState.own} onOwn={restoreOwn} beforePreset={beforePreset} user={user} snapshot={() => captureThumbnail(360)} />}
@@ -635,7 +664,7 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       </div>
 
       <aside className="studio-presets-aside" aria-label="Ready to use designs"><PresetPanel design={draft.design} edit={edit} onNotice={onNotice} own={ownState.own} onOwn={restoreOwn} beforePreset={beforePreset} user={user} snapshot={() => captureThumbnail(360)} /></aside>
-      <aside className="dyo-garments" aria-label="Garments">{garmentItems.map(g => <button key={g.id} className={garmentOn(g.id) ? 'selected' : ''} onClick={() => switchGarment(g.id)} aria-pressed={garmentOn(g.id)}><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span></button>)}{comingSoon.map(g => <button key={g.id} className="soon" disabled title="Coming soon"><img src={garmentArt(g.id)} alt="" /><span>{g.name}</span><small>SOON</small></button>)}</aside>
+      <aside className="dyo-garments" aria-label="Garments" data-sport={railSport?.id}>{railItems.map(g => <button key={g.key} className={g.soon ? 'soon' : g.on ? 'selected' : ''} disabled={g.soon} title={g.soon ? 'Coming soon' : undefined} onClick={g.open} aria-pressed={g.soon ? undefined : g.on} data-tile={g.name}><img src={g.art} alt="" onError={e => { const fb = garmentArt('jersey'); if (!e.currentTarget.src.endsWith(fb)) e.currentTarget.src = fb; }} /><span>{g.name}</span>{g.soon && <small>SOON</small>}</button>)}</aside>
     </div>
 
     <form className="dyo-prompt" onSubmit={e => { e.preventDefault(); requireAuth(() => askAi()); }}>

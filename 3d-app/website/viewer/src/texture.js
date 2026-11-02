@@ -1322,11 +1322,12 @@ export class KitPainter {
     const SIDE = [[0.7, 0.94, 1.0], [0.689, 0.935, 1.0], [0.675, 0.86, 1.0], [0.66, 0.76, 1.0], [0.645, 0.71, 0.97], [0.62, 0.67, 0.95],
       [0.54, 0.63, 0.92], [0.48, 0.58, 0.9], [0.42, 0.55, 0.88], [0.38, 0.53, 0.8], [0.35, 0.52, 0.735], [0.314, 0.54, 0.745],
       [0.278, 0.6, 0.8], [0.26, 0.64, 0.84], [0.24, 0.67, 0.88], [0.22, 0.71, 0.93], [0.2, 0.73, 0.98], [0.18, 0.75, 1.05],
-      [0.16, 0.77, 1.12], [0.14, 0.79, 1.12], [0.12, 0.81, 1.12], [0.06, 0.81, 1.12], [-0.03, 0.81, 1.12]];
+      [0.16, 0.755, 1.06], [0.14, 0.765, 1.04], [0.12, 0.78, 1.02], [0.09, 0.81, 1.0], [0.06, 0.84, 1.0], [0.04, 0.88, 0.99], [0.025, 0.95, 0.97]];
     const INNER = [[0.4, 0.43, 0.45], [0.38, 0.42, 0.48], [0.36, 0.41, 0.515], [0.34, 0.41, 0.53], [0.32, 0.41, 0.545], [0.3, 0.42, 0.57],
-      [0.28, 0.44, 0.605], [0.26, 0.45, 0.645], [0.24, 0.47, 0.675], [0.22, 0.5, 0.715], [0.2, 0.52, 0.735], [0.18, 0.54, 0.755],
-      [0.16, 0.56, 0.765], [0.14, 0.58, 0.755], [0.12, 0.6, 0.74], [0.1, 0.6, 0.73], [0.08, 0.61, 0.72], [0.06, 0.6, 0.7],
-      [0.04, 0.62, 0.7], [-0.03, 0.64, 0.71]];
+      [0.28, 0.44, 0.605], [0.26, 0.45, 0.645], [0.24, 0.47, 0.675], [0.22, 0.5, 0.715], [0.2, 0.514, 0.735], [0.18, 0.529, 0.755],
+      [0.16, 0.543, 0.765], [0.14, 0.558, 0.762], [0.12, 0.572, 0.755], [0.1, 0.586, 0.748], [0.08, 0.601, 0.743], [0.06, 0.615, 0.742],
+      [0.04, 0.63, 0.745], [-0.03, 0.68, 0.76]];
+    // (FN13, the user: the inner ribbon's inner edge and the side strip's inner edge run straight and smooth to the hem.)
     /** An edge's share at height y (rows from the top down; smooth through them). */
     const share = (rows, k, y) => {
       let i = 0;
@@ -1336,13 +1337,23 @@ export class KitPainter {
       const [p0, p1, p2, p3] = [p(i - 1), p(i), p(i + 1), p(i + 2)];
       return 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t);
     };
+    // (FN13, DT11: the inner ribbon's inner edge one straight line from 60% down (y .28) to the hem.)
+    const innerX = (rows, y) => {
+      const y0 = 0.28, y1 = rows.at(-1)[0];
+      if (rows !== INNER || y > y0) return share(rows, 1, y) * this.dressHalf(y);
+      const a = share(rows, 1, y0) * this.dressHalf(y0), b = share(rows, 1, y1) * this.dressHalf(y1);
+      // (Straight as seen on the tile view: the skirt's flare bends a flat straight line outwards low down, so pulled in
+      // up to 4.5% towards the hem: FN13, measured with edge.py.)
+      const k = Math.min(1, Math.max(0, (0.15 - y) / 0.14)), pull = 1 - 0.045 * k * k * (3 - 2 * k);
+      return (a + ((b - a) * (y0 - y)) / (y0 - y1)) * pull;
+    };
     // Each ribbon also stroked thinly in its own colour, so neighbouring ribbons meet without a dark hairline.
     const ribbon = (rows, fill) => {
       const top = rows[0][0], foot = rows.at(-1)[0], steps = Math.max(8, Math.round((top - foot) / 0.004));
       for (const s of [-1, 1]) {
         g.beginPath();
         for (let i = 0; i <= steps; i++) { const y = top - ((top - foot) * i) / steps; g.lineTo(s * share(rows, 2, y) * this.dressHalf(y), y); }
-        for (let i = steps; i >= 0; i--) { const y = top - ((top - foot) * i) / steps; g.lineTo(s * share(rows, 1, y) * this.dressHalf(y), y); }
+        for (let i = steps; i >= 0; i--) { const y = top - ((top - foot) * i) / steps; g.lineTo(s * innerX(rows, y), y); }
         g.closePath();
         g.fillStyle = fill;
         g.fill();
@@ -1393,17 +1404,17 @@ export class KitPainter {
     // since the studio's key light leaves the wearer's left one dull.)
     for (const sx of [-1, 1]) {
       const grad = g.createLinearGradient(0, 0.6, 0, 0.37);
-      grad.addColorStop(0, 'rgba(70,72,76,0)'); grad.addColorStop(0.2, 'rgba(70,72,76,0.75)');
-      grad.addColorStop(0.75, 'rgba(70,72,76,0.75)'); grad.addColorStop(1, 'rgba(70,72,76,0)');
+      grad.addColorStop(0, 'rgba(92,94,98,0)'); grad.addColorStop(0.2, 'rgba(92,94,98,0.75)');
+      grad.addColorStop(0.75, 'rgba(92,94,98,0.75)'); grad.addColorStop(1, 'rgba(92,94,98,0)');
       g.fillStyle = grad;
-      for (let L = 0; L < 5; L++) { g.globalAlpha = 0.3; const w = 0.012 - L * 0.002; g.fillRect(sx * 0.126 - w / 2, 0.37, w, 0.23); }
+      for (let L = 0; L < 5; L++) { g.globalAlpha = sx < 0 ? 0.17 : 0.3; const w = 0.012 - L * 0.002; g.fillRect(sx * 0.126 - w / 2, 0.37, w, 0.23); }
       g.globalAlpha = 1;
     }
     // The top's side panels azure shading down to royal blue under a cyan edge; on the skirt an azure ribbon round each
     // side, the cyan ribbon crossing over it to the hem, the royal ribbon (lighter towards the hem) inside them.
     // (Flat picture colours, no shading painted in: the 3D light gives the folds. Cyan at the bust, azure through the
     // waist, cyan on the hips, azure down the skirt; the inner strip royal; dark gaps between them.)
-    const C = '#04c2f8', A = '#0f80f2', R = '#0253d7';
+    const C = '#00b4f4', A = '#0a76ea', R = '#0253d7';
     const sideFill = (() => {
       if (!solid) return ink;
       const grad = g.createLinearGradient(0, 0.7, 0, -0.03);
@@ -1465,7 +1476,7 @@ export class KitPainter {
       const clamp = (v) => Math.min(1.05, Math.max(-0.05, v));
       const pieces = [[R, () => -0.05, () => 1.05], ['#0a74e8', () => -0.05, (y) => clamp((0.21 - y) / 0.12)]];
       for (const sd of [-1, 1]) {
-        const X = (u, y) => { const s1 = share(INNER, 1, y), s2 = share(INNER, 2, y); return sd * (s1 + (s2 - s1) * u) * this.dressHalf(y); };
+        const X = (u, y) => { const x1 = innerX(INNER, y), x2 = share(INNER, 2, y) * this.dressHalf(y); return sd * (x1 + (x2 - x1) * u); };
         g.save();
         g.beginPath();
         for (let i = 0; i <= steps; i++) { const y = top - ((top - foot) * i) / steps; g.lineTo(X(1, y), y); }
@@ -2267,7 +2278,8 @@ export class KitPainter {
     if (own('stripe')) {
       g.save();
       this.side(back);
-      g.lineWidth = 0.11;
+      // (FX-H 2026-11-02, DT11: a band along the top, about 30% of the sleeve, black below it.)
+      g.lineWidth = 0.075;
       g.lineJoin = 'round';
       for (const run of this.trackTopEdges()) {
         const low = Math.min(...run.map((p) => p.y)), high = Math.max(...run.map((p) => p.y));
@@ -2320,26 +2332,50 @@ export class KitPainter {
       g.fill();
       // The Basketball tracksuit picture (FN10 2026-11-02): a royal blue blade up the front of each side panel from the
       // hem, deep at the hem and fading to the panel's cyan by the waist (design.zoneColors.sideBlade).
+      // (FN13, DT11: the Rugby hooded tracksuit picture's cyan side panel reaches onto the front from the armpit down.)
+      if (!back && !own('sideBlade') && !own('lining') && own('pantsStripe') && own('side')) {
+        g.beginPath();
+        g.moveTo(dir * 0.245, 0.53);
+        g.quadraticCurveTo(dir * 0.155, 0.36, dir * 0.15, -0.02);
+        g.lineTo(dir * 0.3, -0.02);
+        g.lineTo(dir * 0.3, 0.53);
+        g.closePath();
+        g.fillStyle = own('side');
+        g.fill();
+      }
       if (!back && own('sideBlade')) {
         g.save();
         // The picture's side panel reaches well onto the front: from under the arm, curving forward to the hem.
         g.beginPath();
         // (FN11, DT10: further onto the front, bright cyan; the royal blade only low along its front edge.)
+        // (FN13, DT10: further in at the waist, so from the front it reads bright from the armpit to the hem.)
         g.moveTo(dir * 0.24, 0.53);
-        g.quadraticCurveTo(dir * 0.15, 0.3, dir * 0.13, -0.02);
+        g.quadraticCurveTo(dir * 0.115, 0.32, dir * 0.1, -0.02);
         g.lineTo(dir * 0.3, -0.02);
         g.lineTo(dir * 0.3, 0.53);
         g.closePath();
         g.fillStyle = own('side') ?? trim;
         g.fill();
         g.clip();
-        g.fillStyle = own('sideBlade');
+        // (FN13: the royal blade wider, up to the waist, deep along its front edge and fading to the cyan at the side.)
+        const blade = g.createLinearGradient(dir * 0.1, 0, dir * 0.215, 0);
+        blade.addColorStop(0, own('sideBlade')); blade.addColorStop(0.55, own('sideBlade')); blade.addColorStop(1, own('side') ?? trim);
+        g.fillStyle = blade;
         g.beginPath();
-        g.moveTo(dir * 0.12, -0.02);
-        g.quadraticCurveTo(dir * 0.14, 0.12, dir * 0.165, 0.25);
-        g.quadraticCurveTo(dir * 0.18, 0.1, dir * 0.215, -0.02);
+        g.moveTo(dir * 0.09, -0.02);
+        g.quadraticCurveTo(dir * 0.11, 0.16, dir * 0.135, 0.32);
+        g.quadraticCurveTo(dir * 0.18, 0.12, dir * 0.22, -0.02);
         g.closePath();
         g.fill();
+        g.restore();
+        // The raglan seam piping: a fine dark line from the collar's foot curving down to the front of the armpit.
+        g.save();
+        g.strokeStyle = 'rgba(8,9,10,0.85)';
+        g.lineWidth = 0.0025;
+        g.beginPath();
+        g.moveTo(dir * 0.1, 0.69);
+        g.quadraticCurveTo(dir * 0.19, 0.64, dir * 0.24, 0.52);
+        g.stroke();
         g.restore();
       }
     }
@@ -2359,7 +2395,9 @@ export class KitPainter {
         const len = [0];
         for (let i = 1; i < run.length; i++) len.push(len[i - 1] + Math.hypot(run[i].x - run[i - 1].x, run[i].y - run[i - 1].y));
         const L = len.at(-1);
-        const width = (t) => (t < 0.3 ? 0.009 + 0.0285 * ramp(0.04, 0.3, t) : 0.0375 - 0.003 * ramp(0.3, 1, t));
+        // (FN13, DT11: the Basketball tracksuit's sleeve: thin piping, not a wide band.)
+        const thin = false; // (FN13: the tile picture's sleeve band is wide; thin piping read as no stripe from the front)
+        const width = (t) => (thin ? 0.014 + 0.004 * ramp(0.04, 0.3, t) : t < 0.3 ? 0.009 + 0.0285 * ramp(0.04, 0.3, t) : 0.0375 - 0.003 * ramp(0.3, 1, t));
         const inner = [], outer = [], seam = [];
         run.forEach((p, i) => {
           const a = run[Math.max(0, i - 2)], b = run[Math.min(run.length - 1, i + 2)];
@@ -2411,6 +2449,15 @@ export class KitPainter {
       g.fillStyle = own('collar') ?? ownBody ?? design.main;
       g.fillRect(-0.8, HOOD_TOP - 0.5, 1.6, 0.6);
       if (body && !own('collar') && !ownBody) { g.translate(0, HOOD_TOP - 0.78); this.gradientFill(body); }
+      // (FN13, DT11: the Basketball tracksuit picture's cyan edge along the collar's top.)
+      if (own('sideBlade')) {
+        g.strokeStyle = own('side') ?? trim;
+        g.lineWidth = 0.009;
+        for (const piece of this.piecesOn(true)) {
+          const foot = piece.filter((p) => p.y < HOOD_TOP - 0.012);
+          g.beginPath(); foot.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke();
+        }
+      }
       g.restore();
     }
   }
