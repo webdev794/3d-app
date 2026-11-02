@@ -50,10 +50,14 @@ class HomeSwitcher extends StatefulWidget {
       'Switched to the classic home for smoother use. '
       'You can try the new home any time.';
 
-  /// The home with nothing saved: the bubble when true ([kBubbleHomeDefault];
-  /// tests turn it on and off).
+  /// With nothing saved, phones start on the bubble only when this is true
+  /// ([kBubbleHomeDefault], off until the bubble home passes its test).
+  static const bubbleByDefault = kBubbleHomeDefault;
+
+  /// Tests: the home with nothing saved in place of [bubbleByDefault] (null
+  /// keeps [bubbleByDefault]).
   @visibleForTesting
-  static bool bubbleByDefault = kBubbleHomeDefault;
+  static bool? debugBubbleByDefault;
 
   /// Whether [timings] average more than [slowFrame] of build + raster time.
   static bool tooSlow(Iterable<FrameTiming> timings) {
@@ -178,7 +182,8 @@ class _HomeSwitcherState extends State<HomeSwitcher> {
           HomeSwitcher.bubble => true,
           // Nothing saved: the default, never with animations off.
           '' =>
-            HomeSwitcher.bubbleByDefault &&
+            (HomeSwitcher.debugBubbleByDefault ??
+                    HomeSwitcher.bubbleByDefault) &&
                 !MediaQuery.disableAnimationsOf(context),
           // Classic, classic_auto, not read yet, or no storage.
           _ => false,

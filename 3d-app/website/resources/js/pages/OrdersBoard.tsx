@@ -4,7 +4,7 @@ import { ArrowRight, Clock3, FileText, Info, LoaderCircle, Plus, RefreshCw, Sear
 import { orderApi } from '../orderApi';
 import { OrderPageHeader } from '../components/OrderPageParts';
 import OrderDetailDrawer, { type DetailFocus } from '../components/OrderDetail';
-import { GarmentPicture, PaymentPill, STAGES, StatusPill, cardLine, displayRef, payPath, plural, readBoard, shortDate, type BoardData, type BoardOrder, type OrderDetail, type StageKey } from '../components/orderBoardModel';
+import { GarmentPicture, PaymentPill, STAGES, StatusPill, cardLine, displayRef, payPath, plural, readBoard, unitWord, shortDate, type BoardData, type BoardOrder, type OrderDetail, type StageKey } from '../components/orderBoardModel';
 import '../../css/orders-board.css';
 
 type View = 'current' | 'completed';
@@ -317,7 +317,7 @@ function OrderCard({ order, compact, onOpen }: { order: BoardOrder; compact: boo
       {pictures.map((g, i) => <GarmentPicture key={`${g.garment}-${i}`} garment={g.garment} thumbnail={g.thumbnail} alt={g.name} />)}
       {more > 0 && <span className="ob-more" title={garments.slice(pictures.length).map(g => g.name).join(', ')}>+{more}</span>}
     </div>
-    <p className="ob-qty">{order.quantity > 0 ? plural(order.quantity, 'garment') : 'Sizes to be confirmed'}{order.needed_by && !order.completed ? ` · required ${new Date(`${order.needed_by}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}` : ''}</p>
+    <p className="ob-qty">{order.quantity > 0 ? plural(order.quantity, unitWord(order.garments)) : 'Sizes to be confirmed'}{order.needed_by && !order.completed ? ` · required ${new Date(`${order.needed_by}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}` : ''}</p>
     <div className="ob-pills"><StatusPill status={order.sub_status} />{order.payment && <PaymentPill payment={order.payment} />}</div>
     {!hasButtons && lineEl}
     {hasButtons ? <div className="ob-actions">

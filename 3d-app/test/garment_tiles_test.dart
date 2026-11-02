@@ -245,7 +245,10 @@ void main() {
         await mountPhone(tester, c);
         await tester.pumpAndSettle();
         final title = sport.heading ?? sport.name;
-        final heading = sport.group == 'apparel'
+        // (Headwear is its own heading: "HEADWEAR", CP1.)
+        final heading = sport.id == 'headwear'
+            ? title
+            : sport.group == 'apparel'
             ? '$title teamwear'
             : '$title uniforms & teamwear';
         expect(

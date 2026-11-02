@@ -524,6 +524,17 @@ export function paintVarsityMarks(painter, design, { logo, logoImg, sponsorImg, 
     const letter = ([...logo].find((ch) => /[A-Z0-9]/.test(ch)) ?? 'V');
     painter.mark(design, 'crest', crest, () => chenilleText(painter, letter, { size: 0.13, ...felt, maxWidth: 0.12 }));
   }
+  // (BR1 2026-11-02, the user: every item carries the 3DEEZI "3" mark and wordmark: as the NFL varsity picture, the "3"
+  // over a small 3DEEZI on the right chest, across from the chenille letter; not over the club's own logo or artwork.)
+  const mark = painter._brandMark, word = painter._brandWord;
+  if (!logoImg && !ownArt && mark && word) {
+    painter.mark(design, 'brand', { side: 'front', x: -0.105, y: 0.555 }, (g) => {
+      const mw = 0.05, mh = (mw * mark.height) / mark.width, ww = 0.075, wh = (ww * word.height) / word.width, gap = 0.006, all = mh + gap + wh;
+      g.drawImage(mark, -mw / 2, -all / 2, mw, mh);
+      g.drawImage(word, -ww / 2, all / 2 - wh, ww, wh);
+      return { w: ww, h: all };
+    });
+  }
   painter.mark(design, 'wordmark', { side: 'back', x: 0, y: 0.585 }, () => (logo ? chenilleText(painter, logo, { size: 0.062, ...felt, maxWidth: 0.36, arc: 0.42 }) : null));
   const backName = (design.backName || logo).toUpperCase();
   if (backName) painter.markText(design, 'name', { side: 'back', x: 0, y: 0.455 }, backName, 0.042, design.accent, 0.26, 'rgba(0,0,0,0.35)');

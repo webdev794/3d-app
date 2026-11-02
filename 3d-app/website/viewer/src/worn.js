@@ -441,7 +441,9 @@ export function wornShorts(spec = {}) {
     // and flaring a little from the hips to a wide opening; fuller towards the crotch (thigh and
     // seat), where the legs meet in the middle.
     const top = ramp(0.02, CROTCH, p.y);
-    const xIn = THREE.MathUtils.lerp(inLo, inHi, top), xOut = THREE.MathUtils.lerp(outLo, outHi, top);
+    // `outLine` ([y, x] pairs): the leg's outer side along its own line instead (the basketball shorts' one straight
+    // line from the waist to the hem, FN9 2026-10-30).
+    const xIn = THREE.MathUtils.lerp(inLo, inHi, top), xOut = m.outLine ? along(m.outLine, p.y) : THREE.MathUtils.lerp(outLo, outHi, top);
     const rx = (xOut - xIn) / 2, xc = (xOut + xIn) / 2, rz = THREE.MathUtils.lerp(depthLo, depthHi, top), zc = 0.012 * top;
     // Evenly spaced round the oval, so prints on the legs keep their proportions.
     const e = (rx - rz) / (rx + rz), psi = phi, at = psi - (e / 2) * Math.sin(2 * psi);

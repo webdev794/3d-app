@@ -13,13 +13,15 @@ import { ResultsViewer } from '../components/ResultsViewer';
 import { preparePattern } from '../components/OwnPatterns';
 import { PlayerShotButton } from '../components/PlayerShot';
 import { RecentDesigns, writeLocalSession, type AiSessionFull, type AiSessionOption, type AiSessionSummary, type LocalAiSession } from '../components/RecentDesigns';
+import { CUSTOM, CUSTOM_MAX, CUSTOM_PLACEHOLDER, customName, customSportId, nearestGarment, typedName } from '../customChoice';
+import { accessoryBackMarks, accessoryDesign, accessoryFrontLayer, accessoryGarments, isAccessory, type AccessoryReading } from '../accessoryArt';
 import '../../css/ai-designer.css';
 
 export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
 export const garmentArt = (garment: string) => media(`showroom/garment-${garment}.webp`);
 /** Shown in the garment step and the studio; not yet available in 3D. */
 export const comingSoon = [{ id: 'shoes', name: 'Shoes', description: 'Boots in your colours.' }];
-const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'compression', 'shooting-shirt', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'socks', 'cap', 'bucket-hat', 'skirt'];
+const garmentOrder = ['fullkit', 'jersey', 'nfljersey', 'compression', 'shooting-shirt', 'shorts', 'tee', 'singlet', 'netball-dress', 'polo', 'pocketpolo', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'socks', 'cap', 'five-panel-cap', 'bucket-hat', 'beanie', 'skirt'];
 /** A garment's place on the garment step; one not listed yet goes last. */
 const order = (id: string) => { const i = garmentOrder.indexOf(id); return i < 0 ? garmentOrder.length : i; };
 
@@ -28,9 +30,13 @@ export function FlowSteps({ step, ai = false }: { step: number; ai?: boolean }) 
 }
 
 /** Step 1: the sports rotate on a stadium stage; the centre one is chosen. */
-export function SportSelection({ catalog, selected, onSelect, onNext }: { catalog: Catalog | null; selected: string; onSelect: (id: string) => void; onNext: () => void }) {
+export function SportSelection({ catalog, selected, onSelect, onNext }: { catalog: Catalog | null; selected: string; /** A typed sport ("Custom…") comes with its name. */ onSelect: (id: string, sportName?: string) => void; onNext: () => void }) {
   const sports = catalog?.sports ?? [];
   const [active, setActive] = useState(0);
+  /** "Custom…" (client 2026-11-02): a sport we do not list, typed; the garment step then offers every garment. */
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customText, setCustomText] = useState('');
+  const designTyped = () => { const name = customName(customText); if (!name || !sports.length) return; onSelect(customSportId(sports), name); onNext(); };
   const dragStart = useRef<number | null>(null);
   const wheelLock = useRef(0);
   useEffect(() => { const i = sports.findIndex(s => s.id === selected); if (i >= 0) setActive(i); // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -47,6 +53,10 @@ export function SportSelection({ catalog, selected, onSelect, onNext }: { catalo
       <span className="eyebrow">DESIGN YOUR OWN</span>
       <h1>Different sports.<br /><span>Same team spirit.</span></h1>
       <p>Choose your sport and start designing. Rotate to explore.</p>
+      {catalog && <div className="sport-custom" onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
+        {customOpen ? <form onSubmit={e => { e.preventDefault(); designTyped(); }}><label><input aria-label="Type your sport" value={customText} maxLength={CUSTOM_MAX} placeholder="Type your sport, e.g. Lacrosse, Bowling" autoFocus onChange={e => setCustomText(typedName(e.target.value))} /></label><button className="button button-outline" disabled={!customName(customText)}>Design it <ArrowRight size={16} /></button><button type="button" className="icon-button" onClick={() => setCustomOpen(false)} aria-label="Close custom sport"><X size={16} /></button></form>
+          : <button type="button" className="sport-custom-open" onClick={() => setCustomOpen(true)}><PenLine size={14} /> Custom… type your own sport</button>}
+      </div>}
     </div>
     {!catalog ? <div className="empty-state"><LoaderCircle className="spin" /> Loading sports…</div> : <>
       <CategoryShortcuts sports={sports} active={active} onPick={i => rotate(offset(i))} />
@@ -136,6 +146,10 @@ export function moreGarmentTiles(sport: CatalogItem | undefined, garments: Catal
 export function productName(design: Pick<Design, 'garment' | 'productName'>, catalog?: Catalog | null): string {
   return design.productName || catalog?.garments.find(g => g.id === design.garment)?.name || design.garment;
 }
+/** The sport's name for a design: one typed in "Custom…" (design.sportName), else the catalogue's. */
+export function sportLabel(draft: { sport: string; design: Pick<Design, 'sportName'> }, catalog?: Catalog | null): string {
+  return draft.design.sportName || catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport;
+}
 /**
  * The back name and number when a kit's sport changes (client 2026-10-26: "netball you don't have numbers or names"),
  * from the catalogue's rules ('names' / 'numbers' false): a sport without them drops the sample ones (anything typed
@@ -153,11 +167,17 @@ export function backForSport(design: Pick<Design, 'backName' | 'number' | 'logoT
 /** What choosing a tile puts on the draft: the 3D garment, the tile's name (empty for a plain 3D garment) and its settings. */
 export type GarmentChoice = { garment: string; productName: string; design?: GarmentTile['design'] };
 /** A garment tile's starting look (task 9.154) brings its number's colour and look: kept marks stay, the number's own go. */
-export function tileMarks(was: Design, tile?: Partial<Design>): Partial<Design> {
+export function tileMarks(was: Design, tile?: Partial<Design>, garment?: string): Partial<Design> {
   if (!tile?.marks) return {};
   const { top_number: _n, top_frontNumber: _f, ...rest } = was.marks ?? {};
   // Marks a bib tile hid (team name, crest, name) show again.
-  const kept = Object.fromEntries(Object.entries(rest).filter(([key, m]) => !(['top_wordmark', 'top_crest', 'top_name'].includes(key) && m?.hidden)));
+  // On another 3D garment the last one's places, sizes and sides go (a polo's chest crest at y .6 is off a cap's crown,
+  // CP1 2026-11-02: the cap and bucket hat tiles lost their "3" or 3DEEZI); their colour and look stay.
+  const moved = !!garment && garment !== was.garment;
+  const kept = Object.fromEntries(Object.entries(rest)
+    .filter(([key, m]) => !(['top_wordmark', 'top_crest', 'top_name'].includes(key) && m?.hidden))
+    .map(([key, m]) => [key, moved && m ? (({ x: _x, y: _y, scale: _s, rot: _r, side: _d, ...own }) => own)(m) : m])
+    .filter(([, m]) => m && Object.keys(m).length));
   // The picture's own objects (ids 'tile-…': position letters, the sleeve number) replace the last tile's.
   const layers = [...(was.layers ?? []).filter(l => !l.id.startsWith('tile-')), ...(tile.layers ?? [])];
   return { marks: { ...kept, ...(Array.isArray(tile.marks) ? {} : tile.marks) }, layers };
@@ -173,8 +193,8 @@ export function garmentLook(catalog: Catalog | null | undefined, sport: string, 
   const tiles = [...sports.filter(s => s.id === sport), ...sports.filter(s => s.id !== sport)].flatMap(s => s.tiles ?? []).filter(t => t.garment === garment);
   const tile = tiles.find(t => t.image === garment) ?? tiles[0];
   if (!tile) return undefined;
-  const design = { trackStyle: undefined, ...tile.design };
-  return { ...design, ...tileMarks(was, design) };
+  const design = { trackStyle: undefined, neck: undefined, fit: undefined, ...tile.design };
+  return { ...design, ...tileMarks(was, design, garment) };
 }
 
 /**
@@ -183,28 +203,36 @@ export function garmentLook(catalog: Catalog | null | undefined, sport: string, 
  * says which garment the 3D preview uses; one with none close enough is COMING SOON and cannot be chosen.
  */
 export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: { catalog: Catalog | null; draft: Draft; onSelect: (choice: GarmentChoice) => void; onNext: () => void; onBack: () => void }) {
-  const sport = catalog?.sports.find(s => s.id === draft.sport);
+  /** A sport typed in "Custom…" (client 2026-11-02) offers every garment we have, under its own name. */
+  const typedSport = customName(draft.design.sportName);
+  const sport = typedSport ? undefined : catalog?.sports.find(s => s.id === draft.sport);
   const all = catalog?.garments ?? [];
   const tiles = sportGarmentTiles(sport, all);
-  const extra = sport?.more === false ? [] : moreGarmentTiles(sport, all);
+  const extra = typedSport || sport?.more === false ? [] : moreGarmentTiles(sport, all);
   const chosen = draft.design.productName;
   /** The tile chosen: by its name; a plain 3D garment from "More teamwear" has an empty name. */
   const current = (chosen ? tiles.find(t => t.name === chosen && t.garment === draft.garment) : undefined)
     ?? (chosen === '' ? extra.find(t => t.garment === draft.garment) : undefined);
+  /** "Custom…": a garment typed (no tile of any sport has its name), on its nearest 3D garment. */
+  const typedGarment = !!chosen && !current && !(catalog?.sports ?? []).some(s => s.tiles?.some(t => t.name === chosen));
+  const [customOpen, setCustomOpen] = useState(typedGarment);
+  const [customText, setCustomText] = useState(typedGarment ? chosen ?? '' : '');
+  const custom3d = nearestGarment(customText, all.map(g => g.id));
   const [showMore, setShowMore] = useState(() => !!current && extra.includes(current));
   // A tile's own settings, and none left from another tile: a plain track jacket after the Hooded Tracksuit kept the
   // hood (QA U); without a style it is the plain (collar) track jacket, as when it is chosen first.
-  const pick = (t: GarmentTile, plain = false) => { if (t.garment) onSelect({ garment: t.garment, productName: plain ? '' : t.name, design: { trackStyle: undefined, ...t.design } }); };
+  const pick = (t: GarmentTile, plain = false) => { if (t.garment) { setCustomOpen(false); onSelect({ garment: t.garment, productName: plain ? '' : t.name, design: { trackStyle: undefined, neck: undefined, fit: undefined, ...t.design } }); } };
+  const typeGarment = (text: string) => { const value = typedName(text), name = customName(value); setCustomText(value); if (name) onSelect({ garment: nearestGarment(name, all.map(g => g.id)), productName: name, design: { trackStyle: undefined, neck: undefined, fit: undefined } }); };
   // A new sport (or a garment left from another one) starts on the sport's first garment.
-  useEffect(() => { if (catalog && !current) { const first = tiles.find(t => t.fit !== 'soon'); if (first) pick(first); } // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog, draft.sport]);
-  const title = sport?.heading ?? sport?.name ?? 'your sport';
+  useEffect(() => { if (catalog && !current && !typedGarment) { const first = tiles.find(t => t.fit !== 'soon'); if (first) pick(first); } // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog, draft.sport, typedSport]);
+  const title = typedSport || (sport?.heading ?? sport?.name ?? 'your sport');
   // Per-sport display settings (config/catalog.php): names only, own subtitle, a hint line and an own background.
   const described = sport?.descriptions !== false;
   const subtitle = sport?.subtitle || `Choose what you want to design for ${title}.`;
   const backdrop = sport?.backdrop || 'stadium-stage';
   const tile = (t: GarmentTile, plain = false) => {
-    const soon = t.fit === 'soon' || !t.garment, selected = !soon && current === t;
+    const soon = t.fit === 'soon' || !t.garment, selected = !soon && current === t && !customOpen;
     const uses = t.fit === 'nearest' ? all.find(g => g.id === t.garment)?.name : undefined;
     const body = <>
       {selected && <span className="tile-check"><Check size={14} /></span>}
@@ -221,13 +249,21 @@ export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: {
   return <section className={`showroom garment-step${described ? '' : ' names-only'}`} data-sport={sport?.id}>
     <div className={`showroom-bg dim${backdrop !== 'stadium-stage' ? ' own-backdrop' : ''}`} style={{ backgroundImage: `url(${media(`showroom/${backdrop}.webp`)})` }} />
     <div className="glow-panel garment-panel">
-      <div className="step-heading"><span className="step-number">2</span><div><h1>{sport ? `${title} ${sport.group === 'apparel' ? 'teamwear' : 'uniforms & teamwear'}` : 'Select garment'}</h1><p>{subtitle}</p></div></div>
+      <div className="step-heading"><span className="step-number">2</span><div><h1>{typedSport ? `${title} uniforms & teamwear` : sport ? (sport.id === 'headwear' ? title : `${title} ${sport.group === 'apparel' ? 'teamwear' : 'uniforms & teamwear'}`) : 'Select garment'}</h1><p>{subtitle}</p></div></div>
       {!catalog ? <div className="empty-state"><LoaderCircle className="spin" /> Loading garments…</div> : <>
-        <div className="garment-tiles" role="group" aria-label={`${title} garments`}>{tiles.map(t => tile(t))}</div>
+        <div className="garment-tiles" role="group" aria-label={`${title} garments`}>{tiles.map(t => tile(t))}
+          <button type="button" className={`garment-tile garment-tile-custom${customOpen ? ' selected' : ''}`} aria-pressed={customOpen} aria-controls="garment-custom" data-tile="Custom" onClick={() => { setCustomOpen(true); if (customName(customText)) typeGarment(customText); }} title={described ? undefined : 'Type your own garment'}>
+            {customOpen && <span className="tile-check"><Check size={14} /></span>}
+            <span className="garment-custom-icon" aria-hidden="true"><PenLine size={34} /></span>
+            <strong>Custom…</strong>{described && <small>Type your own garment.</small>}
+          </button>
+        </div>
+        {customOpen && <div id="garment-custom" className="garment-custom"><label>Type your garment<input value={customText} maxLength={CUSTOM_MAX} placeholder={CUSTOM_PLACEHOLDER} autoFocus onChange={e => typeGarment(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && customName(customText)) onNext(); }} /></label>
+          {customName(customText) ? <small className="custom-note" role="status">3D preview uses {(all.find(g => g.id === custom3d)?.name ?? custom3d).toLowerCase()}</small> : <small className="custom-note">Type a name, for example a cap or a bowling shirt: the 3D preview uses our nearest garment.</small>}</div>}
         {extra.length > 0 && <button type="button" className="garment-more" aria-expanded={showMore} aria-controls="garment-more-tiles" onClick={() => setShowMore(v => !v)}>{showMore ? 'Less teamwear' : 'More teamwear'} <ChevronRight size={16} className={showMore ? 'is-open' : ''} /></button>}
         {showMore && extra.length > 0 && <div id="garment-more-tiles" className="garment-tiles garment-tiles-more" role="group" aria-label="More teamwear">{extra.map(t => tile(t, true))}</div>}
       </>}
-      <div className="garment-actions"><button className="button button-outline" onClick={onBack}><ArrowLeft size={18} /> Change sport</button>{sport?.select_hint && <p className="garment-hint">{sport.select_hint}</p>}<button className="button button-gradient" disabled={!catalog || !current} onClick={onNext}>Continue to studio <ArrowRight size={19} /></button></div>
+      <div className="garment-actions"><button className="button button-outline" onClick={onBack}><ArrowLeft size={18} /> Change sport</button>{sport?.select_hint && <p className="garment-hint">{sport.select_hint}</p>}<button className="button button-gradient" disabled={!catalog || (customOpen ? !customName(customText) : !current)} onClick={onNext}>Continue to studio <ArrowRight size={19} /></button></div>
     </div>
   </section>;
 }
@@ -285,8 +321,51 @@ export function aiReply<T extends object>(reply: T | null | undefined, keys: (ke
   return reply;
 }
 
-/** An attached picture: kept on this device until Generate (so it can be attached before signing in), then saved to Assets. */
-type Reference = { id?: number; name: string; preview: string; file?: File };
+/**
+ * An attached picture: kept on this device until Generate (so it can be attached before signing in), then saved to Assets.
+ * A design file (client 2026-11-02, 295.jpg: PDF, SVG, AI, EPS, PSD, TIFF…) is attached as the picture the AI reads
+ * (`file`, drawn from it) and the file itself (`original`, kept in Assets with the picture); `kind` is its type to show.
+ */
+type Reference = { id?: number; name: string; preview: string; file?: File; original?: File; kind?: string; page?: number; pages?: number };
+/** The design files the AI Designer takes, besides pictures, and the largest (25 MB, as the server). */
+const DESIGN_ACCEPT = '.pdf,.svg,.ai,.eps,.ps,.psd,.tif,.tiff,.heic,.heif,.png,.jpg,.jpeg,.webp,.gif,.bmp,application/pdf,application/postscript,application/illustrator,image/vnd.adobe.photoshop,image/*';
+const DESIGN_TYPES = 'PDF, SVG, AI, EPS, PSD, TIFF, PNG, JPG or WebP';
+const DESIGN_MAX = 25 * 1024 * 1024;
+/** A picture the server keeps as it is (others are redrawn as a PNG, the file kept beside it). */
+const PICTURE_MAX = 10 * 1024 * 1024;
+
+/** What an attached file is, from its first bytes (an AI file saved PDF-compatible is a PDF inside); null when unknown. */
+async function designKind(file: File): Promise<'pdf' | 'svg' | 'eps' | 'psd' | 'tiff' | 'heic' | 'picture' | null> {
+  const bytes = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+  const head = Array.from(bytes, b => String.fromCharCode(b)).join('');
+  const ext = file.name.toLowerCase().split('.').pop() ?? '';
+  if (head.includes('%PDF-')) return 'pdf';
+  if (head.startsWith('%!PS') || head.startsWith('\xC5\xD0\xD3\xC6')) return 'eps';
+  if (head.startsWith('8BPS')) return 'psd';
+  if (head.startsWith('II*\0') || head.startsWith('MM\0*')) return 'tiff';
+  if (head.slice(4, 8) === 'ftyp' && /^(heic|heix|hevc|heim|heis|mif1|msf1)$/.test(head.slice(8, 12))) return 'heic';
+  if (/<svg[\s>]/i.test(head) || (ext === 'svg' && /^\s*</.test(head))) return 'svg';
+  if (/^(\x89PNG|\xFF\xD8\xFF|GIF8|BM)/.test(head) || (head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP') || (file.type.startsWith('image/') && !/\.(ai|eps|ps|pdf|psd)$/.test(file.name.toLowerCase()))) return 'picture';
+  return null;
+}
+/** The type shown on the chip: the file's own ending (AI, PDF, EPS…). */
+const designLabel = (name: string, kind: string) => { const ext = name.toLowerCase().split('.').pop() ?? ''; return (/^(pdf|svg|ai|eps|ps|psd|tiff?|heic|heif|png|jpe?g|webp|gif|bmp)$/.test(ext) ? ext : kind).replace('jpeg', 'jpg').toUpperCase(); };
+const baseName = (name: string) => name.replace(/\.[^.]+$/, '') || 'Design';
+/** A data URL as a file to upload. */
+const dataFile = async (url: string, name: string) => new File([await (await fetch(url)).blob()], name, { type: url.slice(5, url.indexOf(';')) });
+
+/** A picture the browser can open (a GIF, BMP or, in Safari, a TIFF or HEIC), redrawn as a PNG, at most `long` pixels on its longer side. */
+async function redrawPicture(file: Blob, name: string, long = 2048): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+  const k = Math.min(1, long / Math.max(bitmap.width, bitmap.height, 1));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * k)); canvas.height = Math.max(1, Math.round(bitmap.height * k));
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('This picture could not be read.');
+  return new File([blob], `${baseName(name)}.png`, { type: 'image/png' });
+}
 const MAX_REFERENCES = 4;
 /** The old brief chips, now suggestions in the (+) menu. */
 const suggestions = [
@@ -350,12 +429,19 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   const [tile, setTile] = useState<string | null>(null);
   const [askGarment, setAskGarment] = useState(false);
   const [pickedGarment, setPickedGarment] = useState<GarmentChip | null>(null);
+  /** "Custom…" among the garment chips (client 2026-11-02): the garment being typed; null while closed. */
+  const [customGarment, setCustomGarment] = useState<string | null>(null);
   /** The garment's name for the last brief (a chip such as "Netball dress"), for Try again. */
   const lastProduct = useRef<GarmentChip | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   /** A friendly note that is not an error (a long paste was shortened). */
   const [note, setNote] = useState('');
   const upload = useRef<HTMLInputElement>(null);
+  /** An attached PDF with several pages: its page pictures, to choose the one the AI reads. */
+  const [pagePick, setPagePick] = useState<{ name: string; count: number; thumbs: string[]; done: (page: number | null) => void } | null>(null);
+  const [pageNumber, setPageNumber] = useState('');
+  /** While attached files are read (a PDF drawn, a file sent to the server). */
+  const [reading, setReading] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
   const plus = useRef<HTMLDivElement>(null);
   /** This brief's run: a new brief, Refine and leaving the page end it, so a late mockup or print sheet is dropped. */
@@ -402,7 +488,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   }, [plusOpen]);
 
   /** Generate: the sport from the tile (or the brief), the garment from the brief or a quick chip; then sign in if needed. */
-  function submit(garmentChoice?: GarmentChip) {
+  function submit(garmentChoice?: GarmentChip & { custom?: boolean }) {
     voice.stop();
     const text = prompt.trim();
     if (!text && !references.length) { setError('Describe your design: the garment, colours, style or your team name.'); field.current?.focus(); return; }
@@ -416,6 +502,9 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     setAskGarment(false); setError(''); setNote('');
     let brief = text.length >= 10 ? text : `Create a design from my attached artwork. ${text}`.trim();
     if (sport?.brief && !brief.toLowerCase().includes(sport.brief.split(' ')[0].toLowerCase())) brief = `${sport.brief}: ${brief}`;
+    // A garment typed in "Custom…" is named in the brief, so the AI draws it (the 3D kit uses its nearest garment).
+    if (garmentChoice?.custom && !brief.toLowerCase().includes(garmentChoice.name.toLowerCase())) brief = `${garmentChoice.name}: ${brief}`;
+    setCustomGarment(null);
     requireAuth(() => void generate(brief, sport?.sport ?? draft.sport, choice.garment, choice));
   }
   async function generate(brief: string, sport: string, garment: string, chip: GarmentChip | null = null) {
@@ -424,11 +513,11 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     const mine = ++run.current, current = () => run.current === mine;
     session.current = { token: session.current.token + 1, id: null, sent: [] };
     setResults(true); setPlanning(true); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError('');
-    onChange({ ...draft, sport, garment, mode: 'ai', design: { ...draft.design, ...product, garment: garment as Design['garment'] }, patternMotif: undefined, pendingDrawing: undefined });
+    onChange({ ...draft, sport, garment, mode: 'ai', design: { ...draft.design, ...product, garment: garment as Design['garment'], sportName: undefined }, patternMotif: undefined, pendingDrawing: undefined });
     // Pictures attached before signing in are saved now (in Assets, as references), so the AI can read them.
     let refs = references;
     try {
-      refs = await Promise.all(references.map(async r => r.id || !r.file ? r : { ...r, ...(await saveReference(r.file)) }));
+      refs = await Promise.all(references.map(async r => r.id || !r.file ? r : { ...r, ...(await saveReference(r, r.file)) }));
       if (!current()) return;
       setReferences(refs);
     } catch (e) { if (current()) { setError(`Your pictures could not be attached. ${friendlyError(e)}`); setPlanning(false); } return; }
@@ -444,7 +533,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
       // Fast like ChatGPT (client 2026-10-21): the PRIMARY (the brief as written) starts rendering at once, while one short
       // planning call gives its 3D kit spec and three ranked alternatives; then the options render, all in parallel on a
       // normal server (the local one answers one request at a time). Results from an older brief are dropped.
-      const first: DesignOption = { id: `primary-${mine}`, rank: 1, name: 'Your design', description: 'Your brief, exactly as written.', design: { ...draft.design, ...product, garment: garment as Design['garment'] }, direction: { ownDesign: false }, image: null, busy: true };
+      const first: DesignOption = { id: `primary-${mine}`, rank: 1, name: 'Your design', description: 'Your brief, exactly as written.', design: { ...draft.design, ...product, garment: garment as Design['garment'], sportName: undefined }, direction: { ownDesign: false }, image: null, busy: true };
       setOptions([first]);
       void render(first, wantHd ? 'high' : 'medium', mine, 'presentation');
       const plan = aiReply(await api<{ directions: DesignOption[] }>('/ai/designs', { method: 'POST', body: JSON.stringify(body) }), ['directions']);
@@ -558,26 +647,72 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
       }
     });
   }
-  async function saveReference(file: File) {
-    const data = new FormData(); data.append('file', file); data.append('name', file.name); data.append('type', 'reference');
+  /** The picture the AI reads, saved to Assets; a design file goes with it (kept as it is, the picture pointing to it). */
+  async function saveReference(r: Reference, file: File) {
+    const data = new FormData(); data.append('file', file); data.append('name', baseName(r.name).slice(0, 120)); data.append('type', 'reference');
+    if (r.original) data.append('original', r.original);
     return api<{ id: number; name: string }>('/assets', { method: 'POST', body: data });
   }
-  /** Pictures attached with (+) or the picture button, pasted or dropped: up to 4, kept with this design session. */
-  async function addFiles(list: File[]) {
-    const images = list.filter(f => f.type.startsWith('image/'));
-    if (!images.length) { if (list.length) setError('Attach pictures: PNG, JPG or WebP logos, artwork or references.'); return; }
-    const room = MAX_REFERENCES - references.length;
-    if (room <= 0) { setError(`Up to ${MAX_REFERENCES} pictures: remove one first.`); return; }
-    const big = images.find(f => f.size > 10 * 1024 * 1024);
-    if (big) { setError(`${big.name} is over 10 MB: use a smaller picture.`); return; }
-    setError('');
-    const added: Reference[] = [];
-    for (const file of images.slice(0, room)) {
-      try { const ready = await uploadable(file); added.push({ name: ready.name, preview: URL.createObjectURL(ready), file: ready }); }
-      catch { setError('Use a PNG, JPG or WebP picture.'); }
+  /** A PDF with more than one page: which page the AI reads (null: not attached). */
+  function askPage(file: File, name: string, count: number, first: string) {
+    return new Promise<number | null>(resolve => {
+      setPagePick({ name, count, thumbs: [first], done: page => { setPagePick(null); resolve(page); } });
+      void pdfPages(file, Array.from({ length: Math.min(count, 24) }, (_, i) => i + 1), 240, '#ffffff')
+        .then(({ images }) => setPagePick(p => p && p.name === name ? { ...p, thumbs: images } : p), () => undefined);
+    });
+  }
+  /**
+   * One attached file as a reference: a picture as it is; a design file as the picture drawn from it (PDF and AI: the
+   * page chosen; SVG: drawn sharp) with the file kept beside it. What the browser cannot draw (EPS, PSD, TIFF, HEIC) the
+   * server draws, when it can (signed in); otherwise a plain message. Null: not attached (no page chosen); 'signin': attached after signing in.
+   */
+  async function designReference(file: File, retry: () => void): Promise<Reference | 'signin' | null> {
+    if (file.size > DESIGN_MAX) throw new Error(`${file.name} is over 25 MB. Use a smaller file, or save it as PDF or PNG.`);
+    const kind = await designKind(file);
+    if (!kind) throw new Error(`${file.name} can't be attached. Use a picture or a design file: ${DESIGN_TYPES}.`);
+    const label = designLabel(file.name, kind);
+    const ready = (picture: File, extra: Partial<Reference> = {}): Reference => ({ name: file.name || picture.name, kind: label, preview: URL.createObjectURL(picture), file: picture, original: file, ...extra });
+    if (kind === 'picture') {
+      if (file.size <= PICTURE_MAX) { const pic = await uploadable(file).catch(() => null); if (pic) return { name: pic.name, preview: URL.createObjectURL(pic), file: pic }; }
+      // A big picture: a smaller copy for the AI, the picture kept as it is.
+      const pic = await redrawPicture(file, file.name).catch(() => null);
+      if (!pic) throw new Error(`${file.name} could not be read. Save it as PNG or JPG.`);
+      return ready(pic);
     }
+    if (kind === 'pdf') {
+      const { count, images: [first] } = await pdfPages(file, [1], 1600, '#ffffff');
+      if (!first) throw new Error(`${file.name} has no pages to read.`);
+      const page = count > 1 ? await askPage(file, file.name, count, first) : 1;
+      if (!page) return null;
+      const image = page === 1 ? first : (await pdfPages(file, [page], 1600, '#ffffff')).images[0];
+      return ready(await dataFile(image, `${baseName(file.name)}.png`), { page, pages: count });
+    }
+    if (kind === 'svg') return ready(await dataFile(await artworkPicture({ file: new File([file], file.name, { type: 'image/svg+xml' }), type: 'image/svg+xml' }, 1600), `${baseName(file.name)}.png`));
+    // TIFF and HEIC open in Safari; the rest (and other browsers) need the server.
+    if (kind === 'tiff' || kind === 'heic') { const pic = await redrawPicture(file, file.name).catch(() => null); if (pic) return ready(pic); }
+    if (!signedIn) { setNote(`Sign in to attach ${label} files: they are read on our server.`); requireAuth(retry); return 'signin'; }
+    const data = new FormData(); data.append('file', file);
+    const drawn = await api<{ image: string }>('/convert/picture', { method: 'POST', body: data })
+      .catch((e: unknown) => { throw new Error(e instanceof ApiError && e.status === 422 ? e.message : `${file.name} could not be read. Please save it as PDF, SVG or PNG and upload that.`); });
+    return ready(await dataFile(drawn.image, `${baseName(file.name)}.png`));
+  }
+  /** Pictures and design files attached with (+) or the picture button, pasted or dropped: up to 4, kept with this design session. */
+  async function addFiles(list: File[]) {
+    if (!list.length) return;
+    const room = MAX_REFERENCES - references.length;
+    if (room <= 0) { setError(`Up to ${MAX_REFERENCES} files: remove one first.`); return; }
+    setError(''); setReading(true);
+    const added: Reference[] = [], problems: string[] = [];
+    try {
+      for (const [i, file] of list.slice(0, room).entries()) {
+        setNote(`Reading ${file.name}…`);
+        try { const r = await designReference(file, () => void addFiles(list.slice(i))); if (r === 'signin') break; if (r) added.push(r); }
+        catch (e) { problems.push(e instanceof Error && e.message ? e.message : `${file.name} could not be read. Please save it as PDF, SVG or PNG.`); }
+      }
+    } finally { setReading(false); setNote(n => n.startsWith('Reading ') ? '' : n); }
     setReferences(old => [...old, ...added].slice(0, MAX_REFERENCES));
-    if (images.length > room) setError(`Only ${room} more picture${room === 1 ? '' : 's'} could be added: up to ${MAX_REFERENCES} in all.`);
+    if (list.length > room) problems.push(`Only ${room} more file${room === 1 ? '' : 's'} could be added: up to ${MAX_REFERENCES} in all.`);
+    if (problems.length) setError(problems.join(' '));
   }
   // Not while MAKE IT 3D is drawing: it opens the Studio by itself with the print sheet (a concept would start its own AI print meanwhile).
   /** The garment's name chosen with the brief ("Netball dress") stays with the design while it is the same 3D garment. */
@@ -640,6 +775,8 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
 
   const full = references.length >= MAX_REFERENCES;
   const garmentChoices = garmentChips(chosen ?? sportInBrief(prompt, tiles));
+  const typedChipGarment = nearestGarment(customGarment ?? '', catalog?.garments.map(g => g.id));
+  const typedChip = () => { const name = customName(customGarment); if (name) submit({ garment: typedChipGarment, name, custom: true }); };
   const stageProps = {
     onDragOver: (e: React.DragEvent) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropping(true); } },
     onDragLeave: (e: React.DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false); },
@@ -651,12 +788,12 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   </picture>;
   /** The prompt bar: the brief step's, and on the results the same bar with the current brief, to refine it or start again. */
   const bar = <form className={`aid-prompt${references.length ? ' has-files' : ''}`} onSubmit={e => { e.preventDefault(); submit(); }}>
-        {references.length > 0 && <ul className="aid-files" aria-label="Attached pictures">{references.map((r, i) => <li key={r.preview}><img src={r.preview} alt={r.name} /><button type="button" aria-label={`Remove ${r.name}`} onClick={() => setReferences(items => items.filter((_, j) => j !== i))}><X size={12} /></button></li>)}</ul>}
+        {references.length > 0 && <ul className="aid-files" aria-label="Attached files">{references.map((r, i) => <li key={r.preview} title={r.original ? `${r.name}: the AI reads its picture; the file is kept in your Assets` : r.name}><img src={r.preview} alt="" /><span className="aid-file-text"><b>{r.name}</b><small>{r.kind ?? designLabel(r.name, 'picture')}{r.pages && r.pages > 1 ? ` · page ${r.page} of ${r.pages}` : ''}</small></span><button type="button" aria-label={`Remove ${r.name}`} onClick={() => setReferences(items => items.filter((_, j) => j !== i))}><X size={12} /></button></li>)}</ul>}
         <div className="aid-row">
           <div className="aid-plus-wrap" ref={plus}>
             <button type="button" className="aid-plus" aria-haspopup="menu" aria-expanded={plusOpen} aria-label="Attach and suggestions" title="Attach logos or artwork, or try a suggestion" onClick={() => setPlusOpen(o => !o)}><Plus size={22} /></button>
             {plusOpen && <div className="aid-menu" role="menu">
-              <button type="button" role="menuitem" disabled={full} onClick={() => { setPlusOpen(false); upload.current?.click(); }}><Paperclip size={16} /><span>Attach logos or artwork</span><small>{references.length}/{MAX_REFERENCES}</small></button>
+              <button type="button" role="menuitem" disabled={full} onClick={() => { setPlusOpen(false); upload.current?.click(); }}><Paperclip size={16} /><span>Attach logos, artwork or design files</span><small>{references.length}/{MAX_REFERENCES}</small></button>
               <span className="aid-menu-label">Try a suggestion</span>
               {suggestions.map(s => <button type="button" role="menuitem" key={s.label} onClick={() => { setPrompt(s.text); setError(''); setPlusOpen(false); field.current?.focus(); }}><Lightbulb size={16} /><span>{s.label}</span></button>)}
             </div>}
@@ -667,7 +804,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); submit(); } }}
               onPaste={e => {
                 const files = [...e.clipboardData.files], text = e.clipboardData.getData('text/plain');
-                if (files.some(f => f.type.startsWith('image/'))) { void addFiles(files); if (!text) { e.preventDefault(); return; } }
+                if (files.length) { void addFiles(files); if (!text) { e.preventDefault(); return; } }
                 // A paste past the limit keeps what fits and says so (the browser would cut it silently).
                 const el = e.currentTarget, start = el.selectionStart, end = el.selectionEnd, room = MAX_BRIEF - (prompt.length - (end - start));
                 if (text.length <= room) return;
@@ -678,17 +815,27 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
                 requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = start + kept.length; });
               }} />
           </label>
-          <button type="button" className="aid-icon" disabled={full} onClick={() => upload.current?.click()} aria-label="Upload a reference image" title={full ? `Up to ${MAX_REFERENCES} pictures` : 'Upload a reference image, logo or design'}><ImagePlus size={21} /></button>
+          <button type="button" className="aid-icon" disabled={full} onClick={() => upload.current?.click()} aria-label="Upload a reference image" title={full ? `Up to ${MAX_REFERENCES} files` : `Upload a picture, logo or design file: ${DESIGN_TYPES} · up to 25 MB`}>{reading ? <LoaderCircle className="spin" size={21} /> : <ImagePlus size={21} />}</button>
           {voice.supported && <button type="button" className={`aid-icon${voice.listening ? ' is-on' : ''}`} onClick={voice.toggle} aria-pressed={voice.listening} aria-label={voice.listening ? 'Stop voice input' : 'Speak your brief'} title={voice.listening ? 'Stop voice input' : 'Speak your brief'}>{voice.listening ? <MicOff size={21} /> : <Mic size={21} />}</button>}
           <button type="submit" className="aid-go" aria-label="Generate design" title="Generate design"><ArrowUp size={23} strokeWidth={2.4} /></button>
         </div>
         {prompt.length > MAX_BRIEF - 500 && <span className={`aid-count${prompt.length >= MAX_BRIEF ? ' is-full' : ''}`} aria-live="polite">{formatCount(prompt.length)} / {formatCount(MAX_BRIEF)}</span>}
-        <input ref={upload} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" onChange={e => { void addFiles([...(e.target.files ?? [])]); e.target.value = ''; }} />
+        <input ref={upload} type="file" hidden multiple accept={DESIGN_ACCEPT} onChange={e => { void addFiles([...(e.target.files ?? [])]); e.target.value = ''; }} />
       </form>;
   const notes = <>
-      {askGarment && <div className="aid-ask" role="group" aria-label="Choose the garment"><span>What are we designing{chosen ? ` for ${chosen.label}` : ''}?</span>{garmentChoices.map(g => <button key={`${g.garment}-${g.name}`} type="button" onClick={() => submit(g)}>{g.name || garmentLabels[g.garment] || g.garment}</button>)}</div>}
+      {askGarment && <div className="aid-ask" role="group" aria-label="Choose the garment"><span>What are we designing{chosen ? ` for ${chosen.label}` : ''}?</span>{garmentChoices.map(g => <button key={`${g.garment}-${g.name}`} type="button" onClick={() => submit(g)}>{g.name || garmentLabels[g.garment] || g.garment}</button>)}
+        {customGarment === null ? <button type="button" onClick={() => setCustomGarment('')}>Custom…</button>
+          : <span className="aid-ask-custom"><input value={customGarment} maxLength={CUSTOM_MAX} placeholder={CUSTOM_PLACEHOLDER} aria-label="Type your garment" autoFocus onChange={e => setCustomGarment(typedName(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); typedChip(); } if (e.key === 'Escape') setCustomGarment(null); }} /><button type="button" disabled={!customName(customGarment)} onClick={typedChip}>Go</button>
+            {customName(customGarment) && <small className="custom-note" role="status">3D preview uses {(catalog?.garments.find(g => g.id === typedChipGarment)?.name ?? typedChipGarment).toLowerCase()}</small>}</span>}</div>}
       {error && <p className="aid-error" role="alert">{error}</p>}
       {note && !error && <p className="aid-info" role="status">{note}</p>}
+      {pagePick && <div className="aid-pages-back" role="presentation" onClick={e => { if (e.target === e.currentTarget) pagePick.done(null); }}>
+        <div className="aid-pages" role="dialog" aria-modal="true" aria-label={`Choose the page of ${pagePick.name}`} onKeyDown={e => { if (e.key === 'Escape') pagePick.done(null); }}>
+          <div className="aid-pages-head"><div><strong>Which page?</strong><span>{pagePick.name} has {pagePick.count} pages. The AI reads the one you choose; the whole file is kept.</span></div><button type="button" className="aid-round" aria-label="Cancel" onClick={() => pagePick.done(null)}><X size={18} /></button></div>
+          <div className="aid-pages-grid">{Array.from({ length: Math.min(pagePick.count, 24) }, (_, i) => <button type="button" key={i} autoFocus={i === 0} onClick={() => pagePick.done(i + 1)} aria-label={`Page ${i + 1}`}>{pagePick.thumbs[i] ? <img src={pagePick.thumbs[i]} alt="" /> : <LoaderCircle className="spin" size={18} />}<span>{i + 1}</span></button>)}</div>
+          {pagePick.count > 24 && <form className="aid-pages-more" onSubmit={e => { e.preventDefault(); const n = Math.round(Number(pageNumber)); if (n >= 1 && n <= pagePick.count) { setPageNumber(''); pagePick.done(n); } }}><label>Another page<input type="number" min={1} max={pagePick.count} value={pageNumber} onChange={e => setPageNumber(e.target.value)} placeholder={`25–${pagePick.count}`} /></label><button type="submit" className="button button-outline">Use this page</button></form>}
+        </div>
+      </div>}
   </>;
 
   if (results) {
@@ -737,7 +884,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
             <button type="button" className="aid-dl" disabled={!primary?.image} onClick={() => primary && void download(primary, shown + 1)} aria-label={`Download design ${shown + 1}`} title="Download this design"><Download size={22} /></button>
           </div>}
           {!refineOpen && isAi && primary?.image && <PlayerShotButton className="button button-secondary full-width aid-player" requireAuth={requireAuth} disabled={!!primary.busy}
-            kit={{ sport: catalog?.sports.find(s => s.id === draft.sport)?.name || draft.sport, garment: productName(primary.design, catalog), name: primary.name, logoText: primary.design.logoText, backName: primary.design.backName || primary.design.logoText, number: primary.design.number }}
+            kit={{ sport: sportLabel(draft, catalog), garment: productName(primary.design, catalog), name: primary.name, logoText: primary.design.logoText, backName: primary.design.backName || primary.design.logoText, number: primary.design.number }}
             pictures={async () => primary.image ? [primary.image] : []} />}
           <div className={`aid-refine${refineOpen ? ' is-open' : ''}`}>
             <form className="aid-refine-row" onSubmit={e => { e.preventDefault(); refine(); }}>
@@ -782,7 +929,8 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
 
 /** CONVERT: a photo, sketch or mockup (e.g. from ChatGPT) becomes an editable 3D design. */
 /** The garments a print layout or artwork can go on as drawn (our 3D models with print areas). */
-const artworkGarments = ['jersey', 'tee', 'polo', 'pocketpolo', 'nfljersey', 'compression', 'singlet', 'netball-dress', 'raglan', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'shorts', 'fullkit'];
+// (CP1 2026-11-02: and headwear and accessories, accessoryArt.ts: their logos go on their own places.)
+const artworkGarments = ['jersey', 'tee', 'polo', 'pocketpolo', 'nfljersey', 'compression', 'singlet', 'netball-dress', 'raglan', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'shorts', 'fullkit', ...accessoryGarments];
 type ArtworkKind = 'layout' | 'front' | 'allover' | 'garment';
 /** An artwork file read on the page: the file to keep (AI files as PDF), its type, and a preview picture. */
 type ArtworkFile = { file: File; type: string; name: string; preview: string; wide: boolean; look: ArtworkLook };
@@ -818,22 +966,7 @@ async function artworkLook(src: string): Promise<ArtworkLook> {
 /** A vector or picture as a PNG, `long` pixels on its longer side, transparent behind it (logos and all-over prints). */
 async function artworkPicture(art: Pick<ArtworkFile, 'file' | 'type'>, long = 1600, jpeg = false): Promise<string> {
   let source: CanvasImageSource, w: number, h: number;
-  if (art.type === 'application/pdf') {
-    const pdfjs = await import('pdfjs-dist');
-    // @ts-ignore: the worker build has no types; pdf.js runs it on the page when it is set as globalThis.pdfjsWorker.
-    const worker = await import('pdfjs-dist/build/pdf.worker.mjs');
-    (globalThis as unknown as { pdfjsWorker?: unknown }).pdfjsWorker ??= worker;
-    const task = pdfjs.getDocument({ data: new Uint8Array(await art.file.arrayBuffer()) });
-    try {
-      const page = await (await task.promise).getPage(1);
-      const one = page.getViewport({ scale: 1 });
-      const viewport = page.getViewport({ scale: long / Math.max(one.width, one.height) });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
-      await page.render({ canvas, viewport, background: 'rgba(0,0,0,0)' }).promise;
-      return canvas.toDataURL('image/png');
-    } finally { void task.destroy(); }
-  }
+  if (art.type === 'application/pdf') return (await pdfPages(art.file, [1], long)).images[0];
   const img = new Image();
   img.src = await readFileData(art.file, art.type);
   await img.decode();
@@ -845,6 +978,31 @@ async function artworkPicture(art: Pick<ArtworkFile, 'file' | 'type'>, long = 16
   canvas.getContext('2d')!.drawImage(source, 0, 0, canvas.width, canvas.height);
   return jpeg ? canvas.toDataURL('image/jpeg', 0.9) : canvas.toDataURL('image/png');
 }
+/**
+ * A PDF's pages as PNG pictures, `long` pixels on their longer side (see-through behind them, or `background`), and how
+ * many pages it has: pdf.js on the page (Artwork to 3D; the AI Designer's attached PDF and AI files).
+ */
+async function pdfPages(file: Blob, pages: number[], long = 1600, background = 'rgba(0,0,0,0)'): Promise<{ count: number; images: string[] }> {
+  const pdfjs = await import('pdfjs-dist');
+  // @ts-ignore: the worker build has no types; pdf.js runs it on the page when it is set as globalThis.pdfjsWorker.
+  const worker = await import('pdfjs-dist/build/pdf.worker.mjs');
+  (globalThis as unknown as { pdfjsWorker?: unknown }).pdfjsWorker ??= worker;
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  try {
+    const doc = await task.promise;
+    const images: string[] = [];
+    for (const n of pages.filter(p => p >= 1 && p <= doc.numPages)) {
+      const page = await doc.getPage(n);
+      const one = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: long / Math.max(one.width, one.height) });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
+      await page.render({ canvas, viewport, background }).promise;
+      images.push(canvas.toDataURL('image/png'));
+    }
+    return { count: doc.numPages, images };
+  } finally { void task.destroy(); }
+}
 const readFileData = (file: Blob, type: string) => new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => { const s = String(r.result); resolve(`data:${type};base64,${s.slice(s.indexOf(',') + 1)}`); }; r.onerror = () => reject(new Error('Unable to read this file.')); r.readAsDataURL(file); });
 
 /**
@@ -855,8 +1013,11 @@ const readFileData = (file: Blob, type: string) => new Promise<string>((resolve,
 export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }: { catalog: Catalog | null; draft: Draft; onChange: (draft: Draft) => void; requireAuth: (action?: () => void) => void; onStudio: () => void }) {
   const [art, setArt] = useState<ArtworkFile | null>(null);
   const [kind, setKind] = useState<ArtworkKind>('layout');
-  const [sport, setSport] = useState(draft.sport);
+  const [sport, setSport] = useState(draft.design.sportName ? CUSTOM : draft.sport);
   const [garment, setGarment] = useState(artworkGarments.includes(draft.garment) ? draft.garment : 'jersey');
+  /** "Custom…" (client 2026-11-02): the sport and garment typed; the 3D kit uses the nearest garment this page offers. */
+  const [sportText, setSportText] = useState(draft.design.sportName ?? '');
+  const [garmentText, setGarmentText] = useState('');
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
@@ -866,8 +1027,19 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
   const sports = catalog?.sports ?? [];
   const tiles = sports.find(s => s.id === sport)?.tiles ?? [];
   const garmentChoices = [...new Map(tiles.filter(t => t.garment && artworkGarments.includes(t.garment)).map(t => [t.garment!, t.name])).entries()];
-  const choices = garmentChoices.length ? garmentChoices : artworkGarments.map(g => [g, catalog?.garments.find(c => c.id === g)?.name ?? garmentLabels[g] ?? g] as [string, string]);
-  useEffect(() => { if (choices.length && !choices.some(([g]) => g === garment)) setGarment(choices[0][0]); }, [sport]); // eslint-disable-line react-hooks/exhaustive-deps
+  const choices = (garmentChoices.length ? garmentChoices : artworkGarments.map(g => [g, catalog?.garments.find(c => c.id === g)?.name ?? garmentLabels[g] ?? g] as [string, string])).filter(([g]) => !isAccessory(g));
+  /** Headwear and accessories (CP1, client 2026-11-02 "we will need a caps section"): offered for every sport. */
+  const accessoryChoices = accessoryGarments.map(g => [g, catalog?.garments.find(c => c.id === g)?.name ?? garmentLabels[g] ?? g] as [string, string]);
+  useEffect(() => { if (choices.length && garment !== CUSTOM && !isAccessory(garment) && !choices.some(([g]) => g === garment)) setGarment(choices[0][0]); }, [sport]); // eslint-disable-line react-hooks/exhaustive-deps
+  const customSport = sport === CUSTOM, customGarment = garment === CUSTOM;
+  /** What is saved: a typed sport under a catalogue sport (its name in design.sportName), a typed garment on its nearest 3D garment (its name in design.productName). */
+  const sportId = customSport ? customSportId(sports) : sport;
+  const garment3d = customGarment ? nearestGarment(garmentText, artworkGarments) : garment;
+  const typed: Partial<Design> = { sportName: customSport ? customName(sportText) || undefined : undefined, ...(customGarment ? { productName: customName(garmentText) || undefined } : {}) };
+  const missingName = (customSport && !customName(sportText)) || (customGarment && !customName(garmentText));
+  const accessory = isAccessory(garment3d);
+  // A cap or other accessory has no factory print layout here: its artwork is read for its logos (AI) or put on the front.
+  useEffect(() => { if (accessory && kind === 'layout') setKind(isAi ? 'garment' : 'front'); }, [accessory, kind, isAi]);
 
   async function read(file: File) {
     setError(''); setResult(null);
@@ -900,11 +1072,11 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
     if (!art) return;
     setPlacing(true); setError('');
     try {
-      const base = { ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? art.name.replace(/\.[a-z]+$/i, '').slice(0, 60) || 'My design' : draft.name, sport, garment, mode: 'dyo' as const, patternMotif: undefined, pendingDrawing: undefined };
+      const base = { ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? art.name.replace(/\.[a-z]+$/i, '').slice(0, 60) || 'My design' : draft.name, sport: sportId, garment: garment3d, mode: 'dyo' as const, patternMotif: undefined, pendingDrawing: undefined };
       // A fresh kit for the artwork (an earlier design's logos, print or layout are not carried over).
       // The side panels and trims take the artwork's main colour (not the default kit's cyan); a logo's kit stays plain.
       const look = art.look;
-      const design: Design = { ...defaultDesign, garment: garment as Design['garment'], layout: null, layers: [], patternImage: null, secondary: kind === 'front' ? defaultDesign.main : look.main, ...(kind === 'allover' ? { main: look.main } : {}) };
+      const design: Design = { ...defaultDesign, garment: garment3d as Design['garment'], layout: null, layers: [], patternImage: null, secondary: kind === 'front' ? defaultDesign.main : look.main, ...(kind === 'allover' ? { main: look.main } : {}), ...typed };
       if (kind === 'garment') { await fromGarmentPicture(base, design); return; }
       if (kind === 'layout') {
         const form = new FormData(); form.append('file', art.file); form.append('name', art.name.slice(0, 120)); form.append('type', 'layout');
@@ -913,7 +1085,14 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
       } else {
         const src = await artworkPicture(art);
         if (kind === 'allover') onChange({ ...base, design: { ...design, pattern: 'Solid', patternImage: await preparePattern(src, 'full'), patternScale: 0.16, zones: {} } });
-        else {
+        else if (accessory) {
+          // A cap or bucket hat: on the front panels (moved and resized in the Studio); socks and a skirt: as their crest.
+          const img = new Image(); img.src = src; await img.decode().catch(() => undefined);
+          const layer = accessoryFrontLayer(garment3d, src, art.name.slice(0, 120), (img.naturalWidth || 1) / Math.max(1, img.naturalHeight || 1));
+          // (Its 3DEEZI marks go on the back, clear of the customer's logo, BR1.)
+          const marks = layer ? accessoryBackMarks(garment3d) : null;
+          onChange({ ...base, design: { ...design, ...(layer ? { layers: [layer] } : { logoImage: src }), ...(marks ? { logoText: '3DEEZI', marks: { ...(design.marks ?? {}), ...marks } } : {}) } });
+        } else {
           const layer = { id: crypto.randomUUID(), type: 'image' as const, name: art.name.slice(0, 120), src, side: 'front' as const, part: 'top' as const, x: 0, y: 0.42, w: 0.24 };
           onChange({ ...base, design: { ...design, layers: [...(design.layers ?? []).filter(l => l.type !== 'image' || l.src !== src), layer] } });
         }
@@ -930,29 +1109,64 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
   async function fromGarmentPicture(base: Draft, plain: Design) {
     if (!art) return;
     const image = await artworkPicture(art, 1536, true);
-    const read = await api<DesignReading>('/ai/designs/read', { method: 'POST', body: JSON.stringify({ image, sport, garment }) })
+    if (accessory) { await fromAccessory(base, plain, image, garment3d); return; }
+    const read = await api<DesignReading>('/ai/designs/read', { method: 'POST', body: JSON.stringify({ image, sport: sportId, garment: garment3d }) })
       .then(r => r && r.design ? r : null, () => null);
+    // A cap (bucket hat, socks, skirt) in the picture goes on that model with its own logos, never redrawn as a top.
+    if (read?.exact && isAccessory(read.garment)) { setGarment(read.garment); await fromAccessory(base, plain, image, read.garment); return; }
     const logo = read?.crest ? await cropCrest(image, read.crest).catch(() => null) : null;
     // The garment chosen here stays (the reading only gives the colours, crest and lettering); its side panels the
     // picture's main colour unless the reading names a trim colour.
-    const design: Design = { ...plain, ...(read?.design ?? {}), garment: garment as Design['garment'], layout: null, layers: [], patternImage: null, logoImage: logo ?? null };
-    const sheet = aiReply(await api<{ asset: { id: number; name: string }; image: string }>('/ai/print-sheet', { method: 'POST', body: JSON.stringify({ image, sport, garment, reference_ids: [], name: base.name }) }), ['asset', 'image']);
+    const design: Design = { ...plain, ...(read?.design ?? {}), garment: garment3d as Design['garment'], layout: null, layers: [], patternImage: null, logoImage: logo ?? null, ...typed };
+    const sheet = aiReply(await api<{ asset: { id: number; name: string }; image: string }>('/ai/print-sheet', { method: 'POST', body: JSON.stringify({ image, sport: sportId, garment: garment3d, reference_ids: [], name: base.name }) }), ['asset', 'image']);
     onChange({ ...base, mode: 'ai', design, pendingDrawing: { asset: sheet.asset.id, name: sheet.asset.name, known: true } });
+    onStudio();
+  }
+
+  /**
+   * A cap (bucket hat, socks, skirt) artwork (CP1, client 2026-11-02, the MANTIS cap sheet): the AI reads its colours and
+   * where its front, back and side logos are; each logo is cut out and put on its place on our 3D model (accessoryArt.ts).
+   */
+  async function fromAccessory(base: Draft, plain: Design, image: string, model: string) {
+    const read = aiReply(await api<AccessoryReading>('/ai/accessory/read', { method: 'POST', body: JSON.stringify({ image, garment: model }) }), ['design', 'marks'], 'The AI could not read this artwork. Please try again.');
+    const { design } = await accessoryDesign({ ...plain, garment: model as Design['garment'] }, read, image);
+    onChange({ ...base, garment: model, mode: 'dyo', design: { ...design, ...typed } });
     onStudio();
   }
 
   async function convert() {
     if (!art) return;
     setBusy(true); setError('');
-    try { const image = await artworkPicture(art, 1280); setResult(aiReply(await api<NonNullable<typeof result>>('/ai/convert', { method: 'POST', body: JSON.stringify({ image }) }), ['design'], 'The converter sent an unexpected reply. Please try again.')); }
+    try {
+      const image = await artworkPicture(art, 1280);
+      const reply = aiReply(await api<NonNullable<typeof result>>('/ai/convert', { method: 'POST', body: JSON.stringify({ image }) }), ['design'], 'The converter sent an unexpected reply. Please try again.');
+      setResult(reply);
+      if (isAccessory(reply.garment)) setGarment(reply.garment);
+    }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  const open = () => { if (!result) return; onChange({ ...draft, id: undefined, version: undefined, name: result.name, sport: result.sport, garment: result.garment, mode: 'ai', design: { ...draft.design, ...result.design, patternImage: null, layout: null, productName: undefined }, patternMotif: result.motif || undefined, pendingDrawing: undefined }); onStudio(); };
+  const open = () => {
+    if (!result || !art) return;
+    // A cap (or other accessory): its logos cut from the artwork and put on their places (the preview gives only colours).
+    if (isAccessory(result.garment)) {
+      const model = result.garment;
+      setPlacing(true); setError('');
+      void (async () => {
+        try {
+          const base = { ...draft, id: undefined, version: undefined, name: result.name || 'My design', sport: result.sport || sportId, garment: model, mode: 'dyo' as const, patternMotif: undefined, pendingDrawing: undefined };
+          await fromAccessory(base, { ...defaultDesign, ...result.design, garment: model as Design['garment'], layout: null, layers: [], patternImage: null }, await artworkPicture(art, 1536, true), model);
+        } catch (e) { setError(friendlyError(e)); } finally { setPlacing(false); }
+      })();
+      return;
+    }
+    onChange({ ...draft, id: undefined, version: undefined, name: result.name, sport: result.sport, garment: result.garment, mode: 'ai', design: { ...draft.design, ...result.design, patternImage: null, layout: null, productName: undefined }, patternMotif: result.motif || undefined, pendingDrawing: undefined }); onStudio();
+  };
+  const modelName = (g: string) => catalog?.garments.find(c => c.id === g)?.name ?? garmentLabels[g] ?? g;
 
   if (busy) return <Loader title="Making the AI preview…" subtitle="Reading colours, patterns and lettering from your artwork." steps={['Reading the artwork', 'Finding colours', 'Matching pattern and lettering']} seconds={18} />;
   const kinds: { id: ArtworkKind; label: string; hint: string }[] = [
-    ...(isAi ? [{ id: 'garment' as const, label: 'Picture of a garment (mockup / photo)', hint: 'A mock-up or photo of the garment, front and back. AI redraws it flat and puts it on the 3D kit, sides, crest and number included. Uses AI (a small fee per picture).' }] : []),
-    { id: 'layout', label: 'Full print layout', hint: 'Front, back and sleeve panels side by side, as the factory prints them. Each panel goes on its part of the garment.' },
+    ...(isAi ? [{ id: 'garment' as const, label: 'Picture of a garment (mockup / photo)', hint: accessory ? 'A mock-up or artwork sheet of the cap or accessory (front, back, sides). AI reads its colours and logos and puts each logo on its place on the 3D model. Uses AI (a small fee per picture).' : 'A mock-up or photo of the garment, front and back. AI redraws it flat and puts it on the 3D kit, sides, crest and number included. Uses AI (a small fee per picture).' }] : []),
+    ...(accessory ? [] : [{ id: 'layout' as const, label: 'Full print layout', hint: 'Front, back and sleeve panels side by side, as the factory prints them. Each panel goes on its part of the garment.' }]),
     { id: 'front', label: 'Logo or design on the front', hint: 'One design or logo on the front. Move and resize it on the 3D kit.' },
     { id: 'allover', label: 'All-over print', hint: 'The design repeated over the whole garment.' },
   ];
@@ -967,21 +1181,34 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
       <div className="convert-side glow-panel">
         {result ? <><span className="eyebrow">AI PREVIEW</span><h2>{result.name}</h2><p className="muted">{result.summary}</p>
           <div className="convert-palette">{(['main', 'secondary', 'accent'] as const).map(k => <span key={k}><i style={{ background: result.design[k] }} />{result.design[k]}</span>)}</div>
-          <button className="button button-outline full-width" onClick={open}>OPEN AI PREVIEW IN 3D STUDIO <ArrowRight size={18} /></button>
-          <button className="button button-outline full-width" onClick={() => setResult(null)}><ArrowLeft size={16} /> Back to my artwork</button></>
+          <button className="button button-outline full-width" disabled={placing} onClick={() => requireAuth(open)}>{placing && <LoaderCircle className="spin" size={18} />} OPEN AI PREVIEW IN 3D STUDIO <ArrowRight size={18} /></button>
+          <button className="button button-outline full-width" disabled={placing} onClick={() => setResult(null)}><ArrowLeft size={16} /> Back to my artwork</button>
+          {/* What happens next (the space under the buttons was empty, client picture 294.jpg). */}
+          <div className="convert-next" role="status">
+            <span className="eyebrow">OPENS ON</span>
+            <strong>{modelName(result.garment)}</strong>
+            <small>{placing ? 'Cutting your logos out of the artwork and putting them on the 3D model…'
+              : isAccessory(result.garment) ? 'Your front logo goes on the front panels, the back logo on the back and the side labels on the sides, in your artwork’s colours. Move, resize or recolour them in the Studio.'
+              : 'The 3D kit takes the colours, pattern and lettering read from your artwork.'}</small>
+          </div>
+          {error && <p className="error-message" role="alert">{error}</p>}</>
           : <><span className="eyebrow">1 · WHAT IS IT?</span>
           <div className="convert-kinds" role="radiogroup" aria-label="What the artwork is">{kinds.map(k => <label key={k.id} className={`convert-kind${kind === k.id ? ' is-on' : ''}`}><input type="radio" name="artwork-kind" checked={kind === k.id} onChange={() => setKind(k.id)} /><span><strong>{k.label}</strong><small>{k.hint}</small></span></label>)}</div>
           <span className="eyebrow">2 · CHOOSE THE GARMENT</span>
           <div className="convert-pick">
-            <label>Sport<select value={sport} onChange={e => setSport(e.target.value)}>{sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-            <label>Garment<select value={garment} onChange={e => setGarment(e.target.value)}>{choices.map(([g, n]) => <option key={g} value={g}>{n}</option>)}</select></label>
+            <div className="convert-pick-col"><label>Sport<select value={sport} onChange={e => setSport(e.target.value)}>{sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}<option value={CUSTOM}>Custom…</option></select></label>
+              {customSport && <label>Type your sport<input value={sportText} maxLength={CUSTOM_MAX} placeholder={CUSTOM_PLACEHOLDER} autoFocus onChange={e => setSportText(typedName(e.target.value))} /></label>}</div>
+            <div className="convert-pick-col"><label>Garment<select value={garment} onChange={e => setGarment(e.target.value)}>{choices.map(([g, n]) => <option key={g} value={g}>{n}</option>)}<optgroup label="Headwear & accessories">{accessoryChoices.map(([g, n]) => <option key={g} value={g}>{n}</option>)}</optgroup><option value={CUSTOM}>Custom…</option></select></label>
+              {customGarment && <><label>Type your garment<input value={garmentText} maxLength={CUSTOM_MAX} placeholder={CUSTOM_PLACEHOLDER} autoFocus={!customSport} onChange={e => setGarmentText(typedName(e.target.value))} /></label>
+                <small className="custom-note" role="status">3D preview uses {(catalog?.garments.find(g => g.id === garment3d)?.name ?? garmentLabels[garment3d] ?? garment3d).toLowerCase()}</small></>}</div>
           </div>
+          {missingName && <p className="field-hint">Type the {customSport && !customName(sportText) ? 'sport' : 'garment'} name to go on.</p>}
           {kind === 'front' && art?.look.photo && <p className="field-hint convert-warn" role="status">This looks like a photo or mock-up with a background, not a logo: the whole picture would go on the chest.{isAi ? ' Choose “Picture of a garment” to put its design on the kit.' : ''}</p>}
           {kind === 'allover' && art?.look.photo && <p className="field-hint convert-warn" role="status">This looks like a photo or mock-up: the whole picture, background included, would repeat over the kit.{isAi ? ' Choose “Picture of a garment” to put its design on the kit.' : ''}</p>}
-          {kind === 'garment' && <p className="field-hint">Uses AI: about 30 seconds. The Studio then shows the front and back it drew for you to check.</p>}
+          {kind === 'garment' && <p className="field-hint">{accessory ? 'Uses AI: about 15 seconds. Your front logo goes on the front, the back logo on the back and the side labels on the sides, in your artwork’s colours.' : 'Uses AI: about 30 seconds. The Studio then shows the front and back it drew for you to check.'}</p>}
           {kind === 'layout' && <p className="field-hint">The Studio shows each panel it found: check it is the front, back or a sleeve, then put it on.</p>}
           {error && <p className="error-message" role="alert">{error}</p>}
-          <button className="button button-gradient full-width" disabled={!art || placing} onClick={() => requireAuth(() => void toStudio())}>{placing ? <LoaderCircle className="spin" size={18} /> : <Box size={18} />} PUT IT ON THE 3D KIT</button>
+          <button className="button button-gradient full-width" disabled={!art || placing || missingName} onClick={() => requireAuth(() => void toStudio())}>{placing ? <LoaderCircle className="spin" size={18} /> : <Box size={18} />} PUT IT ON THE 3D KIT</button>
           {art && isAi && <button className="button button-outline full-width" disabled={placing} onClick={() => requireAuth(() => void convert())}><WandSparkles size={16} /> AI preview picture</button>}</>}
       </div>
     </div>

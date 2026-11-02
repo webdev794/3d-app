@@ -528,6 +528,57 @@ class ApiClient {
 
   Future<void> deleteAsset(int id) => _send('DELETE', '/assets/$id');
 
+  /// An AI Designer design file (client 2026-11-02: PDF, SVG, AI, EPS, PSD…)
+  /// kept in Assets as it is, with the picture the AI reads from it (a
+  /// reference pointing to it). Answers the picture's asset id.
+  Future<int> uploadDesignReference(
+    Uint8List picture,
+    Uint8List original, {
+    required String name,
+  }) async {
+    final base = name.replaceFirst(RegExp(r'\.[^.]*$'), '');
+    final png = picture.length > 3 && picture[0] == 0x89 && picture[1] == 0x50;
+    final data = await _teamMultipart(
+      '/assets',
+      {
+        'type': 'reference',
+        'name': base.length > 120 ? base.substring(0, 120) : base,
+      },
+      files: [
+        ('file', (name: '$base.${png ? 'png' : 'jpg'}', bytes: picture)),
+        ('original', (name: name, bytes: original)),
+      ],
+    );
+    final id = (data as Map?)?['id'];
+    if (id is! int) {
+      throw ApiException('The server did not keep the file. Please try again.');
+    }
+    return id;
+  }
+
+  /// A design file the app cannot draw itself (EPS, PSD, TIFF…): its picture
+  /// drawn by the server when it can (`POST /convert/picture`); otherwise the
+  /// server's plain message ("Please save it as PDF, SVG or PNG").
+  Future<({Uint8List image, int pages})> designPicture(
+    Uint8List bytes, {
+    required String name,
+    int page = 1,
+  }) async {
+    final data = await _teamMultipart(
+      '/convert/picture',
+      {'page': '$page'},
+      files: [('file', (name: name, bytes: bytes))],
+    );
+    final image = (data as Map?)?['image'];
+    if (image is! String || !image.contains(',')) {
+      throw ApiException('The server could not draw this file.');
+    }
+    return (
+      image: base64Decode(image.substring(image.indexOf(',') + 1)),
+      pages: (data?['pages'] as num?)?.toInt() ?? 1,
+    );
+  }
+
   // ---------- Artboard designs and templates (the Artboard's File menu)
   /// The account's Artboard designs or, with [template], its templates
   /// (newest first), without their contents.

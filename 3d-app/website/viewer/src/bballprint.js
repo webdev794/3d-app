@@ -13,7 +13,9 @@
 // (FN6 2026-10-30, DT8: the band 4.2 cm, one flat gathered piece, as the picture.)
 export const BB = { waist: 0.57, crotch: 0.342, band: 0.042 };
 /** The side seam [y, x], from the hem's outer corner up to the waist: the flat panel's outer edge, flaring to the hem. */
-export const BB_SIDE = [[0, 0.375], [0.07, 0.366], [0.144, 0.352], [0.2, 0.338], [0.259, 0.318], [0.3, 0.303], [0.374, 0.28], [0.44, 0.258], [0.515, 0.234], [0.545, 0.224], [BB.waist, 0.215]];
+// (FN9 2026-11-02, the user: from the waist to the hem the outer side is ONE straight line, as the picture, no bulge at
+// the hips: above the crotch the seam is that line over the hips' ellipse (3D half-width 0.7354 x flat), the waist 5 % wider.)
+export const BB_SIDE = [[0, 0.375], [0.07, 0.366], [0.144, 0.352], [0.2, 0.338], [0.259, 0.318], [0.3, 0.303], [0.374, 0.2819], [0.44, 0.2643], [0.48, 0.2536], [0.515, 0.2443], [0.528, 0.2408], [0.545, 0.2344], [BB.waist, 0.225]];
 /** The inner leg seam [y, x], from the hem's inner corner up to the crotch. */
 export const BB_INNER = [[0.012, 0.035], [0.066, 0.03], [0.145, 0.022], [0.224, 0.013], [0.297, 0.005], [BB.crotch, 0]];
 /**
@@ -21,7 +23,8 @@ export const BB_INNER = [[0.012, 0.035], [0.066, 0.03], [0.145, 0.022], [0.224, 
  * hem, the piping strip along its inner edge (on the body's side of it), the band's lower and upper edges at the side
  * seam (each rising `rise` towards the panel's inner edge) and the hem part's depth.
  */
-export const BB_PANEL = { top: 0.045, hem: 0.058, piping: 0.008, band: [0.195, 0.313], rise: 0.028, hemBand: 0.03 };
+// (FN10 2026-11-02, tester DT10: from the front the panel showed half the picture's width: it reaches further in.)
+export const BB_PANEL = { top: 0.06, hem: 0.076, piping: 0.008, band: [0.195, 0.313], rise: 0.028, hemBand: 0.03 };
 /** The printed parts (design.parts keys): the legs' front and back, the side panels, their band and piping, the hems. */
 export const BBALL_PARTS = ['shortsFront', 'shortsBack', 'shortsSides', 'shortsBand', 'shortsPiping', 'shortsHem'];
 /** The marks' places: the crest ("3" mark) with the club's word under it on the wearer's right leg; the number on the left leg. */

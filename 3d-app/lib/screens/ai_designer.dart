@@ -10,6 +10,8 @@ import 'package:image_picker/image_picker.dart';
 import '../ai_service.dart';
 import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
+import '../design_files.dart';
+import '../custom_choice.dart';
 import '../sports_catalog.dart';
 import '../design_document.dart' show isHoodie, isVarsity, isTrack;
 import '../export_service.dart';
@@ -83,6 +85,14 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                 onTap: () => Navigator.pop(sheet, 'camera'),
               ),
               ListTile(
+                leading: const Icon(Icons.upload_file_outlined),
+                title: const Text('Design file'),
+                subtitle: const Text(
+                  'PDF, SVG, AI, EPS, PSD, TIFF or a picture · up to 25 MB',
+                ),
+                onTap: () => Navigator.pop(sheet, 'file'),
+              ),
+              ListTile(
                 leading: const Icon(Icons.collections_outlined),
                 title: const Text('Sample references'),
                 onTap: () => Navigator.pop(sheet, 'samples'),
@@ -123,6 +133,7 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
       return;
     }
     if (choice == 'samples') return _pickSample();
+    if (choice == 'file') return _pickFile();
     return _pickImage(
       choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
     );
@@ -140,6 +151,81 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
         c.references.add(bytes);
         c.uploads.add(bytes);
       });
+    }
+  }
+
+  /// The picture button in the bar: a photo, the camera or a design file.
+  Future<void> _pickAny() async {
+    if (c.references.length >= 3) {
+      showToast(context, 'Up to 3 reference images. Remove one first.');
+      return;
+    }
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Palette.surface,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Photo library'),
+              onTap: () => Navigator.pop(sheet, 'gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Camera'),
+              onTap: () => Navigator.pop(sheet, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.upload_file_outlined),
+              title: const Text('Design file'),
+              subtitle: const Text(
+                'PDF, SVG, AI, EPS, PSD, TIFF or a picture · up to 25 MB',
+              ),
+              onTap: () => Navigator.pop(sheet, 'file'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'file') return _pickFile();
+    return _pickImage(
+      choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+    );
+  }
+
+  /// A design file (client 2026-11-02, 295.jpg): drawn as the picture the AI
+  /// reads, the file kept with it (see design_files.dart).
+  Future<void> _pickFile() async {
+    if (c.references.length >= 3) {
+      showToast(context, 'Up to 3 reference images. Remove one first.');
+      return;
+    }
+    final picked = await pickDesignFile(context);
+    if (picked == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final ref = await designReference(context, c, picked.name, picked.bytes);
+      if (ref == null || !mounted) return;
+      c.update(() {
+        c.references.add(ref.picture);
+        c.uploads.add(ref.picture);
+        c.referenceFiles[ref.picture] = ref.file;
+      });
+    } on ApiException catch (e) {
+      if (mounted) showToast(context, e.message);
+    } on Object {
+      if (mounted) {
+        showToast(
+          context,
+          '${picked.name} could not be read. Please save it as PDF, SVG or PNG.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -242,7 +328,11 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
 
   /// Generate: the sport from the tile (or the brief), the garment from the
   /// brief or a quick chip (asked only when the brief names none).
-  void _generate([String? garmentChoice, String product = '']) {
+  void _generate([
+    String? garmentChoice,
+    String product = '',
+    bool custom = false,
+  ]) {
     final text = _text.text.trim();
     if (text.isEmpty && c.references.isEmpty) {
       showToast(context, 'Describe your kit or add a reference image.');
@@ -265,6 +355,11 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
           category.split(' ').first.toLowerCase(),
         )) {
       brief = '$category: $brief';
+    }
+    // A garment typed in "Custom…" (client 2026-11-02) is named in the brief,
+    // so the AI draws it (the 3D kit uses its nearest garment).
+    if (custom && !brief.toLowerCase().contains(product.toLowerCase())) {
+      brief = '$product: $brief';
     }
     FocusScope.of(context).unfocus();
     setState(() {
@@ -289,6 +384,8 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
       // Without a style of its own: the plain (collar) track jacket, also
       // after a hooded chip earlier in this session (QA U).
       c.trackStyle = own?.trackStyle ?? 'collar';
+      c.neck = null;
+      c.fit = null;
     });
     c.go(AppScreen.generating);
   }
@@ -377,6 +474,22 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                                     name.isEmpty ? g : name,
                                     onTap: () => _generate(g, name),
                                   ),
+                                // "Custom…": a garment typed; the 3D kit uses
+                                // the nearest one we have.
+                                ActionChipPill(
+                                  customLabel,
+                                  key: const Key('ai-custom-garment'),
+                                  onTap: () async {
+                                    final name = await askCustomName(
+                                      context,
+                                      title: 'Type your garment',
+                                      uses: (n) =>
+                                          '3D preview uses ${nearestGarment(n).toLowerCase()}',
+                                    );
+                                    if (name == null || !mounted) return;
+                                    _generate(nearestGarment(name), name, true);
+                                  },
+                                ),
                               ],
                             ),
                           ),
@@ -432,6 +545,74 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
   /// The prompt bar: (+), the brief, the picture button and Generate; the
   /// attached pictures sit above the text. (No voice input: the app has no
   /// speech package.)
+  /// An attached design file: its picture, name and type (PDF · page 2 of 5),
+  /// and remove (client 2026-11-02, 295.jpg).
+  Widget _fileChip(ReferenceFile file, int i) => Container(
+    height: 48,
+    constraints: const BoxConstraints(maxWidth: 190),
+    padding: const EdgeInsets.fromLTRB(4, 4, 2, 4),
+    decoration: BoxDecoration(
+      color: const Color(0xff0a141e),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0x2bffffff)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(7),
+          child: ColoredBox(
+            color: const Color(0xffdfe6ec),
+            child: SizedBox(
+              width: 38,
+              height: 38,
+              child: artImage(bytes: c.references[i]),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                file.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                file.pages > 1
+                    ? '${file.label} · page ${file.page} of ${file.pages}'
+                    : file.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: .6,
+                  color: Palette.cyan,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Remove ${file.name}',
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+          onPressed: () => c.update(() => c.references.removeAt(i)),
+          icon: const Icon(Icons.close, size: 15),
+        ),
+      ],
+    ),
+  );
+
   Widget _bar(AiQuickSport? chosen) => Container(
     padding: const EdgeInsets.all(6),
     decoration: BoxDecoration(
@@ -448,12 +629,15 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
         if (c.references.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 for (var i = 0; i < c.references.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: SizedBox(
+                  if (c.referenceFiles[c.references[i]] case final file?)
+                    _fileChip(file, i)
+                  else
+                    SizedBox(
                       width: 48,
                       height: 48,
                       child: Stack(
@@ -483,7 +667,6 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                         ],
                       ),
                     ),
-                  ),
               ],
             ),
           ),
@@ -549,7 +732,7 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
             ),
             IconButton(
               tooltip: 'Upload a reference image',
-              onPressed: _busy ? null : () => _pickImage(ImageSource.gallery),
+              onPressed: _busy ? null : _pickAny,
               icon: const Icon(Icons.add_photo_alternate_outlined, size: 22),
             ),
             _busy
@@ -1784,114 +1967,95 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     );
   }
 
-  /// The large design in a wide frame over all the space it has (client
-  /// 2026-10-30: bigger, not so narrow), the picture centred at its own
-  /// proportions over its blurred backdrop (never cropped or stretched), with
-  /// ⋯ and full screen.
-  Widget _viewer(
-    Concept? primary,
-    int sel, {
-    required bool wide,
-  }) => LayoutBuilder(
-    builder: (context, box) {
-      final hasPicture = primary?.image != null || primary?.asset != null;
-      final ratio =
-          (primary?.image == null ? null : pictureRatio(primary!.image!)) ??
-          (primary?.image == null && primary?.asset != null
-              // The bundled sample pictures (demo mode) are landscape.
-              ? 1.5
-              : primary?.view == 'front'
-              ? 1.0
-              : 2 / 3);
-      final l = resultsLayout(
-        box.maxWidth,
-        box.maxHeight,
-        ratio,
-        picture: hasPicture,
-      );
-      final radius = BorderRadius.circular(wide ? 16 : 0);
-      return Container(
-        key: const ValueKey('design-viewer'),
-        width: box.maxWidth,
-        height: box.maxHeight,
-        foregroundDecoration: wide
-            ? BoxDecoration(
-                borderRadius: radius,
-                border: Border.all(color: Palette.cyan.withValues(alpha: .25)),
-              )
-            : null,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: radius,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    const ColoredBox(color: Color(0xff02070d)),
-                    if (hasPicture) ...[
-                      ImageFiltered(
-                        imageFilter: ui.ImageFilter.blur(
-                          sigmaX: 22,
-                          sigmaY: 22,
-                        ),
-                        child: artImage(
-                          bytes: primary!.image,
-                          asset: primary.asset,
-                        ),
-                      ),
-                      const ColoredBox(color: Color(0x99000000)),
-                    ],
-                  ],
-                ),
+  /// The large design's width / height: its own, or its view's while it is
+  /// rendered.
+  double _ratio(Concept? primary) =>
+      (primary?.image == null ? null : pictureRatio(primary!.image!)) ??
+      (primary?.image == null && primary?.asset != null
+          // The bundled sample pictures (demo mode) are landscape.
+          ? 1.5
+          : primary?.view == 'front'
+          ? 1.0
+          : 2 / 3);
+
+  /// The large design open on the page (client 2026-11-02, 303.jpg: no frame,
+  /// no blurred copy at its sides), as big as the space it has allows, at its
+  /// own proportions (never cropped or stretched), with a soft fade at its
+  /// edges and ⋯ and full screen on its top right corner.
+  Widget _viewer(Concept? primary, int sel, {required bool wide}) =>
+      LayoutBuilder(
+        builder: (context, box) {
+          final hasPicture = primary?.image != null || primary?.asset != null;
+          final l = resultsLayout(
+            box.maxWidth,
+            box.maxHeight,
+            _ratio(primary),
+            picture: hasPicture,
+          );
+          final fade = (math.min(box.maxWidth, box.maxHeight) * .022).clamp(
+            10.0,
+            24.0,
+          );
+          Widget picture = ClipRect(
+            key: ValueKey('design-$sel-picture'),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              child: KeyedSubtree(
+                key: ValueKey('design-$sel-${identityHashCode(primary)}'),
+                child: _picture(primary, big: true),
               ),
             ),
-            Positioned(
-              left: l.left,
-              top: l.top,
-              width: l.iw,
-              height: l.ih,
-              child: ClipRect(
-                key: ValueKey('design-$sel-picture'),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 240),
-                  child: KeyedSubtree(
-                    key: ValueKey('design-$sel-${identityHashCode(primary)}'),
-                    child: _picture(primary, big: true),
-                  ),
+          );
+          if (hasPicture && l.iw > fade * 2 && l.ih > fade * 2) {
+            picture = _EdgeFade(
+              fade: fade,
+              axis: Axis.horizontal,
+              child: _EdgeFade(fade: fade, axis: Axis.vertical, child: picture),
+            );
+          }
+          return SizedBox(
+            key: const ValueKey('design-viewer'),
+            width: box.maxWidth,
+            height: box.maxHeight,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: l.left,
+                  top: l.top,
+                  width: l.iw,
+                  height: l.ih,
+                  child: picture,
                 ),
-              ),
-            ),
-            if (primary != null)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Row(
-                  children: [
-                    _menu(sel),
-                    if (hasPicture) ...[
-                      const SizedBox(width: 8),
-                      _RoundButton(
-                        child: IconButton(
-                          tooltip: 'Full screen',
-                          padding: EdgeInsets.zero,
-                          onPressed: () => _fullScreen(primary),
-                          icon: const Icon(
-                            Icons.fullscreen_rounded,
-                            color: Colors.white,
-                            size: 22,
+                if (primary != null)
+                  Positioned(
+                    top: l.top + 8,
+                    right: math.max(0.0, box.maxWidth - l.left - l.iw) + 8,
+                    child: Row(
+                      children: [
+                        _menu(sel),
+                        if (hasPicture) ...[
+                          const SizedBox(width: 8),
+                          _RoundButton(
+                            child: IconButton(
+                              tooltip: 'Full screen',
+                              padding: EdgeInsets.zero,
+                              onPressed: () => _fullScreen(primary),
+                              icon: const Icon(
+                                Icons.fullscreen_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-          ],
-        ),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       );
-    },
-  );
 
   void _collapse() {
     _changeFocus.unfocus();
@@ -2042,6 +2206,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     // Wide screens: the other designs in a column at the right (240.jpg).
     final wide = width >= 720;
     final side = (width * .17).clamp(150.0, 250.0);
+    final ratio = _ratio(primary);
     return Column(
       children: [
         TopBar(
@@ -2075,106 +2240,202 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         ),
         Expanded(
           child: wide
-              ? Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(child: _viewer(primary, sel, wide: true)),
-                      const SizedBox(width: _sideGap),
-                      SizedBox(width: side, child: _others(others, wide: true)),
-                    ],
-                  ),
+              ? LayoutBuilder(
+                  // Wide (client 2026-11-02, 303.jpg): the picture at its full
+                  // height with the cards right beside it, the two centred
+                  // and the controls under both (at least 640 wide).
+                  builder: (context, box) {
+                    final group = math.min(
+                      box.maxWidth - 32,
+                      math.max(
+                        _minGroup,
+                        (box.maxHeight - 4 - _wideControls) * ratio +
+                            _sideGap +
+                            side,
+                      ),
+                    );
+                    return Center(
+                      child: SizedBox(
+                        width: group,
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: LayoutBuilder(
+                                  builder: (context, row) => Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      SizedBox(
+                                        width: math.max(
+                                          0.0,
+                                          math.min(
+                                            row.maxHeight * ratio,
+                                            group - _sideGap - side,
+                                          ),
+                                        ),
+                                        child: _viewer(
+                                          primary,
+                                          sel,
+                                          wide: true,
+                                        ),
+                                      ),
+                                      const SizedBox(width: _sideGap),
+                                      SizedBox(
+                                        width: side,
+                                        child: _others(others, wide: true),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            _controls(primary, sel, hasPicture, wide: true),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 )
               : _viewer(primary, sel, wide: false),
         ),
-        if (!wide) _others(others, wide: false),
-        TapRegion(
-          onTapOutside: (_) => _collapse(),
-          child: Padding(
-            // Wide: the controls under the large design, as wide as it.
-            padding: wide
-                ? EdgeInsets.fromLTRB(16, 10, 16 + side + _sideGap, 10)
-                : const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!_refineOpen) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GradientButton(
-                          label: c.readingBusy
-                              ? 'Reading your design…'
-                              : c.sheetBusy
-                              ? 'Drawing the print sheet…'
-                              : 'Open in 3D Designer',
-                          icon: Icons.view_in_ar_outlined,
-                          onPressed:
-                              primary == null ||
-                                  c.sheetBusy ||
-                                  c.readingBusy ||
-                                  !hasPicture
-                              ? null
-                              : _openIn3d,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      SizedBox(
-                        width: 58,
-                        height: 52,
-                        child: OutlinedButton(
-                          key: const ValueKey('download-design'),
-                          onPressed: hasPicture ? () => _download(sel) : null,
-                          style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            foregroundColor: Palette.cyan,
-                            side: BorderSide(
-                              color: Palette.cyan.withValues(alpha: .8),
-                              width: 1.5,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(13),
-                            ),
-                          ),
-                          child: Tooltip(
-                            message: 'Download design ${sel + 1}',
-                            child: const Icon(Icons.download_rounded, size: 24),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                // Clear of the 3DEEZI ASSIST button beside it.
-                Padding(
-                  padding: const EdgeInsets.only(right: 60),
-                  child: _refineBar(hasPicture && !(primary?.busy ?? true)),
-                ),
-                if (c.planError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      'More designs: ${c.planError}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Palette.muted,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
+        if (!wide) ...[
+          _others(others, wide: false),
+          _controls(primary, sel, hasPicture, wide: false),
+        ],
       ],
     );
   }
+
+  /// Open in 3D Designer and the download, then the slim refine bar (wide:
+  /// under the large design and the cards, as wide as the two).
+  Widget _controls(
+    Concept? primary,
+    int sel,
+    bool hasPicture, {
+    required bool wide,
+  }) => TapRegion(
+    onTapOutside: (_) => _collapse(),
+    child: Padding(
+      padding: wide
+          ? const EdgeInsets.fromLTRB(0, 10, 0, 10)
+          : const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!_refineOpen) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: GradientButton(
+                    label: c.readingBusy
+                        ? 'Reading your design…'
+                        : c.sheetBusy
+                        ? 'Drawing the print sheet…'
+                        : 'Open in 3D Designer',
+                    icon: Icons.view_in_ar_outlined,
+                    onPressed:
+                        primary == null ||
+                            c.sheetBusy ||
+                            c.readingBusy ||
+                            !hasPicture
+                        ? null
+                        : _openIn3d,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 58,
+                  height: 52,
+                  child: OutlinedButton(
+                    key: const ValueKey('download-design'),
+                    onPressed: hasPicture ? () => _download(sel) : null,
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      foregroundColor: Palette.cyan,
+                      side: BorderSide(
+                        color: Palette.cyan.withValues(alpha: .8),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                    child: Tooltip(
+                      message: 'Download design ${sel + 1}',
+                      child: const Icon(Icons.download_rounded, size: 24),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          // Clear of the 3DEEZI ASSIST button beside it.
+          Padding(
+            padding: const EdgeInsets.only(right: 60),
+            child: _refineBar(hasPicture && !(primary?.busy ?? true)),
+          ),
+          if (c.planError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'More designs: ${c.planError}',
+                style: const TextStyle(fontSize: 12, color: Palette.muted),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// The gap between the large design and the column of the other designs.
 const _sideGap = 20.0;
+
+/// Wide screens: about how tall the controls under the large design are, and
+/// the narrowest the large design, the cards and the controls go together.
+const _wideControls = 130.0;
+const _minGroup = 640.0;
+
+/// A soft fade to transparent at both ends of [axis], [fade] long, so the
+/// open picture does not look cut off.
+class _EdgeFade extends StatelessWidget {
+  const _EdgeFade({
+    required this.fade,
+    required this.axis,
+    required this.child,
+  });
+
+  final double fade;
+  final Axis axis;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ShaderMask(
+    blendMode: BlendMode.dstIn,
+    shaderCallback: (r) {
+      final horizontal = axis == Axis.horizontal;
+      final length = horizontal ? r.width : r.height;
+      final f = length > 0 ? (fade / length).clamp(0.0, .5) : 0.0;
+      return LinearGradient(
+        begin: horizontal ? Alignment.centerLeft : Alignment.topCenter,
+        end: horizontal ? Alignment.centerRight : Alignment.bottomCenter,
+        colors: const [
+          Color(0x00000000),
+          Color(0xff000000),
+          Color(0xff000000),
+          Color(0x00000000),
+        ],
+        stops: [0, f, 1 - f, 1],
+      ).createShader(r);
+    },
+    child: child,
+  );
+}
 
 /// A small round translucent button on the picture (⋯, full screen).
 class _RoundButton extends StatelessWidget {

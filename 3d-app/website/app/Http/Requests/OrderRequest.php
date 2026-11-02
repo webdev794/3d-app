@@ -50,7 +50,8 @@ class OrderRequest extends FormRequest
             'draft_id' => $admin ? ['prohibited'] : ['sometimes', 'nullable', 'integer'],
             'idempotency_key' => ['sometimes', 'nullable', 'string', 'regex:/^[A-Za-z0-9_-]{8,80}$/'],
             // With a players list or garment rows, the sizes are counted from them.
-            'sizes' => $byForm ? ['prohibited'] : [$names === 'list' || ($admin && $hasItems) ? 'sometimes' : $required, 'array:'.implode(',', Order::SIZES)],
+            // (A marquee from the Marquee Studio is counted by its size, Order::MARQUEE_SIZES.)
+            'sizes' => $byForm ? ['prohibited'] : [$names === 'list' || ($admin && $hasItems) ? 'sometimes' : $required, 'array:'.implode(',', [...Order::SIZES, ...Order::MARQUEE_SIZES])],
             'sizes.*' => ['integer', 'min:0', 'max:10000'],
             'contact_name' => [$required, 'string', 'max:120'],
             'contact_email' => ['sometimes', 'nullable', 'email', 'max:190'],
@@ -69,7 +70,8 @@ class OrderRequest extends FormRequest
             'items.*.file_ids' => ['sometimes', 'nullable', 'array', 'max:15'],
             'items.*.file_ids.*' => ['integer'],
             'items.*.garment' => ['required', Rule::in(array_keys(Order::GARMENTS))],
-            'items.*.sport' => ['sometimes', 'nullable', Rule::in(array_column(config('catalog.sports'), 'id'))],
+            // A catalogue sport, or one typed in "Custom…" (client 2026-11-02): plain text, up to 40 characters.
+            'items.*.sport' => ['sometimes', 'nullable', 'string', 'max:40', ProjectRequest::PLAIN_TEXT],
             'items.*.fit' => ['sometimes', 'nullable', Rule::in(array_keys(Order::FITS))],
             'items.*.label' => ['sometimes', 'nullable', 'string', 'max:60'],
             'items.*.project_id' => ['sometimes', 'nullable', 'integer'],
@@ -147,6 +149,8 @@ class OrderRequest extends FormRequest
             'items.*.garment.required' => 'Garment :position: choose a garment.',
             'items.*.garment.in' => 'Garment :position: choose a garment from the list.',
             'items.*.sport.in' => 'Garment :position: choose a sport from the list.',
+            'items.*.sport.max' => 'Garment :position: the sport can be up to 40 characters.',
+            'items.*.sport.not_regex' => 'Garment :position: type the sport as plain text.',
             'items.*.fit.in' => 'Garment :position: choose a fit from the list.',
             'items.*.label.max' => 'Garment :position: the name can be up to 60 characters.',
             'items.*.sizes.required' => 'Garment :position: add at least one size and quantity.',

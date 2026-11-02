@@ -1,0 +1,40 @@
+/* Garment style (Studio › Style, NK1 2026-11-02: client mockups images/299 and 300). */
+.garment-style h4{margin:18px 0 10px}
+.garment-style .field{display:grid;gap:7px}
+.style-product{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:42px;padding:9px 12px;border:1px solid #ffffff22;border-radius:8px;background:#0a121d;color:#edf3fa;font-weight:600;text-align:left}
+.style-product:hover{border-color:#17c8e0aa}
+.neck-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.neck-cards button{position:relative;display:grid;gap:6px;justify-items:center;padding:6px 6px 9px;border:1px solid #ffffff1c;border-radius:9px;background:#0b141f;font-family:var(--heading);font-weight:700;font-size:13px;letter-spacing:.04em;color:#dfe9f3;transition:border-color .2s,box-shadow .2s}
+.neck-cards button:hover{border-color:#17c8e088}
+.neck-cards button.selected{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan),0 0 18px #00d9ed33}
+.neck-cards .neck-art{width:100%;height:auto;border-radius:6px;background:#05080c}
+.neck-tick{position:absolute;top:6px;right:6px;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#0ea5e9;color:#fff}
+.rugby-collars{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rugby-collars button.wide{grid-column:1/-1}
+.rugby-collars button.wide .neck-art{max-width:200px}
+.neck-chosen{display:flex;align-items:center;gap:7px;margin:12px 0 2px;color:var(--cyan);font-weight:600}
+.neck-chosen svg{padding:2px;border-radius:50%;background:var(--cyan);color:#04131d}
+.garment-style .field-hint{display:flex;gap:6px;align-items:flex-start}
+.trim-swatches{display:flex;gap:12px;align-items:center}
+.trim-swatches button,.trim-own{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;border:2px solid #ffffff33;color:#04131d}
+.trim-swatches button.selected{outline:2px solid var(--cyan);outline-offset:3px}
+.trim-swatches button[aria-label=Black]{color:#fff}
+.trim-own{width:30px;height:30px;border-style:dashed}
+.more-colours{display:inline-flex;align-items:center;gap:4px;margin-top:10px;color:var(--cyan);background:none;border:0;padding:0;font-weight:600}
+.fit-options{display:grid;gap:8px}
+.fit-options button{display:grid;gap:2px;text-align:left;padding:10px 12px;border:1px solid #ffffff1c;border-radius:8px;background:#0b141f}
+.fit-options button small{color:var(--muted)}
+.fit-options button.selected{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
+.style-foot{display:flex;gap:7px;align-items:center;margin:20px 0 0;color:var(--muted);font-size:12px}
+/* NECK DETAIL: a card over the right of the 3D stage. */
+.neck-detail{position:absolute;top:14px;right:14px;z-index:4;width:min(270px,30%);padding:14px;border:1px solid #ffffff1a;border-radius:12px;background:#08101add;backdrop-filter:blur(8px);box-shadow:0 18px 40px #0008}
+.neck-detail h3{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:17px;letter-spacing:.04em}
+.neck-shot{aspect-ratio:1;border-radius:9px;overflow:hidden;background:#03060a;display:grid;place-items:center;color:var(--muted);font-size:12px;border:1px solid #ffffff14}
+.neck-shot img{width:100%;height:100%;object-fit:cover;transition:opacity .25s}
+.neck-shot.busy img{opacity:.55}
+.neck-chip{display:flex;width:max-content;max-width:100%;margin:10px auto 8px;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--cyan);border-radius:999px;font-family:var(--heading);font-weight:700;font-size:13px;letter-spacing:.04em}
+.neck-chip svg{padding:1px;border-radius:50%;background:var(--cyan);color:#04131d}
+.neck-note{margin:6px 0 0;font-size:12.5px;line-height:1.5;color:#c7d3df}
+.neck-note strong{display:block;color:#fff;font-size:14px}
+.neck-note.small{display:flex;gap:6px;color:var(--muted);font-size:11.5px}
+@media(max-width:900px){.neck-detail{width:132px;padding:8px;top:auto;bottom:66px;right:8px}.neck-detail h3{font-size:12px;margin-bottom:6px}.neck-detail .neck-note{display:none}.neck-chip{font-size:10px;padding:3px 8px;margin:6px auto 0}}

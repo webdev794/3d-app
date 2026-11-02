@@ -5,10 +5,12 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../accessory_art.dart';
 import '../ai_service.dart';
 import '../api_client.dart';
 import '../app_controller.dart';
 import '../assist.dart';
+import '../custom_choice.dart';
 import '../project_sync.dart';
 import '../sports_catalog.dart';
 import '../widgets/category_icon.dart';
@@ -17,6 +19,7 @@ import '../widgets/notification_bell.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
 import 'ai_designer.dart' show cropCrest;
+import 'signage.dart' show SignageBar;
 import 'team.dart' show TeamScreen;
 
 /// 4 · Home (client mock-up images/197.jpg, 2026-10-28): the 3DEEZI wordmark
@@ -139,6 +142,10 @@ class CreateHomeScreen extends StatelessWidget {
                             _ArtworkBar(
                               onTap: () => artworkTo3dFlow(context, c),
                             ),
+                            // SIGNAGE & MARQUEES (client 2026-11-02, the
+                            // website's menu item): marquees and signage.
+                            const SizedBox(height: 8),
+                            SignageBar(c),
                             const SizedBox(height: 8),
                             const Center(child: _AssistLink()),
                             const SizedBox(height: 4),
@@ -721,6 +728,11 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
 
   /// The quick-access filter: 'all', 'sports' or 'apparel'.
   String _filter = 'all';
+
+  /// The category a filter is turning the stage to: the ones it passes on
+  /// the way do not reset the filter (Headwear, an apparel, sits among the
+  /// sports since 2026-11-02, CP1).
+  int? _filterTarget;
   static const _tileWidth = 92.0, _tileGap = 10.0;
 
   @override
@@ -748,7 +760,11 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   void _turned(int i) {
     setState(() {
       _index = i;
-      if (_filter != 'all' && dyoSports[i].$4 != _filter) _filter = 'all';
+      final passing = _filterTarget != null && _filterTarget != i;
+      if (_filterTarget == i) _filterTarget = null;
+      if (!passing && _filter != 'all' && dyoSports[i].$4 != _filter) {
+        _filter = 'all';
+      }
     });
     // The page turns during a frame: this setState builds the row in the
     // next one (with 29 tiles, a filter change makes it longer), so reveal
@@ -801,7 +817,10 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     setState(() => _filter = f);
     if (f != 'all' && dyoSports[_index].$4 != f) {
       final first = dyoSports.indexWhere((s) => s.$4 == f);
-      if (first >= 0) _goTo(first);
+      if (first >= 0) {
+        _filterTarget = first;
+        _goTo(first);
+      }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_tiles.hasClients) _tiles.jumpTo(0);
@@ -1000,8 +1019,15 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
                 fontWeight: FontWeight.w600,
               ),
             ),
+          // "Custom…" (client 2026-11-02): a sport we do not list, typed.
+          TextButton.icon(
+            key: const Key('dyo-custom-sport'),
+            onPressed: _customSport,
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Custom… type your own sport'),
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
             child: GradientButton(
               label: 'DESIGN ${sport.$1.toUpperCase()}',
               icon: Icons.arrow_forward_rounded,
@@ -1011,6 +1037,33 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
         ],
       ),
     );
+  }
+
+  /// A typed sport: the garment step then offers every garment.
+  Future<void> _customSport() async {
+    final name = await askCustomName(
+      context,
+      title: 'Type your sport',
+      hint: 'e.g. Lacrosse, Bowling',
+    );
+    if (name == null || !mounted) return;
+    GarmentScreen.showAll.value = false;
+    widget.c.update(() {
+      final c = widget.c;
+      final back = backForSport(
+        c.sport,
+        name,
+        backName: c.backName,
+        number: c.number,
+        sampleName: c.logoText,
+      );
+      c
+        ..sport = name
+        ..backName = back.backName
+        ..number = back.number;
+      GarmentScreen.startOn(c);
+    });
+    widget.c.go(AppScreen.garment);
   }
 
   void _design() {
@@ -1209,8 +1262,10 @@ const garmentTiles = <(String, String)>[
   ('Shooting shirt', 'shooting-shirt'),
   ('Socks', 'socks'),
   ('Cap', 'cap'),
+  ('5 panel cap', 'five-panel-cap'),
   ('Skirt', 'skirt'),
   ('Bucket hat', 'bucket-hat'),
+  ('Beanie', 'beanie'),
   ('Polo', 'polo'),
   ('Polo with pocket', 'pocketpolo'),
   ('Hoodie', 'hoodie'),
@@ -1274,15 +1329,20 @@ class GarmentScreen extends StatelessWidget {
   /// Puts the tile on the kit: its 3D garment, its name and its settings.
   static void choose(AppController c, GarmentTile t, {bool plain = false}) {
     if (t.garment == null) return;
+    final was = c.garment;
     c.garment = t.garment!;
     c.productName = plain ? '' : t.name;
     // A tile without a style of its own is the plain (collar) track jacket,
     // also after a hooded tile was chosen (QA U: the hood was kept).
     c.trackStyle = t.trackStyle ?? 'collar';
+    // The tile's own neck and fit (Garment style: the picture's).
+    c.neck = null;
+    c.fit = null;
     // A tile with its own fabric type (the practice jersey's mesh) starts on it.
     if (t.fabric != null) c.fabric = t.fabric!;
     // The tile picture's look (task 9.154): the kit opens looking like it.
-    if (t.look != null) c.startLook(tileLook(t.look!, picture: t.art));
+    if (t.look != null)
+      c.startLook(tileLook(t.look!, picture: t.art), from: was);
   }
 
   /// Another 3D garment from the Studio's garment list (client 2026-10-29)
@@ -1304,12 +1364,17 @@ class GarmentScreen extends StatelessWidget {
         (pictureLooks[art] != null
             ? GarmentTile(name, '', name, image: art)
             : tiles.firstOrNull);
+    final was = c.garment;
     c.edit(() {
       c.garment = name;
       if (t == null) return;
       c.trackStyle = t.trackStyle ?? 'collar';
+      c.neck = null;
+      c.fit = null;
       if (t.fabric != null) c.fabric = t.fabric!;
-      if (t.look != null) c.startLook(tileLook(t.look!, picture: t.art));
+      if (t.look != null) {
+        c.startLook(tileLook(t.look!, picture: t.art), from: was);
+      }
     });
   }
 
@@ -1458,6 +1523,93 @@ class GarmentScreen extends StatelessWidget {
     );
   }
 
+  /// A garment typed in "Custom…" (client 2026-11-02): no tile of any sport
+  /// has its name; the 3D kit is its nearest garment.
+  static bool typed(AppController c) =>
+      c.productName.isNotEmpty &&
+      current(c) == null &&
+      !sportCategories.any((s) => s.tiles.any((t) => t.name == c.productName));
+
+  /// "Custom…", the last tile: type a garment; the 3D preview uses the
+  /// nearest one we have.
+  Widget _customTile(BuildContext context, {bool described = true}) {
+    final on = typed(c);
+    return GlowCard(
+      key: const ValueKey('garment-tile-custom'),
+      selected: on,
+      glow: on,
+      onTap: () async {
+        final name = await askCustomName(
+          context,
+          title: 'Type your garment',
+          initial: on ? c.productName : '',
+          uses: (n) => '3D preview uses ${nearestGarment(n).toLowerCase()}',
+        );
+        if (name == null) return;
+        c.update(() {
+          c.garment = nearestGarment(name);
+          c.productName = name;
+          c.trackStyle = 'collar';
+          c.neck = null;
+          c.fit = null;
+        });
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.edit_outlined, color: Palette.cyan, size: 38),
+                const SizedBox(height: 8),
+                Text(
+                  on ? c.productName.toUpperCase() : 'CUSTOM…',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Rajdhani',
+                    fontSize: 15,
+                    height: 1.05,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: .5,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    on
+                        ? '3D preview uses ${c.garment.toLowerCase()}'
+                        : 'Type your own garment.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: on
+                          ? const Color(0xff5fdcea)
+                          : const Color(0xffb7c6d6),
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (on)
+            const Positioned(
+              top: 8,
+              right: 8,
+              child: Icon(
+                Icons.check_circle_rounded,
+                color: Palette.cyan,
+                size: 22,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   SliverGrid _grid(List<Widget> children, {bool described = true}) =>
       SliverGrid.count(
         crossAxisCount: 2,
@@ -1472,7 +1624,9 @@ class GarmentScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final sport = sportNamed(c.sport);
     final title = sport?.heading ?? c.sport;
-    final heading = sport?.group == 'apparel'
+    final heading = sport?.id == 'headwear'
+        ? title
+        : sport?.group == 'apparel'
         ? '$title teamwear'
         : '$title uniforms & teamwear';
     final tiles = tilesFor(c.sport), more = moreFor(c.sport);
@@ -1552,6 +1706,7 @@ class GarmentScreen extends StatelessWidget {
                               c.productName == t.name &&
                               chosen.garment == t.garment,
                         ),
+                      _customTile(context, described: described),
                     ], described: described),
                   ),
                   if (more.isNotEmpty)
@@ -1623,7 +1778,7 @@ class GarmentScreen extends StatelessWidget {
                 GradientButton(
                   label: 'CONTINUE TO STUDIO',
                   icon: Icons.arrow_forward_rounded,
-                  onPressed: chosen == null
+                  onPressed: chosen == null && !typed(c)
                       ? null
                       : () {
                           c.update(() => c.projectName = projectNameFor(c));
@@ -1772,7 +1927,13 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
   if (!context.mounted) return;
   final choice =
       await showModalBottomSheet<
-        ({_ArtworkKind kind, String sport, String garment, bool ai})
+        ({
+          _ArtworkKind kind,
+          String sport,
+          String garment,
+          String product,
+          bool ai,
+        })
       >(
         context: context,
         isScrollControlled: true,
@@ -1791,7 +1952,12 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
         ),
       );
   if (choice == null || !context.mounted) return;
-  if (choice.ai) {
+  // A cap (bucket hat, socks, skirt): the AI preview is its own reading (its
+  // logos cut out and put on their places), not a kit redrawn as a top.
+  final accessoryAi =
+      isAccessory(choice.garment) &&
+      (choice.ai || choice.kind == _ArtworkKind.garment);
+  if (choice.ai && !accessoryAi) {
     await convertFlow(context, c, picture: bytes);
     return;
   }
@@ -1824,6 +1990,8 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
     choice.garment,
     name.replaceFirst(RegExp(r'\.[^.]*$'), ''),
   );
+  // A garment typed in "Custom…" names the kit (its 3D garment the nearest).
+  if (choice.product.isNotEmpty) c.productName = choice.product;
   // The side panels and trims take the artwork's main colour (not the
   // default cyan); a logo's kit stays plain, its sides matching the body.
   final main = look.main;
@@ -1843,6 +2011,14 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
   }
   try {
+    if (accessoryAi) {
+      say('Reading $name: its colours and logos (about 15 s)…');
+      await _accessoryOnKit(c, bytes, choice.garment);
+      say(
+        'Your logos are on the ${choice.garment.toLowerCase()}. Move or resize them in the 2D panels, then save.',
+      );
+      return;
+    }
     if (choice.kind == _ArtworkKind.garment) {
       // A mock-up or photo of a garment: the AI path of "Open in 3D Designer"
       // (task 9.116): its colours and crest read, then redrawn as a flat
@@ -1853,10 +2029,20 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
         reading = await c.ai.readDesign(
           bytes,
           sport: choice.sport,
-          garment: choice.garment,
+          garment: choice.product.isNotEmpty ? choice.product : choice.garment,
         );
       } on Object {
         reading = null;
+      }
+      // A cap (bucket hat, socks, skirt) in the picture: on that model with its
+      // own logos, never redrawn as a top (CP1).
+      if (reading != null && reading.exact && isAccessory(reading.garment)) {
+        c.garment = reading.garment;
+        await _accessoryOnKit(c, bytes, reading.garment);
+        say(
+          'Your logos are on the ${reading.garment.toLowerCase()}. Move or resize them in the 2D panels, then save.',
+        );
+        return;
       }
       if (reading != null) {
         final box = reading.crest;
@@ -1873,7 +2059,7 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
       final sheet = await c.ai.printSheet(
         bytes,
         sport: choice.sport,
-        garment: choice.garment,
+        garment: choice.product.isNotEmpty ? choice.product : choice.garment,
       );
       c.artwork.add(sheet);
       final done = await c.importDesignPicture(
@@ -1906,6 +2092,35 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
       maxSize: 1600,
     );
     final allOver = choice.kind == _ArtworkKind.allOver;
+    if (!allOver && isAccessory(choice.garment)) {
+      // A cap or bucket hat: on the front panels; socks and a skirt: their crest.
+      var aspect = 1.0;
+      try {
+        final shown = await decodeImageFromList(ProjectSync.bytes(src)!);
+        aspect = shown.width / math.max(1, shown.height);
+      } on Object {
+        aspect = 1;
+      }
+      final layer = accessoryFrontLayer(choice.garment, src, name, aspect);
+      if (layer != null) {
+        c.addLayer(layer);
+        // Its 3DEEZI marks go on the back, clear of the customer's logo (BR1).
+        final back = accessoryBackMarks(choice.garment);
+        if (back != null) {
+          c.edit(() {
+            c.logoText = '3DEEZI';
+            c.marks = {...c.marks, ...back};
+          });
+        }
+      } else {
+        final logo = ProjectSync.bytes(src);
+        if (logo != null) c.edit(() => c.logoImage = logo);
+      }
+      say(
+        'Your artwork is on the front. Drag and resize it in the 2D panels, then save.',
+      );
+      return;
+    }
     await c.placeArtwork(src, name, allOver: allOver);
     say(
       allOver
@@ -1919,6 +2134,39 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
           : 'That artwork could not go on the 3D kit.',
     );
   }
+}
+
+/// A cap (bucket hat, socks, skirt) artwork on the 3D model (CP1, client
+/// 2026-11-02): the AI reads its colours and where its logos are; each logo
+/// is cut out and put on its place (accessory_art.dart).
+Future<void> _accessoryOnKit(
+  AppController c,
+  Uint8List picture,
+  String garment,
+) async {
+  final r = await c.ai.readAccessory(picture, garment: garment);
+  final placed = await accessoryLayers(r, picture);
+  c.edit(() {
+    c.mainColor = r.main;
+    c.secondaryColor = r.trim;
+    c.accentColor = r.accent;
+    c.pattern = 'Solid';
+    c.parts = accessoryParts(r);
+    if (placed.crest != null) c.logoImage = placed.crest;
+    // The front logo cut from the artwork is the customer's: the small
+    // 3DEEZI marks go on the back, under its logo (BR1).
+    final back = accessoryBackMarks(r.garment);
+    if (placed.layers.any((l) => l['name'] == 'Front logo') && back != null) {
+      c.logoText = '3DEEZI';
+      c.marks = {...c.marks, ...back};
+    } else if (r.frontText.isNotEmpty) {
+      c.logoText = r.frontText;
+    }
+  });
+  for (final layer in placed.layers) {
+    c.addLayer(layer);
+  }
+  if (r.name.isNotEmpty) c.projectName = r.name;
 }
 
 /// The look of a picture (task 9.153), read from a small copy, no AI: a
@@ -2015,8 +2263,49 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
       ? widget.c.garment
       : _garments.first;
 
-  List<String> get _garments =>
-      sport.garments.isEmpty ? const ['Jersey'] : sport.garments;
+  /// "Custom…" (client 2026-11-02): a sport or garment typed; a typed sport
+  /// offers every garment, a typed garment uses the nearest 3D garment.
+  late bool customSport =
+      sportNamed(widget.c.sport) == null &&
+      customName(widget.c.sport).isNotEmpty;
+  bool customGarment = false;
+  late final _sportText = TextEditingController(
+    text: customSport ? customName(widget.c.sport) : '',
+  );
+  final _garmentText = TextEditingController();
+
+  @override
+  void dispose() {
+    _sportText.dispose();
+    _garmentText.dispose();
+    super.dispose();
+  }
+
+  List<String> get _garments => customSport
+      ? garmentIds.keys.toList()
+      : sport.garments.isEmpty
+      ? const ['Jersey']
+      : sport.garments;
+
+  bool get _missingName =>
+      (customSport && customName(_sportText.text).isEmpty) ||
+      (customGarment && customName(_garmentText.text).isEmpty);
+
+  Widget _typed(TextEditingController text, String label, String hint) =>
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: TextField(
+          controller: text,
+          autofocus: true,
+          maxLength: customMax,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            counterText: '',
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+      );
 
   Widget _option(_ArtworkKind k, String title, String hint) => ListTile(
     onTap: () => setState(() => kind = k),
@@ -2041,11 +2330,21 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final garments = _garments;
+    // Headwear and accessories (CP1, client 2026-11-02 "a caps section"):
+    // offered for every sport, under their own heading.
+    final garments = _garments.where((g) => !isAccessory(g)).toList();
+    final nearest = nearestGarment(_garmentText.text);
+    final accessory = !customGarment && isAccessory(garment);
+    if (accessory && kind == _ArtworkKind.layout) {
+      kind = AiService.enabled && widget.preview != null
+          ? _ArtworkKind.garment
+          : _ArtworkKind.front;
+    }
     void done(bool ai) => Navigator.pop(context, (
       kind: kind,
-      sport: sport.name,
-      garment: garment,
+      sport: customSport ? customName(_sportText.text) : sport.name,
+      garment: customGarment ? nearest : garment,
+      product: customGarment ? customName(_garmentText.text) : '',
       ai: ai,
     ));
     return SafeArea(
@@ -2080,13 +2379,16 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
               _option(
                 _ArtworkKind.garment,
                 'Picture of a garment (mockup / photo)',
-                'A mock-up or photo of the garment, front and back. AI redraws it flat and puts it on the 3D kit, sides, crest and number included. Uses AI (a small fee per picture).',
+                accessory
+                    ? 'A mock-up or artwork sheet of the cap or accessory (front, back, sides). AI reads its colours and logos and puts each logo on its place on the 3D model. Uses AI (a small fee per picture).'
+                    : 'A mock-up or photo of the garment, front and back. AI redraws it flat and puts it on the 3D kit, sides, crest and number included. Uses AI (a small fee per picture).',
               ),
-            _option(
-              _ArtworkKind.layout,
-              'Full print layout',
-              'Front, back and sleeve panels side by side. Each panel goes on its part of the garment.',
-            ),
+            if (!accessory)
+              _option(
+                _ArtworkKind.layout,
+                'Full print layout',
+                'Front, back and sleeve panels side by side. Each panel goes on its part of the garment.',
+              ),
             _option(
               _ArtworkKind.front,
               'Logo or design on the front',
@@ -2101,22 +2403,35 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
             const Text('CHOOSE THE GARMENT', style: _label),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: sport.name,
+              initialValue: customSport ? customValue : sport.name,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Sport'),
               items: [
                 for (final s in sportCategories)
                   DropdownMenuItem(value: s.name, child: Text(s.name)),
+                const DropdownMenuItem(
+                  value: customValue,
+                  child: Text(customLabel),
+                ),
               ],
               onChanged: (v) => setState(() {
-                sport = sportCategories.firstWhere((s) => s.name == v);
-                if (!_garments.contains(garment)) garment = _garments.first;
+                customSport = v == customValue;
+                if (!customSport) {
+                  sport = sportCategories.firstWhere((s) => s.name == v);
+                }
+                if (!_garments.contains(garment) && !isAccessory(garment)) {
+                  garment = _garments.first;
+                }
               }),
             ),
+            if (customSport)
+              _typed(_sportText, 'Type your sport', 'e.g. Lacrosse, Bowling'),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              key: ValueKey(sport.id),
-              initialValue: garments.contains(garment)
+              key: ValueKey('${sport.id}-$customSport'),
+              initialValue: customGarment
+                  ? customValue
+                  : garments.contains(garment) || isAccessory(garment)
                   ? garment
                   : garments.first,
               isExpanded: true,
@@ -2124,9 +2439,43 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
               items: [
                 for (final g in garments)
                   DropdownMenuItem(value: g, child: Text(g)),
+                const DropdownMenuItem(
+                  value: '__headwear',
+                  enabled: false,
+                  child: Text(
+                    'HEADWEAR & ACCESSORIES',
+                    style: TextStyle(
+                      color: Palette.cyan,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                for (final g in accessoryGarments.keys)
+                  DropdownMenuItem(value: g, child: Text(g)),
+                const DropdownMenuItem(
+                  value: customValue,
+                  child: Text(customLabel),
+                ),
               ],
-              onChanged: (v) => setState(() => garment = v ?? garment),
+              onChanged: (v) => setState(() {
+                if (v == '__headwear') return;
+                customGarment = v == customValue;
+                if (!customGarment) garment = v ?? garment;
+              }),
             ),
+            if (customGarment) ...[
+              _typed(_garmentText, 'Type your garment', customPlaceholder),
+              if (customName(_garmentText.text).isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '3D preview uses ${nearest.toLowerCase()}',
+                    key: const Key('artwork-custom-uses'),
+                    style: const TextStyle(color: Palette.cyan, fontSize: 12),
+                  ),
+                ),
+            ],
             if (widget.photo &&
                 (kind == _ArtworkKind.front || kind == _ArtworkKind.allOver))
               Padding(
@@ -2150,13 +2499,13 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
               ),
             const SizedBox(height: 14),
             FilledButton.icon(
-              onPressed: () => done(false),
+              onPressed: _missingName ? null : () => done(false),
               icon: const Icon(Icons.view_in_ar),
               label: const Text('PUT IT ON THE 3D KIT'),
             ),
             if (AiService.enabled && widget.preview != null)
               TextButton.icon(
-                onPressed: () => done(true),
+                onPressed: _missingName ? null : () => done(true),
                 icon: const Icon(Icons.auto_awesome, size: 18),
                 label: const Text('AI preview picture'),
               ),

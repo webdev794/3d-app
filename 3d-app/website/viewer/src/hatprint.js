@@ -129,7 +129,8 @@ export async function paintHatMarks(painter, design, loadImage, textOutline) {
   const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text' && !String(l.id ?? '').startsWith('kit-'));
   if (painter._logo) painter.markImage(design, 'crest', HAT_CREST, painter._logo, 0.055, 0.042);
   // No club logo yet: the 3DEEZI "3" mark (texture.js markShield draws the brand's own picture), as on the tile pictures.
-  else if (!ownArt) painter.markShield(design, 'crest', HAT_CREST, [[0, 0.024], [0.0216, 0.0132], [0.0168, -0.0144], [0, -0.024], [-0.0168, -0.0144], [-0.0216, 0.0132]], 0.0216, 0.031);
+  // (Artwork to 3D, CP1: the customer's logo on the front moves the small "3" to the back, design.marks.top_crest.)
+  else if (!ownArt || design.marks?.top_crest?.side === 'back') painter.markShield(design, 'crest', HAT_CREST, [[0, 0.024], [0.0216, 0.0132], [0.0168, -0.0144], [0, -0.024], [-0.0168, -0.0144], [-0.0216, 0.0132]], 0.0216, 0.031);
   // The club's word under it (the default 3DEEZI is the brand's own wordmark picture: texture.js markText).
   const word = (design.logoText ?? '').trim().toUpperCase();
   if (word) painter.markText(design, 'wordmark', HAT_WORD, word, 0.029, design.accent, 0.126, textOutline);

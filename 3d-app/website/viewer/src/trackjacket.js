@@ -29,7 +29,7 @@ export function pocketZipX(sgn, y) {
  * collar piece (zones.js HOOD_TOP, as a hood), the inside its lining (group 1). Returns its geometry, its piece's
  * outline on the atlas (back side) and `front(h)`: the zip's line up its front edge, h metres above the neck seam.
  */
-export function buildStandCollar(ctx) {
+export function buildStandCollar(ctx, clean = false) {
   const { poly, seam, positions, n, maxY, neck, uvBack } = ctx;
   const neckIdx = poly.map((_, i) => i).filter((i) => !seam[i] && poly[i].y > maxY - neck.drop && Math.abs(poly[i].x) < neck.half);
   const vtx = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
@@ -52,8 +52,10 @@ export function buildStandCollar(ctx) {
   const C = strip.reduce((s, q) => s.add(q.p), new THREE.Vector3()).divideScalar(strip.length);
   const up = new THREE.Vector3(0, 1, 0);
   const OUT = 11, ROLL = 6, IN = 10, ROWS = OUT + ROLL + IN;
-  const height = (g) => THREE.MathUtils.lerp(COLLAR.front, COLLAR.back, ramp(0.1, 0.8, g));
-  const outer = (h) => 0.0016 - 0.11 * Math.max(0, h);   // the outside leans in towards the neck as it rises
+  // (`clean`, the tracksuits': lower at the back and leaning in a little more, so from the stage camera above it reads as a
+  // straight band, as on their pictures.)
+  const height = (g) => THREE.MathUtils.lerp(COLLAR.front, clean ? COLLAR.front * 0.62 : COLLAR.back, ramp(0.1, 0.8, g));
+  const outer = (h) => 0.0016 - (clean ? 0.2 : 0.11) * Math.max(0, h);   // the outside leans in towards the neck as it rises
   const pos = [], uv = [], col = [], lengths = [];
   const columns = [];
   for (let c = 0; c < strip.length; c++) {
@@ -77,7 +79,7 @@ export function buildStandCollar(ctx) {
       pos.push(P.x, P.y, P.z);
       uv.push(...uvBack(hx, HOOD_TOP - v));
       // Shade: a little deeper where it meets the neck seam and on the inside.
-      const s = k < OUT ? 0.72 + 0.28 * ramp(0, 4, k) : k < OUT + ROLL ? 0.95 : 0.7;
+      const s = k < OUT ? 0.72 + 0.28 * ramp(0, 4, k) : k < OUT + ROLL ? 0.95 : clean ? 0.45 : 0.7;
       col.push(s, s, s);
       if (k === OUT + 2) lengths.push([hx, v]);
     });
@@ -123,7 +125,7 @@ export function buildTrackParts(spec, ctx) {
   const sampleFront = panelSampler(ctx, false);
   const full = { ...ctx, sampleFront };
   const hoodStyle = spec.track?.style === 'hood';
-  const collar = hoodStyle ? null : buildStandCollar(full);
+  const collar = hoodStyle ? null : buildStandCollar(full, !!spec.track?.clean);
   const hood = hoodStyle ? buildHood(full, { zip: true }) : null;
   const vtx = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
   // The hem band (split at the zip) and the cuffs.

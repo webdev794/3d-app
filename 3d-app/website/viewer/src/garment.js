@@ -276,6 +276,9 @@ SPECS.compression = {
  */
 SPECS.trackjacket = { ...SPECS.hoodie, hood: false, zip: true, fleece: { hemIn: 0.03 }, track: { style: 'collar' } };
 SPECS.trackjacketHood = { ...SPECS.trackjacket, track: { style: 'hood' } };
+// The Tracksuit tiles' jacket (FN10 2026-11-02, the user): a clean stand-up collar, as level at the back as at the zip and
+// standing straighter, so the stage's camera above does not look down into it (trackjacket.js buildStandCollar `clean`).
+SPECS.trackjacketSuit = { ...SPECS.trackjacket, track: { style: 'collar', clean: true } };
 
 /**
  * The varsity (letterman) jacket: the hoodie's long set-in sleeves (leather) on a wool body bloused into a rib
@@ -719,6 +722,9 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     const valley = 1 - (spec.loose ? (spec.legs ? 0.3 : back ? 0.18 : 0.22) : detail ? 0.31 : 0.16) * Math.min(1, Math.max(0, -crease(p, back, i) / (spec.loose ? (back && !spec.legs ? 0.007 : 0.004) : detail ? 0.0045 : 0.003)));
     // A loose top's fold ridges catch the light, as in the client's photo (the only shading above 1).
     const ridge = spec.loose && !spec.legs ? 1 + (back ? 0.26 : 0.14) * Math.min(1, Math.max(0, crease(p, back, i) / 0.004)) : 1;
+    // The netball dress: the lit ridge beside each bib crease caught by the light on both sides, as the client's evenly
+    // lit picture (the studio's key light alone leaves the wearer's left one dull: DT8).
+    const bibRidge = spec.dress && detail && !back ? 1 + 0.3 * Math.exp(-(((Math.abs(p.x) - 0.142) / 0.01) ** 2)) * ramp(0.39, 0.44, p.y) * ramp(0.58, 0.54, p.y) : 1;
     const muscles = 1 - 0.5 * THREE.MathUtils.clamp(hollow(p, back) / 0.006, 0, 1);
     let under = 1;
     if (worn.pit) {
@@ -726,7 +732,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       under = 1 - 0.3 * near - (sl ? 0.2 * ramp(-0.2, -1, Math.sin(sl.phi)) * ramp(0.08, 0, sl.l) : 0);
     }
     const collar = 1 - 0.24 * Math.exp(-(Math.max(0, nearNeck(p) - (spec.legs ? band - 0.002 : 0)) ** 2) / 0.0004);
-    return THREE.MathUtils.clamp(valley * ridge * muscles * under * collar * (worn.shade?.(p, back) ?? 1), 0.4, ridge);
+    return THREE.MathUtils.clamp(valley * ridge * bibRidge * muscles * under * collar * (worn.shade?.(p, back) ?? 1), 0.4, ridge * bibRidge);
   };
   const positions = new Float32Array(n * 2 * 3);
   const uvs = new Float32Array(n * 2 * 2);
@@ -773,7 +779,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     }
     if (!spec.chest || Math.abs(p.x) > .112 || p.y < .62) return p.y;
     // (The shooting shirt's V is deeper: its back neck is raised from its own V.)
-    const neckLine = kind === 'tee' || kind === 'raglan' || kind === 'polo' || kind === 'pocketpolo' || isHoodie(kind) || isTrack(kind) || kind === 'compression' ? .707 + Math.abs(p.x) * .42 : kind === 'shooting-shirt' ? .636 + Math.abs(p.x) * 1.13 : .672 + Math.abs(p.x) * .76;
+    // (A neck cut to another shape, Garment style › Neck style: its own line, necks.js neckCut.)
+    const neckLine = spec.neckLine ? spec.neckLine(Math.abs(p.x)) : kind === 'tee' || kind === 'raglan' || kind === 'polo' || kind === 'pocketpolo' || isHoodie(kind) || isTrack(kind) || kind === 'compression' ? .707 + Math.abs(p.x) * .42 : kind === 'shooting-shirt' ? .636 + Math.abs(p.x) * 1.13 : .672 + Math.abs(p.x) * .76;
     const weight = Math.exp(-((p.y - neckLine) ** 2) / .00072) * Math.max(0, 1 - Math.abs(p.x) / .12);
     return p.y + Math.max(0, .752 - p.y) * weight;
   };
@@ -934,6 +941,10 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     points: spec.points,
     neck,
     rimRadius: spec.rim.radius,
+    // A neck cut to another shape (necks.js): the V's tip at the front (garment metres), for the collar's stitching.
+    neckTip: spec.neckTip ?? null,
+    // The neck opening's edge on the flat panel (left to right), for its printed collar trim.
+    neckEdge: neckIdx.map((i) => ({ x: poly[i].x, y: poly[i].y })),
     rimWidth: spec.rim.width ?? (spec.legs ? 0.026 : 0.011),
     rimStand: spec.rim.stand ?? 0,
     rimOne: !!spec.rim.one,

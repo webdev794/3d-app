@@ -32,6 +32,7 @@ import '../widgets/kit_viewer_3d.dart';
 import '../widgets/own_pattern_tools.dart';
 import '../widgets/part_panel.dart';
 import '../widgets/showroom.dart';
+import '../widgets/garment_style_tool.dart';
 import '../widgets/studio_tools.dart';
 import '../widgets/ui.dart';
 import '../widgets/word_look.dart';
@@ -154,6 +155,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
           'text': 'Text',
           'numbers': 'Text',
           'garment': 'Garment',
+          'style': 'Style',
           'presets': 'Presets',
         }[value];
         if (tool == null) throw AssistError('There is no such Studio panel.');
@@ -915,6 +917,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     'Logos',
     'Text',
     'Garment',
+    'Style',
     'Part',
   };
 
@@ -1015,6 +1018,20 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     ),
     'Logos' => _LogosTool(c, onSponsor: _addSponsor, onUpload: _addLogo),
     'Text' => _TextTool(c),
+    // Garment style (NK1): the neck, the neck trim, a rugby jersey's collar
+    // and fit; More colours opens the collar's own Part panel.
+    'Style' => GarmentStyleTool(
+      c,
+      onGarment: () => _openTool('Garment'),
+      onMoreColours: () {
+        setState(() {
+          _partKey = 'collar';
+          _partAt = null;
+        });
+        _openTool('Part');
+        c.glowPart?.call({'part': 'top', 'key': 'collar'});
+      },
+    ),
     _ => _GarmentTool(c),
   };
 
@@ -1413,6 +1430,7 @@ class _ToolTabs extends StatelessWidget {
           ('Logos', Icons.shield_outlined),
           ('Text', Icons.text_fields_rounded),
           ('Garment', Icons.checkroom_outlined),
+          ('Style', Icons.dry_cleaning_outlined),
         ])
           Expanded(
             child: InkWell(

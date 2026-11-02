@@ -7,6 +7,7 @@ class ViewerHost {
     String page = 'viewer',
     String channel = 'Viewer',
     String query = '',
+    String file = 'index.html',
   });
 
   static bool get supported => false;

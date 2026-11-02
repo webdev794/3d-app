@@ -4,6 +4,7 @@ import { Download, ExternalLink, Eye, EyeOff, LoaderCircle, Lock, Paperclip, Ref
 import { ApiError, api } from '../api';
 import { MadeByFilter } from './AdminSuppliers';
 import GarmentIcon from '../components/GarmentIcon';
+import { unitWord } from '../components/orderBoardModel';
 import OrderFormReading from '../components/OrderFormReading';
 import { STAGES, StageBlocked, orderApi, uploadAdminFile, type Board, type BoardOrder, type FileKind, type OrderDetail, type OrderStatus, type StageProblem } from '../orderApi';
 import '../../css/admin-board.css';
@@ -76,7 +77,7 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
               <span className="aob-ref">{order.number}</span>
               <strong>{order.name}</strong>
               <span className="aob-garments">{order.garments.slice(0, 3).map((g, i) => g.thumbnail ? <img key={i} src={g.thumbnail} alt="" /> : <GarmentIcon key={i} garment={g.garment} />)}{order.garments.length === 0 && (order.cover ? <img src={order.cover} alt="" /> : <Paperclip size={22} />)}</span>
-              <span className="aob-meta">{order.quantity ? `${order.quantity} garment${order.quantity === 1 ? '' : 's'}` : 'Sizes in the order form'} · {order.customer?.name}</span>
+              <span className="aob-meta">{order.quantity ? `${order.quantity} ${unitWord(order.garments)}${order.quantity === 1 ? '' : 's'}` : 'Sizes in the order form'} · {order.customer?.name}</span>
               <span className={`aob-pill tone-${order.sub_status.tone}`}>{order.sub_status.label}</span>
               {order.payment ? <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}</span> : <span className="aob-pill tone-grey">No invoice</span>}
               {madeBy(order) !== '3DEEZI' && <span className="aob-pill tone-violet" data-testid="board-made-by">Made by {madeBy(order)}</span>}

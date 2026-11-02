@@ -18,6 +18,7 @@ import { PriceBreakdown, PricingChoices, type Quote as PayQuote } from '../compo
 import { OrderReviewApprove, OrderSentPanel, ReviewApproveHeader, layoutFor, paymentPath, type ReviewDesign, type ReviewFile, type ReviewGarment, type ReviewRow } from '../components/OrderReviewApprove';
 import { designRowName } from '../components/orderReviewData';
 import { moneyOr } from '../money';
+import { CUSTOM, CUSTOM_MAX, CUSTOM_PLACEHOLDER, customName, typedName } from '../customChoice';
 import { DEFAULT_LEAD_WEEKS, DeliveryFieldsCard, EMPTY_DELIVERY, MOBILE_MESSAGE, choiceDestination, dateText, deliveryErrors, deliveryPayload, deliveryText, mobileError, pickDelivery, validMobile, type DeliveryErrors, type DeliveryFields } from '../components/OrderDeliveryFields';
 import { ALL_SIZES, SET_NAMES, rareText, rowSizes, siteSize, sizeFit, sizeGroups } from '../orderSizes';
 import '../../css/order-form.css';
@@ -69,7 +70,7 @@ const WORDS: Record<string, [string, string]> = { jersey: ['jersey', 'jerseys'],
 /* ================================================================================================ the form's data */
 
 interface PlayerRow { key: string; name: string; number: string; size: string }
-interface Row { key: string; garment: string; sport: string; fit: string; label: string; project_id: number | null; sizes: Record<string, number>; players: PlayerRow[]; open: boolean; more: boolean; file_ids: number[] }
+interface Row { key: string; garment: string; sport: string; fit: string; label: string; project_id: number | null; sizes: Record<string, number>; players: PlayerRow[]; open: boolean; more: boolean; file_ids: number[]; /** "Custom…" chosen: the sport is typed (screen only; a typed sport shows it too). */ custom?: boolean }
 interface FormState { contact: ContactDetails; rows: Row[]; notes: string; pricing: PricingChoice; delivery: DeliveryFields; /** Made by: null is 3DEEZI (the default). */ supplier_id: number | null }
 
 let seq = 0;
@@ -102,7 +103,8 @@ function rowName(r: Row, o: FormOptions, project?: Project | null) {
   const product = project && project.id === r.project_id ? designRowName(project, r.garment) : '';
   if (product) return product;
   const garment = o.garments.find(g => g.id === r.garment)?.name ?? capital(r.garment);
-  const sport = o.sports.find(s => s.id === r.sport)?.name;
+  // A sport typed in "Custom…" (client 2026-11-02) as typed.
+  const sport = o.sports.find(s => s.id === r.sport)?.name ?? (r.sport.trim() || undefined);
   return sport ? `${sport} ${garment}` : garment;
 }
 const typeLabel = (r: Row) => (r.garment === 'other' ? r.label.trim() || 'Other garments' : capital((WORDS[r.garment] ?? WORDS.other)[1]));
@@ -121,7 +123,7 @@ function toOrderFields(f: FormState, sizes: string[]): FormFields {
     contact_name: f.contact.contact_name.trim(), contact_email: f.contact.contact_email.trim(), phone: f.contact.phone.trim(), team_name: f.contact.team_name.trim(), notes: f.notes.trim(),
     items: f.rows.map(r => {
       const players = r.players.filter(p => p.name.trim() || p.number).map(p => ({ name: p.name.trim(), number: p.number, ...(p.size ? { size: p.size } : {}) }));
-      return { garment: r.garment, ...(r.sport ? { sport: r.sport } : {}), ...(r.fit ? { fit: r.fit } : {}), ...(r.garment === 'other' && r.label.trim() ? { label: r.label.trim() } : {}), ...(r.project_id ? { project_id: r.project_id } : {}), sizes: cleanSizes(r.sizes, sizes), ...(players.length ? { players } : {}) };
+      return { garment: r.garment, ...(r.sport.trim() ? { sport: r.sport.trim() } : {}), ...(r.fit ? { fit: r.fit } : {}), ...(r.garment === 'other' && r.label.trim() ? { label: r.label.trim() } : {}), ...(r.project_id ? { project_id: r.project_id } : {}), sizes: cleanSizes(r.sizes, sizes), ...(players.length ? { players } : {}) };
     }),
     ...(Object.keys(pricing).length ? { pricing } : {}),
     ...deliveryPayload(f.delivery),
@@ -592,7 +594,9 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     if (i < 0 && target === 'auto') i = rows.findIndex(r => !r.project_id);
     if (i < 0) {
       if (rows.length >= MAX_ROWS) return `A form can have up to ${MAX_ROWS} garments.`;
-      rows.push(newRow({ garment, sport: options.sports.some(s => s.id === p.sport) ? p.sport : rows.at(-1)?.sport ?? firstSport, project_id: p.id, open: true }));
+      // A design's typed sport ("Custom…") is the row's sport.
+      const typed = customName((p.design as Loose | undefined)?.sportName);
+      rows.push(newRow({ garment, sport: typed || (options.sports.some(s => s.id === p.sport) ? p.sport : rows.at(-1)?.sport ?? firstSport), project_id: p.id, open: true }));
       i = rows.length - 1;
     } else rows[i] = { ...rows[i], project_id: p.id, open: true };
     setForm(f => ({ ...f, rows }));
@@ -860,8 +864,10 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
   const { shown, rare } = rowSizes(row.fit, row.sizes, row.more, options.sizes);
   const set = row.fit === 'womens' || row.fit === 'youth' ? row.fit : 'mens';
   const otherFits = (['mens', 'womens', 'youth'] as const).filter(f => f !== set && options.fits.some(o => o.id === f));
-  const value = `${row.sport}|${row.garment}`;
-  const listed = (!row.sport || options.sports.some(s => s.id === row.sport)) && options.garments.some(g => g.id === row.garment);
+  /** "Custom…" (client 2026-11-02): a sport we do not list, typed, and any of our garments (or one typed: Other). */
+  const customSport = !!row.custom || (!!row.sport && !options.sports.some(s => s.id === row.sport));
+  const value = customSport ? CUSTOM : `${row.sport}|${row.garment}`;
+  const listed = customSport || ((!row.sport || options.sports.some(s => s.id === row.sport)) && options.garments.some(g => g.id === row.garment));
   function setSize(size: string, text: string) {
     const n = Math.min(10000, Number(digits(text, 5)) || 0), sizes = { ...row.sizes };
     if (n) sizes[size] = n; else delete sizes[size];
@@ -873,10 +879,11 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
     <div className="of-row-main">
       <div className="of-row-fields">
         <OrderField label="Garment" className="of-garment">
-          <select className="op-input" value={value} autoFocus={focus} aria-label={`Garment ${index + 1}`} onChange={e => { const [sport, garment] = e.target.value.split('|'); onChange({ sport, garment }); }}>
+          <select className="op-input" value={value} autoFocus={focus} aria-label={`Garment ${index + 1}`} onChange={e => { if (e.target.value === CUSTOM) { onChange({ custom: true, sport: '' }); return; } const [sport, garment] = e.target.value.split('|'); onChange({ custom: false, sport, garment }); }}>
             {!listed && <option value={value}>{name}</option>}
             {options.sports.map(s => <optgroup key={s.id} label={s.name}>{options.garments.map(g => <option key={g.id} value={`${s.id}|${g.id}`}>{g.id === 'other' ? `${s.name}: other garment` : `${s.name} ${g.name}`}</option>)}</optgroup>)}
             <optgroup label={options.sports.length ? 'Any sport' : 'Garments'}>{options.garments.map(g => <option key={g.id} value={`|${g.id}`}>{g.id === 'other' ? 'Other garment' : g.name}</option>)}</optgroup>
+            <optgroup label="Custom"><option value={CUSTOM}>Custom…</option></optgroup>
           </select>
         </OrderField>
         <OrderField label="Fit" className="of-fit">
@@ -889,7 +896,11 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
           ? <div className="op-field of-design"><span className="op-label" id={`${id}d`}>Design</span><DesignPicker labelledBy={`${id}d`} value={row.project_id} projects={projects} options={options} signedIn={signedIn} onPick={project_id => onChange({ project_id })} onUpload={() => fileInput.current?.click()} onSignIn={onSignIn} /></div>
           : <button type="button" className="op-link of-add-sizes" onClick={() => { onChange({ open: true }); setFocusSizes(true); }}><Settings size={21} /> Add sizes</button>}
       </div>
-      {row.garment === 'other' && <OrderField label="What is it?" className="of-other"><input className="op-input" maxLength={60} value={row.label} placeholder="e.g. Long-sleeve compression top" onChange={e => onChange({ label: e.target.value })} /></OrderField>}
+      {customSport && <div className="of-custom">
+        <OrderField label="Type your sport" className="of-other"><input className="op-input" maxLength={CUSTOM_MAX} value={row.sport} placeholder="e.g. Lacrosse, Bowling" autoFocus={!row.sport} onChange={e => onChange({ sport: typedName(e.target.value) })} /></OrderField>
+        <OrderField label="Garment" className="of-other"><select className="op-input" value={row.garment} aria-label={`Garment type ${index + 1}`} onChange={e => onChange({ garment: e.target.value })}>{options.garments.map(g => <option key={g.id} value={g.id}>{g.id === 'other' ? 'Custom…' : g.name}</option>)}</select></OrderField>
+      </div>}
+      {row.garment === 'other' && <OrderField label={customSport ? 'Type your garment' : 'What is it?'} className="of-other"><input className="op-input" maxLength={60} value={row.label} placeholder={customSport ? CUSTOM_PLACEHOLDER : 'e.g. Long-sleeve compression top'} onChange={e => onChange({ label: e.target.value })} /></OrderField>}
       {row.open && <div className="of-sizes">
         <div className="of-sizes-head">
           <span className="of-sizes-label" id={`${id}s`}>Sizes &amp; quantities</span>
@@ -923,7 +934,7 @@ function DesignPicker({ labelledBy, value, projects, options, signedIn, onPick, 
   const chosen = projects?.find(p => p.id === value) ?? null;
   const items: { key: string; label: string; sub?: string; picture?: string | null; run: () => void }[] = [
     ...(value ? [{ key: 'none', label: 'No saved design', sub: 'We design it with you', run: () => onPick(null) }] : []),
-    ...(projects ?? []).map(p => ({ key: `p${p.id}`, label: p.name, sub: [options.sports.find(s => s.id === p.sport)?.name, designGarment(p.garment)].filter(Boolean).join(' · '), picture: projectPicture(p) ?? garmentPicture(PROJECT_ROWS[p.garment] ?? p.garment), run: () => onPick(p.id) })),
+    ...(projects ?? []).map(p => ({ key: `p${p.id}`, label: p.name, sub: [(p.design as Loose | undefined)?.sportName || options.sports.find(s => s.id === p.sport)?.name, (p.design as Loose | undefined)?.productName || designGarment(p.garment)].filter(Boolean).join(' · '), picture: projectPicture(p) ?? garmentPicture(PROJECT_ROWS[p.garment] ?? p.garment), run: () => onPick(p.id) })),
     { key: 'upload', label: 'Upload artwork for this garment…', sub: 'Logos, a mock-up or a reference picture', run: onUpload },
   ];
   useEffect(() => {
@@ -1082,7 +1093,7 @@ function DesignsHelper({ rows, options, projects, signedIn, onSignIn, onPick }: 
   return <div className="of-helper">
     <TargetSelect rows={rows} options={options} value={target} onChange={setTarget} extra={<option value="new">A new garment</option>} />
     <ul className="of-designs">{projects.slice(0, 24).map(p => { const pic = projectPicture(p) ?? garmentPicture(PROJECT_ROWS[p.garment] ?? p.garment); return <li key={p.id}><button type="button" onClick={() => setResult(onPick(p, target))} aria-label={`Use ${p.name}`}>
-      <span className="of-design-pic">{pic ? <img src={pic} alt="" loading="lazy" /> : <Shirt size={26} />}</span><b>{p.name}</b><small>{[options.sports.find(s => s.id === p.sport)?.name, designGarment(p.garment)].filter(Boolean).join(' · ')}</small>
+      <span className="of-design-pic">{pic ? <img src={pic} alt="" loading="lazy" /> : <Shirt size={26} />}</span><b>{p.name}</b><small>{[(p.design as Loose | undefined)?.sportName || options.sports.find(s => s.id === p.sport)?.name, (p.design as Loose | undefined)?.productName || designGarment(p.garment)].filter(Boolean).join(' · ')}</small>
     </button></li>; })}</ul>
     {result && <p className="of-helper-result is-ok" role="status"><Check size={15} /><span>{result}</span></p>}
   </div>;

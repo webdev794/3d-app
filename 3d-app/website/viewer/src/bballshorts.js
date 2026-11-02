@@ -16,7 +16,7 @@ const { waist: W, crotch: C } = BB;
  */
 export const BBALL_SHORTS = {
   half: [
-    [0, W], [0.215, W], [0.224, 0.545], [0.234, 0.515], [0.258, 0.44], [0.28, 0.374], [0.303, 0.3], [0.318, 0.259], [0.338, 0.2],
+    [0, W], [0.225, W], [0.2344, 0.545], [0.2408, 0.528], [0.2443, 0.515], [0.2536, 0.48], [0.2643, 0.44], [0.2819, 0.374], [0.303, 0.3], [0.318, 0.259], [0.338, 0.2],
     [0.352, 0.144], [0.366, 0.07], [0.374, 0.022], [0.371, 0.007], [0.355, 0.001], [0.27, 0], [0.16, 0], [0.075, 0.002],
     [0.045, 0.006], [0.036, 0.014], [0.03, 0.066], [0.022, 0.145], [0.013, 0.224], [0.005, 0.297], [0, C],
   ],
@@ -29,7 +29,7 @@ export const BBALL_SHORTS = {
   loose: true,
   depth: 0.16,
   chest: false,
-  points: { CF: [0, W], OT: [0.215, W], ST: [0.374, 0.022], IB: [0.036, 0.014], CR: [0, C] },
+  points: { CF: [0, W], OT: [0.225, W], ST: [0.374, 0.022], IB: [0.036, 0.014], CR: [0, C] },
   worn: {
     sideSeam: BB_SIDE,
     inner: BB_INNER,
@@ -41,6 +41,8 @@ export const BBALL_SHORTS = {
     // back; hardly any of the body showing through.)
     legIn: [0.026, 0.006],
     legOut: [0.27, 0.252],
+    // (FN9 2026-11-02: the legs' outer side on the same straight line as the hips, from the waist to a slightly wider hem.)
+    outLine: [[0, 0.2806], [BB.waist, 0.1689]],
     legDepth: [0.118, 0.12],
     relief: 0.12,
     seat: 0.05,

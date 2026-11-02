@@ -187,6 +187,10 @@ final class OrderView
         $attributes = $order->getAttributes();
         $snapshot = array_key_exists('design_snapshot', $attributes) ? $order->design_snapshot : null;
         $product = trim((string) (array_key_exists('kit_product', $attributes) ? self::text($attributes['kit_product']) : (is_array($snapshot) ? ($snapshot['design']['productName'] ?? null) : null)));
+        // A marquee (Signage & Marquees): one row named by its product ("Custom marquee 3 × 3 m").
+        if ($garment === 'marquee') {
+            return [['garment' => 'marquee', 'name' => $product !== '' ? $product : 'Marquee', 'quantity' => (int) $order->quantity, 'thumbnail' => $thumbnail]];
+        }
         $name = $product !== '' ? $product : ($row !== $garment ? collect(config('catalog.garments'))->firstWhere('id', $garment)['name'] ?? Order::GARMENTS[$row] : ($known ? Order::GARMENTS[$row] : 'Kit'));
 
         return [['garment' => $known ? $row : 'jersey', 'name' => $known ? $name : 'Kit', 'quantity' => (int) $order->quantity, 'thumbnail' => $thumbnail]];

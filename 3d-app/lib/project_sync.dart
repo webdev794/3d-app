@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 
 import 'ai_service.dart';
 import 'app_controller.dart';
+import 'custom_choice.dart';
 import 'design_document.dart';
+import 'garment_style.dart';
 import 'sports_catalog.dart';
 
 /// Converts projects between the app and the website's database, which
@@ -24,7 +26,11 @@ class ProjectSync {
     final garment = garments[k.garment] ?? garments[p.garment] ?? 'jersey';
     return {
       'name': _clip(p.title, 120),
-      'sport': sports[p.sport] ?? 'rugby-league',
+      // A sport typed in "Custom…" (client 2026-11-02) is kept under Training,
+      // its name in design.sportName.
+      'sport':
+          sports[p.sport] ??
+          (customName(p.sport).isNotEmpty ? customSportId : 'rugby-league'),
       'garment': garment,
       'mode': p.mode == 'AI' ? 'ai' : 'dyo',
       'thumbnail': dataUrl(p.thumbnail),
@@ -48,6 +54,9 @@ class ProjectSync {
         if (k.zoneColors.isNotEmpty) 'zoneColors': copyZones(k.zoneColors),
         // The track jacket's style (only on it: older servers refuse the field).
         if (k.garment == 'Track jacket') 'trackStyle': k.trackStyle,
+        // Garment style (only when set: older servers refuse the fields).
+        if (k.neck != null) 'neck': k.neck,
+        if (k.fit != null) 'fit': k.fit,
         if (k.patternColor != null) 'patternColor': k.patternColor,
         // Every pattern in patternColor (only when set: older servers refuse
         // the field).
@@ -58,6 +67,10 @@ class ProjectSync {
         // The sport's garment tile ("Netball dress"; only when set: older
         // servers refuse the field).
         if (k.productName.isNotEmpty) 'productName': _clip(k.productName, 60),
+        // A sport typed in "Custom…" (only when set: older servers refuse the
+        // field).
+        if (!sports.containsKey(p.sport) && customName(p.sport).isNotEmpty)
+          'sportName': customName(p.sport),
         // Colours › Fabric type, where the website reads it too (only when
         // not Standard: older servers refuse the field; app.fabric keeps it
         // for older apps).
@@ -105,7 +118,10 @@ class ProjectSync {
       title: j['name'] as String? ?? 'Untitled',
       sport:
           app['sport'] as String? ??
-          _label(sports, j['sport'] as String?, 'Rugby League'),
+          (d['sportName'] is String &&
+                  customName(d['sportName'] as String).isNotEmpty
+              ? customName(d['sportName'] as String)
+              : _label(sports, j['sport'] as String?, 'Rugby League')),
       garment: garment,
       mode: j['mode'] == 'ai' ? 'AI' : 'DYO',
       version: app['version'] as int? ?? remoteVersion,
@@ -142,6 +158,8 @@ class ProjectSync {
         zones: copyZones(d['zones']),
         zoneColors: copyZones(d['zoneColors']),
         trackStyle: d['trackStyle'] == 'hood' ? 'hood' : 'collar',
+        neck: readNeck(d['neck']),
+        fit: readFit(d['fit']),
         patternColor: d['patternColor'] is String
             ? d['patternColor'] as String
             : null,

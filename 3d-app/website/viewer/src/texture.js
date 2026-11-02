@@ -25,6 +25,7 @@ function pocketPath(c, d = 0, close = true) {
   if (close) c.closePath();
 }
 import { RAGLAN, raglanSeam } from './layout-warp.js';
+import { paintCollarPrint, collarColours } from './rugbycollars.js';
 import { SHOOT_MARKS, SHOOT_CREST, shootSeam, shootNeckline, paintShootCuffs, drawShards } from './shootingshirt.js';
 import { drawWord } from './wordart.js';
 import { BRAND_WORDMARK, BRAND_MARK } from './brandmarks.js';
@@ -32,10 +33,13 @@ import { JERSEY_BLADES, SHORTS_BLADES } from './jerseyblades.js';
 import { paintJerseySweeps, paintSingletFlows } from './jerseysweeps.js';
 import { SOCK_PARTS, paintSocks, sockTailoring, paintSockMarks, setSockLayout } from './sockprint.js';
 import { SKIRT_PARTS, paintSkirt, skirtTailoring, paintSkirtMarks } from './skirtprint.js';
+import { paintTrackPants, paintTrackPantsMarks } from './trackpants.js';
 import { BBALL_PARTS, paintBball, bballTailoring, paintBballMarks, bballZonePath } from './bballprint.js';
 import { CAP_PARTS, paintCap, capTailoring, paintCapMarks } from './capprint.js';
 import { TRIBAL } from './tribal.js';
 import { HAT_PARTS, paintHat, hatTailoring, paintHatMarks } from './hatprint.js';
+// The beanie (CP1 2026-11-02): its own print (beanieprint.js).
+import { BEANIE_PARTS, paintBeanie, beanieTailoring, paintBeanieMarks } from './beanieprint.js';
 
 /**
  * A hoodie's kangaroo pocket outline (zones.js KANGAROO) in garment metres, `d` metres inside its edge: the whole
@@ -473,8 +477,10 @@ export class KitPainter {
     if (this.kind === 'socks') return SOCK_PARTS;
     if (this.kind === 'skirt') return SKIRT_PARTS;
     if (this.kind === 'bballshorts') return BBALL_PARTS;
+    if (this.kind === 'trackpants') return [];
     if (this.kind === 'cap') return CAP_PARTS;
     if (this.kind === 'bucket-hat') return HAT_PARTS;
+    if (this.kind === 'beanie') return BEANIE_PARTS;
     return (this.partName === 'shorts' ? SHORTS_PARTS : TOP_PARTS).filter((key) => key !== 'collar' && key !== 'waistband');
   }
 
@@ -682,7 +688,8 @@ export class KitPainter {
     const look = design.marks?.[`${this.partName}_${name}`]?.look;
     const ink = /^#[0-9a-f]{6}$/i.test(own ?? '') ? own : color;
     // The default chest text 3DEEZI is the real brand wordmark (RL1); the user's own words, colour or look stay text.
-    if (name === 'wordmark' && str === '3DEEZI' && !own && !look && this._brandWord) {
+    // (The socks' small word under the "3", sockWord, too: BR1 2026-11-02.)
+    if ((name === 'wordmark' || name === 'sockWord') && str === '3DEEZI' && !own && !look && this._brandWord) {
       // (A tile's flat one-colour brand, design.zoneColors.brandInk: the Full kit picture's pale blue, FN6.)
       const flat = HEX.test(design.zoneColors?.brandInk ?? '') ? design.zoneColors.brandInk : null;
       const img = flat ? this.flatInk(this._brandWord, flat) : this._brandWord, w = Math.min(maxWidth, size * 4.2), h = (w * img.height) / img.width;
@@ -885,9 +892,10 @@ export class KitPainter {
     // The basketball shorts: their hems, waistband, piping and centre seams (bballprint.js).
     if (this.kind === 'bballshorts') return bballTailoring(this);
     // The cap: its top-stitching and the brim's rows (capprint.js).
-    if (this.kind === 'cap') return capTailoring(back);
+    if (this.kind === 'cap') return capTailoring(back, this.five);
     // The bucket hat: its rows round the crown and the brim (hatprint.js).
     if (this.kind === 'bucket-hat') return hatTailoring(back);
+    if (this.kind === 'beanie') return beanieTailoring(back);
     const shorts = this.kind === 'shorts', sleeves = SLEEVED.includes(this.kind);
     // (FN5 2026-10-30: the tee has raglan sleeves too, as all the client's tee pictures: sewn as the raglan.)
     const raglan = this.kind === 'raglan' || this.kind === 'tee';
@@ -944,17 +952,19 @@ export class KitPainter {
         seams.push((c) => { c.moveTo(dir * .2334, .035); c.quadraticCurveTo(dir * .2084, .29, dir * .2324, .496); });
       }
       // Collar: joined just below the neck trim, with two rows of stitching under it.
-      const crew = this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || longTop || this.crewNeck;
+      // (A neck cut to a V, Garment style › Neck style: its V's own tip, necks.js.)
+      const crew = !this.vNeck && (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || longTop || this.crewNeck);
+      const vTip = (this.neckTip ?? .672) - .004;
       // (The compression top: along its own neck edge, so the rows keep their depth all round; the shared curve, made for the
       // tee's neck, rose above its neck's middle and showed there as a "W": FM 2026-10-30.)
       const neckline = (drop, inset) => (this.kind === 'compression'
         ? (c) => compressionNeck(this, drop).forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)))
         : crew
         ? (c) => { c.moveTo(-.09 + inset, .745 - drop); c.quadraticCurveTo(0, (back ? .73 : .66) - drop, .09 - inset, .745 - drop); }
-        : (c) => { c.moveTo(-.089 + inset, .745 - drop); c.lineTo(0, (back ? .69 : .668) - drop); c.lineTo(.089 - inset, .745 - drop); });
+        : (c) => { c.moveTo(-.089 + inset, .745 - drop); c.lineTo(0, (back ? .69 : vTip) - drop); c.lineTo(.089 - inset, .745 - drop); });
       // The varsity's collar is sewn round its own deeper neck (varsityTailoring).
       // The shooting shirt's wider V collar band: joined further down, its V deeper.
-      if (shoot) {
+      if (shoot && !this.neckShape) {
         seams.push(shootNeckline(back, .0135));
         for (const drop of [.0165, .0205]) stitches.push(shootNeckline(back, drop));
       } else if (!varsity) {
@@ -1304,11 +1314,18 @@ export class KitPainter {
     // (ND2: the picture traced level by level: one strip per side from the armhole (thin cyan at the bust, azure at the
     // waist, cyan on the hips with a thin black edge outside), on round the side to the hem; a royal strip from under
     // the bib's corner, beside it on the hips, leaning out towards the hem; black between them lower down.)
-    const SIDE = [[0.705, 0.72, 1.0], [0.69, 0.7, 1.0], [0.62, 0.67, 0.95], [0.54, 0.63, 0.92], [0.48, 0.58, 0.9], [0.42, 0.55, 0.88],
-      [0.38, 0.53, 0.8], [0.35, 0.5, 0.735], [0.314, 0.52, 0.745], [0.278, 0.58, 0.8], [0.24, 0.66, 0.88], [0.2, 0.72, 0.98],
-      [0.15, 0.76, 1.12], [0.06, 0.79, 1.12], [-0.03, 0.81, 1.12]];
-    const INNER = [[0.42, 0.55, 0.58], [0.39, 0.46, 0.55], [0.35, 0.39, 0.475], [0.314, 0.38, 0.495], [0.278, 0.41, 0.555], [0.24, 0.46, 0.615],
-      [0.2, 0.51, 0.645], [0.12, 0.56, 0.655], [0.04, 0.6, 0.675], [-0.03, 0.67, 0.735]];
+    // (ND2 / DT8: the rows traced from the client's picture laid back onto the flat dress (bake). The strip's top
+    // carries on from the armhole binding's inner edge just above the underarm and turns in on a long diagonal (no
+    // level top edge); on the skirt the strip and the inner ribbon touch, one ribbon, until a black wedge opens
+    // between them low on the skirt.)
+    const SIDE = [[0.7, 0.94, 1.0], [0.689, 0.935, 1.0], [0.675, 0.86, 1.0], [0.66, 0.76, 1.0], [0.645, 0.71, 0.97], [0.62, 0.67, 0.95],
+      [0.54, 0.63, 0.92], [0.48, 0.58, 0.9], [0.42, 0.55, 0.88], [0.38, 0.53, 0.8], [0.35, 0.52, 0.735], [0.314, 0.54, 0.745],
+      [0.278, 0.6, 0.8], [0.26, 0.64, 0.84], [0.24, 0.67, 0.88], [0.22, 0.71, 0.93], [0.2, 0.73, 0.98], [0.18, 0.75, 1.05],
+      [0.16, 0.77, 1.12], [0.14, 0.79, 1.12], [0.12, 0.81, 1.12], [0.06, 0.81, 1.12], [-0.03, 0.81, 1.12]];
+    const INNER = [[0.4, 0.43, 0.45], [0.38, 0.42, 0.48], [0.36, 0.41, 0.515], [0.34, 0.41, 0.53], [0.32, 0.41, 0.545], [0.3, 0.42, 0.57],
+      [0.28, 0.44, 0.605], [0.26, 0.45, 0.645], [0.24, 0.47, 0.675], [0.22, 0.5, 0.715], [0.2, 0.52, 0.735], [0.18, 0.54, 0.755],
+      [0.16, 0.56, 0.765], [0.14, 0.58, 0.755], [0.12, 0.6, 0.74], [0.1, 0.6, 0.73], [0.08, 0.61, 0.72], [0.06, 0.6, 0.7],
+      [0.04, 0.62, 0.7], [-0.03, 0.64, 0.71]];
     /** An edge's share at height y (rows from the top down; smooth through them). */
     const share = (rows, k, y) => {
       let i = 0;
@@ -1398,18 +1415,14 @@ export class KitPainter {
     else {
       const AZ = '#0a74e8', top = SIDE[0][0], foot = SIDE.at(-1)[0], steps = Math.max(8, Math.round((top - foot) / 0.004));
       const clamp = (v) => Math.min(1.6, Math.max(-0.05, v));
+      // (Traced from the bake: cyan out of the binding, azure coming in from the outside on a long diagonal from the
+      // underarm, all azure by mid-bust; a cyan sliver widening from the inside at the waist to fill the strip on the
+      // hips, then giving way to azure from the outside on a long diagonal: it ends about 77 % down the dress, as the
+      // picture's. No royal in this strip: the royal is the inner ribbon beside it.)
       const pieces = [
         [AZ, () => -0.05, () => 1.6],
-        // (Measured on 284 as shares of the strip's width: cyan on the inside 65 % at the underarm, all azure just
-        // below; the cyan sliver 25 % > 60 % > 80 % from the waist to the hips; royal from the inside 10 % > 27 % > 46 %
-        // > 64 %; the outer azure 4 % > 17 % > 25 %, cyan between them to the hem.)
-        [C, () => -0.05, (y) => clamp((y - 0.55) / 0.06)],
-        [C, () => -0.05, (y) => clamp((0.52 - y) / 0.2)],
-        [AZ, (y) => clamp(1 - (0.12 - y) / 0.6), () => 1.6],
-        // (The light cyan sliver tapers to a point and ends before the hem, about 93 % down the dress as the picture:
-        // deep azure fills below it.)
-        [AZ, (y) => { const r = (0.29 - y) / 0.6, o = 1 - (0.12 - y) / 0.6; return clamp(y >= 0.17 ? 1.6 : r + (o - r) * Math.max(0, (y - 0.095) / 0.075)); }, () => 1.6],
-        [R, () => -0.05, (y) => clamp((0.29 - y) / 0.6)],
+        [C, () => -0.05, (y) => clamp((y - 0.6) / 0.08)],
+        [C, () => -0.05, (y) => clamp(Math.min((0.52 - y) / 0.2, (y - 0.185) / 0.095))],
       ];
       for (const sd of [-1, 1]) {
         const X = (u, y) => { const s1 = share(SIDE, 1, y), s2 = share(SIDE, 2, y); return sd * (s1 + (s2 - s1) * u) * this.dressHalf(y); };
@@ -1433,7 +1446,32 @@ export class KitPainter {
         g.restore();
       }
     }
-    ribbon(INNER, solid ? R : ink);
+    // The inner ribbon: royal, the azure coming in from its inner side on a long diagonal low on the skirt (all azure
+    // near the hem), as the picture.
+    if (!solid) ribbon(INNER, ink);
+    else {
+      const top = INNER[0][0], foot = INNER.at(-1)[0], steps = Math.max(8, Math.round((top - foot) / 0.004));
+      const clamp = (v) => Math.min(1.05, Math.max(-0.05, v));
+      const pieces = [[R, () => -0.05, () => 1.05], ['#0a74e8', () => -0.05, (y) => clamp((0.21 - y) / 0.12)]];
+      for (const sd of [-1, 1]) {
+        const X = (u, y) => { const s1 = share(INNER, 1, y), s2 = share(INNER, 2, y); return sd * (s1 + (s2 - s1) * u) * this.dressHalf(y); };
+        g.save();
+        g.beginPath();
+        for (let i = 0; i <= steps; i++) { const y = top - ((top - foot) * i) / steps; g.lineTo(X(1, y), y); }
+        for (let i = steps; i >= 0; i--) { const y = top - ((top - foot) * i) / steps; g.lineTo(X(0, y), y); }
+        g.closePath();
+        g.clip();
+        for (const [colour, lo, hi] of pieces) {
+          g.beginPath();
+          for (let i = 0; i <= steps; i++) { const y = top + 0.02 - ((top - foot + 0.04) * i) / steps; g.lineTo(X(Math.min(lo(y), hi(y)), y), y); }
+          for (let i = steps; i >= 0; i--) { const y = top + 0.02 - ((top - foot + 0.04) * i) / steps; g.lineTo(X(hi(y), y), y); }
+          g.closePath();
+          g.fillStyle = colour;
+          g.fill();
+        }
+        g.restore();
+      }
+    }
     g.restore();
   }
 
@@ -1657,6 +1695,16 @@ export class KitPainter {
       // The socks: their hoops, top band, heel and toe (sockprint.js), then the areas' patterns and the seams.
       // The cap: its brim, side sweeps, piping and eyelets (capprint.js), then the areas' patterns and the stitching.
       // The bucket hat: its top, brim, underside, binding and eyelets (hatprint.js), then the areas' patterns and the stitching.
+      // The beanie: its cuff, stripes and pom-pom (beanieprint.js), then the areas' patterns and its knit rows.
+      if (this.kind === 'beanie') {
+        paintBeanie(this, design, back, trim);
+        this.paintZones(design, back);
+        this.side(back);
+        const sewn = this.tailoring(back);
+        this.stitches(back, sewn.stitches, sewn.tone);
+        g.restore();
+        continue;
+      }
       if (this.kind === 'bucket-hat') {
         paintHat(this, design, back, trim);
         this.paintZones(design, back);
@@ -1682,6 +1730,13 @@ export class KitPainter {
         this.side(back);
         const sewn = this.tailoring(back);
         this.stitches(back, sewn.stitches, sewn.tone, sewn.dash);
+        g.restore();
+        continue;
+      }
+      // The track pants (trackpants.js): their side stripes and the body's colour under the waistband.
+      if (this.kind === 'trackpants') {
+        paintTrackPants(this, design, back, trim);
+        this.side(back);
         g.restore();
         continue;
       }
@@ -1814,6 +1869,12 @@ export class KitPainter {
         g.beginPath();
         compressionNeck(this, 0).forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)));
         g.stroke();
+      } else if (this.neckShape && this.neckEdge?.length > 2 && !isDress(this.kind)) {
+        // A neck cut to another shape (Garment style › Neck style, necks.js): along its own edge.
+        g.lineJoin = 'round';
+        g.beginPath();
+        this.neckEdge.forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)));
+        g.stroke();
       } else if (this.kind === 'tee' || this.kind === 'raglan' || this.kind === 'polo' || this.kind === 'pocketpolo' || this.crewNeck) {
         g.beginPath();
         g.moveTo(-0.092, 0.745);
@@ -1846,6 +1907,8 @@ export class KitPainter {
         g.lineTo(0.095, 0.745);
         g.stroke();
       }
+      // A rugby collar's prints under the neck (Garment style, rugbycollars.js): a V insert, a crossover, a button placket.
+      if (this.rugbyCollar) paintCollarPrint(this, this.rugbyCollar, collarColours(design, this.partStyle(design, 'collar')?.own ?? trim), back);
       // The compression top: thin raglan piping from the neck down to each underarm, front and back (the client's
       // picture; CF1 2026-10-29), in the trim colour.
       // (DT4: about 1 cm wide and running down the front of the chest to the underarm, as the picture's; and a stripe
@@ -1956,6 +2019,12 @@ export class KitPainter {
     // The socks: only the crest, on the shin.
     // The cap: the crest on the front panel, the club's word under it.
     // The bucket hat: the crest on the crown's front, the club's word under it.
+    if (this.kind === 'beanie') {
+      await paintBeanieMarks(this, design, loadImage, textOutline);
+      await this.paintLayers(design);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      return this.canvas;
+    }
     if (this.kind === 'bucket-hat') {
       await paintHatMarks(this, design, loadImage, textOutline);
       await this.paintLayers(design);
@@ -1969,6 +2038,12 @@ export class KitPainter {
       return this.canvas;
     }
     // The basketball shorts: the crest and word on the right leg above the hem, the number on the left (bballprint.js).
+    if (this.kind === 'trackpants') {
+      await paintTrackPantsMarks(this, design, logo, textOutline, loadImage);
+      await this.paintLayers(design);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      return this.canvas;
+    }
     if (this.kind === 'bballshorts') {
       await paintBballMarks(this, design, logo, textOutline, loadImage);
       await this.paintLayers(design);
@@ -2091,8 +2166,10 @@ export class KitPainter {
       const both = { ...design, marks: { ...own, top_frontNumber: { ...shared, ...own.top_frontNumber } } };
       // The shooting shirt: the usual back, a smaller number in the middle of the front (its picture).
       if (shoot) {
-        this.markText(design, 'name', { side: 'back', x: 0, y: 0.6 }, backName, 0.06, design.accent, 0.28, textOutline);
-        this.markText(design, 'number', { side: 'back', x: 0, y: 0.38 }, String(design.number ?? '23'), 0.24, design.accent, 0.3, textOutline);
+        // (FN10 2026-11-02, DT10: the name lower, clear of the back neck's pull, where the deep V's cut stretched its
+        // middle letters up into a spike.)
+        this.markText(design, 'name', { side: 'back', x: 0, y: 0.56 }, backName, 0.06, design.accent, 0.28, textOutline);
+        this.markText(design, 'number', { side: 'back', x: 0, y: 0.37 }, String(design.number ?? '23'), 0.24, design.accent, 0.3, textOutline);
         this.markText(both, 'frontNumber', SHOOT_MARKS.frontNumber, String(design.number ?? '23'), 0.137, design.accent, 0.115, textOutline);
       } else {
         this.markText(design, 'name', { side: 'back', x: 0, y: 0.62 }, backName, 0.055, design.accent, 0.28, textOutline);
@@ -2481,7 +2558,7 @@ export class KitPainter {
 
   /** The kit part a layer belongs to. */
   get partName() {
-    return this.kind === 'shorts' || this.kind === 'bballshorts' ? 'shorts' : 'top';
+    return this.kind === 'shorts' || this.kind === 'bballshorts' || this.kind === 'trackpants' ? 'shorts' : 'top';
   }
 
   /** User artwork and text, placed anywhere, sized and rotated (degrees, clockwise). */

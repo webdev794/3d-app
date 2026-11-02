@@ -1265,6 +1265,147 @@ class OpenAiDesigner
         ];
     }
 
+    /**
+     * The headwear and accessories artwork goes on as drawn (CP1, client 2026-11-02: a cap artwork sheet in Artwork to
+     * 3D): our 3D model of each, with what it stands for.
+     */
+    public const ACCESSORIES = [
+        'cap' => 'a baseball cap with a curved or flat brim (six-panel or five-panel ball cap, snapback, trucker, golf, cricket, club cap)',
+        'five-panel-cap' => 'a five-panel cap: one wide seamless front panel and a flat brim (camp cap)',
+        'bucket-hat' => 'a soft bucket hat with a wide brim all round',
+        'beanie' => 'a knitted beanie with a folded cuff (with or without a pom-pom)',
+        'socks' => 'team socks',
+        'skirt' => 'a skirt or skort alone',
+    ];
+
+    /**
+     * A headwear or accessory artwork (a cap sheet: front, back and side views, labels and badges) read for our 3D model
+     * (CP1): the nearest model, the colours of its parts (body, piping and brim edge, brim top and underside, lettering)
+     * and where each logo is in the picture (front, back, the wearer's left and right side), so the page can cut the
+     * logos out and put each on its place on the 3D model. One cheap planning call.
+     *
+     * @return array{garment: string, exact: bool, name: string, design: array<string, mixed>, marks: array<string, ?array<string, mixed>>, views: array<string, ?array<string, float>>}
+     */
+    public function readAccessory(string $image, string $asked): array
+    {
+        $kinds = implode('; ', array_map(fn ($id, $what) => "{$id}: {$what}", array_keys(self::ACCESSORIES), self::ACCESSORIES));
+        $string = fn (string $d) => ['type' => 'string', 'description' => $d];
+        $number = fn (string $d) => ['type' => 'number', 'description' => $d];
+        $box = fn (string $d, bool $level = false) => ['type' => 'object', 'additionalProperties' => false, 'description' => $d.' A box in fractions of the whole picture\'s width and height (0 = left/top, 1 = right/bottom) that tightly encloses that logo or label only (not the whole garment); found is false when there is none.',
+            'required' => ['found', 'x0', 'y0', 'x1', 'y1', ...($level ? ['level'] : [])],
+            'properties' => ['found' => ['type' => 'boolean'], 'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.'),
+                ...($level ? ['level' => ['type' => 'string', 'enum' => ['low', 'middle', 'high'], 'description' => 'How high it sits on the side: low (just above the band or brim), middle, high.']] : [])]];
+        $view = fn (string $d) => ['type' => 'object', 'additionalProperties' => false, 'description' => $d.' A box in fractions of the picture round that whole view of the garment; found is false when the picture has no such view.', 'required' => ['found', 'x0', 'y0', 'x1', 'y1'],
+            'properties' => ['found' => ['type' => 'boolean'], 'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.')]];
+        $text = "This picture is a client's artwork of a garment (the client chose: {$asked}). It may show several views (front, back, both sides) and separate labels or badges. Read it so the same design goes on our editable 3D model.\n"
+            ."Our 3D models: {$kinds}.\n"
+            .'Choose the nearest model; set exact to false when the picture shows something else. Take the colours exactly as they look. '
+            .'Then find each logo as it sits ON the garment views (not the separate swatches, badges or the strip at the top): the main logo or wordmark on the front, the logo on the back, '
+            .'and the label or mark on the wearer\'s left side and on the wearer\'s right side (a side view with the brim or toe pointing left shows the wearer\'s left side; pointing right, the right side). '
+            .'Read the front wordmark exactly as written.';
+        $json = $this->post('/responses', [
+            'model' => self::planningModel(),
+            'input' => [
+                ['role' => 'system', 'content' => self::SYSTEM],
+                ['role' => 'user', 'content' => [
+                    ['type' => 'input_text', 'text' => $text],
+                    ['type' => 'input_image', 'image_url' => $image],
+                ]],
+            ],
+            'text' => ['format' => ['type' => 'json_schema', 'name' => 'accessory_for_3d', 'strict' => true, 'schema' => [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'required' => ['garment', 'exact', 'name', 'mainColor', 'trimColor', 'brimColor', 'underColor', 'accentColor', 'frontText', 'front', 'back', 'left', 'right', 'frontView', 'backView'],
+                'properties' => [
+                    'garment' => ['type' => 'string', 'enum' => array_keys(self::ACCESSORIES), 'description' => 'The nearest of our 3D models.'],
+                    'exact' => ['type' => 'boolean', 'description' => 'True when the picture shows that kind of garment.'],
+                    'name' => $string('A short name for the design, max 3 words, e.g. "Mantis Cap".'),
+                    'mainColor' => $string('Hex of the body (crown, panels, leg) as seen, e.g. #0B0B0D.'),
+                    'trimColor' => $string('Hex of the piping, seam tape, brim edge or binding as seen (the main colour when there is none).'),
+                    'brimColor' => $string('Hex of the brim\'s top (the main colour when the same or when there is no brim).'),
+                    'underColor' => $string('Hex of the brim\'s underside (the brim colour when it is not shown).'),
+                    'accentColor' => $string('Hex of the front lettering as seen.'),
+                    'frontText' => $string('The front wordmark exactly as written; empty when the front logo is a symbol only.'),
+                    'front' => $box('The main logo or wordmark on the front view.'),
+                    'back' => $box('The logo on the back view (above the strap on a cap).'),
+                    'left' => $box('The label or mark on the wearer\'s left side.', true),
+                    'right' => $box('The label or mark on the wearer\'s right side.', true),
+                    'frontView' => $view('The front view of the garment.'),
+                    'backView' => $view('The back view of the garment.'),
+                ],
+            ]]],
+        ], 60);
+        $s = json_decode($this->outputText($json), true);
+        if (! is_array($s)) {
+            throw new RuntimeException('The AI could not read this artwork. Please try again.');
+        }
+
+        return self::accessoryFromReading($s, $asked);
+    }
+
+    /** Our 3D accessory from a reading of the artwork (readAccessory): its model, colours and the logos' boxes. */
+    public static function accessoryFromReading(array $s, string $asked = 'cap'): array
+    {
+        $hex = function ($value, string $fallback) {
+            $v = ltrim(trim((string) $value), '#');
+
+            return preg_match('/^[0-9a-f]{6}$/i', $v) ? '#'.strtoupper($v) : $fallback;
+        };
+        // The garment the client chose stays when it is one of ours (a cap sheet on the bucket hat is the client's call).
+        $garment = array_key_exists($asked, self::ACCESSORIES) ? $asked : (array_key_exists($s['garment'] ?? '', self::ACCESSORIES) ? $s['garment'] : 'cap');
+        $main = $hex($s['mainColor'] ?? '', '#0B1016');
+        $trim = $hex($s['trimColor'] ?? '', $main);
+        $brim = $hex($s['brimColor'] ?? '', $main);
+        $under = $hex($s['underColor'] ?? '', $brim);
+        $accent = $hex($s['accentColor'] ?? '', '#FFFFFF');
+        $clip = function ($b, float $min, float $max) {
+            if (! is_array($b) || ! ($b['found'] ?? false)) {
+                return null;
+            }
+            $x0 = max(0.0, min(1.0, (float) $b['x0']));
+            $y0 = max(0.0, min(1.0, (float) $b['y0']));
+            $x1 = max(0.0, min(1.0, (float) $b['x1']));
+            $y1 = max(0.0, min(1.0, (float) $b['y1']));
+            if ($x1 - $x0 < $min || $y1 - $y0 < $min * 0.5 || $x1 - $x0 > $max || $y1 - $y0 > $max) {
+                return null;
+            }
+
+            return ['x' => $x0, 'y' => $y0, 'w' => $x1 - $x0, 'h' => $y1 - $y0];
+        };
+        $marks = [];
+        foreach (['front', 'back', 'left', 'right'] as $k) {
+            $b = $clip($s[$k] ?? null, 0.01, 0.6);
+            if ($b && in_array($k, ['left', 'right'], true)) {
+                $b['level'] = in_array($s[$k]['level'] ?? '', ['low', 'middle', 'high'], true) ? $s[$k]['level'] : 'middle';
+            }
+            $marks[$k] = $b;
+        }
+        $parts = match ($garment) {
+            'cap', 'five-panel-cap' => ['capBrim' => ['colour' => $brim], 'capUnder' => ['colour' => $under]],
+            'bucket-hat' => ['hatBrim' => ['colour' => $brim], 'hatUnder' => ['colour' => $under]],
+            default => [],
+        };
+        $word = mb_strtoupper(mb_substr(trim(preg_replace('/\b3\s?DEEZI\b/i', '', (string) ($s['frontText'] ?? ''))), 0, 20));
+
+        return [
+            'garment' => $garment,
+            'seen' => array_key_exists($s['garment'] ?? '', self::ACCESSORIES) ? $s['garment'] : $garment,
+            'exact' => (bool) ($s['exact'] ?? true),
+            'name' => mb_substr(trim((string) ($s['name'] ?? '')), 0, 60),
+            'marks' => $marks,
+            'views' => ['front' => $clip($s['frontView'] ?? null, 0.05, 1.0), 'back' => $clip($s['backView'] ?? null, 0.05, 1.0)],
+            'design' => [
+                'garment' => $garment,
+                'main' => $main,
+                'secondary' => $trim,
+                'accent' => $accent,
+                'pattern' => 'Solid',
+                'logoText' => $word,
+                'parts' => $parts,
+            ],
+        ];
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private function conceptSchema(): array

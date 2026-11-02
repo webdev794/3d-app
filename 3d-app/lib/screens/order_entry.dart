@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
+import '../custom_choice.dart';
 import '../money.dart';
 import '../order_sizes.dart';
 import '../project_sync.dart';
@@ -586,6 +587,11 @@ class _Row {
   String garment = 'jersey', fit = 'mens';
   int? project;
 
+  /// "Custom…" (client 2026-11-02, as on the website): a sport typed, and
+  /// the name of an Other garment ("Bowling shirt").
+  bool custom = false;
+  String sport = '', label = '';
+
   /// "More sizes": the fit's rare sizes (5XL–8XL, W22–W24, 2Y–4Y).
   bool more = false;
   final Map<String, int> sizes = {};
@@ -593,7 +599,12 @@ class _Row {
   int get total => sizes.values.fold(0, (a, b) => a + b);
   Map<String, dynamic> toJson() => {
     'garment': garment,
+    if (customName(sport).isNotEmpty) 'sport': customName(sport),
     'fit': fit,
+    if (garment == 'other' && label.trim().isNotEmpty)
+      'label': label.trim().length > 60
+          ? label.trim().substring(0, 60)
+          : label.trim(),
     if (project != null) 'project_id': project,
     'sizes': {
       for (final e in sizes.entries)
@@ -1470,10 +1481,10 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                         child: DropdownButtonFormField<String>(
                           // A saved design sets the garment: show it.
                           key: ValueKey(
-                            'garment-${identityHashCode(r)}-${r.garment}',
+                            'garment-${identityHashCode(r)}-${r.garment}-${r.custom}',
                           ),
                           isExpanded: true,
-                          initialValue: r.garment,
+                          initialValue: r.custom ? customValue : r.garment,
                           decoration: const InputDecoration(
                             labelText: 'Garment',
                             isDense: true,
@@ -1484,9 +1495,19 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                                 value: e.key,
                                 child: Text(e.value),
                               ),
+                            // "Custom…" (client 2026-11-02): a sport typed.
+                            const DropdownMenuItem(
+                              value: customValue,
+                              child: Text(customLabel),
+                            ),
                           ],
-                          onChanged: (v) =>
-                              setState(() => r.garment = v ?? r.garment),
+                          onChanged: (v) => setState(() {
+                            r.custom = v == customValue;
+                            if (!r.custom) {
+                              r.garment = v ?? r.garment;
+                              r.sport = '';
+                            }
+                          }),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1517,6 +1538,57 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                       ),
                     ],
                   ),
+                  if (r.custom) ...[
+                    TextFormField(
+                      key: Key('custom-sport-$i'),
+                      initialValue: r.sport,
+                      maxLength: customMax,
+                      decoration: const InputDecoration(
+                        labelText: 'Type your sport',
+                        hintText: 'e.g. Lacrosse, Bowling',
+                        isDense: true,
+                        counterText: '',
+                      ),
+                      onChanged: (v) => r.sport = typedName(v),
+                    ),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey('custom-garment-${identityHashCode(r)}'),
+                      isExpanded: true,
+                      initialValue: r.garment,
+                      decoration: const InputDecoration(
+                        labelText: 'Garment',
+                        isDense: true,
+                      ),
+                      items: [
+                        for (final e in _garments.entries)
+                          DropdownMenuItem(
+                            value: e.key,
+                            child: Text(
+                              e.key == 'other' ? customLabel : e.value,
+                            ),
+                          ),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => r.garment = v ?? r.garment),
+                    ),
+                  ],
+                  if (r.garment == 'other')
+                    TextFormField(
+                      key: Key('custom-garment-name-$i'),
+                      initialValue: r.label,
+                      maxLength: 60,
+                      decoration: InputDecoration(
+                        labelText: r.custom
+                            ? 'Type your garment'
+                            : 'What is it?',
+                        hintText: r.custom
+                            ? customPlaceholder
+                            : 'e.g. Long-sleeve compression top',
+                        isDense: true,
+                        counterText: '',
+                      ),
+                      onChanged: (v) => r.label = typedName(v),
+                    ),
                   if (designs.isNotEmpty)
                     DropdownButtonFormField<int?>(
                       isExpanded: true,
@@ -1614,6 +1686,9 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                                       _Row()
                                         ..garment = r.garment
                                         ..project = r.project
+                                        ..custom = r.custom
+                                        ..sport = r.sport
+                                        ..label = r.label
                                         ..fit = f,
                                     ),
                                   ),

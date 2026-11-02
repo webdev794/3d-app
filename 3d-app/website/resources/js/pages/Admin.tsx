@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, Eye, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, TriangleAlert, Users, X, Clock } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type User } from '../api';
@@ -9,6 +9,7 @@ import OrderFormReading from '../components/OrderFormReading';
 import type { OrderFile, OrderItem, Payment } from '../orderApi';
 import { GarmentReviewSection, ReviewSummaryChip, artworkOf, aud, priceRowsFromPayment, reviewGarmentsFrom, reviewLayoutFor, useGarmentMockups } from '../components/OrderReviewGarments';
 import type { Project } from '../api';
+import { styleRows } from '../garmentStyle';
 import SupportPanel from './AdminSupport';
 import { LifeBuoy } from 'lucide-react';
 import { InvoicesAdmin, PricingAdmin } from './AdminPricing';
@@ -38,7 +39,7 @@ export interface Order {
 export type BackNames = 'same' | 'list' | 'none';
 /** One shirt's back: a list row has its size. */
 export interface Player { name: string; number: string; size?: string }
-interface AdminProject { id: number; name: string; sport: string; garment: string; mode: string; status: 'draft' | 'approved'; version: number; thumbnail: string | null; updated_at: string; orders_count: number; /** The sport's garment tile it was made as ("Netball dress"). */ product_name?: string | null; user?: { id: number; name: string; email: string } }
+interface AdminProject { id: number; name: string; sport: string; garment: string; mode: string; status: 'draft' | 'approved'; version: number; thumbnail: string | null; updated_at: string; orders_count: number; /** The sport's garment tile it was made as ("Netball dress"). */ product_name?: string | null; /** A sport typed in "Custom…". */ sport_name?: string | null; user?: { id: number; name: string; email: string } }
 interface Page<T> { data: T[]; current_page: number; last_page: number; total: number }
 interface TrendPoint { day: string; kits: number; orders: number }
 interface Stats { partners: number; new_partners: number; users: number; admins: number; projects: number; orders: number; approved: number; quotes: number; garments: number; revenue: number; by_status: Record<string, number>; recent: Order[]; trend: TrendPoint[]; sports: { sport: string; count: number }[] }
@@ -234,7 +235,7 @@ function ProjectsPanel({ catalog, onNotice }: { catalog: Catalog | null; onNotic
     {!result ? <div className="empty-state"><LoaderCircle className="spin" /></div> : <div className="project-cards">
       {result.data.map(p => <article key={p.id} className="project-card">
         <div className="project-thumb">{p.thumbnail ? <img src={p.thumbnail} alt="" loading="lazy" /> : <span>{garmentName(p.garment)}</span>}<span className={`status-pill s-${p.status === 'approved' ? 'delivered' : 'pending'}`}>{p.status === 'approved' ? 'Approved' : 'Draft'}</span></div>
-        <h3>{p.name}</h3><p className="muted">{sportName(p.sport)} · {p.product_name || garmentName(p.garment)} · v{p.version}</p>
+        <h3>{p.name}</h3><p className="muted">{p.sport_name || sportName(p.sport)} ·{p.product_name || garmentName(p.garment)} · v{p.version}</p>
         <p className="cell-sub" title={[p.user?.name, p.user?.email].filter(Boolean).join(' · ')}>{p.user?.name} · {p.user?.email}</p>
         <p className="cell-sub">{p.orders_count} order{p.orders_count === 1 ? '' : 's'} · updated {date(p.updated_at)}</p>
         <div className="project-actions">
@@ -515,7 +516,7 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
   const back = <Link to="/admin/orders" className="button button-outline"><ArrowLeft size={15} /> Back to orders</Link>;
   if (error) return <section className="glow-panel admin-card">{back}<p className="error-message">{error}</p></section>;
   if (!order) return <div className="empty-state"><LoaderCircle className="spin" /> Loading the order…</div>;
-  const sportName = project ? catalog?.sports.find(s => s.id === project.sport)?.name ?? project.sport : '';
+  const sportName = project ? project.design?.sportName || (catalog?.sports.find(s => s.id === project.sport)?.name ?? project.sport) : '';
   const garmentName = project ? project.design?.productName || (catalog?.garments.find(g => g.id === project.garment)?.name ?? project.garment) : '';
   const approved = project?.status === 'approved';
   // Changed after ordering: the project is at a newer version than the one ordered.
@@ -551,7 +552,7 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
         {back}
         <h2>{order.number}</h2>
         <span className={`status-pill s-${pill[1]}`} data-testid="kit-pill">{pill[0]}</span>
-        <span className="muted">Placed {date(order.created_at)} · {order.quantity} garment{order.quantity === 1 ? '' : 's'} · {orderPrice(order)}</span>
+        <span className="muted">Placed {date(order.created_at)} · {order.quantity} {project?.garment === 'marquee' ? 'marquee' : 'garment'}{order.quantity === 1 ? '' : 's'} · {orderPrice(order)}</span>
         <div className="kit-head-actions">
           <select className={`status-select s-${order.status}`} value={order.status} onChange={e => setStatus(e.target.value)} aria-label={`Status of ${order.number}`}>{STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
           {editButton}
@@ -597,6 +598,7 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
         </ul></section>
         <section className="glow-panel admin-card"><h2>Pattern and text</h2><dl className="kit-dl">
           <dt>Fabric</dt><dd>{fabricLabel({ ...d, garment: d.garment ?? project?.garment })}</dd>
+          {styleRows({ ...defaultDesign, ...d, garment: (d.garment ?? project?.garment ?? defaultDesign.garment) as Design['garment'] }, project?.sport).map(([label, value]) => <Fragment key={label}><dt>{label}</dt><dd>{value}</dd></Fragment>)}
           <dt>Pattern</dt><dd>{d.pattern || '—'}{zones.length > 0 && <small>{zones.map(([z, p]) => `${ZONE_NAMES[z] ?? z}: ${/^(data:image\/|\/|https?:)/.test(String(p)) ? 'My pattern' : p}`).join(' · ')}</small>}</dd>
           {shownImage(d.patternImage) && <><dt>Print pattern</dt><dd><img className="kit-mini" src={d.patternImage!} alt="The kit's print pattern" /></dd></>}
           <dt>Front text</dt><dd>{d.logoText || '—'}</dd>

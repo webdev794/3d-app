@@ -15,7 +15,8 @@ class SportsCatalogTest extends TestCase
         $this->assertGreaterThanOrEqual(29, count($sports));
         $this->assertSame(count($sports), count(array_unique(array_column($sports, 'id'))));
         // The old ids stay, in their old order at the front.
-        $this->assertSame(['rugby-league', 'rugby-union', 'football', 'basketball', 'netball', 'afl', 'hockey'], array_slice(array_column($sports, 'id'), 0, 7));
+        // HEADWEAR next to AFL (CP1, client mockup images/296.jpg).
+        $this->assertSame(['rugby-league', 'rugby-union', 'football', 'basketball', 'netball', 'afl', 'headwear', 'hockey'], array_slice(array_column($sports, 'id'), 0, 8));
         foreach (['training', 'american-football', 'golf', 'tennis', 'athletics', 'swimming', 'darts', 'fight-wear', 'fishing', 'workwear'] as $id) {
             $this->assertContains($id, array_column($sports, 'id'));
         }
@@ -42,7 +43,7 @@ class SportsCatalogTest extends TestCase
     public function test_the_public_catalogue_lists_them_with_their_garments(): void
     {
         $this->getJson('/api/v1/catalog')->assertOk()
-            ->assertJsonPath('data.sports.7.id', 'american-football')
-            ->assertJsonPath('data.sports.7.garments.0', 'fullkit')->assertJsonPath('data.sports.7.garments.1', 'nfljersey'); // the client's list starts with Game Kit (images/165.jpg)
+            ->assertJsonPath('data.sports.8.id', 'american-football')
+            ->assertJsonPath('data.sports.8.garments.0', 'fullkit')->assertJsonPath('data.sports.8.garments.1', 'nfljersey'); // the client's list starts with Game Kit (images/165.jpg)
     }
 }

@@ -102,7 +102,7 @@ export function fabricOf(kind, part, chosen) {
   if (chosen === 'Smooth') return 'smoothmatt';
   if (part?.hoodie) return 'fleece';
   if (part?.track) return 'knit';
-  return { jersey: 'mesh', nfljersey: 'mesh', 'shooting-shirt': 'mesh', compression: 'stretch', socks: 'sockrib', skirt: 'interlock', cap: 'twill', 'bucket-hat': 'twill', singlet: 'mesh', shorts: 'mesh', bballshorts: 'mesh', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
+  return { jersey: 'mesh', nfljersey: 'mesh', 'shooting-shirt': 'shootmesh', compression: 'stretch', socks: 'sockrib', trackpants: 'smoothmatt', skirt: 'interlock', cap: 'twill', 'bucket-hat': 'twill', beanie: 'sockrib', singlet: 'mesh', shorts: 'mesh', bballshorts: 'mesh', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
 }
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -152,8 +152,11 @@ const FABRICS = {
   // The socks' rib knit (SK1): soft upright ribs about 3.5 mm apart, their knit loops along them and a little fuzz;
   // matt, with a soft fibre sheen at the edges and no plastic shine. (FN4 2026-10-30: a weaker neutral sheen, so the
   // top of the foot stays black under the overhead light, not blue-grey, as in the pictures.)
-  sockrib: { tile: 0.007, scale: 1.25, cavity: 0.2, rough: 0.97, sheen: 0.22, sheenRough: 0.85, sheenColor: 0x80848a, clearcoat: 0, strength: 3.5, make: () => { const fuzz = valueNoise(24, 11); return { height: (u, v) => 0.5 + 0.36 * Math.cos(4 * Math.PI * u) + 0.08 * Math.cos(2 * Math.PI * (6 * v + 2 * Math.abs(((2 * u) % 1) - 0.5))) + 0.12 * (fuzz(u, v) - 0.5), cavity: null }; } },
+  // (FN10 2026-11-02, tester DT10: the sheen made the top of the foot read grey-blue under the overhead lights; none.)
+  sockrib: { tile: 0.007, scale: 1.25, cavity: 0.2, rough: 0.97, sheen: 0, sheenRough: 0.85, sheenColor: 0x80848a, clearcoat: 0, strength: 3.5, make: () => { const fuzz = valueNoise(24, 11); return { height: (u, v) => 0.5 + 0.36 * Math.cos(4 * Math.PI * u) + 0.08 * Math.cos(2 * Math.PI * (6 * v + 2 * Math.abs(((2 * u) % 1) - 0.5))) + 0.12 * (fuzz(u, v) - 0.5), cavity: null }; } },
   mesh: { tile: 0.0336, scale: 0.75, cavity: 0.22, rough: 0.6, sheen: 0.48, sheenRough: 0.38, strength: 4, make: () => eyelets(8, 0.3) },
+  // (FN10 2026-11-02, DT10: the shooting shirt's mesh with hardly any sheen, so its cyan and royal stay deep on the stage.)
+  shootmesh: { tile: 0.0336, scale: 0.75, cavity: 0.22, rough: 0.6, sheen: 0.1, sheenRough: 0.5, sheenColor: 0x80848a, strength: 4, make: () => eyelets(8, 0.3) },
   // Bird's-eye knit: the same, finer and with small holes.
   birdseye: { tile: 0.0224, scale: 0.75, cavity: 0.2, rough: 0.62, sheen: 0.5, sheenRough: 0.4, strength: 3.5, make: () => eyelets(8, 0.2) },
   // Piqué: small raised honeycomb cells.
@@ -419,14 +422,15 @@ export function hdrBackdrop(canvas, scale = 1) {
   const src = g.getImageData(0, 0, w, h).data;
   const linear = new Float32Array(256);
   for (let i = 0; i < 256; i++) { const s = i / 255; linear[i] = s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }
-  const data = new Uint16Array(w * h * 4), half = THREE.DataUtils.toHalfFloat, one = half(1);
+  // Alpha 0: the frame's alpha then tells the stadium (0) from the kit and the stage (1), for the calm pass (main.js).
+  const data = new Uint16Array(w * h * 4), half = THREE.DataUtils.toHalfFloat, alpha = half(0);
   for (let y = 0; y < h; y++) {
     const row = (h - 1 - y) * w;   // a data texture's rows go bottom up
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4, o = (row + x) * 4;
       const r = linear[src[i]], gg = linear[src[i + 1]], b = linear[src[i + 2]];
       const t = smooth(0.5, 0.95, 0.2126 * r + 0.7152 * gg + 0.0722 * b), boost = 1 + 7 * t * t;
-      data[o] = half(r * boost); data[o + 1] = half(gg * boost); data[o + 2] = half(b * boost); data[o + 3] = one;
+      data[o] = half(r * boost); data[o + 1] = half(gg * boost); data[o + 2] = half(b * boost); data[o + 3] = alpha;
     }
   }
   const texture = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.HalfFloatType);

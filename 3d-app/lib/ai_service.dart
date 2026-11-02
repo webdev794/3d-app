@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
+import 'accessory_art.dart';
 import 'sports_catalog.dart';
 
 /// Supplied at build time: `--dart-define=OPENAI_API_KEY=...`. When it is
@@ -48,6 +49,7 @@ const designSports = [
   'Basketball',
   'Soccer',
   'AFL',
+  'Headwear',
   'Netball',
   'Rugby Union',
   'Ice Hockey',
@@ -1549,6 +1551,183 @@ class AiService {
       throw AiException('The AI could not read this design. Please try again.');
     }
     return DesignReading.fromJson(out, sport: sport, asked: garment);
+  }
+
+  /// Artwork to 3D for a cap or other accessory (CP1, client 2026-11-02), as
+  /// the website's /ai/accessory/read: the artwork (front, back and side
+  /// views, labels, badges) read for our 3D model: its parts' colours and
+  /// where its front, back and side logos are (one cheap call).
+  Future<AccessoryReading> readAccessory(
+    Uint8List picture, {
+    required String garment,
+  }) async {
+    final kinds = {
+      'cap':
+          'a baseball cap with a curved or flat brim (six-panel or five-panel '
+          'ball cap, snapback, trucker, golf, cricket, club cap)',
+      'five-panel-cap':
+          'a five-panel cap: one wide seamless front panel and a flat brim '
+          '(camp cap)',
+      'bucket-hat': 'a soft bucket hat with a wide brim all round',
+      'beanie':
+          'a knitted beanie with a folded cuff (with or without a pom-pom)',
+      'socks': 'team socks',
+      'skirt': 'a skirt or skort alone',
+    };
+    Map<String, Object> str(String d) => {'type': 'string', 'description': d};
+    Map<String, Object> number(String d) => {
+      'type': 'number',
+      'description': d,
+    };
+    Map<String, Object> box(String d, {bool level = false}) => {
+      'type': 'object',
+      'additionalProperties': false,
+      'description':
+          "$d A box in fractions of the whole picture's width and height (0 = "
+          'left/top, 1 = right/bottom) that tightly encloses that logo or '
+          'label only (not the whole garment); found is false when there is '
+          'none.',
+      'required': ['found', 'x0', 'y0', 'x1', 'y1', if (level) 'level'],
+      'properties': {
+        'found': {'type': 'boolean'},
+        'x0': number('Left edge.'),
+        'y0': number('Top edge.'),
+        'x1': number('Right edge.'),
+        'y1': number('Bottom edge.'),
+        if (level)
+          'level': {
+            'type': 'string',
+            'enum': ['low', 'middle', 'high'],
+            'description':
+                'How high it sits on the side: low (just above the band or '
+                'brim), middle, high.',
+          },
+      },
+    };
+    Map<String, Object> view(String d) => {
+      'type': 'object',
+      'additionalProperties': false,
+      'description':
+          '$d A box in fractions of the picture round that whole view of the '
+          'garment; found is false when the picture has no such view.',
+      'required': ['found', 'x0', 'y0', 'x1', 'y1'],
+      'properties': {
+        'found': {'type': 'boolean'},
+        'x0': number('Left edge.'),
+        'y0': number('Top edge.'),
+        'x1': number('Right edge.'),
+        'y1': number('Bottom edge.'),
+      },
+    };
+    final asked = accessoryGarments[garment] ?? 'cap';
+    final text =
+        "This picture is a client's artwork of a garment (the client chose: "
+        '$asked). It may show several views (front, back, both sides) and '
+        'separate labels or badges. Read it so the same design goes on our '
+        'editable 3D model.\nOur 3D models: '
+        '${kinds.entries.map((e) => '${e.key}: ${e.value}').join('; ')}.\n'
+        'Choose the nearest model; set exact to false when the picture shows '
+        'something else. Take the colours exactly as they look. Then find each '
+        'logo as it sits ON the garment views (not the separate swatches, '
+        'badges or the strip at the top): the main logo or wordmark on the '
+        'front, the logo on the back, and the label or mark on the wearer\'s '
+        'left side and on the wearer\'s right side (a side view with the brim '
+        "or toe pointing left shows the wearer's left side; pointing right, "
+        'the right side). Read the front wordmark exactly as written.';
+    final json = await _post('/responses', {
+      'model': textModel,
+      'input': [
+        {'role': 'system', 'content': _system},
+        {
+          'role': 'user',
+          'content': _content(text, [picture]),
+        },
+      ],
+      'text': {
+        'format': {
+          'type': 'json_schema',
+          'name': 'accessory_for_3d',
+          'strict': true,
+          'schema': {
+            'type': 'object',
+            'additionalProperties': false,
+            'required': [
+              'garment',
+              'exact',
+              'name',
+              'mainColor',
+              'trimColor',
+              'brimColor',
+              'underColor',
+              'accentColor',
+              'frontText',
+              'front',
+              'back',
+              'left',
+              'right',
+              'frontView',
+              'backView',
+            ],
+            'properties': {
+              'garment': {
+                'type': 'string',
+                'enum': kinds.keys.toList(),
+                'description': 'The nearest of our 3D models.',
+              },
+              'exact': {
+                'type': 'boolean',
+                'description':
+                    'True when the picture shows that kind of garment.',
+              },
+              'name': str(
+                'A short name for the design, max 3 words, e.g. "Mantis Cap".',
+              ),
+              'mainColor': str(
+                'Hex of the body (crown, panels, leg) as seen, e.g. #0B0B0D.',
+              ),
+              'trimColor': str(
+                'Hex of the piping, seam tape, brim edge or binding as seen '
+                '(the main colour when there is none).',
+              ),
+              'brimColor': str(
+                "Hex of the brim's top (the main colour when the same or when "
+                'there is no brim).',
+              ),
+              'underColor': str(
+                "Hex of the brim's underside (the brim colour when it is not "
+                'shown).',
+              ),
+              'accentColor': str('Hex of the front lettering as seen.'),
+              'frontText': str(
+                'The front wordmark exactly as written; empty when the front '
+                'logo is a symbol only.',
+              ),
+              'front': box('The main logo or wordmark on the front view.'),
+              'back': box(
+                'The logo on the back view (above the strap on a cap).',
+              ),
+              'left': box(
+                "The label or mark on the wearer's left side.",
+                level: true,
+              ),
+              'right': box(
+                "The label or mark on the wearer's right side.",
+                level: true,
+              ),
+              'frontView': view('The front view of the garment.'),
+              'backView': view('The back view of the garment.'),
+            },
+          },
+        },
+      },
+    });
+    final out = jsonDecode(_outputText(json));
+    if (out is! Map<String, dynamic>) {
+      throw AiException(
+        'The AI could not read this artwork. Please try again.',
+      );
+    }
+    return AccessoryReading.fromJson(out, garment);
   }
 
   /// "Ask 3DEEZI to change anything": applies a plain-language request to

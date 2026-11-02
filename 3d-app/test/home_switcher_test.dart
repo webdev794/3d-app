@@ -68,18 +68,19 @@ void main() {
 
   tearDown(() {
     HomeSwitcher.debugTimeFrames = false;
-    HomeSwitcher.bubbleByDefault = kBubbleHomeDefault;
+    HomeSwitcher.debugBubbleByDefault = null;
   });
 
   test('the classic home stays the default until the bubble passes testing '
       '(flip this with kBubbleHomeDefault)', () {
     expect(kBubbleHomeDefault, isFalse);
+    expect(HomeSwitcher.bubbleByDefault, isFalse);
   });
 
   testWidgets('default off: no saved choice on a phone shows the classic home '
       'with Try the new home', (tester) async {
     device({});
-    HomeSwitcher.bubbleByDefault = false;
+    HomeSwitcher.debugBubbleByDefault =false;
     await mountHome(tester);
     expect(classic, findsOneWidget);
     expect(bubble, findsNothing);
@@ -92,7 +93,7 @@ void main() {
     tester,
   ) async {
     device({});
-    HomeSwitcher.bubbleByDefault = true;
+    HomeSwitcher.debugBubbleByDefault =true;
     await mountHome(tester);
     expect(bubble, findsOneWidget);
     expect(classic, findsNothing);
@@ -102,7 +103,7 @@ void main() {
   testWidgets('default on: animations off (reduced motion) shows the classic '
       'home', (tester) async {
     device({});
-    HomeSwitcher.bubbleByDefault = true;
+    HomeSwitcher.debugBubbleByDefault =true;
     await mountHome(tester, reduceMotion: true);
     expect(classic, findsOneWidget);
     expect(bubble, findsNothing);
@@ -113,7 +114,7 @@ void main() {
 
   testWidgets('Classic view is remembered after a reload', (tester) async {
     device({});
-    HomeSwitcher.bubbleByDefault = true;
+    HomeSwitcher.debugBubbleByDefault =true;
     await mountHome(tester);
     expect(bubble, findsOneWidget);
     await tester.tap(find.text('Classic view'));
@@ -153,7 +154,7 @@ void main() {
     tester,
   ) async {
     device({HomeSwitcher.styleKey: HomeSwitcher.classicAuto});
-    HomeSwitcher.bubbleByDefault = true;
+    HomeSwitcher.debugBubbleByDefault =true;
     await mountHome(tester);
     expect(classic, findsOneWidget);
     await tester.tap(tryNew);
@@ -167,7 +168,7 @@ void main() {
     tester,
   ) async {
     device({HomeSwitcher.styleKey: HomeSwitcher.bubble});
-    HomeSwitcher.bubbleByDefault = true;
+    HomeSwitcher.debugBubbleByDefault =true;
     await mountHome(tester, size: tablet);
     expect(classic, findsOneWidget);
     expect(bubble, findsNothing);
@@ -177,7 +178,7 @@ void main() {
   testWidgets('default on: a slow phone moves to the classic home once, with '
       'a note', (tester) async {
     device({});
-    HomeSwitcher.bubbleByDefault = true;
+    HomeSwitcher.debugBubbleByDefault =true;
     HomeSwitcher.debugTimeFrames = true;
     await mountHome(tester);
     expect(bubble, findsOneWidget);

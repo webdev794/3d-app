@@ -91,6 +91,10 @@ class AiSportRulesTest extends TestCase
             $prompt = OpenAiDesigner::mockupPrompt('A kit', $name, 'Jersey', 1);
             if ($marks['positions']) {
                 $this->assertNetballRules($prompt, $sport['id']);
+            } elseif (! $marks['names'] && ! $marks['numbers']) {
+                // Headwear (CP1, client mockup 296.jpg): no player names or numbers on caps, hats and beanies.
+                $this->assertStringContainsString('This sport has no player names and no numbers: never put a player name or any number anywhere', $prompt, $sport['id']);
+                $this->assertStringNotContainsString('large player number', $prompt, $sport['id']);
             } else {
                 $this->assertStringContainsString('the back carries the team name in bold athletic lettering over a large player number (for example 01)', $prompt, $sport['id']);
             }

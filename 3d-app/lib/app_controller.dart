@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'ai_service.dart';
 import 'api_client.dart';
 import 'design_document.dart';
+import 'design_files.dart';
+import 'garment_style.dart';
 import 'own_patterns.dart';
 import 'project_store.dart';
 import 'project_sync.dart';
@@ -63,6 +65,8 @@ class KitState {
     this.zones = const {},
     this.zoneColors = const {},
     this.trackStyle = 'collar',
+    this.neck,
+    this.fit,
     this.patternColor,
     this.patternColorOwn,
     this.parts = const {},
@@ -90,6 +94,10 @@ class KitState {
 
   /// The track jacket's style: 'collar' (its stand-up collar) or 'hood'.
   final String trackStyle;
+
+  /// Garment style (garment_style.dart): the neck ('round', 'v' or a rugby
+  /// collar) and a rugby jersey's fit; null = the garment's own.
+  final String? neck, fit;
 
   /// The pattern's own colour ('#rrggbb', the website's PATTERN); null = a
   /// blend of the primary and secondary.
@@ -209,6 +217,10 @@ class AppController extends ChangeNotifier {
   String brief = '';
   final List<Uint8List> references = [];
 
+  /// The design file a reference picture was drawn from, with its name and
+  /// type for the chip (client 2026-11-02: PDF, SVG, AI, EPS, PSD…).
+  final referenceFiles = Expando<ReferenceFile>('reference file');
+
   /// The sport and garment chosen on the AI Designer (a sports tile, the
   /// brief's own words or a garment chip), or null to let the AI pick.
   String? aiSport, aiGarment;
@@ -301,6 +313,10 @@ class AppController extends ChangeNotifier {
         'sport': aiSport ?? sport,
         'garment': aiGarment ?? garment,
         'source': 'app',
+        // Design files attached to the brief: kept in Assets with their
+        // pictures (once), so the session keeps them.
+        if (await _designReferenceIds() case final ids when ids.isNotEmpty)
+          'reference_ids': ids,
         'options': [
           for (final (i, o) in list.indexed)
             {
@@ -320,6 +336,28 @@ class AppController extends ChangeNotifier {
         // Recent designs are a convenience: the designs on screen stay.
       }
     });
+  }
+
+  /// The attached design files saved to Assets with their pictures (each
+  /// once); a file that could not be sent is left out.
+  Future<List<int>> _designReferenceIds() async {
+    final ids = <int>[];
+    for (final picture in [...references]) {
+      final info = referenceFiles[picture];
+      final original = info?.original;
+      if (info == null || original == null) continue;
+      try {
+        info.assetId ??= await api.uploadDesignReference(
+          picture,
+          original,
+          name: info.name,
+        );
+        ids.add(info.assetId!);
+      } on Object {
+        // Recent designs are a convenience: the designs on screen stay.
+      }
+    }
+    return ids.take(4).toList();
   }
 
   /// A Recent designs card: YOUR DESIGNS again with that brief's designs
@@ -445,6 +483,11 @@ class AppController extends ChangeNotifier {
   /// The track jacket's style: 'collar' (its stand-up collar) or 'hood'.
   String trackStyle = 'collar';
 
+  /// Garment style › Neck style ('round', 'v' or a rugby collar) and a rugby
+  /// jersey's fit (garment_style.dart); null = the garment's own.
+  String? neck;
+  String? fit;
+
   /// The pattern's own colour ('#rrggbb'); null = the primary/secondary blend.
   String? patternColor;
 
@@ -468,6 +511,10 @@ class AppController extends ChangeNotifier {
   /// Lights up a whole part on the 3D kit ({part: 'top' | 'shorts', key}),
   /// a short flash; null clears it. Set by the 3D viewer.
   void Function(Map<String, dynamic>? part)? glowPart;
+
+  /// Garment style's NECK DETAIL: a close-up of the 3D kit's neck (JPEG
+  /// bytes) once the design is on it; null without a top. Set by the viewer.
+  Future<Uint8List?> Function()? neckShot;
 
   /// The pattern colour while [patternColor] is unset.
   Color get defaultPatternColor =>
@@ -855,6 +902,8 @@ class AppController extends ChangeNotifier {
           'Socks' => 'socks',
           // The cap keeps its own shape, with the design's colours.
           'Cap' => 'cap',
+          '5 panel cap' => 'five-panel-cap',
+          'Beanie' => 'beanie',
           // The skirt keeps its own shape, with the design's colours.
           'Skirt' => 'skirt',
           // The bucket hat keeps its own shape, with the design's colours.
@@ -943,6 +992,8 @@ class AppController extends ChangeNotifier {
     k.zones,
     k.zoneColors,
     k.trackStyle,
+    k.neck,
+    k.fit,
     k.patternColor,
     k.patternColorOwn,
     k.parts,
@@ -999,7 +1050,12 @@ class AppController extends ChangeNotifier {
 
   /// A garment tile's starting look (task 9.154, sports_catalog.dart
   /// tileLook): its colours, pattern, colour areas, number and its look.
-  void startLook(Map<String, dynamic> look) {
+  ///
+  /// [from]: the garment the kit was on; on another one its marks' places,
+  /// sizes and sides go (a polo's chest crest at y .6 is off a cap's crown,
+  /// CP1 2026-11-02), their colour and look stay.
+  void startLook(Map<String, dynamic> look, {String? from}) {
+    final moved = from != null && from != garment;
     mainColor = ProjectSync.color(look['main']);
     secondaryColor = ProjectSync.color(look['secondary']);
     accentColor = ProjectSync.color(look['accent']);
@@ -1026,12 +1082,20 @@ class AppController extends ChangeNotifier {
             // Marks a bib tile hid (team name, crest, name) show again.
             !(const {'top_wordmark', 'top_crest', 'top_name'}.contains(e.key) &&
                 e.value is Map &&
-                (e.value as Map)['hidden'] == true))
-          e.key: e.value,
+                (e.value as Map)['hidden'] == true) &&
+            !(moved && e.value is Map && _ownLook(e.value as Map).isEmpty))
+          e.key: moved && e.value is Map ? _ownLook(e.value as Map) : e.value,
       ...(look['marks'] as Map<String, dynamic>),
     };
     notifyListeners();
   }
+
+  /// A mark's own colour and look without its place, size and side.
+  static Map<String, dynamic> _ownLook(Map m) => {
+    for (final e in m.entries)
+      if (!const {'x', 'y', 'scale', 'rot', 'side'}.contains(e.key))
+        '${e.key}': e.value,
+  };
 
   void _applyPreset(Map<String, dynamic> design) => edit(() {
     if (design['main'] != null) mainColor = ProjectSync.color(design['main']);
@@ -1063,6 +1127,9 @@ class AppController extends ChangeNotifier {
     if (design['trackStyle'] is String) {
       trackStyle = design['trackStyle'] == 'hood' ? 'hood' : 'collar';
     }
+    // A My preset's garment style (NK1); a 3DEEZI preset keeps the kit's.
+    if (design.containsKey('neck')) neck = readNeck(design['neck']);
+    if (design.containsKey('fit')) fit = readFit(design['fit']);
     if (designFabrics.contains(design['fabric'])) {
       fabric = design['fabric'] as String;
     }
@@ -1287,6 +1354,9 @@ class AppController extends ChangeNotifier {
     try {
       final seen = <int>{};
       for (final json in await api.projects()) {
+        // Marquees (Signage & Marquees) are not kits: they are listed and
+        // opened on the Signage & Marquees screen (screens/signage.dart).
+        if (json['garment'] == 'marquee') continue;
         final server = ProjectSync.fromServer(json);
         seen.add(server.remoteId!);
         final i = projects.indexWhere(
@@ -1585,6 +1655,8 @@ class AppController extends ChangeNotifier {
     zones: copyZones(zones),
     zoneColors: copyZones(zoneColors),
     trackStyle: trackStyle,
+    neck: neck,
+    fit: fit,
     patternColor: patternColor,
     patternColorOwn: patternColorOwn,
     parts: copyParts(parts),
@@ -1615,6 +1687,8 @@ class AppController extends ChangeNotifier {
     zones = copyZones(k.zones);
     zoneColors = copyZones(k.zoneColors);
     trackStyle = k.trackStyle;
+    neck = k.neck;
+    fit = k.fit;
     patternColor = k.patternColor;
     patternColorOwn = k.patternColorOwn;
     parts = copyParts(k.parts);

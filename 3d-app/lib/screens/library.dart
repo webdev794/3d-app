@@ -8,6 +8,7 @@ import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/ui.dart';
+import 'bubble_home.dart' show BubbleTutorial;
 import 'business.dart';
 import 'edit_profile.dart';
 import 'image_editor.dart';
@@ -709,6 +710,13 @@ class ProfileScreen extends StatelessWidget {
               'Plans & pricing',
               () => c.go(AppScreen.pricing),
             ),
+            // Help (phones): the new home's quick look around, again.
+            if (MediaQuery.sizeOf(context).shortestSide < 600)
+              _row(
+                Icons.play_circle_outline,
+                'Help: replay the home tutorial',
+                () => BubbleTutorial.open(context),
+              ),
             const SizedBox(height: 22),
             // The website's footer pages, opened signed in (same as the site's footer links).
             for (final (icon, label, path) in const [

@@ -50,6 +50,11 @@ return [
         'cloudconvert' => env('CLOUDCONVERT_API_KEY'),
     ],
 
+    /* AI Designer design files (EPS, PDF) drawn by Ghostscript when it is installed: its path (found on the PATH when empty). */
+    'design_files' => [
+        'ghostscript' => env('GHOSTSCRIPT_PATH'),
+    ],
+
     /* Where messages from the Support page's contact form are emailed (every administrator when empty). */
     'support' => [
         'email' => env('SUPPORT_EMAIL'),

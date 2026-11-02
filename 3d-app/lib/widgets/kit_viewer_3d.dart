@@ -63,6 +63,7 @@ class KitViewer3DState extends State<KitViewer3D> {
     c.pickGarment = pickGarment;
     c.hoverGarment = _hoverGarment;
     c.glowPart = _glowPart;
+    c.neckShot = _neckShot;
     c.viewerPassThrough = _passThrough;
     c.zoomBoard = _zoomBoard;
     c.checkLayout = _checkLayout;
@@ -85,6 +86,16 @@ class KitViewer3DState extends State<KitViewer3D> {
 
   void _zoomBoard(String how) => _send('boardZoom', how);
 
+  /// The neck close-up (Garment style's NECK DETAIL), as JPEG bytes.
+  Future<Uint8List?> _neckShot() async {
+    final m = await _request(
+      'neckShot',
+      const {},
+      wait: const Duration(seconds: 30),
+    );
+    return ProjectSync.bytes(m?['data']);
+  }
+
   @override
   void dispose() {
     if (KitViewer3D.supported) {
@@ -102,6 +113,7 @@ class KitViewer3DState extends State<KitViewer3D> {
       if (c.pickGarment == pickGarment) c.pickGarment = null;
       if (c.hoverGarment == _hoverGarment) c.hoverGarment = null;
       if (c.glowPart == _glowPart) c.glowPart = null;
+      if (c.neckShot == _neckShot) c.neckShot = null;
       if (c.viewerPassThrough == _passThrough) c.viewerPassThrough = null;
       for (final pending in _captures.values) {
         if (!pending.isCompleted) pending.complete(null);
@@ -192,6 +204,7 @@ class KitViewer3DState extends State<KitViewer3D> {
       case 'image':
       case 'pick':
       case 'layout':
+      case 'neckShot':
         _requests.remove(msg['id'])?.complete(msg);
     }
   }
@@ -214,6 +227,8 @@ class KitViewer3DState extends State<KitViewer3D> {
         'Shooting shirt' => 'shooting-shirt',
         'Socks' => 'socks',
         'Cap' => 'cap',
+        '5 panel cap' => 'five-panel-cap',
+        'Beanie' => 'beanie',
         'Skirt' => 'skirt',
         'Bucket hat' => 'bucket-hat',
         'Training Tee' => 'tee',
@@ -240,6 +255,10 @@ class KitViewer3DState extends State<KitViewer3D> {
       'patternBody': c.patternBody ?? 0.06,
       'zoneColors': c.zoneColors,
       'trackStyle': c.trackStyle,
+      // Garment style: the neck (or rugby collar) and a rugby jersey's fit
+      // (null: the garment's own; sent always so a reset clears the last).
+      'neck': c.neck,
+      'fit': c.fit,
       'gradient': c.gradient,
       'gradients': c.gradients,
       'marks': c.marks,

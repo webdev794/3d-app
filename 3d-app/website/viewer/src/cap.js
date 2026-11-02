@@ -138,6 +138,8 @@ const LM = (() => {
 })();
 export const CAP_TOP = LM;
 
+/** The 5-panel cap (CP1 2026-11-02, client: "5 PANEL CAPS"): the same wide front panel, its brim flatter (set by buildCap). */
+let FLAT = false;
 /** The brim at (u -1..1 across, w 0 at the band .. 1 at its edge), its middle surface. */
 function brimMid(u, w) {
   const s = u * BRIM_ARC, f = phiAt(s);
@@ -150,7 +152,9 @@ function brimMid(u, w) {
   // (Its inner edge follows the band, which dips a little towards the back.)
   const dip = -0.016 * ((1 - Math.cos(f)) / 2) ** 1.5;
   // (FN2 2026-10-30: curved as the pictures: the sides bend well down, and the whole brim arches down a little to its edge.)
-  out.y = BAND_Y + dip + 0.0012 - w * depth * 0.3 - 1.7 * u * u * w * depth - 0.006 * w * w;
+  // (The 5-panel cap's brim is nearly flat: a slight tilt down, its sides hardly bent.)
+  out.y = FLAT ? BAND_Y + dip + 0.0012 - w * depth * 0.14 - 0.22 * u * u * w * depth - 0.002 * w * w
+    : BAND_Y + dip + 0.0012 - w * depth * 0.3 - 1.7 * u * u * w * depth - 0.006 * w * w;
   return out;
 }
 function brimDepth(u) { return BRIM_DEPTH * Math.max(0, 1 - u * u) ** 0.5; }
@@ -167,7 +171,8 @@ function normalOf(fn, a, b, da, db, out) {
 }
 
 /** Builds the cap. Returns what buildGarment does (main.js treats it as a garment), with `form(material)`. */
-export function buildCap({ detail = false } = {}) {
+export function buildCap({ detail = false, five = false } = {}) {
+  FLAT = !!five;
   const half = (CAP_C / 4) * 1.04;
   const minX = -half - 0.006, maxX = half + 0.006, minY = -0.004, maxY = CAP_BAND + LM + 0.012;
   const span = Math.max(maxX - minX, maxY - minY) * 1.02;

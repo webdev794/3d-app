@@ -70,7 +70,8 @@ void main() {
       expect(c.screen, AppScreen.sport);
 
       // Turning the stage moves the light (and scrolls the row to it).
-      for (var i = 0; i < 5; i++) {
+      // (Six turns: Headwear sits after AFL since 2026-11-02, CP1.)
+      for (var i = 0; i < 6; i++) {
         await tester.tap(find.byIcon(Icons.chevron_right_rounded));
         await tester.pumpAndSettle();
       }
@@ -93,13 +94,24 @@ void main() {
       await tester.tap(find.text('APPAREL'));
       await tester.pumpAndSettle();
       expect(
-        find.descendant(of: row, matching: find.text('TRAINING / GYM')),
-        findsOneWidget,
-      );
-      expect(
         find.descendant(of: row, matching: find.text('SOCCER')),
         findsNothing,
       );
+      // (The first apparel is Headwear since 2026-11-02, CP1: the stage turns
+      // to it; its Training / Gym tile turns it on.)
+      expect(find.text('DESIGN HEADWEAR'), findsOneWidget);
+      final training = find.descendant(
+        of: row,
+        matching: find.text('TRAINING / GYM'),
+      );
+      await tester.scrollUntilVisible(
+        training,
+        120,
+        scrollable: find.descendant(of: row, matching: find.byType(Scrollable)),
+      );
+      expect(training, findsOneWidget);
+      await tester.tap(training);
+      await tester.pumpAndSettle();
       expect(find.text('DESIGN TRAINING / GYM'), findsOneWidget);
       expect(litTile('Training / Gym'), findsOneWidget);
 

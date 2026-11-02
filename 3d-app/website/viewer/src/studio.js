@@ -58,6 +58,9 @@ export function createStudio(scene, renderer, mobile, quality = null) {
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -.172;
   floor.material.transparent = true;
+  // Its colour blends as before; the frame's alpha is left alone, so the calm pass (main.js) counts the floor and its
+  // reflections as the stadium.
+  Object.assign(floor.material, { blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
   // Under the glow pool, the contact shadow and the podium's rings.
   floor.renderOrder = -1;
   floor.material.vertexShader = floor.material.vertexShader

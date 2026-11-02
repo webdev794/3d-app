@@ -22,7 +22,8 @@ class SportGarmentTilesTest extends TestCase
         foreach (config('catalog.sports') as $sport) {
             $id = $sport['id'];
             $tiles = $sport['tiles'] ?? [];
-            $this->assertGreaterThanOrEqual(6, count($tiles), $id);
+            // (Headwear has its four kinds: cap, bucket hat, beanie, 5-panel cap; client mockup images/296.jpg.)
+            $this->assertGreaterThanOrEqual($id === 'headwear' ? 4 : 6, count($tiles), $id);
             $this->assertLessThanOrEqual(16, count($tiles), $id);
             $names = array_column($tiles, 'name');
             $this->assertSame(count($names), count(array_unique($names)), "$id: tile names are unique");
@@ -103,10 +104,10 @@ class SportGarmentTilesTest extends TestCase
         $nfl = $sports['american-football'];
         $this->assertSame(['Game Kit', 'Game Jersey', 'Game Pants', 'Practice Jersey', 'Training Tee', 'Training Shorts', 'Compression Top', 'Compression Shorts',
             'Game Socks', 'Hoodie', 'Varsity Jacket', 'Hooded Tracksuit', 'Waterproof Jacket', 'Cap', 'Bucket Hat', 'Beanie'], array_column($nfl['tiles'], 'name'));
-        $this->assertSame(['fullkit', 'nfljersey', null, 'nfljersey', 'tee', 'shorts', 'compression', null, 'socks', 'hoodie', 'varsity', 'trackjacket', 'trackjacket', 'cap', 'bucket-hat', null],
+        $this->assertSame(['fullkit', 'nfljersey', null, 'nfljersey', 'tee', 'shorts', 'compression', null, 'socks', 'hoodie', 'varsity', 'trackjacket', 'trackjacket', 'cap', 'bucket-hat', 'beanie'],
             array_column($nfl['tiles'], 'garment'));
-        // Coming soon: pants, compression shorts, beanie, each naming the garment still to build.
-        foreach ([2 => 'nfl-pants', 7 => 'compression-shorts', 15 => 'beanie'] as $i => $future) {
+        // Coming soon: pants and compression shorts, each naming the garment still to build (the beanie is built, CP1).
+        foreach ([2 => 'nfl-pants', 7 => 'compression-shorts'] as $i => $future) {
             $this->assertSame(['soon', $future], [$nfl['tiles'][$i]['fit'], $nfl['tiles'][$i]['future']], $nfl['tiles'][$i]['name']);
         }
         $this->assertSame('hood', $nfl['tiles'][11]['design']['trackStyle']);
@@ -132,10 +133,10 @@ class SportGarmentTilesTest extends TestCase
             $this->assertArrayNotHasKey('backdrop', $sports[$id], $id);
         }
         $this->getJson('/api/v1/catalog')->assertOk()
-            ->assertJsonPath('data.sports.7.id', 'american-football')
-            ->assertJsonPath('data.sports.7.tiles.1.name', 'Game Jersey')
-            ->assertJsonPath('data.sports.7.descriptions', false)
-            ->assertJsonPath('data.sports.7.select_hint', 'Select a garment to customise.');
+            ->assertJsonPath('data.sports.8.id', 'american-football')
+            ->assertJsonPath('data.sports.8.tiles.1.name', 'Game Jersey')
+            ->assertJsonPath('data.sports.8.descriptions', false)
+            ->assertJsonPath('data.sports.8.select_hint', 'Select a garment to customise.');
 
         // A Game Jersey project (on the jersey 3D garment) keeps its name into the order line.
         Sanctum::actingAs(User::factory()->create());

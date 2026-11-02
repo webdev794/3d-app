@@ -189,8 +189,8 @@ function drawMark3(g, w, flat = null) {
   for (const pts of [...MARK3.silver, ...MARK3.blue]) { path(pts); g.stroke(); }
 }
 
-/** The marks: only the crest, on the shin (no names, numbers or words on socks). Without the club's logo, the
- *  3DEEZI "3" mark knitted in (no badge). */
+/** The marks: the crest on the shin and the team name (3DEEZI) small under it (no names or numbers on socks). Without
+ *  the club's logo, the 3DEEZI "3" mark knitted in (no badge). */
 export async function paintSockMarks(painter, design, loadImage) {
   if (design.logoImage) {
     if (design.logoImage !== painter._logoKey) {
@@ -211,4 +211,9 @@ export async function paintSockMarks(painter, design, loadImage) {
   const flat = HEX.test(design.zoneColors?.sockMark ?? '') ? design.zoneColors.sockMark : null;
   if (painter._logo) painter.markImage(design, 'crest', at, painter._logo, w * 0.94, w * 0.94);
   else if (!ownArt) painter.mark(design, 'crest', at, (g) => { drawMark3(g, w, flat); return { w, h: w * 0.64 }; });
+  // (BR1 2026-11-02, the user: every item carries the 3DEEZI "3" and the wordmark: a small 3DEEZI under the "3" on the
+  // shin, the brand's own wordmark picture; the club's own words there when it has typed them. Its own mark (sockWord),
+  // so a top's team-name place, or a bib's hidden team name, never carries over to the socks.)
+  const word = (design.logoText ?? '').trim().toUpperCase();
+  if (word && !ownArt) painter.markText(design, 'sockWord', { side: 'front', x: at.x, y: at.y - w * 0.5 }, word, w * 0.3, design.accent, w * 1.05, null);
 }

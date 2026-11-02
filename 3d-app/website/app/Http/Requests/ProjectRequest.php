@@ -13,6 +13,21 @@ class ProjectRequest extends FormRequest
     /** The fabric types (Colours › Fabric type; KitViewer.tsx fabricTypes, the apps' designFabrics). */
     public const FABRICS = ['Standard', 'Mesh', 'Pro', 'Eco'];
 
+    /** Garment style › Neck style (resources/js/garmentStyle.ts neckValues, the apps' garment_style.dart): round, V, the rugby collars. */
+    public const NECKS = ['round', 'v', 'rc001', 'rc002', 'rc003', 'rc004', 'rc005', 'rc006', 'rc007', 'rc008', 'rc009', 'rc010', 'shallow-v'];
+
+    /**
+     * Products outside the garment catalogue that are saved as projects too: the marquee (Signage & Marquees, 2026-11-02),
+     * its design in design.marquee (resources/js/marquee.ts).
+     */
+    public const PRODUCTS = ['marquee'];
+
+    /** The marquee's printable zones (viewer marquee.js ZONES). */
+    public const MARQUEE_ZONES = ['roof', 'valanceFront', 'valanceBack', 'valanceLeft', 'valanceRight', 'wallLeft', 'wallRight', 'wallBack'];
+
+    /** A name typed in "Custom…" (sport or garment): plain text, no tags or control characters. */
+    public const PLAIN_TEXT = 'not_regex:/[<>\x00-\x1F\x7F]/';
+
     public function authorize(): bool
     {
         return $this->user() !== null;
@@ -27,20 +42,55 @@ class ProjectRequest extends FormRequest
         return [
             'name' => [$required, 'string', 'max:120'],
             'sport' => [$required, Rule::in(array_column(config('catalog.sports'), 'id'))],
-            'garment' => [$required, Rule::in(array_column(config('catalog.garments'), 'id'))],
+            'garment' => [$required, Rule::in([...array_column(config('catalog.garments'), 'id'), ...self::PRODUCTS])],
             'mode' => ['sometimes', Rule::in(['ai', 'dyo'])],
             'status' => ['sometimes', Rule::in(['draft', 'approved'])],
-            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternColorOwn,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,gradients,zones,zoneColors,trackStyle,layers,marks,layout,presetId,productName,parts,fabric'],
+            'design' => [$required, 'array:garment,main,secondary,accent,pattern,logoText,number,backName,patternImage,logoImage,sponsorImage,patternColor,patternColorOwn,patternScale,patternBody,prompt,renderFront,renderBack,app,gradient,gradients,zones,zoneColors,trackStyle,layers,marks,layout,presetId,productName,sportName,parts,fabric,marquee,neck,fit'],
+            // The marquee (garment 'marquee'): its size, walls and each zone's colour and artwork layers (viewer marquee.js).
+            'design.marquee' => ['sometimes', 'nullable', 'array:size,walls,halfWall,zones'],
+            'design.marquee.size' => ['required_with:design.marquee', Rule::in(['3x3', '3x6'])],
+            'design.marquee.walls' => ['required_with:design.marquee', Rule::in(['none', 'back', 'full'])],
+            'design.marquee.halfWall' => ['sometimes', 'boolean'],
+            'design.marquee.zones' => ['required_with:design.marquee', 'array:'.implode(',', self::MARQUEE_ZONES)],
+            'design.marquee.zones.*' => ['array:color,layers'],
+            'design.marquee.zones.*.color' => ['required', $color],
+            'design.marquee.zones.*.layers' => ['present', 'array', 'max:30'],
+            'design.marquee.zones.*.layers.*' => ['array:id,type,name,visible,color,accent,scale,x,y,rot,src,w,text,font,size,outline,italic'],
+            'design.marquee.zones.*.layers.*.id' => ['required', 'string', 'max:80'],
+            'design.marquee.zones.*.layers.*.type' => ['required', Rule::in(['pattern', 'image', 'text'])],
+            'design.marquee.zones.*.layers.*.name' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'design.marquee.zones.*.layers.*.visible' => ['sometimes', 'boolean'],
+            'design.marquee.zones.*.layers.*.color' => ['sometimes', 'nullable', $color],
+            'design.marquee.zones.*.layers.*.accent' => ['sometimes', 'nullable', $color],
+            'design.marquee.zones.*.layers.*.outline' => ['sometimes', 'nullable', $color],
+            'design.marquee.zones.*.layers.*.scale' => ['sometimes', 'numeric', 'between:0.1,5'],
+            'design.marquee.zones.*.layers.*.x' => ['sometimes', 'numeric', 'between:-1,2'],
+            'design.marquee.zones.*.layers.*.y' => ['sometimes', 'numeric', 'between:-1,2'],
+            'design.marquee.zones.*.layers.*.rot' => ['sometimes', 'numeric', 'between:-360,360'],
+            'design.marquee.zones.*.layers.*.w' => ['sometimes', 'numeric', 'between:0.005,2'],
+            'design.marquee.zones.*.layers.*.size' => ['sometimes', 'numeric', 'between:0.005,2'],
+            'design.marquee.zones.*.layers.*.src' => ['sometimes', 'nullable', 'string', 'max:4000000', function (string $attribute, mixed $value, \Closure $fail) {
+                // The built-in 3DEEZI logos, or a picture as every other layer's.
+                if ($value !== '3deezi:logo' && $value !== '3deezi:wordmark') {
+                    ($this->imageSourceRule())($attribute, $value, $fail);
+                }
+            }],
+            'design.marquee.zones.*.layers.*.text' => ['sometimes', 'nullable', 'string', 'max:120', self::PLAIN_TEXT],
+            'design.marquee.zones.*.layers.*.font' => ['sometimes', 'nullable', Rule::in(['Rajdhani', 'JerseyBlock'])],
+            'design.marquee.zones.*.layers.*.italic' => ['sometimes', 'boolean'],
             // Colours › Fabric type (website and apps; the 3D viewer shows it). Unset or Standard: the garment's own.
             'design.fabric' => ['sometimes', 'nullable', Rule::in(self::FABRICS)],
-            'design.garment' => ['sometimes', Rule::in(array_column(config('catalog.garments'), 'id'))],
+            'design.garment' => ['sometimes', Rule::in([...array_column(config('catalog.garments'), 'id'), ...self::PRODUCTS])],
             'design.main' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.secondary' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.accent' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.pattern' => ['required_with:design', Rule::in($patterns)],
             'design.presetId' => ['sometimes', 'nullable', 'string', 'max:80'],
             // The sport's garment tile the design was made as ("Netball dress", task 9.99); 'garment' stays the 3D garment.
-            'design.productName' => ['sometimes', 'nullable', 'string', 'max:60'],
+            // (Or a garment typed in "Custom…", client 2026-11-02: plain text only.)
+            'design.productName' => ['sometimes', 'nullable', 'string', 'max:60', self::PLAIN_TEXT],
+            // A sport typed in "Custom…" (client 2026-11-02): its name; 'sport' stays a catalogue sport.
+            'design.sportName' => ['sometimes', 'nullable', 'string', 'max:40', self::PLAIN_TEXT],
             // Gradient fills per colour zone: Primary in design.gradient (its original place), Secondary and Pattern in
             // design.gradients. Each has from, to and angle; stops (2 to 6, e.g. Sunset's three) when it has more colours,
             // and the ready-made preset it came from.
@@ -94,6 +144,10 @@ class ProjectRequest extends FormRequest
             'design.zoneColors.*' => ['nullable', $color],
             // The track jacket's style: its stand-up collar or a hood.
             'design.trackStyle' => ['sometimes', 'nullable', Rule::in(['collar', 'hood'])],
+            // Garment style (the Studio's Style tool, NK1 2026-11-02): the neck's shape, or a rugby jersey's collar from the
+            // rugby collar library; a rugby jersey's fit. Unset: the garment's own.
+            'design.neck' => ['sometimes', 'nullable', Rule::in(self::NECKS)],
+            'design.fit' => ['sometimes', 'nullable', Rule::in(['classic', 'pro', 'tight'])],
             // The fixed marks moved, resized, turned or hidden on the 2D panels.
             'design.marks' => ['sometimes', 'array:top_wordmark,top_sponsor,top_crest,top_name,top_number,shorts_crest,shorts_number,shorts_wordmark'],
             'design.marks.*' => ['array:side,x,y,scale,rot,hidden,shape,color,look'],

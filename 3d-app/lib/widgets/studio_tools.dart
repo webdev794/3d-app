@@ -26,7 +26,11 @@ String _panels(int n) => '$n panel${n == 1 ? '' : 's'}';
 List<(String, String)> patternAreas(String garment, {String? trackStyle}) {
   // The socks, the cap and the bucket hat: the viewer paints a pattern on the
   // whole garment only (zones.js: one area).
-  if (garment == 'Socks' || garment == 'Cap' || garment == 'Bucket hat') {
+  if (garment == 'Socks' ||
+      garment == 'Cap' ||
+      garment == '5 panel cap' ||
+      garment == 'Beanie' ||
+      garment == 'Bucket hat') {
     return const [('body', 'Body')];
   }
   final shorts = garment == 'Shorts', skirt = garment == 'Skirt';

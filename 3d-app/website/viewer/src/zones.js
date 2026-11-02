@@ -2,6 +2,7 @@ import { sockPartAt, sockRegion } from './sockprint.js';
 import { skirtPartAt, skirtRegion, skirtZones } from './skirtprint.js';
 import { capPartAt, capRegion } from './capprint.js';
 import { hatPartAt, hatRegion } from './hatprint.js';
+import { beaniePartAt, beanieRegion } from './beanieprint.js';
 import { bballPartAt, bballRegion, bballZoneAt, BBALL_ZONES } from './bballprint.js';
 import { SHOOT_ZONES } from './shootingshirt.js';
 
@@ -144,7 +145,7 @@ const COMPRESSION = { ...VARSITY_ZONES, sleeves: [[0.262, 0.1, 0.8, 0.76]], side
 // The bucket hat (hatprint.js): one area, the whole hat (its parts are its top, brim, underside and binding).
 const HAT = { body: [[-0.3, 0, 0.3, 0.36]] };
 
-const table = (kind) => (kind === 'bballshorts' ? BBALL_ZONES : kind === 'skirt' ? skirtZones() : kind === 'nfljersey' ? NFL : kind === 'bucket-hat' ? HAT : kind === 'cap' ? CAP : kind === 'socks' ? SOCKS : kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : kind === 'compression' ? COMPRESSION : TOP);
+const table = (kind) => (kind === 'bballshorts' ? BBALL_ZONES : kind === 'skirt' ? skirtZones() : kind === 'nfljersey' ? NFL : kind === 'bucket-hat' || kind === 'beanie' ? HAT : kind === 'cap' ? CAP : kind === 'socks' ? SOCKS : kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : kind === 'compression' ? COMPRESSION : TOP);
 
 /**
  * A garment's areas that are not rectangles: outlines on the wearer's left (+x), mirrored (the shooting shirt's raglan
@@ -180,7 +181,7 @@ export function zoneAt(kind, x, y, side) {
   }
   // The track jacket's collar (or hood) piece, above the back panel on the atlas.
   if (isTrack(kind) && side === 'back' && y > 0.8) return 'hood';
-  if (kind === 'socks' || kind === 'cap' || kind === 'bucket-hat') return 'body';
+  if (kind === 'socks' || kind === 'cap' || kind === 'bucket-hat' || kind === 'beanie') return 'body';
   // The basketball shorts' areas follow their slanted side panels (bballprint.js).
   if (kind === 'bballshorts') return bballZoneAt(x, y);
   // The football jersey's shoulder caps lie over the sleeves' tops: they come first.
@@ -245,6 +246,7 @@ export function partAt(kind, zone, side, x, y) {
   if (kind === 'socks') return sockPartAt(side, x, y);
   if (kind === 'cap') return capPartAt(side, x, y);
   if (kind === 'bucket-hat') return hatPartAt(side, x, y);
+  if (kind === 'beanie') return beaniePartAt(side, x, y);
   if (kind === 'shorts') return zone === 'sides' ? 'shortsSides' : zone === 'hem' ? 'shortsHem' : side === 'back' ? 'shortsBack' : 'shortsFront';
   if (zone === 'hood') return null;
   if (zone === 'sleeves' && !sleeveless(kind)) return x >= 0 ? 'leftSleeve' : 'rightSleeve';
@@ -267,6 +269,7 @@ export function partRegion(kind, key, back) {
   if (kind === 'socks') return sockRegion(key, back);
   if (kind === 'cap') return capRegion(key, back);
   if (kind === 'bucket-hat') return hatRegion(key, back);
+  if (kind === 'beanie') return beanieRegion(key, back);
   const sides = panelled(kind) ? [] : R('sides');
   if (kind === 'shorts') {
     if (key === 'shortsSides') return { keep: panels(kind), cut: [] };

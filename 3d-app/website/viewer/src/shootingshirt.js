@@ -54,14 +54,16 @@ export function shootSeam(dir, steps = 24) {
  */
 export const SHOOT_ZONES = {
   sleeves: [[0.118, 0.9], ...shootSeam(1), [0.262, 0.4], [0.9, 0.4], [0.9, 0.9]],
-  sides: [[0.24, 0.53], [0.3, 0.53], [0.3, -0.07], [0.08, -0.07], [0.092, 0.12], [0.112, 0.26], [0.15, 0.38], [0.2, 0.48]],
+  sides: [[0.24, 0.53], [0.3, 0.53], [0.3, -0.07], [0.07, -0.07], [0.075, 0.12], [0.09, 0.26], [0.13, 0.38], [0.19, 0.48]],
 };
 
 /** Where the shirt's own marks go (as on the picture): the "3" mark and the word under it on the left chest, the number in the middle. */
 export const SHOOT_MARKS = {
   // (FN5 2026-10-30, tester DT8: the stack 2 cm higher, the word tight under the "3" as the picture's.)
-  crest: { side: 'front', x: 0.08, y: 0.59 },
-  wordmark: { side: 'front', x: 0.08, y: 0.556 },
+  // (FN10 2026-11-02, DT8: the "3" a little higher and the word right under it, as measured on the picture.)
+  // (FN10 round 2, DT10: measured straight on, 2 cm lower and the word a little smaller.)
+  crest: { side: 'front', x: 0.08, y: 0.579 },
+  wordmark: { side: 'front', x: 0.08, y: 0.548 },
   frontNumber: { side: 'front', x: 0, y: 0.432 },
 };
 
@@ -113,16 +115,28 @@ const picEdge = (y) => {
   }
   return 190;
 };
-const flat = ([x, y]) => { const e = picEdge(y); return [0.258 - (0.565 * (x - e)) / (319 - e), 0.53 - ((y - 276) * 0.54) / 307]; };
+// (FN10 2026-11-02, tester DT8: heights by the share of the shirt's height from the top: the picture's box runs y 48-585,
+// ours (front view) puts a garment height y at the share 0.953 - 1.19 y.)
+// Across: the picture's front view is a round body seen from the front, ours too (measured on ours: a point x in from
+// the centre shows at 0.261 sin(x / 0.155) of the picture's width); so a picture point is taken back round the body to
+// the flat pattern, the picture's edge at the side seam (0.258). Past the edge, round the side, as before.
+const flat = ([x, y]) => {
+  const e = picEdge(y), d = (319 - x) / 476, dEdge = (319 - e) / 476;
+  const across = x >= e ? (0.155 * Math.asin(Math.min(1, d / dEdge)) * 0.258) / (0.155 * Math.PI / 2) : 0.258 + (0.565 * (e - x)) / (319 - e);
+  return [across, (0.953 - (y - 48) / 537) / 1.19];
+};
 // The cyan blade from the underarm and its thin spike, the royal panel, the lower cyan spike (picture pixels).
+// (FN10: the picture's small sliver under the sleeve ending at .43; the blade from the edge at .44 down to its spike's
+// tip at .77; the royal from .60; the lower spike from .77, thinner.)
+const SLIVER = [[182, 226], [190, 240], [197, 254], [203, 267], [207, 280], [199, 273], [191, 262], [184, 250], [180, 236]];
 const BLADE = [[190, 276], [197, 292], [204, 310], [209, 328], [213, 345], [217, 370], [220, 395], [223, 420], [225, 445], [225, 466],
-  [222, 445], [218, 420], [213, 395], [209, 372], [205, 350], [192, 374], [190, 350]];
-const PANEL = [[192, 374], [205, 350], [207, 380], [207, 410], [206, 440], [207, 470], [210, 520], [213, 575], [214, 600], [184, 600], [184, 583],
-  [185, 540], [187, 480], [189, 420], [190, 390]];
-const SPIKE = [[217, 446], [215, 470], [215, 500], [216, 540], [219, 575], [220, 600], [213, 600], [210, 560], [208, 520], [207, 480], [209, 460]];
-const LOW = flat([190, 374])[1];
+  [222, 445], [218, 420], [213, 395], [209, 380], [205, 370], [190, 395], [190, 350]];
+const PANEL = [[190, 395], [205, 370], [207, 395], [207, 420], [206, 445], [207, 475], [210, 520], [213, 575], [214, 600], [184, 600], [184, 583],
+  [185, 540], [187, 480], [189, 420]];
+const SPIKE = [[217, 457], [216, 478], [216, 505], [217, 540], [220, 575], [221, 600], [212, 600], [209, 560], [207.5, 520], [207, 490], [209, 470]];
+const LOW = flat([190, 395])[1];
 const SHARD_SHAPES = [
-  ['c', BLADE.map(flat)], ['r', PANEL.map(flat)], ['c', SPIKE.map(flat)],
+  ['c', SLIVER.map(flat)], ['c', BLADE.map(flat)], ['r', PANEL.map(flat)], ['c', SPIKE.map(flat)],
   // Round the side: the blade's cyan above the panel's top, the panel's royal below it.
   ['c', [[0.256, 0.54], [0.32, 0.54], [0.32, LOW], [0.256, LOW]]],
   ['r', [[0.256, LOW], [0.32, LOW], [0.32, -0.07], [0.256, -0.07]]],

@@ -45,6 +45,10 @@
 .of-subtotal{display:flex;flex-direction:column;justify-content:center;min-height:64px;margin-left:14px;padding-left:30px;border-left:1px solid #4a5568;color:#dfebf9;font-size:13px;line-height:1.2}
 .of-subtotal strong{font-size:26px;line-height:1.1;color:#fff;font-variant-numeric:tabular-nums}
 .of-other{max-width:420px}
+/* "Custom…" (client 2026-11-02): the typed sport and its garment, side by side (stacked on phones). */
+.of-custom{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:640px}
+.of-custom .of-other{max-width:none}
+@media (max-width:560px){.of-custom{grid-template-columns:1fr}}
 .of-row-files{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0}
 .of-row-files li{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 6px 4px 9px;border:1px solid #2a4a68;border-radius:20px;background:#071628;font-size:12px;color:#d7e6f4}
 .of-row-files li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

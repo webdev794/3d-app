@@ -100,6 +100,9 @@ const garmentIds = {
   'Socks': 'socks',
   // The team cap (garment 4).
   'Cap': 'cap',
+  // The 5-panel cap and the beanie (CP1, client mockup images/296.jpg).
+  '5 panel cap': 'five-panel-cap',
+  'Beanie': 'beanie',
   // The netball / tennis skirt and hockey skort (COMING SOON 10).
   'Skirt': 'skirt',
   // The bucket hat (garment 5).
@@ -229,10 +232,10 @@ const pictureLooks = {
   'nfl-hoodie': 'hoodie',
   'netball-hoodie': 'hoodie',
   'trackjacket': 'track',
-  'netball-tracksuit': 'track',
-  'tracksuit': 'trackSides',
-  'rugby-hooded-tracksuit': 'trackSides',
-  'nfl-hooded-tracksuit': 'trackSides',
+  'netball-tracksuit': 'trackSuit',
+  'tracksuit': 'bballTracksuit',
+  'rugby-hooded-tracksuit': 'rugbyTracksuit',
+  'nfl-hooded-tracksuit': 'nflTracksuit',
   'rugby-waterproof-jacket': 'waterproof',
   'nfl-waterproof-jacket': 'waterproof',
   'nfl-compression-top': 'sides',
@@ -252,6 +255,10 @@ const pictureLooks = {
   'bucket-hat': 'hatShards',
   'nfl-bucket-hat': 'hat',
   'rugby-bucket-hat': 'hat',
+  // (CP1: the beanie and 5-panel cap pictures: black with cyan trims.)
+  'beanie': 'hat',
+  'nfl-beanie': 'hat',
+  'five-panel-cap': 'hat',
 };
 
 /// What a picture shows on top of its look, as config/catalog.php
@@ -593,7 +600,9 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'zoneColors': {'quarterZip': '#c9ccd1', 'collarPiping': cyan},
       'marks': {
         'top_wordmark': {'x': 0, 'y': 0.503, 'scale': 2.5},
-        'top_crest': {'hidden': true},
+        // (BR1 2026-11-02, the user: every item carries the 3DEEZI "3" and
+        // wordmark: the "3" on the right chest, across from the pocket.)
+        'top_crest': {'x': -0.1, 'y': 0.6, 'scale': 0.8},
       },
     },
     'bladesSides': {
@@ -603,14 +612,20 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // The shooting shirt picture (FN5 2026-10-30, colours measured on it): its
     // own 3D shirt, cyan raglan sleeves, royal blue side shards (Shards).
     'shooting': {
-      'main': '#131416',
+      'main': '#232427',
       'secondary': '#00c0f5',
       'accent': '#ffffff',
       'pattern': 'Shards',
-      'patternColor': '#0050e6',
+      'patternColor': '#0048d8',
       'parts': {
         'leftSleeve': {'colour': '#00b0f0'},
         'rightSleeve': {'colour': '#00b0f0'},
+      },
+      // FN10 2026-11-02: its own "3" and word places (the word right under
+      // the "3"), so the last tile's never carry over.
+      'marks': {
+        'top_wordmark': {'x': 0.08, 'y': 0.548, 'scale': 0.85},
+        'top_crest': {'x': 0.08, 'y': 0.579, 'scale': 1.0},
       },
     },
     'swoosh': {
@@ -727,6 +742,75 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'stripe': cyan,
         'zip': cyan,
       },
+      // FN10 2026-11-02: the word and the "3" level either side of the zip.
+      'marks': {
+        'top_wordmark': {'x': -0.105, 'y': 0.575, 'scale': 1.0},
+        'top_crest': {'x': 0.105, 'y': 0.575, 'scale': 1.0},
+      },
+    },
+    // The Tracksuit tiles (FN10 2026-11-02): the jacket over track pants with
+    // a cyan stripe down each outer leg (zoneColors.pantsStripe).
+    'trackSuit': {
+      'zoneColors': {
+        'body': '#1d2123',
+        'shoulder': '#1d2123',
+        'side': '#1d2123',
+        'cuffs': '#1c2229',
+        'stripe': cyan,
+        'zip': cyan,
+        'pantsStripe': cyan,
+      },
+      'marks': {
+        'top_wordmark': {'x': -0.105, 'y': 0.575, 'scale': 1.0},
+        'top_crest': {'x': 0.105, 'y': 0.575, 'scale': 1.0},
+        'shorts_crest': {'x': 0.17, 'y': 0.83},
+        'shorts_wordmark': {'x': 0.17, 'y': 0.806},
+      },
+    },
+    'bballTracksuit': {
+      'zoneColors': {
+        'shoulder': '#27282a',
+        'side': cyan,
+        'stripe': cyan,
+        'zip': '#27282a',
+        'pantsStripe': cyan,
+      },
+      'marks': {
+        'top_crest': {'x': 0.105, 'y': 0.605, 'scale': 0.6},
+        'top_wordmark': {'x': 0.105, 'y': 0.572, 'scale': 0.75},
+        'shorts_crest': {'x': 0.17, 'y': 0.83},
+        'shorts_wordmark': {'x': 0.17, 'y': 0.806},
+      },
+    },
+    'rugbyTracksuit': {
+      'zoneColors': {
+        'shoulder': '#27282a',
+        'side': cyan,
+        'stripe': cyan,
+        'zip': cyan,
+        'pantsStripe': cyan,
+      },
+      'marks': {
+        'top_wordmark': {'x': -0.105, 'y': 0.6, 'scale': 1.0},
+        'top_crest': {'x': 0.105, 'y': 0.59, 'scale': 1.0},
+        'shorts_crest': {'x': 0.17, 'y': 0.83},
+        'shorts_wordmark': {'x': 0.17, 'y': 0.806},
+      },
+    },
+    'nflTracksuit': {
+      'zoneColors': {
+        'shoulder': '#27282a',
+        'side': cyan,
+        'stripe': cyan,
+        'zip': cyan,
+        'pantsStripe': cyan,
+      },
+      'marks': {
+        'top_crest': {'x': 0.105, 'y': 0.605, 'scale': 0.6},
+        'top_wordmark': {'x': 0.105, 'y': 0.572, 'scale': 0.75},
+        'shorts_crest': {'x': 0.17, 'y': 0.83},
+        'shorts_wordmark': {'x': 0.17, 'y': 0.806},
+      },
     },
     'trackSides': {
       'zoneColors': {
@@ -813,6 +897,8 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     'socksHeel': {
       'parts': {
         'sockFoot': {'colour': cyan},
+        // FN10 2026-11-02: brighter hoops, as the picture renders them.
+        'sockHoops': {'colour': '#22e4ff'},
       },
     },
     'rugbySocks': {
@@ -927,18 +1013,18 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     'zoneColors': <String, String>{},
     'layers': _tileObjects(picture),
     ...?looks[name],
-    // A bib's position letters stand alone (as config/catalog.php $letters),
-    // unless the look sets its own marks (the netball dress keeps its logo).
+    // A bib's position letters with no name or number (as config/catalog.php
+    // $letters), unless the look sets its own marks (the netball dress keeps
+    // its logo). (BR1 2026-11-02, the user: every item carries the 3DEEZI "3"
+    // and wordmark: the "3" over a small 3DEEZI centred high on the chest,
+    // above the letters, as on the training bibs.)
     if (looks[name]?['marks'] == null &&
         _tileObjects(picture).any((l) => l['id'] == 'tile-position'))
       'marks': {
-        for (final k in const [
-          'top_wordmark',
-          'top_crest',
-          'top_name',
-          'top_number',
-        ])
-          k: {'hidden': true},
+        'top_name': {'hidden': true},
+        'top_number': {'hidden': true},
+        'top_crest': {'x': 0, 'y': 0.6, 'scale': 0.75},
+        'top_wordmark': {'x': 0, 'y': 0.55, 'scale': 0.45},
       },
     // The Compression Top picture: the crest at its own place, stacked over
     // the wordmark (as config/catalog.php $sleeveThree), so the Game Jersey
@@ -1001,11 +1087,10 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Shorts',
       image: 'rugby-training-shorts',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Hooded Tracksuit',
       'Full-zip jacket with hood and pants.',
       'Track jacket',
-      future: 'tracksuit',
       image: 'rugby-hooded-tracksuit',
       trackStyle: 'hood',
     ),
@@ -1068,11 +1153,10 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Shorts',
       image: 'rugby-training-shorts',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Hooded Tracksuit',
       'Full-zip jacket with hood and pants.',
       'Track jacket',
-      future: 'tracksuit',
       image: 'rugby-hooded-tracksuit',
       trackStyle: 'hood',
     ),
@@ -1157,11 +1241,10 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Hoodie',
       image: 'team-hoodie',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Tracksuit',
       'Full-zip jacket and matching pants.',
       'Track jacket',
-      future: 'tracksuit',
       image: 'tracksuit',
     ),
     GarmentTile(
@@ -1210,11 +1293,10 @@ const _sportTiles = <String, List<GarmentTile>>{
       future: 'bibs',
       image: 'netball-bibs',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Tracksuit',
       'Full-zip jacket and matching pants.',
       'Track jacket',
-      future: 'tracksuit',
       image: 'netball-tracksuit',
     ),
     GarmentTile(
@@ -1222,6 +1304,33 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Warm hoodie for on and off court.',
       'Hoodie',
       image: 'netball-hoodie',
+    ),
+  ],
+  // HEADWEAR (CP1, client mockup images/296.jpg): caps, bucket hats, beanies
+  // and 5-panel caps; the beanie and the 5-panel cap COMING SOON until their
+  // 3D models are ready.
+  'headwear': [
+    GarmentTile(
+      'Cap',
+      'Six-panel cap with a curved brim.',
+      'Cap',
+      image: 'rugby-cap',
+    ),
+    GarmentTile(
+      'Bucket Hat',
+      'Wide brim bucket hat.',
+      'Bucket hat',
+      image: 'rugby-bucket-hat',
+    ),
+    GarmentTile(
+      'Beanie',
+      'Rib-knit beanie with a pom-pom and a folded cuff.',
+      'Beanie',
+    ),
+    GarmentTile(
+      '5 Panel Cap',
+      'One wide front panel and a flat brim.',
+      '5 panel cap',
     ),
   ],
   'afl': [
@@ -1360,11 +1469,10 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Varsity jacket',
       image: 'nfl-varsity',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Hooded Tracksuit',
       'Full-zip jacket with hood and pants.',
       'Track jacket',
-      future: 'tracksuit',
       image: 'nfl-hooded-tracksuit',
       trackStyle: 'hood',
     ),
@@ -1383,11 +1491,11 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Bucket hat',
       image: 'nfl-bucket-hat',
     ),
-    GarmentTile.soon(
+    GarmentTile(
       'Beanie',
       'Knitted beanie with a cuff.',
-      'beanie',
-      'nfl-beanie',
+      'Beanie',
+      image: 'nfl-beanie',
     ),
   ],
   'golf': [
@@ -1943,6 +2051,18 @@ const sportCategories = <SportCategory>[
   SportCategory('basketball', 'Basketball', 'sports', 'Singlet + Shorts'),
   SportCategory('football', 'Soccer', 'sports', 'Jersey + Shorts'),
   SportCategory('afl', 'AFL', 'sports', 'Guernsey + Shorts'),
+  SportCategory(
+    'headwear',
+    'Headwear',
+    'apparel',
+    'Cap + Bucket hat + Beanie',
+    more: false,
+    names: false,
+    numbers: false,
+    hint:
+        'headwear: team caps, bucket hats and knitted beanies with the club '
+        'logo, black with bright accent piping and stripes',
+  ),
   // No player names or numbers: bibs carry the playing position letters.
   SportCategory(
     'netball',

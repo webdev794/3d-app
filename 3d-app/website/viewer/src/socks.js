@@ -83,7 +83,9 @@ function section(s) {
   // toes round off in plan, their top curving down to a tip near the sole (the sole stays flat to the end).
   const ball = Math.exp(-(((d - FOOT * 0.85) / 0.07) ** 2));
   // (FN7: a blunt, rounded toe box, its top coming down round to the toe's end, not to a point.)
-  const side = Math.max(0, 1 - t ** 2.6) ** 0.42, top = Math.max(0, 1 - t ** 2.4) ** 0.5, under = Math.max(0, 1 - t ** 8) ** 0.3;
+  // (FN10 2026-11-02, tester DT10: a round, blunt end: the plan rounds off only near the end; the top's height is
+  // shaped in ring(), toeCentre.)
+  const side = Math.max(0, 1 - t ** 3) ** (1 / 3), top = 1, under = Math.max(0, 1 - t ** 8) ** 0.3;
   const cy = ANKLE - BEND - 0.011 * ramp(0, FOOT + TOE, d);
   return {
     a: (0.042 + 0.008 * ball - 0.004 * t) * side,
@@ -117,7 +119,16 @@ const DENSE = 192;
 /** One ring round the sock at s, resampled evenly by length: position at q (0 the front's middle, 0.25 the wearer's
  *  left side, 0.5 the back's middle), and its girth. Cached. */
 /** How far the toe's middle comes down towards the sole at s (FN7: a flat sole, the toe closing low). */
-function toeLow(s) { const t = (s - LEG - ARC - FOOT) / TOE; return t <= 0 ? 0 : (centre(s).p.y - 0.006) * ramp(0.35, 1, t); }
+function toeLow(s) { const t = (s - LEG - ARC - FOOT) / TOE; return t <= 0 ? 0 : centre(s).p.y - toeEnd(s).c; }
+/** FN10 2026-11-02 (tester DT10, pictures 265/290: a round, blunt toe, never a wedge): over the toe the ring's middle
+ *  eases down to 42% of the foot's height, and its top and bottom close on it as a squarish curve (a quarter
+ *  superellipse), so the toe keeps most of its height to the last centimetre and ends in a round nose a little above
+ *  the floor, the sole flat nearly to the end. `c` the middle's height, `up` / `down` its top's and bottom's reach. */
+function toeEnd(s) {
+  const t = THREE.MathUtils.clamp((s - LEG - ARC - FOOT) / TOE, 0, 1), y = centre(s).p.y, H = y + section(s).bf;
+  const c = lerp(y, 0.42 * H, ramp(0, 0.7, t));
+  return { c, up: (H - c) * Math.max(0, 1 - t ** 4) ** 0.25, down: c * Math.max(0, 1 - t ** 7) ** (1 / 7) };
+}
 /** The ring's middle at s (the centreline, lowered at the toe). */
 function middle(s) { const p = centre(s).p; p.y -= toeLow(s); return p; }
 
@@ -129,11 +140,12 @@ function ring(s, med = -1, split = false) {
   // off. The toe's middle comes down towards the sole over its last part, so it closes low, by the floor.)
   const t = Math.max(0, (s - LEG - ARC - FOOT) / TOE);
   if (t > 0) {
-    const sole = p.y - bb;
-    p.y -= toeLow(s);
-    bb = Math.max(0.0015, (p.y - Math.max(sole, 0.0015)) * Math.max(0, 1 - t ** 8) ** 0.3 + 0.0015 * (1 - ramp(0.9, 1, t)));
+    const e = toeEnd(s);
+    p.y = e.c;
+    bf = Math.max(0.0004, e.up);
+    bb = Math.max(0.0004, e.down);
     // The Rugby League toe: its end a seam line across the foot (a narrower toe box, never a point).
-    if (split) a = section(LEG + ARC + FOOT).a * (1 - 0.1 * t) * (0.4 + 0.6 * Math.max(0, 1 - t ** 2.6) ** 0.42);
+    if (split) a = section(LEG + ARC + FOOT).a * (1 - 0.1 * t) * (0.3 + 0.7 * Math.max(0, 1 - t ** 3) ** (1 / 3));
   }
   const pts = [], cum = [0];
   for (let i = 0; i <= DENSE; i++) {
@@ -142,7 +154,8 @@ function ring(s, med = -1, split = false) {
     if (split && t > 0) {
       // The shallow split: the top dips a little along it, and the end has a small notch there.
       const k = Math.exp(-(((med * v.x - SPLIT_U) / SPLIT_W) ** 2));
-      if (c > 0) v.y -= (v.y - p.y) * 0.28 * ramp(0.3, 1, t) * k;
+      // (FN10, DT10: deeper, so from the front the toe is two round domes, the big toe's and the others'.)
+      if (c > 0) v.y -= (v.y - p.y) * 0.42 * ramp(0.25, 0.8, t) * k;
       v.z -= 0.0045 * ramp(0.6, 1, t) * k;
     }
     // The oblique toe (FN7): the big toe a little fuller on top (a soft dome over it), the medial side forward, the

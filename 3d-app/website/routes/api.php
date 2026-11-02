@@ -74,6 +74,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::delete('/artboards/{artboard}', [ArtboardDocumentController::class, 'destroy'])->whereNumber('artboard');
         Route::post('/concepts', [ConceptController::class, 'store'])->middleware('throttle:concepts');
         Route::post('/convert/cdr', [ConvertController::class, 'cdr'])->middleware('throttle:uploads');
+        // The AI Designer's design files the page or app cannot draw itself (EPS, PSD, TIFF, HEIC): their picture.
+        Route::post('/convert/picture', [ConvertController::class, 'picture'])->middleware('throttle:uploads');
         Route::post('/ai/pattern', [AiController::class, 'pattern'])->middleware('throttle:concepts');
         Route::post('/ai/showcase', [AiController::class, 'showcase'])->middleware('throttle:concepts');
         // See it on a player (9.128 C): the kit on a photoreal athlete; saved to Assets only on request.
@@ -88,6 +90,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/ai/designs/render', [AiController::class, 'renderDesign'])->middleware('throttle:concepts');
         Route::post('/ai/print-sheet', [AiController::class, 'printSheet'])->middleware('throttle:concepts');
         Route::post('/ai/designs/read', [AiController::class, 'readDesign'])->middleware('throttle:concepts');
+        Route::post('/ai/accessory/read', [AiController::class, 'readAccessory'])->middleware('throttle:concepts');
         Route::post('/ai/edit', [AiController::class, 'edit'])->middleware('throttle:concepts');
         Route::post('/ai/image-edit', [AiController::class, 'imageEdit'])->middleware('throttle:concepts');
         Route::post('/ai/convert', [AiController::class, 'convert'])->middleware('throttle:concepts');

@@ -311,6 +311,25 @@ class AiController extends Controller
     }
 
     /**
+     * Artwork to 3D for headwear and accessories (CP1, client 2026-11-02): a cap (bucket hat, socks, skirt) artwork read
+     * for our 3D model: its parts' colours and where its front, back and side logos are, for the page to cut out.
+     */
+    public function readAccessory(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $data = $request->validate([
+            'image' => ['required', 'string', 'max:12000000', 'regex:#^data:image/(png|jpeg|webp);base64,#'],
+            'garment' => ['required', Rule::in(array_keys(OpenAiDesigner::ACCESSORIES))],
+        ]);
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        set_time_limit(90);
+        try {
+            return response()->json(['data' => $designer->readAccessory($data['image'], $data['garment'])]);
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+    }
+
+    /**
      * "Open in 3D Designer" (task 9.116): the AI design picture read for the editable 3D kit: the nearest 3D garment we
      * have (never a refusal), the picture's colours, pattern, team name, back lettering and the club symbol's place.
      */

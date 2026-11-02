@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'ai_service.dart';
 import 'app_controller.dart';
 import 'design_document.dart';
+import 'garment_style.dart';
 import 'project_store_stub.dart'
     if (dart.library.io) 'project_store_io.dart'
     if (dart.library.js_interop) 'project_store_web.dart'
@@ -76,6 +77,8 @@ class ProjectStore {
       'patternBody': p.kit.patternBody,
       'zoneColors': copyZones(p.kit.zoneColors),
       'trackStyle': p.kit.trackStyle,
+      if (p.kit.neck != null) 'neck': p.kit.neck,
+      if (p.kit.fit != null) 'fit': p.kit.fit,
       if (p.kit.patternColor != null) 'patternColor': p.kit.patternColor,
       if (p.kit.patternColorOwn == true) 'patternColorOwn': true,
       if (p.kit.parts.isNotEmpty) 'parts': copyParts(p.kit.parts),
@@ -130,6 +133,8 @@ class ProjectStore {
         patternBody: (k['patternBody'] as num?)?.toDouble(),
         zoneColors: copyZones(k['zoneColors']),
         trackStyle: k['trackStyle'] == 'hood' ? 'hood' : 'collar',
+        neck: readNeck(k['neck']),
+        fit: readFit(k['fit']),
         patternColor: k['patternColor'] as String?,
         patternColorOwn: k['patternColorOwn'] == true ? true : null,
         parts: copyParts(k['parts']),

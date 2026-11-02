@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/screens/bubble_home.dart';
 import 'package:three_deezi/widgets/ui.dart' show BottomNav, BrandLogo;
@@ -117,6 +118,11 @@ Future<void> _moveTo(
 
 void main() {
   setUpAll(_loadFonts);
+  // The first-visit tutorial counts as seen, except in its own tests.
+  setUp(
+    () =>
+        SharedPreferences.setMockInitialValues({BubbleTutorial.seenKey: true}),
+  );
 
   testWidgets('drag to AI: it lights up with Release to enter, then opens', (
     tester,
@@ -192,10 +198,7 @@ void main() {
         break;
       }
     }
-    expect(
-      tester.binding.focusManager.primaryFocus?.debugLabel,
-      'bubble-home',
-    );
+    expect(tester.binding.focusManager.primaryFocus?.debugLabel, 'bubble-home');
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -256,12 +259,12 @@ void main() {
       final mid = glass.center;
       final ai = _spot(tester, 'ai');
       final g = await tester.startGesture(mid);
-      await g.moveTo(Offset.lerp(mid, ai, .2)!);
+      await g.moveTo(Offset.lerp(mid, ai, .15)!);
       await tester.pump(const Duration(milliseconds: 16));
-      await g.moveTo(Offset.lerp(mid, ai, .55)!);
+      await g.moveTo(Offset.lerp(mid, ai, .35)!);
       await tester.pump(const Duration(milliseconds: 16));
       await _shot(tester, 'dragging-to-ai-$tag');
-      await _moveTo(tester, g, Offset.lerp(mid, ai, .55)!, ai);
+      await _moveTo(tester, g, Offset.lerp(mid, ai, .35)!, ai);
       expect(find.text('Release to enter'), findsOneWidget);
       await _shot(tester, 'ai-lit-$tag');
       await g.up();
@@ -272,4 +275,86 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  group('first-visit tutorial (A QUICK LOOK AROUND)', () {
+    final tutorial = find.byKey(const ValueKey('bubble-tutorial'));
+
+    Future<bool?> seen() async =>
+        (await SharedPreferences.getInstance()).getBool(BubbleTutorial.seenKey);
+
+    testWidgets('shows once, a moment after the first visit; START CREATING '
+        'closes it and it is remembered', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await _pump(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tutorial, findsNothing);
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tutorial, findsOneWidget);
+      expect(find.text('A QUICK LOOK AROUND'), findsOneWidget);
+      expect(find.text('You can also tap any option.'), findsOneWidget);
+      // The demo runs: its caption moves on.
+      expect(find.text('Swipe towards an option'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Swipe towards an option'), findsNothing);
+      // Pause and play.
+      await tester.tap(find.byKey(const ValueKey('tutorial-play')));
+      await tester.pump();
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('tutorial-play')));
+      await tester.pump();
+      // Replay starts the demo again.
+      await tester.tap(find.byKey(const ValueKey('tutorial-replay')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Swipe towards an option'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('tutorial-start')));
+      await tester.pump();
+      expect(tutorial, findsNothing);
+      expect(await seen(), isTrue);
+      expect(tester.takeException(), isNull);
+
+      // A later visit: no tutorial.
+      await tester.pumpWidget(const SizedBox());
+      await _pump(tester);
+      await tester.pump(const Duration(seconds: 2));
+      expect(tutorial, findsNothing);
+    });
+
+    testWidgets('Skip closes it too', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await _pump(tester);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.byKey(const ValueKey('tutorial-skip')));
+      await tester.pump();
+      expect(tutorial, findsNothing);
+      expect(await seen(), isTrue);
+    });
+
+    for (final size in const [Size(360, 740), Size(390, 844), Size(430, 932)]) {
+      final tag = '${size.width.toInt()}x${size.height.toInt()}';
+      testWidgets('fits $tag with the safe area; screenshots', (tester) async {
+        SharedPreferences.setMockInitialValues({});
+        await _pump(tester, size: size, notch: true);
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pump(const Duration(milliseconds: 400));
+        await _precache(tester);
+        expect(tester.takeException(), isNull);
+        final start = tester.getRect(
+          find.byKey(const ValueKey('tutorial-start')),
+        );
+        expect(start.bottom, lessThanOrEqualTo(size.height - 34));
+        expect(
+          tester.getRect(find.byKey(const ValueKey('tutorial-skip'))).top,
+          greaterThanOrEqualTo(47),
+        );
+        await tester.pump(const Duration(milliseconds: 2900));
+        await _shot(tester, 'tutorial-$tag');
+        await tester.tap(find.byKey(const ValueKey('tutorial-start')));
+        await tester.pump();
+      });
+    }
+  });
 }

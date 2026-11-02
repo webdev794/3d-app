@@ -310,63 +310,165 @@ class BottomNav extends StatelessWidget {
       ),
     ];
     final current = tabOf(controller.screen);
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xff080e14),
-        border: Border(top: BorderSide(color: Palette.border)),
-      ),
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 5),
-      child: Row(
-        children: entries.map((e) {
-          final selected = current == e.$1;
-          final colour = selected ? Palette.cyan : const Color(0xffb9c5cf);
-          return Expanded(
-            child: Semantics(
-              selected: selected,
-              child: InkWell(
-                key: ValueKey('nav-${e.$4.toLowerCase()}'),
-                onTap: () => controller.go(e.$1),
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        height: 24,
-                        child: e.$2 == null
-                            ? CubeIcon(
-                                filled: selected,
-                                color: colour,
-                                size: 23,
-                              )
-                            : Icon(
-                                selected ? e.$3 : e.$2,
-                                color: colour,
-                                size: 24,
-                              ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        e.$4,
-                        style: TextStyle(
-                          color: colour,
-                          fontSize: 11,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+    // Phones: a floating glass capsule whose active item sits on a small
+    // glowing glass pill (client home pictures 2026-10-30). Wider screens
+    // keep the flat bar.
+    final phone = MediaQuery.sizeOf(context).width < 600;
+    final row = Row(
+      children: entries.map((e) {
+        final selected = current == e.$1;
+        final colour = selected ? Palette.cyan : const Color(0xffb9c5cf);
+        final content = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 24,
+              child: e.$2 == null
+                  ? CubeIcon(filled: selected, color: colour, size: 23)
+                  : Icon(selected ? e.$3 : e.$2, color: colour, size: 24),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              e.$4,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: TextStyle(
+                color: colour,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
-          );
-        }).toList(),
+          ],
+        );
+        return Expanded(
+          child: Semantics(
+            selected: selected,
+            child: InkWell(
+              key: ValueKey('nav-${e.$4.toLowerCase()}'),
+              onTap: () => controller.go(e.$1),
+              borderRadius: BorderRadius.circular(phone ? 18 : 10),
+              child: phone
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 2,
+                        vertical: 2,
+                      ),
+                      // The active item sits in a round glowing glass
+                      // button, a little proud of the capsule.
+                      child: CustomPaint(
+                        painter: selected ? const _ActiveGlass() : null,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          child: Center(child: content),
+                        ),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      child: content,
+                    ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+    if (!phone) {
+      return Container(
+        decoration: const BoxDecoration(
+          color: Color(0xff080e14),
+          border: Border(top: BorderSide(color: Palette.border)),
+        ),
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 5),
+        child: row,
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 3, 12, 6),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xf0122c4e), Color(0xf2071426)],
+          ),
+          border: Border.all(color: const Color(0x663fd4ff)),
+          boxShadow: const [
+            BoxShadow(color: Color(0x4419b6ff), blurRadius: 18),
+            BoxShadow(
+              color: Color(0x80000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: row,
+        ),
       ),
     );
   }
+}
+
+/// The phone nav's active item: a round glass button with a cyan rim, a
+/// soft glow and a highlight at its top left.
+class _ActiveGlass extends CustomPainter {
+  const _ActiveGlass();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = math.min(size.width / 2, size.height / 2 + 4);
+    canvas.drawCircle(
+      c,
+      r + 2,
+      Paint()
+        ..color = const Color(0x6619b6ff)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-.3, -.4),
+          colors: const [
+            Color(0xff1d5fa8),
+            Color(0xff0b2a55),
+            Color(0xff071a36),
+          ],
+          stops: const [0, .6, 1],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    canvas.drawCircle(
+      c,
+      r - 1,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = const Color(0xff3fd4ff),
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r - 4),
+      -2.7,
+      1.1,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 2
+        ..color = Colors.white.withValues(alpha: .55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ActiveGlass oldDelegate) => false;
 }
 
 /// The Orders tab's box: an isometric cube, solid when [filled].

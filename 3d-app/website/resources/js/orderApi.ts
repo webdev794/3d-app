@@ -281,7 +281,8 @@ export function uploadAdminFile(orderId: number, file: File, kind: FileKind, vis
 export function itemName(item: OrderItem, options?: Pick<OrderOptions, 'garments' | 'sports'> | null) {
   if (item.label) return item.label;
   if (item.name) return item.name;
-  const sport = options?.sports.find(s => s.id === item.sport)?.name;
+  // A sport typed in "Custom…" (client 2026-11-02) as typed.
+  const sport = options ? options.sports.find(s => s.id === item.sport)?.name ?? item.sport : undefined;
   const garment = options?.garments.find(g => g.id === item.garment)?.name ?? item.garment;
   return [sport, garment].filter(Boolean).join(' ');
 }

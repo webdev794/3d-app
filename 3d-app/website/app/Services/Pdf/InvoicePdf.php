@@ -289,7 +289,10 @@ final class InvoicePdf
         $q = $this->quote;
         // A 3DEEZI TEAM invoice is a design request (or an extra revision round), not garments.
         $team = ($this->snap['order']['source'] ?? null) === 'team' || $this->invoice->team_request_id;
-        $rows = [[$team ? ((string) ($this->snap['order']['summary'] ?? '') ?: 'Design request') : 'Garments', $this->money($q['garments_total_cents'] ?? 0)]];
+        // Marquees (Signage & Marquees) are marquees, not garments.
+        $items = (array) ($this->snap['order']['items'] ?? []);
+        $marquees = $items !== [] && collect($items)->every(fn ($item) => ($item['garment'] ?? null) === 'marquee');
+        $rows = [[$team ? ((string) ($this->snap['order']['summary'] ?? '') ?: 'Design request') : ($marquees ? 'Marquees' : 'Garments'), $this->money($q['garments_total_cents'] ?? 0)]];
         if (($q['extras_total_cents'] ?? 0) > 0) {
             $rows[] = ['Extras', $this->money($q['extras_total_cents'])];
         }

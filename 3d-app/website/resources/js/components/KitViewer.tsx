@@ -3,7 +3,7 @@ import { ApiError, fetchFile, getToken } from '../api';
 import { viewerLook } from '../viewerLook';
 import type { PartKey, PartStyle } from '../parts';
 
-export type Garment = 'jersey' | 'nfljersey' | 'compression' | 'shooting-shirt' | 'socks' | 'cap' | 'bucket-hat' | 'skirt' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'varsity' | 'trackjacket' | 'singlet' | 'netball-dress' | 'shorts' | 'fullkit';
+export type Garment = 'jersey' | 'nfljersey' | 'compression' | 'shooting-shirt' | 'socks' | 'cap' | 'five-panel-cap' | 'beanie' | 'bucket-hat' | 'skirt' | 'tee' | 'polo' | 'pocketpolo' | 'hoodie' | 'ziphoodie' | 'varsity' | 'trackjacket' | 'singlet' | 'netball-dress' | 'shorts' | 'fullkit';
 export type View = 'front' | 'side' | 'back';
 /** Colour / pattern areas; 'pocket' only on the pocket polo (pool and darts shirts). */
 export type Zone = 'body' | 'yoke' | 'sleeves' | 'sides' | 'hem' | 'pocket' | 'hood';
@@ -54,7 +54,7 @@ export function trackColour(design: { main?: string; secondary?: string; accent?
     return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-const VIEWER_VERSION = '2026-10-20-166';
+export const VIEWER_VERSION = '2026-10-20-180';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
@@ -118,6 +118,10 @@ export interface Design {
     zoneColors?: Partial<Record<HoodieArea | VarsityArea | TrackArea, string>> | null;
     /** The track jacket's style: its stand-up collar (default) or a hood. */
     trackStyle?: 'collar' | 'hood' | null;
+    /** Garment style › Neck style (garmentStyle.ts): 'round' | 'v', or a rugby collar ('rc001'…'rc010', 'shallow-v'); unset: the garment's own. */
+    neck?: string | null;
+    /** Garment style › Fit (rugby jerseys): Classic, Pro / Athletic or Tight / Compression; unset: Pro (the tile's). */
+    fit?: 'classic' | 'pro' | 'tight' | null;
     /** Parts of the kit with a look of their own (task 9.134: Parts panel); absent = the kit as before. */
     parts?: Partial<Record<PartKey, PartStyle>> | null;
     layers?: ArtworkLayer[];
@@ -125,6 +129,8 @@ export interface Design {
     layout?: DesignLayout | null;
     /** The sport's garment tile it was chosen as ("Netball dress", task 9.99): its name in the Studio, projects and orders; `garment` stays the 3D garment. Empty: a plain 3D garment. */
     productName?: string;
+    /** A sport typed in "Custom…" (client 2026-11-02): its name in the Studio, projects and orders; the project's `sport` stays a catalogue id. */
+    sportName?: string;
     /** Colours › Fabric type (the 3D viewer's fabric: render-quality.js FABRIC_TYPES). Unset or Standard: the garment's own fabric. */
     fabric?: FabricType | null;
     /** A project saved by the apps: their own details (its fabric was only kept here before design.fabric existed). */
@@ -135,7 +141,7 @@ export interface Design {
 export const fabricTypes = ['Standard', 'Mesh', 'Pro', 'Eco'] as const;
 export type FabricType = (typeof fabricTypes)[number];
 /** Each garment's own fabric (Standard), as the 3D viewer makes it (render-quality.js fabricOf). */
-const ownFabrics: Partial<Record<Garment, string>> = { jersey: 'eyelet mesh', nfljersey: 'eyelet mesh', compression: 'smooth stretch knit', 'shooting-shirt': 'eyelet mesh', socks: 'rib knit', cap: 'cotton twill', 'bucket-hat': 'cotton twill', skirt: 'smooth stretch knit', singlet: 'eyelet mesh', shorts: 'eyelet mesh', fullkit: 'eyelet mesh', tee: "bird's-eye knit", polo: 'piqué', pocketpolo: 'piqué', hoodie: 'brushed fleece', ziphoodie: 'brushed fleece', trackjacket: 'fine knit', 'netball-dress': 'fine knit' };
+const ownFabrics: Partial<Record<Garment, string>> = { jersey: 'eyelet mesh', nfljersey: 'eyelet mesh', compression: 'smooth stretch knit', 'shooting-shirt': 'eyelet mesh', socks: 'rib knit', cap: 'cotton twill', 'five-panel-cap': 'cotton twill', beanie: 'rib knit', 'bucket-hat': 'cotton twill', skirt: 'smooth stretch knit', singlet: 'eyelet mesh', shorts: 'eyelet mesh', fullkit: 'eyelet mesh', tee: "bird's-eye knit", polo: 'piqué', pocketpolo: 'piqué', hoodie: 'brushed fleece', ziphoodie: 'brushed fleece', trackjacket: 'fine knit', 'netball-dress': 'fine knit' };
 /** What each fabric type is, for the Studio and the design sheet. */
 export const fabricNotes: Record<FabricType, string> = {
     Standard: "The garment's own fabric.",
@@ -174,6 +180,8 @@ export interface KitViewerHandle {
     /** Returns a PNG of the actual 3D scene after pending design changes finish. */
     capture: (view?: View) => Promise<string>;
     captureBoard: () => Promise<string>;
+    /** Garment style's NECK DETAIL: a close-up of the neck (a JPEG data URL) once the design is on the kit; null without a top. */
+    neckShot: () => Promise<string | null>;
     pick: (x: number, y: number) => Promise<GarmentPoint>;
     /** Drag to kit: the part under the pointer (normalised x, y) glows; null clears it. */
     dragHover: (at: { x: number; y: number } | null) => void;
@@ -359,6 +367,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
 
     useImperativeHandle(ref, () => ({
         pick: (x, y) => request<GarmentPoint>('pick', { x, y }),
+        neckShot: () => request<{ data?: string | null }>('neckShot', {}, 30000).then(m => (typeof m.data === 'string' && m.data.startsWith('data:image/') ? m.data : null)),
         dragHover: (at) => { if (engineReady.current) send('dragHover', at); },
         turnTo: (to) => { if (engineReady.current) send('setView', views[to]); },
         glowPart: (at) => { if (engineReady.current) send('glowPart', at); },

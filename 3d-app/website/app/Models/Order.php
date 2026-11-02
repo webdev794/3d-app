@@ -65,6 +65,9 @@ class Order extends Model
 
     public const OLD_KIDS = 'Kids';
 
+    /** A marquee ordered from the Marquee Studio (Signage & Marquees, 2026-11-02): how many of its size, e.g. {"3x3 m": 2}. */
+    public const MARQUEE_SIZES = ['3x3 m', '3x6 m'];
+
     /** Every size, in order: Mens, Womens, Kids, then the older Kids column. */
     public const SIZES = [...self::MENS_SIZES, ...self::WOMENS_SIZES, ...self::KIDS_SIZES, self::OLD_KIDS];
 
@@ -301,7 +304,8 @@ class Order extends Model
         if (filled($item['label'] ?? null)) {
             return (string) $item['label'];
         }
-        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? null;
+        // A catalogue sport by its name, or a sport typed in "Custom…" (client 2026-11-02) as typed.
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? (filled($item['sport'] ?? null) ? trim((string) $item['sport']) : null);
 
         return trim(($sport ? $sport.' ' : '').(self::GARMENTS[$item['garment'] ?? 'other'] ?? 'Garment'));
     }

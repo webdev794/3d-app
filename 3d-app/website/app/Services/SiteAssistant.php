@@ -15,7 +15,7 @@ use Throwable;
 class SiteAssistant
 {
     /** Site pages the assistant may link to; any other link is dropped by the chat window too. */
-    public const PAGES = ['/', '/#create-options', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/order-now', '/orders', '/orders/new', '/orders/upload', '/team', '/team/requests', '/pricing', '/suppliers', '/suppliers/apply', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms'];
+    public const PAGES = ['/', '/#create-options', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/order-now', '/orders', '/orders/new', '/orders/upload', '/team', '/team/requests', '/pricing', '/suppliers', '/suppliers/apply', '/signage', '/signage/marquee', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms'];
 
     /**
      * Commands the chat window can run, with the values each accepts. Artboard commands open the
@@ -72,8 +72,8 @@ class SiteAssistant
         'help' => 'empty: opens Help > Tools and shortcuts',
         // 3D Studio
         'view' => 'front | back | side | 360: turns the 3D kit',
-        'panel' => 'ai | garment | colours | patterns | logos | text | numbers | presets | close: opens that Studio tool panel (logos is the Artwork panel)',
-        'garment' => 'jersey | nfljersey (American football jersey) | compression (compression top) | shooting-shirt (basketball shooting shirt) | socks (knee-high team socks) | cap (team cap) | bucket-hat (bucket hat) | skirt (netball / tennis skirt, hockey skort) | shorts | tee | singlet | netball-dress (netball dress) | polo | pocketpolo (polo with pocket) | hoodie | ziphoodie (zip hoodie) | varsity (varsity / letterman jacket) | trackjacket (track suit jacket) | fullkit: switches the garment',
+        'panel' => 'ai | garment | style | colours | patterns | logos | text | numbers | presets | close: opens that Studio tool panel (logos is the Artwork panel)',
+        'garment' => 'jersey | nfljersey (American football jersey) | compression (compression top) | shooting-shirt (basketball shooting shirt) | socks (knee-high team socks) | cap (team cap) | five-panel-cap (5 panel cap) | beanie (knitted beanie) | bucket-hat (bucket hat) | skirt (netball / tennis skirt, hockey skort) | shorts | tee | singlet | netball-dress (netball dress) | polo | pocketpolo (polo with pocket) | hoodie | ziphoodie (zip hoodie) | varsity (varsity / letterman jacket) | trackjacket (track suit jacket) | fullkit: switches the garment',
         'board' => '2d | 3d: switches between the 2D print panels and the 3D view',
         'design' => '<setting>=<value>,… changes the kit in the Studio straight away (one undo step): number (digits), name (player name on the back), '
             .'wordmark (chest text), main | secondary | accent | patternColor (colours as #rrggbb), pattern (None, Solid, Chevron, Stripes, Velocity, Blades, Swirl, Hoops, Dots, Diagonal, Tribal, Camo); '
@@ -92,7 +92,7 @@ class SiteAssistant
 
     /** The phone app differs from the website in the Studio's layout; the Artboard is the same page. */
     private const APP_NOTE = 'The visitor is using the 3DEEZI phone app (Android or iOS). Its Artboard is the same as on the website. '
-        .'Its 3D Studio is laid out for phones: tool tabs along the bottom (Colours, Patterns, Logos, Text, Garment), Artwork and Presets buttons, '
+        .'Its 3D Studio is laid out for phones: tool tabs along the bottom (Colours, Patterns, Logos, Text, Garment, Style), Artwork and Presets buttons, '
         .'Front, Side and Back view buttons (no 360° view), a 2D panels button, an Artboard button and the "Ask 3DEEZI to change anything" bar for AI changes. '
         .'Its Export screen (reached through Save) has 3D mockup, Front & back, high resolution, social image, Design Sheet (PDF) and design pack: in the app, '
         .'export pdf, png and front-back work; there is no separate artboard or json export (use the Artboard menu or the design pack). '
@@ -203,8 +203,8 @@ class SiteAssistant
             'tab' => '/^(colour|props|layers|assets)$/',
             'help' => fn ($v) => true,
             'view' => '/^(front|back|side|360)$/',
-            'panel' => '/^(ai|garment|colours|patterns|logos|text|numbers|presets|close)$/',
-            'garment' => '/^(jersey|nfljersey|compression|shooting-shirt|socks|cap|bucket-hat|skirt|shorts|tee|singlet|netball-dress|polo|pocketpolo|hoodie|ziphoodie|varsity|trackjacket|fullkit)$/',
+            'panel' => '/^(ai|garment|style|colours|patterns|logos|text|numbers|presets|close)$/',
+            'garment' => '/^(jersey|nfljersey|compression|shooting-shirt|socks|cap|five-panel-cap|beanie|bucket-hat|skirt|shorts|tee|singlet|netball-dress|polo|pocketpolo|hoodie|ziphoodie|varsity|trackjacket|fullkit)$/',
             'board' => '/^(2d|3d)$/',
         ];
         $out = [];

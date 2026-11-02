@@ -50,4 +50,27 @@ fs.copyFileSync(path.join(here, 'hq-jersey.js'), path.join(path.dirname(out), 'h
 if (!process.argv.includes('--website-only')) fs.copyFileSync(path.join(here, 'hq-jersey.js'), path.join(root, 'assets/viewer/hq-jersey.js'));
 const presets = path.join(root, 'assets/presets.json');
 if (fs.existsSync(presets)) fs.copyFileSync(presets, path.join(root, 'website/public/media/presets.json'));
+// The Marquee viewer (Signage & Marquees, 2026-11-02): its own page beside the kit viewer, media/viewer/marquee.html
+// (the apps: assets/viewer/marquee.html), built from src/marquee-main.js with the same fonts and stadium photo.
+{
+  const marquee = await esbuild.build({
+    entryPoints: [path.join(here, 'src/marquee-main.js')],
+    nodePaths: [path.join(root, 'viewer/node_modules'), path.join(here, '../node_modules')],
+    bundle: true, minify: true, format: 'iife',
+    target: ['chrome100', 'safari16'], write: false, legalComments: 'none',
+  });
+  const mjs = marquee.outputFiles[0].text.replaceAll('</script', '<\/script');
+  const page = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>3DEEZI — Marquee Studio</title><style>
+@font-face{font-family:Rajdhani;font-weight:700;src:url(data:font/ttf;base64,${base64('assets/fonts/Rajdhani-Bold.ttf')}) format('truetype')}
+@font-face{font-family:JerseyBlock;font-weight:700;src:url(data:font/ttf;base64,${base64('assets/fonts/JerseyBlock.ttf')}) format('truetype')}
+html,body{margin:0;height:100%;overflow:hidden;background:#03070c;touch-action:none;-webkit-user-select:none;user-select:none}
+#stage{display:block;width:100%;height:100%;opacity:0;transition:opacity .8s ease}.ready #stage{opacity:1}
+</style></head><body><canvas id="stage"></canvas>
+<script>window.STADIUM='data:image/webp;base64,${base64('website/public/media/showroom/studio-backdrop.webp')}';</script>
+<script>${mjs}</script></body></html>`;
+  fs.writeFileSync(path.join(path.dirname(out), 'marquee.html'), page);
+  if (!process.argv.includes('--website-only')) fs.writeFileSync(path.join(root, 'assets/viewer/marquee.html'), page);
+}
 console.log(`Cinematic website viewer built: ${path.relative(root, out)} (${Math.round(html.length / 1024)} KB)`);

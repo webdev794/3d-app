@@ -47,6 +47,10 @@ const skirtParts = ['skirtBand'];
 /// The bucket hat's own printed parts (with its front and back).
 const hatParts = ['hatTop', 'hatBrim', 'hatUnder', 'hatBinding'];
 
+/// The beanie's printed parts besides its front and back (viewer
+/// beanieprint.js, CP1): the cuff, the stripes, the pom-pom.
+const beanieParts = ['beanieCuff', 'beanieStripe', 'beaniePom'];
+
 /// The shorts' parts (the Shorts, or the shorts of a Full Kit).
 const shortsParts = [
   'shortsFront',
@@ -82,6 +86,9 @@ const partLabels = {
   'hatBrim': 'Brim',
   'hatUnder': 'Under the brim',
   'hatBinding': 'Brim edge',
+  'beanieCuff': 'Cuff',
+  'beanieStripe': 'Stripes',
+  'beaniePom': 'Pom-pom',
 };
 
 /// "Left sleeve" for 'leftSleeve'.
@@ -101,7 +108,8 @@ List<String> partsOf(String garment) => switch (garment) {
     'hem',
   ],
   'Socks' => const ['front', 'back', ...sockParts],
-  'Cap' => const ['front', 'back', ...capParts],
+  'Cap' || '5 panel cap' => const ['front', 'back', ...capParts],
+  'Beanie' => const ['front', 'back', ...beanieParts],
   'Skirt' => const ['front', 'back', 'sides', 'hem', ...skirtParts],
   'Bucket hat' => const ['front', 'back', ...hatParts],
   'Shorts' => shortsParts,
@@ -280,28 +288,29 @@ class PartStyle {
 /// place it), as the website's (parts.ts partSpots): on the print, in
 /// garment metres (y up from the hem, x 0 down the middle, + the wearer's
 /// left), clear of the wordmark, crest, name and number.
-({String side, double x, double y}) partSpot(String garment, String key) =>
-    switch (key) {
-      'back' => (side: 'back', x: 0.0, y: 0.2),
-      'leftSleeve' => (side: 'front', x: 0.37, y: 0.6),
-      'rightSleeve' => (side: 'front', x: -0.37, y: 0.6),
-      'collar' => (side: 'front', x: 0.0, y: 0.7),
-      // A singlet's side panel ends at its outline (x 0.254); the skirt's are low on its sides.
-      'sides' when garment == 'Skirt' => (side: 'front', x: 0.23, y: 0.12),
-      'sides' => (
-        side: 'front',
-        x: garment == 'Singlet' ? 0.227 : 0.265,
-        y: 0.3,
-      ),
-      'hem' => (side: 'front', x: 0.0, y: 0.07),
-      'shortsFront' => (side: 'front', x: -0.12, y: 0.25),
-      'shortsBack' => (side: 'back', x: 0.12, y: 0.25),
-      'shortsSides' => (side: 'front', x: 0.26, y: 0.2),
-      'shortsHem' => (side: 'front', x: -0.15, y: 0.05),
-      'waistband' => (side: 'front', x: 0.0, y: 0.4),
-      'skirtBand' => (side: 'front', x: 0.0, y: 0.32),
-      _ => (side: 'front', x: 0.0, y: 0.22),
-    };
+({String side, double x, double y}) partSpot(
+  String garment,
+  String key,
+) => switch (key) {
+  'back' => (side: 'back', x: 0.0, y: 0.2),
+  'leftSleeve' => (side: 'front', x: 0.37, y: 0.6),
+  'rightSleeve' => (side: 'front', x: -0.37, y: 0.6),
+  'collar' => (side: 'front', x: 0.0, y: 0.7),
+  // A singlet's side panel ends at its outline (x 0.254); the skirt's are low on its sides.
+  'sides' when garment == 'Skirt' => (side: 'front', x: 0.23, y: 0.12),
+  'sides' => (side: 'front', x: garment == 'Singlet' ? 0.227 : 0.265, y: 0.3),
+  'hem' => (side: 'front', x: 0.0, y: 0.07),
+  'shortsFront' => (side: 'front', x: -0.12, y: 0.25),
+  'shortsBack' => (side: 'back', x: 0.12, y: 0.25),
+  'shortsSides' => (side: 'front', x: 0.26, y: 0.2),
+  'shortsHem' => (side: 'front', x: -0.15, y: 0.05),
+  'waistband' => (side: 'front', x: 0.0, y: 0.4),
+  'skirtBand' => (side: 'front', x: 0.0, y: 0.32),
+  'beanieCuff' => (side: 'front', x: 0.1, y: 0.03),
+  'beanieStripe' => (side: 'front', x: 0.1, y: 0.049),
+  'beaniePom' => (side: 'front', x: 0.0, y: 0.24),
+  _ => (side: 'front', x: 0.0, y: 0.22),
+};
 
 /// A part's look in one line, as the website's design sheet writes it
 /// (parts.ts partSummary): "Own colour #E92137 · Fade #FFC52F > clear (0°) ·
@@ -341,6 +350,7 @@ extension PartEditing on AppController {
       ...capParts,
       ...skirtParts,
       ...hatParts,
+      ...beanieParts,
     ])
       if (parts[key] is Map) key,
   ];
