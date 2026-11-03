@@ -72,25 +72,25 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
               builder: (context, box) {
                 // Phones fill the width; a tablet keeps the phone's layout.
                 final w = math.min(box.maxWidth, 500.0);
-                final title = (w * .13).clamp(34.0, 60.0);
+                final title = (w * .088).clamp(30.0, 40.0);
                 return SingleChildScrollView(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Center(
                     child: SizedBox(
                       width: w,
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 18),
                             SizedBox(
                               width: double.infinity,
                               height: 52,
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
-                                  BrandLogo(width: math.min(w * .6, 260)),
+                                  BrandLogo(width: math.min(w * .56, 246)),
                                   Positioned(
                                     right: 0,
                                     child: NotificationBell(c),
@@ -103,6 +103,19 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                             // (client picture images/333, 2026-11-03).
                             GlassBubble(
                               key: const ValueKey('orders-bubble'),
+                              // A gentle two-lobe outline (images/341): a shallow waist at 0.6;
+                              // the lower lobe round My orders is the widest.
+                              blob: const [
+                                Offset(.3, 0),
+                                Offset(.6, 4),
+                                Offset(.82, -4.5),
+                              ],
+                              padding: const EdgeInsets.fromLTRB(
+                                18,
+                                20,
+                                18,
+                                16,
+                              ),
                               radius: 64,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -268,7 +281,7 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
 
   static TextStyle _headline(double size, Color colour) => TextStyle(
     fontFamily: 'Rajdhani',
-    fontWeight: FontWeight.w700,
+    fontWeight: FontWeight.w800,
     fontSize: size,
     height: 1,
     letterSpacing: 2,
@@ -355,14 +368,34 @@ class _OrderTile extends StatelessWidget {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      art,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      filterQuality: FilterQuality.medium,
-                      errorBuilder: (_, _, _) => const SizedBox(),
+                  child: Container(
+                    // A light glass frame and sheen (images/341).
+                    foregroundDecoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xff7fdcff).withValues(alpha: .35),
+                        width: 1.2,
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: .12),
+                          const Color(0x80061428),
+                          const Color(0x99061428),
+                        ],
+                        stops: const [0, .35, 1],
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.asset(
+                        art,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        filterQuality: FilterQuality.medium,
+                        errorBuilder: (_, _, _) => const SizedBox(),
+                      ),
                     ),
                   ),
                 ),
@@ -391,35 +424,29 @@ class _MyOrdersTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
-      final s = (box.maxWidth / 330).clamp(.85, 1.4);
+      final s = (box.maxWidth / 330).clamp(.85, 1.4).toDouble();
+      // The see-through MY ORDERS pill sits inside the card, under the list
+      // (client images/350).
       return AspectRatio(
-        aspectRatio: 1.75,
+        aspectRatio: 1.6,
         child: GlassCard(
           radius: 30,
           onTap: onTap,
           semanticsLabel: 'MY ORDERS. View orders and track progress.',
-          child: Column(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 12, 22, 6),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Image.asset(
-                      'assets/images/art/order_tile_my_orders.webp',
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      alignment: const Alignment(-.4, 0),
-                      filterQuality: FilterQuality.medium,
-                      errorBuilder: (_, _, _) => const SizedBox(),
-                    ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+            child: Column(
+              children: [
+                const Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: _OrderListArt(),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 2, 14, 12),
-                child: SizedBox(
-                  height: 44 * s,
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 42 * s,
+                  width: double.infinity,
                   child: CustomPaint(
                     painter: const _BarPainter(),
                     child: Center(
@@ -430,8 +457,8 @@ class _MyOrdersTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -439,7 +466,165 @@ class _MyOrdersTile extends StatelessWidget {
   );
 }
 
-/// The glass bar under MY ORDERS.
+/// The clean order list in the MY ORDERS card (images/341): a dark glass
+/// panel with three kits, order numbers, progress dots and a truck.
+class _OrderListArt extends StatelessWidget {
+  const _OrderListArt();
+
+  static const _rows = [
+    ('#10024', 'assets/images/art/bubble_jersey_dyo.webp', 2),
+    ('#10023', 'assets/images/art/bubble_jersey_ai.webp', 2),
+    ('#10022', 'assets/images/art/garment_jersey.jpg', 3),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    const cyan = Color(0xff2fd2ff);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xcc050f1c),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cyan.withValues(alpha: .35)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+        child: FittedBox(
+          fit: BoxFit.contain,
+          child: SizedBox(
+            width: 230,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '3DEEZI',
+                  style: TextStyle(
+                    fontFamily: 'Rajdhani',
+                    fontWeight: FontWeight.w800,
+                    fontStyle: FontStyle.italic,
+                    fontSize: 11,
+                    color: Colors.white,
+                  ),
+                ),
+                for (final (no, kit, done) in _rows)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: const Color(0xff2a5a86),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: cyan.withValues(alpha: .5),
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: Image.asset(
+                              kit,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.medium,
+                              errorBuilder: (_, _, _) =>
+                                  CustomPaint(painter: _ShirtPainter(cyan)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          no,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        for (var k = 0; k < 3; k++) ...[
+                          if (k > 0)
+                            Container(
+                              width: 22,
+                              height: 2,
+                              color: k < done
+                                  ? cyan
+                                  : Colors.white.withValues(alpha: .3),
+                            ),
+                          Container(
+                            width: 11,
+                            height: 11,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: k < done
+                                  ? cyan.withValues(alpha: .3)
+                                  : Colors.transparent,
+                              border: Border.all(
+                                color: k < done
+                                    ? cyan
+                                    : Colors.white.withValues(alpha: .45),
+                                width: 1.4,
+                              ),
+                            ),
+                            child: k < done
+                                ? const Icon(Icons.check, size: 7, color: cyan)
+                                : null,
+                          ),
+                        ],
+                        const Spacer(),
+                        Icon(
+                          Icons.local_shipping_outlined,
+                          size: 16,
+                          color: Colors.white.withValues(alpha: .75),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small kit (jersey) icon for the order list.
+class _ShirtPainter extends CustomPainter {
+  const _ShirtPainter(this.colour);
+  final Color colour;
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final w = s.width, h = s.height;
+    final p = Path()
+      ..moveTo(w * .38, h * .14)
+      ..lineTo(w * .2, h * .22)
+      ..lineTo(w * .1, h * .42)
+      ..lineTo(w * .27, h * .48)
+      ..lineTo(w * .3, h * .88)
+      ..lineTo(w * .7, h * .88)
+      ..lineTo(w * .73, h * .48)
+      ..lineTo(w * .9, h * .42)
+      ..lineTo(w * .8, h * .22)
+      ..lineTo(w * .62, h * .14)
+      ..quadraticBezierTo(w * .5, h * .3, w * .38, h * .14)
+      ..close();
+    canvas.drawPath(p, Paint()..color = colour);
+    canvas.drawPath(
+      p,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .8
+        ..color = const Color(0xff2fd2ff),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ShirtPainter old) => old.colour != colour;
+}
+
+/// The MY ORDERS glass pill: lighter glass with a curved shine on top.
 class _BarPainter extends CustomPainter {
   const _BarPainter();
 
@@ -449,21 +634,44 @@ class _BarPainter extends CustomPainter {
       Offset.zero & size,
       Radius.circular(size.height / 2),
     );
+    // Dark, see-through glass.
     canvas.drawRRect(
       r,
       Paint()
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xff1b5a86), Color(0xff0b2a48)],
+          colors: [Color(0x40164a72), Color(0x30061428), Color(0x402a6ea0)],
+          stops: [0, .55, 1],
         ).createShader(Offset.zero & size),
     );
+    // A soft shine line along the top.
+    canvas.save();
+    canvas.clipRRect(r);
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height * .5));
+    canvas.drawRRect(
+      r.deflate(2.5),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: .6),
+            Colors.white.withValues(alpha: 0),
+          ],
+        ).createShader(Offset.zero & size)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, .8),
+    );
+    canvas.restore();
+    // The thin bright rim.
     canvas.drawRRect(
       r.deflate(.6),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2
-        ..color = const Color(0xff7fdcff).withValues(alpha: .7),
+        ..color = const Color(0xffa8ecff).withValues(alpha: .8),
     );
   }
 
@@ -539,7 +747,13 @@ class _MakerPill extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
-            Icon(Icons.checkroom_rounded, size: 30, color: accent),
+            SizedBox(
+              width: 30,
+              height: 30,
+              child: CustomPaint(
+                painter: _ShirtPainter(accent.withValues(alpha: .25)),
+              ),
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: FittedBox(

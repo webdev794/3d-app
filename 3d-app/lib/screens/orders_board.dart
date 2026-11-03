@@ -221,10 +221,12 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
     }).toList();
     final drafts = ((_board?['drafts'] as List?) ?? const [])
         .cast<Map<String, dynamic>>();
+    // The title is drawn below, left-aligned (client picture images/339), with
+    // "EXAMPLE ORDERS" on the right only when the server sends demo data.
+    final demo = _board?['demo'] == true;
     return BubblePage(
       c: c,
-      title: 'MY ORDERS',
-      subtitle: 'Your orders, all in one place.',
+      title: '',
       bubbleKey: const ValueKey('my-orders-bubble'),
       // The whole page scrolls and the bubble grows, like Orders.
       scrolls: true,
@@ -246,65 +248,75 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _Header(demo: demo),
+                const SizedBox(height: 12),
                 SizedBox(
                   height: 42,
-                  child: TextField(
-                    key: const ValueKey('my-orders-search'),
-                    controller: _search,
-                    onChanged: (_) => setState(() {}),
-                    style: const TextStyle(fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'Search orders',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      isDense: true,
-                      filled: true,
-                      fillColor: const Color(0x99061528),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(
-                          color: Palette.cyan.withValues(alpha: .35),
+                  child: GlassShine(
+                    radius: 22,
+                    child: TextField(
+                      key: const ValueKey('my-orders-search'),
+                      controller: _search,
+                      onChanged: (_) => setState(() {}),
+                      style: const TextStyle(fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Search orders',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        isDense: true,
+                        filled: true,
+                        fillColor: const Color(0x99061528),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
                         ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(
-                          color: Palette.cyan.withValues(alpha: .35),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(22),
+                          borderSide: BorderSide(
+                            color: Palette.cyan.withValues(alpha: .35),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(22),
+                          borderSide: BorderSide(
+                            color: Palette.cyan.withValues(alpha: .35),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 10),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Row(
                     children: [
-                      for (final (key, label) in const [
-                        ('all', 'All'),
-                        ('action', 'Action needed'),
-                        ('progress', 'In progress'),
-                        ('completed', 'Completed'),
+                      for (final (key, label, flex) in const [
+                        ('all', 'All', 2),
+                        ('action', 'Action needed', 4),
+                        ('progress', 'In progress', 3),
+                        ('completed', 'Completed', 3),
                       ])
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: _FilterChip(
-                            key: ValueKey('my-orders-filter-$key'),
-                            label: label,
-                            selected: key == 'completed'
-                                ? _view == 'completed'
-                                : _view == 'current' && _filter == key,
-                            onTap: () {
-                              final view = key == 'completed'
-                                  ? 'completed'
-                                  : 'current';
-                              final changed = view != _view;
-                              setState(() {
-                                _filter = key == 'completed' ? 'all' : key;
-                                _view = view;
-                              });
-                              if (changed) _load();
-                            },
+                        Expanded(
+                          flex: flex,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: _FilterChip(
+                              key: ValueKey('my-orders-filter-$key'),
+                              label: label,
+                              selected: key == 'completed'
+                                  ? _view == 'completed'
+                                  : _view == 'current' && _filter == key,
+                              onTap: () {
+                                final view = key == 'completed'
+                                    ? 'completed'
+                                    : 'current';
+                                final changed = view != _view;
+                                setState(() {
+                                  _filter = key == 'completed' ? 'all' : key;
+                                  _view = view;
+                                });
+                                if (changed) _load();
+                              },
+                            ),
                           ),
                         ),
                     ],
@@ -392,23 +404,41 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
                         ),
                 ),
                 const SizedBox(height: 8),
-                SizedBox(
-                  height: 48,
-                  child: FilledButton.icon(
-                    key: const ValueKey('my-orders-new'),
-                    onPressed: _newOrder,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Palette.cyan,
-                      foregroundColor: const Color(0xff04121f),
-                      shape: const StadiumBorder(),
-                      textStyle: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                Padding(
+                  // About 10 px above the bubble's rim (images/339).
+                  padding: const EdgeInsets.only(bottom: 0),
+                  child: SizedBox(
+                    height: 46,
+                    child: DecoratedBox(
+                      decoration: const BoxDecoration(
+                        borderRadius: BorderRadius.all(Radius.circular(30)),
+                        gradient: LinearGradient(
+                          colors: [Color(0xff5fe6ff), Color(0xff14b4f0)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        boxShadow: [
+                          BoxShadow(color: Color(0x6619b6ff), blurRadius: 14),
+                        ],
+                      ),
+                      child: FilledButton.icon(
+                        key: const ValueKey('my-orders-new'),
+                        onPressed: _newOrder,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: const Color(0xff04121f),
+                          shape: const StadiumBorder(),
+                          padding: EdgeInsets.zero,
+                          textStyle: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        icon: const Icon(Icons.add, size: 22),
+                        label: const Text('New order'),
                       ),
                     ),
-                    icon: const Icon(Icons.add, size: 22),
-                    label: const Text('New order'),
                   ),
                 ),
               ],
@@ -430,32 +460,130 @@ class _FilterChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    selected: selected,
-    button: true,
-    child: Material(
-      color: selected ? const Color(0xff0f5d8a) : const Color(0x99061528),
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: selected ? Palette.cyan : Palette.cyan.withValues(alpha: .3),
-          width: selected ? 1.5 : 1,
+  Widget build(BuildContext context) => GlassShine(
+    radius: 22,
+    child: Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? const Color(0xff0f5d8a) : const Color(0x99061528),
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: selected ? Palette.cyan : Palette.cyan.withValues(alpha: .3),
+            width: selected ? 1.5 : 1,
+          ),
         ),
-      ),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : const Color(0xffb9c5cf),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            height: 32,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : const Color(0xffb9c5cf),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
       ),
+    ),
+  );
+}
+
+/// MY ORDERS, left-aligned with its line under it (images/339), and the
+/// "EXAMPLE ORDERS" pill on the right when the orders are demo data.
+class _Header extends StatelessWidget {
+  const _Header({required this.demo});
+  final bool demo;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: 4, right: 2),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                header: true,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'MY ORDERS',
+                    style: bubbleTitle(34).copyWith(letterSpacing: 1),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Your orders, all in one place.',
+                style: TextStyle(fontSize: 14.5, color: Color(0xffd3dee8)),
+              ),
+            ],
+          ),
+        ),
+        if (demo)
+          Container(
+            key: const ValueKey('my-orders-example'),
+            margin: const EdgeInsets.only(top: 4, left: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: const Color(0x66061528),
+              border: Border.all(color: Palette.cyan.withValues(alpha: .8)),
+            ),
+            child: const Text(
+              'EXAMPLE ORDERS',
+              style: TextStyle(
+                color: Palette.cyan,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .6,
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+/// A dark glass card with a thin (1.5 px) cyan rim (images/339).
+class _ThinGlass extends StatelessWidget {
+  const _ThinGlass({required this.child, this.onTap});
+  final Widget child;
+  final VoidCallback? onTap;
+  static const _r = BorderRadius.all(Radius.circular(16));
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      borderRadius: _r,
+      gradient: const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xcc0d2238), Color(0xcc061322)],
+      ),
+      border: Border.all(color: const Color(0x992fd2ff), width: 1.5),
+      boxShadow: const [BoxShadow(color: Color(0x2619b6ff), blurRadius: 10)],
+    ),
+    child: Material(
+      type: MaterialType.transparency,
+      borderRadius: _r,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(onTap: onTap, child: child),
     ),
   );
 }
@@ -557,97 +685,145 @@ class OrderBoardCard extends StatelessWidget {
     final payment = (o['payment'] as Map?)?.cast<String, dynamic>();
     final action = o['action'];
     final pay = payment?['payable'] == true;
-    final picture =
-        garments
-            .map((g) => _dataImage(g['thumbnail'], 64))
-            .whereType<Widget>()
-            .firstOrNull ??
-        _dataImage(o['cover'], 64) ??
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: const Color(0xff0b1d33),
-            borderRadius: BorderRadius.circular(12),
+    // A jersey picture about 100 x 110 on the left (images/339): the kit's
+    // picture, else a jersey from the app's art.
+    final picture = SizedBox(
+      width: 96,
+      height: 110,
+      child:
+          garments
+              .map((g) => _dataImage(g['thumbnail'], 110))
+              .whereType<Widget>()
+              .firstOrNull ??
+          _dataImage(o['cover'], 110) ??
+          Image.asset(
+            'assets/images/art/bubble_jersey_dyo.webp',
+            fit: BoxFit.contain,
+            errorBuilder: (_, _, _) => const Icon(
+              Icons.checkroom_outlined,
+              color: Palette.muted,
+              size: 40,
+            ),
           ),
-          child: Icon(
-            garments.isEmpty ? Icons.description_outlined : Icons.checkroom,
-            color: Palette.muted,
-            size: 30,
-          ),
-        );
+    );
     final pieces = (o['quantity'] as num? ?? 0).toInt();
-    return GlassCard(
-      radius: 20,
+    final label = action == 'review_design'
+        ? 'Review order →'
+        : pay
+        ? 'Continue to payment →'
+        : action == 'track_delivery'
+        ? 'Track delivery →'
+        : 'View progress →';
+    return _ThinGlass(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        padding: const EdgeInsets.fromLTRB(8, 10, 10, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: picture,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${o['number']}',
-                        style: const TextStyle(
-                          color: Palette.muted,
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        '${o['name']}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          _pill(
-                            '${sub['label'] ?? o['stage_label']}',
-                            _tone(sub['tone']),
-                          ),
-                          if (payment != null)
-                            _pill(
-                              '${payment['label'] ?? payment['status']}',
-                              _tone(payment['tone']),
-                            ),
-                        ],
-                      ),
-                    ],
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: picture),
+                  Container(
+                    width: 1,
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    color: Palette.cyan.withValues(alpha: .3),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Number · name (two texts, so each can be found).
+                        DefaultTextStyle.merge(
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                          child: Wrap(
+                            children: [
+                              Text('${o['number']} · '),
+                              Text(
+                                '${o['name']}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _pill(
+                              '${sub['label'] ?? o['stage_label']}',
+                              _tone(sub['tone']),
+                            ),
+                            if (payment != null)
+                              _pill(
+                                '${payment['label'] ?? payment['status']}',
+                                _tone(payment['tone']),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.layers_outlined,
+                              size: 15,
+                              color: Color(0xffd3dee8),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '${pieces > 0 ? '$pieces piece${pieces == 1 ? '' : 's'}' : 'Sizes in your order form'}${'${o['needed_by'] ?? ''}'.isNotEmpty && o['completed'] != true ? ' · required ${_day(o['needed_by'])}' : ''}',
+                                style: const TextStyle(fontSize: 12.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Who makes it, when that is one of the preferred suppliers (3DEEZI makes the others).
+                        if (madeByOf(o) case final maker?) ...[
+                          const SizedBox(height: 6),
+                          _MadeBy(maker),
+                        ],
+                        if (o['stage'] == 'production') ...[
+                          const SizedBox(height: 8),
+                          _MakingLine('${sub['key'] ?? ''}'),
+                        ],
+                        const SizedBox(height: 8),
+                        // An outlined cyan pill with an arrow, almost the full
+                        // width of the right column (images/339).
+                        Container(
+                          height: 32,
+                          width: double.infinity,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: const Color(0x33061528),
+                            border: Border.all(color: Palette.cyan, width: 1.2),
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              label,
+                              style: const TextStyle(
+                                color: Palette.cyan,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              '${pieces > 0 ? '$pieces piece${pieces == 1 ? '' : 's'}' : 'Sizes in your order form'}${'${o['needed_by'] ?? ''}'.isNotEmpty && o['completed'] != true ? ' · required ${_day(o['needed_by'])}' : ''}',
-              style: const TextStyle(fontSize: 12.5),
-            ),
-            // Who makes it, when that is one of the preferred suppliers (3DEEZI makes the others).
-            if (madeByOf(o) case final maker?) ...[
-              const SizedBox(height: 6),
-              _MadeBy(maker),
-            ],
-            if (o['stage'] == 'production') ...[
-              const SizedBox(height: 10),
-              _MakingLine('${sub['key'] ?? ''}'),
-            ],
             if (latest != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -657,46 +833,14 @@ class OrderBoardCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Submitted ${_day(o['submitted_at'])}',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Palette.muted, fontSize: 11),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: action == 'review_design' || pay
-                        ? Palette.cyan
-                        : Colors.transparent,
-                    border: Border.all(color: Palette.cyan),
-                  ),
-                  child: Text(
-                    action == 'review_design'
-                        ? 'Review order →'
-                        : pay
-                        ? 'Continue to payment →'
-                        : action == 'track_delivery'
-                        ? 'Track delivery →'
-                        : 'View progress →',
-                    style: TextStyle(
-                      color: action == 'review_design' || pay
-                          ? const Color(0xff04121f)
-                          : Palette.cyan,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Text(
+                'Submitted ${_day(o['submitted_at'])}',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Palette.muted, fontSize: 11),
+              ),
             ),
           ],
         ),

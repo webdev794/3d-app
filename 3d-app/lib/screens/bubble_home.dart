@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_controller.dart';
+import '../widgets/glass_bubble.dart' show paintPageRim;
 import '../widgets/notification_bell.dart';
 import '../widgets/ui.dart';
 import 'create_home.dart' show artworkTo3dFlow;
@@ -469,7 +470,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                       builder: (context, box) => Stack(
                         alignment: Alignment.center,
                         children: [
-                          BrandLogo(width: math.min(box.maxWidth * .52, 230)),
+                          BrandLogo(width: math.min(box.maxWidth * .56, 246)),
                           Positioned(
                             right: 0,
                             child: NotificationBell(widget.c),
@@ -479,9 +480,17 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                     ),
                   ),
                 ),
+                // The way back to the tile home, above the glass.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _ClassicButton(onTap: widget.onSwitchToClassic),
+                  ),
+                ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
                     child: LayoutBuilder(
                       builder: (context, box) => _glass(box.biggest),
                     ),
@@ -621,12 +630,6 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
               ),
             ),
           ),
-        ),
-        // The way back to the tile home, in the glass's top-left corner.
-        Positioned(
-          left: 2,
-          top: 0,
-          child: _ClassicButton(onTap: widget.onSwitchToClassic),
         ),
         if (labelFor != null) _label(labelFor),
       ],
@@ -1151,50 +1154,6 @@ class _GlassPainter extends CustomPainter {
         ..color = const Color(0xff1a6fe0).withValues(alpha: .34)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28),
     );
-    // The wide glass edge, as on the other pages (client images/344): a
-    // soft glowing cyan-blue band, lighter on its inner edge, and a glossy
-    // highlight along the top inside edge.
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 16
-        ..color = const Color(0xff2aa8ff).withValues(alpha: .55)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 18
-        ..color = const Color(0xffa8ecff).withValues(alpha: .55)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 14
-        ..color = const Color(0xff1f8ff0).withValues(alpha: .6),
-    );
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, 0, w, math.min(h * .3, 90)));
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 24
-        ..shader = ui.Gradient.linear(
-          Offset.zero,
-          Offset(0, math.min(h * .3, 90)),
-          [
-            Colors.white.withValues(alpha: .5),
-            Colors.white.withValues(alpha: 0),
-          ],
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-    );
-    canvas.restore();
     // A soft sheen at the top left.
     canvas.drawRect(
       Offset.zero & s,
@@ -1279,29 +1238,8 @@ class _GlassPainter extends CustomPainter {
     _streak(canvas, c, .25, 1.15, 10, 8, .3, 6, const Color(0xff9fe8ff));
     _streak(canvas, c, .35, 1.0, 9, 2.4, .6, 1, const Color(0xffd8f7ff));
     canvas.restore();
-    // The outer edge of the rim: a cyan light and a fine bright line.
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6
-        ..color = const Color(0xff36d0ff).withValues(alpha: .85)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5),
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = const Color(0xffc4f5ff),
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = Colors.white.withValues(alpha: .9),
-    );
+    // The same glass edge as the other pages (glass_bubble.dart).
+    paintPageRim(canvas, path, s, 60);
   }
 
   @override

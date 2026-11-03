@@ -197,60 +197,93 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       bubbleKey: const ValueKey('projects-bubble'),
       scrolls: true,
       // Assets left the bottom bar (client picture 168.jpg): it opens from here and from Profile.
-      leading: BubbleCornerPill(
-        key: const ValueKey('projects-assets'),
-        icon: Icons.layers_outlined,
+      // A small, quiet chip (client picture images/344 has none; kept for Assets).
+      leading: Semantics(
+        button: true,
         label: 'Assets',
-        onTap: () => c.go(AppScreen.assets),
+        excludeSemantics: true,
+        child: Material(
+          key: const ValueKey('projects-assets'),
+          color: const Color(0x66061528),
+          shape: StadiumBorder(
+            side: BorderSide(color: Palette.cyan.withValues(alpha: .3)),
+          ),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: () => c.go(AppScreen.assets),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.layers_outlined, size: 13, color: Palette.muted),
+                  SizedBox(width: 4),
+                  Text(
+                    'Assets',
+                    style: TextStyle(fontSize: 11, color: Color(0xffb9c5cf)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
             height: 42,
-            child: TextField(
-              key: const ValueKey('projects-search'),
-              controller: _search,
-              onChanged: (_) => setState(() {}),
-              textInputAction: TextInputAction.search,
-              style: const TextStyle(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'Search projects',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                isDense: true,
-                filled: true,
-                fillColor: const Color(0x99061528),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  borderSide: BorderSide(
-                    color: Palette.cyan.withValues(alpha: .35),
+            child: GlassShine(
+              radius: 22,
+              child: TextField(
+                key: const ValueKey('projects-search'),
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                textInputAction: TextInputAction.search,
+                style: const TextStyle(fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Search projects',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  isDense: true,
+                  filled: true,
+                  fillColor: const Color(0x99061528),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(
+                      color: Palette.cyan.withValues(alpha: .35),
+                    ),
                   ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  borderSide: BorderSide(
-                    color: Palette.cyan.withValues(alpha: .35),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(
+                      color: Palette.cyan.withValues(alpha: .35),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              for (final t in const ['All', 'AI', 'DYO', 'Approved'])
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: _FilterPill(
-                      label: t,
-                      selected: _tab == t,
-                      onTap: () => setState(() => _tab = t),
+          // All four fit inside the bubble (images/344).
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              children: [
+                for (final t in const ['All', 'AI', 'DYO', 'Approved'])
+                  Expanded(
+                    flex: t == 'Approved' ? 5 : 4,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: _FilterPill(
+                        label: t,
+                        selected: _tab == t,
+                        onTap: () => setState(() => _tab = t),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           SizedBox(
@@ -333,31 +366,34 @@ class _FilterPill extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    selected: selected,
-    button: true,
-    child: Material(
-      color: selected ? const Color(0xff0f5d8a) : const Color(0x99061528),
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: selected ? Palette.cyan : Palette.cyan.withValues(alpha: .3),
-          width: selected ? 1.5 : 1,
+  Widget build(BuildContext context) => GlassShine(
+    radius: 22,
+    child: Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? const Color(0xff0f5d8a) : const Color(0x99061528),
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: selected ? Palette.cyan : Palette.cyan.withValues(alpha: .3),
+            width: selected ? 1.5 : 1,
+          ),
         ),
-      ),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          height: 32,
-          child: Center(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : const Color(0xffb9c5cf),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            height: 30,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : const Color(0xffb9c5cf),
+                  ),
                 ),
               ),
             ),
@@ -382,17 +418,16 @@ class _ProjectCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => GestureDetector(
     onLongPress: onMenu,
-    child: GlassCard(
-      radius: 20,
+    child: _ThinGlass(
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
+              padding: const EdgeInsets.fromLTRB(5, 5, 5, 0),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(11),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -726,29 +761,23 @@ class ProfileScreen extends StatelessWidget {
   Widget _row(IconData icon, String label, VoidCallback tap) => ListTile(
     contentPadding: const EdgeInsets.only(left: 14, right: 10),
     dense: true,
+    minTileHeight: 40,
+    visualDensity: const VisualDensity(vertical: -4),
     leading: Icon(icon, color: Palette.cyan, size: 22),
     title: Text(label, style: const TextStyle(fontSize: 14)),
     trailing: const Icon(Icons.chevron_right, size: 20),
     onTap: tap,
   );
 
-  /// A glass list of rows with thin rules between them.
-  Widget _glassList(List<Widget> rows) => GlassCard(
-    radius: 22,
-    child: Column(
-      children: [
-        for (var i = 0; i < rows.length; i++) ...[
-          if (i > 0)
-            Divider(
-              height: 1,
-              indent: 14,
-              endIndent: 14,
-              color: Palette.cyan.withValues(alpha: .14),
-            ),
-          rows[i],
-        ],
-      ],
-    ),
+  /// A list of rows, each its own glass pill (client images/344).
+  Widget _glassList(List<Widget> rows) => Column(
+    children: [
+      for (var i = 0; i < rows.length; i++)
+        Padding(
+          padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
+          child: _ThinGlass(radius: 24, child: rows[i]),
+        ),
+    ],
   );
 
   /// The two letters in the round avatar ("FS" for Fabian Soutar).
@@ -887,42 +916,63 @@ class ProfileScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 84,
-                height: 84,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const RadialGradient(
-                    center: Alignment(-.3, -.4),
-                    colors: [Color(0xff1d5fa8), Color(0xff071a36)],
-                  ),
-                  border: Border.all(color: Palette.cyan, width: 2.4),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Palette.cyan.withValues(alpha: .45),
-                      blurRadius: 18,
-                    ),
-                  ],
-                ),
-                child: c.signedIn
-                    ? Text(
-                        initials(name),
-                        key: const ValueKey('profile-initials'),
-                        style: const TextStyle(
-                          fontFamily: 'Rajdhani',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 32,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.person_outline_rounded,
-                        size: 40,
-                        color: Palette.cyan,
+            Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  top: -30,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: .13,
+                      child: Image.asset(
+                        'assets/images/emblem-final.png',
+                        width: 260,
+                        color: const Color(0xff4fb8ff),
+                        colorBlendMode: BlendMode.srcIn,
+                        errorBuilder: (_, _, _) => const SizedBox(),
                       ),
-              ),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Container(
+                    width: 84,
+                    height: 84,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const RadialGradient(
+                        center: Alignment(-.3, -.4),
+                        colors: [Color(0xff1d5fa8), Color(0xff071a36)],
+                      ),
+                      border: Border.all(color: Palette.cyan, width: 2.4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Palette.cyan.withValues(alpha: .45),
+                          blurRadius: 18,
+                        ),
+                      ],
+                    ),
+                    child: c.signedIn
+                        ? Text(
+                            initials(name),
+                            key: const ValueKey('profile-initials'),
+                            style: const TextStyle(
+                              fontFamily: 'Rajdhani',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 32,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person_outline_rounded,
+                            size: 40,
+                            color: Palette.cyan,
+                          ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             // The account's own name (its email when it has none); a guest is
@@ -985,9 +1035,10 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 14),
             Center(
               child: SizedBox(
-                width: 230,
+                width: 300,
                 height: 46,
-                child: GlassPill(
+                child: _ThinGlass(
+                  radius: 24,
                   key: const ValueKey('profile-sign-out'),
                   onTap: () async {
                     if (c.signedIn) await c.signOut();
@@ -1198,6 +1249,46 @@ class _Swatch extends StatelessWidget {
           color: p.kit.accentColor,
           shadows: const [Shadow(blurRadius: 8)],
         ),
+      ),
+    ),
+  );
+}
+
+/// A dark glass card with a thin (1.5 px) cyan rim and 16 px corners (images/344).
+class _ThinGlass extends StatelessWidget {
+  const _ThinGlass({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.radius = 16,
+    this.semanticsLabel,
+  });
+  final String? semanticsLabel;
+  final Widget child;
+  final VoidCallback? onTap;
+  final double radius;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: semanticsLabel != null && onTap != null,
+    label: semanticsLabel,
+    excludeSemantics: semanticsLabel != null,
+    onTap: semanticsLabel == null ? null : onTap,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xcc0d2238), Color(0xcc061322)],
+        ),
+        border: Border.all(color: const Color(0x992fd2ff), width: 1.5),
+        boxShadow: const [BoxShadow(color: Color(0x2619b6ff), blurRadius: 10)],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        borderRadius: BorderRadius.circular(radius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(onTap: onTap, child: child),
       ),
     ),
   );

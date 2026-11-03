@@ -55,7 +55,7 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final card = CustomPaint(
-      painter: _GlassPainter(radius: radius, accent: accent, glow: .55),
+      painter: _GlassPainter(radius: radius, accent: accent, glow: .25),
       child: Material(
         type: MaterialType.transparency,
         shape: RoundedRectangleBorder(
@@ -97,6 +97,122 @@ class GlassPill extends StatelessWidget {
     accent: accent,
     semanticsLabel: semanticsLabel,
     child: child,
+  );
+}
+
+/// The bubble shine on any rounded glass control (search box, filter
+/// pills, tab bar): a curved gloss along its top edge, drawn on top.
+class GlassShine extends StatelessWidget {
+  const GlassShine({super.key, required this.child, this.radius = 22});
+  final Widget child;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(foregroundPainter: _ShinePainter(radius), child: child);
+}
+
+class _ShinePainter extends CustomPainter {
+  const _ShinePainter(this.radius);
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final r = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(math.min(radius, size.shortestSide / 2)),
+    );
+    final topH = math.min(radius * 1.2, size.height * .5);
+    canvas.save();
+    canvas.clipRRect(r);
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, topH));
+    canvas.drawRRect(
+      r.deflate(2.5),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
+          Colors.white.withValues(alpha: .5),
+          Colors.white.withValues(alpha: 0),
+        ])
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ShinePainter old) => old.radius != radius;
+}
+
+/// The page bubble's glass edge (client images/341, 350), shared by every
+/// page bubble and Home: a 6-8 px soft outer glow at about half strength, a
+/// 6 px very bright cyan core (cyan-white at its centre) and an 8 px inner
+/// glow fading into the glass, ~18 px in all; a glossy top highlight; and
+/// a violet-pink sheen at the lower corners, strongest at the bottom right.
+void paintPageRim(Canvas canvas, Path path, Size size, double radius) {
+  Paint stroke(double width, Color colour, double blur) => Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = width
+    ..color = colour
+    ..maskFilter = blur > 0 ? MaskFilter.blur(BlurStyle.normal, blur) : null;
+  canvas.drawPath(
+    path,
+    stroke(26, const Color(0xff1a8cff).withValues(alpha: .28), 12),
+  );
+  canvas.drawPath(
+    path,
+    stroke(16, const Color(0xff1ab4ff).withValues(alpha: .5), 4),
+  );
+  canvas.save();
+  canvas.clipPath(path);
+  canvas.drawPath(
+    path,
+    stroke(30, const Color(0xff1ad0ff).withValues(alpha: .32), 6),
+  );
+  // The violet-pink sheen, within the band.
+  for (final (at, strength) in [
+    (Offset(size.width - radius * .3, size.height - radius * .3), 1.0),
+    (Offset(radius * .3, size.height - radius * .3), .8),
+  ]) {
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 34
+        ..shader = ui.Gradient.radial(
+          at,
+          60,
+          [
+            const Color(0xffff7ad9).withValues(alpha: .75 * strength),
+            const Color(0xff9b6bff).withValues(alpha: .55 * strength),
+            const Color(0xff9b6bff).withValues(alpha: 0),
+          ],
+          [0, .45, 1],
+        )
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+  }
+  // The glossy highlight along the top inside edge.
+  final topH = math.min(radius * 1.1, size.height * .3);
+  canvas.clipRect(Rect.fromLTWH(0, 0, size.width, topH));
+  canvas.drawPath(
+    path,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 22
+      ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
+        const Color(0xffbff1ff).withValues(alpha: .3),
+        const Color(0xffbff1ff).withValues(alpha: 0),
+      ])
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+  );
+  canvas.restore();
+  // The 6 px bright core on the edge, cyan-white at its centre.
+  canvas.drawPath(path, stroke(6, const Color(0xff4fd8ff), 1.2));
+  canvas.drawPath(
+    path,
+    stroke(1.6, const Color(0xffd8f8ff).withValues(alpha: .9), 0),
   );
 }
 
@@ -224,82 +340,92 @@ class _GlassPainter extends CustomPainter {
         ),
     );
     canvas.restore();
-    // A page bubble's wide glass edge (client images/344): a soft glowing
-    // cyan band, lighter on its inner edge, with a glossy top highlight.
-    if (glow >= 1) {
-      canvas.drawRRect(
-        r.inflate(2),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 6
-          ..color = accent.withValues(alpha: .45)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-      );
+    if (glow >= 1) paintPageRim(canvas, Path()..addRRect(r), size, radius);
+    // A glass card's bubble shine: a curved gloss along its top edge, over
+    // a soft glassy edge band.
+    if (glow < 1) {
+      final topH = math.min(radius * 1.4, size.height * .45);
       canvas.save();
       canvas.clipRRect(r);
+      canvas.clipRect(Rect.fromLTWH(0, 0, size.width, topH));
       canvas.drawRRect(
-        r.deflate(4),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 8
-          ..color = Color.lerp(
-            accent,
-            const Color(0xff3a7bff),
-            .25,
-          )!.withValues(alpha: .55)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
-      );
-      canvas.drawRRect(
-        r.deflate(8),
+        r.deflate(2),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
-          ..color = Color.lerp(accent, Colors.white, .6)!.withValues(alpha: .7)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
-      );
-      final topH = math.min(radius * 1.2, size.height * .3);
-      canvas.clipRect(Rect.fromLTWH(0, 0, size.width, topH));
-      canvas.drawRRect(
-        r.deflate(6),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4
           ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
-            Colors.white.withValues(alpha: .75),
+            Colors.white.withValues(alpha: .3),
             Colors.white.withValues(alpha: 0),
           ])
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
       );
       canvas.restore();
     }
-    // The bright rim.
-    canvas.drawRRect(
-      r.deflate(.8),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..shader = ui.Gradient.linear(
-          Offset.zero,
-          Offset(size.width, size.height),
-          [
-            Color.lerp(accent, Colors.white, .55)!,
-            accent.withValues(alpha: .75),
-            Color.lerp(accent, Colors.white, .35)!,
-          ],
-          [0, .5, 1],
-        ),
-    );
+    // A real bubble's rainbow shimmer: violet-pink fading in at the lower
+    // corners, strongest at the bottom right (client images/350).
+    if (glow < 1) {
+      canvas.save();
+      canvas.clipRRect(r);
+      for (final (at, strength) in [
+        (Offset(size.width - radius * .3, size.height - radius * .3), 1.0),
+        (Offset(radius * .3, size.height - radius * .3), .9),
+      ]) {
+        canvas.drawRRect(
+          r.deflate(glow >= 1 ? 8 : 1.5),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = glow >= 1 ? 16 : 3
+            ..shader = ui.Gradient.radial(
+              at,
+              glow >= 1 ? 58.0 : 30.0,
+              [
+                const Color(
+                  0xffff7ad9,
+                ).withValues(alpha: (glow >= 1 ? .8 : .35) * strength),
+                const Color(
+                  0xff9b6bff,
+                ).withValues(alpha: (glow >= 1 ? .6 : .25) * strength),
+                const Color(0xff9b6bff).withValues(alpha: 0),
+              ],
+              [0, .45, 1],
+            )
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+        );
+      }
+      canvas.restore();
+    }
+    // The rim: a thin line on a card (page bubbles: paintPageRim).
+    if (glow < 1)
+      canvas.drawRRect(
+        r.deflate(.8),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = glow >= 1 ? 1.6 : 1.5
+          ..shader = ui.Gradient.linear(
+            Offset.zero,
+            Offset(size.width, size.height),
+            [
+              Color.lerp(
+                accent,
+                Colors.white,
+                glow >= 1 ? .2 : .3,
+              )!.withValues(alpha: glow >= 1 ? .9 : .7),
+              accent.withValues(alpha: glow >= 1 ? .8 : .5),
+              Color.lerp(
+                accent,
+                Colors.white,
+                .15,
+              )!.withValues(alpha: glow >= 1 ? .9 : .7),
+            ],
+            [0, .5, 1],
+          ),
+      );
   }
 
   void _paintBlob(Canvas canvas, Size size, List<Offset> profile) {
     final r = blobPath(size, profile, radius, 0);
     final body = HSLColor.fromColor(accent);
-    canvas.drawPath(
-      r,
-      Paint()
-        ..color = accent.withValues(alpha: .4 * glow)
-        ..maskFilter = MaskFilter.blur(BlurStyle.outer, 16 * glow + 4),
-    );
+    canvas.drawPath(r, Paint()..color = accent.withValues(alpha: 0));
     canvas.drawPath(
       r,
       Paint()
@@ -322,56 +448,7 @@ class _GlassPainter extends CustomPainter {
           [0, .55, 1],
         ),
     );
-    canvas.save();
-    canvas.clipPath(r);
-    // Thick inner glow: the glass looks rounded, like a water drop.
-    canvas.drawPath(
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 22
-        ..color = accent.withValues(alpha: .26 * glow + .06)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
-    );
-    // The highlight along the top, following the outline.
-    final sheenH = (size.height * .14).clamp(10.0, 60.0);
-    canvas.drawPath(
-      blobPath(size, profile, radius, 4),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6
-        ..shader = ui.Gradient.linear(Offset(0, 0), Offset(0, sheenH * 1.6), [
-          Colors.white.withValues(alpha: .32),
-          Colors.white.withValues(alpha: 0),
-        ])
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-    );
-    canvas.drawOval(
-      Rect.fromLTWH(size.width * .12, 6, size.width * .76, sheenH),
-      Paint()
-        ..shader = ui.Gradient.linear(Offset(0, 6), Offset(0, 6 + sheenH), [
-          Colors.white.withValues(alpha: .12),
-          Colors.white.withValues(alpha: 0),
-        ]),
-    );
-    canvas.restore();
-    // The bright cyan rim.
-    canvas.drawPath(
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..shader = ui.Gradient.linear(
-          Offset.zero,
-          Offset(size.width, size.height),
-          [
-            Color.lerp(accent, Colors.white, .6)!,
-            accent,
-            Color.lerp(accent, Colors.white, .4)!,
-          ],
-          [0, .5, 1],
-        ),
-    );
+    paintPageRim(canvas, r, size, radius);
   }
 
   @override

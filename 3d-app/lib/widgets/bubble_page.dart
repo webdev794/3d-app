@@ -70,7 +70,7 @@ class BubblePage extends StatelessWidget {
             LayoutBuilder(
               builder: (context, box) {
                 final w = math.min(box.maxWidth, 520.0);
-                final size = (w * .12).clamp(32.0, 56.0);
+                final size = (w * .088).clamp(30.0, 40.0);
                 return Center(
                   child: SizedBox(
                     width: w,
@@ -80,7 +80,7 @@ class BubblePage extends StatelessWidget {
                             ? MainAxisSize.min
                             : MainAxisSize.max,
                         children: [
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 18),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: SizedBox(
@@ -92,8 +92,8 @@ class BubblePage extends StatelessWidget {
                                   // (narrower beside a corner pill, so the two never touch)
                                   BrandLogo(
                                     width: math.min(
-                                      w * (leading == null ? .52 : .42),
-                                      230,
+                                      w * (leading == null ? .56 : .46),
+                                      246,
                                     ),
                                   ),
                                   if (leading != null)
@@ -109,26 +109,26 @@ class BubblePage extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 14),
                           _fill(
                             LayoutBuilder(
                               builder: (context, inner) {
                                 final bubble = Padding(
                                   padding: const EdgeInsets.fromLTRB(
-                                    10,
+                                    9,
                                     0,
-                                    10,
-                                    6,
+                                    9,
+                                    8,
                                   ),
                                   child: GlassBubble(
                                     key: bubbleKey,
                                     radius: 64,
 
                                     padding: const EdgeInsets.fromLTRB(
-                                      12,
+                                      18,
+                                      18,
+                                      18,
                                       14,
-                                      12,
-                                      10,
                                     ),
                                     child: Column(
                                       mainAxisSize: scrolls
@@ -137,16 +137,17 @@ class BubblePage extends StatelessWidget {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.stretch,
                                       children: [
-                                        Semantics(
-                                          header: true,
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              title,
-                                              style: bubbleTitle(size),
+                                        if (title.isNotEmpty)
+                                          Semantics(
+                                            header: true,
+                                            child: FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              child: Text(
+                                                title,
+                                                style: bubbleTitle(size),
+                                              ),
                                             ),
                                           ),
-                                        ),
                                         if (subtitle != null)
                                           Text(
                                             subtitle!,
@@ -156,7 +157,9 @@ class BubblePage extends StatelessWidget {
                                               color: Color(0xffd3dee8),
                                             ),
                                           ),
-                                        const SizedBox(height: 12),
+                                        if (title.isNotEmpty ||
+                                            subtitle != null)
+                                          const SizedBox(height: 12),
                                         scrolls
                                             ? child
                                             : Expanded(child: child),
@@ -168,7 +171,7 @@ class BubblePage extends StatelessWidget {
                                 // Fills the screen under the header at least.
                                 return ConstrainedBox(
                                   constraints: BoxConstraints(
-                                    minHeight: math.max(0, box.maxHeight - 66),
+                                    minHeight: math.max(0, box.maxHeight - 84),
                                   ),
                                   child: bubble,
                                 );
@@ -193,7 +196,7 @@ class BubblePage extends StatelessWidget {
 /// A bubble page's big title (PROJECTS, ORDERS, PROFILE).
 TextStyle bubbleTitle(double size) => TextStyle(
   fontFamily: 'Rajdhani',
-  fontWeight: FontWeight.w700,
+  fontWeight: FontWeight.w800,
   fontSize: size,
   height: 1,
   letterSpacing: 2,
@@ -292,16 +295,16 @@ class BubbleCornerPill extends StatelessWidget {
       customBorder: const StadiumBorder(),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: Palette.cyan),
+            Icon(icon, size: 13, color: Palette.cyan),
             const SizedBox(width: 5),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
               ),

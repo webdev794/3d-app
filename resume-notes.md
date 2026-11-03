@@ -73,3 +73,6 @@ Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md
 - 11-03: BB1 scroll fix (Projects / Profile / My orders scroll whole page). Web rebuilt. PUSHED v3. Open: logo row stays fixed on those 3 pages (scrolls on Orders); pull-to-refresh lost on My orders.
 - 11-03: BB1 bubble = straight sides + big corners + wide glass rim (client 344) on Projects / Orders / Profile / My orders; web rebuilt; PUSHED v3. Open: Home rim not changed (own widget), logo row fixed on 3 pages, My orders pull-to-refresh.
 - 11-03 user: "Make it like client photo, no need to ask what is asked already." -> when a client picture exists, match it fully without asking about each difference.
+- 11-03: BB1 Home rim + logo row scrolls + My orders pull-to-refresh; web rebuilt; PUSHED v3 = e8a2f47.
+- 11-03: UT1 a88570de0032407e2 = app design tester (pages vs client 344/341/350/339; PASS/FAIL per page; never changes code). Flow: BB1 builds -> UT1 checks -> FIX LIST to BB1 -> repeat -> push v3.
+- 11-03: BB2 aa7ea74af231fae67 added (My orders orders_board.dart + Projects/Profile library.dart); BB1 keeps rim / Orders / Home / tab bar and does the web build; UT1 tests.
