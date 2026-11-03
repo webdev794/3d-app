@@ -1049,22 +1049,39 @@ class _GlassPainter extends CustomPainter {
       return p + d / math.max(d.distance, 1) * inset;
     }
 
-    for (var i = 0; i + 1 < idx.length; i++) {
-      final u = (i + .5) / (idx.length - 1);
-      final env = math.sin(math.pi * u);
-      final p = at(idx[i]), q = at(idx[i + 1]);
-      canvas.drawLine(
-        p,
-        q,
-        Paint()
-          ..strokeWidth = width
-          ..strokeCap = StrokeCap.round
-          ..color = colour.withValues(alpha: alpha * env)
-          ..maskFilter = blur > 0
-              ? MaskFilter.blur(BlurStyle.normal, blur)
-              : null,
-      );
+    // One path along the arc, faded in and out by a sweep gradient round
+    // the centre (one draw instead of a blurred line per segment).
+    final line = Path()..moveTo(at(idx[0]).dx, at(idx[0]).dy);
+    for (var i = 1; i < idx.length; i++) {
+      final p = at(idx[i]);
+      line.lineTo(p.dx, p.dy);
     }
+    final rot = Matrix4.identity()
+      ..translateByDouble(c.dx, c.dy, 0, 1)
+      ..rotateZ(a0)
+      ..translateByDouble(-c.dx, -c.dy, 0, 1);
+    final on = colour.withValues(alpha: alpha);
+    final off = colour.withValues(alpha: 0);
+    canvas.drawPath(
+      line,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..shader = ui.Gradient.sweep(
+          c,
+          [off, on, on, off],
+          const [0, .35, .65, 1],
+          TileMode.clamp,
+          0,
+          math.max(span, .01),
+          rot.storage,
+        )
+        ..maskFilter = blur > 2
+            ? MaskFilter.blur(BlurStyle.normal, blur)
+            : null,
+    );
   }
 
   @override
@@ -1124,8 +1141,7 @@ class _GlassPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
           ..strokeWidth = 1.4
-          ..color = const Color(0xffb8eeff).withValues(alpha: strength * .45)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, .8),
+          ..color = const Color(0xffb8eeff).withValues(alpha: strength * .45),
       );
     }
     // Faint ripple rings echoing the wavy edge.
@@ -1140,8 +1156,7 @@ class _GlassPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.6 / sc
-          ..color = const Color(0xff8fe2ff).withValues(alpha: .12 - k * .03)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
+          ..color = const Color(0xff8fe2ff).withValues(alpha: .12 - k * .03),
       );
       canvas.restore();
     }
@@ -1226,8 +1241,7 @@ class _GlassPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
           ..strokeWidth = 3.5
-          ..color = Colors.white.withValues(alpha: .7 * k)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6),
+          ..color = Colors.white.withValues(alpha: .7 * k),
       );
     }
     // Directional highlights: a long bright reflection round the top-left

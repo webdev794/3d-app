@@ -580,3 +580,7 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - 2026-11-03 (images/336-338): order process: 4-step Create order form, Upload order path, Order confirmation review with approve, confirmation PDF + Excel download. Website + app. Queued for BL1 as task 6.
 
 - 2026-11-03 (images/340-341): bubble pages must follow the client picture exactly: big organic blob bubble (not a rounded rectangle) on Projects, Orders, Profile. Doing today (BB1).
+
+- 2026-11-03 (images/359): client (Mantis): "those 3d are no good", goal = look like their catalogue product renders (realistic printed jerseys, flat studio shots). Tomorrow: plan for the 3D look.
+- 2026-11-03: app crashes on open (user) -> CR1 making the bubble rim drawing lighter.
+- 2026-11-03 (images/360): reference for the 3D look = Yellow Images jersey mockups (yellowimages.com, "With 3D Model" filter). Option: buy licensed 3D models / mockups there (money + licence check -> user/client decide).

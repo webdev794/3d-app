@@ -78,3 +78,6 @@ Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md
 - 11-03: BB2 aa7ea74af231fae67 added (My orders orders_board.dart + Projects/Profile library.dart); BB1 keeps rim / Orders / Home / tab bar and does the web build; UT1 tests.
 - 11-03: BB1+BB2 design round done (shared rim, Orders 2-lobe, My orders / Projects / Profile). Web rebuilt. PUSHED v3 = d8433c6. UT1 next.
 - 11-03: bubble design: v3 = 4db0ba5 (backup). Plan: UT1 strict list -> NEW fresh worker fixes all at once ("realistic like a bubble" with: rim as light inside glass, wider at corners, uneven white highlight line, top shine, violet-pink sheen, dark interior, bowed sides, sub-bubbles fully inside) -> UT1 once -> push.
+- 11-03: BB3 aeb88b50b56dc5559 one-shot round done; pushed v3. Ours now dimmer than client (client glass more luminous); next: brighter glassy glow at lower corners + sub-cards, keep thin core.
+- 11-03: v3 = 0c51450 (latest; includes BB3 round).
+- 11-03: CRASH on open -> CR1 agent (lighter rim drawing). Client says the 3D is no good, wants catalogue-style renders (images/359): plan tomorrow. questions.md 4: website home bubble look.

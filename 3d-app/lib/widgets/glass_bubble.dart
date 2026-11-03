@@ -30,9 +30,20 @@ class GlassBubble extends StatelessWidget {
   static const pageBlob = [Offset(.1, 0), Offset(.5, -4), Offset(.9, 0)];
 
   @override
-  Widget build(BuildContext context) => CustomPaint(
-    painter: _GlassPainter(radius: radius, accent: accent, glow: 1, blob: blob),
-    child: Padding(padding: padding, child: child),
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: CustomPaint(
+      // The rim is drawn in its own layer, cached until the size changes.
+      painter: _GlassPainter(
+        radius: radius,
+        accent: accent,
+        glow: 1,
+        blob: blob,
+      ),
+      isComplex: true,
+      child: RepaintBoundary(
+        child: Padding(padding: padding, child: child),
+      ),
+    ),
   );
 }
 
@@ -65,6 +76,7 @@ class GlassCard extends StatelessWidget {
         accent: accent,
         glow: bubbleRim ? .5 : .25,
       ),
+      isComplex: true,
       child: Material(
         type: MaterialType.transparency,
         shape: RoundedRectangleBorder(
@@ -144,8 +156,7 @@ class _ShinePainter extends CustomPainter {
         ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
           Colors.white.withValues(alpha: .5),
           Colors.white.withValues(alpha: 0),
-        ])
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
+        ]),
     );
     canvas.restore();
   }
@@ -199,7 +210,7 @@ void paintPageRim(
   // The rim core: about 5 px of saturated cyan inside the edge.
   canvas.drawPath(
     path,
-    stroke(10, Colors.white, 1)
+    stroke(10, Colors.white, 0)
       ..shader = ui.Gradient.linear(
         Offset.zero,
         Offset(w, h),
@@ -215,7 +226,7 @@ void paintPageRim(
   for (final at in corners) {
     canvas.drawPath(
       path,
-      stroke(26, Colors.white, 3)
+      stroke(26, Colors.white, 0)
         ..shader = ui.Gradient.radial(at, radius * 1.1, [
           const Color(0xff5ae6fa).withValues(alpha: .6),
           const Color(0xff36c8ff).withValues(alpha: 0),
@@ -230,7 +241,7 @@ void paintPageRim(
   ]) {
     canvas.drawPath(
       path,
-      stroke(9, Colors.white, 1.5)
+      stroke(9, Colors.white, 0)
         ..shader = ui.Gradient.radial(
           at,
           30 * k,
@@ -248,7 +259,7 @@ void paintPageRim(
   canvas.clipRect(Rect.fromLTWH(0, 0, w, topH));
   canvas.drawPath(
     path,
-    stroke(24, Colors.white, 3)
+    stroke(24, Colors.white, 0)
       ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
         const Color(0xffbff1ff).withValues(alpha: .2),
         const Color(0xffbff1ff).withValues(alpha: 0),
@@ -260,7 +271,7 @@ void paintPageRim(
     for (final at in corners) {
       canvas.drawPath(
         inner,
-        stroke(1.4, Colors.white, .6)
+        stroke(1.4, Colors.white, 0)
           ..shader = ui.Gradient.radial(
             at,
             radius * 1.6,
@@ -286,7 +297,7 @@ void paintPageRim(
     ..scaleByDouble(1 - 5 * k / w, 1 - 5 * k / h, 1, 1)
     ..translateByDouble(-w / 2, -h / 2, 0, 1);
   final drift = path.transform(m.storage);
-  for (final (width, alpha, blur) in [(2.2, .45, 1.0), (1.0, .9, 0.0)]) {
+  for (final (width, alpha, blur) in [(2.2, .3, 0.0), (1.0, .9, 0.0)]) {
     canvas.drawPath(
       drift,
       stroke(width, Colors.white, blur)
@@ -364,12 +375,23 @@ class _GlassPainter extends CustomPainter {
       Radius.circular(radius.clamp(0, size.shortestSide / 2)),
     );
     // The soft glow outside the edge.
-    canvas.drawRRect(
-      r,
-      Paint()
-        ..color = accent.withValues(alpha: .38 * glow)
-        ..maskFilter = MaskFilter.blur(BlurStyle.outer, 14 * glow + 4),
-    );
+    // Page bubbles: one blurred outer glow; cards: a plain soft ring.
+    if (glow >= 1) {
+      canvas.drawRRect(
+        r,
+        Paint()
+          ..color = accent.withValues(alpha: .38 * glow)
+          ..maskFilter = MaskFilter.blur(BlurStyle.outer, 14 * glow + 4),
+      );
+    } else {
+      canvas.drawRRect(
+        r.inflate(1.5),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = accent.withValues(alpha: .16 * glow + .04),
+      );
+    }
     // The deep blue glass, a little lighter at the top.
     canvas.drawRRect(
       r,
@@ -393,8 +415,15 @@ class _GlassPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 10
-        ..color = accent.withValues(alpha: .22 * glow + .06)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        ..shader = ui.Gradient.radial(
+          r.center,
+          math.max(size.width, size.height) * .75,
+          [
+            accent.withValues(alpha: 0),
+            accent.withValues(alpha: .16 * glow + .05),
+          ],
+          [.6, 1],
+        ),
     );
     // The sheen along the top.
     final sheen = RRect.fromRectAndRadius(
@@ -443,8 +472,7 @@ class _GlassPainter extends CustomPainter {
           ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
             Colors.white.withValues(alpha: .3),
             Colors.white.withValues(alpha: 0),
-          ])
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
+          ]),
       );
       canvas.restore();
     }
@@ -475,8 +503,7 @@ class _GlassPainter extends CustomPainter {
                 const Color(0xff9b6bff).withValues(alpha: 0),
               ],
               [0, .45, 1],
-            )
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+            ),
         );
       }
       canvas.restore();
