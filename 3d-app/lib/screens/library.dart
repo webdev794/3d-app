@@ -195,6 +195,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       title: 'PROJECTS',
       subtitle: 'Pick up where you left off.',
       bubbleKey: const ValueKey('projects-bubble'),
+      scrolls: true,
       // Assets left the bottom bar (client picture 168.jpg): it opens from here and from Profile.
       leading: BubbleCornerPill(
         key: const ValueKey('projects-assets'),
@@ -252,7 +253,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          Expanded(
+          SizedBox(
             child: shown.isEmpty
                 ? Center(
                     child: Padding(
@@ -269,6 +270,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     ),
                   )
                 : GridView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(2, 2, 2, 8),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
@@ -877,8 +880,9 @@ class ProfileScreen extends StatelessWidget {
       c: c,
       title: 'PROFILE',
       bubbleKey: const ValueKey('profile-bubble'),
-      // (A Column, not a lazy list: every row is built, so each can be found and scrolled to.)
-      child: SingleChildScrollView(
+      // The whole page scrolls and the bubble grows, like Orders.
+      scrolls: true,
+      child: Padding(
         padding: const EdgeInsets.fromLTRB(2, 0, 2, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

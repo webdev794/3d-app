@@ -50,7 +50,12 @@ void main() {
     'orderform',
     'upload',
   ]) {
-    for (final size in const [Size(360, 740), Size(390, 844), Size(430, 932)]) {
+    for (final size in const [
+      Size(360, 740),
+      Size(390, 844),
+      Size(390, 600),
+      Size(430, 932),
+    ]) {
       final tag = '${size.width.toInt()}x${size.height.toInt()}';
       testWidgets('$page picture $tag', (tester) async {
         tester.view.devicePixelRatio = 1;

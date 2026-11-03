@@ -69,3 +69,4 @@ Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md
 - 11-03: NEW TASK (images/340-341): blob-shaped bubble per client picture on Projects / Orders / Profile (now rounded rectangles). Spec SP/HB1/spec-blob.md. STARTED TODAY by BB1 a91f081a69961eabb (user: finish today). Also rebuild the 8088 preview after it (user OK needed for flutter build web).
 - 11-03: user OK: after BB1 finishes -> flutter build web + serve 8088 on LAN (node scripts/serve_preview.mjs --lan) for phone + PC check.
 - 11-03: then push v3 again (+ delta tar 11-03-b, REF = 11-03-a).
+- 11-03: BB1 blob bubble done (lib/widgets/glass_bubble.dart, bubble_page.dart, screens/orders_tab.dart). flutter build web done; 8088 served on LAN. PUSHED v3 = 28a28fe. No new live tar (app-only change; 11-03-a is current for live).
