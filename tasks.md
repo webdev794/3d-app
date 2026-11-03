@@ -578,3 +578,5 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - 2026-11-03 (images/335): app bubble home: the notification bell sits on top of the 3DEEZI logo; move it to the top-right corner, clear of the logo (as in images/334). Queued for BL1 as task 5.
 
 - 2026-11-03 (images/336-338): order process: 4-step Create order form, Upload order path, Order confirmation review with approve, confirmation PDF + Excel download. Website + app. Queued for BL1 as task 6.
+
+- 2026-11-03 (images/340-341): bubble pages must follow the client picture exactly: big organic blob bubble (not a rounded rectangle) on Projects, Orders, Profile. Doing today (BB1).

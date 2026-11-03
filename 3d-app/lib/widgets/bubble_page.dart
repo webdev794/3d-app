@@ -72,7 +72,10 @@ class BubblePage extends StatelessWidget {
                                   Positioned(left: 0, child: leading!),
                                 Positioned(
                                   right: 0,
-                                  child: NotificationBell(c, onClosed: onBellClosed),
+                                  child: NotificationBell(
+                                    c,
+                                    onClosed: onBellClosed,
+                                  ),
                                 ),
                               ],
                             ),
@@ -84,7 +87,8 @@ class BubblePage extends StatelessWidget {
                             padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
                             child: GlassBubble(
                               key: bubbleKey,
-                              radius: 46,
+                              radius: 64,
+                              blob: GlassBubble.pageBlob,
                               padding: const EdgeInsets.fromLTRB(
                                 12,
                                 14,

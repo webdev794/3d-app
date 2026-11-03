@@ -103,7 +103,15 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                             // (client picture images/333, 2026-11-03).
                             GlassBubble(
                               key: const ValueKey('orders-bubble'),
-                              radius: 48,
+                              radius: 64,
+                              // Wide round the Create / Upload cards, a waist
+                              // above My orders (client picture images/341).
+                              blob: const [
+                                Offset(.3, -6),
+                                Offset(.5, 0),
+                                Offset(.58, 16),
+                                Offset(.78, 10),
+                              ],
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -164,11 +172,17 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 12),
-                                  _MyOrdersTile(
-                                    key: const ValueKey(
-                                      'orders-tile-my-orders',
+                                  // Narrower, inside the bubble's waist.
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
                                     ),
-                                    onTap: () => c.go(AppScreen.orders),
+                                    child: _MyOrdersTile(
+                                      key: const ValueKey(
+                                        'orders-tile-my-orders',
+                                      ),
+                                      onTap: () => c.go(AppScreen.orders),
+                                    ),
                                   ),
                                 ],
                               ),
