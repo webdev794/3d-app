@@ -228,6 +228,7 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
       bubbleKey: const ValueKey('my-orders-bubble'),
       // The whole page scrolls and the bubble grows, like Orders.
       scrolls: true,
+      onRefresh: _load,
       // (Closing the bell's sheet reloads the board: an order may have changed.)
       onBellClosed: _load,
       leading: BubbleCornerPill(
@@ -315,8 +316,7 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
                       ? const Center(child: CircularProgressIndicator())
                       : _error != null && _board == null
                       ? _Message(_error!, action: 'TRY AGAIN', onAction: _load)
-                      : RefreshIndicator(
-                          onRefresh: _load,
+                      : SizedBox(
                           child: ListView(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),

@@ -22,6 +22,7 @@ class BubblePage extends StatelessWidget {
     this.bubbleKey,
     this.scrolls = false,
     this.onBellClosed,
+    this.onRefresh,
   });
   final AppController c;
   final String title;
@@ -37,6 +38,24 @@ class BubblePage extends StatelessWidget {
   /// The whole bubble scrolls and grows with [child] (which then must not
   /// use Expanded): cards keep their full size on short screens.
   final bool scrolls;
+
+  /// Pull-to-refresh on the page's scroll (only with [scrolls]).
+  final Future<void> Function()? onRefresh;
+
+  /// The scrolling page: the header scrolls away with the bubble.
+  Widget _wrap(Widget col) {
+    if (!scrolls) return col;
+    final view = SingleChildScrollView(
+      key: const ValueKey('bubble-scroll'),
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: col,
+    );
+    return onRefresh == null
+        ? view
+        : RefreshIndicator(onRefresh: onRefresh!, child: view);
+  }
+
+  Widget _fill(Widget w) => scrolls ? w : Expanded(child: w);
 
   /// Called when the bell's sheet closes (a page that reloads then).
   final VoidCallback? onBellClosed;
@@ -55,104 +74,109 @@ class BubblePage extends StatelessWidget {
                 return Center(
                   child: SizedBox(
                     width: w,
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 6),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 52,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                // (narrower beside a corner pill, so the two never touch)
-                                BrandLogo(
-                                  width: math.min(
-                                    w * (leading == null ? .52 : .42),
-                                    230,
+                    child: _wrap(
+                      Column(
+                        mainAxisSize: scrolls
+                            ? MainAxisSize.min
+                            : MainAxisSize.max,
+                        children: [
+                          const SizedBox(height: 6),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 52,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  // (narrower beside a corner pill, so the two never touch)
+                                  BrandLogo(
+                                    width: math.min(
+                                      w * (leading == null ? .52 : .42),
+                                      230,
+                                    ),
                                   ),
-                                ),
-                                if (leading != null)
-                                  Positioned(left: 0, child: leading!),
-                                Positioned(
-                                  right: 0,
-                                  child: NotificationBell(
-                                    c,
-                                    onClosed: onBellClosed,
+                                  if (leading != null)
+                                    Positioned(left: 0, child: leading!),
+                                  Positioned(
+                                    right: 0,
+                                    child: NotificationBell(
+                                      c,
+                                      onClosed: onBellClosed,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: LayoutBuilder(
-                            builder: (context, inner) {
-                              final bubble = Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  10,
-                                  0,
-                                  10,
-                                  6,
-                                ),
-                                child: GlassBubble(
-                                  key: bubbleKey,
-                                  radius: 64,
-
+                          const SizedBox(height: 8),
+                          _fill(
+                            LayoutBuilder(
+                              builder: (context, inner) {
+                                final bubble = Padding(
                                   padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    14,
-                                    12,
                                     10,
+                                    0,
+                                    10,
+                                    6,
                                   ),
-                                  child: Column(
-                                    mainAxisSize: scrolls
-                                        ? MainAxisSize.min
-                                        : MainAxisSize.max,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      Semantics(
-                                        header: true,
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: Text(
-                                            title,
-                                            style: bubbleTitle(size),
+                                  child: GlassBubble(
+                                    key: bubbleKey,
+                                    radius: 64,
+
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      14,
+                                      12,
+                                      10,
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: scrolls
+                                          ? MainAxisSize.min
+                                          : MainAxisSize.max,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Semantics(
+                                          header: true,
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              title,
+                                              style: bubbleTitle(size),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      if (subtitle != null)
-                                        Text(
-                                          subtitle!,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 15.5,
-                                            color: Color(0xffd3dee8),
+                                        if (subtitle != null)
+                                          Text(
+                                            subtitle!,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontSize: 15.5,
+                                              color: Color(0xffd3dee8),
+                                            ),
                                           ),
-                                        ),
-                                      const SizedBox(height: 12),
-                                      scrolls ? child : Expanded(child: child),
-                                    ],
+                                        const SizedBox(height: 12),
+                                        scrolls
+                                            ? child
+                                            : Expanded(child: child),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              );
-                              if (!scrolls) return bubble;
-                              return SingleChildScrollView(
-                                key: const ValueKey('bubble-scroll'),
-                                child: ConstrainedBox(
+                                );
+                                if (!scrolls) return bubble;
+                                // Fills the screen under the header at least.
+                                return ConstrainedBox(
                                   constraints: BoxConstraints(
-                                    minHeight: math.max(0, inner.maxHeight),
+                                    minHeight: math.max(0, box.maxHeight - 66),
                                   ),
                                   child: bubble,
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 );

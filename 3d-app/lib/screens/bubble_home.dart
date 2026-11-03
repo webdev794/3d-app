@@ -1151,45 +1151,50 @@ class _GlassPainter extends CustomPainter {
         ..color = const Color(0xff1a6fe0).withValues(alpha: .34)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28),
     );
-    // The thick glass edge: a dark line where the glass turns, then the
-    // band itself, lit from the top left and catching light at the bottom
-    // right.
+    // The wide glass edge, as on the other pages (client images/344): a
+    // soft glowing cyan-blue band, lighter on its inner edge, and a glossy
+    // highlight along the top inside edge.
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 38
-        ..color = const Color(0xff010814).withValues(alpha: .55)
+        ..strokeWidth = 16
+        ..color = const Color(0xff2aa8ff).withValues(alpha: .55)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
     );
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 32
-        ..shader = ui.Gradient.linear(
-          Offset.zero,
-          Offset(w, h),
-          const [
-            Color(0xd0b4f0ff),
-            Color(0xa63a9cf0),
-            Color(0x8c1a58c0),
-            Color(0xa62f8de8),
-            Color(0xc87fdcff),
-          ],
-          const [0, .22, .5, .78, 1],
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+        ..strokeWidth = 18
+        ..color = const Color(0xffa8ecff).withValues(alpha: .55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
     );
-    // The band's rounded inner shoulder.
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 14
-        ..color = Colors.white.withValues(alpha: .12)
+        ..color = const Color(0xff1f8ff0).withValues(alpha: .6),
+    );
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, w, math.min(h * .3, 90)));
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 24
+        ..shader = ui.Gradient.linear(
+          Offset.zero,
+          Offset(0, math.min(h * .3, 90)),
+          [
+            Colors.white.withValues(alpha: .5),
+            Colors.white.withValues(alpha: 0),
+          ],
+        )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
     );
+    canvas.restore();
     // A soft sheen at the top left.
     canvas.drawRect(
       Offset.zero & s,
