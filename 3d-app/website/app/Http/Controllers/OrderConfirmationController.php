@@ -28,7 +28,8 @@ class OrderConfirmationController extends Controller
     public function links(Request $request, int $order): JsonResponse
     {
         $found = $request->user()->is_admin ? Order::findOrFail($order) : $request->user()->orders()->findOrFail($order);
-        $until = now()->addMinutes(30);
+        // ?share=1: a read-only link to pass on (Share order form): 30 days.
+        $until = $request->boolean('share') ? now()->addDays(30) : now()->addMinutes(30);
 
         return response()->json(['data' => [
             'pdf' => URL::temporarySignedRoute('orders.confirmation', $until, ['order' => $found->id, 'format' => 'pdf']),
@@ -41,7 +42,7 @@ class OrderConfirmationController extends Controller
     public function draftLinks(Request $request, int $draft): JsonResponse
     {
         $found = $request->user()->orderDrafts()->findOrFail($draft);
-        $until = now()->addMinutes(30);
+        $until = $request->boolean('share') ? now()->addDays(30) : now()->addMinutes(30);
 
         return response()->json(['data' => [
             'pdf' => URL::temporarySignedRoute('orders.draft-confirmation', $until, ['draft' => $found->id, 'format' => 'pdf']),
@@ -90,7 +91,14 @@ class OrderConfirmationController extends Controller
             ]);
         }
 
-        return response()->view('order-confirmation', $data)->header('X-Robots-Tag', 'noindex');
+        // The page's own "Download Excel": the same form as .xlsx, signed until the page's own link ends.
+        $route = request()->route();
+        $expires = (int) request()->query('expires');
+        $excel = $route && $route->getName() && $expires > time()
+            ? URL::temporarySignedRoute($route->getName(), \Illuminate\Support\Carbon::createFromTimestamp($expires), ['format' => 'xlsx'] + \Illuminate\Support\Arr::except($route->parameters(), ['format']))
+            : null;
+
+        return response()->view('order-confirmation', $data + ['excelUrl' => $excel])->header('X-Robots-Tag', 'noindex');
     }
 
     /** Everything the form shows, the same for the page and the workbook. */

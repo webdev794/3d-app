@@ -41,6 +41,8 @@ class _FakeAi extends AiService {
     Map<String, dynamic>? direction,
     String quality = 'medium',
     String view = 'presentation',
+    String scene = 'auto',
+    Uint8List? sceneImage,
   }) {
     final done = Completer<Uint8List>();
     renders.add((

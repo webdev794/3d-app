@@ -1219,6 +1219,10 @@ Future<void> renderDesign(
     o.view = v;
     o.error = null;
   });
+  final scene = c.aiScene == 'custom' && c.aiSceneImage == null
+      ? 'auto'
+      : c.aiScene;
+  c.aiMadeScene = scene;
   try {
     final image = await c.ai.designMockup(
       brief: c.brief,
@@ -1228,6 +1232,8 @@ Future<void> renderDesign(
       direction: o.direction,
       quality: quality,
       view: v,
+      scene: scene,
+      sceneImage: c.aiSceneImage,
     );
     if (run != c.resultsRun) return;
     o.image = image;
@@ -1935,7 +1941,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     }
     return LayoutBuilder(
       builder: (context, box) {
-        const gap = 14.0, hint = 22.0;
+        const gap = 22.0, hint = 44.0;
         final h = math.max(
           0.0,
           math.min(
@@ -1949,12 +1955,28 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
           children: [
             const SizedBox(
               height: hint,
-              child: Text(
-                'Tap to switch',
-                key: ValueKey('tap-to-switch'),
-                textAlign: TextAlign.center,
-                softWrap: false,
-                style: TextStyle(fontSize: 12, color: Color(0xffc9d6e2)),
+              child: Column(
+                children: [
+                  Text(
+                    'OTHER OPTIONS',
+                    key: ValueKey('other-options'),
+                    softWrap: false,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                      color: Color(0xfff2f8fd),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Tap to preview',
+                    key: ValueKey('tap-to-switch'),
+                    textAlign: TextAlign.center,
+                    softWrap: false,
+                    style: TextStyle(fontSize: 12, color: Color(0xffc9d6e2)),
+                  ),
+                ],
               ),
             ),
             for (final (n, i) in others.indexed) ...[
@@ -1965,6 +1987,127 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         );
       },
     );
+  }
+
+  /// BACKGROUND chips (client picture 362): Auto / Studio / Stadium / Custom.
+  /// The background is part of the AI picture, so a new one on shown designs
+  /// asks first ("Redraw": new AI pictures, the same for all four by default).
+  Widget _sceneRow() {
+    const scenes = {
+      'auto': 'Auto',
+      'studio': 'Studio',
+      'stadium': 'Stadium',
+      'custom': 'Custom',
+    };
+    final shown = c.concepts.any((o) => o.image != null);
+    final changed =
+        shown &&
+        c.aiScene != c.aiMadeScene &&
+        !(c.aiScene == 'custom' && c.aiSceneImage == null);
+    return Padding(
+      key: const ValueKey('scene-row'),
+      padding: const EdgeInsets.fromLTRB(14, 2, 14, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Text(
+                  'BACKGROUND',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                    color: Color(0xffe6eef5),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                for (final e in scenes.entries) ...[
+                  ChoiceChip(
+                    key: ValueKey('scene-${e.key}'),
+                    label: Text(e.value),
+                    selected: c.aiScene == e.key,
+                    showCheckmark: false,
+                    visualDensity: VisualDensity.compact,
+                    selectedColor: Palette.cyan,
+                    labelStyle: TextStyle(
+                      fontSize: 12.5,
+                      color: c.aiScene == e.key
+                          ? const Color(0xff021219)
+                          : const Color(0xffeef6fc),
+                    ),
+                    avatar: e.key == 'custom' && c.aiSceneImage != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.memory(
+                              c.aiSceneImage!,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : null,
+                    onSelected: (_) => _pickScene(e.key),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ],
+            ),
+          ),
+          if (changed)
+            Row(
+              key: const ValueKey('scene-apply'),
+              children: [
+                Checkbox(
+                  value: c.aiSameScene,
+                  visualDensity: VisualDensity.compact,
+                  onChanged: (v) => c.update(() => c.aiSameScene = v ?? true),
+                ),
+                Expanded(
+                  child: Text(
+                    'Use the same setting for all ${c.concepts.length} options',
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _applyScene,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Redraw'),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickScene(String id) async {
+    if (id == 'custom') {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1536,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      c.update(() {
+        c.aiSceneImage = bytes;
+        c.aiScene = 'custom';
+      });
+      return;
+    }
+    c.update(() => c.aiScene = id);
+  }
+
+  /// "Redraw": the shown design (or all four) made again with the new
+  /// background; new AI pictures, only on the client's tap.
+  void _applyScene() {
+    final list = c.concepts;
+    final targets = c.aiSameScene ? list : [if (list.isNotEmpty) list[_sel]];
+    for (final o in targets) {
+      if (o.direction != null && !o.busy) {
+        unawaited(renderDesign(c, o, o.quality ?? 'medium'));
+      }
+    }
   }
 
   /// The large design's width / height: its own, or its view's while it is
@@ -2238,6 +2381,8 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               ),
           ],
         ),
+        if (AiService.enabled || c.concepts.any((o) => o.direction != null))
+          _sceneRow(),
         Expanded(
           child: wide
               ? LayoutBuilder(

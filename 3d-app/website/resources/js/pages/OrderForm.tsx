@@ -10,7 +10,7 @@
  */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Check, ChevronDown, ClipboardPaste, CreditCard, Info, LoaderCircle, LogIn, Palette, Paperclip, Plus, Settings, Shirt, Trash2, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, Check, CircleCheck, ImagePlus, Sparkles, FileSpreadsheet, FileUp, ChevronDown, ClipboardPaste, CreditCard, Info, LoaderCircle, LogIn, Palette, Paperclip, Plus, Settings, Shirt, Trash2, TriangleAlert, X } from 'lucide-react';
 import { api, ApiError, fetchFile, media, type Catalog, type Project, type User } from '../api';
 import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type OrderDetail, type OrderFile, type Payment } from '../orderApi';
 import { AssistCard, ContactDetailsCard, FileDropBox, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSteps, OrderSummaryCard, checkFiles, emptyContact, type ContactDetails, type SummaryRow, type UploadItem } from '../components/OrderPageParts';
@@ -175,6 +175,11 @@ function validate(f: FormState, o: FormOptions): Record<string, string> {
   });
   return p;
 }
+/** Which screen of the form a problem belongs to: 0 Details, 1 Garments, 2 Artwork. */
+function pageOf(key: string) { return key.startsWith('items') ? 1 : key === 'notes' || key === 'general' ? 2 : 0; }
+const PAGE_IDS = ['of-contact', 'of-garments', 'of-artwork'];
+const SHEET_TYPES = ['pdf', 'xlsx', 'xls', 'csv'];
+
 /** The server's 422 errors on the same keys: a garment's other problems show under its row. */
 function serverProblems(e: ApiError): Record<string, string> {
   const p: Record<string, string> = {};
@@ -297,6 +302,18 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [step, setStep] = useState<Step>('form');
+  /** One step per screen (client 2026-11-03, images/337): 0 Details, 1 Garments, 2 Artwork & files. */
+  const [page, setPageState] = useState(0);
+  const [artOpen, setArtOpen] = useState<string | null>(null);
+  const [designsOpen, setDesignsOpen] = useState(false);
+  const [sheet, setSheet] = useState<{ name: string; state: 'uploading' | 'error'; text?: string } | null>(null);
+  // "Write or snap your notes" (client 2026-11-03): typed notes, photos of notes and images, built into the form.
+  const [notesText, setNotesText] = useState('');
+  const [notePhotos, setNotePhotos] = useState<File[]>([]);
+  const [noteImages, setNoteImages] = useState<File[]>([]);
+  const [building, setBuilding] = useState<{ busy: boolean; text?: string; check?: string[] }>({ busy: false });
+  const sheetInput = useRef<HTMLInputElement>(null);
+  const artInput = useRef<HTMLInputElement>(null);
   const [tried, setTried] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -612,6 +629,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     const problems = validate(formRef.current, options);
     setTried(true); setErrors(problems);
     if (Object.keys(problems).length) {
+      setPage(Math.min(...Object.keys(problems).map(pageOf)), false);
       setTimeout(() => { const first = document.querySelector<HTMLElement>('.op-page [aria-invalid="true"], .op-page .has-error'); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); (first?.matches('input,select,textarea') ? first : first?.querySelector<HTMLElement>('input,select,button'))?.focus({ preventScroll: true }); }, 30);
       return;
     }
@@ -626,7 +644,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   async function confirm() {
     if (submitLock.current) return;
     const problems = validate(formRef.current, options);
-    if (Object.keys(problems).length) { setErrors(problems); setTried(true); setStep('form'); return; }
+    if (Object.keys(problems).length) { setErrors(problems); setTried(true); setStep('form'); setPage(Math.min(...Object.keys(problems).map(pageOf)), false); return; }
     if (!userRef.current) { needSignIn('review'); return; }
     submitLock.current = true; setSubmitting(true); setSubmitError('');
     try {
@@ -651,11 +669,86 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       else setSubmitError(err.message);
     } finally { submitLock.current = false; setSubmitting(false); }
   }
+  function setPage(n: number, scroll = true) {
+    setPageState(n);
+    if (scroll) requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  }
+  /** Continue: this screen's checks first (the review still checks everything). */
+  function goTo(target: number) {
+    if (target <= page) { setPage(target); return; }
+    if (target >= 3) { void review(); return; }
+    const problems = validate(formRef.current, options);
+    const bad = Object.keys(problems).filter(k => pageOf(k) < target);
+    if (bad.length) {
+      setTried(true); setErrors(problems);
+      setPage(Math.min(...bad.map(pageOf)), false);
+      setTimeout(() => { const first = document.querySelector<HTMLElement>('.op-page [aria-invalid="true"], .op-page .has-error'); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); (first?.matches('input,select,textarea') ? first : first?.querySelector<HTMLElement>('input,select,button'))?.focus({ preventScroll: true }); }, 30);
+      return;
+    }
+    setPage(target);
+  }
+  /** Build my order form: typed notes (read here without AI), photos of notes (3DEEZI AI) and images (artwork). */
+  async function buildFromNotes() {
+    const text = notesText.trim();
+    if (!text && !notePhotos.length && !noteImages.length) { setBuilding({ busy: false, text: 'Write your notes, or add a photo of them, first.' }); return; }
+    if ((notePhotos.length || noteImages.length) && !userRef.current) { authRef.current(); return; }
+    setBuilding({ busy: true, text: notePhotos.length ? '3DEEZI AI is reading your notes…' : 'Building your order form…' });
+    const read: { items: Loose[]; unknown: string[] } = { items: [], unknown: [] };
+    try {
+      if (text) { const r = await orderApi.readNotes(text); read.items.push(...((r.items ?? []) as Loose[])); read.unknown.push(...(r.unknown ?? [])); }
+      if (notePhotos.length) {
+        const id = await ensureDraft();
+        if (!id) throw new Error('The draft could not be saved.');
+        const ids: number[] = [];
+        for (const f of notePhotos) { const done = await uploadOrderFile(id, f, 'order_form'); ids.push(done.id); setFiles(fs => [...fs.filter(x => x.id !== done.id), done]); }
+        const d = await orderApi.readDraft(id);
+        for (const sgg of d.suggested ?? []) if (ids.includes(sgg.file_id)) { read.items.push(...((sgg.items ?? []) as Loose[])); read.unknown.push(...(sgg.unknown ?? [])); }
+      }
+      if (noteImages.length) await addFiles(noteImages);
+    } catch (e) { setBuilding({ busy: false, text: (e as Error).message || 'Your notes could not be read. Try again.' }); return; }
+    const built: Row[] = read.items.filter(it => it && typeof it === 'object').slice(0, MAX_ROWS).map(it => {
+      const sizes = cleanSizes((it.sizes ?? {}) as Record<string, number>, options.sizes);
+      const players: Loose[] = Array.isArray(it.players) ? it.players : [];
+      const garment = options.garments.some(g => g.id === it.garment) ? String(it.garment) : 'jersey';
+      const sets = new Set(Object.keys(sizes).map(sizeFit));
+      return newRow({ garment, sport: typeof it.sport === 'string' && it.sport ? it.sport : formRef.current.rows[0]?.sport || firstSport,
+        fit: typeof it.fit === 'string' && it.fit ? it.fit : sets.size === 1 ? [...sets][0] : 'mens', sizes, open: true,
+        label: garment !== it.garment && typeof it.label === 'string' ? it.label : '',
+        players: players.slice(0, MAX_PLAYERS).map(p => ({ key: makeKey('p'), name: String(p?.name ?? '').slice(0, 40), number: String(p?.number ?? '').replace(/\D/g, '').slice(0, 3), size: String(p?.size ?? '') })) });
+    });
+    if (!built.length) { setBuilding({ busy: false, text: 'No garments or sizes found in your notes. Try lines like “Polo” then “3 x 4XL”.', check: read.unknown }); return; }
+    setForm(f => {
+      const kept = f.rows.filter(r => sum(r.sizes) > 0 || r.project_id || r.players.length);
+      return { ...f, rows: [...kept, ...built].slice(0, MAX_ROWS), notes: f.notes || (text ? `From my notes:
+${text}`.slice(0, 4000) : f.notes) };
+    });
+    setNotePhotos([]); setNoteImages([]);
+    const count = built.reduce((n, r) => n + sum(r.sizes), 0);
+    setBuilding({ busy: false, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them below, then continue.`, check: read.unknown });
+  }
+  /** "Have an order sheet?": the same reading as Upload order (OrderFormReader); its sizes come into the garments. */
+  async function addSheet(file: File) {
+    const ext = (file.name.split('.').pop() ?? '').toLowerCase();
+    if (!SHEET_TYPES.includes(ext)) { onNotice('Choose a PDF, Excel (.xlsx, .xls) or CSV order sheet.'); return; }
+    if (file.size > 25600 * 1024) { onNotice('Files can be up to 25 MB.'); return; }
+    if (!userRef.current) { authRef.current(); return; }
+    setSheet({ name: file.name, state: 'uploading' });
+    const id = await ensureDraft();
+    if (!id) { setSheet({ name: file.name, state: 'error', text: 'The draft could not be saved.' }); return; }
+    try {
+      const done = await uploadOrderFile(id, file, 'order_form');
+      setFiles(fs => [...fs.filter(f => f.id !== done.id), done]);
+      setSheet(null);
+      const items = (done.suggested?.items ?? []).map(it => ({ garment: it.garment || null, sport: it.sport ?? null, fit: it.fit ?? null, sizes: it.sizes ?? {} }));
+      if (items.length) { const r = applySizes(items, 'auto'); onNotice(r.text); }
+      else onNotice(ext === 'pdf' ? 'Order sheet added. 3DEEZI reads a PDF sheet for you: check the sizes in Review.' : 'Order sheet added, but no sizes were found in it. Add them under Garments.');
+    } catch (e) { setSheet({ name: file.name, state: 'error', text: (e as Error).message }); }
+  }
   function startAnother() {
     const next = freshForm(firstSport);
     if (user) next.contact = { ...next.contact, contact_name: user.name, contact_email: user.email };
     formRef.current = next; setFormState(next); touched.current = false;
-    setSaved({ at: null, snapshot: '' }); setOrder(null); setTried(false); setErrors({}); setStep('form'); setQuote({ data: null, loading: false, error: '' });
+    setSaved({ at: null, snapshot: '' }); setOrder(null); setTried(false); setErrors({}); setStep('form'); setPageState(0); setQuote({ data: null, loading: false, error: '' });
     window.scrollTo({ top: 0 });
   }
 
@@ -705,7 +798,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     : form.rows.some(r => !sum(r.sizes)) ? 'Complete garment quantities before review.'
     : problems.contact_name || problems.team_name || problems.contact_email || problems.phone ? 'Add your contact and team details before review.'
     : problems.needed_by || problems.delivery || problems.street || problems.suburb || problems.state || problems.postcode || problems.country ? 'Add the date required and the delivery address (or Pick up) before review.'
-    : `Ready to review: ${totalQty} ${totalQty === 1 ? 'garment' : 'garments'}.`;
+    : `Ready to review: ${totalQty} ${totalQty === 1 ? 'piece' : 'pieces'}.`;
   const hintTone = Object.keys(problems).length ? 'info' : 'ok';
   // Section 1 follows what is typed now (a fixed field loses its message at once); the rest as last checked.
   const shownErrors: Record<string, string | undefined> = tried ? { ...errors, ...Object.fromEntries(['contact_name', 'contact_email', 'team_name', 'phone'].map(k => [k, problems[k]])) } : {};
@@ -726,8 +819,10 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     : saveError ? `Not saved: ${saveError}` : saved.at ? (dirty ? 'Unsaved changes · kept on this device' : `Draft saved ${new Date(saved.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}`)
     : touched.current ? 'Not saved to your account yet · kept on this device' : '';
 
+  const artFiles = files.filter(f => f.kind !== 'order_form');
+  const sheets = files.filter(f => f.kind === 'order_form');
   const dropItems: UploadItem[] = [
-    ...files.map(f => { const row = form.rows.find(r => r.file_ids.includes(f.id)); return { id: `f${f.id}`, name: f.name, size: f.size, status: 'done' as const, preview: f.thumb ?? previews.current.get(f.id) ?? null, ...(row ? { note: `for ${rowName(row, options)}` } : {}) }; }),
+    ...artFiles.map(f => { const row = form.rows.find(r => r.file_ids.includes(f.id)); return { id: `f${f.id}`, name: f.name, size: f.size, status: 'done' as const, preview: f.thumb ?? previews.current.get(f.id) ?? null, ...(row ? { note: `for ${rowName(row, options)}` } : {}) }; }),
     ...uploads.map(u => { const row = u.rowKey ? form.rows.find(r => r.key === u.rowKey) : null; return { ...u, ...(row ? { note: `for ${rowName(row, options)}` } : {}) }; }),
   ];
   const playersRow = form.rows.find(r => r.key === playersFor) ?? form.rows.find(r => ['jersey', 'tee', 'singlet', 'polo', 'hoodie'].includes(r.garment)) ?? form.rows[0];
@@ -776,11 +871,12 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     const priced = quote.data?.status === 'priced';
     const toForm = (id?: string) => {
       setStep('form');
+      setPageState(id ? Math.max(0, PAGE_IDS.indexOf(id)) : 2);
       requestAnimationFrame(() => requestAnimationFrame(() => (id ? document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : window.scrollTo({ top: 0, behavior: 'smooth' }))));
     };
     return <OrderPageLayout className="of-page is-review"
       header={<ReviewApproveHeader step="review" firstStep="Order details" layout={layout} />}
-      main={<OrderReviewApprove garments={garments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} sizeOrder={options.sizes} design={reviewDesign} artwork={reviewFiles} files={reviewFiles} filesLabel="Artwork"
+      main={<OrderReviewApprove garments={garments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} shareLink={draftId ? () => orderApi.confirmationLinks(draftId, true, true).then(l => l.pdf) : undefined} sizeOrder={options.sizes} design={reviewDesign} artwork={reviewFiles} files={reviewFiles} filesLabel="Artwork"
         layout={layout} rows={reviewRows} projects={projects} options={options} quote={quote.data as unknown as PayQuote | null} quoteLoading={quote.loading} quoteError={quote.error}
         onEditGarment={i => { const row = form.rows.filter(r => sum(r.sizes) > 0)[i]; if (row) updateRow(row.key, { open: true }); toForm('of-garments'); }}
         onDownload={f => { const file = files.find(x => x.id === f.id); if (file) orderApi.download(file).catch(e => onNotice(`Couldn’t download ${file.name}: ${(e as Error).message}`)); }}
@@ -807,13 +903,29 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const main = <>
       {!user && <div className="of-signin" role="note"><LogIn size={20} /><p><strong>Sign in to save and send your order.</strong> What you enter here is kept on this device.</p><button type="button" className="of-btn is-primary" onClick={() => authRef.current()}>Sign in</button></div>}
       {tried && shownErrors.general && <p className="of-general-error" role="alert"><TriangleAlert size={16} /> {shownErrors.general}</p>}
-      <div id="of-contact"><ContactDetailsCard value={form.contact} onChange={contact => setForm(f => ({ ...f, contact }))} errors={shownErrors} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
+      {page === 0 && <section className="op-card of-notes" aria-labelledby="of-notes-title" data-testid="notes-box">
+        <h2 id="of-notes-title"><ClipboardPaste size={20} /> Write or snap your notes</h2>
+        <p className="op-hint">Type your order the way you’d write it (e.g. “Polo”, “3 x 4XL”, “2 x 2XL”, or “Smith 7 M”), or add a photo of handwritten notes or a screenshot. 3DEEZI builds a neat order form from it, and you can still change everything.</p>
+        <textarea className="op-input of-notes-text" rows={5} maxLength={20000} value={notesText} onChange={e => setNotesText(e.target.value)} placeholder={'Polo\n3 x 4XL\n2 x 2XL\n4 x 5XL'} aria-label="Your notes" />
+        <div className="of-notes-actions">
+          <label className="of-btn"><Camera size={18} /> Add photo of notes<input type="file" hidden multiple accept="image/*,.pdf" onChange={e => { const l = Array.from(e.target.files ?? []); e.target.value = ''; setNotePhotos(p => [...p, ...l].slice(0, 4)); }} /></label>
+          <label className="of-btn"><ImagePlus size={18} /> Add images<input type="file" hidden multiple accept={options.files.artwork.extensions.map(x => `.${x}`).join(',')} onChange={e => { const l = Array.from(e.target.files ?? []); e.target.value = ''; setNoteImages(p => [...p, ...l].slice(0, 10)); }} /></label>
+          <button type="button" className="of-btn is-primary" onClick={() => void buildFromNotes()} disabled={building.busy} data-testid="build-form">{building.busy ? <LoaderCircle className="spin" size={18} /> : <Sparkles size={18} />} Build my order form</button>
+        </div>
+        {(notePhotos.length > 0 || noteImages.length > 0) && <ul className="of-sheet-files">
+          {notePhotos.map((f, i) => <li key={`p${i}`}><Camera size={15} /><span>{f.name} · photo of notes</span><button type="button" onClick={() => setNotePhotos(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
+          {noteImages.map((f, i) => <li key={`i${i}`}><ImagePlus size={15} /><span>{f.name} · image</span><button type="button" onClick={() => setNoteImages(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
+        </ul>}
+        {building.text && <p className="of-notes-status" role="status" data-testid="notes-status">{building.text}</p>}
+        {building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}
+      </section>}
+      {page === 0 && <div id="of-contact"><ContactDetailsCard value={form.contact} onChange={contact => setForm(f => ({ ...f, contact }))} errors={shownErrors} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
         <DeliveryFieldsCard value={form.delivery} errors={(tried ? problems : {}) as DeliveryErrors} leadWeeks={leadWeeks} onChange={next => setForm(f => ({ ...f, delivery: { ...f.delivery, ...next },
           // A "Delivery to" chosen on the review was for the earlier Deliver / Pick up or country: the price follows the new one.
           pricing: ('delivery' in next || 'country' in next) && f.pricing.destination ? withoutDestination(f.pricing) : f.pricing }))} />
         <MadeByField suppliers={suppliers} value={form.supplier_id} error={shownErrors.supplier_id} onChange={supplier_id => setForm(f => ({ ...f, supplier_id }))} />
-      </ContactDetailsCard></div>
-      <OrderSection number={2} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
+      </ContactDetailsCard></div>}
+      {page === 1 && <OrderSection number={2} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
         action={<button type="button" className="op-link caps" onClick={addRow} disabled={form.rows.length >= MAX_ROWS}><Plus size={18} /> Add garment</button>}>
         {form.rows.length ? <ul className="of-rows">{form.rows.map((r, i) => <GarmentRow key={r.key} row={r} index={i} options={options} projects={projects} signedIn={!!user} focus={r.key === focusKey}
           files={files.filter(f => r.file_ids.includes(f.id))} uploading={uploads.filter(u => u.rowKey === r.key && u.status === 'uploading').length}
@@ -830,24 +942,66 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
           {playersOpen && playersRow && <PlayersPanel rows={form.rows} row={playersRow} options={options} onRow={setPlayersFor}
             onChange={players => updateRow(playersRow.key, { players })} onSizes={sizes => updateRow(playersRow.key, { sizes, open: true })} />}
         </div>
-      </OrderSection>
-      <OrderSection number={3} title="Artwork & files" id="of-artwork">
+      </OrderSection>}
+      {page === 2 && <OrderSection number={3} title="Artwork & files" id="of-artwork">
         <div className="of-artwork">
+          <div className="of-art-actions">
+            <button type="button" className="of-btn" aria-expanded={designsOpen} onClick={() => setDesignsOpen(o => !o)}><Palette size={18} /> Choose saved design</button>
+            <button type="button" className="of-btn" onClick={() => artInput.current?.click()}><FileUp size={18} /> Upload artwork</button>
+            <input ref={artInput} type="file" hidden multiple accept={options.files.artwork.extensions.map(e => `.${e}`).join(',')} aria-label="Upload artwork"
+              onChange={e => { const list = Array.from(e.target.files ?? []); e.target.value = ''; const row = form.rows.find(r => !r.project_id && !r.file_ids.length); if (list.length) void addFiles(list, row?.key); }} />
+          </div>
+          {designsOpen && <div className="of-art-designs"><DesignsHelper rows={form.rows} options={options} projects={projects} signedIn={!!user} onSignIn={() => authRef.current()} onPick={applyDesign} /></div>}
+          {form.rows.length > 0 && <ul className="of-art-rows" aria-label="Artwork for each garment">
+            {form.rows.map(r => {
+              const project = projects?.find(p => p.id === r.project_id), own = artFiles.filter(f => r.file_ids.includes(f.id)), name = rowName(r, options, project);
+              const picture = projectPicture(project) ?? own.find(f => f.thumb)?.thumb ?? (own[0] ? previews.current.get(own[0].id) : null) ?? garmentPicture(r.garment);
+              const busy = uploads.some(u => u.rowKey === r.key && u.status === 'uploading'), added = !!r.project_id || own.length > 0;
+              return <li key={r.key} className="of-art-row">
+                <div className="of-art-thumb">{picture ? <img src={picture} alt="" /> : <Shirt size={30} aria-hidden="true" />}</div>
+                <div className="of-art-text"><strong>{name}</strong>
+                  <span className={added ? 'is-ok' : ''}>{busy ? <><LoaderCircle className="spin" size={14} /> Uploading…</> : added ? <><CircleCheck size={15} /> {project || r.project_id ? 'Front & back artwork added' : `Artwork added (${own.length})`}</> : 'Add artwork'}</span></div>
+                <button type="button" className="op-link" aria-expanded={artOpen === r.key} onClick={() => setArtOpen(o => (o === r.key ? null : r.key))} aria-label={`${added ? 'Change' : 'Add'} artwork for ${name}`}>{added ? 'Change' : 'Add'}</button>
+                {artOpen === r.key && <div className="of-art-pick">
+                  <DesignPicker labelledBy={`of-art-${r.key}-l`} value={r.project_id} projects={projects} options={options} signedIn={!!user} onPick={project_id => { updateRow(r.key, { project_id }); setArtOpen(null); }}
+                    onUpload={() => (document.getElementById(`of-art-${r.key}`) as HTMLInputElement | null)?.click()} onSignIn={() => authRef.current()} />
+                  {own.length > 0 && <ul className="of-row-files">{own.map(f => <li key={f.id}><Paperclip size={13} /><span>{f.name}</span><button type="button" onClick={() => updateRow(r.key, { file_ids: r.file_ids.filter(n => n !== f.id) })} aria-label={`Don’t use ${f.name} for ${name}`}><X size={12} /></button></li>)}</ul>}
+                </div>}
+                <span id={`of-art-${r.key}-l`} hidden>Artwork for {name}</span>
+                <input id={`of-art-${r.key}`} type="file" hidden multiple accept={options.files.artwork.extensions.map(e => `.${e}`).join(',')} aria-label={`Upload artwork for ${name}`}
+                  onChange={e => { const list = Array.from(e.target.files ?? []); e.target.value = ''; if (list.length) { void addFiles(list, r.key); setArtOpen(null); } }} />
+              </li>;
+            })}
+          </ul>}
+          <div className={`of-sheet${sheets.length || sheet ? ' has-file' : ''}`}
+            onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) void addSheet(f); }}>
+            <div className="of-sheet-head"><FileSpreadsheet size={28} aria-hidden="true" />
+              <div><strong>Have an order sheet?</strong><small>.pdf .xlsx .xls</small></div>
+              <button type="button" className="of-btn" onClick={() => sheetInput.current?.click()} disabled={sheet?.state === 'uploading'}>Upload sheet</button></div>
+            <input ref={sheetInput} type="file" hidden accept=".pdf,.xlsx,.xls,.csv" aria-label="Upload an order sheet" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void addSheet(f); }} />
+            {(sheets.length > 0 || sheet) && <ul className="of-sheet-files">
+              {sheets.map(f => <li key={f.id}><CircleCheck size={16} className="is-ok" /><span>{f.name}</span><button type="button" onClick={() => void removeFile(f.id)} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
+              {sheet && <li className={sheet.state === 'error' ? 'is-error' : ''}>{sheet.state === 'uploading' ? <LoaderCircle className="spin" size={16} /> : <TriangleAlert size={16} />}<span>{sheet.name}{sheet.text ? ` · ${sheet.text}` : ''}</span><button type="button" onClick={() => setSheet(null)} aria-label={`Remove ${sheet.name}`}><X size={14} /></button></li>}
+            </ul>}
+            {sheets.length > 0 && <p className="of-sheet-note">Check imported sizes and quantities in Review.</p>}
+          </div>
           <FileDropBox items={dropItems} onFiles={list => void addFiles(list)} onRemove={item => (item.id.startsWith('f') && item.status === 'done' ? void removeFile(Number(item.id.slice(1))) : dropUpload(item))} onRetry={retryUpload}
             extensions={options.files.artwork.extensions} maxKb={options.files.artwork.max_kb} maxFiles={options.files.max_files} label="Upload logos, artwork or a reference"
-            hint={`PNG, JPG, SVG, PDF, AI or EPS · up to ${Math.round(options.files.artwork.max_kb / 1024)} MB each`} />
+            hint={`Artwork for the whole order · PNG, JPG, SVG, PDF, AI or EPS · up to ${Math.round(options.files.artwork.max_kb / 1024)} MB each`} />
           <OrderField label="Notes for your supplier" error={shownErrors.notes}>
             <textarea className="op-input" rows={3} maxLength={4000} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Tell us about colours, logo placement and any special requests..." />
           </OrderField>
+          <p className="of-confirm-hint">Confirmation download: PDF / Excel (available on the next step)</p>
         </div>
-      </OrderSection>
+      </OrderSection>}
+      {page > 0 && <button type="button" className="op-link of-back" onClick={() => setPage(page - 1)}><ArrowLeft size={18} /> Back to {page === 1 ? 'details' : 'garments'}</button>}
     </>;
 
   return <OrderPageLayout className="of-page"
     header={<><OrderPageHeader current="Create Order Form" title="Create order form" subtitle="Build your order step by step." />
-      <OrderSteps steps={[{ label: 'Details', target: 'of-contact' }, { label: 'Garments', target: 'of-garments' }, { label: 'Artwork', target: 'of-artwork' }, { label: 'Review' }]} onReview={() => void review()} /></>}
+      <OrderSteps steps={[{ label: 'Details', target: 'of-contact' }, { label: 'Garments', target: 'of-garments' }, { label: 'Artwork', target: 'of-artwork' }, { label: 'Review' }]} current={page} onGo={goTo} onReview={() => void review()} /></>}
     main={main} side={side}
-    bar={<OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} primary={{ label: 'Review order', onClick: () => void review() }} note="Reviewing does not submit your order." status={statusText} />} />;
+    bar={<OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} primary={page < 2 ? { label: page === 0 ? 'Continue to garments' : 'Continue to artwork', onClick: () => goTo(page + 1) } : { label: 'Review confirmation form', onClick: () => void review() }} note={page < 2 ? `Step ${page + 1} of 4` : 'Reviewing does not submit your order.'} status={statusText} />} />;
 }
 
 /* ================================================================================================ a garment */

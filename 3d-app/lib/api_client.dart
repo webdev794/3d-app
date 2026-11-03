@@ -304,13 +304,20 @@ class ApiClient {
   Future<Map<String, dynamic>> orderConfirmationLinks(
     int id, {
     bool draft = true,
+    bool share = false,
   }) async =>
       await _send(
             'GET',
-            draft
-                ? '/order-drafts/$id/confirmation-links'
-                : '/orders/$id/confirmation-links',
+            (draft
+                    ? '/order-drafts/$id/confirmation-links'
+                    : '/orders/$id/confirmation-links') +
+                (share ? '?share=1' : ''),
           )
+          as Map<String, dynamic>;
+
+  /// "Write or snap your notes": typed notes read into garments, sizes and players (no AI).
+  Future<Map<String, dynamic>> readOrderNotes(String text) async =>
+      await _send('POST', '/orders/read-notes', body: {'text': text})
           as Map<String, dynamic>;
 
   /// The order forms' choices: garments, sports, fits, sizes (public).

@@ -97,19 +97,24 @@ scene.background = backdrop();
 const pmrem = new THREE.PMREMGenerator(renderer);
 // The tiers: the stadium's own light (floodlights, a warm key, cool rims) in every reflection and sheen.
 scene.environment = pmrem.fromScene(Q ? stadiumEnvironment({ softbox: LOOK2 }) : new RoomEnvironment(), Q ? 0.03 : 0.04).texture;
-scene.environmentIntensity = Q ? 1.3 : 0.3;
+// (VW1 2026-11-03, client 363 item 4: less shine on the fabric; was 1.3 in the tiers.)
+scene.environmentIntensity = Q ? 1.05 : 0.3;
 
 // A photographic stadium plate supplies the distant architecture. The editable
 // garment, stage, lighting, shadows and floor reflection are rendered in 3D.
 const environmentReady = new Promise((resolve) => {
   new THREE.TextureLoader().load(window.STADIUM || '../showroom/studio-backdrop.webp', (texture) => {
-    // Shallow depth of field: the stadium is softly out of focus behind the sharp kit.
-    const img = texture.image, blur = Math.max(2, Math.round(img.width / 240)), pad = blur * 3;
+    // (VW1 2026-11-03, client 363 item 1: the stadium crisp, not a heavy blur; only a hair of softening (about 1 px)
+    // and a navy veil below, so it stays calm and subdued behind the kit. Was blur = width / 240, about 10 px.)
+    const img = texture.image, blur = Math.max(0.6, img.width / 2400), pad = Math.ceil(blur * 3);
     const soft = document.createElement('canvas');
     soft.width = img.width; soft.height = img.height;
     const g = soft.getContext('2d');
     g.filter = `blur(${blur}px)`;
     g.drawImage(img, -pad, -pad, img.width + pad * 2, img.height + pad * 2);
+    g.filter = 'none';
+    g.fillStyle = 'rgba(4,12,24,.28)';
+    g.fillRect(0, 0, img.width, img.height);
     texture.dispose();
     if (Q) {
       // The tiers: its floodlights brighter than white, so they bloom.
@@ -191,12 +196,14 @@ scene.add(kit);
 /** Garment parts on the podium: { painter, texture, rim, material }. */
 let parts = [];
 const material = new THREE.MeshPhysicalMaterial({
-  roughness: 0.64,
-  reflectivity: 0.2,
+  // (VW1 2026-11-03, client 363 item 4: a more matt fabric with a weaker specular, fewer shiny highlights; was 0.64 / 0.2.)
+  roughness: 0.72,
+  reflectivity: 0.12,
+  specularIntensity: 0.6,
   metalness: 0,
   // Polyester's soft gloss, caught by the raised threads of the weave.
-  sheen: 0.45,
-  sheenRoughness: 0.42,
+  sheen: 0.32,
+  sheenRoughness: 0.5,
   sheenColor: new THREE.Color(Q ? 0xa9b0b8 : 0x9fb4c6), // (LT2 2026-11-02: a near-neutral sheen in the tiers, so black backs read black.)
   side: THREE.FrontSide,
   // Baked crease shading from the garment geometry (fold valleys, under the arms).
@@ -629,16 +636,19 @@ function dressMannequin(list) {
   }
   // The podium's top is at y -0.0675 (studio.js); the rod goes a little into it, so the kit's gentle bob never lifts it off.
   const stand = foot ? buildStand(foot.y + 0.012, -0.075, foot.x, foot.z) : Number.isFinite(low) ? buildStand(low + 0.012, -0.075) : null;
-  if (stand) kit.add(stand);
+  // (VW1 2026-11-03, client 363 item 5: no visible support pole; the kit stands over the podium on its own.)
+  void stand;
 }
 
 /** Re-centres the camera on whatever is on the podium. */
 function frameKit() {
   const box = new THREE.Box3().setFromObject(kit);
   const height = box.max.y - box.min.y, width = box.max.x - box.min.x;
-  CENTER.set(0, (box.min.y + box.max.y) / 2, 0);
+  // (VW1: aimed a little low, so the smaller pedestal stays in the frame.)
+  CENTER.set(0, (box.min.y + box.max.y) / 2 - height * 0.05, 0);
   // Fit the taller of height and (narrow-screen) width, never closer than a jersey.
-  HOME.radius = Math.max(2.05, Math.max(height, width * 0.8) * 2.65);
+  // (VW1 2026-11-03, client 363 item 5: the kit larger in the frame; was 2.05 / 2.65.)
+  HOME.radius = Math.max(1.85, Math.max(height, width * 0.8) * 2.4);
   controls.maxDistance = Math.max(3.4, HOME.radius * 1.6);
   controls.target.copy(CENTER);
   setCamera({ ...HOME, theta: new THREE.Spherical().setFromVector3(camera.position.clone().sub(CENTER)).theta || 0 });

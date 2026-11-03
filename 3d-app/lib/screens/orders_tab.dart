@@ -103,20 +103,15 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                             // (client picture images/333, 2026-11-03).
                             GlassBubble(
                               key: const ValueKey('orders-bubble'),
-                              // A gentle two-lobe outline (images/341): a shallow waist at 0.6;
-                              // the lower lobe round My orders is the widest.
-                              blob: const [
-                                Offset(.3, 2),
-                                Offset(.6, 6),
-                                Offset(.8, -3),
-                              ],
+                              // A clean glass pill with gently bowed sides (images/341).
+                              blob: GlassBubble.pageBlob,
                               padding: const EdgeInsets.fromLTRB(
                                 22,
                                 20,
                                 22,
-                                46,
+                                24,
                               ),
-                              radius: 56,
+                              radius: 72,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -138,7 +133,7 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                                       color: Color(0xffd3dee8),
                                     ),
                                   ),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 12),
                                   Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -150,7 +145,7 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                                           ),
                                           art:
                                               'assets/images/art/order_tile_form.webp',
-                                          title: 'CREATE ORDER',
+                                          title: 'CREATE ORDER FORM',
                                           sub: 'Fill in the order form',
                                           onTap: () => _open(
                                             context,
@@ -189,7 +184,7 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 18),
+                            const SizedBox(height: 12),
                             const _RuleHeading('PREFERRED SUPPLIERS'),
                             const SizedBox(height: 12),
                             Row(
@@ -232,7 +227,7 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 18),
+                            const SizedBox(height: 10),
                             Semantics(
                               key: const ValueKey('orders-rewards'),
                               label: '3DEEZI Rewards: coming soon',
@@ -358,9 +353,9 @@ class _OrderTile extends StatelessWidget {
     builder: (context, box) {
       final s = (box.maxWidth / 160).clamp(.82, 1.45);
       return AspectRatio(
-        aspectRatio: .95,
+        aspectRatio: 1.0,
         child: GlassCard(
-          radius: 24,
+          radius: 26,
           onTap: onTap,
           bubbleRim: true,
           semanticsLabel: '$title. $sub',
@@ -368,11 +363,11 @@ class _OrderTile extends StatelessWidget {
             children: [
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  padding: const EdgeInsets.fromLTRB(9, 9, 9, 0),
                   child: Container(
                     // A light glass frame and sheen (images/341).
                     foregroundDecoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(
                         color: const Color(0xff7fdcff).withValues(alpha: .35),
                         width: 1.2,
@@ -389,7 +384,7 @@ class _OrderTile extends StatelessWidget {
                       ),
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
                       // Zoomed to the middle: the art's own blue
                       // lightning frame stays outside the tile.
                       child: Transform.scale(
@@ -410,7 +405,7 @@ class _OrderTile extends StatelessWidget {
                 padding: EdgeInsets.fromLTRB(6, 6 * s, 6, 10 * s),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(title, maxLines: 1, style: _tileWord(19 * s)),
+                  child: Text(title, maxLines: 1, style: _tileWord(16.5 * s)),
                 ),
               ),
             ],
@@ -436,12 +431,12 @@ class _MyOrdersTile extends StatelessWidget {
       return AspectRatio(
         aspectRatio: 1.6,
         child: GlassCard(
-          radius: 30,
+          radius: 46,
           onTap: onTap,
           bubbleRim: true,
           semanticsLabel: 'MY ORDERS. View orders and track progress.',
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
             child: Column(
               children: [
                 const Expanded(

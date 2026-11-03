@@ -217,6 +217,15 @@ class AppController extends ChangeNotifier {
   String brief = '';
   final List<Uint8List> references = [];
 
+  /// The YOUR DESIGNS background (client picture 362): auto, studio, stadium
+  /// or custom (the client's own picture); part of the generated scene and
+  /// the same for all four designs. [aiMadeScene]: what the shown designs
+  /// were made with.
+  String aiScene = 'auto';
+  Uint8List? aiSceneImage;
+  bool aiSameScene = true;
+  String aiMadeScene = 'auto';
+
   /// The design file a reference picture was drawn from, with its name and
   /// type for the chip (client 2026-11-02: PDF, SVG, AI, EPS, PSD…).
   final referenceFiles = Expando<ReferenceFile>('reference file');

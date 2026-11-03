@@ -414,13 +414,18 @@ class BottomNav extends StatelessWidget {
               gradient: const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xf0122c4e), Color(0xf2071426)],
+                colors: [
+                  Color(0xd02a5f96),
+                  Color(0xc8123660),
+                  Color(0xd8081a33),
+                ],
+                stops: [0, .45, 1],
               ),
-              border: Border.all(color: const Color(0xff5ae6fa), width: 3),
+              border: Border.all(color: const Color(0x994ab4d8), width: 1.6),
               boxShadow: const [
                 BoxShadow(
-                  color: Color(0x8836c8ff),
-                  blurRadius: 14,
+                  color: Color(0x5536c8ff),
+                  blurRadius: 10,
                   spreadRadius: 1,
                 ),
                 BoxShadow(
@@ -430,15 +435,136 @@ class BottomNav extends StatelessWidget {
                 ),
               ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              child: row,
+            child: CustomPaint(
+              // Uneven shine just inside the thin edge (client 379).
+              painter: const _NavShine(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                child: RepaintBoundary(child: row),
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Glass lights inside the nav capsule's edge: a glossy white streak along
+/// the top-left and the left end, a softer patch at the right end and the
+/// bottom curve. Gradients only.
+class _NavShine extends CustomPainter {
+  const _NavShine();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rr = RRect.fromRectAndRadius(
+      rect.deflate(4),
+      const Radius.circular(26),
+    );
+    void glow(Rect clip, double w, Gradient g) {
+      canvas.save();
+      canvas.clipRect(clip);
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w
+          ..shader = g.createShader(rect),
+      );
+      canvas.restore();
+    }
+
+    Color wh(double a) => Colors.white.withValues(alpha: a);
+    Color cy(double a) => const Color(0xff7fe6ff).withValues(alpha: a);
+    final h = size.height, w = size.width;
+    // A soft white glow all round just inside the edge, like the main
+    // bubble's side lights (client 373), strongest at both ends.
+    canvas.save();
+    canvas.clipRRect(rr);
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 16
+        ..shader = LinearGradient(
+          colors: [cy(.8), cy(.3), cy(.3), cy(.75)],
+          stops: const [0, .25, .75, 1],
+        ).createShader(rect)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+    );
+    canvas.restore();
+    // Small lights round the edge (client 373), uneven sizes.
+    canvas.save();
+    canvas.clipRRect(rr);
+    final edge = Path()..addRRect(rr.deflate(3));
+    for (final m in edge.computeMetrics()) {
+      for (final (f, sz, a) in const [
+        (.03, 14.0, .9),
+        (.12, 7.0, .55),
+        (.2, 11.0, .75),
+        (.33, 6.0, .5),
+        (.45, 9.0, .65),
+        (.55, 15.0, .9),
+        (.63, 6.0, .5),
+        (.72, 10.0, .7),
+        (.85, 13.0, .85),
+        (.94, 7.0, .55),
+      ]) {
+        final tan = m.getTangentForOffset(m.length * f);
+        if (tan == null) continue;
+        canvas.save();
+        canvas.translate(tan.position.dx, tan.position.dy);
+        canvas.rotate(-tan.angle);
+        canvas.scale(.9 + (f * 97) % 1 * 1.6, .22 + (f * 53) % 1 * .3);
+        canvas.drawCircle(
+          Offset.zero,
+          sz * 1.7,
+          Paint()
+            ..shader = RadialGradient(
+              colors: [
+                wh(a),
+                const Color(0xff8fe9ff).withValues(alpha: a * .7),
+                const Color(0x002ab8ff),
+              ],
+              stops: const [0, .35, 1],
+            ).createShader(Rect.fromCircle(center: Offset.zero, radius: sz * 1.7)),
+        );
+        canvas.restore();
+      }
+      break;
+    }
+    canvas.restore();
+    // Top-left gloss and the left end.
+    final tl = LinearGradient(
+      colors: [wh(.95), wh(.7), wh(0)],
+      stops: const [0, .3, .55],
+    );
+    glow(Rect.fromLTRB(0, 0, w * .55, h * .75), 5, tl);
+    glow(Rect.fromLTRB(0, 0, w * .55, h * .75), 1.6, tl);
+    // The bottom curve, brightest at the left; a faint touch at the right.
+    final bot = LinearGradient(
+      begin: Alignment.bottomLeft,
+      end: Alignment.topRight,
+      colors: [wh(.85), wh(.4), wh(0)],
+      stops: const [0, .35, .7],
+    );
+    glow(Rect.fromLTRB(0, h * .5, w, h), 5, bot);
+    glow(
+      Rect.fromLTRB(w * .8, h * .2, w, h * .8),
+      4,
+      const LinearGradient(
+        begin: Alignment.centerRight,
+        end: Alignment.centerLeft,
+        colors: [Color(0x55ffffff), Color(0x00ffffff)],
+        stops: [0, .2],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_NavShine o) => false;
 }
 
 /// The phone nav's active item: a round glass button with a cyan rim, a

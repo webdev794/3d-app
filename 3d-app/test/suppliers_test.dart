@@ -105,10 +105,11 @@ List<(String, String)> recordOpened() {
 
 /// The Create Order Form with section 1 and one garment filled in (10 jerseys, M).
 Future<void> fillOrderForm(WidgetTester tester) async {
-  await tester.enterText(find.widgetWithText(TextField, 'Team / organisation'), 'Brisbane Bears');
+  await orders_test.typeIn(tester, 'Team / organisation', 'Brisbane Bears');
   await fillDelivery(tester);
   final size = find.byKey(const Key('size-0-M'));
-  await tester.scrollUntilVisible(size, 300, scrollable: find.byType(Scrollable).first);
+  await seeIt(tester, size);
+  await tester.ensureVisible(size);
   await tester.enterText(size, '10');
   await tester.pumpAndSettle();
 }

@@ -302,9 +302,11 @@ export function FileDropBox({ items, onFiles, onRemove, onRetry, extensions, max
  * order form, Upload > Check details > Review on Upload order. A step with a section scrolls to it; the one in view
  * is lit (the last, Review, only through the page's Review order button).
  */
-export function OrderSteps({ steps, onReview }: { steps: { label: string; target?: string }[]; onReview?: () => void }) {
-  const [on, setOn] = useState(0);
+export function OrderSteps({ steps, onReview, current, onGo }: { steps: { label: string; target?: string }[]; onReview?: () => void; current?: number; onGo?: (i: number) => void }) {
+  const [watched, setOn] = useState(0);
+  const on = current ?? watched;
   useEffect(() => {
+    if (current !== undefined) return;
     const els = steps.map(s => (s.target ? document.getElementById(s.target) : null));
     const watch = () => {
       let at = 0;
@@ -314,10 +316,10 @@ export function OrderSteps({ steps, onReview }: { steps: { label: string; target
     watch();
     window.addEventListener('scroll', watch, { passive: true });
     return () => window.removeEventListener('scroll', watch);
-  }, [steps]);
+  }, [steps, current]);
   return <ol className="op-steps" aria-label="Order steps">
     {steps.map((s, i) => <li key={s.label} className={i < on ? 'is-done' : i === on ? 'is-on' : ''} aria-current={i === on ? 'step' : undefined}>
-      <button type="button" onClick={() => { if (s.target) document.getElementById(s.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); else onReview?.(); }}>
+      <button type="button" onClick={() => { if (onGo) onGo(i); else if (s.target) document.getElementById(s.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); else onReview?.(); }}>
         <span className="op-step-dot">{i < on ? '✓' : i + 1}</span><span className="op-step-name">{s.label}</span>
       </button>
     </li>)}

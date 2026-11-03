@@ -38,12 +38,13 @@
   .sub { margin-top: 10px; text-align: right; font-weight: 700; font-size: 14px; }
   .total td { font-weight: 700; font-size: 14px; background: #eef6fb; }
   .foot { position: absolute; left: 22px; right: 22px; bottom: 6mm; display: flex; justify-content: space-between; font-size: 10.5px; color: #6a7987; border-top: 1px solid #d6e3ec; padding-top: 6px; }
+  .bar .xl { margin-left: 10px; color: inherit; font: inherit; }
   @media print { body { background: #fff; } .bar { display: none; } .page { margin: 0; box-shadow: none; width: auto; min-height: 0; height: 271mm; } }
   @media (max-width: 820px) { .page { width: auto; margin: 10px; } .strip { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
 <body>
-<div class="bar"><button type="button" onclick="window.print()">Save as PDF / Print</button></div>
+<div class="bar"><button type="button" onclick="window.print()">Save as PDF / Print</button>@if (! empty($excelUrl))<a class="xl" href="{{ $excelUrl }}">Download Excel</a>@endif</div>
 @php($pages = count($garments) + 1)
 @foreach ($garments as $i => $g)
 <section class="page">

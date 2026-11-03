@@ -81,3 +81,29 @@ Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md
 - 11-03: BB3 aeb88b50b56dc5559 one-shot round done; pushed v3. Ours now dimmer than client (client glass more luminous); next: brighter glassy glow at lower corners + sub-cards, keep thin core.
 - 11-03: v3 = 0c51450 (latest; includes BB3 round).
 - 11-03: CRASH on open -> CR1 agent (lighter rim drawing). Client says the 3D is no good, wants catalogue-style renders (images/359): plan tomorrow. questions.md 4: website home bubble look.
+- 11-03: CR1 crash fix pushed: v3 = 8d36a0a. User to check on iPhone.
+- 11-03: AW1 done: wide YOUR DESIGNS page (website + app), background in the prompt; paid Redraw button = questions.md 6. Website landscape 1536x1024 now. Not pushed yet.
+- 11-03: VW1 done viewer -240 (sharp backdrop, bigger kit, smaller podium, no pole, less shine; print texture already 4096 + max anisotropy). Regression checks (marks-baseline etc.) NOT run -> DT11 / tester tomorrow. Not pushed.
+- 11-03 USER: NO more model work until the client approves the past models. FN14 / DT11 stay stopped; Studio items 2 + 6 wait.
+- 11-03: user "work only on pending tasks": OF1 a? finishing order process parts (one step per screen, per-garment artwork rows, order sheet box). AB1 Artboard close/fill running. Waiting on the user: questions.md 4 (website home), 5 (Yellow Images), 6 (Redraw button).
+- 11-03: AB1 done: Artboard close/join/fill, Smart Fill rewrite, top toolbar (EDITOR_VERSION 2026-11-03-2). Ctrl+S = account save when signed in, else download (decided, my suggestion). Not pushed yet.
+- 11-03: user: go with my suggested answers -> Q2 back-collar mark (BM1), Q4 website home glass look (WH1), Q6 keep Redraw. Q1 + Q5 still open (keys / money).
+- 11-03: user has NOT asked the client yet: questions.md 2/4/5/6 wait for the client. WH1 + BM1 stopped before changing project files. Redraw button stays as built until the client answers.
+- 11-03: OF1 done (one step per screen, per-garment artwork, order sheet box; no migration). Ready to push: AI results page, Studio -240, Artboard, order forms.
+- 11-03: AI1 done: AI follows the brief (OpenAiDesigner.php briefIntent/intentRules/casualRules/autoScene; app BriefIntent). Real test US$~0.5, pics SP/AI1/real-367. Vite build not yet run (UP1 will build).
+- 11-03: UP1 done (mockups from the order-form box, OrderFormReader rewrite + XlsReader, no migration). Website built. READY TO PUSH: AI results page, Studio -240, Artboard, order forms, AI brief, upload review. Live tar needed after push (REF = 11-03-a).
+- 11-03: HM1 restored Home art (assets/images/art/bubble_*.png, untracked: must go in the push), Upgrade pill -> pricing. Final round asked (size, brighter rim, AI/DYO beside jerseys). Note: one analyze warning in order_review_approve.dart (unused _columns) from UP1.
+- 11-03 ~late: DRIVE D FULL (7.7 MB free). HM1 round 2 code done but NOT tested / built (run: flutter test test/bubble_home_test.dart test/home_switcher_test.dart; py -3.12 SP/HM1/s.py; flutter build web). OR1 told: edits + analyze only. orders_tab "CREATE ORDER FORM" done, test pending. Waiting for the user to free space.
+- 11-03: OR1 a08542f84d427ea23 shape edits done (pageBlob, radii), analyze clean; resume it when D has space (tests, build, SP/OR1/side.png).
+- 11-03: NEW TASK notes -> order form (spec SP/HB1/spec-notes-form.md); waiting for disk space.
+- 11-03: freed space (deleted scratch DT10 WF1 NB1 HD V2 C FX3 NK1 FN2 DT8 + non-md files in FN3-FN12; kept FN13/14, FX-R, FX-H, FNV, logs). D: 2.9 GB free. OR1 runs Home + Orders tests and one web build; UP1 continues.
+- 11-03: deleted old live tars (kept 3deez-update-2026-11-03-a = next REF, database backup tar, 3d-showcase, 3d-look-step2-pictures) + test pictures of completed tasks. D: 3.5 GB free.
+- 11-03: UP1 369 review redesign done (OrderReviewApprove.tsx, order-review-v3.css, app order_review_approve.dart). UP1 now on notes -> order form + share link.
+- 11-03: UP1 notes -> order form + share (signed link ?share=1, 30 days) done; AI spend ~US$0.03. Open: no "dress" garment choice in order form (netball dress filed as other). NOT pushed.
+
+## START HERE (2026-11-04)
+- Weekly limit hit ~96% on 11-03 evening. NOT PUSHED since v3 = 8d36a0a: AI results page + AI follows brief, Studio -240, Artboard (close/join/fill/Smart Fill/toolbar), order forms (steps, per-garment artwork, sheet box), Upload fixes (mockups, Excel/xls reader), 369 review page, notes -> order form + share, Orders shapes, Home (art restored, HD1 rounds). If the user OKs: push v3 (SP/final-push-v3.sh) + tar (copy SP/final-pack-1103a.sh, REF = deploy-zips/3deez-update-2026-11-03-a.tar.gz). Live needs migrate --force only for 2026_11_03_100000 (already in 11-03-a).
+- Home: HD1 a987e46815935eaf8 final round (orig art from SP/HD1/orig, bright rim + side lights, hover padding). Check SP/HD1/side.png vs images/373.
+- Models ON HOLD until client approves. questions.md 1,2,4,5,6 wait for the client.
+- Agents idle: UP1 af1c38da3dcb82dfd, OR1 a08542f84d427ea23, UT2 ac7ec6923cf5f805f.
+- 11-03 late: I fixed Home directly (bubble_home.dart): AI off the edge, glow INSIDE only (clipped, outer glow removed), hover radius (w+h)/4+4 (one option only), AI/DYO smaller, stray line cut from bubble_dyo.png. Checked by my own screenshots (SP/HD1/shot.cjs -> hover-*.png). Always screenshot before reporting.

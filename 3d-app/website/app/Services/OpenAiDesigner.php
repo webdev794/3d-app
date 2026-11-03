@@ -115,6 +115,150 @@ class OpenAiDesigner
         ];
     }
 
+    /**
+     * What the client's brief itself asks for (user report 2026-11-03, picture 367: "cotton oversized tshirt on a
+     * hanger" came back as four sublimated jerseys with team names and 01 in a stadium). The brief's own garment,
+     * fabric, fit, presentation, background and plainness win over the sportswear defaults; sport-jersey details
+     * (team names, numbers, sublimated graphics, the stadium) are only used when the brief asks for teamwear.
+     *
+     * @return array{garment: string, fabric: string, fit: string, presentation: string, background: string, plain: bool, numbers: bool, teamwear: bool}
+     */
+    public static function briefIntent(string $brief): array
+    {
+        $b = ' '.mb_strtolower($brief).' ';
+        $first = function (array $map) use ($b): string {
+            foreach ($map as $label => $pattern) {
+                if (preg_match('/'.$pattern.'/u', $b)) {
+                    return $label;
+                }
+            }
+
+            return '';
+        };
+        $garment = $first(self::INTENT_GARMENTS);
+        $fabric = $first(self::INTENT_FABRICS);
+        $fit = $first(self::INTENT_FITS);
+        $presentation = $first(self::INTENT_PRESENTATIONS);
+        $background = $first(self::INTENT_BACKGROUNDS);
+        $plain = (bool) preg_match('/\b(plain|blank|minimal(ist)?|simple|basic|solid colou?r|essential)\b/u', $b);
+        $numbers = (bool) preg_match('/\bnumbers?\b|#\s?\d|\bno\.\s?\d/u', $b);
+        $teamWords = (bool) preg_match('/\b(jerseys?|kits?|singlets?|uniforms?|team|club|fc|afc|united|squad|sublimat\w*|match ?day|bibs?|league)\b/u', $b);
+        $casualGarment = in_array($garment, ['t-shirt', 'hoodie', 'sweatshirt', 'polo shirt', 'tank top', 'jacket', 'shirt'], true);
+        $casualFabric = in_array($fabric, ['cotton', 'organic cotton', 'heavyweight cotton', 'linen', 'fleece', 'french terry', 'denim', 'wool', 'bamboo'], true);
+        // Teamwear when the brief names it, or when it names nothing casual (a plain sport brief keeps the jersey style).
+        $teamwear = $teamWords || ! ($casualGarment || $casualFabric || $plain || in_array($presentation, ['hanger', 'flat lay', 'folded'], true));
+
+        return compact('garment', 'fabric', 'fit', 'presentation', 'background', 'plain', 'numbers', 'teamwear');
+    }
+
+    /** Brief words, first match wins (mirrored in the app's lib/ai_service.dart BriefIntent). */
+    public const INTENT_GARMENTS = [
+        'hoodie' => '\bhood(ie|y|ies|ed sweat\w*)\b', 'sweatshirt' => '\b(sweat ?shirts?|crew ?neck sweat\w*|jumpers?|pullovers?)\b',
+        'polo shirt' => '\bpolos?\b', 'tank top' => '\b(tank ?tops?|tanks?|vests?)\b', 'jacket' => '\b(jackets?|windbreakers?|bombers?)\b',
+        'singlet' => '\bsinglets?\b', 'jersey' => '\b(jerseys?|kits?|uniforms?)\b',
+        't-shirt' => '\b(t-? ?shirts?|tees?)\b', 'shorts' => '\bshorts\b', 'shirt' => '\bshirts?\b',
+    ];
+
+    public const INTENT_FABRICS = [
+        'organic cotton' => '\borganic cotton\b', 'heavyweight cotton' => '\bheavy ?weight cotton\b', 'cotton' => '\bcotton\b',
+        'linen' => '\blinen\b', 'fleece' => '\bfleece\b', 'french terry' => '\bfrench terry\b', 'denim' => '\bdenim\b',
+        'wool' => '\b(wool|merino)\b', 'bamboo' => '\bbamboo\b', 'mesh' => '\bmesh\b', 'polyester' => '\b(polyester|poly)\b',
+        'performance fabric' => '\b(dri-? ?fit|performance fabric)\b',
+    ];
+
+    public const INTENT_FITS = [
+        'oversized' => '\b(over-? ?sized?|oversize)\b', 'boxy' => '\bboxy\b', 'relaxed' => '\b(relaxed|loose)\b', 'cropped' => '\bcropped\b',
+        'slim' => '\b(slim|skinny|fitted)\b', 'muscle' => '\bmuscle fit\b', 'regular' => '\bregular fit\b', 'athletic' => '\bathletic fit\b',
+    ];
+
+    public const INTENT_PRESENTATIONS = [
+        'hanger' => '\bhang(er|ers|ing)\b', 'flat lay' => '\bflat ?-?lay\b|\blaid flat\b|\blying flat\b', 'folded' => '\bfolded\b',
+        'model' => '\b(on|worn by) (a |an )?(\w+ )?(model|person|man|woman|guy|girl|athlete|player)\b|\bmodel(led|ed|s)?\b|\bworn\b',
+        'ghost mannequin' => '\bmannequin\b',
+    ];
+
+    public const INTENT_BACKGROUNDS = [
+        'stadium' => '\bstadium\b|\bfloodlights?\b|\bpitch\b', 'locker room' => '\blocker ?room\b', 'gym' => '\bgym\b',
+        'white background' => '\bwhite (background|backdrop|wall)\b', 'black background' => '\bblack (background|backdrop|wall)\b',
+        'grey background' => '\bgr[ae]y (background|backdrop|wall)\b', 'studio' => '\bstudio\b', 'street' => '\b(street|urban|city)\b',
+        'outdoors' => '\b(outdoors?|park|nature|beach|forest)\b', 'wall' => '\bwall\b',
+    ];
+
+    /** The scene for "Auto": from the brief's background, else from its presentation (a hanger: a clean wall, not a stadium). */
+    public static function autoScene(array $intent): string
+    {
+        $bg = $intent['background'];
+        if ($bg !== '' && $bg !== 'stadium') {
+            return match ($bg) {
+                'white background' => 'on a clean pure white seamless background with a soft natural shadow',
+                'black background' => 'on a clean deep black seamless background with soft studio light',
+                'grey background', 'studio' => 'in a clean premium photo studio with a seamless light-grey backdrop and soft even lighting',
+                'wall' => 'against a clean plain light wall with soft natural daylight',
+                'street' => 'in a softly blurred modern city street in daylight',
+                'outdoors' => 'outdoors in soft natural daylight with a softly blurred background',
+                'locker room' => 'in a modern locker room with warm spotlights and a shallow depth of field',
+                'gym' => 'in a clean modern gym with soft light and a blurred background',
+                default => 'in a clean premium photo studio',
+            }.', as the client asked. ';
+        }
+        if ($bg === 'stadium' || $intent['teamwear']) {
+            return 'in a dramatic dark setting: a night stadium with floodlights, haze tinted in the kit\'s main colour, a glossy reflective floor and rim lighting. ';
+        }
+
+        return match ($intent['presentation']) {
+            'hanger' => 'against a clean plain light wall or seamless light studio backdrop with soft natural light and a soft shadow behind the hanger (no stadium, no dramatic lights). ',
+            'flat lay', 'folded' => 'on a clean light surface (light wood, linen or seamless paper) with soft natural light (no stadium). ',
+            'model' => 'in a clean bright photo studio or a soft lifestyle setting that suits the garment, natural light (no stadium). ',
+            default => 'in a clean premium photo studio with a seamless light backdrop and soft even lighting (no stadium). ',
+        };
+    }
+
+    /** The brief's own words as rules every prompt follows ("the brief wins"). */
+    public static function intentRules(array $intent, string $garment = ''): string
+    {
+        $what = trim(implode(' ', array_filter([$intent['fit'], $intent['fabric'], $intent['garment']])));
+        $rules = [];
+        if ($intent['garment'] !== '') {
+            $rules[] = 'the garment is '.(preg_match('/^[aeiou]/i', $what) ? 'an ' : 'a ').$what.' exactly as the brief says'.($garment !== '' && mb_stripos($garment, strtok($intent['garment'], ' ')) === false ? " (this replaces the selected product \"{$garment}\")" : '');
+        } elseif ($what !== '') {
+            $rules[] = "the garment is {$what} as the brief says";
+        }
+        if ($intent['fabric'] !== '') {
+            $rules[] = "show real {$intent['fabric']} fabric texture".(in_array($intent['fabric'], ['cotton', 'organic cotton', 'heavyweight cotton', 'fleece', 'french terry'], true) ? ' (soft matte cotton knit, not shiny polyester mesh)' : '');
+        }
+        if ($intent['fit'] !== '') {
+            $rules[] = "a clearly {$intent['fit']} fit and cut".($intent['fit'] === 'oversized' ? ' (dropped shoulders, wide body, longer sleeves)' : '');
+        }
+        $rules[] = match ($intent['presentation']) {
+            'hanger' => 'presented hanging on a hanger',
+            'flat lay' => 'presented as a flat lay, shot top-down',
+            'folded' => 'presented neatly folded',
+            'model' => 'presented worn by a model',
+            'ghost mannequin' => 'presented on an invisible ghost mannequin',
+            default => '',
+        };
+        if ($intent['plain']) {
+            $rules[] = 'the design stays plain or minimal as asked, with no all-over graphics';
+        }
+        if (! $intent['teamwear']) {
+            $rules[] = 'this is not a sports jersey: no sublimated sports graphics, no team name'.($intent['numbers'] ? '' : ', no player number').' and no stadium unless the brief asks';
+        }
+        $rules = array_values(array_filter($rules));
+
+        return $rules ? 'The client\'s brief wins over every default: '.implode('; ', $rules).'.' : '';
+    }
+
+    /** The design rules for a non-teamwear brief (a cotton tee, a hoodie, a polo): clean apparel, nothing sporty unless asked. */
+    public static function casualRules(array $intent, int $count): string
+    {
+        return 'Design: a premium '.trim(($intent['fabric'] ?: '').' '.($intent['garment'] ?: 'garment')).' photographed the way a real clothing brand would. '
+            .($intent['plain'] ? 'Keep it plain or minimal: a clean solid colour, at most one small tasteful detail. '
+                : 'Keep the design clean and wearable: a solid colour body with at most a tasteful print or small graphic that follows the brief, no all-over sublimated sports graphics. ')
+            .($count ? 'Place the client\'s logo where the brief says, or small on the left chest. ' : 'No crest, team name or wordmark on the front unless the brief asks. ')
+            .($intent['numbers'] ? 'Show the number the brief asks for. ' : 'No numbers anywhere. ')
+            .'3DEEZI appears only as a small 3DEEZI word mark printed inside the back neck or just under the back collar, and nowhere else.';
+    }
+
     /** What the sport's kits carry on the back (and, with playing positions, on the front), for every planning and image prompt. */
     public static function markingRules(string $sport): string
     {
@@ -215,7 +359,7 @@ class OpenAiDesigner
      */
     public function concepts(string $prompt, string $sport, string $garment, array $references = []): array
     {
-        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$prompt}\n"
+        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$prompt}\n".self::intentRules(self::briefIntent($prompt), $garment)."\n"
             .'Create exactly 4 clearly different concept directions, each designed the way a top custom sublimation sportswear brand would: '
             .'1) bold and aggressive, with dynamic all-over sublimated graphics drawn from the theme of the client\'s logo or brief, '
             .'2) classic and clean, 3) heritage or pattern-led, 4) modern minimal. Keep the team name consistent across all four. '
@@ -400,8 +544,10 @@ class OpenAiDesigner
     public function artDirection(string $brief, string $sport, string $garment, array $references = []): ?array
     {
         $count = count($references);
-        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n"
+        $intent = self::briefIntent($brief);
+        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n".self::intentRules($intent, $garment)."\n"
             .($count ? "{$count} image(s) from the client are attached: logos, references or their own finished design.\n" : "No images are attached.\n")
+            .(! $intent['teamwear'] ? 'This brief is not teamwear: ignore the sportswear defaults below wherever they differ from the brief (no sublimated sports graphics, team names, numbers or stadium unless asked). ' : '')
             .'You are the art director of a top custom sublimation sportswear brand. Before the designer renders one hero mockup, write its creative direction. '
             .'Take the palette and theme from the client\'s logo (its colours, mascot, lettering style and motifs such as lightning, flames, claws or waves) or from the brief. '
             .'Design bold, fully sublimated graphics derived from that theme, flowing across the front, sides and back, never a plain template with flat colour blocks. '
@@ -444,14 +590,19 @@ class OpenAiDesigner
      *
      * @param  ?array<string, mixed>  $direction  from artDirection()
      */
-    public static function mockupPrompt(string $brief, string $sport, string $garment, int $count, ?array $direction = null, string $view = 'presentation', bool $portrait = true): string
+    public static function mockupPrompt(string $brief, string $sport, string $garment, int $count, ?array $direction = null, string $view = 'presentation', bool $portrait = true, string $scene = 'auto', bool $sceneImage = false): string
     {
         // A full kit (a top with shorts) stands as worn: each top with its shorts below it (client picture 146.jpg).
         $fullKit = str_contains(mb_strtolower($garment), 'kit');
         $labels = ['body' => 'Body colour', 'layout' => 'Layout', 'theme' => 'Theme', 'palette' => 'Palette', 'front' => 'Front', 'back' => 'Back', 'graphics' => 'Graphics', 'trims' => 'Trims', 'presentation' => 'Presentation'];
         $layout = strtolower(trim((string) ($direction['layout'] ?? '')));
-        $prompt = "You are the lead designer of a top custom sublimation sportswear brand, making a client presentation mockup.\n"
-            ."Sport: {$sport}. Garment: {$garment}.\nClient brief: {$brief}\n\n";
+        $intent = self::briefIntent($brief);
+        $team = $intent['teamwear'];
+        $prompt = ($team ? "You are the lead designer of a top custom sublimation sportswear brand, making a client presentation mockup.\n"
+                ."Sport: {$sport}. Garment: {$garment}.\n"
+                : "You are the lead designer of a premium apparel brand, making a client presentation photo.\n"
+                    .'Garment: '.($intent['garment'] ?: $garment).".\n")
+            ."Client brief: {$brief}\n".self::intentRules($intent, $garment)."\n\n";
         if (array_filter(array_intersect_key($direction ?? [], $labels), 'filled')) { // the brief as written adds nothing
             $prompt .= "Creative direction (follow it; the brief wins if they differ):\n";
             foreach ($labels as $key => $label) {
@@ -461,7 +612,7 @@ class OpenAiDesigner
             }
             $prompt .= "\n";
         }
-        $prompt .= 'Design: unless the client attached their own complete garment design, design the garment freely like a premium sublimated teamwear brand: '
+        $prompt .= ! $team ? self::casualRules($intent, $count)."\n" : 'Design: unless the client attached their own complete garment design, design the garment freely like a premium sublimated teamwear brand: '
             .'a bold, fully sublimated all-over design with dynamic graphics drawn from the theme and colours of the client\'s logo or brief '
             .'(for example lightning, speed lines, sharp angular shards, halftone dot fades, gradients and textures) flowing across the front, sides and back. '
             .($layout !== '' && $layout !== 'all-over graphics'
@@ -469,23 +620,32 @@ class OpenAiDesigner
                 : 'Never a plain template with flat colour blocks or simple side panels. ')
             .self::BRAND_RULES.' '
             .(filled($direction['body'] ?? null) ? self::DIRECTION_COLOUR_RULES : self::COLOUR_RULES).' '
-            .self::markingRules($sport).' Matching trims on the collar, armholes or cuffs and hem.'."\n"
-            .($view === 'front'
+            .self::markingRules($sport).' Matching trims on the collar, armholes or cuffs and hem.'."\n";
+        // The brief's presentation (a hanger, a flat lay, a model) replaces the ghost mannequins.
+        $holder = match ($intent['presentation']) {
+            'hanger' => 'each hanging on its own hanger',
+            'flat lay' => 'laid flat and shot from directly above',
+            'folded' => 'neatly folded or laid flat',
+            'model' => 'worn by a model (the back view worn by the same model turned around)',
+            default => 'on invisible ghost mannequins',
+        };
+        $prompt .= ($view === 'front'
                 // The option cards (client picture 138.jpg): one garment that reads well small.
                 ? 'Presentation: one square image of premium commercial product photography: a single garment, the front view only (straight on or a slight three-quarter turn), '
-                    .'centred, complete and fully visible with a little space around it, on an invisible ghost mannequin, no back view, '
+                    .'centred, complete and fully visible with a little space around it, '.str_replace(['each hanging on its own hanger', 'invisible ghost mannequins', 'worn by a model (the back view worn by the same model turned around)'], ['hanging on a hanger', 'an invisible ghost mannequin', 'worn by a model'], $holder).', no back view, '
                 : ($portrait
                     // YOUR DESIGNS (client picture 146.jpg, 2026-10-22): one tall picture that fills a phone screen.
                     ? 'Presentation: unless the brief asks for a different layout, angle or background, make one tall portrait image (2:3) of premium commercial product photography that fills a phone screen: '
                         .($fullKit
                             ? 'each set stands as worn, the top with its shorts directly below it: the front set on the left and the back set on the right, side by side, '
                             : 'the front view on the left and the back view on the right, side by side, ')
-                        .'both complete, fully visible and not overlapping, large so they fill most of the width and height of the frame with a little space around them, on invisible ghost mannequins, '
+                        .'both complete, fully visible and not overlapping, large so they fill most of the width and height of the frame with a little space around them, '.$holder.', '
                     : 'Presentation: unless the brief asks for a different layout, angle or background, make one landscape image of premium commercial product photography: '
                         .($fullKit ? 'the front set (the top with its shorts below it) on the left and the back set on the right, side by side, ' : 'the front view on the left and the back view on the right, side by side, ')
-                        .'both complete, fully visible and not overlapping, on invisible ghost mannequins, '))
-            .'in a dramatic dark setting: a night stadium with floodlights, haze tinted in the kit\'s main colour, a glossy reflective floor and rim lighting. '
-            .'Photorealistic fabric: fine knit and mesh texture, natural folds, flatlock stitching, a crisp vivid sublimated print. '
+                        .'both complete, fully visible and not overlapping, '.$holder.', '))
+            .self::sceneText($scene, $sceneImage, $count, $intent)
+            .($team ? 'Photorealistic fabric: fine knit and mesh texture, natural folds, flatlock stitching, a crisp vivid sublimated print. '
+                : 'Photorealistic fabric: '.($intent['fabric'] ?: 'the garment\'s').' texture, natural folds and drape, clean stitching, true to the fit. ')
             .'All text must be spelled exactly as written in the brief or the logo. ';
         $prompt .= $count
             ? "The first {$count} attached image(s) come from the client: logos, references, or the client's own finished garment design (flat artwork, a sketch, a snapshot or a photo). "
@@ -495,7 +655,7 @@ class OpenAiDesigner
                 .'The last attached image is the 3DEEZI word mark: use it only small at the top of the back, just under the collar, and nowhere else; leave it out when the client\'s design carries its own brand.'
             : 'The attached image is the 3DEEZI word mark: use it only small at the top of the back, just under the collar, and nowhere else; do NOT put 3DEEZI on the chest or anywhere on the front. '
                 .'If the brief gives any wordmark, team, club or brand name, use exactly that text where the brief says. '
-                .'With no client logo, the chest carries a simple original crest at a normal crest size.';
+                .($team ? 'With no client logo, the chest carries a simple original crest at a normal crest size.' : 'With no client logo and no text in the brief, the front stays clean.');
 
         return $prompt.($count ? ' '.self::OWN_LOGO : '').' No watermarks, no extra brands.';
     }
@@ -527,7 +687,12 @@ class OpenAiDesigner
      */
     public function readyDirections(string $brief, string $garment, string $sport = ''): array
     {
-        $takes = [
+        $takes = ! self::briefIntent($brief)['teamwear'] ? [
+            ['Your brief', null],
+            ['Neutral Tone', 'a calm neutral colourway (off-white, sand, stone or grey), the same garment, fit and presentation'],
+            ['Deep Tone', 'a deep rich colourway (black, navy or forest green), the same garment, fit and presentation'],
+            ['Minimal Detail', 'the same garment with one small tasteful detail, such as a tiny chest print or a tonal stitch, nothing sporty'],
+        ] : [
             ['Your brief', null],
             ['Bold Strike', 'bold and aggressive: dynamic sharp angular shards and speed lines across the front and sides, a dark body with the logo\'s main colour as the graphics'],
             ['Clean Classic', 'classic and clean: confident colour blocking with thin pinstripes and a tidy collar, the logo crisp on a calm body'],
@@ -551,8 +716,11 @@ class OpenAiDesigner
     {
         $references = array_slice($references, 0, 4);
         $count = count($references);
-        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n"
+        $intent = self::briefIntent($brief);
+        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n".self::intentRules($intent, $garment)."\n"
             .($count ? "{$count} image(s) from the client are attached: logos, references or their own finished design.\n" : "No images are attached.\n")
+            .(! $intent['teamwear'] ? 'This brief is not teamwear: every design keeps the brief\'s garment, fabric, fit, presentation and background, and varies only the colourway, a small print or detail and the styling; '
+                .'ignore the sportswear defaults below wherever they differ from the brief (no sublimated sports graphics, team names, numbers or stadium unless asked; for layout use "minimal"). ' : '')
             .'You are the art director of a top custom sublimation sportswear brand. The designer is already rendering the brief exactly as written; '
             .'give its editable 3D kit spec in `brief`. Then write exactly 3 clearly different alternative design directions in `directions`, '
             .'each with its own palette, motifs, layout of the graphics and treatment of '.self::lettering($sport).'. '
@@ -650,23 +818,49 @@ class OpenAiDesigner
      *
      * @param  array<string, mixed>  $direction  from designDirections()
      */
-    public function renderDirection(string $brief, string $sport, string $garment, array $direction, array $references = [], string $quality = 'high', string $view = 'presentation'): string
+    /**
+     * The YOUR DESIGNS background (client picture 362, 2026-11-03): part of the generated scene, the same for all four
+     * designs. auto/stadium: the dark night stadium; studio: a light seamless studio; custom: the client's own background
+     * photo (attached after their images).
+     */
+    public const SCENES_BG = ['auto', 'studio', 'stadium', 'custom'];
+
+    public static function sceneText(string $scene, bool $sceneImage, int $count, ?array $intent = null): string
     {
-        $references = array_slice($references, 0, 4);
+        return match (true) {
+            $scene === 'stadium' => 'in a dramatic dark setting: a night stadium with floodlights, haze tinted in the kit\'s main colour, a glossy reflective floor and rim lighting (this setting wins over any other presentation note). ',
+            $scene === 'studio' => 'in a clean premium photo studio: a seamless light-grey backdrop, soft even studio lighting and a soft floor shadow (this setting wins over any other presentation note). ',
+            $scene === 'custom' && $sceneImage => 'in front of the background shown in attached image '.($count + 1).' (the client\'s background photo, used only as the scene behind the garments, matched in light and perspective; this setting wins over any other presentation note). ',
+            // Auto: from the brief (a hanger: a clean wall or studio, not a stadium).
+            default => self::autoScene($intent ?? ['background' => '', 'teamwear' => true, 'presentation' => '']),
+        };
+    }
+
+    public function renderDirection(string $brief, string $sport, string $garment, array $direction, array $references = [], string $quality = 'high', string $view = 'presentation', string $scene = 'auto', ?string $sceneImage = null, bool $wide = false): string
+    {
+        $references = array_slice($references, 0, $sceneImage ? 3 : 4);
+        $count = count($references);
+        $hasScene = $scene === 'custom' && $sceneImage !== null;
+        if ($hasScene) {
+            $references[] = $sceneImage;
+        }
+        if ($wide && $view !== 'front') { // the website's wide results page (client picture 362)
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, $count, $direction, $view, false, $scene, $hasScene), $references, $quality, '1536x1024');
+        }
         if ($view === 'front') {
-            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view), $references, $quality, '1024x1024');
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, $count, $direction, $view, true, $scene, $hasScene), $references, $quality, '1024x1024');
         }
         // Portrait (2026-10-22, client picture 146.jpg: the design fills a phone); a model that turns the size down gets
         // the landscape picture once instead (the results page fits any proportions).
         try {
-            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view), $references, $quality, self::PORTRAIT);
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, $count, $direction, $view, true, $scene, $hasScene), $references, $quality, self::PORTRAIT);
         } catch (RuntimeException $e) {
             if (! self::sizeProblem($e->getMessage())) {
                 throw $e;
             }
             Log::warning('The image model turned down '.self::PORTRAIT.'; rendered landscape instead: '.$e->getMessage());
 
-            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view, false), $references, $quality, '1536x1024');
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, $count, $direction, $view, false, $scene, $hasScene), $references, $quality, '1536x1024');
         }
     }
 
@@ -706,7 +900,7 @@ class OpenAiDesigner
      */
     public function renderMockup(string $prompt, array $references = [], string $quality = 'high', string $size = '1536x1024'): string
     {
-        $references = array_slice($references, 0, 4);
+        $references = array_slice($references, 0, 5); // up to 4 client images, or 3 and a background photo
         $images = array_map(fn (string $r) => $this->decodeDataUrl($r), $references);
         $images[] = ['image/png', file_get_contents(public_path(self::WORD_MARK))];
 

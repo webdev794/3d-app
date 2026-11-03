@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_controller.dart';
-import '../widgets/glass_bubble.dart' show paintPageRim;
 import '../widgets/notification_bell.dart';
 import '../widgets/ui.dart';
 import 'create_home.dart' show artworkTo3dFlow;
@@ -45,12 +44,18 @@ class _Spot {
     this.at, {
     this.jersey,
     this.icon,
+    this.art,
+    this.box = const Size(.36, .23),
   });
   final String id, name, label;
   final Offset at;
   final String? jersey;
   final IconData? icon;
-  Size get box => const Size(.36, .23);
+
+  /// The client's painted picture (brush word + object). When it loads it
+  /// replaces the icon and label; if it ever fails the icon face shows.
+  final String? art;
+  final Size box;
 }
 
 const _spots = [
@@ -58,35 +63,45 @@ const _spots = [
     'ai',
     'AI DESIGNER',
     'AI',
-    Offset(.5, .165),
+    Offset(.3, .19),
+    art: 'assets/images/art/bubble_ai.png',
+    box: Size(.34, .22),
     jersey: 'assets/images/art/bubble_jersey_ai.webp',
   ),
   _Spot(
     'dyo',
     'DESIGN YOUR OWN',
     'DYO',
-    Offset(.8, .4),
+    Offset(.71, .29),
+    art: 'assets/images/art/bubble_dyo.png',
+    box: Size(.38, .24),
     jersey: 'assets/images/art/bubble_jersey_dyo.webp',
   ),
   _Spot(
     'artboard',
     'ARTBOARD',
     'ARTBOARD',
-    Offset(.2, .4),
+    Offset(.23, .44),
+    art: 'assets/images/art/bubble_artboard.png',
+    box: Size(.3, .15),
     icon: Icons.draw_rounded,
   ),
   _Spot(
     'team',
     'DESIGN TEAM',
     'TEAM',
-    Offset(.31, .775),
+    Offset(.29, .77),
+    art: 'assets/images/art/bubble_team.png',
+    box: Size(.38, .2),
     icon: Icons.groups_rounded,
   ),
   _Spot(
     'to3d',
     'ARTWORK TO 3D',
     'TO 3D',
-    Offset(.69, .775),
+    Offset(.71, .77),
+    art: 'assets/images/art/bubble_to3d.png',
+    box: Size(.38, .2),
     icon: Icons.view_in_ar_rounded,
   ),
 ];
@@ -160,7 +175,7 @@ class _SpotFace extends StatelessWidget {
         },
       );
     }
-    final face = Column(
+    final Widget plain = Column(
       children: [
         Expanded(child: icon),
         const SizedBox(height: 2),
@@ -183,6 +198,14 @@ class _SpotFace extends StatelessWidget {
         ),
       ],
     );
+    final face = spot.art == null
+        ? plain
+        : Image.asset(
+            spot.art!,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, _, _) => plain,
+          );
     return glow
         ? ColorFiltered(
             colorFilter: const ColorFilter.mode(_cyan, BlendMode.srcIn),
@@ -219,7 +242,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
 
   /// The option the glass pocket forms around (kept while it fades out).
   int? _pocketIdx;
-  bool _reduce = false;
+  bool _reduce = false, _artCached = false;
 
   /// The first-visit tutorial: checked once, shown shortly after the home
   /// has settled (phones only).
@@ -247,6 +270,14 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
       _float.stop();
     } else if (!_float.isAnimating) {
       _float.repeat();
+    }
+    if (!_artCached) {
+      _artCached = true;
+      for (final sp in _spots) {
+        if (sp.art != null) {
+          precacheImage(AssetImage(sp.art!), context, onError: (_, _) {});
+        }
+      }
     }
     if (!_tutorialChecked) {
       _tutorialChecked = true;
@@ -482,17 +513,40 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                 ),
                 // The way back to the tile home, above the glass.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: _ClassicButton(onTap: widget.onSwitchToClassic),
+                    child: Row(
+                      children: [
+                        _ClassicButton(onTap: widget.onSwitchToClassic),
+                        const Spacer(),
+                        _UpgradeButton(
+                          onTap: () => widget.c.go(AppScreen.pricing),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
+                    padding: EdgeInsets.zero,
                     child: LayoutBuilder(
-                      builder: (context, box) => _glass(box.biggest),
+                      builder: (context, box) {
+                        // A phone-shaped bubble on every screen: portrait,
+                        // at most ~430 wide, centred (wide windows too).
+                        final w = box.maxWidth > 600
+                            ? math.min(430.0, box.maxHeight * .6)
+                            : box.maxWidth;
+                        return Center(
+                          child: SizedBox(
+                            width: w,
+                            height: box.maxHeight,
+                            child: LayoutBuilder(
+                              builder: (context, b) => _glass(b.biggest),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -502,7 +556,10 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
         ),
       ),
       // (The tab bar stretches and ripples with the finger: BottomNav, StretchyNav.)
-      BottomNav(controller: widget.c),
+      ColoredBox(
+        color: const Color(0xff050a14),
+        child: BottomNav(controller: widget.c),
+      ),
     ],
   );
 
@@ -585,7 +642,13 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                           pocket: pocket,
                           pocketR: _pocketIdx == null
                               ? 0
-                              : _boxOf(_pocketIdx!).longestSide * .5,
+                              : () {
+                                  // Just this option: its average half-side,
+                                  // so a wide picture (AI) stays off its
+                                  // neighbours.
+                                  final b = _boxOf(_pocketIdx!);
+                                  return (b.width + b.height) * .25 + 4;
+                                }(),
                           pocketStrong: labelFor != null,
                         ),
                         foregroundPainter: _TrailPainter(
@@ -603,10 +666,10 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                             // The large subtle 3DEEZI mark behind the glass,
                             // shifting slightly with the finger.
                             Positioned(
-                              left: s.width * .3,
-                              right: s.width * .3,
-                              top: s.height * .41,
-                              height: s.height * .17,
+                              left: s.width * .29,
+                              right: s.width * .29,
+                              top: s.height * .44,
+                              height: s.height * .15,
                               child: Transform.translate(
                                 offset: drift + parallax,
                                 child: _GlassMark(bright: labelFor != null),
@@ -618,7 +681,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                               Positioned(
                                 left: 0,
                                 right: 0,
-                                top: s.height * .615 - 8,
+                                top: s.height * .615,
                                 child: const _DragHint(),
                               ),
                           ],
@@ -771,7 +834,7 @@ class _Backdrop extends StatelessWidget {
       gradient: RadialGradient(
         center: Alignment(0, -.3),
         radius: 1.2,
-        colors: [Color(0xff0a2547), Color(0xff051428), Color(0xff030a14)],
+        colors: [Color(0xff07101e), Color(0xff050a14), Color(0xff03070e)],
         stops: [0, .55, 1],
       ),
     ),
@@ -789,7 +852,7 @@ class _GlassMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IgnorePointer(
     child: AnimatedOpacity(
-      opacity: bright ? .62 : .45,
+      opacity: bright ? 1 : .88,
       duration: const Duration(milliseconds: 200),
       child: Image.asset(
         'assets/images/emblem-final.png',
@@ -854,6 +917,56 @@ class _ClassicButton extends StatelessWidget {
   );
 }
 
+/// "Upgrade ✦": opens the subscription plans.
+class _UpgradeButton extends StatelessWidget {
+  const _UpgradeButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Upgrade: subscription plans',
+    child: GestureDetector(
+      key: const ValueKey('bubble-upgrade'),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            colors: [Color(0xff1f8fe0), Color(0xff0b4f9a)],
+          ),
+          border: Border.all(color: const Color(0xcc7fe6ff), width: 1.2),
+          boxShadow: const [BoxShadow(color: Color(0x663fd4ff), blurRadius: 8)],
+        ),
+        child: const ExcludeSemantics(
+          child: Text.rich(
+            TextSpan(
+              text: 'Upgrade ',
+              children: [
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Icon(
+                    Icons.auto_awesome,
+                    size: 13,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: .3,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 //// The glass: an organic blob (a raised lobe at the top left, fuller
 /// corners and a slightly pinched waist, like the client's picture) with a
 /// deep navy body, soft glassy swirls and a thick bright cyan rim. Its edge
@@ -903,14 +1016,14 @@ class _GlassPainter extends CustomPainter {
     for (var k = 0; k < n; k++) {
       final th = k / n * 2 * math.pi;
       final ct = math.cos(th), st = math.sin(th);
-      const e = 2 / 4.2; // squarer: almost full width (~372 px at 390)
+      const e = 2 / 2.7; // soft pill: large rounded corners (client 373)
       final x = a * ct.sign * math.pow(ct.abs(), e).toDouble();
       final y = b * st.sign * math.pow(st.abs(), e).toDouble();
       // A soft glass pillow, gently organic: a little fuller at the top
       // left and the lower corners, the sides drawn in a touch below the
       // middle, all gently breathing.
       var f =
-          .97 +
+          .992 +
           .012 * _bump(_ang(th, -2.15), .4) +
           .008 * _bump(_ang(th, 2.4), .45) -
           .012 * _bump(_ang(th, .12), .3) -
@@ -949,7 +1062,7 @@ class _GlassPainter extends CustomPainter {
       // Soft limit: near the frame the glass compresses instead of running
       // into the logo row or the nav.
       double soft(double v, double lo, double hi) {
-        const m = 8.0;
+        const m = 3.0;
         if (v < lo + m) return lo + m - (lo + m - v) * .25;
         if (v > hi - m) return hi - m + (v - hi + m) * .25;
         return v;
@@ -1091,15 +1204,6 @@ class _GlassPainter extends CustomPainter {
     final w = s.width, h = s.height;
     final c = s.center(Offset.zero);
     final ph = t * 2 * math.pi;
-    // A soft glow around the glass.
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 18
-        ..color = const Color(0xff19a8ff).withValues(alpha: .42)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22),
-    );
     // The body: dark and translucent, so the page and the 3 mark read
     // through it; a little bluer towards the edge where light gathers.
     canvas.drawPath(
@@ -1108,7 +1212,7 @@ class _GlassPainter extends CustomPainter {
         ..shader = ui.Gradient.radial(
           Offset(w * .5, h * .48),
           math.max(w, h) * .6,
-          const [Color(0xc4020a18), Color(0xc8041431), Color(0xd8082a63)],
+          const [Color(0xf4001326), Color(0xf2001a32), Color(0xf0042a4a)],
           const [0, .6, 1],
         ),
     );
@@ -1135,30 +1239,6 @@ class _GlassPainter extends CustomPainter {
           ..color = const Color(0xff2b7fe8).withValues(alpha: strength * .55)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
       );
-      canvas.drawPath(
-        swirl,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 1.4
-          ..color = const Color(0xffb8eeff).withValues(alpha: strength * .45),
-      );
-    }
-    // Faint ripple rings echoing the wavy edge.
-    for (var k = 0; k < 3; k++) {
-      final sc = .9 - k * .1 + .008 * math.sin(ph + k);
-      canvas.save();
-      canvas.translate(c.dx, c.dy);
-      canvas.scale(sc, sc);
-      canvas.translate(-c.dx, -c.dy);
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6 / sc
-          ..color = const Color(0xff8fe2ff).withValues(alpha: .12 - k * .03),
-      );
-      canvas.restore();
     }
     // Light gathering inside the edge.
     canvas.drawPath(
@@ -1166,7 +1246,7 @@ class _GlassPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 70
-        ..color = const Color(0xff1a6fe0).withValues(alpha: .34)
+        ..color = const Color(0xff1a6fe0).withValues(alpha: .2)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28),
     );
     // A soft sheen at the top left.
@@ -1181,19 +1261,25 @@ class _GlassPainter extends CustomPainter {
     // The pocket: the glass gathers into a lens round the chosen option,
     // lit on the side where the surface pulls out and melting into the
     // body on the inner side (no separate outlined ring).
-    final o = pocketAt;
-    if (o != null && pocket > 0) {
+    final o0 = pocketAt;
+    if (o0 != null && pocket > 0) {
       final k = pocket * (pocketStrong ? 1 : .55);
+      // Never past the rim: keep the full size and move the centre in.
       final r = pocketR;
+      final m = r + 10;
+      final o = Offset(
+        s.width < 2 * m ? s.width / 2 : o0.dx.clamp(m, s.width - m),
+        s.height < 2 * m ? s.height / 2 : o0.dy.clamp(m, s.height - m),
+      );
       final out = o - c;
       final u = out / math.max(out.distance, 1);
       canvas.drawCircle(
         o,
-        r * 1.2,
+        r,
         Paint()
           ..shader = ui.Gradient.radial(
             o,
-            r * 1.2,
+            r,
             [
               const Color(0xff3fb8ff).withValues(alpha: .24 * k),
               const Color(0xff1f8fff).withValues(alpha: .1 * k),
@@ -1247,25 +1333,96 @@ class _GlassPainter extends CustomPainter {
     // Directional highlights: a long bright reflection round the top-left
     // corner, and a softer one at the bottom right.
     _streak(canvas, c, -3.0, -1.6, 10, 12, .38, 7, Colors.white);
-    _streak(canvas, c, -2.85, -1.75, 9, 3.4, .95, 1.1, Colors.white);
-    _streak(canvas, c, -1.45, -.95, 8, 2.2, .5, 1, const Color(0xffd8f7ff));
     _streak(canvas, c, .25, 1.15, 10, 8, .3, 6, const Color(0xff9fe8ff));
-    _streak(canvas, c, .35, 1.0, 9, 2.4, .6, 1, const Color(0xffd8f7ff));
     canvas.restore();
-    // The same glass edge as the other pages (glass_bubble.dart).
-    paintPageRim(
-      canvas,
+    // The edge (client 373): a strong, soft cyan glow INSIDE the glass only
+    // (clipped, nothing spills outside) and one thin crisp cyan-white line.
+    canvas.save();
+    canvas.clipPath(path);
+    canvas.drawPath(
       path,
-      s,
-      60,
-      inner: path.transform(
-        (Matrix4.identity()
-              ..translateByDouble(s.width / 2, s.height / 2, 0, 1)
-              ..scaleByDouble(1 - 18 / s.width, 1 - 18 / s.height, 1, 1)
-              ..translateByDouble(-s.width / 2, -s.height / 2, 0, 1))
-            .storage,
-      ),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 36
+        ..color = const Color(0xff4fdcff).withValues(alpha: .6)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
     );
+    canvas.restore();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.6
+        ..color = const Color(0xff9feeff),
+    );
+    _whiteLights(canvas, path, s);
+  }
+
+  /// White light on the glass (client 373): long soft white streaks inside
+  /// the rim on both sides, brightest at mid-height, and white gloss on the
+  /// top and bottom curves. Gradients only, no blur.
+  void _whiteLights(Canvas canvas, Path path, Size s) {
+    Path inset(double d) => path.transform(
+      (Matrix4.identity()
+            ..translateByDouble(s.width / 2, s.height / 2, 0, 1)
+            ..scaleByDouble(1 - d / s.width, 1 - d / s.height, 1, 1)
+            ..translateByDouble(-s.width / 2, -s.height / 2, 0, 1))
+          .storage,
+    );
+    final r = Offset.zero & s;
+    Shader blue(double a) => LinearGradient(
+      colors: [
+        const Color(0xff1fa8ff).withValues(alpha: a),
+        const Color(0xff1fa8ff).withValues(alpha: 0),
+        const Color(0xff1fa8ff).withValues(alpha: 0),
+        const Color(0xff1fa8ff).withValues(alpha: a),
+      ],
+      stops: const [0, .16, .84, 1],
+    ).createShader(r);
+    Shader blueEnds(double a) => LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        const Color(0xff1fa8ff).withValues(alpha: a),
+        const Color(0xff1fa8ff).withValues(alpha: 0),
+        const Color(0xff1fa8ff).withValues(alpha: 0),
+        const Color(0xff1fa8ff).withValues(alpha: a),
+      ],
+      stops: const [0, .1, .9, 1],
+    ).createShader(r);
+    void band(
+      double y0,
+      double y1,
+      Path p,
+      double w,
+      Shader sh, [
+      double blur = 0,
+    ]) {
+      canvas.save();
+      canvas.clipRect(Rect.fromLTRB(0, s.height * y0, s.width, s.height * y1));
+      canvas.drawPath(
+        p,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w
+          ..strokeCap = StrokeCap.round
+          ..shader = sh
+          ..maskFilter = blur > 0
+              ? MaskFilter.blur(BlurStyle.normal, blur)
+              : null,
+      );
+      canvas.restore();
+    }
+
+    // A wide soft blue glow down both sides and round the ends (client 373).
+    canvas.save();
+    canvas.clipPath(path);
+    band(0, 1, inset(30), 40, blue(.35), 16);
+    band(0, 1, inset(30), 30, blueEnds(.3), 16);
+    // Many small lights all round just inside the rim (client 373): each
+    // bright at its centre and fading out, uneven in size and spacing.
+    _rimLights(canvas, inset(14), _homeLights, 1.2 + .25 * pull);
+    canvas.restore();
   }
 
   @override
@@ -1455,4 +1612,66 @@ class _TrailPainter extends CustomPainter {
       o.ring != ring ||
       o.reduce != reduce ||
       o.ringRadius != ringRadius;
+}
+
+/// Small lights round the rim (client 373): position along the edge (0-1),
+/// size in px and strength. Uneven on purpose, like light on real glass.
+const _homeLights = <(double, double, double)>[
+  (.02, 22, .95),
+  (.07, 10, .6),
+  (.11, 26, 1),
+  (.17, 12, .7),
+  (.22, 18, .85),
+  (.29, 9, .55),
+  (.34, 24, .95),
+  (.39, 14, .7),
+  (.45, 20, .9),
+  (.5, 11, .6),
+  (.55, 28, 1),
+  (.61, 13, .7),
+  (.66, 19, .85),
+  (.72, 8, .5),
+  (.77, 25, .95),
+  (.83, 12, .65),
+  (.88, 21, .9),
+  (.94, 10, .6),
+];
+
+/// Draws [lights] along [p]: each an oval along the edge, white at its
+/// centre and fading through cyan to nothing. [k] brightens them all.
+void _rimLights(
+  Canvas canvas,
+  Path p,
+  List<(double, double, double)> lights,
+  double k,
+) {
+  for (final m in p.computeMetrics()) {
+    for (final (f, size, a) in lights) {
+      final tan = m.getTangentForOffset(m.length * f);
+      if (tan == null) continue;
+      final al = (a * k).clamp(0.0, 1.0);
+      canvas.save();
+      canvas.translate(tan.position.dx, tan.position.dy);
+      canvas.rotate(-tan.angle);
+      canvas.scale(.9 + (f * 97) % 1 * 1.6, .22 + (f * 53) % 1 * .3);
+      canvas.drawCircle(
+        Offset.zero,
+        size * 2,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            Offset.zero,
+            size * 2,
+            [
+              Colors.white.withValues(alpha: al),
+              const Color(0xff6fdcff).withValues(alpha: al * .85),
+              const Color(0xff2ab8ff).withValues(alpha: al * .35),
+              const Color(0xff2ab8ff).withValues(alpha: 0),
+            ],
+            const [0, .25, .6, 1],
+          ),
+      );
+      canvas.restore();
+    }
+    break;
+  }
 }

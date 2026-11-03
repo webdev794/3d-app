@@ -66,8 +66,9 @@ export function useGarmentMockups(garments: ReviewGarment[], enabled = true) {
     }
     const own = g.project && rowGarmentOf(g.project.garment) === g.garment ? projectPicture(g.project) : null;
     if (own) return { state: 'done', front: own, back: null, source: 'picture' };
-    const art = g.artwork?.map(artworkPicture).find(Boolean);
-    return art ? { state: 'done', front: art, back: null, source: 'artwork' } : { state: 'none' };
+    // Up to two uploaded pictures: the first as the front, the second as the back.
+    const [art, back] = (g.artwork ?? []).map(artworkPicture).filter(Boolean);
+    return art ? { state: 'done', front: art, back: back ?? null, source: 'artwork' } : { state: 'none' };
   });
   const renderer = enabled && idle && uniqueJobs.length ? <MockupRenderer key="renderer" jobs={uniqueJobs} onDone={done} onGiveUp={giveUp} /> : null;
   return { shots, renderer, drawing: shots.some(m => m.state === 'drawing') };
@@ -350,7 +351,7 @@ export function useOrderReviewMulti({ garments, onEditGarment, quote, quoteLoadi
     {renderer}
   </div>;
   const totals = <OrderTotalsCard garments={garments} quote={quote} quoteLoading={quoteLoading} quoteError={quoteError} />;
-  return { toolbar, sections, totals, mockups: shots, drawing };
+  return { toolbar, sections, totals, mockups: shots, drawing, renderer };
 }
 
 /** All of it in one place: the chip and PDF button, the sections, then `deliveryCard` (if any) beside ORDER TOTALS. */

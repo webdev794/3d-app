@@ -13,3 +13,6 @@ Only things I can't decide myself: logins, keys, integration settings, or spendi
 
 5. **3D look like Yellow Images (2026-11-03, images/360):** the client wants our 3D kits to look like the Yellow Images jersey mockups. Yellow Images sells these mockups, some "With 3D Model". Options: (a) buy their 3D jersey models / a subscription and use them in our viewer, if their licence allows use inside an app where customers design kits (needs a licence check and money); (b) improve our own 3D models, lighting and fabric towards that look (no cost, slower, may never fully match).
    (Suggested: first check one Yellow Images "With 3D Model" licence and price; buy one model as a test only with the client's OK.)
+
+6. **AI Designer background "Redraw" button (2026-11-03):** changing Studio / Stadium / Custom on designs already made means drawing the pictures again (up to 4 new AI pictures, paid). Keep a "Apply: redraw all designs" button the customer taps, or drop it so the background only applies to the next new design?
+   (Suggested: keep it; the customer chooses to redraw, and it counts toward their AI design limit.)

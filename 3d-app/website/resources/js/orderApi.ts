@@ -174,7 +174,8 @@ export const orderApi = {
 
   drafts: () => api<DraftSummary[]>('/order-drafts'),
   /** The order confirmation form's signed links (images/336, 338): a draft on the review, or a sent order. */
-  confirmationLinks: (id: number, draft = true) => api<{ pdf: string; excel: string }>(draft ? `/order-drafts/${id}/confirmation-links` : `/orders/${id}/confirmation-links`),
+  confirmationLinks: (id: number, draft = true, share = false) => api<{ pdf: string; excel: string }>((draft ? `/order-drafts/${id}/confirmation-links` : `/orders/${id}/confirmation-links`) + (share ? "?share=1" : "")),
+  readNotes: (text: string) => api<Suggested>("/orders/read-notes", post({ text })),
   draft: (id: number) => api<OrderDraft>(`/order-drafts/${id}`),
   /** The draft, after 3DEEZI AI has read its order forms (once per file; later calls answer at once). */
   readDraft: (id: number) => api<OrderDraft>(`/order-drafts/${id}/read`, post({})),

@@ -632,6 +632,7 @@ function syncHistory() {
   if (typeof renderDocTabs === 'function') try { renderDocTabs(); } catch { /* before the tabs exist */ }
   $('undo').disabled = history.length < 2;
   $('redo').disabled = !future.length;
+  if ($('stdUndo')) { $('stdUndo').disabled = $('undo').disabled; $('stdRedo').disabled = $('redo').disabled; }
 }
 async function undo() { flushRecord(); if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); autosave(STORE, history.at(-1)); }
 async function redo() { flushRecord(); if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); autosave(STORE, s); }
@@ -758,7 +759,7 @@ function connectAt(p, exclude = null, own = []) {
   return best;
 }
 function drawConnectHint(ctx) {
-  if (!connectHover) return;
+  if (!connectHover || (connectHover.own && path && (path.closeHover || path.closing))) return; // the pen's own close mark shows instead
   const r = canvas.getRetinaScaling(), v = canvas.viewportTransform, x = connectHover.x * v[0] + v[4], y = connectHover.y * v[3] + v[5];
   ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
   ctx.lineWidth = 2; ctx.strokeStyle = '#1E7BFF'; ctx.fillStyle = '#ffffff';
@@ -1344,7 +1345,7 @@ canvas.on('mouse:up', (opt) => {
   if (SCULPT.has(tool)) { sculptUp(tool); return; }
   if (erase) { const e = erase; erase = null; topStroke = null; drawTop(); applyEraser(e.points); return; }
   if (knife) { const k = knife; knife = null; dropHelper(k.helper); applyKnife(k.a, k.b); return; }
-  if (path) { path.pressing = false; return; }
+  if (path) { path.pressing = false; if (path.closing) finishPath(true); return; }
   if (curve3) { curve3Up(p); return; }
   if (ft) { ftUp(); return; }
   if (connDrag) { connUp(p); return; }
@@ -1545,8 +1546,10 @@ function drawToolOverlay(ctx) {
     for (const [i, n] of path.nodes.entries()) {
       const q = S(n);
       if (n.ho && path.kind !== 'bspline') { const a = S(n.hi ?? n), b = S(n.ho); ctx.strokeStyle = '#7B4DFF'; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.fillStyle = '#7B4DFF'; for (const z of [a, b]) { ctx.beginPath(); ctx.arc(z.x, z.y, 3, 0, 7); ctx.fill(); } }
-      ctx.fillStyle = i === 0 ? '#12E1F0' : '#ffffff'; ctx.strokeStyle = '#1E7BFF';
-      ctx.fillRect(q.x - 4, q.y - 4, 8, 8); ctx.strokeRect(q.x - 4, q.y - 4, 8, 8);
+      const big = i === 0 && (path.closeHover || path.closing), h = big ? 7 : 4;
+      ctx.fillStyle = i === 0 ? '#12E1F0' : '#ffffff'; ctx.strokeStyle = '#1E7BFF'; ctx.lineWidth = big ? 2 : 1;
+      ctx.fillRect(q.x - h, q.y - h, 2 * h, 2 * h); ctx.strokeRect(q.x - h, q.y - h, 2 * h, 2 * h);
+      if (big) { ctx.font = '600 12px system-ui, sans-serif'; ctx.fillStyle = '#1E7BFF'; ctx.fillText('close', q.x + 12, q.y + 22); }
     }
   }
   for (const o of userObjects()) {
@@ -1568,15 +1571,26 @@ const newNode = (p) => ({ x: p.x, y: p.y, hi: null, ho: null, type: 'cusp' });
 function penDown(p) {
   if (!path) path = { kind: state.tool, nodes: [], pressing: false, cursor: p, helper: helperPath('') };
   const ns = path.nodes;
-  if (['bezier', 'pen', 'polyline'].includes(path.kind) && ns.length > 2 && screenDist(p, ns[0]) < 10) { finishPath(true); return; }
+  // Clicking the first node closes the shape (Illustrator); dragging there makes it smooth. It finishes on release.
+  if (nearStart(p)) { path.closing = true; path.pressing = path.kind !== 'polyline'; if (!path.pressing) finishPath(true); return; }
   // The second click of a double-click lands on the last node: ignore it.
   if (ns.length && screenDist(p, ns.at(-1)) < 3) return;
   ns.push(newNode(p));
   path.pressing = path.kind === 'bezier' || path.kind === 'pen';
   updatePenPreview();
 }
+/** Within reach of the first node of the curve being drawn (it can close there). */
+const nearStart = (p) => path && ['bezier', 'pen', 'polyline'].includes(path.kind) && path.nodes.length > (path.kind === 'polyline' ? 2 : 1) && screenDist(p, path.nodes[0]) < 12;
+const closeCursor = () => svgCursor('<path d="M4 3v14l4-4 3 6 2-1-3-6h5z"/><circle cx="18" cy="18" r="3.5" fill="none" stroke="#000" stroke-width="2"/>', 4, 3, 'crosshair');
 function penMove(p, e) {
   path.cursor = p;
+  if (path.closing) {
+    const f = path.nodes[0];
+    if ((e.buttons & 1) && screenDist(p, f) > 3) { path.closeHi = { x: 2 * f.x - p.x, y: 2 * f.y - p.y }; f.ho = { x: p.x, y: p.y }; f.type = 'symmetric'; }
+    updatePenPreview(); return;
+  }
+  const hov = !path.pressing && nearStart(p);
+  if (hov || hov !== !!path.closeHover) { path.closeHover = hov; if (canvas.upperCanvasEl) canvas.upperCanvasEl.style.cursor = hov ? closeCursor() : canvas.defaultCursor; }
   const last = path.nodes.at(-1);
   if (path.pressing && (e.buttons & 1) && last && screenDist(p, last) > 3) {
     last.ho = { x: p.x, y: p.y };
@@ -1588,7 +1602,7 @@ function penMove(p, e) {
 function penModel(withCursor) {
   const ns = path.nodes.map((n) => ({ ...n }));
   if (withCursor && !path.pressing && path.cursor) ns.push(newNode(path.cursor));
-  if (ns.length) { ns[0].hi = null; }
+  if (ns.length) { ns[0].hi = path.closeHi ? { ...path.closeHi } : null; }
   return ns;
 }
 function updatePenPreview() {
@@ -1596,6 +1610,7 @@ function updatePenPreview() {
   const ns = penModel(true);
   let d;
   if (path.kind === 'bspline') d = ns.length > 1 ? `${bsplinePath(ns)} M ${ns.map((n) => `${n.x} ${n.y}`).join(' L ')}` : '';
+  else if (path.closing || path.closeHover) d = V.modelToD([{ closed: true, nodes: penModel(false) }]);
   else d = V.modelToD([{ closed: false, nodes: ns }]);
   setLive(path.helper, d);
   path.helper.set({ strokeWidth: 1.5 / canvas.getZoom() });
@@ -3159,6 +3174,43 @@ function combine() {
   batch(() => { replaceObject(objs[0], p); for (const o of objs.slice(1)) canvas.remove(o); });
   select([p]); toast('Combined (Ctrl+K breaks it apart again)');
 }
+/** Ctrl+J (Illustrator's Join): with the Shape tool, the selected end nodes are joined (or the curve closed); with
+ * two open curves selected, their nearest ends are joined into one curve; one open curve is closed. One Undo step. */
+function joinPaths() {
+  if (state.tool === 'node' && nodes.target) { nodes.op('autoJoin'); return; }
+  const objs = active().filter((o) => o.type === 'path' && !o.connSpec && !o.shapeSpec);
+  const models = objs.map((o) => { try { return V.objectModel(o); } catch { return null; } });
+  const open = objs.map((o, i) => ({ o, m: models[i] })).filter((x) => x.m?.some((sp) => !sp.closed && sp.nodes.length > 1));
+  if (!open.length) { toast(objs.length ? 'These curves are already closed' : 'Select an open curve (or two) to join'); return; }
+  const done = (o, m) => { delete o.nodeTypes; V.setWorldPath(o, V.modelToD(m)); refill(o); o.setCoords(); };
+  if (open.length === 2) {
+    const [A, B] = open, ends = (m) => m.flatMap((sp, s) => (sp.closed || sp.nodes.length < 2 ? [] : [{ s, first: true, n: sp.nodes[0] }, { s, first: false, n: sp.nodes.at(-1) }]));
+    let best = null;
+    for (const a of ends(A.m)) for (const b of ends(B.m)) { const d = Math.hypot(a.n.x - b.n.x, a.n.y - b.n.y); if (!best || d < best.d) best = { a, b, d }; }
+    const sa = A.m[best.a.s], sb = B.m[best.b.s];
+    if (best.a.first) flipSub(sa);
+    if (!best.b.first) flipSub(sb);
+    let add = sb.nodes;
+    if (screenDist(sa.nodes.at(-1), sb.nodes[0]) < 2) { const z = sa.nodes.at(-1); z.ho = sb.nodes[0].ho; z.type = 'cusp'; add = add.slice(1); }
+    sa.nodes.push(...add);
+    A.m.push(...B.m.filter((_, i) => i !== best.b.s));
+    batch(() => { done(A.o, A.m); canvas.remove(B.o); });
+    select([A.o]); canvas.requestRenderAll(); toast('Joined into one curve (Ctrl+J again closes it)');
+    return;
+  }
+  batch(() => {
+    for (const { o, m } of open) {
+      for (const sp of m) {
+        if (sp.closed || sp.nodes.length < 2) continue;
+        const a = sp.nodes[0], z = sp.nodes.at(-1);
+        if (sp.nodes.length > 2 && screenDist(a, z) < 2) { a.hi = z.hi; sp.nodes.pop(); }
+        sp.closed = true;
+      }
+      done(o, m);
+    }
+  });
+  canvas.requestRenderAll(); toast('Curve closed');
+}
 function breakApart() {
   // A contour (Ctrl+K, as in CorelDRAW): the object and each step become shapes of their own.
   if (active().length && active().every(isContourGroup)) { applyContour('break'); return; }
@@ -3204,22 +3256,61 @@ function outlineToObject() {
  * are sent.
  */
 async function smartFill(p) {
-  if (geomBusy) { toast('Still working out the last area: one moment'); return; }
-  const shapes = userObjects().filter((o) => o.visible && o.toolName !== 'Smart fill' && V.canConvert(o) && closedish(o));
-  const rect = (o) => o.getBoundingRect(), has = (b, q) => q.x >= b.left && q.x <= b.left + b.width && q.y >= b.top && q.y <= b.top + b.height;
-  const around = shapes.filter((o) => has(rect(o), p));
-  if (!around.length) { toast('Click inside an area enclosed by shapes'); return; }
-  // Only shapes overlapping the area the enclosing shapes share can cut into it.
-  const box = around.map(rect).reduce((a, b) => ({ left: Math.max(a.left, b.left), top: Math.max(a.top, b.top), right: Math.min(a.right, b.left + b.width), bottom: Math.min(a.bottom, b.top + b.height) }), { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity });
-  const near = shapes.filter((o) => { const b = rect(o); return has(b, p) || !(b.left > box.right || b.left + b.width < box.left || b.top > box.bottom || b.top + b.height < box.top); });
-  const ds = near.map((o) => { try { return worldD(o); } catch { return ''; } }).filter(Boolean);
-  let d = '';
-  geomBusy++;
-  try { d = (await geomRun({ op: 'smartfill', shapes: ds, p: { x: p.x, y: p.y } })).d; }
-  catch (e) { toast(e.message === 'timeout' ? 'That area took too long to work out (the artwork round it is very detailed), so nothing was added. Try a simpler area, or simplify the shapes first (Object > Simplify)' : 'That area could not be worked out: please try again', 6500); return; }
-  finally { geomBusy--; }
-  if (!d) { toast('Click inside an area enclosed by shapes'); return; }
-  const o = makePath(d, null, { toolName: 'Smart fill' });
+  // Every line counts (closed shapes, open curves, lines), as in CorelDRAW: their outlines are drawn on a grid round
+  // the click, 4 screen px wide so small gaps close, the area round the click is flooded and its edge traced and
+  // smoothed into a curve. Lines inside the area become holes. The flood reaching the edge = not enclosed.
+  const shapes = userObjects().filter((o) => o.visible && V.canConvert(o) && o.type !== 'image' && !isText(o));
+  const ds = shapes.map((o) => { try { return worldD(o); } catch { return ''; } }).filter(Boolean);
+  const hint = () => toast('Click inside an area enclosed by lines or shapes');
+  if (!ds.length) { hint(); return; }
+  let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+  for (const o of shapes) { const b = o.getBoundingRect(); L = Math.min(L, b.left); T = Math.min(T, b.top); R = Math.max(R, b.left + b.width); B = Math.max(B, b.top + b.height); }
+  if (!(p.x > L && p.x < R && p.y > T && p.y < B)) { hint(); return; }
+  const z = canvas.getZoom(), lw = 4 / z, pad = lw * 2;
+  L -= pad; T -= pad; R += pad; B += pad;
+  const k = Math.min(1.5 * z, 2400 / Math.max(R - L, B - T)), W = Math.ceil((R - L) * k) + 2, H = Math.ceil((B - T) * k) + 2;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  g.setTransform(k, 0, 0, k, -L * k, -T * k); g.lineWidth = Math.max(lw, 1.5 / k); g.lineJoin = g.lineCap = 'round'; g.strokeStyle = '#000';
+  for (const d of ds) { try { g.stroke(new Path2D(d)); } catch { /* bad path data: skip */ } }
+  const px = g.getImageData(0, 0, W, H).data, wall = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) wall[i] = px[i * 4 + 3] > 60 ? 1 : 0;
+  const sx = Math.floor((p.x - L) * k), sy = Math.floor((p.y - T) * k), s0 = sy * W + sx;
+  if (wall[s0]) { hint(); return; }
+  const m = new Uint8Array(W * H), st = [s0]; m[s0] = 1;
+  while (st.length) {
+    const i = st.pop(), x = i % W;
+    if (x === 0 || x === W - 1 || i < W || i >= W * (H - 1)) { hint(); return; }
+    for (const j of [i - 1, i + 1, i - W, i + W]) if (!m[j] && !wall[j]) { m[j] = 1; st.push(j); }
+  }
+  // Grow the area to the middle of the lines round it.
+  let edge = []; for (let i = 0; i < W * H; i++) if (m[i]) edge.push(i);
+  for (let r = Math.round(g.lineWidth * k / 2); r > 0; r--) { const nx = []; for (const i of edge) for (const j of [i - 1, i + 1, i - W, i + W]) if (!m[j] && wall[j]) { m[j] = 1; nx.push(j); } edge = nx; }
+  // Pixel edges with the area on the right, chained into loops.
+  const on = (x, y) => x >= 0 && y >= 0 && x < W && y < H && m[y * W + x], next = new Map(), key = (x, y) => y * (W + 1) + x;
+  const add = (ax, ay, bx, by) => { const kk = key(ax, ay); (next.get(kk) ?? next.set(kk, []).get(kk)).push([bx, by]); };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!m[y * W + x]) continue;
+    if (!on(x, y - 1)) add(x, y, x + 1, y); if (!on(x + 1, y)) add(x + 1, y, x + 1, y + 1);
+    if (!on(x, y + 1)) add(x + 1, y + 1, x, y + 1); if (!on(x - 1, y)) add(x, y + 1, x, y);
+  }
+  const loops = [];
+  for (const [k0, list] of next) {
+    while (list.length) {
+      let x = k0 % (W + 1), y = Math.floor(k0 / (W + 1)); const pts = [];
+      for (let guard = 0; guard < 4 * W * H; guard++) {
+        const l = next.get(key(x, y)); if (!l?.length) break;
+        const [nx, ny] = l.pop(); pts.push({ x: L + x / k, y: T + y / k }); x = nx; y = ny;
+        if (key(x, y) === k0 && !next.get(k0).length) break;
+      }
+      if (pts.length > 8) loops.push(pts);
+    }
+  }
+  const area = (q) => Math.abs(q.reduce((a, c, i) => { const n = q[(i + 1) % q.length]; return a + c.x * n.y - n.x * c.y; }, 0) / 2);
+  const keep = loops.filter((q) => area(q) * k * k > 12);
+  if (!keep.length) { hint(); return; }
+  const d = V.fitPartsD(keep.map((q) => ({ closed: true, pts: SK.thin(q, 1.5 / k) })), 0.9 / z);
+  const o = makePath(d, null, { toolName: 'Smart fill', fillRule: 'evenodd' });
   o.set({ fill: state.gradient ? null : state.fill, stroke: state.strokeWidth ? state.stroke : null, strokeWidth: state.strokeWidth * MM, strokeUniform: true });
   if (state.gradient) { o.gradSpec = cloneGrad(state.gradient); o.set('fill', gradientFor(o)); }
   canvas.add(o);
@@ -4397,7 +4488,7 @@ const tintTargets = (o) => {
 function paintObject(o, hex, outline) {
   if (!outline) { const pics = tintTargets(o); if (pics.length) { for (const x of pics) tintImage(x, hex); return; } }
   applyProps(o, (x) => {
-    if (outline || x.type === 'line' || x.type === 'polyline' || (x.type === 'path' && !x.fill && x.stroke)) return { stroke: hex, strokeWidth: x.strokeWidth || MM / 2, strokeUniform: true };
+    if (outline || x.type === 'line' || x.type === 'polyline') return { stroke: hex, strokeWidth: x.strokeWidth || MM / 2, strokeUniform: true };
     delete x.gradSpec; delete x.patSpec;
     return { fill: hex };
   });
@@ -5026,7 +5117,7 @@ function setColour(hex, { recent = true, apply = true } = {}) {
   if (state.gradient && state.target === 'fill') gradStopColour(hex);
   if (apply) {
     if (state.target === 'fill') applyToSelection((o) => {
-      if (o.type === 'line' || o.type === 'polyline' || (o.type === 'path' && !o.fill && o.stroke)) return { stroke: hex };
+      if (o.type === 'line' || o.type === 'polyline') return { stroke: hex };
       if (state.gradient) { o.gradSpec = cloneGrad(state.gradient); delete o.patSpec; return { fill: gradientFor(o) }; }
       if (state.pattern) { o.patSpec = { ...state.pattern, ink: hex }; delete o.gradSpec; return { fill: patternFor(o.patSpec) }; }
       delete o.gradSpec; delete o.patSpec;
@@ -5556,7 +5647,7 @@ function modeFill(o) {
   if (state.pattern) { o.patSpec = { ...state.pattern, ink: state.fill }; return { fill: patternFor(o.patSpec) }; }
   return { fill: state.fill };
 }
-const fillable = (o) => !(o.type === 'line' || o.type === 'polyline' || (o.type === 'path' && !o.fill && o.stroke));
+const fillable = (o) => !(o.type === 'line' || o.type === 'polyline');
 $('fillMode').onchange = (e) => {
   const mode = e.target.value;
   gradHeld = null; // chosen here: it stays when the selection changes
@@ -5740,7 +5831,29 @@ function syncDocBar() {
   $('docUnits').value = state.units in UNITS ? state.units : 'mm';
   for (const el of document.querySelectorAll('.doc-unit')) el.textContent = unit().name;
   $('docPortrait').classList.toggle('on', h >= w); $('docLandscape').classList.toggle('on', w > h);
+  set('stdW', +inUnits(w * MM)); set('stdH', +inUnits(h * MM));
+  $('stdPortrait').classList.toggle('on', h >= w); $('stdLandscape').classList.toggle('on', w > h);
 }
+// The standard bar's page boxes and buttons are the same settings as the property bar's.
+for (const id of ['stdW', 'stdH']) $(id).onchange = () => { $('docW').value = $('stdW').value; $('docH').value = $('stdH').value; $('docW').onchange(); };
+$('stdPortrait').onclick = () => $('docPortrait').onclick();
+$('stdLandscape').onclick = () => $('docLandscape').onclick();
+$('stdUndo').onclick = () => undo(); $('stdRedo').onclick = () => redo();
+/** Save to the computer: the whole design (every page) as a .3deezi file; Open reads it back. */
+function saveToComputer() {
+  finishPowerClipEdit();
+  const name = ($('docName')?.textContent || 'artboard').replace(/[^\w\- ]+/g, '').trim() || 'artboard';
+  download(`data:application/json;charset=utf-8,${encodeURIComponent(snapshot())}`, `${name}.3deezi`);
+  toast(`Saved to your computer: ${name}.3deezi (Open it again with the folder button)`);
+}
+$('stdSave').onclick = saveToComputer;
+$('stdCloud').onclick = () => projects.actions.docSave();
+$('stdOpen').onclick = () => { $('stdFile').value = ''; $('stdFile').click(); };
+$('stdFile').onchange = async () => {
+  const f = $('stdFile').files?.[0]; if (!f) return;
+  try { const text = await f.text(); JSON.parse(text); if ((userObjects().length || pages.length > 1) && !(await projects.ask(`Open “${f.name}”? The design on the page is replaced (Undo can bring it back).`, 'Open', 'Cancel'))) return; await window.artboard.load(text, f.name.replace(/\.(3deezi|json)$/i, '')); toast(`Opened “${f.name}”`); }
+  catch { toast('That file could not be opened: choose a .3deezi file saved from the Artboard'); }
+};
 for (const id of ['docW', 'docH']) $(id).onchange = () => {
   const w = Math.round(fromUnits($('docW').value) / MM * 10) / 10, h = Math.round(fromUnits($('docH').value) / MM * 10) / 10;
   if (w >= 20 && h >= 20 && w <= 2000 && h <= 2000) setPage([w, h]); else { toast(`Use a size between ${+inUnits(20 * MM)} and ${+inUnits(2000 * MM)} ${unit().name}`); syncDocBar(); }
@@ -6043,7 +6156,7 @@ const ACTIONS = {
   flipH: () => $('flipH').click(), flipV: () => $('flipV').click(),
   alignL: () => align('L'), alignR: () => align('R'), alignT: () => align('T'), alignB: () => align('B'), alignC: () => align('C'), alignM: () => align('M'), layout: () => align('P'),
   distH: () => distribute('x'), distV: () => distribute('y'),
-  curves: () => convertToCurves(), combine, breakApart, outline: outlineToObject,
+  curves: () => convertToCurves(), combine, breakApart, joinPaths, outline: outlineToObject,
   weld: () => shaping('weld'), trim: () => shaping('trim'), intersect: () => shaping('intersect'), simplify: () => shaping('simplify'), fmb: () => shaping('fmb'), bmf: () => shaping('bmf'),
   powerclip: startPowerClip, extract: () => extractPowerClip(), pcEdit: () => editPowerClip(), pcFinish: () => finishPowerClipEdit(),
   pcCentre: () => arrangePowerClip('centre'), pcFit: () => arrangePowerClip('fit'), pcFill: () => arrangePowerClip('fill'), pcFrame: togglePowerClipFrame,
@@ -6208,7 +6321,7 @@ function pagePreview() {
 }
 let starter = null; // the YOUR TEAM text a new page starts with (see Start): untouched, the page counts as blank
 const projects = createProjects({
-  $, toast, post, icon, escHtml, store: STORE, snapshot, open: openDocument, preview: pagePreview,
+  $, toast, post, icon, escHtml, store: STORE, snapshot, saveToComputer, open: openDocument, preview: pagePreview,
   blank: () => (flushRecord(), !userObjects().length || (history.length < 2 && userObjects().length === 1 && userObjects()[0] === starter)) && pages.every((p, i) => i === pageIndex || !p.objects?.length),
   firstText: () => String(userObjects().find(isText)?.text ?? '').trim().slice(0, 60),
   finish: () => finishPowerClipEdit(), sendAgain: () => sendToStudio(),
@@ -7129,6 +7242,7 @@ addEventListener('keydown', (e) => {
   else if (mod && k === 'q') { e.preventDefault(); if (e.shiftKey) outlineToObject(); else convertToCurves(); }
   else if (mod && k === 'l') { e.preventDefault(); combine(); }
   else if (mod && k === 'k') { e.preventDefault(); breakApart(); }
+  else if (mod && k === 'j') { e.preventDefault(); joinPaths(); }
   else if (mod && k === 'i') { e.preventDefault(); $('fileImage').click(); }
   else if (mod && k === 'e') { e.preventDefault(); exportPdf(); }
   else if (k === 'pageup' || k === 'pagedown') {

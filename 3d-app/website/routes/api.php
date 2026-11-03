@@ -49,6 +49,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     // 3DEEZI Orders: the order forms' choices, and "Help me add sizes" (open to visitors, who fill the form before signing in).
     Route::get('/orders/options', [OrderController::class, 'options']);
     Route::post('/orders/assist', [OrderController::class, 'assist'])->middleware('throttle:assist');
+    Route::post('/orders/read-notes', [OrderController::class, 'readNotes'])->middleware('throttle:assist');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);

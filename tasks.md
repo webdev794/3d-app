@@ -584,3 +584,18 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - 2026-11-03 (images/359): client (Mantis): "those 3d are no good", goal = look like their catalogue product renders (realistic printed jerseys, flat studio shots). Tomorrow: plan for the 3D look.
 - 2026-11-03: app crashes on open (user) -> CR1 making the bubble rim drawing lighter.
 - 2026-11-03 (images/360): reference for the 3D look = Yellow Images jersey mockups (yellowimages.com, "With 3D Model" filter). Option: buy licensed 3D models / mockups there (money + licence check -> user/client decide).
+
+- 2026-11-03 (images/361-362): AI Designer results page wider, like 362 (wide picture, Background chips Auto/Studio/Stadium/Custom, Other options rail, Download button). Website + app. AW1.
+
+- 2026-11-03 (images/363): client DYO Studio visual improvements 1-6 (background, garment shape, artwork clarity, fabric & lighting, presentation, construction). Spec SP/VW1/spec.md. VW1 today: 1, 5, 4, 3; 2 and 6 with the model fixer tomorrow.
+
+- 2026-11-03 (images/364): Artboard pen tool: cannot join lines / close path and fill the object. AB1 fixing (close on first anchor, Join Ctrl+J, fill closed and open paths).
+- 2026-11-03 (images/365): Artboard Smart Fill does not work properly (overlapping / open shapes). Added to AB1.
+- 2026-11-03 (images/366, client "crucial"): Artboard top toolbar: Back / Forward (undo / redo), Save, Save to cloud, page orientation buttons, like CorelDRAW. AB1 next.
+- 2026-11-03 (images/367): AI Designer ignores the brief ("cotton oversized tshirt on a hanger" -> stadium sports jerseys). AI1 fixing the prompt so the brief wins; one paid test (<= US$2, user asked to test).
+- 2026-11-03 (images/368, LIVE): Upload order review: uploaded mockup not shown, Excel not read into garments ("No garments read yet"). UP1 fixing (show uploaded mockups, robust Excel reader). Asked the user for the real Excel file.
+- 2026-11-03 (images/369): client design for Review & approve after upload / form: mockup carousel, order details rows with across size tables, players + order summary boxes, contact / supplier cards, ready-to-approve card, bottom bar. UP1 building (website + app).
+- 2026-11-03 (images/370-371): phone Home looks basic (round icons / plain labels): restore the brush-lettering art like before, glassy bubble as 371, add an "Upgrade" pill next to the bell -> subscriptions. Client: last Home change. HM1.
+
+- 2026-11-03 (client): Create order form = type or photograph ANY notes ("Polo 3 x 4XL, 2 x 2XL, 4 x 5XL") + images -> 3DEEZI builds a neat, SHAREABLE order form. Upload order = customer already has a completed form. Spec SP/HB1/spec-notes-form.md. Starts when D has space.
+- 2026-11-03 (images/373-374): Home: white lights on the bubble sides as the client design 373, keep a phone-shaped bubble on wide windows, art like 373. Designer HD1 + tester UT2.

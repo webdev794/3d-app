@@ -110,6 +110,9 @@ export function createStudio(scene, renderer, mobile, quality = null) {
   // The stage's metal reflects the tiers' (brighter) stadium environment as much as it did the old room's.
   if (q) metal.envMapIntensity = topPlate.material.envMapIntensity = .15;
   podium.add(base, topPlate, ring, ringLower, outerRing);
+  // (VW1 2026-11-03, client 363 item 5: a smaller, lower-profile pedestal; its top stays where the kit stands.)
+  podium.scale.set(.8, .6, .8);
+  podium.position.y = -.0675 - .0475 * .6;
   const mirror = q?.podiumMirror ? podiumMirror(q.podiumMirror) : null;
   if (mirror) podium.add(mirror);
   scene.add(podium);

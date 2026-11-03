@@ -65,7 +65,7 @@ void main() {
     await _phone(tester, OrdersTabScreen(c), 390);
     final bubble = find.byKey(const ValueKey('orders-bubble'));
     expect(bubble, findsOneWidget);
-    for (final t in ['ORDERS', 'Create, upload or track.', 'CREATE ORDER', 'UPLOAD ORDER', 'MY ORDERS']) {
+    for (final t in ['ORDERS', 'Create, upload or track.', 'CREATE ORDER FORM', 'UPLOAD ORDER', 'MY ORDERS']) {
       expect(find.descendant(of: bubble, matching: find.text(t)), findsOneWidget, reason: t);
     }
     for (final k in ['orders-tile-form', 'orders-tile-upload', 'orders-tile-my-orders']) {

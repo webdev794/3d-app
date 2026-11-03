@@ -75,6 +75,7 @@ class GlassCard extends StatelessWidget {
         radius: radius,
         accent: accent,
         glow: bubbleRim ? .5 : .25,
+        blob: bubbleRim ? GlassBubble.pageBlob : null,
       ),
       isComplex: true,
       child: Material(
@@ -198,26 +199,26 @@ void paintPageRim(
   // A faint, tight halo outside.
   canvas.drawPath(
     path,
-    stroke(4, const Color(0xff36c8ff).withValues(alpha: .25), 2),
+    stroke(10, const Color(0xff36d4ff).withValues(alpha: .55), 6),
   );
   canvas.save();
   canvas.clipPath(path);
   // Inner glow, about 8 px, fading inward.
   canvas.drawPath(
     path,
-    stroke(18, const Color(0xff1ab4ff).withValues(alpha: .28), 4),
+    stroke(34, const Color(0xff2ac4ff).withValues(alpha: .32), 8),
   );
   // The rim core: about 5 px of saturated cyan inside the edge.
   canvas.drawPath(
     path,
-    stroke(10, Colors.white, 0)
+    stroke(16, Colors.white, 0)
       ..shader = ui.Gradient.linear(
         Offset.zero,
         Offset(w, h),
         [
-          const Color(0xff5ae6fa).withValues(alpha: .85),
-          const Color(0xff3cc8f0).withValues(alpha: .62),
-          const Color(0xff2aa8e8).withValues(alpha: .5),
+          const Color(0xff9ef0ff).withValues(alpha: .85),
+          const Color(0xff3cd0f6).withValues(alpha: .7),
+          const Color(0xff5ae0fa).withValues(alpha: .78),
         ],
         [0, .5, 1],
       ),
@@ -228,7 +229,7 @@ void paintPageRim(
       path,
       stroke(26, Colors.white, 0)
         ..shader = ui.Gradient.radial(at, radius * 1.1, [
-          const Color(0xff5ae6fa).withValues(alpha: .6),
+          Colors.white.withValues(alpha: .7),
           const Color(0xff36c8ff).withValues(alpha: 0),
         ]),
     );
@@ -261,7 +262,7 @@ void paintPageRim(
     path,
     stroke(24, Colors.white, 0)
       ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
-        const Color(0xffbff1ff).withValues(alpha: .2),
+        const Color(0xffe6faff).withValues(alpha: .42),
         const Color(0xffbff1ff).withValues(alpha: 0),
       ]),
   );
@@ -271,13 +272,13 @@ void paintPageRim(
     for (final at in corners) {
       canvas.drawPath(
         inner,
-        stroke(1.4, Colors.white, 0)
+        stroke(2.2, Colors.white, 0)
           ..shader = ui.Gradient.radial(
             at,
             radius * 1.6,
             [
-              Colors.white.withValues(alpha: .6),
-              Colors.white.withValues(alpha: .25),
+              Colors.white.withValues(alpha: .85),
+              Colors.white.withValues(alpha: .4),
               Colors.white.withValues(alpha: 0),
             ],
             [0, .5, 1],
@@ -290,14 +291,14 @@ void paintPageRim(
   // fading elsewhere.
   canvas.drawPath(
     path,
-    stroke(.9, const Color(0xffbff3ff).withValues(alpha: .6), 0),
+    stroke(1.6, const Color(0xffe0faff).withValues(alpha: .9), 0),
   );
   final m = Matrix4.identity()
     ..translateByDouble(w / 2, h / 2, 0, 1)
     ..scaleByDouble(1 - 5 * k / w, 1 - 5 * k / h, 1, 1)
     ..translateByDouble(-w / 2, -h / 2, 0, 1);
   final drift = path.transform(m.storage);
-  for (final (width, alpha, blur) in [(2.2, .3, 0.0), (1.0, .9, 0.0)]) {
+  for (final (width, alpha, blur) in [(4.0, .45, 0.0), (1.8, 1.0, 0.0)]) {
     canvas.drawPath(
       drift,
       stroke(width, Colors.white, blur)
@@ -400,9 +401,9 @@ class _GlassPainter extends CustomPainter {
           Offset(0, 0),
           Offset(0, size.height),
           [
-            const Color(0xff011a2e).withValues(alpha: .82),
-            const Color(0xff001624).withValues(alpha: .86),
-            const Color(0xff011a2e).withValues(alpha: .84),
+            const Color(0xff0c4a86).withValues(alpha: .8),
+            const Color(0xff042446).withValues(alpha: .84),
+            const Color(0xff0a3e74).withValues(alpha: .82),
           ],
           [0, .55, 1],
         ),
@@ -599,15 +600,15 @@ class _GlassPainter extends CustomPainter {
     canvas.drawPath(
       r,
       Paint()
-        ..shader = ui.Gradient.linear(
-          Offset.zero,
-          Offset(0, size.height),
+        ..shader = ui.Gradient.radial(
+          size.center(Offset.zero),
+          math.max(size.width, size.height) * .62,
           [
-            const Color(0xff011a2e).withValues(alpha: .82),
-            const Color(0xff001624).withValues(alpha: .86),
-            const Color(0xff011a2e).withValues(alpha: .84),
+            const Color(0xff03213f).withValues(alpha: .86),
+            const Color(0xff062e58).withValues(alpha: .84),
+            const Color(0xff0f5596).withValues(alpha: .8),
           ],
-          [0, .55, 1],
+          [0, .6, 1],
         ),
     );
     paintPageRim(
@@ -615,6 +616,7 @@ class _GlassPainter extends CustomPainter {
       r,
       size,
       radius,
+      k: glow >= 1 ? 1 : .6,
       inner: bowed
           ? bowedPath(size, radius, 9)
           : blobPath(size, profile, radius, 9),

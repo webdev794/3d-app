@@ -1,6 +1,7 @@
+import 'dart:async';
+import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
@@ -612,6 +613,9 @@ class _Row {
   /// "More sizes": the fit's rare sizes (5XL–8XL, W22–W24, 2Y–4Y).
   bool more = false;
   final Map<String, int> sizes = {};
+
+  /// Artwork uploaded for this garment (step 3 "Artwork & files").
+  final fileIds = <int>[];
   String players = '';
   int get total => sizes.values.fold(0, (a, b) => a + b);
   Map<String, dynamic> toJson() => {
@@ -623,6 +627,7 @@ class _Row {
           ? label.trim().substring(0, 60)
           : label.trim(),
     if (project != null) 'project_id': project,
+    if (fileIds.isNotEmpty) 'file_ids': fileIds,
     'sizes': {
       for (final e in sizes.entries)
         if (e.value > 0) e.key: e.value,
@@ -678,6 +683,54 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   final sectionKeys = [GlobalKey(), GlobalKey(), GlobalKey()];
   int sectionOnScreen = 0;
 
+  /// One step per screen (client 2026-11-03, images/337, 339): the page of
+  /// the form shown (Create: 0 Details, 1 Garments, 2 Artwork; Upload:
+  /// 0 Upload, 1 Check details). Review is its own screen (step 'review').
+  int page = 0;
+
+  /// The Review step: checks everything, then opens the review.
+  void startReview();
+
+  /// Back / Continue under each page.
+  Widget pageButtons({
+    required bool last,
+    required VoidCallback onNext,
+    String? nextLabel,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: busy ? null : saveDraft,
+              child: const Text('Save draft'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GradientButton(
+              key: Key(last ? 'order-review-button' : 'order-continue'),
+              label: last ? 'REVIEW ORDER' : (nextLabel ?? 'CONTINUE'),
+              compact: true,
+              onPressed: last ? startReview : onNext,
+            ),
+          ),
+        ],
+      ),
+      if (page > 0)
+        TextButton.icon(
+          key: const Key('order-back'),
+          onPressed: () => setState(() {
+            page--;
+            error = null;
+          }),
+          icon: const Icon(Icons.arrow_back, size: 18),
+          label: Text('Back to ${stepNames[page - 1].toLowerCase()}'),
+        ),
+    ],
+  );
+
   /// The step names: Create order (Details > Garments > Artwork > Review) or
   /// Upload order (Upload > Check details > Review: its sections 1-2 are
   /// "Upload", section 3 "Check details").
@@ -712,8 +765,15 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   }
 
   void goToStep(int i) {
-    if (i == stepNames.length - 1)
-      return; // Review: its button checks the form first.
+    if (i == stepNames.length - 1) return startReview();
+    setState(() {
+      step = 'edit';
+      page = i;
+      error = null;
+    });
+  }
+
+  void scrollToSection(int i) {
     void scroll() {
       final target = sectionKeys[sectionOfStep(i)].currentContext;
       if (target != null) {
@@ -737,7 +797,7 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   Widget stepHeader(String title, String line) {
     final current = step == 'review' || step == 'done'
         ? stepNames.length - 1
-        : stepOfSection(sectionOnScreen);
+        : page;
     // (Compact: the form keeps most of the screen; the title is in the app bar.)
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
@@ -1032,9 +1092,23 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
       } else {
         await c.api.saveOrderDraft(draftId!, fields());
       }
-      final links = await c.api.orderConfirmationLinks(draftId!);
-      final url = '${links[which] ?? ''}';
+      final share = which == 'share';
+      final links = await c.api.orderConfirmationLinks(draftId!, share: share);
+      final url = '${links[share ? 'pdf' : which] ?? ''}';
       if (url.isEmpty || !mounted) return;
+      if (share) {
+        // Share order form: a read-only link (the form's page, with PDF / Excel), 30 days.
+        await Clipboard.setData(ClipboardData(text: url));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Link copied. Anyone with it can view this order form (read-only) for 30 days.',
+            ),
+          ),
+        );
+        return;
+      }
       await openSitePage(context, url, 'Order confirmation');
     } on ApiException catch (e) {
       if (mounted) setState(() => error = e.message);
@@ -1436,6 +1510,181 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   String get kind => 'form';
   final rows = <_Row>[_Row()];
   final help = TextEditingController();
+
+  /// The garment the next artwork upload is for (step 3 rows).
+  _Row? artFor;
+  String? sheetNote;
+
+  @override
+  void onUploaded(_Upload upload) {
+    final id = (upload.file?['id'] as num?)?.toInt();
+    if (upload.kind == 'artwork' && artFor != null && id != null) {
+      setState(() => artFor!.fileIds.add(id));
+      artFor = null;
+    }
+    if (upload.kind == 'order_form' && notesPhoto) {
+      notesPhoto = false;
+      unawaited(readNotesPhoto());
+      return;
+    }
+    if (upload.kind == 'order_form') {
+      // "Have an order sheet?": the same reading as Upload order (OrderFormReader).
+      final read = (upload.file?['suggested'] as Map?)?.cast<String, dynamic>();
+      final items = ((read?['items'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((m) => m.cast<String, dynamic>())
+          .toList();
+      setState(() {
+        if (items.isNotEmpty) addItems(items);
+        sheetNote = items.isEmpty
+            ? 'No sizes found in the sheet: add them under Garments.'
+            : 'Added ${read?['summary'] ?? '${items.length} garments'}.';
+      });
+    }
+  }
+
+  @override
+  void startReview() => setState(() {
+    error = problem();
+    if (error == null) {
+      step = 'review';
+      approved = false;
+    } else {
+      page = total < 1 && error == 'Add at least one size and quantity.'
+          ? 1
+          : 0;
+    }
+  });
+
+  /// Continue: this page's checks (the review still checks everything).
+  void nextPage() => setState(() {
+    error = page == 0
+        ? (name.text.trim().isEmpty
+              ? 'Add a contact name.'
+              : team.text.trim().isEmpty
+              ? 'Add your team or organisation name.'
+              : deliveryProblem())
+        : (total < 1 ? 'Add at least one size and quantity.' : null);
+    if (error == null) page++;
+  });
+
+  /// "Write or snap your notes" (client 2026-11-03): typed notes, a photo of notes, images.
+  final notes = TextEditingController();
+  bool notesPhoto = false, building = false;
+  String? notesNote;
+
+  /// Build my order form: the typed notes read on the server without AI.
+  Future<void> buildFromNotes() async {
+    final text = notes.text.trim();
+    if (text.isEmpty) {
+      setState(
+        () => notesNote = 'Write your notes, or add a photo of them, first.',
+      );
+      return;
+    }
+    setState(() => building = true);
+    try {
+      final read = await c.api.readOrderNotes(text);
+      applyNotes(read);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => notesNote = e.message);
+    } finally {
+      if (mounted) setState(() => building = false);
+    }
+  }
+
+  /// A photo of notes: uploaded as an order form, then read by 3DEEZI AI.
+  Future<void> readNotesPhoto() async {
+    if (draftId == null) return;
+    setState(() {
+      building = true;
+      notesNote = '3DEEZI AI is reading your notes…';
+    });
+    try {
+      final d = await c.api.readOrderDraft(draftId!);
+      final items = <Map<String, dynamic>>[];
+      final unknown = <String>[];
+      for (final s
+          in ((d['suggested'] as List?) ?? const []).whereType<Map>()) {
+        if (s['source'] != 'ai') continue;
+        items.addAll(
+          ((s['items'] as List?) ?? const []).whereType<Map>().map(
+            (m) => m.cast<String, dynamic>(),
+          ),
+        );
+        unknown.addAll(((s['unknown'] as List?) ?? const []).map((u) => '$u'));
+      }
+      applyNotes({'items': items, 'unknown': unknown});
+    } on ApiException catch (e) {
+      if (mounted) setState(() => notesNote = e.message);
+    } finally {
+      if (mounted) setState(() => building = false);
+    }
+  }
+
+  void applyNotes(Map<String, dynamic> read) {
+    final items = ((read['items'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((m) => m.cast<String, dynamic>())
+        .toList();
+    final unknown = ((read['unknown'] as List?) ?? const []).map((u) => '$u');
+    if (!mounted) return;
+    setState(() {
+      if (items.isNotEmpty) addItems(items);
+      final count = items.fold<int>(
+        0,
+        (a, i) =>
+            a +
+            ((i['sizes'] as Map?) ?? const {}).values.fold<int>(
+              0,
+              (b, v) => b + ((v as num?)?.toInt() ?? 0),
+            ),
+      );
+      notesNote = [
+        items.isEmpty
+            ? 'No garments or sizes found. Try lines like "Polo" then "3 x 4XL".'
+            : 'Built ${items.length} ${items.length == 1 ? 'garment' : 'garments'} ($count in all) from your notes. Check them under Garments.',
+        if (unknown.isNotEmpty)
+          'Please check: ${unknown.take(6).map((u) => '"$u"').join(', ')}',
+      ].join('\n');
+    });
+  }
+
+  void addItems(List<Map<String, dynamic>> items) {
+    if (rows.length == 1 && rows.first.total == 0) rows.clear();
+    for (final item in items) {
+      rows.add(
+        _Row()
+          ..garment = _garments.containsKey(item['garment'])
+              ? '${item['garment']}'
+              : 'other'
+          ..sizes.addAll(
+            ((item['sizes'] as Map?) ?? const {}).map(
+              (k, v) => MapEntry('$k', (v as num).toInt()),
+            ),
+          )
+          ..players = [
+            for (final p
+                in ((item['players'] as List?) ?? const []).whereType<Map>())
+              [
+                '${p['name'] ?? ''}'.trim(),
+                '${p['number'] ?? ''}'.trim(),
+                '${p['size'] ?? ''}'.trim(),
+              ].join(', '),
+          ].join('\n')
+          ..fit = _fits.containsKey(item['fit'])
+              ? '${item['fit']}'
+              : fitFromSizes(
+                      ((item['sizes'] as Map?) ?? const {}).map(
+                        (k, v) => MapEntry('$k', (v as num).toInt()),
+                      ),
+                    ) ??
+                    'mens',
+      );
+    }
+    if (rows.isEmpty) rows.add(_Row());
+  }
+
   Map<String, dynamic> pricing = {};
   String? helped;
 
@@ -1601,360 +1850,689 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _section('1 · Contact & team', key: sectionKeys[0]),
-          contactFields(withPhone: false),
-          _field(phone, 'Mobile', keyboard: TextInputType.phone),
-          _whenWhere(),
-          // Made by, at the end of section 1 as on the website (only when there is a choice).
-          MadeByField(
-            makers: makers,
-            value: supplierId,
-            onChanged: (id) => setState(() => supplierId = id),
-            onSeeSuppliers: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
-          ),
-          _section('2 · Garments & sizes', key: sectionKeys[1]),
-          SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (page == 0) ...[
+            _notesBox(),
+            _section('1 · Contact & team', key: sectionKeys[0]),
+            contactFields(withPhone: false),
+            _field(phone, 'Mobile', keyboard: TextInputType.phone),
+            _whenWhere(),
+            // Made by, at the end of section 1 as on the website (only when there is a choice).
+            MadeByField(
+              makers: makers,
+              value: supplierId,
+              onChanged: (id) => setState(() => supplierId = id),
+              onSeeSuppliers: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c)),
+              ),
+            ),
+          ],
+          if (page == 1) ...[
+            _section('2 · Garments & sizes', key: sectionKeys[1]),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '3DEEZI ASSIST · Help me add sizes',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: help,
+                    decoration: const InputDecoration(
+                      hintText: '12 jerseys M, 12 shorts L, 6 hoodies XL',
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton(
+                      onPressed: busy ? null : helpMe,
+                      child: const Text('Help me add sizes'),
+                    ),
+                  ),
+                  if (helped != null)
+                    Text(
+                      helped!,
+                      style: const TextStyle(
+                        color: Palette.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            for (final (i, r) in rows.indexed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: SurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              // A saved design sets the garment: show it.
+                              key: ValueKey(
+                                'garment-${identityHashCode(r)}-${r.garment}-${r.custom}',
+                              ),
+                              isExpanded: true,
+                              initialValue: r.custom ? customValue : r.garment,
+                              decoration: const InputDecoration(
+                                labelText: 'Garment',
+                                isDense: true,
+                              ),
+                              items: [
+                                for (final e in _garments.entries)
+                                  DropdownMenuItem(
+                                    value: e.key,
+                                    child: Text(e.value),
+                                  ),
+                                // "Custom…" (client 2026-11-02): a sport typed.
+                                const DropdownMenuItem(
+                                  value: customValue,
+                                  child: Text(customLabel),
+                                ),
+                              ],
+                              onChanged: (v) => setState(() {
+                                r.custom = v == customValue;
+                                if (!r.custom) {
+                                  r.garment = v ?? r.garment;
+                                  r.sport = '';
+                                }
+                              }),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: r.fit,
+                              decoration: const InputDecoration(
+                                labelText: 'Fit',
+                                isDense: true,
+                              ),
+                              items: [
+                                for (final e in _fits.entries)
+                                  DropdownMenuItem(
+                                    value: e.key,
+                                    child: Text(e.value),
+                                  ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => r.fit = v ?? r.fit),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Remove garment ${i + 1}',
+                            onPressed: rows.length < 2
+                                ? null
+                                : () => setState(() => rows.remove(r)),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ],
+                      ),
+                      if (r.custom) ...[
+                        TextFormField(
+                          key: Key('custom-sport-$i'),
+                          initialValue: r.sport,
+                          maxLength: customMax,
+                          decoration: const InputDecoration(
+                            labelText: 'Type your sport',
+                            hintText: 'e.g. Lacrosse, Bowling',
+                            isDense: true,
+                            counterText: '',
+                          ),
+                          onChanged: (v) => r.sport = typedName(v),
+                        ),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey(
+                            'custom-garment-${identityHashCode(r)}',
+                          ),
+                          isExpanded: true,
+                          initialValue: r.garment,
+                          decoration: const InputDecoration(
+                            labelText: 'Garment',
+                            isDense: true,
+                          ),
+                          items: [
+                            for (final e in _garments.entries)
+                              DropdownMenuItem(
+                                value: e.key,
+                                child: Text(
+                                  e.key == 'other' ? customLabel : e.value,
+                                ),
+                              ),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => r.garment = v ?? r.garment),
+                        ),
+                      ],
+                      if (r.garment == 'other')
+                        TextFormField(
+                          key: Key('custom-garment-name-$i'),
+                          initialValue: r.label,
+                          maxLength: 60,
+                          decoration: InputDecoration(
+                            labelText: r.custom
+                                ? 'Type your garment'
+                                : 'What is it?',
+                            hintText: r.custom
+                                ? customPlaceholder
+                                : 'e.g. Long-sleeve compression top',
+                            isDense: true,
+                            counterText: '',
+                          ),
+                          onChanged: (v) => r.label = typedName(v),
+                        ),
+                      if (designs.isNotEmpty)
+                        DropdownButtonFormField<int?>(
+                          isExpanded: true,
+                          initialValue: r.project,
+                          decoration: const InputDecoration(
+                            labelText: 'Design',
+                            isDense: true,
+                          ),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('No saved design'),
+                            ),
+                            for (final p in designs)
+                              DropdownMenuItem<int?>(
+                                value: p.remoteId,
+                                child: Text(p.title),
+                              ),
+                          ],
+                          onChanged: (v) => setState(() {
+                            r.project = v;
+                            final p = designs
+                                .where((p) => p.remoteId == v)
+                                .firstOrNull;
+                            if (p != null)
+                              r.garment = orderGarmentFor(p.kit.garment);
+                          }),
+                        ),
+                      const SizedBox(height: 10),
+                      // The fit's sizes: Mens XS–4XL (+ 5XL–8XL), Womens W8–W20 (+ W22, W24), Kids 6Y–16Y (+ 2Y, 4Y), and any size the row has.
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final s in rowSizes(
+                            r.fit,
+                            r.sizes,
+                            more: r.more,
+                          ))
+                            SizedBox(
+                              width: 64,
+                              child: TextFormField(
+                                key: Key('size-$i-$s'),
+                                initialValue: r.sizes[s]?.toString() ?? '',
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                decoration: InputDecoration(
+                                  labelText: s,
+                                  isDense: true,
+                                  border: const OutlineInputBorder(),
+                                ),
+                                onChanged: (v) => setState(
+                                  () => r.sizes[s] = int.tryParse(v) ?? 0,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      // The subtotal, "More sizes", and the same garment in another fit (a team's mens, womens and kids each
+                      // get a row), on one line.
+                      Wrap(
+                        spacing: 2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              'Subtotal ${r.total}',
+                              style: const TextStyle(
+                                color: Palette.cyan,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          if (rareFor(r.fit).isNotEmpty)
+                            TextButton(
+                              key: Key('more-sizes-$i'),
+                              style: _smallLink,
+                              onPressed: () => setState(() => r.more = !r.more),
+                              child: Text(
+                                r.more
+                                    ? 'Fewer sizes'
+                                    : '+ ${rareText(rareFor(r.fit))}',
+                              ),
+                            ),
+                          for (final f in const ['mens', 'womens', 'youth'])
+                            if (f !=
+                                (r.fit == 'womens' || r.fit == 'youth'
+                                    ? r.fit
+                                    : 'mens'))
+                              TextButton(
+                                key: Key('add-fit-$i-$f'),
+                                style: _smallLink,
+                                onPressed: rows.length >= 30
+                                    ? null
+                                    : () => setState(
+                                        () => rows.insert(
+                                          i + 1,
+                                          _Row()
+                                            ..garment = r.garment
+                                            ..project = r.project
+                                            ..custom = r.custom
+                                            ..sport = r.sport
+                                            ..label = r.label
+                                            ..fit = f,
+                                        ),
+                                      ),
+                                child: Text('+ ${fitNames[f]} sizes'),
+                              ),
+                        ],
+                      ),
+                      ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Player names & numbers (optional)',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                        children: [
+                          TextFormField(
+                            initialValue: r.players,
+                            maxLines: 4,
+                            decoration: const InputDecoration(
+                              hintText: 'One per line: SMITH, 7, M',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (v) => r.players = v,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            TextButton.icon(
+              onPressed: () => setState(() => rows.add(_Row())),
+              icon: const Icon(Icons.add),
+              label: const Text('Add garment'),
+            ),
+          ],
+          if (page == 2) ...[
+            _section('3 · Artwork & files', key: sectionKeys[2]),
+            Row(
               children: [
-                const Text(
-                  '3DEEZI ASSIST · Help me add sizes',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: help,
-                  decoration: const InputDecoration(
-                    hintText: '12 jerseys M, 12 shorts L, 6 hoodies XL',
-                    isDense: true,
-                    border: OutlineInputBorder(),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('choose-saved-design'),
+                    onPressed: () => _artSheet(
+                      rows.firstWhere(
+                        (r) => r.project == null && r.fileIds.isEmpty,
+                        orElse: () => rows.first,
+                      ),
+                      designs,
+                    ),
+                    icon: const Icon(Icons.palette_outlined, size: 18),
+                    label: const Text('Choose saved design'),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: OutlinedButton(
-                    onPressed: busy ? null : helpMe,
-                    child: const Text('Help me add sizes'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('upload-artwork'),
+                    onPressed: () {
+                      artFor = rows
+                          .where((r) => r.project == null && r.fileIds.isEmpty)
+                          .firstOrNull;
+                      addFile('artwork');
+                    },
+                    icon: const Icon(Icons.upload_file, size: 18),
+                    label: const Text('Upload artwork'),
                   ),
                 ),
-                if (helped != null)
-                  Text(
-                    helped!,
-                    style: const TextStyle(color: Palette.muted, fontSize: 12),
-                  ),
               ],
             ),
+            const SizedBox(height: 10),
+            for (final (i, r) in rows.indexed) _artRow(i, r, designs),
+            const SizedBox(height: 6),
+            _sheetBox(),
+            for (final u in uploads.where((u) => u.kind == 'artwork'))
+              fileRow(u),
+            OutlinedButton.icon(
+              onPressed: () {
+                artFor = null;
+                addFile('artwork');
+              },
+              icon: const Icon(Icons.attach_file),
+              label: const Text('Artwork for the whole order'),
+            ),
+            const SizedBox(height: 10),
+            _field(notes, 'Notes for your supplier', lines: 3),
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text(
+                'Confirmation download: PDF / Excel (available on the next step).',
+                style: TextStyle(color: Palette.muted, fontSize: 12),
+              ),
+            ),
+          ],
+          errorText(),
+          const SizedBox(height: 14),
+          pageButtons(
+            last: page == 2,
+            onNext: nextPage,
+            nextLabel: page == 0
+                ? 'CONTINUE TO GARMENTS'
+                : 'CONTINUE TO ARTWORK',
           ),
-          const SizedBox(height: 10),
-          for (final (i, r) in rows.indexed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: SurfaceCard(
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              page == 2
+                  ? 'Reviewing does not submit your order.'
+                  : 'Step ${page + 1} of 4',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Palette.muted, fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Step 3: one garment's artwork (picture, name, "Front & back artwork added", Change).
+  Widget _artRow(int i, _Row r, List<Project> designs) {
+    final project = r.project == null
+        ? null
+        : designs.where((p) => p.remoteId == r.project).firstOrNull;
+    final added = r.project != null || r.fileIds.isNotEmpty;
+    final busyHere =
+        identical(artFor, r) &&
+        uploads.any(
+          (u) => u.kind == 'artwork' && u.file == null && u.error == null,
+        );
+    final name =
+        project?.title ??
+        (r.garment == 'other' && r.label.trim().isNotEmpty
+            ? r.label.trim()
+            : (_garments[r.garment] ?? r.garment));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        radius: 14,
+        semanticsLabel: null,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xff0b2238),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.checkroom, color: Color(0xff5cc8ec)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
                     Row(
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            // A saved design sets the garment: show it.
-                            key: ValueKey(
-                              'garment-${identityHashCode(r)}-${r.garment}-${r.custom}',
-                            ),
-                            isExpanded: true,
-                            initialValue: r.custom ? customValue : r.garment,
-                            decoration: const InputDecoration(
-                              labelText: 'Garment',
-                              isDense: true,
-                            ),
-                            items: [
-                              for (final e in _garments.entries)
-                                DropdownMenuItem(
-                                  value: e.key,
-                                  child: Text(e.value),
-                                ),
-                              // "Custom…" (client 2026-11-02): a sport typed.
-                              const DropdownMenuItem(
-                                value: customValue,
-                                child: Text(customLabel),
-                              ),
-                            ],
-                            onChanged: (v) => setState(() {
-                              r.custom = v == customValue;
-                              if (!r.custom) {
-                                r.garment = v ?? r.garment;
-                                r.sport = '';
-                              }
-                            }),
+                        if (added)
+                          const Icon(
+                            Icons.check_circle,
+                            size: 15,
+                            color: Color(0xff4ade80),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            initialValue: r.fit,
-                            decoration: const InputDecoration(
-                              labelText: 'Fit',
-                              isDense: true,
-                            ),
-                            items: [
-                              for (final e in _fits.entries)
-                                DropdownMenuItem(
-                                  value: e.key,
-                                  child: Text(e.value),
-                                ),
-                            ],
-                            onChanged: (v) =>
-                                setState(() => r.fit = v ?? r.fit),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Remove garment ${i + 1}',
-                          onPressed: rows.length < 2
-                              ? null
-                              : () => setState(() => rows.remove(r)),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                      ],
-                    ),
-                    if (r.custom) ...[
-                      TextFormField(
-                        key: Key('custom-sport-$i'),
-                        initialValue: r.sport,
-                        maxLength: customMax,
-                        decoration: const InputDecoration(
-                          labelText: 'Type your sport',
-                          hintText: 'e.g. Lacrosse, Bowling',
-                          isDense: true,
-                          counterText: '',
-                        ),
-                        onChanged: (v) => r.sport = typedName(v),
-                      ),
-                      DropdownButtonFormField<String>(
-                        key: ValueKey('custom-garment-${identityHashCode(r)}'),
-                        isExpanded: true,
-                        initialValue: r.garment,
-                        decoration: const InputDecoration(
-                          labelText: 'Garment',
-                          isDense: true,
-                        ),
-                        items: [
-                          for (final e in _garments.entries)
-                            DropdownMenuItem(
-                              value: e.key,
-                              child: Text(
-                                e.key == 'other' ? customLabel : e.value,
-                              ),
-                            ),
-                        ],
-                        onChanged: (v) =>
-                            setState(() => r.garment = v ?? r.garment),
-                      ),
-                    ],
-                    if (r.garment == 'other')
-                      TextFormField(
-                        key: Key('custom-garment-name-$i'),
-                        initialValue: r.label,
-                        maxLength: 60,
-                        decoration: InputDecoration(
-                          labelText: r.custom
-                              ? 'Type your garment'
-                              : 'What is it?',
-                          hintText: r.custom
-                              ? customPlaceholder
-                              : 'e.g. Long-sleeve compression top',
-                          isDense: true,
-                          counterText: '',
-                        ),
-                        onChanged: (v) => r.label = typedName(v),
-                      ),
-                    if (designs.isNotEmpty)
-                      DropdownButtonFormField<int?>(
-                        isExpanded: true,
-                        initialValue: r.project,
-                        decoration: const InputDecoration(
-                          labelText: 'Design',
-                          isDense: true,
-                        ),
-                        items: [
-                          const DropdownMenuItem<int?>(
-                            value: null,
-                            child: Text('No saved design'),
-                          ),
-                          for (final p in designs)
-                            DropdownMenuItem<int?>(
-                              value: p.remoteId,
-                              child: Text(p.title),
-                            ),
-                        ],
-                        onChanged: (v) => setState(() {
-                          r.project = v;
-                          final p = designs
-                              .where((p) => p.remoteId == v)
-                              .firstOrNull;
-                          if (p != null)
-                            r.garment = orderGarmentFor(p.kit.garment);
-                        }),
-                      ),
-                    const SizedBox(height: 10),
-                    // The fit's sizes: Mens XS–4XL (+ 5XL–8XL), Womens W8–W20 (+ W22, W24), Kids 6Y–16Y (+ 2Y, 4Y), and any size the row has.
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final s in rowSizes(r.fit, r.sizes, more: r.more))
-                          SizedBox(
-                            width: 64,
-                            child: TextFormField(
-                              key: Key('size-$i-$s'),
-                              initialValue: r.sizes[s]?.toString() ?? '',
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              decoration: InputDecoration(
-                                labelText: s,
-                                isDense: true,
-                                border: const OutlineInputBorder(),
-                              ),
-                              onChanged: (v) => setState(
-                                () => r.sizes[s] = int.tryParse(v) ?? 0,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    // The subtotal, "More sizes", and the same garment in another fit (a team's mens, womens and kids each
-                    // get a row), on one line.
-                    Wrap(
-                      spacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
+                        if (added) const SizedBox(width: 4),
+                        Flexible(
                           child: Text(
-                            'Subtotal ${r.total}',
-                            style: const TextStyle(
-                              color: Palette.cyan,
-                              fontWeight: FontWeight.w700,
+                            busyHere
+                                ? 'Uploading…'
+                                : r.project != null
+                                ? 'Front & back artwork added'
+                                : added
+                                ? 'Artwork added (${r.fileIds.length})'
+                                : 'Add artwork',
+                            key: Key('art-status-$i'),
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: added
+                                  ? const Color(0xff4ade80)
+                                  : Palette.muted,
                             ),
                           ),
-                        ),
-                        if (rareFor(r.fit).isNotEmpty)
-                          TextButton(
-                            key: Key('more-sizes-$i'),
-                            style: _smallLink,
-                            onPressed: () => setState(() => r.more = !r.more),
-                            child: Text(
-                              r.more
-                                  ? 'Fewer sizes'
-                                  : '+ ${rareText(rareFor(r.fit))}',
-                            ),
-                          ),
-                        for (final f in const ['mens', 'womens', 'youth'])
-                          if (f !=
-                              (r.fit == 'womens' || r.fit == 'youth'
-                                  ? r.fit
-                                  : 'mens'))
-                            TextButton(
-                              key: Key('add-fit-$i-$f'),
-                              style: _smallLink,
-                              onPressed: rows.length >= 30
-                                  ? null
-                                  : () => setState(
-                                      () => rows.insert(
-                                        i + 1,
-                                        _Row()
-                                          ..garment = r.garment
-                                          ..project = r.project
-                                          ..custom = r.custom
-                                          ..sport = r.sport
-                                          ..label = r.label
-                                          ..fit = f,
-                                      ),
-                                    ),
-                              child: Text('+ ${fitNames[f]} sizes'),
-                            ),
-                      ],
-                    ),
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: const Text(
-                        'Player names & numbers (optional)',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                      children: [
-                        TextFormField(
-                          initialValue: r.players,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            hintText: 'One per line: SMITH, 7, M',
-                            border: OutlineInputBorder(),
-                          ),
-                          onChanged: (v) => r.players = v,
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
-            ),
-          TextButton.icon(
-            onPressed: () => setState(() => rows.add(_Row())),
-            icon: const Icon(Icons.add),
-            label: const Text('Add garment'),
-          ),
-          _section('3 · Artwork & files', key: sectionKeys[2]),
-          for (final u in uploads) fileRow(u),
-          OutlinedButton.icon(
-            onPressed: () => addFile('artwork'),
-            icon: const Icon(Icons.attach_file),
-            label: const Text('Add logos, artwork or a reference'),
-          ),
-          const SizedBox(height: 10),
-          _field(notes, 'Notes for your supplier', lines: 3),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Text(
-              'Confirmation download: PDF / Excel (available on the next step).',
-              style: TextStyle(color: Palette.muted, fontSize: 12),
-            ),
-          ),
-          errorText(),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: busy ? null : saveDraft,
-                  child: const Text('Save draft'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GradientButton(
-                  label: 'REVIEW ORDER',
-                  compact: true,
-                  onPressed: () => setState(() {
-                    error = problem();
-                    if (error == null) {
-                      step = 'review';
-                      approved = false;
-                    }
-                  }),
-                ),
+              TextButton(
+                key: Key('art-change-$i'),
+                onPressed: () => _artSheet(r, designs),
+                child: Text(added ? 'Change' : 'Add'),
               ),
             ],
           ),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+        ),
+      ),
+    );
+  }
+
+  /// Change: a saved design (front & back) or artwork uploaded for this garment.
+  Future<void> _artSheet(_Row r, List<Project> designs) async {
+    final choice = await showModalBottomSheet<Object>(
+      context: context,
+      backgroundColor: Palette.bg,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
+              child: Text(
+                'Artwork for this garment',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            for (final p in designs)
+              ListTile(
+                leading: const Icon(Icons.palette_outlined),
+                title: Text(p.title),
+                trailing: p.remoteId == r.project
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () => Navigator.of(ctx).pop(p.remoteId),
+              ),
+            if (designs.isEmpty)
+              const ListTile(
+                title: Text('No saved designs yet'),
+                subtitle: Text('Designs you save in the app show here.'),
+              ),
+            ListTile(
+              key: const Key('art-upload-row'),
+              leading: const Icon(Icons.upload_file),
+              title: const Text('Upload artwork for this garment'),
+              onTap: () => Navigator.of(ctx).pop('upload'),
+            ),
+            if (r.project != null || r.fileIds.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Remove artwork from this garment'),
+                onTap: () => Navigator.of(ctx).pop('clear'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'upload') {
+      artFor = r;
+      await addFile('artwork');
+    } else if (choice == 'clear') {
+      setState(() {
+        r.project = null;
+        r.fileIds.clear();
+      });
+    } else if (choice is int) {
+      setState(() => r.project = choice);
+    }
+  }
+
+  /// "Write or snap your notes": a text box, Add photo of notes, Add images, Build my order form.
+  Widget _notesBox() => Container(
+    key: const Key('notes-box'),
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xff1d6a8a), width: 1.5),
+      color: const Color(0xff04101c),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'WRITE OR SNAP YOUR NOTES',
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Type your order the way you\'d write it, or add a photo of handwritten notes. 3DEEZI builds the form; you can still change everything.',
+          style: TextStyle(color: Palette.muted, fontSize: 12.5),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          key: const Key('notes-text'),
+          controller: notes,
+          minLines: 4,
+          maxLines: 8,
+          decoration: const InputDecoration(
+            hintText: 'Polo\n3 x 4XL\n2 x 2XL\n4 x 5XL',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              key: const Key('notes-photo'),
+              onPressed: building
+                  ? null
+                  : () {
+                      notesPhoto = true;
+                      unawaited(addFile('order_form'));
+                    },
+              icon: const Icon(Icons.photo_camera_outlined, size: 18),
+              label: const Text('Add photo of notes'),
+            ),
+            OutlinedButton.icon(
+              key: const Key('notes-images'),
+              onPressed: building ? null : () => unawaited(addFile('artwork')),
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+              label: const Text('Add images'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          key: const Key('build-form'),
+          onPressed: building ? null : () => unawaited(buildFromNotes()),
+          icon: building
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.auto_awesome, size: 18),
+          label: const Text('Build my order form'),
+        ),
+        if (notesNote != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
             child: Text(
-              'Reviewing does not submit your order.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Palette.muted, fontSize: 11),
+              notesNote!,
+              key: const Key('notes-status'),
+              style: const TextStyle(color: Color(0xffd7ffe6), fontSize: 13),
             ),
           ),
+      ],
+    ),
+  );
+
+  /// "Have an order sheet?" (.pdf .xlsx .xls): read like Upload order; sizes come into the garments.
+  Widget _sheetBox() {
+    final sheets = uploads.where((u) => u.kind == 'order_form').toList();
+    return Container(
+      key: const Key('order-sheet-box'),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xff3b7594), width: 1.5),
+        color: const Color(0xff04101c),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.table_chart_outlined, color: Color(0xff5cc8ec)),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Have an order sheet?',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      '.pdf .xlsx .xls',
+                      style: TextStyle(color: Palette.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                key: const Key('order-sheet-upload'),
+                onPressed: () => addFile('order_form'),
+                child: const Text('Upload'),
+              ),
+            ],
+          ),
+          for (final u in sheets) fileRow(u),
+          if (sheets.any((u) => u.file != null)) ...[
+            if (sheetNote != null)
+              Text(sheetNote!, style: const TextStyle(fontSize: 12.5)),
+            const Text(
+              'Check imported sizes and quantities in Review.',
+              style: TextStyle(color: Palette.muted, fontSize: 12.5),
+            ),
+          ],
         ],
       ),
     );
@@ -2274,130 +2852,140 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
   @override
   int stepOfSection(int section) => section < 2 ? 0 : 1;
 
+  /// Upload > Check details > Review: the files first, then the details.
+  void nextPage() => setState(() {
+    error = form?.file == null ? 'Upload your completed order form.' : null;
+    if (error == null) {
+      page = 1;
+      if (name.text.trim().isEmpty || team.text.trim().isEmpty)
+        editContact = true;
+    }
+  });
+
+  @override
+  void startReview() => setState(() {
+    final details = uploadDetailsProblem(
+      phone: phone.text,
+      neededBy: neededBy,
+      delivery: delivery,
+      address: address,
+    );
+    error = name.text.trim().isEmpty
+        ? 'Add a contact name.'
+        : team.text.trim().isEmpty
+        ? 'Add your team or organisation name.'
+        : details ??
+              (form?.file == null ? 'Upload your completed order form.' : null);
+    if (error != null &&
+        error != 'Upload your completed order form.' &&
+        details == null)
+      editContact = true;
+    if (error != null)
+      page = error == 'Upload your completed order form.' ? 0 : 1;
+    if (error == null) {
+      step = 'review';
+      approved = false;
+      editingRows = false;
+      _presetDestination();
+      _loadReview();
+    }
+  });
+
   Widget _edit() => SingleChildScrollView(
     padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _section('1 · Contact & team', key: sectionKeys[0]),
-        if (editContact)
-          contactFields(withPhone: false)
-        else
-          SurfaceCard(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${name.text}${email.text.isEmpty ? '' : ' · ${email.text}'}\n${team.text.isEmpty ? 'Add your team name' : team.text}',
+        if (page == 1) ...[
+          _section('1 · Contact & team', key: sectionKeys[0]),
+          if (editContact)
+            contactFields(withPhone: false)
+          else
+            SurfaceCard(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${name.text}${email.text.isEmpty ? '' : ' · ${email.text}'}\n${team.text.isEmpty ? 'Add your team name' : team.text}',
+                    ),
                   ),
-                ),
-                TextButton(
-                  onPressed: () => setState(() => editContact = true),
-                  child: const Text('Edit'),
-                ),
-              ],
+                  TextButton(
+                    onPressed: () => setState(() => editContact = true),
+                    child: const Text('Edit'),
+                  ),
+                ],
+              ),
             ),
+          _field(phone, 'Mobile', keyboard: TextInputType.phone),
+          _whenWhere(),
+        ],
+        if (page == 0) ...[
+          _section('2 · Upload order form'),
+          if (form != null)
+            fileRow(
+              form!,
+              onReplace: () => addFile('order_form', replacing: form),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: () => addFile('order_form'),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Choose your order form'),
+            ),
+          if (form?.file != null &&
+              (readingNow || reading != null || _prefilled.isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                readingNow
+                    ? '3DEEZI AI is reading your order form…'
+                    : 'Read by 3DEEZI AI. You’ll check the garments, sizes and players on Review: nothing to type in.',
+                key: const Key('ai-status'),
+                style: const TextStyle(color: Color(0xFF9FDCFF), fontSize: 12),
+              ),
+            ),
+          const Text(
+            'PDF, Excel, CSV, Word or a photo, up to 25 MB.',
+            style: TextStyle(color: Palette.muted, fontSize: 11),
           ),
-        _field(phone, 'Mobile', keyboard: TextInputType.phone),
-        _whenWhere(),
-        _section('2 · Upload order form'),
-        if (form != null)
-          fileRow(
-            form!,
-            onReplace: () => addFile('order_form', replacing: form),
-          )
-        else
+          _section('3 · Artwork & notes (optional)', key: sectionKeys[2]),
+          for (final u in uploads.where((u) => u.kind == 'artwork')) fileRow(u),
           OutlinedButton.icon(
-            onPressed: () => addFile('order_form'),
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Choose your order form'),
+            onPressed: () => addFile('artwork'),
+            icon: const Icon(Icons.attach_file),
+            label: const Text('Add logos, artwork or references'),
           ),
-        if (form?.file != null &&
-            (readingNow || reading != null || _prefilled.isNotEmpty))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text(
-              readingNow
-                  ? '3DEEZI AI is reading your order form…'
-                  : 'Read by 3DEEZI AI. You’ll check the garments, sizes and players on Review: nothing to type in.',
-              key: const Key('ai-status'),
-              style: const TextStyle(color: Color(0xFF9FDCFF), fontSize: 12),
-            ),
+          const SizedBox(height: 10),
+          _field(notes, 'Additional instructions', lines: 3),
+          // Made by, as on the website's upload (only when there is a choice).
+          MadeByField(
+            makers: makers,
+            value: supplierId,
+            onChanged: (id) => setState(() => supplierId = id),
+            onSeeSuppliers: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
           ),
-        const Text(
-          'PDF, Excel, CSV, Word or a photo, up to 25 MB.',
-          style: TextStyle(color: Palette.muted, fontSize: 11),
-        ),
-        _section('3 · Artwork & notes (optional)', key: sectionKeys[2]),
-        for (final u in uploads.where((u) => u.kind == 'artwork')) fileRow(u),
-        OutlinedButton.icon(
-          onPressed: () => addFile('artwork'),
-          icon: const Icon(Icons.attach_file),
-          label: const Text('Add logos, artwork or references'),
-        ),
-        const SizedBox(height: 10),
-        _field(notes, 'Additional instructions', lines: 3),
-        // Made by, as on the website's upload (only when there is a choice).
-        MadeByField(
-          makers: makers,
-          value: supplierId,
-          onChanged: (id) => setState(() => supplierId = id),
-          onSeeSuppliers: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
-        ),
+          const Text(
+            'Assign artwork to each garment when checking details.',
+            style: TextStyle(color: Palette.muted, fontSize: 12),
+          ),
+        ],
         errorText(),
         const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: busy ? null : saveDraft,
-                child: const Text('Save draft'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: GradientButton(
-                label: 'REVIEW ORDER',
-                compact: true,
-                onPressed: () => setState(() {
-                  final details = uploadDetailsProblem(
-                    phone: phone.text,
-                    neededBy: neededBy,
-                    delivery: delivery,
-                    address: address,
-                  );
-                  error = name.text.trim().isEmpty
-                      ? 'Add a contact name.'
-                      : team.text.trim().isEmpty
-                      ? 'Add your team or organisation name.'
-                      : details ??
-                            (form?.file == null
-                                ? 'Upload your completed order form.'
-                                : null);
-                  if (error != null &&
-                      error != 'Upload your completed order form.' &&
-                      details == null)
-                    editContact = true;
-                  if (error == null) {
-                    step = 'review';
-                    approved = false;
-                    editingRows = false;
-                    _presetDestination();
-                    _loadReview();
-                  }
-                }),
-              ),
-            ),
-          ],
+        pageButtons(
+          last: page == 1,
+          onNext: nextPage,
+          nextLabel: 'CHECK IMPORTED DETAILS',
         ),
-        const Padding(
-          padding: EdgeInsets.only(top: 6),
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
           child: Text(
-            'Your order is only submitted after review.',
+            page == 0
+                ? 'Review sizes and quantities before approval.'
+                : 'Your order is only submitted after review.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Palette.muted, fontSize: 11),
+            style: const TextStyle(color: Palette.muted, fontSize: 11),
           ),
         ),
       ],
@@ -2420,12 +3008,14 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
           }, r['_form'] as Map?),
         },
     ];
+    // The mockups: the artwork, then any picture uploaded with the order form (customers often put their mockup there).
     final art = [
-      for (final u in uploads)
-        if (u.kind == 'artwork' &&
-            u.file != null &&
-            '${u.file!['thumb'] ?? ''}'.startsWith('data:'))
-          '${u.file!['thumb']}',
+      for (final kind in const ['order_form', 'artwork'])
+        for (final u in uploads)
+          if (u.kind == kind &&
+              u.file != null &&
+              '${u.file!['thumb'] ?? ''}'.startsWith('data:'))
+            '${u.file!['thumb']}',
     ];
     final unread = ((reading?['unknown'] as List?) ?? const []).length;
     final file = form?.name ?? 'your order form';
@@ -2460,11 +3050,12 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
             shown,
             names: _garments,
             artwork: art.firstOrNull,
+            artworkBack: art.length > 1 ? art[1] : null,
           ),
           mockups: [
             for (var i = 0; i < art.length && i < 2; i++)
               (
-                label: art.length > 1 ? 'ARTWORK ${i + 1}' : 'ARTWORK',
+                label: art.length > 1 ? (i == 0 ? 'FRONT' : 'BACK') : 'MOCKUP',
                 src: art[i],
               ),
           ],

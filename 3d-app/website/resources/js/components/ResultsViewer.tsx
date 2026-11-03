@@ -68,7 +68,7 @@ export function ResultsViewer({ id, image, alt, defaultRatio, main, thumbs, tool
     </div>
     <div className="aid-side">
       {thumbs.length > 0 && <>
-        <small className="aid-thumbs-hint" aria-hidden="true">Tap to switch</small>
+        <div className="aid-side-head"><b>OTHER OPTIONS</b><small className="aid-thumbs-hint" aria-hidden="true">Click to preview</small></div>
         <div className="aid-thumbs" role="list" aria-label="Other designs">{thumbs.map(t => <div role="listitem" className="aid-thumb-item" key={t.index}>
           <button type="button" className="aid-thumb" disabled={t.disabled} onClick={() => onPick(t.index)} aria-label={t.label} title={t.label}>
             <span className="aid-thumb-art">{t.content}</span>

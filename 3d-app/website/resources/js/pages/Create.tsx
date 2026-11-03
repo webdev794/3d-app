@@ -327,6 +327,9 @@ export function aiReply<T extends object>(reply: T | null | undefined, keys: (ke
  * (`file`, drawn from it) and the file itself (`original`, kept in Assets with the picture); `kind` is its type to show.
  */
 type Reference = { id?: number; name: string; preview: string; file?: File; original?: File; kind?: string; page?: number; pages?: number };
+/** The YOUR DESIGNS background chips (client picture 362): part of the generated scene. */
+type SceneId = 'auto' | 'studio' | 'stadium' | 'custom';
+const SCENES: { id: SceneId; label: string }[] = [{ id: 'auto', label: 'Auto' }, { id: 'studio', label: 'Studio' }, { id: 'stadium', label: 'Stadium' }, { id: 'custom', label: 'Custom' }];
 /** The design files the AI Designer takes, besides pictures, and the largest (25 MB, as the server). */
 const DESIGN_ACCEPT = '.pdf,.svg,.ai,.eps,.ps,.psd,.tif,.tiff,.heic,.heif,.png,.jpg,.jpeg,.webp,.gif,.bmp,application/pdf,application/postscript,application/illustrator,image/vnd.adobe.photoshop,image/*';
 const DESIGN_TYPES = 'PDF, SVG, AI, EPS, PSD, TIFF, PNG, JPG or WebP';
@@ -410,6 +413,17 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   const [references, setReferences] = useState<Reference[]>([]);
   /** "HD primary" (off by default, client 2026-10-21: fast and low cost first): the primary rendered in HD rather than as a quick preview. */
   const [wantHd, setWantHd] = useState(false);
+  /**
+   * The background (client picture 362, 2026-11-03): part of the GENERATED scene, so it goes into the image prompt; all
+   * four designs share it for an easy comparison. Changing it on YOUR DESIGNS asks before re-rendering (new AI pictures).
+   */
+  const [scene, setScene] = useState<SceneId>('auto');
+  const [sceneFile, setSceneFile] = useState<{ id?: number; preview: string; name: string; file?: File } | null>(null);
+  const [scenePanel, setScenePanel] = useState(false);
+  const [sameScene, setSameScene] = useState(true);
+  /** The background the shown designs were made with (a different chip offers "Apply"). */
+  const [madeScene, setMadeScene] = useState<SceneId>('auto');
+  const sceneRef = useRef<{ scene: SceneId; id?: number }>({ scene: 'auto' });
   /** The results step: [0] is the PRIMARY, [1..3] the options; `planning` while the AI writes the four directions. */
   const [results, setResults] = useState(false);
   const [planning, setPlanning] = useState(false);
@@ -523,6 +537,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     } catch (e) { if (current()) { setError(`Your pictures could not be attached. ${friendlyError(e)}`); setPlanning(false); } return; }
     const body: BriefBody = { prompt: brief, sport, garment, reference_ids: refs.flatMap(r => r.id ? [r.id] : []) };
     lastBrief.current = body;
+    if (!(await sceneForRun()) || !current()) { if (current()) setPlanning(false); return; }
     try {
       if (!isAi) {
         // Preview mode (no AI on the server): four concepts from the wording, shown as 3D kit thumbnails.
@@ -551,10 +566,32 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     if (!body || !option.direction) return;
     setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: true, pending: quality, view, error: undefined } : x));
     try {
-      const r = aiReply(await api<{ image: string; quality: 'high' | 'medium'; view?: View }>('/ai/designs/render', { method: 'POST', body: JSON.stringify({ ...body, rank: option.rank, quality, view, direction: option.direction, name: option.name }) }), ['image']);
+      const bg = sceneRef.current;
+      const r = aiReply(await api<{ image: string; quality: 'high' | 'medium'; view?: View }>('/ai/designs/render', { method: 'POST', body: JSON.stringify({ ...body, rank: option.rank, quality, view, direction: option.direction, name: option.name, scene: bg.scene, scene_id: bg.id, wide: true }) }), ['image']);
       if (current()) setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: false, image: r.image, quality: r.quality, view: r.view ?? view } : x));
     } catch (e) { if (current()) setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: false, error: friendlyError(e) } : x)); }
   }
+  /** The chosen background for the next renders (a custom picture is kept in Assets first, so the AI can read it); false: not usable. */
+  async function sceneForRun() {
+    if (scene !== 'custom') { sceneRef.current = { scene }; setMadeScene(scene); return true; }
+    if (!sceneFile) { sceneRef.current = { scene: 'auto' }; setMadeScene('auto'); return true; }
+    try {
+      let id = sceneFile.id;
+      if (!id && sceneFile.file) { id = (await saveReference({ name: sceneFile.name, preview: sceneFile.preview }, sceneFile.file)).id; setSceneFile(f => f && { ...f, id }); }
+      sceneRef.current = { scene: 'custom', id }; setMadeScene('custom'); return true;
+    } catch (e) { setError(`Your background picture could not be attached. ${friendlyError(e)}`); return false; }
+  }
+  /** "Apply": the shown design (or all four) made again with the new background: new AI pictures, only on the client's tap. */
+  async function applyScene() {
+    setScenePanel(false);
+    if (!(await sceneForRun())) return;
+    const targets = sameScene ? options : options.filter((_, i) => i === Math.min(sel, options.length - 1));
+    for (const o of targets) if (o.direction && !o.busy) void render(o, o.quality ?? 'medium');
+  }
+  const pickSceneFile = (file: File | undefined) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const f = new FileReader(); f.onload = () => { setSceneFile({ preview: String(f.result), name: file.name, file }); setScene('custom'); }; f.readAsDataURL(file);
+  };
   /** A thumbnail tapped: that design goes large and the one shown moves into the thumbnails; each keeps its picture and edits (nothing is rendered or charged). */
   const select = (index: number) => { setMenu(null); setSel(index); };
   /** The selected picture alone (the thumbnails are page elements, never part of the file). */
@@ -876,12 +913,32 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
           <h1>YOUR DESIGNS</h1>
           {total > 0 ? <span className="aid-count-sel" aria-live="polite" aria-label={`Design ${shown + 1} of ${total}`}><b>{shown + 1}</b> / {total}</span> : <span />}
         </div>
-        <ResultsViewer id={primary?.id ?? 'none'} image={primary?.image} alt={primary ? `${primary.name}: ${primary.description}` : 'Your design'} defaultRatio={primary?.view === 'front' ? 1 : 2 / 3} main={main}
+        {isAi && <div className="aid-scene-row">
+          <span className="aid-scene-label" id="aid-scene-label">BACKGROUND</span>
+          <div className="aid-scene-chips" role="radiogroup" aria-labelledby="aid-scene-label">
+            {SCENES.map(c => <button key={c.id} type="button" role="radio" aria-checked={scene === c.id} className={`aid-scene-chip${scene === c.id ? ' is-on' : ''}`}
+              onClick={() => { setScene(c.id); setScenePanel(c.id === 'custom' || (c.id !== madeScene && options.some(o => o.image))); }}>{c.label}{c.id === 'custom' && <ChevronDown size={14} />}</button>)}
+          </div>
+          <span className="aid-scene-note">{scene === 'auto' ? 'Auto: picked from your brief' : scene === 'studio' ? 'Clean studio backdrop' : scene === 'stadium' ? 'Night stadium, floodlights' : sceneFile ? `Your picture: ${sceneFile.name}` : 'Upload your own background'}</span>
+          {scenePanel && <div className="aid-scene-panel" role="dialog" aria-label="Background">
+            <div className="aid-scene-panel-head"><b>Background</b><button type="button" className="aid-scene-x" onClick={() => setScenePanel(false)} aria-label="Close"><X size={16} /></button></div>
+            <div className="aid-scene-tiles">
+              <button type="button" className={`aid-scene-tile is-studio${scene === 'studio' ? ' is-on' : ''}`} onClick={() => setScene('studio')}><i /><span>Studio</span></button>
+              <button type="button" className={`aid-scene-tile is-stadium${scene === 'stadium' ? ' is-on' : ''}`} onClick={() => setScene('stadium')}><i style={{ backgroundImage: `url(${media('showroom/stadium-stage.webp')})` }} /><span>Stadium</span></button>
+              <label className={`aid-scene-tile is-custom${scene === 'custom' ? ' is-on' : ''}`}><i style={sceneFile ? { backgroundImage: `url(${sceneFile.preview})` } : undefined}>{!sceneFile && <ImageUp size={20} />}</i><span>Custom</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={e => { pickSceneFile(e.target.files?.[0]); e.target.value = ''; }} /></label>
+            </div>
+            <label className="aid-scene-same"><input type="checkbox" checked={sameScene} onChange={e => setSameScene(e.target.checked)} />Use the same setting for all {Math.max(total, 4)} options</label>
+            {options.some(o => o.image) && (scene !== madeScene || scene === 'custom') && <button type="button" className="button button-outline aid-scene-apply" disabled={scene === 'custom' && !sceneFile} onClick={() => requireAuth(() => void applyScene())}
+              title="The background is part of the AI picture, so the designs are drawn again (new AI pictures)"><RefreshCw size={15} />Apply: redraw {sameScene ? 'all designs' : 'this design'}</button>}
+          </div>}
+        </div>}
+        <ResultsViewer id={primary?.id ?? 'none'} image={primary?.image} alt={primary ? `${primary.name}: ${primary.description}` : 'Your design'} defaultRatio={primary?.view === 'front' ? 1 : 3 / 2} main={main}
           busy={planning || !!primary?.busy} thumbs={primary ? thumbs : []} onPick={select} tools={primary && kebab(primary, shown)} />
         <div className="aid-controls" ref={controls}>
           {!refineOpen && <div className="aid-actions">
             <button type="button" className="button button-gradient aid-open3d" disabled={!primary || making3d || (isAi ? !primary.image : false)} onClick={() => { if (!primary) return; if (primary.image) requireAuth(() => void makeIt3d()); else customize(primary); }} title={making3d ? 'Drawing the print sheet: the 3D Designer opens by itself' : 'The same design drawn flat, front and back, then put on the live 3D kit'}>{making3d ? <LoaderCircle className="spin" size={20} /> : <Box size={20} />}<span>{making3d ? 'Drawing the print sheet…' : 'Open in 3D Designer'}</span></button>
-            <button type="button" className="aid-dl" disabled={!primary?.image} onClick={() => primary && void download(primary, shown + 1)} aria-label={`Download design ${shown + 1}`} title="Download this design"><Download size={22} /></button>
+            <button type="button" className="aid-dl" disabled={!primary?.image} onClick={() => primary && void download(primary, shown + 1)} aria-label={`Download design ${shown + 1}`} title="Download this design"><Download size={20} /><span>Download</span></button>
           </div>}
           {!refineOpen && isAi && primary?.image && <PlayerShotButton className="button button-secondary full-width aid-player" requireAuth={requireAuth} disabled={!!primary.busy}
             kit={{ sport: sportLabel(draft, catalog), garment: productName(primary.design, catalog), name: primary.name, logoText: primary.design.logoText, backName: primary.design.backName || primary.design.logoText, number: primary.design.number }}

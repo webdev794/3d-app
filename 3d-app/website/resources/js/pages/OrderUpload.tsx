@@ -178,6 +178,9 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   const commit = (next: Row[]) => { rowsRef.current = next; redraw(); };
   const patchRow = (key: string, patch: Partial<Row> | ((row: Row) => Partial<Row>)) => commit(rowsRef.current.map(r => (r.key === key ? { ...r, ...(typeof patch === 'function' ? patch(r) : patch) } : r)));
   const [step, setStep] = useState<Step>('edit');
+  /** One step per screen (client 2026-11-03, images/339): 0 Upload, 1 Check details, then Review. */
+  const [page, setPageState] = useState(0);
+  const setPage = (n: number) => { setPageState(n); requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' })); };
   const stepRef = useLatest(step);
   const [tried, setTried] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -302,7 +305,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     commit((saved?.files ?? []).map(fromRemote));
     setSupplierId(offered(saved?.supplier_id));
     setItems(saved?.items ?? null); setItemsFor(''); setItemsConfirmed(false); setReadings([]); setAiState('idle'); setAiFound(false);
-    setStep('edit'); setTried(false); setContactOpen(false); setContactTried(false); setServerErrors({}); setBanner(''); setPlaced(null);
+    setStep('edit'); setPageState(0); setTried(false); setContactOpen(false); setContactTried(false); setServerErrors({}); setBanner(''); setPlaced(null);
     setSave({ state: 'idle' });
     dirty.current = false;
     setLoaded(true);
@@ -582,8 +585,8 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     setTried(true); setSubmitError('');
     setServerErrors(({ files: _retry, ...rest }) => rest);
     if (!getToken()) { requireAuth(() => { pending.current = 'review'; }); return; }
-    if (Object.keys(contactErrors(fieldsRef.current)).length) { setContactOpen(true); focusFirstError(); return; }
-    if (filesProblem(rowsRef.current)) { focusFirstError(); return; }
+    if (filesProblem(rowsRef.current)) { setPageState(0); focusFirstError(); return; }
+    if (Object.keys(contactErrors(fieldsRef.current)).length) { setPageState(1); setContactOpen(true); focusFirstError(); return; }
     setBusy(true);
     // Saved first, then shown as the server holds it: the review is exactly what will be sent.
     const ok = await saveNow(false);
@@ -637,7 +640,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     return find('INTL', /international/i);
   }
   function editAgain(target: 'contact' | 'files' | 'notes' | 'top') {
-    setStep('edit'); setSubmitError('');
+    setStep('edit'); setSubmitError(''); setPageState(target === 'contact' || target === 'top' ? 1 : 0);
     if (target === 'contact') setContactOpen(true);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const el = document.getElementById(target === 'contact' ? 'ou-contact' : target === 'files' ? 'ou-upload' : target === 'notes' ? 'ou-notes' : 'ou-top');
@@ -848,7 +851,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   const readNote: ReadNote = {
     // Who read the rows (none read: no "Read from" line, the review says 3DEEZI reads the form instead).
     source: readings.some(r => r.source === 'ai' && r.items?.length) ? 'ai' : readings.some(r => r.items?.length) ? 'reader' : null,
-    files: formsDone.map(r => r.name),
+    files: formsDone.filter(r => !['png', 'jpg', 'jpeg', 'webp', 'gif', 'heic'].includes(String(r.remote?.extension ?? fileExtension(r.name)).toLowerCase())).map(r => r.name),
     neededByText: aiForm?.needed_by_text && aiForm.needed_by_text !== aiForm.needed_by ? aiForm.needed_by_text : '',
     neededByFilled: aiForm?.needed_by && fields.needed_by === aiForm.needed_by ? dateText(aiForm.needed_by) : '',
   };
@@ -879,13 +882,15 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     const showPrice = quote.state === 'ready' || (quote.state === 'loading' && (!quote.quote || quote.quote.status === 'priced'));
     const reasons = quote.quote?.status === 'quote_required' ? (quote.quote.reasons ?? []).map(r => r.message).join(' ') : '';
     const done = [...formsDone, ...artDone];
+    // The mockups: the artwork, and any picture uploaded with the order form (customers often put their mockup there).
+    const pictures = [...formsDone.filter(r => ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(String(r.remote?.extension ?? fileExtension(r.name)).toLowerCase())), ...artDone];
     // The rows for the layout rule and the per-garment sections, with the youth sizes as the form wrote them.
     const reviewRows: ReviewRow[] = (items ?? []).map(it => ({ ...it, sizes: youthSplit(it.sizes, it._form?.form_sizes) }));
     const layout = layoutFor(reviewRows);
     return <div id="ou-top"><OrderPageLayout className="ou-page is-review" header={<>
       <ReviewApproveHeader step="review" firstStep="Upload files" layout={layout} />
       {signInNote}{bannerNote}
-    </>} main={<OrderReviewApprove garments={reviewGarments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} sizeOrder={SIZES} artwork={artDone.map(asFile)} files={done.map(asFile)} filesLabel={artDone.length ? 'Order form & artwork' : 'Order form'}
+    </>} main={<OrderReviewApprove garments={reviewGarments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} shareLink={draftId ? () => orderApi.confirmationLinks(draftId, true, true).then(l => l.pdf) : undefined} sizeOrder={SIZES} artwork={pictures.map(asFile)} files={done.map(asFile)} filesLabel={artDone.length ? 'Order form & artwork' : 'Order form'}
       layout={layout} rows={reviewRows} options={{ garments }} quote={(quote.quote ?? null) as unknown as PayQuote | null} quoteLoading={quote.state === 'loading'}
       onDownload={f => { const file = done.find(r => r.remote?.id === f.id)?.remote; if (file) void download(file); }} fetchFile={f => fetchFile(String(f.download))}
       delivery={{ contactName: fields.contact_name, team: fields.team_name, email: fields.contact_email, phone: fields.phone, phoneProblem: fields.phone.trim() && !validMobile(fields.phone) ? MOBILE_MESSAGE : null,
@@ -893,6 +898,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       onEditDelivery={() => editAgain('contact')} onEditGarments={() => editAgain('files')}
       garmentEditor={<OrderFormRead items={items} note={readNote} unread={unread} sizes={SIZES} garments={garments} confirmed={itemsConfirmed} confirmTried={confirmTried} onConfirm={reviewItems.onConfirm}
         onSize={setItem} onGarment={setGarment} onRemove={removeItem} onPlayer={setPlayer} onAddRow={addRow} showConfirm={false} />}
+      toCheck={unread}
       garmentsNote={readLine ? <p className="ora-garments-note" data-testid="read-summary">{readLine}</p> : null}
       price={showPrice ? <PriceBox quote={quote} waitingForTick={false} /> : undefined}
       priceNote={rowsToSend && !itemsConfirmed ? 'Tick the box below to see the price now.' : reasons || '3DEEZI confirms the price after checking your order form, before you pay anything.'}
@@ -901,9 +907,17 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       busy={busy} error={submitError} onBack={() => editAgain('top')} onApprove={() => void submit()} />} /></div>;
   }
 
+  /** Continue on the Upload screen: the files are checked here, the details on the next screen. */
+  const toDetails = () => {
+    if (filesProblem(rowsRef.current)) { setTried(true); focusFirstError(); return; }
+    setPage(1);
+    if (Object.keys(contactErrors(fieldsRef.current)).length) setContactOpen(true);
+  };
+  const goStep = (i: number) => { if (i === 0) setPage(0); else if (i === 1) { if (page > 0) setPage(1); else toDetails(); } else void goReview(); };
   const main = <>
-    {contactSection}
-    <OrderSection number={2} id="ou-upload" title="Upload order form">
+    {page === 1 && contactSection}
+    {page === 1 && <button type="button" className="op-link" style={{ marginTop: 12 }} onClick={() => setPage(0)}><ArrowLeft size={18} /> Back to upload</button>}
+    {page === 0 && <><OrderSection number={2} id="ou-upload" title="Upload order form">
       <DropArea kind="order_form" rule={rules.order_form} invalid={tried && !!filesError && !formsDone.length} onFiles={list => addFiles('order_form', list)} />
       {fileList(forms, 'Order form files')}
       {formsDone.length > 0 && aiState !== 'idle' && <p className="ou-ai-status" role="status" data-testid="ai-status">{aiState === 'reading'
@@ -922,7 +936,8 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
         <OrderField label="Additional instructions" error={errorFor('notes')}><textarea id="ou-notes" className="op-input ou-notes" rows={3} maxLength={4000} value={fields.notes} onChange={e => setNotes(e.target.value)} placeholder="Anything else we should know about this order?" aria-invalid={!!errorFor('notes')} /></OrderField>
       </div>
       <MadeByField suppliers={suppliers} value={supplierId} error={serverErrors.supplier_id?.[0]} onChange={id => { setSupplierId(id); dirty.current = true; setServerErrors(({ supplier_id: _gone, ...rest }) => rest); }} />
-    </OrderSection>
+      <p className="op-hint">Assign artwork to each garment when checking details.</p>
+    </OrderSection></>}
   </>;
 
   const side = <>
@@ -952,11 +967,11 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
 
   const bar = <OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveNow(true), busy: save.state === 'saving' }}
     status={save.state === 'error' ? <span className="ou-bar-error">{save.message}</span> : save.state === 'saved' && draftId ? `Draft saved ${timeText(save.at)}` : !user ? 'Kept on this device' : ''}
-    primary={{ label: 'Review order', onClick: () => void goReview(), busy }} note="Your order is only submitted after review." />;
+    primary={page === 0 ? { label: 'Check imported details', onClick: toDetails, busy } : { label: 'Review order', onClick: () => void goReview(), busy }} note={page === 0 ? 'Review sizes and quantities before approval.' : 'Your order is only submitted after review.'} />;
 
   return <div id="ou-top"><OrderPageLayout className="ou-page" header={<>
     {header('Upload Your Order', 'Upload order & artwork', 'Already have your order ready? Upload your form and artwork below.')}
-    <OrderSteps steps={[{ label: 'Upload', target: 'ou-upload' }, { label: 'Check details', target: 'ou-art' }, { label: 'Review' }]} onReview={() => void goReview()} />
+    <OrderSteps steps={[{ label: 'Upload', target: 'ou-upload' }, { label: 'Check details', target: 'ou-art' }, { label: 'Review' }]} current={page} onGo={goStep} onReview={() => void goReview()} />
     {signInNote}{bannerNote}
   </>} main={main} side={side} bar={bar} /></div>;
 }
