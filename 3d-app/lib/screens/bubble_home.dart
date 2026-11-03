@@ -903,7 +903,7 @@ class _GlassPainter extends CustomPainter {
     for (var k = 0; k < n; k++) {
       final th = k / n * 2 * math.pi;
       final ct = math.cos(th), st = math.sin(th);
-      const e = 2 / 2.9;
+      const e = 2 / 4.2; // squarer: almost full width (~372 px at 390)
       final x = a * ct.sign * math.pow(ct.abs(), e).toDouble();
       final y = b * st.sign * math.pow(st.abs(), e).toDouble();
       // A soft glass pillow, gently organic: a little fuller at the top
@@ -1239,7 +1239,19 @@ class _GlassPainter extends CustomPainter {
     _streak(canvas, c, .35, 1.0, 9, 2.4, .6, 1, const Color(0xffd8f7ff));
     canvas.restore();
     // The same glass edge as the other pages (glass_bubble.dart).
-    paintPageRim(canvas, path, s, 60);
+    paintPageRim(
+      canvas,
+      path,
+      s,
+      60,
+      inner: path.transform(
+        (Matrix4.identity()
+              ..translateByDouble(s.width / 2, s.height / 2, 0, 1)
+              ..scaleByDouble(1 - 18 / s.width, 1 - 18 / s.height, 1, 1)
+              ..translateByDouble(-s.width / 2, -s.height / 2, 0, 1))
+            .storage,
+      ),
+    );
   }
 
   @override

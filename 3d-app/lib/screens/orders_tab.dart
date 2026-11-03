@@ -72,7 +72,7 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
               builder: (context, box) {
                 // Phones fill the width; a tablet keeps the phone's layout.
                 final w = math.min(box.maxWidth, 500.0);
-                final title = (w * .088).clamp(30.0, 40.0);
+                final title = (w * .113).clamp(34.0, 50.0);
                 return SingleChildScrollView(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Center(
@@ -106,15 +106,15 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                               // A gentle two-lobe outline (images/341): a shallow waist at 0.6;
                               // the lower lobe round My orders is the widest.
                               blob: const [
-                                Offset(.3, 0),
-                                Offset(.6, 4),
-                                Offset(.82, -4.5),
+                                Offset(.3, 2),
+                                Offset(.6, 6),
+                                Offset(.8, -3),
                               ],
                               padding: const EdgeInsets.fromLTRB(
-                                18,
+                                22,
                                 20,
-                                18,
-                                16,
+                                22,
+                                36,
                               ),
                               radius: 64,
                               child: Column(
@@ -134,7 +134,7 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                                     'Create, upload or track.',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      fontSize: 17,
+                                      fontSize: 18.5,
                                       color: Color(0xffd3dee8),
                                     ),
                                   ),
@@ -362,6 +362,7 @@ class _OrderTile extends StatelessWidget {
         child: GlassCard(
           radius: 24,
           onTap: onTap,
+          bubbleRim: true,
           semanticsLabel: '$title. $sub',
           child: Column(
             children: [
@@ -380,9 +381,9 @@ class _OrderTile extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.white.withValues(alpha: .12),
-                          const Color(0x80061428),
-                          const Color(0x99061428),
+                          Colors.white.withValues(alpha: .14),
+                          Colors.white.withValues(alpha: 0),
+                          Colors.white.withValues(alpha: 0),
                         ],
                         stops: const [0, .35, 1],
                       ),
@@ -432,6 +433,7 @@ class _MyOrdersTile extends StatelessWidget {
         child: GlassCard(
           radius: 30,
           onTap: onTap,
+          bubbleRim: true,
           semanticsLabel: 'MY ORDERS. View orders and track progress.',
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
@@ -515,7 +517,7 @@ class _OrderListArt extends StatelessWidget {
                           width: 40,
                           height: 34,
                           decoration: BoxDecoration(
-                            color: const Color(0xff2a5a86),
+                            color: const Color(0xff4f86b8),
                             borderRadius: BorderRadius.circular(4),
                             border: Border.all(
                               color: cyan.withValues(alpha: .5),
@@ -526,6 +528,8 @@ class _OrderListArt extends StatelessWidget {
                             child: Image.asset(
                               kit,
                               fit: BoxFit.contain,
+                              color: Colors.white.withValues(alpha: .14),
+                              colorBlendMode: BlendMode.screen,
                               filterQuality: FilterQuality.medium,
                               errorBuilder: (_, _, _) =>
                                   CustomPaint(painter: _ShirtPainter(cyan)),

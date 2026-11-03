@@ -504,6 +504,9 @@ class _FilterChip extends StatelessWidget {
 
 /// MY ORDERS, left-aligned with its line under it (images/339), and the
 /// "EXAMPLE ORDERS" pill on the right when the orders are demo data.
+// The EXAMPLE ORDERS pill is skipped for now (UT1 round 2).
+const _showExample = false;
+
 class _Header extends StatelessWidget {
   const _Header({required this.demo});
   final bool demo;
@@ -524,7 +527,7 @@ class _Header extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'MY ORDERS',
-                    style: bubbleTitle(34).copyWith(letterSpacing: 1),
+                    style: bubbleTitle(34).copyWith(letterSpacing: 1.5),
                   ),
                 ),
               ),
@@ -536,7 +539,7 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        if (demo)
+        if (demo && _showExample)
           Container(
             key: const ValueKey('my-orders-example'),
             margin: const EdgeInsets.only(top: 4, left: 6),
@@ -576,8 +579,7 @@ class _ThinGlass extends StatelessWidget {
         end: Alignment.bottomCenter,
         colors: [Color(0xcc0d2238), Color(0xcc061322)],
       ),
-      border: Border.all(color: const Color(0x992fd2ff), width: 1.5),
-      boxShadow: const [BoxShadow(color: Color(0x2619b6ff), blurRadius: 10)],
+      border: Border.all(color: const Color(0x662fd2ff), width: 1.5),
     ),
     child: Material(
       type: MaterialType.transparency,

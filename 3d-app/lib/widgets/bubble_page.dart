@@ -70,7 +70,7 @@ class BubblePage extends StatelessWidget {
             LayoutBuilder(
               builder: (context, box) {
                 final w = math.min(box.maxWidth, 520.0);
-                final size = (w * .088).clamp(30.0, 40.0);
+                final size = (w * .113).clamp(34.0, 50.0);
                 return Center(
                   child: SizedBox(
                     width: w,
@@ -123,6 +123,8 @@ class BubblePage extends StatelessWidget {
                                   child: GlassBubble(
                                     key: bubbleKey,
                                     radius: 64,
+                                    // Gently bowed sides, like an inflated bubble.
+                                    blob: GlassBubble.pageBlob,
 
                                     padding: const EdgeInsets.fromLTRB(
                                       18,
@@ -153,7 +155,7 @@ class BubblePage extends StatelessWidget {
                                             subtitle!,
                                             textAlign: TextAlign.center,
                                             style: const TextStyle(
-                                              fontSize: 15.5,
+                                              fontSize: 17,
                                               color: Color(0xffd3dee8),
                                             ),
                                           ),

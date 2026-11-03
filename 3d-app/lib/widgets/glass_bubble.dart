@@ -27,7 +27,7 @@ class GlassBubble extends StatelessWidget {
   final List<Offset>? blob;
 
   /// A gentle blob for the tall pages (Projects, Profile).
-  static const pageBlob = [Offset(.3, -2), Offset(.72, 3)];
+  static const pageBlob = [Offset(.1, 0), Offset(.5, -4), Offset(.9, 0)];
 
   @override
   Widget build(BuildContext context) => CustomPaint(
@@ -45,17 +45,26 @@ class GlassCard extends StatelessWidget {
     this.onTap,
     this.accent = const Color(0xff2fd2ff),
     this.semanticsLabel,
+    this.bubbleRim = false,
   });
   final Widget child;
   final double radius;
   final VoidCallback? onTap;
+
+  /// A sub-bubble: the page rim at half size (soft layered glow, corner
+  /// reflections) instead of the thin card line.
+  final bool bubbleRim;
   final Color accent;
   final String? semanticsLabel;
 
   @override
   Widget build(BuildContext context) {
     final card = CustomPaint(
-      painter: _GlassPainter(radius: radius, accent: accent, glow: .25),
+      painter: _GlassPainter(
+        radius: radius,
+        accent: accent,
+        glow: bubbleRim ? .5 : .25,
+      ),
       child: Material(
         type: MaterialType.transparency,
         shape: RoundedRectangleBorder(
@@ -145,75 +154,149 @@ class _ShinePainter extends CustomPainter {
   bool shouldRepaint(_ShinePainter old) => old.radius != radius;
 }
 
-/// The page bubble's glass edge (client images/341, 350), shared by every
-/// page bubble and Home: a 6-8 px soft outer glow at about half strength, a
-/// 6 px very bright cyan core (cyan-white at its centre) and an 8 px inner
-/// glow fading into the glass, ~18 px in all; a glossy top highlight; and
-/// a violet-pink sheen at the lower corners, strongest at the bottom right.
-void paintPageRim(Canvas canvas, Path path, Size size, double radius) {
+/// The page bubble's glass edge (client images/341, 350-356), shared by
+/// every page bubble, Home and (at half size, [k] = .5) the sub-bubbles. The
+/// outer edge is a crisp bright line; all the soft cyan glow sits INSIDE the
+/// bubble, fading inward, wider and brighter through the rounded corners,
+/// with a thin white reflection along the corner curves ([inner] = the
+/// outline moved inwards) and a violet-pink sheen at both lower corners.
+/// Outside the line only a faint, tight halo.
+void paintPageRim(
+  Canvas canvas,
+  Path path,
+  Size size,
+  double radius, {
+  Path? inner,
+  double k = 1,
+}) {
   Paint stroke(double width, Color colour, double blur) => Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = width
+    ..strokeWidth = width * k
     ..color = colour
-    ..maskFilter = blur > 0 ? MaskFilter.blur(BlurStyle.normal, blur) : null;
+    ..maskFilter = blur > 0
+        ? MaskFilter.blur(BlurStyle.normal, blur * k)
+        : null;
+  final w = size.width, h = size.height;
+  final kc = radius * .3;
+  final corners = [
+    Offset(kc, kc),
+    Offset(w - kc, kc),
+    Offset(kc, h - kc),
+    Offset(w - kc, h - kc),
+  ];
+  // A faint, tight halo outside.
   canvas.drawPath(
     path,
-    stroke(26, const Color(0xff1a8cff).withValues(alpha: .28), 12),
-  );
-  canvas.drawPath(
-    path,
-    stroke(16, const Color(0xff1ab4ff).withValues(alpha: .5), 4),
+    stroke(4, const Color(0xff36c8ff).withValues(alpha: .3), 2),
   );
   canvas.save();
   canvas.clipPath(path);
+  // Soft fog fading inward from the edge.
   canvas.drawPath(
     path,
-    stroke(30, const Color(0xff1ad0ff).withValues(alpha: .32), 6),
+    stroke(30, const Color(0xff1ab4ff).withValues(alpha: .3), 5),
   );
-  // The violet-pink sheen, within the band.
-  for (final (at, strength) in [
-    (Offset(size.width - radius * .3, size.height - radius * .3), 1.0),
-    (Offset(radius * .3, size.height - radius * .3), .8),
-  ]) {
+  canvas.drawPath(
+    path,
+    stroke(22, Colors.white, 4)
+      ..shader = ui.Gradient.linear(
+        Offset.zero,
+        Offset(w, h),
+        [
+          const Color(0xff5fdcff).withValues(alpha: .95),
+          const Color(0xff36c8ff).withValues(alpha: .6),
+          const Color(0xff1a9cff).withValues(alpha: .45),
+        ],
+        [0, .5, 1],
+      ),
+  );
+  // Wider and brighter through the corners.
+  for (final at in corners) {
     canvas.drawPath(
       path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 34
+      stroke(56, Colors.white, 6)
+        ..shader = ui.Gradient.radial(at, radius * 1.3, [
+          const Color(0xff7fe6ff).withValues(alpha: .6),
+          const Color(0xff36c8ff).withValues(alpha: 0),
+        ]),
+    );
+  }
+  // The violet-pink sheen at both lower corners (bottom right strongest).
+  for (final (at, a) in [(corners[3], 1.0), (corners[2], .85)]) {
+    canvas.drawPath(
+      path,
+      stroke(26, Colors.white, 3)
         ..shader = ui.Gradient.radial(
           at,
-          60,
+          48 * k,
           [
-            const Color(0xffff7ad9).withValues(alpha: .75 * strength),
-            const Color(0xff9b6bff).withValues(alpha: .55 * strength),
-            const Color(0xff9b6bff).withValues(alpha: 0),
+            const Color(0xffff8ae0).withValues(alpha: .9 * a),
+            const Color(0xffa070ff).withValues(alpha: .6 * a),
+            const Color(0xffa070ff).withValues(alpha: 0),
           ],
-          [0, .45, 1],
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+          [0, .5, 1],
+        ),
     );
   }
   // The glossy highlight along the top inside edge.
-  final topH = math.min(radius * 1.1, size.height * .3);
-  canvas.clipRect(Rect.fromLTWH(0, 0, size.width, topH));
+  final topH = math.min(radius * 1.1, h * .3);
+  canvas.clipRect(Rect.fromLTWH(0, 0, w, topH));
   canvas.drawPath(
     path,
-    Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 22
+    stroke(24, Colors.white, 3)
       ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
-        const Color(0xffbff1ff).withValues(alpha: .3),
+        const Color(0xffbff1ff).withValues(alpha: .26),
         const Color(0xffbff1ff).withValues(alpha: 0),
-      ])
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+      ]),
   );
   canvas.restore();
-  // The 6 px bright core on the edge, cyan-white at its centre.
-  canvas.drawPath(path, stroke(6, const Color(0xff4fd8ff), 1.2));
+  // The white reflection inside the band, through the corners.
+  if (inner != null) {
+    for (final at in corners) {
+      canvas.drawPath(
+        inner,
+        stroke(1.4, Colors.white, .6)
+          ..shader = ui.Gradient.radial(
+            at,
+            radius * 1.6,
+            [
+              Colors.white.withValues(alpha: .6),
+              Colors.white.withValues(alpha: .25),
+              Colors.white.withValues(alpha: 0),
+            ],
+            [0, .5, 1],
+          ),
+      );
+    }
+  }
+  // The outer edge: a thin crisp line, plus a white highlight that drifts
+  // a little inside, thick and bright on the upper left and top, thin and
+  // fading elsewhere.
   canvas.drawPath(
     path,
-    stroke(1.6, const Color(0xffd8f8ff).withValues(alpha: .9), 0),
+    stroke(.9, const Color(0xffbff3ff).withValues(alpha: .6), 0),
   );
+  final m = Matrix4.identity()
+    ..translateByDouble(w / 2, h / 2, 0, 1)
+    ..scaleByDouble(1 - 5 * k / w, 1 - 5 * k / h, 1, 1)
+    ..translateByDouble(-w / 2, -h / 2, 0, 1);
+  final drift = path.transform(m.storage);
+  for (final (width, alpha, blur) in [(3.0, .55, 1.2), (1.2, .95, 0.0)]) {
+    canvas.drawPath(
+      drift,
+      stroke(width, Colors.white, blur)
+        ..shader = ui.Gradient.radial(
+          Offset(w * .15, h * .02),
+          math.max(w, h) * .75,
+          [
+            Colors.white.withValues(alpha: alpha),
+            Colors.white.withValues(alpha: alpha * .35),
+            Colors.white.withValues(alpha: 0),
+          ],
+          [0, .45, 1],
+        ),
+    );
+  }
 }
 
 class _GlassPainter extends CustomPainter {
@@ -246,9 +329,9 @@ class _GlassPainter extends CustomPainter {
       Offset(w * .7, h - inset - 1),
     ];
     final pts = <Offset>[
-      Offset(w / 2, inset),
+      Offset(w / 2, inset - 2),
       ...right,
-      Offset(w / 2, h - inset),
+      Offset(w / 2, h - inset + 2),
       for (final p in right.reversed) Offset(w - p.dx, p.dy),
     ];
     final n = pts.length;
@@ -293,15 +376,15 @@ class _GlassPainter extends CustomPainter {
           [
             body
                 .withSaturation(.75)
-                .withLightness(.2)
+                .withLightness(.09)
                 .toColor()
-                .withValues(alpha: .78),
-            const Color(0xff071628).withValues(alpha: .86),
+                .withValues(alpha: .5),
+            const Color(0xff050d18).withValues(alpha: .55),
             body
                 .withSaturation(.8)
-                .withLightness(.14)
+                .withLightness(.07)
                 .toColor()
-                .withValues(alpha: .82),
+                .withValues(alpha: .55),
           ],
           [0, .55, 1],
         ),
@@ -340,7 +423,15 @@ class _GlassPainter extends CustomPainter {
         ),
     );
     canvas.restore();
-    if (glow >= 1) paintPageRim(canvas, Path()..addRRect(r), size, radius);
+    if (glow >= 1) {
+      paintPageRim(
+        canvas,
+        Path()..addRRect(r),
+        size,
+        radius,
+        inner: Path()..addRRect(r.deflate(9)),
+      );
+    }
     // A glass card's bubble shine: a curved gloss along its top edge, over
     // a soft glassy edge band.
     if (glow < 1) {
@@ -394,6 +485,39 @@ class _GlassPainter extends CustomPainter {
       }
       canvas.restore();
     }
+    if (glow == .5) {
+      paintPageRim(
+        canvas,
+        Path()..addRRect(r),
+        size,
+        radius,
+        inner: Path()..addRRect(r.deflate(5)),
+        k: .5,
+      );
+      return;
+    }
+    // Cards and pills: a small white reflection through the corners.
+    if (glow < 1) {
+      final rr = radius.clamp(0, size.shortestSide / 2).toDouble();
+      final k = rr * .3;
+      for (final at in [
+        Offset(k, k),
+        Offset(size.width - k, k),
+        Offset(k, size.height - k),
+        Offset(size.width - k, size.height - k),
+      ]) {
+        canvas.drawRRect(
+          r.deflate(2.5),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = .9
+            ..shader = ui.Gradient.radial(at, math.max(rr * 1.3, 8), [
+              Colors.white.withValues(alpha: .45),
+              Colors.white.withValues(alpha: 0),
+            ]),
+        );
+      }
+    }
     // The rim: a thin line on a card (page bubbles: paintPageRim).
     if (glow < 1)
       canvas.drawRRect(
@@ -422,8 +546,32 @@ class _GlassPainter extends CustomPainter {
       );
   }
 
+  /// A rounded rectangle whose sides bow out gently (~4 px on the long
+  /// sides, ~2 px top and bottom), like a soft inflated bubble.
+  static Path bowedPath(Size s, double radius, double inset) {
+    final l = inset, t = inset, r = s.width - inset, b = s.height - inset;
+    final rr = math.min(radius - inset, math.min(r - l, b - t) / 2);
+    final cx = s.width / 2, cy = s.height / 2;
+    const side = 4.0, top = 2.0;
+    final c = Radius.circular(rr);
+    return Path()
+      ..moveTo(l + rr, t)
+      ..quadraticBezierTo(cx, t - 2 * top, r - rr, t)
+      ..arcToPoint(Offset(r, t + rr), radius: c)
+      ..quadraticBezierTo(r + 2 * side, cy, r, b - rr)
+      ..arcToPoint(Offset(r - rr, b), radius: c)
+      ..quadraticBezierTo(cx, b + 2 * top, l + rr, b)
+      ..arcToPoint(Offset(l, b - rr), radius: c)
+      ..quadraticBezierTo(l - 2 * side, cy, l, t + rr)
+      ..arcToPoint(Offset(l + rr, t), radius: c)
+      ..close();
+  }
+
   void _paintBlob(Canvas canvas, Size size, List<Offset> profile) {
-    final r = blobPath(size, profile, radius, 0);
+    final bowed = identical(profile, GlassBubble.pageBlob);
+    final r = bowed
+        ? bowedPath(size, radius, 0)
+        : blobPath(size, profile, radius, 0);
     final body = HSLColor.fromColor(accent);
     canvas.drawPath(r, Paint()..color = accent.withValues(alpha: 0));
     canvas.drawPath(
@@ -435,20 +583,28 @@ class _GlassPainter extends CustomPainter {
           [
             body
                 .withSaturation(.75)
-                .withLightness(.2)
+                .withLightness(.09)
                 .toColor()
-                .withValues(alpha: .7),
-            const Color(0xff071628).withValues(alpha: .82),
+                .withValues(alpha: .5),
+            const Color(0xff050d18).withValues(alpha: .55),
             body
                 .withSaturation(.8)
-                .withLightness(.14)
+                .withLightness(.07)
                 .toColor()
-                .withValues(alpha: .8),
+                .withValues(alpha: .55),
           ],
           [0, .55, 1],
         ),
     );
-    paintPageRim(canvas, r, size, radius);
+    paintPageRim(
+      canvas,
+      r,
+      size,
+      radius,
+      inner: bowed
+          ? bowedPath(size, radius, 9)
+          : blobPath(size, profile, radius, 9),
+    );
   }
 
   @override

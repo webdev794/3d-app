@@ -775,7 +775,7 @@ class ProfileScreen extends StatelessWidget {
       for (var i = 0; i < rows.length; i++)
         Padding(
           padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
-          child: _ThinGlass(radius: 24, child: rows[i]),
+          child: _ThinGlass(radius: 24, rim: 1, child: rows[i]),
         ),
     ],
   );
@@ -1035,7 +1035,7 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 14),
             Center(
               child: SizedBox(
-                width: 300,
+                width: 335,
                 height: 46,
                 child: _ThinGlass(
                   radius: 24,
@@ -1262,7 +1262,9 @@ class _ThinGlass extends StatelessWidget {
     this.onTap,
     this.radius = 16,
     this.semanticsLabel,
+    this.rim = 1.5,
   });
+  final double rim;
   final String? semanticsLabel;
   final Widget child;
   final VoidCallback? onTap;
@@ -1281,8 +1283,7 @@ class _ThinGlass extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [Color(0xcc0d2238), Color(0xcc061322)],
         ),
-        border: Border.all(color: const Color(0x992fd2ff), width: 1.5),
-        boxShadow: const [BoxShadow(color: Color(0x2619b6ff), blurRadius: 10)],
+        border: Border.all(color: const Color(0x552fd2ff), width: rim),
       ),
       child: Material(
         type: MaterialType.transparency,
