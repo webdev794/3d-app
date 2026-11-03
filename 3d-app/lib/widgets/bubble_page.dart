@@ -100,7 +100,7 @@ class BubblePage extends StatelessWidget {
                                 child: GlassBubble(
                                   key: bubbleKey,
                                   radius: 64,
-                                  blob: GlassBubble.pageBlob,
+
                                   padding: const EdgeInsets.fromLTRB(
                                     12,
                                     14,

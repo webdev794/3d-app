@@ -70,3 +70,4 @@ Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md
 - 11-03: user OK: after BB1 finishes -> flutter build web + serve 8088 on LAN (node scripts/serve_preview.mjs --lan) for phone + PC check.
 - 11-03: then push v3 again (+ delta tar 11-03-b, REF = 11-03-a).
 - 11-03: BB1 blob bubble done (lib/widgets/glass_bubble.dart, bubble_page.dart, screens/orders_tab.dart). flutter build web done; 8088 served on LAN. PUSHED v3 = 28a28fe. No new live tar (app-only change; 11-03-a is current for live).
+- 11-03: BB1 scroll fix (Projects / Profile / My orders scroll whole page). Web rebuilt. PUSHED v3. Open: logo row stays fixed on those 3 pages (scrolls on Orders); pull-to-refresh lost on My orders.

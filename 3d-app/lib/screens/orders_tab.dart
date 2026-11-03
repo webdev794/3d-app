@@ -104,14 +104,6 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                             GlassBubble(
                               key: const ValueKey('orders-bubble'),
                               radius: 64,
-                              // Wide round the Create / Upload cards, a waist
-                              // above My orders (client picture images/341).
-                              blob: const [
-                                Offset(.3, -6),
-                                Offset(.5, 0),
-                                Offset(.58, 16),
-                                Offset(.78, 10),
-                              ],
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -172,11 +164,8 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 12),
-                                  // Narrower, inside the bubble's waist.
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                    ),
+                                    padding: EdgeInsets.zero,
                                     child: _MyOrdersTile(
                                       key: const ValueKey(
                                         'orders-tile-my-orders',

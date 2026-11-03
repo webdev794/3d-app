@@ -517,7 +517,11 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'secondary': '#27282a',
       'patternColor': '#008fdc',
       'zones': solid(['sleeves', 'sides']),
-      'zoneColors': {'labelDark': '#2e3034', 'teeFlare': '#27282a', 'teeNetball': '#27282a'},
+      'zoneColors': {
+        'labelDark': '#2e3034',
+        'teeFlare': '#27282a',
+        'teeNetball': '#27282a',
+      },
       'marks': {
         'top_wordmark': {'y': 0.5},
         'top_crest': {'y': 0.565},
@@ -758,7 +762,11 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'waistband': {'colour': '#27282a'},
         'shortsHem': {'colour': '#27282a'},
       },
-      'zoneColors': {'cordTips': '#27282a', 'shortsPlain': '#27282a', 'shortsNarrow': '#27282a'},
+      'zoneColors': {
+        'cordTips': '#27282a',
+        'shortsPlain': '#27282a',
+        'shortsNarrow': '#27282a',
+      },
       'marks': {
         'shorts_number': {'hidden': true},
         'shorts_crest': {'x': 0.13, 'y': 0.115, 'scale': 0.85},
@@ -796,7 +804,11 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     },
     'nflHoodie': {
       'main': '#161616',
-      'zoneColors': {'stripe': '#00f6fe', 'stripeDeep': '#00f6fe', 'cord': '#00f6fe'},
+      'zoneColors': {
+        'stripe': '#00f6fe',
+        'stripeDeep': '#00f6fe',
+        'cord': '#00f6fe',
+      },
       'marks': {
         'top_crest': {'x': 0, 'y': 0.57, 'scale': 1.05},
         'top_wordmark': {'x': 0, 'y': 0.495, 'scale': 0.78},

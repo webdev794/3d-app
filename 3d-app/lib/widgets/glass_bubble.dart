@@ -224,6 +224,54 @@ class _GlassPainter extends CustomPainter {
         ),
     );
     canvas.restore();
+    // A page bubble's wide glass edge (client images/344): a soft glowing
+    // cyan band, lighter on its inner edge, with a glossy top highlight.
+    if (glow >= 1) {
+      canvas.drawRRect(
+        r.inflate(2),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 6
+          ..color = accent.withValues(alpha: .45)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+      canvas.save();
+      canvas.clipRRect(r);
+      canvas.drawRRect(
+        r.deflate(4),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 8
+          ..color = Color.lerp(
+            accent,
+            const Color(0xff3a7bff),
+            .25,
+          )!.withValues(alpha: .55)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+      );
+      canvas.drawRRect(
+        r.deflate(8),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = Color.lerp(accent, Colors.white, .6)!.withValues(alpha: .7)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
+      );
+      final topH = math.min(radius * 1.2, size.height * .3);
+      canvas.clipRect(Rect.fromLTWH(0, 0, size.width, topH));
+      canvas.drawRRect(
+        r.deflate(6),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4
+          ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
+            Colors.white.withValues(alpha: .75),
+            Colors.white.withValues(alpha: 0),
+          ])
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
+      );
+      canvas.restore();
+    }
     // The bright rim.
     canvas.drawRRect(
       r.deflate(.8),

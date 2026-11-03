@@ -26,7 +26,8 @@ import '../export_service.dart';
 import '../part_editing.dart' show PartEditing, partLabel, partPiece, partsOf;
 import '../player_shot.dart';
 import '../project_sync.dart';
-import '../sports_catalog.dart' show GarmentTile, garmentIds, sportNamed, tileLook;
+import '../sports_catalog.dart'
+    show GarmentTile, garmentIds, sportNamed, tileLook;
 import '../widgets/drag_tray.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/kit_viewer_3d.dart';
