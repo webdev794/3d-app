@@ -187,25 +187,26 @@ void paintPageRim(
   // A faint, tight halo outside.
   canvas.drawPath(
     path,
-    stroke(4, const Color(0xff36c8ff).withValues(alpha: .3), 2),
+    stroke(4, const Color(0xff36c8ff).withValues(alpha: .25), 2),
   );
   canvas.save();
   canvas.clipPath(path);
-  // Soft fog fading inward from the edge.
+  // Inner glow, about 8 px, fading inward.
   canvas.drawPath(
     path,
-    stroke(30, const Color(0xff1ab4ff).withValues(alpha: .3), 5),
+    stroke(18, const Color(0xff1ab4ff).withValues(alpha: .28), 4),
   );
+  // The rim core: about 5 px of saturated cyan inside the edge.
   canvas.drawPath(
     path,
-    stroke(22, Colors.white, 4)
+    stroke(10, Colors.white, 1)
       ..shader = ui.Gradient.linear(
         Offset.zero,
         Offset(w, h),
         [
-          const Color(0xff5fdcff).withValues(alpha: .95),
-          const Color(0xff36c8ff).withValues(alpha: .6),
-          const Color(0xff1a9cff).withValues(alpha: .45),
+          const Color(0xff5ae6fa).withValues(alpha: .85),
+          const Color(0xff3cc8f0).withValues(alpha: .62),
+          const Color(0xff2aa8e8).withValues(alpha: .5),
         ],
         [0, .5, 1],
       ),
@@ -214,23 +215,27 @@ void paintPageRim(
   for (final at in corners) {
     canvas.drawPath(
       path,
-      stroke(56, Colors.white, 6)
-        ..shader = ui.Gradient.radial(at, radius * 1.3, [
-          const Color(0xff7fe6ff).withValues(alpha: .6),
+      stroke(26, Colors.white, 3)
+        ..shader = ui.Gradient.radial(at, radius * 1.1, [
+          const Color(0xff5ae6fa).withValues(alpha: .6),
           const Color(0xff36c8ff).withValues(alpha: 0),
         ]),
     );
   }
-  // The violet-pink sheen at both lower corners (bottom right strongest).
-  for (final (at, a) in [(corners[3], 1.0), (corners[2], .85)]) {
+  // The violet-pink sheen ON the outer curve of both lower corners.
+  final ko = radius * .12;
+  for (final (at, a) in [
+    (Offset(w - ko, h - ko), 1.0),
+    (Offset(ko, h - ko), .85),
+  ]) {
     canvas.drawPath(
       path,
-      stroke(26, Colors.white, 3)
+      stroke(9, Colors.white, 1.5)
         ..shader = ui.Gradient.radial(
           at,
-          48 * k,
+          30 * k,
           [
-            const Color(0xffff8ae0).withValues(alpha: .9 * a),
+            const Color(0xffff8ae0).withValues(alpha: .95 * a),
             const Color(0xffa070ff).withValues(alpha: .6 * a),
             const Color(0xffa070ff).withValues(alpha: 0),
           ],
@@ -245,7 +250,7 @@ void paintPageRim(
     path,
     stroke(24, Colors.white, 3)
       ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
-        const Color(0xffbff1ff).withValues(alpha: .26),
+        const Color(0xffbff1ff).withValues(alpha: .2),
         const Color(0xffbff1ff).withValues(alpha: 0),
       ]),
   );
@@ -281,7 +286,7 @@ void paintPageRim(
     ..scaleByDouble(1 - 5 * k / w, 1 - 5 * k / h, 1, 1)
     ..translateByDouble(-w / 2, -h / 2, 0, 1);
   final drift = path.transform(m.storage);
-  for (final (width, alpha, blur) in [(3.0, .55, 1.2), (1.2, .95, 0.0)]) {
+  for (final (width, alpha, blur) in [(2.2, .45, 1.0), (1.0, .9, 0.0)]) {
     canvas.drawPath(
       drift,
       stroke(width, Colors.white, blur)
@@ -366,7 +371,6 @@ class _GlassPainter extends CustomPainter {
         ..maskFilter = MaskFilter.blur(BlurStyle.outer, 14 * glow + 4),
     );
     // The deep blue glass, a little lighter at the top.
-    final body = HSLColor.fromColor(accent);
     canvas.drawRRect(
       r,
       Paint()
@@ -374,17 +378,9 @@ class _GlassPainter extends CustomPainter {
           Offset(0, 0),
           Offset(0, size.height),
           [
-            body
-                .withSaturation(.75)
-                .withLightness(.09)
-                .toColor()
-                .withValues(alpha: .5),
-            const Color(0xff050d18).withValues(alpha: .55),
-            body
-                .withSaturation(.8)
-                .withLightness(.07)
-                .toColor()
-                .withValues(alpha: .55),
+            const Color(0xff011a2e).withValues(alpha: .82),
+            const Color(0xff001624).withValues(alpha: .86),
+            const Color(0xff011a2e).withValues(alpha: .84),
           ],
           [0, .55, 1],
         ),
@@ -572,7 +568,6 @@ class _GlassPainter extends CustomPainter {
     final r = bowed
         ? bowedPath(size, radius, 0)
         : blobPath(size, profile, radius, 0);
-    final body = HSLColor.fromColor(accent);
     canvas.drawPath(r, Paint()..color = accent.withValues(alpha: 0));
     canvas.drawPath(
       r,
@@ -581,17 +576,9 @@ class _GlassPainter extends CustomPainter {
           Offset.zero,
           Offset(0, size.height),
           [
-            body
-                .withSaturation(.75)
-                .withLightness(.09)
-                .toColor()
-                .withValues(alpha: .5),
-            const Color(0xff050d18).withValues(alpha: .55),
-            body
-                .withSaturation(.8)
-                .withLightness(.07)
-                .toColor()
-                .withValues(alpha: .55),
+            const Color(0xff011a2e).withValues(alpha: .82),
+            const Color(0xff001624).withValues(alpha: .86),
+            const Color(0xff011a2e).withValues(alpha: .84),
           ],
           [0, .55, 1],
         ),

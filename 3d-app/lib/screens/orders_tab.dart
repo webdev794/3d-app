@@ -114,9 +114,9 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                                 22,
                                 20,
                                 22,
-                                36,
+                                46,
                               ),
-                              radius: 64,
+                              radius: 56,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -390,12 +390,17 @@ class _OrderTile extends StatelessWidget {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: Image.asset(
-                        art,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        filterQuality: FilterQuality.medium,
-                        errorBuilder: (_, _, _) => const SizedBox(),
+                      // Zoomed to the middle: the art's own blue
+                      // lightning frame stays outside the tile.
+                      child: Transform.scale(
+                        scale: 1.3,
+                        child: Image.asset(
+                          art,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          filterQuality: FilterQuality.medium,
+                          errorBuilder: (_, _, _) => const SizedBox(),
+                        ),
                       ),
                     ),
                   ),
@@ -514,7 +519,7 @@ class _OrderListArt extends StatelessWidget {
                     child: Row(
                       children: [
                         Container(
-                          width: 40,
+                          width: 34,
                           height: 34,
                           decoration: BoxDecoration(
                             color: const Color(0xff4f86b8),
@@ -746,7 +751,7 @@ class _MakerPill extends StatelessWidget {
     onTap: onTap,
     semanticsLabel: 'Make with $name',
     child: SizedBox(
-      height: 66,
+      height: 72,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
@@ -758,7 +763,13 @@ class _MakerPill extends StatelessWidget {
                 painter: _ShirtPainter(accent.withValues(alpha: .25)),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
+            Container(
+              width: 1,
+              height: 34,
+              color: Colors.white.withValues(alpha: .22),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: FittedBox(
                 fit: BoxFit.scaleDown,

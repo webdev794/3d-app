@@ -405,7 +405,7 @@ class BottomNav extends StatelessWidget {
     // (taps still switch tabs; animations off: plain): stretchy_nav.dart.
     return StretchyNav(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 31),
         child: GlassShine(
           radius: 30,
           child: DecoratedBox(
@@ -416,9 +416,13 @@ class BottomNav extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: [Color(0xf0122c4e), Color(0xf2071426)],
               ),
-              border: Border.all(color: const Color(0x663fd4ff)),
+              border: Border.all(color: const Color(0xff5ae6fa), width: 3),
               boxShadow: const [
-                BoxShadow(color: Color(0x4419b6ff), blurRadius: 18),
+                BoxShadow(
+                  color: Color(0x8836c8ff),
+                  blurRadius: 14,
+                  spreadRadius: 1,
+                ),
                 BoxShadow(
                   color: Color(0x80000000),
                   blurRadius: 12,

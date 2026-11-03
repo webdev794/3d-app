@@ -77,3 +77,4 @@ Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md
 - 11-03: UT1 a88570de0032407e2 = app design tester (pages vs client 344/341/350/339; PASS/FAIL per page; never changes code). Flow: BB1 builds -> UT1 checks -> FIX LIST to BB1 -> repeat -> push v3.
 - 11-03: BB2 aa7ea74af231fae67 added (My orders orders_board.dart + Projects/Profile library.dart); BB1 keeps rim / Orders / Home / tab bar and does the web build; UT1 tests.
 - 11-03: BB1+BB2 design round done (shared rim, Orders 2-lobe, My orders / Projects / Profile). Web rebuilt. PUSHED v3 = d8433c6. UT1 next.
+- 11-03: bubble design: v3 = 4db0ba5 (backup). Plan: UT1 strict list -> NEW fresh worker fixes all at once ("realistic like a bubble" with: rim as light inside glass, wider at corners, uneven white highlight line, top shine, violet-pink sheen, dark interior, bowed sides, sub-bubbles fully inside) -> UT1 once -> push.

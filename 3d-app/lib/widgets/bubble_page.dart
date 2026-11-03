@@ -80,7 +80,7 @@ class BubblePage extends StatelessWidget {
                             ? MainAxisSize.min
                             : MainAxisSize.max,
                         children: [
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 10),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: SizedBox(
@@ -109,7 +109,7 @@ class BubblePage extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 8),
                           _fill(
                             LayoutBuilder(
                               builder: (context, inner) {
@@ -201,7 +201,7 @@ TextStyle bubbleTitle(double size) => TextStyle(
   fontWeight: FontWeight.w800,
   fontSize: size,
   height: 1,
-  letterSpacing: 2,
+  letterSpacing: 1.4,
   color: Colors.white,
   shadows: [Shadow(color: Palette.cyan.withValues(alpha: .35), blurRadius: 18)],
 );
@@ -227,9 +227,9 @@ class BubbleBackdrop extends StatelessWidget {
       Align(
         alignment: const Alignment(0, -.92),
         child: FractionallySizedBox(
-          widthFactor: 1.25,
+          widthFactor: .85,
           child: Opacity(
-            opacity: .07,
+            opacity: .06,
             child: Image.asset(
               'assets/images/emblem-final.png',
               fit: BoxFit.contain,

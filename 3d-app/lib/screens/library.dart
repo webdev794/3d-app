@@ -1281,15 +1281,34 @@ class _ThinGlass extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xcc0d2238), Color(0xcc061322)],
+          colors: [Color(0xd8071a2c), Color(0xe0020d18)],
         ),
-        border: Border.all(color: const Color(0x552fd2ff), width: rim),
+        // A soft ~4 px glass rim (not a sharp line).
+        border: Border.all(color: const Color(0x3836c8ff), width: 4),
+        boxShadow: const [BoxShadow(color: Color(0x2236c8ff), blurRadius: 6)],
       ),
-      child: Material(
-        type: MaterialType.transparency,
-        borderRadius: BorderRadius.circular(radius),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(onTap: onTap, child: child),
+      position: DecorationPosition.background,
+      child: DecoratedBox(
+        // The light glass top edge.
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: .22),
+              Colors.white.withValues(alpha: 0),
+            ],
+            stops: const [0, .28],
+          ),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          borderRadius: BorderRadius.circular(radius),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(onTap: onTap, child: child),
+        ),
       ),
     ),
   );
