@@ -155,3 +155,15 @@ li.is-open .op-chev{transform:rotate(90deg)}
   .op-bar-primary-wrap small{font-size:10.5px}
 }
 @media(max-width:520px){.op-shell,.op-bar-inner{width:calc(100% - 32px)}.op-section-head h2{letter-spacing:.07em}}
+
+/* The order forms' step bar (client pictures images/337, 339). */
+.op-steps { display: flex; align-items: flex-start; list-style: none; margin: 14px auto 4px; padding: 0; max-width: 560px; }
+.op-steps li { flex: 1; display: flex; align-items: flex-start; }
+.op-steps li + li::before { content: ""; flex: 1; height: 2px; margin-top: 15px; background: #24425c; }
+.op-steps li.is-done + li::before, .op-steps li.is-on::before { background: #2fd2ff; }
+.op-steps li + li { flex: 2; }
+.op-steps button { display: grid; justify-items: center; gap: 5px; border: 0; background: none; color: #9fb0bf; cursor: pointer; font: 700 12.5px/1.2 inherit; padding: 0 4px; }
+.op-step-dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; border: 2px solid #3d6585; background: #061528; color: #fff; font-weight: 800; }
+.op-steps li.is-done .op-step-dot { background: #2fd2ff; border-color: #2fd2ff; color: #04121f; }
+.op-steps li.is-on .op-step-dot { border-color: #2fd2ff; background: #0f5d8a; box-shadow: 0 0 12px #2fd2ff99; }
+.op-steps li.is-on .op-step-name { color: #fff; }

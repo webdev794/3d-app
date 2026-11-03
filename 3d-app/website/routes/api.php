@@ -106,6 +106,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::get('/orders/board', [OrderController::class, 'board']);
         Route::get('/orders/{order}', [OrderController::class, 'show'])->whereNumber('order');
         Route::post('/orders/{order}/approval', [OrderController::class, 'approval'])->whereNumber('order');
+        // The order confirmation form's signed PDF and Excel links (images/336, 338).
+        Route::get('/orders/{order}/confirmation-links', [\App\Http\Controllers\OrderConfirmationController::class, 'links'])->whereNumber('order');
         Route::get('/order-drafts', [OrderDraftController::class, 'index']);
         Route::post('/order-drafts', [OrderDraftController::class, 'store']);
         Route::get('/order-drafts/{draft}', [OrderDraftController::class, 'show'])->whereNumber('draft');
@@ -115,6 +117,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // 3DEEZI AI reads the draft's order forms (once per file; called on Review).
         Route::post('/order-drafts/{draft}/read', \App\Http\Controllers\OrderFormReadController::class)->whereNumber('draft')->middleware('throttle:concepts');
         Route::get('/order-drafts/{draft}/files', [OrderDraftController::class, 'files'])->whereNumber('draft');
+        Route::get('/order-drafts/{draft}/confirmation-links', [\App\Http\Controllers\OrderConfirmationController::class, 'draftLinks'])->whereNumber('draft');
         Route::post('/order-drafts/{draft}/files', [OrderDraftController::class, 'storeFile'])->whereNumber('draft')->middleware('throttle:uploads');
         Route::delete('/order-drafts/{draft}/files/{file}', [OrderDraftController::class, 'destroyFile'])->whereNumber(['draft', 'file']);
         Route::get('/order-files/{file}', [OrderFileController::class, 'show'])->whereNumber('file');

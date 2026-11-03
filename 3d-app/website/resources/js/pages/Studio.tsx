@@ -445,9 +445,9 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   }
   useEffect(() => { const key = (e: KeyboardEvent) => { if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement).matches('input,textarea')) return; if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); } if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key); });
 
-  async function captureThumbnail(size = 800) {
+  async function captureThumbnail(size = 800, view: 'front' | 'back' = 'front') {
     if (!ready || !viewer.current) return undefined;
-    const source = await viewer.current.capture('front');
+    const source = await viewer.current.capture(view);
     const image = await new Promise<HTMLImageElement>((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = source; });
     const canvas = document.createElement('canvas');
     const scale = Math.min(1, size / image.width, size / image.height);
@@ -459,7 +459,11 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   async function save(event: React.FormEvent, asCopy = false) {
     event.preventDefault(); setBusy(true); setError('');
     const id = draft.id && !asCopy && name.trim() === draft.name.trim() ? draft.id : null;
-    try { const thumbnail = await captureThumbnail(); const project = await api<Project>(id ? `/projects/${id}` : '/projects', { method: id ? 'PATCH' : 'POST', body: JSON.stringify({ name: name.trim(), sport: draft.sport, garment: draft.garment, mode: draft.mode, design: draft.design, status: 'draft', ...(thumbnail ? { thumbnail } : {}), ...(id ? { expected_version: draft.version } : {}) }) }); try { if (ownState.own) localStorage.setItem(`3deezi.own.${project.id}`, JSON.stringify(ownState)); } catch { /* full */ } ownLoaded.current = `3deezi.own.${project.id}`; onChange({ ...project }); setDirty(false); setModal(null); onNotice(id || !draft.id ? `${project.name} saved · Version ${project.version}` : `Saved as a new project: ${project.name} (${draft.name} is unchanged)`); }
+    try { const thumbnail = await captureThumbnail();
+      // The back view too (the order confirmation form's BACK picture, images/338); an AI design keeps its own back render.
+      const back = draft.mode === 'ai' && (draft.design as { renderBack?: string | null }).renderBack ? undefined : await captureThumbnail(800, 'back').catch(() => undefined);
+      const design = back ? { ...draft.design, renderBack: back } : draft.design;
+      const project = await api<Project>(id ? `/projects/${id}` : '/projects', { method: id ? 'PATCH' : 'POST', body: JSON.stringify({ name: name.trim(), sport: draft.sport, garment: draft.garment, mode: draft.mode, design, status: 'draft', ...(thumbnail ? { thumbnail } : {}), ...(id ? { expected_version: draft.version } : {}) }) }); try { if (ownState.own) localStorage.setItem(`3deezi.own.${project.id}`, JSON.stringify(ownState)); } catch { /* full */ } ownLoaded.current = `3deezi.own.${project.id}`; onChange({ ...project }); setDirty(false); setModal(null); onNotice(id || !draft.id ? `${project.name} saved · Version ${project.version}` : `Saved as a new project: ${project.name} (${draft.name} is unchanged)`); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   function blobData(blob: Blob) { return new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(new Error('Unable to read this image.')); r.readAsDataURL(blob); }); }

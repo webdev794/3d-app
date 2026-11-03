@@ -462,6 +462,8 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: SizedBox(
+                    width: double
+                        .infinity, // (full width: the bell sits in the corner, clear of the logo)
                     height: 52,
                     child: LayoutBuilder(
                       builder: (context, box) => Stack(
@@ -490,6 +492,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
           ],
         ),
       ),
+      // (The tab bar stretches and ripples with the finger: BottomNav, StretchyNav.)
       BottomNav(controller: widget.c),
     ],
   );

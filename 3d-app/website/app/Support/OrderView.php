@@ -162,12 +162,18 @@ final class OrderView
     public static function garments(Order $order, Collection $projects): array
     {
         if ($order->items) {
-            return array_map(fn (array $item) => [
+            // A row without its own design picture shows the order's kit picture (the kit as ordered, as Admin
+            // Orders shows it), on the first row only, so the card shows the kit (client picture images/339).
+            $kit = self::text($order->getAttribute('kit_thumbnail'));
+            $kit = $kit ?: $order->project?->thumbnail;
+            $rows = array_values($order->items);
+
+            return array_map(fn (array $item, int $i) => [
                 'garment' => $item['garment'] ?? 'other',
                 'name' => Order::itemName($item),
                 'quantity' => (int) ($item['quantity'] ?? array_sum($item['sizes'] ?? [])),
-                'thumbnail' => isset($item['project_id']) ? ($projects[$item['project_id']]->thumbnail ?? null) : null,
-            ], $order->items);
+                'thumbnail' => (isset($item['project_id']) ? ($projects[$item['project_id']]->thumbnail ?? null) : null) ?? ($i === 0 ? $kit : null),
+            ], $rows, array_keys($rows));
         }
         $thumbnail = $order->project?->thumbnail ?: self::text($order->getAttribute('kit_thumbnail'));
         $garment = $order->project?->garment ?: self::text($order->getAttribute('kit_garment'));

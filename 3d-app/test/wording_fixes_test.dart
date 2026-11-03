@@ -8,7 +8,6 @@ import 'package:http/testing.dart';
 import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/design_document.dart';
-import 'package:three_deezi/screens/library.dart' show ProfileScreen;
 import 'package:three_deezi/screens/orders_board.dart';
 import 'package:three_deezi/screens/team.dart';
 import 'package:three_deezi/widgets/order_form_read.dart';
@@ -233,32 +232,8 @@ void main() {
       },
     );
 
-    testWidgets('Profile: one project reads "1 Project" and "1 AI design"', (
-      tester,
-    ) async {
-      final c = AppController(store: FakeStore());
-      addTearDown(c.dispose);
-      c.projects.removeRange(
-        1,
-        c.projects.length,
-      ); // the first sample is an AI design
-      await _show(tester, SizedBox(height: 1400, child: ProfileScreen(c)));
-      expect(find.text('Project'), findsOneWidget);
-      expect(find.text('AI design'), findsOneWidget);
-      // "Projects" stays on the bottom bar's tab only.
-      expect(find.text('Projects'), findsOneWidget);
-      c.projects.add(c.projects.first);
-      await _show(
-        tester,
-        SizedBox(
-          height: 1400,
-          child: ProfileScreen(c, key: const ValueKey('two')),
-        ),
-      );
-      expect(find.text('Project'), findsNothing);
-      expect(find.text('Projects'), findsNWidgets(2));
-      expect(find.text('AI designs'), findsOneWidget);
-    });
+    // (Profile's project / asset / AI design counts left with the bubble look,
+    // client picture images/334, 2026-11-03.)
 
     testWidgets('Studio print layout: "1 panel on the kit"', (tester) async {
       final c = AppController(store: FakeStore());

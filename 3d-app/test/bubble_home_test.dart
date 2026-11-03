@@ -223,6 +223,52 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets(
+    'the tab bar stretches with a drag, springs back; a tap still switches',
+    (tester) async {
+      final c = await _pump(tester, notch: true);
+      await _precache(tester);
+      final nav = find.byKey(const ValueKey('nav-home'));
+      final rest = tester.getRect(nav);
+      final start = tester.getCenter(find.byKey(const ValueKey('nav-orders')));
+      final g = await tester.startGesture(start);
+      await tester.pump(const Duration(milliseconds: 16));
+      for (var k = 1; k <= 6; k++) {
+        await g.moveTo(start + Offset(-12.0 * k, -5.0 * k));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pump(const Duration(milliseconds: 60));
+      // (the bar itself moves with the finger: its painted box leans away from rest)
+      final moved = tester.getRect(find.byKey(const ValueKey('nav-home')));
+      expect(moved == rest, isFalse);
+      await _shot(tester, 'nav-stretch-390x844');
+      await g.up();
+      await tester.pump(const Duration(milliseconds: 80));
+      await _shot(tester, 'nav-spring-390x844');
+      // (the glass floats forever, so no pumpAndSettle: the spring back takes 650 ms)
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(tester.getRect(find.byKey(const ValueKey('nav-home'))), rest);
+      expect(c.screen, AppScreen.home);
+      await tester.tap(find.byKey(const ValueKey('nav-projects')));
+      await tester.pump();
+      expect(c.screen, AppScreen.projects);
+    },
+  );
+
+  testWidgets('animations off: the plain tab bar (no stretch)', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await _pump(tester);
+    final rest = tester.getRect(find.byKey(const ValueKey('nav-home')));
+    final start = tester.getCenter(find.byKey(const ValueKey('nav-orders')));
+    final g = await tester.startGesture(start);
+    await g.moveTo(start + const Offset(-60, -30));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(tester.getRect(find.byKey(const ValueKey('nav-home'))), rest);
+    await g.up();
+  });
+
   testWidgets('Classic view calls the switch', (tester) async {
     var n = 0;
     await _pump(tester, onClassic: () => n++);

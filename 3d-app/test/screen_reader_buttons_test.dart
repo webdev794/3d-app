@@ -338,15 +338,17 @@ void main() {
       await mountPhone(tester, c);
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
-        find.widgetWithText(SecondaryButton, 'Sign in or register'),
+        find.byKey(const ValueKey('profile-sign-out')),
         300,
         scrollable: find.byType(Scrollable).first,
       );
-      await expectEveryButtonOwn(tester, 'Profile');
-      expectOwnButton(
-        _node(tester, secondary('Sign in or register')),
-        'Sign in or register',
+      // (Profile's Sign in / Sign out is a glass pill since the bubble look,
+      // images/334: one button named by its own text.)
+      final node = tester.getSemantics(
+        find.byKey(const ValueKey('profile-sign-out')),
       );
+      expect(node.label, 'Sign in or register');
+      expect(node.flagsCollection.isButton, isTrue);
       tester.semantics.tap(find.semantics.byLabel('Sign in or register'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));

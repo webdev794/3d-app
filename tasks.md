@@ -565,3 +565,16 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [ ] **9.176** Soccer football jersey looks like an American football jersey (big padded shoulders); make it a slim soccer jersey like its tile (client 2026-11-02, images/326-327). FN13.
   - 9.174 add: a thin highlight around the garments in the Studio 3D (client). LT2.
   - 9.163 round 4 (client 2026-11-02 4:55 pm, images/329): likes it; push the bubble out more with more bubble ripples; spread all 5 options evenly; much cleaner icons (not AI-looking); text labels similar size; the real high-res 3DEEZI logo in the background. Builder A.
+
+- 2026-11-03 (images/330): mobile bubble home: the bottom tab bar (Home / Projects / Orders / Profile) gets the same glass bubble effect as the upper part: drag and release (stretch, ripple, spring back). App only. Given to BL1 (Blender worker) AFTER its Blender work (user 11-03).
+
+- 2026-11-03 (images/331): app Orders page: add a "Preferred suppliers" card at the bottom. Client asks: bubble theme throughout the app, not just Home? Queued for BL1 after the tab bar task.
+
+- 2026-11-03 (images/332): app Create order form: "Add logos, artwork or a reference" does nothing on the phone. Fix (website check too). Queued for BL1.
+- 2026-11-03 (images/333): the client's Orders page design: one big glass bubble with Create order / Upload order / My orders; PREFERRED SUPPLIERS row (Make with 3DEEZI, Make with Mantis); "Rewards - coming soon".
+
+- 2026-11-03 (images/334): bubble theme on all 4 main pages (Home, Projects, Orders, Profile) per the client picture. Queued for BL1 after the Orders page.
+
+- 2026-11-03 (images/335): app bubble home: the notification bell sits on top of the 3DEEZI logo; move it to the top-right corner, clear of the logo (as in images/334). Queued for BL1 as task 5.
+
+- 2026-11-03 (images/336-338): order process: 4-step Create order form, Upload order path, Order confirmation review with approve, confirmation PDF + Excel download. Website + app. Queued for BL1 as task 6.

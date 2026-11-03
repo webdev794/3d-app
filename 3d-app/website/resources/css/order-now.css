@@ -118,3 +118,23 @@
   .on-tile>p{font-size:14px}
 }
 @media(prefers-reduced-motion:reduce){.on-tile,.on-button{transition:none}.on-tile:hover{transform:none}}
+
+/* Orders page: PREFERRED SUPPLIERS (Make with 3DEEZI / Make with Mantis) and REWARDS · COMING SOON (client picture 333, 2026-11-03). */
+.on-suppliers { margin: 28px auto 0; max-width: 760px; text-align: center; }
+.on-rule { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; font: 700 17px/1 Rajdhani, sans-serif; letter-spacing: .16em; color: #fff; }
+.on-rule::before, .on-rule::after { content: ""; flex: 1; height: 1px; background: rgba(82, 212, 236, .35); }
+.on-makers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.on-maker { --accent: #2fa8ff; display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 10px 18px; border-radius: 999px; color: #fff; text-decoration: none; text-align: left;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 30%, #071628), #071628 70%); border: 1.5px solid color-mix(in srgb, var(--accent) 80%, #fff);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 40%, transparent), inset 0 0 14px color-mix(in srgb, var(--accent) 22%, transparent); transition: transform .15s ease, box-shadow .15s ease; }
+.on-maker:hover, .on-maker:focus-visible { transform: translateY(-2px); box-shadow: 0 0 26px color-mix(in srgb, var(--accent) 60%, transparent), inset 0 0 14px color-mix(in srgb, var(--accent) 30%, transparent); }
+.on-maker.is-mantis { --accent: #2fe0b0; }
+.on-maker > svg:first-child { width: 30px; height: 30px; color: var(--accent); flex: none; }
+.on-maker > svg:last-child { margin-left: auto; flex: none; }
+.on-maker span { display: grid; gap: 3px; min-width: 0; }
+.on-maker small { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #d3dee8; }
+.on-maker img { width: 110px; height: auto; }
+.on-maker b { font-size: 24px; line-height: 1; font-weight: 900; font-style: italic; }
+.on-rewards { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 18px 0 0; font: 700 16px/1 Rajdhani, sans-serif; letter-spacing: .14em; color: #d3dee8; }
+.on-rewards svg { color: #2fd2ff; }
+@media (max-width: 420px) { .on-maker { padding: 8px 12px; gap: 8px; } .on-maker img { width: 84px; } .on-maker b { font-size: 20px; } }

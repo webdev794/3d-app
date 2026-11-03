@@ -1,4 +1,4 @@
-import { ArrowRight, Box, ChevronDown } from 'lucide-react';
+import { ArrowRight, Box, ChevronDown, Shirt } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import GarmentIcon from './GarmentIcon';
@@ -48,6 +48,14 @@ export default function OrderNow({ variant = 'home', board }: { variant?: 'home'
           <span className="on-button">VIEW MY ORDERS <ArrowRight /></span>
         </Link>
       </div>
+      {page && <div className="on-suppliers" data-testid="orders-suppliers">
+        <h2 className="on-rule"><span>PREFERRED SUPPLIERS</span></h2>
+        <div className="on-makers">
+          <Link to="/orders/new" className="on-maker is-3deezi" aria-label="Make with 3DEEZI"><Shirt aria-hidden /><span><small>MAKE WITH</small><img src={media('images/brand-wordmark.png')} alt="3DEEZI" width={1628} height={233} /></span><ArrowRight aria-hidden /></Link>
+          <Link to="/orders/new?maker=mantis" className="on-maker is-mantis" aria-label="Make with Mantis"><Shirt aria-hidden /><span><small>MAKE WITH</small><b>Mantis</b></span><ArrowRight aria-hidden /></Link>
+        </div>
+        <p className="on-rewards">REWARDS · COMING SOON <Sparkle size={18} /></p>
+      </div>}
       {!page && <p className="on-foot">Your designs. Your orders. All in 3DEEZI.</p>}
     </div>
   </section>;

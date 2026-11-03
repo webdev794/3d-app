@@ -370,3 +370,17 @@ p.obd-state{flex-direction:row;align-items:flex-start;gap:8px}
   .obd-callout .ob-action{width:100%}
 }
 @media(prefers-reduced-motion:reduce){.ob-drawer[open],.ob-review[open]{animation:none}.obd-body{scroll-behavior:auto}}
+
+/* All / Action needed / In progress, and the Print > Cut > Sew line (client picture images/339, 2026-11-03). */
+.ob-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.ob-filters button { border: 1px solid #2c5f86; background: #061528; color: #b9c5cf; border-radius: 999px; padding: 7px 14px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.ob-filters button.is-on { background: #0f5d8a; color: #fff; border-color: #2fd2ff; box-shadow: 0 0 12px #2fd2ff44; }
+.ob-making { display: flex; align-items: center; gap: 0; list-style: none; margin: 8px 0 2px; padding: 0; font-size: 11.5px; font-weight: 700; color: #7f93a6; }
+.ob-making li { display: flex; align-items: center; gap: 5px; flex: 1; }
+.ob-making li + li::before { content: ""; flex: 1; height: 2px; margin: 0 6px; background: #24425c; border-radius: 2px; }
+.ob-making i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #3d6585; flex: none; }
+.ob-making li.is-done { color: #9fe8ff; }
+.ob-making li.is-done i { background: #2fd2ff; border-color: #2fd2ff; }
+.ob-making li.is-done + li::before, .ob-making li.is-on::before { background: #2fd2ff; }
+.ob-making li.is-on { color: #fff; }
+.ob-making li.is-on i { border-color: #2fd2ff; box-shadow: 0 0 8px #2fd2ff; }

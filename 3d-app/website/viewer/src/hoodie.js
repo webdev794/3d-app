@@ -150,13 +150,15 @@ export function buildHood(ctx, { zip = false, standing = false } = {}) {
       // (FN11 2026-11-02, DT10: the zip tracksuits' hood (zip + standing) stands up as a full hood behind the neck,
       // about 8 cm over the collar at the back with a peaked top, its opening deep down to the zip.)
       // (FX-H 2026-11-02, DT11: the pull-over's hood the same real hood, taller, its face edges low at the front: a deep V.)
-      const H = zip || true ? (zip ? 0.04 : 0.006) + (zip ? 0.106 : 0.15) * Math.sin((Math.PI / 2) * ramp(0.03, 1, g)) ** 1.4 : 0.02 + 0.012 * ramp(0, 0.45, g) + 0.01 * ramp(0.45, 1, g);
+      // (FN14, DT11 on -238: the pull-over's hood lower and laid back, so the shoulders show at 18-20% down as the picture's.)
+      const HOOD_UP = 0.11, LAY = 0.35;
+      const H = zip || true ? (zip ? 0.04 : 0.006) + (zip ? 0.106 : HOOD_UP) * Math.sin((Math.PI / 2) * ramp(0.03, 1, g)) ** 1.4 : 0.02 + 0.012 * ramp(0, 0.45, g) + 0.01 * ramp(0.45, 1, g);
       const L = zip || true ? 0.12 + 0.22 * ramp(0.05, 0.5, g) : 0.3 + 0.5 * ramp(0.05, 0.5, g);
       for (let k = 0; k <= 33; k++) {
         const h = -0.004 + ((H + 0.004) * k) / 33, t = Math.max(0, h) / H;
         // (FN13: the zip hood a real hood: up from the collar, bulging out a little, then rounding in to a crown
         // peaking at the centre back; no flared funnel.)
-        local.push(zip || true ? [0.0016 + (zip ? 0 : over) + H * (0.34 * Math.sin(Math.PI * t) - (0.18 + 0.32 * g) * t * t), h] : [0.0016 + over + Math.max(0, h) * Math.tan(L) * (0.45 + 0.55 * t), h]);
+        local.push(zip || true ? [0.0016 + (zip ? 0 : over) + H * ((zip ? 0.34 : 0.8) * Math.sin(Math.PI * t) - (zip ? 0.18 + 0.32 * g : 0.08 + 0.2 * g) * t * t) + (zip ? 0 : LAY * H * t * t * g), h] : [0.0016 + over + Math.max(0, h) * Math.tan(L) * (0.45 + 0.55 * t), h]);
       }
       const curl = zip || true ? 0.25 : 0.4 + 2.3 * ramp(0.12, 0.55, g), rc = zip || true ? 0.004 : 0.008 + 0.024 * ramp(0.12, 0.6, g);
       let [o, h] = local.at(-1), phi = zip || true ? -0.9 - 0.6 * g : Math.atan(Math.tan(L) * 1.55);

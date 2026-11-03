@@ -219,7 +219,7 @@ const pictureLooks = {
   'tee': 'teeTile',
   'nfl-tee': 'teeCyan',
   'rugby-tee': 'teeSides',
-  'netball-tee': 'teeSides',
+  'netball-tee': 'teeSidesNetball',
   'shooting-shirt': 'shooting',
   'singlet': 'singletTile',
   'netball-training-singlet': 'bladesSides',
@@ -508,6 +508,16 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'patternColor': '#008fdc',
       'zones': solid(['sleeves', 'sides']),
       'zoneColors': {'labelDark': '#2e3034', 'teeFlare': '#27282a'},
+      'marks': {
+        'top_wordmark': {'y': 0.5},
+        'top_crest': {'y': 0.565},
+      },
+    },
+    'teeSidesNetball': {
+      'secondary': '#27282a',
+      'patternColor': '#008fdc',
+      'zones': solid(['sleeves', 'sides']),
+      'zoneColors': {'labelDark': '#2e3034', 'teeFlare': '#27282a', 'teeNetball': '#27282a'},
       'marks': {
         'top_wordmark': {'y': 0.5},
         'top_crest': {'y': 0.565},

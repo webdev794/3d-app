@@ -4,11 +4,12 @@ import '../api_client.dart';
 import '../app_controller.dart';
 import '../export_service.dart' show shareImage;
 import '../order_sizes.dart';
-import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
+import '../widgets/bubble_page.dart';
+import '../widgets/glass_bubble.dart';
 import '../widgets/ui.dart';
 import 'order_entry.dart';
 import 'suppliers.dart' show madeByOf;
@@ -36,6 +37,19 @@ String _day(Object? iso) {
 /// A picture sent as a data URL (garment thumbnails, file previews), else null.
 Widget? _dataImage(Object? url, double size) {
   final text = '${url ?? ''}';
+  // A stored picture's address (a kit picture saved as a file) loads from the site.
+  if (text.startsWith('https://') || text.startsWith('http://')) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.network(
+        text,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => SizedBox(width: size, height: size),
+      ),
+    );
+  }
   if (!text.startsWith('data:image/')) return null;
   try {
     final bytes = UriData.parse(text).contentAsBytes();
@@ -90,7 +104,6 @@ class OrdersBoardScreen extends StatefulWidget {
 class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
   Map<String, dynamic>? _board;
   String _view = 'current';
-  int _stage = 0;
   bool _loading = false;
   String? _error;
 
@@ -136,211 +149,396 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
     if (mounted) _load();
   }
 
+  /// The search box's text (reference, name or garment) and the filter
+  /// (client picture images/339): All / Action needed / In progress / Completed.
+  final _search = TextEditingController();
+  String _filter = 'all';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  /// The customer has something to do: approve a design or pay an invoice.
+  static bool _needsYou(Map<String, dynamic> o) =>
+      o['action'] == 'review_design' ||
+      ((o['payment'] as Map?)?['payable'] == true);
+
+  Future<void> _newOrder() async {
+    final c = widget.c;
+    final which = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Palette.surface,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_note, color: Palette.cyan),
+              title: const Text('Create order'),
+              subtitle: const Text('Build your order step by step'),
+              onTap: () => Navigator.pop(sheet, 'form'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.upload_file, color: Palette.cyan),
+              title: const Text('Upload order'),
+              subtitle: const Text('Already have your order sheet'),
+              onTap: () => Navigator.pop(sheet, 'upload'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (which == 'form') await _openEntry(OrderFormScreen(c));
+    if (which == 'upload') await _openEntry(OrderUploadScreen(c));
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
-    final stages = _stages;
-    final stage = stages.isEmpty
-        ? null
-        : stages[_stage.clamp(0, stages.length - 1)];
-    final orders = ((stage?['orders'] as List?) ?? const [])
-        .cast<Map<String, dynamic>>();
+    final q = _search.text.trim().toLowerCase();
+    // Every order of the board, newest stages first, then the cancelled ones (Completed only).
+    final all = <Map<String, dynamic>>[
+      for (final s in _stages.reversed)
+        ...((s['orders'] as List?) ?? const []).cast<Map<String, dynamic>>(),
+      if (_view == 'completed')
+        ...((_board?['cancelled'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>(),
+    ];
+    final orders = all.where((o) {
+      final matches =
+          q.isEmpty ||
+          '${o['number']} ${o['name']} ${((o['garments'] as List?) ?? const []).map((g) => (g as Map)['name']).join(' ')}'
+              .toLowerCase()
+              .contains(q);
+      final kept = switch (_filter) {
+        'action' => _needsYou(o),
+        'progress' => o['stage'] == 'design' || o['stage'] == 'production',
+        _ => true,
+      };
+      return matches && kept;
+    }).toList();
     final drafts = ((_board?['drafts'] as List?) ?? const [])
         .cast<Map<String, dynamic>>();
-    final cancelled = ((_board?['cancelled'] as List?) ?? const [])
-        .cast<Map<String, dynamic>>();
-    return Column(
-      children: [
-        TopBar(
-          onBack: c.back,
-          title: 'My orders',
-          trailing: [
-            if (c.signedIn)
-              // The shared bell: all notifications; an order, TEAM request or invoice opens from it.
-              NotificationBell(c, onClosed: _load),
-            if (c.signedIn)
-              IconButton(
-                tooltip: 'Refresh',
-                onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh),
-              ),
-          ],
-        ),
-        if (!c.signedIn)
-          Expanded(
-            child: _Message(
+    return BubblePage(
+      c: c,
+      title: 'MY ORDERS',
+      subtitle: 'Your orders, all in one place.',
+      bubbleKey: const ValueKey('my-orders-bubble'),
+      // (Closing the bell's sheet reloads the board: an order may have changed.)
+      onBellClosed: _load,
+      leading: BubbleCornerPill(
+        key: const ValueKey('my-orders-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: c.back,
+      ),
+      child: !c.signedIn
+          ? _Message(
               'Sign in to order kits and follow them here.',
               action: 'SIGN IN',
               onAction: () => c.go(AppScreen.auth),
-            ),
-          )
-        else ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
-            child: Row(
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openEntry(OrderFormScreen(c)),
-                    icon: const Icon(Icons.edit_note, size: 18),
-                    label: const Text('Order form'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openEntry(OrderUploadScreen(c)),
-                    icon: const Icon(Icons.upload_file, size: 18),
-                    label: const Text('Upload order'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: SegmentedButton<String>(
-              segments: [
-                ButtonSegment(
-                  value: 'current',
-                  label: Text(
-                    'Current ${(_board?['counts'] as Map?)?['current'] ?? ''}'
-                        .trim(),
-                  ),
-                ),
-                ButtonSegment(
-                  value: 'completed',
-                  label: Text(
-                    'Completed ${(_board?['counts'] as Map?)?['completed'] ?? ''}'
-                        .trim(),
-                  ),
-                ),
-              ],
-              selected: {_view},
-              showSelectedIcon: false,
-              onSelectionChanged: (v) {
-                setState(() => _view = v.first);
-                _load();
-              },
-            ),
-          ),
-          // The stage tabs.
-          SizedBox(
-            height: 52,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
-              children: [
-                for (final (i, s) in stages.indexed)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text('${s['label']} ${s['count']}'),
-                      selected: i == _stage,
-                      avatar: CircleAvatar(
-                        radius: 5,
-                        backgroundColor: _tone(s['tone']),
+                SizedBox(
+                  height: 42,
+                  child: TextField(
+                    key: const ValueKey('my-orders-search'),
+                    controller: _search,
+                    onChanged: (_) => setState(() {}),
+                    style: const TextStyle(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Search orders',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      isDense: true,
+                      filled: true,
+                      fillColor: const Color(0x99061528),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(
+                          color: Palette.cyan.withValues(alpha: .35),
+                        ),
                       ),
-                      onSelected: (_) => setState(() => _stage = i),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(
+                          color: Palette.cyan.withValues(alpha: .35),
+                        ),
+                      ),
                     ),
                   ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _loading && _board == null
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null && _board == null
-                ? _Message(_error!, action: 'TRY AGAIN', onAction: _load)
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
-                      children: [
-                        if (_view == 'current' && _stage == 0)
-                          for (final d in drafts)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: SurfaceCard(
-                                onTap: () => _openSite(
-                                  context,
-                                  c,
-                                  '${d['link']}',
-                                  'Continue your draft',
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.drafts_outlined,
+                ),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final (key, label) in const [
+                        ('all', 'All'),
+                        ('action', 'Action needed'),
+                        ('progress', 'In progress'),
+                        ('completed', 'Completed'),
+                      ])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: _FilterChip(
+                            key: ValueKey('my-orders-filter-$key'),
+                            label: label,
+                            selected: key == 'completed'
+                                ? _view == 'completed'
+                                : _view == 'current' && _filter == key,
+                            onTap: () {
+                              final view = key == 'completed'
+                                  ? 'completed'
+                                  : 'current';
+                              final changed = view != _view;
+                              setState(() {
+                                _filter = key == 'completed' ? 'all' : key;
+                                _view = view;
+                              });
+                              if (changed) _load();
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: _loading && _board == null
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null && _board == null
+                      ? _Message(_error!, action: 'TRY AGAIN', onAction: _load)
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: ListView(
+                            padding: const EdgeInsets.fromLTRB(2, 2, 2, 10),
+                            children: [
+                              if (_view == 'current' && q.isEmpty)
+                                for (final d in drafts)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: GlassCard(
+                                      radius: 18,
+                                      onTap: () => _openSite(
+                                        context,
+                                        c,
+                                        '${d['link']}',
+                                        'Continue your draft',
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.drafts_outlined,
+                                              color: Palette.muted,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                'Draft, not submitted: ${d['title'] ?? (d['kind'] == 'upload' ? 'uploaded order' : 'order form')}',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                            const Text(
+                                              'Continue',
+                                              style: TextStyle(
+                                                color: Palette.cyan,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              if (orders.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 40),
+                                  child: Text(
+                                    q.isNotEmpty
+                                        ? 'No orders match "${_search.text.trim()}".'
+                                        : _view == 'completed'
+                                        ? 'No completed orders yet.'
+                                        : 'No orders here yet.',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
                                       color: Palette.muted,
                                     ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        'Draft, not submitted: ${d['title'] ?? (d['kind'] == 'upload' ? 'uploaded order' : 'order form')}',
-                                        style: const TextStyle(fontSize: 13),
-                                      ),
-                                    ),
-                                    const Text(
-                                      'Continue',
-                                      style: TextStyle(
-                                        color: Palette.cyan,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                        if (orders.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 40),
-                            child: Text(
-                              'No orders in ${stage?['label'] ?? 'this stage'}.',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Palette.muted),
-                            ),
+                              for (final o in orders)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: OrderBoardCard(
+                                    o,
+                                    onTap: () =>
+                                        _openOrder((o['id'] as num).toInt()),
+                                  ),
+                                ),
+                            ],
                           ),
-                        for (final o in orders)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: OrderBoardCard(
-                              o,
-                              onTap: () => _openOrder((o['id'] as num).toInt()),
-                            ),
-                          ),
-                        if (_view == 'completed' && cancelled.isNotEmpty) ...[
-                          const Padding(
-                            padding: EdgeInsets.fromLTRB(2, 12, 0, 8),
-                            child: Text(
-                              'Cancelled',
-                              style: TextStyle(
-                                color: Palette.muted,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          for (final o in cancelled)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: OrderBoardCard(
-                                o,
-                                onTap: () =>
-                                    _openOrder((o['id'] as num).toInt()),
-                              ),
-                            ),
-                        ],
-                      ],
+                        ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 48,
+                  child: FilledButton.icon(
+                    key: const ValueKey('my-orders-new'),
+                    onPressed: _newOrder,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Palette.cyan,
+                      foregroundColor: const Color(0xff04121f),
+                      shape: const StadiumBorder(),
+                      textStyle: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
+                    icon: const Icon(Icons.add, size: 22),
+                    label: const Text('New order'),
                   ),
-          ),
-        ],
-      ],
+                ),
+              ],
+            ),
     );
   }
 }
 
-/// One order on the board: reference, name, garments, status pill and latest update.
+/// A filter pill (All / Action needed / In progress / Completed).
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    button: true,
+    child: Material(
+      color: selected ? const Color(0xff0f5d8a) : const Color(0x99061528),
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected ? Palette.cyan : Palette.cyan.withValues(alpha: .3),
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : const Color(0xffb9c5cf),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Print > Cut > Sew (client picture images/339): where a production order is.
+class _MakingLine extends StatelessWidget {
+  const _MakingLine(this.step);
+  final String step;
+
+  static const _steps = [
+    ('printing', 'Print'),
+    ('cutting', 'Cut'),
+    ('sewing', 'Sew'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final at = _steps.indexWhere((s) => s.$1 == step);
+    final done = const ['quality_check', 'packing'].contains(step)
+        ? _steps.length
+        : at;
+    Widget dot(int i) => Container(
+      width: 11,
+      height: 11,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: i < done ? Palette.cyan : Colors.transparent,
+        border: Border.all(
+          color: i <= at || i < done ? Palette.cyan : const Color(0xff3d6585),
+          width: 2,
+        ),
+        boxShadow: i == at
+            ? [
+                BoxShadow(
+                  color: Palette.cyan.withValues(alpha: .7),
+                  blurRadius: 8,
+                ),
+              ]
+            : null,
+      ),
+    );
+    return Semantics(
+      label:
+          'Production: ${at >= 0
+              ? _steps[at].$2
+              : done >= _steps.length
+              ? 'sewn'
+              : 'starting'}',
+      excludeSemantics: true,
+      child: Row(
+        key: const ValueKey('order-making-line'),
+        children: [
+          for (var i = 0; i < _steps.length; i++) ...[
+            if (i > 0)
+              Expanded(
+                child: Container(
+                  height: 2,
+                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                  color: i <= done || i <= at
+                      ? Palette.cyan
+                      : const Color(0xff24425c),
+                ),
+              ),
+            dot(i),
+            const SizedBox(width: 5),
+            Text(
+              _steps[i].$2,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: i == at
+                    ? Colors.white
+                    : i < done
+                    ? const Color(0xff9fe8ff)
+                    : const Color(0xff7f93a6),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One order as a glass card (client picture images/339): its picture, the
+/// reference and name, the status badge, the pieces, its action (Review order /
+/// Continue to payment / View progress) and, in production, Print > Cut > Sew.
 class OrderBoardCard extends StatelessWidget {
   const OrderBoardCard(this.o, {super.key, this.onTap});
   final Map<String, dynamic> o;
@@ -354,96 +552,150 @@ class OrderBoardCard extends StatelessWidget {
     final latest = (o['latest_update'] as Map?)?.cast<String, dynamic>();
     final payment = (o['payment'] as Map?)?.cast<String, dynamic>();
     final action = o['action'];
-    return SurfaceCard(
+    final pay = payment?['payable'] == true;
+    final picture =
+        garments
+            .map((g) => _dataImage(g['thumbnail'], 64))
+            .whereType<Widget>()
+            .firstOrNull ??
+        _dataImage(o['cover'], 64) ??
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: const Color(0xff0b1d33),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            garments.isEmpty ? Icons.description_outlined : Icons.checkroom,
+            color: Palette.muted,
+            size: 30,
+          ),
+        );
+    final pieces = (o['quantity'] as num? ?? 0).toInt();
+    return GlassCard(
+      radius: 20,
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${o['number']}',
-            style: const TextStyle(color: Palette.muted, fontSize: 12),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${o['name']}',
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              for (final g in garments.take(3))
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child:
-                      _dataImage(g['thumbnail'], 52) ??
-                      _GarmentChip('${g['name']}'),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: picture,
                 ),
-              if (garments.isEmpty)
-                _dataImage(o['cover'], 52) ??
-                    const Icon(
-                      Icons.description_outlined,
-                      color: Palette.muted,
-                      size: 34,
-                    ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${(o['quantity'] as num? ?? 0) > 0 ? '${o['quantity']} garment${o['quantity'] == 1 ? '' : 's'}' : 'Sizes in your order form'}${'${o['needed_by'] ?? ''}'.isNotEmpty && o['completed'] != true ? ' · required ${_day(o['needed_by'])}' : ''}',
-            style: const TextStyle(fontSize: 12.5),
-          ),
-          // Who makes it, when that is one of the preferred suppliers (3DEEZI makes the others).
-          if (madeByOf(o) case final maker?) ...[
-            const SizedBox(height: 6),
-            _MadeBy(maker),
-          ],
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _pill('${sub['label'] ?? o['stage_label']}', _tone(sub['tone'])),
-              if (payment != null)
-                _pill(
-                  '${payment['label'] ?? payment['status']}',
-                  _tone(payment['tone']),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${o['number']}',
+                        style: const TextStyle(
+                          color: Palette.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        '${o['name']}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _pill(
+                            '${sub['label'] ?? o['stage_label']}',
+                            _tone(sub['tone']),
+                          ),
+                          if (payment != null)
+                            _pill(
+                              '${payment['label'] ?? payment['status']}',
+                              _tone(payment['tone']),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-            ],
-          ),
-          if (latest != null) ...[
+              ],
+            ),
             const SizedBox(height: 8),
             Text(
-              '${latest['text']}${latest['message'] != null && latest['message'] != latest['text'] ? ': ${latest['message']}' : ''}',
-              style: const TextStyle(color: Palette.muted, fontSize: 12),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              '${pieces > 0 ? '$pieces piece${pieces == 1 ? '' : 's'}' : 'Sizes in your order form'}${'${o['needed_by'] ?? ''}'.isNotEmpty && o['completed'] != true ? ' · required ${_day(o['needed_by'])}' : ''}',
+              style: const TextStyle(fontSize: 12.5),
             ),
-          ],
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Submitted ${_day(o['submitted_at'])}',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Palette.muted, fontSize: 11),
-                ),
-              ),
+            // Who makes it, when that is one of the preferred suppliers (3DEEZI makes the others).
+            if (madeByOf(o) case final maker?) ...[
+              const SizedBox(height: 6),
+              _MadeBy(maker),
+            ],
+            if (o['stage'] == 'production') ...[
+              const SizedBox(height: 10),
+              _MakingLine('${sub['key'] ?? ''}'),
+            ],
+            if (latest != null) ...[
+              const SizedBox(height: 8),
               Text(
-                action == 'review_design'
-                    ? 'REVIEW DESIGN →'
-                    : action == 'track_delivery'
-                    ? 'TRACK DELIVERY →'
-                    : 'View order →',
-                style: const TextStyle(
-                  color: Palette.cyan,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
+                '${latest['text']}${latest['message'] != null && latest['message'] != latest['text'] ? ': ${latest['message']}' : ''}',
+                style: const TextStyle(color: Palette.muted, fontSize: 12),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
-          ),
-        ],
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Submitted ${_day(o['submitted_at'])}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Palette.muted, fontSize: 11),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    color: action == 'review_design' || pay
+                        ? Palette.cyan
+                        : Colors.transparent,
+                    border: Border.all(color: Palette.cyan),
+                  ),
+                  child: Text(
+                    action == 'review_design'
+                        ? 'Review order →'
+                        : pay
+                        ? 'Continue to payment →'
+                        : action == 'track_delivery'
+                        ? 'Track delivery →'
+                        : 'View progress →',
+                    style: TextStyle(
+                      color: action == 'review_design' || pay
+                          ? const Color(0xff04121f)
+                          : Palette.cyan,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

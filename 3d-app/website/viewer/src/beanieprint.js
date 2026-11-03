@@ -15,8 +15,9 @@ let STRIPES = TWO;
 const HEX = /^#[0-9a-f]{6}$/i;
 const mode = (design) => { STRIPES = HEX.test(design?.zoneColors?.beanieOne ?? '') ? ONE : TWO; return STRIPES === ONE; };
 /** Where the crest sits: on the cuff's front, under its stripe; the club's word under it. */
-export const BEANIE_CREST = { side: 'front', x: 0, y: 0.036 };
-const BEANIE_WORD = { side: 'front', x: 0, y: 0.0115 };
+// (FN13, DT11: the logo bigger and up off the cuff's foot, as the pictures.)
+export const BEANIE_CREST = { side: 'front', x: 0, y: 0.054 };
+const BEANIE_WORD = { side: 'front', x: 0, y: 0.021 };
 
 const inStripe = (y) => STRIPES.some(([s, h]) => y >= s - h / 2 && y <= s + h / 2);
 
@@ -90,7 +91,7 @@ const BEANIE_THREAD = [[0.00035, -0.00045, 'rgba(0,0,0,0.45)', 0.0012], [0, 0, '
 /** The marks: the crest on the cuff's front and the club's word under it (no names or numbers on a beanie). */
 export async function paintBeanieMarks(painter, design, loadImage, textOutline) {
   mode(design);
-  const k = 1.9; // (FN11, DT10: the logo about twice as big)
+  const k = 2.2; // (FN11, DT10: the logo about twice as big)
   if (design.logoImage) {
     if (design.logoImage !== painter._logoKey) {
       painter._logo = await loadImage(design.logoImage).catch(() => null);
@@ -105,5 +106,5 @@ export async function paintBeanieMarks(painter, design, loadImage, textOutline) 
   // No club logo yet: the 3DEEZI "3" mark (texture.js markShield draws the brand's own picture), as on the tile picture.
   else if (!ownArt || design.marks?.top_crest?.side === 'back') painter.markShield(design, 'crest', BEANIE_CREST, [[0, 0.0105], [0.0095, 0.0058], [0.0074, -0.0063], [0, -0.0105], [-0.0074, -0.0063], [-0.0095, 0.0058]].map(([x, y]) => [x * k, y * k]), 0.0095 * k, 0.014 * k);
   const word = (design.logoText ?? '').trim().toUpperCase();
-  if (word) painter.markText(design, 'wordmark', BEANIE_WORD, word, 0.015 * 1.6, design.accent, 0.08 * 1.6, textOutline);
+  if (word) painter.markText(design, 'wordmark', BEANIE_WORD, word, 0.015 * 1.85, design.accent, 0.08 * 1.85, textOutline);
 }

@@ -11,10 +11,10 @@
  *                         whole kit, zoom, View full size, Uploaded files), SELECTED GARMENTS with SIZES & QUANTITIES
  *                         (size × garment, TOTAL, "N matching kits · M garments", players) and DELIVERY & NOTES;
  *                         'multi' (review-approve-multi-spec.md): U4's section per garment style, then DELIVERY & NOTES
- *                         beside U4's ORDER TOTALS. Both end with the confirm card (Back to Edit, Approve Order,
+ *                         beside U4's ORDER TOTALS. Both end with the confirm card (Back to Edit, Approve & continue to payment,
  *                         disabled until the box is ticked).
  *  - OrderSentPanel       step 3: the order number, View my order, Pay now, start another.
- *  - paymentPath          where Approve Order goes: agent U5's COMPLETE YOUR PAYMENT page (/orders/{number}/pay).
+ *  - paymentPath          where Approve & continue to payment goes: agent U5's COMPLETE YOUR PAYMENT page (/orders/{number}/pay).
  */
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -73,7 +73,7 @@ export interface ReviewDesign {
 }
 export type ReviewLayout = 'kit' | 'multi';
 
-/** Where Approve Order goes once the order and invoice exist: agent U5's COMPLETE YOUR PAYMENT page. */
+/** Where Approve & continue to payment goes once the order and invoice exist: agent U5's COMPLETE YOUR PAYMENT page. */
 export const PAYMENT_PAGE_LIVE = true;
 export const paymentPath = (order: { number: string; id: number }) => (PAYMENT_PAGE_LIVE ? `/orders/${encodeURIComponent(order.number || String(order.id))}/pay` : null);
 
@@ -395,6 +395,27 @@ function FileGlyph({ file, size = 22 }: { file: ReviewFile; size?: number }) {
   return <Icon size={size} strokeWidth={1.6} />;
 }
 
+/** Download PDF / Download Excel: the order confirmation form (images/338) as it stands, from the draft's signed links. */
+function ConfirmationDownloads({ links }: { links: () => Promise<{ pdf: string; excel: string } | null> }) {
+  const [busy, setBusy] = useState<'pdf' | 'excel' | null>(null);
+  const [problem, setProblem] = useState('');
+  const open = async (which: 'pdf' | 'excel') => {
+    setBusy(which); setProblem('');
+    // (A window opened before the wait, so the browser does not block it.)
+    const win = which === 'pdf' ? window.open('about:blank', '_blank') : null;
+    try {
+      const found = await links();
+      if (!found) throw new Error('Save the order first.');
+      if (win) win.location.href = found.pdf; else window.location.href = found.excel;
+    } catch (e) { win?.close(); setProblem((e as Error).message || 'Could not open the confirmation form.'); } finally { setBusy(null); }
+  };
+  return <div className="ora-downloads" data-testid="confirmation-downloads">
+    <button type="button" className="ora-btn is-outline is-small" onClick={() => void open('pdf')} disabled={busy !== null}>{busy === 'pdf' ? <LoaderCircle className="spin" size={16} /> : <FileText size={16} />} Download PDF</button>
+    <button type="button" className="ora-btn is-outline is-small" onClick={() => void open('excel')} disabled={busy !== null}>{busy === 'excel' ? <LoaderCircle className="spin" size={16} /> : <FileSpreadsheet size={16} />} Download Excel</button>
+    {problem && <small className="ora-alert" role="alert">{problem}</small>}
+  </div>;
+}
+
 /** "View files": every file of the order, with a picture where there is one and Download. */
 function FilesDialog({ files, onDownload, onClose }: { files: ReviewFile[]; onDownload?: (f: ReviewFile) => void; onClose: () => void }) {
   const close = useRef<HTMLButtonElement>(null);
@@ -423,6 +444,8 @@ function FilesDialog({ files, onDownload, onClose }: { files: ReviewFile[]; onDo
 
 export interface OrderReviewApproveProps {
   garments: ReviewGarment[];
+  /** The confirmation form's PDF and Excel links (the saved draft's), for Download PDF / Download Excel. */
+  confirmationLinks?: () => Promise<{ pdf: string; excel: string } | null>;
   /** The site's size order (GET /orders/options sizes). */
   sizeOrder?: readonly string[];
   /** The saved design the order is made from: FINAL MOCKUPS draws its front and back. */
@@ -492,7 +515,7 @@ export function OrderReviewApprove(p: OrderReviewApproveProps) {
     return [q.assistContext?.() ?? '',
       `REVIEW & APPROVE ORDER step: ${g.length} garment${g.length === 1 ? '' : 's'} (${g.map(x => `${x.name}: ${s.filter(z => x.sizes[z]).map(z => `${x.sizes[z]} ${z}`).join(', ') || 'no sizes'}`).join('; ')}). ${kitLine(g)}.`,
       `Mockups: ${q.design ? 'drawn from the saved design' : (q.artwork ?? []).length ? 'from the uploaded artwork' : 'prepared by 3DEEZI after approval'}. Files: ${q.files.length}. Delivery: ${q.delivery.method === 'pickup' ? 'pick up' : addressText(q.delivery.address) ? 'to the address given' : 'not given'}; date required ${q.delivery.neededBy || 'not given'}.`,
-      `Confirm box ticked: ${q.agreed ? 'yes' : 'no'}. Approve Order sends the order to 3DEEZI (it stays disabled until the box is ticked); Back to Edit returns to the form; Edit sizes & garments changes the garments and sizes.`,
+      `Confirm box ticked: ${q.agreed ? 'yes' : 'no'}. Approve & continue to payment sends the order to 3DEEZI (it stays disabled until the box is ticked); Back to Edit returns to the form; Edit sizes & garments changes the garments and sizes.`,
     ].filter(Boolean).join(' ').slice(0, 2900);
   })), []);
 
@@ -587,15 +610,16 @@ export function OrderReviewApprove(p: OrderReviewApproveProps) {
       <label className={`ora-check${invalid ? ' is-invalid' : ''}`} htmlFor={checkId}>
         <input id={checkId} type="checkbox" checked={p.agreed} onChange={e => { p.onAgree(e.target.checked); if (e.target.checked) setTried(false); }} aria-invalid={invalid} data-testid="approve-check" />
         <span className="ora-check-box" aria-hidden="true"><Check size={16} strokeWidth={3.2} /></span>
-        <span><strong>{layout === 'multi' ? 'I confirm all garments, sizes, quantities and final mockups are correct.' : 'I confirm the selected garments, sizes, quantities and final mockups are correct.'}</strong><small>Submit your order to 3DEEZI for review.</small></span>
+        <span><strong>I approve the mockups, sizes and garment details.</strong><small>Approval saves this version of your order.</small></span>
       </label>
       {p.error && <p className="ora-alert" role="alert"><CircleAlert size={16} /> {p.error}</p>}
+      {p.confirmationLinks && <ConfirmationDownloads links={p.confirmationLinks} />}
     </div>
     <div className="ora-actions">
       <button type="button" className="ora-btn is-outline" onClick={p.onBack} disabled={p.busy}><ArrowLeft size={19} /> Back to Edit</button>
       <span className="ora-approve-wrap" onClick={() => { if (!p.agreed) setTried(true); }}>
         <button type="button" className="ora-btn is-primary" onClick={approve} disabled={!p.agreed || p.busy} aria-describedby={!p.agreed ? `${checkId}-why` : undefined} data-testid="approve-order">
-          {p.busy ? <><LoaderCircle className="spin" size={19} /> Sending…</> : <>Approve Order <ArrowRight size={19} /></>}
+          {p.busy ? <><LoaderCircle className="spin" size={19} /> Sending…</> : <>Approve &amp; continue to payment <ArrowRight size={19} /></>}
         </button>
         {!p.agreed && <small id={`${checkId}-why`} className={invalid ? 'is-invalid' : ''}>Tick the box to approve.</small>}
       </span>

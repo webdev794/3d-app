@@ -301,16 +301,19 @@ SPECS.varsity = {
 // folds instead of fitting the waist.
 // (FX-H 2026-11-02, DT11: the hoodie pictures' cut: a wider body and long sleeves hanging down near the hem; only the
 // hoodies, the track jackets and varsity keep the older cut copied above.)
-const HOODIE_SLEEVE = [[0.29, 0.69], [0.34, 0.652], [0.505, 0.47], [0.79, 0.16], [0.715, 0.09], [0.47, 0.345], [0.36, 0.47], [0.325, 0.52]];
+const HOODIE_SLEEVE = [[0.29, 0.712], [0.34, 0.672], [0.505, 0.47], [0.79, 0.16], [0.715, 0.09], [0.47, 0.345], [0.36, 0.47], [0.325, 0.52]];
 SPECS.hoodie = {
   ...SPECS.hoodie,
-  half: [[0, 0.69], [0.055, 0.716], [0.1, 0.738], [0.2, 0.718], ...HOODIE_SLEEVE, [0.335, 0.42], [0.345, 0.3], [0.352, 0.16], [0.352, 0.03], [0.27, 0.012], [0.1, 0.002], [0, 0]],
+  half: [[0, 0.69], [0.055, 0.716], [0.1, 0.738], [0.2, 0.732], ...HOODIE_SLEEVE, [0.335, 0.42], [0.345, 0.3], [0.352, 0.16], [0.352, 0.03], [0.27, 0.012], [0.1, 0.002], [0, 0]],
   cuff: [[0.79, 0.16], [0.715, 0.09]],
   points: { CT: [0.79, 0.16], CB: [0.715, 0.09] },
   long: { ...SPECS.hoodie.long, upper: 0.062, wrist: 0.045, length: 0.76 },
-  armDrop: 73,
+  armDrop: 83,   // (FN13, DT11 on -225: the arms hang down by the body, not splayed out; was 73)
   armpitX: 0.325,
   flat: 0.3,
+  // (FN13, DT11 on -236: the waistband drawn in more, the shoulder line flatter and wider below the hood.)
+  hemSqueeze: 0.16,
+  fleece: { hemIn: 0.1, wide: 0.04 }, // (FN14, DT11 on -238: body 4% wider at 40-80% down, the hem band 5% in)
 };
 SPECS.ziphoodie = { ...SPECS.hoodie, zip: true };
 SPECS.raglan = { ...SPECS.tee, loose: true, cuffKeep: 0.07 };
@@ -1016,7 +1019,7 @@ function buildHoodieParts(spec, ctx) {
   } else {
     hemLoop = [...hemIdx.slice().sort(byX).map(vtx), ...hemIdx.slice().sort(byX).reverse().map((i) => vtx(n + i))];
   }
-  const ribs = [buildRib(hemLoop, { dir: new THREE.Vector3(0, -1, 0), length: 0.065, squeeze: 0.03, open: hemOpen })];
+  const ribs = [buildRib(hemLoop, { dir: new THREE.Vector3(0, -1, 0), length: 0.065, squeeze: spec.hemSqueeze ?? 0.03, open: hemOpen })];
   const [ca, cb] = spec.cuff.map(([x, y]) => new THREE.Vector2(x, y)), ab = cb.clone().sub(ca);
   const mid = ca.clone().lerp(cb, 0.5), inward = new THREE.Vector2(ab.y, -ab.x).normalize();
   if (inward.dot(new THREE.Vector2(0.258, 0.61).sub(mid)) < 0) inward.negate();

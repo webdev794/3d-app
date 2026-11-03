@@ -130,7 +130,7 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // fuller towards the hem (`hemFlare`: fuller still, as when it hangs over a full kit's shorts).
   // Fleece: straight down, a little fuller over the waistband, then gathered into it (its rib pulls the hem in).
   const taper = spec.fleece
-    ? (y) => 1 + 0.025 * ramp(0.3, 0.1, y) - spec.fleece.hemIn * ramp(0.06, 0, y)
+    ? (y) => 1 + 0.025 * ramp(0.3, 0.1, y) + (spec.fleece.wide ?? 0) * ramp(0.06, 0.14, y) * ramp(0.56, 0.42, y) - spec.fleece.hemIn * ramp(0.06, 0, y)
     : spec.tight
     // Skin-tight: the athletic V (`chest` broader over the chest and shoulders, `waist` narrower at the waist, a little
     // fuller again over the hips to the hem).
@@ -260,7 +260,7 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // (`armIn`: the arm set this much nearer the neck, the shoulders narrower: the compression top, FM 2026-10-30.)
   const C0 = new THREE.Vector2((xP + xS) / 2 - (spec.armIn ?? 0), (PIT + TOP) / 2), lean = (xS - xP) / (TOP - PIT);
   // (`armDrop`: a top's own hang, the compression top's arms a little out from the body.)
-  const th0 = THREE.MathUtils.degToRad(25), th1 = THREE.MathUtils.degToRad(spec.armDrop ?? 80), R = spec.pads ? 0.03 : 0.085, Lb = R * (th1 - th0);
+  const th0 = THREE.MathUtils.degToRad(spec.armStart ?? 25), th1 = THREE.MathUtils.degToRad(spec.armDrop ?? 80), R = spec.pads ? 0.03 : 0.085, Lb = R * (th1 - th0);
   const rB0 = 0.056;   // arm depth at the armhole
   // The arm's radius down the sleeve; a long sleeve (spec.long) narrows from the upper arm to the wrist.
   // A skin-tight sleeve (`long.shape`: [a, radius] pairs) follows the arm's muscles: the upper arm, narrower at the elbow,
@@ -347,7 +347,7 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const cuffL = (phi) => along(cuffAt, phi);
   let aCuff = rootAt(Math.PI / 2, 1);
   // Short sleeves sit a little stretched over the arm; a long sleeve keeps its length (to the wrist).
-  for (let walked = 0, prev = surface(aCuff, Math.PI / 2, 1); walked < cuffL(Math.PI / 2) * (spec.long ? 1 : 1.15) && aCuff < (spec.long ? 1 : 0.5);) {
+  for (let walked = 0, prev = surface(aCuff, Math.PI / 2, 1); walked < cuffL(Math.PI / 2) * (spec.long ? 1 : spec.sleeveStretch ?? 1.15) && aCuff < (spec.long ? 1 : 0.5);) {
     aCuff += 0.001;
     const next = surface(aCuff, Math.PI / 2, 1);
     walked += next.distanceTo(prev);

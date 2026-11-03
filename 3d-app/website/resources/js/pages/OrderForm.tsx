@@ -3,7 +3,7 @@
  * design or uploaded artwork, sizes and quantities, optional player names and numbers), ③ artwork and design
  * instructions; the order summary and 3DEEZI Assist beside them; Save draft and Review order along the bottom.
  * REVIEW & APPROVE ORDER (components/OrderReviewApprove.tsx) shows it read-only: mockups, garments, the size table, delivery
- * and the price; ticking the confirm box enables Approve Order, which makes ONE order (3DZ-…, idempotency key).
+ * and the price; ticking the confirm box enables Approve & continue to payment, which makes ONE order (3DZ-…, idempotency key).
  *
  * Drafts: kept on this device as you type (localStorage, also signed out) and saved to the account with Save draft
  * (order drafts API, orders-api.md §3). Signed out, the page asks to sign in and carries on with the draft after.
@@ -13,7 +13,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Check, ChevronDown, ClipboardPaste, CreditCard, Info, LoaderCircle, LogIn, Palette, Paperclip, Plus, Settings, Shirt, Trash2, TriangleAlert, X } from 'lucide-react';
 import { api, ApiError, fetchFile, media, type Catalog, type Project, type User } from '../api';
 import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type OrderDetail, type OrderFile, type Payment } from '../orderApi';
-import { AssistCard, ContactDetailsCard, FileDropBox, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSummaryCard, checkFiles, emptyContact, type ContactDetails, type SummaryRow, type UploadItem } from '../components/OrderPageParts';
+import { AssistCard, ContactDetailsCard, FileDropBox, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSteps, OrderSummaryCard, checkFiles, emptyContact, type ContactDetails, type SummaryRow, type UploadItem } from '../components/OrderPageParts';
 import { PriceBreakdown, PricingChoices, type Quote as PayQuote } from '../components/OrderPayment';
 import { OrderReviewApprove, OrderSentPanel, ReviewApproveHeader, layoutFor, paymentPath, type ReviewDesign, type ReviewFile, type ReviewGarment, type ReviewRow } from '../components/OrderReviewApprove';
 import { designRowName } from '../components/orderReviewData';
@@ -355,6 +355,10 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       setSuppliers(makers);
       const kept = formRef.current.supplier_id;
       if (kept && makers.length && !makers.some(s => s.id === kept)) { formRef.current = { ...formRef.current, supplier_id: null }; setFormState(formRef.current); }
+      // ?maker=mantis (the Orders page's "Make with Mantis"): start with that maker when it is offered.
+      const want = params.get('maker')?.toLowerCase();
+      const pick = want && !formRef.current.supplier_id ? makers.find(s => s.name.toLowerCase() === want) : undefined;
+      if (pick && !pick.default) { formRef.current = { ...formRef.current, supplier_id: pick.id }; setFormState(formRef.current); }
       setOptions(prev => ({
         garments: o.garments?.length ? o.garments : prev.garments, sports: o.sports?.length ? o.sports : prev.sports, fits: o.fits?.length ? o.fits : prev.fits, sizes: o.sizes?.length ? o.sizes : prev.sizes,
         files: { artwork: { ...prev.files.artwork, ...(o.files?.artwork ?? {}) }, max_files: o.files?.max_files ?? prev.files.max_files },
@@ -636,7 +640,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       touched.current = false;
       setDraftId(null); draftRef.current = null; setFiles([]); setUploads([]);
       setOrder(placed); setStep('done');
-      // Approve Order made the order and its invoice: on to COMPLETE YOUR PAYMENT once that page is live (else Order sent).
+      // Approve & continue to payment made the order and its invoice: on to COMPLETE YOUR PAYMENT once that page is live (else Order sent).
       const payPage = paymentPath(placed);
       if (payPage) { navigate(payPage); return; }
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -708,13 +712,13 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const describe = () => {
     const f = formRef.current, names = (r: Row) => projects?.find(p => p.id === r.project_id)?.name;
     return [
-      `ORDER FORM (/orders/new, the customer's Create Order Form; not the Artboard). Step: ${step === 'review' ? 'REVIEW & APPROVE ORDER (final mockups, garments, sizes table, delivery & notes; ticking the confirm box enables Approve Order, which places the order; Back to Edit returns to the form)' : step === 'done' ? 'order sent' : 'filling it in'}.`,
+      `ORDER FORM (/orders/new, the customer's Create Order Form; not the Artboard). Step: ${step === 'review' ? 'REVIEW & APPROVE ORDER (final mockups, garments, sizes table, delivery & notes; ticking the confirm box enables Approve & continue to payment, which places the order; Back to Edit returns to the form)' : step === 'done' ? 'order sent' : 'filling it in'}.`,
       `Team / organisation: ${f.contact.team_name.trim() || '(empty)'}. Contact name ${f.contact.contact_name.trim() ? 'filled' : 'empty'}, email ${f.contact.contact_email.trim() ? 'filled' : 'empty'}, phone ${f.contact.phone.trim() ? 'filled' : 'empty'}.`,
       `Garments (${f.rows.length}):`,
       ...f.rows.map((r, i) => `${i + 1}. ${rowName(r, options)}, ${options.fits.find(x => x.id === r.fit)?.name ?? 'no fit'}, ${r.project_id ? `saved design "${names(r) ?? r.project_id}"` : 'no saved design'}, sizes: ${sizesText(r.sizes, options.sizes) || 'not filled yet'}${r.players.length ? `, ${r.players.length} player names` : ''}.`),
       `Made by: ${madeByName}${suppliers.length > 1 ? ` (choices: ${suppliers.map(s => s.name).join(', ')}; the "Made by" box in section 1)` : ''}.`,
       `Artwork files: ${files.length}. Design instructions: ${f.notes.trim() ? 'written' : 'empty'}. Draft ${draftRef.current ? 'saved in the account' : 'not saved to the account yet'}.`,
-      'On this page: + ADD GARMENT adds a garment; "Add sizes" opens its size boxes, chosen by the Fit (Mens and Unisex XS to 4XL, "+ 5XL–8XL" for more; Womens W8 to W20, "+ W22, W24"; Kids 6Y to 16Y, "+ 2Y, 4Y"); "+ Womens sizes" / "+ Kids sizes" under a garment adds the same garment in that fit; the 3DEEZI Assist card has "Help me add sizes" (type e.g. "12 jerseys: 2 S, 4 M, 6 L") and "Use one of my saved designs"; "+ Add player names & numbers" takes a list (Paste from Excel); section 3 takes logos and artwork and the design instructions; Save draft keeps it in the account; REVIEW ORDER opens REVIEW & APPROVE ORDER with the mockups, sizes and price, then the confirm box and Approve Order place it and give a 3DZ- reference.',
+      'On this page: + ADD GARMENT adds a garment; "Add sizes" opens its size boxes, chosen by the Fit (Mens and Unisex XS to 4XL, "+ 5XL–8XL" for more; Womens W8 to W20, "+ W22, W24"; Kids 6Y to 16Y, "+ 2Y, 4Y"); "+ Womens sizes" / "+ Kids sizes" under a garment adds the same garment in that fit; the 3DEEZI Assist card has "Help me add sizes" (type e.g. "12 jerseys: 2 S, 4 M, 6 L") and "Use one of my saved designs"; "+ Add player names & numbers" takes a list (Paste from Excel); section 3 takes logos and artwork and the design instructions; Save draft keeps it in the account; REVIEW ORDER opens REVIEW & APPROVE ORDER with the mockups, sizes and price, then the confirm box and Approve & continue to payment place it and give a 3DZ- reference.',
     ].join('\n').slice(0, 2900);
   };
 
@@ -776,7 +780,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     };
     return <OrderPageLayout className="of-page is-review"
       header={<ReviewApproveHeader step="review" firstStep="Order details" layout={layout} />}
-      main={<OrderReviewApprove garments={garments} sizeOrder={options.sizes} design={reviewDesign} artwork={reviewFiles} files={reviewFiles} filesLabel="Artwork"
+      main={<OrderReviewApprove garments={garments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} sizeOrder={options.sizes} design={reviewDesign} artwork={reviewFiles} files={reviewFiles} filesLabel="Artwork"
         layout={layout} rows={reviewRows} projects={projects} options={options} quote={quote.data as unknown as PayQuote | null} quoteLoading={quote.loading} quoteError={quote.error}
         onEditGarment={i => { const row = form.rows.filter(r => sum(r.sizes) > 0)[i]; if (row) updateRow(row.key, { open: true }); toForm('of-garments'); }}
         onDownload={f => { const file = files.find(x => x.id === f.id); if (file) orderApi.download(file).catch(e => onNotice(`Couldn’t download ${file.name}: ${(e as Error).message}`)); }}
@@ -827,12 +831,12 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
             onChange={players => updateRow(playersRow.key, { players })} onSizes={sizes => updateRow(playersRow.key, { sizes, open: true })} />}
         </div>
       </OrderSection>
-      <OrderSection number={3} title="Artwork & instructions" id="of-artwork">
+      <OrderSection number={3} title="Artwork & files" id="of-artwork">
         <div className="of-artwork">
           <FileDropBox items={dropItems} onFiles={list => void addFiles(list)} onRemove={item => (item.id.startsWith('f') && item.status === 'done' ? void removeFile(Number(item.id.slice(1))) : dropUpload(item))} onRetry={retryUpload}
             extensions={options.files.artwork.extensions} maxKb={options.files.artwork.max_kb} maxFiles={options.files.max_files} label="Upload logos, artwork or a reference"
             hint={`PNG, JPG, SVG, PDF, AI or EPS · up to ${Math.round(options.files.artwork.max_kb / 1024)} MB each`} />
-          <OrderField label="Design instructions" error={shownErrors.notes}>
+          <OrderField label="Notes for your supplier" error={shownErrors.notes}>
             <textarea className="op-input" rows={3} maxLength={4000} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Tell us about colours, logo placement and any special requests..." />
           </OrderField>
         </div>
@@ -840,7 +844,8 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     </>;
 
   return <OrderPageLayout className="of-page"
-    header={<OrderPageHeader current="Create Order Form" title="Create order form" subtitle="Add your team details and garments. Review everything before submitting." />}
+    header={<><OrderPageHeader current="Create Order Form" title="Create order form" subtitle="Build your order step by step." />
+      <OrderSteps steps={[{ label: 'Details', target: 'of-contact' }, { label: 'Garments', target: 'of-garments' }, { label: 'Artwork', target: 'of-artwork' }, { label: 'Review' }]} onReview={() => void review()} /></>}
     main={main} side={side}
     bar={<OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} primary={{ label: 'Review order', onClick: () => void review() }} note="Reviewing does not submit your order." status={statusText} />} />;
 }

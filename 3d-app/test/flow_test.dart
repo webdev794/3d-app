@@ -217,7 +217,7 @@ void main() {
     await tapText(tester, 'View My Projects');
     expect(c.screen, AppScreen.projects);
     expect(find.text('Thunder Home'), findsOneWidget);
-    await tapText(tester, 'DYO Designs');
+    await tapText(tester, 'DYO');
     expect(find.text('Thunder Home'), findsOneWidget);
     expect(find.text('Warriors Concept'), findsNothing);
   });

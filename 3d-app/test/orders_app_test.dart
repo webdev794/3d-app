@@ -259,17 +259,24 @@ Future<void> tap(WidgetTester tester, Finder target) async {
 }
 
 void main() {
-  testWidgets('My Orders: stage tabs, cards, and approving a proof in the order', (tester) async {
+  testWidgets('My Orders: one list with search and filters (images/339), cards, and approving a proof in the order', (tester) async {
     final server = OrdersServer();
-    // Wide enough for the test font's stage tabs side by side.
     await mount(tester, OrdersBoardScreen(signedIn(server)), width: 1000);
-    expect(find.text('Order Received 1'), findsOneWidget);
     expect(find.text('MANTIS Rugby League'), findsOneWidget);
     expect(find.text('Order received'), findsOneWidget);
-    await tap(tester, find.byType(ChoiceChip).at(1));
     expect(find.text('Club Hoodies'), findsOneWidget);
+    // Action needed: only the order waiting on the customer; search finds by name.
+    await tap(tester, find.byKey(const ValueKey('my-orders-filter-action')));
+    expect(find.text('MANTIS Rugby League'), findsNothing);
+    expect(find.text('Club Hoodies'), findsOneWidget);
+    await tap(tester, find.byKey(const ValueKey('my-orders-filter-all')));
+    await tester.enterText(find.byKey(const ValueKey('my-orders-search')), 'mantis');
+    await tester.pumpAndSettle();
+    expect(find.text('Club Hoodies'), findsNothing);
+    await tester.enterText(find.byKey(const ValueKey('my-orders-search')), '');
+    await tester.pumpAndSettle();
     expect(find.text('Approval needed'), findsOneWidget);
-    expect(find.text('REVIEW DESIGN →'), findsOneWidget);
+    expect(find.text('Review order →'), findsOneWidget);
     await tap(tester, find.text('Club Hoodies'));
     expect(find.text('Proof v1'), findsOneWidget);
     expect(find.byTooltip('Download logo.png'), findsOneWidget);
@@ -831,7 +838,7 @@ void main() {
       await tap(tester, find.byKey(const Key('approve-check')));
       // The price list has no pick-up price: the quote asks for PICKUP (no shipping), the order leaves it to the server.
       expect((server.quotes.last['pricing'] as Map)['destination'], 'PICKUP');
-      await tap(tester, find.text('APPROVE ORDER'));
+      await tap(tester, find.text('APPROVE & CONTINUE TO PAYMENT'));
       final sent = server.submitted.single;
       expect(sent['delivery'], 'pickup');
       expect((sent['pricing'] as Map?)?['destination'], isNull);

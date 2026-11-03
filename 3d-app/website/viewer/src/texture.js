@@ -2451,12 +2451,11 @@ export class KitPainter {
       if (body && !own('collar') && !ownBody) { g.translate(0, HOOD_TOP - 0.78); this.gradientFill(body); }
       // (FN13, DT11: the Basketball tracksuit picture's cyan edge along the collar's top.)
       if (own('sideBlade')) {
-        g.strokeStyle = own('side') ?? trim;
-        g.lineWidth = 0.009;
-        for (const piece of this.piecesOn(true)) {
-          const foot = piece.filter((p) => p.y < HOOD_TOP - 0.012);
-          g.beginPath(); foot.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke();
-        }
+        // (The collar piece runs from the neck seam (HOOD_TOP) up its outside, over the rolled top and down inside: cyan
+        // from 2.6 cm up, so its top edge and inside read cyan as in the picture.)
+        if (body && !own('collar') && !ownBody) g.translate(0, 0.78 - HOOD_TOP);
+        g.fillStyle = own('side') ?? trim;
+        g.fillRect(-0.8, HOOD_TOP - 0.5, 1.6, 0.5 - 0.026);
       }
       g.restore();
     }

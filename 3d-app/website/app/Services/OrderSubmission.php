@@ -83,6 +83,11 @@ class OrderSubmission
         }
         $order = $user->orders()->make(Arr::except($data, ['design_final', 'project_version', 'draft_id', 'idempotency_key', 'items', 'pricing', 'delivery', 'address', 'supplier_id']));
         $order->forceFill(['idempotency_key' => $key]);
+        // Sending the order is the customer's approval of the confirmation (the mockups, sizes and garment details,
+        // images/336): its record for the confirmation form (images/338). Version 1 is the version approved.
+        if (\Illuminate\Support\Facades\Schema::hasColumn('orders', 'approved_at')) {
+            $order->forceFill(['version' => 1, 'approved_by' => trim((string) ($user->name ?: $user->email)), 'approved_at' => now()]);
+        }
         // Who makes it (preferred suppliers, task 9.118): the one chosen, else 3DEEZI.
         \App\Models\Supplier::assign($order, $data['supplier_id'] ?? null);
         // The customer's pricing choices, for the invoice (payments-api.md R3).

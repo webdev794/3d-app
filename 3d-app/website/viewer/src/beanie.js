@@ -54,21 +54,29 @@ const ring = (f) => new THREE.Vector2(Math.sin(f) / A, Math.cos(f) / B).normaliz
 function cuffAt(s, v) {
   const f = phiAt(s), n = ring(f);
   // Out from the head: loose, plus the fold's thickness, rounding in at the foot and over the fold at the top.
-  const round = 0.0024 * (Math.sqrt(Math.max(0, 1 - ((v - 0.5) / 0.5) ** 8)) - 1);
+  // (FN13, DT11: square at the foot; only the folded top rounds over.)
+  const round = v < 0.5 ? 0 : 0.0024 * (Math.sqrt(Math.max(0, 1 - ((v - 0.5) / 0.5) ** 8)) - 1);
   const d = LOOSE + PROUD + round + 0.0009 * Math.abs(Math.sin(36 * f));
-  return new THREE.Vector3(A * Math.sin(f) + n.x * d, FOOT_Y + v * CUFF_H, B * Math.cos(f) + n.y * d);
+  // (FN13, DT11: the cuff flares a little to its foot, not curling in.)
+  const foot = SHAPE.w * 1;
+  return new THREE.Vector3((A * Math.sin(f) + n.x * d) * foot, FOOT_Y + v * CUFF_H, (B * Math.cos(f) + n.y * d) * foot);
 }
 /** The crown at (arc s round its foot, v 0 at the cuff's top .. 1 at the top): a full dome (a superellipse). */
 const Y0 = FOOT_Y + CUFF_H - 0.004;
+// (FN13, DT11 on -225: the pom-pom beanie fuller up top and 5% wider; the NFL beanie (no pom-pom) narrower with a
+// taller, rounder dome.)
+const POM_SHAPE = { exp: 2.3, w: 1.05, h: 1.03, top: 4 }, PLAIN_SHAPE = { exp: 2.2, w: 0.995, h: 1.19 };
+let SHAPE = POM_SHAPE;
 function crownAt(s, v, plain = false) {
   const f = phiAt(s), n = ring(f), a = (v * Math.PI) / 2;
-  const r = Math.cos(a) ** (2 / 2.3), h = Math.sin(a) ** (2 / 2.3); // (FN13, DT11: domed, was 3.4)
+  // (FN13, DT11 on -233: the pom-pom beanie's crown fuller just under the pom-pom: a squarer curve high up.)
+  const e = SHAPE.exp + (SHAPE.top ?? 0) * Math.max(0, Math.min(1, (v - 0.45) / 0.4)), r = Math.cos(a) ** (2 / e), h = Math.sin(a) ** (2 / SHAPE.exp); // (FN13, DT11: domed, was 3.4)
   // Soft knit: slow waves round it, gone towards the top.
   const wave = plain ? 0 : 0.0007 * Math.sin(5 * f + 0.7) * Math.sin(Math.PI * v) * (1 - v);
   // (FN11: clear vertical knit ribs, fading over the top.)
   const rib = plain ? 0 : 0.0011 * Math.abs(Math.sin(36 * f)) * (1 - v) ** 0.6;
   const d = LOOSE + wave + rib;
-  return new THREE.Vector3((A * Math.sin(f) + n.x * d) * r, Y0 + CROWN_H * h, (B * Math.cos(f) + n.y * d) * r);
+  return new THREE.Vector3((A * Math.sin(f) + n.x * d) * r * SHAPE.w, Y0 + CROWN_H * SHAPE.h * h, (B * Math.cos(f) + n.y * d) * r * SHAPE.w);
 }
 const TOP = crownAt(0, 1, true);
 const POM_C = new THREE.Vector3(0, TOP.y + POM_R * 0.82, 0);
@@ -101,6 +109,7 @@ function normalOf(fn, a, b, da, db, out) {
 
 /** Builds the beanie. Returns what buildGarment does (main.js treats it as a garment), with `form(material)`. */
 export function buildBeanie({ detail = false, pom = true } = {}) { // eslint-disable-line no-unused-vars
+  SHAPE = pom ? POM_SHAPE : PLAIN_SHAPE;
   const C = BEANIE_C, half = (C / 4) * 1.04;
   const minX = -half - 0.006, maxX = half + 0.006, minY = -0.004, maxY = BEANIE_POM.y + BEANIE_POM.h + 0.008;
   const span = Math.max(maxX - minX, maxY - minY) * 1.02;

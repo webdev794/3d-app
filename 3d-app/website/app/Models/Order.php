@@ -119,6 +119,10 @@ class Order extends Model
     protected static function booted(): void
     {
         static::saving(function (Order $order) {
+            // The confirmation's version (images/338): up by one when a sent order's garments, sizes or players change.
+            if ($order->exists && $order->isDirty(['items', 'sizes', 'players']) && \Illuminate\Support\Facades\Schema::hasColumn('orders', 'version')) {
+                $order->version = (int) ($order->getOriginal('version') ?: 1) + 1;
+            }
             if ($order->isDirty(['names', 'players'])) {
                 $order->players = self::tidyPlayers($order->names, $order->players);
             }

@@ -227,3 +227,7 @@
 }
 .ora-facts dd small.ora-warn{color:#ffbc75}
 .ora>.ora-summary-row{margin:-4px 0 0}
+
+/* Download PDF / Download Excel: the order confirmation form (client 2026-11-03, images/336). */
+.ora-downloads { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.ora-downloads .ora-btn.is-small { min-height: 40px; padding: 8px 16px; font-size: 14px; }

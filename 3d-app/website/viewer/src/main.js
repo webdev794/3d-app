@@ -301,7 +301,7 @@ function buildKit(kind) {
   const rugbyCut = !layout && list.includes('jersey') && HEX6.test(design.zoneColors?.sweep ?? '');
   const plainShorts = !layout && HEX6.test(design.zoneColors?.shortsPlain ?? '') ? (HEX6.test(design.zoneColors?.shortsNarrow ?? '') ? 'n' : 'p') : '';
   const noCord = !!plainShorts || rugbyCut;
-  const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '') + (kind === 'beanie' && HEX6.test(design.zoneColors?.beanieOne ?? '') ? ':nopom' : '') + (list.includes('trackpants') && HEX6.test(design.zoneColors?.sideBlade ?? '') ? ':jog' : '') + (teeFlare ? `:flare${design.zones?.sides ? 's' : ''}` : '') + (teeLong ? ':long' : '') + (rugbyCut ? ':rugcut' : '') + (plainShorts ? `:plain${plainShorts}` : '') + (varsityBoxy ? ':boxy' : '') + (list.includes('jersey') && HEX6.test(design.zoneColors?.wingCollar ?? '') ? ':soccer' : '');
+  const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '') + (kind === 'beanie' && HEX6.test(design.zoneColors?.beanieOne ?? '') ? ':nopom' : '') + (list.includes('trackpants') && HEX6.test(design.zoneColors?.sideBlade ?? '') ? ':jog' : '') + (teeFlare ? `:flare${design.zones?.sides ? 's' : ''}${HEX6.test(design.zoneColors?.teeNetball ?? '') ? 'n' : ''}` : '') + (teeLong ? ':long' : '') + (rugbyCut ? ':rugcut' : '') + (plainShorts ? `:plain${plainShorts}` : '') + (varsityBoxy ? ':boxy' : '') + (list.includes('jersey') && HEX6.test(design.zoneColors?.wingCollar ?? '') ? ':soccer' : '') + (list.includes('nfljersey') && HEX6.test(design.zoneColors?.badge ?? '') ? ':game' : '');
   if (key === currentKind) return;
   currentKind = key;
   const geometries = new Set();
@@ -319,7 +319,7 @@ function buildKit(kind) {
     const over = partKind === 'raglan' && layout && list.includes('shorts') ? { ...SPECS.raglan, hemFlare: 0.09 } : null;
     // (The crew-neck jersey: the tee's neck on the jersey's raglan body; its fabric lies smoother, fewer creases and less
     // relief, as the Full kit picture's matt knit.)
-    const style = (partKind === 'polo' || partKind === 'pocketpolo') && zipPolo ? { ...SPECS[partKind], rim: { ...SPECS[partKind].rim, width: 0.03, stand: 0.021 }, crease: 0.45, relief: 0.6 } : partKind === 'trackjacket' && trackHood ? (list.includes('trackpants') ? SPECS.trackjacketHoodSuit : SPECS.trackjacketHood) : partKind === 'trackjacket' && list.includes('trackpants') ? SPECS.trackjacketSuit : partKind === 'tee' && teeFlare ? { ...wideSleeve(SPECS.tee), armDrop: TEE_FLARE.armDrop, hemFlare: design.zones?.sides ? TEE_FLARE.sidesHem : TEE_FLARE.hemFlare } : partKind === 'tee' && teeLong ? longTee(SPECS.tee) : partKind === 'shorts' && plainShorts ? plainShortsSpec(plainShorts === 'n') : partKind === 'varsity' && varsityBoxy ? { ...((s) => ({ ...s, half: [...VARSITY_BOXY.vNeck, ...s.half.slice(3)] }))(longTee(SPECS.varsity, VARSITY_BOXY.sleeve)), neckLine: VARSITY_BOXY.neckLine, varsityV: { placketTop: VARSITY_BOXY.placketTop, topSnap: VARSITY_BOXY.topSnap }, neck: VARSITY_BOXY.neck, rim: VARSITY_BOXY.rim, varsityRib: VARSITY_BOXY.rib, varsityCollarSqueeze: 0, varsityCollarSmooth: true } : partKind === 'jersey' && crewKit ? { ...SPECS.jersey, half: SPECS.tee.half, neck: SPECS.tee.neck, rim: SPECS.tee.rim, crew: true, crease: 0.45, relief: 0.6 } : null;
+    const style = (partKind === 'polo' || partKind === 'pocketpolo') && zipPolo ? { ...SPECS[partKind], rim: { ...SPECS[partKind].rim, width: 0.03, stand: 0.021 }, crease: 0.45, relief: 0.6 } : partKind === 'trackjacket' && trackHood ? (list.includes('trackpants') ? SPECS.trackjacketHoodSuit : SPECS.trackjacketHood) : partKind === 'trackjacket' && list.includes('trackpants') ? SPECS.trackjacketSuit : partKind === 'tee' && teeFlare ? { ...SPECS.tee, ...teeSport(design).spec } /* (FN13, DT11 on -224: the plain garment-tee's shape, which passes) */ : partKind === 'tee' && teeLong ? longTee(SPECS.tee) : partKind === 'shorts' && plainShorts ? plainShortsSpec(plainShorts === 'n') : partKind === 'varsity' && varsityBoxy ? { ...((s) => ({ ...s, half: [...VARSITY_BOXY.vNeck, ...s.half.slice(3)] }))(longTee(SPECS.varsity, VARSITY_BOXY.sleeve)), neckLine: VARSITY_BOXY.neckLine, varsityV: { placketTop: VARSITY_BOXY.placketTop, topSnap: VARSITY_BOXY.topSnap }, neck: VARSITY_BOXY.neck, rim: VARSITY_BOXY.rim, varsityRib: VARSITY_BOXY.rib, varsityCollarSqueeze: 0, varsityCollarSmooth: true } : partKind === 'jersey' && crewKit ? { ...SPECS.jersey, half: SPECS.tee.half, neck: SPECS.tee.neck, rim: SPECS.tee.rim, crew: true, crease: 0.45, relief: 0.6 } : null;
     // Look 2: the drape and wrinkles of worn cloth (otherwise the garment as before).
     const garment = partKind === 'socks' ? buildSocks({ detail: LOOK2, split: splitToe }) : partKind === 'bballshorts' ? buildBballShorts({ detail: LOOK2 }) : partKind === 'trackpants' ? buildTrackPants({ detail: LOOK2, jogger: HEX6.test(design.zoneColors?.sideBlade ?? '') }) : partKind === 'skirt' ? buildSkirt({ detail: LOOK2 }) : partKind === 'cap' ? buildCap({ detail: LOOK2, five: kind === 'five-panel-cap' }) : partKind === 'bucket-hat' ? buildBucketHat({ detail: LOOK2 }) : partKind === 'beanie' ? buildBeanie({ detail: LOOK2, pom: !HEX6.test(design.zoneColors?.beanieOne ?? '') }) : buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: rugbyJerseyCut(partKind, rugbyCut, soccerCut(partKind, design, neck || rugby || (fit && partKind === 'jersey') ? fitSpec(collarSpec(neckCut(partKind, own ?? over ?? style ?? SPECS[partKind], neck), rugby), partKind === 'jersey' ? fit : null) : layout ? own ?? over ?? style : roundBack(partKind, own ?? over ?? style ?? SPECS[partKind]))), detail: LOOK2 });
     const painter = new KitPainter(garment.frame, garment.outline, printSize(partKind), partKind);
@@ -543,8 +543,12 @@ function buildKit(kind) {
     // The cap is shown a little larger than life (cap.js CAP_DISPLAY), so it fills the stage as the others do.
     const stretch = partKind === 'shorts' && layout ? 1.12 : garment.display ?? 1;
     group.scale.setScalar(stretch);
+    // (FN13, DT10: the Game Jersey picture (zoneColors.badge) is cut much wider over the shoulder pads than tall.)
+    if (partKind === 'nfljersey' && HEX6.test(design.zoneColors?.badge ?? '')) group.scale.x *= NFL_GAME_WIDE;
+    // (FN13, DT11 on -227: the rugby / netball / NFL training tees' pictures are wide, boxy tees (h/w about 1.02).)
+    if (partKind === 'tee' && teeFlare) group.scale.x *= teeSport(design).wide;
     // (FX-H 2026-11-02, DT11: the hoodies broader from the front, as the pictures (the form's shoulders fix the cut's width).)
-    if (partKind === 'hoodie' || partKind === 'ziphoodie') group.scale.x *= 1.1;
+    if (partKind === 'hoodie' || partKind === 'ziphoodie') group.scale.x *= 1.11; if (partKind === 'hoodie') group.scale.y *= 1.03; // (FN14: the lower hood's height back) // (FN13, DT11 on -230/-231: wider, h/w 1.20)
     if (partKind === 'varsity' && varsityBoxy) { group.scale.x *= VARSITY_BOXY.wide; group.scale.z *= VARSITY_BOXY.wide; group.scale.y *= VARSITY_BOXY.tall; }
     // In a full kit the jersey sits over the shorts' waistband.
     // Look 2: a garment shown on a form with legs (the netball dress) stands a little higher (garment.js lift).
@@ -857,17 +861,27 @@ function longTee(spec, by = 0.05) {
   const [[ax, ay], [bx, by0]] = spec.cuff, dx = (ax + bx) / 2 - 0.258, dy = (ay + by0) / 2 - 0.6, l = Math.hypot(dx, dy);
   const mv = ([x, y]) => [x + (by * dx) / l, y + (by * dy) / l];
   const on = (q) => spec.cuff.some(([x, y]) => x === q[0] && y === q[1]);
-  return { ...spec, half: spec.half.map((q) => (on(q) ? mv(q) : q)), cuff: spec.cuff.map(mv) };
+  // (FN13: the cuff's corners (`points` CT / CB) move with it, so the cuff band and its edge follow the new sleeve end.)
+  const cuff = spec.cuff.map(mv);
+  return { ...spec, half: spec.half.map((q) => (on(q) ? mv(q) : q)), cuff, points: { ...spec.points, CT: cuff[0], CB: cuff[1] } };
 }
 // (`sidesHem`: the rugby and netball tees (side panels) flare less than the NFL tee: DT10 on -196.)
 // (FN13, the client: the football (soccer) jersey slim and light, not padded: hanging loose from a natural shoulder,
 // its sleeves out from the body at the tile picture's angle.)
 const SOCCER_CUT = { loose: true, armDrop: 63 };
-const soccerCut = (partKind, design, spec) => (partKind === 'jersey' && spec && HEX6.test(design.zoneColors?.wingCollar ?? '') ? { ...spec, ...SOCCER_CUT } : spec);
+const soccerCut = (partKind, design, spec) => (partKind === 'nfljersey' && spec && HEX6.test(design.zoneColors?.badge ?? '') ? { ...spec, armDrop: 70, pads: 0.1, hemFlare: -0.08, sleeveStretch: 1.55 } : partKind === 'jersey' && spec && HEX6.test(design.zoneColors?.wingCollar ?? '') ? { ...spec, ...SOCCER_CUT } : spec);
 // (FX-V round 2, DT11 on -211: sleeves to the hem, cuffs half as tall, a plain narrower rib collar.)
 const VARSITY_BOXY = { sleeve: 0.17, wide: 1.2, tall: 0.96, rib: { cuff: 0.035, waist: 0.09, collar: 0.07 }, neck: { drop: 0.115, half: 0.1 }, rim: { drop: 0.12, half: 0.11, radius: 0.009 },
   // (FX-V round 5, the picture: a V-shaped rib collar, narrower at the top, opening down to the top snap.)
   vNeck: [[0, 0.625], [0.05, 0.685], [0.095, 0.736]], neckLine: (ax) => 0.625 + ax * 1.17, placketTop: 0.628, topSnap: 0.597 };
+const NFL_GAME_WIDE = 1.24;
+// (FN13, DT11 on -232: each training tee its own picture's cut: NFL (no side panels), netball (zoneColors.teeNetball),
+// rugby (side panels).)
+function teeSport(design) {
+  if (HEX6.test(design.zoneColors?.teeNetball ?? '')) return { wide: 1.09, spec: { sleeveStretch: 1.5, armDrop: 70 } };
+  if (design.zones?.sides) return { wide: 1.14, spec: { sleeveStretch: 1.55, armDrop: 70, hemFlare: 0 } };
+  return { wide: 1.15, spec: { sleeveStretch: 1.6, hemFlare: 0.03 } };
+}
 const TEE_FLARE = { armDrop: 53, hemFlare: 0.28, sidesHem: 0.14 };
 // (FX-R, DT10: the rugby jersey picture's cut: sleeves out at the picture's angle, the body wider and flaring to the hem.)
 const RUGBY_CUT = { armDrop: 36, hemFlare: 0.1, widen: 1, wideBody: 0.19 };

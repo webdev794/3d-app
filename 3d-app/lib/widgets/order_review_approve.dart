@@ -533,6 +533,8 @@ List<Widget> orderReviewApprove(
   Widget? error,
   required VoidCallback onBack,
   required VoidCallback onApprove,
+  // Download PDF / Download Excel: the order confirmation form (images/336, 338), when the draft is saved.
+  void Function(String which)? onDownloadConfirmation,
 }) {
   final multi = layout == 'multi' && garments.isNotEmpty;
   final sizes = reviewSizeColumns(garments);
@@ -737,14 +739,12 @@ List<Widget> orderReviewApprove(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          multi
-                              ? 'I confirm all garments, sizes, quantities and final mockups are correct.'
-                              : 'I confirm the selected garments, sizes, quantities and final mockups are correct.',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        const Text(
+                          'I approve the mockups, sizes and garment details.',
+                          style: TextStyle(fontWeight: FontWeight.w700),
                         ),
                         const Text(
-                          'Submit your order to 3DEEZI for review.',
+                          'Approval saves this version of your order.',
                           style: TextStyle(
                             color: Palette.muted,
                             fontSize: 12.5,
@@ -758,10 +758,34 @@ List<Widget> orderReviewApprove(
             ),
           ),
           if (error != null) error,
+          if (onDownloadConfirmation != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('confirmation-pdf'),
+                    onPressed: () => onDownloadConfirmation('pdf'),
+                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                    label: const Text('Download PDF'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('confirmation-excel'),
+                    onPressed: () => onDownloadConfirmation('excel'),
+                    icon: const Icon(Icons.table_chart_outlined, size: 18),
+                    label: const Text('Download Excel'),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           GradientButton(
             key: const Key('approve-order'),
-            label: busy ? 'SENDING…' : 'APPROVE ORDER',
+            label: busy ? 'SENDING…' : 'APPROVE & CONTINUE TO PAYMENT',
             icon: Icons.arrow_forward,
             onPressed: agreed && !busy ? onApprove : null,
           ),

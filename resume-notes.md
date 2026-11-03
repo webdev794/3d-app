@@ -1,29 +1,32 @@
 # Resume notes
 
-Updated 2026-11-02 (afternoon). Only what's needed to continue; older history is in tasks.md and detail-checks.md.
-- SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder images\NNN (latest 307).
+Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md and detail-checks.md.
+- SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder images\NNN (latest 329).
+
+## START HERE (2026-11-03)
+1. Check that SP\viewer.lock and SP\vite.lock are free; run `dart analyze lib` (in D:\3d-app\3d-app) and `npx tsc --noEmit` (in website): both were clean at 18:53.
+2. Ask the user whether they extracted tar 3deez-update-2026-11-02-d on live (if not, it is the only one needed). Live steps: migrate --force, optimize:clear, Ctrl+Shift+R.
+3. Restart the model work (the user's rule: one fixer + one tester on models, plus separate agents for separate tasks; watch memory). Resume each agent with SendMessage, from its log:
+   - Tester DT11 a1d108b7550d1d493 (SP\DT11\log.md). Test order: netball dress, hooded tracksuits, tees, bball tracksuit jacket (-218+); beanies (-222+); team hoodie (-223); rugby jerseys / shorts (-219); NFL varsity (-224). It renders itself, opens models fresh, ends with Verdict PASS / FAIL.
+   - FN13 accf4dbe710501ba3 (SP\FN\FN13\log.md, PAUSE section): merge the bigger beanie logo, NFL Game jersey shoulders (1.58 -> 1.95), Game Kit top = game jersey, tops (compression muscles + notch, singlet racer-back, bibs cyan binding + open sides, club polo), soccer sleeves, bball jacket collar edge, tee sleeve flecks (LT2 thinks the new tee sleeve shape, not the lighting).
+   - FX-R aa634a8747e960d3d (SP\FN\FX-R\log.md): round 3 is in its copy (rugby sleeves to 40%, kit socks, shorts widths, logo 2.1); render, then merge against base3.
+   - FX-H afc573aa532704c3c (SP\FN\FX-H\log.md): NFL hoodie to .88 wide, hood lying back (swap the lining faces first), armpit ripples.
+   - FX-V a0727b40c92ddf306 (SP\FN\FNV\log.md): render and measure the NFL varsity V collar at -224 (target .158 / .207 / .237 at 1 / 3 / 5%), stripes, top snap.
+   - Shared fixer brief SP\FN\split-brief.md. ALWAYS merge with git merge-file against your own base (a whole-file copy once lost changes).
+4. Blender (BL1 aaf8c3e27097e15c2, SP\BL1\log.md; Blender at D:\Blender\blender-4.2.23-windows-x64): realistic folds for the FINISHED models (shooting shirt first). The user's idea: the display form's arms crumple the sleeves, so leave the arms out of the collision (or use a smooth sleeve-shaped proxy) and use looser fabric. Send 2 big images (front + 3/4, before | after). I check them before the user sees them (truly new folds, no crumple, print aligned). BL1 found two causes: the form's right arm mesh was inside-out (crumpled the right sleeve), and self-collision pulls the shirt together so the hem rises. With the arms left out the test run stays in shape (not yet rendered). Nothing is merged; it lives only behind ?cloth=1 in BL1's copy.
+5. Mobile home (Builder A a5a5461b873c70d9e, SP\HB1\log.md): round 4 done and pushed; waiting for the client's reply. Preview: http://192.168.18.113:8088 (node scripts\serve_preview.mjs --lan in D:\3d-app\3d-app).
+6. After each finished batch: update task-done-today.md (clear yesterday's items first; Finished list only after a tester PASS), make a delta tar (copy SP\final-pack-1102d.sh with REF = the -d tar) and push v3 when the user says.
 
 ## State
-- Local folder on branch v6 (work uncommitted). GitHub: v3 = 9f17e7b (2026-11-02 12:2x, all work to viewer -180), v2 = ffd179c, main = 2d9b553.
-- Today's push goes to **v3** (script SP\final-push-v3.sh: parents v3 + v2, tree = v2 + local work, no force; message file SP\push-v3-msg.txt, update it first).
-- Live = https://testcaresortwork.co.in/3deez/. The user extracts the tar there. Everything up to tar 3deez-update-2026-10-30-d.tar.gz is already uploaded, so today's tar needs ONLY files changed since then (plus public/build). Pack script SP\final-pack-1102a.sh (change it to a since-10-30-d list before running).
-- Live steps for today's tar: `php artisan migrate --force` (new column assets.source_id from UP1), then `php artisan optimize:clear`. PHP upload limits upload_max_filesize >= 26M, post_max_size >= 36M. Optional, for EPS / PSD files: Imagick, Ghostscript or a CloudConvert key.
-- DONE 12:20: tar D:\3d-app\deploy-zips\3deez-update-2026-11-02-a.tar.gz (103 files, 5.4 MB, only changes since 10-30-d, viewer -180) + v3 push 9f17e7b. NEXT at 98%: NK1 V-neck fix, then tar -b (SP\final-pack-1102b.sh, changes since 11-02-a) + v3 push again.
-- All other agents PAUSED 12:2x at safe points (logs: SP\FN\FN10\log.md queue, SP\CP1\log.md, SP\SM1\log.md, SP\NK1\log.md, SP\DT10\log.md).
-- Viewer is about 2026-10-20-177. Drive D has only about 1 GB free: keep test output small.
-
-## Agents (2026-11-02). The user: models use only TWO agents (one tester + one fixer); other tasks get their own agent.
-- **DT10 a1b800c1918235f8d**: the model tester (gatekeeper). Reads SP\tester-checklist.md and SP\DT8\user-points.md (the user's own points per model, add every new one). Log SP\DT10\log.md. It opens each model FRESH from its tile.
-- **FN10 aaf2b46a28116e662**: the only model fixer. Works DT10's FAIL lists in order; written queue in SP\FN\FN10\log.md. Now: tracksuits (track pants with the jacket on the Tracksuit tiles, a clean stand-up collar, level chest logos; Athletics track jacket: ONLY level the chest logo and wordmark). Then: socks top band + brighter hoops, netball dress, tees, hoodie, varsity, rugby league / union, shorts, full kit shorts, NFL Game jersey shoulders + Game Kit top, compression top muscles, singlet racer-back, training bibs, club polo / darts. The football jersey points wait for DT10's fresh re-check.
-- **CP1 a05af6a2d10a82b90**: Headwear (9.166): the cap artwork lands on the 3D cap (done); the HEADWEAR DYO tile (done); next the beanie with pom-pom and the 5-panel cap 3D models; "Caps" get a 6-panel variant; both 3DEEZI marks (BR1 notes). Log SP\CP1\log.md.
-- **SM1 ac5d9916654eb157f**: Signage & Marquees (9.168): website done (menu, /signage, 3D marquee, Marquee Studio, save / export / review / order, no migration); fixing the "2 garments" wording; next the app. Spec SP\SM1\spec.md, log SP\SM1\log.md.
-- **Builder A a5a5461b873c70d9e**: mobile bubble home (9.163), phones only; round 3 done (client 301-302 feedback, the glass nav on all phone screens, the tutorial). Client files in SP\HB1\client (idle PNG + drag GIF). Free now. The classic home stays the default (kBubbleHomeDefault = false) until the client approves.
-- Finished today (no longer running): UP1 (9.167), CU1 (9.165), LT1 (9.164), AD1 (9.171), BR1 (9.169), NK1 (9.170), FN9, ND2. Their logs are in SP\<name>\log.md.
+- Local branch v6 (work uncommitted). GitHub v3 = 88fbf1b (2026-11-02 18:5x, viewer -224), v2 = ffd179c, main = 2d9b553.
+- Live = https://testcaresortwork.co.in/3deez/ (the user extracts delta tars). Last tar: 3deez-update-2026-11-02-d.tar.gz (all of 11-02 since 10-30-d).
+- Finished 3D models (tester PASS): skirts, shooting shirt, basketball shorts, caps, bucket hat, socks, 5 panel cap, netball dress, varsity jacket.
+- Done today (11-02): design file uploads, Custom sport / garment, calmer lighting + edge highlight, AI designer open preview, 3DEEZI marks on every item, Studio Style (neck) + rugby collars + fits, Signage & Marquees, Headwear, Tracksuit item, mobile bubble home, garment list follows the sport.
+- Drive D is tight (about 2 GB free): keep test output small.
 
 ## Waiting on the user
 - questions.md 1: Airwallex demo keys. questions.md 2: a small "3" + 3DEEZI under the back collar on customers' own AI / artwork kits?
-- The user hasn't said yes to a second model fixer (offered several times).
-- Socks on kits (Full kit, Rugby League kit, Game Kit) were decided yes (tasks.md); the fixer queue line 19 in SP\FN\queue.md.
+- The client's reply on the mobile home round 4.
 
 ## Rules
 - Keep this file short; delete what's done. task-done-today.md is shown to the client (only direct tasks).
@@ -41,51 +44,24 @@ Updated 2026-11-02 (afternoon). Only what's needed to continue; older history is
 - FN12 stopped (memory full) at -199. FN13 = the only model fixer now (queue in SP\FN\FN13\log.md, from FN12's HANDBACK). Tar 3deez-update-2026-11-02-c.tar.gz (16:29, viewer -196, all of today since 10-30-d) was given to the user for live; v3 = 53b85c9.
 - DT10 stopped (it had started relying on the fixers' screenshots); DT11 a1d108b7550d1d493 is the model tester now: it renders every model itself, opened fresh from its tile, and ends each report with Verdict: PASS / FAIL. FN13 accf4dbe710501ba3 is the fixer. Netball dress PASSED (-198), on the Finished list.
 
-## Now (2026-11-02 evening) - user: only 3 agents: 1 model fixer + 1 model tester + 1 on new tasks
-- FN13 accf4dbe710501ba3 (model fixer): queue in SP\FN\FN13\log.md: soccer jersey slimmer (9.176, not NFL-like), hooded tracksuit FAIL (front edges to the zip, no front label, black back, rugby side panel), netball inner edge straight from 60% to the hem, basketball jacket panels + piping, beanie stripes, hoodie list, then varsity onward.
-- DT11 a1d108b7550d1d493 (model tester): renders itself, Verdict PASS / FAIL; now the tees (-201).
-- Builder A a5a5461b873c70d9e (new tasks): mobile home round 4 (client: bigger bubble with ripples, options spread evenly, cleaner icons, same-size labels, real high-res 3DEEZI logo). Before / after picture SP\HB1\client\round4-sbs.png.
-- PAUSED (resume when the 3rd slot is free): LT2 abf80c2ef9b29b303 calmer Studio lighting + thin highlight around garments (9.174; log SP\LT2\log.md); SG1 ad03379d293a6b7a9 Studio garment list follows the selected sport, Soccer shows soccer apparel (9.175; log SP\SG1\log.md).
-- WAITING ON THE USER: free about 3 GB on D (they delete the old installer, WUDownloadCache, D:\d, old flutter_tools temp; the safety check blocked me), then I install Blender (user OK) and start the realistic-fold jersey.
-- Finished today (tester PASS): netball dress (-198; back in Working on for the straight hem edge), socks, 5 panel cap, NFL beanie, caps, bucket hat, shooting shirt, basketball shorts, skirts.
-- Live: tar 3deez-update-2026-11-02-c.tar.gz (16:29, viewer -196). v3 = 53b85c9 (the bubble home is the default on phones).
-- RULE (user): update this file regularly with every agent's work.
-- SG1 PAUSED: garment list follows the sport (website + app), code in the project, compiles, 23 click checks pass. Left: rebuild the website (vite), fix the custom-sport click step, check Football > Football jersey on the website + app, add an app test (SP\SG1\log.md).
-- LT2 PAUSED: calmer lighting + thin edge highlight ready in SP\LT2\src (not merged, no lock): bloom halved, floodlights / back lights / podium softer, main light less warm; cyan closer (centre 26 -> 11). Left: check the edge highlight in pictures, lit-side cyan slightly light, lights-sbs.png, merge + build (SP\LT2\log.md).
-- DT11: tees -203 FAIL (list in detail-checks "DT11: Tees", sent to FN13); next it re-tests the beanie, basketball tracksuit jacket, hoodie, varsity.
-- D drive (user 2026-11-02): KEEP Free Download Manager, Software, xampp, flutter, 3d-app, ClaudeMemory, laravel, htdocs, Java, Gradle, PubCache, systemp. The user is deleting the other folders themselves after checking.
-- FN13: bball tracksuit jacket (-203) + soccer jersey slimmer (-204) merged, sent to DT11. FN13 next: DT11 hooded-tracksuit list, netball edge, tee list. Blender: the download over curl keeps dropping (35 MB of ~350); the user is downloading blender-4.2.23-windows-x64.zip to D:\Blender by browser (sha256 82e79147...10cb); then unzip there and start the realistic-fold jersey.
-- Builder A round 4 DONE (bigger bubble with ripples, 5 options evenly on a pentagon, clean jersey art + vector badges, same-size labels, the real emblem-final.png logo; preview rebuilt; SP\HB1\client
-ound4-sbs.png). NOT pushed to v3 yet. Third slot -> SG1 resumed to finish; then LT2.
-- DT11 re-tests FAIL: soccer jersey (wing-collar insert, sleeves), bball jacket (piping, collar edge, panel width), beanie + NFL beanie (shape, pom-pom), hoodies (shape, hood, stripe band, NFL cords), varsity (collar), NFL varsity (shape). All sent to FN13. NFL beanie moved back to Working on.
-- Blender: the user is downloading it to D:\downloads (not D:\Blender). When it's done: check sha256 82e791475779a7342424a480bdde9a20b43710da9264c60346125aa16cd910cb, unzip into D:\Blender, delete the partial D:\Blenderlender.zip.
-- SG1 DONE (9.175): garment list follows the sport, website (built 17:21) + app (test studio_sport_garments_test.dart). Third slot -> LT2 (lighting) resumed next.
-- FN13 merged up to -204 (hood, tees, netball kink, bball jacket, soccer cut); a ready batch (hood front edges, rugby side panel, dark neck labels, netball straight edge, flare tees) waits for viewer.lock (LT2) then FN13 runs SP FN\FN13\merge.sh. The navy back tint on every garment went to LT2 (lighting).
-- 17:4x user: a separate agent per task. Model fixers now: FN13 accf4dbe710501ba3 (soccer jersey, bball jacket, garment-tee, NFL jerseys / game kit / full kit shorts, tops), FX-H afc573aa532704c3c (hoodies), FX-V a0727b40c92ddf306 (varsity + NFL varsity), FX-R aa634a8747e960d3d (rugby jerseys + kit shorts, football / rugby shorts). Shared brief SP\FN\split-brief.md. Tester DT11 a1d108b7550d1d493. LT2 abf80c2ef9b29b303 lighting (+ navy back tint). Watch the machine's memory (about 7 agents now).
-- Blender 4.2.23 LTS installed (portable) at D:\Blenderlender-4.2.23-windows-x64 (sha256 OK; the zip is still in D:\downloads). BL1 (new agent): cloth-simulated soccer jersey prototype behind ?cloth=1, log SP\BL1\log.md.
-- LT2 DONE (9.174, viewer -208): calmer lighting, thin edge highlight, neutral black backs. Note: the dark kit front is a touch darker / purpler; the layout test had page-load timeouts on -208.
-- User: netball dress back on Finished (accepts the bump fix). BL1 switched: Blender cloth on FINISHED models first (netball dress, shooting shirt, basketball shorts, skirt), before / after screenshots in SP\BL1\client for the client.
-- DT11 PASS: Basketball Varsity (-214), on Finished. NFL varsity: FX-V doing its own rib collar. FX-R: rugby shoulders + rugby shorts hem corner. DT11 testing rugby / shorts -214.
-- 18:3x: FN13 -218 (netball inner edge fixed in the solid-colour path, hood front edges, tee hems, bball jacket panel) -> DT11 re-testing. LT2 resumed: dark shadow flecks under sleeves. FX-V: NFL varsity collar stripes (taller band). FX-R: rugby / shorts DT11 list + socks on the rugby kit. FX-H: hoodie width / hood / sleeves. BL1: Blender sheet SP\BL1\clientll-before-after.png (shooting shirt, bball shorts, skirt, netball -218).
-- 18:5x: BL1 shooting shirt prototype; sleeves crumpled -> quick fix: cloth on the body only, sleeves kept original. Images SP\BL1\client\shooting-shirt-before-after-front.png / -34.png. Not merged (only in BL1's copy, behind ?cloth=1). User session ends soon.
-
-## TOMORROW START HERE (paused 2026-11-02 ~19:00 at 90% of the limit)
-- All agents told to PAUSE at safe points; each writes its next steps in its own log. Viewer is about -222. Not pushed since v3 = 53b85c9; last live tar 3deez-update-2026-11-02-c (16:29, viewer -196).
-- FIRST: check the locks are free (SP\viewer.lock / vite.lock), dart analyze lib + npx tsc --noEmit clean, then make tar 3deez-update-2026-11-03-a (changes since 11-02-c; copy SP final-pack-1102c.sh with REF = the -c tar) and push v3 when the user says.
-- Model fixers (resume each via its log):
-  - FN13 accf4dbe710501ba3 (SP\FN\FN13\log.md): beanie logo marks, NFL jerseys / full-kit shorts, tops, bball jacket collar edge, soccer sleeves.
-  - FX-H afc573aa532704c3c (SP\FN\FX-H\log.md): hoodie width .78 / .88 at 50%.
-  - FX-V a0727b40c92ddf306 (SP\FN\FNV\log.md): NFL varsity collar narrower, opening like a V, with the two cyan stripes.
-  - FX-R aa634a8747e960d3d (SP\FN\FX-R\log.md): rugby jersey shape (sleeves to 40%, tips .88, shoulders +5%, hem narrowing), rugby kit socks, football shorts hem / waist / logo 25%, rugby shorts logo 25%.
-  - Shared brief SP\FN\split-brief.md. A merge once overwrote main.js with an old copy: always git merge-file.
-- Tester DT11 a1d108b7550d1d493 (SP\DT11\log.md): re-test -218 batch (netball edge, hood edges, tees, bball jacket), beanies -222, hoodies, NFL varsity, rugby / shorts after the fixers.
-- LT2 abf80c2ef9b29b303: dark shadow flecks under the tee sleeves (shadow bias).
-- BL1 aaf8c3e27097e15c2 (SP\BL1\log.md): Blender cloth NOT good yet (crumpled sleeves; the user says it must look truly realistic). Fix the sleeves, then send a FEW images (shooting shirt front + 3/4). Nothing merged; only behind ?cloth=1 in BL1's copy. Blender at D:\Blender\blender-4.2.23-windows-x64.
-- Mobile home round 4 done on the preview (http://192.168.18.113:8088, serve_preview.mjs --lan); push to v3 when the user says.
-- Finished list (tester PASS): skirts, shooting shirt, basketball shorts, caps, bucket hat, socks, 5 panel cap, netball dress, varsity jacket.
-- Questions open: Airwallex keys; a small 3DEEZI under the back collar on customers' own AI / artwork kits?
-
-- Tee sleeve flecks: LT2 could not fix them with shadow settings; probably the new tee sleeve shape (FN13 / tee area); next steps in SP\LT2\log.md (pictures SP\LT2cne).
-- FX-H paused at -223: team hoodie width .788 (target .78, OK); NFL hoodie .79 vs .88; next: DT11 re-test -223, a wider NFL hoodie, the hood further back, armpit ripples (SP\FN\FX-H\log.md).
-- DT11 paused (no verdict on -218). Tomorrow's test order (SP\DT11\log.md): netball dress, hooded tracksuits, tees, bball tracksuit jacket (-218+), beanies (-222+), team hoodie (-223), rugby jerseys / shorts (-219, then FX-R round 3), NFL varsity after FX-V.
-- FX-V paused: NFL varsity V-shaped collar merged as viewer -224, not yet rendered or measured (next: SP\FN\FNV\log.md). Viewer now -224. Only BL1 still running (user asked to let it continue; it sends 2 images only if worth showing the client).
+- 2026-11-03 start: all six resumed (DT11 tester, FN13, FX-R, FX-H, FX-V, BL1); viewer -224, no locks, dart analyze clean; task-done-today.md cleared for today.
+- 2026-11-03 user: LOW PRESSURE today: only FN13 (fixer) + DT11 (tester) on models, + BL1 as the one task worker (after Blender, give it non-model tasks). FX-R / FX-H / FX-V paused; FN13 takes their logs later.
+- 11-03: FX-R / FX-H / FX-V all paused, nothing merged, no locks. Their next steps are in their logs (FX-R round 3: shorts logo scale undecided, b12 sleeve render unchecked; FX-H: hoodie .875 wide OK, hood lean, armpit ripples left). FN13 takes them after its own queue.
+- 11-03: NEW TASK (images/330): bottom tab bar = same drag-and-release glass bubble effect as the home bubble. QUEUED for BL1 aaf8c3e27097e15c2 after its Blender work (user said so; Builder A was stopped before it changed anything). Spec SP/HB1/spec-tabbar.md. FN13 merged the beanie logo (-225); DT11 to test the beanies.
+- 11-03: NEW TASK (images/331): Orders page "Preferred suppliers" card at the bottom; client asks for the bubble theme across the app. QUEUED for BL1 after the tab bar. Spec SP/HB1/spec-orders.md; questions.md 3.
+- 11-03: NEW TASK (images/332): "Add logos, artwork or a reference" on the app order form does nothing; spec SP/HB1/spec-addlogo.md. images/333 = the client's Orders page design (added to spec-orders.md). Both QUEUED for BL1 (order: tab bar, add logo fix, Orders page).
+- 11-03: BL1 Blender shooting shirt before|after images ready (SP/BL1/client/*.png). My check: no crumple, print aligned; but the body is wider/boxier, the sleeve ends and hem have ragged edges, and the folds are faint. Shown to the user. BL1 moved on to the app tasks (tab bar, add logo, Orders page).
+- 11-03: NEW TASK (images/334): bubble theme on Home / Projects / Orders / Profile (client picture answers questions.md 3, removed). Spec SP/HB1/spec-alltheme.md. QUEUED for BL1 as task 4.
+- 11-03: NEW TASK (images/335): bell overlaps the 3DEEZI logo on the bubble home; move it to the top-right like images/334. QUEUED for BL1 as task 5.
+- 11-03: BL1 done task 1 (tab bar) + task 5 (bell), lib/screens/bubble_home.dart; tests pass. 8088 preview not rebuilt (needs flutter build web = user OK). Now task 2 add logo.
+- 11-03: NEW TASK (images/336-338): order process (4-step form, upload sheet, confirmation review + approve, PDF / Excel). Spec SP/HB1/spec-orderflow.md. QUEUED for BL1 as task 6.
+- 11-03: BL1 done task 2 (add logo on iPhone: iOS file types + photo/camera/files sheet, lib/screens/order_entry.dart). Now task 3 Orders page.
+- 11-03 (images/339): client picture of the 3 order screens (Create form step 1, Upload order & artwork, My orders) added to SP/HB1/spec-orderflow.md for BL1 task 6.
+- 11-03: BL1 done task 3 (Orders page app + website /order-now; supplier buttons preset Made by). Now task 4 theme, then task 6.
+- 11-03: BL1 done task 4 (bubble theme 4 pages; filters All/AI/DYO/Approved, Saved addresses coming soon). Task 6 started; local migration OK (order version + approved by/at) -> live needs migrate --force.
+- 11-03: BL1 task 6 server part done. NEW MIGRATION 2026_11_03_100000_add_confirmation_to_orders.php (version, approved_by, approved_at) -> live: php artisan migrate --force. Local DB backup SP/BL1/database.before-orderflow.sqlite. Confirmation PDF / Excel links; asked for colour names + a back picture.
+- 11-03: BL1 task 6: colour names + back picture (Studio saves back on save) + website review step (PDF / Excel, approve wording) done. Left: 4-step bar + Create / Upload layouts (337/339), My orders search/filters/cards (web + app), app review. If BL1 runs out: resume from SP/BL1/log.md with a new agent.
+- 11-03: FN13 handed back (memory full) at viewer -238. FN14 a64c71faf10f6f968 = the only model fixer now (queue from SP/FN/FN13/log.md HANDBACK; log SP/FN/FN14/log.md). Finished today: plain tee, hooded tracksuits, bball tracksuit, NFL beanie, beanie, rugby tee.
+- 11-03 ~91% weekly limit (resets tomorrow afternoon). User: when BL1 finishes the order process -> push v3 (SP/final-push-v3.sh) + delta tar of today (copy SP/final-pack-1102d.sh, REF = deploy-zips/3deez-update-2026-11-02-d.tar.gz) as backup for the client. FN14 told: hoodie only, then HANDBACK. Live needs migrate --force (new orders migration).
+- 11-03: BL1 finished task 6 (step bars). Deferred to tomorrow: one step per screen, per-garment artwork rows + Choose saved design, order sheet box inside Create order. Pack script SP/final-pack-1103a.sh ready (REF = 11-02-d); run after FN14 hoodie merge, then push v3.
+- 11-03: Blender: user shared the shooting shirt before|after images with the client; no more Blender images needed for now (BL1 stopped).

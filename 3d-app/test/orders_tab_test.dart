@@ -60,25 +60,40 @@ void main() {
     expect(BottomNav.tabOf(AppScreen.home), AppScreen.home);
   });
 
-  testWidgets('Orders tab: the heading, the tiles, Rewards and Assist as in 168.jpg', (tester) async {
+  testWidgets('Orders tab: one glass bubble, Preferred suppliers and Rewards as in 333.jpg', (tester) async {
     final c = signedIn(OrdersServer())..screen = AppScreen.orderHub;
     await _phone(tester, OrdersTabScreen(c), 390);
-    expect(find.text('ORDER WITH'), findsOneWidget);
-    expect(find.text('3DEEZI'), findsOneWidget);
-    expect(find.text('Start an order. Follow its progress.'), findsOneWidget);
-    expect(find.text('CREATE ORDER FORM'), findsOneWidget);
-    expect(find.text('Let 3DEEZI Assist help'), findsOneWidget);
-    expect(find.text('UPLOAD YOUR ORDER'), findsOneWidget);
-    expect(find.text('Add your form and artwork'), findsOneWidget);
-    expect(find.text('MY'), findsOneWidget);
-    expect(find.text('ORDERS'), findsOneWidget);
-    expect(find.text('View orders and track progress.'), findsOneWidget);
-    expect(find.text('REWARDS'), findsOneWidget);
-    expect(find.text('Coming soon.'), findsOneWidget);
+    final bubble = find.byKey(const ValueKey('orders-bubble'));
+    expect(bubble, findsOneWidget);
+    for (final t in ['ORDERS', 'Create, upload or track.', 'CREATE ORDER', 'UPLOAD ORDER', 'MY ORDERS']) {
+      expect(find.descendant(of: bubble, matching: find.text(t)), findsOneWidget, reason: t);
+    }
+    for (final k in ['orders-tile-form', 'orders-tile-upload', 'orders-tile-my-orders']) {
+      expect(find.descendant(of: bubble, matching: find.byKey(ValueKey(k))), findsOneWidget, reason: k);
+    }
+    expect(find.text('PREFERRED SUPPLIERS'), findsOneWidget);
+    expect(find.byKey(const ValueKey('orders-make-3deezi')), findsOneWidget);
+    expect(find.byKey(const ValueKey('orders-make-mantis')), findsOneWidget);
+    expect(find.text('Mantis'), findsOneWidget);
+    expect(find.text('REWARDS · COMING SOON'), findsOneWidget);
     expect(find.text('Need help? 3DEEZI Assist'), findsOneWidget);
-    // The bell (signed in) and the bar with Orders on.
-    expect(find.byKey(const Key('notification-bell')), findsOneWidget);
+    // The bell (signed in) in the top-right corner, clear of the logo; the bar with Orders on.
+    final bell = tester.getRect(find.byKey(const Key('notification-bell')));
+    final logo = tester.getRect(find.byType(BrandLogo).first);
+    expect(bell.left, greaterThanOrEqualTo(logo.right));
+    expect(bell.right, greaterThan(390 - 40));
     expect(tester.widget<CubeIcon>(find.byType(CubeIcon)).filled, isTrue);
+  });
+
+  testWidgets('Orders tab: Make with 3DEEZI / Make with Mantis open the order form with that maker', (tester) async {
+    final c = signedIn(OrdersServer())..screen = AppScreen.orderHub;
+    await mount(tester, OrdersTabScreen(c), width: 390);
+    await tap(tester, find.byKey(const ValueKey('orders-make-mantis')));
+    expect(tester.widget<OrderFormScreen>(find.byType(OrderFormScreen)).maker, 'Mantis');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tap(tester, find.byKey(const ValueKey('orders-make-3deezi')));
+    expect(tester.widget<OrderFormScreen>(find.byType(OrderFormScreen)).maker, isNull);
   });
 
   testWidgets('Orders tab: each tile opens its screen', (tester) async {

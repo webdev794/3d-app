@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../app_controller.dart';
+import 'stretchy_nav.dart';
 
 class Palette {
   static const bg = Color(0xff05090d),
@@ -399,29 +400,33 @@ class BottomNav extends StatelessWidget {
         child: row,
       );
     }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 3, 12, 6),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xf0122c4e), Color(0xf2071426)],
-          ),
-          border: Border.all(color: const Color(0x663fd4ff)),
-          boxShadow: const [
-            BoxShadow(color: Color(0x4419b6ff), blurRadius: 18),
-            BoxShadow(
-              color: Color(0x80000000),
-              blurRadius: 12,
-              offset: Offset(0, 4),
+    // The capsule stretches and ripples with the finger, then springs back
+    // (taps still switch tabs; animations off: plain): stretchy_nav.dart.
+    return StretchyNav(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 3, 12, 6),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xf0122c4e), Color(0xf2071426)],
             ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          child: row,
+            border: Border.all(color: const Color(0x663fd4ff)),
+            boxShadow: const [
+              BoxShadow(color: Color(0x4419b6ff), blurRadius: 18),
+              BoxShadow(
+                color: Color(0x80000000),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            child: row,
+          ),
         ),
       ),
     );

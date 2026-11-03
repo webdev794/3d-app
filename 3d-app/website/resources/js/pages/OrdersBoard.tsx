@@ -18,6 +18,19 @@ const EMPTY: Record<StageKey, string> = {
   shipped: 'Nothing on its way.',
   delivered: 'No recent deliveries.',
 };
+type Filter = 'all' | 'action' | 'progress';
+const FILTERS: [Filter, string][] = [['all', 'All'], ['action', 'Action needed'], ['progress', 'In progress']];
+/** In progress: design and production (not yet sent). */
+const IN_PROGRESS = new Set<string>(['design', 'production']);
+/** Print > Cut > Sew (client picture images/339): where a production order is. */
+const MAKING = [['printing', 'Print'], ['cutting', 'Cut'], ['sewing', 'Sew']] as const;
+function MakingLine({ step }: { step: string }) {
+  const at = MAKING.findIndex(([k]) => k === step);
+  const done = ['quality_check', 'packing', 'packed', 'ready'].includes(step) ? MAKING.length : at;
+  return <ol className="ob-making" aria-label={`Production: ${at >= 0 ? MAKING[at][1] : done >= MAKING.length ? 'sewn' : 'starting'}`}>
+    {MAKING.map(([k, label], i) => <li key={k} className={i < done ? 'is-done' : i === at ? 'is-on' : ''}><i aria-hidden="true" />{label}</li>)}
+  </ol>;
+}
 /** The customer has something to do on this order: approve a design or pay an invoice. */
 const needsYou = (o: BoardOrder) => o.action === 'review_design' || !!o.payment?.payable;
 
@@ -133,6 +146,12 @@ export default function OrdersBoardPage({ onNotice }: { onNotice?: (text: string
   }, [load]);
 
   const searching = query.length > 0;
+  // All / Action needed / In progress (client picture images/339): the board shows only those orders.
+  const [filter, setFilter] = useState<Filter>('all');
+  const keep = (o: BoardOrder) => filter === 'all' || (filter === 'action' ? needsYou(o) : IN_PROGRESS.has(o.stage));
+  const filtered = useMemo(() => shown && filter !== 'all' ? { ...shown, columns: Object.fromEntries(STAGES.map(s => [s.key, shown.columns[s.key].filter(keep)])) as BoardData['columns'], cancelled: shown.cancelled.filter(keep) } : shown,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shown, filter]);
   const total = shown ? everyOrder.length : 0;
 
   return <div className="op-page ob-page">
@@ -152,6 +171,9 @@ export default function OrdersBoardPage({ onNotice }: { onNotice?: (text: string
           <button type="button" role="tab" id="ob-tab-current" aria-selected={view === 'current'} aria-controls="ob-panel" className={view === 'current' ? 'is-on' : ''} onClick={() => setView('current')}>Current orders</button>
           <button type="button" role="tab" id="ob-tab-completed" aria-selected={view === 'completed'} aria-controls="ob-panel" className={view === 'completed' ? 'is-on' : ''} onClick={() => setView('completed')}>Completed</button>
         </div>
+        <div className="ob-filters" role="group" aria-label="Show">
+          {FILTERS.map(([key, label]) => <button key={key} type="button" className={filter === key ? 'is-on' : ''} aria-pressed={filter === key} onClick={() => setFilter(key)} data-testid={`orders-filter-${key}`}>{label}</button>)}
+        </div>
         <button type="button" className={`ob-updated${stale && shown ? ' is-stale' : ''}${busy ? ' is-busy' : ''}`} onClick={() => load()} title={loadedAt ? `Checked at ${new Date(loadedAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })} · refreshes every minute. Click to refresh now.` : 'Refresh now'}>
           {busy ? <RefreshCw size={19} className="spin" aria-hidden="true" /> : stale && shown ? <TriangleAlert size={19} aria-hidden="true" /> : <Clock3 size={19} aria-hidden="true" />}<span>{updated}</span>
         </button>
@@ -163,7 +185,7 @@ export default function OrdersBoardPage({ onNotice }: { onNotice?: (text: string
           : <>
             {searching && total === 0 && <div className="ob-message" role="status"><Search size={22} /><p>No {view === 'current' ? 'current' : 'completed'} orders match “{query}”.{view === 'current' && ' Older orders are under Completed.'}</p><button type="button" className="ob-ghost" onClick={() => setSearch('')}>Clear search</button></div>}
             {!searching && total === 0 && view === 'current' && <div className="ob-message is-start"><FileText size={22} /><p>No current orders. Start one with the order form, or upload the order you have.</p><Link className="ob-ghost" to="/orders/new">Create order form</Link><Link className="ob-ghost" to="/orders/upload">Upload your order</Link></div>}
-            {view === 'current' ? (total > 0 || !searching) && <StageBoard board={shown} onOpen={open} /> : <CompletedOrders board={shown} onOpen={open} searching={searching} />}
+            {view === 'current' ? (total > 0 || !searching) && filtered && <StageBoard board={filtered} onOpen={open} /> : filtered && <CompletedOrders board={filtered} onOpen={open} searching={searching} />}
             {view === 'current' && shown.drafts.length > 0 && <Drafts drafts={shown.drafts} />}
           </>}
       </div>
@@ -319,6 +341,7 @@ function OrderCard({ order, compact, onOpen }: { order: BoardOrder; compact: boo
     </div>
     <p className="ob-qty">{order.quantity > 0 ? plural(order.quantity, unitWord(order.garments)) : 'Sizes to be confirmed'}{order.needed_by && !order.completed ? ` · required ${new Date(`${order.needed_by}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}` : ''}</p>
     <div className="ob-pills"><StatusPill status={order.sub_status} />{order.payment && <PaymentPill payment={order.payment} />}</div>
+    {order.stage === 'production' && <MakingLine step={order.sub_status.key} />}
     {!hasButtons && lineEl}
     {hasButtons ? <div className="ob-actions">
       {review && <button type="button" className="ob-action" onClick={() => onOpen(order, 'review')}>Review design <ArrowRight size={17} /></button>}

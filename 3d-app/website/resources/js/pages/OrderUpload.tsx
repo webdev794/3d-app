@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp, CircleAlert, CircleCheck, CircleHelp, CreditCard, Download, FileImage, FileSpreadsheet, FileText, FileUp, Info, LoaderCircle, LogIn, Paperclip, Pencil, Replace, RotateCcw, Store, Truck, X } from 'lucide-react';
 import { api, ApiError, fetchFile, getToken, type User } from '../api';
 import { askAssist, provideAssistContext } from '../assistBridge';
-import { AssistCard, AssistSparkle, ContactDetailsCard, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSummaryCard, fileExtension, formatBytes, type ContactDetails } from '../components/OrderPageParts';
+import { AssistCard, AssistSparkle, ContactDetailsCard, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSteps, OrderSummaryCard, fileExtension, formatBytes, type ContactDetails } from '../components/OrderPageParts';
 import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type OrderDetail, type OrderFields, type OrderFile, type OrderDraft, type OrderItem, type OrderOptions, type OrderPlayer, type Payment, type Suggested, type SuggestedForm } from '../orderApi';
 import { PriceBreakdown, PricingChoices, type PricingChoice, type Quote as PayQuote } from '../components/OrderPayment';
 import OrderFormRead, { cleanRows, rowTotal, rowsFromReadings, type ReadNote, type ReviewItem } from '../components/OrderFormRead';
@@ -379,7 +379,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     const r = rowsRef.current, f = fieldsRef.current, rule = rulesRef.current;
     const named = (kind: UploadKind) => r.filter(x => x.kind === kind && x.status === 'done').map(x => x.name);
     const forms = named('order_form'), art = named('artwork');
-    return [`Upload Your Order page (/orders/upload), ${stepRef.current === 'review' ? 'REVIEW & APPROVE ORDER screen (final mockups, selected garments with the sizes table, delivery & notes; ticking the confirm box enables Approve Order, which sends it; Edit sizes & garments corrects the rows read from the order form; Back to Edit returns to the form)' : stepRef.current === 'sent' ? 'order sent' : 'filling it in'}.`,
+    return [`Upload Your Order page (/orders/upload), ${stepRef.current === 'review' ? 'REVIEW & APPROVE ORDER screen (final mockups, selected garments with the sizes table, delivery & notes; ticking the confirm box enables Approve & continue to payment, which sends it; Edit sizes & garments corrects the rows read from the order form; Back to Edit returns to the form)' : stepRef.current === 'sent' ? 'order sent' : 'filling it in'}.`,
       `Signed in: ${userRef.current ? 'yes' : 'no'}. Team: ${f.team_name.trim() || 'not added'}. Contact details complete: ${Object.keys(contactErrors(f)).length ? 'no' : 'yes'}. Mobile: ${f.phone.trim() ? 'added' : 'not added'}. Date required: ${f.needed_by || 'not chosen'}. ${f.delivery === 'pickup' ? 'Pick up.' : `Delivery address: ${deliveryText(f) || 'not added'}.`}`,
       `Garments read from the order form: ${cleanRows(itemsRef.current).map(it => `${it.name || it.label || it.garment} (${Object.entries(it.sizes).filter(([, n]) => Number(n) > 0).map(([z, n]) => `${n} ${z}`).join(', ')})`).join('; ') || 'none yet'}.`,
       `Order form files uploaded: ${forms.length ? forms.join(', ') : 'none'}. Supporting artwork: ${art.length ? art.join(', ') : 'none'}. Files uploading: ${r.filter(busyRow).length}. Files refused: ${r.filter(x => x.status === 'error').length}.`,
@@ -750,7 +750,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       if (owner) dropLocal(owner);
       rowsRef.current.forEach(release);
       setPlaced(order); setDraftId(undefined); commit([]); setItems(null); setStep('sent');
-      // Approve Order made the order and its invoice: on to COMPLETE YOUR PAYMENT once that page is live (else Order sent).
+      // Approve & continue to payment made the order and its invoice: on to COMPLETE YOUR PAYMENT once that page is live (else Order sent).
       const payPage = paymentPath(order);
       if (payPage) { navigate(payPage); return; }
       window.scrollTo({ top: 0 });
@@ -766,7 +766,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
         }
       } else {
         setSubmitError(err.status === 404 ? 'This draft was already sent or deleted. Check My Orders before sending it again.'
-          : `${err.message} Your order has not been sent yet. Press Approve Order again: it is only ever sent once.`);
+          : `${err.message} Your order has not been sent yet. Press Approve & continue to payment again: it is only ever sent once.`);
         focusFirstError();
       }
     } finally { submitting.current = false; setBusy(false); }
@@ -860,7 +860,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
 
   // REVIEW & APPROVE ORDER (client design 2026-10-22, components/OrderReviewApprove.tsx): the uploaded artwork as the
   // mockups, the rows read from the order form as the size table (corrected in "Edit sizes & garments", U2's reader),
-  // section 1's delivery details (U1), and the confirm box: ticked, Approve Order sends the ONE order (submit above).
+  // section 1's delivery details (U1), and the confirm box: ticked, Approve & continue to payment sends the ONE order (submit above).
   if (reviewing) {
     const asFile = (r: Row): ReviewFile => ({ id: r.remote!.id, name: r.name, kind: r.kind, extension: r.remote!.extension, size: r.size, thumb: r.remote!.thumb, preview: r.preview ?? null, download: r.remote!.download });
     const sent = (items ?? []).filter(it => rowTotal(it) > 0), emptyRows = (items ?? []).length - sent.length;
@@ -885,7 +885,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     return <div id="ou-top"><OrderPageLayout className="ou-page is-review" header={<>
       <ReviewApproveHeader step="review" firstStep="Upload files" layout={layout} />
       {signInNote}{bannerNote}
-    </>} main={<OrderReviewApprove garments={reviewGarments} sizeOrder={SIZES} artwork={artDone.map(asFile)} files={done.map(asFile)} filesLabel={artDone.length ? 'Order form & artwork' : 'Order form'}
+    </>} main={<OrderReviewApprove garments={reviewGarments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} sizeOrder={SIZES} artwork={artDone.map(asFile)} files={done.map(asFile)} filesLabel={artDone.length ? 'Order form & artwork' : 'Order form'}
       layout={layout} rows={reviewRows} options={{ garments }} quote={(quote.quote ?? null) as unknown as PayQuote | null} quoteLoading={quote.state === 'loading'}
       onDownload={f => { const file = done.find(r => r.remote?.id === f.id)?.remote; if (file) void download(file); }} fetchFile={f => fetchFile(String(f.download))}
       delivery={{ contactName: fields.contact_name, team: fields.team_name, email: fields.contact_email, phone: fields.phone, phoneProblem: fields.phone.trim() && !validMobile(fields.phone) ? MOBILE_MESSAGE : null,
@@ -955,7 +955,8 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     primary={{ label: 'Review order', onClick: () => void goReview(), busy }} note="Your order is only submitted after review." />;
 
   return <div id="ou-top"><OrderPageLayout className="ou-page" header={<>
-    {header('Upload Your Order', 'Upload your order', 'Already have your order ready? Upload your form and artwork below.')}
+    {header('Upload Your Order', 'Upload order & artwork', 'Already have your order ready? Upload your form and artwork below.')}
+    <OrderSteps steps={[{ label: 'Upload', target: 'ou-upload' }, { label: 'Check details', target: 'ou-art' }, { label: 'Review' }]} onReview={() => void goReview()} />
     {signInNote}{bannerNote}
   </>} main={main} side={side} bar={bar} /></div>;
 }

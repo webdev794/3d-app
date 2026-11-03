@@ -300,6 +300,19 @@ class ApiClient {
     return r is Map ? (r['unread'] as num?)?.toInt() : null;
   }
 
+  /// The order confirmation form's signed links (PDF page, Excel), valid 30 minutes: a draft's, or a sent order's.
+  Future<Map<String, dynamic>> orderConfirmationLinks(
+    int id, {
+    bool draft = true,
+  }) async =>
+      await _send(
+            'GET',
+            draft
+                ? '/order-drafts/$id/confirmation-links'
+                : '/orders/$id/confirmation-links',
+          )
+          as Map<String, dynamic>;
+
   /// The order forms' choices: garments, sports, fits, sizes (public).
   Future<Map<String, dynamic>> orderOptions() async =>
       await _send('GET', '/orders/options') as Map<String, dynamic>;
