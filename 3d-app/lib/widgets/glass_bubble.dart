@@ -680,7 +680,9 @@ class HomeGlassPainter extends CustomPainter {
       final th = k / n * 2 * math.pi;
       // Tall rounded rectangle (client 399/403): flat top and bottom,
       // nearly straight sides, large corners (about 20% of the width).
-      final r = math.min(s.width * .2, b);
+      // Client 406: much rounder, bubble-like corners (~38% of the width),
+      // so the top and bottom curve from corner to corner.
+      final r = math.min(s.width * .38, b);
       final ax = a - r, by = b - r;
       final per = 4 * ax + 4 * by + 2 * math.pi * r;
       var u = (k / n) * per;

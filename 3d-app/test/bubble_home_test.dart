@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/screens/bubble_home.dart';
+import 'package:three_deezi/screens/team.dart' show TeamScreen;
 import 'package:three_deezi/widgets/ui.dart' show BottomNav, BrandLogo;
 
 import 'features_test.dart' show FakeStore;
@@ -136,7 +137,7 @@ void main() {
     final g = await tester.startGesture(mid);
     await _moveTo(tester, g, mid, ai);
     expect(find.text('Release to enter'), findsOneWidget);
-    expect(find.text('AI DESIGNER'), findsWidgets);
+    expect(find.text('AI DESIGNER'), findsOneWidget);
     expect(c.screen, AppScreen.home);
 
     await g.up();
@@ -159,7 +160,7 @@ void main() {
     final g = await tester.startGesture(mid);
     await _moveTo(tester, g, mid, dyo);
     expect(find.text('Release to enter'), findsOneWidget);
-    expect(find.text('DESIGN YOUR OWN'), findsWidgets);
+    expect(find.text('DESIGN YOUR OWN'), findsOneWidget);
     await _moveTo(tester, g, dyo, mid);
     expect(find.text('Release to enter'), findsNothing);
     await g.up();
@@ -175,6 +176,39 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     expect(c.screen, AppScreen.home);
   });
+
+  for (final kind in [ui.PointerDeviceKind.touch, ui.PointerDeviceKind.mouse]) {
+    for (final id in ['ai', 'dyo', 'artboard', 'team', 'to3d']) {
+      testWidgets('${kind.name} drag onto $id and release opens it', (
+        tester,
+      ) async {
+        final c = await _pump(tester);
+        final mid = _glass(tester).center;
+        final to = _spot(tester, id);
+        final g = await tester.startGesture(mid, kind: kind);
+        await _moveTo(tester, g, mid, to);
+        expect(find.text('Release to enter'), findsOneWidget);
+        await g.up();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Release to enter'), findsNothing);
+        switch (id) {
+          case 'ai':
+            expect(c.screen, AppScreen.aiDesigner);
+          case 'dyo':
+            expect(c.screen, AppScreen.sport);
+          case 'artboard':
+            expect(c.screen, AppScreen.artboard);
+          case 'team':
+            expect(find.byType(TeamScreen), findsOneWidget);
+          default:
+            expect(find.byType(BottomSheet), findsWidgets);
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 
   testWidgets('a tap on an option opens it', (tester) async {
     final c = await _pump(tester);

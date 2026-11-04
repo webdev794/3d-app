@@ -64,7 +64,7 @@ const _spots = [
     'ai',
     'AI DESIGNER',
     'AI',
-    Offset(.27, .27),
+    Offset(.28, .29),
     box: Size(.42, .21),
     art: 'assets/images/art/home_ai.png',
   ),
@@ -72,7 +72,7 @@ const _spots = [
     'dyo',
     'DESIGN YOUR OWN',
     'DYO',
-    Offset(.73, .27),
+    Offset(.72, .29),
     box: Size(.42, .21),
     art: 'assets/images/art/home_dyo.png',
   ),
@@ -80,7 +80,7 @@ const _spots = [
     'artboard',
     'ARTBOARD',
     'ARTBOARD',
-    Offset(.27, .51),
+    Offset(.28, .515),
     art: 'assets/images/art/home_artboard.png',
     box: Size(.42, .21),
     icon: Icons.draw_rounded,
@@ -89,7 +89,7 @@ const _spots = [
     'team',
     'DESIGN TEAM',
     'TEAM',
-    Offset(.73, .51),
+    Offset(.72, .515),
     art: 'assets/images/art/home_team.png',
     box: Size(.42, .21),
     icon: Icons.groups_rounded,
@@ -98,7 +98,7 @@ const _spots = [
     'to3d',
     'ARTWORK TO 3D',
     'TO 3D',
-    Offset(.5, .75),
+    Offset(.5, .735),
     art: 'assets/images/art/home_to3d.png',
     box: Size(.42, .21),
     icon: Icons.view_in_ar_rounded,
@@ -108,9 +108,12 @@ const _spots = [
 /// One option's face: its icon over its label. [glow] tints it all cyan
 /// (the blurred glow behind a lit option).
 class _SpotFace extends StatelessWidget {
-  const _SpotFace(this.spot, {this.glow = false});
+  const _SpotFace(this.spot, {this.glow = false, this.showName = true});
   final _Spot spot;
   final bool glow;
+
+  /// Off while this option is chosen: the pop-up beside it shows the name.
+  final bool showName;
 
   Widget _img(String path) => Image.asset(
     path,
@@ -174,18 +177,20 @@ class _SpotFace extends StatelessWidget {
         const SizedBox(height: 3),
         SizedBox(
           height: 18,
-          child: FittedBox(
-            child: Text(
-              spot.name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                height: 1,
-                letterSpacing: .5,
-              ),
-            ),
-          ),
+          child: !showName
+              ? null
+              : FittedBox(
+                  child: Text(
+                    spot.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                ),
         ),
       ],
     );
@@ -679,7 +684,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                             Positioned(
                               left: 0,
                               right: 0,
-                              top: s.height * .065,
+                              top: s.height * .085,
                               height: s.height * .08,
                               child: const _Title(),
                             ),
@@ -710,13 +715,13 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                               Positioned(
                                 left: 0,
                                 right: 0,
-                                top: s.height * .87,
+                                top: s.height * .86,
                                 child: const _DragHint(),
                               ),
                             Positioned(
                               left: 0,
                               right: 0,
-                              top: s.height * .905,
+                              top: s.height * .895,
                               child: Center(
                                 child: BubbleAssistLink(
                                   onPressed: () =>
@@ -784,7 +789,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                     duration: ms,
                     child: ImageFiltered(
                       imageFilter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
-                      child: _SpotFace(sp, glow: true),
+                      child: _SpotFace(sp, glow: true, showName: !strong),
                     ),
                   ),
                   AnimatedOpacity(
@@ -794,7 +799,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                       colorFilter: _brightness(
                         strong ? 1.32 : (lit ? 1.16 : 1),
                       ),
-                      child: _SpotFace(sp),
+                      child: _SpotFace(sp, showName: !strong),
                     ),
                   ),
                 ],
@@ -822,7 +827,8 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
   Widget _label(int i) {
     final box = _boxOf(i);
     const w = 220.0;
-    final upper = _spots[i].at.dy < .5;
+    final upper =
+        _spots[i].at.dy < .6; // (only the bottom row's pop-up goes above it)
     final top = upper ? box.bottom + 2 : math.max(0.0, box.top - 60);
     final left = (box.center.dx - w / 2)
         .clamp(0.0, math.max(0.0, _area.width - w))
@@ -1202,4 +1208,3 @@ class _TrailPainter extends CustomPainter {
       o.reduce != reduce ||
       o.ringRadius != ringRadius;
 }
-

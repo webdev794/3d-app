@@ -606,3 +606,5 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - 2026-11-04 (images/394): Build my order form must go straight to the filled form, sizes/qtys right, plus an editable form link for the customer and admins. ONE task 4.
 - 2026-11-04 (images/399): Home layout like the client mobile picture: LET'S CREATE, big icons in rows (AI|DYO, ARTBOARD|TEAM, TO 3D), clear spacing, swipe hint + Assist at the bottom, no overlaps. HL1 (only agent).
 - 2026-11-04: Projects / Orders / Profile / My orders get the same outer bubble as Home (shape + rim lights). PB1 (only agent).
+- 2026-11-04 (images/405): Home drag shows the AI / DYO name twice, and release on an option does not open it (stuck). DR1 fixing.
+- 2026-11-04 (images/406, client): Home bubble rounder at top and bottom like a real bubble; move content down so nothing touches the rim; nothing else changes. Client will send non-pixelated icons soon. RB1.

@@ -113,3 +113,4 @@ Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md
 - 11-04: ONE started (single agent, SP/ONE/tasks.md tasks 1-4, log SP/ONE/log.md).
 - 11-04: ONE finished tasks 1-4 (not pushed). Open: Admin > Orders has no list of draft forms (admins open via copied link); order-form screens not browser-checked.
 - 11-04: HL1 Home like 399 done (home_*.png icons + home_word_ai/dyo.png from 403.jpg; bubble_home.dart, test updated). Not pushed.
+- 11-04 11:31: PUSHED v3 = 83b5e96; live tar deploy-zips/3deez-update-2026-11-04-a.tar.gz (16 files since 11-03-b, no migration). Next REF = this one.
