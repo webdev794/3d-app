@@ -114,3 +114,6 @@ Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md
 - 11-04: ONE finished tasks 1-4 (not pushed). Open: Admin > Orders has no list of draft forms (admins open via copied link); order-form screens not browser-checked.
 - 11-04: HL1 Home like 399 done (home_*.png icons + home_word_ai/dyo.png from 403.jpg; bubble_home.dart, test updated). Not pushed.
 - 11-04 11:31: PUSHED v3 = 83b5e96; live tar deploy-zips/3deez-update-2026-11-04-a.tar.gz (16 files since 11-03-b, no migration). Next REF = this one.
+- 11-04: PUSHED v3 = 6677950 (Home rounder bubble, drag fixes). App-only, no live tar needed.
+- 11-04 RULE (user): design work = many test rounds (build, screenshot side by side with the client picture, compare, adjust) until it truly matches; never stop after two tries.
+- 11-04: Home bubble outline = half-oval dome top/bottom + straight sides (kDomeH .42 in glass_bubble.dart HomeGlassPainter._blob); user: "looks better". Not pushed. Rule: each try must move closer to the client picture; measure before rebuilding the preview.

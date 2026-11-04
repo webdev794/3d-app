@@ -287,10 +287,7 @@ void paintPageRim(
   // The outer edge: a thin crisp line, plus a white highlight that drifts
   // a little inside, thick and bright on the upper left and top, thin and
   // fading elsewhere.
-  canvas.drawPath(
-    path,
-    stroke(1.8, const Color(0xffbff6ff), 0),
-  );
+  canvas.drawPath(path, stroke(1.8, const Color(0xffbff6ff), 0));
   final m = Matrix4.identity()
     ..translateByDouble(w / 2, h / 2, 0, 1)
     ..scaleByDouble(1 - 5 * k / w, 1 - 5 * k / h, 1, 1)
@@ -629,12 +626,14 @@ class _GlassPainter extends CustomPainter {
       old.blob != blob;
 }
 
-
 //// The glass: an organic blob (a raised lobe at the top left, fuller
 /// corners and a slightly pinched waist, like the client's picture) with a
 /// deep navy body, soft glassy swirls and a thick bright cyan rim. Its edge
 /// stretches towards [pullAt] by [pull] (0 to 1), floats with [t], and forms
 /// a rounded pocket (its own lobe) around [pocketAt] by [pocket] (0 to 1).
+/// Height of the top / bottom dome as a share of the half-height.
+const kDomeH = .42;
+
 class HomeGlassPainter extends CustomPainter {
   HomeGlassPainter({
     this.t = 0,
@@ -682,7 +681,7 @@ class HomeGlassPainter extends CustomPainter {
       // nearly straight sides, large corners (about 20% of the width).
       // Client 406: much rounder, bubble-like corners (~38% of the width),
       // so the top and bottom curve from corner to corner.
-      final r = math.min(s.width * .38, b);
+      final r = math.min(s.width * .3, b);
       final ax = a - r, by = b - r;
       final per = 4 * ax + 4 * by + 2 * math.pi * r;
       var u = (k / n) * per;
@@ -719,6 +718,40 @@ class HomeGlassPainter extends CustomPainter {
         u -= math.pi * r / 2;
         x = a;
         y = -by + u;
+      }
+      // Client 406/410: a half-oval dome on top and bottom (as wide as the
+      // glass, about half the bubble's half-height tall) and straight sides.
+      {
+        final ry = b * kDomeH, sb = b - ry;
+        final arc =
+            math.pi *
+            (3 * (a + ry) - math.sqrt((3 * a + ry) * (a + 3 * ry))) /
+            2;
+        final tot = 2 * arc + 4 * sb;
+        var v = (k / n) * tot;
+        if (v < sb) {
+          x = a;
+          y = v;
+        } else if ((v -= sb) < arc) {
+          final g = v / arc * math.pi;
+          x = a * math.cos(g);
+          y = sb + ry * math.sin(g);
+        } else if ((v -= arc) < 2 * sb) {
+          x = -a;
+          y = sb - v;
+        } else if ((v -= 2 * sb) < arc) {
+          final g = math.pi + v / arc * math.pi;
+          x = a * math.cos(g);
+          y = -sb + ry * math.sin(g);
+        } else {
+          v -= arc;
+          x = a;
+          y = -sb + v;
+        }
+        // Soft shoulders (client 412): the sides bow out a little in the
+        // middle and ease in towards the domes, so the side flows into the
+        // dome with no sudden turn; a few px further from the screen edge.
+        x *= .97 * .985;
       }
       // Only a very slight soft bow on the sides, and faint breathing.
       final side = math.pow(1 - (y / b).clamp(-1.0, 1.0).abs(), 2).toDouble();
