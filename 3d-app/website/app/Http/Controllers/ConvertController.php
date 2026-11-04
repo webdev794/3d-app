@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\DesignFiles;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -15,7 +16,8 @@ class ConvertController extends Controller
         $soffice = config('services.cdr.soffice');
         $cdr = (bool) (config('services.cdr.converter_url') || ($soffice && is_executable($soffice)) || config('services.cdr.cloudconvert'));
 
-        return response()->json(['data' => ['cdr' => $cdr]]);
+        // pictures: the design files this server can draw for the AI Designer (EPS, PSD, TIFF... need Imagick or Ghostscript).
+        return response()->json(['data' => ['cdr' => $cdr, 'pictures' => DesignFiles::convertible()]]);
     }
 
     /** Convert an uploaded CorelDRAW file to SVG with whichever converter this server has. */
@@ -79,46 +81,29 @@ class ConvertController extends Controller
 
     private function viaCloudConvert(string $path, string $name): ?string
     {
-        $key = config('services.cdr.cloudconvert');
-        if (! $key) {
-            return null;
-        }
-        $api = Http::withToken($key)->timeout(30)->baseUrl('https://api.cloudconvert.com/v2');
-        $job = $api->post('/jobs', ['tasks' => [
-            'upload' => ['operation' => 'import/upload'],
-            'convert' => ['operation' => 'convert', 'input' => 'upload', 'input_format' => 'cdr', 'output_format' => 'svg'],
-            'export' => ['operation' => 'export/url', 'input' => 'convert'],
+        return DesignFiles::cloudConvert($path, $name, ['operation' => 'convert', 'input' => 'upload', 'input_format' => 'cdr', 'output_format' => 'svg']);
+    }
+
+    /**
+     * A design file attached in the AI Designer that the page or the app cannot draw itself (EPS, PSD, TIFF, HEIC;
+     * the app's fallback for PDF and SVG): its picture as a PNG, or a plain message to save it as PDF, SVG or PNG.
+     */
+    public function picture(Request $request, DesignFiles $files)
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'max:'.DesignFiles::MAX_KB],
+            'page' => ['sometimes', 'integer', 'min:1', 'max:999'],
+        ], ['file.max' => 'Use a file under 25 MB.', 'file.uploaded' => 'The file did not arrive. Use a file under 25 MB.']);
+        $file = $request->file('file');
+        $kind = DesignFiles::kind($file->getRealPath());
+        abort_unless($kind !== null, 422, 'This is not a design file we can read. Use PDF, SVG, AI, EPS, PSD, TIFF, PNG, JPG or WebP.');
+        $png = $files->picture($file->getRealPath(), $kind, (int) $request->input('page', 1));
+        abort_unless($png !== null, 422, DesignFiles::cannotRead($kind));
+
+        return response()->json(['data' => [
+            'image' => 'data:image/png;base64,'.base64_encode($png),
+            'kind' => $kind,
+            'pages' => $kind === 'pdf' ? DesignFiles::pages($file->getRealPath()) : 1,
         ]]);
-        if (! $job->successful()) {
-            return null;
-        }
-        $uploadTask = collect($job->json('data.tasks'))->firstWhere('name', 'upload');
-        $form = $uploadTask['result']['form'] ?? null;
-        if (! $form) {
-            return null;
-        }
-        $upload = Http::asMultipart();
-        foreach ($form['parameters'] as $k => $v) {
-            $upload = $upload->attach($k, $v);
-        }
-        if (! $upload->attach('file', file_get_contents($path), $name)->post($form['url'])->successful()) {
-            return null;
-        }
-        $jobId = $job->json('data.id');
-        for ($i = 0; $i < 30; $i++) {
-            sleep(2);
-            $status = $api->get("/jobs/{$jobId}");
-            if ($status->json('data.status') === 'error') {
-                return null;
-            }
-            if ($status->json('data.status') === 'finished') {
-                $exportTask = collect($status->json('data.tasks'))->firstWhere('name', 'export');
-                $url = $exportTask['result']['files'][0]['url'] ?? null;
-
-                return $url ? Http::timeout(60)->get($url)->body() : null;
-            }
-        }
-
-        return null;
     }
 }

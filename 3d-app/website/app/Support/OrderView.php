@@ -162,12 +162,18 @@ final class OrderView
     public static function garments(Order $order, Collection $projects): array
     {
         if ($order->items) {
-            return array_map(fn (array $item) => [
+            // A row without its own design picture shows the order's kit picture (the kit as ordered, as Admin
+            // Orders shows it), on the first row only, so the card shows the kit (client picture images/339).
+            $kit = self::text($order->getAttribute('kit_thumbnail'));
+            $kit = $kit ?: $order->project?->thumbnail;
+            $rows = array_values($order->items);
+
+            return array_map(fn (array $item, int $i) => [
                 'garment' => $item['garment'] ?? 'other',
                 'name' => Order::itemName($item),
                 'quantity' => (int) ($item['quantity'] ?? array_sum($item['sizes'] ?? [])),
-                'thumbnail' => isset($item['project_id']) ? ($projects[$item['project_id']]->thumbnail ?? null) : null,
-            ], $order->items);
+                'thumbnail' => (isset($item['project_id']) ? ($projects[$item['project_id']]->thumbnail ?? null) : null) ?? ($i === 0 ? $kit : null),
+            ], $rows, array_keys($rows));
         }
         $thumbnail = $order->project?->thumbnail ?: self::text($order->getAttribute('kit_thumbnail'));
         $garment = $order->project?->garment ?: self::text($order->getAttribute('kit_garment'));
@@ -187,6 +193,10 @@ final class OrderView
         $attributes = $order->getAttributes();
         $snapshot = array_key_exists('design_snapshot', $attributes) ? $order->design_snapshot : null;
         $product = trim((string) (array_key_exists('kit_product', $attributes) ? self::text($attributes['kit_product']) : (is_array($snapshot) ? ($snapshot['design']['productName'] ?? null) : null)));
+        // A marquee (Signage & Marquees): one row named by its product ("Custom marquee 3 × 3 m").
+        if ($garment === 'marquee') {
+            return [['garment' => 'marquee', 'name' => $product !== '' ? $product : 'Marquee', 'quantity' => (int) $order->quantity, 'thumbnail' => $thumbnail]];
+        }
         $name = $product !== '' ? $product : ($row !== $garment ? collect(config('catalog.garments'))->firstWhere('id', $garment)['name'] ?? Order::GARMENTS[$row] : ($known ? Order::GARMENTS[$row] : 'Kit'));
 
         return [['garment' => $known ? $row : 'jersey', 'name' => $known ? $name : 'Kit', 'quantity' => (int) $order->quantity, 'thumbnail' => $thumbnail]];

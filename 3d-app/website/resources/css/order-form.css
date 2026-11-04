@@ -45,6 +45,10 @@
 .of-subtotal{display:flex;flex-direction:column;justify-content:center;min-height:64px;margin-left:14px;padding-left:30px;border-left:1px solid #4a5568;color:#dfebf9;font-size:13px;line-height:1.2}
 .of-subtotal strong{font-size:26px;line-height:1.1;color:#fff;font-variant-numeric:tabular-nums}
 .of-other{max-width:420px}
+/* "Custom…" (client 2026-11-02): the typed sport and its garment, side by side (stacked on phones). */
+.of-custom{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:640px}
+.of-custom .of-other{max-width:none}
+@media (max-width:560px){.of-custom{grid-template-columns:1fr}}
 .of-row-files{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0}
 .of-row-files li{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 6px 4px 9px;border:1px solid #2a4a68;border-radius:20px;background:#071628;font-size:12px;color:#d7e6f4}
 .of-row-files li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -220,3 +224,42 @@ p.of-helper-result.is-ok{color:#9af0cd}
   .of-price th,.of-price td{padding:8px 3px;font-size:13px}
   .of-ref{font-size:28px}
 }
+/* Step 3 Artwork & files (client 2026-11-03, images/337) */
+.of-art-actions{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.of-art-actions .of-btn{flex:1 1 180px;min-height:44px}
+.of-art-designs{margin-bottom:14px}
+.of-art-rows{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:10px}
+.of-art-row{display:grid;grid-template-columns:56px 1fr auto;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--op-line-soft);border-radius:10px;background:#061424}
+.of-art-thumb{width:56px;height:56px;border-radius:8px;background:#0b2238;display:grid;place-items:center;overflow:hidden}
+.of-art-thumb img{width:100%;height:100%;object-fit:contain}
+.of-art-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.of-art-text strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-art-text span{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--op-muted)}
+.of-art-text span.is-ok,.of-sheet .is-ok{color:#4ade80}
+.of-art-pick{grid-column:1/-1}
+.of-sheet{margin:6px 0 16px;padding:16px;border:2px dashed var(--op-line);border-radius:12px;background:#04101c}
+.of-sheet-head{display:flex;align-items:center;gap:12px}
+.of-sheet-head>div{flex:1;display:flex;flex-direction:column;gap:2px}
+.of-sheet-head small{color:var(--op-muted);font-size:12.5px}
+.of-sheet-head svg{color:var(--op-cyan)}
+.of-sheet-files{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.of-sheet-files li{display:inline-flex;align-items:center;gap:8px;max-width:100%;padding:6px 10px;border:1px solid var(--op-line);border-radius:999px;background:#071a2c;font-size:13px}
+.of-sheet-files li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-sheet-files li.is-error{border-color:#f87171;color:#fca5a5}
+.of-sheet-files button{border:0;background:none;color:var(--op-muted);display:grid;place-items:center;padding:2px}
+.of-sheet-note{margin:10px 0 0;color:var(--op-light);font-size:13px}
+.of-confirm-hint{margin:12px 0 0;color:var(--op-muted);font-size:13px}
+.of-back{margin-top:16px}
+.of-artwork>.of-art-actions,.of-artwork>.of-art-designs,.of-artwork>.of-art-rows,.of-artwork>.of-sheet,.of-artwork>.of-confirm-hint{grid-column:1/-1}
+.of-art-actions .of-btn{flex:1 1 200px}
+@media (max-width:760px){.of-page .of-artwork{padding-bottom:120px}.of-page .of-sheet{scroll-margin-bottom:140px}}
+/* "Write or snap your notes" (client 2026-11-03) */
+.of-notes{padding:18px 20px;margin-bottom:16px;border-color:#1d6a8a}
+.of-notes h2{display:flex;align-items:center;gap:10px;margin:0 0 6px;font:700 clamp(16px,1.3vw,19px)/1.1 var(--heading);letter-spacing:.12em;text-transform:uppercase;color:#fff}
+.of-notes h2 svg{color:var(--op-cyan)}
+.of-notes .op-hint{margin:0 0 10px}
+.of-notes-text{width:100%;min-height:120px;font-family:inherit;resize:vertical}
+.of-notes-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.of-notes-actions label.of-btn{cursor:pointer}
+.of-notes-status{margin:10px 0 0;color:#d7ffe6;font-size:14px}
+.of-notes-check{margin-top:8px;padding:10px 12px;border:1px solid #b7862a;border-radius:8px;background:#2a2009;color:#ffe6b0;font-size:13.5px}

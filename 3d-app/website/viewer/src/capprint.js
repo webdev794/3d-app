@@ -113,17 +113,17 @@ export function paintCap(painter, design, back, trim) {
   // The eyelets (cap.js CAP_EYELETS: a metal grommet on each): the fabric shaded round each grommet, and the hole.
   painter.side(back);
   for (const { x, v } of CAP_EYELETS.filter((e) => e.back === back)) {
-    const y = BAND + LM * v, shade = g.createRadialGradient(x, y, 0.0048, x, y, 0.0072);
-    shade.addColorStop(0, 'rgba(0,0,0,0.45)'); shade.addColorStop(1, 'rgba(0,0,0,0)');
-    g.beginPath(); g.arc(x, y, 0.0072, 0, 2 * Math.PI);
-    g.fillStyle = shade; g.fill();
-    g.beginPath(); g.arc(x, y, 0.0024, 0, 2 * Math.PI);
-    g.fillStyle = 'rgba(0,0,0,0.9)'; g.fill();
+    // (FN2 2026-10-30: flat paint, as the pictures: a grey metal ring round a black hole, under the grommet.)
+    const y = BAND + LM * v;
+    g.beginPath(); g.arc(x, y, 0.0068, 0, 2 * Math.PI);
+    g.fillStyle = '#6b7077'; g.fill();
+    g.beginPath(); g.arc(x, y, 0.0032, 0, 2 * Math.PI);
+    g.fillStyle = '#050607'; g.fill();
   }
 }
 
 /** How the cap is made: top-stitching beside each seam, round the band, and the brim's rows of stitching. */
-export function capTailoring(back) {
+export function capTailoring(back, five = false) {
   const stitches = [];
   for (const s of capSeams(back)) for (const x of [s - 0.0042, s + 0.0042]) stitches.push((c) => { c.moveTo(x, BAND + 0.004); c.lineTo(x, BAND + LM - 0.012); });
   stitches.push((c) => { c.moveTo(-0.4, BAND + 0.0045); c.lineTo(0.4, BAND + 0.0045); });
@@ -141,7 +141,8 @@ export function capTailoring(back) {
   }
   const seams = capSeams(back).map((x) => (c) => { c.moveTo(x, BAND); c.lineTo(x, BAND + LM); });
   // The front's middle seam (the pictures' two front panels), unpiped, top-stitched either side (DT4).
-  if (!back) {
+  // (The 5-panel cap's front is one seamless panel, CP1.)
+  if (!back && !five) {
     seams.push((c) => { c.moveTo(0, BAND); c.lineTo(0, BAND + LM); });
     for (const x of [-0.0042, 0.0042]) stitches.push((c) => { c.moveTo(x, BAND + 0.004); c.lineTo(x, BAND + LM - 0.012); });
   }
@@ -164,7 +165,8 @@ export async function paintCapMarks(painter, design, loadImage, textOutline) {
   const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text' && !String(l.id ?? '').startsWith('kit-'));
   if (painter._logo) painter.markImage(design, 'crest', CAP_CREST, painter._logo, 0.06, 0.05);
   // No club logo yet: the 3DEEZI "3" mark (texture.js markShield draws the brand's own picture), as on the tile pictures.
-  else if (!ownArt) painter.markShield(design, 'crest', CAP_CREST, [[0, 0.023], [0.02, 0.012], [0.016, -0.014], [0, -0.023], [-0.016, -0.014], [-0.02, 0.012]], 0.02, 0.03);
+  // (Artwork to 3D, CP1: the customer's logo on the front panels moves the small "3" to the back, design.marks.top_crest.)
+  else if (!ownArt || design.marks?.top_crest?.side === 'back') painter.markShield(design, 'crest', CAP_CREST, [[0, 0.023], [0.02, 0.012], [0.016, -0.014], [0, -0.023], [-0.016, -0.014], [-0.02, 0.012]], 0.02, 0.03);
   // The club's word under it (the default 3DEEZI is the brand's own wordmark picture: texture.js markText).
   const word = (design.logoText ?? '').trim().toUpperCase();
   if (word) painter.markText(design, 'wordmark', CAP_WORD, word, 0.026, design.accent, 0.11, textOutline);

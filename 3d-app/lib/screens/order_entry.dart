@@ -1,12 +1,15 @@
+import 'dart:async';
+import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
+import '../custom_choice.dart';
 import '../money.dart';
 import '../order_sizes.dart';
 import '../project_sync.dart';
@@ -16,6 +19,8 @@ import '../widgets/site_page_stub.dart'
 import '../widgets/order_form_read.dart';
 import '../widgets/order_review_approve.dart';
 import '../widgets/order_review_garments.dart';
+import '../widgets/flow_ui.dart' show pickArtwork;
+import '../widgets/glass_bubble.dart';
 import '../widgets/ui.dart';
 import 'orders_board.dart';
 import 'suppliers.dart' show MadeByField, Supplier, SuppliersScreen;
@@ -446,6 +451,7 @@ Future<({String name, Uint8List bytes})?> Function(String kind) pickOrderFile =
     _pick;
 
 Future<({String name, Uint8List bytes})?> _pick(String kind) async {
+  // (iOS needs the type identifiers, else openFile throws and nothing opens.)
   final file = await openFile(
     acceptedTypeGroups: [
       XTypeGroup(
@@ -482,6 +488,19 @@ Future<({String name, Uint8List bytes})?> _pick(String kind) async {
                 'tiff',
                 'heic',
               ],
+        uniformTypeIdentifiers: kind == 'order_form'
+            ? const [
+                'com.adobe.pdf',
+                'org.openxmlformats.spreadsheetml.sheet',
+                'com.microsoft.excel.xls',
+                'public.comma-separated-values-text',
+                'org.oasis-open.opendocument.spreadsheet',
+                'com.microsoft.word.doc',
+                'org.openxmlformats.wordprocessingml.document',
+                'public.plain-text',
+                'public.image',
+              ]
+            : const ['public.image', 'com.adobe.pdf', 'public.data'],
       ),
     ],
   );
@@ -586,15 +605,29 @@ class _Row {
   String garment = 'jersey', fit = 'mens';
   int? project;
 
+  /// "Custom…" (client 2026-11-02, as on the website): a sport typed, and
+  /// the name of an Other garment ("Bowling shirt").
+  bool custom = false;
+  String sport = '', label = '';
+
   /// "More sizes": the fit's rare sizes (5XL–8XL, W22–W24, 2Y–4Y).
   bool more = false;
   final Map<String, int> sizes = {};
+
+  /// Artwork uploaded for this garment (step 3 "Artwork & files").
+  final fileIds = <int>[];
   String players = '';
   int get total => sizes.values.fold(0, (a, b) => a + b);
   Map<String, dynamic> toJson() => {
     'garment': garment,
+    if (customName(sport).isNotEmpty) 'sport': customName(sport),
     'fit': fit,
+    if (garment == 'other' && label.trim().isNotEmpty)
+      'label': label.trim().length > 60
+          ? label.trim().substring(0, 60)
+          : label.trim(),
     if (project != null) 'project_id': project,
+    if (fileIds.isNotEmpty) 'file_ids': fileIds,
     'sizes': {
       for (final e in sizes.entries)
         if (e.value > 0) e.key: e.value,
@@ -644,6 +677,157 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   int? draftId;
   final key = _newKey();
   String step = 'edit';
+
+  /// The form's sections (1, 2, 3), for the step bar (client pictures
+  /// images/337, 339): it lights the one on screen and scrolls to a tapped one.
+  final sectionKeys = [GlobalKey(), GlobalKey(), GlobalKey()];
+  int sectionOnScreen = 0;
+
+  /// One step per screen (client 2026-11-03, images/337, 339): the page of
+  /// the form shown (Create: 0 Details, 1 Garments, 2 Artwork; Upload:
+  /// 0 Upload, 1 Check details). Review is its own screen (step 'review').
+  int page = 0;
+
+  /// The Review step: checks everything, then opens the review.
+  void startReview();
+
+  /// Back / Continue under each page.
+  Widget pageButtons({
+    required bool last,
+    required VoidCallback onNext,
+    String? nextLabel,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: busy ? null : saveDraft,
+              child: const Text('Save draft'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GradientButton(
+              key: Key(last ? 'order-review-button' : 'order-continue'),
+              label: last ? 'REVIEW ORDER' : (nextLabel ?? 'CONTINUE'),
+              compact: true,
+              onPressed: last ? startReview : onNext,
+            ),
+          ),
+        ],
+      ),
+      if (page > 0)
+        TextButton.icon(
+          key: const Key('order-back'),
+          onPressed: () => setState(() {
+            page--;
+            error = null;
+          }),
+          icon: const Icon(Icons.arrow_back, size: 18),
+          label: Text('Back to ${stepNames[page - 1].toLowerCase()}'),
+        ),
+    ],
+  );
+
+  /// The step names: Create order (Details > Garments > Artwork > Review) or
+  /// Upload order (Upload > Check details > Review: its sections 1-2 are
+  /// "Upload", section 3 "Check details").
+  List<String> get stepNames;
+
+  /// The section a step scrolls to.
+  int sectionOfStep(int i) => i;
+  int stepOfSection(int section) => section;
+
+  bool _sectionCheck = false;
+
+  /// After the frame (positions are only read once laid out): which section
+  /// is at the top of the screen.
+  bool watchSections(ScrollNotification n) {
+    if (step != 'edit' || _sectionCheck) return false;
+    _sectionCheck = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sectionCheck = false;
+      if (!mounted || step != 'edit') return;
+      var on = 0;
+      for (final (i, k) in sectionKeys.indexed) {
+        final box = k.currentContext?.findRenderObject();
+        if (box is RenderBox &&
+            box.attached &&
+            box.hasSize &&
+            box.localToGlobal(Offset.zero).dy < 260)
+          on = i;
+      }
+      if (on != sectionOnScreen) setState(() => sectionOnScreen = on);
+    });
+    return false;
+  }
+
+  void goToStep(int i) {
+    if (i == stepNames.length - 1) return startReview();
+    setState(() {
+      step = 'edit';
+      page = i;
+      error = null;
+    });
+  }
+
+  void scrollToSection(int i) {
+    void scroll() {
+      final target = sectionKeys[sectionOfStep(i)].currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 300),
+          alignment: 0.02,
+        );
+      }
+    }
+
+    if (step == 'review') {
+      setState(() => step = 'edit');
+      WidgetsBinding.instance.addPostFrameCallback((_) => scroll());
+    } else {
+      scroll();
+    }
+  }
+
+  /// The bubble header over the form: title, its line and the step bar.
+  Widget stepHeader(String title, String line) {
+    final current = step == 'review' || step == 'done'
+        ? stepNames.length - 1
+        : page;
+    // (Compact: the form keeps most of the screen; the title is in the app bar.)
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+      child: GlassCard(
+        radius: 20,
+        semanticsLabel: null,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+          child: Column(
+            children: [
+              Text(
+                line,
+                style: const TextStyle(
+                  color: Color(0xffd3dee8),
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              OrderStepBar(
+                names: stepNames,
+                current: current,
+                onTap: step == 'done' ? null : goToStep,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String? error;
   bool busy = false;
 
@@ -736,6 +920,9 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   /// approved suppliers. None on an older server: the order is then 3DEEZI's, with nothing to choose.
   List<Supplier> makers = const [];
 
+  /// The makers have arrived (inside setState): the form can pick one.
+  void makersLoaded() {}
+
   /// The order form's choices: the lead time and the makers.
   Future<void> loadOptions() async {
     try {
@@ -746,6 +933,7 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
         setState(() {
           if (weeks is num) leadWeeks = weeks.toInt();
           makers = found;
+          makersLoaded();
         });
       }
     } catch (_) {
@@ -895,6 +1083,53 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   Future<int> ensureDraft() async => draftId ??=
       ((await c.api.createOrderDraft(kind, fields()))['id'] as num).toInt();
 
+  /// Download PDF / Download Excel on the review: the draft saved as it is
+  /// now, then the order confirmation form's signed link opened (images/336).
+  Future<void> downloadConfirmation(String which) async {
+    try {
+      if (draftId == null) {
+        await ensureDraft();
+      } else {
+        await c.api.saveOrderDraft(draftId!, fields());
+      }
+      if (which == 'link') {
+        // Copy form link (client 394): the editable form on the website, for
+        // the signed-in owner and 3DEEZI admins.
+        final site = c.api.baseUrl.replaceFirst(RegExp(r'/api(/v1)?/?$'), '');
+        await Clipboard.setData(
+          ClipboardData(text: '$site/orders/new?draft=$draftId'),
+        );
+        if (mounted) {
+          showToast(
+            context,
+            'Form link copied. You and 3DEEZI admins can open it to edit this order form.',
+          );
+        }
+        return;
+      }
+      final share = which == 'share';
+      final links = await c.api.orderConfirmationLinks(draftId!, share: share);
+      final url = '${links[share ? 'pdf' : which] ?? ''}';
+      if (url.isEmpty || !mounted) return;
+      if (share) {
+        // Share order form: a read-only link (the form's page, with PDF / Excel), 30 days.
+        await Clipboard.setData(ClipboardData(text: url));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Link copied. Anyone with it can view this order form (read-only) for 30 days.',
+            ),
+          ),
+        );
+        return;
+      }
+      await openSitePage(context, url, 'Order confirmation');
+    } on ApiException catch (e) {
+      if (mounted) setState(() => error = e.message);
+    }
+  }
+
   Future<void> saveDraft() async {
     setState(() => busy = true);
     try {
@@ -912,7 +1147,17 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   }
 
   Future<void> addFile(String fileKind, {_Upload? replacing}) async {
-    final picked = await pickOrderFile(fileKind);
+    // Phones: artwork comes from the photo library, the camera or Files (the
+    // same sheet as Artwork to 3D); the Files-only picker did nothing on an
+    // iPhone (user 2026-11-03).
+    final phone =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.android);
+    final picked =
+        phone && fileKind == 'artwork' && identical(pickOrderFile, _pick)
+        ? await pickArtwork(context)
+        : await pickOrderFile(fileKind);
     if (picked == null) return;
     if (picked.bytes.length > _maxBytes) {
       setState(() => error = '${picked.name} is larger than 25 MB.');
@@ -1247,7 +1492,8 @@ Widget _field(
   ),
 );
 
-Widget _section(String text) => Padding(
+Widget _section(String text, {Key? key}) => Padding(
+  key: key,
   padding: const EdgeInsets.fromLTRB(0, 18, 0, 10),
   child: Text(
     text.toUpperCase(),
@@ -1262,8 +1508,12 @@ Widget _section(String text) => Padding(
 
 /// Create Order Form: contact and team, garments with sizes, names, artwork, instructions; review, then confirm.
 class OrderFormScreen extends StatefulWidget {
-  const OrderFormScreen(this.controller, {super.key});
+  const OrderFormScreen(this.controller, {super.key, this.maker});
   final AppController controller;
+
+  /// The maker to start with (the Orders tab's "Make with Mantis"), by name;
+  /// when it is not offered the order stays 3DEEZI's.
+  final String? maker;
   @override
   State<OrderFormScreen> createState() => _OrderFormScreenState();
 }
@@ -1275,11 +1525,212 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   String get kind => 'form';
   final rows = <_Row>[_Row()];
   final help = TextEditingController();
+
+  /// The garment the next artwork upload is for (step 3 rows).
+  _Row? artFor;
+  String? sheetNote;
+
+  @override
+  void onUploaded(_Upload upload) {
+    final id = (upload.file?['id'] as num?)?.toInt();
+    if (upload.kind == 'artwork' && artFor != null && id != null) {
+      setState(() => artFor!.fileIds.add(id));
+      artFor = null;
+    }
+    if (upload.kind == 'order_form' && (notesPhoto || notesFile)) {
+      notesPhoto = false;
+      unawaited(readNotesPhoto());
+      return;
+    }
+    if (upload.kind == 'order_form') {
+      // "Have an order sheet?": the same reading as Upload order (OrderFormReader).
+      final read = (upload.file?['suggested'] as Map?)?.cast<String, dynamic>();
+      final items = ((read?['items'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((m) => m.cast<String, dynamic>())
+          .toList();
+      setState(() {
+        if (items.isNotEmpty) addItems(items);
+        sheetNote = items.isEmpty
+            ? 'No sizes found in the sheet: add them under Garments.'
+            : 'Added ${read?['summary'] ?? '${items.length} garments'}.';
+      });
+    }
+  }
+
+  @override
+  void startReview() => setState(() {
+    error = problem();
+    if (error == null) {
+      step = 'review';
+      approved = false;
+    } else {
+      page = total < 1 && error == 'Add at least one size and quantity.'
+          ? 1
+          : 0;
+    }
+  });
+
+  /// Continue: this page's checks (the review still checks everything).
+  void nextPage() => setState(() {
+    error = page == 0
+        ? (name.text.trim().isEmpty
+              ? 'Add a contact name.'
+              : team.text.trim().isEmpty
+              ? 'Add your team or organisation name.'
+              : deliveryProblem())
+        : (total < 1 ? 'Add at least one size and quantity.' : null);
+    if (error == null) page++;
+  });
+
+  /// "Write or snap your notes" (client 2026-11-03): typed notes, a photo of notes, images.
+  final notes = TextEditingController();
+  bool notesPhoto = false, notesFile = false, building = false;
+
+  /// The rows the last Build made: a second Build replaces them (392.jpg).
+  final notesBuilt = <_Row>{};
+  String? notesNote;
+
+  /// Build my order form: the typed notes read on the server without AI.
+  Future<void> buildFromNotes() async {
+    final text = notes.text.trim();
+    if (text.isEmpty) {
+      setState(
+        () => notesNote = 'Write your notes, or add a photo of them, first.',
+      );
+      return;
+    }
+    setState(() => building = true);
+    try {
+      final read = await c.api.readOrderNotes(text);
+      applyNotes(read);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => notesNote = e.message);
+    } finally {
+      if (mounted) setState(() => building = false);
+    }
+  }
+
+  /// A photo of notes: uploaded as an order form, then read by 3DEEZI AI.
+  Future<void> readNotesPhoto() async {
+    if (draftId == null) return;
+    setState(() {
+      building = true;
+      notesNote = '3DEEZI AI is reading your notes…';
+    });
+    try {
+      final d = await c.api.readOrderDraft(draftId!);
+      final items = <Map<String, dynamic>>[];
+      final unknown = <String>[];
+      for (final s
+          in ((d['suggested'] as List?) ?? const []).whereType<Map>()) {
+        // A photo is read by AI; an uploaded order form file by any reader.
+        if (s['source'] != 'ai' && !notesFile) continue;
+        items.addAll(
+          ((s['items'] as List?) ?? const []).whereType<Map>().map(
+            (m) => m.cast<String, dynamic>(),
+          ),
+        );
+        unknown.addAll(((s['unknown'] as List?) ?? const []).map((u) => '$u'));
+      }
+      notesFile = false;
+      applyNotes({'items': items, 'unknown': unknown});
+    } on ApiException catch (e) {
+      if (mounted) setState(() => notesNote = e.message);
+    } finally {
+      if (mounted) setState(() => building = false);
+    }
+  }
+
+  void applyNotes(Map<String, dynamic> read) {
+    final items = ((read['items'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((m) => m.cast<String, dynamic>())
+        .toList();
+    final unknown = ((read['unknown'] as List?) ?? const []).map((u) => '$u');
+    if (!mounted) return;
+    setState(() {
+      if (items.isNotEmpty) {
+        rows.removeWhere(notesBuilt.contains);
+        final before = rows.toSet();
+        addItems(items);
+        notesBuilt
+          ..clear()
+          ..addAll(rows.where((r) => !before.contains(r)));
+      }
+      final count = items.fold<int>(
+        0,
+        (a, i) =>
+            a +
+            ((i['sizes'] as Map?) ?? const {}).values.fold<int>(
+              0,
+              (b, v) => b + ((v as num?)?.toInt() ?? 0),
+            ),
+      );
+      notesNote = [
+        items.isEmpty
+            ? 'No garments or sizes found. Try lines like "Polo" then "3 x 4XL".'
+            : 'Built ${items.length} ${items.length == 1 ? 'garment' : 'garments'} ($count in all) from your notes. Check them under Garments.',
+        if (items.isNotEmpty && deliveryProblem() != null)
+          'Please check: ${deliveryProblem()}',
+        if (unknown.isNotEmpty)
+          'Please check: ${unknown.take(6).map((u) => '"$u"').join(', ')}',
+      ].join('\n');
+    });
+    // Straight on to the built garments (client 394).
+    if (items.isNotEmpty) goToStep(1);
+  }
+
+  void addItems(List<Map<String, dynamic>> items) {
+    if (rows.length == 1 && rows.first.total == 0) rows.clear();
+    for (final item in items) {
+      rows.add(
+        _Row()
+          ..garment = _garments.containsKey(item['garment'])
+              ? '${item['garment']}'
+              : 'other'
+          ..sizes.addAll(
+            ((item['sizes'] as Map?) ?? const {}).map(
+              (k, v) => MapEntry('$k', (v as num).toInt()),
+            ),
+          )
+          ..players = [
+            for (final p
+                in ((item['players'] as List?) ?? const []).whereType<Map>())
+              [
+                '${p['name'] ?? ''}'.trim(),
+                '${p['number'] ?? ''}'.trim(),
+                '${p['size'] ?? ''}'.trim(),
+              ].join(', '),
+          ].join('\n')
+          ..fit = _fits.containsKey(item['fit'])
+              ? '${item['fit']}'
+              : fitFromSizes(
+                      ((item['sizes'] as Map?) ?? const {}).map(
+                        (k, v) => MapEntry('$k', (v as num).toInt()),
+                      ),
+                    ) ??
+                    'mens',
+      );
+    }
+    if (rows.isEmpty) rows.add(_Row());
+  }
+
   Map<String, dynamic> pricing = {};
   String? helped;
 
   /// Made by: the maker chosen; null is 3DEEZI (the default).
   int? supplierId;
+
+  @override
+  void makersLoaded() {
+    final want = widget.maker?.toLowerCase();
+    if (want == null || supplierId != null) return;
+    supplierId = makers
+        .where((m) => m.name.toLowerCase() == want)
+        .firstOrNull
+        ?.id;
+  }
 
   @override
   void initState() {
@@ -1394,83 +1845,196 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
           ),
       ],
     ),
-    body: step == 'done'
-        ? confirmation()
-        : step == 'review'
-        ? _review()
-        : _edit(),
+    body: Column(
+      children: [
+        stepHeader('CREATE ORDER FORM', 'Build your order step by step.'),
+        Expanded(
+          child: NotificationListener<ScrollNotification>(
+            onNotification: watchSections,
+            child: step == 'done'
+                ? confirmation()
+                : step == 'review'
+                ? _review()
+                : _edit(),
+          ),
+        ),
+      ],
+    ),
   );
+
+  @override
+  List<String> get stepNames => const [
+    'Details',
+    'Garments',
+    'Artwork',
+    'Review',
+  ];
 
   Widget _edit() {
     final designs = [
       for (final p in c.projects)
         if (p.remoteId != null) p,
     ];
-    return ListView(
+    // (One built column, not a lazy list: the step bar finds every section.)
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
-      children: [
-        _section('1 · Contact & team'),
-        contactFields(withPhone: false),
-        _field(phone, 'Mobile', keyboard: TextInputType.phone),
-        _whenWhere(),
-        // Made by, at the end of section 1 as on the website (only when there is a choice).
-        MadeByField(
-          makers: makers,
-          value: supplierId,
-          onChanged: (id) => setState(() => supplierId = id),
-          onSeeSuppliers: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
-        ),
-        _section('2 · Garments & sizes'),
-        SurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '3DEEZI ASSIST · Help me add sizes',
-                style: TextStyle(fontWeight: FontWeight.w700),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (page == 0) ...[
+            _notesBox(),
+            _section('1 · Contact & team', key: sectionKeys[0]),
+            contactFields(withPhone: false),
+            _field(phone, 'Mobile', keyboard: TextInputType.phone),
+            _whenWhere(),
+            // Made by, at the end of section 1 as on the website (only when there is a choice).
+            MadeByField(
+              makers: makers,
+              value: supplierId,
+              onChanged: (id) => setState(() => supplierId = id),
+              onSeeSuppliers: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c)),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: help,
-                decoration: const InputDecoration(
-                  hintText: '12 jerseys M, 12 shorts L, 6 hoodies XL',
-                  isDense: true,
-                  border: OutlineInputBorder(),
+            ),
+          ],
+          if (page == 1) ...[
+            _section('2 · Garments & sizes', key: sectionKeys[1]),
+            if (notesNote != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  notesNote!,
+                  key: const Key('notes-built'),
+                  style: const TextStyle(
+                    color: Color(0xffd7ffe6),
+                    fontSize: 13,
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: OutlinedButton(
-                  onPressed: busy ? null : helpMe,
-                  child: const Text('Help me add sizes'),
-                ),
-              ),
-              if (helped != null)
-                Text(
-                  helped!,
-                  style: const TextStyle(color: Palette.muted, fontSize: 12),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        for (final (i, r) in rows.indexed)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: SurfaceCard(
+            SurfaceCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  const Text(
+                    '3DEEZI ASSIST · Help me add sizes',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: help,
+                    decoration: const InputDecoration(
+                      hintText: '12 jerseys M, 12 shorts L, 6 hoodies XL',
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton(
+                      onPressed: busy ? null : helpMe,
+                      child: const Text('Help me add sizes'),
+                    ),
+                  ),
+                  if (helped != null)
+                    Text(
+                      helped!,
+                      style: const TextStyle(
+                        color: Palette.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            for (final (i, r) in rows.indexed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: SurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          // A saved design sets the garment: show it.
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              // A saved design sets the garment: show it.
+                              key: ValueKey(
+                                'garment-${identityHashCode(r)}-${r.garment}-${r.custom}',
+                              ),
+                              isExpanded: true,
+                              initialValue: r.custom ? customValue : r.garment,
+                              decoration: const InputDecoration(
+                                labelText: 'Garment',
+                                isDense: true,
+                              ),
+                              items: [
+                                for (final e in _garments.entries)
+                                  DropdownMenuItem(
+                                    value: e.key,
+                                    child: Text(e.value),
+                                  ),
+                                // "Custom…" (client 2026-11-02): a sport typed.
+                                const DropdownMenuItem(
+                                  value: customValue,
+                                  child: Text(customLabel),
+                                ),
+                              ],
+                              onChanged: (v) => setState(() {
+                                r.custom = v == customValue;
+                                if (!r.custom) {
+                                  r.garment = v ?? r.garment;
+                                  r.sport = '';
+                                }
+                              }),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: r.fit,
+                              decoration: const InputDecoration(
+                                labelText: 'Fit',
+                                isDense: true,
+                              ),
+                              items: [
+                                for (final e in _fits.entries)
+                                  DropdownMenuItem(
+                                    value: e.key,
+                                    child: Text(e.value),
+                                  ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => r.fit = v ?? r.fit),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Remove garment ${i + 1}',
+                            onPressed: rows.length < 2
+                                ? null
+                                : () => setState(() => rows.remove(r)),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ],
+                      ),
+                      if (r.custom) ...[
+                        TextFormField(
+                          key: Key('custom-sport-$i'),
+                          initialValue: r.sport,
+                          maxLength: customMax,
+                          decoration: const InputDecoration(
+                            labelText: 'Type your sport',
+                            hintText: 'e.g. Lacrosse, Bowling',
+                            isDense: true,
+                            counterText: '',
+                          ),
+                          onChanged: (v) => r.sport = typedName(v),
+                        ),
+                        DropdownButtonFormField<String>(
                           key: ValueKey(
-                            'garment-${identityHashCode(r)}-${r.garment}',
+                            'custom-garment-${identityHashCode(r)}',
                           ),
                           isExpanded: true,
                           initialValue: r.garment,
@@ -1482,216 +2046,549 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                             for (final e in _garments.entries)
                               DropdownMenuItem(
                                 value: e.key,
-                                child: Text(e.value),
+                                child: Text(
+                                  e.key == 'other' ? customLabel : e.value,
+                                ),
                               ),
                           ],
                           onChanged: (v) =>
                               setState(() => r.garment = v ?? r.garment),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
+                      ],
+                      if (r.garment == 'other')
+                        TextFormField(
+                          key: Key('custom-garment-name-$i'),
+                          initialValue: r.label,
+                          maxLength: 60,
+                          decoration: InputDecoration(
+                            labelText: r.custom
+                                ? 'Type your garment'
+                                : 'What is it?',
+                            hintText: r.custom
+                                ? customPlaceholder
+                                : 'e.g. Long-sleeve compression top',
+                            isDense: true,
+                            counterText: '',
+                          ),
+                          onChanged: (v) => r.label = typedName(v),
+                        ),
+                      if (designs.isNotEmpty)
+                        DropdownButtonFormField<int?>(
                           isExpanded: true,
-                          initialValue: r.fit,
+                          initialValue: r.project,
                           decoration: const InputDecoration(
-                            labelText: 'Fit',
+                            labelText: 'Design',
                             isDense: true,
                           ),
                           items: [
-                            for (final e in _fits.entries)
-                              DropdownMenuItem(
-                                value: e.key,
-                                child: Text(e.value),
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('No saved design'),
+                            ),
+                            for (final p in designs)
+                              DropdownMenuItem<int?>(
+                                value: p.remoteId,
+                                child: Text(p.title),
                               ),
                           ],
-                          onChanged: (v) => setState(() => r.fit = v ?? r.fit),
+                          onChanged: (v) => setState(() {
+                            r.project = v;
+                            final p = designs
+                                .where((p) => p.remoteId == v)
+                                .firstOrNull;
+                            if (p != null)
+                              r.garment = orderGarmentFor(p.kit.garment);
+                          }),
                         ),
-                      ),
-                      IconButton(
-                        tooltip: 'Remove garment ${i + 1}',
-                        onPressed: rows.length < 2
-                            ? null
-                            : () => setState(() => rows.remove(r)),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
-                  ),
-                  if (designs.isNotEmpty)
-                    DropdownButtonFormField<int?>(
-                      isExpanded: true,
-                      initialValue: r.project,
-                      decoration: const InputDecoration(
-                        labelText: 'Design',
-                        isDense: true,
-                      ),
-                      items: [
-                        const DropdownMenuItem<int?>(
-                          value: null,
-                          child: Text('No saved design'),
-                        ),
-                        for (final p in designs)
-                          DropdownMenuItem<int?>(
-                            value: p.remoteId,
-                            child: Text(p.title),
-                          ),
-                      ],
-                      onChanged: (v) => setState(() {
-                        r.project = v;
-                        final p = designs
-                            .where((p) => p.remoteId == v)
-                            .firstOrNull;
-                        if (p != null)
-                          r.garment = orderGarmentFor(p.kit.garment);
-                      }),
-                    ),
-                  const SizedBox(height: 10),
-                  // The fit's sizes: Mens XS–4XL (+ 5XL–8XL), Womens W8–W20 (+ W22, W24), Kids 6Y–16Y (+ 2Y, 4Y), and any size the row has.
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final s in rowSizes(r.fit, r.sizes, more: r.more))
-                        SizedBox(
-                          width: 64,
-                          child: TextFormField(
-                            key: Key('size-$i-$s'),
-                            initialValue: r.sizes[s]?.toString() ?? '',
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.center,
-                            decoration: InputDecoration(
-                              labelText: s,
-                              isDense: true,
-                              border: const OutlineInputBorder(),
+                      const SizedBox(height: 10),
+                      // The fit's sizes: Mens XS–4XL (+ 5XL–8XL), Womens W8–W20 (+ W22, W24), Kids 6Y–16Y (+ 2Y, 4Y), and any size the row has.
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final s in rowSizes(
+                            r.fit,
+                            r.sizes,
+                            more: r.more,
+                          ))
+                            SizedBox(
+                              width: 64,
+                              child: TextFormField(
+                                key: Key('size-$i-$s'),
+                                initialValue: r.sizes[s]?.toString() ?? '',
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                decoration: InputDecoration(
+                                  labelText: s,
+                                  isDense: true,
+                                  border: const OutlineInputBorder(),
+                                ),
+                                onChanged: (v) => setState(
+                                  () => r.sizes[s] = int.tryParse(v) ?? 0,
+                                ),
+                              ),
                             ),
-                            onChanged: (v) => setState(
-                              () => r.sizes[s] = int.tryParse(v) ?? 0,
+                        ],
+                      ),
+                      // The subtotal, "More sizes", and the same garment in another fit (a team's mens, womens and kids each
+                      // get a row), on one line.
+                      Wrap(
+                        spacing: 2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              'Subtotal ${r.total}',
+                              style: const TextStyle(
+                                color: Palette.cyan,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                  // The subtotal, "More sizes", and the same garment in another fit (a team's mens, womens and kids each
-                  // get a row), on one line.
-                  Wrap(
-                    spacing: 2,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Text(
-                          'Subtotal ${r.total}',
-                          style: const TextStyle(
-                            color: Palette.cyan,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                          if (rareFor(r.fit).isNotEmpty)
+                            TextButton(
+                              key: Key('more-sizes-$i'),
+                              style: _smallLink,
+                              onPressed: () => setState(() => r.more = !r.more),
+                              child: Text(
+                                r.more
+                                    ? 'Fewer sizes'
+                                    : '+ ${rareText(rareFor(r.fit))}',
+                              ),
+                            ),
+                          for (final f in const ['mens', 'womens', 'youth'])
+                            if (f !=
+                                (r.fit == 'womens' || r.fit == 'youth'
+                                    ? r.fit
+                                    : 'mens'))
+                              TextButton(
+                                key: Key('add-fit-$i-$f'),
+                                style: _smallLink,
+                                onPressed: rows.length >= 30
+                                    ? null
+                                    : () => setState(
+                                        () => rows.insert(
+                                          i + 1,
+                                          _Row()
+                                            ..garment = r.garment
+                                            ..project = r.project
+                                            ..custom = r.custom
+                                            ..sport = r.sport
+                                            ..label = r.label
+                                            ..fit = f,
+                                        ),
+                                      ),
+                                child: Text('+ ${fitNames[f]} sizes'),
+                              ),
+                        ],
                       ),
-                      if (rareFor(r.fit).isNotEmpty)
-                        TextButton(
-                          key: Key('more-sizes-$i'),
-                          style: _smallLink,
-                          onPressed: () => setState(() => r.more = !r.more),
-                          child: Text(
-                            r.more
-                                ? 'Fewer sizes'
-                                : '+ ${rareText(rareFor(r.fit))}',
-                          ),
+                      ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Player names & numbers (optional)',
+                          style: TextStyle(fontSize: 13),
                         ),
-                      for (final f in const ['mens', 'womens', 'youth'])
-                        if (f !=
-                            (r.fit == 'womens' || r.fit == 'youth'
-                                ? r.fit
-                                : 'mens'))
-                          TextButton(
-                            key: Key('add-fit-$i-$f'),
-                            style: _smallLink,
-                            onPressed: rows.length >= 30
-                                ? null
-                                : () => setState(
-                                    () => rows.insert(
-                                      i + 1,
-                                      _Row()
-                                        ..garment = r.garment
-                                        ..project = r.project
-                                        ..fit = f,
-                                    ),
-                                  ),
-                            child: Text('+ ${fitNames[f]} sizes'),
+                        children: [
+                          TextFormField(
+                            initialValue: r.players,
+                            maxLines: 4,
+                            decoration: const InputDecoration(
+                              hintText: 'One per line: SMITH, 7, M',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (v) => r.players = v,
                           ),
+                        ],
+                      ),
                     ],
                   ),
-                  ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Player names & numbers (optional)',
-                      style: TextStyle(fontSize: 13),
+                ),
+              ),
+            TextButton.icon(
+              onPressed: () => setState(() => rows.add(_Row())),
+              icon: const Icon(Icons.add),
+              label: const Text('Add garment'),
+            ),
+          ],
+          if (page == 2) ...[
+            _section('3 · Artwork & files', key: sectionKeys[2]),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('choose-saved-design'),
+                    onPressed: () => _artSheet(
+                      rows.firstWhere(
+                        (r) => r.project == null && r.fileIds.isEmpty,
+                        orElse: () => rows.first,
+                      ),
+                      designs,
                     ),
-                    children: [
-                      TextFormField(
-                        initialValue: r.players,
-                        maxLines: 4,
-                        decoration: const InputDecoration(
-                          hintText: 'One per line: SMITH, 7, M',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (v) => r.players = v,
-                      ),
-                    ],
+                    icon: const Icon(Icons.palette_outlined, size: 18),
+                    label: const Text('Choose saved design'),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('upload-artwork'),
+                    onPressed: () {
+                      artFor = rows
+                          .where((r) => r.project == null && r.fileIds.isEmpty)
+                          .firstOrNull;
+                      addFile('artwork');
+                    },
+                    icon: const Icon(Icons.upload_file, size: 18),
+                    label: const Text('Upload artwork'),
+                  ),
+                ),
+              ],
             ),
-          ),
-        TextButton.icon(
-          onPressed: () => setState(() => rows.add(_Row())),
-          icon: const Icon(Icons.add),
-          label: const Text('Add garment'),
-        ),
-        _section('3 · Artwork & instructions'),
-        for (final u in uploads) fileRow(u),
-        OutlinedButton.icon(
-          onPressed: () => addFile('artwork'),
-          icon: const Icon(Icons.attach_file),
-          label: const Text('Add logos, artwork or a reference'),
-        ),
-        const SizedBox(height: 10),
-        _field(notes, 'Design instructions', lines: 3),
-        errorText(),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: busy ? null : saveDraft,
-                child: const Text('Save draft'),
-              ),
+            const SizedBox(height: 10),
+            for (final (i, r) in rows.indexed) _artRow(i, r, designs),
+            const SizedBox(height: 6),
+            _sheetBox(),
+            for (final u in uploads.where((u) => u.kind == 'artwork'))
+              fileRow(u),
+            OutlinedButton.icon(
+              onPressed: () {
+                artFor = null;
+                addFile('artwork');
+              },
+              icon: const Icon(Icons.attach_file),
+              label: const Text('Artwork for the whole order'),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: GradientButton(
-                label: 'REVIEW ORDER',
-                compact: true,
-                onPressed: () => setState(() {
-                  error = problem();
-                  if (error == null) {
-                    step = 'review';
-                    approved = false;
-                  }
-                }),
+            const SizedBox(height: 10),
+            _field(notes, 'Notes for your supplier', lines: 3),
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text(
+                'Confirmation download: PDF / Excel (available on the next step).',
+                style: TextStyle(color: Palette.muted, fontSize: 12),
               ),
             ),
           ],
-        ),
-        const Padding(
-          padding: EdgeInsets.only(top: 6),
-          child: Text(
-            'Reviewing does not submit your order.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Palette.muted, fontSize: 11),
+          errorText(),
+          const SizedBox(height: 14),
+          pageButtons(
+            last: page == 2,
+            onNext: nextPage,
+            nextLabel: page == 0
+                ? 'CONTINUE TO GARMENTS'
+                : 'CONTINUE TO ARTWORK',
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              page == 2
+                  ? 'Reviewing does not submit your order.'
+                  : 'Step ${page + 1} of 4',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Palette.muted, fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Step 3: one garment's artwork (picture, name, "Front & back artwork added", Change).
+  Widget _artRow(int i, _Row r, List<Project> designs) {
+    final project = r.project == null
+        ? null
+        : designs.where((p) => p.remoteId == r.project).firstOrNull;
+    final added = r.project != null || r.fileIds.isNotEmpty;
+    final busyHere =
+        identical(artFor, r) &&
+        uploads.any(
+          (u) => u.kind == 'artwork' && u.file == null && u.error == null,
+        );
+    final name =
+        project?.title ??
+        (r.garment == 'other' && r.label.trim().isNotEmpty
+            ? r.label.trim()
+            : (_garments[r.garment] ?? r.garment));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        radius: 14,
+        semanticsLabel: null,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xff0b2238),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.checkroom, color: Color(0xff5cc8ec)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        if (added)
+                          const Icon(
+                            Icons.check_circle,
+                            size: 15,
+                            color: Color(0xff4ade80),
+                          ),
+                        if (added) const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            busyHere
+                                ? 'Uploading…'
+                                : r.project != null
+                                ? 'Front & back artwork added'
+                                : added
+                                ? 'Artwork added (${r.fileIds.length})'
+                                : 'Add artwork',
+                            key: Key('art-status-$i'),
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: added
+                                  ? const Color(0xff4ade80)
+                                  : Palette.muted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                key: Key('art-change-$i'),
+                onPressed: () => _artSheet(r, designs),
+                child: Text(added ? 'Change' : 'Add'),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Change: a saved design (front & back) or artwork uploaded for this garment.
+  Future<void> _artSheet(_Row r, List<Project> designs) async {
+    final choice = await showModalBottomSheet<Object>(
+      context: context,
+      backgroundColor: Palette.bg,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
+              child: Text(
+                'Artwork for this garment',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            for (final p in designs)
+              ListTile(
+                leading: const Icon(Icons.palette_outlined),
+                title: Text(p.title),
+                trailing: p.remoteId == r.project
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () => Navigator.of(ctx).pop(p.remoteId),
+              ),
+            if (designs.isEmpty)
+              const ListTile(
+                title: Text('No saved designs yet'),
+                subtitle: Text('Designs you save in the app show here.'),
+              ),
+            ListTile(
+              key: const Key('art-upload-row'),
+              leading: const Icon(Icons.upload_file),
+              title: const Text('Upload artwork for this garment'),
+              onTap: () => Navigator.of(ctx).pop('upload'),
+            ),
+            if (r.project != null || r.fileIds.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Remove artwork from this garment'),
+                onTap: () => Navigator.of(ctx).pop('clear'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'upload') {
+      artFor = r;
+      await addFile('artwork');
+    } else if (choice == 'clear') {
+      setState(() {
+        r.project = null;
+        r.fileIds.clear();
+      });
+    } else if (choice is int) {
+      setState(() => r.project = choice);
+    }
+  }
+
+  /// "Write or snap your notes": a text box, Add photo of notes, Add images, Build my order form.
+  Widget _notesBox() => Container(
+    key: const Key('notes-box'),
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xff1d6a8a), width: 1.5),
+      color: const Color(0xff04101c),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'WRITE OR SNAP YOUR NOTES',
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Type your order the way you\'d write it, or add a photo of handwritten notes. 3DEEZI builds the form; you can still change everything.',
+          style: TextStyle(color: Palette.muted, fontSize: 12.5),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          key: const Key('notes-text'),
+          controller: notes,
+          minLines: 4,
+          maxLines: 8,
+          decoration: const InputDecoration(
+            hintText: 'Polo\n3 x 4XL\n2 x 2XL\n4 x 5XL',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              key: const Key('notes-photo'),
+              onPressed: building
+                  ? null
+                  : () {
+                      notesPhoto = true;
+                      unawaited(addFile('order_form'));
+                    },
+              icon: const Icon(Icons.photo_camera_outlined, size: 18),
+              label: const Text('Add photo of notes'),
+            ),
+            OutlinedButton.icon(
+              key: const Key('notes-upload-file'),
+              onPressed: building
+                  ? null
+                  : () {
+                      notesFile = true;
+                      unawaited(addFile('order_form'));
+                    },
+              icon: const Icon(Icons.upload_file_outlined, size: 18),
+              label: const Text('Upload file'),
+            ),
+            OutlinedButton.icon(
+              key: const Key('notes-images'),
+              onPressed: building ? null : () => unawaited(addFile('artwork')),
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+              label: const Text('Add images'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          key: const Key('build-form'),
+          onPressed: building ? null : () => unawaited(buildFromNotes()),
+          icon: building
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.auto_awesome, size: 18),
+          label: const Text('Build my order form'),
+        ),
+        if (notesNote != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              notesNote!,
+              key: const Key('notes-status'),
+              style: const TextStyle(color: Color(0xffd7ffe6), fontSize: 13),
+            ),
+          ),
       ],
+    ),
+  );
+
+  /// "Have an order sheet?" (.pdf .xlsx .xls): read like Upload order; sizes come into the garments.
+  Widget _sheetBox() {
+    final sheets = uploads.where((u) => u.kind == 'order_form').toList();
+    return Container(
+      key: const Key('order-sheet-box'),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xff3b7594), width: 1.5),
+        color: const Color(0xff04101c),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.table_chart_outlined, color: Color(0xff5cc8ec)),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Have an order sheet?',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      '.pdf .xlsx .xls',
+                      style: TextStyle(color: Palette.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                key: const Key('order-sheet-upload'),
+                onPressed: () => addFile('order_form'),
+                child: const Text('Upload'),
+              ),
+            ],
+          ),
+          for (final u in sheets) fileRow(u),
+          if (sheets.any((u) => u.file != null)) ...[
+            if (sheetNote != null)
+              Text(sheetNote!, style: const TextStyle(fontSize: 12.5)),
+            const Text(
+              'Check imported sizes and quantities in Review.',
+              style: TextStyle(color: Palette.muted, fontSize: 12.5),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -1746,6 +2643,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
       children: orderReviewApprove(
         context,
+        onDownloadConfirmation: downloadConfirmation,
         first: 'Order details',
         layout: reviewLayout(items),
         garments: multiGarmentsFrom(
@@ -1982,135 +2880,170 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
           ),
       ],
     ),
-    body: step == 'done'
-        ? confirmation()
-        : step == 'review'
-        ? _review()
-        : _edit(),
+    body: Column(
+      children: [
+        stepHeader('UPLOAD ORDER & ARTWORK', 'Already have your order ready?'),
+        Expanded(
+          child: NotificationListener<ScrollNotification>(
+            onNotification: watchSections,
+            child: step == 'done'
+                ? confirmation()
+                : step == 'review'
+                ? _review()
+                : _edit(),
+          ),
+        ),
+      ],
+    ),
   );
 
-  Widget _edit() => ListView(
+  // Upload > Check details > Review: the contact and the order sheet are
+  // "Upload", the artwork and notes "Check details".
+  @override
+  List<String> get stepNames => const ['Upload', 'Check details', 'Review'];
+  @override
+  int sectionOfStep(int i) => i == 0 ? 0 : 2;
+  @override
+  int stepOfSection(int section) => section < 2 ? 0 : 1;
+
+  /// Upload > Check details > Review: the files first, then the details.
+  void nextPage() => setState(() {
+    error = form?.file == null ? 'Upload your completed order form.' : null;
+    if (error == null) {
+      page = 1;
+      if (name.text.trim().isEmpty || team.text.trim().isEmpty)
+        editContact = true;
+    }
+  });
+
+  @override
+  void startReview() => setState(() {
+    final details = uploadDetailsProblem(
+      phone: phone.text,
+      neededBy: neededBy,
+      delivery: delivery,
+      address: address,
+    );
+    error = name.text.trim().isEmpty
+        ? 'Add a contact name.'
+        : team.text.trim().isEmpty
+        ? 'Add your team or organisation name.'
+        : details ??
+              (form?.file == null ? 'Upload your completed order form.' : null);
+    if (error != null &&
+        error != 'Upload your completed order form.' &&
+        details == null)
+      editContact = true;
+    if (error != null)
+      page = error == 'Upload your completed order form.' ? 0 : 1;
+    if (error == null) {
+      step = 'review';
+      approved = false;
+      editingRows = false;
+      _presetDestination();
+      _loadReview();
+    }
+  });
+
+  Widget _edit() => SingleChildScrollView(
     padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
-    children: [
-      _section('1 · Contact & team'),
-      if (editContact)
-        contactFields(withPhone: false)
-      else
-        SurfaceCard(
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${name.text}${email.text.isEmpty ? '' : ' · ${email.text}'}\n${team.text.isEmpty ? 'Add your team name' : team.text}',
-                ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (page == 1) ...[
+          _section('1 · Contact & team', key: sectionKeys[0]),
+          if (editContact)
+            contactFields(withPhone: false)
+          else
+            SurfaceCard(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${name.text}${email.text.isEmpty ? '' : ' · ${email.text}'}\n${team.text.isEmpty ? 'Add your team name' : team.text}',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() => editContact = true),
+                    child: const Text('Edit'),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () => setState(() => editContact = true),
-                child: const Text('Edit'),
+            ),
+          _field(phone, 'Mobile', keyboard: TextInputType.phone),
+          _whenWhere(),
+        ],
+        if (page == 0) ...[
+          _section('2 · Upload order form'),
+          if (form != null)
+            fileRow(
+              form!,
+              onReplace: () => addFile('order_form', replacing: form),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: () => addFile('order_form'),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Choose your order form'),
+            ),
+          if (form?.file != null &&
+              (readingNow || reading != null || _prefilled.isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                readingNow
+                    ? '3DEEZI AI is reading your order form…'
+                    : 'Read by 3DEEZI AI. You’ll check the garments, sizes and players on Review: nothing to type in.',
+                key: const Key('ai-status'),
+                style: const TextStyle(color: Color(0xFF9FDCFF), fontSize: 12),
               ),
-            ],
-          ),
-        ),
-      _field(phone, 'Mobile', keyboard: TextInputType.phone),
-      _whenWhere(),
-      _section('2 · Upload order form'),
-      if (form != null)
-        fileRow(form!, onReplace: () => addFile('order_form', replacing: form))
-      else
-        OutlinedButton.icon(
-          onPressed: () => addFile('order_form'),
-          icon: const Icon(Icons.upload_file),
-          label: const Text('Choose your order form'),
-        ),
-      if (form?.file != null &&
-          (readingNow || reading != null || _prefilled.isNotEmpty))
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(
-            readingNow
-                ? '3DEEZI AI is reading your order form…'
-                : 'Read by 3DEEZI AI. You’ll check the garments, sizes and players on Review: nothing to type in.',
-            key: const Key('ai-status'),
-            style: const TextStyle(color: Color(0xFF9FDCFF), fontSize: 12),
-          ),
-        ),
-      const Text(
-        'PDF, Excel, CSV, Word or a photo, up to 25 MB.',
-        style: TextStyle(color: Palette.muted, fontSize: 11),
-      ),
-      _section('3 · Artwork & notes (optional)'),
-      for (final u in uploads.where((u) => u.kind == 'artwork')) fileRow(u),
-      OutlinedButton.icon(
-        onPressed: () => addFile('artwork'),
-        icon: const Icon(Icons.attach_file),
-        label: const Text('Add logos, artwork or references'),
-      ),
-      const SizedBox(height: 10),
-      _field(notes, 'Additional instructions', lines: 3),
-      // Made by, as on the website's upload (only when there is a choice).
-      MadeByField(
-        makers: makers,
-        value: supplierId,
-        onChanged: (id) => setState(() => supplierId = id),
-        onSeeSuppliers: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
-      ),
-      errorText(),
-      const SizedBox(height: 14),
-      Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: busy ? null : saveDraft,
-              child: const Text('Save draft'),
             ),
+          const Text(
+            'PDF, Excel, CSV, Word or a photo, up to 25 MB.',
+            style: TextStyle(color: Palette.muted, fontSize: 11),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: GradientButton(
-              label: 'REVIEW ORDER',
-              compact: true,
-              onPressed: () => setState(() {
-                final details = uploadDetailsProblem(
-                  phone: phone.text,
-                  neededBy: neededBy,
-                  delivery: delivery,
-                  address: address,
-                );
-                error = name.text.trim().isEmpty
-                    ? 'Add a contact name.'
-                    : team.text.trim().isEmpty
-                    ? 'Add your team or organisation name.'
-                    : details ??
-                          (form?.file == null
-                              ? 'Upload your completed order form.'
-                              : null);
-                if (error != null &&
-                    error != 'Upload your completed order form.' &&
-                    details == null)
-                  editContact = true;
-                if (error == null) {
-                  step = 'review';
-                  approved = false;
-                  editingRows = false;
-                  _presetDestination();
-                  _loadReview();
-                }
-              }),
-            ),
+          _section('3 · Artwork & notes (optional)', key: sectionKeys[2]),
+          for (final u in uploads.where((u) => u.kind == 'artwork')) fileRow(u),
+          OutlinedButton.icon(
+            onPressed: () => addFile('artwork'),
+            icon: const Icon(Icons.attach_file),
+            label: const Text('Add logos, artwork or references'),
+          ),
+          const SizedBox(height: 10),
+          _field(notes, 'Additional instructions', lines: 3),
+          // Made by, as on the website's upload (only when there is a choice).
+          MadeByField(
+            makers: makers,
+            value: supplierId,
+            onChanged: (id) => setState(() => supplierId = id),
+            onSeeSuppliers: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
+          ),
+          const Text(
+            'Assign artwork to each garment when checking details.',
+            style: TextStyle(color: Palette.muted, fontSize: 12),
           ),
         ],
-      ),
-      const Padding(
-        padding: EdgeInsets.only(top: 6),
-        child: Text(
-          'Your order is only submitted after review.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Palette.muted, fontSize: 11),
+        errorText(),
+        const SizedBox(height: 14),
+        pageButtons(
+          last: page == 1,
+          onNext: nextPage,
+          nextLabel: 'CHECK IMPORTED DETAILS',
         ),
-      ),
-    ],
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            page == 0
+                ? 'Review sizes and quantities before approval.'
+                : 'Your order is only submitted after review.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Palette.muted, fontSize: 11),
+          ),
+        ),
+      ],
+    ),
   );
 
   /// REVIEW & APPROVE ORDER (client design 2026-10-22, as on the website): the rows read from the order form as the
@@ -2129,12 +3062,14 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
           }, r['_form'] as Map?),
         },
     ];
+    // The mockups: the artwork, then any picture uploaded with the order form (customers often put their mockup there).
     final art = [
-      for (final u in uploads)
-        if (u.kind == 'artwork' &&
-            u.file != null &&
-            '${u.file!['thumb'] ?? ''}'.startsWith('data:'))
-          '${u.file!['thumb']}',
+      for (final kind in const ['order_form', 'artwork'])
+        for (final u in uploads)
+          if (u.kind == kind &&
+              u.file != null &&
+              '${u.file!['thumb'] ?? ''}'.startsWith('data:'))
+            '${u.file!['thumb']}',
     ];
     final unread = ((reading?['unknown'] as List?) ?? const []).length;
     final file = form?.name ?? 'your order form';
@@ -2162,17 +3097,19 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
           ),
         ...orderReviewApprove(
           context,
+          onDownloadConfirmation: downloadConfirmation,
           first: 'Upload files',
           layout: reviewLayout(shown),
           garments: multiGarmentsFrom(
             shown,
             names: _garments,
             artwork: art.firstOrNull,
+            artworkBack: art.length > 1 ? art[1] : null,
           ),
           mockups: [
             for (var i = 0; i < art.length && i < 2; i++)
               (
-                label: art.length > 1 ? 'ARTWORK ${i + 1}' : 'ARTWORK',
+                label: art.length > 1 ? (i == 0 ? 'FRONT' : 'BACK') : 'MOCKUP',
                 src: art[i],
               ),
           ],
@@ -2687,5 +3624,116 @@ class _OrderNowScreenState extends State<OrderNowScreen> {
         ),
       ],
     ),
+  );
+}
+
+/// The order forms' step bar (client pictures images/337, 339): numbered
+/// steps joined by a line, done ones ticked, the current one lit; a tap goes
+/// to that step (Review only through its own button).
+class OrderStepBar extends StatelessWidget {
+  const OrderStepBar({
+    super.key,
+    required this.names,
+    required this.current,
+    this.onTap,
+  });
+  final List<String> names;
+  final int current;
+  final ValueChanged<int>? onTap;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    key: const Key('order-step-bar'),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (var i = 0; i < names.length; i++) ...[
+        if (i > 0)
+          Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.only(top: 13),
+              color: i <= current ? Palette.cyan : const Color(0xff24425c),
+            ),
+          ),
+        Semantics(
+          button: onTap != null && i < names.length - 1,
+          selected: i == current,
+          label: 'Step ${i + 1} of ${names.length}: ${names[i]}',
+          excludeSemantics: true,
+          child: InkWell(
+            key: Key('order-step-$i'),
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap == null ? null : () => onTap!(i),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Column(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i < current
+                          ? Palette.cyan
+                          : i == current
+                          ? const Color(0xff0f5d8a)
+                          : const Color(0xff061528),
+                      border: Border.all(
+                        color: i <= current
+                            ? Palette.cyan
+                            : const Color(0xff3d6585),
+                        width: 2,
+                      ),
+                      boxShadow: i == current
+                          ? [
+                              BoxShadow(
+                                color: Palette.cyan.withValues(alpha: .6),
+                                blurRadius: 10,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: i < current
+                        ? const Icon(
+                            Icons.check,
+                            size: 16,
+                            color: Color(0xff04121f),
+                          )
+                        : Text(
+                            '${i + 1}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 4),
+                  // (A fixed width, the name shrinking to fit: four steps fit a 360 px phone.)
+                  SizedBox(
+                    width: 62,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        names[i],
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: i == current
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          color: i == current
+                              ? Colors.white
+                              : const Color(0xff9fb0bf),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    ],
   );
 }

@@ -271,4 +271,46 @@ void main() {
       expect(back.number, isNull, reason: 'keeps the kit\'s own number');
     });
   });
+
+  test('the brief wins over the sports jersey defaults (picture 367)', () {
+    final tee = AiService.mockupPrompt(
+      brief: 'cotton oversized tshirt on a hanger',
+      sport: 'Football',
+      garment: 'Jersey',
+      count: 0,
+      portrait: false,
+    );
+    for (final want in [
+      'oversized cotton t-shirt',
+      'hanger',
+      'no player number',
+      'clean plain light wall',
+    ]) {
+      expect(tee, contains(want));
+    }
+    for (final never in [
+      'sublimation sportswear brand',
+      'night stadium with floodlights',
+      'for example 01',
+      'ghost mannequins',
+    ]) {
+      expect(tee, isNot(contains(never)));
+    }
+    final rugby = AiService.mockupPrompt(
+      brief: 'rugby jersey for Lions FC',
+      sport: 'Rugby League',
+      garment: 'Jersey',
+      count: 0,
+    );
+    expect(rugby, contains('night stadium'));
+    expect(
+      AiService.mockupPrompt(
+        brief: 'white polo on a model',
+        sport: 'Golf',
+        garment: 'Polo',
+        count: 0,
+      ),
+      contains('worn by a model'),
+    );
+  });
 }

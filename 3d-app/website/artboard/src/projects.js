@@ -231,6 +231,7 @@ export function createProjects(ctx) {
     busy = true;
     try {
       const s = await save(opts);
+      const st = $('stdSaved'); if (st) st.textContent = `Saved ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
       toast(opts?.template ? `Template “${s.name}” saved in your account: File > New from template starts a design from it` : `Saved in your account: “${s.name}”${s.pages > 1 ? ` (${s.pages} pages)` : ''}`);
       return s;
     } catch (e) { if (!e.quiet) failed(e, () => saveAndSay(opts)); }
@@ -485,7 +486,7 @@ export function createProjects(ctx) {
     if (k !== 's' && !(k === 'o' && !e.shiftKey)) return;
     e.preventDefault(); e.stopImmediatePropagation();
     if (document.querySelector('dialog[open]')) return;
-    if (k === 'o') actions.docOpen(); else if (e.shiftKey) actions.docSaveAs(); else docSave();
+    if (k === 'o') actions.docOpen(); else if (e.shiftKey) actions.docSaveAs(); else if (hosted() && host.signedIn) docSave(); else ctx.saveToComputer?.();
   }, true);
   $('docName')?.addEventListener('click', docSave);
 

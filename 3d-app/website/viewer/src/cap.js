@@ -64,8 +64,11 @@ function inPanel(s) {
 
 /** The crown's profile at t (0 the band, 1 the button): how far out (of the band) and how high; the front panels
  *  stand up straighter (structured), the back rounds over. */
+let FLAT = false;
 function profile(t, f) {
   const a = (t * Math.PI) / 2, front = Math.max(0, Math.cos(f)) ** 2;
+  // (FN11, DT10: the 5-panel cap's crown low and flat-topped.)
+  if (FLAT) return { r: Math.cos(a) ** (0.5 - 0.2 * front), h: 0.8 * H * Math.sin(a) ** 0.55 };
   return { r: Math.cos(a) ** (0.85 - 0.3 * front), h: H * Math.sin(a) ** 0.85 };
 }
 
@@ -138,6 +141,7 @@ const LM = (() => {
 })();
 export const CAP_TOP = LM;
 
+/** The 5-panel cap (CP1 2026-11-02, client: "5 PANEL CAPS"): the same wide front panel, its brim flatter (set by buildCap). */
 /** The brim at (u -1..1 across, w 0 at the band .. 1 at its edge), its middle surface. */
 function brimMid(u, w) {
   const s = u * BRIM_ARC, f = phiAt(s);
@@ -149,7 +153,10 @@ function brimMid(u, w) {
   const out = base.addScaledVector(n, -0.003).addScaledVector(dir, (depth + 0.003) * w);
   // (Its inner edge follows the band, which dips a little towards the back.)
   const dip = -0.016 * ((1 - Math.cos(f)) / 2) ** 1.5;
-  out.y = BAND_Y + dip + 0.0012 - w * depth * 0.26 - 0.9 * u * u * w * depth;
+  // (FN2 2026-10-30: curved as the pictures: the sides bend well down, and the whole brim arches down a little to its edge.)
+  // (The 5-panel cap's brim is nearly flat: a slight tilt down, its sides hardly bent.)
+  out.y = FLAT ? BAND_Y + dip + 0.0012 - w * depth * 0.05 - 0.07 * u * u * w * depth - 0.001 * w * w
+    : BAND_Y + dip + 0.0012 - w * depth * 0.3 - 1.7 * u * u * w * depth - 0.006 * w * w;
   return out;
 }
 function brimDepth(u) { return BRIM_DEPTH * Math.max(0, 1 - u * u) ** 0.5; }
@@ -166,7 +173,8 @@ function normalOf(fn, a, b, da, db, out) {
 }
 
 /** Builds the cap. Returns what buildGarment does (main.js treats it as a garment), with `form(material)`. */
-export function buildCap({ detail = false } = {}) {
+export function buildCap({ detail = false, five = false } = {}) {
+  FLAT = !!five;
   const half = (CAP_C / 4) * 1.04;
   const minX = -half - 0.006, maxX = half + 0.006, minY = -0.004, maxY = CAP_BAND + LM + 0.012;
   const span = Math.max(maxX - minX, maxY - minY) * 1.02;
@@ -298,7 +306,7 @@ function buildEyelets() {
     // The hole: a short dark tube into the crown and its bottom.
     const hole = new THREE.CylinderGeometry(0.0023, 0.0023, 0.002, 24, 1, false).rotateX(Math.PI / 2).translate(0, 0, -0.0008);
     // (A little light of its own, so the ring reads as polished metal even where the stage behind it is dark.)
-    const metal = new THREE.MeshStandardMaterial({ color: 0xc4cad2, metalness: 0.7, roughness: 0.3, envMapIntensity: 2.4, emissive: 0x8a9099 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.6, roughness: 0.35, envMapIntensity: 1.6, emissive: 0x4a4f56 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 1, side: THREE.DoubleSide });
     return { ring, hole, metal, dark };
   })();
@@ -311,6 +319,7 @@ function buildEyelets() {
     const { p, n } = normalOf(crownByLength, s, v, 0.0008, 0.002, (q, nn) => (nn ? nn.dot(outward(q)) : outward(q)));
     for (const [geometry, material] of [[ring, metal], [hole, dark]]) {
       const mesh = new THREE.Mesh(geometry, material);
+      mesh.scale.setScalar(1.3);   // (FN2: as big as the pictures' eyelets)
       mesh.position.copy(p).addScaledVector(n, 0.0007);
       mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
       mesh.castShadow = material === metal;

@@ -102,6 +102,30 @@ class BriefLimit extends TextInputFormatter {
   }
 }
 
+/// A shirt we have no 3D model of yet (client 2026-11-04, images/416): the
+/// closest garment we have shows it, with a note on the AI card; coming = the
+/// model is on the build queue. As the website's closestModel (AiStage.tsx).
+({String name, String garment, bool coming})? closestModel(String text) {
+  final t = text.toLowerCase();
+  if (RegExp(
+    r"\bfishing (?:shirts?|tops?|jerseys?)\b|\bangler(?:'s)? shirts?\b",
+  ).hasMatch(t)) {
+    return (name: 'fishing shirt', garment: 'Polo', coming: true);
+  }
+  if (RegExp(
+    r'\bbutton[- ]?(?:up|down)?[- ]shirts?\b|\bcollared shirts?\b|\blong[- ]sleeved? polos?\b',
+  ).hasMatch(t)) {
+    return (name: 'button shirt', garment: 'Polo', coming: false);
+  }
+  return null;
+}
+
+/// The note for a design shown on our closest garment (the website's
+/// closestNote in Create.tsx).
+String closestNote(({String name, String garment, bool coming}) m) =>
+    '3D preview on the closest garment: ${m.garment}'
+    '${m.coming ? '; a ${m.name} 3D model is coming' : ''}.';
+
 /// The garment a brief names, if any ("navy polo" → Polo; "jersey and
 /// shorts" → Full Kit), as the website's garmentInBrief.
 String? garmentInBrief(String text) {
@@ -138,6 +162,8 @@ String? garmentInBrief(String text) {
     r"\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b",
   ))
     return 'Varsity jacket';
+  // A fishing, button-up or collared shirt: the polo is the closest.
+  if (closestModel(t) != null) return 'Polo';
   if (has(
     r'\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b',
   ))

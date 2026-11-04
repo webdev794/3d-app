@@ -49,6 +49,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     // 3DEEZI Orders: the order forms' choices, and "Help me add sizes" (open to visitors, who fill the form before signing in).
     Route::get('/orders/options', [OrderController::class, 'options']);
     Route::post('/orders/assist', [OrderController::class, 'assist'])->middleware('throttle:assist');
+    Route::post('/orders/read-notes', [OrderController::class, 'readNotes'])->middleware('throttle:assist');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
@@ -74,6 +75,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::delete('/artboards/{artboard}', [ArtboardDocumentController::class, 'destroy'])->whereNumber('artboard');
         Route::post('/concepts', [ConceptController::class, 'store'])->middleware('throttle:concepts');
         Route::post('/convert/cdr', [ConvertController::class, 'cdr'])->middleware('throttle:uploads');
+        // The AI Designer's design files the page or app cannot draw itself (EPS, PSD, TIFF, HEIC): their picture.
+        Route::post('/convert/picture', [ConvertController::class, 'picture'])->middleware('throttle:uploads');
         Route::post('/ai/pattern', [AiController::class, 'pattern'])->middleware('throttle:concepts');
         Route::post('/ai/showcase', [AiController::class, 'showcase'])->middleware('throttle:concepts');
         // See it on a player (9.128 C): the kit on a photoreal athlete; saved to Assets only on request.
@@ -88,6 +91,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/ai/designs/render', [AiController::class, 'renderDesign'])->middleware('throttle:concepts');
         Route::post('/ai/print-sheet', [AiController::class, 'printSheet'])->middleware('throttle:concepts');
         Route::post('/ai/designs/read', [AiController::class, 'readDesign'])->middleware('throttle:concepts');
+        Route::post('/ai/accessory/read', [AiController::class, 'readAccessory'])->middleware('throttle:concepts');
         Route::post('/ai/edit', [AiController::class, 'edit'])->middleware('throttle:concepts');
         Route::post('/ai/image-edit', [AiController::class, 'imageEdit'])->middleware('throttle:concepts');
         Route::post('/ai/convert', [AiController::class, 'convert'])->middleware('throttle:concepts');
@@ -103,6 +107,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::get('/orders/board', [OrderController::class, 'board']);
         Route::get('/orders/{order}', [OrderController::class, 'show'])->whereNumber('order');
         Route::post('/orders/{order}/approval', [OrderController::class, 'approval'])->whereNumber('order');
+        // The order confirmation form's signed PDF and Excel links (images/336, 338).
+        Route::get('/orders/{order}/confirmation-links', [\App\Http\Controllers\OrderConfirmationController::class, 'links'])->whereNumber('order');
         Route::get('/order-drafts', [OrderDraftController::class, 'index']);
         Route::post('/order-drafts', [OrderDraftController::class, 'store']);
         Route::get('/order-drafts/{draft}', [OrderDraftController::class, 'show'])->whereNumber('draft');
@@ -112,6 +118,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // 3DEEZI AI reads the draft's order forms (once per file; called on Review).
         Route::post('/order-drafts/{draft}/read', \App\Http\Controllers\OrderFormReadController::class)->whereNumber('draft')->middleware('throttle:concepts');
         Route::get('/order-drafts/{draft}/files', [OrderDraftController::class, 'files'])->whereNumber('draft');
+        Route::get('/order-drafts/{draft}/confirmation-links', [\App\Http\Controllers\OrderConfirmationController::class, 'draftLinks'])->whereNumber('draft');
         Route::post('/order-drafts/{draft}/files', [OrderDraftController::class, 'storeFile'])->whereNumber('draft')->middleware('throttle:uploads');
         Route::delete('/order-drafts/{draft}/files/{file}', [OrderDraftController::class, 'destroyFile'])->whereNumber(['draft', 'file']);
         Route::get('/order-files/{file}', [OrderFileController::class, 'show'])->whereNumber('file');

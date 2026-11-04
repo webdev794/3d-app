@@ -71,6 +71,7 @@
 .tm-form .field input:not([type=range]):not([type=checkbox]),.tm-form .field select{padding:10px 12px;min-height:40px;background:#07101b;border-color:#ffffff1a}
 .tm-form .field textarea{min-height:66px;padding:10px 12px;background:#07101b;border-color:#ffffff1a}
 .tm-form select,.tm-revise textarea,.tm-form textarea,.tm-form input:not([type=color]):not([type=file]){width:100%}
+.tm-form .tm-sport-custom{margin-top:8px}
 .tm-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}
 .tm-span2{grid-column:1/-1}
 .tm-signin-note{margin:-8px 0 16px;font-size:13px;color:#9fc8d4}

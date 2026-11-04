@@ -614,6 +614,10 @@ dialog.send-dialog{max-width:min(600px,94vw)}
 /* Document tabs along the top of the page area (task 9.141, CorelDRAW): the rest of the stage sits under them. */
 .stage{display:flex;flex-direction:column}
 .stage-in{position:relative;flex:1;min-height:0;min-width:0}
+.std-bar{flex:0 0 34px;display:flex;align-items:center;gap:2px;padding:0 6px;background:#07111b;border-bottom:1px solid var(--line);min-width:0;overflow-x:auto;scrollbar-width:none}
+.std-bar .ibtn{width:28px;height:28px;flex:0 0 auto}.std-bar .ibtn svg{width:18px;height:18px}.std-bar .ibtn:disabled{opacity:.35;cursor:default}.std-bar .ibtn.on{color:var(--cyan);box-shadow:inset 0 0 0 1px var(--cyan)}
+.std-sep{width:1px;height:20px;background:var(--line);margin:0 5px;flex:0 0 auto}.std-lbl{color:var(--muted);font-size:12px;margin:0 3px}.std-saved{color:var(--muted);font-size:11px;white-space:nowrap;margin-left:4px}
+.std-bar input[type=number]{width:62px;height:24px;background:#0a141e;color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:0 5px;font-size:12px}
 .doc-tabs{flex:0 0 28px;display:flex;align-items:flex-end;gap:2px;padding:0 6px;background:#050c14;border-bottom:1px solid var(--line);min-width:0;overflow:hidden}
 .doc-tab-list{display:flex;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
 .doc-tab-list::-webkit-scrollbar{display:none}

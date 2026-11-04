@@ -52,7 +52,7 @@ function bodyPoint(B, th) {
  */
 function profile(y) {
   const hip = Math.max(0, (y - 0.256) / 0.046) ** 2;
-  return { a: 0.226 - 0.265 * y - 0.0091 * hip, b: 0.168 - 0.205 * y - 0.006 * hip, c: -0.016 + 0.05 * y };
+  return { a: (1 + 0.022 * Math.min(1, Math.max(0, (SKIRT_SEAM - y) / 0.04))) * (0.226 - 0.265 * y - 0.0091 * hip), b: 0.168 - 0.205 * y - 0.006 * hip, c: -0.016 + 0.05 * y };
 }
 
 const DENSE = 720;

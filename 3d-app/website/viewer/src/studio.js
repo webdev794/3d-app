@@ -28,7 +28,7 @@ export function createStudio(scene, renderer, mobile, quality = null) {
 
   // Photographic garment lighting: neutral key and fill, soft cool rims for separation. The tiers light it as a
   // stadium at night: a warm key, little fill, strong cool floodlights behind that trace the edges and the sheen.
-  const key = new THREE.DirectionalLight(q ? 0xffe4c8 : 0xfff6ec, q ? 2.75 : 2.3);
+  const key = new THREE.DirectionalLight(q ? 0xffeadb : 0xfff6ec, q ? 2.55 : 2.3);
   // The tiers: the key a little more from the side, so the folds and drape cast soft shade (2026-10-28).
   if (q) key.position.set(-2.5, 2.3, 1.45); else key.position.set(-2, 2.4, 1.9);
   key.castShadow = true;
@@ -37,16 +37,18 @@ export function createStudio(scene, renderer, mobile, quality = null) {
   key.shadow.bias = -.0002;
   key.shadow.normalBias = .008;
   if (q) key.shadow.radius = q.shadowRadius;
-  const fill = new THREE.DirectionalLight(q ? 0xc8dcf0 : 0xdce8f4, q ? .24 : .45);
+  // (LT2 2026-11-02: calmer lights. The key nearly neutral (no warm lift on cyan), a little more fill, softer rims.)
+  const fill = new THREE.DirectionalLight(q ? 0xe8e8e8 : 0xdce8f4, q ? .36 : .45);
   fill.position.set(1.6, .9, 2);
+  // (LT2 2026-11-02: in the tiers near-white, so a black kit's back reads black, not navy; the thin cyan edge is in main.js.)
   // Cool stadium floodlights, high behind the kit: they trace the edges and the fabric's sheen.
-  const rimR = new THREE.DirectionalLight(q ? 0xa6d8ff : 0xbfe3ff, q ? 2.7 : 1.6);
+  const rimR = new THREE.DirectionalLight(q ? 0xe4e8ec : 0xbfe3ff, q ? 2.1 : 1.6);
   rimR.position.set(1.4, 2.6, -2);
-  const rimL = new THREE.DirectionalLight(q ? 0xb0caff : 0xc8dcff, q ? 2.1 : 1.15);
+  const rimL = new THREE.DirectionalLight(q ? 0xe2e6ec : 0xc8dcff, q ? 1.6 : 1.15);
   rimL.position.set(-1.6, 2.4, -1.8);
   const top = new THREE.DirectionalLight(0xffffff, q ? .42 : .5);
   top.position.set(0, 3, .2);
-  scene.add(key, fill, rimR, rimL, top, new THREE.HemisphereLight(0x7aadd3, 0x071017, q ? .16 : .2));
+  scene.add(key, fill, rimR, rimL, top, new THREE.HemisphereLight(q ? 0x9aa6b2 : 0x7aadd3, q ? 0x0e1012 : 0x071017, q ? .16 : .2));
 
   // The stage floor: a round reflecting floor that fades out into the stadium photo's own floor, so it has no far
   // edge to show as a line. Round and centred on the stage the camera turns around, it looks the same from every side.
@@ -58,6 +60,9 @@ export function createStudio(scene, renderer, mobile, quality = null) {
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -.172;
   floor.material.transparent = true;
+  // Its colour blends as before; the frame's alpha is left alone, so the calm pass (main.js) counts the floor and its
+  // reflections as the stadium.
+  Object.assign(floor.material, { blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
   // Under the glow pool, the contact shadow and the podium's rings.
   floor.renderOrder = -1;
   floor.material.vertexShader = floor.material.vertexShader
@@ -89,7 +94,7 @@ export function createStudio(scene, renderer, mobile, quality = null) {
   base.receiveShadow = true;
   base.castShadow = true;
   // The top: satin metal; in the tiers glossy, catching the stadium's lights (and on high a mirror of the kit, below).
-  const topPlate = new THREE.Mesh(new THREE.CylinderGeometry(.465, .465, .015, 128), new THREE.MeshStandardMaterial({ color: 0x03070c, roughness: q ? .36 : .5, metalness: .85 }));
+  const topPlate = new THREE.Mesh(new THREE.CylinderGeometry(.465, .465, .015, 128), new THREE.MeshStandardMaterial({ color: 0x03070c, roughness: q ? .52 : .5, metalness: .85 }));
   topPlate.position.y = .04;
   topPlate.receiveShadow = true;
   const ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x09d6f1).multiplyScalar(3.2), toneMapped: false });
@@ -103,8 +108,11 @@ export function createStudio(scene, renderer, mobile, quality = null) {
   outerRing.rotation.x = -Math.PI / 2;
   outerRing.position.y = -.047;
   // The stage's metal reflects the tiers' (brighter) stadium environment as much as it did the old room's.
-  if (q) metal.envMapIntensity = topPlate.material.envMapIntensity = .25;
+  if (q) metal.envMapIntensity = topPlate.material.envMapIntensity = .15;
   podium.add(base, topPlate, ring, ringLower, outerRing);
+  // (VW1 2026-11-03, client 363 item 5: a smaller, lower-profile pedestal; its top stays where the kit stands.)
+  podium.scale.set(.8, .6, .8);
+  podium.position.y = -.0675 - .0475 * .6;
   const mirror = q?.podiumMirror ? podiumMirror(q.podiumMirror) : null;
   if (mirror) podium.add(mirror);
   scene.add(podium);
@@ -123,7 +131,7 @@ export function createStudio(scene, renderer, mobile, quality = null) {
   // Over the podium's mirror.
   if (q) shadow.renderOrder = 1;
   podium.add(shadow);
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(.8, 64), new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0x007c98, transparent: true, opacity: .14, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(.8, 64), new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0x007c98, transparent: true, opacity: q ? .08 : .14, depthWrite: false, blending: THREE.AdditiveBlending }));
   pool.rotation.x = -Math.PI / 2;
   pool.position.y = -.169;
   scene.add(pool);
@@ -158,7 +166,7 @@ function podiumMirror(size) {
     )
     .replace(
       'gl_FragColor = vec4( blendOverlay( base.rgb, color ), 1.0 );',
-      `gl_FragColor = vec4( base.rgb * .34 * ( 1.0 - smoothstep(${(RADIUS * .72).toFixed(3)}, ${RADIUS.toFixed(3)}, length(vStage)) ), 1.0 );`,
+      `gl_FragColor = vec4( base.rgb * .2 * ( 1.0 - smoothstep(${(RADIUS * .72).toFixed(3)}, ${RADIUS.toFixed(3)}, length(vStage)) ), 1.0 );`,
     );
   return mirror;
 }

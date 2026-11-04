@@ -91,6 +91,10 @@ class AiSportRulesTest extends TestCase
             $prompt = OpenAiDesigner::mockupPrompt('A kit', $name, 'Jersey', 1);
             if ($marks['positions']) {
                 $this->assertNetballRules($prompt, $sport['id']);
+            } elseif (! $marks['names'] && ! $marks['numbers']) {
+                // Headwear (CP1, client mockup 296.jpg): no player names or numbers on caps, hats and beanies.
+                $this->assertStringContainsString('This sport has no player names and no numbers: never put a player name or any number anywhere', $prompt, $sport['id']);
+                $this->assertStringNotContainsString('large player number', $prompt, $sport['id']);
             } else {
                 $this->assertStringContainsString('the back carries the team name in bold athletic lettering over a large player number (for example 01)', $prompt, $sport['id']);
             }
@@ -196,5 +200,26 @@ class AiSportRulesTest extends TestCase
         $this->getJson("/api/v1/projects/{$id}")->assertJsonPath('data.design.number', '');
         $this->putJson("/api/v1/projects/{$id}", ['design' => [...$project['design'], 'number' => '7']])->assertOk()->assertJsonPath('data.design.number', '7');
         $this->putJson("/api/v1/projects/{$id}", ['design' => [...$project['design'], 'number' => '']])->assertOk()->assertJsonPath('data.design.number', '');
+    }
+
+    public function test_the_brief_wins_over_the_sports_jersey_defaults(): void
+    {
+        // User report 2026-11-03 (picture 367): a cotton tee on a hanger came back as stadium jerseys numbered 01.
+        $tee = OpenAiDesigner::mockupPrompt('cotton oversized tshirt on a hanger', 'Football', 'Jersey', 0, null, 'presentation', false);
+        foreach (['oversized cotton t-shirt', 'hanger', 'no player number', 'clean plain light wall', 'not shiny polyester mesh'] as $want) {
+            $this->assertStringContainsString($want, $tee);
+        }
+        foreach (['sublimation sportswear brand', 'night stadium with floodlights', 'for example 01', 'ghost mannequins'] as $never) {
+            $this->assertStringNotContainsString($never, $tee);
+        }
+        $this->assertStringContainsString('directly above', OpenAiDesigner::mockupPrompt('black hoodie flat lay', 'Football', 'Hoodie', 0));
+        $this->assertStringContainsString('worn by a model', OpenAiDesigner::mockupPrompt('white polo on a model', 'Golf', 'Polo', 0));
+        $rugby = OpenAiDesigner::mockupPrompt('rugby jersey for Lions FC', 'Rugby League', 'Jersey', 0);
+        $this->assertStringContainsString('night stadium', $rugby);
+        $this->assertStringContainsString('player number', $rugby);
+        // The Studio and Stadium chips still win; Auto with a brief background follows it.
+        $this->assertStringContainsString('night stadium', OpenAiDesigner::mockupPrompt('cotton tee on a hanger', 'Football', 'T-shirt', 0, null, 'presentation', true, 'stadium'));
+        $this->assertStringContainsString('pure white', OpenAiDesigner::mockupPrompt('plain tee on a white background', 'Football', 'T-shirt', 0));
+        $this->assertSame('Neutral Tone', app(OpenAiDesigner::class)->readyDirections('cotton oversized tshirt on a hanger', 'Jersey')[1]['name']);
     }
 }

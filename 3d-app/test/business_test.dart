@@ -36,15 +36,15 @@ void main() {
   });
 
   testWidgets('plans and the Corporate Partner offer', (tester) async {
-    // Plans & pricing opens from Profile (the Home keeps to its four tiles).
+    // Plans & pricing opens from Profile's Subscription row (bubble look, images/334).
     final c = AppController(store: FakeStore())..screen = AppScreen.profile;
     await mountPhone(tester, c);
     await tester.scrollUntilVisible(
-      find.text('Plans & pricing'),
+      find.text('Subscription'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tapText(tester, 'Plans & pricing');
+    await tapText(tester, 'Subscription');
     expect(c.screen, AppScreen.pricing);
     expect(find.text('Club'), findsOneWidget);
     expect(find.text('MOST POPULAR'), findsOneWidget);

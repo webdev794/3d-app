@@ -92,6 +92,11 @@ void main() {
   testWidgets('every garment lists the website areas and each area takes a pattern', (tester) async {
     final c = AppController(store: FakeStore());
     addTearDown(c.dispose);
+    // A tall screen, so an area's open pattern menu shows every pattern (Blades and Swirl, 2026-10-30, made the list
+    // longer than the default test screen: Tribal was off the menu, never built).
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     const common = ['Chest & body', 'Shoulders', 'Sleeves', 'Side panels', 'Hem'];
     const expected = {
       'Jersey': common,

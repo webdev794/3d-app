@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiSession;
+use App\Models\Asset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -36,11 +37,17 @@ class AiSessionController extends Controller
         $s = $this->owned($request, $session);
         $disk = Storage::disk('local');
         $refs = array_values(array_map('intval', $s->reference_ids ?? []));
+        $pictures = $refs ? $request->user()->assets()->whereIn('id', $refs)->get() : collect();
+        // The design files the pictures were drawn from (a PDF, SVG, AI, EPS…), kept as they were uploaded.
+        $sources = Asset::keepsSources() ? $pictures->pluck('source_id', 'id')->filter() : collect();
+        $files = $sources->isNotEmpty() ? $request->user()->assets()->whereIn('id', $sources->values())->get()->keyBy('id') : collect();
 
         return response()->json(['data' => [
             ...$this->summary($s, false),
             // Pictures still in Assets only (a deleted logo is not sent to the AI again).
-            'reference_ids' => $refs ? $request->user()->assets()->whereIn('id', $refs)->pluck('id')->all() : [],
+            'reference_ids' => $pictures->pluck('id')->all(),
+            'files' => $sources->map(fn ($source, $picture) => $files->has($source)
+                ? [...$files[$source]->only(['id', 'name', 'mime_type', 'size', 'url']), 'picture_id' => $picture] : null)->filter()->values(),
             'options' => collect($s->options)->map(fn (array $o) => [
                 ...collect($o)->except(['file', 'thumb', 'mime'])->all(),
                 'image' => ! empty($o['file']) && $disk->exists($o['file'])

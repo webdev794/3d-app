@@ -15,6 +15,8 @@ class ViewerHost {
     this.page = 'viewer',
     String channel = 'Viewer',
     String query = '',
+    // Another page in the same folder (the AI Designer's file reader).
+    String file = 'index.html',
   }) {
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -38,18 +40,18 @@ class ViewerHost {
         ),
       );
     if (query.isEmpty) {
-      _web.loadFlutterAsset('assets/$page/index.html');
+      _web.loadFlutterAsset('assets/$page/$file');
     } else if (Platform.isAndroid) {
       // Android serves the bundled files at android_asset and ignores the
       // query when it finds the file.
       _web.loadRequest(
         Uri.parse(
-          'file:///android_asset/flutter_assets/assets/$page/index.html?$query',
+          'file:///android_asset/flutter_assets/assets/$page/$file?$query',
         ),
       );
     } else {
       _pendingQuery = query;
-      _web.loadFlutterAsset('assets/$page/index.html');
+      _web.loadFlutterAsset('assets/$page/$file');
     }
     final android = _web.platform;
     if (android is AndroidWebViewController) {

@@ -9,6 +9,7 @@ import 'screens/ai_designer.dart';
 import 'screens/artboard.dart';
 import 'screens/business.dart';
 import 'screens/create_home.dart';
+import 'screens/home_switcher.dart';
 import 'screens/library.dart';
 import 'screens/orders_board.dart';
 import 'screens/orders_tab.dart';
@@ -37,6 +38,8 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
   void initState() {
     super.initState();
     bell.startPolling();
+    // The phone's saved Home (bubble or classic), read before Home opens.
+    HomeSwitcher.preload();
   }
 
   @override
@@ -285,7 +288,7 @@ class _Phone extends StatelessWidget {
     AppScreen.splash => SplashScreen(c),
     AppScreen.onboarding => OnboardingScreen(c),
     AppScreen.auth => AuthScreen(c),
-    AppScreen.home => CreateHomeScreen(c),
+    AppScreen.home => HomeSwitcher(c),
     AppScreen.aiDesigner => AiDesignerScreen(c),
     AppScreen.generating => AiGeneratingScreen(c),
     AppScreen.concepts => ConceptsScreen(c),

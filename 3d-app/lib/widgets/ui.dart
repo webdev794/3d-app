@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'glass_bubble.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../app_controller.dart';
+import 'stretchy_nav.dart';
 
 class Palette {
   static const bg = Color(0xff05090d),
@@ -280,6 +282,15 @@ class SurfaceCard extends StatelessWidget {
 /// The bottom bar (client pictures 166.jpg and 168.jpg): Home · Projects ·
 /// Orders · Profile. Assets is part of Projects (its button there, and in
 /// Profile), and My orders is part of the Orders tab.
+/// Whether the app lays out as a phone: a real phone (shortest side under
+/// 600), or the app inside the desktop preview's phone frame (a window at
+/// least 900 wide, the app itself under 600). [appWidth] is the app's own
+/// width (from a LayoutBuilder). Tablets and wide screens are not phones.
+bool phoneLayout(BuildContext context, double appWidth) {
+  final window = MediaQuery.sizeOf(context);
+  return window.shortestSide < 600 || (window.width >= 900 && appWidth < 600);
+}
+
 class BottomNav extends StatelessWidget {
   const BottomNav({super.key, required this.controller});
   final AppController controller;
@@ -292,7 +303,12 @@ class BottomNav extends StatelessWidget {
   };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) =>
+        _build(context, phoneLayout(context, box.maxWidth)),
+  );
+
+  Widget _build(BuildContext context, bool phone) {
     final entries = [
       (AppScreen.home, Icons.home_outlined, Icons.home_rounded, 'Home'),
       (
@@ -310,63 +326,301 @@ class BottomNav extends StatelessWidget {
       ),
     ];
     final current = tabOf(controller.screen);
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xff080e14),
-        border: Border(top: BorderSide(color: Palette.border)),
-      ),
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 5),
-      child: Row(
-        children: entries.map((e) {
-          final selected = current == e.$1;
-          final colour = selected ? Palette.cyan : const Color(0xffb9c5cf);
-          return Expanded(
-            child: Semantics(
-              selected: selected,
-              child: InkWell(
-                key: ValueKey('nav-${e.$4.toLowerCase()}'),
-                onTap: () => controller.go(e.$1),
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        height: 24,
-                        child: e.$2 == null
-                            ? CubeIcon(
-                                filled: selected,
-                                color: colour,
-                                size: 23,
-                              )
-                            : Icon(
-                                selected ? e.$3 : e.$2,
-                                color: colour,
-                                size: 24,
-                              ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        e.$4,
-                        style: TextStyle(
-                          color: colour,
-                          fontSize: 11,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+    // Phones: a floating glass capsule whose active item sits on a small
+    // glowing glass pill (client home pictures 2026-10-30). Wider screens
+    // keep the flat bar.
+    final row = Row(
+      children: entries.map((e) {
+        final selected = current == e.$1;
+        final colour = selected ? Palette.cyan : const Color(0xffb9c5cf);
+        final content = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 24,
+              child: e.$2 == null
+                  ? CubeIcon(filled: selected, color: colour, size: 23)
+                  : Icon(selected ? e.$3 : e.$2, color: colour, size: 24),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              e.$4,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: TextStyle(
+                color: colour,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
-          );
-        }).toList(),
+          ],
+        );
+        return Expanded(
+          child: Semantics(
+            selected: selected,
+            child: InkWell(
+              key: ValueKey('nav-${e.$4.toLowerCase()}'),
+              onTap: () => controller.go(e.$1),
+              borderRadius: BorderRadius.circular(phone ? 18 : 10),
+              child: phone
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 2,
+                        vertical: 2,
+                      ),
+                      // The active item sits in a round glowing glass
+                      // button, a little proud of the capsule.
+                      child: CustomPaint(
+                        painter: selected ? const _ActiveGlass() : null,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          child: Center(child: content),
+                        ),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: content,
+                    ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+    if (!phone) {
+      return Container(
+        decoration: const BoxDecoration(
+          color: Color(0xff080e14),
+          border: Border(top: BorderSide(color: Palette.border)),
+        ),
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 5),
+        child: row,
+      );
+    }
+    // The capsule stretches and ripples with the finger, then springs back
+    // (taps still switch tabs; animations off: plain): stretchy_nav.dart.
+    return StretchyNav(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 31),
+        child: GlassShine(
+          radius: 30,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xd02a5f96),
+                  Color(0xc8123660),
+                  Color(0xd8081a33),
+                ],
+                stops: [0, .45, 1],
+              ),
+              border: Border.all(color: const Color(0x994ab4d8), width: 1.6),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x5536c8ff),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+                BoxShadow(
+                  color: Color(0x80000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: CustomPaint(
+              // Uneven shine just inside the thin edge (client 379).
+              painter: const _NavShine(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                child: RepaintBoundary(child: row),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
+}
+
+/// Glass lights inside the nav capsule's edge: a glossy white streak along
+/// the top-left and the left end, a softer patch at the right end and the
+/// bottom curve. Gradients only.
+class _NavShine extends CustomPainter {
+  const _NavShine();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rr = RRect.fromRectAndRadius(
+      rect.deflate(4),
+      const Radius.circular(26),
+    );
+    void glow(Rect clip, double w, Gradient g) {
+      canvas.save();
+      canvas.clipRect(clip);
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w
+          ..shader = g.createShader(rect),
+      );
+      canvas.restore();
+    }
+
+    Color wh(double a) => Colors.white.withValues(alpha: a);
+    Color cy(double a) => const Color(0xff7fe6ff).withValues(alpha: a);
+    final h = size.height, w = size.width;
+    // A soft white glow all round just inside the edge, like the main
+    // bubble's side lights (client 373), strongest at both ends.
+    canvas.save();
+    canvas.clipRRect(rr);
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 16
+        ..shader = LinearGradient(
+          colors: [cy(.8), cy(.3), cy(.3), cy(.75)],
+          stops: const [0, .25, .75, 1],
+        ).createShader(rect)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+    );
+    canvas.restore();
+    // Small lights round the edge (client 373), uneven sizes.
+    canvas.save();
+    canvas.clipRRect(rr);
+    final edge = Path()..addRRect(rr.deflate(3));
+    for (final m in edge.computeMetrics()) {
+      for (final (f, sz, a) in const [
+        (.03, 14.0, .9),
+        (.12, 7.0, .55),
+        (.2, 11.0, .75),
+        (.33, 6.0, .5),
+        (.45, 9.0, .65),
+        (.55, 15.0, .9),
+        (.63, 6.0, .5),
+        (.72, 10.0, .7),
+        (.85, 13.0, .85),
+        (.94, 7.0, .55),
+      ]) {
+        final tan = m.getTangentForOffset(m.length * f);
+        if (tan == null) continue;
+        canvas.save();
+        canvas.translate(tan.position.dx, tan.position.dy);
+        canvas.rotate(-tan.angle);
+        canvas.scale(.9 + (f * 97) % 1 * 1.6, .22 + (f * 53) % 1 * .3);
+        canvas.drawCircle(
+          Offset.zero,
+          sz * 1.7,
+          Paint()
+            ..shader = RadialGradient(
+              colors: [
+                wh(a),
+                const Color(0xff8fe9ff).withValues(alpha: a * .7),
+                const Color(0x002ab8ff),
+              ],
+              stops: const [0, .35, 1],
+            ).createShader(Rect.fromCircle(center: Offset.zero, radius: sz * 1.7)),
+        );
+        canvas.restore();
+      }
+      break;
+    }
+    canvas.restore();
+    // Top-left gloss and the left end.
+    final tl = LinearGradient(
+      colors: [wh(.95), wh(.7), wh(0)],
+      stops: const [0, .3, .55],
+    );
+    glow(Rect.fromLTRB(0, 0, w * .55, h * .75), 5, tl);
+    glow(Rect.fromLTRB(0, 0, w * .55, h * .75), 1.6, tl);
+    // The bottom curve, brightest at the left; a faint touch at the right.
+    final bot = LinearGradient(
+      begin: Alignment.bottomLeft,
+      end: Alignment.topRight,
+      colors: [wh(.85), wh(.4), wh(0)],
+      stops: const [0, .35, .7],
+    );
+    glow(Rect.fromLTRB(0, h * .5, w, h), 5, bot);
+    glow(
+      Rect.fromLTRB(w * .8, h * .2, w, h * .8),
+      4,
+      const LinearGradient(
+        begin: Alignment.centerRight,
+        end: Alignment.centerLeft,
+        colors: [Color(0x55ffffff), Color(0x00ffffff)],
+        stops: [0, .2],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_NavShine o) => false;
+}
+
+/// The phone nav's active item: a round glass button with a cyan rim, a
+/// soft glow and a highlight at its top left.
+class _ActiveGlass extends CustomPainter {
+  const _ActiveGlass();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = math.min(size.width / 2, size.height / 2 + 4);
+    canvas.drawCircle(
+      c,
+      r + 2,
+      Paint()
+        ..color = const Color(0x6619b6ff)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-.3, -.4),
+          colors: const [
+            Color(0xff1d5fa8),
+            Color(0xff0b2a55),
+            Color(0xff071a36),
+          ],
+          stops: const [0, .6, 1],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    canvas.drawCircle(
+      c,
+      r - 1,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = const Color(0xff3fd4ff),
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r - 4),
+      -2.7,
+      1.1,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 2
+        ..color = Colors.white.withValues(alpha: .55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ActiveGlass oldDelegate) => false;
 }
 
 /// The Orders tab's box: an isometric cube, solid when [filled].

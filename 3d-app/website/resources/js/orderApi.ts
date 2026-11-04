@@ -173,6 +173,9 @@ export const orderApi = {
     api<OrderDetail>(`/orders/${orderId}/approval`, post({ decision, proof_id: proofId ?? null, message: message || null })),
 
   drafts: () => api<DraftSummary[]>('/order-drafts'),
+  /** The order confirmation form's signed links (images/336, 338): a draft on the review, or a sent order. */
+  confirmationLinks: (id: number, draft = true, share = false) => api<{ pdf: string; excel: string }>((draft ? `/order-drafts/${id}/confirmation-links` : `/orders/${id}/confirmation-links`) + (share ? "?share=1" : "")),
+  readNotes: (text: string) => api<Suggested>("/orders/read-notes", post({ text })),
   draft: (id: number) => api<OrderDraft>(`/order-drafts/${id}`),
   /** The draft, after 3DEEZI AI has read its order forms (once per file; later calls answer at once). */
   readDraft: (id: number) => api<OrderDraft>(`/order-drafts/${id}/read`, post({})),
@@ -281,7 +284,8 @@ export function uploadAdminFile(orderId: number, file: File, kind: FileKind, vis
 export function itemName(item: OrderItem, options?: Pick<OrderOptions, 'garments' | 'sports'> | null) {
   if (item.label) return item.label;
   if (item.name) return item.name;
-  const sport = options?.sports.find(s => s.id === item.sport)?.name;
+  // A sport typed in "Custom…" (client 2026-11-02) as typed.
+  const sport = options ? options.sports.find(s => s.id === item.sport)?.name ?? item.sport : undefined;
   const garment = options?.garments.find(g => g.id === item.garment)?.name ?? item.garment;
   return [sport, garment].filter(Boolean).join(' ');
 }

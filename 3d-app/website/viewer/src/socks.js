@@ -25,8 +25,17 @@ export const SOCK_HEEL = { y0: TOE + FOOT - 0.02, y1: TOE + FOOT + ARC + 0.035 }
 export const SOCK_WELT = 0.045;
 /** Where the foot's parts sit on the print (y from the toe's tip): the toes' end, the heel's bend. */
 export const SOCK_FOOT = { toe: TOE, heel: TOE + FOOT, ankle: TOE + FOOT + ARC };
+/** Below this (print y from the toe's tip) the second sock's front print is mirrored (its big toe is on the other side). */
+export const TOE_MIRROR = 0.04;
 /** The toes turn a little outwards (radians, each sock its own way), so the foot shows from the front. */
 const SPLAY = 0.14;
+/** FN7 2026-10-30 (user: a real foot in a sock): the toe's end is oblique, the big toe the longest. Each ring from the
+ *  ball on is sheared in plan, its medial side forward (TOE_SHEAR metres forward per metre medial of the middle), and
+ *  the toe's end moves a little medially (TOE_SHIFT), so the big toe is the forward-most, roundest point and the
+ *  outline slopes back to the little toe. `med` is the medial side (-1: x < 0, the first sock; +1 the second). */
+const TOE_SHEAR = 0.5, TOE_SHIFT = 0.007;
+function toeShear(s) { const d = s - LEG - ARC; return d <= 0 ? 0 : TOE_SHEAR * ramp(FOOT - 0.03, FOOT + TOE * 0.6, d); }
+function toeShift(s) { const d = s - LEG - ARC; return d <= FOOT ? 0 : TOE_SHIFT * ramp(FOOT, FOOT + TOE, d); }
 /** Each leg's centre (x) and the sole's height on the podium (studio.js: the podium's top at -0.0675). */
 const LEG_X = 0.095, FLOOR = -0.0662;
 
@@ -73,7 +82,10 @@ function section(s) {
   // A foot: narrow at the heel, widest over the ball, the instep high by the ankle and sloping down to the toes; the
   // toes round off in plan, their top curving down to a tip near the sole (the sole stays flat to the end).
   const ball = Math.exp(-(((d - FOOT * 0.85) / 0.07) ** 2));
-  const side = Math.sqrt(Math.max(0, 1 - t ** 2.2)), top = Math.max(0, 1 - t ** 1.7) ** 0.75, under = Math.max(0, 1 - t ** 4) ** 0.35;
+  // (FN7: a blunt, rounded toe box, its top coming down round to the toe's end, not to a point.)
+  // (FN10 2026-11-02, tester DT10: a round, blunt end: the plan rounds off only near the end; the top's height is
+  // shaped in ring(), toeCentre.)
+  const side = Math.max(0, 1 - t ** 3) ** (1 / 3), top = 1, under = Math.max(0, 1 - t ** 8) ** 0.3;
   const cy = ANKLE - BEND - 0.011 * ramp(0, FOOT + TOE, d);
   return {
     a: (0.042 + 0.008 * ball - 0.004 * t) * side,
@@ -82,15 +94,75 @@ function section(s) {
   };
 }
 
+/** FN7: where the big toe's groove runs on the first sock's front print ([x, y] points, the toe's tip end first): on the
+ *  top of the toes, `u` metres medial of the foot's middle, from 3.3 cm back to where it runs over the toe's end. The
+ *  big toe (medial of it) holds the toe's forward-most point. (The second sock's toe print is mirrored: TOE_MIRROR.) */
+export function sockToeGroove() {
+  const pts = [];
+  for (let y = 0.033; y > 0.009; y -= 0.0015) {
+    const s = SOCK_LEN - y, r = ring(s, -1, true), u = SPLIT_U + toeShift(s);
+    // The front half's point where x = -u (x rises with q there).
+    let lo = -0.25, hi = 0.25;
+    if (r.at(lo).x > -u) break;
+    for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (r.at(m).x < -u) lo = m; else hi = m; }
+    pts.push([lo * r.girth, y]);
+  }
+  return pts.reverse();
+}
+
+/** FN7 2026-10-30 (user, client pictures 265/290): the Rugby League socks' toe is one neat round toe box with a
+ *  shallow, even split between the big toe and the others (not separate bulbs): along SPLIT_U metres medial of the
+ *  foot's middle the top dips a little and the toe's end has a small notch. Its end closes on a seam line across the
+ *  foot (as a knitted toe), so the knit's ribs run straight to it. */
+const SPLIT_U = 0.009, SPLIT_W = 0.0075;
 const DENSE = 192;
 /** One ring round the sock at s, resampled evenly by length: position at q (0 the front's middle, 0.25 the wearer's
  *  left side, 0.5 the back's middle), and its girth. Cached. */
-function ring(s) {
-  const { p, f } = centre(s), { a, bf, bb } = section(s), side = new THREE.Vector3(1, 0, 0);
+/** How far the toe's middle comes down towards the sole at s (FN7: a flat sole, the toe closing low). */
+function toeLow(s) { const t = (s - LEG - ARC - FOOT) / TOE; return t <= 0 ? 0 : centre(s).p.y - toeEnd(s).c; }
+/** FN10 2026-11-02 (tester DT10, pictures 265/290: a round, blunt toe, never a wedge): over the toe the ring's middle
+ *  eases down to 42% of the foot's height, and its top and bottom close on it as a squarish curve (a quarter
+ *  superellipse), so the toe keeps most of its height to the last centimetre and ends in a round nose a little above
+ *  the floor, the sole flat nearly to the end. `c` the middle's height, `up` / `down` its top's and bottom's reach. */
+function toeEnd(s) {
+  const t = THREE.MathUtils.clamp((s - LEG - ARC - FOOT) / TOE, 0, 1), y = centre(s).p.y, H = y + section(s).bf;
+  const c = lerp(y, 0.42 * H, ramp(0, 0.7, t));
+  return { c, up: (H - c) * Math.max(0, 1 - t ** 4) ** 0.25, down: c * Math.max(0, 1 - t ** 7) ** (1 / 7) };
+}
+/** The ring's middle at s (the centreline, lowered at the toe). */
+function middle(s) { const p = centre(s).p; p.y -= toeLow(s); return p; }
+
+function ring(s, med = -1, split = false) {
+  const { p, f } = centre(s), side = new THREE.Vector3(1, 0, 0);
+  let { a, bf, bb } = section(s);
+  const sh = toeShear(s), shift = toeShift(s);
+  // (FN7, user: the toes press on the floor: the sole stays flat to the toe's end, only the top and the front round
+  // off. The toe's middle comes down towards the sole over its last part, so it closes low, by the floor.)
+  const t = Math.max(0, (s - LEG - ARC - FOOT) / TOE);
+  if (t > 0) {
+    const e = toeEnd(s);
+    p.y = e.c;
+    bf = Math.max(0.0004, e.up);
+    bb = Math.max(0.0004, e.down);
+    // The Rugby League toe: its end a seam line across the foot (a narrower toe box, never a point).
+    if (split) a = section(LEG + ARC + FOOT).a * (1 - 0.1 * t) * (0.3 + 0.7 * Math.max(0, 1 - t ** 3) ** (1 / 3));
+  }
   const pts = [], cum = [0];
   for (let i = 0; i <= DENSE; i++) {
     const th = (i / DENSE) * 2 * Math.PI, c = Math.cos(th);
     const v = p.clone().addScaledVector(side, a * Math.sin(th)).addScaledVector(f, (c >= 0 ? bf : bb) * c);
+    if (split && t > 0) {
+      // The shallow split: the top dips a little along it, and the end has a small notch there.
+      const k = Math.exp(-(((med * v.x - SPLIT_U) / SPLIT_W) ** 2));
+      // (FN10, DT10: deeper, so from the front the toe is two round domes, the big toe's and the others'.)
+      if (c > 0) v.y -= (v.y - p.y) * 0.42 * ramp(0.25, 0.8, t) * k;
+      v.z -= 0.0045 * ramp(0.6, 1, t) * k;
+    }
+    // The oblique toe (FN7): the big toe a little fuller on top (a soft dome over it), the medial side forward, the
+    // end towards the big toe.
+    if (sh && c > 0) v.y += 0.0032 * (sh / TOE_SHEAR) * c * Math.exp(-(((med * v.x - 0.022) / 0.013) ** 2));
+    v.z += sh * med * v.x;
+    v.x += med * shift;
     pts.push(v);
     if (i) cum.push(cum[i - 1] + v.distanceTo(pts[i - 1]));
   }
@@ -121,15 +193,19 @@ function crease(s, q, k, detail) {
 
 /** The made sock's surface point at (s, q) (before it is set on its leg). */
 function surfaceAt(s, q, k, detail, rings) {
+  const med = k ? 1 : -1;
   const r = rings(s), p = r.at(q);
   const e = 0.0012, n = r.at(q + e).sub(r.at(q - e)).cross(rings(Math.min(SOCK_LEN, s + e)).at(q).sub(rings(Math.max(0, s - e)).at(q))).normalize();
   // (The tube's outward normal: the frame's tangent points along s, round the tube q.)
   // At the toe's very tip the ring is a point: its normal is straight forward.
-  if (!Number.isFinite(n.x) || n.lengthSq() < 0.5) n.set(0, 0, 1);
-  if (n.dot(p.clone().sub(centre(s).p)) < 0) n.negate();
+  if (!Number.isFinite(n.x) || n.lengthSq() < 0.5) n.set(0, 0, -1);
+  // (FN7: the tube's own winding gives the outward side (its rings run round, s runs down the leg and along the foot):
+  // a test against the middle fails in the toe's split notch.)
+  n.negate();
   // The last millimetres of the toe close to a point: their normal eases to straight forward (no glint at the tip).
   const tip = THREE.MathUtils.clamp((s - (SOCK_LEN - 0.006)) / 0.006, 0, 1);
-  if (tip > 0) n.lerp(new THREE.Vector3(0, 0.15, 1).normalize(), tip).normalize();
+  // (FN7: the end's normal as the shear turns it.)
+  if (tip > 0) n.lerp(new THREE.Vector3(-toeShear(s) * med, 0.15, 1).normalize(), tip).normalize();
   return { p: p.addScaledVector(n, crease(s, q, k, detail)), n };
 }
 
@@ -137,14 +213,17 @@ function surfaceAt(s, q, k, detail, rings) {
  * Builds the pair. Returns what buildGarment does (main.js treats it as a garment), with `form(material)` for the leg
  * forms under it.
  */
-export function buildSocks({ detail = false } = {}) {
+export function buildSocks({ detail = false, split = false } = {}) {
   const cache = new Map();
-  const rings = (s) => { const key = Math.round(s * 1e5); if (!cache.has(key)) cache.set(key, ring(s)); return cache.get(key); };
+  // (FN7: each sock its own rings, the big toe on its inner side; `rings` the first sock's.)
+  const ringsOf = (med) => (s) => { const key = Math.round(s * 1e5) * 4 + med; if (!cache.has(key)) cache.set(key, ring(s, med, split)); return cache.get(key); };
+  const ringsK = [ringsOf(-1), ringsOf(1)], rings = ringsK[0];
   // Rings along the sock: closer under the welt and round the heel, where the shape turns.
   const S = [];
   for (let s = 0; s < SOCK_LEN; ) { S.push(s); s += s < 0.05 || (s > LEG - 0.05 && s < LEG + ARC + 0.02) || s > SOCK_LEN - TOE ? 0.0022 : 0.0034; }
   S.push(SOCK_LEN);
   const M = 56;   // points across each panel
+  const surf = (s, q, k) => surfaceAt(s, q, k, detail, ringsK[k]);
   const P = S.map((s) => rings(s).girth);
   const maxW = Math.max(...P) / 4;
   const minX = -maxW * 1.04, maxX = -minX, minY = 0, maxY = SOCK_LEN;
@@ -163,17 +242,23 @@ export function buildSocks({ detail = false } = {}) {
           const t = j / M, q = back ? 0.25 + 0.5 * t : -0.25 + 0.5 * t;
           // Flat x round the tube: the front from -girth/4 to +girth/4, the back from +girth/4 (its wearer's left) over.
           const x = back ? (0.5 - q) * P[i] : q * P[i];
-          const { p, n } = surfaceAt(s, q, k, detail, rings);
+          const { p, n } = surf(s, q, k);
           // The sole pressed flat on the podium.
           p.y = Math.max(p.y, 0.0004);
           turn(p, k); turn(n, k);
           pos.push(p.x + dx, p.y + FLOOR, p.z);
           nrm.push(n.x, n.y, n.z);
-          uv.push(...(back ? uvBack(x, y) : uvFront(x, y)));
+          // (FN4 2026-10-30: the second sock's toe takes the print mirrored, so a big toe's groove painted on the medial
+          // side of the first (sockprint.js) falls on the medial side of both; the toe's print is otherwise symmetric.)
+          uv.push(...(back ? uvBack(x, y) : uvFront(k && y < TOE_MIRROR ? -x : x, y)));
           // Baked shade: the ankle's crease valleys a touch darker, the sole and the heel's underside in shadow.
           const c = crease(s, q, k, detail) - 0.0006 * ramp(SOCK_WELT + 0.004, SOCK_WELT - 0.002, s);
           const under = ramp(0.03, 0.002, p.y) * 0.25;
-          const v = THREE.MathUtils.clamp(1 + c * 70 - under, 0.6, 1.05);
+          // (FN4 2026-10-30: the top of the foot faces the overhead light; a black knit there still reads black in the
+          // pictures, not grey: its upward faces darker.)
+          const up = Math.max(0, n.y) * ramp(LEG - 0.03, LEG + 0.02, s);
+          // (FN7, DT8: still grey on the stage: darker, as black as the shin.)
+          const v = THREE.MathUtils.clamp(1 + c * 70 - under, 0.6, 1.05) * (1 - 0.78 * up);
           col.push(v, v, v);
         }
       });
@@ -190,7 +275,7 @@ export function buildSocks({ detail = false } = {}) {
         for (let j = 0; j <= M; j++) {
           const t = j / M, q = back ? 0.25 + 0.5 * t : -0.25 + 0.5 * t;
           const x = back ? (0.5 - q) * P[0] : q * P[0];
-          const { p, n } = surfaceAt(s, q, k, detail, rings);
+          const { p, n } = surf(s, q, k);
           p.addScaledVector(n, -off);
           p.y += up;
           turn(p, k); turn(n, k);
@@ -230,7 +315,7 @@ export function buildSocks({ detail = false } = {}) {
   const flatTo3D = (x, y, back) => {
     const s = THREE.MathUtils.clamp(SOCK_LEN - y, 0, SOCK_LEN), g = rings(s).girth;
     const q = back ? 0.5 - x / g : x / g;
-    const p = turn(surfaceAt(s, q, 0, detail, rings).p, 0);
+    const p = turn(surf(s, q, 0).p, 0);
     return new THREE.Vector3(p.x + LEG_X, Math.max(p.y, 0.0004) + FLOOR, p.z);
   };
   // The top's ring (the rim's path; main.js hides the rim, the welt is the sock's own).
@@ -252,7 +337,7 @@ export function buildSocks({ detail = false } = {}) {
     at: flatTo3D,
     surface: flatTo3D,
     /** Look 2: the display leg forms under the pair (in `material`, the mannequin's), and where each foot is. */
-    form: (material) => buildLegForms(rings, material),
+    form: (material) => buildLegForms(ringsK, material, split ? LEG + ARC + FOOT + 0.25 * TOE : SOCK_LEN - 0.004),
   };
 }
 
@@ -282,7 +367,7 @@ function orient(g) {
  * at its top), going on about 7 cm above the welt to a softly rounded cut, as a shop's sock form. In the mannequin's
  * material, with its occlusion: dark inside the sock, lit where it shows.
  */
-function buildLegForms(rings, material) {
+function buildLegForms(ringsK, material, end) {
   const group = new THREE.Group();
   group.name = 'mannequin';
   const K = 48, INSET = 0.0042;
@@ -291,9 +376,10 @@ function buildLegForms(rings, material) {
     const rows = [], occ = [];
     // SK1: the form stops inside the sock, its flat top a little under the welt's edge (the sock stands open, as in
     // the tile picture: the turned-in cuff, then the dark inside). Near the top it keeps clear of the welt's inside.
-    const START = 0.022;
-    for (let s = START; s <= SOCK_LEN - 0.004; s += 0.006) {
-      const r = rings(s), c = centre(s).p, inset = s < SOCK_WELT + 0.01 ? 0.0095 : INSET;
+    const START = 0.022, rings = ringsK[dx > 0 ? 0 : 1];
+    // (FN7: it stops short of the Rugby toe's split, so it never shows through it.)
+    for (let s = START; s <= end; s += 0.006) {
+      const r = rings(s), c = middle(s), inset = s < SOCK_WELT + 0.01 ? 0.0095 : INSET;
       rows.push(Array.from({ length: K }, (_, j) => { const p = r.at(j / K), d = p.clone().sub(c), L = d.length(); return L > inset * 1.5 ? c.clone().addScaledVector(d, (L - inset) / L) : c.clone(); }));
       occ.push(s < START + 0.01 ? 0.12 : 0.28);
     }

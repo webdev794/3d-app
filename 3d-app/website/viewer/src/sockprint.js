@@ -3,44 +3,79 @@
 // professional model's own print can replace it; texture.js and zones.js call in here for kind 'socks'.
 // SK1 (2026-10-29): laid out as the client's tile picture: a thick top band, a black gap and a second band; thin
 // ribbed lines round the ankle; a small heel patch; a thin line across the toes; the 3DEEZI "3" on the shin.
-import { SOCK_LEN, SOCK_WELT, SOCK_FOOT } from './socks.js';
+import { SOCK_LEN, SOCK_WELT, SOCK_FOOT, sockToeGroove } from './socks.js';
+// (FN4 2026-10-30: each socks tile picture's own layout, LAYOUTS below.)
 
 const L = SOCK_LEN;
 /** The printed parts (design.parts keys): the leg's front and back, the top band, the hoops, the heel and toe. */
 export const SOCK_PARTS = ['front', 'back', 'sockBand', 'sockHoops', 'sockFoot'];
-/** The team hoops (Secondary): one wide band under the top band's black gap, and thin ribbed lines round the ankle. */
-const HOOPS = [
-  [L - SOCK_WELT - 0.037, L - SOCK_WELT - 0.012],
-  ...Array.from({ length: 8 }, (_, i) => { const y = SOCK_FOOT.heel + (SOCK_FOOT.ankle - SOCK_FOOT.heel) * 0.4 + i * 0.0098; return [y, y + 0.0024]; }),
-];
-/** The thin line across the toes (no longer the whole toe). */
-const TOE_LINE = [SOCK_FOOT.toe - 0.002, SOCK_FOOT.toe + 0.0025];
+/** The thin ribbed lines round the ankle (the Rugby socks picture only). */
+// (FN7 2026-10-30, DT8: all 8 show, running down onto the instep as in the picture.)
+const ANKLE = Array.from({ length: 8 }, (_, i) => { const y = SOCK_FOOT.heel + (SOCK_FOOT.ankle - SOCK_FOOT.heel) * 0.08 + i * 0.0098; return [y, y + 0.0024]; });
+/**
+ * Each socks picture's own layout (FN4 2026-10-30, measured on the tile pictures; depths from the welt's top down):
+ *   two (the general socks picture: Football / Footy / Hockey socks, and any socks design by default): a black top,
+ *     two cyan hoops under it, a full cyan toe cap and the heel cup (the sockFoot part), no lines round the ankle;
+ *   wide (Game Socks, design.zoneColors.sockHoopsWide): a deep black top, two wide hoops, a bigger "3";
+ *   rugby (Rugby socks, design.zoneColors.sockToeLine): the cyan top band with one black line through it (the band and
+ *     the hoop under the line), the fine lines round the ankle, a thin line across the top of the forefoot where the
+ *     toes start, the heel cup, a flat one-colour "3" (design.zoneColors.sockMark).
+ * `band`: the top band's depth; `hoops`: [top, bottom] depths; `crest`: the "3"'s centre below the top and its width.
+ */
+const LAYOUTS = {
+  // (FN7 2026-10-30, DT8: the hoops a third deeper and the "3" 3.5 cm higher, as the picture.)
+  // (FN10 2026-11-02, the user: the black top above the hoops as thin as on the pictures.)
+  // (FN11 2026-11-02, DT10: band .077 of the sock height as the picture, hoops .077-.118 and .145-.183.)
+  two: { band: 0.034, hoops: [[0.034, 0.052], [0.064, 0.081]], ankle: false, toeLine: false, crest: [0.14, 0.07] },
+  wide: { band: 0.03, hoops: [[0.03, 0.055], [0.069, 0.095]], ankle: false, toeLine: false, crest: [0.165, 0.08] },
+  rugby: { band: 0.037, hoops: [[0.043, 0.09]], ankle: true, toeLine: true, crest: [0.215, 0.07] },
+};
+const HEX = /^#[0-9a-f]{6}$/i;
+let layout = LAYOUTS.two;
+/** Picks the layout for a design (texture.js calls it before painting, so the parts' regions follow it). */
+export function setSockLayout(design) {
+  const zc = design?.zoneColors ?? {};
+  layout = HEX.test(zc.sockToeLine ?? '') ? LAYOUTS.rugby : HEX.test(zc.sockHoopsWide ?? '') ? LAYOUTS.wide : LAYOUTS.two;
+}
+const HOOPS = () => [...layout.hoops.map(([a, b]) => [L - b, L - a]), ...(layout.ankle ? ANKLE : [])];
+/** The thin line across the top of the forefoot, where the toes start (Rugby). */
+const TOE_LINE = [0.046, 0.0485];
+/** The full toe cap (the general picture): from the tip back about 3.5 cm, straight across, on top and under. */
+const TOE_CAP = 0.036;
 /** The heel patch: a cup over the heel's back, from the sole up towards the ankle and round to the sides, so it shows
  *  from the front beside each heel (the client's socks pictures; DT4: it was a thin crescent under the heel). */
-const HEEL = { cy: SOCK_FOOT.heel + (SOCK_FOOT.ankle - SOCK_FOOT.heel) * 0.45, ry: 0.058, rx: 0.058 };
-/** Where the crest sits: on the shin, halfway down the leg (as the tile picture). */
-export const SOCK_CREST = { side: 'front', x: 0, y: L - 0.235 };
+const HEEL = { cy: SOCK_FOOT.heel + (SOCK_FOOT.ankle - SOCK_FOOT.heel) * 0.45, ry: 0.058, rx: 0.09 };
+/** Where the crest sits: on the shin, as the tile picture. */
+export const SOCK_CREST = { side: 'front', x: 0, y: L - 0.18 };
 
 const box = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 const heelPoly = () => Array.from({ length: 40 }, (_, i) => { const a = (i / 40) * 2 * Math.PI; return [HEEL.rx * Math.cos(a), HEEL.cy + HEEL.ry * Math.sin(a)]; });
-const band = () => [box(-1, L - SOCK_WELT, 1, L + 1)];
-const hoops = () => HOOPS.map(([a, b]) => box(-1, a, 1, b));
-const foot = (back) => [box(-1, TOE_LINE[0], 1, TOE_LINE[1]), ...(back ? [heelPoly()] : [])];
+/** The cup's ends round the sides of the ankle (on the front panel, at its side seams), so the cyan shows each side of
+ *  the ankle from the front, as in the general picture (FN4). */
+const SIDE = { x: 0.07, cy: HEEL.cy - 0.002, rx: 0.026, ry: 0.04 };
+// (The back cup reaches its side seams, rx 0.09, about as deep there as the side ends, so the two meet there in one cup.)
+const sidePoly = (dir) => Array.from({ length: 32 }, (_, i) => { const a = (i / 32) * 2 * Math.PI; return [dir * SIDE.x + SIDE.rx * Math.cos(a), SIDE.cy + SIDE.ry * Math.sin(a)]; });
+const inSide = (x, y) => ((Math.abs(x) - SIDE.x) / SIDE.rx) ** 2 + ((y - SIDE.cy) / SIDE.ry) ** 2 <= 1;
+const band = () => [box(-1, L - layout.band, 1, L + 1)];
+const hoops = () => HOOPS().map(([a, b]) => box(-1, a, 1, b));
+const toe = (back) => (layout.toeLine ? (back ? [] : [box(-1, TOE_LINE[0], 1, TOE_LINE[1])]) : [box(-1, -0.2, 1, TOE_CAP)]);
+const foot = (back) => [...toe(back), ...(back ? [heelPoly()] : [sidePoly(1), sidePoly(-1)])];
 const inHeel = (x, y) => (x / HEEL.rx) ** 2 + ((y - HEEL.cy) / HEEL.ry) ** 2 <= 1;
+const inToe = (back, y) => (layout.toeLine ? !back && y >= TOE_LINE[0] && y <= TOE_LINE[1] : y <= TOE_CAP);
 
 /** The part at a print point. */
 export function sockPartAt(side, x, y) {
   const back = side === 'back';
-  if (y >= L - SOCK_WELT) return 'sockBand';
-  if ((y >= TOE_LINE[0] && y <= TOE_LINE[1]) || (back && inHeel(x, y))) return 'sockFoot';
-  if (HOOPS.some(([a, b]) => y >= a && y <= b)) return 'sockHoops';
+  if (y >= L - layout.band) return 'sockBand';
+  if (inToe(back, y) || (back ? inHeel(x, y) : inSide(x, y))) return 'sockFoot';
+  if (HOOPS().some(([a, b]) => y >= a && y <= b)) return 'sockHoops';
   return back ? 'back' : 'front';
 }
 
 /** A part's region on one side (zones.js partRegion's shape: outlines to keep, groups to cut out). */
 export function sockRegion(key, back) {
   if (key === 'sockBand') return { keep: band(), cut: [] };
-  if (key === 'sockHoops') return { keep: hoops(), cut: back ? [[heelPoly()]] : [] };
+  if (key === 'sockHoops') return { keep: hoops(), cut: back ? [[heelPoly()]] : [[sidePoly(1)], [sidePoly(-1)]] };
   if (key === 'sockFoot') return { keep: foot(back), cut: [] };
   if (key === (back ? 'back' : 'front')) return { keep: [box(-1.6, -0.2, 1.6, 1.6)], cut: [band(), hoops(), foot(back)] };
   return null;
@@ -65,14 +100,40 @@ export function paintSocks(painter, design, back, trim) {
     }
     g.restore();
   }
-  // The toe line is knitted in finer, so it reads a shade deeper and duller than the heel in the same colour (the
-  // client's picture: a mid-blue line, about #2b91c1 beside the cyan heel; CF1 2026-10-29).
-  g.save();
-  g.fillStyle = 'rgba(14,18,22,0.58)';
-  g.fillRect(-1.6, TOE_LINE[0], 3.2, TOE_LINE[1] - TOE_LINE[0]);
-  g.restore();
+  // The Rugby picture's toe line: a thin flat line in its own colour (design.zoneColors.sockToeLine, measured on the
+  // picture), across the top of the forefoot where the toes start (user 2026-10-29: not a pale band round the tip).
+  if (layout.toeLine && !back) {
+    g.save();
+    g.fillStyle = design.zoneColors.sockToeLine;
+    g.fillRect(-1.6, TOE_LINE[0], 3.2, TOE_LINE[1] - TOE_LINE[0]);
+    g.restore();
+  }
+  // The Rugby picture's split toe (user 2026-10-30, images/265): a soft dark groove from the toe's tip back over the
+  // forefoot between the big toe and the others, on the medial side (the second sock's toe print is mirrored: socks.js).
+  if (layout.toeLine && !back) toeGroove(g);
   ribShade(g);
   painter.side(back);
+}
+
+/** The big toe's groove: a soft shadow line, darkest in the middle, from the toe's end back to y 0.033, with a faint
+ *  light ridge beside it on the toes' side. (FN7: along the shape's own groove line, socks.js sockToeGroove, so the
+ *  big toe medial of it is the longest, forward-most toe.) */
+let groovePts = null;
+function toeGroove(g) {
+  groovePts ??= sockToeGroove();
+  const path = () => {
+    g.beginPath();
+    // (FN7 round 3: the split is in the shape now; the painted shadow stays on the top, short of the toe's end, where
+    // the print is stretched over the front.)
+    groovePts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+  };
+  g.save();
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  for (const [w, a] of [[0.008, 0.2], [0.005, 0.3], [0.0025, 0.45]]) { path(); g.lineWidth = w; g.strokeStyle = `rgba(0,0,0,${a})`; g.stroke(); }
+  g.translate(0.0042, 0);
+  path(); g.lineWidth = 0.002; g.strokeStyle = 'rgba(255,255,255,0.07)'; g.stroke();
+  g.restore();
 }
 
 /** The rib knit's shade over the print (garment metres): soft upright ribs 3.6 mm apart, a light ridge and a dark
@@ -111,13 +172,18 @@ const MARK3 = {
 };
 
 /** Draws the "3" mark centred, `w` metres wide (local metres, y down). */
-function drawMark3(g, w) {
+function drawMark3(g, w, flat = null) {
   const k = w / 400, ox = -200 * k, oy = -125 * k;
   const path = (pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(ox + x * k, oy + y * k) : g.moveTo(ox + x * k, oy + y * k))); g.closePath(); };
   const silver = g.createLinearGradient(ox, oy, ox + 400 * k, oy + 250 * k);
   silver.addColorStop(0, '#f4f7fa'); silver.addColorStop(0.55, '#aab4bf'); silver.addColorStop(1, '#e3e9ef');
   const blue = g.createLinearGradient(ox + 100 * k, oy + 240 * k, ox + 380 * k, oy + 80 * k);
   blue.addColorStop(0, '#0b3fc8'); blue.addColorStop(0.55, '#1474ea'); blue.addColorStop(1, '#22d3ff');
+  if (flat) {
+    // One flat colour, no bevel (the Rugby socks picture's knitted-in "3").
+    for (const pts of [...MARK3.silver, ...MARK3.blue]) { path(pts); g.fillStyle = flat; g.fill(); }
+    return;
+  }
   for (const pts of MARK3.silver) { path(pts); g.fillStyle = silver; g.fill(); }
   for (const pts of MARK3.blue) { path(pts); g.fillStyle = blue; g.fill(); }
   // A fine light edge, as the mark's bevel.
@@ -125,8 +191,8 @@ function drawMark3(g, w) {
   for (const pts of [...MARK3.silver, ...MARK3.blue]) { path(pts); g.stroke(); }
 }
 
-/** The marks: only the crest, on the shin (no names, numbers or words on socks). Without the club's logo, the
- *  3DEEZI "3" mark knitted in (no badge). */
+/** The marks: the crest on the shin and the team name (3DEEZI) small under it (no names or numbers on socks). Without
+ *  the club's logo, the 3DEEZI "3" mark knitted in (no badge). */
 export async function paintSockMarks(painter, design, loadImage) {
   if (design.logoImage) {
     if (design.logoImage !== painter._logoKey) {
@@ -138,6 +204,18 @@ export async function paintSockMarks(painter, design, loadImage) {
     painter._logoKey = null;
   }
   const ownArt = (design.layers ?? []).some((l) => l.side !== 'back' && (l.part ?? 'top') === 'top' && l.type !== 'text' && !String(l.id ?? '').startsWith('kit-'));
-  if (painter._logo) painter.markImage(design, 'crest', SOCK_CREST, painter._logo, 0.06, 0.06);
-  else if (!ownArt) painter.mark(design, 'crest', SOCK_CREST, (g) => { drawMark3(g, 0.064); return { w: 0.064, h: 0.041 }; });
+  // Each picture's "3": its height on the shin and its size (the layout's), flat in one colour on the Rugby socks.
+  const [down, w] = layout.crest, at = { ...SOCK_CREST, y: L - down };
+  // (FN7 2026-10-30, DT8: a crest place left over from another garment (a jersey's chest, above the sock's top) is
+  // not the sock's: the "3" goes back to its own place on the shin.)
+  const key = `${painter.partName}_crest`, own = design.marks?.[key];
+  if (own && Number.isFinite(own.y) && (own.y > L - SOCK_WELT || own.y < SOCK_FOOT.ankle)) design = { ...design, marks: { ...design.marks, [key]: { ...own, x: undefined, y: undefined, scale: undefined } } };
+  const flat = HEX.test(design.zoneColors?.sockMark ?? '') ? design.zoneColors.sockMark : null;
+  if (painter._logo) painter.markImage(design, 'crest', at, painter._logo, w * 0.94, w * 0.94);
+  else if (!ownArt) painter.mark(design, 'crest', at, (g) => { drawMark3(g, w, flat); return { w, h: w * 0.64 }; });
+  // (BR1 2026-11-02, the user: every item carries the 3DEEZI "3" and the wordmark: a small 3DEEZI under the "3" on the
+  // shin, the brand's own wordmark picture; the club's own words there when it has typed them. Its own mark (sockWord),
+  // so a top's team-name place, or a bib's hidden team name, never carries over to the socks.)
+  const word = (design.logoText ?? '').trim().toUpperCase();
+  if (word && !ownArt) painter.markText(design, 'sockWord', { side: 'front', x: at.x, y: at.y - w * 0.5 }, word, w * 0.3, design.accent, w * 1.05, null);
 }

@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Check, CheckCircle2, ClipboardList, Copy, CreditCard, Download, ExternalLink, FileText, Image as ImageIcon, LoaderCircle, MessageSquareText, Package, Palette, PenLine, Receipt, Shirt, Truck, TriangleAlert, Upload, X } from 'lucide-react';
 import { ApiError, downloadFile, fetchFile } from '../api';
 import { orderApi } from '../orderApi';
-import { DetailSection, GarmentPicture, PaymentPill, STAGES, StatusPill, dateTime, displayRef, fileSize, garmentName, money, payPath, plural, readOrderDetail, safeLink, shortDate, type BoardOrder, type OrderDetail, type OrderFile, type OrderUpdate, type PaymentSummary, type Player } from './orderBoardModel';
+import { DetailSection, GarmentPicture, PaymentPill, STAGES, StatusPill, dateTime, displayRef, fileSize, garmentName, money, payPath, plural, unitWord, readOrderDetail, safeLink, shortDate, type BoardOrder, type OrderDetail, type OrderFile, type OrderUpdate, type PaymentSummary, type Player } from './orderBoardModel';
 import { ALL_SIZES, FIT_NAMES } from '../orderSizes';
 
 export type DetailFocus = 'review' | 'track' | 'pay' | null;
@@ -211,7 +211,8 @@ function Players({ players, title }: { players: Player[]; title: string }) {
 
 function GarmentsSection({ order }: { order: OrderDetail }) {
   const total = order.items.reduce((a, i) => a + i.quantity, 0) || order.quantity;
-  return <DetailSection id="obd-garments" title="Garments" icon={<Shirt size={18} />} aside={total > 0 ? <span className="obd-aside">{plural(total, 'garment')}</span> : undefined}>
+  const unit = unitWord(order.garments);
+  return <DetailSection id="obd-garments" title={unit === 'marquee' ? 'Marquees' : 'Garments'} icon={<Shirt size={18} />} aside={total > 0 ? <span className="obd-aside">{plural(total, unit)}</span> : undefined}>
     {order.items.length ? <ul className="obd-items">{order.items.map((item, n) => {
       // "Mens · Hoodie": the fit, and the garment when the row's name doesn't say it (e.g. a kit's own name).
       const kind = garmentName(item.garment);

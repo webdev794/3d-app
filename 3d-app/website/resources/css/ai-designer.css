@@ -34,9 +34,29 @@
 
 /* Attached pictures: inside the bar, above the text; they stay with this design session. */
 .aid-files{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:4px 8px 8px 56px;list-style:none}
-.aid-files li{position:relative;width:56px;height:56px;border:1px solid #ffffff2b;border-radius:10px;overflow:hidden;background:#0a141e}
-.aid-files img{width:100%;height:100%;object-fit:cover}
-.aid-files button{position:absolute;top:3px;right:3px;display:grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#000c;color:#fff}
+/* Each attached file (client 2026-11-02, 295.jpg): a small preview, its name and type (PDF · page 2 of 5), and (x). */
+.aid-files li{position:relative;display:flex;align-items:center;gap:8px;max-width:230px;min-width:0;height:52px;padding:4px 30px 4px 4px;border:1px solid #ffffff2b;border-radius:10px;overflow:hidden;background:#0a141e}
+.aid-files img{flex:none;width:42px;height:42px;border-radius:7px;object-fit:cover;background:#dfe6ec}
+.aid-file-text{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+.aid-file-text b{overflow:hidden;font-size:12.5px;font-weight:600;color:#eef6fb;white-space:nowrap;text-overflow:ellipsis}
+.aid-file-text small{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#19d6ea}
+.aid-files button{position:absolute;top:50%;right:5px;display:grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#000c;color:#fff;transform:translateY(-50%)}
+.aid-files button:hover{background:#19d6ea;color:#031018}
+/* A PDF with several pages: which one the AI reads. */
+.aid-pages-back{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;background:#000a;backdrop-filter:blur(3px)}
+.aid-pages{display:flex;flex-direction:column;gap:12px;width:min(640px,100%);max-height:min(640px,calc(100svh - 32px));padding:16px;border:1px solid #19d6ea66;border-radius:16px;background:#08121df7;box-shadow:0 18px 40px #000c,0 0 20px #00d9ed26;color:#eef6fb}
+.aid-pages-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.aid-pages-head div{display:flex;flex-direction:column;gap:4px}
+.aid-pages-head strong{font-size:17px}
+.aid-pages-head span{font-size:13px;color:#a9bccb}
+.aid-pages-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;overflow:auto;padding:2px}
+.aid-pages-grid button{position:relative;display:grid;place-items:center;aspect-ratio:3/4;padding:6px;border:1px solid #ffffff2b;border-radius:10px;background:#0a141e;color:#eef6fb;cursor:pointer}
+.aid-pages-grid button:hover,.aid-pages-grid button:focus-visible{border-color:#19d6ea;box-shadow:0 0 0 2px #19d6ea55}
+.aid-pages-grid img{max-width:100%;max-height:100%;object-fit:contain;background:#fff}
+.aid-pages-grid span{position:absolute;bottom:6px;right:6px;min-width:22px;padding:1px 6px;border-radius:9px;background:#000c;font-size:11.5px;font-weight:700}
+.aid-pages-more{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.aid-pages-more label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#a9bccb}
+.aid-pages-more input{width:110px;padding:8px 10px;border:1px solid #ffffff33;border-radius:8px;background:#0a141e;color:#eef6fb}
 
 /* (+): attach, and the brief suggestions that used to be chips. */
 .aid-menu{position:absolute;left:0;top:calc(100% + 10px);z-index:20;display:flex;flex-direction:column;min-width:250px;padding:6px;border:1px solid #19d6ea66;border-radius:14px;background:#08121df7;box-shadow:0 18px 40px #000c,0 0 20px #00d9ed26;animation:aid-pop .16s ease-out}
@@ -53,6 +73,11 @@
 .aid-ask>span{margin-right:4px;color:#e8f2f9;font-size:14px;font-weight:600}
 .aid-ask button{min-height:36px;padding:7px 15px;border:1px solid #19d6ea8c;border-radius:999px;background:#05131fd9;color:#eaf6fb;font-size:13.5px;transition:background .2s,border-color .2s}
 .aid-ask button:hover{border-color:#3fe6f5;background:#0b2636}
+/* "Custom…" among the garment chips (client 2026-11-02): the garment typed, and which 3D garment shows it. */
+.aid-ask-custom{display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px}
+.aid-ask-custom input{min-height:36px;width:min(260px,70vw);padding:7px 14px;border:1px solid #19d6ea8c;border-radius:999px;background:#05131fd9;color:#eaf6fb;font:inherit;font-size:13.5px}
+.aid-ask-custom button:disabled{opacity:.5}
+.aid-ask-custom .custom-note{flex-basis:100%;text-align:center;font-size:12px;color:#7fdcf0}
 /* Over 3,500 characters: a small counter; the limit (4,000) shows in amber. */
 .aid-count{display:block;padding:0 64px 2px 0;text-align:right;color:#8fa0b3;font-size:12px;font-variant-numeric:tabular-nums}
 .aid-count.is-full{color:#ffc46b}
@@ -108,6 +133,7 @@
   .aid-icon{width:36px;height:44px}
   .aid-go{width:46px;height:46px;margin-left:2px}
   .aid-files{padding-left:6px}
+  .aid-files li{max-width:calc(50% - 4px)}
   .aid-menu{min-width:min(280px,calc(100vw - 48px))}
   .aid-sports{display:block;margin:clamp(22px,4svh,36px) -16px 0;width:calc(100% + 32px)}
   .aid-sports{position:relative}
@@ -131,24 +157,29 @@
 @media(prefers-reduced-motion:reduce){.aid-tile,.aid-tile img,.aid-go,.aid-menu,.aid-ask{transition:none;animation:none}.aid-icon.is-on{animation:none}}
 
 /* The results, YOUR DESIGNS (client visuals 2026-10-22 images/146.jpg, 2026-10-30 images/240.jpg): the heading with a
-   1 / 4 counter, one large wide frame that fills the space between the heading and the controls (the picture centred in
-   it, never cropped or stretched), the other designs as bigger cards stacked in a column at its right (a row under it on
+   1 / 4 counter, one large design open on the page (no frame since 2026-11-02, 303.jpg) as big as the space between the
+   heading and the controls allows (never cropped or stretched), the other designs as bigger cards stacked in a column at its right (a row under it on
    phones), then one compact row: Open in 3D Designer, the download icon and See it on a player, and the slim "Refine this
    design…" bar. Everything fits one screen. */
 .aid-results-stage{display:block;height:calc(100svh - 82px);min-height:560px;padding:10px 24px 18px}
 .aid-results-stage::before{background:linear-gradient(180deg,#02060bb3,#02060b73 30%,#02060b80 70%,#02060b)}
-.aid-results{--aid-side:clamp(150px,17vw,250px);display:grid;grid-template-columns:minmax(0,1fr) var(--aid-side);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head ." "view side" "controls .";gap:10px 22px;width:min(1280px,100%);height:100%;margin:0 auto}
+/* Open and big (client 2026-11-02, 303.jpg): no frame round the design; its column is as wide as the picture at its full
+   height (--aid-fit, set by ResultsViewer), the cards right beside it, the two centred, and the page's art shows at the
+   sides where there is room. The buttons and refine bar run under both, at least 640px wide so they stay on one row. */
+.aid-results{--aid-side:clamp(150px,17vw,250px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,var(--aid-fit,600px)) calc(var(--aid-side) + 22px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:". head . ." ". view side ." "controls controls controls controls";gap:10px 0;width:min(100%,max(640px,calc(var(--aid-fit,600px) + var(--aid-side) + 22px)));height:100%;margin:0 auto}
 .aid-results-head{grid-area:head;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:44px}
 .aid-results-head h1{margin:0;font:700 clamp(19px,1.7vw,25px)/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.07em;color:#f2f8fd;text-shadow:0 2px 14px #000}
 .aid-back{justify-self:start;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:none;color:#eef6fc;text-shadow:0 2px 10px #000}
 .aid-back:hover{color:#3fe6f5;background:#ffffff0d}
 .aid-count-sel{justify-self:end;padding-right:6px;color:#9fb0c2;font:600 17px/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.06em;font-variant-numeric:tabular-nums}
 .aid-count-sel b{color:#3fe6f5;font-weight:700}
-/* The viewer: a wide frame over all the space left for it, the picture's own box centred in it (sized in px by ResultsViewer). */
+/* The viewer: all the space left for it, the picture's own box centred in it (sized in px by ResultsViewer), open on the
+   page: no border, glow or blurred copy behind it, only a soft fade at its edges so it doesn't look cut off. */
 .aid-view-area{grid-area:view;position:relative;min-width:0;min-height:0}
-.aid-viewer{position:absolute;inset:0;border-radius:16px;box-shadow:0 0 0 1px #19d6ea40,0 0 30px #00d9ed26,0 18px 50px #000a}
-.aid-viewer-clip{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:#02070d}
-.aid-viewer-backdrop{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(30px) brightness(.48) saturate(1.1);transform:scale(1.15)}
+.aid-viewer{position:absolute;inset:0}
+.aid-viewer-clip{position:absolute;inset:0}
+.aid-viewer:not(.is-fill) .aid-viewer-art{--fade:clamp(12px,2.2vmin,26px);-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--fade),#000 calc(100% - var(--fade)),transparent),linear-gradient(180deg,transparent,#000 var(--fade),#000 calc(100% - var(--fade)),transparent);-webkit-mask-composite:source-in;mask-image:linear-gradient(90deg,transparent,#000 var(--fade),#000 calc(100% - var(--fade)),transparent),linear-gradient(180deg,transparent,#000 var(--fade),#000 calc(100% - var(--fade)),transparent);mask-composite:intersect}
+.aid-viewer-art .aid-art-blur{display:none}
 .aid-viewer-art{position:absolute;left:0;display:grid;place-items:center;overflow:hidden;animation:aid-swap .26s ease-out}
 .aid-viewer.is-fill .aid-viewer-art{inset:0;width:auto!important;height:auto!important}
 @keyframes aid-swap{from{opacity:0;transform:scale(.985)}}
@@ -169,7 +200,7 @@
 .aid-kebab-wrap{position:relative}
 .aid-menu.aid-kebab-menu{left:auto;right:0;top:calc(100% + 6px);min-width:236px}
 /* The other designs: bigger cards stacked at the right of the frame (a row under it on phones); tap one to show it large. */
-.aid-side{grid-area:side;display:flex;flex-direction:column;gap:6px;min-width:0;min-height:0}
+.aid-side{grid-area:side;display:flex;flex-direction:column;gap:6px;min-width:0;min-height:0;margin-left:22px}
 .aid-thumbs{flex:1;min-height:0;display:flex;flex-direction:column;gap:14px}
 .aid-thumb-item{flex:1 1 0;min-height:0;max-height:300px;display:flex}
 .aid-thumb{position:relative;display:block;flex:1;width:100%;min-height:0;padding:4px;border:1px solid #3fe6f5cc;border-radius:14px;background:#02060b99;box-shadow:0 6px 18px #000b,0 0 12px #00d9ed33;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);cursor:pointer;transition:transform .18s,border-color .18s,box-shadow .18s}
@@ -236,14 +267,12 @@
   .aid-refine{margin-right:60px}
   .aid-results{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-areas:"head" "view" "side" "controls";gap:8px}
   .aid-results-head{padding:0 8px}
-  .aid-side{padding:0 14px}
+  .aid-side{padding:0 14px;margin-left:0}
   .aid-side:empty{display:none}
   .aid-thumbs{flex:none;flex-direction:row;gap:8px}
   .aid-thumb-item{flex:1 1 0;height:clamp(78px,24vw,120px);max-height:none}
   .aid-thumb{padding:3px;border-radius:12px}
   .aid-thumb-art{border-radius:9px}
-  .aid-viewer{border-radius:0;box-shadow:none}
-  .aid-viewer-clip{border-radius:0}
   .aid-controls{padding:0 14px}
   .aid-controls .aid-open3d{min-height:52px;font-size:17px}
   .aid-dl{width:54px;min-height:50px}
@@ -252,3 +281,46 @@
   .aid-menu.aid-kebab-menu{position:fixed;left:16px;right:16px;top:auto;bottom:96px;min-width:0}
 }
 @media(prefers-reduced-motion:reduce){.aid-viewer-art,.aid-full{animation:none}.aid-thumb{transition:none}}
+
+/* Wide results page (client picture 362, 2026-11-03): a wide picture (at least 760px, about 900 on a laptop) with no frame,
+   the BACKGROUND chips under the heading, the OTHER OPTIONS rail at the right with room between the cards, and the
+   buttons and refine bar under the picture only. */
+@media(min-width:760px){
+  .aid-results{--aid-side:clamp(170px,15vw,230px);--aid-main:max(var(--aid-fit,600px),min(920px,62vw));grid-template-columns:minmax(0,1fr) minmax(0,var(--aid-main)) calc(var(--aid-side) + 44px) minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto;grid-template-areas:". head side ." ". scene side ." ". view side ." ". controls side .";width:min(100%,calc(var(--aid-main) + var(--aid-side) + 44px))}
+  .aid-side{margin-left:44px}
+  .aid-thumbs{flex:none;gap:22px;max-height:100%}
+  .aid-thumb-item{flex:none;height:clamp(120px,19vh,170px)}
+  .aid-controls{align-self:end}
+}
+.aid-side-head{display:grid;gap:3px;justify-items:center;margin:8px 0 14px}
+.aid-side-head b{font:700 clamp(16px,1.2vw,19px)/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.08em;color:#f2f8fd;text-shadow:0 2px 10px #000}
+.aid-scene-row{grid-area:scene;position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;min-width:0}
+.aid-scene-label{font:700 14px/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.08em;color:#e6eef5}
+.aid-scene-chips{display:flex;gap:4px}
+.aid-scene-chip{display:inline-flex;align-items:center;gap:4px;padding:6px 16px;border:1px solid #ffffff38;border-radius:999px;background:#0a1520b3;color:#eef6fc;font-size:13.5px;cursor:pointer}
+.aid-scene-chip:hover{border-color:#19d6ea}
+.aid-scene-chip.is-on{border-color:#19d6ea;background:#14d8ec;color:#021219;font-weight:600}
+.aid-scene-note{padding-left:14px;border-left:1px solid #ffffff38;color:#c9d6e2;font-size:13px;font-style:italic}
+.aid-scene-panel{position:absolute;z-index:6;top:calc(100% + 8px);left:-60px;display:grid;gap:12px;width:280px;padding:12px 14px;border:1px solid #19d6ea80;border-radius:12px;background:#07131ef2;box-shadow:0 10px 30px #000c;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.aid-scene-panel-head{display:flex;justify-content:space-between;align-items:center;color:#eef6fc}
+.aid-scene-x{display:grid;place-items:center;width:26px;height:26px;padding:0;border:0;background:none;color:#cfe0ec;cursor:pointer}
+.aid-scene-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.aid-scene-tile{display:grid;gap:5px;justify-items:center;padding:0;border:0;background:none;color:#dce8f1;font-size:12px;cursor:pointer}
+.aid-scene-tile i{display:grid;place-items:center;width:100%;aspect-ratio:1.25;border:1.5px solid #ffffff2e;border-radius:8px;background:#0d1a26 center/cover;color:#cfe0ec}
+.aid-scene-tile.is-studio i{background:radial-gradient(circle at 50% 40%,#fff,#b9bec4 75%)}
+.aid-scene-tile.is-on i{border-color:#3fe6f5;box-shadow:0 0 10px #00d9ed66}
+.aid-scene-same{display:flex;align-items:center;gap:8px;color:#dce8f1;font-size:12.5px}
+.aid-scene-same input{accent-color:#14d8ec;width:16px;height:16px}
+.aid-scene-apply{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px}
+.aid-dl{gap:8px;width:auto;padding:0 22px;grid-auto-flow:column;font-weight:600;font-size:15px;color:#eef6fc}
+.aid-dl svg{color:#3fe6f5}
+@media(max-width:759px){
+  .aid-results{grid-template-rows:auto auto minmax(0,1fr) auto auto;grid-template-areas:"head" "scene" "view" "side" "controls"}
+  .aid-scene-row{padding:0 14px;gap:6px 10px}
+  .aid-scene-note{display:none}
+  .aid-scene-chip{padding:5px 11px;font-size:12.5px}
+  .aid-scene-panel{left:14px;right:14px;width:auto}
+  .aid-side-head{display:none}
+  .aid-dl{padding:0 14px}
+  .aid-dl span{display:none}
+}

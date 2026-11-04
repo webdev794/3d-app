@@ -29,7 +29,7 @@ export function pocketZipX(sgn, y) {
  * collar piece (zones.js HOOD_TOP, as a hood), the inside its lining (group 1). Returns its geometry, its piece's
  * outline on the atlas (back side) and `front(h)`: the zip's line up its front edge, h metres above the neck seam.
  */
-export function buildStandCollar(ctx) {
+export function buildStandCollar(ctx, clean = false) {
   const { poly, seam, positions, n, maxY, neck, uvBack } = ctx;
   const neckIdx = poly.map((_, i) => i).filter((i) => !seam[i] && poly[i].y > maxY - neck.drop && Math.abs(poly[i].x) < neck.half);
   const vtx = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
@@ -52,8 +52,10 @@ export function buildStandCollar(ctx) {
   const C = strip.reduce((s, q) => s.add(q.p), new THREE.Vector3()).divideScalar(strip.length);
   const up = new THREE.Vector3(0, 1, 0);
   const OUT = 11, ROLL = 6, IN = 10, ROWS = OUT + ROLL + IN;
-  const height = (g) => THREE.MathUtils.lerp(COLLAR.front, COLLAR.back, ramp(0.1, 0.8, g));
-  const outer = (h) => 0.0016 - 0.11 * Math.max(0, h);   // the outside leans in towards the neck as it rises
+  // (`clean`, the tracksuits': lower at the back and leaning in a little more, so from the stage camera above it reads as a
+  // straight band, as on their pictures.)
+  const height = (g) => THREE.MathUtils.lerp(COLLAR.front, clean ? COLLAR.front * 0.62 : COLLAR.back, ramp(0.1, 0.8, g));
+  const outer = (h) => 0.0016 - (clean ? 0.2 : 0.11) * Math.max(0, h);   // the outside leans in towards the neck as it rises
   const pos = [], uv = [], col = [], lengths = [];
   const columns = [];
   for (let c = 0; c < strip.length; c++) {
@@ -77,7 +79,7 @@ export function buildStandCollar(ctx) {
       pos.push(P.x, P.y, P.z);
       uv.push(...uvBack(hx, HOOD_TOP - v));
       // Shade: a little deeper where it meets the neck seam and on the inside.
-      const s = k < OUT ? 0.72 + 0.28 * ramp(0, 4, k) : k < OUT + ROLL ? 0.95 : 0.7;
+      const s = k < OUT ? 0.72 + 0.28 * ramp(0, 4, k) : k < OUT + ROLL ? 0.95 : clean ? 0.45 : 0.7;
       col.push(s, s, s);
       if (k === OUT + 2) lengths.push([hx, v]);
     });
@@ -123,8 +125,9 @@ export function buildTrackParts(spec, ctx) {
   const sampleFront = panelSampler(ctx, false);
   const full = { ...ctx, sampleFront };
   const hoodStyle = spec.track?.style === 'hood';
-  const collar = hoodStyle ? null : buildStandCollar(full);
-  const hood = hoodStyle ? buildHood(full, { zip: true }) : null;
+  const collar = hoodStyle ? null : buildStandCollar(full, !!spec.track?.clean);
+  // (FN10 2026-11-02: the hooded tracksuits' hood stands open on the shoulders, as their pictures, hoodie.js `standing`.)
+  const hood = hoodStyle ? buildHood(full, { zip: true, standing: !!spec.track?.clean }) : null;
   const vtx = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
   // The hem band (split at the zip) and the cuffs.
   const hemIdx = poly.map((_, i) => i).filter((i) => !seam[i] && poly[i].y < minY + 0.03);
@@ -147,9 +150,10 @@ export function buildTrackParts(spec, ctx) {
     const loop = [...idx.map(vtx), ...idx.slice().reverse().map((i) => vtx(n + i))];
     const m = new THREE.Vector2(sgn * midC.x, midC.y), inn = new THREE.Vector2(sgn * inward.x, inward.y);
     const dir = ctx.at(m.x, m.y, false).sub(ctx.at(m.x + inn.x * 0.03, m.y + inn.y * 0.03, false)).normalize();
-    // Look 2: a round rib tube over the sleeve's end, from 3 cm up the sleeve (hoodie.js cuffRingAbove).
-    const ring = ctx.detail ? cuffRingAbove(ctx, ca, cb, sgn, dir) : null;
-    ribs.push(ring ? buildRib(ring, { dir, length: 0.03 + 0.05, squeeze: 0.05 }) : buildRib(loop, { dir, length: 0.05, squeeze: 0.1 }));
+    // Look 2: a round rib cuff over the sleeve's end, from 1.2 cm up the sleeve (hoodie.js cuffRingAbove): narrow, about
+    // 4.5 cm tall, drawn in a little to the wrist (the picture's cuff, DT7/FN8; it was an 8 cm flared tube).
+    const ring = ctx.detail ? cuffRingAbove(ctx, ca, cb, sgn, dir, 0.012) : null;
+    ribs.push(ring ? buildRib(ring, { dir, length: 0.012 + 0.033, squeeze: 0.1 }) : buildRib(loop, { dir, length: 0.035, squeeze: 0.12 }));
   }
   // The front zip: from the hem band's foot up the centre front, then (collar) up the collar's front edge.
   const neckTop = spec.half[0][1] - 0.003, base = sampleFront(0, 0.004);

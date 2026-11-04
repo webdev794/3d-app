@@ -10,8 +10,12 @@ export const sockParts = ['sockBand', 'sockHoops', 'sockFoot'] as const;
 export const capParts = ['capBrim', 'capUnder', 'capPiping', 'capSweep', 'capSweepLow'] as const;
 /** The skirt's own printed part besides its front, back, side panels and hem (viewer skirtprint.js): the waistband. */
 export const skirtParts = ['skirtBand'] as const;
-export type PartKey = (typeof topParts)[number] | (typeof shortsParts)[number] | (typeof sockParts)[number] | (typeof capParts)[number] | (typeof skirtParts)[number];
-export const allParts: PartKey[] = [...topParts, ...shortsParts, ...sockParts, ...capParts, ...skirtParts];
+/** The bucket hat's printed parts besides its front and back (viewer hatprint.js): its top, brim, under the brim, the bound edge. */
+export const hatParts = ['hatTop', 'hatBrim', 'hatUnder', 'hatBinding'] as const;
+/** The beanie's printed parts besides its front and back (viewer beanieprint.js, CP1): the cuff, the stripes, the pom-pom. */
+export const beanieParts = ['beanieCuff', 'beanieStripe', 'beaniePom'] as const;
+export type PartKey = (typeof topParts)[number] | (typeof shortsParts)[number] | (typeof sockParts)[number] | (typeof capParts)[number] | (typeof skirtParts)[number] | (typeof hatParts)[number] | (typeof beanieParts)[number];
+export const allParts: PartKey[] = [...topParts, ...shortsParts, ...sockParts, ...capParts, ...skirtParts, ...hatParts, ...beanieParts];
 
 /** A part's own look: every field optional; a part without any follows the kit. */
 export interface PartFade { from: string; to: string | null; angle: number }
@@ -34,6 +38,8 @@ export const partLabels: Record<PartKey, string> = {
     sockBand: 'Top band', sockHoops: 'Hoops', sockFoot: 'Heel & toe',
     capBrim: 'Brim', capUnder: 'Under the brim', capPiping: 'Piping', capSweep: 'Side sweep', capSweepLow: 'Lower side sweep',
     skirtBand: 'Waistband',
+    hatTop: 'Top', hatBrim: 'Brim', hatUnder: 'Under the brim', hatBinding: 'Brim edge',
+    beanieCuff: 'Cuff', beanieStripe: 'Stripes', beaniePom: 'Pom-pom',
 };
 /** The collar and the waistband are 3D rib: a colour only. */
 export const ribPart = (key: PartKey) => key === 'collar' || key === 'waistband';
@@ -45,8 +51,10 @@ export function partsOf(garment: string): PartKey[] {
     const sleeveless = garment === 'singlet' || garment === 'netball-dress';
     const top = topParts.filter(key => !(jacket && key === 'collar') && !(sleeveless && (key === 'leftSleeve' || key === 'rightSleeve')));
     if (garment === 'socks') return ['front', 'back', ...sockParts];
-    if (garment === 'cap') return ['front', 'back', ...capParts];
+    if (garment === 'cap' || garment === 'five-panel-cap') return ['front', 'back', ...capParts];
+    if (garment === 'beanie') return ['front', 'back', ...beanieParts];
     if (garment === 'skirt') return ['front', 'back', 'sides', 'hem', ...skirtParts];
+    if (garment === 'bucket-hat') return ['front', 'back', ...hatParts];
     if (garment === 'shorts') return [...shortsParts];
     if (garment === 'fullkit') return [...topParts, ...shortsParts];
     return top;
@@ -61,11 +69,15 @@ export const partSpots: Record<PartKey, { side: 'front' | 'back'; x: number; y: 
     shortsSides: { side: 'front', x: 0.26, y: 0.2 }, shortsHem: { side: 'front', x: -0.15, y: 0.05 }, waistband: { side: 'front', x: 0, y: 0.4 },
     sockBand: { side: 'front', x: 0, y: 0.62 }, sockHoops: { side: 'front', x: 0, y: 0.56 }, sockFoot: { side: 'front', x: 0, y: 0.03 },
     capBrim: { side: 'front', x: 0, y: 0.046 }, capUnder: { side: 'back', x: 0, y: 0.046 }, capPiping: { side: 'front', x: 0.102, y: 0.14 }, capSweep: { side: 'front', x: 0.135, y: 0.117 }, skirtBand: { side: 'front', x: 0, y: 0.32 }, capSweepLow: { side: 'front', x: 0.145, y: 0.096 },
+    hatTop: { side: 'front', x: 0, y: 0.25 }, hatBrim: { side: 'front', x: 0, y: 0.03 }, hatUnder: { side: 'back', x: 0, y: 0.19 }, hatBinding: { side: 'front', x: 0, y: 0.002 },
+    beanieCuff: { side: 'front', x: 0.1, y: 0.03 }, beanieStripe: { side: 'front', x: 0.1, y: 0.049 }, beaniePom: { side: 'front', x: 0, y: 0.24 },
 };
 
 /** A garment's own spot for a part, where it is elsewhere than the usual one (the skirt's side panels: viewer skirtprint.js). */
 export const garmentSpots: Record<string, Partial<Record<PartKey, { side: 'front' | 'back'; x: number; y: number }>>> = {
     skirt: { sides: { side: 'front', x: 0.23, y: 0.12 } },
+    'bucket-hat': { front: { side: 'front', x: 0, y: 0.11 }, back: { side: 'back', x: 0, y: 0.11 } },
+    beanie: { front: { side: 'front', x: 0, y: 0.13 }, back: { side: 'back', x: 0, y: 0.13 } },
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;

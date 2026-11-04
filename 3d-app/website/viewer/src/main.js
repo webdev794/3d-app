@@ -6,22 +6,31 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { FXAAPass } from 'three/addons/postprocessing/FXAAPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import gsap from 'gsap';
 import { buildGarment, buildCollar, buildDrawstring, SPECS } from './garment.js';
-import { buildLabel, paintLabel, mainColour } from './label.js';
+import { buildLabel, paintLabel, mainColour, buildNeckPrint, placeNeckPrint } from './label.js';
 import { KitPainter, knitNormalMap } from './texture.js';
 import { createStudio } from './studio.js';
-import { qualityTier, TIERS, stadiumEnvironment, dressFabric, hdrBackdrop } from './render-quality.js';
+import { qualityTier, TIERS, stadiumEnvironment, dressFabric, fabricInk, hdrBackdrop } from './render-quality.js';
 import { buildSocks } from './socks.js';
+import { buildBballShorts } from './bballshorts.js';
+import { buildTrackPants } from './trackpants.js';
 import { buildSkirt } from './skirt.js';
 import { SKIRT_LIGHT } from './skirtprint.js';
 import { buildCap } from './cap.js';
+import { buildBucketHat } from './bucket.js';
+import { buildBeanie } from './beanie.js';
 import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
 import { hqWanted, loadHQ, hqJersey } from './hq.js';
 import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt, partAt } from './zones.js';
 import { colourFor } from './colourpick.js';
+import { buildWingCollar, paintWingCollar } from './wingcollar.js';
+import { neckShape, neckCut, rugbyCollar, roundBack } from './necks.js';
+import { collarSpec, fitSpec, collarColours, paintCollarBand, buildCollarParts } from './rugbycollars.js';
 import { buildHoodCords, ribNormalMap, tubeAlong } from './hoodie.js';
 import { buildSnaps, varsityRibMap, quiltMap, finishMap, varsityColour } from './varsity.js';
 import { readLayout, findPanels, confirmPanels, hemFold, joinLines, drawPockets, ROLE_NAMES } from './layout.js';
@@ -71,7 +80,7 @@ const Q = TIERS[QUALITY] ?? null;
 document.body.dataset.quality = QUALITY;
 // The tiers: Khronos PBR Neutral tone mapping, which keeps the print's colours true (ACES shifts and pales them); its
 // exposure set so a print's lit front matches the design's colours.
-if (Q) { renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.3; }
+if (Q) { renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.4; } // (LT2 2026-11-02: 1.3 -> 1.4, the kit's own level back after the calmer haze and rims.)
 // The 3D look (2026-10-23). '2' = step 2 on top of the tiers: folds and drape, the display mannequin, fuller trims,
 // the studio softbox. '1' = the tiers exactly as before step 2. The website sends ?look=2 only for a device that asked
 // for the preview (?look=2 on any page, until ?look=1); the apps never send it. When the client approves, LOOK_DEFAULT
@@ -88,19 +97,24 @@ scene.background = backdrop();
 const pmrem = new THREE.PMREMGenerator(renderer);
 // The tiers: the stadium's own light (floodlights, a warm key, cool rims) in every reflection and sheen.
 scene.environment = pmrem.fromScene(Q ? stadiumEnvironment({ softbox: LOOK2 }) : new RoomEnvironment(), Q ? 0.03 : 0.04).texture;
-scene.environmentIntensity = Q ? 1.3 : 0.3;
+// (VW1 2026-11-03, client 363 item 4: less shine on the fabric; was 1.3 in the tiers.)
+scene.environmentIntensity = Q ? 1.05 : 0.3;
 
 // A photographic stadium plate supplies the distant architecture. The editable
 // garment, stage, lighting, shadows and floor reflection are rendered in 3D.
 const environmentReady = new Promise((resolve) => {
   new THREE.TextureLoader().load(window.STADIUM || '../showroom/studio-backdrop.webp', (texture) => {
-    // Shallow depth of field: the stadium is softly out of focus behind the sharp kit.
-    const img = texture.image, blur = Math.max(2, Math.round(img.width / 240)), pad = blur * 3;
+    // (VW1 2026-11-03, client 363 item 1: the stadium crisp, not a heavy blur; only a hair of softening (about 1 px)
+    // and a navy veil below, so it stays calm and subdued behind the kit. Was blur = width / 240, about 10 px.)
+    const img = texture.image, blur = Math.max(0.6, img.width / 2400), pad = Math.ceil(blur * 3);
     const soft = document.createElement('canvas');
     soft.width = img.width; soft.height = img.height;
     const g = soft.getContext('2d');
     g.filter = `blur(${blur}px)`;
     g.drawImage(img, -pad, -pad, img.width + pad * 2, img.height + pad * 2);
+    g.filter = 'none';
+    g.fillStyle = 'rgba(4,12,24,.28)';
+    g.fillRect(0, 0, img.width, img.height);
     texture.dispose();
     if (Q) {
       // The tiers: its floodlights brighter than white, so they bloom.
@@ -121,7 +135,7 @@ const { podium, ringMat, outerRing, pool, shadow, mirror } = createStudio(scene,
 // Look 2, the showroom: the floodlights behind trace the kit's edges more strongly, and the kit sits in a deeper, wider
 // soft contact shadow on the podium.
 if (LOOK2) {
-  scene.traverse((o) => { if (o.isDirectionalLight && o.position.z < 0) o.intensity *= 1.35; });
+  scene.traverse((o) => { if (o.isDirectionalLight && o.position.z < 0) o.intensity *= 1.05; });
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d'), fade = g.createRadialGradient(64, 64, 4, 64, 64, 64);
@@ -139,7 +153,8 @@ const reliefs = new Map();
 /** Adds the sewing relief on top of the fabric weave (both are normal maps, blended in the shader). */
 function addRelief(target, painter) {
   // A garment cut like a drawing has its own (only the latest such is kept).
-  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}:${painter.canvas.width}${LOOK2 ? ':pucker' : ''}`;
+  // (The crew-neck jersey, FN6: its own, its neck sewn round.)
+  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}${painter.crewNeck ? ':crew' : ''}${painter.neckShape ? `:neck-${painter.neckShape}` : ''}${painter.rugbyCollar ? `:collar-${painter.rugbyCollar.id}` : ''}:${painter.canvas.width}${LOOK2 ? ':pucker' : ''}`;
   if (painter.cut && !reliefs.has(key)) {
     for (const [k, old] of reliefs) if (k.startsWith('cut:')) { old.dispose(); reliefs.delete(k); }
   }
@@ -151,10 +166,19 @@ function addRelief(target, painter) {
   }
   const relief = reliefs.get(key);
   // The skirt's own light (skirtprint.js SKIRT_LIGHT: its black neutral and even, its panels clean), on the tiers.
-  const skirtLight = painter.kind === 'skirt' && !!Q;
-  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '');
+  // (FN1 2026-10-30: the bucket hat too: its black neutral, as its pictures', not navy from the stage's cool light.)
+  const skirtLight = (painter.kind === 'skirt' || painter.kind === 'bucket-hat' || painter.kind === 'beanie') && !!Q;
+  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '');
   target.onBeforeCompile = (shader) => {
     if (skirtLight) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `${SKIRT_LIGHT}\n#include <opaque_fragment>`);
+    // (LT2 2026-11-02, the client: "a thin highlight around these garments": on the tiers a thin, soft cyan-white edge
+    // light only where the surface turns away at the outline, so the kit stands apart from the dark stage; the front
+    // faces the camera and keeps its colours.)
+    if (Q) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `{
+      float edge = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));
+      outgoingLight += vec3(0.62, 0.86, 1.0) * 0.5 * smoothstep(0.62, 0.95, edge);
+    }
+#include <opaque_fragment>`);
     shader.uniforms.reliefMap = { value: relief };
     // Look 2: the stitches and seams stand out a little more (the relief's slopes scaled up).
     const slopes = LOOK2 ? 'relief.xy * 1.7' : 'relief.xy';
@@ -172,13 +196,15 @@ scene.add(kit);
 /** Garment parts on the podium: { painter, texture, rim, material }. */
 let parts = [];
 const material = new THREE.MeshPhysicalMaterial({
-  roughness: 0.64,
-  reflectivity: 0.2,
+  // (VW1 2026-11-03, client 363 item 4: a more matt fabric with a weaker specular, fewer shiny highlights; was 0.64 / 0.2.)
+  roughness: 0.72,
+  reflectivity: 0.12,
+  specularIntensity: 0.6,
   metalness: 0,
   // Polyester's soft gloss, caught by the raised threads of the weave.
-  sheen: 0.45,
-  sheenRoughness: 0.42,
-  sheenColor: new THREE.Color(0x9fb4c6),
+  sheen: 0.32,
+  sheenRoughness: 0.5,
+  sheenColor: new THREE.Color(Q ? 0xa9b0b8 : 0x9fb4c6), // (LT2 2026-11-02: a near-neutral sheen in the tiers, so black backs read black.)
   side: THREE.FrontSide,
   // Baked crease shading from the garment geometry (fold valleys, under the arms).
   vertexColors: true,
@@ -202,6 +228,8 @@ const PARTS = {
   // The compression top (NFL base layer): skin-tight long sleeves (garment.js SPECS.compression).
   compression: ['compression'],
   tee: ['tee'],
+  // The basketball shooting shirt: a loose raglan V-neck warm-up tee (shootingshirt.js).
+  'shooting-shirt': ['shooting-shirt'],
   raglan: ['raglan'],
   polo: ['polo'],
   pocketpolo: ['pocketpolo'],
@@ -214,22 +242,37 @@ const PARTS = {
   'netball-dress': ['netball-dress'],
   // Knee-high team socks (garment 3): their own builder (socks.js) and print (sockprint.js).
   socks: ['socks'],
+  // The basketball shorts: their own cut (bballshorts.js) and print (bballprint.js).
+  bballshorts: ['bballshorts'],
   // The netball / tennis skirt and hockey skort (COMING SOON 10): its own builder (skirt.js) and print (skirtprint.js).
   skirt: ['skirt'],
   // The team cap (garment 4): its own builder (cap.js) and print (capprint.js).
   cap: ['cap'],
+  // The 5-panel cap (CP1 2026-11-02): the cap's one wide front panel without its middle seam, and a flatter brim.
+  'five-panel-cap': ['cap'],
+  // The bucket hat (garment 5): its own builder (bucket.js) and print (hatprint.js).
+  'bucket-hat': ['bucket-hat'],
+  // The beanie (CP1 2026-11-02): its own builder (beanie.js) and print (beanieprint.js).
+  beanie: ['beanie'],
   shorts: ['shorts'],
   fullkit: ['shorts', 'jersey'],
 };
 
+const HEX6 = /^#[0-9a-f]{6}$/i;
 function buildKit(kind) {
   // A print layout brings its own parts (a raglan top, shorts or both); the garment chosen shows its top, its
   // shorts or the full kit.
   let list = PARTS[PARTS[kind] ? kind : 'jersey'];
-  if (layout && kind !== 'socks' && kind !== 'skirt' && kind !== 'cap') {
+  // The basketball shorts (the Basketball shorts tile, FN3 2026-10-30): the shorts with the royal blue band across their
+  // side panels (design.zoneColors.bballBand) are cut long and loose as that picture, with its own print (bballshorts.js).
+  if (kind === 'shorts' && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.bballBand ?? '')) list = PARTS.bballshorts;
+  // The Tracksuit tiles (FN10 2026-11-02, the user: their pictures show the jacket and matching pants): the track jacket
+  // over its track pants (trackpants.js), shown by the look's pants stripe colour (design.zoneColors.pantsStripe).
+  if (kind === 'trackjacket' && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.pantsStripe ?? '')) list = ['trackpants', 'trackjacket'];
+  if (layout && kind !== 'socks' && kind !== 'skirt' && kind !== 'cap' && kind !== 'five-panel-cap' && kind !== 'bucket-hat' && kind !== 'beanie') {
     // A garment drawing is of one top (the one it was checked as).
     const own = layout.drawing ? [layout.garment] : layoutParts(layout.panels);
-    const pick = kind === 'fullkit' ? own : kind === 'shorts' ? own.filter((p) => p === 'shorts') : own.filter((p) => p !== 'shorts');
+    const pick = kind === 'fullkit' ? own : kind === 'shorts' || kind === 'bballshorts' ? own.filter((p) => p === 'shorts') : own.filter((p) => p !== 'shorts');
     list = pick.length ? pick : own;
   }
   // A layout's shorts are training shorts (cut like its leg pieces), so the key says which; a drawing's top is the
@@ -237,7 +280,35 @@ function buildKit(kind) {
   const cut = layout?.drawing ? layout.cut : null;
   // The track jacket's style (design.trackStyle: its stand-up collar or a hood) is part of its cut.
   const trackHood = design.trackStyle === 'hood';
-  const key = (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '');
+  // The Full kit picture (FN6 2026-10-30): its jersey with a round crew neck, shown by its look (design.zoneColors.crewNeck).
+  const crewKit = !layout && list.includes('jersey') && HEX6.test(design.zoneColors?.crewNeck ?? '');
+  // The polo pictures (FN6 2026-10-30): a black stand-up mock collar over a quarter zip, shown by its look
+  // (design.zoneColors.quarterZip, the zip's colour).
+  const zipPolo = !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.quarterZip ?? '');
+  // The Rugby League socks (FN7 2026-10-30, user: a real split toe, as the client's picture): the socks with the toe
+  // line (design.zoneColors.sockToeLine) have the big toe in its own pocket (socks.js split).
+  const splitToe = list.includes('socks') && HEX6.test(design.zoneColors?.sockToeLine ?? '');
+  // Garment style › Neck style (design.neck, necks.js): a part's neck cut round or V (null: the garment's own). Not on a
+  // print layout or garment drawing (their own neck).
+  const necks = list.map((p) => (layout ? null : neckShape(p, design, p === 'jersey' && crewKit ? 'round' : undefined)));
+  // A rugby jersey's collar from the library and its fit (Garment style, rugbycollars.js): on the jersey only.
+  const collar = !layout && list.includes('jersey') ? rugbyCollar(design) : null;
+  const fit = !layout && list.includes('jersey') && (design.fit === 'classic' || design.fit === 'tight') ? design.fit : null;
+  // (The rugby / netball / NFL training tees (tile look zoneColors.teeFlare): sleeves standing out from the body and the
+  // body flaring to a wider hem, as their pictures: DT10.)
+  const teeFlare = list.includes('tee') && HEX6.test(design.zoneColors?.teeFlare ?? '');
+  // (The Football / Basketball training tee (zoneColors.teeLong): its sleeves longer, ending at .41 of the height: DT10.)
+  const teeLong = !teeFlare && list.includes('tee') && HEX6.test(design.zoneColors?.teeLong ?? '');
+  // (FX-V 2026-11-02: the NFL varsity tile (zoneColors.varsityBoxy): a wide, boxy jacket, its sleeves down to the hem
+  // and deep rib cuffs and waistband, as its picture: DT11.)
+  const varsityBoxy = list.includes('varsity') && HEX6.test(design.zoneColors?.varsityBoxy ?? '');
+  // (FX-R, DT10: the rugby jersey tile (look rugbyTile, zoneColors.sweep): sleeves standing out, the body flaring to the
+  // hem, as its picture. The Football / Rugby playing shorts (zoneColors.shortsPlain): a rounder, narrower hem, no
+  // drawcord; zoneColors.shortsNarrow: the rugby shorts' narrower waist.)
+  const rugbyCut = !layout && list.includes('jersey') && HEX6.test(design.zoneColors?.sweep ?? '');
+  const plainShorts = !layout && HEX6.test(design.zoneColors?.shortsPlain ?? '') ? (HEX6.test(design.zoneColors?.shortsNarrow ?? '') ? 'n' : 'p') : '';
+  const noCord = !!plainShorts || rugbyCut;
+  const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '') + (kind === 'beanie' && HEX6.test(design.zoneColors?.beanieOne ?? '') ? ':nopom' : '') + (list.includes('trackpants') && HEX6.test(design.zoneColors?.sideBlade ?? '') ? ':jog' : '') + (teeFlare ? `:flare${design.zones?.sides ? 's' : ''}${HEX6.test(design.zoneColors?.teeNetball ?? '') ? 'n' : ''}` : '') + (teeLong ? ':long' : '') + (rugbyCut ? ':rugcut' : '') + (plainShorts ? `:plain${plainShorts}` : '') + (varsityBoxy ? ':boxy' : '') + (list.includes('jersey') && HEX6.test(design.zoneColors?.wingCollar ?? '') ? ':soccer' : '') + (list.includes('nfljersey') && HEX6.test(design.zoneColors?.badge ?? '') ? ':game' : '');
   if (key === currentKind) return;
   currentKind = key;
   const geometries = new Set();
@@ -248,15 +319,27 @@ function buildKit(kind) {
   kit.clear();
   parts = [];
   let base = 0;
-  for (const partKind of list) {
+  for (const [index, partKind] of list.entries()) {
     const own = cut && partKind === layout.garment ? cut : null;
+    const neck = necks[index], rugby = partKind === 'jersey' ? collar : null;
     // A layout's tee over its shorts (shown bigger, below) hangs a little fuller at the hem, over their waistband.
     const over = partKind === 'raglan' && layout && list.includes('shorts') ? { ...SPECS.raglan, hemFlare: 0.09 } : null;
-    const style = partKind === 'trackjacket' && trackHood ? SPECS.trackjacketHood : null;
+    // (The crew-neck jersey: the tee's neck on the jersey's raglan body; its fabric lies smoother, fewer creases and less
+    // relief, as the Full kit picture's matt knit.)
+    const style = (partKind === 'polo' || partKind === 'pocketpolo') && zipPolo ? { ...SPECS[partKind], rim: { ...SPECS[partKind].rim, width: 0.03, stand: 0.021 }, crease: 0.45, relief: 0.6 } : partKind === 'trackjacket' && trackHood ? (list.includes('trackpants') ? SPECS.trackjacketHoodSuit : SPECS.trackjacketHood) : partKind === 'trackjacket' && list.includes('trackpants') ? SPECS.trackjacketSuit : partKind === 'tee' && teeFlare ? { ...SPECS.tee, ...teeSport(design).spec } /* (FN13, DT11 on -224: the plain garment-tee's shape, which passes) */ : partKind === 'tee' && teeLong ? longTee(SPECS.tee) : partKind === 'shorts' && plainShorts ? plainShortsSpec(plainShorts === 'n') : partKind === 'varsity' && varsityBoxy ? { ...((s) => ({ ...s, half: [...VARSITY_BOXY.vNeck, ...s.half.slice(3)] }))(longTee(SPECS.varsity, VARSITY_BOXY.sleeve)), neckLine: VARSITY_BOXY.neckLine, varsityV: { placketTop: VARSITY_BOXY.placketTop, topSnap: VARSITY_BOXY.topSnap }, neck: VARSITY_BOXY.neck, rim: VARSITY_BOXY.rim, varsityRib: VARSITY_BOXY.rib, varsityCollarSqueeze: 0, varsityCollarSmooth: true } : partKind === 'jersey' && crewKit ? { ...SPECS.jersey, half: SPECS.tee.half, neck: SPECS.tee.neck, rim: SPECS.tee.rim, crew: true, crease: 0.45, relief: 0.6 } : null;
     // Look 2: the drape and wrinkles of worn cloth (otherwise the garment as before).
-    const garment = partKind === 'socks' ? buildSocks({ detail: LOOK2 }) : partKind === 'skirt' ? buildSkirt({ detail: LOOK2 }) : partKind === 'cap' ? buildCap({ detail: LOOK2 }) : buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: own ?? over ?? style, detail: LOOK2 });
-    const painter = new KitPainter(garment.frame, garment.outline, printSize(), partKind);
+    const garment = partKind === 'socks' ? buildSocks({ detail: LOOK2, split: splitToe }) : partKind === 'bballshorts' ? buildBballShorts({ detail: LOOK2 }) : partKind === 'trackpants' ? buildTrackPants({ detail: LOOK2, jogger: HEX6.test(design.zoneColors?.sideBlade ?? '') }) : partKind === 'skirt' ? buildSkirt({ detail: LOOK2 }) : partKind === 'cap' ? buildCap({ detail: LOOK2, five: kind === 'five-panel-cap' }) : partKind === 'bucket-hat' ? buildBucketHat({ detail: LOOK2 }) : partKind === 'beanie' ? buildBeanie({ detail: LOOK2, pom: !HEX6.test(design.zoneColors?.beanieOne ?? '') }) : buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: rugbyJerseyCut(partKind, rugbyCut, soccerCut(partKind, design, neck || rugby || (fit && partKind === 'jersey') ? fitSpec(collarSpec(neckCut(partKind, own ?? over ?? style ?? SPECS[partKind], neck), rugby), partKind === 'jersey' ? fit : null) : layout ? own ?? over ?? style : roundBack(partKind, own ?? over ?? style ?? SPECS[partKind]))), detail: LOOK2 });
+    const painter = new KitPainter(garment.frame, garment.outline, printSize(partKind), partKind);
+    if (kind === 'five-panel-cap') painter.five = true;
     if (own) painter.cut = layout.key;
+    if (partKind === 'jersey' && crewKit) painter.crewNeck = true;
+    if (partKind === 'varsity' && varsityBoxy) painter.varsityBoxy = true;
+    // A neck cut to another shape: its collar's seam and stitching follow it (texture.js tailoring).
+    if (neck) Object.assign(painter, { neckShape: neck, crewNeck: neck === 'round', vNeck: neck !== 'round', neckTip: garment.neckTip ?? null });
+    painter.neckEdge = garment.neckEdge;
+    painter.backOutline = garment.backOutline;
+    painter.backNeckEdge = garment.backNeckEdge;
+    if (rugby) painter.rugbyCollar = rugby;
     // The finished edges (the hem follows a leg's side split), the waistband's width and the places a print
     // layout's pieces are matched to.
     painter.edgeMask = garment.edges;
@@ -266,7 +349,7 @@ function buildKit(kind) {
     painter.surface = garment.surface;
     // ?hq=1: the jersey's fabric is the HQ model, printed from this jersey's atlas (hq.js).
     let hq = null;
-    if (HQ && partKind === 'jersey' && window.HQ_JERSEY) {
+    if (HQ && partKind === 'jersey' && window.HQ_JERSEY && !neck && !rugby && !fit) {
       // (A cut it cannot be laid onto keeps our own jersey.)
       try { hq = hqJersey(garment, own ?? SPECS.jersey); } catch (error) { console.warn('HQ jersey:', error); }
     }
@@ -281,10 +364,25 @@ function buildKit(kind) {
     if (garment.kind === 'netball-dress') {
       partMaterial.emissiveMap = texture;
       partMaterial.emissive.setRGB(1, 1, 1);
-      partMaterial.emissiveIntensity = 0.24;
+      partMaterial.emissiveIntensity = 0.36;
       // (ND2: almost no grey sheen on it, so its strips stay saturated from the side too.)
-      partMaterial.sheen = 0.08;
+      partMaterial.sheen = 0;
+      // (FN12: less sky reflection too: it lifted the lit side's cyan pale, DT10.)
+      partMaterial.envMapIntensity = (partMaterial.envMapIntensity ?? 1) * 0.5;
+      // (Less white shine on it, so its cyan stays deep on the side the key light falls on: DT8.)
+      partMaterial.specularIntensity = 0.15;
     }
+    // The compression top (FM print 2026-10-30): its print lifted by its own light too, so its azure panels, piping and
+    // the chest logo read as deep and as bright as on the client's evenly lit picture on both sides (its black stays a
+    // neutral black, 19-28 as the picture's).
+    if (partKind === 'compression') {
+      partMaterial.emissiveMap = texture;
+      partMaterial.emissive.setRGB(1, 1, 1);
+      partMaterial.emissiveIntensity = 0.45;
+    }
+    // The socks (FN10 2026-11-02, tester DT10): less shine, so the top of the foot under the overhead lights stays as
+    // black as the shin (the pictures' 13-28), not grey-blue (their knit has no sheen either: render-quality.js sockrib).
+    if (garment.socks) partMaterial.specularIntensity = 0.3;
     addRelief(partMaterial, painter);
     const group = new THREE.Group();
     // The inside of the fabric, seen through the neck, hem and cuffs: the garment's own colour in shade (paintAll).
@@ -314,10 +412,11 @@ function buildKit(kind) {
     let hoodie = null;
     if (garment.hoodie) {
       const h = garment.hoodie;
-      partMaterial.roughness = 0.88;
-      partMaterial.sheen = 0.3;
+      // (FX-H 2026-11-02, DT11: smooth matt fabric as the pictures, not fuzzy fleece.)
+      partMaterial.roughness = 0.9;
+      partMaterial.sheen = 0.08;
       partMaterial.sheenRoughness = 0.8;
-      partMaterial.normalScale.set(0.14, 0.14);
+      partMaterial.normalScale.set(0.04, 0.04);
       const add = (mesh, pick = false) => { if (pick) mesh.userData.part = parts.length; mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh; };
       // The hood: printed outside (its atlas piece), its lining inside.
       const liningFront = new THREE.MeshStandardMaterial({ roughness: 0.92, vertexColors: true });
@@ -332,7 +431,9 @@ function buildKit(kind) {
       const channel = add(new THREE.Mesh(tubeAlong(h.hood.channel, 0.0042), new THREE.MeshStandardMaterial({ roughness: 0.9 })));
       add(new THREE.Mesh(h.pocket, partMaterial), true);
       ribMap ??= ribNormalMap();
-      const rib = new THREE.MeshPhysicalMaterial({ roughness: 0.92, sheen: 0.2, sheenRoughness: 0.8, side: THREE.DoubleSide, normalMap: ribMap, normalScale: new THREE.Vector2(0.85, 0.85) });
+      // (FN5 2026-10-30: the body fabric's cool sheen, so the black rib stays a neutral black under the warm key light, as
+      // the pictures: it showed brown.)
+      const rib = new THREE.MeshPhysicalMaterial({ roughness: 0.92, sheen: 0.2, sheenRoughness: 0.8, sheenColor: 0x9fb4c6, side: THREE.DoubleSide, normalMap: ribMap, normalScale: new THREE.Vector2(0.85, 0.85) });
       h.ribs.forEach((g) => add(new THREE.Mesh(g, rib)));
       if (h.zip) group.add(h.zip.group);
       const cords = buildHoodCords({ sampleFront: h.sampleFront }, h.hood.eyelets);
@@ -415,7 +516,7 @@ function buildKit(kind) {
     // Collar rib or waistband along the top opening (a hoodie's neck is under its hood).
     const rim = new THREE.Mesh(
       // (A flat band of the body's fabric, the compression top's, lies almost flat: a thin fold, no rib's fullness.)
-      buildCollar(garment.neck, partKind === 'shorts', garment.rimWidth, garment.rimFlat ? 0.4 : LOOK2 ? 1.6 : 1),
+      buildCollar(garment.neck, partKind === 'shorts' || !!garment.bball || !!garment.pants, garment.rimWidth, garment.rimFlat ? 0.4 : LOOK2 ? 1.6 : 1, garment.rimStand, garment.rimOne),
       new THREE.MeshPhysicalMaterial({ roughness: 0.9, reflectivity: .2, sheen: 0.15, side: THREE.DoubleSide, sheenColor: new THREE.Color(0x7092a4), normalMap: knit, normalScale: new THREE.Vector2(.17, .17) }),
     );
     group.add(rim);
@@ -427,19 +528,20 @@ function buildKit(kind) {
       ribMap ??= ribNormalMap();
       const ribs = ribMap.clone();
       ribs.userData.own = true;   // this collar's own copy, freed with the kit
-      ribs.repeat.set(partKind === 'shorts' ? 260 : 150, 1);
+      ribs.repeat.set(partKind === 'shorts' || garment.bball || garment.pants ? 260 : 150, 1);
       ribs.needsUpdate = true;
       rim.material.normalMap = ribs;
       rim.material.normalScale.set(0.75, 0.75);
     }
     // (The netball dress's scoop neck is bound and rolled as its armholes are: no collar rib.)
-    rim.visible = !hoodie && !track && !varsity && !garment.socks && !garment.skirt && !garment.cap && garment.kind !== 'netball-dress';
+    rim.visible = !hoodie && !track && !varsity && !garment.socks && !garment.skirt && !garment.cap && !garment.hat && garment.kind !== 'netball-dress';
     // The HQ jersey's own collar piece, in the collar rib's material.
     if (hq?.collar) { rim.geometry.dispose(); rim.geometry = hq.collar; }
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
-    const label = partKind === 'shorts' || garment.socks || garment.skirt || garment.cap ? null : buildLabel(garment);
+    // (No size label in the shooting shirt's neck: its picture has none; FN5, tester DT8.)
+    const label = partKind === 'shorts' || partKind === 'shooting-shirt' || garment.socks || garment.bball || garment.pants || garment.skirt || garment.cap || garment.hat ? null : buildLabel(garment);
     // Shorts: the drawstring out of the front of the waistband.
-    const cord = garment.drawstring ? buildDrawstring(garment) : null;
+    const cord = garment.drawstring && !noCord ? buildDrawstring(garment) : null;
     if (cord) group.add(cord.group);
     // The cap's eyelets: metal grommets round its air holes (cap.js).
     if (garment.trims) group.add(garment.trims);
@@ -448,10 +550,18 @@ function buildKit(kind) {
     // The cap is shown a little larger than life (cap.js CAP_DISPLAY), so it fills the stage as the others do.
     const stretch = partKind === 'shorts' && layout ? 1.12 : garment.display ?? 1;
     group.scale.setScalar(stretch);
+    // (FN13, DT10: the Game Jersey picture (zoneColors.badge) is cut much wider over the shoulder pads than tall.)
+    if (partKind === 'nfljersey' && HEX6.test(design.zoneColors?.badge ?? '')) group.scale.x *= NFL_GAME_WIDE; else if (partKind === 'nfljersey' && HEX6.test(design.zoneColors?.vInsert ?? '')) group.scale.y *= 1.045; // (FN15, user 2026-11-04: the Practice Jersey longer, h/w 1.58 -> 1.65)
+    // (FN13, DT11 on -227: the rugby / netball / NFL training tees' pictures are wide, boxy tees (h/w about 1.02).)
+    if (partKind === 'tee' && teeFlare) group.scale.x *= teeSport(design).wide;
+    // (FX-H 2026-11-02, DT11: the hoodies broader from the front, as the pictures (the form's shoulders fix the cut's width).)
+    if (partKind === 'hoodie' || partKind === 'ziphoodie') group.scale.x *= 1.11; if (partKind === 'hoodie') group.scale.y *= 1.05; // (FN14: the lower hood's height back) // (FN13, DT11 on -230/-231: wider, h/w 1.20)
+    if (partKind === 'varsity' && varsityBoxy) { group.scale.x *= VARSITY_BOXY.wide; group.scale.z *= VARSITY_BOXY.wide; group.scale.y *= VARSITY_BOXY.tall; }
     // In a full kit the jersey sits over the shorts' waistband.
     // Look 2: a garment shown on a form with legs (the netball dress) stands a little higher (garment.js lift).
     group.position.y = base + (LOOK2 ? garment.lift : 0);
-    base += partKind === 'shorts' ? garment.frame.maxY * stretch - 0.06 : 0;
+    // (The tracksuit's jacket over its pants' waistband, FN10.)
+    base += partKind === 'shorts' || partKind === 'trackpants' ? garment.frame.maxY * stretch - (partKind === 'trackpants' ? 0.09 : 0.06) : 0;
     kit.add(group);
     group.add(glow);
     parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow });
@@ -460,6 +570,15 @@ function buildKit(kind) {
   frameKit();
   // The labels after framing (the camera frames the kit as it is without them).
   parts.forEach((part) => { if (part.label) part.rim.parent.add(part.label); });
+  // The football / hockey jersey's wing collar (wingcollar.js), shown by its look (design.zoneColors.wingCollar).
+  parts.forEach((part) => { if (part.painter.kind === 'jersey' && !layout && !part.hq) { part.wing = buildWingCollar(part.garment.neck); part.rim.parent.add(part.wing.group); } });
+  // A rugby collar's own pieces (rugbycollars.js): a fold-down collar (over the band, which it hides) and its buttons.
+  parts.forEach((part) => {
+    if (!part.painter.rugbyCollar) return;
+    part.rugby = { collar: part.painter.rugbyCollar, ...buildCollarParts(part.garment, part.painter.rugbyCollar) };
+    part.rim.parent.add(part.rugby.group);
+    if (part.rugby.collar.fold) part.rim.visible = false;
+  });
   // Look 2: the mannequin under the kit and its stand into the podium, also after framing (never picked).
   if (LOOK2) dressMannequin(list);
 }
@@ -472,7 +591,12 @@ function buildKit(kind) {
 function dressParts(built) {
   if (!Q) return;
   for (const part of parts) {
-    const dressed = dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy(), design.fabric);
+    // (FN4 2026-10-30: the Rugby jersey and kit tile pictures' smooth matt fabric with their look, design.zoneColors.sweep,
+    // while the fabric type is the Standard one.)
+    // (And the shorts pictures' and Rugby League picture's: their looks set zoneColors.cordTips.)
+    // (FN6: and the Full kit picture's, with its shorts' blades, design.zoneColors.kitBlade; and the polo pictures', zoneColors.quarterZip.)
+    const smooth = (!design.fabric || design.fabric === 'Standard') && (/^#[0-9a-f]{6}$/i.test(design.zoneColors?.sweep ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.cordTips ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.kitBlade ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.flow ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.quarterZip ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.bballBand ?? ''));
+    const dressed = dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy(), smooth ? 'Smooth' : design.fabric);
     // Look 2: the knit's relief a quarter deeper, so the mesh and its sheen read up close.
     if (LOOK2 && (built || dressed)) part.material.normalScale.multiplyScalar(1.25);
   }
@@ -483,8 +607,11 @@ function dressParts(built) {
  * The print atlas's size: 4096 on computers; on phones 3072 when the graphics allow it (sharper lines and lettering;
  * painted once, so frame time is the same), else 2048 as before.
  */
-function printSize() {
+function printSize(kind) {
   if (!mobile) return 4096;
+  // The compression top on a computer's browser (the website sends ?mobile too): the full size, so its chest logo is as
+  // crisp as on the client's picture (FM print 2026-10-30; phones and the apps keep the smaller print).
+  if (kind === 'compression' && !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) && renderer.capabilities.maxTextureSize >= 4096 && (navigator.deviceMemory ?? 4) >= 8) return 4096;
   return renderer.capabilities.maxTextureSize >= 4096 && (navigator.deviceMemory ?? 4) >= 3 ? 3072 : 2048;
 }
 
@@ -509,16 +636,26 @@ function dressMannequin(list) {
   }
   // The podium's top is at y -0.0675 (studio.js); the rod goes a little into it, so the kit's gentle bob never lifts it off.
   const stand = foot ? buildStand(foot.y + 0.012, -0.075, foot.x, foot.z) : Number.isFinite(low) ? buildStand(low + 0.012, -0.075) : null;
-  if (stand) kit.add(stand);
+  // (VW1 2026-11-03, client 363 item 5: no visible support pole; the kit stands over the podium on its own.)
+  void stand;
 }
 
 /** Re-centres the camera on whatever is on the podium. */
 function frameKit() {
+  // (FN15: measured at the kit's full size, not part-way through the reveal's grow-in.)
+  const was = kit.scale.clone(); kit.scale.setScalar(1); kit.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(kit);
+  kit.scale.copy(was); kit.updateMatrixWorld(true);
   const height = box.max.y - box.min.y, width = box.max.x - box.min.x;
-  CENTER.set(0, (box.min.y + box.max.y) / 2, 0);
+  // (VW1: aimed a little low, so the smaller pedestal stays in the frame.)
+  CENTER.set(0, (box.min.y + box.max.y) / 2 - height * 0.05, 0);
   // Fit the taller of height and (narrow-screen) width, never closer than a jersey.
-  HOME.radius = Math.max(2.05, Math.max(height, width * 0.8) * 2.65);
+  // (VW1 2026-11-03, client 363 item 5: the kit larger in the frame; was 2.05 / 2.65.)
+  // (FN15, DT12 on -240: never closer than the whole kit fits, the hood's top included, with a small margin: the half
+  // height above the aimed-low centre (+5%), and the half width on a narrow screen, from the camera's own field of view.)
+  const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2), depth = (box.max.z - box.min.z) / 2;
+  const fit = depth * 0.3 + Math.max((height * 0.55 * 1.08) / tanV, (width * 0.5 * 1.08) / (tanV * camera.aspect));
+  HOME.radius = Math.max(1.85, Math.max(height, width * 0.8) * 2.4, fit);
   controls.maxDistance = Math.max(3.4, HOME.radius * 1.6);
   controls.target.copy(CENTER);
   setCamera({ ...HOME, theta: new THREE.Spherical().setFromVector3(camera.position.clone().sub(CENTER)).theta || 0 });
@@ -538,7 +675,10 @@ function paintHoodie(part) {
   h.lining.forEach((m) => m.color.set(lining));
   h.channel.color.set(own('hood', design.main));
   h.rib.color.set(own('rib', design.main)).multiplyScalar(0.9);
-  h.cords.cord.color.set(lining).multiplyScalar(0.95);
+  // (FN5 2026-10-30, the client's hoodie picture: black cords as the rib, their tips in the lining's colour.)
+  // (FX-H, DT11: a look's own cord colour (NFL hoodie: cyan cords).)
+  if (own('cord')) h.cords.cord.color.set(own('cord')); else h.cords.cord.color.set(own('rib', design.main)).multiplyScalar(0.8);
+  h.cords.metal.color.set(lining);
   if (h.zip) {
     const zip = own('zip', design.secondary);
     h.zip.tape.color.set(zip).multiplyScalar(0.85);
@@ -555,7 +695,9 @@ function paintHoodie(part) {
 function paintTrack(part) {
   const own = (key, fallback) => (HEX.test(design.zoneColors?.[key] ?? '') ? design.zoneColors[key] : fallback);
   const t = part.track, body = own('body', design.main), collar = own('collar', body);
-  t.lining.forEach((m) => m.color.set(collar).multiplyScalar(0.85));
+  // (FN11 2026-11-02: the NFL hooded tracksuit picture's cyan hood lining, zoneColors.lining.)
+  const lining = own('lining', null);
+  t.lining.forEach((m) => (lining ? m.color.set(lining) : m.color.set(collar).multiplyScalar(0.85)));
   t.rib.color.set(own('cuffs', body)).multiplyScalar(0.9);
   const zip = own('zip', design.secondary);
   for (const z of t.zips) { z.tape.color.set(zip).multiplyScalar(0.85); z.teeth.color.set(zip); }
@@ -582,14 +724,41 @@ function paintVarsityPart(part) {
  * A stripe along the collar rib's inner edge (the V's opening: the top of its outside face and the fold), in `colour`;
  * the rest keeps the rib's own colour. null: the rib all one colour, as before.
  */
-function collarStripe(rim, colour) {
+// `to`: how far round the band it reaches (the polo's piping runs on over the top and down the inside: FN6).
+function collarStripe(rim, colour, to = 0.62) {
   const m = rim.material, geo = rim.geometry, uv = geo.getAttribute('uv');
   if (!colour) { if (m.vertexColors) { m.vertexColors = false; m.needsUpdate = true; } return; }
   const base = m.color.clone(), own = new THREE.Color(colour), col = new Float32Array(uv.count * 3);
-  for (let i = 0; i < uv.count; i++) { const v = uv.getY(i), c = v > 0.34 && v < 0.62 ? own : base; col.set([c.r, c.g, c.b], i * 3); }
+  for (let i = 0; i < uv.count; i++) { const v = uv.getY(i), c = v > (to > 1 ? 0.4 : 0.34) && v < to ? own : base; col.set([c.r, c.g, c.b], i * 3); }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   m.color.set(0xffffff);
   if (!m.vertexColors) { m.vertexColors = true; m.needsUpdate = true; }
+}
+
+/**
+ * A customer's own design (a design picture or print layout on the kit: the AI Designer's and Artwork to 3D's kits, QD
+ * 2026-11-04): a top with its print gets the small 3DEEZI mark printed under the back collar, where the print there is
+ * plain (label.js); every other part and kit none (catalogue kits keep their own marks).
+ */
+async function neckPrint(part) {
+  const own = !!(layout && part.painter.layoutBase) && part.painter.kind !== 'shorts' && !!part.garment?.neck?.length;
+  if (!own) { if (part.neckPrint) part.neckPrint.visible = false; return; }
+  if (part.neckPrint === undefined) {
+    part.neckPrint = buildNeckPrint(part.hq?.geometry ?? part.garment.geometry, part.garment.neck, part.rim);
+    if (part.neckPrint) part.rim.parent.add(part.neckPrint);
+  }
+  if (!part.neckPrint) return;
+  // The customer's own objects on the back (texture.js layerBoxes, 4 mm round each): the mark never goes on them.
+  const boxes = (part.painter.layerBoxes ?? []).filter((b) => b.side === 'back').map((b) => {
+    const t = ((b.rot ?? 0) * Math.PI) / 180, c = Math.abs(Math.cos(t)), s = Math.abs(Math.sin(t));
+    return { x: b.x, y: b.y, w: (b.w * c + b.h * s) / 2 + 0.004, h: (b.w * s + b.h * c) / 2 + 0.004 };
+  });
+  const taken = (px, py) => {
+    if (!boxes.length) return false;
+    const at = part.painter.fromCanvas(px, py);
+    return at.side === 'back' && boxes.some((b) => Math.abs(at.x - b.x) <= b.w && Math.abs(at.y - b.y) <= b.h);
+  };
+  await placeNeckPrint(part.neckPrint, part.painter.canvas, taken);
 }
 
 async function paintAll() {
@@ -605,18 +774,38 @@ async function paintAll() {
   for (const part of parts) {
     await part.painter.paint(design);
     part.texture.needsUpdate = true;
+    await neckPrint(part);
+    // (The football jersey: its print solid over the mesh, render-quality.js.)
+    if (Q) fabricInk(part, layout ? null : design.main);
     const ribOwn = part.painter.partStyle(design, part.painter.partName === 'shorts' ? 'waistband' : 'collar')?.own;
     // (The compression top's crew neck: the body's colour.)
-    part.rim.material.color.set(layout && part.layoutRim ? part.layoutRim : ribOwn ?? (part.painter.kind === 'compression' ? design.main : design.secondary));
+    part.rim.material.color.set(layout && part.layoutRim ? part.layoutRim : ribOwn ?? (part.painter.kind === 'compression' ? design.main : design[part.garment?.rimColour ?? 'secondary']));
     // The football jersey's collar: a stripe of its own along the V's inner edge (design.zoneColors.collarStripe).
-    const nfl = part.painter.kind === 'nfljersey', stripe = nfl && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.collarStripe ?? '') ? design.zoneColors.collarStripe : null;
-    collarStripe(part.rim, stripe);
+    // (The polo pictures' mock collar: a thin piping along its top edge, design.zoneColors.collarPiping: FN6.)
+    const nfl = part.painter.kind === 'nfljersey', piping = !layout && !nfl && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.collarPiping ?? '') ? design.zoneColors.collarPiping : null;
+    const stripe = piping ?? (nfl && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.collarStripe ?? '') ? design.zoneColors.collarStripe : null);
+    const band = `#${part.rim.material.color.getHexString()}`;
+    collarStripe(part.rim, stripe, piping ? 1.01 : 0.62);
+    paintWingCollar(part.wing, design);
+    // A rugby collar (Garment style): its band's stripes and tips, the wing collar or fold-down collar in its colour.
+    if (part.rugby) {
+      const r = part.rugby, colours = collarColours(design, band);
+      paintCollarBand(part.rim, r.collar, colours);
+      if (r.collar.wing && part.wing) { part.wing.group.visible = true; part.wing.outer.color.set(band); part.wing.inner.color.set('#5f6266'); }
+      r.fold?.color.set(band);
+      r.pipe?.color.set(colours.accent);
+    }
     // The inside: the print's (or the kit's) main colour, a little darker for shade; the label shows the kit's size.
     // The football jersey's wide sleeves show their inside from below: kept in shade (darker, little reflected light).
-    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(nfl ? 0.45 : 0.72);
-    part.inside.envMapIntensity = nfl ? 0.3 : 1;
+    // (The basketball shorts' inside in shade too: their V splits show as open dark triangles and the leg openings stay
+    // dark inside, as the client's pictures (BSF 2026-11-04).)
+    const shadeIn = nfl || !!part.garment?.bball;
+    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(nfl ? 0.45 : part.garment?.bball ? 0.28 : 0.72);
+    // (The Custom shallow V's light inner, as the client's reference: rugbycollars.js.)
+    if (part.rugby?.collar.inside) part.inside.color.set(part.rugby.collar.inside).multiplyScalar(0.8);
+    part.inside.envMapIntensity = shadeIn ? 0.3 : 1;
     // (The compression top: a black label with the cyan "3", as its picture.)
-    if (part.label) paintLabel(part.label, design.size || 'L', part.painter.kind === 'compression' ? 'mark' : 'word');
+    if (part.label) paintLabel(part.label, design.size || 'L', part.painter.kind === 'compression' ? 'mark' : HEX6.test(design.zoneColors?.labelDark ?? '') || HEX6.test(design.zoneColors?.sweep ?? '') || part.painter.kind === 'tee' || part.track ? 'dark' : 'word');
     if (part.hoodie) paintHoodie(part);
     if (part.track) paintTrack(part);
     if (part.varsity) paintVarsityPart(part);
@@ -626,9 +815,11 @@ async function paintAll() {
       // (A tile's own colour for the eyelets and tips, design.zoneColors.cordTips: the Rugby League kit's black, RF1.)
       const tips = /^#[0-9a-f]{6}$/i.test(design.zoneColors?.cordTips ?? '') ? design.zoneColors.cordTips : design.accent;
       part.cord.metal.color.set(layout && part.layoutAccent ? part.layoutAccent : tips);
+      // (FN6: the Full kit picture's shorts show no drawstring: hidden with its blades, design.zoneColors.kitBlade.)
+      part.cord.group.visible = !!layout || !HEX6.test(design.zoneColors?.kitBlade ?? '');
     }
   }
-  ringMat.color.set(design.secondary).multiplyScalar(4);
+  ringMat.color.set(design.secondary).multiplyScalar(Q ? 2.4 : 4);
   pool.material.color.set(design.secondary);
   await board.refresh();
   // Not while the user types or slides in the bar (the host's echo would take the focus away).
@@ -646,7 +837,11 @@ const enqueuePaint = (work) => {
 function applyDesign(next) {
   return enqueuePaint(async () => {
     if (!next || typeof next !== 'object' || Array.isArray(next)) throw new Error('A design object is required.');
-    design = { ...design, ...next };
+    // (FN11 2026-11-02: a whole design from the host (with its garment) drops the keys JSON leaves out when unset, so a
+    // new tile never keeps the last one's track style, neck or fit: the Athletics track jacket once showed a hood.)
+    // (FN12: and its zone colours: a full kit's crewNeck left over made the Rugby League jersey's V round, images/320.)
+    const whole = typeof next.garment === 'string' ? { trackStyle: null, neck: null, fit: null, zoneColors: null } : {};
+    design = { ...design, ...whole, ...next };
     await paintAll();
     post({ type: 'designApplied' });
   });
@@ -700,7 +895,58 @@ function garmentShape(p) {
 /** The key a file read is kept by (a drawing is read differently from a print layout). */
 const fileKey = (asset, drawing) => (drawing ? `drawing:${asset}` : asset);
 /** The garments a drawing can go on, as the hosts name them. */
-const DRAWN_NAMES = { singlet: 'Singlet', 'netball-dress': 'Netball dress', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo', pocketpolo: 'Polo with pocket', nfljersey: 'Football jersey' };
+/** A tee's sleeves made longer: the cuff's two corners moved on down the sleeve. */
+// (FN13, DT10: the flare tees' sleeves wide and flat as their pictures: the cuff opening 2.6 cm wider, the sleeve 1.5 cm
+// shorter, the underarm a little lower.)
+function wideSleeve(spec) {
+  const map = new Map([['0.418,0.566', [0.408, 0.578]], ['0.372,0.476', [0.364, 0.46]], ['0.31,0.505', [0.31, 0.497]], ['0.33,0.636', [0.33, 0.64]]]);
+  // (DT11: the body and shoulders 6% wider, as the pictures' boxier tees.)
+  const mv = (q) => { const [x, y] = map.get(q.join(',')) ?? q; return [x * 1.06, y]; };
+  return { ...spec, half: spec.half.map(mv), cuff: spec.cuff.map(mv) };
+}
+function longTee(spec, by = 0.05) {
+  const [[ax, ay], [bx, by0]] = spec.cuff, dx = (ax + bx) / 2 - 0.258, dy = (ay + by0) / 2 - 0.6, l = Math.hypot(dx, dy);
+  const mv = ([x, y]) => [x + (by * dx) / l, y + (by * dy) / l];
+  const on = (q) => spec.cuff.some(([x, y]) => x === q[0] && y === q[1]);
+  // (FN13: the cuff's corners (`points` CT / CB) move with it, so the cuff band and its edge follow the new sleeve end.)
+  const cuff = spec.cuff.map(mv);
+  return { ...spec, half: spec.half.map((q) => (on(q) ? mv(q) : q)), cuff, points: { ...spec.points, CT: cuff[0], CB: cuff[1] } };
+}
+// (`sidesHem`: the rugby and netball tees (side panels) flare less than the NFL tee: DT10 on -196.)
+// (FN13, the client: the football (soccer) jersey slim and light, not padded: hanging loose from a natural shoulder,
+// its sleeves out from the body at the tile picture's angle.)
+const SOCCER_CUT = { loose: true, armDrop: 63 };
+const soccerCut = (partKind, design, spec) => (partKind === 'nfljersey' && spec && HEX6.test(design.zoneColors?.badge ?? '') ? { ...spec, armDrop: 70, pads: 0.1, hemFlare: -0.08, sleeveStretch: 1.55 } : partKind === 'jersey' && spec && HEX6.test(design.zoneColors?.wingCollar ?? '') ? { ...spec, ...SOCCER_CUT } : spec);
+// (FX-V round 2, DT11 on -211: sleeves to the hem, cuffs half as tall, a plain narrower rib collar.)
+const VARSITY_BOXY = { sleeve: 0.17, wide: 1.2, tall: 0.96, rib: { cuff: 0.035, waist: 0.09, collar: 0.07 }, neck: { drop: 0.115, half: 0.1 }, rim: { drop: 0.12, half: 0.11, radius: 0.009 },
+  // (FX-V round 5, the picture: a V-shaped rib collar, narrower at the top, opening down to the top snap.)
+  vNeck: [[0, 0.625], [0.05, 0.685], [0.095, 0.736]], neckLine: (ax) => 0.625 + ax * 1.17, placketTop: 0.628, topSnap: 0.597 };
+const NFL_GAME_WIDE = 1.24;
+// (FN13, DT11 on -232: each training tee its own picture's cut: NFL (no side panels), netball (zoneColors.teeNetball),
+// rugby (side panels).)
+function teeSport(design) {
+  if (HEX6.test(design.zoneColors?.teeNetball ?? '')) return { wide: 1.09, spec: { sleeveStretch: 1.5, armDrop: 70 } };
+  if (design.zones?.sides) return { wide: 1.14, spec: { sleeveStretch: 1.55, armDrop: 70, hemFlare: 0 } };
+  return { wide: 1.15, spec: { sleeveStretch: 1.6, hemFlare: 0.03 } };
+}
+const TEE_FLARE = { armDrop: 53, hemFlare: 0.28, sidesHem: 0.14 };
+// (FX-R, DT10: the rugby jersey picture's cut: sleeves out at the picture's angle, the body wider and flaring to the hem.)
+const RUGBY_CUT = { armDrop: 36, hemFlare: 0.1, widen: 1, wideBody: 0.19 };
+function rugbyJerseyCut(partKind, on, spec) {
+  if (!on || partKind !== 'jersey' || !spec) return spec;
+  // (The body wider; the sleeves moved out with it, their own size kept.)
+  const mv = ([x, y]) => [x <= 0.258 ? x * RUGBY_CUT.widen : x + 0.258 * (RUGBY_CUT.widen - 1), y];
+  return { ...spec, loose: true, armDrop: RUGBY_CUT.armDrop, hemFlare: RUGBY_CUT.hemFlare, wideBody: RUGBY_CUT.wideBody, half: spec.half.map(mv), cuff: spec.cuff.map(mv) };
+}
+// (FX-R, DT10: the Football / Rugby playing shorts: fuller mid-leg, the hem narrower with rounded corners; the rugby
+// shorts' waist 8% narrower.)
+function plainShortsSpec(narrow) {
+  const w = narrow ? 0.198 : 0.215;
+  const half = [[0, 0.35], [w, 0.35], [0.248, 0.27], [0.27, 0.17], [0.276, 0.095], ...(narrow ? [[0.27, 0.06], [0.256, 0.034], [0.232, 0.014], [0.19, 0.002]] : [[0.272, 0.05], [0.262, 0.022], [0.244, 0.006], [0.2, 0]]), [0.12, 0.001], [0.045, 0.01], [0.022, 0.035], [0.008, 0.06], [0, 0.072]];
+  const sideSeam = [[0, 0.244], [0.022, 0.262], [0.05, 0.272], [0.095, 0.288], [0.17, 0.288], [0.27, 0.248], [0.35, w]];
+  return { ...SPECS.shorts, half, points: { ...SPECS.shorts.points, OT: [w, 0.35], ST: [0.272, 0.05] }, worn: { ...SPECS.shorts.worn, sideSeam, legOut: [narrow ? 0.214 : 0.226, 0.246], ...(narrow ? { hemRound: [0.03, 0.085] } : {}) } };
+}
+const DRAWN_NAMES = { singlet: 'Singlet', 'netball-dress': 'Netball dress', jersey: 'Jersey', tee: 'Training Tee', polo: 'Polo', pocketpolo: 'Polo with pocket', nfljersey: 'Football jersey', 'shooting-shirt': 'Shooting shirt' };
 /** The garment a drawing goes on: the one it was checked as (its parts), else the design's own top, else a singlet. */
 const drawnGarment = (...choices) => choices.find((g) => typeof g === 'string' && Object.hasOwn(DRAWN, g)) ?? 'singlet';
 /** The parts a layout's panels make: a raglan top, shorts, or both. */
@@ -780,7 +1026,7 @@ function warpParts() {
   if (!layout) return;
   const byRole = Object.fromEntries(layout.panels.map((p) => [p.role, p]));
   for (const part of parts) {
-    if (part.painter.layoutBase || part.garment.socks || part.garment.skirt || part.garment.cap) continue;
+    if (part.painter.layoutBase || part.garment.socks || part.garment.skirt || part.garment.cap || part.garment.hat) continue;
     const { painter } = part, shorts = painter.kind === 'shorts';
     painter.layoutBase = warpLayout(renderer, layout.image, regionsFor(painter, layout.panels, layout.image, { drawing: !!layout.drawing }), painter.canvas.width, painter.canvas.height);
     const main = shorts ? byRole.legL ?? byRole.legR : byRole.front ?? byRole.back;
@@ -831,7 +1077,7 @@ async function checkLayout({ id, src, name = 'Print layout', asset = null, drawi
       // its shape: sleeves make it a jersey, tee or polo (the one asked for, else a jersey). The person can still change it.
       const main = file.found.find((p) => p.role === 'front') ?? file.found.find((p) => p.role === 'back');
       const sleeved = main ? sleevedShape(main.outline) : false;
-      const guess = known && Object.hasOwn(DRAWN, garment) ? garment : sleeved ? (['jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo'].includes(garment) ? garment : ['jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo'].includes(design.garment) ? design.garment : 'jersey') : [garment, design.garment].includes('netball-dress') ? 'netball-dress' : 'singlet';
+      const guess = known && Object.hasOwn(DRAWN, garment) ? garment : sleeved ? (['jersey', 'nfljersey', 'shooting-shirt', 'tee', 'polo', 'pocketpolo'].includes(garment) ? garment : ['jersey', 'nfljersey', 'shooting-shirt', 'tee', 'polo', 'pocketpolo'].includes(design.garment) ? design.garment : 'jersey') : [garment, design.garment].includes('netball-dress') ? 'netball-dress' : 'singlet';
       options = {
         drawing: true,
         garments: Object.fromEntries(Object.keys(DRAWN).map((g) => [g, DRAWN_NAMES[g] ?? g])),
@@ -1088,8 +1334,8 @@ function dragHover(arg) {
 // changes reach it as the board's do ({type:'marks'} / {type:'layers'}), words as {type:'markText', field, value}.
 let barPending = false;
 let objectEditing = false, selected = null, addSpot = null, hostImages = false, dragObj = null;
-const MARK_LABEL = { wordmark: 'Team name', sponsor: 'Sponsor', crest: 'Crest', name: 'Back name', number: 'Number', frontNumber: 'Front number' };
-const MARK_FIELD = { wordmark: 'logoText', name: 'backName', number: 'number', frontNumber: 'number' };
+const MARK_LABEL = { wordmark: 'Team name', sockWord: 'Team name', brand: '3DEEZI logo', sponsor: 'Sponsor', crest: 'Crest', name: 'Back name', number: 'Number', frontNumber: 'Front number' };
+const MARK_FIELD = { wordmark: 'logoText', sockWord: 'logoText', name: 'backName', number: 'number', frontNumber: 'number' };
 const SHAPE_LABEL = { shield: 'Shield', circle: 'Circle', square: 'Square', rounded: 'Rounded', diamond: 'Diamond' };
 const pieceFor = (part) => parts.find((p) => p.painter.partName === part);
 /** Every object drawn on a piece: its layers (on top) first, then the fixed marks. */
@@ -1524,8 +1770,15 @@ const composer = new EffectComposer(renderer);
 if (Q?.msaa) composer.renderTarget1.samples = composer.renderTarget2.samples = Q.msaa;
 composer.addPass(new RenderPass(scene, camera));
 // High threshold: only the emissive rings glow, never the fabric (in the tiers also the stadium's floodlights).
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), mobile ? 0.42 : 0.5, 0.42, 1.65);
+// (LT2 2026-11-02, "the lighting is too overwhelming": the bloom about half, so the floodlights' haze no longer veils the kit.)
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), Q ? (mobile ? 0.22 : 0.26) : (mobile ? 0.42 : 0.5), Q ? 0.36 : 0.42, 1.65);
+// 2026-11-02, calmer stadium lights (tiers only): the stadium's floodlights, light bars, floor reflections and their
+// glow dimmed to about half after the bloom, only where the frame shows the stadium (its alpha 0, render-quality.js).
+// The kit and the stage keep every level they had, the floodlights' soft glow over the kit included.
+const calm = Q ? calmStadium() : null;
+if (calm) composer.addPass(calm.mask);
 composer.addPass(bloom);
+if (calm) composer.addPass(calm.pass);
 composer.addPass(new OutputPass());
 // FXAA: on in the low tier; on high, ready for when a slow graphics card makes it step down (stepDown).
 const fxaa = Q ? new FXAAPass() : null;
@@ -1566,6 +1819,44 @@ function resize() {
   camera.fov = w / h < 0.75 ? 30 / Math.max(0.62, (w / h) / 0.75) : 30;
   camera.updateProjectionMatrix();
   coverBackground();
+}
+
+/**
+ * The calm stadium: `mask` keeps the frame's alpha (the stadium 0, the kit and the stage 1) before the bloom adds to it;
+ * `pass`, after the bloom, dims the stadium's bright parts (the darkest stands as they are, bright lights to about
+ * half, the floodlights' cores and glow pressed down further) and gives the frame alpha 1.
+ */
+function calmStadium() {
+  const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.UnsignedByteType, depthBuffer: false });
+  const copy = new FullScreenQuad(new THREE.ShaderMaterial({
+    uniforms: { tDiffuse: { value: null } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main() { gl_FragColor = vec4(clamp(texture2D(tDiffuse, vUv).a, 0.0, 1.0)); }',
+    depthTest: false, depthWrite: false,
+  }));
+  class MaskPass extends Pass {
+    constructor() { super(); this.needsSwap = false; }
+    setSize(w, h) { target.setSize(w, h); }
+    render(renderer, writeBuffer, readBuffer) {
+      copy.material.uniforms.tDiffuse.value = readBuffer.texture;
+      renderer.setRenderTarget(target);
+      copy.render(renderer);
+    }
+  }
+  const pass = new ShaderPass({
+    uniforms: { tDiffuse: { value: null }, tMask: { value: target.texture } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; uniform sampler2D tMask; varying vec2 vUv;
+      void main() {
+        vec4 c = texture2D(tDiffuse, vUv);
+        float lum = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+        float k = (1.0 - 0.62 * smoothstep(0.004, 0.1, lum)) / (1.0 + 1.6 * max(lum - 0.3, 0.0));
+        gl_FragColor = vec4(mix(c.rgb * k, c.rgb, texture2D(tMask, vUv).r), 1.0);
+      }`,
+  });
+  // (ShaderPass copies its uniforms, the mask's texture with them: point it back at the target.)
+  pass.uniforms.tMask.value = target.texture;
+  return { mask: new MaskPass(), pass };
 }
 
 /** Crops the stadium photo like CSS background-size: cover, so it never stretches. */
@@ -1625,6 +1916,47 @@ function capture(view) {
   camera.position.copy(saved);
   camera.lookAt(target);
   return data;
+}
+
+/**
+ * Garment style's NECK DETAIL (NK1 2026-11-02): a close-up of the top's neck from the front, a little from above (so
+ * the inside of the back shows through the opening), as a square JPEG data URL of `size` pixels; null without a top.
+ * The user's camera is put back afterwards.
+ */
+function neckShot(size = 480) {
+  const part = parts.find((p) => p.painter.partName !== 'shorts' && p.garment?.neck?.length > 4 && !p.garment.socks && !p.garment.cap && !p.garment.hat && !p.garment.skirt);
+  if (!part) return null;
+  const turn = kit.rotation.y;
+  kit.rotation.y = 0;
+  kit.updateMatrixWorld(true);
+  const group = part.rim.parent, front = part.garment.neck.filter((p) => p.z > 0);
+  const centre = new THREE.Vector3(), box = new THREE.Box3();
+  for (const p of part.garment.neck) box.expandByPoint(group.localToWorld(p.clone()));
+  front.forEach((p) => centre.add(group.localToWorld(p.clone())));
+  centre.divideScalar(Math.max(1, front.length));
+  // Framed on the opening: its width with room round it (a collar, the shoulders' start), its middle a little low.
+  const width = Math.max(0.2, (box.max.x - box.min.x) * 1.9), aim = new THREE.Vector3(0, (centre.y + box.max.y) / 2 - 0.02 * width, (box.min.z + box.max.z) / 2);
+  const saved = { position: camera.position.clone(), target: controls.target.clone(), fov: camera.fov };
+  const distance = width / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const down = THREE.MathUtils.degToRad(14);
+  camera.position.set(aim.x, aim.y + Math.sin(down) * distance, aim.z + Math.cos(down) * distance);
+  camera.lookAt(aim);
+  const lit = parts.filter((p) => p.glow?.visible), ring = hoverRing?.visible ? hoverRing : null;
+  lit.forEach((p) => (p.glow.visible = false));
+  if (ring) ring.visible = false;
+  composer.render();
+  const src = renderer.domElement, side = Math.min(src.width, src.height), out = document.createElement('canvas');
+  out.width = out.height = size;
+  out.getContext('2d').drawImage(src, (src.width - side) / 2, (src.height - side) / 2, side, side, 0, 0, size, size);
+  lit.forEach((p) => (p.glow.visible = true));
+  if (ring) ring.visible = true;
+  kit.rotation.y = turn;
+  camera.fov = saved.fov;
+  controls.target.copy(saved.target);
+  camera.position.copy(saved.position);
+  camera.lookAt(saved.target);
+  composer.render();
+  return out.toDataURL('image/jpeg', 0.86);
 }
 
 // ---------- helpers
@@ -1688,6 +2020,8 @@ window.viewer = {
   captureDataUrl: capture,
   textureDataUrl: () => parts[0].painter.canvas.toDataURL('image/jpeg', 0.8),
   reset: () => setView('Front'),
+  /** {id} -> posts {type: 'neckShot', id, data}: the neck close-up (Garment style's NECK DETAIL) once the design is on. */
+  neckShot: async ({ id } = {}) => { await paintQueue; post({ type: 'neckShot', id, data: neckShot() }); },
   /** {id, x, y} normalised -> posts {type:'pick', id, hit, part, side, x, y, zone}. */
   pick: ({ id, x, y }) => post({ type: 'pick', id, ...pickAt(x, y) }),
   /** Tap the kit to pick a colour: on (the Colours panel is open) or off. A short tap then posts {type:'colourPick', hit, slot, area, zone, part, garment}. */
@@ -1739,7 +2073,7 @@ window.viewer = {
   receive: (msg) => {
     try {
       const m = typeof msg === 'string' ? JSON.parse(msg) : msg;
-      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features', 'colourPick', 'dragHover', 'partPick', 'glowPart', 'objectEdit', 'imageChosen'];
+      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features', 'colourPick', 'dragHover', 'partPick', 'glowPart', 'objectEdit', 'imageChosen', 'neckShot'];
       if (m && allowed.includes(m.cmd)) Promise.resolve(window.viewer[m.cmd](m.arg)).catch((error) => post({ type: 'error', command: m.cmd, message: error.message }));
     } catch (error) { post({ type: 'error', message: error.message }); }
   },

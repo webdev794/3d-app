@@ -136,12 +136,13 @@ const _fits = {
 
 /// The review's garments from the order rows (the form's rows, or the rows read from an upload). [names]: garment
 /// id → name; [pictures]: a row's FRONT / BACK pictures when known (e.g. its design's saved picture); [artwork]: an
-/// uploaded artwork picture for rows without one.
+/// uploaded artwork picture for rows without one ([artworkBack]: a second one, shown as the back).
 List<MultiGarment> multiGarmentsFrom(
   List<Map<String, dynamic>> rows, {
   Map<String, String> names = const {},
   ({String? front, String? back}) Function(Map<String, dynamic> row)? pictures,
   String? artwork,
+  String? artworkBack,
 }) => [
   for (final r in rows)
     if (_qty(r['sizes'] as Map?) > 0)
@@ -168,7 +169,7 @@ List<MultiGarment> multiGarmentsFrom(
                 p.cast<String, dynamic>(),
           ],
           front: hasOwn ? own!.front : artwork,
-          back: hasOwn ? own!.back : null,
+          back: hasOwn ? own!.back : (artwork != null ? artworkBack : null),
           artwork: !hasOwn && artwork != null,
         );
       }(),

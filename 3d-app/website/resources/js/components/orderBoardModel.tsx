@@ -236,6 +236,8 @@ export const garmentName = (id: string) => GARMENT_NAMES[id] ?? (id ? id[0].toUp
 /** "#3DZ-01048": the reference exactly as staff, emails and the admin board show it. */
 export const displayRef = (number: string) => `#${number}`;
 export const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+/** What an order counts: "marquee" for a marquee order (Signage & Marquees), else "garment" ("2 marquees", "12 garments"). */
+export const unitWord = (garments: { garment: string }[]) => (garments.length > 0 && garments.every(g => g.garment === 'marquee') ? 'marquee' : 'garment');
 
 const valid = (iso: string | null | undefined) => { if (!iso) return null; const d = new Date(iso); return Number.isNaN(d.getTime()) ? null : d; };
 /** "20 Oct" (this year) or "20 Oct 2025". */

@@ -83,7 +83,13 @@ function gridIndex(pos, rows, cols, base, out) {
  * (its own colour, a separate back-face material). Returns its geometry, the face edge (for the drawstring channel),
  * the eyelets and the hood piece's outline on the atlas (back side, garment metres).
  */
-export function buildHood(ctx, { zip = false } = {}) {
+/**
+ * `standing` (the pull-over; FN5 2026-10-30, the client's hoodie picture): instead of lying down, the hood stands open
+ * behind the neck as on a display form: low round the front where its face edges cross, its sides flaring out and up
+ * from the neck, its back rising highest and leaning back so its cyan lining shows from the front, the crown rolling
+ * forward over the top so the outer fabric shows above the opening. One sheet, the lining inside all the way.
+ */
+export function buildHood(ctx, { zip = false, standing = false } = {}) {
   const { poly, seam, positions, n, maxY, neck, surface, uvBack } = ctx;
   // The neck seam: the neck opening's points, front (-x to +x) then back (+x to -x), each with its panel point.
   const neckIdx = poly.map((_, i) => i).filter((i) => !seam[i] && poly[i].y > maxY - neck.drop && Math.abs(poly[i].x) < neck.half);
@@ -122,7 +128,9 @@ export function buildHood(ctx, { zip = false } = {}) {
   const pos = [], uv = [], col = [];
   const lengths = [], edge = [], eyelets = [];
   for (let c = 0; c < cols; c++) {
-    const q = strip[c], S = q.p;
+    const q = strip[c], S = q.p.clone();
+    // (FN13, DT11: the zip hood's front edges come in to meet at the zip's top.)
+    if (zip && standing && !q.back) S.x -= Math.sign(S.x) * 0.011 * ramp(0.05, KANGAROO.zipGap, Math.abs(q.x));
     const hx = arc[mid] - arc[c];                     // + on the wearer's left, 0 at the back's middle
     const g = THREE.MathUtils.clamp(1 - Math.abs(hx) / half, 0, 1);
     const O = new THREE.Vector3(S.x, 0, S.z - C.z).normalize(), side = new THREE.Vector3().crossVectors(up, O);
@@ -136,6 +144,48 @@ export function buildHood(ctx, { zip = false } = {}) {
     const fall = q.back ? 0.24 * ramp(0.45, 0.9, g) ** 0.6 : 0;
     const tuck = 0.014 * ramp(0.45, 0.7, g);
     const local = [];   // [out, up] from the seam point, then 3D points for the fall
+    if (standing) {
+      // The wall: 34 rows from just under the seam up to its top, flaring out more the higher it goes; then the crown,
+      // 12 rows rolling inward (towards the opening) over the top: forward over the back, a little in at the sides.
+      // (FN11 2026-11-02, DT10: the zip tracksuits' hood (zip + standing) stands up as a full hood behind the neck,
+      // about 8 cm over the collar at the back with a peaked top, its opening deep down to the zip.)
+      // (FX-H 2026-11-02, DT11: the pull-over's hood the same real hood, taller, its face edges low at the front: a deep V.)
+      // (FN14, DT11 on -238: the pull-over's hood lower and laid back, so the shoulders show at 18-20% down as the picture's.)
+      const HOOD_UP = 0.09, LAY = 0.35;
+      const H = zip || true ? (zip ? 0.04 : 0.006) + (zip ? 0.106 * Math.sin((Math.PI / 2) * ramp(0.03, 1, g)) ** 1.4 : HOOD_UP * Math.sin((Math.PI / 2) * ramp(0.03, 0.75, g)) ** 0.8) : 0.02 + 0.012 * ramp(0, 0.45, g) + 0.01 * ramp(0.45, 1, g);
+      const L = zip || true ? 0.12 + 0.22 * ramp(0.05, 0.5, g) : 0.3 + 0.5 * ramp(0.05, 0.5, g);
+      for (let k = 0; k <= 33; k++) {
+        const h = -0.004 + ((H + 0.004) * k) / 33, t = Math.max(0, h) / H;
+        // (FN13: the zip hood a real hood: up from the collar, bulging out a little, then rounding in to a crown
+        // peaking at the centre back; no flared funnel.)
+        local.push(zip || true ? [0.0016 + (zip ? 0 : over) + H * ((zip ? 0.34 : 0.8) * Math.sin(Math.PI * t) - (zip ? 0.18 + 0.32 * g : 0.08 + 0.2 * g) * t * t) + (zip ? 0 : LAY * H * t * t * g), h] : [0.0016 + over + Math.max(0, h) * Math.tan(L) * (0.45 + 0.55 * t), h]);
+      }
+      const curl = zip || true ? 0.25 : 0.4 + 2.3 * ramp(0.12, 0.55, g), rc = zip || true ? 0.004 : 0.008 + 0.024 * ramp(0.12, 0.6, g);
+      let [o, h] = local.at(-1), phi = zip || true ? -0.9 - 0.6 * g : Math.atan(Math.tan(L) * 1.55);
+      for (let k = 1; k <= 12; k++) {
+        const step = (rc * curl) / 12;
+        phi -= curl / 12;
+        o += step * Math.sin(phi);
+        h += step * Math.cos(phi);
+        local.push([o, h]);
+      }
+      const toWorldS = ([oo, hh]) => S.clone().addScaledVector(O, oo).addScaledVector(up, hh);
+      const pathS = local.map(toWorldS);
+      let vS = 0;
+      pathS.forEach((P, r) => {
+        if (r) vS += P.distanceTo(pathS[r - 1]);
+        pos.push(P.x, P.y, P.z);
+        uv.push(...uvBack(hx, HOOD_TOP - vS));
+        const s = r <= 6 ? 0.55 + 0.45 * ramp(0, 6, r) : 1;
+        col.push(s, s, s);
+      });
+      lengths.push([hx, vS]);
+      edge.push(pathS.at(-1));
+      if (!q.back && Math.abs(Math.abs(q.x) - 0.036) < 0.004 && !eyelets.some((e) => Math.sign(e.x) === Math.sign(q.x) && (c < strip.length / 2) === e.first)) {
+        eyelets.push({ x: q.x, first: c < strip.length / 2, at: pathS[18].clone().addScaledVector(O, 0.004), out: O.clone() });
+      }
+      continue;
+    }
     // The stand: from just under the seam (it covers the body's neck edge) up round the neck, leaning out.
     for (let k = 0; k <= 9; k++) { const h = -0.004 + ((hs + 0.004) * k) / 9; local.push([0.0016 + over + Math.max(0, h) * Math.tan(lean), h]); }
     const [o0, h0] = local.at(-1);
@@ -194,11 +244,11 @@ export function buildHood(ctx, { zip = false } = {}) {
   // and roll (0: the side facing the neck is the lining, the other the outer fabric) and the fall (1: the outer
   // fabric outside, the lining under it).
   const P = (k) => new THREE.Vector3(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]);
-  const a = mid * ROWS + 32, flip = P(a + ROWS).sub(P(a)).cross(P(a + 1).sub(P(a))).dot(new THREE.Vector3(0, 0, -1)) < 0;
+  const a = mid * ROWS + (standing && zip ? 6 : 32), flip = P(a + ROWS).sub(P(a)).cross(P(a + 1).sub(P(a))).dot(new THREE.Vector3(0, 0, -1)) < 0;
   const groups = [[], []];
   for (let c = 0; c < cols - 1; c++) for (let r = 0; r < ROWS - 1; r++) {
     const a0 = c * ROWS + r, b0 = a0 + 1, c0 = a0 + ROWS, d0 = c0 + 1;
-    groups[r < 15 ? 0 : 1].push(...(flip ? [a0, b0, c0, b0, d0, c0] : [a0, c0, b0, b0, c0, d0]));
+    groups[r < 15 && !standing ? 0 : 1].push(...(flip ? [a0, b0, c0, b0, d0, c0] : [a0, c0, b0, b0, c0, d0]));
   }
   const geometry = geometryOf({ pos, uv, col, idx: [...groups[0], ...groups[1]] });
   geometry.addGroup(0, groups[0].length, 0);
@@ -236,7 +286,7 @@ export function buildHoodCords(ctx, eyelets) {
     const dir = Math.sign(e.x) || 1, pts = [e.at.clone().addScaledVector(e.out, 0.002)];
     const y0 = e.at.y;
     for (let k = 1; k <= 9; k++) {
-      const t = k / 9, y = y0 - 0.012 - 0.2 * t, x = dir * (0.034 + 0.012 * t + 0.004 * Math.sin(t * 5));
+      const t = k / 9, y = y0 - 0.012 - 0.105 * t, x = dir * (0.034 + 0.012 * t + 0.004 * Math.sin(t * 5));
       const s = sampleFront(x, Math.min(y, 0.69));
       const P = s.p.clone().addScaledVector(s.n, 0.0055);
       P.x = x;
@@ -424,7 +474,8 @@ export function buildRib(loop, { dir, length, squeeze, open = false }) {
 export function buildZip(path, { bottom, top }) {
   const tape = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.85, side: THREE.DoubleSide });
   const teethMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.38, metalness: 0.2 });
-  const metal = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, roughness: 0.28, metalness: 0.8 });
+  // (FN5 2026-10-30, DT7: a satin gunmetal slider, so it no longer flashes pure white on the collar in the 3/4 view.)
+  const metal = new THREE.MeshStandardMaterial({ color: 0x8e949c, roughness: 0.5, metalness: 0.7 });
   const group = new THREE.Group();
   const step = 0.003, ys = [];
   for (let y = bottom; y <= top + 1e-6; y += step) ys.push(y);

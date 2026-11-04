@@ -1,83 +1,71 @@
 # Resume notes
+Updated 2026-11-04 evening (weekly limit nearly used). Only what is still open; history is in tasks.md, detail-checks.md and git.
+- SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder `images\NNN` (latest 432).
+- Old notes (before this clean-up) are saved in SP\resume-notes.before-1104-cleanup.md.
 
-Updated 2026-10-29 19:05. Only what's needed to continue.
-- SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder images\NNN (latest 235)
+## START HERE (2026-11-05)
+1. Check SP\viewer.lock and SP\vite.lock are free; run `dart analyze lib` (D:\3d-app\3d-app) and `npx tsc --noEmit` (website).
+2. Resume the agents below with SendMessage (each has a log); then look at their pictures yourself before telling the user anything.
+3. Nothing from the afternoon of 11-04 is pushed or packed yet. The user said 11-04 pushes go to **v2** (SP\final-push-v2.sh); ask which branch on 11-05. Next live tar: copy SP\final-pack-1104a.sh with REF = deploy-zips\3deez-update-2026-11-04-a.tar.gz.
 
-## State
-- Local folder on branch v6 (work uncommitted). GitHub v2 = ff141e6 (2026-10-29 18:51). main = 2d9b553. v3: wait for the user's instructions.
-- Live file: D:\3d-app\deploy-zips\3deez-update-2026-10-29-a.tar.gz (18:51, same as v2). Live must run `php artisan migrate --force` (presets table; and the new ai_sessions table from 2026-10-30) + `php artisan optimize:clear`.
-- Viewer about 2026-10-20-87.
+## Running work (agent IDs)
+- **PW1 a5f768a90a0758a35: phone bubble pages** (Projects, Profile, Orders, My orders; mobile only). To do:
+  - headings at least as far from the top rim as "LET'S CREATE" on Home;
+  - the bubble as WIDE as Home's (pages were about 16 px narrower);
+  - the top and bottom curve the SAME as Home's, not rounder (base the dome on the visible screen height);
+  - everything inside the bubble, at the top and scrolled to the bottom.
+  It builds on my uncommitted edits:
+  - glass_bubble.dart: the dome cap kDomeW (it fixed Profile's pointed top);
+  - bubble_page.dart: side padding 28, bottom padding 0.27 x width;
+  - orders_tab.dart: bottom padding 56;
+  - orders_board.dart: the My orders header centred.
+  Then flutter build web and check in the browser (SP\DR1\bot.cjs). Log SP\PW1\log.md.
+- **Basketball shorts:** BSF a161c7475f4c08d5e (fixer) merged viewer **-246**: creases and seam lines, a straight open hem, a 6% smooth waistband, no seat shadow, the back, a wider V, stripe heights. BST ad3a868f541eb014f (tester) is testing -246 with the full checklist. BST on -246: FAIL but close (front, 40-degree view, gap, waistband height, surface, hem and stripes PASS). BSF round 4 fix list: V split sharp, straight and near black; straight side outline (hips); waistband gathers, no ledge; back 2-3% narrower; colours vs the tile. Spec and logs in SP\BS.
+- **Netball dress** (client's new model, images 425-427): NDF af583c2f6cd3ff881 merged -244 (new shift dress) and -245 (back neck as 425, side panels, a NEW tile picture), and has NDT's -244 fix list (back neck, shoulder tops, armhole U, yoke-to-panel join, front yoke curve, crest lower, back letters lower, pale edge rim, body colour). NDT aaa2f21c3d04e8914 is testing on -246. Spec and logs in SP\ND.
+- **QD a7ad4d6af6f014290:** task 1 done (website home glass; I then put the main buttons back to bright glossy at the end of home.css). Task 2 in progress: a small 3DEEZI neck mark under the back collar on AI and artwork kits (viewer). Log SP\QD\log.md.
+- **TW a8eb1e13f49abd4c4 (task worker):** making the Artwork to 3D "Open AI preview in 3D Studio" button ALWAYS open the Studio (shows "Opening..." at once, falls back to a full page load, never stuck; no questions to the client, per the user). The fishing shirt -> Polo with a note is done.
+- **Paused until the client sends preferred-model pictures per garment:** FN15 a4bb5a8ba17a2333a (fixer; HANDBACK and an unmerged hoodie cuff taper in SP\FN\FN15\log.md) and DT11 a1d108b7550d1d493 (tester; tools in SP\DT12).
 
-## Running (2026-10-30 12:4x: task w83efahnp, run wf_fcef5062-75b; resume with resumeFromRunId wf_fcef5062-75b; testers read SP\tester-checklist.md)
-- Workflow wf_d2dbde0a-e11 (stopped safely, no merge in progress; the skirt shape fixer had just copied CF1\paused into SP\FM\skirt\src, nothing merged yet) "finalize-models": one model at a time, in this order:
-  1. Skirt (the closest to final; first merge CF1's finished fixes from SP\CF1\paused);
-  2. Compression top;
-  3. American Football jerseys;
-  4. Cap;
-  5. Socks;
-  6. Football / Hockey jersey Swirl.
-- Per model: a shape fixer and a print fixer in parallel, then an independent tester, for up to 3 rounds until the tester says FINAL. The wrap-up step adds FINAL models to the bottom list of task-done-today.md. Logs are in SP\FM\<model>.
-- If it stopped (usage limit, VS Code restart): run Workflow with scriptPath C:\Users\Intel\.claude\projects\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\workflows\scripts\finalize-models-wf_d2dbde0a-e11.js and resumeFromRunId wf_d2dbde0a-e11. Finished steps are reused.
-- Keep at most 3-4 agents at once: memory and drive D are tight. Close leftover test browsers after restarts. Replies to the user: one short line.
-
-
-
-## Open items by model (full lists in D:\3d-app\detail-checks.md)
-- **Skirt:**
-  - neutral black instead of warm brown;
-  - broad drape folds;
-  - no display-form thigh stubs under the hem.
-  All three are finished in SP\CF1\paused; the workflow merges them first.
-- **Compression top:**
-  - the arms stand too far out and are too long; the hem must be level with the cuffs;
-  - the front between the side panels is 25-35% too narrow;
-  - the panels are thin just above the hem (15 vs 28 px);
-  - the sleeve stripes should widen from 11 to 22 px toward the cuff.
-- **American Football jerseys:**
-  - Practice Jersey: the print (86, wordmark, "3") must be solid over the mesh;
-  - Game Jersey: the fabric dots show through the white 86;
-  - the shoulder numbers may be "8"s (the 86): check the picture first;
-  - the length waits for the user (questions.md 4).
-- **Cap:** the brim must be curved like the pictures.
-- **Socks:**
-  - the toe line is still wrong (user 2026-10-29, images/236 client vs 237 ours): the client's thin cyan line runs ACROSS THE TOP of the forefoot, near the toes; ours is a pale curved band round the toe tip;
-  - each tile needs its own layout:
-    - Football / Footy / Hockey: two hoops, a full cyan toe, no ankle lines;
-    - Game Socks: two wide hoops and a bigger "3";
-    - Rugby: a flat cyan "3";
-  - the top of the foot looks grey;
-  - CF1's toe / ankle folds are finished in SP\CF1\paused, not merged.
-- **Football / Hockey jersey Swirl** (merged at -87, the design now sits on the shoulders up to the neck):
-  - the maze beside the collar should be brighter and denser;
-  - check the Full kit's maze against its picture.
-- **Netball dress (2026-10-30 13:xx): viewer -113 merged by ND1 (black hip edges, bib black, creases both sides). ND2 ab9deec6b5a231533 now finishes the strips (narrower, saturated cyan / azure / royal, ribbon shading, no teal lines, side view); then DT6 re-tests; then push v2 + tar.** Older: NOT final (user 2026-10-30, images/243-245): big vertical folds below the waist missing; 3DEEZI logo must sit at the bust (ours too high). ND1 fixing, DT6 re-tests.** Earlier notes: ND1 a6bb230d2b8dc09cb merged 2026-10-30 (viewer -88, tile opens the picture look, brighter cyan); hem corners fixed (-91); DT6 ae5286b7978e8d925 detail-tests it, then the Rugby League jersey. Its working copy is close to the picture. Left: the hem corners hang in points at the side seams, and the cyan is a little dark. Log SP\WF1\netball-dress\log.md, side-by-side sbs-r6.png.
-- **Later** (from the testers):
-  - the jersey (football / hockey) wing collar with a V placket and a white inside, and side panels that show from the front;
-  - the Full kit's crew neck, cyan blades on the shorts, and socks;
-  - the Game Kit needs game pants with a belt and knee pads (COMING SOON plan item 12), socks and a front 86.
-
-## Builder queue (one at a time, after the models above; each has a log)
-1. (RF1 a5665e02d10f77ca7: shipped -90 the picture's shoulder stripes / claws / flames, "3DEEZI" under the crest, look 'rugbyLeague'; now: all-blue 3 crest on the rugby tiles + kit shorts check) Rugby League jersey: SP\WF1\rugby-league-jersey\log.md.
-2. Shooting shirt: SP\WF1\shooting-shirt\log.md.
-3. Basketball shorts: SP\WF1\basketball-shorts\log.md.
-4. Shorts: SP\WF1\shorts\log.md.
-5. Bucket hat: an unchecked start in SP\GM4\hat.
-6. Bibs.
-7. The detail pass on the other existing garments: rugby league kit, singlet, tee, polo, raglan, hoodie, track jacket, varsity, full kit.
-8. COMING SOON plan items 9 onwards: SP\GM1\plan.md.
-
-Prompts for these: the workflow script garment-detail-pass-wf_e3c2c5e1-acb.js (buildPrompt / detailPrompt).
-
-## Next action (user 2026-10-30)
-- When DT6 calls the Netball dress FINAL: add it to the Finished list in task-done-today.md, then push all changes to v2 (final-push-v2.sh) and make a new code-only live tar (final-pack-1029a.sh style). Give the user the tar path and the live steps (migrate --force for presets + ai_sessions, optimize:clear).
+## Client references to give the next free fixer + tester (user 11-04)
+- Soccer / football kit: a Yellow Images soccer kit (front: raglan jersey, shorts, socks) and a Sweden yellow / blue kit (front and back). Pasted in chat only; NOT saved in images\, so ask the user to re-send.
+- American Football casual jersey: Yellow Images "Football Jersey Mockup" (slim fit, V neck, raglan, sleeve stripes, side panels).
+- American Football: Yellow Images "American Football Jersey Mockup - Front View / Back View" (blue, yellow V collar, 01) and "Man Wearing Full American Football Kit Mockup" (red). Pasted in chat only; ask to re-send or find them by name on yellowimages.com.
 
 ## Waiting on the user / client
-- The Football jersey length (questions.md 4).
-- Buying professional garment models; the HQ jersey as default; Airwallex keys; supplier prices; live mail settings.
+- questions.md 1: Airwallex keys (later). The answered questions were removed (decisions are in tasks.md).
+- Practice Jersey: kept 4.5% longer; its final shape follows the client's preferred pictures.
+- Sharper Home icons (the client will send).
 
-## Rules
-- Keep this file short; delete what's done. task-done-today.md is shown to the client (only direct tasks).
-- task-done-today.md bottom section "Finished 3D models (built, tested and final)": add a model ONLY when the detail tester passes it with no open differences.
-- Never start my own suggestions without the user's yes. Finished fixes are merged at once; one-model-at-a-time only decides what starts next.
-- GM1\same.cjs gives false differences on a busy machine: re-run before trusting it.
-- Never sign up / sign in / save on 8000 (use SP\iso-server.cjs). Push only when told. Live tars are code-only; never delete Manoj Caresort. Local DB migrations: back up, then run. No keys in notes; php -l every PHP edit; no new packages; simple words.
+## State
+- Branches: v3 = 0a0d3fc (Home dome shape, 11-04); v2 = ffd179c; main = 2d9b553.
+- Live: https://testcaresortwork.co.in/3deez/; last tar 3deez-update-2026-11-04-a.
+- Viewer -246 (netball dress -244/-245, shorts -246).
+- In the project but not pushed or packed: the website home glass with bright buttons; the fishing shirt note; the page bubble edits; viewer -244..-246; BSF's colour panels.
+- task-done-today.md: today's Done list, plus "Finished 3D models (based on client preference)" (empty; the shorts went back to Working on).
+
+## Rules (keep)
+- Plain words. task-done-today.md is shown to the client (direct tasks only).
+- Models:
+  - the client's preferred-model pictures are the only target; Yellow Images only for the CLOSEST mockup;
+  - the full tester checklist (SP\tester-checklist.md: all views including the back, surface crops, hem, details, colours);
+  - fix only the exact spot; many measured rounds, each closer; undo a worse step; never touch passed models.
+- Test my own changes with screenshots before reporting. Don't change approved work while doing a new task. The user wants me free for their messages: give the work to agents.
+- Never sign up / sign in / save on :8000 (use SP\iso-server.cjs). Push only when told. Live tars code-only; never delete Manoj Caresort. php -l every PHP edit. No new packages.
+- 11-04 RULE (user): garment tile pictures are the client's images: never change them, only the 3D models. NDF told to restore garment-netball-dress.webp (both copies) from its backup / v3 (sha a27888e9dd21).
+- 11-04 RULE (user): each model fixer works only on its own model (shared-file changes must leave other kits identical). Sent to BSF and NDF; added to the fixer briefs.
+
+## PAUSED 2026-11-04 evening (user): resume these tomorrow, each from its log's HANDBACK
+| Worker | ID | Log (HANDBACK) | Next step |
+|---|---|---|---|
+| Page worker PW1 (phone bubble pages) | a5f768a90a0758a35 | SP\PW1\log.md | Headings as far from the rim as Home; the same width and top / bottom curve as Home; everything inside at top and bottom; then flutter build web + browser check (SP\DR1\bot.cjs) |
+| Basketball shorts fixer BSF | a161c7475f4c08d5e | SP\BS\fixer-log.md | Round 4: V split sharp / straight / near black; straight side outline (hips); waistband gathers, no ledge; back 2-3% narrower; colours vs tile |
+| Basketball shorts tester BST | ad3a868f541eb014f | SP\BS\tester-log.md | Test BSF's next version with the full checklist (round.sh N, studio-trim.mjs, the 40-degree view) |
+| Netball dress fixer NDF | af583c2f6cd3ff881 | SP\ND\fixer-log.md | NDT's -244 list: shoulder tops, armhole U, yoke-to-panel join, front yoke curve, crest lower, back letters lower, pale edge rim, body colour, small items |
+| Netball dress tester NDT | aaa2f21c3d04e8914 | SP\ND\tester-log.md | Finish / redo the test on the latest build, then each new NDF version |
+| Collar-mark worker QD | a7ad4d6af6f014290 | SP\QD\log.md | Task 2: small 3DEEZI neck mark under the back collar on AI and artwork kits |
+| Task worker TW | a8eb1e13f49abd4c4 | SP\TW\log.md | Artwork to 3D "Open AI preview in 3D Studio" always opens the Studio (Opening... at once, full-page fallback, never stuck) |
+| Main model pair (paused earlier) | FN15 a4bb5a8ba17a2333a / DT11 a1d108b7550d1d493 | SP\FN\FN15\log.md | Waits for the client's preferred-model pictures per garment |
+Each worker's 2-line pause reply is added below as it arrives.
+- TW paused: the Artwork to 3D button fix is built (Create.tsx, App.tsx, api.ts; tsc clean), 1 of 11 tests run (hoodie 1440 passed), screenshots not yet checked. Its earlier runs probably made 2 extra small paid AI calls (the Studio pattern call was not faked); the new tests fake all AI calls.
+- BSF paused: last merge -246, no lock. Round 4 NOT merged; in its copy a near-black V inside (works) and a reshaped V cut (worse, reverted). HANDBACK in SP/BS/fixer-log.md.
+- FINAL 11-04 (99% limit): all workers stopped. Viewer is now -247 (probably QD's collar mark, not checked yet); locks free at stop time. PW1, NDF, NDT and QD were stopped before replying: tomorrow, read each log's end, check the project builds (dart analyze, tsc, vite, viewer copies identical) and look at -247 before anything else.

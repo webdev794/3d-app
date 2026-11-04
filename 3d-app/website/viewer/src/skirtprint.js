@@ -16,7 +16,8 @@ const HEM_TOP = 0.06;
  * and 27 of its 768 pixels from under the waistband to the hem). As the skirt flares the panel turns away round the side,
  * so it takes a smaller share of the wider girth towards the hem (FM 2026-10-30: it widened towards the hem before).
  */
-const sideShare = (y) => 0.051 + 0.152 * Math.min(Math.max(y, 0), 0.22);
+const sideShare = (y) => (0.051 + 0.152 * Math.min(Math.max(y, 0), 0.22)) * (1 - 0.27 * Math.min(1, Math.max(0, (y - (SKIRT_SEAM - 0.06)) / 0.06)) ** 1.5);
+// (FN1 2026-10-30: gathered in to about three quarters of its width right under the waistband, as the picture's 30 px against 41.)
 /** The side panel's inner edge (its seam with the front or back) at height y, on the +x side. */
 const sideEdge = (y) => (0.25 - sideShare(y)) * skirtGirth(y);
 /** The inner edge from under the waistband down past the hem, as points. */
@@ -103,10 +104,10 @@ function puckers() {
     const y0 = edges[c] + 0.0005, y1 = edges[c + 1] - 0.0005, h = y1 - y0;
     for (let x = -0.5; x < 0.5;) {
       // A bunch: tight puckers; then (one time in four or five) a wide, deep valley before the next.
-      const deep = rnd() < 0.22, p = 0.0024 * (deep ? 1.35 + 0.5 * rnd() : 0.6 + 0.55 * rnd()), a = y0 + h * 0.08 * rnd(), b = y1 - h * 0.08 * rnd();
+      const deep = rnd() < 0.22, p = 0.0035 * (deep ? 1.35 + 0.5 * rnd() : 0.6 + 0.55 * rnd()), a = y0 + h * 0.08 * rnd(), b = y1 - h * 0.08 * rnd();
       // A slight wander up the channel (the gathered cloth buckles), out of step with its neighbours.
       const wave = { amp: p * (0.01 + 0.03 * rnd()), len: 0.008 + 0.008 * rnd(), phase: 2 * Math.PI * rnd() }, lit = rnd();
-      out.push([x, p, a, b, (deep ? 0.62 : 0.4) + 0.2 * rnd(), 0.1 + 0.1 * lit * lit, (rnd() - 0.5) * Math.min(0.0009, h * 0.06), wave, deep]);
+      out.push([x, p, a, b, ((deep ? 0.62 : 0.4) + 0.2 * rnd()) * 0.72, (0.1 + 0.1 * lit * lit) * 0.8, (rnd() - 0.5) * Math.min(0.0009, h * 0.06), wave, deep]);
       x += p;
     }
   }
@@ -184,7 +185,7 @@ function ruchingRelief(g) {
   for (const k of puckers()) {
     const [, p, a, b, , , , , deep] = k;
     softStroke(g, (c) => puckerPath(c, k, p * 0.45, a + p * 0.3, Math.max(a + p * 0.3, b - p * 0.3)), p * 0.7, 1, '255,255,255', [[1, 0.06], [0.66, 0.07], [0.36, 0.08], [0.16, 0.065]]);
-    softStroke(g, (c) => puckerPath(c, k, 0, a, b), p * (deep ? 0.6 : 0.36), deep ? 0.45 : 0.32, '0,0,0', [[1, 0.6], [0.5, 0.6]]);
+    softStroke(g, (c) => puckerPath(c, k, 0, a, b), p * (deep ? 0.6 : 0.36), deep ? 0.34 : 0.24, '0,0,0', [[1, 0.6], [0.5, 0.6]]);
   }
   softStroke(g, straight(-0.5, SKIRT_LEN - 0.0016, 0.5, SKIRT_LEN - 0.0016), 0.0034, 1, '255,255,255', [[1, 0.12], [0.6, 0.14], [0.3, 0.14]]);
   g.restore();
@@ -225,7 +226,7 @@ export function skirtTailoring() {
   const side = (dir, inset = 0) => (c) => edge().forEach(([x, y], i) => (i ? c.lineTo(dir * (x - inset), y) : c.moveTo(dir * (x - inset), y)));
   return {
     seams: [line(0, -0.03, 0, SKIRT_SEAM), side(1), side(-1), line(-0.5, SKIRT_SEAM, 0.5, SKIRT_SEAM), ...SKIRT_ROWS.map((y) => line(-0.5, y, 0.5, y))],
-    stitches: [line(-0.5, 0.0143, 0.5, 0.0143), line(-0.5, 0.0173, 0.5, 0.0173), line(-0.0045, -0.03, -0.0045, SKIRT_SEAM), side(1, 0.0025), side(-1, 0.0025)],
+    stitches: [line(-0.5, 0.0143, 0.5, 0.0143), line(-0.5, 0.0173, 0.5, 0.0173), line(-0.0045, -0.03, -0.0045, SKIRT_SEAM)],
     folds: [line(-0.5, 0.0195, 0.5, 0.0195)],
     // The elastic's puckers and rolled edge, soft rounded crowns (FM 2026-10-30: texture.js strokes `ridges` flat).
     relief: ruchingRelief,
@@ -237,7 +238,7 @@ export function skirtTailoring() {
 }
 /** Dark thread sunk in the cloth, tone on tone and barely seen: a faint shadow, the thread, a faint glint (texture.js
  *  stitches(); round 3: fainter and finer, as the picture's). */
-const SKIRT_THREAD = [[0.0002, -0.00025, 'rgba(0,0,0,0.26)', 0.0008], [0, 0, 'rgba(0,0,0,0.16)', 0.0006], [-0.00012, 0.00015, 'rgba(255,255,255,0.1)', 0.0003]];
+const SKIRT_THREAD = [[0.0002, -0.00025, 'rgba(0,0,0,0.26)', 0.0008], [0, 0, 'rgba(0,0,0,0.16)', 0.0006], [-0.00012, 0.00015, 'rgba(255,255,255,0.2)', 0.0004]];
 
 /** The marks: the crest (the club's logo, else the 3DEEZI "3" mark) and the club's word under it (3DEEZI: the real
  *  wordmark), low on the wearer's left front. No names or numbers on a skirt. */
@@ -280,8 +281,8 @@ export const SKIRT_LIGHT = `{
   outgoingLight = mix( skAlb / skA, vec3( 1.0 ), skNeutral ) * skL;
   vec3 skKey = normalize( ( viewMatrix * vec4( -0.67, 0.62, 0.39, 0.0 ) ).xyz );
   float skAway = clamp( 0.5 - 0.5 * dot( normal, skKey ), 0.0, 1.0 );
-  outgoingLight *= 1.0 - 0.16 * skDark;
-  outgoingLight += mix( skAlb, vec3( skA ), skNeutral ) * 2.0 * skAway * skDark;
+  outgoingLight *= 1.0 - 0.24 * skDark;
+  outgoingLight += mix( skAlb, vec3( skA ), skNeutral ) * 1.6 * skAway * skDark;
   float skE = skL / skA, skEven = ( 1.0 + ( skE - 1.0 ) * ( skE > 1.0 ? 0.08 : 0.5 ) ) * 1.05;
   outgoingLight *= mix( 1.0, skEven / skE, skBright );
   outgoingLight = mix( outgoingLight, max( outgoingLight, skAlb * 2.0 ), smoothstep( 0.3, 0.6, skA ) * skNeutral );

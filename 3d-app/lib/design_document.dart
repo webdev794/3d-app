@@ -132,6 +132,34 @@ const trackAreas = {
   'zip': 'Zips',
 };
 
+/// The basketball shorts (the Shorts with the bballBand colour, cut and printed
+/// as basketball shorts by the 3D viewer, as on the website).
+bool isBballShorts(String garment, Map<String, String> zoneColors) =>
+    garment == 'Shorts' &&
+    RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(zoneColors['bballBand'] ?? '');
+
+/// The basketball shorts' own colour areas (AppController.zoneColors), as the
+/// website's BASKETBALL SHORTS AREAS: the two stripes round each leg's hem.
+/// Unset, both follow the secondary colour.
+const bballAreas = {
+  'bballTrim1': 'Hem stripe 1',
+  'bballTrim2': 'Hem stripe 2 (edge)',
+};
+
+/// The netball dress, as the app names it.
+bool isNetballDress(String garment) => garment == 'Netball dress';
+
+/// The netball dress's own colour areas (AppController.zoneColors), as the
+/// website's NETBALL DRESS AREAS (viewer netballdress.js). Unset, the body
+/// follows the main colour, the side panels and yoke the secondary, the
+/// binding the yoke.
+const dressAreas = {
+  'body': 'Body',
+  'panels': 'Side panels',
+  'yoke': 'Yoke',
+  'binding': 'Neck & armhole binding',
+};
+
 const studioPatterns = [
   'Solid',
   'Stripes',

@@ -54,6 +54,8 @@ function boxPoint(k, p, s) {
 const softPlus = (x, k) => (x > 8 * k ? x : x < -8 * k ? 0 : k * Math.log1p(Math.exp(x / k)));
 /** A rounded swelling: 1 in the middle, easing to 0 at radius 1 (u, v in radii). */
 const pillow = (u, v, inner) => { const r = Math.hypot(u, v); return r >= 1 ? 0 : 1 - ramp(inner, 1, r); };
+/** A rounded block (a stomach muscle): 1 over its middle, easing to 0 at its squarish edge (u, v in half-sizes). */
+const block = (u, v, inner) => { const r = (Math.abs(u) ** 3 + Math.abs(v) ** 3) ** (1 / 3); return r >= 1 ? 0 : 1 - ramp(inner, 1, r); };
 const groove = (d, w) => Math.exp(-(d * d) / (2 * w * w));
 /** Signed distance (+ above) from (x, y) to the line a→b, and how far along it (0..1). */
 function line(x, y, [ax, ay], [bx, by]) {
@@ -81,7 +83,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const sleeved = !!spec.cuff;
   let half, pit;
   if (sleeved) {
-    const neck = spec.half[2];   // where the neck opening meets the shoulder seam
+    // (A neck cut to a pointed V has more points: necks.js says where it meets the shoulder seam.)
+    const neck = spec.neckPoint ?? spec.half[2];   // where the neck opening meets the shoulder seam
     // A skin-tight top (the compression top) is cut narrower than the shared body below the armpit: wrapped on its own
     // side seam, so front and back meet right at the side and the seam closes down to the hem (on the shared one they
     // stopped some 8 degrees short, left open from the hem up to the waist, and the side panels thinned there: FM 2026-10-30).
@@ -106,7 +109,7 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // across the gap between the body's side and the sleeve's underside (the line from the armpit to the cuff's lower
   // corner).
   const longCut = spec.long ? spec.cuff[1] : null;
-  const underX = (y) => 0.258 + ((PIT - y) * (longCut[0] - 0.258)) / (PIT - longCut[1]);
+  const AX = spec.armpitX ?? 0.258, underX = (y) => AX + ((PIT - y) * (longCut[0] - AX)) / (PIT - longCut[1]);
   const inSleeve = spec.long
     ? (p) => p.y < 0.7 && (p.y >= PIT ? half(p.y) - Math.abs(p.x) < 0 : Math.abs(p.x) > (half(p.y) + underX(p.y)) / 2)
     : (p) => sleeved && half(p.y) - Math.abs(p.x) < 0 && p.y > 0.44 && p.y < 0.7;
@@ -127,7 +130,7 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // fuller towards the hem (`hemFlare`: fuller still, as when it hangs over a full kit's shorts).
   // Fleece: straight down, a little fuller over the waistband, then gathered into it (its rib pulls the hem in).
   const taper = spec.fleece
-    ? (y) => 1 + 0.025 * ramp(0.3, 0.1, y) - spec.fleece.hemIn * ramp(0.06, 0, y)
+    ? (y) => 1 + 0.025 * ramp(0.3, 0.1, y) + (spec.fleece.wide ?? 0) * ramp(0.06, 0.14, y) * ramp(0.56, 0.42, y) - spec.fleece.hemIn * ramp(0.06, 0, y)
     : spec.tight
     // Skin-tight: the athletic V (`chest` broader over the chest and shoulders, `waist` narrower at the waist, a little
     // fuller again over the hips to the hem).
@@ -149,11 +152,15 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   };
 
   const torso = (p, back) => {
-    const w = wrap(p.x, wrapHalf(p.y), depthRatio(p.y), back, spec.boxy ? THREE.MathUtils.lerp(2, spec.boxy, ramp(0.7, 0.55, p.y)) : 2), ax = Math.abs(p.x);
+    // (FX-H 2026-11-02, DT11: `flat`: the hoodie's body flatter, so its width shows from the front, as the pictures.)
+    const w = wrap(p.x, wrapHalf(p.y), depthRatio(p.y) * (spec.flat ? 1 - spec.flat * ramp(0.6, 0.35, p.y) : 1), back, spec.boxy ? THREE.MathUtils.lerp(2, spec.boxy, ramp(0.7, 0.55, p.y)) : 2), ax = Math.abs(p.x);
     let z = w.z * Math.sqrt(ramp(0, 0.075, topSeam(p)));              // round over the shoulders to the seam
     z *= 1 - (back ? 0.36 : 0.3) * Math.exp(-(p.x ** 2) / 0.006) * ramp(back ? 0.6 : 0.58, back ? 0.7 : 0.68, p.y); // neck opening
     const s = taper(p.y) * (1 + 0.012 * ramp(0.019, 0.015, hemDist(p))); // the hem band, a little proud of the body
-    const y = level(p) + (spec.crew && !back ? neckDrop(ax) * ramp(0.05, 0, along(neckCurve, ax) - p.y) : 0);
+    // (`tight.trap`: a skin-tight top's shoulders slope down from the collar over the trapezius, as the picture's athlete,
+    // instead of lying level out to the shoulder point; most halfway out, none at the collar or the arm: FM 2026-10-30.)
+    const trap = spec.tight?.trap ? spec.tight.trap * ramp(0.09, 0.15, ax) * ramp(0.24, 0.17, ax) * ramp(0.64, 0.7, p.y) : 0;
+    const y = level(p) - trap + (spec.crew && !back ? neckDrop(ax) * ramp(0.05, 0, along(neckCurve, ax) - p.y) : 0);
     // Shoulder pads (the American football jersey): the shoulders stand up and out over them, the chest a little deeper.
     if (spec.pads) {
       const up = ramp(0.5, 0.69, p.y), side = ramp(0.06, 0.2, ax);
@@ -161,7 +168,8 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     }
     // A skin-tight top's own breadth across (`tight.wide`: [height, factor] pairs, side to side only): the client's
     // compression top is worn by a broad athlete, wide across the chest, the lats and the hips (FM 2026-10-30).
-    return new THREE.Vector3(w.x * s * (spec.tight?.wide ? along(spec.tight.wide, p.y) : 1), y, z * s);
+    // (`wideBody`: a loose top's body wider side to side below the underarm, the rugby jersey picture's: FX-R.)
+    return new THREE.Vector3(w.x * s * (spec.tight?.wide ? along(spec.tight.wide, p.y) : 1 + (spec.wideBody ?? 0) * ramp(0.6, 0.46, p.y)), y, z * s);
   };
 
   /**
@@ -173,6 +181,26 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const relief = (p, back) => {
     if (inSleeve(p)) return 0;
     const ax = Math.abs(p.x), y = p.y;
+    // A skin-tight top's sculpted front (`tight.sculpt`; in metres as made, so taken back out of `tight.relief`, which
+    // scales the back's): the client's athlete, broad chest
+    // muscles with a clear lower edge rising towards the armpits, the groove down the middle, and six blocks of the
+    // stomach in three rows with grooves between, a softer lower belly (FM 2026-10-30, from the picture).
+    if (!back && spec.tight?.sculpt) {
+      const edge = 0.462 + 3.2 * Math.max(0, ax - 0.06) ** 2;   // the chest muscles' lower edge
+      let h = 0.015 * ramp(edge - 0.004, edge + 0.045, y) * ramp(0.69, 0.56, y) * ramp(0.215, 0.16, ax) * (0.55 + 0.45 * ramp(0.004, 0.035, ax));
+      h -= 0.003 * groove(y - edge, 0.006) * ramp(0.2, 0.14, ax);
+      // (FN3 2026-10-30, the user: the full six-pack down to the lower abs, and the V-lines above the hem, as the
+      // picture's: the rows a little lower and deeper, the lower abs a wide soft pad under them, and the two V-lines
+      // running from the hips down and in towards the hem, a groove with the pad standing inside it.)
+      for (const [row, k] of [[0.36, 1.1], [0.29, 1.15], [0.22, 1]]) h += 0.015 * k * block((ax - 0.048) / 0.05, (y - row) / 0.034, 0.05);
+      h += 0.01 * pillow(ax / 0.1, (y - 0.135) / 0.06, 0.25);
+      const vLine = (ax - 0.055) - 0.55 * (y - 0.03);   // across the V-line: 0 on it, + towards the hip
+      h -= 0.006 * groove(vLine, 0.009) * ramp(0.01, 0.05, y) * ramp(0.2, 0.15, y);
+      h += 0.002 * groove(vLine + 0.022, 0.012) * ramp(0.02, 0.06, y) * ramp(0.19, 0.14, y);
+      // The obliques beside the stomach, and the groove down its middle.
+      h += 0.0035 * pillow((ax - 0.15) / 0.035, (y - 0.3) / 0.11, 0.3);
+      return (h - 0.0035 * groove(ax, 0.006) * ramp(0.2, 0.26, y) * ramp(edge + 0.02, edge - 0.01, y)) / (spec.tight.relief ?? 1);
+    }
     if (!back) {
       const v = y - 0.565 - 0.1 * (ax - 0.09);
       let h = 0.006 * pillow((ax - 0.09) / 0.1, v / (v > 0 ? 0.075 : 0.06), 0.15);
@@ -229,26 +257,56 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   // meets the body, from the armpit up to the shoulder point) heading out over the shoulder,
   // then bends down along the arm, a little forward. Round the top it is fuller: the deltoid.
   const xP = torso(new THREE.Vector2(0.258, PIT), false).x, xS = torso(new THREE.Vector2(0.258, TOP), false).x;
-  const C0 = new THREE.Vector2((xP + xS) / 2, (PIT + TOP) / 2), lean = (xS - xP) / (TOP - PIT);
+  // (`armIn`: the arm set this much nearer the neck, the shoulders narrower: the compression top, FM 2026-10-30.)
+  const C0 = new THREE.Vector2((xP + xS) / 2 - (spec.armIn ?? 0), (PIT + TOP) / 2), lean = (xS - xP) / (TOP - PIT);
   // (`armDrop`: a top's own hang, the compression top's arms a little out from the body.)
-  const th0 = THREE.MathUtils.degToRad(25), th1 = THREE.MathUtils.degToRad(spec.armDrop ?? 80), R = spec.pads ? 0.03 : 0.085, Lb = R * (th1 - th0);
+  const th0 = THREE.MathUtils.degToRad(spec.armStart ?? 25), th1 = THREE.MathUtils.degToRad(spec.armDrop ?? 80), R = spec.pads ? 0.03 : 0.085, Lb = R * (th1 - th0);
   const rB0 = 0.056;   // arm depth at the armhole
   // The arm's radius down the sleeve; a long sleeve (spec.long) narrows from the upper arm to the wrist.
-  const r1 = spec.pads ? () => 0.05 + spec.pads * 0.2 : spec.long ? (a) => THREE.MathUtils.lerp(spec.long.upper, spec.long.wrist, ramp(0.1, spec.long.length, a)) : () => 0.05;
+  // A skin-tight sleeve (`long.shape`: [a, radius] pairs) follows the arm's muscles: the upper arm, narrower at the elbow,
+  // the forearm's fullness below it, slim at the wrist (the client's compression top, FM 2026-10-30).
+  // A loose short sleeve (the shooting shirt) widens from the arm towards the cuff (spec.looseSleeve.cuff).
+  const r1 = spec.pads ? () => 0.05 + spec.pads * 0.2 : spec.long?.shape ? (a) => along(spec.long.shape, a) : spec.long ? (a) => THREE.MathUtils.lerp(spec.long.upper, spec.long.wrist, ramp(0.1, spec.long.length, a)) : spec.looseSleeve ? (a) => THREE.MathUtils.lerp(0.052, spec.looseSleeve.cuff, ramp(0.02, 0.2, a)) : () => 0.05;
   let rN0 = 0.075;                 // arm height at the armhole (solved below)
-  const angle = (a) => THREE.MathUtils.clamp(th0 + a / R, th0, th1);
+  // (`elbow`: the forearm turned this many degrees further out from the elbow, `at` metres down the arm: the client's
+  // compression top hangs its arms close to the body, a little bent out at the elbows; FM 2026-10-30.)
+  const elbow = spec.elbow ? { at: spec.elbow.at, bend: THREE.MathUtils.degToRad(spec.elbow.bend) } : null;
+  const angle = (a) => THREE.MathUtils.clamp(th0 + a / R, th0, th1) - (elbow ? elbow.bend * ramp(elbow.at - 0.04, elbow.at + 0.04, a) : 0);
+  // Past the bend (Lb) the axis runs straight on; with an elbow it follows its angle (summed in 2 mm steps).
+  const bent = elbow ? [] : null;
+  if (bent) for (let a = Lb, x = 0, y = 0; a < 1.5; a += 0.002) { bent.push([x, y]); const th = angle(a + 0.001); x += 0.002 * Math.cos(th); y -= 0.002 * Math.sin(th); }
   /** Point on the arm's axis, a metres along it from the armhole. */
   const axis = (a) => {
     if (a <= 0) return new THREE.Vector2(C0.x + Math.cos(th0) * a, C0.y - Math.sin(th0) * a);
-    const th = angle(a), out = new THREE.Vector2(C0.x + R * (Math.sin(th) - Math.sin(th0)), C0.y + R * (Math.cos(th) - Math.cos(th0)));
-    return a > Lb ? out.add(new THREE.Vector2(Math.cos(th1), -Math.sin(th1)).multiplyScalar(a - Lb)) : out;
+    const th = Math.min(angle(a), th1), out = new THREE.Vector2(C0.x + R * (Math.sin(th) - Math.sin(th0)), C0.y + R * (Math.cos(th) - Math.cos(th0)));
+    if (a <= Lb) return out;
+    if (!bent) return out.add(new THREE.Vector2(Math.cos(th1), -Math.sin(th1)).multiplyScalar(a - Lb));
+    const f = Math.min((a - Lb) / 0.002, bent.length - 1.001), k = Math.floor(f), [x0, y0] = bent[k], [x1, y1] = bent[k + 1];
+    return out.add(new THREE.Vector2(x0 + (x1 - x0) * (f - k), y0 + (y1 - y0) * (f - k)));
   };
-  const deltoid = (a) => Math.sin(Math.PI * THREE.MathUtils.clamp((a + 0.02) / 0.12, 0, 1));
+  // (`long.deltoid`: how full, 1 as the hoodies'.)
+  const deltoid = (a) => (spec.long?.deltoid ?? 1) * Math.sin(Math.PI * THREE.MathUtils.clamp((a + 0.02) / 0.12, 0, 1));
+  // A skin-tight sleeve's muscles (`long.muscles`, metres out): the deltoid's cap round the shoulder with a soft dip
+  // where it ends on the outer arm, the biceps in front and the triceps behind the upper arm, and the forearm's
+  // fullness below the elbow on its outer front, as the client's compression top (FN3 2026-10-30, the user). Round
+  // the arm psi: 0 its front, pi/2 its outer side, pi its back; smooth bumps along it and round it.
+  const muscle = (a, phi, sg) => {
+    const k = spec.long?.muscles;
+    if (!k) return 0;
+    const psi = sg > 0 ? phi : Math.PI - phi;
+    const near = (to, w) => { const d = Math.atan2(Math.sin(psi - to), Math.cos(psi - to)); return Math.exp(-(d * d) / (2 * w * w)); };
+    const hump = (a0, a1) => (a <= a0 || a >= a1 ? 0 : Math.sin((Math.PI * (a - a0)) / (a1 - a0)) ** 2);
+    return k * (0.009 * hump(0.03, 0.2) * near(Math.PI / 2, 0.9)       // the deltoid's cap
+      - 0.004 * hump(0.17, 0.25) * near(Math.PI / 2, 0.5)              // the dip under it
+      + 0.011 * hump(0.08, 0.28) * near(0.15, 0.6)                     // the biceps
+      + 0.009 * hump(0.06, 0.27) * near(Math.PI - 0.35, 0.65)           // the triceps
+      + 0.008 * hump(0.32, 0.5) * near(0.75, 0.7));                     // the forearm
+  };
   /** Point on a sleeve: a along the arm, phi round it, sg +1 front / -1 back, band: hem band thickness. */
   const surface = (a, phi, sg, band = 0) => {
-    const th = angle(a), A = axis(a), sin = Math.sin(phi);
-    const rN = THREE.MathUtils.lerp(rN0, r1(a), ramp(-0.01, 0.07, a)) + 0.007 * Math.max(0, sin) * deltoid(a) + band;
-    const rB = THREE.MathUtils.lerp(rB0, r1(a), ramp(0, 0.08, a)) + 0.004 * deltoid(a) + band;
+    const th = angle(a), A = axis(a), sin = Math.sin(phi), mus = muscle(a, phi, sg);
+    const rN = THREE.MathUtils.lerp(rN0, r1(a), ramp(-0.01, 0.07, a)) + 0.007 * Math.max(0, sin) * deltoid(a) + band + mus;
+    const rB = THREE.MathUtils.lerp(rB0, r1(a), ramp(0, 0.08, a)) + 0.004 * deltoid(a) + band + mus;
     const y = A.y + Math.cos(th) * rN * sin;
     // Below the armpit the arm comes a little forward: eased in (a sharp start would put a kink in every ring
     // round a sleeve end at that height, bending its bands and stripes).
@@ -289,13 +347,13 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const cuffL = (phi) => along(cuffAt, phi);
   let aCuff = rootAt(Math.PI / 2, 1);
   // Short sleeves sit a little stretched over the arm; a long sleeve keeps its length (to the wrist).
-  for (let walked = 0, prev = surface(aCuff, Math.PI / 2, 1); walked < cuffL(Math.PI / 2) * (spec.long ? 1 : 1.15) && aCuff < (spec.long ? 1 : 0.5);) {
+  for (let walked = 0, prev = surface(aCuff, Math.PI / 2, 1); walked < cuffL(Math.PI / 2) * (spec.long ? 1 : spec.sleeveStretch ?? 1.15) && aCuff < (spec.long ? 1 : 0.5);) {
     aCuff += 0.001;
     const next = surface(aCuff, Math.PI / 2, 1);
     walked += next.distanceTo(prev);
     prev = next;
   }
-  const tube = (p, back) => {
+  const tubeRaw = (p, back) => {
     const sg = back ? -1 : 1, [s, t] = flat(Math.abs(p.x), p.y), phi = phiAt(s, t);
     const l = s + c * hw0 * ((2 * phi) / Math.PI);  // distance from the armhole along the sleeve
     // The last few centimetres (the hem band) keep their flat length, so the band is even all
@@ -319,6 +377,26 @@ export function wornTop(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
     const out = surface(a, phi, sg, 0.0016 * ramp(lc - 0.021, lc - 0.017, l));
     if (p.x < 0) out.x = -out.x;
     return { out, phi, l };
+  };
+  // A skin-tight top (`tight.pitLift`): round the lower half of the armhole the sleeve's root reached up to 4 cm under the
+  // body's armpit and 3 cm inside it, and the body's side, drawn down and in onto it, was pinched into a fold there (the
+  // "pinch point", the raglan piping lost in it). Instead the sleeve is drawn onto the body there, fading out over
+  // `pitLift` down the arm, so the body keeps its shape (FM 2026-10-30). Per panel: [phi, offset] round the armhole.
+  const pitFix = spec.tight?.pitLift ? [false, true].map((back) => Array.from({ length: 41 }, (_, k) => {
+    const y = PIT + ((TOP - PIT) * k) / 40, e = new THREE.Vector2(half(y), y), r = tubeRaw(e, back);
+    return [r.phi, torso(e, back).sub(r.out).multiplyScalar(ramp(0.5, -0.2, Math.sin(r.phi)))];
+  }).sort((a, b) => a[0] - b[0])) : null;
+  const fixAt = (list, phi) => {
+    if (phi <= list[0][0]) return list[0][1].clone();
+    for (let i = 1; i < list.length; i++) if (phi <= list[i][0]) { const [p0, v0] = list[i - 1], [p1, v1] = list[i]; return v0.clone().lerp(v1, (phi - p0) / (p1 - p0 || 1)); }
+    return list.at(-1)[1].clone();
+  };
+  const tube = (p, back) => {
+    const r = tubeRaw(p, back);
+    if (!pitFix) return r;
+    const d = fixAt(pitFix[back ? 1 : 0], r.phi).multiplyScalar(ramp(spec.tight.pitLift, 0, r.l));
+    r.out.add(d.setX(p.x < 0 ? -d.x : d.x));
+    return r;
   };
   // Near the armhole the body panel curves forward (back panel: backward) onto the loop,
   // fading out over 11 cm towards the chest.
@@ -366,14 +444,22 @@ export function wornShorts(spec = {}) {
     // and flaring a little from the hips to a wide opening; fuller towards the crotch (thigh and
     // seat), where the legs meet in the middle.
     const top = ramp(0.02, CROTCH, p.y);
-    const xIn = THREE.MathUtils.lerp(inLo, inHi, top), xOut = THREE.MathUtils.lerp(outLo, outHi, top);
+    // `outLine` ([y, x] pairs): the leg's outer side along its own line instead (the basketball shorts' one straight
+    // line from the waist to the hem, FN9 2026-10-30).
+    // (`hemRound` [height, inset]: the leg's outer side curving in over the last few cm to a rounded hem corner: FX-R.)
+    // (`inLine` ([y, x] pairs): the leg's inner side along its own line (the basketball shorts' inseam gap, BSF 2026-11-04).)
+    const xIn = m.inLine ? along(m.inLine, p.y) : THREE.MathUtils.lerp(inLo, inHi, top), xOut = m.outLine ? along(m.outLine, p.y) : THREE.MathUtils.lerp(outLo, outHi, top) - (m.hemRound ? m.hemRound[1] * Math.max(0, 1 - p.y / m.hemRound[0]) ** 2 : 0);
     const rx = (xOut - xIn) / 2, xc = (xOut + xIn) / 2, rz = THREE.MathUtils.lerp(depthLo, depthHi, top), zc = 0.012 * top;
     // Evenly spaced round the oval, so prints on the legs keep their proportions.
     const e = (rx - rz) / (rx + rz), psi = phi, at = psi - (e / 2) * Math.sin(2 * psi);
     return new THREE.Vector3(Math.sign(p.x || 1) * (xc + rx * Math.sin(at)), p.y, zc + (back ? -1 : 1) * rz * Math.cos(at));
   };
   /** Behind, the waistband rises a little towards the middle, over the seat. */
-  const rise = (p, back) => (back ? 0.012 * ramp(TOP - 0.17, TOP, p.y) * Math.cos((Math.PI / 2) * Math.min(1, Math.abs(p.x) / 0.2)) ** 2 : 0);
+  // (`backRise`: how much higher the waist is behind, in the middle (BSF 2026-11-04: the basketball shorts' higher back rise).)
+  // (`riseFlat` [full, none]: the rise level across the middle of the back out to `full`, easing down to nothing at `none`
+  // (the side seam), not a hump in the middle: BSF 2026-11-04.)
+  const riseAcross = (ax) => (m.riseFlat ? ramp(m.riseFlat[1], m.riseFlat[0], ax) : Math.cos((Math.PI / 2) * Math.min(1, ax / 0.2)) ** 2);
+  const rise = (p, back) => (back ? (m.backRise ?? 0.012) * ramp(TOP - 0.17, TOP, p.y) * riseAcross(Math.abs(p.x)) : 0);
   /**
    * The body under the fabric (metres, + out). In front, a soft fullness above the crotch and the
    * creases where the thighs meet it, running from the crotch up and out to the hips. Behind, the
@@ -399,7 +485,8 @@ export function wornShorts(spec = {}) {
     const inside = y < CROTCH + 0.03 ? Math.exp(-((ax - along(inner, y)) ** 2) / 0.0014) * ramp(0, CROTCH - 0.04, y) : 0;
     // Loose cuts (training shorts) hang away from the body: a lighter, smaller shadow there.
     const deep = Math.min(1, reliefScale + 0.2);
-    return 1 - 0.34 * deep * crotch ** (2 - deep) - 0.22 * deep * inside * (1 - crotch);
+    // (`shade`: how much of that shadow is baked in (BSF 2026-11-04: the basketball shorts' smooth seat, no dark patch).)
+    return 1 - (m.shade ?? 1) * (0.34 * deep * crotch ** (2 - deep) + 0.22 * deep * inside * (1 - crotch));
   };
   return {
     at(p, back) {
@@ -416,54 +503,45 @@ export function wornShorts(spec = {}) {
 }
 
 /**
- * A women's fitted dress (the netball dress, figure.js 'female'): the bodice wrapped round the figure as a top is round
- * the athletic body (each height round an ellipse as wide as the panel there, so the print does not stretch), with the
- * bust's fullness in front (the fabric bridging across between), the straps over the shoulders to the shoulder seam on
- * top, and below the waist the skirt over the hips (fuller behind, over the seat), flaring out to the hem. Its soft
- * flutes are folds on top (garment.js dressFolds). `half(y)`: the panel's half-width at a height (for the flutes).
+ * The netball dress's shift (NDF 2026-11-04, the client's preferred model, images 425-427): one piece from the shoulders
+ * to mid-thigh, wrapped round the female figure (figure.js) as a top is round the athletic body: each height round an
+ * ellipse as wide as the panel there (so the print does not stretch), the bust's fullness in front, the straps over the
+ * shoulders to the shoulder seam on top, a little in at the waist and over the hips and seat, then straight on down in a
+ * slight A-line to a level hem. No skirt and no flutes: it hangs smooth (garment.js shiftFolds). `half(y)`: the panel's
+ * half-width at a height.
  */
-export function wornDress(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
+export function wornShift(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const fig = figureOf(spec) ?? FIGURES.female;
   const top = Math.max(...spec.half.map(([, y]) => y));
   const D = (y) => top - y;   // how far below the shoulder line
-  // (The side seam only, down to its foot at the hem's corner (points.H): the hem's own points made the skirt narrow
-  // sharply over its last 3.5 cm, so the hem tucked under in a dark band: ND1 / DT6.)
+  // The side seam, down to its foot at the hem's corner (points.H).
   const footY = spec.points?.H?.[1] ?? 0;
   const pairs = spec.half.filter(([x, y]) => x > 0.12 && y < top - 0.004 && y >= footY).map(([x, y]) => [y, x]).sort((p, q) => p[0] - q[0]);
   const [pitX, pitY] = spec.pit;
   const own = (y) => along(pairs, y);
-  // Above the underarms the body goes on to the shoulders (the armholes open round the arms), narrowing to the neck.
-  // The straps lie over broad shoulders (the client's dress, ND1): the body under them stays nearly as wide as at the
-  // underarm right up to the shoulder line, so the straps face forward over the upper chest rather than wrapping round
-  // a narrow neck (they show their full width from the front, wide apart, as in the picture).
-  // (From the underarm's own width, narrowing steadily upwards: no dip at the underarm, so the upper chest runs smoothly
-  // into the bust, as on the client's dress: ND1.)
-  const shoulder = (y) => along([[pitY, pitX], [top - 0.07, pitX - 0.016], [top - 0.03, pitX - 0.03], [top, pitX - 0.05]], y);
-  // (Quickly above the underarm, so the armhole is round at its foot, as the arm fills it.)
+  // Above the underarms the body goes on up to the shoulders under the straps (the armholes open round the arms).
+  // (The straps wrap a little round the shoulders: the front no broader at the top than the pictures'.)
+  const shoulder = (y) => along([[pitY, pitX], [top - 0.07, pitX - 0.022], [top - 0.03, pitX - 0.04], [top, pitX - 0.06]], y);
   const half = (y) => (y <= pitY ? own(y) : THREE.MathUtils.lerp(own(y), Math.max(shoulder(y), own(y) + 0.006), ramp(pitY - 0.004, pitY + 0.035, y)));
-  // Over the shoulders most of the width below is kept (the seam stays on top), as on a top (wornTop).
   const SH = top - 0.05;
-  // (The width the cloth wraps round, eased over 4 cm up and down the top: no shelf or hollow where the underarm meets
-  // the bust, the front running smoothly from the straps onto the bust: ND1 / DT6.)
+  // The width the cloth wraps round, eased over 4 cm up and down (no shelf where the underarm meets the bust).
   const eased = (y) => (y < 0.5 ? half(y) : (half(y - 0.02) + 2 * half(y) + half(Math.min(top, y + 0.02))) / 4);
   const wrapHalf = (y) => (y <= SH ? eased(y) : eased(SH) - 0.75 * (eased(SH) - eased(y)));
-  // Depth / width round the body: thin across the shoulders, the chest, a rounder waist, the hips, and the skirt
-  // hanging rounder still towards the hem.
-  const depth = (d) => along([[0, 0.52], [0.1, 0.62], [0.16, 0.665], [0.22, 0.68], [0.3, 0.68], [fig.waist, 0.74], [fig.hip, 0.7], [0.88, 0.78]], d);
+  // Depth / width round the body: thin across the shoulders, the chest and bust, the waist, and rounder over the hips
+  // and on down to the hem (as deep as the pictures' from the side three-quarter, 426).
+  const depth = (d) => along([[0, 0.52], [0.1, 0.68], [0.16, 0.73], [0.22, 0.77], [0.3, 0.76], [fig.waist, 0.78], [fig.hip, 0.87], [0.88, SHIFT_HEM_DEPTH]], d);
   const B = spec.bust ?? fig.bust;
-  /** The bust's fullness in front (metres, + out): rising from the upper chest, falling under it; across the middle
-   *  the fabric bridges between (a little less there), out to nothing at the sides. */
+  /** The bust's fullness in front (metres, + out): rising from the upper chest, falling under it. */
   const bust = (ax, y) => {
     const d = D(y);
-    // (`under`: how far below its apex the bust ends; the dress's ends just above its bib, which then lies flat: ND1.)
-    return B.depth * ramp(B.drop - 0.14, B.drop - 0.005, d) * ramp(B.drop + (B.under ?? 0.11), B.drop + 0.01, d) * ramp(B.x + 0.1, B.x, ax) * (0.9 + 0.1 * ramp(0, 0.8 * B.x, ax));
+    return B.depth * ramp(B.drop - 0.16, B.drop + 0.005, d) * ramp(B.drop + (B.under ?? 0.11), B.drop + 0.01, d) * ramp(B.x + 0.1, B.x, ax) * (0.9 + 0.1 * ramp(0, 0.8 * B.x, ax));
   };
-  /** Behind, the seat's fullness: from below the waist, the skirt then falling from it. */
+  /** Behind, the seat's fullness: from below the waist, the cloth then falling straight from it. */
   const seat = (ax, y) => {
     const d = D(y);
-    return fig.seat * ramp(fig.waist + 0.05, fig.hip - 0.02, d) * (1 - 0.25 * ramp(fig.hip + 0.02, 0.85, d)) * ramp(0.2, 0.08, ax);
+    return fig.seat * ramp(fig.waist + 0.05, fig.hip - 0.02, d) * (1 - 0.35 * ramp(fig.hip + 0.02, 0.85, d)) * ramp(0.2, 0.08, ax);
   };
-  // The flat pattern's hem rises a little towards the sides; worn, it hangs level all round (as wornTop).
+  // The flat pattern's hem rises a little towards the sides; worn, it hangs level all round.
   const hemCurve = outline.filter((q) => q.x >= 0 && q.y < 0.035).map((q) => [q.x, q.y]).sort((a, b) => a[0] - b[0]);
   const level = (p) => {
     if (hemCurve.length < 2) return p.y;
@@ -472,31 +550,28 @@ export function wornDress(spec, { topSeam, outline = [], hemDist = (p) => p.y })
   };
   const torso = (p, back) => {
     const w = wrap(p.x, wrapHalf(p.y), depth(D(p.y)), back), ax = Math.abs(p.x);
-    // (Over the shoulders in 4 cm: the straps lie flat over them, not puffed: ND1.)
     let z = w.z * Math.sqrt(ramp(0, 0.04, topSeam(p)));               // round over the shoulders to the seam
-    // (The neck opening's foot 0.138 below the shoulder line: garment.js points.T.)
     const nd = top - (spec.points?.T?.[1] ?? top - 0.115) - 0.115;
-    // (The front of a scoop neck is not drawn in: the cloth runs smoothly from the straps over the upper chest onto the
-    // bust, as on the client's dress; drawn in, it made a dent above the bust: ND1. The high back neck still is.)
-    if (back) z *= 1 - 0.36 * Math.exp(-(p.x ** 2) / 0.006) * ramp(top - 0.138 - nd, top - 0.038 - nd, p.y); // neck opening
+    // (The high back neck drawn in round the neck; the front's scoop runs smoothly onto the bust.)
+    if (back) z *= 1 - 0.36 * Math.exp(-(p.x ** 2) / 0.006) * ramp(top - 0.138 - nd, top - 0.038 - nd, p.y);
     z += back ? -seat(ax, p.y) : bust(ax, p.y);
-    // (The hem band a touch proud only: the client's dress has a flat turned hem, ND1.)
-    const s = 1;                                                     // the hem band flat (no rim showing under it)
-    return new THREE.Vector3(w.x * s, level(p), z * s);
+    // The hem's corners round in a little, as the pictures' (a soft corner, not a point).
+    const tuck = 1 - SHIFT_HEM_TUCK * ramp(0.05, 0, p.y);
+    return new THREE.Vector3(w.x * tuck, level(p), z);
   };
-  /** The body under the fabric behind (metres, + out): the shoulder blades and a shallow hollow down the spine. */
+  /** The body under the fabric behind (metres, + out): a shallow hollow down the spine. */
   const relief = (p, back) => {
     if (!back) return 0;
     const ax = Math.abs(p.x), d = D(p.y);
-    // (No shoulder-blade pillows: they stood as a ridge across the upper back: DT6.)
     return -0.0015 * groove(ax, 0.012) * ramp(0.08, 0.16, d) * ramp(fig.waist + 0.06, fig.waist - 0.04, d);
   };
   /** Baked shade: a soft shadow under the bust. */
   const shade = (p, back) => {
     if (back) return 1;
-    // (A bust ending sooner (B.under) has its soft shade higher up and broader, fainter: no dark line at its foot: ND1.)
-    const d = D(p.y) - (B.drop + (B.under ? B.under * 0.5 : 0.08));
-    return 1 - (B.under ? 0.07 : 0.13) * ramp(0.19, 0.1, Math.abs(p.x)) * Math.exp(-(d * d) / (B.under ? 0.0022 : 0.0012));
+    const d = D(p.y) - (B.drop + B.under * 0.5);
+    return 1 - 0.03 * ramp(0.19, 0.1, Math.abs(p.x)) * Math.exp(-(d * d) / 0.003);
   };
   return { at: torso, sleeve: () => null, relief, shade, pit: new THREE.Vector2(pitX, pitY), half, top, figure: fig };
 }
+/** The shift's depth / width at the hem, and how much its hem corners round in. */
+const SHIFT_HEM_DEPTH = 0.92, SHIFT_HEM_TUCK = 0.05;

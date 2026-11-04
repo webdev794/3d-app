@@ -48,6 +48,14 @@ class OrderController extends Controller
         ]]);
     }
 
+    /** "Write or snap your notes": typed notes read into garments, sizes and players, without AI (public, throttled). */
+    public function readNotes(Request $request, \App\Services\OrderFormReader $reader): JsonResponse
+    {
+        $data = $request->validate(['text' => ['required', 'string', 'max:20000']], ['text.required' => 'Write your notes first, e.g. Polo, 3 x 4XL, 2 x 2XL.']);
+
+        return response()->json(['data' => $reader->notes($data['text'])]);
+    }
+
     /** "Help me add sizes": garment rows read from a plain description (public, throttled like the chat). */
     public function assist(Request $request, OrderAssistant $assistant): JsonResponse
     {

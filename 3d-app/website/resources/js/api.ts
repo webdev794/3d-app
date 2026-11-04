@@ -8,7 +8,7 @@ export interface CatalogItem { id: string; name: string; description: string; /*
  * 'nearest': no 3D model of its own yet, the 3D preview uses `garment`; 'soon': no 3D model yet (garment null, COMING SOON).
  * `future`: the 3D garment still to build; `image`: media/showroom/garment-<image>.webp; `design`: settings the tile starts with.
  */
-export interface GarmentTile { name: string; description: string; garment: string | null; fit: 'exact' | 'nearest' | 'soon'; future?: string; image: string; design?: { trackStyle?: 'collar' | 'hood'; fabric?: 'Standard' | 'Mesh' | 'Pro' | 'Eco' } & Partial<Pick<Design, 'main' | 'secondary' | 'accent' | 'pattern' | 'patternColor' | 'patternColorOwn' | 'zones' | 'parts' | 'gradient' | 'gradients' | 'number' | 'marks' | 'layers' | 'zoneColors'>> }
+export interface GarmentTile { name: string; description: string; garment: string | null; fit: 'exact' | 'nearest' | 'soon'; future?: string; image: string; design?: { trackStyle?: 'collar' | 'hood'; fabric?: 'Standard' | 'Mesh' | 'Pro' | 'Eco' } & Partial<Pick<Design, 'main' | 'secondary' | 'accent' | 'pattern' | 'patternColor' | 'patternColorOwn' | 'zones' | 'parts' | 'gradient' | 'gradients' | 'number' | 'marks' | 'layers' | 'zoneColors' | 'neck' | 'fit'>> }
 export interface Catalog { sports: CatalogItem[]; garments: CatalogItem[]; provider: {id: string; name: string; is_ai: boolean; available: boolean}; showcase_scenes?: string[] }
 export interface Concept { id: string; name: string; description: string; design: Design; preview?: string | null; motif?: string }
 export class ApiError extends Error {
@@ -17,6 +17,12 @@ export class ApiError extends Error {
 export const baseUrl = (document.querySelector('meta[name="app-base"]')?.getAttribute('content') || '').replace(/\/$/, '');
 export const media = (path: string) => `${baseUrl}/media/${path}`;
 const tokenKey = '3deezi.session';
+/** The design being edited, kept for this tab: App.tsx reads it on a page load, so a full load of the Studio reopens it. */
+export const draftKey = '3deezi.draft';
+/** Keeps a design where App.tsx reads it; false when the browser refused (a very large design stays in memory only). */
+export function keepDraft(draft: unknown): boolean {
+  try { sessionStorage.setItem(draftKey, JSON.stringify(draft)); return true; } catch { return false; }
+}
 export const getToken = () => sessionStorage.getItem(tokenKey);
 export const setToken = (token: string | null) => token ? sessionStorage.setItem(tokenKey, token) : sessionStorage.removeItem(tokenKey);
 

@@ -105,10 +105,11 @@ List<(String, String)> recordOpened() {
 
 /// The Create Order Form with section 1 and one garment filled in (10 jerseys, M).
 Future<void> fillOrderForm(WidgetTester tester) async {
-  await tester.enterText(find.widgetWithText(TextField, 'Team / organisation'), 'Brisbane Bears');
+  await orders_test.typeIn(tester, 'Team / organisation', 'Brisbane Bears');
   await fillDelivery(tester);
   final size = find.byKey(const Key('size-0-M'));
-  await tester.scrollUntilVisible(size, 300, scrollable: find.byType(Scrollable).first);
+  await seeIt(tester, size);
+  await tester.ensureVisible(size);
   await tester.enterText(size, '10');
   await tester.pumpAndSettle();
 }
@@ -305,12 +306,11 @@ void main() {
   testWidgets('My orders: "Made by Mantis" on its card and its page; a 3DEEZI order says nothing', (tester) async {
     final server = SuppliersServer();
     server.orders.detailExtra = {'made_by': 'Mantis', 'supplier_id': 2};
-    // Wide enough for the test font's stage tabs side by side.
+    // One list (images/339): the 3DEEZI order's card says nothing, the Mantis one says Made by Mantis.
     await mount(tester, OrdersBoardScreen(signedInTo(server)), width: 1000);
     expect(find.text('MANTIS Rugby League'), findsOneWidget);
-    expect(find.byKey(const Key('order-made-by')), findsNothing);
-    await tap(tester, find.byType(ChoiceChip).at(1));
     expect(find.text('Club Hoodies'), findsOneWidget);
+    expect(find.byKey(const Key('order-made-by')), findsOneWidget);
     expect(find.text('Made by Mantis'), findsOneWidget);
     await tap(tester, find.text('Club Hoodies'));
     expect(find.text('Proof v1'), findsOneWidget);
@@ -324,7 +324,6 @@ void main() {
       ..user = const ApiUser(id: 1, name: 'Fabian Soutar', email: 'fab@example.test');
     c.api.token = 'tok';
     await mount(tester, OrdersBoardScreen(c), width: 1000);
-    await tap(tester, find.byType(ChoiceChip).at(1));
     expect(find.byKey(const Key('order-made-by')), findsNothing);
     await tap(tester, find.text('Club Hoodies'));
     expect(find.byKey(const Key('order-made-by')), findsNothing);

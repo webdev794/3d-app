@@ -11,14 +11,14 @@
  *                         whole kit, zoom, View full size, Uploaded files), SELECTED GARMENTS with SIZES & QUANTITIES
  *                         (size × garment, TOTAL, "N matching kits · M garments", players) and DELIVERY & NOTES;
  *                         'multi' (review-approve-multi-spec.md): U4's section per garment style, then DELIVERY & NOTES
- *                         beside U4's ORDER TOTALS. Both end with the confirm card (Back to Edit, Approve Order,
+ *                         beside U4's ORDER TOTALS. Both end with the confirm card (Back to Edit, Approve & continue to payment,
  *                         disabled until the box is ticked).
  *  - OrderSentPanel       step 3: the order number, View my order, Pay now, start another.
- *  - paymentPath          where Approve Order goes: agent U5's COMPLETE YOUR PAYMENT page (/orders/{number}/pay).
+ *  - paymentPath          where Approve & continue to payment goes: agent U5's COMPLETE YOUR PAYMENT page (/orders/{number}/pay).
  */
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleAlert, Download, ExternalLink, FileImage, FileSpreadsheet, FileText, Images, LoaderCircle, Pencil, Shirt, Users, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleAlert, Download, ExternalLink, FileImage, FileSpreadsheet, FileText, Images, LoaderCircle, Package, Pencil, Share2, Shirt, Truck, UserRound, Users, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { media, type Project } from '../api';
 import { provideAssistContext } from '../assistBridge';
 import type { OrderItem } from '../orderApi';
@@ -26,6 +26,7 @@ import { KitViewer, defaultDesign, type Design, type KitViewerHandle } from './K
 import type { Quote as PayQuote } from './OrderPayment';
 import { DownloadReviewPdf, ReviewSummaryChip, reviewGarmentsFrom, reviewLayoutFor, useOrderReviewMulti, type ReviewDelivery as MultiDelivery, type ReviewGarment as MultiGarment } from './OrderReviewGarments';
 import '../../css/order-review.css';
+import '../../css/order-review-v3.css';
 import { ALL_SIZES, siteSize } from '../orderSizes';
 
 /* ================================================================================================ shapes */
@@ -73,7 +74,7 @@ export interface ReviewDesign {
 }
 export type ReviewLayout = 'kit' | 'multi';
 
-/** Where Approve Order goes once the order and invoice exist: agent U5's COMPLETE YOUR PAYMENT page. */
+/** Where Approve & continue to payment goes once the order and invoice exist: agent U5's COMPLETE YOUR PAYMENT page. */
 export const PAYMENT_PAGE_LIVE = true;
 export const paymentPath = (order: { number: string; id: number }) => (PAYMENT_PAGE_LIVE ? `/orders/${encodeURIComponent(order.number || String(order.id))}/pay` : null);
 
@@ -245,12 +246,12 @@ export function ReviewApproveHeader({ step, firstStep = 'Upload files', crumb, t
     <div className="ora-head-main">
       <div className="ora-head-text">
         <nav className="op-crumbs" aria-label="Breadcrumb"><ol>
-          <li><Link to="/">Home</Link></li><li><Link to="/orders">Orders</Link></li><li aria-current="page">{crumb ?? (sent ? 'Order sent' : 'Review')}</li>
+          <li><Link to="/">Home</Link></li><li><Link to="/orders">Orders</Link></li><li aria-current="page">{crumb ?? (sent ? 'Order sent' : 'Review & Approve')}</li>
         </ol></nav>
         <h1>{title ?? (sent ? 'Order sent' : 'Review & approve order')}</h1>
-        <p>{subtitle ?? (sent ? 'Your order is with 3DEEZI.' : layout === 'multi' ? 'Review every garment, size and final mockup before approving.' : 'Check your order details, mockups and quantities before submitting to 3DEEZI.')}</p>
+        <p>{subtitle ?? (sent ? 'Your order is with 3DEEZI.' : 'Check your design, garments, sizes, quantities and order details before confirming and proceeding to payment.')}</p>
       </div>
-      <ReviewStepBar current={sent ? 3 : 1} steps={[firstStep, STEPS_UPLOAD[1], STEPS_UPLOAD[2]]} />
+      <ReviewStepBar current={sent ? 3 : 1} steps={[firstStep, 'Review & Approve', sent ? STEPS_UPLOAD[2] : 'Payment']} />
     </div>
     {toolbar && <div className="ora-toolbar">{toolbar}</div>}
   </header>;
@@ -395,6 +396,27 @@ function FileGlyph({ file, size = 22 }: { file: ReviewFile; size?: number }) {
   return <Icon size={size} strokeWidth={1.6} />;
 }
 
+/** Download PDF / Download Excel: the order confirmation form (images/338) as it stands, from the draft's signed links. */
+function ConfirmationDownloads({ links }: { links: () => Promise<{ pdf: string; excel: string } | null> }) {
+  const [busy, setBusy] = useState<'pdf' | 'excel' | null>(null);
+  const [problem, setProblem] = useState('');
+  const open = async (which: 'pdf' | 'excel') => {
+    setBusy(which); setProblem('');
+    // (A window opened before the wait, so the browser does not block it.)
+    const win = which === 'pdf' ? window.open('about:blank', '_blank') : null;
+    try {
+      const found = await links();
+      if (!found) throw new Error('Save the order first.');
+      if (win) win.location.href = found.pdf; else window.location.href = found.excel;
+    } catch (e) { win?.close(); setProblem((e as Error).message || 'Could not open the confirmation form.'); } finally { setBusy(null); }
+  };
+  return <div className="ora-downloads" data-testid="confirmation-downloads">
+    <button type="button" className="ora-btn is-outline is-small" onClick={() => void open('pdf')} disabled={busy !== null}>{busy === 'pdf' ? <LoaderCircle className="spin" size={16} /> : <FileText size={16} />} Download PDF</button>
+    <button type="button" className="ora-btn is-outline is-small" onClick={() => void open('excel')} disabled={busy !== null}>{busy === 'excel' ? <LoaderCircle className="spin" size={16} /> : <FileSpreadsheet size={16} />} Download Excel</button>
+    {problem && <small className="ora-alert" role="alert">{problem}</small>}
+  </div>;
+}
+
 /** "View files": every file of the order, with a picture where there is one and Download. */
 function FilesDialog({ files, onDownload, onClose }: { files: ReviewFile[]; onDownload?: (f: ReviewFile) => void; onClose: () => void }) {
   const close = useRef<HTMLButtonElement>(null);
@@ -423,6 +445,8 @@ function FilesDialog({ files, onDownload, onClose }: { files: ReviewFile[]; onDo
 
 export interface OrderReviewApproveProps {
   garments: ReviewGarment[];
+  /** The confirmation form's PDF and Excel links (the saved draft's), for Download PDF / Download Excel. */
+  confirmationLinks?: () => Promise<{ pdf: string; excel: string } | null>;
   /** The site's size order (GET /orders/options sizes). */
   sizeOrder?: readonly string[];
   /** The saved design the order is made from: FINAL MOCKUPS draws its front and back. */
@@ -441,6 +465,10 @@ export interface OrderReviewApproveProps {
   onEditGarments: () => void;
   /** The editable garments, sizes and players (Upload: the rows read from the order form): shown by Edit sizes & garments. */
   garmentEditor?: ReactNode;
+  /** "Share order form": a read-only link to the form (its printable page, 30 days), copied to the clipboard. */
+  shareLink?: () => Promise<string | null>;
+  /** Lines of the order sheet that could not be read: listed on the "Please check" card. */
+  toCheck?: string[];
   /** A line under the sizes table (e.g. rows without sizes that 3DEEZI confirms). */
   garmentsNote?: ReactNode;
   /** The price breakdown, when the order is priced. */
@@ -492,7 +520,7 @@ export function OrderReviewApprove(p: OrderReviewApproveProps) {
     return [q.assistContext?.() ?? '',
       `REVIEW & APPROVE ORDER step: ${g.length} garment${g.length === 1 ? '' : 's'} (${g.map(x => `${x.name}: ${s.filter(z => x.sizes[z]).map(z => `${x.sizes[z]} ${z}`).join(', ') || 'no sizes'}`).join('; ')}). ${kitLine(g)}.`,
       `Mockups: ${q.design ? 'drawn from the saved design' : (q.artwork ?? []).length ? 'from the uploaded artwork' : 'prepared by 3DEEZI after approval'}. Files: ${q.files.length}. Delivery: ${q.delivery.method === 'pickup' ? 'pick up' : addressText(q.delivery.address) ? 'to the address given' : 'not given'}; date required ${q.delivery.neededBy || 'not given'}.`,
-      `Confirm box ticked: ${q.agreed ? 'yes' : 'no'}. Approve Order sends the order to 3DEEZI (it stays disabled until the box is ticked); Back to Edit returns to the form; Edit sizes & garments changes the garments and sizes.`,
+      `Confirm box ticked: ${q.agreed ? 'yes' : 'no'}. Approve & continue to payment sends the order to 3DEEZI (it stays disabled until the box is ticked); Back to Edit returns to the form; Edit sizes & garments changes the garments and sizes.`,
     ].filter(Boolean).join(' ').slice(0, 2900);
   })), []);
 
@@ -503,123 +531,190 @@ export function OrderReviewApprove(p: OrderReviewApproveProps) {
   const multiGarments = useMemo(() => reviewGarmentsFrom({ items: p.rows, projects: p.projects, artwork: p.artwork, options: p.options }), [p.rows, p.projects, p.artwork, p.options]);
   const pdfDelivery: MultiDelivery = { ...delivery, files: files.map(f => f.name) };
   const sizeList = p.sizeOrder ? [...p.sizeOrder] : undefined;
-  const multi = useOrderReviewMulti({ garments: layout === 'multi' ? multiGarments : NO_GARMENTS, delivery: pdfDelivery, quote: p.quote, quoteLoading: p.quoteLoading, quoteError: p.quoteError, sizeOrder: p.sizeOrder,
+  const multi = useOrderReviewMulti({ garments: p.design ? NO_GARMENTS : multiGarments, delivery: pdfDelivery, quote: p.quote, quoteLoading: p.quoteLoading, quoteError: p.quoteError, sizeOrder: p.sizeOrder,
     onEditGarment: i => (p.onEditGarment ? p.onEditGarment(i) : editGarments()) });
-  const toolbar = multiGarments.length === 0 ? null : layout === 'multi' ? multi.toolbar
-    : <div className="orm-summary"><ReviewSummaryChip garments={multiGarments} /><DownloadReviewPdf garments={multiGarments} delivery={pdfDelivery} quote={p.quote} sizeOrder={sizeList} /></div>;
-
-  const filesRow = <div className="ora-files-row">
-    <span className="ora-files-icon"><FileText size={22} strokeWidth={1.6} /></span>
-    <span className="ora-files-text"><b>Uploaded files</b><small>{files.length ? `${p.filesLabel ?? 'Order form & artwork'} · ${plural(files.length, 'file')}` : 'No files uploaded'}</small></span>
-    {files.length > 0 && <button type="button" className="op-link" onClick={() => setFilesOpen(true)}>View files <ArrowRight size={16} /></button>}
+  // ---- FINAL MOCKUPS (client design images/369): a carousel of front + back pairs, View Front / Back (Large).
+  type Slide = { key: string; title: string; front: Shot | null; back: Shot | null };
+  const slides: Slide[] = (() => {
+    if (p.design) return [{ key: 'design', title: p.design.name ?? 'Your kit', front: designShots.shots[0] ?? null, back: designShots.shots[1] ?? null }];
+    const shot = (key: string, tab: string, alt: string, src: string | null | undefined, drawing: boolean): Shot | null =>
+      src ? { key, tab, alt, src, state: 'ready' } : drawing ? { key, tab, alt, src: null, state: 'drawing' } : null;
+    const own = multiGarments.map((g, i) => {
+      const m = multi.mockups[i];
+      const drawing = m?.state === 'drawing';
+      return { key: g.key, title: g.name, front: shot(`${g.key}-f`, 'Front', `Front of ${g.name}`, m?.front, drawing), back: shot(`${g.key}-b`, 'Back', `Back of ${g.name}`, m?.back, drawing) };
+    }).filter(s => s.front || s.back);
+    // The same uploaded pictures on every garment: one slide.
+    const unique = own.filter((s, i) => own.findIndex(x => x.front?.src === s.front?.src && x.back?.src === s.back?.src) === i);
+    if (unique.length) return unique.length === 1 && own.length > 1 ? [{ ...unique[0], title: 'Your kit' }] : unique;
+    const pairs: Slide[] = [];
+    for (let i = 0; i < artShots.length; i += 2) pairs.push({ key: artShots[i].key, title: 'Your uploaded pictures', front: { ...artShots[i], tab: 'Front' }, back: artShots[i + 1] ? { ...artShots[i + 1], tab: 'Back' } : null });
+    return pairs;
+  })();
+  const [slide, setSlide] = useState(0);
+  const at = Math.min(slide, Math.max(0, slides.length - 1));
+  const current = slides[at];
+  const viewable = slides.flatMap(s => [s.front, s.back]).filter((s): s is Shot => !!s?.src);
+  const openShot = (s: Shot | null) => { const i = s ? viewable.indexOf(s) : -1; if (i >= 0) setViewer({ index: i, zoom: false }); };
+  const ready = slides.length > 0 && slides.every(s => (!s.front || s.front.state === 'ready') && (!s.back || s.back.state === 'ready'));
+  const pane = (s: Shot | null, side: 'Front' | 'Back') => <figure className={`orv-shot${s?.src ? '' : ' is-empty'}`}>
+    {s?.src ? <button type="button" className="orv-shot-pic" onClick={() => openShot(s)} aria-label={`View the ${side.toLowerCase()} large`}><img src={s.src} alt={s.alt} /></button>
+      : <span className="orv-shot-wait">{s?.state === 'drawing' ? <><LoaderCircle className="spin" size={22} /> Drawing the {side.toLowerCase()}…</> : <><Shirt size={34} strokeWidth={1.3} /> The {side.toLowerCase()} mockup is prepared by 3DEEZI after you approve.</>}</span>}
+    {s?.src && <button type="button" className="orv-large" onClick={() => openShot(s)}><ZoomIn size={16} /> View {side} (Large)</button>}
+  </figure>;
+  const mockupsBlock = <div className="orv-block">
+    <header className="orv-head"><h2><Images size={20} /> Final mockups</h2>
+      {slides.length > 0 && <span className={`orv-badge${ready ? ' is-ok' : ''}`}>{ready ? <><Check size={14} /> Mockups ready for approval</> : <><LoaderCircle className="spin" size={14} /> Preparing mockups</>}</span>}
+    </header>
+    {current ? <div className="orv-stage" data-testid="mockup-carousel">
+      {pane(current.front, 'Front')}{pane(current.back, 'Back')}
+      {slides.length > 1 && <>
+        <button type="button" className="orv-arrow is-prev" onClick={() => setSlide((at - 1 + slides.length) % slides.length)} aria-label="Previous mockup"><ChevronLeft size={22} /></button>
+        <button type="button" className="orv-arrow is-next" onClick={() => setSlide((at + 1) % slides.length)} aria-label="Next mockup"><ChevronRight size={22} /></button>
+        <span className="orv-slide-name">{current.title} · {at + 1} / {slides.length}</span>
+      </>}
+    </div> : <div className="ora-placeholder"><Images size={34} strokeWidth={1.4} /><p><b>Mockups are prepared by 3DEEZI after you approve.</b><span>We draw the front and back of your kit from your files and send them to you to check before anything is made.</span></p></div>}
+    {!p.design && slides.length > 0 && <p className="orv-note">Your uploaded pictures are shown. 3DEEZI prepares the final mockups from them after you approve.</p>}
   </div>;
 
-  const mockups = <section className="op-card ora-card ora-mockups" aria-labelledby={`${checkId}-m`}>
-    <header className="ora-card-head"><h2 id={`${checkId}-m`}>Final mockups</h2></header>
-    {shots.length ? <div className={`ora-tiles${shots.length === 1 ? ' is-single' : ''}`}>
-      {shots.map((s, i) => <MockupTile key={s.key} shot={s} title={s.tab === 'Artwork' ? (shots.length > 1 ? `Artwork ${i + 1}` : 'Artwork') : s.tab} onOpen={zoom => setViewer({ index: i, zoom })} />)}
-    </div> : <div className="ora-placeholder"><Images size={34} strokeWidth={1.4} /><p><b>Mockups are prepared by 3DEEZI after you approve.</b><span>We draw the front and back of your kit from your files and send them to you to check before anything is made.</span></p></div>}
-    {!p.design && shots.length > 0 && <p className="ora-note">Your artwork is shown. 3DEEZI prepares the final mockups from it after you approve.</p>}
-    {filesRow}
-  </section>;
-
+  // ---- ORDER DETAILS: a row per garment, its sizes across with the total.
   const players = garments.flatMap(g => (g.players ?? []).filter(x => x.name?.trim() || x.number).map(x => ({ ...x, garment: g.name })));
-  const playerGarments = new Set(players.map(x => x.garment)).size;
-  const columnNames = (() => {
-    const names = garments.map(g => (g.column ?? WORDS[g.garment] ?? g.name).toUpperCase());
-    return names.map((n, i) => (names.filter(x => x === n).length > 1 ? `${n} ${names.slice(0, i + 1).filter(x => x === n).length}` : n));
-  })();
-
-  const garmentsCard = <section className="op-card ora-card ora-garments" aria-labelledby={`${checkId}-g`} id="ora-garments">
-    <header className="ora-card-head"><h2 id={`${checkId}-g`}>Selected garments</h2>
-      <button type="button" className="op-link" onClick={editGarments} aria-haspopup={p.garmentEditor ? 'dialog' : undefined} data-testid="edit-garments"><Pencil size={15} /> Edit sizes &amp; garments</button>
+  const [allPlayers, setAllPlayers] = useState(false);
+  const detailsBlock = <div className="orv-block" id="ora-garments">
+    <header className="orv-head"><h2><FileText size={20} /> Order details</h2>
+      <button type="button" className="op-link" onClick={editGarments} aria-haspopup={p.garmentEditor ? 'dialog' : undefined} data-testid="edit-garments"><Pencil size={15} /> Edit order</button>
     </header>
-    {garments.length ? <ul className="ora-garment-list">{garments.map(g => {
-        const colours = cleanColours(g.colours), pic = g.thumb ?? garmentThumb(g.garment);
-        const names = colours.map(c => colourName(c)).filter((v, i, a) => v && a.indexOf(v) === i).join(' / ');
-        return <li key={g.key}>
-          <span className="ora-garment-pic">{pic ? <img src={pic} alt="" loading="lazy" /> : <Shirt size={26} strokeWidth={1.5} />}</span>
-          <span className="ora-garment-text"><b>{g.name}</b><small>{colours.length > 0 && <span className="ora-swatches" aria-hidden="true">{colours.map(c => <i key={c} style={{ background: c }} />)}</span>}{[names, g.sub].filter(Boolean).join(' · ') || plural(garmentTotal(g.sizes), 'garment')}</small></span>
-          <span className="ora-garment-qty">{garmentTotal(g.sizes)}</span>
-        </li>;
-      })}</ul> : <p className="ora-empty">No garments read yet. 3DEEZI reads them from your order form and checks them with you.</p>}
-      {garments.length > 0 && <>
-        <h3 className="ora-sub">Sizes &amp; quantities</h3>
-        {sizes.length ? <div className="ora-table-wrap"><table className="ora-sizes">
-          <thead><tr><th scope="col">Size</th>{garments.map((g, i) => <th key={g.key} scope="col" title={g.name}>{columnNames[i]}</th>)}</tr></thead>
-          <tbody>{sizes.map(s => <tr key={s}><th scope="row">{s}</th>{garments.map(g => <td key={g.key}>{Number(g.sizes[s]) > 0 ? g.sizes[s] : '–'}</td>)}</tr>)}</tbody>
-          <tfoot><tr><th scope="row">Total</th>{garments.map(g => <td key={g.key}>{garmentTotal(g.sizes)}</td>)}</tr></tfoot>
-        </table></div> : <p className="ora-empty">No sizes yet: 3DEEZI confirms the sizes with you.</p>}
-        <p className="ora-kits" data-testid="kit-line">{kitLine(garments)}</p>
-        {players.length > 0 && <details className="ora-players">
-          <summary><Users size={16} /> Players · {plural(players.length, 'name')} &amp; {players.length === 1 ? 'number' : 'numbers'}</summary>
-          <div className="ora-table-wrap"><table><thead><tr><th>Name</th><th>No.</th><th>Size</th>{playerGarments > 1 && <th>Garment</th>}</tr></thead>
-            <tbody>{players.map((x, i) => <tr key={i}><td>{x.name?.trim() || '—'}</td><td>{x.number || '—'}</td><td>{x.size || '—'}</td>{playerGarments > 1 && <td>{x.garment}</td>}</tr>)}</tbody></table></div>
-        </details>}
-      </>}
-      {p.garmentsNote}
+    {garments.length ? <ul className="orv-rows">{garments.map(g => {
+      const used = sizes.filter(s => Number(g.sizes[s]) > 0), pic = g.thumb ?? garmentThumb(g.garment);
+      const colours = cleanColours(g.colours).map(c => colourName(c)).filter((v, i, a) => v && a.indexOf(v) === i).join(' / ');
+      const facts = [...(g.sub ? g.sub.split(' · ') : []), ...(colours ? [`Colours: ${colours}`] : [])].map(f => { const m = /^(.*?) fit$/i.exec(f); return m ? `Fit: ${m[1]}` : f; });
+      return <li key={g.key} className="orv-row">
+        <span className="orv-pic">{pic ? <img src={pic} alt="" loading="lazy" /> : <Shirt size={30} strokeWidth={1.4} />}</span>
+        <span className="orv-name"><b>{g.name}</b>{facts.map(f => { const [k, ...v] = f.split(': '); return <small key={f}>{v.length ? <><i>{k}:</i> {v.join(': ')}</> : f}</small>; })}</span>
+        <div className="orv-sizes-wrap"><table className="orv-sizes">
+          <tbody><tr><th scope="row">Size</th>{used.map(s => <td key={s}>{s}</td>)}<td className="is-total">Total</td></tr>
+            <tr><th scope="row">Qty</th>{used.map(s => <td key={s}>{g.sizes[s]}</td>)}<td className="is-total"><b>{garmentTotal(g.sizes)}</b></td></tr></tbody>
+        </table></div>
+      </li>;
+    })}</ul> : <p className="ora-empty">No garments read yet. Use Edit order to add them, or 3DEEZI reads them from your order form and checks them with you.</p>}
+    {p.garmentsNote}
+  </div>;
+
+  const playersBox = <section className="orv-box" aria-label="Player names and numbers">
+    <header className="orv-head is-small"><h3><Users size={18} /> Player names &amp; numbers</h3><span className="orv-chip">{plural(players.length, 'player')}</span>
+      <button type="button" className="op-link" onClick={editGarments}><Pencil size={14} /> Edit</button></header>
+    {players.length ? <>
+      <ol className="orv-players">{(allPlayers ? players : players.slice(0, 6)).map((x, i) => <li key={i}><span>{x.number || '–'}</span><span>{x.name?.trim() || '—'}</span><small>{[x.size, garments.length > 1 ? x.garment : ''].filter(Boolean).join(' · ')}</small></li>)}</ol>
+      {players.length > 6 && <button type="button" className="op-link orv-more" onClick={() => setAllPlayers(v => !v)}>{allPlayers ? 'Show fewer' : `View all ${players.length} players`} <ArrowRight size={14} /></button>}
+    </> : <p className="orv-quiet">No names or numbers on this order.</p>}
   </section>;
 
-  const address = addressText(delivery.address);
-  const deliveryLink = p.onEditDelivery && <button type="button" className="op-link ora-inline-link" onClick={p.onEditDelivery}>{delivery.method === 'pickup' || address ? 'Review delivery details' : 'Add delivery details'} <ArrowRight size={15} /></button>;
   const priced = !!p.price;
-  const deliveryCard = <section className="op-card ora-card ora-delivery" aria-labelledby={`${checkId}-d`}>
-    <header className="ora-card-head"><h2 id={`${checkId}-d`}>Delivery &amp; notes</h2></header>
-    <dl className="ora-facts">
-      <div><dt>Contact</dt><dd>{[delivery.contactName.trim(), delivery.team?.trim()].filter(Boolean).join(' · ') || 'Not added'}{delivery.email?.trim() && <small>{delivery.email.trim()}</small>}</dd></div>
-      <div><dt>Mobile</dt><dd className={delivery.phone?.trim() ? '' : 'is-empty'}>{delivery.phone?.trim() || 'Not added'}{delivery.phoneProblem && <small className="ora-warn">{delivery.phoneProblem}</small>}</dd></div>
-      <div><dt>Date required</dt><dd className={delivery.neededBy ? '' : 'is-empty'}>{delivery.neededBy ? delivery.neededByText || formatDate(delivery.neededBy) : 'Not given'}</dd></div>
-      <div><dt>{delivery.method === 'pickup' ? 'Delivery' : 'Delivery address'}</dt><dd>
-        {delivery.method === 'pickup' ? <span>Pick up from 3DEEZI</span> : address ? <span>{address}</span> : !p.onEditDelivery ? <span className="is-empty">Confirmed with you by 3DEEZI before dispatch.</span> : null}
-        {deliveryLink}
-      </dd></div>
-      <div><dt>Instructions</dt><dd className={delivery.notes?.trim() ? 'ora-notes' : 'is-empty'}>{delivery.notes?.trim() || 'None'}</dd></div>
-      {delivery.madeBy && <div><dt>Made by</dt><dd data-testid="review-made-by">{delivery.madeBy}</dd></div>}
-      {layout === 'multi' && <div><dt>Uploaded files</dt><dd>{files.length ? <>{p.filesLabel ?? 'Order form & artwork'} · {plural(files.length, 'file')} <button type="button" className="op-link ora-inline-link" onClick={() => setFilesOpen(true)}>View files <ArrowRight size={15} /></button></> : <span className="is-empty">No files uploaded</span>}</dd></div>}
-      {layout === 'kit' && <div className={`ora-price-row${priced ? ' is-priced' : ''}`}><dt>Pricing</dt><dd>{priced ? <div className="ora-price" data-testid="review-price">{p.price}</div> : <><span data-testid="pricing-pending">Pricing pending confirmation.</span>{p.priceNote && <small>{p.priceNote}</small>}</>}</dd></div>}
-    </dl>
-    {p.priceOptions && <details className="ora-price-options"><summary>Delivery region, extras &amp; discount code</summary><div>{p.priceOptions}</div></details>}
+  const summaryBox = <section className="orv-box" aria-label="Order summary">
+    <header className="orv-head is-small"><h3><Package size={18} /> Order summary</h3></header>
+    <ul className="orv-sum">{garments.map(g => <li key={g.key}><span>{g.name}</span><b>{garmentTotal(g.sizes)}</b></li>)}</ul>
+    <div className="orv-total"><span>Total quantity</span><b data-testid="total-quantity">{total}</b></div>
+    <div className={`orv-price${priced ? ' is-priced' : ''}`}>{priced ? <div className="ora-price" data-testid="review-price">{p.price}</div> : <><span data-testid="pricing-pending">Pricing pending confirmation.</span>{p.priceNote && <small>{p.priceNote}</small>}</>}</div>
+    {multiGarments.length > 0 && <div className="orv-pdf"><DownloadReviewPdf garments={multiGarments} mockups={multi.mockups} delivery={pdfDelivery} quote={p.quote} sizeOrder={sizeList} /></div>}
   </section>;
+
+  // ---- right column
+  const address = addressText(delivery.address);
+  const row = (label: string, value: ReactNode, empty = false, extra?: ReactNode) => <div><dt>{label}</dt><dd className={empty ? 'is-empty' : ''}>{value}{extra}</dd></div>;
+  const contactCard = <section className="op-card orv-card" aria-labelledby={`${checkId}-d`}>
+    <header className="orv-head"><h2 id={`${checkId}-d`}><UserRound size={20} /> Contact &amp; delivery details</h2>
+      {p.onEditDelivery && <button type="button" className="op-link" onClick={p.onEditDelivery}><Pencil size={15} /> Edit</button>}</header>
+    <dl className="orv-facts">
+      {row('Contact', [delivery.contactName.trim(), delivery.team?.trim()].filter(Boolean).join(' - ') || 'Not added', !delivery.contactName.trim())}
+      {row('Email', delivery.email?.trim() || 'Not added', !delivery.email?.trim())}
+      {row('Mobile', delivery.phone?.trim() || 'Not added', !delivery.phone?.trim(), delivery.phoneProblem && <small className="ora-warn">{delivery.phoneProblem}</small>)}
+      {row(delivery.method === 'pickup' ? 'Delivery' : 'Delivery address', delivery.method === 'pickup' ? 'Pick up from 3DEEZI' : address || (p.onEditDelivery ? 'Not added' : 'Confirmed with you by 3DEEZI before dispatch.'), delivery.method !== 'pickup' && !address)}
+      {row('Required date', delivery.neededBy ? delivery.neededByText || formatDate(delivery.neededBy) : 'Not given', !delivery.neededBy)}
+      {(p.priceOptions || p.quote?.shipping) && <div><dt>Delivery region</dt><dd>{p.quote?.shipping && (p.quote.shipping as { label?: string; name?: string }).label || (p.quote?.shipping as { name?: string } | undefined)?.name || (delivery.method === 'pickup' ? 'Pick up' : '')}
+        {p.priceOptions && <details className="ora-price-options"><summary>Delivery region, extras &amp; discount code</summary><div>{p.priceOptions}</div></details>}</dd></div>}
+    </dl>
+  </section>;
+  const supplierCard = <section className="op-card orv-card" aria-label="Supplier and notes">
+    <header className="orv-head"><h2><Truck size={20} /> Supplier &amp; notes</h2><button type="button" className="op-link" onClick={p.onBack}><Pencil size={15} /> Edit</button></header>
+    <dl className="orv-facts">
+      <div><dt>Supplier</dt><dd data-testid="review-made-by">{delivery.madeBy || '3DEEZI'}</dd></div>
+      {row('Instructions', delivery.notes?.trim() || 'None', !delivery.notes?.trim())}
+      <div><dt>Files</dt><dd>{files.length ? <>{p.filesLabel ?? 'Order form & artwork'} · {plural(files.length, 'file')} <button type="button" className="op-link ora-inline-link" onClick={() => setFilesOpen(true)}>View files <ArrowRight size={15} /></button></> : <span className="is-empty">No files uploaded</span>}</dd></div>
+    </dl>
+  </section>;
+  const missing = [
+    !garments.length && 'Garments and sizes',
+    !delivery.phone?.trim() && 'Mobile',
+    delivery.phoneProblem && delivery.phone?.trim() && 'A valid mobile',
+    !delivery.neededBy && 'Required date',
+    delivery.method !== 'pickup' && !address && p.onEditDelivery && 'Delivery address',
+  ].filter((x): x is string => !!x);
+  const toCheck = p.toCheck ?? [];
+  const checkCard = missing.length || toCheck.length
+    ? <section className="orv-status is-check" role="status" data-testid="review-check"><CircleAlert size={26} /><div><b>Please check</b>
+      <ul>{missing.map(m => <li key={m}>{m} missing</li>)}{toCheck.slice(0, 8).map((m, i) => <li key={`c${i}`}>From your sheet: {m}</li>)}</ul>
+      {toCheck.length > 8 && <small>…and {toCheck.length - 8} more. 3DEEZI checks them with you.</small>}</div></section>
+    : <section className="orv-status is-ok" role="status" data-testid="review-ready"><span className="orv-ok"><Check size={20} strokeWidth={3} /></span><div><b>Order ready to approve</b><p>All required information is complete, and your mockups, garments, sizes and quantities are ready for final approval.</p></div></section>;
 
   const invalid = tried && !p.agreed;
-  const confirm = <section className="op-card ora-confirm" aria-label="Approve your order">
+  const confirm = <section className="op-card ora-confirm orv-confirm" aria-label="Approve your order">
     <div className="ora-confirm-text">
       <label className={`ora-check${invalid ? ' is-invalid' : ''}`} htmlFor={checkId}>
         <input id={checkId} type="checkbox" checked={p.agreed} onChange={e => { p.onAgree(e.target.checked); if (e.target.checked) setTried(false); }} aria-invalid={invalid} data-testid="approve-check" />
         <span className="ora-check-box" aria-hidden="true"><Check size={16} strokeWidth={3.2} /></span>
-        <span><strong>{layout === 'multi' ? 'I confirm all garments, sizes, quantities and final mockups are correct.' : 'I confirm the selected garments, sizes, quantities and final mockups are correct.'}</strong><small>Submit your order to 3DEEZI for review.</small></span>
+        <span>I confirm that the mockups, garment details, sizes, quantities, player names/numbers and delivery information are correct and approved for production.<small>Approval saves this version of your order.</small></span>
       </label>
       {p.error && <p className="ora-alert" role="alert"><CircleAlert size={16} /> {p.error}</p>}
+      <div className="orv-downloads">{p.confirmationLinks && <ConfirmationDownloads links={p.confirmationLinks} />}{p.shareLink && <ShareButton link={p.shareLink} />}</div>
     </div>
     <div className="ora-actions">
       <button type="button" className="ora-btn is-outline" onClick={p.onBack} disabled={p.busy}><ArrowLeft size={19} /> Back to Edit</button>
       <span className="ora-approve-wrap" onClick={() => { if (!p.agreed) setTried(true); }}>
         <button type="button" className="ora-btn is-primary" onClick={approve} disabled={!p.agreed || p.busy} aria-describedby={!p.agreed ? `${checkId}-why` : undefined} data-testid="approve-order">
-          {p.busy ? <><LoaderCircle className="spin" size={19} /> Sending…</> : <>Approve Order <ArrowRight size={19} /></>}
+          {p.busy ? <><LoaderCircle className="spin" size={19} /> Sending…</> : <>Approve &amp; continue to payment <ArrowRight size={19} /></>}
         </button>
         {!p.agreed && <small id={`${checkId}-why`} className={invalid ? 'is-invalid' : ''}>Tick the box to approve.</small>}
       </span>
     </div>
   </section>;
 
-  return <div className={`ora ora-${layout}`} data-layout={layout}>
-    {toolbar && <div className="ora-toolbar ora-summary-row">{toolbar}</div>}
+  return <div className={`ora orv ora-${layout}`} data-layout={layout}>
     {p.notice}
-    {layout === 'kit' ? <div className="ora-kit-grid">
-      {mockups}
-      <div className="ora-col">{garmentsCard}{deliveryCard}</div>
-    </div> : <>
-      {p.garmentsNote && <div className="ora-multi-note">{p.garmentsNote}</div>}
-      {multi.sections}
-      <div className="ora-bottom-grid">{deliveryCard}{multi.totals}</div>
-    </>}
+    <div className="orv-grid">
+      <section className="op-card orv-main" aria-label="Mockups and order details">
+        {mockupsBlock}
+        {detailsBlock}
+        <div className="orv-pair">{playersBox}{summaryBox}</div>
+      </section>
+      <div className="orv-side">{contactCard}{supplierCard}{checkCard}</div>
+    </div>
     {confirm}
+    {multi.renderer}
     {designShots.drawer}
-    {viewer && <MockupViewer shots={shots.filter(s => s.src)} start={Math.max(0, shots.filter(s => s.src).indexOf(shots[viewer.index]))} zoomed={viewer.zoom} onClose={() => setViewer(null)} />}
+    {viewer && viewable.length > 0 && <MockupViewer shots={viewable} start={Math.min(viewer.index, viewable.length - 1)} zoomed={viewer.zoom} onClose={() => setViewer(null)} />}
     {filesOpen && <FilesDialog files={files} onDownload={p.onDownload} onClose={() => setFilesOpen(false)} />}
     {editing && p.garmentEditor && <EditorDialog onClose={() => setEditing(false)}>{p.garmentEditor}</EditorDialog>}
     <span className="op-sr" aria-live="polite">{total ? `${plural(total, 'garment')} to review` : ''}</span>
   </div>;
+}
+
+/** Share order form: copies a read-only link (the form's printable page, with Save as PDF) and offers the system share. */
+function ShareButton({ link }: { link: () => Promise<string | null> }) {
+  const [state, setState] = useState<{ busy?: boolean; url?: string; text?: string }>({});
+  async function share() {
+    setState({ busy: true });
+    try {
+      const url = await link();
+      if (!url) { setState({ text: 'Save the form first, then share it.' }); return; }
+      let copied = false;
+      try { await navigator.clipboard.writeText(url); copied = true; } catch { /* shown below to copy by hand */ }
+      setState({ url, text: copied ? 'Link copied. Anyone with it can view this order form (read-only) for 30 days.' : 'Copy this link to share the order form:' });
+    } catch (e) { setState({ text: (e as Error).message || 'The link could not be made. Try again.' }); }
+  }
+  return <span className="orv-share">
+    <button type="button" className="ora-btn is-outline is-small" onClick={() => void share()} disabled={state.busy} data-testid="share-form">{state.busy ? <LoaderCircle className="spin" size={16} /> : <Share2 size={16} />} Share order form</button>
+    {state.text && <small role="status" data-testid="share-note">{state.text}{state.url && <input className="op-input orv-share-url" readOnly value={state.url} onFocus={e => e.currentTarget.select()} aria-label="Share link" />}</small>}
+  </span>;
 }
 
 /** "Edit sizes & garments": the page's editable garments, sizes and players in a large dialog; the review follows every change. */

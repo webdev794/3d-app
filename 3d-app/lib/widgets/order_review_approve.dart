@@ -24,19 +24,6 @@ const _kitTops = {
   'warmup',
 };
 const _kitBottoms = {'shorts', 'pants'};
-const _columns = {
-  'jersey': 'JERSEYS',
-  'shorts': 'SHORTS',
-  'tee': 'TEES',
-  'singlet': 'SINGLETS',
-  'polo': 'POLOS',
-  'hoodie': 'HOODIES',
-  'jacket': 'JACKETS',
-  'warmup': 'WARM-UPS',
-  'pants': 'PANTS',
-  'socks': 'SOCKS',
-  'cap': 'CAPS',
-};
 
 /// A youth size as order forms write them: 8, Y10, 12Y, Youth 14, Kids 6.
 bool isYouthSize(String s) => RegExp(
@@ -164,7 +151,11 @@ class ReviewStepBar extends StatelessWidget {
   final String first;
   @override
   Widget build(BuildContext context) {
-    final labels = [first, 'Review & approve', 'Order sent'];
+    final labels = [
+      first,
+      'Review & Approve',
+      current >= 3 ? 'Order sent' : 'Payment',
+    ];
     Widget dot(int i) {
       final done = i < current, now = i == current;
       return Container(
@@ -260,9 +251,7 @@ Widget reviewHeader({
       Text(
         sent
             ? 'Your order is with 3DEEZI.'
-            : multi
-            ? 'Review every garment, size and final mockup before approving.'
-            : 'Check your order details, mockups and quantities before submitting to 3DEEZI.',
+            : 'Check your design, garments, sizes, quantities and order details before confirming and proceeding to payment.',
         style: const TextStyle(color: Color(0xffcfe6ff)),
       ),
       const SizedBox(height: 14),
@@ -413,75 +402,6 @@ class _ShotTile extends StatelessWidget {
   );
 }
 
-Widget _sizeTable(List<MultiGarment> garments, List<String> sizes) {
-  final cols = [
-    for (final g in garments) _columns[g.garment] ?? g.name.toUpperCase(),
-  ];
-  TableRow row(List<String> cells, {bool head = false, bool foot = false}) =>
-      TableRow(
-        decoration: BoxDecoration(
-          color: head
-              ? const Color(0xff0b2238)
-              : foot
-              ? const Color(0xff0b3550)
-              : null,
-        ),
-        children: [
-          for (var i = 0; i < cells.length; i++)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Text(
-                cells[i],
-                textAlign: i == 0 ? TextAlign.start : TextAlign.center,
-                style: TextStyle(
-                  fontWeight: head || foot || i == 0
-                      ? FontWeight.w800
-                      : FontWeight.w400,
-                  fontSize: head
-                      ? 11.5
-                      : foot
-                      ? 15
-                      : 14,
-                  letterSpacing: head || foot ? 1.1 : 0,
-                  color: foot ? Palette.cyan : null,
-                ),
-              ),
-            ),
-        ],
-      );
-  final few = garments.length <= 3;
-  final table = Table(
-    key: const Key('review-sizes-table'),
-    defaultColumnWidth: few
-        ? const FlexColumnWidth(1.2)
-        : const IntrinsicColumnWidth(),
-    columnWidths: few ? const {0: FlexColumnWidth(1)} : null,
-    border: const TableBorder(
-      horizontalInside: BorderSide(color: Color(0xff18324a)),
-    ),
-    children: [
-      row(['SIZE', ...cols], head: true),
-      for (final s in sizes)
-        row([
-          s,
-          for (final g in garments)
-            (g.sizes[s] ?? 0) > 0 ? '${g.sizes[s]}' : '–',
-        ]),
-      row(['TOTAL', for (final g in garments) '${g.total}'], foot: true),
-    ],
-  );
-  return Container(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(7),
-      border: Border.all(color: const Color(0xff24445f)),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: few
-        ? table
-        : SingleChildScrollView(scrollDirection: Axis.horizontal, child: table),
-  );
-}
-
 Widget _fact(String label, Widget value, {Key? key}) => Padding(
   key: key,
   padding: const EdgeInsets.symmetric(vertical: 7),
@@ -533,6 +453,8 @@ List<Widget> orderReviewApprove(
   Widget? error,
   required VoidCallback onBack,
   required VoidCallback onApprove,
+  // Download PDF / Download Excel: the order confirmation form (images/336, 338), when the draft is saved.
+  void Function(String which)? onDownloadConfirmation,
 }) {
   final multi = layout == 'multi' && garments.isNotEmpty;
   final sizes = reviewSizeColumns(garments);
@@ -626,20 +548,27 @@ List<Widget> orderReviewApprove(
 
   final delivery = _card(
     key: const Key('review-delivery-notes'),
-    title: 'Delivery & notes',
+    title: 'Contact & delivery details',
+    action: onEditDelivery == null
+        ? null
+        : TextButton.icon(
+            onPressed: onEditDelivery,
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Edit'),
+          ),
     children: [
       _fact(
         'Contact',
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(contact.isEmpty ? 'Not added' : contact),
-            if (email.isNotEmpty)
-              Text(
-                email,
-                style: const TextStyle(color: Palette.muted, fontSize: 12),
-              ),
-          ],
+          children: [Text(contact.isEmpty ? 'Not added' : contact)],
+        ),
+      ),
+      _fact(
+        'Email',
+        Text(
+          email.isEmpty ? 'Not added' : email,
+          style: TextStyle(color: email.isEmpty ? Palette.muted : null),
         ),
       ),
       _fact(
@@ -650,7 +579,7 @@ List<Widget> orderReviewApprove(
         ),
       ),
       _fact(
-        'Date required',
+        'Required date',
         Text(
           neededBy ?? 'Not given',
           key: const Key('review-date-required'),
@@ -685,6 +614,24 @@ List<Widget> orderReviewApprove(
           ],
         ),
       ),
+    ],
+  );
+
+  final supplier = _card(
+    key: const Key('review-supplier-notes'),
+    title: 'Supplier & notes',
+    action: TextButton.icon(
+      onPressed: busy ? null : onBack,
+      icon: const Icon(Icons.edit_outlined, size: 16),
+      label: const Text('Edit'),
+    ),
+    children: [
+      _fact(
+        'Supplier',
+        madeBy != null
+            ? Text(madeBy, key: const Key('review-made-by'))
+            : const Text('3DEEZI'),
+      ),
       _fact(
         'Instructions',
         Text(
@@ -692,20 +639,319 @@ List<Widget> orderReviewApprove(
           style: TextStyle(color: notes.isEmpty ? Palette.muted : null),
         ),
       ),
-      if (madeBy != null)
-        _fact('Made by', Text(madeBy, key: const Key('review-made-by'))),
-      if (multi) filesRow,
-      if (!multi) ...[
-        const Padding(
-          padding: EdgeInsets.only(top: 6, bottom: 4),
+      filesRow,
+    ],
+  );
+
+  // ORDER DETAILS: a row per garment, its sizes across with the total (client design images/369).
+  Widget sizesAcross(MultiGarment g) {
+    final used = [
+      for (final z in sizes)
+        if ((g.sizes[z] ?? 0) > 0) z,
+    ];
+    Widget cell(String t, {bool head = false, bool total = false}) => Container(
+      width: total ? 54 : 40,
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      color: total ? const Color(0xff0b2f44) : null,
+      alignment: Alignment.center,
+      child: Text(
+        t,
+        style: TextStyle(
+          fontSize: total && !head ? 16 : 13,
+          fontWeight: head || total ? FontWeight.w700 : FontWeight.w400,
+          color: total && !head
+              ? Palette.cyan
+              : head
+              ? const Color(0xffcfe6ff)
+              : null,
+        ),
+      ),
+    );
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xff1d4a66)),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                cell('Size', head: true),
+                for (final z in used) cell(z, head: true),
+                cell('Total', head: true, total: true),
+              ],
+            ),
+            const SizedBox(width: 0, height: 1),
+            Row(
+              children: [
+                cell('Qty', head: true),
+                for (final z in used) cell('${g.sizes[z]}'),
+                cell('${g.total}', total: true),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  final details = _card(
+    key: const Key('review-garments'),
+    title: 'Order details',
+    action: editButton,
+    children: [
+      if (garments.isEmpty)
+        const Text(
+          'No garments read yet. Use Edit order to add them, or 3DEEZI reads them from your order form and checks them with you.',
+          style: TextStyle(color: Palette.muted),
+        )
+      else ...[
+        for (final g in garments)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xff163a52)),
+              color: const Color(0x99061421),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.checkroom,
+                      color: Color(0xff9fc6e6),
+                      size: 30,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            g.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                          if (g.detail.isNotEmpty)
+                            Text(
+                              g.detail,
+                              style: const TextStyle(
+                                color: Palette.muted,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                sizesAcross(g),
+              ],
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
           child: Text(
-            'Pricing',
-            style: TextStyle(color: Palette.muted, fontSize: 13),
+            kitLine(garments),
+            key: const Key('kit-line'),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
           ),
         ),
-        price,
+      ],
+      if (garmentsNote != null) garmentsNote,
+    ],
+  );
+
+  Widget playerLine(
+    ({String garment, String name, String number, String size}) p,
+  ) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 34,
+          child: Text(
+            p.number.isEmpty ? '–' : p.number,
+            style: const TextStyle(color: Color(0xffcfe6ff)),
+          ),
+        ),
+        Expanded(child: Text(p.name.isEmpty ? '—' : p.name)),
+        Text(
+          [
+            p.size,
+            if (garments.length > 1) p.garment,
+          ].where((v) => v.isNotEmpty).join(' · '),
+          style: const TextStyle(color: Palette.muted, fontSize: 12),
+        ),
+      ],
+    ),
+  );
+  final playersCard = _card(
+    key: const Key('review-players-card'),
+    title: 'Player names & numbers',
+    action: TextButton(
+      onPressed: onEditGarments,
+      child: Text(
+        '${players.length} ${players.length == 1 ? 'player' : 'players'} · Edit',
+      ),
+    ),
+    children: [
+      if (players.isEmpty)
+        const Text(
+          'No names or numbers on this order.',
+          style: TextStyle(color: Palette.muted),
+        )
+      else ...[
+        for (final p in players.take(6)) playerLine(p),
+        if (players.length > 6)
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              key: const Key('review-players'),
+              tilePadding: EdgeInsets.zero,
+              title: Text(
+                'View all ${players.length} players',
+                style: const TextStyle(
+                  color: Palette.cyan,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              children: [for (final p in players.skip(6)) playerLine(p)],
+            ),
+          ),
       ],
     ],
+  );
+
+  final total = garments.fold(0, (a, g) => a + g.total);
+  final summary = _card(
+    key: const Key('review-totals'),
+    title: 'Order summary',
+    children: [
+      for (final g in garments)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Expanded(child: Text(g.name)),
+              Text('${g.total}'),
+            ],
+          ),
+        ),
+      _fact(
+        'Garment styles',
+        Text(
+          '${garments.length}',
+          key: const Key('total-styles'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      Container(
+        margin: const EdgeInsets.only(top: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xff1f7d99)),
+          color: const Color(0xff0a2b3c),
+        ),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Total quantity',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Text(
+              '$total',
+              key: const Key('total-garments'),
+              style: const TextStyle(
+                color: Palette.cyan,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+      ),
+      const Padding(
+        padding: EdgeInsets.only(top: 10, bottom: 4),
+        child: Text(
+          'Pricing',
+          style: TextStyle(color: Palette.muted, fontSize: 13),
+        ),
+      ),
+      price,
+    ],
+  );
+
+  final missing = [
+    if (garments.isEmpty) 'Garments and sizes',
+    if (mobile.isEmpty) 'Mobile',
+    if (neededBy == null) 'Required date',
+    if (!pickup && deliveryText == null && onEditDelivery != null)
+      'Delivery address',
+  ];
+  final ready = missing.isEmpty;
+  final status = Container(
+    key: Key(ready ? 'review-ready' : 'review-check'),
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(
+        color: ready ? const Color(0xff2f9e5c) : const Color(0xffb7862a),
+      ),
+      color: ready ? const Color(0xff0c2a1f) : const Color(0xff2a2009),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          ready ? Icons.check_circle : Icons.error_outline,
+          color: ready ? const Color(0xff2fc46b) : const Color(0xffffb547),
+          size: 28,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                ready ? 'Order ready to approve' : 'Please check',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (ready)
+                const Text(
+                  'All required information is complete, and your mockups, garments, sizes and quantities are ready for final approval.',
+                  style: TextStyle(color: Color(0xffcfe6ff), fontSize: 13),
+                )
+              else ...[
+                for (final m in missing)
+                  Text(
+                    '• $m missing',
+                    style: const TextStyle(color: Color(0xffffe6b0)),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ),
   );
 
   final confirm = Material(
@@ -737,14 +983,12 @@ List<Widget> orderReviewApprove(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          multi
-                              ? 'I confirm all garments, sizes, quantities and final mockups are correct.'
-                              : 'I confirm the selected garments, sizes, quantities and final mockups are correct.',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        const Text(
+                          'I confirm that the mockups, garment details, sizes, quantities, player names/numbers and delivery information are correct and approved for production.',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const Text(
-                          'Submit your order to 3DEEZI for review.',
+                          'Approval saves this version of your order.',
                           style: TextStyle(
                             color: Palette.muted,
                             fontSize: 12.5,
@@ -758,10 +1002,48 @@ List<Widget> orderReviewApprove(
             ),
           ),
           if (error != null) error,
+          if (onDownloadConfirmation != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('confirmation-pdf'),
+                    onPressed: () => onDownloadConfirmation('pdf'),
+                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                    label: const Text('Download PDF'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('confirmation-excel'),
+                    onPressed: () => onDownloadConfirmation('excel'),
+                    icon: const Icon(Icons.table_chart_outlined, size: 18),
+                    label: const Text('Download Excel'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const Key('share-form'),
+              onPressed: () => onDownloadConfirmation('share'),
+              icon: const Icon(Icons.share_outlined, size: 18),
+              label: const Text('Share order form'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const Key('copy-form-link'),
+              onPressed: () => onDownloadConfirmation('link'),
+              icon: const Icon(Icons.link, size: 18),
+              label: const Text('Copy form link (editable)'),
+            ),
+          ],
           const SizedBox(height: 12),
           GradientButton(
             key: const Key('approve-order'),
-            label: busy ? 'SENDING…' : 'APPROVE ORDER',
+            label: busy ? 'SENDING…' : 'APPROVE & CONTINUE TO PAYMENT',
             icon: Icons.arrow_forward,
             onPressed: agreed && !busy ? onApprove : null,
           ),
@@ -808,39 +1090,11 @@ List<Widget> orderReviewApprove(
           onEdit: () => (onEditGarment ?? (_) => onEditGarments())(i),
         ),
       if (editorCard != null) editorCard,
+      playersCard,
+      summary,
       delivery,
-      // ORDER TOTALS (as order_review_garments.dart's card), with the price choices and the price full width below.
-      _card(
-        key: const Key('review-totals'),
-        title: 'Order totals',
-        children: [
-          _fact(
-            'Garment styles',
-            Text(
-              '${garments.length}',
-              key: const Key('total-styles'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          _fact(
-            'Total garments',
-            Text(
-              '${garments.fold(0, (a, g) => a + g.total)}',
-              key: const Key('total-garments'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.only(top: 6, bottom: 4),
-            child: Text(
-              'Pricing',
-              style: TextStyle(color: Palette.muted, fontSize: 13),
-            ),
-          ),
-          price,
-        ],
-      ),
-      const SizedBox(height: 14),
+      supplier,
+      status,
       confirm,
     ];
   }
@@ -897,133 +1151,19 @@ List<Widget> orderReviewApprove(
           const Padding(
             padding: EdgeInsets.only(top: 8),
             child: Text(
-              'Your artwork is shown. 3DEEZI prepares the final mockups from it after you approve.',
+              'Your uploaded pictures are shown. 3DEEZI prepares the final mockups from them after you approve.',
               style: TextStyle(color: Palette.muted, fontSize: 12.5),
             ),
           ),
-        filesRow,
       ],
     ),
-    _card(
-      key: const Key('review-garments'),
-      title: 'Selected garments',
-      action: editButton,
-      children: [
-        if (garments.isEmpty)
-          const Text(
-            'No garments read yet. 3DEEZI reads them from your order form and checks them with you.',
-            style: TextStyle(color: Palette.muted),
-          )
-        else ...[
-          for (final g in garments)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.checkroom,
-                    color: Color(0xff9fc6e6),
-                    size: 26,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          g.name,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        if (g.detail.isNotEmpty)
-                          Text(
-                            g.detail,
-                            style: const TextStyle(
-                              color: Palette.muted,
-                              fontSize: 12.5,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    '${g.total}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const Padding(
-            padding: EdgeInsets.only(top: 8, bottom: 8),
-            child: Text(
-              'SIZES & QUANTITIES',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.3,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          _sizeTable(garments, sizes),
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Text(
-              kitLine(garments),
-              key: const Key('kit-line'),
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-            ),
-          ),
-          if (players.isNotEmpty)
-            Theme(
-              data: Theme.of(
-                context,
-              ).copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                key: const Key('review-players'),
-                tilePadding: EdgeInsets.zero,
-                title: Text(
-                  'Players · ${players.length} ${players.length == 1 ? 'name & number' : 'names & numbers'}',
-                  style: const TextStyle(
-                    color: Palette.cyan,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                children: [
-                  for (final p in players)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 5,
-                            child: Text(p.name.isEmpty ? '—' : p.name),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(p.number.isEmpty ? '—' : p.number),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              p.size.isEmpty ? '—' : p.size,
-                              textAlign: TextAlign.end,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-        ],
-        if (garmentsNote != null) garmentsNote,
-      ],
-    ),
+    details,
     if (editorCard != null) editorCard,
+    playersCard,
+    summary,
     delivery,
+    supplier,
+    status,
     confirm,
   ];
 }

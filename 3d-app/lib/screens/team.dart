@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
+import '../custom_choice.dart';
 import '../money.dart';
 import '../sports_catalog.dart';
 import '../widgets/flow_ui.dart';
@@ -1229,6 +1230,9 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
   final _hex = TextEditingController();
   final _otherGarment = TextEditingController();
   String? _sport;
+
+  /// "Custom…" (client 2026-11-02, as on the website): a sport typed.
+  final _sportText = TextEditingController();
   final _garments = <String>[];
   DateTime? _date;
   final _colours = <String>[];
@@ -1268,6 +1272,7 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
       _instructions,
       _hex,
       _otherGarment,
+      _sportText,
     ]) {
       t.dispose();
     }
@@ -1438,9 +1443,9 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
                         child: TextField(
                           key: const Key('team-garment-other'),
                           controller: _otherGarment,
-                          maxLength: 60,
+                          maxLength: customMax,
                           decoration: const InputDecoration(
-                            hintText: 'Something else, e.g. Socks',
+                            hintText: '$customLabel $customPlaceholder',
                             counterText: '',
                           ),
                         ),
@@ -1576,7 +1581,9 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
         {
           'name': _name.text.trim(),
           'email': _email.text.trim(),
-          'sport': _sport!,
+          'sport': _sport == customValue
+              ? customName(_sportText.text)
+              : _sport!,
           'garment': _garments.first,
           if (_date != null) 'preferred_date': _isoDate(_date!),
           if (group != null)
@@ -2056,10 +2063,31 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
                       s.group == 'apparel' ? '${s.name} (apparel)' : s.name,
                     ),
                   ),
+                if (_sports.isNotEmpty)
+                  const DropdownMenuItem(
+                    value: customValue,
+                    child: Text(customLabel),
+                  ),
               ],
               onChanged: (v) => setState(() => _sport = v),
               validator: required,
             ),
+            if (_sport == customValue)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: TextFormField(
+                  key: const Key('team-sport-custom'),
+                  controller: _sportText,
+                  maxLength: customMax,
+                  autofocus: true,
+                  decoration: _dec('Type your sport').copyWith(
+                    hintText: 'e.g. Lacrosse, Bowling',
+                    counterText: '',
+                  ),
+                  validator: (v) =>
+                      customName(v).isEmpty ? 'Type your sport.' : null,
+                ),
+              ),
             const SizedBox(height: 14),
             FormField<List<String>>(
               key: const Key('team-garments'),

@@ -60,6 +60,8 @@ class PricingService
         foreach (config('catalog.garments', []) as $garment) {
             $garments[$garment['id']] ??= $garment['name'];
         }
+        // The marquee (Signage & Marquees, 2026-11-02): priced and counted as marquees ("2 marquees").
+        $garments['marquee'] ??= 'Marquee';
 
         return $garments;
     }
@@ -70,7 +72,8 @@ class PricingService
         if (filled($item['label'] ?? null)) {
             return (string) $item['label'];
         }
-        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? null;
+        // A catalogue sport by its name, or a sport typed in "Custom…" (client 2026-11-02) as typed.
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? (filled($item['sport'] ?? null) ? trim((string) $item['sport']) : null);
 
         return trim(($sport ? $sport.' ' : '').(self::garments()[$item['garment'] ?? 'other'] ?? 'Garment'));
     }
@@ -95,8 +98,9 @@ class PricingService
                 'list' => count(array_filter($players, $named)),
                 default => 0,
             };
-            // The sport's garment tile the kit was made as ("Netball dress", task 9.99) names the line.
-            $items[] = ['garment' => $kit['garment'] ?? 'jersey', 'sport' => $kit['sport'] ?? null] + (filled($kit['design']['productName'] ?? null) ? ['label' => (string) $kit['design']['productName']] : []) + ['kit' => $kit['name'] ?? null,
+            // The sport's garment tile the kit was made as ("Netball dress", task 9.99) names the line; a sport typed in
+            // "Custom…" (client 2026-11-02) is its sport.
+            $items[] = ['garment' => $kit['garment'] ?? 'jersey', 'sport' => filled($kit['design']['sportName'] ?? null) ? (string) $kit['design']['sportName'] : ($kit['sport'] ?? null)] + (filled($kit['design']['productName'] ?? null) ? ['label' => (string) $kit['design']['productName']] : []) + ['kit' => $kit['name'] ?? null,
                 'quantity' => (int) $order->quantity, 'names' => $names];
         }
 

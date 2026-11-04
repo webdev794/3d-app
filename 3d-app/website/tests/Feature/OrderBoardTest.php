@@ -141,6 +141,16 @@ class OrderBoardTest extends TestCase
             ->assertJsonPath('data.project_id', $mine->id);
     }
 
+    public function test_the_form_link_opens_a_draft_for_its_owner_and_admins_only(): void
+    {
+        $draft = $this->postJson('/api/v1/order-drafts', ['kind' => 'form', 'data' => ['team_name' => 'Lions FC']])->assertCreated()->json('data.id');
+        Sanctum::actingAs(User::factory()->create());
+        $this->getJson("/api/v1/order-drafts/{$draft}")->assertNotFound();
+        Sanctum::actingAs($this->admin());
+        $this->getJson("/api/v1/order-drafts/{$draft}")->assertOk()->assertJsonPath('data.title', 'Lions FC');
+        $this->patchJson("/api/v1/order-drafts/{$draft}", ['data' => ['team_name' => 'Lions FC', 'notes' => 'Checked by staff']])->assertOk()->assertJsonPath('data.data.notes', 'Checked by staff');
+    }
+
     public function test_drafts_hold_files_until_submitted_and_stay_apart_from_orders(): void
     {
         Event::fake([OrderSubmitted::class]);

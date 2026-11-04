@@ -133,16 +133,22 @@ class AiController extends Controller
             'direction' => ['required', 'array'],
             ...collect(['summary', 'teamName', 'palette', 'theme', 'front', 'back', 'graphics', 'trims', 'presentation', 'body', 'layout'])->mapWithKeys(fn ($k) => ["direction.{$k}" => $text])->all(),
             'direction.ownDesign' => ['sometimes', 'boolean'],
+            // The background (client picture 362): part of the generated scene; custom is the client's own picture in Assets.
+            'scene' => ['nullable', Rule::in(OpenAiDesigner::SCENES_BG)],
+            'scene_id' => ['nullable', 'integer', Rule::exists('assets', 'id')->where('user_id', $request->user()->id)],
+            'wide' => ['sometimes', 'boolean'],
         ]);
         abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
         $quality = $data['quality'] ?? 'medium';
+        $scene = $data['scene'] ?? 'auto';
+        $sceneImage = $scene === 'custom' && ! empty($data['scene_id']) ? ($this->references($request, [(int) $data['scene_id']])[0] ?? null) : null;
         // All four designs front and back in one tall picture (YOUR DESIGNS, 146.jpg, 2026-10-22); 'front' (one square front
         // view, the old option cards) only when asked.
         $view = $data['view'] ?? 'presentation';
         set_time_limit(330);
         [$sport, $garment] = $this->names($data);
         try {
-            $jpeg = $designer->renderDirection($data['prompt'], $sport, $garment, $data['direction'], $this->references($request, $data['reference_ids'] ?? []), $quality, $view);
+            $jpeg = $designer->renderDirection($data['prompt'], $sport, $garment, $data['direction'], $this->references($request, $data['reference_ids'] ?? []), $quality, $view, $scene, $sceneImage, (bool) ($data['wide'] ?? false));
         } catch (RuntimeException $e) {
             abort(502, $e->getMessage());
         }
@@ -305,6 +311,25 @@ class AiController extends Controller
                 array_column(config('catalog.sports'), 'id'),
                 array_column(config('catalog.garments'), 'id'),
             )]);
+        } catch (RuntimeException $e) {
+            abort(502, $e->getMessage());
+        }
+    }
+
+    /**
+     * Artwork to 3D for headwear and accessories (CP1, client 2026-11-02): a cap (bucket hat, socks, skirt) artwork read
+     * for our 3D model: its parts' colours and where its front, back and side logos are, for the page to cut out.
+     */
+    public function readAccessory(Request $request, OpenAiDesigner $designer): JsonResponse
+    {
+        $data = $request->validate([
+            'image' => ['required', 'string', 'max:12000000', 'regex:#^data:image/(png|jpeg|webp);base64,#'],
+            'garment' => ['required', Rule::in(array_keys(OpenAiDesigner::ACCESSORIES))],
+        ]);
+        abort_unless(OpenAiDesigner::enabled(), 503, 'AI generation is not configured on this server.');
+        set_time_limit(90);
+        try {
+            return response()->json(['data' => $designer->readAccessory($data['image'], $data['garment'])]);
         } catch (RuntimeException $e) {
             abort(502, $e->getMessage());
         }

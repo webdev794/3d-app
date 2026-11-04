@@ -29,12 +29,20 @@ void main() {
     expect(garmentInBrief('Rugby jersey and shorts'), 'Full Kit');
     expect(garmentInBrief('A netball dress in teal'), 'Netball dress');
     expect(garmentInBrief('Black and gold with stripes'), isNull);
+    // No fishing-shirt 3D model yet (images/416): the polo, with a note.
+    expect(garmentInBrief('Blue long sleeve fishing shirt'), 'Polo');
+    expect(garmentInBrief('White button-up shirt'), 'Polo');
+    expect(
+      closestNote(closestModel('a fishing shirt')!),
+      '3D preview on the closest garment: Polo; a fishing shirt 3D model is coming.',
+    );
+    expect(closestModel('rugby jersey'), isNull);
     // Hoodies and the pocket polo are garments of their own (2026-10-21).
     expect(garmentInBrief('Navy club hoodie with a gold crest'), 'Hoodie');
     expect(garmentInBrief('A zip-up hoodie for the coaches'), 'Zip hoodie');
     expect(garmentInBrief('Full zip hoodies for the bench'), 'Zip hoodie');
     expect(garmentInBrief('A darts pocket polo'), 'Polo with pocket');
-    expect(garmentInBrief('A fishing shirt with a hood'), 'Jersey');
+    expect(garmentInBrief('A fishing shirt with a hood'), 'Polo'); // images/416: the closest to a fishing shirt
     expect(garmentInBrief('Colours from my childhood club'), isNull);
     expect(sportInBrief('soccer home kit')?.sport, 'Soccer');
     expect(sportInBrief('boxing club gear')?.id, 'fight-wear');

@@ -11,13 +11,16 @@ import 'flow_test.dart' show mountPhone, tapText;
 
 /// The website's Studio › Patterns › Apply to area (resources/js/pages/Studio.tsx patternAreas, 2026-10-26), by
 /// website garment id: the areas the 3D viewer paints on each garment. The singlet and the netball dress are
-/// sleeveless (viewer zones.js: the dress has no sleeve area).
+/// sleeveless (viewer zones.js: the dress has no sleeve area). The skirt has its body, side panels and hem only
+/// (viewer skirtprint.js skirtZones).
 List<String> websiteAreas(String id, {String? trackStyle}) {
-  final shorts = id == 'shorts';
+  // The socks, the cap and the bucket hat: one area, the whole garment (viewer zones.js).
+  if (id == 'socks' || id == 'cap' || id == 'bucket-hat') return ['Body'];
+  final shorts = id == 'shorts', skirt = id == 'skirt';
   return [
-    shorts ? 'Body' : 'Chest & body',
-    if (!shorts) 'Shoulders',
-    if (!shorts && id != 'singlet' && id != 'netball-dress') 'Sleeves',
+    shorts || skirt ? 'Body' : 'Chest & body',
+    if (!shorts && !skirt) 'Shoulders',
+    if (!shorts && !skirt && id != 'singlet' && id != 'netball-dress') 'Sleeves',
     'Side panels',
     shorts ? 'Leg hems' : 'Hem',
     if (id == 'pocketpolo') 'Chest pocket',
@@ -52,7 +55,7 @@ void main() {
     final tsx = File('website/resources/js/pages/Studio.tsx').readAsStringSync();
     final rules = tsx.substring(tsx.indexOf('function patternAreas('), tsx.indexOf('export default function Studio('));
     Set<String> named(String code) => {for (final m in RegExp(r"garment === '([\w-]+)'").allMatches(code)) m[1]!};
-    expect(named(rules), {'shorts', 'singlet', 'netball-dress', 'pocketpolo'});
+    expect(named(rules), {'socks', 'cap', 'bucket-hat', 'shorts', 'skirt', 'singlet', 'netball-dress', 'pocketpolo'});
     expect(named(rules.split('\n').firstWhere((line) => line.contains("label: 'Sleeves'"))), {'singlet', 'netball-dress'});
     for (final MapEntry(key: garment, value: id) in garmentIds.entries) {
       expect(
@@ -76,6 +79,12 @@ void main() {
     ]);
     expect([for (final (key, _) in patternAreas('Full Kit')) key], containsAll(['yoke', 'sleeves']));
     expect([for (final (key, _) in patternAreas('Shorts')) key], ['body', 'sides', 'hem']);
+    // The skirt: Body, Side panels and Hem (no shoulders or sleeves).
+    expect(patternAreas('Skirt'), [('body', 'Body'), ('sides', 'Side panels'), ('hem', 'Hem')]);
+    // The socks, the cap and the bucket hat: Body only (the viewer paints nothing on other areas).
+    for (final g in ['Socks', 'Cap', 'Bucket hat']) {
+      expect(patternAreas(g), [('body', 'Body')], reason: g);
+    }
   });
 
   testWidgets(

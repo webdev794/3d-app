@@ -41,6 +41,8 @@ class _FakeAi extends AiService {
     Map<String, dynamic>? direction,
     String quality = 'medium',
     String view = 'presentation',
+    String scene = 'auto',
+    Uint8List? sceneImage,
   }) {
     final done = Completer<Uint8List>();
     renders.add((
@@ -476,9 +478,10 @@ void main() {
     expect((none.iw, none.ih), (1000.0, 620.0));
   });
 
-  // Client 240.jpg (2026-10-30): on a wide screen the large design fills a
-  // wide frame and the other three are bigger cards stacked at its right.
-  testWidgets('YOUR DESIGNS on a computer: wide frame, cards at the right', (
+  // Client 240.jpg (2026-10-30): on a wide screen the other three are bigger
+  // cards stacked at the right; 303.jpg (2026-11-02): the large design open
+  // (no frame, no blurred copy), at its full height, the cards right beside it.
+  testWidgets('YOUR DESIGNS on a computer: open picture, cards beside it', (
     tester,
   ) async {
     const size = Size(1366, 768);
@@ -499,19 +502,24 @@ void main() {
     expect(tester.takeException(), isNull);
     final viewer = tester.getRect(find.byKey(const ValueKey('design-viewer')));
     final art = tester.getRect(find.byKey(const ValueKey('design-0-picture')));
-    expect(
-      viewer.width,
-      greaterThan(size.width * .6),
-      reason: 'wide, not narrow',
-    );
     expect(art.width / art.height, closeTo(2 / 3, .02));
     expect((art.center.dx - viewer.center.dx).abs(), lessThan(1));
+    expect(art.height, closeTo(viewer.height, 1), reason: 'its full height');
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('design-viewer')),
+        matching: find.byType(ImageFiltered),
+      ),
+      findsNothing,
+      reason: 'no blurred copy behind it',
+    );
     final cards = [
       for (final i in [1, 2, 3])
         tester.getRect(find.byKey(ValueKey('thumb-$i'))),
     ];
     for (final (n, t) in cards.indexed) {
-      expect(t.left, greaterThan(viewer.right), reason: 'outside the picture');
+      expect(t.left, greaterThan(art.right), reason: 'outside the picture');
+      expect(t.left - art.right, lessThan(130), reason: 'right beside it');
       expect(t.right, lessThanOrEqualTo(size.width));
       expect(t.width, greaterThanOrEqualTo(150));
       if (n > 0) expect(t.top, greaterThan(cards[n - 1].bottom));
@@ -529,13 +537,13 @@ void main() {
           .map((e) => e.fit);
       expect(fits, contains(BoxFit.contain));
     }
-    // The controls under the large design, as wide as it.
+    // The controls under the large design and the cards, as wide as both.
     final open = tester.getRect(find.byType(GradientButton));
     final download = tester.getRect(
       find.byKey(const ValueKey('download-design')),
     );
-    expect(open.left, closeTo(viewer.left, 1));
-    expect(download.right, closeTo(viewer.right, 1));
+    expect(open.left, lessThanOrEqualTo(art.left + 1));
+    expect(download.right, greaterThanOrEqualTo(cards.last.right - 1));
     expect(open.top, greaterThanOrEqualTo(viewer.bottom));
     await tester.tap(find.byKey(const ValueKey('thumb-2')));
     await tester.pumpAndSettle();

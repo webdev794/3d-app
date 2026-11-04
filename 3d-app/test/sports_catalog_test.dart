@@ -79,9 +79,13 @@ void main() {
     'Netball dress': 'netball-dress',
     'Football jersey': 'nfljersey',
     'Compression top': 'compression',
+    'Shooting shirt': 'shooting-shirt',
     'Socks': 'socks',
     'Cap': 'cap',
+    '5 panel cap': 'five-panel-cap',
+    'Beanie': 'beanie',
     'Skirt': 'skirt',
+    'Bucket hat': 'bucket-hat',
     'Polo': 'polo',
     'Polo with pocket': 'pocketpolo',
     'Hoodie': 'hoodie',
@@ -119,7 +123,12 @@ void main() {
       // The same garment tiles (task 9.99): names, descriptions, 3D garments,
       // fit, the garment still to build, the picture and the track style.
       expect(s.tiles.length, w.tiles.length, reason: w.id);
-      expect(w.tiles.length, greaterThanOrEqualTo(6), reason: w.id);
+      // (Headwear has its four kinds, client mockup 296.jpg.)
+      expect(
+        w.tiles.length,
+        greaterThanOrEqualTo(w.id == 'headwear' ? 4 : 6),
+        reason: w.id,
+      );
       for (var i = 0; i < w.tiles.length; i++) {
         final a = s.tiles[i], b = w.tiles[i], why = '${w.id} ${b.name}';
         expect(a.name, b.name, reason: why);
@@ -255,8 +264,12 @@ void main() {
       'Shorts',
       'Football jersey',
       'Compression top',
+      'Shooting shirt',
       'Socks',
       'Cap',
+      '5 panel cap',
+      'Bucket hat',
+      'Beanie',
       'Polo',
       'Polo with pocket',
       'Zip hoodie',

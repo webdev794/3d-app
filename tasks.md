@@ -528,3 +528,101 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [x] **9.159** AI designer "YOUR DESIGNS" result: the preview window much bigger / wider, not a narrow column (client 2026-10-30; website + app). Agent PV1.
   - 9.159 add (client 2026-10-30, images/240.jpg): the 3 other design options move out of the picture to the empty right side as three stacked cards (phone: a row under the picture). PV1.
 - [x] **9.160** AI Designer: quick access to previous designs / projects ("Recent designs", like ChatGPT history): reopen a past session (prompt + 4 designs) without a new AI call, open recent projects; guests keep the last session on the device (client 2026-10-30, images/241.jpg; website + app). Agent RD1.
+- [x] **9.161** Netball dress: the outer side strip changes colour in segments split by diagonal lines across the strip (azure / cyan / royal, like a twisting ribbon); the inner strip stays plain (user 2026-10-30, images/257). Agent ND2.
+- [x] **9.162** Football jersey: the shoulder design must reach up to the neck at the sides like the tile picture (user 2026-10-30, images/258 tile vs 259 ours). Agent FN2.
+- [ ] **9.163** Mobile Home: one large interactive glass bubble with 5 destinations (AI, DYO, ARTBOARD, TEAM, TO 3D), drag-to-option with stretch + light trail, "Release to enter", glass-expansion opening, cancel by dragging back, tap works; floating glass bottom nav; reduced motion. Prototype first (client 2026-10-30; spec scratchpad/HB1/spec.md, pictures scratchpad/HB1/ref). Agent HB1.
+  - 9.163 STARTED 2026-10-30 18:5x (user: go ahead, with fallback): older / slower phones and reduced motion keep the current home; "Classic view" / "Try the new home" buttons switch, remembered on the device; phones only. Workflow wf_fefd7c4e-090 (builder A bubble_home.dart, builder B home_switcher.dart + wiring, then tester + fix loop).
+- [x] **9.164** 3D Studio: the stadium background lights (floodlight glows, light bars, floor reflections) are too bright; dim them, garment lighting unchanged (user 2026-11-02, images/292.jpg, app on phone). Agent LT1.
+- [x] **9.165** A "Custom..." choice with a text box wherever Sport / Garment (and similar fixed lists) are chosen: Artwork to 3D, order form, AI designer, DYO; website and app; the typed name is kept, the nearest 3D model is used and shown (user 2026-11-02, images/293.jpg). Agent CU1.
+- Decided 2026-11-02 (user: follow my suggested answers; only ask about logins / keys / integrations / spending):
+  - American Football Game Jersey keeps the longer Game Kit length (one model for both tiles).
+  - Zip hoodie, Track jacket, Varsity: our current brand marks ("3" + 3DEEZI wordmark); colours, stripes and shape follow the tile pictures.
+  - Full kit (and kits whose pictures show socks): add our socks model (fixer queue).
+  - AI designer results: preview + 3 side cards capped at about 950 px, centred, so the background art shows (website).
+  - No paid / artist-made garment models yet (user 2026-11-02): keep improving our own 3D models through the tester.
+- [ ] **9.166** Artwork to 3D: caps section. A cap artwork (MANTIS HATS PDF) was read as "Mantis Cap" but nothing happened when putting it on 3D; add Cap / Bucket hat / Socks / Skirt to the garment choices and put the cap artwork on our 3D cap (front, back, sides, colours); website and app (user 2026-11-02, images/294.jpg). Agent CP1.
+  - 9.166 add (client 2026-11-02): the caps section has CAPS, BUCKET HATS, BEANIES, 5 PANEL CAPS; beanie and 5-panel cap are new 3D models (COMING SOON until built). CP1.
+- [x] **9.167** AI Designer upload takes design files, not only images: PDF, SVG, AI, EPS, PSD, PNG / JPG / WEBP etc. (turned into a picture for the AI, the original kept); website and app (client 2026-11-02, images/295.jpg). Agent UP1.
+  - 9.166 add (client mockup 2026-11-02, images/296.jpg): Design Your Own gets a HEADWEAR category tile (with ALL / SPORTS / APPAREL tabs); headwear on the podium: bucket hat, cap, beanie with pom-pom and cyan stripes, 5-panel cap; "DESIGN HEADWEAR" button. CP1.
+- [x] **9.168** NEW SECTION Signage & Marquees (client mockups 2026-11-02, images/297-298): menu item + landing page (Marquees, Feather flags, Pull-up banners, Banners, Table covers, Backdrops; marquee setup size / walls / view), a real 3D marquee (3x3 / 3x6 m, roof, valances, walls) and the Marquee Studio (zones, colours, logos, text, patterns, upload, layers, panel preview, 2D layout, save / export / review); website then app; other products COMING SOON until built. Spec scratchpad/SM1/spec.md. Agent SM1.
+- [x] **9.169** All items branded 3DEEZI: the "3" logo mark AND the 3DEEZI wordmark on every product / tile (garments, headwear, signage), website and app (user 2026-11-02). Agent BR1 (audit SP/BR1/audit.md).
+- [x] **9.170** Studio "Style" tool: GARMENT STYLE panel with NECK STYLE (Round neck / V-neck, live on the 3D, design kept) and NECK TRIM colour, with a neck close-up preview; most garments (jersey, tee, singlet, netball dress, raglan, shooting shirt, full kit, rugby jerseys); website and app (client mockup 2026-11-02, images/299.jpg; decided it is about the neck). Agent NK1.
+  - 9.170 add (client mockup 2026-11-02, images/300.jpg): RUGBY JERSEYS get a collar library (RC001-RC010 + Custom shallow V; collar colour) and 3 jersey FITS (Classic / Pro / Tight), live on the 3D, saved with the design and order. NK1 phase 2.
+  - 9.167 DONE 2026-11-02 by UP1: PDF (page picker), AI (PDF-compatible), SVG, PNG/JPG/WebP/GIF/BMP; TIFF/HEIC in Safari; EPS/PSD get a 'save as PDF, SVG or PNG' message (no Imagick / Ghostscript here); original kept (Assets > Design files). Live: migrate (assets.source_id), upload_max_filesize >= 26M, post_max_size >= 36M; optional Imagick / Ghostscript / CloudConvert key for EPS / PSD.
+  - 9.165 DONE 2026-11-02 by CU1: Custom... in Artwork to 3D, DYO (sport + garment), AI designer chips, order form (website + app; the app order form got sport / What is it? boxes), 3DEEZI Team request; nearest 3D by word match; typed sport saved in a new design field. No migration mentioned.
+  - 9.164 DONE 2026-11-02 by LT1 (viewer -169): backdrop glows dimmed inside the viewer only (studio-backdrop.webp unchanged), garment within 0-2 levels.
+  - 9.163 refinement (client 2026-11-02, images/301-302): dark translucent glass with a thick reflective rim and highlights (the 3 symbol visible through it), larger brighter jersey previews, consistent lighting, the bubble surface pulls towards the selected option (no separate ring), the title close to it; floating glass capsule nav through the whole app on phones; first-run 'A quick look around' tutorial (Skip, Start creating, Replay in Help); send the client a full-res idle screen + a short drag-and-release recording first. Builder A.
+- [x] **9.171** AI Designer results: the main design fills the screen, no framed rectangle or blurred side bands, more open; replaces today's 950 px cap (client 2026-11-02, images/303.jpg). Agent AD1.
+  - 9.171 DONE 2026-11-02 by AD1: frame, glow box and blurred bands removed, soft edge fade; 950 px cap removed (picture + cards centred); website + app; 71 / 71 page checks, 44 app tests.
+  - 9.169 DONE 2026-11-02 by BR1 (viewer -173): 198 / 217 tiles already had both marks; 19 fixed (socks wordmark, varsity, netball bib tiles, tennis dress, pocket polos). Open: customer AI / artwork kits (asked the user).
+  - 9.168 progress 2026-11-02 (SM1, viewer -174): website done: menu, /signage landing page, 3D marquee (3x3 / 3x6, roof, valances, walls, 8 print zones), Marquee Studio at /signage/marquee (tools, zones, layers, 2D layout, export PDF / PNG, review, save to projects, order). No migration. Next: the app.
+- [ ] **9.172** Tracksuits: build matching TRACK PANTS (black, cyan side stripe, small logo on the thigh) and show them with the jacket on the Tracksuit tiles (now the 3D shows only the jacket: '3D preview uses track jacket'); the jacket collar must be a clean stand-up collar, not round from the top with many horizontal folds (user 2026-11-02, images/304 ours, 305 tile). Model fixer.
+  - 9.170 DONE 2026-11-02 by NK1 (viewer -176): design.neck ('round' / 'v' / 'rc001'..'rc010' / 'shallow-v'), design.fit ('classic' / 'pro' / 'tight'), trim = parts.collar; Style rail + panel + NECK DETAIL (website + app); no migration.
+- [x] **9.173** Studio garment rail: a Tracksuit (jacket + pants) shows 'Track jacket' as the selected item; add a 'Tracksuit' item in the rail, selected for tracksuit tiles (website + app); also the Basketball tracksuit design should follow its tile (side blades, piping) (user 2026-11-02, images/310-311). Next fixer.
+- [x] **9.174** Studio lighting still too overwhelming (client 2026-11-02): calmer bloom, haze, podium sheen and garment glare; garment colours truer. Agent LT2.
+- [x] **9.175** Studio garment list follows the selected sport (client 2026-11-02): the rail / Garment panel shows that sport's Design Your Own tiles; website + app. Agent SG1.
+  - 9.175 add (client 2026-11-02, images/326-328): Soccer opens soccer apparel only. SG1.
+- [ ] **9.176** Soccer football jersey looks like an American football jersey (big padded shoulders); make it a slim soccer jersey like its tile (client 2026-11-02, images/326-327). FN13.
+  - 9.174 add: a thin highlight around the garments in the Studio 3D (client). LT2.
+  - 9.163 round 4 (client 2026-11-02 4:55 pm, images/329): likes it; push the bubble out more with more bubble ripples; spread all 5 options evenly; much cleaner icons (not AI-looking); text labels similar size; the real high-res 3DEEZI logo in the background. Builder A.
+
+- 2026-11-03 (images/330): mobile bubble home: the bottom tab bar (Home / Projects / Orders / Profile) gets the same glass bubble effect as the upper part: drag and release (stretch, ripple, spring back). App only. Given to BL1 (Blender worker) AFTER its Blender work (user 11-03).
+
+- 2026-11-03 (images/331): app Orders page: add a "Preferred suppliers" card at the bottom. Client asks: bubble theme throughout the app, not just Home? Queued for BL1 after the tab bar task.
+
+- 2026-11-03 (images/332): app Create order form: "Add logos, artwork or a reference" does nothing on the phone. Fix (website check too). Queued for BL1.
+- 2026-11-03 (images/333): the client's Orders page design: one big glass bubble with Create order / Upload order / My orders; PREFERRED SUPPLIERS row (Make with 3DEEZI, Make with Mantis); "Rewards - coming soon".
+
+- 2026-11-03 (images/334): bubble theme on all 4 main pages (Home, Projects, Orders, Profile) per the client picture. Queued for BL1 after the Orders page.
+
+- 2026-11-03 (images/335): app bubble home: the notification bell sits on top of the 3DEEZI logo; move it to the top-right corner, clear of the logo (as in images/334). Queued for BL1 as task 5.
+
+- 2026-11-03 (images/336-338): order process: 4-step Create order form, Upload order path, Order confirmation review with approve, confirmation PDF + Excel download. Website + app. Queued for BL1 as task 6.
+
+- 2026-11-03 (images/340-341): bubble pages must follow the client picture exactly: big organic blob bubble (not a rounded rectangle) on Projects, Orders, Profile. Doing today (BB1).
+
+- 2026-11-03 (images/359): client (Mantis): "those 3d are no good", goal = look like their catalogue product renders (realistic printed jerseys, flat studio shots). Tomorrow: plan for the 3D look.
+- 2026-11-03: app crashes on open (user) -> CR1 making the bubble rim drawing lighter.
+- 2026-11-03 (images/360): reference for the 3D look = Yellow Images jersey mockups (yellowimages.com, "With 3D Model" filter). Option: buy licensed 3D models / mockups there (money + licence check -> user/client decide).
+
+- 2026-11-03 (images/361-362): AI Designer results page wider, like 362 (wide picture, Background chips Auto/Studio/Stadium/Custom, Other options rail, Download button). Website + app. AW1.
+
+- 2026-11-03 (images/363): client DYO Studio visual improvements 1-6 (background, garment shape, artwork clarity, fabric & lighting, presentation, construction). Spec SP/VW1/spec.md. VW1 today: 1, 5, 4, 3; 2 and 6 with the model fixer tomorrow.
+
+- 2026-11-03 (images/364): Artboard pen tool: cannot join lines / close path and fill the object. AB1 fixing (close on first anchor, Join Ctrl+J, fill closed and open paths).
+- 2026-11-03 (images/365): Artboard Smart Fill does not work properly (overlapping / open shapes). Added to AB1.
+- 2026-11-03 (images/366, client "crucial"): Artboard top toolbar: Back / Forward (undo / redo), Save, Save to cloud, page orientation buttons, like CorelDRAW. AB1 next.
+- 2026-11-03 (images/367): AI Designer ignores the brief ("cotton oversized tshirt on a hanger" -> stadium sports jerseys). AI1 fixing the prompt so the brief wins; one paid test (<= US$2, user asked to test).
+- 2026-11-03 (images/368, LIVE): Upload order review: uploaded mockup not shown, Excel not read into garments ("No garments read yet"). UP1 fixing (show uploaded mockups, robust Excel reader). Asked the user for the real Excel file.
+- 2026-11-03 (images/369): client design for Review & approve after upload / form: mockup carousel, order details rows with across size tables, players + order summary boxes, contact / supplier cards, ready-to-approve card, bottom bar. UP1 building (website + app).
+- 2026-11-03 (images/370-371): phone Home looks basic (round icons / plain labels): restore the brush-lettering art like before, glassy bubble as 371, add an "Upgrade" pill next to the bell -> subscriptions. Client: last Home change. HM1.
+
+- 2026-11-03 (client): Create order form = type or photograph ANY notes ("Polo 3 x 4XL, 2 x 2XL, 4 x 5XL") + images -> 3DEEZI builds a neat, SHAREABLE order form. Upload order = customer already has a completed form. Spec SP/HB1/spec-notes-form.md. Starts when D has space.
+- 2026-11-03 (images/373-374): Home: white lights on the bubble sides as the client design 373, keep a phone-shaped bubble on wide windows, art like 373. Designer HD1 + tester UT2.
+
+- 2026-11-04 (images/388-389, client): glass too foggy; all 4 pages must match 388 and be in sync. ONE agent does all tasks one by one (SP/ONE/tasks.md).
+- 2026-11-04 (images/390): AI Designer shows only 1 of 4 options on live ("AI designer is busy"); make missing options retry / be re-generatable. ONE task 2.
+- 2026-11-04 (images/391-393): Create order form notes box: add "Upload file" for a messy existing order form; also fix notes reading "2xl x 10 singlets" (gave wrong counts). ONE task 3.
+- 2026-11-04 (images/394): Build my order form must go straight to the filled form, sizes/qtys right, plus an editable form link for the customer and admins. ONE task 4.
+- 2026-11-04 (images/399): Home layout like the client mobile picture: LET'S CREATE, big icons in rows (AI|DYO, ARTBOARD|TEAM, TO 3D), clear spacing, swipe hint + Assist at the bottom, no overlaps. HL1 (only agent).
+- 2026-11-04: Projects / Orders / Profile / My orders get the same outer bubble as Home (shape + rim lights). PB1 (only agent).
+- 2026-11-04 (images/405): Home drag shows the AI / DYO name twice, and release on an option does not open it (stuck). DR1 fixing.
+- 2026-11-04 (images/406, client): Home bubble rounder at top and bottom like a real bubble; move content down so nothing touches the rim; nothing else changes. Client will send non-pixelated icons soon. RB1.
+- 2026-11-04 (images/415): Artwork to 3D: "Open AI preview in 3D Studio" does not work for the client (hoodie PDF). TW task 1.
+- 2026-11-04 (images/416): AI Designer "fishing shirt" opens on a poor 3D garment (no fishing-shirt model). TW task 2: closest garment + clear note; Fishing shirt added to the model list.
+- MODEL TO BUILD LATER: Fishing shirt (long sleeve, collar, button front, chest pockets, vented back yoke) (client 2026-11-04, images/416).
+- 2026-11-04 (user): American Football Practice Jersey: make it longer (h/w 1.58 -> about 1.65 per its client picture). Given to FN15 after the hoodie.
+- 2026-11-04 (images/418-420, client): Basketball shorts: wrong shape; long straight-leg, 2 hem stripes with own colours, side notch; Place on model like 418. Separate fixer BSF + tester BST (spec SP/BS/spec.md). Moved off the Finished list.
+
+- 2026-11-04 (client, VERY IMPORTANT): ALL 3D models must follow the Yellow Images apparel mockups exactly (https://yellowimages.com/mockups/category/apparel-mockup ; search per garment e.g. /mockups/s/basketball%20shorts ; AI look: /ai-image-generator/create). Reference only, never ship their images.
+- 2026-11-04 (images/423-424, Yellow Images): Netball dress to look like their mockup: sleeveless round neck, fitted bodice to a dropped waist at the hips, navy side panels + binding, short flared pleated skirt with 2 hem stripes. FN15 first.
+- 2026-11-04 (images/425-427): netball dress = client preferred model (straight shift, full-length side panels, back yoke, binding, bib tabs). Separate fixer NDF + tester NDT, spec SP/ND/spec.md. Taken off FN15.
+- 2026-11-04: client preferred-model pictures per garment are the only target from now (user sends them one by one).
+- 2026-11-04 (user: client has not answered, go with my best answers): questions.md 2, 4, 5, 6, 7 decided; 1 (Airwallex) left for later. QD worker builds: (1) website home lighter glass, (2) 3DEEZI back-collar mark on AI / artwork kits. List SP/QD/tasks.md.
+
+### Decisions recorded from questions.md (removed there 2026-11-04, answered)
+- 2. 3DEEZI mark on customers' AI / artwork kits: YES, a small "3" + 3DEEZI under the back collar only, never over the customer's artwork. Being built (QD task 2).
+- 4. Website home: the lighter touch: glass cards and panels with the app's cyan rim and shine, dark glass, no big drag bubble, CSS only so it stays fast. Being built (QD task 1).
+- 5. Yellow Images 3D models: no purchase (spending money needs the client's OK). We keep improving our own models, now built to the client's preferred-model pictures, which the client is sending per garment.
+- 6. AI Designer "Redraw all designs" button: KEEP it as built; the customer chooses to redraw.
+- 7. Practice Jersey length: keep the longer version the user asked for (viewer -242) for now; its final shape follows the client's preferred-model pictures for that jersey when they arrive (model work is paused until then).

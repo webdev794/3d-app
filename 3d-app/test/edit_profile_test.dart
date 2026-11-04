@@ -79,19 +79,19 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('Profile lists Edit profile only when signed in', (tester) async {
+  testWidgets('Profile shows Account settings (edit profile) only when signed in', (tester) async {
     final c = controller();
     await mount(tester, ProfileScreen(c));
-    expect(find.text('Edit profile'), findsOneWidget);
+    expect(find.text('Account settings'), findsOneWidget);
     c.user = null;
     await mount(tester, ProfileScreen(c));
-    expect(find.text('Edit profile'), findsNothing);
+    expect(find.text('Account settings'), findsNothing);
   });
 
   testWidgets('a new name is saved and Profile shows it', (tester) async {
     final c = controller();
     await mount(tester, ProfileScreen(c));
-    await tester.tap(find.text('Edit profile'));
+    await tester.tap(find.text('Account settings'));
     await tester.pumpAndSettle();
     expect(find.byType(EditProfileScreen), findsOneWidget);
     // Only the name changes: no current password needed.

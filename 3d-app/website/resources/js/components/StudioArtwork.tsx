@@ -31,8 +31,12 @@ export function offGarment(layer: Pick<ArtworkLayer, 'x' | 'y' | 'part' | 'side'
     // The socks' print (viewer socks.js): about 10 cm either side of the middle, from the toe (0) to the welt (.64).
     // The cap's print (viewer cap.js): the crown about 15 cm either side of the middle, the brim below it (y 0 to .09).
     // The skirt's print (viewer skirt.js): the hem at y 0 (31 cm either side of the middle), the waistband's top at .336.
+    // The bucket hat's print (viewer bucket.js): the brim and crown about 16 cm either side of the middle, up to the top.
+    if (garment === 'bucket-hat') return layer.y < 0 || layer.y > 0.32 || Math.abs(layer.x) > 0.17;
     if (garment === 'skirt') return layer.y < -0.01 || layer.y > 0.345 || Math.abs(layer.x) > 0.32;
-    if (garment === 'cap') return layer.y < 0 || layer.y > 0.26 || Math.abs(layer.x) > 0.16;
+    if (garment === 'cap' || garment === 'five-panel-cap') return layer.y < 0 || layer.y > 0.26 || Math.abs(layer.x) > 0.16;
+    // The beanie's print (viewer beanie.js, CP1): the cuff and crown about 16 cm either side of the middle, the pom-pom above.
+    if (garment === 'beanie') return layer.y < 0 || layer.y > 0.29 || Math.abs(layer.x) > 0.17;
     if (garment === 'socks') return layer.y < -0.02 || layer.y > 0.66 || Math.abs(layer.x) > 0.11;
     const shorts = (layer.part ?? 'top') === 'shorts';
     const plain = shorts || ['jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo', 'raglan', 'fullkit', 'singlet', 'netball-dress', 'shorts'].includes(garment);
@@ -227,12 +231,12 @@ const readFavourites = (): string[] => { try { return JSON.parse(localStorage.ge
 /** The user's own design in this Studio (before the first preset, and as changed after it is chosen again), with a still of it. */
 export type OwnDesign = { design: Design; thumb?: string | null };
 /** The keys that make a design what it is (YOUR DESIGN compares them). */
-const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternColorOwn', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'parts', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks', 'fabric'] as const;
+const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternColorOwn', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'parts', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks', 'fabric', 'neck', 'fit'] as const;
 /** "1 panel", "4 panels": a print layout's panels on the kit (its roles other than 'none'). */
 const panelCount = (roles: string[]) => { const n = roles.filter(role => role !== 'none').length; return `${n} panel${n === 1 ? '' : 's'}`; };
 export const designSignature = (d: Partial<Design>) => JSON.stringify(designKeys.map(key => key === 'zones' ? areas(d.zones) : key === 'layers' ? d.layers ?? [] : key === 'marks' ? d.marks ?? {} : key === 'zoneColors' ? (Object.keys(d.zoneColors ?? {}).length ? d.zoneColors : null) : key === 'fabric' ? (d.fabric && d.fabric !== 'Standard' ? d.fabric : null) : d[key] ?? null));
 /** The whole design back, as one change (keys it lacks are cleared). */
-export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, zoneColors: null, patternColorOwn: null, parts: null, fabric: null, ...d, zones: areas(d.zones) });
+export const ownPatch = (d: Design): Partial<Design> => ({ gradient: null, gradients: null, layout: null, patternImage: null, layers: [], marks: {}, zoneColors: null, patternColorOwn: null, parts: null, fabric: null, neck: null, fit: null, ...d, zones: areas(d.zones) });
 
 /** "Preset designs": ready-made looks (All), the user's saved kits (My designs) and starred ones (Favourites); YOUR DESIGN first. */
 export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset, user, snapshot }: { design: Design; edit: (patch: Partial<Design>) => void; onNotice: (text: string) => void; own?: OwnDesign | null; onOwn?: () => void; beforePreset?: () => Promise<void>; user?: { is_admin?: boolean; is_designer?: boolean } | null; snapshot?: () => Promise<string | null | undefined> }) {

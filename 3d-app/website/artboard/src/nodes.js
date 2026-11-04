@@ -263,7 +263,20 @@ export function createNodeEditor(cfg) {
   }
   function op(name) {
     if (!target) return;
-    const by = selectedBySub();
+    let by = selectedBySub();
+    // Ctrl+J (Illustrator): two selected end nodes are joined (merged when they sit together, else by a line);
+    // otherwise the open curves (the selected ones, or all when no node is selected) are closed.
+    if (name === 'autoJoin') {
+      const ends = [...sel].map(unkey).filter(([s, n]) => model[s] && !model[s].closed && model[s].nodes.length > 1 && (n === 0 || n === model[s].nodes.length - 1));
+      if (ends.length === 2) {
+        const [[s1, n1], [s2, n2]] = ends, a = model[s1].nodes[n1], b = model[s2].nodes[n2];
+        name = Math.hypot(a.x - b.x, a.y - b.y) * canvas.getZoom() < 2 ? 'join' : 'extend';
+      } else {
+        name = 'close';
+        if (!by.size) { by = new Map(); model.forEach((sp, i) => { if (!sp.closed && sp.nodes.length > 1) by.set(i, [0]); }); }
+        if (!by.size) { cfg.toast('This curve is already closed'); return; }
+      }
+    }
     if (name === 'selectAll') { sel = new Set(); model.forEach((s, si) => s.nodes.forEach((_, ni) => sel.add(key(si, ni)))); cfg.changed?.(); canvas.requestRenderAll(); return; }
     if (!by.size && !['reverse'].includes(name)) { cfg.toast('Select one or more nodes first (click a node, or drag a box around nodes)'); return; }
     if (name === 'add') {
@@ -295,7 +308,7 @@ export function createNodeEditor(cfg) {
       for (const s of subs) { const sp = model[s]; sp.nodes.reverse(); for (const nd of sp.nodes) [nd.hi, nd.ho] = [nd.ho, nd.hi]; }
       sel = new Set();
     } else if (name === 'close') {
-      for (const s of by.keys()) model[s].closed = true;
+      for (const s of by.keys()) if (model[s].nodes.length > 1) model[s].closed = true;
     } else if (name === 'break') {
       // Split at each selected node: a closed path opens there, an open one splits in two.
       const [[s, ns]] = by;

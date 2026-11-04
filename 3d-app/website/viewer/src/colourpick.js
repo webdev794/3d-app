@@ -1,6 +1,7 @@
 // Tap the kit to pick a colour (the Studio's Colours panel): which kit colour (Primary / Secondary / Accent / Pattern)
 // or which garment area's own colour (hoodie, varsity and track jacket areas) a tapped point of the 3D kit shows.
 import { varsityColour } from './varsity.js';
+import { dressColours } from './netballdress.js';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
@@ -11,15 +12,17 @@ const FOLLOWS = {
   hoodie: { hood: 'main', lining: 'secondary', rib: 'main', pocket: 'main', zip: 'secondary', stripe: 'secondary' },
   varsity: { body: 'main', sleeves: 'secondary', rib: 'main', ribStripe: 'secondary', snaps: 'main', pocketTrim: 'secondary', lining: 'secondary' },
   trackjacket: { body: 'main', shoulder: 'secondary', side: 'secondary', stripe: 'accent', collar: 'main', cuffs: 'main', zip: 'secondary' },
+  // The netball dress (netballdress.js; NDF): the body, side panels, yoke and binding (the binding follows the yoke).
+  'netball-dress': { body: 'main', panels: 'secondary', yoke: 'secondary', binding: 'secondary' },
 };
-export const familyOf = (kind) => (kind === 'hoodie' || kind === 'ziphoodie' ? 'hoodie' : kind === 'varsity' || kind === 'trackjacket' ? kind : null);
+export const familyOf = (kind) => (kind === 'hoodie' || kind === 'ziphoodie' ? 'hoodie' : kind === 'varsity' || kind === 'trackjacket' || kind === 'netball-dress' ? kind : null);
 
 const own = (design, key) => (HEX.test(design.zoneColors?.[key] ?? '') ? design.zoneColors[key] : null);
 function trackColour(design, key) {
   const body = own(design, 'body') ?? design.main;
   return own(design, key) ?? { body, shoulder: design.secondary, side: design.secondary, stripe: design.accent, collar: body, cuffs: body, zip: design.secondary }[key];
 }
-const areaColour = (family, design, key) => (family === 'varsity' ? varsityColour(design, key) : family === 'trackjacket' ? trackColour(design, key) : own(design, key) ?? design[FOLLOWS.hoodie[key]]);
+const areaColour = (family, design, key) => (family === 'varsity' ? varsityColour(design, key) : family === 'trackjacket' ? trackColour(design, key) : family === 'netball-dress' ? dressColours(design)[key] : own(design, key) ?? design[FOLLOWS.hoodie[key]]);
 
 /** The zone's usual kit colour (plain garments), used when the print's pixel matches none of them. */
 const ZONE_SLOT = { body: 'main', yoke: 'main', sleeves: 'main', pocket: 'main', hood: 'main', sides: 'secondary', hem: 'secondary' };
@@ -91,6 +94,7 @@ export function colourFor(design, { kind, zone, pixel, area, fixed, fullPrint = 
     // The area whose colour the pixel shows; ties go to the one the zone suggests.
     const guess = family === 'trackjacket'
       ? { sleeves: 'shoulder', yoke: 'shoulder', sides: 'side', hood: 'collar', hem: 'cuffs' }[zone] ?? 'body'
+      : family === 'netball-dress' ? { sides: 'panels', yoke: 'yoke' }[zone] ?? 'body'
       : zone === 'sleeves' ? 'sleeves' : 'body';
     let best = { key: guess, d: Infinity };
     if (pixel) for (const key of Object.keys(FOLLOWS[family])) {

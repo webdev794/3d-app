@@ -21,7 +21,7 @@ class Order extends Model
 
     /** A saved design's garment that the order form lists under another row (a full kit is a jersey and shorts). */
     /** (The netball dress, task 9.126, is ordered on a singlet row, named by its product "Netball dress".) */
-    public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo', 'nfljersey' => 'jersey', 'compression' => 'tee', 'varsity' => 'jacket', 'trackjacket' => 'jacket', 'netball-dress' => 'singlet'];
+    public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo', 'nfljersey' => 'jersey', 'compression' => 'tee', 'shooting-shirt' => 'tee', 'varsity' => 'jacket', 'trackjacket' => 'jacket', 'netball-dress' => 'singlet'];
 
     /**
      * Whether an order row is the saved design's own garment, so the design's product name ("Netball bibs", task 9.99)
@@ -64,6 +64,9 @@ class Order extends Model
     public const KIDS_SIZES = ['2Y', '4Y', '6Y', '8Y', '10Y', '12Y', '14Y', '16Y'];
 
     public const OLD_KIDS = 'Kids';
+
+    /** A marquee ordered from the Marquee Studio (Signage & Marquees, 2026-11-02): how many of its size, e.g. {"3x3 m": 2}. */
+    public const MARQUEE_SIZES = ['3x3 m', '3x6 m'];
 
     /** Every size, in order: Mens, Womens, Kids, then the older Kids column. */
     public const SIZES = [...self::MENS_SIZES, ...self::WOMENS_SIZES, ...self::KIDS_SIZES, self::OLD_KIDS];
@@ -116,6 +119,10 @@ class Order extends Model
     protected static function booted(): void
     {
         static::saving(function (Order $order) {
+            // The confirmation's version (images/338): up by one when a sent order's garments, sizes or players change.
+            if ($order->exists && $order->isDirty(['items', 'sizes', 'players']) && \Illuminate\Support\Facades\Schema::hasColumn('orders', 'version')) {
+                $order->version = (int) ($order->getOriginal('version') ?: 1) + 1;
+            }
             if ($order->isDirty(['names', 'players'])) {
                 $order->players = self::tidyPlayers($order->names, $order->players);
             }
@@ -301,7 +308,8 @@ class Order extends Model
         if (filled($item['label'] ?? null)) {
             return (string) $item['label'];
         }
-        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? null;
+        // A catalogue sport by its name, or a sport typed in "Custom…" (client 2026-11-02) as typed.
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? (filled($item['sport'] ?? null) ? trim((string) $item['sport']) : null);
 
         return trim(($sport ? $sport.' ' : '').(self::GARMENTS[$item['garment'] ?? 'other'] ?? 'Garment'));
     }

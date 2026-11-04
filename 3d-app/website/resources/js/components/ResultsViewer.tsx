@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom';
 import { Expand, Minus, Plus, X } from 'lucide-react';
 
 /**
- * The AI designer's results viewer (client visual 2026-10-22, images/146.jpg; wider 2026-10-30, images/240.jpg): one
- * large design in a wide frame that fills the space between the heading and the controls, the picture centred in it at
- * its own proportions (never cropped or stretched) over its blurred backdrop; the other designs as bigger cards stacked
- * in a column at its right (in a row under it on phones). The cards are page elements only: downloads and the 3D
- * Designer get the selected picture alone.
+ * The AI designer's results viewer (client visual 2026-10-22, images/146.jpg; wider 2026-10-30, images/240.jpg; open
+ * 2026-11-02, images/303.jpg): one large design, open on the page (no frame, no blurred copy at its sides, a soft fade
+ * at its edges), as big as the space between the heading and the controls allows, at its own proportions (never
+ * cropped or stretched); the other designs as bigger cards stacked in a column right beside it (in a row under it on
+ * phones). The cards are page elements only: downloads and the 3D Designer get the selected picture alone.
  */
 export type ViewerThumb = { index: number; label: string; disabled: boolean; content: ReactNode };
 
@@ -47,14 +47,19 @@ export function ResultsViewer({ id, image, alt, defaultRatio, main, thumbs, tool
   const ar = (image && ratios[image]) || defaultRatio;
   const l = viewerLayout(box.w, box.h, ar);
   const ready = box.w > 0 && box.h > 0;
+  // The page's column fits the picture at its full height (CSS --aid-fit), so the cards sit right beside it.
+  useLayoutEffect(() => {
+    const host = area.current?.parentElement;
+    if (host && box.h > 0) host.style.setProperty('--aid-fit', `${Math.floor(box.h * ar)}px`);
+  }, [box.h, ar]);
   return <>
     <div className="aid-view-area" ref={area}>
       {ready && <div className={`aid-viewer${image ? '' : ' is-fill'}`} aria-busy={busy}>
         <div className="aid-viewer-clip">
-          {image && <img className="aid-viewer-backdrop" src={image} alt="" aria-hidden="true" />}
           <div key={id} className="aid-viewer-art" style={image ? { left: l.left, top: l.top, width: l.iw, height: l.ih } : undefined} title={alt}>{main}</div>
         </div>
-        <div className="aid-viewer-tools">
+        {/* ⋯ and full screen on the picture's top right corner. */}
+        <div className="aid-viewer-tools" style={image ? { top: l.top + 10, right: Math.max(0, box.w - l.left - l.iw) + 10 } : undefined}>
           {tools}
           {image && <button type="button" className="aid-round" onClick={() => setFull(true)} aria-label="Full screen" title="Full screen (pinch or scroll to zoom)"><Expand size={18} /></button>}
         </div>
@@ -63,7 +68,7 @@ export function ResultsViewer({ id, image, alt, defaultRatio, main, thumbs, tool
     </div>
     <div className="aid-side">
       {thumbs.length > 0 && <>
-        <small className="aid-thumbs-hint" aria-hidden="true">Tap to switch</small>
+        <div className="aid-side-head"><b>OTHER OPTIONS</b><small className="aid-thumbs-hint" aria-hidden="true">Click to preview</small></div>
         <div className="aid-thumbs" role="list" aria-label="Other designs">{thumbs.map(t => <div role="listitem" className="aid-thumb-item" key={t.index}>
           <button type="button" className="aid-thumb" disabled={t.disabled} onClick={() => onPick(t.index)} aria-label={t.label} title={t.label}>
             <span className="aid-thumb-art">{t.content}</span>

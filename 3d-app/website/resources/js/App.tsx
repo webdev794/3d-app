@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, House, LoaderCircle, LogOut, Menu, PenTool, Shirt, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
-import { api, getToken, media, setToken, type Catalog, type Project, type User } from './api';
+import { api, draftKey, getToken, keepDraft, media, setToken, type Catalog, type Project, type User } from './api';
 import { defaultDesign, type Design } from './types';
 import { AiDesigner, ConvertPage, GarmentSelection, SportSelection, backForSport, tileMarks } from './pages/Create';
 import PricingPage from './pages/Pricing';
@@ -32,10 +32,12 @@ import { QuickPills, useHeaderFit } from './components/QuickPills';
 import AccountMenu, { AccountGroup } from './components/AccountMenu';
 import EditProfilePage from './pages/EditProfile';
 import { SupplierApplyPage, SuppliersPage } from './pages/Suppliers';
+// SIGNAGE & MARQUEES (client mockups 297 / 298, 2026-11-02): the landing page and the Marquee Studio.
+import { MarqueeStudio, SignagePage, isMarqueeProject, marqueeDraftFromProject, storeMarqueeDraft } from './pages/Signage';
 
 export interface Draft { id?: number; version?: number; name: string; sport: string; garment: string; mode: 'ai' | 'dyo'; design: Design; thumbnail?: string | null; /** AI pattern motif still to be generated for this design. */ patternMotif?: string; /** A design picture (a saved asset) the Studio puts on the 3D kit when it opens (checked on screen first). */ pendingDrawing?: { asset: number; name: string; /** The garment is the one asked for (a 3DEEZI TEAM request): the check screen opens on it, not on a guess from the picture. */ known?: boolean; /** A note shown with the result (task 9.116: "Shown on our singlet: the closest 3D garment …"). */ note?: string; /** Artwork to 3D (task 9.153): 'layout' is a factory print layout (panels checked, then mapped), of file type `type`. */ kind?: 'layout'; type?: string } }
 export const newDraft = (): Draft => ({ name: 'Untitled kit', sport: 'rugby-league', garment: 'jersey', mode: 'dyo', design: { ...defaultDesign } });
-const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', nfljersey: 'nfljersey', 'football jersey': 'nfljersey', compression: 'compression', 'compression top': 'compression', socks: 'socks', cap: 'cap', skirt: 'skirt', 'netball skirt': 'skirt', 'tennis skirt': 'skirt', skort: 'skirt', 'hockey skort': 'skirt', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', 'netball-dress': 'netball-dress', 'netball dress': 'netball-dress', dress: 'netball-dress', polo: 'polo', pocketpolo: 'pocketpolo', 'polo with pocket': 'pocketpolo', hoodie: 'hoodie', ziphoodie: 'ziphoodie', 'zip hoodie': 'ziphoodie', varsity: 'varsity', 'varsity jacket': 'varsity', trackjacket: 'trackjacket', 'track jacket': 'trackjacket', 'track suit jacket': 'trackjacket', 'tracksuit jacket': 'trackjacket', fullkit: 'fullkit', 'full kit': 'fullkit' };
+const garmentIds: Record<string, Design['garment']> = { jersey: 'jersey', nfljersey: 'nfljersey', 'football jersey': 'nfljersey', compression: 'compression', 'compression top': 'compression', 'shooting-shirt': 'shooting-shirt', 'shooting shirt': 'shooting-shirt', socks: 'socks', cap: 'cap', 'five-panel-cap': 'five-panel-cap', '5 panel cap': 'five-panel-cap', '5-panel cap': 'five-panel-cap', beanie: 'beanie', 'bucket-hat': 'bucket-hat', 'bucket hat': 'bucket-hat', skirt: 'skirt', 'netball skirt': 'skirt', 'tennis skirt': 'skirt', skort: 'skirt', 'hockey skort': 'skirt', shorts: 'shorts', tee: 'tee', 'training tee': 'tee', singlet: 'singlet', 'netball-dress': 'netball-dress', 'netball dress': 'netball-dress', dress: 'netball-dress', polo: 'polo', pocketpolo: 'pocketpolo', 'polo with pocket': 'pocketpolo', hoodie: 'hoodie', ziphoodie: 'ziphoodie', 'zip hoodie': 'ziphoodie', varsity: 'varsity', 'varsity jacket': 'varsity', trackjacket: 'trackjacket', 'track jacket': 'trackjacket', 'track suit jacket': 'trackjacket', 'tracksuit jacket': 'trackjacket', fullkit: 'fullkit', 'full kit': 'fullkit' };
 /** Seeded projects can store a null garment and older AI concepts a display name ("Jersey"); every draft gets a valid id so it stays saveable. */
 function normalizeDraft(draft: Draft): Draft {
   const pick = (g?: string | null) => (g ? garmentIds[String(g).toLowerCase()] : undefined);
@@ -45,7 +47,7 @@ function normalizeDraft(draft: Draft): Draft {
 }
 function loadDraft(): Draft {
   try {
-    const saved = sessionStorage.getItem('3deezi.draft');
+    const saved = sessionStorage.getItem(draftKey);
     return saved ? normalizeDraft({ ...newDraft(), ...JSON.parse(saved) }) : newDraft();
   } catch { return newDraft(); }
 }
@@ -74,7 +76,7 @@ export default function App() {
     window.addEventListener('session-expired', expire);
     return () => window.removeEventListener('session-expired', expire);
   }, []);
-  useEffect(() => { try { sessionStorage.setItem('3deezi.draft', JSON.stringify(draft)); } catch { /* Large image edits remain in memory. */ } }, [draft]);
+  useEffect(() => { keepDraft(draft); /* Large image edits that the browser refuses remain in memory. */ }, [draft]);
   useEffect(() => { setMenuOpen(false); window.scrollTo({ top: 0 }); }, [location.pathname]);
   useEffect(() => { if (notice) { const timer = setTimeout(() => setNotice(''), 6500); return () => clearTimeout(timer); } }, [notice]);
 
@@ -106,7 +108,7 @@ export default function App() {
     if (location.pathname !== '/create/sport' || (location.state as { keep?: boolean } | null)?.keep) return;
     setDraft(d => (d.id || d.mode !== 'dyo' || d.pendingDrawing || d.design.layout) ? { ...newDraft(), mode: 'dyo' } : d);
   }, [location.pathname, location.state]);
-  function openProject(project: Project) { setDraft({ ...project, design: { ...defaultDesign, ...project.design } }); navigate('/studio'); }
+  function openProject(project: Project) { if (isMarqueeProject(project)) { storeMarqueeDraft(marqueeDraftFromProject(project)); navigate('/signage/marquee'); return; } setDraft({ ...project, design: { ...defaultDesign, ...project.design } }); navigate('/studio'); }
   /** A 3DEEZI TEAM design picture (a saved asset) onto the 3D kit: the Studio checks it on the garment the request names (a design picture fits a singlet, jersey, tee or polo, with or without the pocket), then puts it on as drawn (as the AI designer's "MAKE IT 3D"). */
   function openDesignPicture(picture: { asset: number; name: string; garment: string; sport: string }) {
     const base = newDraft();
@@ -134,6 +136,13 @@ export default function App() {
       return;
     }
     // The skirt: the design picture's colours and logo on the skirt itself (a print sheet is drawn for tops).
+    // The bucket hat: the design picture's colours and logo on the hat itself.
+    if (picture.garment === 'bucket-hat') {
+      setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: 'bucket-hat', mode: 'dyo', design: { ...base.design, garment: 'bucket-hat', layout: null } });
+      navigate('/studio');
+      setNotice('The bucket hat takes your design’s colours and logo. Your design picture is in your Assets.');
+      return;
+    }
     if (picture.garment === 'skirt') {
       setDraft({ ...base, name: picture.name || 'My design', sport: picture.sport || base.sport, garment: 'skirt', mode: 'dyo', design: { ...base.design, garment: 'skirt', layout: null } });
       navigate('/studio');
@@ -162,7 +171,7 @@ export default function App() {
     {!studio && <header ref={headerRef} className={`site-header ${location.pathname === '/' ? 'is-home' : ''}`}><div className="header-inner">
       <Link to="/" className="brand" aria-label="3DEEZI home"><img src={media('images/brand-final.png')} alt="3DEEZI" /><span>AI SPORTSWEAR DESIGNER</span></Link>
       <nav className={`main-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
-        <NavLink to="/" end className={() => 'nav-home'} onClick={() => setMenuOpen(false)}><House size={15} /> Home</NavLink><NavLink to="/" end>Create</NavLink><ProjectsMenu onNavigate={() => setMenuOpen(false)} /><OrdersMenu onNavigate={() => setMenuOpen(false)} /><NavLink to="/suppliers">Suppliers</NavLink><NavLink to="/team" className="nav-team">3DEEZI Team</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}{user?.is_designer && !user.is_admin && <NavLink className="nav-admin" to="/designer"><PenTool size={15} /> Designer</NavLink>}
+        <NavLink to="/" end className={() => 'nav-home'} onClick={() => setMenuOpen(false)}><House size={15} /> Home</NavLink><NavLink to="/" end>Create</NavLink><ProjectsMenu onNavigate={() => setMenuOpen(false)} /><OrdersMenu onNavigate={() => setMenuOpen(false)} /><NavLink to="/signage" className="nav-signage">Signage &amp; Marquees</NavLink><NavLink to="/suppliers">Suppliers</NavLink><NavLink to="/team" className="nav-team">3DEEZI Team</NavLink><NavLink to="/downloads">Downloads</NavLink><NavLink to="/pricing">Subscriptions</NavLink>{user?.is_admin && <NavLink className="nav-admin" to="/admin"><ShieldCheck size={15} /> Admin</NavLink>}{user?.is_designer && !user.is_admin && <NavLink className="nav-admin" to="/designer"><PenTool size={15} /> Designer</NavLink>}
         <button className="nav-quick" onClick={() => { setMenuOpen(false); start('ai'); }}><Sparkles size={15} /> AI Powered Sportswear</button><button className="nav-quick" onClick={() => { setMenuOpen(false); start('dyo'); }}><Shirt size={15} /> Design Your Own</button>
         {user && <AccountGroup user={user} onSignOut={logout} onNavigate={() => setMenuOpen(false)} />}
       </nav>
@@ -172,10 +181,10 @@ export default function App() {
     <main><Routes>
       <Route path="/" element={<Home onStart={start} />} />
       <Route path="/create/ai" element={<AiDesigner catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} onNotice={setNotice} signedIn={!!user} checking={checkingSession} onOpenProject={openProject} />} />
-      <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={sport => setDraft(d => ({ ...d, sport, mode: 'dyo', design: { ...d.design, ...backForSport(d.design, catalog, d.sport, sport) } }))} onNext={() => navigate('/create/garment')} />} />
-      <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={({ garment, productName, design }) => setDraft(d => ({ ...d, garment, design: { ...d.design, ...design, ...tileMarks(d.design, design), garment: garment as Design['garment'], productName } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport', { state: { keep: true } })} />} />
+      <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={(sport, sportName) => setDraft(d => ({ ...d, sport, mode: 'dyo', design: { ...d.design, ...backForSport(d.design, catalog, d.sport, sport), sportName: sportName || undefined } }))} onNext={() => navigate('/create/garment')} />} />
+      <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={({ garment, productName, design }) => setDraft(d => ({ ...d, garment, design: { ...d.design, ...design, ...tileMarks(d.design, design, garment), garment: garment as Design['garment'], productName } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport', { state: { keep: true } })} />} />
       {/* Convert is in the PROJECTS menu (client 2026-10-26): the Projects tab row above it, as on My projects, Approved and Assets. */}
-      <Route path="/convert" element={<><ProjectsTabs shell /><ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} /></>} />
+      <Route path="/convert" element={<><ProjectsTabs shell /><ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} onNotice={setNotice} /></>} />
       <Route path="/admin" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section/:itemId" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
@@ -200,6 +209,8 @@ export default function App() {
       {/* Preferred suppliers (task 9.118): the page and "Become a preferred supplier" (pages/Suppliers.tsx). */}
       <Route path="/suppliers" element={<SuppliersPage user={user} />} />
       <Route path="/suppliers/apply" element={<SupplierApplyPage user={user} checking={checkingSession} requireAuth={requireAuth} />} />
+      <Route path="/signage" element={<SignagePage />} />
+      <Route path="/signage/marquee" element={<MarqueeStudio user={user} requireAuth={requireAuth} onNotice={setNotice} />} />
       <Route path="/downloads" element={<DownloadsPage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/support" element={<SupportPage user={user} />} />

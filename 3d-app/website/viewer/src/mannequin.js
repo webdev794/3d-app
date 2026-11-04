@@ -295,10 +295,10 @@ export function buildMannequin(garment, material, { over = false } = {}) {
     const hips = horizontalRings(trunk, body.crotch + 0.01, maxY - 0.008, 0.007);
     if (hips.length) { roundEnd(hips, up, 0.02); add(hips, () => INSIDE); }
     for (const sg of [1, -1]) {
-      const leg = horizontalRings(trunk, minY + 0.004, body.crotch + 0.03, 0.007, (p) => Math.sign(p.x) === sg).reverse();
+      // (FN4 2026-10-30: the thighs end just inside the leg openings, so no stubs show under the hems, as on every
+      // shorts picture; the stand goes up into one of them.)
+      const leg = horizontalRings(trunk, minY + 0.022, body.crotch + 0.03, 0.007, (p) => Math.sign(p.x) === sg).reverse();
       if (leg.length < 2) continue;
-      // The thighs end about 4 cm below the leg openings, well above the podium; the stand goes into one of them.
-      extend(leg, down, 0.035, 0.05, 3);
       roundEnd(leg, down, 0.01);
       add(leg, below(minY));
       group.userData.feet.push(leg.at(-1).reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(BINS));
@@ -357,7 +357,7 @@ export function buildMannequin(garment, material, { over = false } = {}) {
       if (arm.length < 30) continue;
       // A long sleeve's arm stops about 5 cm inside it: its rib cuff is drawn in narrower than the arm, and a rounded
       // end there would show below the cuff. Through the cuff the opening then looks into shade.
-      const lMax = arm.reduce((m, p) => Math.max(m, p.l), 0), lEnd = body.long ? lMax - 0.05 : body.pads ? lMax - 0.03 : lMax - 0.004, bins = [];
+      const lMax = arm.reduce((m, p) => Math.max(m, p.l), 0), lEnd = body.long ? lMax - 0.05 : body.pads ? lMax - 0.03 : body.looseSleeve ? lMax - 0.012 : lMax - 0.004, bins = [];
       for (let l = 0.035; l <= lEnd; l += 0.012) {
         const near = arm.filter((p) => Math.abs(p.l - l) < 0.008);
         if (near.length < 8) continue;
@@ -373,7 +373,8 @@ export function buildMannequin(garment, material, { over = false } = {}) {
           const th = (2 * Math.PI * (k + 0.5)) / BINS;
           // A long sleeve bends and narrows to the wrist: the arm kept well inside it (only its cuff shows it).
           // A shoulder-pad sleeve (the American football jersey) stands well off the arm: the arm stays thin, inside it.
-          const in_ = body.long ? Math.max(0.01, 0.8 * rad - 0.01) : body.pads ? Math.max(0.01, Math.min(rad - 0.012, 0.042)) : Math.max(0.01, rad - 0.006);
+          // A loose sleeve (the shooting shirt) stands off the arm too: the arm the usual size inside it.
+          const in_ = body.long ? Math.max(0.01, 0.8 * rad - 0.01) : body.pads ? Math.max(0.01, Math.min(rad - 0.012, 0.042)) : body.looseSleeve ? Math.max(0.01, Math.min(rad - 0.01, 0.046)) : Math.max(0.01, rad - 0.006);
           return c.clone().addScaledVector(u, in_ * Math.cos(th)).addScaledVector(v, in_ * Math.sin(th));
         });
       });

@@ -25,7 +25,8 @@ export const VARSITY = {
   welt: { a: [0.118, 0.292], b: [0.166, 0.148], w: 0.021 },
   collarGap: 0.006,
   hemGap: 0.0016,
-  rib: { collar: 0.052, waist: 0.065, cuff: 0.062 },
+  // (FN5 2026-10-30, DT7: narrow cuffs as the varsity pictures, 4.2 cm instead of 6.2.)
+  rib: { collar: 0.04, waist: 0.065, cuff: 0.022 },
   atlas: { waistTop: 0.9, cuffTop: 1.045, cuffX: 0.08, collarBottom: 0.862 },
   stripes: [[0.6, 0.69], [0.78, 0.87]],
 };
@@ -146,7 +147,10 @@ const rect = (x0, y0, x1, y1) => [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y
  */
 export function buildVarsityParts(spec, ctx) {
   const { poly, seam, positions, n, minY, maxY, uvAt, uvBack } = ctx;
-  const V = VARSITY;
+  // (FX-V 2026-11-02: the NFL tile's boxy cut has deeper rib cuffs and waistband: spec.varsityRib.)
+  let V = spec.varsityRib ? { ...VARSITY, rib: { ...VARSITY.rib, ...spec.varsityRib } } : VARSITY;
+  // (FX-V: the NFL tile's V collar: the placket and the top snap lower, below the V's foot.)
+  if (spec.varsityV) V = { ...V, placket: { ...V.placket, top: spec.varsityV.placketTop }, snaps: [spec.varsityV.topSnap, ...V.snaps.slice(1)] };
   const sampleFront = panelSampler(ctx, false);
   const full = { ...ctx, sampleFront };
   const vtx = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
@@ -204,7 +208,15 @@ export function buildVarsityParts(spec, ctx) {
   const cg = V.collarGap;
   const frontR = neckIdx.filter((i) => poly[i].x >= cg).sort(byX), frontL = neckIdx.filter((i) => poly[i].x <= -cg).sort(byX);
   const collarLoop = [...frontR.map(vtx), ...neckIdx.slice().sort(byX).reverse().map((i) => vtx(n + i)), ...frontL.map(vtx)];
-  const collar = buildRib(collarLoop, { dir: new THREE.Vector3(0, 1, -0.32).normalize(), length: V.rib.collar, squeeze: 0.07, open: true });
+  // (FX-V 2026-11-02, the NFL varsity tile (spec.varsityCollarSmooth): a smooth knit band lying flatter, no waves: the
+  // neck edge's points smoothed so the band's top runs level.)
+  if (spec.varsityCollarSmooth) {
+    for (let pass = 0; pass < 24; pass++) {
+      const prev = collarLoop.map((p) => p.clone());
+      for (let k = 1; k < collarLoop.length - 1; k++) collarLoop[k].copy(prev[k - 1]).add(prev[k + 1]).multiplyScalar(0.25).addScaledVector(prev[k], 0.5);
+    }
+  }
+  const collar = buildRib(collarLoop, { dir: new THREE.Vector3(0, 1, spec.varsityCollarSmooth ? -0.6 : -0.32).normalize(), length: V.rib.collar, squeeze: spec.varsityCollarSqueeze ?? 0.07, open: true });
   let cl = 0;
   const collarLength = onAtlas(collar, (a, t, len) => { cl = len; return uvBack(len / 2 - a, A.collarBottom + t * V.rib.collar); });
   ribs.push(collar);
@@ -437,7 +449,8 @@ export function paintVarsity(painter, design, back) {
     g.fillStyle = rib;
     g.fillRect(x0, y0, x1 - x0, y1 - y0);
     g.fillStyle = stripe;
-    for (const [a, b] of VARSITY.stripes) {
+    // (FX-V: the NFL varsity tile's taller collar has its two stripes nearer the middle, so they show from the front.)
+    for (const [a, b] of piece.rib === 'collar' && painter.varsityBoxy ? [[0.3, 0.42], [0.55, 0.67]] : VARSITY.stripes) {
       const ya = piece.top + piece.dir * a * piece.height, yb = piece.top + piece.dir * b * piece.height;
       g.fillRect(x0, Math.min(ya, yb), x1 - x0, Math.abs(yb - ya));
     }
@@ -489,11 +502,12 @@ function chenilleText(painter, str, { size, fill, border, maxWidth, arc = 0 }) {
   });
   const each = (draw) => chars.forEach((ch, i) => { const [x, y, a] = place[i]; g.save(); g.translate(x, y); g.rotate(a); g.scale(squeeze, 1); draw(ch); g.restore(); });
   // Outer edge, felt border, then the chenille fill with its tufted texture.
+  // (FN5 2026-10-30, DT7: a thick felt border as the pictures' chest patch.)
   g.strokeStyle = 'rgba(0,0,0,0.35)';
-  g.lineWidth = size * 0.26;
+  g.lineWidth = size * 0.36;
   each((ch) => g.strokeText(ch, 0, 0));
   g.strokeStyle = border;
-  g.lineWidth = size * 0.2;
+  g.lineWidth = size * 0.3;
   each((ch) => g.strokeText(ch, 0, 0));
   g.fillStyle = tufted(g, fill);
   each((ch) => g.fillText(ch, 0, 0));
@@ -507,7 +521,7 @@ const SLEEVE_TURN = Math.PI / 4;
 /**
  * The varsity's fixed marks: a chenille letter (the club's initial) or the club's logo on the left chest, the club
  * name arched across the upper back, the player's name and a big number below it, the sponsor as a patch on the right
- * sleeve, and a round felt number patch on the left sleeve.
+ * sleeve.
  */
 export function paintVarsityMarks(painter, design, { logo, logoImg, sponsorImg, ownArt }) {
   const sleeves = varsityColour(design, 'sleeves');
@@ -521,6 +535,17 @@ export function paintVarsityMarks(painter, design, { logo, logoImg, sponsorImg, 
   else if (!ownArt) {
     const letter = ([...logo].find((ch) => /[A-Z0-9]/.test(ch)) ?? 'V');
     painter.mark(design, 'crest', crest, () => chenilleText(painter, letter, { size: 0.13, ...felt, maxWidth: 0.12 }));
+  }
+  // (BR1 2026-11-02, the user: every item carries the 3DEEZI "3" mark and wordmark: as the NFL varsity picture, the "3"
+  // over a small 3DEEZI on the right chest, across from the chenille letter; not over the club's own logo or artwork.)
+  const mark = painter._brandMark, word = painter._brandWord;
+  if (!logoImg && !ownArt && mark && word) {
+    painter.mark(design, 'brand', { side: 'front', x: painter.varsityBoxy ? -0.125 : -0.105, y: 0.555 }, (g) => {
+      const big = painter.varsityBoxy ? 2.1 : 1, mw = 0.05 * big, mh = (mw * mark.height) / mark.width, ww = 0.075 * big, wh = (ww * word.height) / word.width, gap = 0.006, all = mh + gap + wh;
+      g.drawImage(mark, -mw / 2, -all / 2, mw, mh);
+      g.drawImage(word, -ww / 2, all / 2 - wh, ww, wh);
+      return { w: ww, h: all };
+    });
   }
   painter.mark(design, 'wordmark', { side: 'back', x: 0, y: 0.585 }, () => (logo ? chenilleText(painter, logo, { size: 0.062, ...felt, maxWidth: 0.36, arc: 0.42 }) : null));
   const backName = (design.backName || logo).toUpperCase();
@@ -536,18 +561,5 @@ export function paintVarsityMarks(painter, design, { logo, logoImg, sponsorImg, 
       return { w, h };
     });
   }
-  // The left sleeve's felt patch: a disc in the body's colour with the number on it (fixed).
-  if (!number.trim()) return;
-  const g = painter.ctx;
-  g.save();
-  painter.clipOutline(false);
-  g.translate(0.34, 0.555);
-  g.scale(1, -1);
-  g.rotate(-SLEEVE_TURN);
-  g.fillStyle = design.accent;
-  g.beginPath(); g.arc(0, 0, 0.036, 0, Math.PI * 2); g.fill();
-  g.fillStyle = varsityColour(design, 'body');
-  g.beginPath(); g.arc(0, 0, 0.031, 0, Math.PI * 2); g.fill();
-  painter.centredText(number, 0.04, design.accent, 0.05);
-  g.restore();
+  // (FN5 2026-10-30, DT7: no felt number patch on the left sleeve: the varsity pictures have none.)
 }

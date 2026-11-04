@@ -13,12 +13,13 @@ class ViewerHost {
     String page = 'viewer',
     String channel = 'Viewer',
     String query = '',
+    String file = 'index.html',
   }) {
     final id = '3deezi-$page-${_next++}';
     _viewType = id;
     _iframe = web.HTMLIFrameElement()
       ..src =
-          'assets/assets/$page/index.html?host=$id${query.isEmpty ? '' : '&$query'}'
+          'assets/assets/$page/$file?host=$id${query.isEmpty ? '' : '&$query'}'
       ..allow = 'fullscreen';
     _iframe.style
       ..border = 'none'

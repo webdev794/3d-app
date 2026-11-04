@@ -616,3 +616,72 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 6. Open and leave the Studio 30+ times in one session: the 3D loads every time.
 
 ---
+
+---
+
+**AI Designer: upload design files (2026-11-02)**
+1. On the AI Designer home, press + or the picture button: the picker lists PDF, SVG, AI, EPS, PSD, PNG, JPG and more.
+2. Upload a 2-page PDF: a 'Which page?' window shows both pages; pick page 2; the chip shows 'PDF · page 2 of 2'.
+3. Upload an SVG and a PNG; remove one with the x.
+4. Upload an EPS: a clear message asks to save it as PDF, SVG or PNG.
+5. Generate: the designs come back; Assets > Design files keeps the original file.
+6. In the app: + > Design file, the same.
+
+---
+
+---
+
+**Custom sport / garment (2026-11-02)**
+1. Artwork to 3D: Sport > Custom..., type Bowling; Garment > Custom..., type Snapback cap: the page says '3D preview uses cap' and the Studio opens on the cap, labelled 'Bowling · Snapback cap'.
+2. Design Your Own: 'Custom... type your own sport', then a garment; or a 'Custom...' garment tile.
+3. AI designer: the 'Custom...' garment chip.
+4. Order form: Custom... garment with your own name; the order and invoice show it.
+5. The same in the app.
+
+---
+
+---
+
+**Calmer stadium lights (2026-11-02)**
+1. Open the Studio (website, and the app on a phone), pick any kit, look at Front and 3/4: the stadium lights behind are soft, with no bright glare beside the sleeves; the kit colours look the same as before.
+
+---
+
+---
+
+**AI Designer results without the box (2026-11-02)**
+1. Make designs in the AI Designer: the chosen design sits open on the page (no box, no blurred side bands), the other 3 designs on the right, the buttons underneath.
+2. On a phone: the same, with the 3 designs in a row under the picture.
+
+---
+
+---
+
+**3DEEZI logo and wordmark on every item (2026-11-02)**
+1. Design Your Own > Football > Football socks > Continue: a small 3DEEZI under the "3" on each shin.
+2. Basketball > Varsity jacket: the "3" over 3DEEZI on the right chest.
+3. Netball > Netball bibs / Singlet with bib: the "3" over 3DEEZI above the letters.
+4. Darts & Pool > Darts shirt: the "3" on the right chest, across from the pocket.
+5. The same in the app.
+
+---
+
+---
+
+**Signage & Marquees (2026-11-02, website)**
+1. Top menu > SIGNAGE & MARQUEES: six product tiles (Marquees live, the others Coming soon), a 3D stage, Marquee setup (size 3x3 / 3x6, walls, view) changes the marquee.
+2. START DESIGNING: the Marquee Studio. Pick a zone (list or tap the 3D), add text, a logo, a pattern, colours; Move / Scale by dragging on the 3D.
+3. Open 2D layout: every panel flat. EXPORT: print PDF or PNG panels.
+4. SAVE, then reopen it from My projects. REVIEW DESIGN: tick 'checked every panel', order; the order shows in My Orders.
+
+---
+
+---
+
+**Studio Style: neck, rugby collars and fit (2026-11-02)**
+1. Studio > Style on the rugby Jersey: click ROUND NECK; the 3D and the NECK DETAIL close-up change, the logos stay.
+2. NECK TRIM White; then RC006 and Fit Classic; Save, reopen from My projects: still RC006 / Classic.
+3. Switch to Polo (no neck cards) and Singlet (round, then V-neck).
+4. The same in the app (Style tab).
+
+---

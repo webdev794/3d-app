@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3DEEZI file reader</title>
+<!--
+  The app's AI Designer (client 2026-11-02, picture 295.jpg): a design file attached to the brief (PDF, PDF-compatible
+  AI, SVG; TIFF/HEIC where the WebView opens them) drawn as a picture for the AI. A hidden page beside the 3D viewer,
+  using the same pdf.js build (pdf-reader.js) as print layouts. Hand-written, not built by website/viewer/build.mjs.
+
+  Commands (window.viewer.receive, as the viewer's): {cmd: 'draw', arg: {id, src: data URL, page, long, thumbs}}.
+  Replies: {type: 'drawn', id, image: PNG data URL, pages, thumbs: [PNG data URLs]} or {type: 'drawn', id, error}.
+-->
+</head>
+<body style="margin:0;background:#03060a">
+<script>
+(() => {
+  const HOST = new URLSearchParams(location.search).get('host');
+  const post = (msg) => {
+    const text = JSON.stringify({ ...msg, host: HOST });
+    if (window.Reader) window.Reader.postMessage(text);
+    else if (window.parent !== window) window.parent.postMessage(text, '*');
+  };
+  let reader = null;
+  const pdfReader = () => (reader ??= new Promise((resolve, reject) => {
+    if (globalThis.pdfjsReader) { resolve(globalThis.pdfjsReader); return; }
+    const script = document.createElement('script');
+    script.src = new URL('pdf-reader.js', location.href).href;
+    script.onload = () => (globalThis.pdfjsReader ? resolve(globalThis.pdfjsReader) : reject(new Error('The PDF reader did not start.')));
+    script.onerror = () => reject(new Error('The PDF reader could not be loaded.'));
+    document.head.append(script);
+  }).catch((error) => { reader = null; throw error; }));
+
+  async function drawPage(doc, n, long) {
+    const page = await doc.getPage(n);
+    const one = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: long / Math.max(one.width, one.height) });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(viewport.width));
+    canvas.height = Math.max(1, Math.round(viewport.height));
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: g, viewport }).promise;
+    return canvas.toDataURL('image/png');
+  }
+
+  async function draw({ src, page = 1, long = 1600, thumbs = 0 }) {
+    if (/^data:application\/pdf/i.test(String(src).slice(0, 48))) {
+      const pdfjs = await pdfReader();
+      const bytes = Uint8Array.from(atob(src.slice(src.indexOf(',') + 1)), (ch) => ch.charCodeAt(0));
+      const task = pdfjs.getDocument({ data: bytes, isEvalSupported: false });
+      try {
+        const doc = await task.promise;
+        const n = Math.min(Math.max(1, page | 0), doc.numPages);
+        const small = [];
+        for (let i = 1; i <= Math.min(thumbs | 0, doc.numPages); i++) small.push(await drawPage(doc, i, 240));
+        return { image: await drawPage(doc, n, long), pages: doc.numPages, thumbs: small };
+      } finally { task.destroy(); }
+    }
+    // SVG drawn sharp at `long`; a picture (TIFF or HEIC where this WebView opens it) never enlarged.
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('This file could not be read.'));
+      el.src = src;
+    });
+    const w = img.naturalWidth || 1000, h = img.naturalHeight || 1000;
+    const k = /^data:image\/svg/i.test(String(src).slice(0, 32)) ? long / Math.max(w, h) : Math.min(1, long / Math.max(w, h));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * k));
+    canvas.height = Math.max(1, Math.round(h * k));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    return { image: canvas.toDataURL('image/png'), pages: 1, thumbs: [] };
+  }
+
+  window.viewer = {
+    receive(message) {
+      let m;
+      try { m = typeof message === 'string' ? JSON.parse(message) : message; } catch { return; }
+      if (m?.cmd !== 'draw') return;
+      const id = m.arg?.id;
+      draw(m.arg ?? {}).then((r) => post({ type: 'drawn', id, ...r }), (e) => post({ type: 'drawn', id, error: e?.message || 'This file could not be read.' }));
+    },
+  };
+  addEventListener('message', (e) => { if (e.source === window.parent && typeof e.data === 'string') window.viewer.receive(e.data); });
+  post({ type: 'ready' });
+})();
+</script>
+</body>
+</html>

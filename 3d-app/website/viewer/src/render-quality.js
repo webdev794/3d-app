@@ -98,9 +98,11 @@ export function fabricOf(kind, part, chosen) {
   // The football jersey's Mesh: the practice mesh of the client's Practice Jersey picture (FX3).
   if (kind === 'nfljersey' && chosen === 'Mesh') return 'practicemesh';
   if (Object.hasOwn(FABRIC_TYPES, chosen)) return FABRIC_TYPES[chosen];
+  // (A tile picture's smooth matt print, main.js: the skirt's smooth interlock instead of the jersey's mesh.)
+  if (chosen === 'Smooth') return 'smoothmatt';
   if (part?.hoodie) return 'fleece';
   if (part?.track) return 'knit';
-  return { jersey: 'mesh', nfljersey: 'mesh', compression: 'stretch', socks: 'sockrib', skirt: 'interlock', cap: 'twill', singlet: 'mesh', shorts: 'mesh', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
+  return { jersey: 'mesh', nfljersey: 'mesh', 'shooting-shirt': 'shootmesh', compression: 'stretch', socks: 'sockrib', trackpants: 'smoothmatt', skirt: 'interlock', cap: 'twill', 'bucket-hat': 'twill', beanie: 'sockrib', singlet: 'mesh', shorts: 'mesh', bballshorts: 'mesh', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
 }
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -139,14 +141,22 @@ const FABRICS = {
   // (CF1 2026-10-29: its sheen the jerseys' cool grey and a little less rough, so its black stays a neutral black as on
   // the client's picture, not warm and greyed.)
   interlock: { tile: 0.012, scale: 0.5, cavity: 0.04, rough: 0.8, sheen: 0.22, sheenRough: 0.5, sheenColor: 0x9fb4c6, clearcoat: 0, strength: 1.1, make: () => microKnit(24, 20) },
+  // (FN4 2026-10-30: the Rugby jersey tile picture's smooth print: the interlock's knit with hardly any sheen, so its
+  // cyan stays deep and saturated under the stage lights, as in the picture.)
+  smoothmatt: { tile: 0.012, scale: 0.5, cavity: 0.04, rough: 0.92, sheen: 0.05, sheenRough: 0.5, sheenColor: 0x9fb4c6, clearcoat: 0, strength: 1.1, make: () => microKnit(24, 20) },
   // The cap's cotton twill (garment 4, CF1 2026-10-29): diagonal wales about 1 mm apart, each a row of yarn floats
   // (the weave's steps along the wale), the yarn uneven in short slubs, and a faint heathered shade over it; matt, a
   // soft fibre sheen, no plastic shine.
-  twill: { tile: 0.016, scale: 0.85, cavity: 0.16, rough: 0.96, sheen: 0.32, sheenRough: 0.85, sheenColor: 0x7a8696, clearcoat: 0, strength: 4, make: () => twillWeave(12) },
+  // (FN2 2026-10-30: wales about 2.3 mm apart and deeper, so the twill shows on the stage; a neutral grey sheen, so the black stays black.)
+  twill: { tile: 0.028, scale: 0.95, cavity: 0.2, rough: 0.96, sheen: 0.2, sheenRough: 0.85, sheenColor: 0x80848a, clearcoat: 0, strength: 5, make: () => twillWeave(12) },
   // The socks' rib knit (SK1): soft upright ribs about 3.5 mm apart, their knit loops along them and a little fuzz;
-  // matt, with a soft fibre sheen at the edges and no plastic shine.
-  sockrib: { tile: 0.007, scale: 1.25, cavity: 0.2, rough: 0.97, sheen: 0.6, sheenRough: 0.85, sheenColor: 0x6d7c8c, clearcoat: 0, strength: 3.5, make: () => { const fuzz = valueNoise(24, 11); return { height: (u, v) => 0.5 + 0.36 * Math.cos(4 * Math.PI * u) + 0.08 * Math.cos(2 * Math.PI * (6 * v + 2 * Math.abs(((2 * u) % 1) - 0.5))) + 0.12 * (fuzz(u, v) - 0.5), cavity: null }; } },
+  // matt, with a soft fibre sheen at the edges and no plastic shine. (FN4 2026-10-30: a weaker neutral sheen, so the
+  // top of the foot stays black under the overhead light, not blue-grey, as in the pictures.)
+  // (FN10 2026-11-02, tester DT10: the sheen made the top of the foot read grey-blue under the overhead lights; none.)
+  sockrib: { tile: 0.007, scale: 1.25, cavity: 0.2, rough: 0.97, sheen: 0, sheenRough: 0.85, sheenColor: 0x80848a, clearcoat: 0, strength: 3.5, make: () => { const fuzz = valueNoise(24, 11); return { height: (u, v) => 0.5 + 0.36 * Math.cos(4 * Math.PI * u) + 0.08 * Math.cos(2 * Math.PI * (6 * v + 2 * Math.abs(((2 * u) % 1) - 0.5))) + 0.12 * (fuzz(u, v) - 0.5), cavity: null }; } },
   mesh: { tile: 0.0336, scale: 0.75, cavity: 0.22, rough: 0.6, sheen: 0.48, sheenRough: 0.38, strength: 4, make: () => eyelets(8, 0.3) },
+  // (FN10 2026-11-02, DT10: the shooting shirt's mesh with hardly any sheen, so its cyan and royal stay deep on the stage.)
+  shootmesh: { tile: 0.0336, scale: 0.75, cavity: 0.22, rough: 0.6, sheen: 0.1, sheenRough: 0.5, sheenColor: 0x80848a, strength: 4, make: () => eyelets(8, 0.3) },
   // Bird's-eye knit: the same, finer and with small holes.
   birdseye: { tile: 0.0224, scale: 0.75, cavity: 0.2, rough: 0.62, sheen: 0.5, sheenRough: 0.4, strength: 3.5, make: () => eyelets(8, 0.2) },
   // Piqué: small raised honeycomb cells.
@@ -160,7 +170,9 @@ const FABRICS = {
   airmesh: { tile: 0.0272, tileV: 0.0272 * (10 * Math.sqrt(3) / 2) / 8, scale: 0.85, cavity: 0.42, rough: 0.66, sheen: 0.4, sheenRough: 0.45, strength: 4.5, make: () => hexMesh(8, 10, 0.35) },
   // The compression top's stretch fabric (CF1 2026-10-29): a fine tight knit, matt with a soft sheen (not the Pro
   // fabric's satin shine).
-  stretch: { tile: 0.02, scale: 0.4, cavity: 0.05, rough: 0.84, sheen: 0.28, sheenRough: 0.7, sheenColor: 0x8c99a6, clearcoat: 0, strength: 2.5, make: () => microKnit(36, 30) },
+  // (FM 2026-10-30, round 2: its knit hardly raised, as the picture's smooth stretch jersey: at 0.4 its columns showed as
+  // fine upright lines across the black, clearest at the hem.)
+  stretch: { tile: 0.02, scale: 0.12, cavity: 0.05, rough: 0.84, sheen: 0.28, sheenRough: 0.7, sheenColor: 0x8c99a6, clearcoat: 0, strength: 2.5, make: () => microKnit(36, 30) },
   // The American football practice mesh (the client's Practice Jersey picture, FX3): the football jersey's Mesh, its
   // holes about 7.5 mm apart and deep, so they read as dark dots all over the body from a distance, as in the picture.
   practicemesh: { tile: 0.06, tileV: 0.06 * (10 * Math.sqrt(3) / 2) / 8, scale: 0.85, cavity: 0.8, rough: 0.66, sheen: 0.4, sheenRough: 0.45, strength: 4.5, make: () => hexMesh(8, 10, 0.22) },
@@ -337,7 +349,7 @@ export function dressFabric(group, part, knit, anisotropy, chosen) {
     let cavity = cavities.get(m);
     if (!cavity && f.cavity) {
       // The holes' shade on the print, softer on light print (letters, numbers) so the dots don't sit over them (after the print's colour is read, before lighting).
-      cavity = { value: f.cavity, yoke: { value: 0 }, frame: { value: new THREE.Vector4(0, 1, 0, 1) } };
+      cavity = { value: f.cavity, yoke: { value: 0 }, frame: { value: new THREE.Vector4(0, 1, 0, 1) }, ink: { value: new THREE.Vector4(0, 0, 0, 0) } };
       cavities.set(m, cavity);
       const before = m.onBeforeCompile, key = m.customProgramCacheKey;
       m.onBeforeCompile = (shader, renderer) => {
@@ -348,14 +360,16 @@ export function dressFabric(group, part, knit, anisotropy, chosen) {
         // (minX, maxX, minY, span), to find the garment point from the print's uv.
         shader.uniforms.fabricYoke = cavity.yoke;
         shader.uniforms.fabricFrame = cavity.frame;
-        const mask = 'uniform float fabricCavity;\nuniform float fabricYoke;\nuniform vec4 fabricFrame;\n'
+        // fabricInk (fabricInk below): the cloth's own colour (rgb, linear) and whether the print over it is solid (w).
+        shader.uniforms.fabricInk = cavity.ink;
+        const mask = 'uniform float fabricCavity;\nuniform float fabricYoke;\nuniform vec4 fabricFrame;\nuniform vec4 fabricInk;\n'
           + 'float fabricMaskAt( vec2 uv ) {\n\tif ( fabricYoke <= 0.0 ) return 1.0;\n'
           + '\tfloat x = uv.x < 0.5 ? fabricFrame.x + 2.0 * fabricFrame.w * uv.x : fabricFrame.y - 2.0 * fabricFrame.w * ( uv.x - 0.5 );\n'
           + '\tfloat y = fabricFrame.z + fabricFrame.w * uv.y;\n'
           + '\treturn ( 1.0 - smoothstep( fabricYoke - 0.0015, fabricYoke + 0.0015, y ) ) * ( 1.0 - smoothstep( 0.255, 0.262, abs( x ) ) * step( 0.47, y ) );\n}\n';
         shader.fragmentShader = shader.fragmentShader
           .replace('void main() {', `${mask}void main() {`)
-          .replace('#include <map_fragment>', '#include <map_fragment>\n#ifdef USE_MAP\n\tfloat fabricMask = fabricMaskAt( vMapUv );\n#else\n\tfloat fabricMask = 1.0;\n#endif\n#ifdef USE_NORMALMAP\n\tdiffuseColor.rgb *= 1.0 - fabricMask * fabricCavity * ( 1.0 - 0.65 * smoothstep( 0.25, 0.85, dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) ) * ( 1.0 - texture2D( normalMap, vNormalMapUv ).a );\n#endif')
+          .replace('#include <map_fragment>', '#include <map_fragment>\n#ifdef USE_MAP\n\tfloat fabricMask = fabricMaskAt( vMapUv ) * ( 1.0 - fabricInk.w * smoothstep( 0.1, 0.22, length( diffuseColor.rgb - fabricInk.rgb ) ) );\n#else\n\tfloat fabricMask = 1.0;\n#endif\n#ifdef USE_NORMALMAP\n\tdiffuseColor.rgb *= 1.0 - fabricMask * fabricCavity * ( 1.0 - 0.65 * smoothstep( 0.25, 0.85, dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) ) * ( 1.0 - texture2D( normalMap, vNormalMapUv ).a );\n#endif')
           // (The print's relief (main.js) may already have put the normal map's chunk in: either way its scale is masked.)
           .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps)
           .replace('mapN.xy *= normalScale;', 'mapN.xy *= normalScale * fabricMask;');
@@ -377,6 +391,24 @@ export function dressFabric(group, part, knit, anisotropy, chosen) {
 }
 
 /**
+ * The football jersey's print sits solid over its fabric, as on the client's Game and Practice Jersey pictures: where
+ * the print differs from the cloth's own colour (`main`; the numbers, the wordmark, the "3"s, the coloured panels) no
+ * mesh holes or fabric dots show through it (FN3 2026-10-30). Other garments, and print layouts (`main` null), keep
+ * the fabric all over. Called after each repaint.
+ */
+export function fabricInk(part, main) {
+  const on = part.painter.kind === 'nfljersey' && main ? 1 : 0, c = new THREE.Color(on ? main : 0);
+  for (const m of part.fabricMaterials ?? []) {
+    const cavity = cavities.get(m);
+    if (!cavity) continue;
+    const ink = cavity.ink.value;
+    if (ink.w === on && ink.x === c.r && ink.y === c.g && ink.z === c.b) continue;
+    ink.set(c.r, c.g, c.b, on);
+    m.needsUpdate = true;
+  }
+}
+
+/**
  * The (blurred) stadium photo as a high dynamic range texture: its floodlights, the brightest pixels, lifted well
  * above white so the bloom pass makes them glow; everything else exactly as the photo. `scale`: its size (the photo
  * is out of focus, so phones take half).
@@ -390,14 +422,15 @@ export function hdrBackdrop(canvas, scale = 1) {
   const src = g.getImageData(0, 0, w, h).data;
   const linear = new Float32Array(256);
   for (let i = 0; i < 256; i++) { const s = i / 255; linear[i] = s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }
-  const data = new Uint16Array(w * h * 4), half = THREE.DataUtils.toHalfFloat, one = half(1);
+  // Alpha 0: the frame's alpha then tells the stadium (0) from the kit and the stage (1), for the calm pass (main.js).
+  const data = new Uint16Array(w * h * 4), half = THREE.DataUtils.toHalfFloat, alpha = half(0);
   for (let y = 0; y < h; y++) {
     const row = (h - 1 - y) * w;   // a data texture's rows go bottom up
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4, o = (row + x) * 4;
       const r = linear[src[i]], gg = linear[src[i + 1]], b = linear[src[i + 2]];
       const t = smooth(0.5, 0.95, 0.2126 * r + 0.7152 * gg + 0.0722 * b), boost = 1 + 7 * t * t;
-      data[o] = half(r * boost); data[o + 1] = half(gg * boost); data[o + 2] = half(b * boost); data[o + 3] = one;
+      data[o] = half(r * boost); data[o + 1] = half(gg * boost); data[o + 2] = half(b * boost); data[o + 3] = alpha;
     }
   }
   const texture = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.HalfFloatType);

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
+import 'accessory_art.dart';
 import 'sports_catalog.dart';
 
 /// Supplied at build time: `--dart-define=OPENAI_API_KEY=...`. When it is
@@ -48,6 +49,7 @@ const designSports = [
   'Basketball',
   'Soccer',
   'AFL',
+  'Headwear',
   'Netball',
   'Rugby Union',
   'Ice Hockey',
@@ -168,7 +170,12 @@ class DesignReading {
       'Jersey',
       'short-sleeve sports jersey (rugby, soccer, league, cricket shirts)',
     ),
-    'polo': ('Polo', 'polo shirt with a collar and buttons'),
+    'polo': (
+      'Polo',
+      'polo shirt with a collar and buttons; also the closest for fishing '
+          'shirts and other button-up or collared shirts (short or long '
+          'sleeves)',
+    ),
     'pocketpolo': (
       'Polo with pocket',
       'polo shirt with a chest pocket (pool, darts)',
@@ -187,6 +194,11 @@ class DesignReading {
       'Compression top',
       'skin-tight long-sleeve compression top or base layer',
     ),
+    'shooting-shirt': (
+      'Shooting shirt',
+      'loose short-sleeve V-neck raglan warm-up shirt (basketball shooting '
+          'shirt)',
+    ),
     'socks': (
       'Socks',
       'knee-high team socks with hoops (rugby, football, footy, hockey socks)',
@@ -198,6 +210,10 @@ class DesignReading {
     'skirt': (
       'Skirt',
       'a skirt alone: netball and tennis skirts, hockey skorts',
+    ),
+    'bucket-hat': (
+      'Bucket hat',
+      'a soft bucket hat with a wide brim (sun hat for golf, cricket, bowls, the sideline)',
     ),
     'netball-dress': (
       'Netball dress',
@@ -574,8 +590,19 @@ class AiService {
     String? sport,
     String? garment,
   }) async {
+    final intent = BriefIntent.of(brief);
     final text = StringBuffer()
-      ..writeln('Client brief: ${brief.trim().isEmpty ? '(none)' : brief}');
+      ..writeln('Client brief: ${brief.trim().isEmpty ? '(none)' : brief}')
+      ..writeln(intent.rules(garment ?? ''));
+    if (!intent.teamwear) {
+      text.writeln(
+        'This brief is not teamwear: all 4 concepts keep the brief\'s garment, '
+        'fabric, fit, presentation and background and vary only the colourway '
+        'and small details; ignore the sportswear defaults below wherever they '
+        'differ (no sublimated sports graphics, team names, numbers or stadium '
+        'unless asked).',
+      );
+    }
     // Chosen on the AI Designer (a sports tile or a garment chip): keep to it.
     if (sport != null) {
       text.writeln('Sport chosen by the client: ${sportForAi(sport)}.');
@@ -932,8 +959,11 @@ class AiService {
     List<Uint8List> logos = const [],
   }) async {
     final count = logos.take(4).length;
+    final intent = BriefIntent.of(brief);
     final text =
         'Sport: ${sportForAi(sport)}\nGarment: $garment\nClient brief: $brief\n'
+        '${intent.rules(garment)}\n'
+        '${intent.teamwear ? '' : 'This brief is not teamwear: ignore the sportswear defaults below wherever they differ from the brief (no sublimated sports graphics, team names, numbers or stadium unless asked). '}'
         '${count > 0 ? '$count image(s) from the client are attached: logos, references or their own finished design.\n' : 'No images are attached.\n'}'
         'You are the art director of a top custom sublimation sportswear '
         'brand. Before the designer renders one hero mockup, write its '
@@ -1013,6 +1043,8 @@ class AiService {
     Map<String, dynamic>? direction,
     String view = 'presentation',
     bool portrait = true,
+    String scene = 'auto',
+    bool sceneImage = false,
   }) {
     // A full kit (a top with shorts) stands as worn: each top with its
     // shorts below it (client picture 146.jpg).
@@ -1020,10 +1052,18 @@ class AiService {
     // An option with its own palette (the website's alternatives): no dark
     // body preference, so the options do not all look the same.
     final ownColours = '${direction?['body'] ?? ''}'.trim().isNotEmpty;
+    // The brief's own words win (user report 2026-11-03, picture 367).
+    final intent = BriefIntent.of(brief);
+    final team = intent.teamwear;
     final prompt = StringBuffer(
-      'You are the lead designer of a top custom sublimation sportswear '
-      'brand, making a client presentation mockup.\nSport: ${sportForAi(sport)}. Garment: '
-      '$garment.\nClient brief: $brief\n\n',
+      team
+          ? 'You are the lead designer of a top custom sublimation sportswear '
+                'brand, making a client presentation mockup.\nSport: ${sportForAi(sport)}. Garment: '
+                '$garment.\nClient brief: $brief\n${intent.rules(garment)}\n\n'
+          : 'You are the lead designer of a premium apparel brand, making a '
+                'client presentation photo.\nGarment: '
+                '${intent.garment.isEmpty ? garment : intent.garment}.\nClient brief: '
+                '$brief\n${intent.rules(garment)}\n\n',
     );
     // A direction with no creative fields (the brief as written) adds nothing.
     const creative = [
@@ -1055,19 +1095,22 @@ class AiService {
       }
       prompt.writeln();
     }
+    final holder = intent.holder();
     prompt
       ..write(
-        'Design: unless the client attached their own complete garment '
-        'design, design the garment freely like a premium sublimated '
-        'teamwear brand: a bold, fully sublimated all-over design with '
-        'dynamic graphics drawn from the theme and colours of the client\'s '
-        'logo or brief (for example lightning, speed lines, sharp angular '
-        'shards, halftone dot fades, gradients and textures) flowing across '
-        'the front, sides and back. Never a plain template with flat colour '
-        'blocks or simple side panels. $brandRules '
-        '${ownColours ? directionColourRules : colourRules} '
-        '${markingRules(sport)} Matching trims on the collar, armholes or '
-        'cuffs and hem.\n',
+        !team
+            ? '${intent.casualRules(count)}\n'
+            : 'Design: unless the client attached their own complete garment '
+                  'design, design the garment freely like a premium sublimated '
+                  'teamwear brand: a bold, fully sublimated all-over design with '
+                  'dynamic graphics drawn from the theme and colours of the client\'s '
+                  'logo or brief (for example lightning, speed lines, sharp angular '
+                  'shards, halftone dot fades, gradients and textures) flowing across '
+                  'the front, sides and back. Never a plain template with flat colour '
+                  'blocks or simple side panels. $brandRules '
+                  '${ownColours ? directionColourRules : colourRules} '
+                  '${markingRules(sport)} Matching trims on the collar, armholes or '
+                  'cuffs and hem.\n',
       )
       ..write(
         view == 'front'
@@ -1076,7 +1119,7 @@ class AiService {
                   'photography: a single garment, the front view only '
                   '(straight on or a slight three-quarter turn), centred, '
                   'complete and fully visible with a little space around it, '
-                  'on an invisible ghost mannequin, no back view, '
+                  '${intent.holder(single: true)}, no back view, '
             : portrait
             // YOUR DESIGNS (client picture 146.jpg, 2026-10-22): one tall
             // picture that fills a phone screen.
@@ -1086,20 +1129,25 @@ class AiService {
                   'screen: ${fullKit ? 'each set stands as worn, the top with its shorts directly below it: the front set on the left and the back set on the right, side by side, ' : 'the front view on the left and the back view on the right, side by side, '}'
                   'both complete, fully visible and not overlapping, large so '
                   'they fill most of the width and height of the frame with a '
-                  'little space around them, on invisible ghost mannequins, '
+                  'little space around them, $holder, '
             : 'Presentation: unless the brief asks for a different layout, '
                   'angle or background, make one landscape image of premium '
                   'commercial product photography: ${fullKit ? 'the front set (the top with its shorts below it) on the left and the back set on the right, side by side, ' : 'the front view on the left and the back view on the right, side by side, '}'
-                  'both complete, fully visible and not overlapping, on '
-                  'invisible ghost mannequins, ',
+                  'both complete, fully visible and not overlapping, '
+                  '$holder, ',
+      )
+      ..write(sceneText(scene, sceneImage, count, intent))
+      ..write(
+        team
+            ? 'Photorealistic fabric: fine knit and mesh texture, natural folds, '
+                  'flatlock stitching, a crisp vivid sublimated print. '
+            : 'Photorealistic fabric: ${intent.fabric.isEmpty ? 'the garment\'s' : intent.fabric} '
+                  'texture, natural folds and drape, clean stitching, true to '
+                  'the fit. ',
       )
       ..write(
-        'in a dramatic dark '
-        'setting: a night stadium with floodlights, haze tinted in the kit\'s '
-        'main colour, a glossy reflective floor and rim lighting. '
-        'Photorealistic fabric: fine knit and mesh texture, natural folds, '
-        'flatlock stitching, a crisp vivid sublimated print. All text must be '
-        'spelled exactly as written in the brief or the logo. ',
+        'All text must be spelled exactly as written in the brief or the '
+        'logo. ',
       )
       ..write(
         count > 0
@@ -1122,12 +1170,39 @@ class AiService {
                   'at the top of the back, just under the collar, and nowhere '
                   'else; do NOT put 3DEEZI on the chest or anywhere on the '
                   'front. If the brief gives any wordmark, team, club or brand '
-                  'name, use exactly that text where the brief says. With no '
-                  'client logo, the chest carries a simple original crest at a '
-                  'normal crest size.',
+                  'name, use exactly that text where the brief says. '
+                  '${team ? 'With no client logo, the chest carries a simple original crest at a normal crest size.' : 'With no client logo and no text in the brief, the front stays clean.'}',
       )
       ..write(' No watermarks, no extra brands.');
     return prompt.toString();
+  }
+
+  /// The YOUR DESIGNS background (client picture 362, 2026-11-03): part of
+  /// the generated scene, the same as the website's OpenAiDesigner::sceneText.
+  static String sceneText(
+    String scene,
+    bool sceneImage,
+    int count, [
+    BriefIntent? intent,
+  ]) {
+    if (scene == 'stadium') {
+      return 'in a dramatic dark setting: a night stadium with floodlights, haze '
+          'tinted in the kit\'s main colour, a glossy reflective floor and rim '
+          'lighting (this setting wins over any other presentation note). ';
+    }
+    if (scene == 'studio') {
+      return 'in a clean premium photo studio: a seamless light-grey backdrop, '
+          'soft even studio lighting and a soft floor shadow (this setting wins '
+          'over any other presentation note). ';
+    }
+    if (scene == 'custom' && sceneImage) {
+      return 'in front of the background shown in attached image ${count + 1} '
+          '(the client\'s background photo, used only as the scene behind the '
+          'garments, matched in light and perspective; this setting wins over '
+          'any other presentation note). ';
+    }
+    // Auto: from the brief (a hanger: a clean wall or studio, not a stadium).
+    return (intent ?? const BriefIntent()).autoScene();
   }
 
   /// One design on the AI designer's results (the same prompt and inputs as
@@ -1142,9 +1217,16 @@ class AiService {
     Map<String, dynamic>? direction,
     String quality = 'medium',
     String view = 'presentation',
+    String scene = 'auto',
+    Uint8List? sceneImage,
   }) async {
-    final client = logos.take(4).toList();
-    final images = [...client, await _brandLogo()];
+    final backdrop = scene == 'custom' ? sceneImage : null;
+    final client = logos.take(backdrop == null ? 4 : 3).toList();
+    final images = [
+      ...client,
+      if (backdrop != null) backdrop,
+      await _brandLogo(),
+    ];
     Future<Uint8List> render(bool portrait) => _edit(
       mockupPrompt(
         brief: brief,
@@ -1154,6 +1236,8 @@ class AiService {
         direction: direction,
         view: view,
         portrait: portrait,
+        scene: scene,
+        sceneImage: backdrop != null,
       ),
       images,
       size: view == 'front'
@@ -1540,6 +1624,183 @@ class AiService {
       throw AiException('The AI could not read this design. Please try again.');
     }
     return DesignReading.fromJson(out, sport: sport, asked: garment);
+  }
+
+  /// Artwork to 3D for a cap or other accessory (CP1, client 2026-11-02), as
+  /// the website's /ai/accessory/read: the artwork (front, back and side
+  /// views, labels, badges) read for our 3D model: its parts' colours and
+  /// where its front, back and side logos are (one cheap call).
+  Future<AccessoryReading> readAccessory(
+    Uint8List picture, {
+    required String garment,
+  }) async {
+    final kinds = {
+      'cap':
+          'a baseball cap with a curved or flat brim (six-panel or five-panel '
+          'ball cap, snapback, trucker, golf, cricket, club cap)',
+      'five-panel-cap':
+          'a five-panel cap: one wide seamless front panel and a flat brim '
+          '(camp cap)',
+      'bucket-hat': 'a soft bucket hat with a wide brim all round',
+      'beanie':
+          'a knitted beanie with a folded cuff (with or without a pom-pom)',
+      'socks': 'team socks',
+      'skirt': 'a skirt or skort alone',
+    };
+    Map<String, Object> str(String d) => {'type': 'string', 'description': d};
+    Map<String, Object> number(String d) => {
+      'type': 'number',
+      'description': d,
+    };
+    Map<String, Object> box(String d, {bool level = false}) => {
+      'type': 'object',
+      'additionalProperties': false,
+      'description':
+          "$d A box in fractions of the whole picture's width and height (0 = "
+          'left/top, 1 = right/bottom) that tightly encloses that logo or '
+          'label only (not the whole garment); found is false when there is '
+          'none.',
+      'required': ['found', 'x0', 'y0', 'x1', 'y1', if (level) 'level'],
+      'properties': {
+        'found': {'type': 'boolean'},
+        'x0': number('Left edge.'),
+        'y0': number('Top edge.'),
+        'x1': number('Right edge.'),
+        'y1': number('Bottom edge.'),
+        if (level)
+          'level': {
+            'type': 'string',
+            'enum': ['low', 'middle', 'high'],
+            'description':
+                'How high it sits on the side: low (just above the band or '
+                'brim), middle, high.',
+          },
+      },
+    };
+    Map<String, Object> view(String d) => {
+      'type': 'object',
+      'additionalProperties': false,
+      'description':
+          '$d A box in fractions of the picture round that whole view of the '
+          'garment; found is false when the picture has no such view.',
+      'required': ['found', 'x0', 'y0', 'x1', 'y1'],
+      'properties': {
+        'found': {'type': 'boolean'},
+        'x0': number('Left edge.'),
+        'y0': number('Top edge.'),
+        'x1': number('Right edge.'),
+        'y1': number('Bottom edge.'),
+      },
+    };
+    final asked = accessoryGarments[garment] ?? 'cap';
+    final text =
+        "This picture is a client's artwork of a garment (the client chose: "
+        '$asked). It may show several views (front, back, both sides) and '
+        'separate labels or badges. Read it so the same design goes on our '
+        'editable 3D model.\nOur 3D models: '
+        '${kinds.entries.map((e) => '${e.key}: ${e.value}').join('; ')}.\n'
+        'Choose the nearest model; set exact to false when the picture shows '
+        'something else. Take the colours exactly as they look. Then find each '
+        'logo as it sits ON the garment views (not the separate swatches, '
+        'badges or the strip at the top): the main logo or wordmark on the '
+        'front, the logo on the back, and the label or mark on the wearer\'s '
+        'left side and on the wearer\'s right side (a side view with the brim '
+        "or toe pointing left shows the wearer's left side; pointing right, "
+        'the right side). Read the front wordmark exactly as written.';
+    final json = await _post('/responses', {
+      'model': textModel,
+      'input': [
+        {'role': 'system', 'content': _system},
+        {
+          'role': 'user',
+          'content': _content(text, [picture]),
+        },
+      ],
+      'text': {
+        'format': {
+          'type': 'json_schema',
+          'name': 'accessory_for_3d',
+          'strict': true,
+          'schema': {
+            'type': 'object',
+            'additionalProperties': false,
+            'required': [
+              'garment',
+              'exact',
+              'name',
+              'mainColor',
+              'trimColor',
+              'brimColor',
+              'underColor',
+              'accentColor',
+              'frontText',
+              'front',
+              'back',
+              'left',
+              'right',
+              'frontView',
+              'backView',
+            ],
+            'properties': {
+              'garment': {
+                'type': 'string',
+                'enum': kinds.keys.toList(),
+                'description': 'The nearest of our 3D models.',
+              },
+              'exact': {
+                'type': 'boolean',
+                'description':
+                    'True when the picture shows that kind of garment.',
+              },
+              'name': str(
+                'A short name for the design, max 3 words, e.g. "Mantis Cap".',
+              ),
+              'mainColor': str(
+                'Hex of the body (crown, panels, leg) as seen, e.g. #0B0B0D.',
+              ),
+              'trimColor': str(
+                'Hex of the piping, seam tape, brim edge or binding as seen '
+                '(the main colour when there is none).',
+              ),
+              'brimColor': str(
+                "Hex of the brim's top (the main colour when the same or when "
+                'there is no brim).',
+              ),
+              'underColor': str(
+                "Hex of the brim's underside (the brim colour when it is not "
+                'shown).',
+              ),
+              'accentColor': str('Hex of the front lettering as seen.'),
+              'frontText': str(
+                'The front wordmark exactly as written; empty when the front '
+                'logo is a symbol only.',
+              ),
+              'front': box('The main logo or wordmark on the front view.'),
+              'back': box(
+                'The logo on the back view (above the strap on a cap).',
+              ),
+              'left': box(
+                "The label or mark on the wearer's left side.",
+                level: true,
+              ),
+              'right': box(
+                "The label or mark on the wearer's right side.",
+                level: true,
+              ),
+              'frontView': view('The front view of the garment.'),
+              'backView': view('The back view of the garment.'),
+            },
+          },
+        },
+      },
+    });
+    final out = jsonDecode(_outputText(json));
+    if (out is! Map<String, dynamic>) {
+      throw AiException(
+        'The AI could not read this artwork. Please try again.',
+      );
+    }
+    return AccessoryReading.fromJson(out, garment);
   }
 
   /// "Ask 3DEEZI to change anything": applies a plain-language request to
@@ -2059,4 +2320,253 @@ class AiService {
     }
     return 'image/jpeg';
   }
+}
+
+/// What the client's brief itself asks for (user report 2026-11-03, picture
+/// 367: "cotton oversized tshirt on a hanger" came back as four sublimated
+/// jerseys with team names and 01 in a stadium). The same words and rules as
+/// the website's OpenAiDesigner::briefIntent: the brief's own garment, fabric,
+/// fit, presentation, background and plainness win; sport-jersey details only
+/// when the brief asks for teamwear.
+class BriefIntent {
+  const BriefIntent({
+    this.garment = '',
+    this.fabric = '',
+    this.fit = '',
+    this.presentation = '',
+    this.background = '',
+    this.plain = false,
+    this.numbers = false,
+    this.teamwear = true,
+  });
+
+  final String garment, fabric, fit, presentation, background;
+  final bool plain, numbers, teamwear;
+
+  static const garments = {
+    'hoodie': r'\bhood(ie|y|ies|ed sweat\w*)\b',
+    'sweatshirt':
+        r'\b(sweat ?shirts?|crew ?neck sweat\w*|jumpers?|pullovers?)\b',
+    'polo shirt': r'\bpolos?\b',
+    'tank top': r'\b(tank ?tops?|tanks?|vests?)\b',
+    'jacket': r'\b(jackets?|windbreakers?|bombers?)\b',
+    'singlet': r'\bsinglets?\b',
+    'jersey': r'\b(jerseys?|kits?|uniforms?)\b',
+    't-shirt': r'\b(t-? ?shirts?|tees?)\b',
+    'shorts': r'\bshorts\b',
+    'shirt': r'\bshirts?\b',
+  };
+  static const fabrics = {
+    'organic cotton': r'\borganic cotton\b',
+    'heavyweight cotton': r'\bheavy ?weight cotton\b',
+    'cotton': r'\bcotton\b',
+    'linen': r'\blinen\b',
+    'fleece': r'\bfleece\b',
+    'french terry': r'\bfrench terry\b',
+    'denim': r'\bdenim\b',
+    'wool': r'\b(wool|merino)\b',
+    'bamboo': r'\bbamboo\b',
+    'mesh': r'\bmesh\b',
+    'polyester': r'\b(polyester|poly)\b',
+    'performance fabric': r'\b(dri-? ?fit|performance fabric)\b',
+  };
+  static const fits = {
+    'oversized': r'\b(over-? ?sized?|oversize)\b',
+    'boxy': r'\bboxy\b',
+    'relaxed': r'\b(relaxed|loose)\b',
+    'cropped': r'\bcropped\b',
+    'slim': r'\b(slim|skinny|fitted)\b',
+    'muscle': r'\bmuscle fit\b',
+    'regular': r'\bregular fit\b',
+    'athletic': r'\bathletic fit\b',
+  };
+  static const presentations = {
+    'hanger': r'\bhang(er|ers|ing)\b',
+    'flat lay': r'\bflat ?-?lay\b|\blaid flat\b|\blying flat\b',
+    'folded': r'\bfolded\b',
+    'model':
+        r'\b(on|worn by) (a |an )?(\w+ )?(model|person|man|woman|guy|girl|athlete|player)\b|\bmodel(led|ed|s)?\b|\bworn\b',
+    'ghost mannequin': r'\bmannequin\b',
+  };
+  static const backgrounds = {
+    'stadium': r'\bstadium\b|\bfloodlights?\b|\bpitch\b',
+    'locker room': r'\blocker ?room\b',
+    'gym': r'\bgym\b',
+    'white background': r'\bwhite (background|backdrop|wall)\b',
+    'black background': r'\bblack (background|backdrop|wall)\b',
+    'grey background': r'\bgr[ae]y (background|backdrop|wall)\b',
+    'studio': r'\bstudio\b',
+    'street': r'\b(street|urban|city)\b',
+    'outdoors': r'\b(outdoors?|park|nature|beach|forest)\b',
+    'wall': r'\bwall\b',
+  };
+
+  factory BriefIntent.of(String brief) {
+    final b = ' ${brief.toLowerCase()} ';
+    String first(Map<String, String> map) {
+      for (final MapEntry(:key, :value) in map.entries) {
+        if (RegExp(value).hasMatch(b)) return key;
+      }
+      return '';
+    }
+
+    final garment = first(garments), fabric = first(fabrics);
+    final presentation = first(presentations);
+    final plain = RegExp(
+      r'\b(plain|blank|minimal(ist)?|simple|basic|solid colou?r|essential)\b',
+    ).hasMatch(b);
+    final numbers = RegExp(r'\bnumbers?\b|#\s?\d|\bno\.\s?\d').hasMatch(b);
+    final teamWords = RegExp(
+      r'\b(jerseys?|kits?|singlets?|uniforms?|team|club|fc|afc|united|squad|sublimat\w*|match ?day|bibs?|league)\b',
+    ).hasMatch(b);
+    const casualGarments = [
+      't-shirt', 'hoodie', 'sweatshirt', 'polo shirt', 'tank top', 'jacket', //
+      'shirt',
+    ];
+    const casualFabrics = [
+      'cotton', 'organic cotton', 'heavyweight cotton', 'linen', 'fleece', //
+      'french terry', 'denim', 'wool', 'bamboo',
+    ];
+    return BriefIntent(
+      garment: garment,
+      fabric: fabric,
+      fit: first(fits),
+      presentation: presentation,
+      background: first(backgrounds),
+      plain: plain,
+      numbers: numbers,
+      // Teamwear when the brief names it, or names nothing casual.
+      teamwear:
+          teamWords ||
+          !(casualGarments.contains(garment) ||
+              casualFabrics.contains(fabric) ||
+              plain ||
+              const ['hanger', 'flat lay', 'folded'].contains(presentation)),
+    );
+  }
+
+  /// The scene for "Auto": from the brief's background, else from its
+  /// presentation (a hanger: a clean wall, not a stadium).
+  String autoScene() {
+    if (background.isNotEmpty && background != 'stadium') {
+      final s = switch (background) {
+        'white background' =>
+          'on a clean pure white seamless background with a soft natural shadow',
+        'black background' =>
+          'on a clean deep black seamless background with soft studio light',
+        'grey background' || 'studio' =>
+          'in a clean premium photo studio with a seamless light-grey backdrop and soft even lighting',
+        'wall' => 'against a clean plain light wall with soft natural daylight',
+        'street' => 'in a softly blurred modern city street in daylight',
+        'outdoors' =>
+          'outdoors in soft natural daylight with a softly blurred background',
+        'locker room' =>
+          'in a modern locker room with warm spotlights and a shallow depth of field',
+        'gym' =>
+          'in a clean modern gym with soft light and a blurred background',
+        _ => 'in a clean premium photo studio',
+      };
+      return '$s, as the client asked. ';
+    }
+    if (background == 'stadium' || teamwear) {
+      return 'in a dramatic dark setting: a night stadium with floodlights, haze '
+          'tinted in the kit\'s main colour, a glossy reflective floor and rim '
+          'lighting. ';
+    }
+    return switch (presentation) {
+      'hanger' =>
+        'against a clean plain light wall or seamless light studio backdrop with soft natural light and a soft shadow behind the hanger (no stadium, no dramatic lights). ',
+      'flat lay' || 'folded' =>
+        'on a clean light surface (light wood, linen or seamless paper) with soft natural light (no stadium). ',
+      'model' =>
+        'in a clean bright photo studio or a soft lifestyle setting that suits the garment, natural light (no stadium). ',
+      _ =>
+        'in a clean premium photo studio with a seamless light backdrop and soft even lighting (no stadium). ',
+    };
+  }
+
+  /// The brief's own words as rules every prompt follows ("the brief wins").
+  String rules([String selected = '']) {
+    final what = [fit, fabric, garment].where((s) => s.isNotEmpty).join(' ');
+    final rules = <String>[];
+    if (garment.isNotEmpty) {
+      final replaces =
+          selected.isNotEmpty &&
+          !selected.toLowerCase().contains(garment.split(' ').first);
+      rules.add(
+        'the garment is ${RegExp(r'^[aeiou]').hasMatch(what) ? 'an' : 'a'} '
+        '$what exactly as the brief says'
+        '${replaces ? ' (this replaces the selected product "$selected")' : ''}',
+      );
+    } else if (what.isNotEmpty) {
+      rules.add('the garment is $what as the brief says');
+    }
+    if (fabric.isNotEmpty) {
+      final soft = const [
+        'cotton', 'organic cotton', 'heavyweight cotton', 'fleece', //
+        'french terry',
+      ].contains(fabric);
+      rules.add(
+        'show real $fabric fabric texture'
+        '${soft ? ' (soft matte cotton knit, not shiny polyester mesh)' : ''}',
+      );
+    }
+    if (fit.isNotEmpty) {
+      rules.add(
+        'a clearly $fit fit and cut'
+        '${fit == 'oversized' ? ' (dropped shoulders, wide body, longer sleeves)' : ''}',
+      );
+    }
+    final shown = switch (presentation) {
+      'hanger' => 'presented hanging on a hanger',
+      'flat lay' => 'presented as a flat lay, shot top-down',
+      'folded' => 'presented neatly folded',
+      'model' => 'presented worn by a model',
+      'ghost mannequin' => 'presented on an invisible ghost mannequin',
+      _ => '',
+    };
+    if (shown.isNotEmpty) rules.add(shown);
+    if (plain) {
+      rules.add(
+        'the design stays plain or minimal as asked, with no all-over graphics',
+      );
+    }
+    if (!teamwear) {
+      rules.add(
+        'this is not a sports jersey: no sublimated sports graphics, no team '
+        'name${numbers ? '' : ', no player number'} and no stadium unless the '
+        'brief asks',
+      );
+    }
+    return rules.isEmpty
+        ? ''
+        : 'The client\'s brief wins over every default: ${rules.join('; ')}.';
+  }
+
+  /// The design rules for a non-teamwear brief (a cotton tee, a hoodie, a
+  /// polo): clean apparel, nothing sporty unless asked.
+  String casualRules(int count) =>
+      'Design: a premium ${'$fabric ${garment.isEmpty ? 'garment' : garment}'.trim()} '
+      'photographed the way a real clothing brand would. '
+      '${plain ? 'Keep it plain or minimal: a clean solid colour, at most one small tasteful detail. ' : 'Keep the design clean and wearable: a solid colour body with at most a tasteful print or small graphic that follows the brief, no all-over sublimated sports graphics. '}'
+      '${count > 0 ? 'Place the client\'s logo where the brief says, or small on the left chest. ' : 'No crest, team name or wordmark on the front unless the brief asks. '}'
+      '${numbers ? 'Show the number the brief asks for. ' : 'No numbers anywhere. '}'
+      '3DEEZI appears only as a small 3DEEZI word mark printed inside the back '
+      'neck or just under the back collar, and nowhere else.';
+
+  /// How the garments are shown in the picture (a hanger, a flat lay, a model).
+  String holder({bool single = false}) => switch (presentation) {
+    'hanger' =>
+      single ? 'hanging on a hanger' : 'each hanging on its own hanger',
+    'flat lay' => 'laid flat and shot from directly above',
+    'folded' => 'neatly folded or laid flat',
+    'model' =>
+      single
+          ? 'worn by a model'
+          : 'worn by a model (the back view worn by the same model turned around)',
+    _ =>
+      single
+          ? 'on an invisible ghost mannequin'
+          : 'on invisible ghost mannequins',
+  };
 }

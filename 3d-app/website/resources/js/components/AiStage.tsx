@@ -82,6 +82,17 @@ export function garmentChips(sport?: QuickSport): GarmentChip[] {
 const tileArt = (s: QuickSport) => s.art ?? media(`images/ai-designer/sport-${s.id}.webp`);
 
 /** The garment a brief names, if any ("navy polo" → polo; "jersey and shorts" → full kit). */
+/**
+ * Shirts we have no 3D model of yet (client 2026-11-04, images/416): the closest garment we have shows them, with a
+ * note on the AI card. coming = the model is on the build queue (tasks.md). The app does the same (widgets/ai_stage.dart).
+ */
+export function closestModel(text: string): { name: string; garment: string; coming: boolean } | null {
+  const t = text.toLowerCase();
+  if (/\bfishing (?:shirts?|tops?|jerseys?)\b|\bangler(?:'s)? shirts?\b/.test(t)) return { name: 'fishing shirt', garment: 'polo', coming: true };
+  if (/\bbutton[- ]?(?:up|down)?[- ]shirts?\b|\bcollared shirts?\b|\blong[- ]sleeved? polos?\b/.test(t)) return { name: 'button shirt', garment: 'polo', coming: false };
+  return null;
+}
+
 export function garmentInBrief(text: string): string | null {
   const t = text.toLowerCase();
   const has = (re: RegExp) => re.test(t);
@@ -95,6 +106,8 @@ export function garmentInBrief(text: string): string | null {
   if (has(/\bhood(?:ie|y)s?\b|\bhooded (?:jumpers?|sweat\w*|tops?|pullovers?)\b/)) return 'hoodie';
   // The varsity (letterman, baseball or college) jacket is its own 3D garment; other jackets stay tees for now.
   if (has(/\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b/)) return 'varsity';
+  // A fishing, button-up or collared shirt has no 3D model yet (images/416): the polo (collar and buttons) is the closest.
+  if (closestModel(t)) return 'polo';
   if (has(/\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b/)) return 'pocketpolo';
   if (has(/\bpolos?\b/)) return 'polo';
   // A dress (netball, tennis) is the women's netball dress (task 9.126), no longer a singlet.
