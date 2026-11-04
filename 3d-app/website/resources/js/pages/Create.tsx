@@ -428,6 +428,8 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   const [results, setResults] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [options, setOptions] = useState<DesignOption[]>([]);
+  /** True after designs 2-4 could not be planned: "Generate the other options" shows. */
+  const [missingOptions, setMissingOptions] = useState(false);
   const [menu, setMenu] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   /** The design shown large (client visual 146.jpg): tapping a thumbnail selects it; nothing is rendered again. */
@@ -526,7 +528,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     const product = chip?.garment === garment ? { productName: chip.name, ...chip.design } : { productName: '' };
     const mine = ++run.current, current = () => run.current === mine;
     session.current = { token: session.current.token + 1, id: null, sent: [] };
-    setResults(true); setPlanning(true); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError('');
+    setResults(true); setPlanning(true); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError(''); setMissingOptions(false);
     onChange({ ...draft, sport, garment, mode: 'ai', design: { ...draft.design, ...product, garment: garment as Design['garment'], sportName: undefined }, patternMotif: undefined, pendingDrawing: undefined });
     // Pictures attached before signing in are saved now (in Assets, as references), so the AI can read them.
     let refs = references;
@@ -551,14 +553,33 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
       const first: DesignOption = { id: `primary-${mine}`, rank: 1, name: 'Your design', description: 'Your brief, exactly as written.', design: { ...draft.design, ...product, garment: garment as Design['garment'], sportName: undefined }, direction: { ownDesign: false }, image: null, busy: true };
       setOptions([first]);
       void render(first, wantHd ? 'high' : 'medium', mine, 'presentation');
-      const plan = aiReply(await api<{ directions: DesignOption[] }>('/ai/designs', { method: 'POST', body: JSON.stringify(body) }), ['directions']);
-      if (!current()) return;
+      // A busy moment (rate limit, time-out) must not leave just "1 / 1": the plan is asked again twice, then the
+      // primary stays and "Generate the other options" asks once more on a tap (client 2026-11-04, 390.jpg).
+      let plan: { directions: DesignOption[] } | null = null;
+      for (let attempt = 0; !plan && attempt < 3; attempt++) {
+        try { plan = aiReply(await api<{ directions: DesignOption[] }>('/ai/designs', { method: 'POST', body: JSON.stringify(body) }), ['directions']); }
+        catch (e) { if (attempt === 2 || !current()) throw e; await new Promise(r => setTimeout(r, 4000 * (attempt + 1))); }
+      }
+      if (!current() || !plan) return;
       const [spec, ...rest] = plan.directions;
       const alternatives = rest.map(d => ({ ...d, image: null, busy: true }));
       // The primary keeps its picture (or its render still running) and takes the plan's name and 3D kit spec.
       setOptions(list => [...list.map(o => o.id === first.id && spec ? { ...o, name: spec.name, description: spec.description, design: spec.design, motif: spec.motif } : o), ...alternatives]);
       for (const o of alternatives) void render(o, 'medium', mine, 'presentation');
-    } catch (e) { if (current()) setError(friendlyError(e)); } finally { if (current()) setPlanning(false); }
+    } catch (e) { if (current()) { setError(friendlyError(e)); setMissingOptions(true); } } finally { if (current()) setPlanning(false); }
+  }
+  /** "Generate the other options": the plan asked again for designs 2-4 after a busy moment; the primary is kept. */
+  async function moreOptions() {
+    const body = lastBrief.current, mine = run.current, current = () => run.current === mine;
+    if (!body) return;
+    setMissingOptions(false); setError(''); setPlanning(true);
+    try {
+      const plan = aiReply(await api<{ directions: DesignOption[] }>('/ai/designs', { method: 'POST', body: JSON.stringify(body) }), ['directions']);
+      if (!current()) return;
+      const alternatives = plan.directions.slice(1).map(d => ({ ...d, image: null, busy: true }));
+      setOptions(list => [...list.slice(0, 1).map(o => o.direction ? o : { ...o, direction: plan.directions[0]?.direction ?? { ownDesign: false } }), ...alternatives]);
+      for (const o of alternatives) void render(o, 'medium', mine, 'presentation');
+    } catch (e) { if (current()) { setError(friendlyError(e)); setMissingOptions(true); } } finally { if (current()) setPlanning(false); }
   }
   /** Renders one design (the PRIMARY in HD, an option as a medium preview, "Make HD" or "Regenerate"); its card fills in when it arrives. */
   async function render(option: DesignOption, quality: 'high' | 'medium', mine = run.current, view: View = option.view ?? 'presentation') {
@@ -567,7 +588,9 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: true, pending: quality, view, error: undefined } : x));
     try {
       const bg = sceneRef.current;
-      const r = aiReply(await api<{ image: string; quality: 'high' | 'medium'; view?: View }>('/ai/designs/render', { method: 'POST', body: JSON.stringify({ ...body, rank: option.rank, quality, view, direction: option.direction, name: option.name, scene: bg.scene, scene_id: bg.id, wide: true }) }), ['image']);
+      const ask = async () => aiReply(await api<{ image: string; quality: 'high' | 'medium'; view?: View }>('/ai/designs/render', { method: 'POST', body: JSON.stringify({ ...body, rank: option.rank, quality, view, direction: option.direction, name: option.name, scene: bg.scene, scene_id: bg.id, wide: true }) }), ['image']);
+      // One more try after a busy moment (rate limit, time-out); content refusals (4xx) are not retried.
+      const r = await ask().catch(async (e: unknown) => { if (!(e instanceof ApiError) || (e.status < 500 && e.status !== 429) || !current()) throw e; await new Promise(res => setTimeout(res, 5000)); return ask(); });
       if (current()) setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: false, image: r.image, quality: r.quality, view: r.view ?? view } : x));
     } catch (e) { if (current()) setOptions(list => list.map(x => x.id === option.id ? { ...x, busy: false, error: friendlyError(e) } : x)); }
   }
@@ -597,7 +620,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   /** The selected picture alone (the thumbnails are page elements, never part of the file). */
   const download = async (o: DesignOption, n: number) => { setMenu(null); if (o.image) saveBlob(await (await fetch(o.image)).blob(), `3deezi-design-${n}${o.quality === 'high' ? '-hd' : ''}.jpg`); };
   /** "Back to create": the brief step with the brief, pictures, sport and switches kept; work still running is dropped. */
-  const backToCreate = () => { run.current += 1; setResults(false); setPlanning(false); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError(''); };
+  const backToCreate = () => { run.current += 1; setResults(false); setPlanning(false); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError(''); setMissingOptions(false); };
 
   // Recent designs (client 2026-10-30): once a brief's designs are in (and after Make HD, Regenerate, Refine or Edit image),
   // they are saved to the account (only the pictures that changed are sent) and the last brief is kept on this device.
@@ -630,7 +653,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   async function reopen(id: number) {
     const mine = ++run.current;
     session.current = { token: session.current.token + 1, id: null, sent: [] };
-    setResults(true); setPlanning(true); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError('');
+    setResults(true); setPlanning(true); setOptions([]); setSel(0); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError(''); setMissingOptions(false);
     try {
       const s = await api<AiSessionFull>(`/ai/sessions/${id}`);
       if (run.current === mine) showSession(s, id);
@@ -658,7 +681,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
   function reopenLocal(s: LocalAiSession) {
     run.current += 1;
     session.current = { token: session.current.token + 1, id: null, sent: [] };
-    setResults(true); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError('');
+    setResults(true); setMenu(null); setEditing(null); setMaking3d(false); setRefineOpen(false); setError(''); setMissingOptions(false);
     showSession({ ...s, reference_ids: [] }, null);
   }
   /** "Refine this design…": the selected picture changed as described by the AI image editor (the same as Edit image › Describe), in its own proportions. */
@@ -865,6 +888,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
           : <span className="aid-ask-custom"><input value={customGarment} maxLength={CUSTOM_MAX} placeholder={CUSTOM_PLACEHOLDER} aria-label="Type your garment" autoFocus onChange={e => setCustomGarment(typedName(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); typedChip(); } if (e.key === 'Escape') setCustomGarment(null); }} /><button type="button" disabled={!customName(customGarment)} onClick={typedChip}>Go</button>
             {customName(customGarment) && <small className="custom-note" role="status">3D preview uses {(catalog?.garments.find(g => g.id === typedChipGarment)?.name ?? typedChipGarment).toLowerCase()}</small>}</span>}</div>}
       {error && <p className="aid-error" role="alert">{error}</p>}
+      {missingOptions && results && !planning && options.length === 1 && <p className="aid-error"><button type="button" className="button button-outline" onClick={() => requireAuth(() => void moreOptions())}>Generate the other options</button></p>}
       {note && !error && <p className="aid-info" role="status">{note}</p>}
       {pagePick && <div className="aid-pages-back" role="presentation" onClick={e => { if (e.target === e.currentTarget) pagePick.done(null); }}>
         <div className="aid-pages" role="dialog" aria-modal="true" aria-label={`Choose the page of ${pagePick.name}`} onKeyDown={e => { if (e.key === 'Escape') pagePick.done(null); }}>

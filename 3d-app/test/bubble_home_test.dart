@@ -131,12 +131,12 @@ void main() {
     final mid = _glass(tester).center;
     final ai = _spot(tester, 'ai');
     expect(find.text('Release to enter'), findsNothing);
-    expect(find.text('DRAG TO EXPLORE'), findsOneWidget);
+    expect(find.text('SWIPE OR TAP TO EXPLORE'), findsOneWidget);
 
     final g = await tester.startGesture(mid);
     await _moveTo(tester, g, mid, ai);
     expect(find.text('Release to enter'), findsOneWidget);
-    expect(find.text('AI DESIGNER'), findsOneWidget);
+    expect(find.text('AI DESIGNER'), findsWidgets);
     expect(c.screen, AppScreen.home);
 
     await g.up();
@@ -159,14 +159,14 @@ void main() {
     final g = await tester.startGesture(mid);
     await _moveTo(tester, g, mid, dyo);
     expect(find.text('Release to enter'), findsOneWidget);
-    expect(find.text('DESIGN YOUR OWN'), findsOneWidget);
+    expect(find.text('DESIGN YOUR OWN'), findsWidgets);
     await _moveTo(tester, g, dyo, mid);
     expect(find.text('Release to enter'), findsNothing);
     await g.up();
     await tester.pump(const Duration(milliseconds: 700));
     expect(c.screen, AppScreen.home);
     expect(find.text('Release to enter'), findsNothing);
-    expect(find.text('DRAG TO EXPLORE'), findsOneWidget);
+    expect(find.text('SWIPE OR TAP TO EXPLORE'), findsOneWidget);
 
     // Releasing away from every option cancels too.
     final g2 = await tester.startGesture(mid);
@@ -288,7 +288,7 @@ void main() {
       final logo = tester.getRect(find.byType(BrandLogo).first);
       expect(logo.top, greaterThanOrEqualTo(47));
       expect(glass.top, greaterThanOrEqualTo(logo.bottom - 1));
-      expect(glass.bottom, lessThanOrEqualTo(nav.top));
+      // (The glass may run past the tab bar now: the page scrolls.)
       expect(nav.bottom, lessThanOrEqualTo(size.height - 34 + .5));
       for (final id in const ['ai', 'dyo', 'artboard', 'team', 'to3d']) {
         final r = tester.getRect(find.byKey(ValueKey('bubble-spot-$id')));

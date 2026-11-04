@@ -112,7 +112,7 @@ class OrderFormReader
             $pairs = [];
             $numberFirst = function (string $text) use (&$pairs, $sizeWord): string {
                 // "3 x 4XL", "3x 4XL", "3 4XL", "3 of 4XL"
-                return preg_replace_callback('/(?<![\w])(\d{1,4})\s*(?:x|×|of|pcs?)?\s*'.$sizeWord.'(?![\w])/iu', function ($m) use (&$pairs) {
+                return preg_replace_callback('/(?<![\w])(\d{1,4})(?:\s*(?:×|of|pcs?)\s*|\s+x\s+|x\s+|\s+)?'.$sizeWord.'(?![\w])/iu', function ($m) use (&$pairs) {
                     $size = $this->cellSize($m[2]);
                     if (! $size) {
                         return $m[0];
@@ -135,7 +135,7 @@ class OrderFormReader
                 }, $text) ?? $text;
             };
             // A line that starts with a size ("4XL x 3") is size first; else number first ("3 x 4XL").
-            $startsWithSize = preg_match('/^'.$sizeWord.'(?![\w])/iu', $line) === 1 && $this->cellSize(preg_split('/[\s:x×=\-–]+/u', $line)[0] ?? '');
+            $startsWithSize = preg_match('/^'.$sizeWord.'(?![\w])/iu', $line) === 1 && $this->cellSize(preg_split('/[\s:×=\-–]+/u', $line)[0] ?? '');
             $rest = $startsWithSize ? $sizeFirst($line) : $numberFirst($line);
             if (! $pairs) {
                 $rest = $startsWithSize ? $numberFirst($line) : $sizeFirst($line);

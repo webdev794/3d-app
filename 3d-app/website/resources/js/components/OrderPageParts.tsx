@@ -200,11 +200,14 @@ export interface BarButton { label: ReactNode; onClick: () => void; disabled?: b
  * an optional status text, and the gradient primary button on the right (default icon: →) with `note` under it.
  * 3DEEZI ASSIST's button sits above the bar (data-assist-above).
  */
-export function OrderBottomBar({ secondary, primary, note, status }: { secondary?: BarButton; primary: BarButton; note?: ReactNode; status?: ReactNode }) {
+export function OrderBottomBar({ secondary, extra, primary, note, status }: { secondary?: BarButton; /** A second small button (Copy form link). */ extra?: BarButton; primary: BarButton; note?: ReactNode; status?: ReactNode }) {
   return <div className="op-bar" data-assist-above="">
     <div className="op-bar-inner">
       {secondary && <button type="button" className="op-bar-secondary" onClick={secondary.onClick} disabled={secondary.disabled || secondary.busy} aria-busy={secondary.busy || undefined}>
         {secondary.busy ? <LoaderCircle className="spin" size={22} /> : secondary.icon ?? <FileText size={22} />}<span>{secondary.label}</span>
+      </button>}
+      {extra && <button type="button" className="op-bar-secondary" onClick={extra.onClick} disabled={extra.disabled || extra.busy} data-testid="bar-extra">
+        {extra.icon ?? <FileText size={22} />}<span>{extra.label}</span>
       </button>}
       <p className="op-bar-status" aria-live="polite">{status}</p>
       <div className="op-bar-primary-wrap">

@@ -107,3 +107,9 @@ Updated 2026-11-02 19:05. Only what's needed to continue; history is in tasks.md
 - Models ON HOLD until client approves. questions.md 1,2,4,5,6 wait for the client.
 - Agents idle: UP1 af1c38da3dcb82dfd, OR1 a08542f84d427ea23, UT2 ac7ec6923cf5f805f.
 - 11-03 late: I fixed Home directly (bubble_home.dart): AI off the edge, glow INSIDE only (clipped, outer glow removed), hover radius (w+h)/4+4 (one option only), AI/DYO smaller, stray line cut from bubble_dyo.png. Checked by my own screenshots (SP/HD1/shot.cjs -> hover-*.png). Always screenshot before reporting.
+- 11-03 evening: PUSHED v3 = 5e54144 (all of 11-03 afternoon). Live tar not made yet (copy SP/final-pack-1103a.sh, REF = 11-03-a).
+- 11-03 18:39: live tar deploy-zips/3deez-update-2026-11-03-b.tar.gz (46 files since 11-03-a, viewer -240, no migration). Next REF = this one.
+- 11-04: user: ONE agent works through SP/ONE/tasks.md one by one. Task 1 = glass like images/388 on all pages (not foggy). Not started yet (limit 98%, resets ~5 h).
+- 11-04: ONE started (single agent, SP/ONE/tasks.md tasks 1-4, log SP/ONE/log.md).
+- 11-04: ONE finished tasks 1-4 (not pushed). Open: Admin > Orders has no list of draft forms (admins open via copied link); order-form screens not browser-checked.
+- 11-04: HL1 Home like 399 done (home_*.png icons + home_word_ai/dyo.png from 403.jpg; bubble_home.dart, test updated). Not pushed.

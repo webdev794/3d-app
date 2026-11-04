@@ -599,3 +599,10 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 
 - 2026-11-03 (client): Create order form = type or photograph ANY notes ("Polo 3 x 4XL, 2 x 2XL, 4 x 5XL") + images -> 3DEEZI builds a neat, SHAREABLE order form. Upload order = customer already has a completed form. Spec SP/HB1/spec-notes-form.md. Starts when D has space.
 - 2026-11-03 (images/373-374): Home: white lights on the bubble sides as the client design 373, keep a phone-shaped bubble on wide windows, art like 373. Designer HD1 + tester UT2.
+
+- 2026-11-04 (images/388-389, client): glass too foggy; all 4 pages must match 388 and be in sync. ONE agent does all tasks one by one (SP/ONE/tasks.md).
+- 2026-11-04 (images/390): AI Designer shows only 1 of 4 options on live ("AI designer is busy"); make missing options retry / be re-generatable. ONE task 2.
+- 2026-11-04 (images/391-393): Create order form notes box: add "Upload file" for a messy existing order form; also fix notes reading "2xl x 10 singlets" (gave wrong counts). ONE task 3.
+- 2026-11-04 (images/394): Build my order form must go straight to the filled form, sizes/qtys right, plus an editable form link for the customer and admins. ONE task 4.
+- 2026-11-04 (images/399): Home layout like the client mobile picture: LET'S CREATE, big icons in rows (AI|DYO, ARTBOARD|TEAM, TO 3D), clear spacing, swipe hint + Assist at the bottom, no overlaps. HL1 (only agent).
+- 2026-11-04: Projects / Orders / Profile / My orders get the same outer bubble as Home (shape + rim lights). PB1 (only agent).

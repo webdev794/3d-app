@@ -33,12 +33,10 @@ class GlassBubble extends StatelessWidget {
   Widget build(BuildContext context) => RepaintBoundary(
     child: CustomPaint(
       // The rim is drawn in its own layer, cached until the size changes.
-      painter: _GlassPainter(
-        radius: radius,
-        accent: accent,
-        glow: 1,
-        blob: blob,
-      ),
+      // Page bubbles share Home's glass (shape, rim, lights, glow).
+      painter: identical(blob, pageBlob)
+          ? HomeGlassPainter()
+          : _GlassPainter(radius: radius, accent: accent, glow: 1, blob: blob),
       isComplex: true,
       child: RepaintBoundary(
         child: Padding(padding: padding, child: child),
@@ -206,19 +204,19 @@ void paintPageRim(
   // Inner glow, about 8 px, fading inward.
   canvas.drawPath(
     path,
-    stroke(34, const Color(0xff2ac4ff).withValues(alpha: .32), 8),
+    stroke(20, const Color(0xff2ac4ff).withValues(alpha: .26), 6),
   );
   // The rim core: about 5 px of saturated cyan inside the edge.
   canvas.drawPath(
     path,
-    stroke(16, Colors.white, 0)
+    stroke(7, Colors.white, 0)
       ..shader = ui.Gradient.linear(
         Offset.zero,
         Offset(w, h),
         [
-          const Color(0xff9ef0ff).withValues(alpha: .85),
-          const Color(0xff3cd0f6).withValues(alpha: .7),
-          const Color(0xff5ae0fa).withValues(alpha: .78),
+          const Color(0xff7aeaff).withValues(alpha: .95),
+          const Color(0xff1cc8f6).withValues(alpha: .9),
+          const Color(0xff40dcfa).withValues(alpha: .95),
         ],
         [0, .5, 1],
       ),
@@ -227,9 +225,9 @@ void paintPageRim(
   for (final at in corners) {
     canvas.drawPath(
       path,
-      stroke(26, Colors.white, 0)
+      stroke(12, Colors.white, 0)
         ..shader = ui.Gradient.radial(at, radius * 1.1, [
-          Colors.white.withValues(alpha: .7),
+          const Color(0xffa8f2ff).withValues(alpha: .55),
           const Color(0xff36c8ff).withValues(alpha: 0),
         ]),
     );
@@ -262,7 +260,7 @@ void paintPageRim(
     path,
     stroke(24, Colors.white, 0)
       ..shader = ui.Gradient.linear(Offset.zero, Offset(0, topH), [
-        const Color(0xffe6faff).withValues(alpha: .42),
+        const Color(0xffe6faff).withValues(alpha: .2),
         const Color(0xffbff1ff).withValues(alpha: 0),
       ]),
   );
@@ -291,14 +289,14 @@ void paintPageRim(
   // fading elsewhere.
   canvas.drawPath(
     path,
-    stroke(1.6, const Color(0xffe0faff).withValues(alpha: .9), 0),
+    stroke(1.8, const Color(0xffbff6ff), 0),
   );
   final m = Matrix4.identity()
     ..translateByDouble(w / 2, h / 2, 0, 1)
     ..scaleByDouble(1 - 5 * k / w, 1 - 5 * k / h, 1, 1)
     ..translateByDouble(-w / 2, -h / 2, 0, 1);
   final drift = path.transform(m.storage);
-  for (final (width, alpha, blur) in [(4.0, .45, 0.0), (1.8, 1.0, 0.0)]) {
+  for (final (width, alpha, blur) in [(3.0, .3, 0.0), (1.4, .9, 0.0)]) {
     canvas.drawPath(
       drift,
       stroke(width, Colors.white, blur)
@@ -401,9 +399,9 @@ class _GlassPainter extends CustomPainter {
           Offset(0, 0),
           Offset(0, size.height),
           [
-            const Color(0xff0c4a86).withValues(alpha: .8),
-            const Color(0xff042446).withValues(alpha: .84),
-            const Color(0xff0a3e74).withValues(alpha: .82),
+            const Color(0xff07243f).withValues(alpha: .82),
+            const Color(0xff020e1c).withValues(alpha: .86),
+            const Color(0xff051c34).withValues(alpha: .84),
           ],
           [0, .55, 1],
         ),
@@ -443,7 +441,7 @@ class _GlassPainter extends CustomPainter {
           sheen.outerRect.topCenter,
           sheen.outerRect.bottomCenter,
           [
-            Colors.white.withValues(alpha: .13),
+            Colors.white.withValues(alpha: .08),
             Colors.white.withValues(alpha: 0),
           ],
         ),
@@ -604,9 +602,9 @@ class _GlassPainter extends CustomPainter {
           size.center(Offset.zero),
           math.max(size.width, size.height) * .62,
           [
-            const Color(0xff03213f).withValues(alpha: .86),
-            const Color(0xff062e58).withValues(alpha: .84),
-            const Color(0xff0f5596).withValues(alpha: .8),
+            const Color(0xff010a16).withValues(alpha: .9),
+            const Color(0xff021326).withValues(alpha: .88),
+            const Color(0xff06284a).withValues(alpha: .84),
           ],
           [0, .6, 1],
         ),
@@ -629,4 +627,566 @@ class _GlassPainter extends CustomPainter {
       old.accent != accent ||
       old.glow != glow ||
       old.blob != blob;
+}
+
+
+//// The glass: an organic blob (a raised lobe at the top left, fuller
+/// corners and a slightly pinched waist, like the client's picture) with a
+/// deep navy body, soft glassy swirls and a thick bright cyan rim. Its edge
+/// stretches towards [pullAt] by [pull] (0 to 1), floats with [t], and forms
+/// a rounded pocket (its own lobe) around [pocketAt] by [pocket] (0 to 1).
+class HomeGlassPainter extends CustomPainter {
+  HomeGlassPainter({
+    this.t = 0,
+    this.pullAt = Offset.zero,
+    this.pull = 0,
+    this.pocketAt,
+    this.pocket = 0,
+    this.pocketR = 0,
+    this.pocketStrong = false,
+  });
+  final double t, pull, pocket, pocketR;
+  final Offset pullAt;
+  final Offset? pocketAt;
+  final bool pocketStrong;
+
+  /// The outline's points from the last [_blob], in order of direction.
+  List<Offset> _outline = const [];
+
+  /// Angular distance between two directions, 0 to pi.
+  static double _ang(double a, double b) {
+    var d = (a - b).abs() % (2 * math.pi);
+    if (d > math.pi) d = 2 * math.pi - d;
+    return d;
+  }
+
+  static double _bump(double d, double sigma) =>
+      math.exp(-(d * d) / (2 * sigma * sigma));
+
+  Path _blob(Size s) {
+    final c = s.center(Offset.zero);
+    final a = s.width / 2, b = s.height / 2;
+    const n = 120;
+    final ph = t * 2 * math.pi;
+    final toward = pullAt - c;
+    final dir = toward.direction;
+    final o = pocketAt == null ? null : pocketAt! - c;
+    // How wide the pocket looks from the centre of the glass.
+    final half = o == null
+        ? 0.0
+        : math.atan2(pocketR, math.max(o.distance, 1)).clamp(.2, 1.1);
+    final pts = <Offset>[];
+    for (var k = 0; k < n; k++) {
+      final th = k / n * 2 * math.pi;
+      // Tall rounded rectangle (client 399/403): flat top and bottom,
+      // nearly straight sides, large corners (about 20% of the width).
+      final r = math.min(s.width * .2, b);
+      final ax = a - r, by = b - r;
+      final per = 4 * ax + 4 * by + 2 * math.pi * r;
+      var u = (k / n) * per;
+      double x, y;
+      if (u < by) {
+        x = a;
+        y = u; // right side, downward from the middle
+      } else if ((u -= by) < math.pi * r / 2) {
+        final g = u / r;
+        x = ax + r * math.cos(g);
+        y = by + r * math.sin(g);
+      } else if ((u -= math.pi * r / 2) < 2 * ax) {
+        x = ax - u;
+        y = b;
+      } else if ((u -= 2 * ax) < math.pi * r / 2) {
+        final g = math.pi / 2 + u / r;
+        x = -ax + r * math.cos(g);
+        y = by + r * math.sin(g);
+      } else if ((u -= math.pi * r / 2) < 2 * by) {
+        x = -a;
+        y = by - u;
+      } else if ((u -= 2 * by) < math.pi * r / 2) {
+        final g = math.pi + u / r;
+        x = -ax + r * math.cos(g);
+        y = -by + r * math.sin(g);
+      } else if ((u -= math.pi * r / 2) < 2 * ax) {
+        x = -ax + u;
+        y = -b;
+      } else if ((u -= 2 * ax) < math.pi * r / 2) {
+        final g = 1.5 * math.pi + u / r;
+        x = ax + r * math.cos(g);
+        y = -by + r * math.sin(g);
+      } else {
+        u -= math.pi * r / 2;
+        x = a;
+        y = -by + u;
+      }
+      // Only a very slight soft bow on the sides, and faint breathing.
+      final side = math.pow(1 - (y / b).clamp(-1.0, 1.0).abs(), 2).toDouble();
+      x += x.sign * a * .012 * side * (x.abs() >= a - .5 ? 1 : 0);
+      final f =
+          .99 +
+          .0025 * math.sin(3 * th + ph) +
+          .002 * math.sin(5 * th - 2 * ph + 1) +
+          .0015 * math.sin(7 * th + 3 * ph);
+      var p = Offset(x, y) * f;
+      if (pull > 0) {
+        final diff = _ang(p.direction, dir);
+        final g = _bump(diff, .42);
+        final reach = (toward.distance / math.max(p.distance, 1)).clamp(
+          0.0,
+          1.2,
+        );
+        final bulge = pull * g * (6 + 22 * reach);
+        // The far side gives a little, so the glass feels like one volume.
+        final give = pull * _bump(math.pi - diff, .5) * 6;
+        p = p + Offset.fromDirection(p.direction, bulge - give);
+      }
+      if (o != null && pocket > 0) {
+        final diff = _ang(p.direction, o.direction);
+        // The surface pulls out round the chosen option ...
+        final need = o.distance + pocketR * 1.1;
+        var push = 24 * _bump(diff, half);
+        if (p.distance < need) {
+          push += (need - p.distance) * _bump(diff, half * .85);
+        }
+        // ... with only a slight waist beside it, so it stays one surface.
+        final neck = 8 * _bump(diff - half * 1.5, .2);
+        p = p + Offset.fromDirection(p.direction, pocket * (push - neck));
+      }
+      // Soft limit: near the frame the glass compresses instead of running
+      // into the logo row or the nav.
+      double soft(double v, double lo, double hi) {
+        const m = 3.0;
+        if (v < lo + m) return lo + m - (lo + m - v) * .25;
+        if (v > hi - m) return hi - m + (v - hi + m) * .25;
+        return v;
+      }
+
+      final q = c + p;
+      pts.add(Offset(soft(q.dx, 0, s.width), soft(q.dy, 0, s.height)));
+    }
+    _outline = pts;
+    final path = Path()..moveTo(pts[0].dx, pts[0].dy);
+    for (var i = 0; i < n; i++) {
+      final p0 = pts[(i - 1 + n) % n], p1 = pts[i];
+      final p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+      final c1 = p1 + (p2 - p0) / 6, c2 = p2 - (p3 - p1) / 6;
+      path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
+    }
+    return path..close();
+  }
+
+  /// Faint folds inside the glass, as fractions of its size: start, two
+  /// control points, end, relative width and strength.
+  static const _swirls = [
+    (
+      Offset(.07, .36),
+      Offset(.06, .10),
+      Offset(.36, .02),
+      Offset(.62, .10),
+      .1,
+      .4,
+    ),
+    (
+      Offset(.62, .08),
+      Offset(.93, .12),
+      Offset(1.0, .40),
+      Offset(.86, .56),
+      .09,
+      .34,
+    ),
+    (
+      Offset(.06, .56),
+      Offset(.0, .82),
+      Offset(.2, .97),
+      Offset(.48, .94),
+      .1,
+      .38,
+    ),
+    (
+      Offset(.54, .97),
+      Offset(.86, .96),
+      Offset(.99, .76),
+      Offset(.9, .56),
+      .09,
+      .34,
+    ),
+    (
+      Offset(.14, .46),
+      Offset(.36, .36),
+      Offset(.62, .64),
+      Offset(.88, .5),
+      .08,
+      .22,
+    ),
+  ];
+
+  /// A light streak just inside the outline, between the directions
+  /// [from] and [to] (radians, 0 = right, clockwise), [inset] px in, fading
+  /// in and out at its ends.
+  void _streak(
+    Canvas canvas,
+    Offset c,
+    double from,
+    double to,
+    double inset,
+    double width,
+    double alpha,
+    double blur,
+    Color colour,
+  ) {
+    final n = _outline.length;
+    double norm(double a) => (a % (2 * math.pi) + 2 * math.pi) % (2 * math.pi);
+    final a0 = norm(from), span = norm(to - from);
+    final idx = <int>[];
+    for (var k = 0; k < n; k++) {
+      final th = k / n * 2 * math.pi;
+      if (norm(th - a0) <= span) idx.add(k);
+    }
+    if (idx.length < 2) return;
+    // Order the points along the arc.
+    idx.sort(
+      (p, q) => norm(
+        p / n * 2 * math.pi - a0,
+      ).compareTo(norm(q / n * 2 * math.pi - a0)),
+    );
+    Offset at(int k) {
+      final p = _outline[k];
+      final d = c - p;
+      return p + d / math.max(d.distance, 1) * inset;
+    }
+
+    // One path along the arc, faded in and out by a sweep gradient round
+    // the centre (one draw instead of a blurred line per segment).
+    final line = Path()..moveTo(at(idx[0]).dx, at(idx[0]).dy);
+    for (var i = 1; i < idx.length; i++) {
+      final p = at(idx[i]);
+      line.lineTo(p.dx, p.dy);
+    }
+    final rot = Matrix4.identity()
+      ..translateByDouble(c.dx, c.dy, 0, 1)
+      ..rotateZ(a0)
+      ..translateByDouble(-c.dx, -c.dy, 0, 1);
+    final on = colour.withValues(alpha: alpha);
+    final off = colour.withValues(alpha: 0);
+    canvas.drawPath(
+      line,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..shader = ui.Gradient.sweep(
+          c,
+          [off, on, on, off],
+          const [0, .35, .65, 1],
+          TileMode.clamp,
+          0,
+          math.max(span, .01),
+          rot.storage,
+        )
+        ..maskFilter = blur > 2
+            ? MaskFilter.blur(BlurStyle.normal, blur)
+            : null,
+    );
+  }
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    if (s.isEmpty) return;
+    final path = _blob(s);
+    final w = s.width, h = s.height;
+    final c = s.center(Offset.zero);
+    final ph = t * 2 * math.pi;
+    // The body: dark and translucent, so the page and the 3 mark read
+    // through it; a little bluer towards the edge where light gathers.
+    canvas.drawPath(
+      path,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(w * .5, h * .48),
+          math.max(w, h) * .6,
+          const [Color(0xe6010a16), Color(0xe6021326), Color(0xe606284a)],
+          const [0, .6, 1],
+        ),
+    );
+    canvas.save();
+    canvas.clipPath(path);
+    // Faint folds drifting slowly in the glass.
+    for (var i = 0; i < 0; i++) {
+      // (folds off: clear glass, client 388)
+      final (p0, p1, p2, p3, width, strength) = _swirls[i];
+      final wob = Offset(
+        math.sin(ph + i * 1.3) * w * .012,
+        math.cos(ph + i * .9) * h * .01,
+      );
+      Offset at(Offset f) => Offset(f.dx * w, f.dy * h) + wob;
+      final a0 = at(p0), a1 = at(p1), a2 = at(p2), a3 = at(p3);
+      final swirl = Path()
+        ..moveTo(a0.dx, a0.dy)
+        ..cubicTo(a1.dx, a1.dy, a2.dx, a2.dy, a3.dx, a3.dy);
+      canvas.drawPath(
+        swirl,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = w * width
+          ..color = const Color(0xff2b7fe8).withValues(alpha: strength * .55)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+      );
+    }
+    // Light gathering inside the edge.
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 40
+        ..color = const Color(0xff1a6fe0).withValues(alpha: .12)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28),
+    );
+    // A soft sheen at the top left.
+    canvas.drawRect(
+      Offset.zero & s,
+      Paint()
+        ..shader = ui.Gradient.radial(Offset(w * .22, h * .1), w * .55, [
+          Colors.white.withValues(alpha: .09),
+          Colors.white.withValues(alpha: 0),
+        ]),
+    );
+    // The pocket: the glass gathers into a lens round the chosen option,
+    // lit on the side where the surface pulls out and melting into the
+    // body on the inner side (no separate outlined ring).
+    final o0 = pocketAt;
+    if (o0 != null && pocket > 0) {
+      final k = pocket * (pocketStrong ? 1 : .55);
+      // Never past the rim: keep the full size and move the centre in.
+      final r = pocketR;
+      final m = r + 10;
+      final o = Offset(
+        s.width < 2 * m ? s.width / 2 : o0.dx.clamp(m, s.width - m),
+        s.height < 2 * m ? s.height / 2 : o0.dy.clamp(m, s.height - m),
+      );
+      final out = o - c;
+      final u = out / math.max(out.distance, 1);
+      canvas.drawCircle(
+        o,
+        r,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            o,
+            r,
+            [
+              const Color(0xff3fb8ff).withValues(alpha: .24 * k),
+              const Color(0xff1f8fff).withValues(alpha: .1 * k),
+              const Color(0xff1f8fff).withValues(alpha: 0),
+            ],
+            const [0, .75, 1],
+          ),
+      );
+      final box = Rect.fromCircle(center: o, radius: r * 1.5);
+      canvas.saveLayer(box, Paint());
+      canvas.drawCircle(
+        o,
+        r * 1.08,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            o,
+            r * 1.08,
+            [
+              const Color(0x003fb8ff),
+              const Color(0xff3fb8ff).withValues(alpha: .38 * k),
+              const Color(0xffcdf6ff).withValues(alpha: .62 * k),
+              const Color(0x003fb8ff),
+            ],
+            const [.66, .84, .93, 1],
+          ),
+      );
+      // Fade the side facing the middle of the glass.
+      canvas.drawRect(
+        box,
+        Paint()
+          ..blendMode = BlendMode.dstIn
+          ..shader = ui.Gradient.linear(o - u * r, o + u * r, [
+            Colors.white.withValues(alpha: .2),
+            Colors.white,
+          ]),
+      );
+      canvas.restore();
+      // The lens catches the light at its top left.
+      canvas.drawArc(
+        Rect.fromCircle(center: o, radius: r * .86),
+        -2.75,
+        1.05,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 3.5
+          ..color = Colors.white.withValues(alpha: .7 * k),
+      );
+    }
+    // Directional highlights: a long bright reflection round the top-left
+    // corner, and a softer one at the bottom right.
+    _streak(canvas, c, -3.0, -1.6, 10, 12, .38, 7, Colors.white);
+    _streak(canvas, c, .25, 1.15, 10, 8, .3, 6, const Color(0xff9fe8ff));
+    canvas.restore();
+    // The edge (client 373): a strong, soft cyan glow INSIDE the glass only
+    // (clipped, nothing spills outside) and one thin crisp cyan-white line.
+    canvas.save();
+    canvas.clipPath(path);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 24
+        ..color = const Color(0xff4fdcff).withValues(alpha: .4)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+    );
+    canvas.restore();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.6
+        ..color = const Color(0xff9feeff),
+    );
+    _whiteLights(canvas, path, s);
+  }
+
+  /// White light on the glass (client 373): long soft white streaks inside
+  /// the rim on both sides, brightest at mid-height, and white gloss on the
+  /// top and bottom curves. Gradients only, no blur.
+  void _whiteLights(Canvas canvas, Path path, Size s) {
+    Path inset(double d) => path.transform(
+      (Matrix4.identity()
+            ..translateByDouble(s.width / 2, s.height / 2, 0, 1)
+            ..scaleByDouble(1 - d / s.width, 1 - d / s.height, 1, 1)
+            ..translateByDouble(-s.width / 2, -s.height / 2, 0, 1))
+          .storage,
+    );
+    final r = Offset.zero & s;
+    Shader blue(double a) => LinearGradient(
+      colors: [
+        const Color(0xff1fa8ff).withValues(alpha: a),
+        const Color(0xff1fa8ff).withValues(alpha: 0),
+        const Color(0xff1fa8ff).withValues(alpha: 0),
+        const Color(0xff1fa8ff).withValues(alpha: a),
+      ],
+      stops: const [0, .16, .84, 1],
+    ).createShader(r);
+    Shader blueEnds(double a) => LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        const Color(0xff1fa8ff).withValues(alpha: a),
+        const Color(0xff1fa8ff).withValues(alpha: 0),
+        const Color(0xff1fa8ff).withValues(alpha: 0),
+        const Color(0xff1fa8ff).withValues(alpha: a),
+      ],
+      stops: const [0, .1, .9, 1],
+    ).createShader(r);
+    void band(
+      double y0,
+      double y1,
+      Path p,
+      double w,
+      Shader sh, [
+      double blur = 0,
+    ]) {
+      canvas.save();
+      canvas.clipRect(Rect.fromLTRB(0, s.height * y0, s.width, s.height * y1));
+      canvas.drawPath(
+        p,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w
+          ..strokeCap = StrokeCap.round
+          ..shader = sh
+          ..maskFilter = blur > 0
+              ? MaskFilter.blur(BlurStyle.normal, blur)
+              : null,
+      );
+      canvas.restore();
+    }
+
+    // A wide soft blue glow down both sides and round the ends (client 373).
+    canvas.save();
+    canvas.clipPath(path);
+    band(0, 1, inset(30), 40, blue(.16), 16);
+    band(0, 1, inset(30), 30, blueEnds(.14), 16);
+    // Many small lights all round just inside the rim (client 373): each
+    // bright at its centre and fading out, uneven in size and spacing.
+    paintRimLights(canvas, inset(14), homeRimLights, 1.2 + .25 * pull);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(HomeGlassPainter o) =>
+      o.t != t ||
+      o.pull != pull ||
+      o.pullAt != pullAt ||
+      o.pocketAt != pocketAt ||
+      o.pocket != pocket ||
+      o.pocketR != pocketR ||
+      o.pocketStrong != pocketStrong;
+}
+
+/// Small lights round the rim (client 373): position along the edge (0-1),
+/// size in px and strength. Uneven on purpose, like light on real glass.
+const homeRimLights = <(double, double, double)>[
+  (.02, 22, .95),
+  (.07, 10, .6),
+  (.11, 26, 1),
+  (.17, 12, .7),
+  (.22, 18, .85),
+  (.29, 9, .55),
+  (.34, 24, .95),
+  (.39, 14, .7),
+  (.45, 20, .9),
+  (.5, 11, .6),
+  (.55, 28, 1),
+  (.61, 13, .7),
+  (.66, 19, .85),
+  (.72, 8, .5),
+  (.77, 25, .95),
+  (.83, 12, .65),
+  (.88, 21, .9),
+  (.94, 10, .6),
+];
+
+/// Draws [lights] along [p]: each an oval along the edge, white at its
+/// centre and fading through cyan to nothing. [k] brightens them all.
+void paintRimLights(
+  Canvas canvas,
+  Path p,
+  List<(double, double, double)> lights,
+  double k,
+) {
+  for (final m in p.computeMetrics()) {
+    for (final (f, size, a) in lights) {
+      final tan = m.getTangentForOffset(m.length * f);
+      if (tan == null) continue;
+      final al = (a * k).clamp(0.0, 1.0);
+      canvas.save();
+      canvas.translate(tan.position.dx, tan.position.dy);
+      canvas.rotate(-tan.angle);
+      canvas.scale(.9 + (f * 97) % 1 * 1.6, .22 + (f * 53) % 1 * .3);
+      canvas.drawCircle(
+        Offset.zero,
+        size * 2,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            Offset.zero,
+            size * 2,
+            [
+              Colors.white.withValues(alpha: al),
+              const Color(0xff6fdcff).withValues(alpha: al * .85),
+              const Color(0xff2ab8ff).withValues(alpha: al * .35),
+              const Color(0xff2ab8ff).withValues(alpha: 0),
+            ],
+            const [0, .25, .6, 1],
+          ),
+      );
+      canvas.restore();
+    }
+    break;
+  }
 }

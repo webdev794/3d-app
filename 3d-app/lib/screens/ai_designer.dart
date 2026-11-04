@@ -1166,13 +1166,24 @@ void startResults(AppController c) {
 
 Future<void> _planOptions(AppController c, int run) async {
   try {
-    final specs = await c.ai.planConcepts(
+    // A busy moment (rate limit, time-out) must not leave just "1 / 1"
+    // (client 2026-11-04, 390.jpg): the plan is asked up to three times.
+    Future<List<DesignSpec>> plan() => c.ai.planConcepts(
       brief: c.brief,
       references: c.references,
       mode: c.briefMode,
       sport: c.aiSport,
       garment: c.aiGarment,
     );
+    List<DesignSpec>? specs;
+    for (var attempt = 0; specs == null; attempt++) {
+      try {
+        specs = await plan();
+      } catch (_) {
+        if (attempt >= 2 || run != c.resultsRun) rethrow;
+        await Future<void>.delayed(Duration(seconds: 4 * (attempt + 1)));
+      }
+    }
     if (run != c.resultsRun || specs.isEmpty) return;
     String hex(Color x) =>
         '#${x.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
@@ -1192,7 +1203,7 @@ Future<void> _planOptions(AppController c, int run) async {
     ];
     c.update(() {
       // The primary keeps its picture and takes the plan's 3D kit spec.
-      c.concepts.first.spec = specs.first;
+      c.concepts.first.spec = specs!.first;
       c.concepts = [...c.concepts.take(1), ...options];
     });
     for (final o in options) {

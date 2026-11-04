@@ -310,8 +310,12 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   // "Write or snap your notes" (client 2026-11-03): typed notes, photos of notes and images, built into the form.
   const [notesText, setNotesText] = useState('');
   const [notePhotos, setNotePhotos] = useState<File[]>([]);
+  /** "Upload file": an existing order form (messy or incomplete) read with the notes (client 2026-11-04, 391.jpg). */
+  const [noteFiles, setNoteFiles] = useState<File[]>([]);
+  /** The rows the last Build made: a second Build replaces them instead of adding them again (392.jpg: 8 and 12). */
+  const notesBuilt = useRef<Set<string>>(new Set());
   const [noteImages, setNoteImages] = useState<File[]>([]);
-  const [building, setBuilding] = useState<{ busy: boolean; text?: string; check?: string[] }>({ busy: false });
+  const [building, setBuilding] = useState<{ busy: boolean; text?: string; check?: string[]; missing?: string[] }>({ busy: false });
   const sheetInput = useRef<HTMLInputElement>(null);
   const artInput = useRef<HTMLInputElement>(null);
   const [tried, setTried] = useState(false);
@@ -486,6 +490,15 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       if (!quiet) onNotice(`The draft wasn’t saved: ${message}`);
       return null;
     } finally { setSaving(false); }
+  }
+  /** "Copy form link" (client 394): the editable form for the signed-in owner and for admins (others get a sign-in / not found). */
+  async function copyFormLink() {
+    if (!userRef.current) { authRef.current(); return; }
+    const id = await ensureDraft();
+    if (!id) { onNotice('The draft could not be saved.'); return; }
+    const link = `${window.location.origin}${window.location.pathname.replace(/orders\/.*$/, '')}orders/new?draft=${id}`;
+    try { await navigator.clipboard.writeText(link); onNotice('Form link copied. You and 3DEEZI admins can open it to edit this order form.'); }
+    catch { window.prompt('Copy this form link', link); }
   }
   async function ensureDraft() {
     if (savePromise.current) await savePromise.current.catch(() => null);
@@ -690,17 +703,17 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   /** Build my order form: typed notes (read here without AI), photos of notes (3DEEZI AI) and images (artwork). */
   async function buildFromNotes() {
     const text = notesText.trim();
-    if (!text && !notePhotos.length && !noteImages.length) { setBuilding({ busy: false, text: 'Write your notes, or add a photo of them, first.' }); return; }
-    if ((notePhotos.length || noteImages.length) && !userRef.current) { authRef.current(); return; }
-    setBuilding({ busy: true, text: notePhotos.length ? '3DEEZI AI is reading your notes…' : 'Building your order form…' });
+    if (!text && !notePhotos.length && !noteImages.length && !noteFiles.length) { setBuilding({ busy: false, text: 'Write your notes, or add a photo of them, first.' }); return; }
+    if ((notePhotos.length || noteImages.length || noteFiles.length) && !userRef.current) { authRef.current(); return; }
+    setBuilding({ busy: true, text: notePhotos.length || noteFiles.length ? '3DEEZI AI is reading your notes…' : 'Building your order form…' });
     const read: { items: Loose[]; unknown: string[] } = { items: [], unknown: [] };
     try {
       if (text) { const r = await orderApi.readNotes(text); read.items.push(...((r.items ?? []) as Loose[])); read.unknown.push(...(r.unknown ?? [])); }
-      if (notePhotos.length) {
+      if (notePhotos.length || noteFiles.length) {
         const id = await ensureDraft();
         if (!id) throw new Error('The draft could not be saved.');
         const ids: number[] = [];
-        for (const f of notePhotos) { const done = await uploadOrderFile(id, f, 'order_form'); ids.push(done.id); setFiles(fs => [...fs.filter(x => x.id !== done.id), done]); }
+        for (const f of [...notePhotos, ...noteFiles]) { const done = await uploadOrderFile(id, f, 'order_form'); ids.push(done.id); setFiles(fs => [...fs.filter(x => x.id !== done.id), done]); }
         const d = await orderApi.readDraft(id);
         for (const sgg of d.suggested ?? []) if (ids.includes(sgg.file_id)) { read.items.push(...((sgg.items ?? []) as Loose[])); read.unknown.push(...(sgg.unknown ?? [])); }
       }
@@ -718,13 +731,17 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     });
     if (!built.length) { setBuilding({ busy: false, text: 'No garments or sizes found in your notes. Try lines like “Polo” then “3 x 4XL”.', check: read.unknown }); return; }
     setForm(f => {
-      const kept = f.rows.filter(r => sum(r.sizes) > 0 || r.project_id || r.players.length);
+      const kept = f.rows.filter(r => !notesBuilt.current.has(r.key) && (sum(r.sizes) > 0 || r.project_id || r.players.length));
       return { ...f, rows: [...kept, ...built].slice(0, MAX_ROWS), notes: f.notes || (text ? `From my notes:
 ${text}`.slice(0, 4000) : f.notes) };
     });
-    setNotePhotos([]); setNoteImages([]);
+    notesBuilt.current = new Set(built.map(r => r.key));
+    setNotePhotos([]); setNoteImages([]); setNoteFiles([]);
     const count = built.reduce((n, r) => n + sum(r.sizes), 0);
-    setBuilding({ busy: false, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them below, then continue.`, check: read.unknown });
+    // Straight on to the built garments (client 394): Details already typed stays; what is still missing is listed, not blocking.
+    const missing = [...new Set(Object.keys(validate(formRef.current, options)).filter(k => pageOf(k) === 0).map(k => k.replace(/^(contact|delivery)\./, '').replace(/_/g, ' ')))];
+    setBuilding({ busy: false, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them here, then continue.`, check: read.unknown, missing });
+    setPage(1);
   }
   /** "Have an order sheet?": the same reading as Upload order (OrderFormReader); its sizes come into the garments. */
   async function addSheet(file: File) {
@@ -910,9 +927,11 @@ ${text}`.slice(0, 4000) : f.notes) };
         <div className="of-notes-actions">
           <label className="of-btn"><Camera size={18} /> Add photo of notes<input type="file" hidden multiple accept="image/*,.pdf" onChange={e => { const l = Array.from(e.target.files ?? []); e.target.value = ''; setNotePhotos(p => [...p, ...l].slice(0, 4)); }} /></label>
           <label className="of-btn"><ImagePlus size={18} /> Add images<input type="file" hidden multiple accept={options.files.artwork.extensions.map(x => `.${x}`).join(',')} onChange={e => { const l = Array.from(e.target.files ?? []); e.target.value = ''; setNoteImages(p => [...p, ...l].slice(0, 10)); }} /></label>
+          <label className="of-btn" data-testid="notes-upload-file"><FileUp size={18} /> Upload file<input type="file" hidden multiple accept=".pdf,.xlsx,.xls,.csv,.ods,.doc,.docx,.txt,image/*" onChange={e => { const l = Array.from(e.target.files ?? []); e.target.value = ''; setNoteFiles(p => [...p, ...l].slice(0, 4)); }} /></label>
           <button type="button" className="of-btn is-primary" onClick={() => void buildFromNotes()} disabled={building.busy} data-testid="build-form">{building.busy ? <LoaderCircle className="spin" size={18} /> : <Sparkles size={18} />} Build my order form</button>
         </div>
-        {(notePhotos.length > 0 || noteImages.length > 0) && <ul className="of-sheet-files">
+        {(notePhotos.length > 0 || noteImages.length > 0 || noteFiles.length > 0) && <ul className="of-sheet-files">
+          {noteFiles.map((f, i) => <li key={`f${i}`}><FileUp size={15} /><span>{f.name} · order form file</span><button type="button" onClick={() => setNoteFiles(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
           {notePhotos.map((f, i) => <li key={`p${i}`}><Camera size={15} /><span>{f.name} · photo of notes</span><button type="button" onClick={() => setNotePhotos(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
           {noteImages.map((f, i) => <li key={`i${i}`}><ImagePlus size={15} /><span>{f.name} · image</span><button type="button" onClick={() => setNoteImages(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
         </ul>}
@@ -925,6 +944,10 @@ ${text}`.slice(0, 4000) : f.notes) };
           pricing: ('delivery' in next || 'country' in next) && f.pricing.destination ? withoutDestination(f.pricing) : f.pricing }))} />
         <MadeByField suppliers={suppliers} value={form.supplier_id} error={shownErrors.supplier_id} onChange={supplier_id => setForm(f => ({ ...f, supplier_id }))} />
       </ContactDetailsCard></div>}
+      {page === 1 && building.text && !building.busy && <div className="op-card of-notes-built" role="status" data-testid="notes-built"><p className="of-notes-status">{building.text}</p>
+        <button type="button" className="of-btn" onClick={() => void copyFormLink()} data-testid="copy-form-link"><Paperclip size={16} /> Copy form link</button>
+        {building.missing && building.missing.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> still to fill in under Details: {building.missing.join(', ')}.</div>}
+        {building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}</div>}
       {page === 1 && <OrderSection number={2} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
         action={<button type="button" className="op-link caps" onClick={addRow} disabled={form.rows.length >= MAX_ROWS}><Plus size={18} /> Add garment</button>}>
         {form.rows.length ? <ul className="of-rows">{form.rows.map((r, i) => <GarmentRow key={r.key} row={r} index={i} options={options} projects={projects} signedIn={!!user} focus={r.key === focusKey}
@@ -1001,7 +1024,7 @@ ${text}`.slice(0, 4000) : f.notes) };
     header={<><OrderPageHeader current="Create Order Form" title="Create order form" subtitle="Build your order step by step." />
       <OrderSteps steps={[{ label: 'Details', target: 'of-contact' }, { label: 'Garments', target: 'of-garments' }, { label: 'Artwork', target: 'of-artwork' }, { label: 'Review' }]} current={page} onGo={goTo} onReview={() => void review()} /></>}
     main={main} side={side}
-    bar={<OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} primary={page < 2 ? { label: page === 0 ? 'Continue to garments' : 'Continue to artwork', onClick: () => goTo(page + 1) } : { label: 'Review confirmation form', onClick: () => void review() }} note={page < 2 ? `Step ${page + 1} of 4` : 'Reviewing does not submit your order.'} status={statusText} />} />;
+    bar={<OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} extra={user ? { label: 'Copy form link', onClick: () => void copyFormLink() } : undefined} primary={page < 2 ? { label: page === 0 ? 'Continue to garments' : 'Continue to artwork', onClick: () => goTo(page + 1) } : { label: 'Review confirmation form', onClick: () => void review() }} note={page < 2 ? `Step ${page + 1} of 4` : 'Reviewing does not submit your order.'} status={statusText} />} />;
 }
 
 /* ================================================================================================ a garment */

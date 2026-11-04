@@ -40,6 +40,14 @@ class OrderFormReaderSheetsTest extends TestCase
         $this->assertStringContainsString('huge', $read['unknown'][0]);
     }
 
+    public function test_size_x_quantity_garment_lines(): void
+    {
+        $read = app(OrderFormReader::class)->notes("2xl x 10 singlets
+3xl x 20 tees");
+        $this->assertSame(['2XL' => 10], $read['items'][0]['sizes']);
+        $this->assertSame(['3XL' => 20], $read['items'][1]['sizes']);
+    }
+
     public function test_typed_notes_are_built_into_garments_sizes_and_players(): void
     {
         $read = app(OrderFormReader::class)->notes(implode("

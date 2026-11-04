@@ -1092,6 +1092,21 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
       } else {
         await c.api.saveOrderDraft(draftId!, fields());
       }
+      if (which == 'link') {
+        // Copy form link (client 394): the editable form on the website, for
+        // the signed-in owner and 3DEEZI admins.
+        final site = c.api.baseUrl.replaceFirst(RegExp(r'/api(/v1)?/?$'), '');
+        await Clipboard.setData(
+          ClipboardData(text: '$site/orders/new?draft=$draftId'),
+        );
+        if (mounted) {
+          showToast(
+            context,
+            'Form link copied. You and 3DEEZI admins can open it to edit this order form.',
+          );
+        }
+        return;
+      }
       final share = which == 'share';
       final links = await c.api.orderConfirmationLinks(draftId!, share: share);
       final url = '${links[share ? 'pdf' : which] ?? ''}';
@@ -1522,7 +1537,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
       setState(() => artFor!.fileIds.add(id));
       artFor = null;
     }
-    if (upload.kind == 'order_form' && notesPhoto) {
+    if (upload.kind == 'order_form' && (notesPhoto || notesFile)) {
       notesPhoto = false;
       unawaited(readNotesPhoto());
       return;
@@ -1570,7 +1585,10 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
 
   /// "Write or snap your notes" (client 2026-11-03): typed notes, a photo of notes, images.
   final notes = TextEditingController();
-  bool notesPhoto = false, building = false;
+  bool notesPhoto = false, notesFile = false, building = false;
+
+  /// The rows the last Build made: a second Build replaces them (392.jpg).
+  final notesBuilt = <_Row>{};
   String? notesNote;
 
   /// Build my order form: the typed notes read on the server without AI.
@@ -1606,7 +1624,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
       final unknown = <String>[];
       for (final s
           in ((d['suggested'] as List?) ?? const []).whereType<Map>()) {
-        if (s['source'] != 'ai') continue;
+        // A photo is read by AI; an uploaded order form file by any reader.
+        if (s['source'] != 'ai' && !notesFile) continue;
         items.addAll(
           ((s['items'] as List?) ?? const []).whereType<Map>().map(
             (m) => m.cast<String, dynamic>(),
@@ -1614,6 +1633,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         );
         unknown.addAll(((s['unknown'] as List?) ?? const []).map((u) => '$u'));
       }
+      notesFile = false;
       applyNotes({'items': items, 'unknown': unknown});
     } on ApiException catch (e) {
       if (mounted) setState(() => notesNote = e.message);
@@ -1630,7 +1650,14 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     final unknown = ((read['unknown'] as List?) ?? const []).map((u) => '$u');
     if (!mounted) return;
     setState(() {
-      if (items.isNotEmpty) addItems(items);
+      if (items.isNotEmpty) {
+        rows.removeWhere(notesBuilt.contains);
+        final before = rows.toSet();
+        addItems(items);
+        notesBuilt
+          ..clear()
+          ..addAll(rows.where((r) => !before.contains(r)));
+      }
       final count = items.fold<int>(
         0,
         (a, i) =>
@@ -1644,10 +1671,14 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         items.isEmpty
             ? 'No garments or sizes found. Try lines like "Polo" then "3 x 4XL".'
             : 'Built ${items.length} ${items.length == 1 ? 'garment' : 'garments'} ($count in all) from your notes. Check them under Garments.',
+        if (items.isNotEmpty && deliveryProblem() != null)
+          'Please check: ${deliveryProblem()}',
         if (unknown.isNotEmpty)
           'Please check: ${unknown.take(6).map((u) => '"$u"').join(', ')}',
       ].join('\n');
     });
+    // Straight on to the built garments (client 394).
+    if (items.isNotEmpty) goToStep(1);
   }
 
   void addItems(List<Map<String, dynamic>> items) {
@@ -1868,6 +1899,18 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
           ],
           if (page == 1) ...[
             _section('2 · Garments & sizes', key: sectionKeys[1]),
+            if (notesNote != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  notesNote!,
+                  key: const Key('notes-built'),
+                  style: const TextStyle(
+                    color: Color(0xffd7ffe6),
+                    fontSize: 13,
+                  ),
+                ),
+              ),
             SurfaceCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2448,6 +2491,17 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                     },
               icon: const Icon(Icons.photo_camera_outlined, size: 18),
               label: const Text('Add photo of notes'),
+            ),
+            OutlinedButton.icon(
+              key: const Key('notes-upload-file'),
+              onPressed: building
+                  ? null
+                  : () {
+                      notesFile = true;
+                      unawaited(addFile('order_form'));
+                    },
+              icon: const Icon(Icons.upload_file_outlined, size: 18),
+              label: const Text('Upload file'),
             ),
             OutlinedButton.icon(
               key: const Key('notes-images'),

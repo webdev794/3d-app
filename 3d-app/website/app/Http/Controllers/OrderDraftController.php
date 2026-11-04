@@ -33,12 +33,12 @@ class OrderDraftController extends Controller
 
     public function show(Request $request, int $draft): JsonResponse
     {
-        return response()->json(['data' => $this->full($this->owned($request, $draft))]);
+        return response()->json(['data' => $this->full($this->owned($request, $draft, true))]);
     }
 
     public function update(Request $request, int $draft): JsonResponse
     {
-        $owned = $this->owned($request, $draft);
+        $owned = $this->owned($request, $draft, true);
         $owned->update(['data' => $this->checked($request, false)['data']]);
         // Saved again with the same data: still show it as saved now.
         $owned->touch();
@@ -74,7 +74,7 @@ class OrderDraftController extends Controller
 
     public function files(Request $request, int $draft): JsonResponse
     {
-        return response()->json(['data' => $this->owned($request, $draft)->files]);
+        return response()->json(['data' => $this->owned($request, $draft, true)->files]);
     }
 
     /**
@@ -123,8 +123,13 @@ class OrderDraftController extends Controller
         return response()->json(['data' => ['message' => 'File removed.']]);
     }
 
-    private function owned(Request $request, int $draft): OrderDraft
+    private function owned(Request $request, int $draft, bool $admin = false): OrderDraft
     {
+        // The editable form link (client 2026-11-04, 394.jpg): admins may open and edit a customer's draft too.
+        if ($admin && $request->user()->is_admin) {
+            return OrderDraft::findOrFail($draft);
+        }
+
         return $request->user()->orderDrafts()->findOrFail($draft);
     }
 

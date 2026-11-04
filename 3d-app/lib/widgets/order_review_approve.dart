@@ -1032,6 +1032,13 @@ List<Widget> orderReviewApprove(
               icon: const Icon(Icons.share_outlined, size: 18),
               label: const Text('Share order form'),
             ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const Key('copy-form-link'),
+              onPressed: () => onDownloadConfirmation('link'),
+              icon: const Icon(Icons.link, size: 18),
+              label: const Text('Copy form link (editable)'),
+            ),
           ],
           const SizedBox(height: 12),
           GradientButton(

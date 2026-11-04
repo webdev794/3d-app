@@ -8,6 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_controller.dart';
+import '../assist.dart';
+import '../widgets/bubble_page.dart' show BubbleAssistLink;
+import '../widgets/glass_bubble.dart' show HomeGlassPainter;
 import '../widgets/notification_bell.dart';
 import '../widgets/ui.dart';
 import 'create_home.dart' show artworkTo3dFlow;
@@ -42,14 +45,12 @@ class _Spot {
     this.name,
     this.label,
     this.at, {
-    this.jersey,
     this.icon,
     this.art,
     this.box = const Size(.36, .23),
   });
   final String id, name, label;
   final Offset at;
-  final String? jersey;
   final IconData? icon;
 
   /// The client's painted picture (brush word + object). When it loads it
@@ -63,45 +64,43 @@ const _spots = [
     'ai',
     'AI DESIGNER',
     'AI',
-    Offset(.3, .19),
-    art: 'assets/images/art/bubble_ai.png',
-    box: Size(.34, .22),
-    jersey: 'assets/images/art/bubble_jersey_ai.webp',
+    Offset(.27, .27),
+    box: Size(.42, .21),
+    art: 'assets/images/art/home_ai.png',
   ),
   _Spot(
     'dyo',
     'DESIGN YOUR OWN',
     'DYO',
-    Offset(.71, .29),
-    art: 'assets/images/art/bubble_dyo.png',
-    box: Size(.38, .24),
-    jersey: 'assets/images/art/bubble_jersey_dyo.webp',
+    Offset(.73, .27),
+    box: Size(.42, .21),
+    art: 'assets/images/art/home_dyo.png',
   ),
   _Spot(
     'artboard',
     'ARTBOARD',
     'ARTBOARD',
-    Offset(.23, .44),
-    art: 'assets/images/art/bubble_artboard.png',
-    box: Size(.3, .15),
+    Offset(.27, .51),
+    art: 'assets/images/art/home_artboard.png',
+    box: Size(.42, .21),
     icon: Icons.draw_rounded,
   ),
   _Spot(
     'team',
     'DESIGN TEAM',
     'TEAM',
-    Offset(.29, .77),
-    art: 'assets/images/art/bubble_team.png',
-    box: Size(.38, .2),
+    Offset(.73, .51),
+    art: 'assets/images/art/home_team.png',
+    box: Size(.42, .21),
     icon: Icons.groups_rounded,
   ),
   _Spot(
     'to3d',
     'ARTWORK TO 3D',
     'TO 3D',
-    Offset(.71, .77),
-    art: 'assets/images/art/bubble_to3d.png',
-    box: Size(.38, .2),
+    Offset(.5, .75),
+    art: 'assets/images/art/home_to3d.png',
+    box: Size(.42, .21),
     icon: Icons.view_in_ar_rounded,
   ),
 ];
@@ -113,99 +112,83 @@ class _SpotFace extends StatelessWidget {
   final _Spot spot;
   final bool glow;
 
+  Widget _img(String path) => Image.asset(
+    path,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.high,
+    errorBuilder: (_, _, _) => Icon(
+      spot.icon ?? Icons.checkroom_rounded,
+      size: 48,
+      color: const Color(0xffe8fbff),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    final Widget icon;
-    if (spot.jersey != null) {
-      icon = Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          Image.asset(
-            spot.jersey!,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
-            errorBuilder: (_, _, _) => const SizedBox.shrink(),
-          ),
-          if (spot.id == 'ai')
-            const Positioned(
-              right: 0,
-              top: 0,
-              child: Icon(
-                Icons.auto_awesome,
-                color: Color(0xffd8f8ff),
-                size: 22,
-                shadows: [Shadow(color: _cyan, blurRadius: 10)],
-              ),
-            ),
-        ],
-      );
-    } else {
-      icon = LayoutBuilder(
-        builder: (context, b) {
-          final d = math.min(b.maxWidth, b.maxHeight) * .74;
-          return Center(
-            child: Container(
-              width: d,
-              height: d,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const RadialGradient(
-                  center: Alignment(-.35, -.45),
-                  colors: [
-                    Color(0xff2a77c9),
-                    Color(0xff0c2f62),
-                    Color(0xff071c3e),
-                  ],
-                  stops: [0, .55, 1],
-                ),
-                border: Border.all(color: const Color(0xcc5fdcff), width: 1.6),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x6619b6ff), blurRadius: 14),
-                ],
-              ),
-              child: Icon(
-                spot.icon,
-                size: d * .52,
-                color: const Color(0xffe8fbff),
-                shadows: const [Shadow(color: _cyan, blurRadius: 12)],
+    // The client's own icon (with its pedestal); AI and DYO get their small
+    // cyan word beside the jersey.
+    final word = spot.id == 'ai' || spot.id == 'dyo';
+    final Widget icon = !word
+        ? _img(spot.art!)
+        // The brush word sits on its own jersey (upper left for AI, upper
+        // right for DYO), placed against the picture, not the bubble.
+        : Center(
+            child: AspectRatio(
+              aspectRatio: 1.24,
+              child: LayoutBuilder(
+                builder: (context, b) {
+                  final ww = b.maxWidth * (spot.id == 'ai' ? .34 : .44);
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(child: _img(spot.art!)),
+                      Positioned(
+                        left: spot.id == 'ai' ? b.maxWidth * .02 : null,
+                        right: spot.id == 'dyo' ? b.maxWidth * .0 : null,
+                        top: -b.maxHeight * .08,
+                        width: ww,
+                        child: Image.asset(
+                          'assets/images/art/home_word_${spot.id}.png',
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           );
-        },
-      );
-    }
-    final Widget plain = Column(
+    final face = Column(
       children: [
-        Expanded(child: icon),
-        const SizedBox(height: 2),
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // (The pictures carry their own pedestals.)
+              icon,
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
         SizedBox(
-          height: 26,
+          height: 18,
           child: FittedBox(
             child: Text(
-              spot.label,
+              spot.name,
               style: const TextStyle(
-                fontFamily: 'Rajdhani',
-                fontWeight: FontWeight.w700,
-                fontSize: 22,
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
                 height: 1,
-                letterSpacing: 1.2,
-                color: Color(0xffe6f9ff),
-                shadows: [Shadow(color: _cyan, blurRadius: 10)],
+                letterSpacing: .5,
               ),
             ),
           ),
         ),
       ],
     );
-    final face = spot.art == null
-        ? plain
-        : Image.asset(
-            spot.art!,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.medium,
-            errorBuilder: (_, _, _) => plain,
-          );
     return glow
         ? ColorFiltered(
             colorFilter: const ColorFilter.mode(_cyan, BlendMode.srcIn),
@@ -285,8 +268,11 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
     }
   }
 
+  final _scroll = ScrollController();
+
   @override
   void dispose() {
+    _scroll.dispose();
     _tutorialTimer?.cancel();
     _float.dispose();
     _spring.dispose();
@@ -534,15 +520,33 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                       builder: (context, box) {
                         // A phone-shaped bubble on every screen: portrait,
                         // at most ~430 wide, centred (wide windows too).
-                        final w = box.maxWidth > 600
-                            ? math.min(430.0, box.maxHeight * .6)
-                            : box.maxWidth;
-                        return Center(
-                          child: SizedBox(
-                            width: w,
-                            height: box.maxHeight,
-                            child: LayoutBuilder(
-                              builder: (context, b) => _glass(b.biggest),
+                        // Portrait always: no wider than .75 x its height.
+                        // Full width (phone width at most on wide
+                        // windows); as tall as its content needs (at least
+                        // the space), the page scrolls when it is longer.
+                        final w = math.min(box.maxWidth, 600.0);
+                        final h = math.max(box.maxHeight, w * 1.45);
+                        // Drags on the glass stay the glass's (no drag
+                        // scrolling); the page scrolls by wheel or the
+                        // scrollbar when the window is short.
+                        return ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(
+                            context,
+                          ).copyWith(dragDevices: const {}),
+                          child: Scrollbar(
+                            controller: _scroll,
+                            thumbVisibility: h > box.maxHeight,
+                            child: SingleChildScrollView(
+                              controller: _scroll,
+                              child: Center(
+                                child: SizedBox(
+                                  width: w,
+                                  height: h,
+                                  child: LayoutBuilder(
+                                    builder: (context, b) => _glass(b.biggest),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         );
@@ -628,11 +632,8 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                               math.sin(t * 2 * math.pi) * 3,
                               math.cos(t * 2 * math.pi) * 4,
                             );
-                      final parallax = pull == 0
-                          ? Offset.zero
-                          : (pullAt - s.center(Offset.zero)) * (.05 * pull);
                       return CustomPaint(
-                        painter: _GlassPainter(
+                        painter: HomeGlassPainter(
                           t: _reduce ? 0 : t,
                           pullAt: pullAt,
                           pull: pull,
@@ -647,7 +648,18 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                                   // so a wide picture (AI) stays off its
                                   // neighbours.
                                   final b = _boxOf(_pocketIdx!);
-                                  return (b.width + b.height) * .25 + 4;
+                                  // ...and never past halfway to another
+                                  // option, so two never overlap.
+                                  var r = (b.width + b.height) * .25 + 4;
+                                  final c = _centreOf(_pocketIdx!);
+                                  for (var j = 0; j < _spots.length; j++) {
+                                    if (j == _pocketIdx) continue;
+                                    r = math.min(
+                                      r,
+                                      (_centreOf(j) - c).distance / 2 - 3,
+                                    );
+                                  }
+                                  return r;
                                 }(),
                           pocketStrong: labelFor != null,
                         ),
@@ -663,16 +675,33 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                         child: Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            // The large subtle 3DEEZI mark behind the glass,
-                            // shifting slightly with the finger.
+                            // "LET'S CREATE" at the top of the bubble.
                             Positioned(
-                              left: s.width * .29,
-                              right: s.width * .29,
-                              top: s.height * .44,
-                              height: s.height * .15,
+                              left: 0,
+                              right: 0,
+                              top: s.height * .065,
+                              height: s.height * .08,
+                              child: const _Title(),
+                            ),
+                            // A big, faint dark "3" in the background at
+                            // the top, behind the title and the top row.
+                            Positioned(
+                              left: s.width * .12,
+                              right: s.width * .12,
+                              top: s.height * .02,
+                              height: s.height * .36,
                               child: Transform.translate(
-                                offset: drift + parallax,
-                                child: _GlassMark(bright: labelFor != null),
+                                offset: drift,
+                                child: const Opacity(
+                                  opacity: .16,
+                                  child: ColorFiltered(
+                                    colorFilter: ColorFilter.mode(
+                                      Color(0xff3a4e66),
+                                      BlendMode.srcIn,
+                                    ),
+                                    child: _GlassMark(bright: false),
+                                  ),
+                                ),
                               ),
                             ),
                             for (var i = 0; i < _spots.length; i++)
@@ -681,9 +710,20 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                               Positioned(
                                 left: 0,
                                 right: 0,
-                                top: s.height * .615,
+                                top: s.height * .87,
                                 child: const _DragHint(),
                               ),
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              top: s.height * .905,
+                              child: Center(
+                                child: BubbleAssistLink(
+                                  onPressed: () =>
+                                      AssistController.latest?.show(),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       );
@@ -841,10 +881,8 @@ class _Backdrop extends StatelessWidget {
   );
 }
 
-/// The big 3DEEZI mark behind the glass, made glassy: a soft blue glow, a
-/// light-to-blue gradient body and a bright upper-left edge.
-/// The big mark behind the glass: the real 3DEEZI emblem (brand asset,
-/// 1456 x 904), unaltered, seen through the glass.
+/// The big 3DEEZI mark (brand asset, unaltered); the tutorial's demo glass
+/// still shows it.
 class _GlassMark extends StatelessWidget {
   const _GlassMark({required this.bright});
   final bool bright;
@@ -864,6 +902,26 @@ class _GlassMark extends StatelessWidget {
   );
 }
 
+class _Title extends StatelessWidget {
+  const _Title();
+
+  @override
+  Widget build(BuildContext context) => const IgnorePointer(
+    child: FittedBox(
+      child: Text(
+        "LET'S CREATE",
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 30,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.5,
+          shadows: [Shadow(color: _cyan, blurRadius: 14)],
+        ),
+      ),
+    ),
+  );
+}
+
 class _DragHint extends StatelessWidget {
   const _DragHint();
 
@@ -875,7 +933,7 @@ class _DragHint extends StatelessWidget {
         Icon(Icons.chevron_left, size: 18, color: _cyan),
         SizedBox(width: 6),
         Text(
-          'DRAG TO EXPLORE',
+          'SWIPE OR TAP TO EXPLORE',
           style: TextStyle(
             color: Color(0xffcdefff),
             fontSize: 11,
@@ -965,475 +1023,6 @@ class _UpgradeButton extends StatelessWidget {
       ),
     ),
   );
-}
-
-//// The glass: an organic blob (a raised lobe at the top left, fuller
-/// corners and a slightly pinched waist, like the client's picture) with a
-/// deep navy body, soft glassy swirls and a thick bright cyan rim. Its edge
-/// stretches towards [pullAt] by [pull] (0 to 1), floats with [t], and forms
-/// a rounded pocket (its own lobe) around [pocketAt] by [pocket] (0 to 1).
-class _GlassPainter extends CustomPainter {
-  _GlassPainter({
-    required this.t,
-    required this.pullAt,
-    required this.pull,
-    required this.pocketAt,
-    required this.pocket,
-    required this.pocketR,
-    required this.pocketStrong,
-  });
-  final double t, pull, pocket, pocketR;
-  final Offset pullAt;
-  final Offset? pocketAt;
-  final bool pocketStrong;
-
-  /// The outline's points from the last [_blob], in order of direction.
-  List<Offset> _outline = const [];
-
-  /// Angular distance between two directions, 0 to pi.
-  static double _ang(double a, double b) {
-    var d = (a - b).abs() % (2 * math.pi);
-    if (d > math.pi) d = 2 * math.pi - d;
-    return d;
-  }
-
-  static double _bump(double d, double sigma) =>
-      math.exp(-(d * d) / (2 * sigma * sigma));
-
-  Path _blob(Size s) {
-    final c = s.center(Offset.zero);
-    final a = s.width / 2, b = s.height / 2;
-    const n = 120;
-    final ph = t * 2 * math.pi;
-    final toward = pullAt - c;
-    final dir = toward.direction;
-    final o = pocketAt == null ? null : pocketAt! - c;
-    // How wide the pocket looks from the centre of the glass.
-    final half = o == null
-        ? 0.0
-        : math.atan2(pocketR, math.max(o.distance, 1)).clamp(.2, 1.1);
-    final pts = <Offset>[];
-    for (var k = 0; k < n; k++) {
-      final th = k / n * 2 * math.pi;
-      final ct = math.cos(th), st = math.sin(th);
-      const e = 2 / 2.7; // soft pill: large rounded corners (client 373)
-      final x = a * ct.sign * math.pow(ct.abs(), e).toDouble();
-      final y = b * st.sign * math.pow(st.abs(), e).toDouble();
-      // A soft glass pillow, gently organic: a little fuller at the top
-      // left and the lower corners, the sides drawn in a touch below the
-      // middle, all gently breathing.
-      var f =
-          .992 +
-          .012 * _bump(_ang(th, -2.15), .4) +
-          .008 * _bump(_ang(th, 2.4), .45) -
-          .012 * _bump(_ang(th, .12), .3) -
-          .012 * _bump(_ang(th, math.pi - .05), .3) +
-          // Small travelling ripples, like a real bubble's surface.
-          .007 * math.sin(3 * th + ph) +
-          .006 * math.sin(5 * th - 2 * ph + 1) +
-          .005 * math.sin(7 * th + 3 * ph) +
-          .004 * math.sin(9 * th - ph + 2) +
-          .003 * math.sin(11 * th + 2 * ph);
-      var p = Offset(x, y) * f;
-      if (pull > 0) {
-        final diff = _ang(p.direction, dir);
-        final g = _bump(diff, .42);
-        final reach = (toward.distance / math.max(p.distance, 1)).clamp(
-          0.0,
-          1.2,
-        );
-        final bulge = pull * g * (6 + 22 * reach);
-        // The far side gives a little, so the glass feels like one volume.
-        final give = pull * _bump(math.pi - diff, .5) * 6;
-        p = p + Offset.fromDirection(p.direction, bulge - give);
-      }
-      if (o != null && pocket > 0) {
-        final diff = _ang(p.direction, o.direction);
-        // The surface pulls out round the chosen option ...
-        final need = o.distance + pocketR * 1.1;
-        var push = 24 * _bump(diff, half);
-        if (p.distance < need) {
-          push += (need - p.distance) * _bump(diff, half * .85);
-        }
-        // ... with only a slight waist beside it, so it stays one surface.
-        final neck = 8 * _bump(diff - half * 1.5, .2);
-        p = p + Offset.fromDirection(p.direction, pocket * (push - neck));
-      }
-      // Soft limit: near the frame the glass compresses instead of running
-      // into the logo row or the nav.
-      double soft(double v, double lo, double hi) {
-        const m = 3.0;
-        if (v < lo + m) return lo + m - (lo + m - v) * .25;
-        if (v > hi - m) return hi - m + (v - hi + m) * .25;
-        return v;
-      }
-
-      final q = c + p;
-      pts.add(Offset(soft(q.dx, 0, s.width), soft(q.dy, 0, s.height)));
-    }
-    _outline = pts;
-    final path = Path()..moveTo(pts[0].dx, pts[0].dy);
-    for (var i = 0; i < n; i++) {
-      final p0 = pts[(i - 1 + n) % n], p1 = pts[i];
-      final p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
-      final c1 = p1 + (p2 - p0) / 6, c2 = p2 - (p3 - p1) / 6;
-      path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
-    }
-    return path..close();
-  }
-
-  /// Faint folds inside the glass, as fractions of its size: start, two
-  /// control points, end, relative width and strength.
-  static const _swirls = [
-    (
-      Offset(.07, .36),
-      Offset(.06, .10),
-      Offset(.36, .02),
-      Offset(.62, .10),
-      .1,
-      .4,
-    ),
-    (
-      Offset(.62, .08),
-      Offset(.93, .12),
-      Offset(1.0, .40),
-      Offset(.86, .56),
-      .09,
-      .34,
-    ),
-    (
-      Offset(.06, .56),
-      Offset(.0, .82),
-      Offset(.2, .97),
-      Offset(.48, .94),
-      .1,
-      .38,
-    ),
-    (
-      Offset(.54, .97),
-      Offset(.86, .96),
-      Offset(.99, .76),
-      Offset(.9, .56),
-      .09,
-      .34,
-    ),
-    (
-      Offset(.14, .46),
-      Offset(.36, .36),
-      Offset(.62, .64),
-      Offset(.88, .5),
-      .08,
-      .22,
-    ),
-  ];
-
-  /// A light streak just inside the outline, between the directions
-  /// [from] and [to] (radians, 0 = right, clockwise), [inset] px in, fading
-  /// in and out at its ends.
-  void _streak(
-    Canvas canvas,
-    Offset c,
-    double from,
-    double to,
-    double inset,
-    double width,
-    double alpha,
-    double blur,
-    Color colour,
-  ) {
-    final n = _outline.length;
-    double norm(double a) => (a % (2 * math.pi) + 2 * math.pi) % (2 * math.pi);
-    final a0 = norm(from), span = norm(to - from);
-    final idx = <int>[];
-    for (var k = 0; k < n; k++) {
-      final th = k / n * 2 * math.pi;
-      if (norm(th - a0) <= span) idx.add(k);
-    }
-    if (idx.length < 2) return;
-    // Order the points along the arc.
-    idx.sort(
-      (p, q) => norm(
-        p / n * 2 * math.pi - a0,
-      ).compareTo(norm(q / n * 2 * math.pi - a0)),
-    );
-    Offset at(int k) {
-      final p = _outline[k];
-      final d = c - p;
-      return p + d / math.max(d.distance, 1) * inset;
-    }
-
-    // One path along the arc, faded in and out by a sweep gradient round
-    // the centre (one draw instead of a blurred line per segment).
-    final line = Path()..moveTo(at(idx[0]).dx, at(idx[0]).dy);
-    for (var i = 1; i < idx.length; i++) {
-      final p = at(idx[i]);
-      line.lineTo(p.dx, p.dy);
-    }
-    final rot = Matrix4.identity()
-      ..translateByDouble(c.dx, c.dy, 0, 1)
-      ..rotateZ(a0)
-      ..translateByDouble(-c.dx, -c.dy, 0, 1);
-    final on = colour.withValues(alpha: alpha);
-    final off = colour.withValues(alpha: 0);
-    canvas.drawPath(
-      line,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = width
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..shader = ui.Gradient.sweep(
-          c,
-          [off, on, on, off],
-          const [0, .35, .65, 1],
-          TileMode.clamp,
-          0,
-          math.max(span, .01),
-          rot.storage,
-        )
-        ..maskFilter = blur > 2
-            ? MaskFilter.blur(BlurStyle.normal, blur)
-            : null,
-    );
-  }
-
-  @override
-  void paint(Canvas canvas, Size s) {
-    if (s.isEmpty) return;
-    final path = _blob(s);
-    final w = s.width, h = s.height;
-    final c = s.center(Offset.zero);
-    final ph = t * 2 * math.pi;
-    // The body: dark and translucent, so the page and the 3 mark read
-    // through it; a little bluer towards the edge where light gathers.
-    canvas.drawPath(
-      path,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(w * .5, h * .48),
-          math.max(w, h) * .6,
-          const [Color(0xf4001326), Color(0xf2001a32), Color(0xf0042a4a)],
-          const [0, .6, 1],
-        ),
-    );
-    canvas.save();
-    canvas.clipPath(path);
-    // Faint folds drifting slowly in the glass.
-    for (var i = 0; i < _swirls.length; i++) {
-      final (p0, p1, p2, p3, width, strength) = _swirls[i];
-      final wob = Offset(
-        math.sin(ph + i * 1.3) * w * .012,
-        math.cos(ph + i * .9) * h * .01,
-      );
-      Offset at(Offset f) => Offset(f.dx * w, f.dy * h) + wob;
-      final a0 = at(p0), a1 = at(p1), a2 = at(p2), a3 = at(p3);
-      final swirl = Path()
-        ..moveTo(a0.dx, a0.dy)
-        ..cubicTo(a1.dx, a1.dy, a2.dx, a2.dy, a3.dx, a3.dy);
-      canvas.drawPath(
-        swirl,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = w * width
-          ..color = const Color(0xff2b7fe8).withValues(alpha: strength * .55)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
-      );
-    }
-    // Light gathering inside the edge.
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 70
-        ..color = const Color(0xff1a6fe0).withValues(alpha: .2)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28),
-    );
-    // A soft sheen at the top left.
-    canvas.drawRect(
-      Offset.zero & s,
-      Paint()
-        ..shader = ui.Gradient.radial(Offset(w * .22, h * .1), w * .55, [
-          Colors.white.withValues(alpha: .09),
-          Colors.white.withValues(alpha: 0),
-        ]),
-    );
-    // The pocket: the glass gathers into a lens round the chosen option,
-    // lit on the side where the surface pulls out and melting into the
-    // body on the inner side (no separate outlined ring).
-    final o0 = pocketAt;
-    if (o0 != null && pocket > 0) {
-      final k = pocket * (pocketStrong ? 1 : .55);
-      // Never past the rim: keep the full size and move the centre in.
-      final r = pocketR;
-      final m = r + 10;
-      final o = Offset(
-        s.width < 2 * m ? s.width / 2 : o0.dx.clamp(m, s.width - m),
-        s.height < 2 * m ? s.height / 2 : o0.dy.clamp(m, s.height - m),
-      );
-      final out = o - c;
-      final u = out / math.max(out.distance, 1);
-      canvas.drawCircle(
-        o,
-        r,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            o,
-            r,
-            [
-              const Color(0xff3fb8ff).withValues(alpha: .24 * k),
-              const Color(0xff1f8fff).withValues(alpha: .1 * k),
-              const Color(0xff1f8fff).withValues(alpha: 0),
-            ],
-            const [0, .75, 1],
-          ),
-      );
-      final box = Rect.fromCircle(center: o, radius: r * 1.5);
-      canvas.saveLayer(box, Paint());
-      canvas.drawCircle(
-        o,
-        r * 1.08,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            o,
-            r * 1.08,
-            [
-              const Color(0x003fb8ff),
-              const Color(0xff3fb8ff).withValues(alpha: .38 * k),
-              const Color(0xffcdf6ff).withValues(alpha: .62 * k),
-              const Color(0x003fb8ff),
-            ],
-            const [.66, .84, .93, 1],
-          ),
-      );
-      // Fade the side facing the middle of the glass.
-      canvas.drawRect(
-        box,
-        Paint()
-          ..blendMode = BlendMode.dstIn
-          ..shader = ui.Gradient.linear(o - u * r, o + u * r, [
-            Colors.white.withValues(alpha: .2),
-            Colors.white,
-          ]),
-      );
-      canvas.restore();
-      // The lens catches the light at its top left.
-      canvas.drawArc(
-        Rect.fromCircle(center: o, radius: r * .86),
-        -2.75,
-        1.05,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 3.5
-          ..color = Colors.white.withValues(alpha: .7 * k),
-      );
-    }
-    // Directional highlights: a long bright reflection round the top-left
-    // corner, and a softer one at the bottom right.
-    _streak(canvas, c, -3.0, -1.6, 10, 12, .38, 7, Colors.white);
-    _streak(canvas, c, .25, 1.15, 10, 8, .3, 6, const Color(0xff9fe8ff));
-    canvas.restore();
-    // The edge (client 373): a strong, soft cyan glow INSIDE the glass only
-    // (clipped, nothing spills outside) and one thin crisp cyan-white line.
-    canvas.save();
-    canvas.clipPath(path);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 36
-        ..color = const Color(0xff4fdcff).withValues(alpha: .6)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
-    );
-    canvas.restore();
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.6
-        ..color = const Color(0xff9feeff),
-    );
-    _whiteLights(canvas, path, s);
-  }
-
-  /// White light on the glass (client 373): long soft white streaks inside
-  /// the rim on both sides, brightest at mid-height, and white gloss on the
-  /// top and bottom curves. Gradients only, no blur.
-  void _whiteLights(Canvas canvas, Path path, Size s) {
-    Path inset(double d) => path.transform(
-      (Matrix4.identity()
-            ..translateByDouble(s.width / 2, s.height / 2, 0, 1)
-            ..scaleByDouble(1 - d / s.width, 1 - d / s.height, 1, 1)
-            ..translateByDouble(-s.width / 2, -s.height / 2, 0, 1))
-          .storage,
-    );
-    final r = Offset.zero & s;
-    Shader blue(double a) => LinearGradient(
-      colors: [
-        const Color(0xff1fa8ff).withValues(alpha: a),
-        const Color(0xff1fa8ff).withValues(alpha: 0),
-        const Color(0xff1fa8ff).withValues(alpha: 0),
-        const Color(0xff1fa8ff).withValues(alpha: a),
-      ],
-      stops: const [0, .16, .84, 1],
-    ).createShader(r);
-    Shader blueEnds(double a) => LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [
-        const Color(0xff1fa8ff).withValues(alpha: a),
-        const Color(0xff1fa8ff).withValues(alpha: 0),
-        const Color(0xff1fa8ff).withValues(alpha: 0),
-        const Color(0xff1fa8ff).withValues(alpha: a),
-      ],
-      stops: const [0, .1, .9, 1],
-    ).createShader(r);
-    void band(
-      double y0,
-      double y1,
-      Path p,
-      double w,
-      Shader sh, [
-      double blur = 0,
-    ]) {
-      canvas.save();
-      canvas.clipRect(Rect.fromLTRB(0, s.height * y0, s.width, s.height * y1));
-      canvas.drawPath(
-        p,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = w
-          ..strokeCap = StrokeCap.round
-          ..shader = sh
-          ..maskFilter = blur > 0
-              ? MaskFilter.blur(BlurStyle.normal, blur)
-              : null,
-      );
-      canvas.restore();
-    }
-
-    // A wide soft blue glow down both sides and round the ends (client 373).
-    canvas.save();
-    canvas.clipPath(path);
-    band(0, 1, inset(30), 40, blue(.35), 16);
-    band(0, 1, inset(30), 30, blueEnds(.3), 16);
-    // Many small lights all round just inside the rim (client 373): each
-    // bright at its centre and fading out, uneven in size and spacing.
-    _rimLights(canvas, inset(14), _homeLights, 1.2 + .25 * pull);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_GlassPainter o) =>
-      o.t != t ||
-      o.pull != pull ||
-      o.pullAt != pullAt ||
-      o.pocketAt != pocketAt ||
-      o.pocket != pocket ||
-      o.pocketR != pocketR ||
-      o.pocketStrong != pocketStrong;
 }
 
 // Over the options: the light trail from the touch point to the finger,
@@ -1614,64 +1203,3 @@ class _TrailPainter extends CustomPainter {
       o.ringRadius != ringRadius;
 }
 
-/// Small lights round the rim (client 373): position along the edge (0-1),
-/// size in px and strength. Uneven on purpose, like light on real glass.
-const _homeLights = <(double, double, double)>[
-  (.02, 22, .95),
-  (.07, 10, .6),
-  (.11, 26, 1),
-  (.17, 12, .7),
-  (.22, 18, .85),
-  (.29, 9, .55),
-  (.34, 24, .95),
-  (.39, 14, .7),
-  (.45, 20, .9),
-  (.5, 11, .6),
-  (.55, 28, 1),
-  (.61, 13, .7),
-  (.66, 19, .85),
-  (.72, 8, .5),
-  (.77, 25, .95),
-  (.83, 12, .65),
-  (.88, 21, .9),
-  (.94, 10, .6),
-];
-
-/// Draws [lights] along [p]: each an oval along the edge, white at its
-/// centre and fading through cyan to nothing. [k] brightens them all.
-void _rimLights(
-  Canvas canvas,
-  Path p,
-  List<(double, double, double)> lights,
-  double k,
-) {
-  for (final m in p.computeMetrics()) {
-    for (final (f, size, a) in lights) {
-      final tan = m.getTangentForOffset(m.length * f);
-      if (tan == null) continue;
-      final al = (a * k).clamp(0.0, 1.0);
-      canvas.save();
-      canvas.translate(tan.position.dx, tan.position.dy);
-      canvas.rotate(-tan.angle);
-      canvas.scale(.9 + (f * 97) % 1 * 1.6, .22 + (f * 53) % 1 * .3);
-      canvas.drawCircle(
-        Offset.zero,
-        size * 2,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            Offset.zero,
-            size * 2,
-            [
-              Colors.white.withValues(alpha: al),
-              const Color(0xff6fdcff).withValues(alpha: al * .85),
-              const Color(0xff2ab8ff).withValues(alpha: al * .35),
-              const Color(0xff2ab8ff).withValues(alpha: 0),
-            ],
-            const [0, .25, .6, 1],
-          ),
-      );
-      canvas.restore();
-    }
-    break;
-  }
-}

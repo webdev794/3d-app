@@ -460,7 +460,7 @@ class _DemoGlass extends StatelessWidget {
           children: [
             Positioned.fill(
               child: CustomPaint(
-                painter: _GlassPainter(
+                painter: HomeGlassPainter(
                   t: float,
                   pullAt: swipe ? finger : mid,
                   pull: pull,
