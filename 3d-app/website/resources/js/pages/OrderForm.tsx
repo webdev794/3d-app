@@ -62,7 +62,7 @@ const DEFAULT_OPTIONS: FormOptions = {
   sizes: ALL_SIZES,
   files: { artwork: { extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'pdf', 'ai', 'eps', 'cdr', 'psd', 'tif', 'tiff', 'heic'], max_kb: 25600 }, max_files: 15 },
 };
-const MAX_ROWS = 30, MAX_PLAYERS = 300, STORE = '3deezi.order-form';
+const MAX_ROWS = 60, MAX_PLAYERS = 300, STORE = '3deezi.order-form';
 /** Garments with a picture (public/media/showroom/garment-<id>.webp); the rest show a shirt icon. */
 const ART = new Set(['jersey', 'shorts', 'tee', 'singlet', 'polo', 'socks', 'hoodie']);
 const WORDS: Record<string, [string, string]> = { jersey: ['jersey', 'jerseys'], shorts: ['shorts', 'shorts'], tee: ['tee', 'tees'], singlet: ['singlet', 'singlets'], polo: ['polo', 'polos'], hoodie: ['hoodie', 'hoodies'], jacket: ['jacket', 'jackets'], warmup: ['warm-up top', 'warm-up tops'], pants: ['track pants', 'track pants'], socks: ['socks', 'socks'], cap: ['cap', 'caps'], other: ['item', 'items'] };
@@ -98,6 +98,8 @@ const sizesText = (sizes: Record<string, number>, order: string[]) => order.filt
 
 function rowName(r: Row, o: FormOptions, project?: Project | null) {
   if (r.garment === 'other') return r.label.trim() || 'Other garment';
+  // A row the Order Assistant made keeps its design's name.
+  if (r.label.trim()) return r.label.trim();
   // A saved design made as one of its sport's garments ("Netball dress", task 9.99) is ordered by that name on rows of
   // that garment; on another garment's row ("Netball bibs" on a Rugby League jersey row) the row keeps its own name.
   const product = project && project.id === r.project_id ? designRowName(project, r.garment) : '';
@@ -123,7 +125,7 @@ function toOrderFields(f: FormState, sizes: string[]): FormFields {
     contact_name: f.contact.contact_name.trim(), contact_email: f.contact.contact_email.trim(), phone: f.contact.phone.trim(), team_name: f.contact.team_name.trim(), notes: f.notes.trim(),
     items: f.rows.map(r => {
       const players = r.players.filter(p => p.name.trim() || p.number).map(p => ({ name: p.name.trim(), number: p.number, ...(p.size ? { size: p.size } : {}) }));
-      return { garment: r.garment, ...(r.sport.trim() ? { sport: r.sport.trim() } : {}), ...(r.fit ? { fit: r.fit } : {}), ...(r.garment === 'other' && r.label.trim() ? { label: r.label.trim() } : {}), ...(r.project_id ? { project_id: r.project_id } : {}), sizes: cleanSizes(r.sizes, sizes), ...(players.length ? { players } : {}) };
+      return { garment: r.garment, ...(r.sport.trim() ? { sport: r.sport.trim() } : {}), ...(r.fit ? { fit: r.fit } : {}), ...(r.label.trim() ? { label: r.label.trim().slice(0, 60) } : {}), ...(r.project_id ? { project_id: r.project_id } : {}), sizes: cleanSizes(r.sizes, sizes), ...(players.length ? { players } : {}) };
     }),
     ...(Object.keys(pricing).length ? { pricing } : {}),
     ...deliveryPayload(f.delivery),
@@ -285,6 +287,8 @@ type Pending = 'save' | 'review' | 'upload';
 
 function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const [params, setParams] = useSearchParams();
+  /** The review, for the Order Assistant's Review & Approve (set where review() is defined). */
+  const reviewRef = useRef<(() => Promise<void>) | null>(null);
   const firstSport = catalog?.sports[0]?.id ?? 'rugby-league';
   // This device's copy: the account's, or the one filled in signed out (it becomes the account's when its owner signs in).
   const [initial] = useState(() => {
@@ -638,6 +642,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   }
 
   /* ------------------------------------------------------------------------------ review and confirm */
+  reviewRef.current = review;
   async function review() {
     const problems = validate(formRef.current, options);
     setTried(true); setErrors(problems);
@@ -691,7 +696,9 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     if (target <= page) { setPage(target); return; }
     if (target >= 3) { void review(); return; }
     const problems = validate(formRef.current, options);
-    const bad = Object.keys(problems).filter(k => pageOf(k) < target);
+    // Contact and delivery may wait until Review (client 2026-11-05: "too much info to input"): only the garments
+    // and sizes are needed to go on; the review still checks everything.
+    const bad = Object.keys(problems).filter(k => pageOf(k) < target && pageOf(k) > 0);
     if (bad.length) {
       setTried(true); setErrors(problems);
       setPage(Math.min(...bad.map(pageOf)), false);
@@ -743,6 +750,32 @@ ${text}`.slice(0, 4000) : f.notes) };
     setBuilding({ busy: false, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them here, then continue.`, check: read.unknown, missing });
     setPage(1);
   }
+  /**
+   * Edit Order / Review & Approve from the Order Assistant (?assistant={token}, task TL-3): its collated rows (a row
+   * per design, garment and fit, named by the design; "any sport": a reunion is no rugby order) replace the empty
+   * ones; the team name is its title when empty.
+   */
+  const assistantToken = params.get('assistant');
+  const assistantReview = params.get('review') === '1';
+  const assistantDone = useRef(false);
+  useEffect(() => {
+    if (!assistantToken || assistantDone.current || !user) return;
+    assistantDone.current = true;
+    orderApi.assistantOrder(assistantToken).then(o => {
+      const items = o.analysis?.items ?? [];
+      if (!items.length) return;
+      const built = items.slice(0, MAX_ROWS).map(it => newRow({
+        garment: options.garments.some(g => g.id === it.garment) ? it.garment : 'other', sport: '',
+        fit: it.fit || 'mens', sizes: cleanSizes(it.sizes, options.sizes), label: (it.label || '').slice(0, 60), open: false,
+      }));
+      setForm(f => ({ ...f, rows: [...f.rows.filter(r => sum(r.sizes) > 0 || r.project_id || r.players.length), ...built].slice(0, MAX_ROWS),
+        contact: { ...f.contact, team_name: f.contact.team_name || (o.title || '').slice(0, 120) } }));
+      const next = new URLSearchParams(params); next.delete('assistant'); next.delete('review'); setParams(next, { replace: true });
+      onNotice(`Added ${built.length} garment rows (${o.analysis?.totals.garments ?? 0} garments) from the Order Assistant.`);
+      if (assistantReview) setTimeout(() => void reviewRef.current?.(), 50); else setPage(1);
+    }).catch(() => onNotice('The Order Assistant’s order could not be opened. Try again from the Order Assistant.'));
+  }, [assistantToken, user]);
+
   /** "Have an order sheet?": the same reading as Upload order (OrderFormReader); its sizes come into the garments. */
   async function addSheet(file: File) {
     const ext = (file.name.split('.').pop() ?? '').toLowerCase();
@@ -882,7 +915,7 @@ ${text}`.slice(0, 4000) : f.notes) };
     });
     const reviewFiles: ReviewFile[] = files.map(f => ({ id: f.id, name: f.name, kind: f.kind, extension: f.extension, size: f.size, thumb: f.thumb, preview: previews.current.get(f.id) ?? null, download: f.download }));
     // The rows as the order takes them (with the row key and its artwork), for the layout rule and the per-garment sections.
-    const reviewRows: ReviewRow[] = form.rows.map(r => ({ key: r.key, garment: r.garment, sport: r.sport || null, fit: r.fit || null, label: r.garment === 'other' ? r.label.trim() || null : null, project_id: r.project_id,
+    const reviewRows: ReviewRow[] = form.rows.map(r => ({ key: r.key, garment: r.garment, sport: r.sport || null, fit: r.fit || null, label: r.label.trim() || null, project_id: r.project_id,
       sizes: cleanSizes(r.sizes, options.sizes), players: r.players.filter(p => p.name.trim() || p.number).map(p => ({ name: p.name.trim(), number: p.number, size: p.size || null })), file_ids: r.file_ids }));
     const layout = layoutFor(reviewRows);
     const priced = quote.data?.status === 'priced';
@@ -1082,6 +1115,7 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
         <OrderField label="Type your sport" className="of-other"><input className="op-input" maxLength={CUSTOM_MAX} value={row.sport} placeholder="e.g. Lacrosse, Bowling" autoFocus={!row.sport} onChange={e => onChange({ sport: typedName(e.target.value) })} /></OrderField>
         <OrderField label="Garment" className="of-other"><select className="op-input" value={row.garment} aria-label={`Garment type ${index + 1}`} onChange={e => onChange({ garment: e.target.value })}>{options.garments.map(g => <option key={g.id} value={g.id}>{g.id === 'other' ? 'Custom…' : g.name}</option>)}</select></OrderField>
       </div>}
+      {row.garment !== 'other' && row.label && <OrderField label="Name / design" className="of-other"><input className="op-input" maxLength={60} value={row.label} onChange={e => onChange({ label: e.target.value })} /></OrderField>}
       {row.garment === 'other' && <OrderField label={customSport ? 'Type your garment' : 'What is it?'} className="of-other"><input className="op-input" maxLength={60} value={row.label} placeholder={customSport ? CUSTOM_PLACEHOLDER : 'e.g. Long-sleeve compression top'} onChange={e => onChange({ label: e.target.value })} /></OrderField>}
       {row.open && <div className="of-sizes">
         <div className="of-sizes-head">

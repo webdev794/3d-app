@@ -179,7 +179,7 @@ $look = function (string $name, array $extra = []): array {
         // panels with a royal blue band slanting across them (zoneColors.bballBand: the viewer cuts them as basketball
         // shorts, bballshorts.js), the 3DEEZI mark low on the right leg, no number.
         // (FN6 2026-10-30, DT8: a vivid aqua #00e8ff, the smooth matt fabric (viewer) and a neutral black, as rendered on the stage.)
-        'bballShorts' => ['main' => '#1d1d1e', 'secondary' => '#00e8ff', 'accent' => '#00e8ff', 'patternColor' => '#00e8ff', 'zoneColors' => ['bballBand' => '#0036cc', 'bballTrim1' => '#ffffff', 'bballTrim2' => '#00e8ff'], 'marks' => ['shorts_number' => ['hidden' => true]]],
+        'bballShorts' => ['main' => '#1d1d1e', 'secondary' => '#00e8ff', 'accent' => '#00e8ff', 'patternColor' => '#00e8ff', 'zoneColors' => ['bballBand' => '#0036f0', 'bballTrim1' => '#ffffff', 'bballTrim2' => '#00e8ff'], 'marks' => ['shorts_number' => ['hidden' => true]]],
         // The bucket hat pictures (FN1 2026-10-30, colours measured on them): a black hat with a cyan bound edge; the
         // general picture with flat cyan and royal blue shards up the crown and round the brim (viewer hatprint.js).
         'hat' => ['main' => '#1b1c1e', 'secondary' => '#05c3f2'],
@@ -191,7 +191,7 @@ $look = function (string $name, array $extra = []): array {
         // colour area (viewer netballdress.js: zoneColors body / panels / yoke / binding).
         // (NDT: the body a little lighter, 43,88,145 on the stage as 426's.)
         'netballDress' => ['main' => '#35547e', 'secondary' => '#0c78c6', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#0c78c6',
-            'zoneColors' => ['body' => '#35547e', 'panels' => '#0c78c6', 'yoke' => '#0c78c6', 'binding' => '#0c78c6']],
+            'zoneColors' => ['body' => '#35547e', 'panels' => '#0c78c6', 'yoke' => '#35547e', 'binding' => '#0c78c6']],
     ];
     return $extra + ($looks[$name] ?? []) + $base + ['number' => '23', 'marks' => []];
 };

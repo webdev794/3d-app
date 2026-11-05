@@ -1038,7 +1038,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'accent': '#00e8ff',
       'patternColor': '#00e8ff',
       'zoneColors': {
-        'bballBand': '#0036cc',
+        'bballBand': '#0036f0',
         'bballTrim1': '#ffffff',
         'bballTrim2': '#00e8ff',
       },
@@ -1076,7 +1076,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'zoneColors': {
         'body': '#35547e',
         'panels': '#0c78c6',
-        'yoke': '#0c78c6',
+        'yoke': '#35547e',
         'binding': '#0c78c6',
       },
       'marks': {

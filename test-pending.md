@@ -685,3 +685,7 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 4. The same in the app (Style tab).
 
 ---
+
+---
+3DEEZI mark under the back collar (2026-11-05): open an AI design in 3D (AI Designer > Open in 3D Designer, or Artwork to 3D) and turn to the back. A small 3DEEZI mark sits under the collar. A Design Your Own kit shows none. Put your own logo under the collar: the mark moves lower or is left off.
+---

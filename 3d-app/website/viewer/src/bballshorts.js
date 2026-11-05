@@ -5,9 +5,11 @@
 // makes them (front and back panels sewn at the sides and the inner legs, worn round the body by worn.js wornShorts)
 // with this cut; its print, parts and marks are in bballprint.js.
 import { buildGarment, SPECS } from './garment.js';
-import { BB, BB_SIDE, BB_INNER, BB_SPLIT } from './bballprint.js';
+import { BB, BB_SIDE, BB_INNER, BB_SPLIT, BB_VENT, BB_LEG } from './bballprint.js';
 
 const { waist: W, crotch: C } = BB;
+/** Smoothstep from a to b. */
+const THREE_ramp = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 /**
  * The cut (right half, metres, the hem at 0): the waist across the top, the side seam flaring out to a wide leg opening
  * (about 68 cm round), the hem nearly level, the inner leg seam rising to the crotch. `worn`: how they hang (worn.js):
@@ -18,8 +20,7 @@ export const BBALL_SHORTS = {
   // (BSF 2026-11-04: down the side seam to the V split, the hem's outer corner cut back to it, the hem level, the inner
   // leg seam up to the deep crotch.)
   half: [
-    [0, W], ...BB_SIDE.slice().reverse().filter(([y]) => y > BB_SPLIT.y + 0.01).map(([y, x]) => [x, y]), [0.313, BB_SPLIT.y],
-    [BB_SPLIT.x, 0], [0.16, 0], [0.075, 0.002], [0.05, 0.006], [0.043, 0.012], ...BB_INNER.slice(1).map(([y, x]) => [x, y]),
+    [0, W], ...BB_SIDE.slice().reverse().filter(([y]) => y > BB_SPLIT.y + 0.01).map(([y, x]) => [x, y]), ...BB_VENT.slice().reverse(), [0.16, 0], [0.075, 0.002], [0.05, 0.006], [0.043, 0.012], ...BB_INNER.slice(1).map(([y, x]) => [x, y]),
   ],
   // (BSF r3: only the waist's own edge is open and carries the band: with the side seams' top 1.2 cm in it too, the
   // band's ends turned down at the sides in little wings.)
@@ -32,22 +33,59 @@ export const BBALL_SHORTS = {
   // (BSF r3, 431: loose cloth hangs from the seat and over the crotch's curve: it is shaded as if hanging, with no dark
   // hollow above the crotch (garment.js seatNormals: from, to, how much of the downward tilt is taken out).)
   seatNormals: [C - 0.01, C + 0.14, 0.85],
+  // (BSF r6: no shadow line under the gathered band.)
+  rimShade: 0,
+  // (BSF 2026-11-05, client 428 / 434, Yellow Images front, back, half side: many soft vertical folds falling from the
+  // gathered waistband down the front, the seat and the legs, a few gentle diagonal folds on the legs from the inner thigh
+  // out and down; none on the hem's bound band, which stays straight.)
+  folds: (p, back) => {
+    const ax = Math.abs(p.x), y = p.y, ph = back ? 1.9 : 0.4, side = p.x < 0 ? 0.7 : 0;
+    const soft = (v) => Math.sign(v) * Math.abs(v) ** 1.4;
+    // (BST on -253: none over the hem band, and none near the side seams, so the outline stays smooth.)
+    const sideX = BB_SIDE.reduce((x, [yy, xx], k, a) => (k && y >= a[k - 1][0] && y <= yy ? a[k - 1][1] + ((xx - a[k - 1][1]) * (y - a[k - 1][0])) / (yy - a[k - 1][0]) : x), BB_SIDE.at(-1)[1]);
+    const keep = THREE_ramp(0.035, 0.09, y) * THREE_ramp(sideX - 0.05, sideX - 0.16, ax);
+    // (Not at the waist's edge, under the band, so the band stays one smooth piece; softer at the centre seam.)
+    const top = THREE_ramp(W - 0.03, W - 0.075, y) * (0.4 + 0.6 * THREE_ramp(0.005, 0.045, ax));
+    // In front: a few soft folds from the band, about 6 cm apart, uneven in spacing and length, fading out by ~45 % down.
+    // (BST on -256: 8-10 shallow soft folds spread evenly over both front panels, not deep tubes by the fly.)
+    const k = p.x * 120 + 0.9 * Math.sin(p.x * 31 + 0.8) + ph + side;
+    const reach = W - 0.26 - 0.05 * (0.5 + 0.5 * Math.sin(p.x * 23 + 1.3 + side));
+    // (BST folds.py on -255: the picture's folds ~2.5x deeper up top, ~4x lower down, reaching ~45 % down.)
+    const depth = 0.0045 + 0.0105 * THREE_ramp(W - 0.3, W - 0.06, y);
+    // Two scales mixed, so no two folds are alike: broad soft folds and, near the band, the elastic's fine gathers
+    // running straight up into it.
+    const broad = Math.sin(k) * (0.7 + 0.3 * Math.sin(p.x * 17 + 2.1)) + 0.45 * Math.sin(p.x * 197 + 2.3 * Math.sin(p.x * 13 + y * 5) + ph);
+    const fine = Math.sin(p.x * 420 + 0.8 * Math.sin(p.x * 57)) * 0.0016 * THREE_ramp(W - 0.1, W - 0.035, y);
+    const front = back ? 0 : broad * depth * 0.62 * THREE_ramp(reach - 0.04, reach + 0.06, y) + fine;
+    // Behind: a few soft V folds just under the band, towards the centre, gone by ~18 % down; then a smooth seat.
+    const vx = ax - (W - 0.03 - y) * 0.5;
+    const vee = back ? soft(Math.sin(vx * 95 + ph)) * 0.013 * THREE_ramp(W - 0.13, W - 0.06, y) * THREE_ramp(0.2, 0.1, ax) : 0;
+    // Behind below the V, down the seat: soft, faint, uneven upright folds.
+    const seatF = back ? soft(Math.sin(p.x * 80 + 1.2 * Math.sin(y * 9 + p.x * 13) + ph)) * 0.0032 * THREE_ramp(W - 0.31, W - 0.2, y) * THREE_ramp(W - 0.06, W - 0.12, y) : 0;
+    // The legs: a few long faint vertical folds below the crotch; a small soft fold at the crotch.
+    const legs = soft(Math.sin(p.x * 60 + 0.9 * Math.sin(y * 6) + ph + side)) * 0.0008 * THREE_ramp(C + 0.02, C - 0.06, y);
+    const crotch = Math.exp(-(((ax - 0.05) / 0.025) ** 2 + ((y - C + 0.03) / 0.03) ** 2)) * 0.0018;
+    return keep * top * (front + vee + seatF) + keep * legs + crotch * THREE_ramp(0.035, 0.09, y);
+  },
+
   legs: true,
   // (BSF r3, 420: the leg openings finished with a thin flat binding, not a thick roll turned in: they stay open, with
   // a straight edge and sharp corners at the split.)
   hemRoll: 0.0009,
+  hemAllowance: 0.002,
   // (BSF r2: the V split at the side of each hem stays open up to its top, not sewn shut above 3 cm.)
   split: { x: BB_SPLIT.x + 0.07, top: BB_SPLIT.y },
   loose: true,
   depth: 0.16,
   chest: false,
-  points: { CF: [0, W], OT: [0.256, W], ST: [0.313, BB_SPLIT.y], IB: [0.043, 0.012], CR: [0, C] },
+  points: { CF: [0, W], OT: [BB_SIDE.at(-1)[1], W], ST: [0.313, BB_SPLIT.y], IB: [0.043, 0.012], CR: [0, C] },
   worn: {
     sideSeam: BB_SIDE,
     inner: BB_INNER,
     crotch: C,
     blend: [C - 0.02, C + 0.12],
-    hipDepth: 0.85,
+    hipDepth: 0.7,
+    hipBox: 2.5,
     // (FN4 2026-10-30, the user: basketball shorts are very loose on a lean, tall player: each leg a wide, straight tube
     // of even width from the crotch to the hem (a slight flare only), hanging well away from the thigh, deep front to
     // back; hardly any of the body showing through.)
@@ -61,15 +99,15 @@ export const BBALL_SHORTS = {
     // rounding in to .60 over its last few cm; above the crotch in to the waist.)
     // (BSF r3, the user 2026-11-04, 429 / 430: the leg openings hang straight down and stay open, not pulled in at the
     // hem; only the last few mm ease in.)
-    outLine: [[0, 0.239], [0.06, 0.239], [C, 0.231], [BB.waist, 0.185]],
-    legDepth: [0.132, 0.15],
+    outLine: [[0, BB_LEG.outHem], [0.06, BB_LEG.outHem], [C, 0.231], [BB.waist, 0.185]],
+    legDepth: [BB_LEG.depthHem, 0.145],
     relief: 0.12,
     seat: 0.05,
     // (BSF r3, 431: the crotch's baked shadow light.)
     shade: 0.4,
     // (BSF r3, 431: the back rises 1.4 cm higher than the front, level across the back and easing down to the side seams.)
-    backRise: 0.014,
-    riseFlat: [0.12, 0.254],
+    backRise: 0.011,
+    riseFlat: [0.11, 0.237],
   },
 };
 SPECS.bballshorts = BBALL_SHORTS;
@@ -79,7 +117,8 @@ SPECS.bballshorts = BBALL_SHORTS;
  * (`rimColour`), no drawstring showing (its cord is inside the band, as on the picture), no neck label.
  */
 export function buildBballShorts({ detail = false } = {}) {
-  const garment = buildGarment('bballshorts', { spec: BBALL_SHORTS, detail });
+  // (A finer mesh, so the soft folds shade smoothly, with no diamond facets: BSF 2026-11-05.)
+  const garment = buildGarment('bballshorts', { spec: BBALL_SHORTS, detail, step: 0.006 });
   garment.drawstring = false;
   garment.bball = true;
   garment.rimColour = 'main';

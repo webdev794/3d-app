@@ -176,6 +176,10 @@ export const orderApi = {
   /** The order confirmation form's signed links (images/336, 338): a draft on the review, or a sent order. */
   confirmationLinks: (id: number, draft = true, share = false) => api<{ pdf: string; excel: string }>((draft ? `/order-drafts/${id}/confirmation-links` : `/orders/${id}/confirmation-links`) + (share ? "?share=1" : "")),
   readNotes: (text: string) => api<Suggested>("/orders/read-notes", post({ text })),
+  /** The Order Assistant (task TL-3): a message with order files and design pictures; `token` adds to that order. */
+  assistant: (form: FormData, token?: string | null) => api<AssistantOrder>(`/order-assistant${token ? `/${token}` : ''}`, { method: 'POST', body: form }),
+  /** A collated order by its token (the share link). */
+  assistantOrder: (token: string) => api<AssistantOrder>(`/order-assistant/${token}`),
   draft: (id: number) => api<OrderDraft>(`/order-drafts/${id}`),
   /** The draft, after 3DEEZI AI has read its order forms (once per file; later calls answer at once). */
   readDraft: (id: number) => api<OrderDraft>(`/order-drafts/${id}/read`, post({})),
@@ -288,4 +292,29 @@ export function itemName(item: OrderItem, options?: Pick<OrderOptions, 'garments
   const sport = options ? options.sports.find(s => s.id === item.sport)?.name ?? item.sport : undefined;
   const garment = options?.garments.find(g => g.id === item.garment)?.name ?? item.garment;
   return [sport, garment].filter(Boolean).join(' ');
+}
+
+/* ------------------------------------------------------------------------------------------------ order assistant */
+
+/** One group of the Order Assistant's reading: a design / colour with each garment's size sets. */
+export interface AssistantGroup {
+  key: string; design: string; colour: string | null; total: number; lines: number; check_lines: number; image: string | null;
+  garments: { garment: string; product: string; collection: string; name: string; total: number; unsure: number; sizes: Record<'youth' | 'womens' | 'mens', Record<string, number>> }[];
+}
+export interface AssistantCheck { type: string; text: string; people?: string[]; counts?: boolean }
+export interface AssistantItem { garment: string; fit: string; label: string; design: string; sizes: Record<string, number> }
+/** The collated order (OrderAssistController::resource). */
+export interface AssistantOrder {
+  token: string; title: string; summary: string; updated_at: string;
+  made_by: { supplier_id: number | null; name: string; logo_url: string | null };
+  messages: { role: 'user' | 'assistant'; text: string; files?: { name: string; kind: string }[]; at?: string }[];
+  analysis: null | {
+    title: string;
+    totals: { garments: number; lines: number; orders: number; members: number; groups: number; to_check: number; by_garment: Record<string, number>; by_product: Record<string, number> };
+    size_columns: Record<'youth' | 'womens' | 'mens', string[]>;
+    groups: AssistantGroup[]; checks: AssistantCheck[]; items: AssistantItem[];
+  };
+  files: { name: string; kind: string }[];
+  designs: { name: string; url: string; group: string | null; how?: string | null }[];
+  links: { page: string; pdf: string; xlsx: string };
 }

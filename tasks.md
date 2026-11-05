@@ -626,3 +626,8 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - 5. Yellow Images 3D models: no purchase (spending money needs the client's OK). We keep improving our own models, now built to the client's preferred-model pictures, which the client is sending per garment.
 - 6. AI Designer "Redraw all designs" button: KEEP it as built; the customer chooses to redraw.
 - 7. Practice Jersey length: keep the longer version the user asked for (viewer -242) for now; its final shape follows the client's preferred-model pictures for that jersey when they arrive (model work is paused until then).
+- 2026-11-05: app DYO Studio garments too far apart (TL task 1). images/433 (order form contact details circled) sent with it: purpose unclear.
+- 2026-11-05 (client tasks via user, files in SP/TL/ref): (2) address autocomplete on Create order form; (3) ORDER ASSISTANT like images 4/5 + the Grok bot output (PDF / Excel / link / issue list); our xlsx import of the Strickland sheet was wrong (image 1). TL tasks 2-3.
+- 2026-11-05 (images/438-439, client): Orders page one combined "Create order form" card (start from scratch or upload sheet) -> Order Assistant; normal order form asks too much: assistant first, manual form minimal; APP first then web. TL task 4 (+ task 3 note).
+
+- Netball dress (later, user 2026-11-05): the client's second picture (images/445: green yoke+straps, gold body, plaid side panel) is a colour design that can be made later and put on the model; the model only needs the matching colour areas.

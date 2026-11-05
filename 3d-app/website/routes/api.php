@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin;
+use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\ArtboardDocumentController;
 use App\Http\Controllers\AssistController;
@@ -48,8 +49,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::post('/assist', [AssistController::class, 'chat'])->middleware('throttle:assist');
     // 3DEEZI Orders: the order forms' choices, and "Help me add sizes" (open to visitors, who fill the form before signing in).
     Route::get('/orders/options', [OrderController::class, 'options']);
+    // Street address suggestions for the order forms (task TL-2): Photon (OpenStreetMap), cached, no key.
+    Route::get('/address/suggest', [AddressController::class, 'suggest']);
     Route::post('/orders/assist', [OrderController::class, 'assist'])->middleware('throttle:assist');
     Route::post('/orders/read-notes', [OrderController::class, 'readNotes'])->middleware('throttle:assist');
+    // The Order Assistant (task TL-3): collates sheets, notes and pictures into an order, a share page, a PDF and an Excel.
+    // Open to visitors (sheets and typed notes, no AI); the token is the share link.
+    Route::post('/order-assistant', [\App\Http\Controllers\OrderAssistController::class, 'store'])->middleware('throttle:assist');
+    Route::get('/order-assistant/{assist}', [\App\Http\Controllers\OrderAssistController::class, 'show'])->where('assist', '[A-Za-z0-9]{40}');
+    Route::post('/order-assistant/{assist}', [\App\Http\Controllers\OrderAssistController::class, 'append'])->where('assist', '[A-Za-z0-9]{40}')->middleware('throttle:assist');
+    Route::get('/order-assistant/{assist}/pdf', [\App\Http\Controllers\OrderAssistController::class, 'pdf'])->where('assist', '[A-Za-z0-9]{40}');
+    Route::get('/order-assistant/{assist}/xlsx', [\App\Http\Controllers\OrderAssistController::class, 'xlsx'])->where('assist', '[A-Za-z0-9]{40}');
+    Route::get('/order-assistant/{assist}/designs/{n}', [\App\Http\Controllers\OrderAssistController::class, 'design'])->where('assist', '[A-Za-z0-9]{40}')->whereNumber('n');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);

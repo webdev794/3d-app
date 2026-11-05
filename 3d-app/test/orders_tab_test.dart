@@ -6,6 +6,7 @@ import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/assist.dart';
 import 'package:three_deezi/screens/library.dart';
+import 'package:three_deezi/screens/order_assistant.dart';
 import 'package:three_deezi/screens/order_entry.dart';
 import 'package:three_deezi/screens/orders_board.dart' show OrderDetailScreen;
 import 'package:three_deezi/screens/orders_tab.dart';
@@ -65,10 +66,14 @@ void main() {
     await _phone(tester, OrdersTabScreen(c), 390);
     final bubble = find.byKey(const ValueKey('orders-bubble'));
     expect(bubble, findsOneWidget);
-    for (final t in ['ORDERS', 'Create, upload or track.', 'CREATE ORDER FORM', 'UPLOAD ORDER', 'MY ORDERS']) {
+    for (final t in ['ORDERS', 'Create, upload or track.', 'CREATE\nORDER FORM', 'Start from scratch or upload your order sheet.', 'MY ORDERS']) {
       expect(find.descendant(of: bubble, matching: find.text(t)), findsOneWidget, reason: t);
     }
-    for (final k in ['orders-tile-form', 'orders-tile-upload', 'orders-tile-my-orders']) {
+    // One CREATE ORDER FORM card (client 439, 2026-11-05) in place of the two.
+    expect(find.text('UPLOAD ORDER'), findsNothing);
+    expect(find.byKey(const ValueKey('orders-tile-form')), findsNothing);
+    expect(find.byKey(const ValueKey('orders-tile-upload')), findsNothing);
+    for (final k in ['orders-tile-create', 'orders-tile-my-orders']) {
       expect(find.descendant(of: bubble, matching: find.byKey(ValueKey(k))), findsOneWidget, reason: k);
     }
     expect(find.text('PREFERRED SUPPLIERS'), findsOneWidget);
@@ -85,26 +90,25 @@ void main() {
     expect(tester.widget<CubeIcon>(find.byType(CubeIcon)).filled, isTrue);
   });
 
-  testWidgets('Orders tab: Make with 3DEEZI / Make with Mantis open the order form with that maker', (tester) async {
+  testWidgets('Orders tab: Make with 3DEEZI / Make with Mantis open the Order Assistant with that maker', (tester) async {
     final c = signedIn(OrdersServer())..screen = AppScreen.orderHub;
     await mount(tester, OrdersTabScreen(c), width: 390);
     await tap(tester, find.byKey(const ValueKey('orders-make-mantis')));
-    expect(tester.widget<OrderFormScreen>(find.byType(OrderFormScreen)).maker, 'Mantis');
-    await tester.pageBack();
+    expect(tester.widget<OrderAssistantScreen>(find.byType(OrderAssistantScreen)).maker, 'Mantis');
+    tester.state<NavigatorState>(find.byType(Navigator).last).pop();
     await tester.pumpAndSettle();
     await tap(tester, find.byKey(const ValueKey('orders-make-3deezi')));
-    expect(tester.widget<OrderFormScreen>(find.byType(OrderFormScreen)).maker, isNull);
+    expect(tester.widget<OrderAssistantScreen>(find.byType(OrderAssistantScreen)).maker, isNull);
   });
 
   testWidgets('Orders tab: each tile opens its screen', (tester) async {
     final c = signedIn(OrdersServer())..screen = AppScreen.orderHub;
     await mount(tester, OrdersTabScreen(c), width: 390);
-    await tap(tester, find.byKey(const ValueKey('orders-tile-form')));
+    await tap(tester, find.byKey(const ValueKey('orders-tile-create')));
+    expect(find.byType(OrderAssistantScreen), findsOneWidget);
+    // Switch to Manual Form: the full order form.
+    await tap(tester, find.byKey(const ValueKey('assistant-manual')));
     expect(find.byType(OrderFormScreen), findsOneWidget);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    await tap(tester, find.byKey(const ValueKey('orders-tile-upload')));
-    expect(find.byType(OrderUploadScreen), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
     await tap(tester, find.byKey(const ValueKey('orders-tile-my-orders')));
@@ -114,24 +118,19 @@ void main() {
     expect(c.screen, AppScreen.orderHub);
   });
 
-  testWidgets('Orders tab: a guest is asked to sign in before ordering; My orders still opens', (tester) async {
+  testWidgets('Orders tab: a guest may start with the Order Assistant; My orders still opens', (tester) async {
     final server = OrdersServer();
     final c = AppController(store: FakeStore(), api: ApiClient(client: server.client, baseUrl: 'https://test.example'))
       ..screen = AppScreen.orderHub;
     await mount(tester, OrdersTabScreen(c), width: 390);
     expect(find.byKey(const Key('notification-bell')), findsNothing);
-    await tap(tester, find.byKey(const ValueKey('orders-tile-upload')));
-    expect(find.byType(OrderUploadScreen), findsNothing);
-    expect(c.screen, AppScreen.auth);
-    c.screen = AppScreen.orderHub;
-    await tester.pumpAndSettle();
-    await tap(tester, find.byKey(const ValueKey('orders-tile-form')));
-    expect(find.byType(OrderFormScreen), findsNothing);
-    expect(c.screen, AppScreen.auth);
+    await tap(tester, find.byKey(const ValueKey('orders-tile-create')));
+    expect(find.byType(OrderAssistantScreen), findsOneWidget);
+    expect(c.screen, AppScreen.orderHub);
     expect(server.requests.where((r) => r.url.path.contains('order')), isEmpty);
-    // My orders shows its own "Sign in" message.
-    c.screen = AppScreen.orderHub;
+    tester.state<NavigatorState>(find.byType(Navigator).last).pop();
     await tester.pumpAndSettle();
+    // My orders shows its own "Sign in" message.
     await tap(tester, find.byKey(const ValueKey('orders-tile-my-orders')));
     expect(c.screen, AppScreen.orders);
   });
@@ -214,7 +213,7 @@ void main() {
     expect(find.text('PAY NOW'), findsNothing);
   });
 
-  testWidgets('Assist links /orders/new and /orders/upload open the Orders tab\'s form and upload screens', (tester) async {
+  testWidgets('Assist links /orders/new and /orders/upload open the Order Assistant', (tester) async {
     final c = signedIn(OrdersServer())..screen = AppScreen.projects;
     final a = AssistController(c);
     addTearDown(a.dispose);
@@ -229,22 +228,14 @@ void main() {
     a.openPath('/orders/new');
     await tester.pumpAndSettle();
     expect(c.screen, AppScreen.orderHub);
-    expect(find.byType(OrderFormScreen), findsOneWidget);
+    expect(find.byType(OrderAssistantScreen), findsOneWidget);
     expect(AssistController.orderEntry.value, isNull);
-    await tester.pageBack();
+    tester.state<NavigatorState>(find.byType(Navigator).last).pop();
     await tester.pumpAndSettle();
-    // Already on the tab: the upload screen opens at once.
+    // Already on the tab: it opens at once.
     a.openPath('/orders/upload');
     await tester.pumpAndSettle();
-    expect(find.byType(OrderUploadScreen), findsOneWidget);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    // A guest is asked to sign in.
-    c.user = null;
-    a.openPath('/orders/new');
-    await tester.pumpAndSettle();
-    expect(find.byType(OrderFormScreen), findsNothing);
-    expect(c.screen, AppScreen.auth);
+    expect(find.byType(OrderAssistantScreen), findsOneWidget);
   });
 
   test('Assist: the website\'s Orders page is the Orders tab', () {

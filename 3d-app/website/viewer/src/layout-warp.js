@@ -170,7 +170,7 @@ DRAWN.nfljersey = { N: [0.09, 0.742], T: [0, 0.665], CT: [0.39, 0.6], CB: [0.35,
 DRAWN['shooting-shirt'] = { N: [0.09, 0.738], T: [0, 0.636], CT: [0.465, 0.545], CB: [0.4, 0.441], U: [0.258, 0.53], H: [0.258, -0.01] };
 // The netball dress (garment.js SPECS['netball-dress']): sleeveless as the singlet, its corners at its own heights (the
 // hem's corners at the foot of its straight A-line sides: NDF).
-DRAWN['netball-dress'] = { N: [0.098, 0.88], S: [0.153, 0.88], U: [0.248, 0.735], H: [0.333, 0.03], T: [0, 0.785] };
+DRAWN['netball-dress'] = { N: [0.106, 0.88], S: [0.153, 0.88], U: [0.248, 0.735], H: [0.333, 0.03], T: [0, 0.785] };
 
 /** Whether a garment drawing's shape has sleeves: much wider across its top part than near its hem. */
 export function sleevedShape(o) {

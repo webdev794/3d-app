@@ -7,12 +7,12 @@ import '../assist.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/glass_bubble.dart';
 import '../widgets/ui.dart';
-import 'order_entry.dart' show OrderFormScreen, OrderUploadScreen;
+import 'order_assistant.dart' show OrderAssistantScreen;
 
 /// The Orders tab (client picture images/333.jpg, 2026-11-03): the 3DEEZI
 /// wordmark with the bell, then ONE glass bubble holding ORDERS "Create,
-/// upload or track.", the CREATE ORDER and UPLOAD ORDER cards and the wide MY
-/// ORDERS card; below it PREFERRED SUPPLIERS (Make with 3DEEZI / Make with
+/// upload or track.", the wide CREATE ORDER FORM card (the Order Assistant,
+/// client 439) and the wide MY ORDERS card; below it PREFERRED SUPPLIERS (Make with 3DEEZI / Make with
 /// Mantis: the order form with that maker), REWARDS · COMING SOON and the
 /// Assist link.
 class OrdersTabScreen extends StatefulWidget {
@@ -43,23 +43,18 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
     final what = AssistController.orderEntry.value;
     if (what == null || !mounted) return;
     AssistController.orderEntry.value = null;
-    _open(
-      context,
-      () => what == 'upload' ? OrderUploadScreen(c) : OrderFormScreen(c),
-    );
+    // The Order Assistant takes new orders and order sheets alike.
+    _assistant(context);
   }
 
-  /// Ordering needs an account: signed out, sign in first.
-  void _open(BuildContext context, Widget Function() screen) {
-    if (!c.signedIn) {
-      showToast(context, 'Sign in to place an order.');
-      c.go(AppScreen.auth);
-      return;
-    }
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => screen()));
-  }
+  /// The Order Assistant (task TL-3): open to visitors too (sheets and typed
+  /// orders); signing in is asked for when the order is placed.
+  void _assistant(BuildContext context, {String? maker}) =>
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => OrderAssistantScreen(c, maker: maker),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) => Column(
@@ -77,6 +72,31 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                 // Home's (full width) with Home's top and bottom dome.
                 final area = Size(w, box.maxHeight);
                 final dome = homeDomeHeight(area);
+                // As the client's 439 (2026-11-05): the bubble ends about
+                // two thirds down, so PREFERRED SUPPLIERS, REWARDS and the
+                // Assist link show under it without scrolling. The two cards
+                // grow wider-than-tall to fit; the width and dome stay.
+                final headRoom = math.min(bubbleHeadingRoom(area), 34.0);
+                final bottomRoom = bubbleBottomRoom(w, dome, corner: 46);
+                const logoRow = 18 + 52 + 10.0, below = 214.0;
+                final inner = w - 56;
+                final cards =
+                    box.maxHeight -
+                    logoRow -
+                    below -
+                    headRoom -
+                    bottomRoom -
+                    title -
+                    24 -
+                    12 -
+                    12 -
+                    6;
+                final createAspect = (inner / math.max(cards * .47, 1))
+                    .clamp(1.95, 3.0)
+                    .toDouble();
+                final listAspect = (inner / math.max(cards * .53, 1))
+                    .clamp(1.6, 2.7)
+                    .toDouble();
                 return SingleChildScrollView(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Center(
@@ -103,177 +123,149 @@ class _OrdersTabScreenState extends State<OrdersTabScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           // One glass bubble holds the three ways in
                           // (client picture images/333, 2026-11-03).
                           GlassBubble(
-                              key: const ValueKey('orders-bubble'),
-                              // A clean glass pill with gently bowed sides (images/341).
-                              blob: GlassBubble.pageBlob,
-                              dome: dome,
-                              // Top: ORDERS as far below the rim as Home's
-                              // LET'S CREATE. Sides: clear of the glowing
-                              // rim. Bottom: room above the rounded bottom,
-                              // so the MY ORDERS card's corners stay inside.
-                              padding: EdgeInsets.fromLTRB(
-                                28,
-                                bubbleHeadingRoom(area),
-                                28,
-                                bubbleBottomRoom(w, dome, corner: 46),
-                              ),
-                              radius: 72,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Semantics(
-                                    header: true,
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        'ORDERS',
-                                        style: _headline(title, Colors.white),
-                                      ),
-                                    ),
-                                  ),
-                                  const Text(
-                                    'Create, upload or track.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 18.5,
-                                      color: Color(0xffd3dee8),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: _OrderTile(
-                                          key: const ValueKey(
-                                            'orders-tile-form',
-                                          ),
-                                          art:
-                                              'assets/images/art/order_tile_form.webp',
-                                          title: 'CREATE ORDER FORM',
-                                          sub: 'Fill in the order form',
-                                          onTap: () => _open(
-                                            context,
-                                            () => OrderFormScreen(c),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: _OrderTile(
-                                          key: const ValueKey(
-                                            'orders-tile-upload',
-                                          ),
-                                          art:
-                                              'assets/images/art/order_tile_upload.webp',
-                                          title: 'UPLOAD ORDER',
-                                          sub: 'Add your form and artwork',
-                                          onTap: () => _open(
-                                            context,
-                                            () => OrderUploadScreen(c),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Padding(
-                                    padding: EdgeInsets.zero,
-                                    child: _MyOrdersTile(
-                                      key: const ValueKey(
-                                        'orders-tile-my-orders',
-                                      ),
-                                      onTap: () => c.go(AppScreen.orders),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            key: const ValueKey('orders-bubble'),
+                            // A clean glass pill with gently bowed sides (images/341).
+                            blob: GlassBubble.pageBlob,
+                            dome: dome,
+                            // Top: ORDERS as far below the rim as Home's
+                            // LET'S CREATE. Sides: clear of the glowing
+                            // rim. Bottom: room above the rounded bottom,
+                            // so the MY ORDERS card's corners stay inside.
+                            padding: EdgeInsets.fromLTRB(
+                              28,
+                              headRoom,
+                              28,
+                              bottomRoom,
                             ),
+                            radius: 72,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Semantics(
+                                  header: true,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      'ORDERS',
+                                      style: _headline(title, Colors.white),
+                                    ),
+                                  ),
+                                ),
+                                const Text(
+                                  'Create, upload or track.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 18.5,
+                                    color: Color(0xffd3dee8),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                // ONE way in (client 439, 2026-11-05): the
+                                // Order Assistant, from scratch or a sheet.
+                                _CreateOrderCard(
+                                  key: const ValueKey('orders-tile-create'),
+                                  aspect: createAspect,
+                                  onTap: () => _assistant(context),
+                                ),
+                                const SizedBox(height: 12),
+                                Padding(
+                                  padding: EdgeInsets.zero,
+                                  child: _MyOrdersTile(
+                                    key: const ValueKey(
+                                      'orders-tile-my-orders',
+                                    ),
+                                    aspect: listAspect,
+                                    onTap: () => c.go(AppScreen.orders),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                            const SizedBox(height: 12),
-                            const _RuleHeading('PREFERRED SUPPLIERS'),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _MakerPill(
-                                    key: const ValueKey('orders-make-3deezi'),
-                                    accent: const Color(0xff2fa8ff),
-                                    logo: const BrandLogo(width: 92),
-                                    name: '3DEEZI',
-                                    onTap: () => _open(
-                                      context,
-                                      () => OrderFormScreen(c),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _MakerPill(
-                                    key: const ValueKey('orders-make-mantis'),
-                                    accent: const Color(0xff2fe0b0),
-                                    logo: const Text(
-                                      'Mantis',
-                                      maxLines: 1,
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        height: 1,
-                                        fontWeight: FontWeight.w900,
-                                        fontStyle: FontStyle.italic,
-                                        letterSpacing: -.3,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    name: 'Mantis',
-                                    onTap: () => _open(
-                                      context,
-                                      () => OrderFormScreen(c, maker: 'Mantis'),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Semantics(
-                              key: const ValueKey('orders-rewards'),
-                              label: '3DEEZI Rewards: coming soon',
-                              excludeSemantics: true,
-                              child: const FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
+                                const SizedBox(height: 12),
+                                const _RuleHeading('PREFERRED SUPPLIERS'),
+                                const SizedBox(height: 12),
+                                Row(
                                   children: [
-                                    Text(
-                                      'REWARDS · COMING SOON',
-                                      style: TextStyle(
-                                        fontFamily: 'Rajdhani',
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 16,
-                                        letterSpacing: 2.2,
-                                        color: Color(0xffd3dee8),
+                                    Expanded(
+                                      child: _MakerPill(
+                                        key: const ValueKey(
+                                          'orders-make-3deezi',
+                                        ),
+                                        accent: const Color(0xff2fa8ff),
+                                        logo: const BrandLogo(width: 92),
+                                        name: '3DEEZI',
+                                        onTap: () => _assistant(context),
                                       ),
                                     ),
-                                    SizedBox(width: 8),
-                                    Icon(
-                                      Icons.auto_awesome,
-                                      size: 20,
-                                      color: Palette.cyan,
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: _MakerPill(
+                                        key: const ValueKey(
+                                          'orders-make-mantis',
+                                        ),
+                                        accent: const Color(0xff2fe0b0),
+                                        logo: const Text(
+                                          'Mantis',
+                                          maxLines: 1,
+                                          style: TextStyle(
+                                            fontSize: 24,
+                                            height: 1,
+                                            fontWeight: FontWeight.w900,
+                                            fontStyle: FontStyle.italic,
+                                            letterSpacing: -.3,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        name: 'Mantis',
+                                        onTap: () => _assistant(
+                                          context,
+                                          maker: 'Mantis',
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Center(child: _AssistLink()),
+                                const SizedBox(height: 10),
+                                Semantics(
+                                  key: const ValueKey('orders-rewards'),
+                                  label: '3DEEZI Rewards: coming soon',
+                                  excludeSemantics: true,
+                                  child: const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'REWARDS · COMING SOON',
+                                          style: TextStyle(
+                                            fontFamily: 'Rajdhani',
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 16,
+                                            letterSpacing: 2.2,
+                                            color: Color(0xffd3dee8),
+                                          ),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Icon(
+                                          Icons.auto_awesome,
+                                          size: 20,
+                                          color: Palette.cyan,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Center(child: _AssistLink()),
                               ],
                             ),
                           ),
@@ -353,80 +345,172 @@ TextStyle _tileWord(double size) => TextStyle(
   shadows: [Shadow(color: Palette.cyan.withValues(alpha: .4), blurRadius: 10)],
 );
 
-/// CREATE ORDER / UPLOAD ORDER: a glass card, its picture above its title.
-class _OrderTile extends StatelessWidget {
-  const _OrderTile({
-    super.key,
-    required this.art,
-    required this.title,
-    required this.sub,
-    required this.onTap,
-  });
-  final String art, title, sub;
+/// CREATE ORDER FORM (client 439, 2026-11-05): one wide glass card, "CREATE
+/// ORDER FORM / Start from scratch or upload your order sheet." on the left,
+/// a PDF sheet with an upload arrow and a 3DEEZI jersey on the right, and an
+/// arrow. Opens the Order Assistant.
+class _CreateOrderCard extends StatelessWidget {
+  const _CreateOrderCard({super.key, required this.onTap, this.aspect = 1.95});
   final VoidCallback onTap;
+  final double aspect;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
-      final s = (box.maxWidth / 160).clamp(.82, 1.45);
+      final s = (box.maxWidth / 330).clamp(.8, 1.4).toDouble();
       return AspectRatio(
-        aspectRatio: 1.0,
+        aspectRatio: aspect,
         child: GlassCard(
-          radius: 26,
+          radius: 40,
           onTap: onTap,
           bubbleRim: true,
-          semanticsLabel: '$title. $sub',
-          child: Column(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(9, 9, 9, 0),
-                  child: Container(
-                    // A light glass frame and sheen (images/341).
-                    foregroundDecoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: const Color(0xff7fdcff).withValues(alpha: .35),
-                        width: 1.2,
-                      ),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white.withValues(alpha: .14),
-                          Colors.white.withValues(alpha: 0),
-                          Colors.white.withValues(alpha: 0),
-                        ],
-                        stops: const [0, .35, 1],
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      // Zoomed to the middle: the art's own blue
-                      // lightning frame stays outside the tile.
-                      child: Transform.scale(
-                        scale: 1.3,
-                        child: Image.asset(
-                          art,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          filterQuality: FilterQuality.medium,
-                          errorBuilder: (_, _, _) => const SizedBox(),
+          semanticsLabel:
+              'CREATE ORDER FORM. Start from scratch or upload your order sheet.',
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20 * s, 12 * s, 10 * s, 12 * s),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 12,
+                  // A short card (a short phone) scales the words down
+                  // rather than cutting them off.
+                  child: LayoutBuilder(
+                    builder: (context, words) => FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox(
+                        width: words.maxWidth,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'CREATE\nORDER FORM',
+                                style: _tileWord(30 * s).copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  height: .98,
+                                  letterSpacing: .2,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 6 * s),
+                            Text(
+                              'Start from scratch or upload your order sheet.',
+                              style: TextStyle(
+                                fontSize: 13 * s,
+                                height: 1.25,
+                                color: const Color(0xffd3dee8),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
+                SizedBox(width: 6 * s),
+                Expanded(
+                  flex: 9,
+                  child: LayoutBuilder(
+                    builder: (context, art) => Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          left: 0,
+                          top: art.maxHeight * .14,
+                          width: art.maxWidth * .4,
+                          height: art.maxHeight * .72,
+                          child: Transform.rotate(
+                            angle: -.12,
+                            child: const _PdfSheet(),
+                          ),
+                        ),
+                        Positioned(
+                          left: art.maxWidth * .26,
+                          right: art.maxWidth * .02,
+                          top: 0,
+                          bottom: 0,
+                          child: Image.asset(
+                            'assets/images/art/bubble_jersey_dyo.webp',
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.medium,
+                            errorBuilder: (_, _, _) => const SizedBox(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 26 * s,
+                  color: Colors.white,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// A white sheet with a red PDF tag and an upload arrow.
+class _PdfSheet extends StatelessWidget {
+  const _PdfSheet();
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final w = box.maxWidth;
+      return Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xffffffff), Color(0xffdfe7ef)],
+          ),
+          borderRadius: BorderRadius.circular(w * .1),
+          boxShadow: [
+            BoxShadow(
+              color: Palette.cyan.withValues(alpha: .35),
+              blurRadius: 14,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              margin: EdgeInsets.only(left: w * .12),
+              padding: EdgeInsets.symmetric(
+                horizontal: w * .1,
+                vertical: w * .04,
               ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(6, 6 * s, 6, 10 * s),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(title, maxLines: 1, style: _tileWord(16.5 * s)),
+              decoration: BoxDecoration(
+                color: const Color(0xffe0262c),
+                borderRadius: BorderRadius.circular(w * .05),
+              ),
+              child: Text(
+                'PDF',
+                style: TextStyle(
+                  fontSize: w * .22,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  height: 1,
                 ),
               ),
-            ],
-          ),
+            ),
+            SizedBox(height: w * .1),
+            Icon(
+              Icons.file_upload_outlined,
+              size: w * .42,
+              color: const Color(0xff1d2a3a),
+            ),
+          ],
         ),
       );
     },
@@ -436,8 +520,9 @@ class _OrderTile extends StatelessWidget {
 /// MY ORDERS: the wide glass card, the order-tracking picture above a glass
 /// "MY ORDERS" bar.
 class _MyOrdersTile extends StatelessWidget {
-  const _MyOrdersTile({super.key, required this.onTap});
+  const _MyOrdersTile({super.key, required this.onTap, this.aspect = 1.6});
   final VoidCallback onTap;
+  final double aspect;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -446,7 +531,7 @@ class _MyOrdersTile extends StatelessWidget {
       // The see-through MY ORDERS pill sits inside the card, under the list
       // (client images/350).
       return AspectRatio(
-        aspectRatio: 1.6,
+        aspectRatio: aspect,
         child: GlassCard(
           radius: 46,
           onTap: onTap,

@@ -83,7 +83,7 @@ export function dressColour(design: { main?: string; secondary?: string; zoneCol
     return (key === 'body' ? design.main : design.secondary) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-export const VIEWER_VERSION = '2026-10-20-247';
+export const VIEWER_VERSION = '2026-10-20-261';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 

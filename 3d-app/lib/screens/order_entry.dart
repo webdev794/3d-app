@@ -19,6 +19,7 @@ import '../widgets/site_page_stub.dart'
 import '../widgets/order_form_read.dart';
 import '../widgets/order_review_approve.dart';
 import '../widgets/order_review_garments.dart';
+import '../widgets/street_address_field.dart';
 import '../widgets/flow_ui.dart' show pickArtwork;
 import '../widgets/glass_bubble.dart';
 import '../widgets/ui.dart';
@@ -450,6 +451,9 @@ class PaymentStrip extends StatelessWidget {
 Future<({String name, Uint8List bytes})?> Function(String kind) pickOrderFile =
     _pick;
 
+/// Whether [pickOrderFile] is the real picker (tests replace it).
+bool get pickOrderFileIsDefault => identical(pickOrderFile, _pick);
+
 Future<({String name, Uint8List bytes})?> _pick(String kind) async {
   // (iOS needs the type identifiers, else openFile throws and nothing opens.)
   final file = await openFile(
@@ -622,7 +626,9 @@ class _Row {
     'garment': garment,
     if (customName(sport).isNotEmpty) 'sport': customName(sport),
     'fit': fit,
-    if (garment == 'other' && label.trim().isNotEmpty)
+    // The garment's name: typed for an Other garment, or the Order
+    // Assistant's design ("Line Uniform Polo – Annie More – Turquoise").
+    if (label.trim().isNotEmpty)
       'label': label.trim().length > 60
           ? label.trim().substring(0, 60)
           : label.trim(),
@@ -1015,7 +1021,25 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
             style: TextStyle(color: Palette.muted, fontSize: 12),
           )
         else ...[
-          _field(street, 'Street address'),
+          StreetAddressField(
+            controller: street,
+            suggest: c.api.addressSuggestions,
+            onPick: (a) => setState(() {
+              String get(String k) => '${a[k] ?? ''}'.trim();
+              if (get('street').isNotEmpty) street.text = get('street');
+              suburb.text = get('suburb');
+              postcode.text = get('postcode');
+              if (get('country').isNotEmpty) country.text = get('country');
+              final state = get('state');
+              if (isAustralia(country.text)) {
+                auState = auStates.contains(state.toUpperCase())
+                    ? state.toUpperCase()
+                    : '';
+              } else {
+                region.text = state;
+              }
+            }),
+          ),
           _field(suburb, 'Suburb / town'),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1508,8 +1532,22 @@ Widget _section(String text, {Key? key}) => Padding(
 
 /// Create Order Form: contact and team, garments with sizes, names, artwork, instructions; review, then confirm.
 class OrderFormScreen extends StatefulWidget {
-  const OrderFormScreen(this.controller, {super.key, this.maker});
+  const OrderFormScreen(
+    this.controller, {
+    super.key,
+    this.maker,
+    this.assistant,
+    this.review = false,
+  });
   final AppController controller;
+
+  /// The Order Assistant's order (Edit Order / Review & Approve): its title
+  /// and the form rows it collated ({title, token, items}).
+  final Map<String, dynamic>? assistant;
+
+  /// Review & Approve: straight to the review (details still missing are
+  /// asked for there).
+  final bool review;
 
   /// The maker to start with (the Orders tab's "Make with Mantis"), by name;
   /// when it is not offered the order stays 3DEEZI's.
@@ -1572,13 +1610,11 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   });
 
   /// Continue: this page's checks (the review still checks everything).
+  /// Contact and delivery may wait until Review (client 2026-11-05: "too
+  /// much info to input"); only the garments and sizes are needed to go on.
   void nextPage() => setState(() {
     error = page == 0
-        ? (name.text.trim().isEmpty
-              ? 'Add a contact name.'
-              : team.text.trim().isEmpty
-              ? 'Add your team or organisation name.'
-              : deliveryProblem())
+        ? null
         : (total < 1 ? 'Add at least one size and quantity.' : null);
     if (error == null) page++;
   });
@@ -1689,6 +1725,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
           ..garment = _garments.containsKey(item['garment'])
               ? '${item['garment']}'
               : 'other'
+          ..label = '${item['label'] ?? ''}'.trim()
           ..sizes.addAll(
             ((item['sizes'] as Map?) ?? const {}).map(
               (k, v) => MapEntry('$k', (v as num).toInt()),
@@ -1737,6 +1774,22 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     super.initState();
     initContact();
     loadOptions();
+    final from = widget.assistant;
+    if (from != null) {
+      final items = ((from['items'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((m) => m.cast<String, dynamic>())
+          .toList();
+      addItems(items);
+      final title = '${from['title'] ?? ''}'.trim();
+      if (team.text.trim().isEmpty && title.isNotEmpty) team.text = title;
+      page = 1;
+      if (widget.review) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) startReview();
+        });
+      }
+    }
   }
 
   @override
@@ -2055,13 +2108,15 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                               setState(() => r.garment = v ?? r.garment),
                         ),
                       ],
-                      if (r.garment == 'other')
+                      if (r.garment == 'other' || r.label.isNotEmpty)
                         TextFormField(
                           key: Key('custom-garment-name-$i'),
                           initialValue: r.label,
                           maxLength: 60,
                           decoration: InputDecoration(
-                            labelText: r.custom
+                            labelText: r.garment != 'other'
+                                ? 'Name / design'
+                                : r.custom
                                 ? 'Type your garment'
                                 : 'What is it?',
                             hintText: r.custom
@@ -2165,7 +2220,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                               TextButton(
                                 key: Key('add-fit-$i-$f'),
                                 style: _smallLink,
-                                onPressed: rows.length >= 30
+                                onPressed: rows.length >= 60
                                     ? null
                                     : () => setState(
                                         () => rows.insert(
@@ -2306,7 +2361,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         );
     final name =
         project?.title ??
-        (r.garment == 'other' && r.label.trim().isNotEmpty
+        (r.label.trim().isNotEmpty
             ? r.label.trim()
             : (_garments[r.garment] ?? r.garment));
     return Padding(

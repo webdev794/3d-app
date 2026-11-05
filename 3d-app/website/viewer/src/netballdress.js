@@ -31,37 +31,45 @@ export function seamX(y) {
   const [x0, y0] = S.at(-2), [x1, y1] = S.at(-1);
   return x1 + ((x1 - x0) * (y - y1)) / (y1 - y0);
 }
-/** The side panel's width in from the side seam (metres): an even 6 cm band down to the waist, widening to 8 cm at the
- *  hem as the A-line does (425's back panels: 0.043 of the height at the waist, 0.061 lower down; and from the side
- *  three-quarter, 426, the panel reaches round to the silhouette's edge all the way down). */
-const panelWidth = (y) => 0.06 + 0.02 * Math.min(1, Math.max(0, (0.45 - y) / 0.42));
-/** The side panel's inner edge (right half), top down: from the armhole's foot (inside its binding) to below the hem. */
-export const ND_PANEL_EDGE = (() => {
+/** The side panel's width in from the side seam (metres): an even 6 cm band down to the waist; below it the panel sits
+ *  further round towards the back, 5.2 cm on the front and 8 cm on the back at the hem, so from the side three-quarter
+ *  (426) it shows about 0.08 of the height wide and reaches round to the silhouette's edge all the way down, while from
+ *  the front (427) and the back (425) it stays a narrow band (NDT). */
+const lower = (y) => Math.min(1, Math.max(0, (0.45 - y) / 0.42));
+const panelWidth = (y, back) => 0.06 + (back ? 0.02 : -0.008) * lower(y);
+const panelEdge = (back) => {
   const out = [[0.185, 0.78], [0.178, 0.75]];
-  for (let y = 0.72; y > -0.011; y -= 0.03) out.push([+(seamX(y) - panelWidth(y)).toFixed(4), +y.toFixed(3)]);
-  out.push([+(seamX(-0.01) - panelWidth(-0.01)).toFixed(4), -0.01]);
+  for (let y = 0.72; y > -0.011; y -= 0.03) out.push([+(seamX(y) - panelWidth(y, back)).toFixed(4), +y.toFixed(3)]);
+  out.push([+(seamX(-0.01) - panelWidth(-0.01, back)).toFixed(4), -0.01]);
   return out;
-})();
-/** The side panel (right half) as a closed outline: its inner edge, then out past the side seam. */
-export const ND_PANEL = [...ND_PANEL_EDGE, [0.6, -0.01], [0.6, 0.75]];
+};
+/** The side panel's inner edge (right half), top down, on the front and on the back: from the armhole's foot (inside its
+ *  binding) to below the hem. */
+export const ND_PANEL_EDGE = panelEdge(false), ND_PANEL_EDGE_BACK = panelEdge(true);
+/** The side panel (right half) as a closed outline, front and back: its inner edge, then out past the side seam. */
+export const ND_PANEL = [...ND_PANEL_EDGE, [0.6, -0.01], [0.6, 0.75]], ND_PANEL_BACK = [...ND_PANEL_EDGE_BACK, [0.6, -0.01], [0.6, 0.75]];
+/** A side's panel outline. */
+export const panelOf = (back) => (back ? ND_PANEL_BACK : ND_PANEL);
 /** The yoke in front: over the straps and the upper chest, down to a line from the neck's foot out to the armholes. */
-// (Its foot 0.17 of the height under the shoulders in the middle, 0.20 where it meets the side panels: 427.)
-export const ND_YOKE_FRONT_EDGE = [[0, 0.732], [0.06, 0.729], [0.12, 0.722], [0.17, 0.713], [0.21, 0.705], [0.26, 0.698]];
-export const ND_YOKE_FRONT = [...ND_YOKE_FRONT_EDGE, [0.6, 0.698], [0.6, 1.0], [0, 1.0]];
+// (Its foot 0.17 of the height under the shoulders in the middle, coming down towards the sides to about 0.21-0.23
+// where it meets the side panels, as 427's: NDT.)
+export const ND_YOKE_FRONT_EDGE = [[0, 0.732], [0.06, 0.729], [0.1, 0.721], [0.13, 0.709], [0.16, 0.694], [0.19, 0.676], [0.22, 0.658], [0.26, 0.635]];
+export const ND_YOKE_FRONT = [...ND_YOKE_FRONT_EDGE, [0.6, 0.635], [0.6, 1.0], [0, 1.0]];
 /** The yoke behind (425): a band across the upper back, under a broad area of the body's colour across the top (round
  *  the high back neck and over the backs of the straps, 0.08-0.09 of the height deep), its foot arched: 0.234 of the
  *  height under the shoulders in the middle, 0.27 at the sides, where it runs on into the side panels under the arms. */
-export const ND_YOKE_BACK_EDGE = [[0, 0.674], [0.08, 0.671], [0.14, 0.663], [0.19, 0.651], [0.23, 0.642], [0.26, 0.637]];
-// (Its top on the flat, solved so that once the back neck's lift (garment.js backHeight) has carried it up it runs
-// smoothly from 0.80 high in the middle (0.09 of the height under the shoulders) to 0.81 over the straps (0.08), as 425.)
-const ND_YOKE_BACK_TOP = [[0, 0.7504], [0.02, 0.7527], [0.04, 0.7571], [0.06, 0.765], [0.07, 0.7718], [0.08, 0.7805], [0.085, 0.7864],
-  [0.09, 0.7919], [0.094, 0.8019], [0.097, 0.8078], [0.0979, 0.8079], [0.11, 0.81], [0.6, 0.81]];
-export const ND_YOKE_BACK = [...ND_YOKE_BACK_EDGE, [0.6, 0.637], ...ND_YOKE_BACK_TOP.slice().reverse()];
+// (Its foot curving down into the side panels: NDT, 425.)
+export const ND_YOKE_BACK_EDGE = [[0, 0.674], [0.04, 0.671], [0.07, 0.661], [0.1, 0.645], [0.13, 0.626], [0.16, 0.607], [0.19, 0.589], [0.26, 0.55]];
+// (Its top: 0.80 high in the middle (0.09 of the height under the shoulders) rising to 0.81 over the straps (0.08), as
+// 425's. The back is printed where it is worn (garment.js `liftZ`), so these are its true heights.)
+const ND_YOKE_BACK_TOP = [[0, 0.8], [0.05, 0.8005], [0.08, 0.802], [0.1, 0.804], [0.13, 0.808], [0.16, 0.81], [0.6, 0.81]];
+export const ND_YOKE_BACK = [...ND_YOKE_BACK_EDGE, [0.6, 0.55], ...ND_YOKE_BACK_TOP.slice().reverse()];
 /** The bib-holder tabs on the front, [centre x, centre y, width, height] (metres): round the position bib's edges. */
 // (Round the tile's bib: 0.36 to 0.61 of the height down, 0.235 of it wide, as 427's.)
 export const ND_TABS = [
   [-0.066, 0.563, 0.052, 0.017], [0.066, 0.563, 0.052, 0.017],
-  [-0.111, 0.455, 0.017, 0.052], [0.111, 0.455, 0.017, 0.052],
+  // (The upright pair longer than the others, 0.075 of the height, as 426's: NDT.)
+  [-0.111, 0.455, 0.017, 0.065], [0.111, 0.455, 0.017, 0.065],
   [-0.066, 0.347, 0.052, 0.017], [0.066, 0.347, 0.052, 0.017],
 ];
 /** How far a front point is inside a tab (metres; < 0 outside), for the tabs' raised relief (garment.js). */
@@ -120,8 +128,8 @@ export function paintDressBleed(t, design, back) {
   g.save();
   t.side(back);
   g.fillStyle = c.panels;
-  fillBoth(g, ND_PANEL.map(([x, y]) => [Math.min(x, 0.36), y]));
-  const runs = t.dressEdges();
+  fillBoth(g, panelOf(back).map(([x, y]) => [Math.min(x, 0.36), y]));
+  const runs = t.dressEdges(back);
   g.strokeStyle = c.binding;
   g.lineWidth = 0.04;
   g.lineJoin = 'round';
@@ -139,7 +147,7 @@ export function paintDressBleed(t, design, back) {
 export function paintDressPanels(t, design, back, paintLook) {
   const g = t.ctx;
   g.fillStyle = dressColours(design).panels;
-  for (const p of mirrored(ND_PANEL)) {
+  for (const p of mirrored(panelOf(back))) {
     g.beginPath();
     p.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
     g.closePath();
@@ -157,7 +165,7 @@ export function paintDressYoke(t, design, back) {
 
 /** The neck and armhole binding in its own colour (the neck in the Collar part's own colour when it has one). */
 export function paintDressBinding(t, design, back, neckOwn) {
-  const g = t.ctx, runs = t.dressEdges(), yoke = dressColours(design).binding;
+  const g = t.ctx, runs = t.dressEdges(back), yoke = dressColours(design).binding;
   g.lineJoin = 'round';
   g.lineCap = 'butt';
   for (const run of [runs.neck, ...runs.armholes]) {
@@ -173,16 +181,17 @@ export function paintDressBinding(t, design, back, neckOwn) {
 
 /**
  * The seams the dress's pieces are sewn along (garment metres, runs of {x, y}), each with its row of top-stitching 3 mm
- * onto the body: the side panels' inner edges and the yoke's foot.
+ * onto the body: the side panels' inner edges and the yoke's foot. The yoke's is `flat` (its stitching only, no seam
+ * relief: a level seam caught the top light as a raised ridge across the back: NDT).
  */
 export function dressSeams(back) {
   const run = (pts, dx, dy) => pts.map(([x, y]) => ({ x: x + dx(x), y: y + dy }));
-  const yoke = back ? ND_YOKE_BACK_EDGE : ND_YOKE_FRONT_EDGE;
+  const yoke = back ? ND_YOKE_BACK_EDGE : ND_YOKE_FRONT_EDGE, edge = back ? ND_PANEL_EDGE_BACK : ND_PANEL_EDGE;
   const across = [...yoke.slice().reverse().map(([x, y]) => [-x, y]), ...yoke.slice(1)];
   return [
-    { seam: run(ND_PANEL_EDGE, () => 0, 0), stitch: run(ND_PANEL_EDGE, () => -0.003, 0) },
-    { seam: run(ND_PANEL_EDGE.map(([x, y]) => [-x, y]), () => 0, 0), stitch: run(ND_PANEL_EDGE.map(([x, y]) => [-x, y]), () => 0.003, 0) },
-    { seam: run(across, () => 0, 0), stitch: run(across, () => 0, -0.003) },
+    { seam: run(edge, () => 0, 0), stitch: run(edge, () => -0.003, 0) },
+    { seam: run(edge.map(([x, y]) => [-x, y]), () => 0, 0), stitch: run(edge.map(([x, y]) => [-x, y]), () => 0.003, 0) },
+    { seam: run(across, () => 0, 0), stitch: run(across, () => 0, -0.003), flat: true },
   ];
 }
 

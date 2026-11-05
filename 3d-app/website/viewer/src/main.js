@@ -383,6 +383,8 @@ function buildKit(kind) {
     // The socks (FN10 2026-11-02, tester DT10): less shine, so the top of the foot under the overhead lights stays as
     // black as the shin (the pictures' 13-28), not grey-blue (their knit has no sheen either: render-quality.js sockrib).
     if (garment.socks) partMaterial.specularIntensity = 0.3;
+    // (The basketball shorts: a matte knit, its fold ridges not shining: BSF 2026-11-05.)
+    if (garment.bball) Object.assign(partMaterial, { specularIntensity: 0.15, sheen: 0, envMapIntensity: 0.45 });
     addRelief(partMaterial, painter);
     const group = new THREE.Group();
     // The inside of the fabric, seen through the neck, hem and cuffs: the garment's own colour in shade (paintAll).
@@ -534,7 +536,8 @@ function buildKit(kind) {
       rim.material.normalScale.set(0.75, 0.75);
     }
     // (The netball dress's scoop neck is bound and rolled as its armholes are: no collar rib.)
-    rim.visible = !hoodie && !track && !varsity && !garment.socks && !garment.skirt && !garment.cap && !garment.hat && garment.kind !== 'netball-dress';
+    // (The basketball shorts: their band is printed on the shorts themselves, flush, with its ruching in the relief: BSF.)
+    rim.visible = !garment.bball && !hoodie && !track && !varsity && !garment.socks && !garment.skirt && !garment.cap && !garment.hat && garment.kind !== 'netball-dress';
     // The HQ jersey's own collar piece, in the collar rib's material.
     if (hq?.collar) { rim.geometry.dispose(); rim.geometry = hq.collar; }
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
@@ -800,10 +803,10 @@ async function paintAll() {
     // (The basketball shorts' inside in shade too: their V splits show as open dark triangles and the leg openings stay
     // dark inside, as the client's pictures (BSF 2026-11-04).)
     const shadeIn = nfl || !!part.garment?.bball;
-    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(nfl ? 0.45 : part.garment?.bball ? 0.28 : 0.72);
+    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(nfl ? 0.45 : part.garment?.bball ? 0.12 : 0.72);
     // (The Custom shallow V's light inner, as the client's reference: rugbycollars.js.)
     if (part.rugby?.collar.inside) part.inside.color.set(part.rugby.collar.inside).multiplyScalar(0.8);
-    part.inside.envMapIntensity = shadeIn ? 0.3 : 1;
+    part.inside.envMapIntensity = nfl ? 0.3 : part.garment?.bball ? 0.12 : 1;
     // (The compression top: a black label with the cyan "3", as its picture.)
     if (part.label) paintLabel(part.label, design.size || 'L', part.painter.kind === 'compression' ? 'mark' : HEX6.test(design.zoneColors?.labelDark ?? '') || HEX6.test(design.zoneColors?.sweep ?? '') || part.painter.kind === 'tee' || part.track ? 'dark' : 'word');
     if (part.hoodie) paintHoodie(part);

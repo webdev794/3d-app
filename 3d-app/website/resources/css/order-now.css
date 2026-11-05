@@ -17,7 +17,7 @@
 .on-wordmark{display:block;height:.84em;width:auto;aspect-ratio:1628/233}
 .on-sub{margin:calc(18 * var(--u)) 0 0;text-align:center;font-size:max(14px,calc(24 * var(--u)));letter-spacing:.06em;color:#d4dfea;line-height:1.4}
 
-.on-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:calc(20 * var(--u));margin-top:calc(42 * var(--u))}
+.on-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:calc(20 * var(--u));margin-top:calc(42 * var(--u))}
 .on-tile{position:relative;display:flex;flex-direction:column;min-width:0;padding:calc(30 * var(--u)) calc(32 * var(--u)) calc(26 * var(--u));border:1.5px solid #12e1f0a6;border-radius:calc(12 * var(--u));
   background:radial-gradient(ellipse 80% 45% at 50% 62%,#0b2a4a59,transparent 72%),linear-gradient(180deg,#081a2deb,#04101ceb);color:#eaf4fc;text-align:left;
   box-shadow:0 0 18px #00d9ed38,0 0 46px #00d9ed14,inset 0 0 30px #00d9ed10;transition:border-color .2s,transform .2s,box-shadow .2s}

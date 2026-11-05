@@ -44,7 +44,7 @@ class Order extends Model
     /** The design approval: in progress, proof sent (approval needed), approved, changes requested. */
     public const APPROVALS = ['waiting', 'review', 'approved', 'changes'];
 
-    public const MAX_ITEMS = 30;
+    public const MAX_ITEMS = 60;
 
     /** Delivered orders count as completed (off the current board) this many days after delivery. */
     public const COMPLETED_AFTER_DAYS = 14;

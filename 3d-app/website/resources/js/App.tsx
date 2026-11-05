@@ -9,6 +9,8 @@ import AdminPage from './pages/Admin';
 import OrdersBoardPage from './pages/OrdersBoard';
 import OrderUploadPage from './pages/OrderUpload';
 import OrderFormPage from './pages/OrderForm';
+import OrderAssistantPage from './pages/OrderAssistant';
+import OrderSummaryPage from './pages/OrderSummary';
 import OrdersLandingPage from './pages/OrdersLanding';
 import InvoicePayPage from './pages/InvoicePay';
 import OrderCheckoutPage from './pages/OrderCheckout';
@@ -196,6 +198,9 @@ export default function App() {
       <Route path="/orders" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
       <Route path="/orders/:orderId" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
       <Route path="/orders/upload" element={<OrderUploadPage user={user} checking={checkingSession} requireAuth={requireAuth} onNotice={setNotice} />} />
+      {/* The Order Assistant (task TL-3): the default way to order, and its share page. */}
+      <Route path="/orders/assistant" element={<OrderAssistantPage user={user} requireAuth={requireAuth} />} />
+      <Route path="/orders/summary/:token" element={<OrderSummaryPage />} />
       <Route path="/orders/new" element={<OrderFormPage user={user} restoring={checkingSession} requireAuth={requireAuth} catalog={catalog} onNotice={setNotice} />} />
       <Route path="/invoices/:number" element={<InvoicePayPage user={user} checking={checkingSession} requireAuth={requireAuth} />} />
       {/* COMPLETE YOUR PAYMENT and its Confirmation: after REVIEW & APPROVE ORDER (the app's pay link works here too). */}

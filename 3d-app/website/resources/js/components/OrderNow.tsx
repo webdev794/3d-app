@@ -29,17 +29,12 @@ export default function OrderNow({ variant = 'home', board }: { variant?: 'home'
       <Title id="order-now-title" className="on-title">ORDER NOW WITH <span className="on-wordmark-glow"><img className="on-wordmark" src={media('images/brand-wordmark.png')} alt="3DEEZI" width={1628} height={233} decoding="async" /></span></Title>
       <p className="on-sub">Start an order. Upload your details. Follow its progress.</p>
       <div className="on-tiles">
-        <Link to="/orders/new" className="on-tile on-tile-form" aria-label="Create order form: let 3DEEZI Assist help build your order form">
-          <div className="on-head"><h3>NEED HELP ORDERING?<span>CREATE ORDER FORM</span></h3><span className="on-icon"><Sparkle size={34} /></span></div>
-          <p>Let 3DEEZI Assist help build your order form.</p>
-          <FormVisual />
-          <span className="on-button">CREATE ORDER FORM <ArrowRight /></span>
-        </Link>
-        <Link to="/orders/upload" className="on-tile on-tile-upload" aria-label="Upload your order: upload your completed order form and artwork">
-          <div className="on-head"><h3>ORDER READY TO GO?<span>UPLOAD YOUR ORDER</span></h3></div>
-          <p>Upload your completed order form and artwork.</p>
+        {/* ONE way in (client 439, 2026-11-05): the Order Assistant, from scratch or an order sheet. */}
+        <Link to="/orders/assistant" className="on-tile on-tile-create" data-testid="orders-create" aria-label="Create order form: start from scratch or upload your order sheet">
+          <div className="on-head"><h3>CREATE ORDER FORM<span>START FROM SCRATCH OR UPLOAD YOUR ORDER SHEET</span></h3><span className="on-icon"><Sparkle size={34} /></span></div>
+          <p>Start from scratch or upload your order sheet. 3DEEZI builds your complete order form.</p>
           <UploadVisual />
-          <span className="on-button">UPLOAD YOUR ORDER <ArrowRight /></span>
+          <span className="on-button">CREATE ORDER FORM <ArrowRight /></span>
         </Link>
         <Link to="/orders" className="on-tile on-tile-board" aria-label="My orders: view your current orders and follow their progress">
           <div className="on-head"><h3>MY ORDERS<span>YOUR ORDERS. ONE PLACE.</span></h3><span className="on-icon"><Box /></span></div>
@@ -51,8 +46,8 @@ export default function OrderNow({ variant = 'home', board }: { variant?: 'home'
       {page && <div className="on-suppliers" data-testid="orders-suppliers">
         <h2 className="on-rule"><span>PREFERRED SUPPLIERS</span></h2>
         <div className="on-makers">
-          <Link to="/orders/new" className="on-maker is-3deezi" aria-label="Make with 3DEEZI"><Shirt aria-hidden /><span><small>MAKE WITH</small><img src={media('images/brand-wordmark.png')} alt="3DEEZI" width={1628} height={233} /></span><ArrowRight aria-hidden /></Link>
-          <Link to="/orders/new?maker=mantis" className="on-maker is-mantis" aria-label="Make with Mantis"><Shirt aria-hidden /><span><small>MAKE WITH</small><b>Mantis</b></span><ArrowRight aria-hidden /></Link>
+          <Link to="/orders/assistant" className="on-maker is-3deezi" aria-label="Make with 3DEEZI"><Shirt aria-hidden /><span><small>MAKE WITH</small><img src={media('images/brand-wordmark.png')} alt="3DEEZI" width={1628} height={233} /></span><ArrowRight aria-hidden /></Link>
+          <Link to="/orders/assistant?maker=mantis" className="on-maker is-mantis" aria-label="Make with Mantis"><Shirt aria-hidden /><span><small>MAKE WITH</small><b>Mantis</b></span><ArrowRight aria-hidden /></Link>
         </div>
         <p className="on-rewards">REWARDS · COMING SOON <Sparkle size={18} /></p>
       </div>}
@@ -62,7 +57,7 @@ export default function OrderNow({ variant = 'home', board }: { variant?: 'home'
 }
 
 /** A tablet showing a digital order form: garments, sizes and quantities. */
-function FormVisual() {
+export function FormVisual() {
   const rows: [string, string, string, number, 'dark' | 'light'][] = [['jersey', 'Jersey', 'M', 12, 'dark'], ['shorts', 'Shorts', 'L', 12, 'dark'], ['hoodie', 'Hoodie', 'XL', 6, 'light']];
   return <div className="on-visual on-visual-form" aria-hidden="true">
     <div className="on-tablet">

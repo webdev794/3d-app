@@ -2302,9 +2302,11 @@ class _GarmentTool extends StatelessWidget {
         crossAxisCount: 3,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: .85,
+        // Task TL-1 (user 2026-11-05): the garments sit closer together on
+        // phones (as the website's 3-across panel, gap 7px) so more fit.
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
+        childAspectRatio: 1,
         children: [
           for (final (name, art, soon, selected, onTap) in _items())
             GlowCard(
@@ -2321,7 +2323,7 @@ class _GarmentTool extends StatelessWidget {
                   Opacity(
                     opacity: soon ? .45 : 1,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(6, 6, 6, 22),
+                      padding: const EdgeInsets.fromLTRB(4, 3, 4, 21),
                       child: Image.asset(
                         'assets/images/showroom/garment-$art.webp',
                         fit: BoxFit.contain,

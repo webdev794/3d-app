@@ -150,6 +150,12 @@ class OrdersServer {
           : null}, 201);
     }
     if (path == '/orders/options') return ok({'lead_time_weeks': leadWeeks});
+    if (path == '/address/suggest') {
+      return ok([
+        if ('${r.url.queryParameters['q']}'.contains('Marabou'))
+          {'label': '7 Marabou Close, Narre Warren South VIC 3805, Australia', 'street': '7 Marabou Close', 'suburb': 'Narre Warren South', 'state': 'VIC', 'postcode': '3805', 'country': 'Australia'},
+      ]);
+    }
     if (path == '/pricing/options') {
       return ok({
         'currency': 'AUD', 'default_destination': 'AU', 'discount_codes': true,
@@ -939,6 +945,30 @@ void main() {
     expect(find.text('noname@example.test'), findsNWidgets(2));
   });
 
+  testWidgets('Create Order Form: a street address suggestion fills suburb, state, postcode and country (task TL-2)', (tester) async {
+    final server = OrdersServer();
+    await mount(tester, OrderFormScreen(signedIn(server)));
+    final street = find.byKey(const Key('address-street'));
+    await seeIt(tester, street);
+    await tester.ensureVisible(street);
+    await tester.enterText(street, '7 Marabou');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    expect(server.requests.where((r) => r.url.path.endsWith('/address/suggest')), hasLength(1));
+    await tap(tester, find.textContaining('Narre Warren South VIC 3805'));
+    expect(find.byKey(const Key('address-suggestions')), findsNothing);
+    expect(find.widgetWithText(TextField, 'Suburb / town').evaluate().map((e) => (e.widget as TextField).controller!.text), ['Narre Warren South']);
+    expect(find.widgetWithText(TextField, 'Postcode').evaluate().map((e) => (e.widget as TextField).controller!.text), ['3805']);
+    expect(find.byKey(const ValueKey('address-state-VIC')), findsOneWidget);
+    // Nothing found: no list, and the typed street stays.
+    await tester.enterText(street, '99 Nowhere Road');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('address-suggestions')), findsNothing);
+    expect((tester.widget(street) as TextField).controller!.text, '99 Nowhere Road');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Create Order Form: Write or snap your notes builds the garments, sizes and players (2026-11-03)', (tester) async {
     final server = OrdersServer();
     await mount(tester, OrderFormScreen(signedIn(server)));
@@ -956,10 +986,13 @@ void main() {
     pickOrderFile = (kind) async => (name: kind == 'order_form' ? 'sheet.csv' : 'logo.png', bytes: Uint8List.fromList(utf8.encode('Item,Size,Qty\nJersey,M,10\n')));
     addTearDown(() => pickOrderFile = (kind) async => null);
     await mount(tester, OrderFormScreen(signedIn(server)));
-    // Details only: Continue checks this step first.
+    // Details may wait until Review (client 2026-11-05: "too much info"):
+    // Continue goes on to the garments with nothing filled in.
     expect(find.text('Help me add sizes'), findsNothing);
     await tap(tester, find.byKey(const Key('order-continue')));
-    expect(find.text('Add your team or organisation name.'), findsOneWidget);
+    expect(find.text('Add your team or organisation name.'), findsNothing);
+    expect(find.text('Team / organisation'), findsNothing);
+    await tap(tester, find.byKey(const Key('order-step-0')));
     await typeIn(tester, 'Team / organisation', 'Lions FC');
     await fillDelivery(tester, pickup: true);
     await tap(tester, find.byKey(const Key('order-continue')));

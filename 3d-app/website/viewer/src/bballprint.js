@@ -14,14 +14,31 @@
 // (BSF 2026-11-04, client pictures 418-420: longer, to about the knee, the crotch 57 % down (a deep rise), each leg
 // hanging straight down, the hem's outer corner cut back to a V split at the side.)
 // (BSF r3, 419 / 431: the waistband about 6 % of the height, front and back: 2.9 cm, 3.8 cm showing with its rolled top.)
-export const BB = { waist: 0.63, crotch: 0.271, band: 0.029 };
+export const BB = { waist: 0.64, crotch: 0.275, band: 0.029 };
 /** The side seam [y, x], from the hem's outer corner up to the waist: the flat panel's outer edge, flaring to the hem. */
 // (FN9 2026-11-02, the user: from the waist to the hem the outer side is ONE straight line, as the picture, no bulge at
 // the hips: above the crotch the seam is that line over the hips' ellipse (3D half-width 0.7354 x flat), the waist 5 % wider.)
-export const BB_SIDE = [[0, 0.313], [0.07, 0.313], [0.2, 0.315], [BB.crotch, 0.32], [0.34, 0.316], [0.42, 0.308], [0.5, 0.294], [0.55, 0.284], [0.58, 0.276], [0.61, 0.264], [BB.waist, 0.256]];
+// (BSF round 4, 2026-11-05: from the crotch up 0.925 of the width cut before: the hips are worn shallower and squarer
+// (bballshorts.js hipDepth / hipBox), as wide as before; from the band's foot the cloth widens smoothly, no ledge.)
+const HIP = 0.925;
+export const BB_SIDE = [[0, 0.313], [0.07, 0.313], [0.2, 0.315], ...[[BB.crotch, 0.32], [0.34, 0.316], [0.42, 0.308], [0.5, 0.294], [0.55, 0.282], [0.575, 0.282], [0.6, 0.262], [BB.waist, 0.256]].map(([y, x]) => [y, x * HIP])];
 /** The V split at the side of each leg's hem: the hem's outer corner (x at y 0) and how high the split rises. */
 // (BSF r2, BST -241: a taller, narrower V, 12 % of the height as 420; the panels open along it: bballshorts.js split.)
 export const BB_SPLIT = { x: 0.257, y: 0.075 };
+/** The legs at the hem as worn (bballshorts.js worn: inLine, outLine, legDepth): inner and outer side, half-depth. */
+export const BB_LEG = { inHem: 0.04, outHem: 0.2315, depthHem: 0.138 };
+/**
+ * The V split's edge [x, y], from the hem's corner up to the top of the split: cut so that, worn round the leg, it runs
+ * up in a straight line as the client's picture shows it (420, a three-quarter view turned about 40 degrees), with a
+ * sharp corner at the hem; a straight cut curls round the leg into a curve (BSF 2026-11-04, tester BST on -246).
+ */
+export const BB_VENT = (() => {
+  // (A straight cut, as -246. BSF round 4 test d1: cut to rise slowly first, (1 - (1 - t)^(1/2.2)), the worn split turned
+  // into a round arch: worse. Measured worn at 40 degrees, the straight cut already rises evenly (P40 linear in x).)
+  const pts = [];
+  for (let k = 0; k <= 16; k++) { const t = k / 16; pts.push([BB_SPLIT.x + (0.313 - BB_SPLIT.x) * t, BB_SPLIT.y * t]); }
+  return pts;
+})();
 /** The inner leg seam [y, x], from the hem's inner corner up to the crotch. */
 export const BB_INNER = [[0.012, 0.042], [0.066, 0.036], [0.145, 0.024], [0.224, 0.009], [BB.crotch, 0]];
 /**
@@ -143,7 +160,8 @@ export const BB_TRIMS = [['bballTrim1', 0.027, 0.039], ['bballTrim2', 0, 0.0105]
  *  side seam (so each stripe bends up along the V, keeping its height: BSF r2, the stripes' peak 18 % up as 420). */
 export function trimBand(d0, d1) {
   const top = sideX(BB_SPLIT.y) + 0.002, lo = d0 > 0 ? d0 : -0.02;
-  const edge = (d) => [[BB_SPLIT.x, d], [top, BB_SPLIT.y + d]];
+  // (Along the V split's own edge, BB_VENT, carried on just past the side seam at its top.)
+  const edge = (d) => [...BB_VENT.map(([x, y]) => [x, y + d]), [top, BB_SPLIT.y + d]];
   const poly = [[0, lo], ...(d0 > 0 ? edge(d0) : [[BB_SPLIT.x + 0.1, lo], [top, lo]]), ...edge(d1).reverse(), [0, d1]];
   return [poly, mirror(poly)];
 }
@@ -267,7 +285,7 @@ export function bballBleed(painter, design, back) {
   const [[, d0, d1], [, e0, e1]] = BB_TRIMS;
   fill(strip(apex + d0, apex + d1), trimHex('bballTrim1'));
   // The V split and the hem's edge: the edge binding's colour.
-  fill([[BB_SPLIT.x + 0.0004, 0], [BB_SPLIT.x + 0.0004, -0.03], [top + out, -0.03], [top + out, apex + e1], [top - 0.0005, apex + e1], [top - 0.0005, apex]], trimHex('bballTrim2'));
+  fill([[BB_SPLIT.x + 0.0004, -0.03], [top + out, -0.03], [top + out, apex + e1], [top - 0.0005, apex + e1], ...BB_VENT.slice().reverse().map(([x, y]) => [x + 0.0004, y])], trimHex('bballTrim2'));
   g.fillStyle = trimHex('bballTrim2');
   g.fillRect(-FAR, -0.03, 2 * FAR, 0.03 + e0);
   g.restore();
@@ -282,23 +300,32 @@ export function bballBleed(painter, design, back) {
 export function bballTailoring(painter) {
   const stitches = [], seams = [], folds = [];
   const along = (points) => (c) => points.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+  // (Along the level hem only: carried round the V split's corner, the rows crossed the stripes in a diagonal line.)
   for (const { points } of painter.edges()) {
-    stitches.push(along(painter.inset(points, 0.0115)), along(painter.inset(points, 0.0147)));
-    folds.push(along(painter.inset(points, 0.019, 0.006)));
+    let run = [];
+    const flush = () => { if (run.length > 1) { stitches.push(along(painter.inset(run, 0.0115)), along(painter.inset(run, 0.0147))); folds.push(along(painter.inset(run, 0.019, 0.006))); } run = []; };
+    for (const p of points) { if (p.y < 0.003 && Math.abs(p.x) < BB_SPLIT.x - 0.02) run.push(p); else flush(); }
+    flush();
   }
   const waistSeam = BB.waist - BB.band - 0.0012;
-  stitches.push((c) => { c.moveTo(-0.5, waistSeam); c.lineTo(0.5, waistSeam); });
   seams.push((c) => { c.moveTo(0, waistSeam); c.lineTo(0, BB.crotch + 0.01); });
   stitches.push((c) => { c.moveTo(0.0032, waistSeam - 0.002); c.lineTo(0.0032, BB.crotch + 0.03); });
   // The elastic's fine gathers in the cloth just under the band: short soft puckers about 5 mm apart, of uneven length.
   const relief = (g) => {
     g.save();
     g.lineCap = 'round';
+    // The band itself: fine vertical ruching all round, uneven, from its foot to the waist's edge.
+    for (let x = -0.45, k = 0; x <= 0.45; x += 0.0032, k++) {
+      g.strokeStyle = `rgba(255,255,255,${0.28 + 0.12 * Math.sin(k * 1.7)})`; g.lineWidth = 0.0014;
+      g.beginPath(); g.moveTo(x, waistSeam + 0.001); g.lineTo(x + 0.0004 * Math.sin(k * 0.9), BB.waist + 0.01); g.stroke();
+      g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 0.0008;
+      g.beginPath(); g.moveTo(x + 0.0016, waistSeam + 0.001); g.lineTo(x + 0.0016, BB.waist + 0.01); g.stroke();
+    }
     for (let x = -0.4, k = 0; x <= 0.4; x += 0.005, k++) {
-      const len = 0.007 + 0.006 * (0.5 + 0.5 * Math.sin(k * 2.39 + 0.7)) + 0.003 * Math.sin(k * 0.73);
-      g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 0.0022;
+      const len = 0.005 + 0.004 * (0.5 + 0.5 * Math.sin(k * 2.39 + 0.7)) + 0.0015 * Math.sin(k * 0.73);
+      g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 0.0018;
       g.beginPath(); g.moveTo(x, waistSeam - 0.001); g.lineTo(x + 0.0006 * Math.sin(k), waistSeam - len); g.stroke();
-      g.strokeStyle = 'rgba(0,0,0,0.12)'; g.lineWidth = 0.0012;
+      g.strokeStyle = 'rgba(0,0,0,0.1)'; g.lineWidth = 0.0012;
       g.beginPath(); g.moveTo(x + 0.0025, waistSeam - 0.001); g.lineTo(x + 0.0025, waistSeam - 0.6 * len); g.stroke();
     }
     g.restore();

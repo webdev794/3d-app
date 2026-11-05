@@ -830,7 +830,11 @@ class HomeGlassPainter extends CustomPainter {
           ? Offset(x, y) * f
           : Offset(
               x * f,
-              y.abs() <= sides ? y : y.sign * (sides + (y.abs() - sides) * f),
+              // (and the tips sit as far in from the edge as Home's)
+              (y.abs() <= sides
+                      ? y
+                      : y.sign * (sides + (y.abs() - sides) * f)) *
+                  (1 - dome! * .01 / b),
             );
       if (pull > 0) {
         final diff = _ang(p.direction, dir);

@@ -69,3 +69,15 @@ Each worker's 2-line pause reply is added below as it arrives.
 - TW paused: the Artwork to 3D button fix is built (Create.tsx, App.tsx, api.ts; tsc clean), 1 of 11 tests run (hoodie 1440 passed), screenshots not yet checked. Its earlier runs probably made 2 extra small paid AI calls (the Studio pattern call was not faked); the new tests fake all AI calls.
 - BSF paused: last merge -246, no lock. Round 4 NOT merged; in its copy a near-black V inside (works) and a reshaped V cut (worse, reverted). HANDBACK in SP/BS/fixer-log.md.
 - FINAL 11-04 (99% limit): all workers stopped. Viewer is now -247 (probably QD's collar mark, not checked yet); locks free at stop time. PW1, NDF, NDT and QD were stopped before replying: tomorrow, read each log's end, check the project builds (dart analyze, tsc, vite, viewer copies identical) and look at -247 before anything else.
+- TODO FIRST 11-05: live tar of FINISHED tasks only (REF = deploy-zips/3deez-update-2026-11-04-a.tar.gz): the website home glass + bright buttons (home.css) and the fishing shirt -> Polo note (AiStage.tsx, Create.tsx, OpenAiDesigner.php). The built website bundle and Create.tsx also hold UNFINISHED work (the Artwork to 3D button fix, viewer -244..-247), so hold those back or finish and test them first, then rebuild and pack. v2 pushed = 85bc429 (work in progress).
+
+- 2026-11-05 START: locks free, dart analyze + tsc clean, viewer -247 = QD collar mark (merged 18:55, one check left), both viewer copies identical. task-done-today.md cleared for 11-05. Resumed: QD (collar mark checks), TW (button tests), PW1 (phone bubble pages), BSF (shorts round 4), NDF (dress fix list). BST and NDT wait for the fixers' next versions. Live tar of finished work after these report (home glass, fishing note, + whatever passes).
+- 11-05: QD task 2 DONE (collar mark checks pass on -247). QD free.
+- 11-05: TW button fix DONE (11 runs, all AI faked). Ready for tar.
+- 11-05: PW1 DONE (pages match Home; web built). App-only.
+- 11-05: shorts PASS on -252 (BST) -> Finished (client preference). Back 2-3% full accepted. My note: waistband top edge looks tilted at 3/4.
+- 11-05: shorts back to Working on: I misread images/428 (client shorts HAVE soft vertical / diagonal folds); BSF adds folds, BST checks they match. Tester checklist corrected.
+
+- 2026-11-05: BST failed shorts -255 (folds far too faint at 20-45% of target, waistband looks like a ring, hard lines at 40 deg, knit not visible, back 2-3% wide). Fix list sent to BSF a161c7475f4c08d5e. BST ad3a868f541eb014f tests the next version.
+- 2026-11-05: TL finished the app Order Assistant + one Orders card (shots in scratchpad\TL\shots). Main sent 3 small fixes (pill "ORDER ASSISTANT", tab bar on screen 1, Orders bubble shorter like 439 so suppliers show), then the website. Shorts -256 FAIL (tube folds, ring band, shiny) -> fix list to BSF. Netball: NDF checking hip depth + back neck; keep -254 otherwise.
+- 2026-11-05: TL finished Order Assistant + Orders card (app+web), tested by hand on 8010. Live needs migrate (order_assists) + reach photon.komoot.io; polo price unset -> polo orders wait for a quote.

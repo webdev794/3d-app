@@ -140,14 +140,18 @@ SPECS.shorts.worn = SPECS.trainingShorts.worn;
  */
 SPECS['netball-dress'] = {
   half: [
-    [0, 0.785], [0.03, 0.789], [0.056, 0.8], [0.076, 0.817], [0.09, 0.838], [0.097, 0.86], [0.098, 0.88], [0.153, 0.88],
-    [0.152, 0.85], [0.156, 0.82], [0.168, 0.79], [0.19, 0.765], [0.22, 0.746],
-    // (The side seam: netballdress.js ND_SEAM, which its side panels follow. The armholes high and close, as 426's.)
+    // (The neck's top corners rounded into the straps, as 426's round neck, not straight up: the high back neck (liftZ)
+    // then eases off over them instead of within a millimetre, which creased the back beside the straps: NDT.)
+    [0, 0.785], [0.03, 0.789], [0.056, 0.8], [0.076, 0.817], [0.088, 0.833], [0.097, 0.849], [0.103, 0.864], [0.106, 0.88], [0.153, 0.88],
+    // (The armholes high and close, as 426's, their foot a quarter ellipse coming in level to the underarm, so front and
+    // back make a round U there, not a pinched V: NDT.)
+    [0.152, 0.85], [0.156, 0.82], [0.166, 0.795], [0.1688, 0.7795], [0.177, 0.765], [0.19, 0.7526], [0.207, 0.743], [0.2268, 0.737],
+    // (The side seam: netballdress.js ND_SEAM, which its side panels follow.)
     ...ND_SEAM,
     [0.22, 0.012], [0.1, 0.002], [0, 0],
   ],
-  neck: { drop: 0.1, half: 0.101 },
-  rim: { drop: 0.105, half: 0.104, radius: 0.0085 },
+  neck: { drop: 0.1, half: 0.109 },
+  rim: { drop: 0.105, half: 0.112, radius: 0.0085 },
   armholes: true,
   armhole: { x0: 0.151, y0: 0.73, x1: 0.25 },
   pit: [0.248, 0.735],
@@ -157,9 +161,11 @@ SPECS['netball-dress'] = {
   form: 'female',
   // Shown in the new look on the female form standing a little higher on its stand, so its thighs show below the hem.
   lift: 0.08,
-  points: { N: [0.098, 0.88], S: [0.153, 0.88], U: [0.248, 0.735], H: [0.333, 0.03], T: [0, 0.785] },
-  // Its back neck (backHeight): high and round (5 cm under the strap tops in the middle), meeting the straps' inner corners.
-  backNeck: { centre: 0.835, fade: 0.12, round: true, reach: 0.012 },
+  points: { N: [0.106, 0.88], S: [0.153, 0.88], U: [0.248, 0.735], H: [0.333, 0.03], T: [0, 0.785] },
+  // Its back neck (backHeight): high, level with the strap tops (1 cm under them in the middle), as 425's, meeting the
+  // straps' inner corners. `liftZ`: the back is worn and printed where it is raised to (its own cut, not stretched).
+  backNeck: { centre: 0.87, fade: 0.16, round: true, reach: 0.012, rise: 2, top: 0.0015 },
+  liftZ: true,
   // The bust (wornShift): fullest 21.5 cm under the shoulder line, softly into the waist.
   bust: { drop: 0.215, x: 0.09, depth: 0.038, under: 0.14 },
 };
@@ -404,7 +410,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     if (spec.legs) return (ax > 0.14 && p.y < waist - 0.05) || p.y > waist - 0.11 || Math.hypot(ax, p.y - crotchY) < 0.13;
     // A dress: round the armholes and down the bodice's sides, and round the neck (the back neck's cloth drawn up there:
     // a finer mesh keeps the yoke's edge and the binding smooth, NDF).
-    if (spec.dress) return Math.hypot(ax - spec.pit[0], p.y - spec.pit[1]) < 0.1 || (ax > 0.17 && ax < 0.28 && p.y > spec.pit[1] - 0.25 && p.y < spec.pit[1]) || (ax < 0.14 && p.y > maxY - 0.16);
+    if (spec.dress) return Math.hypot(ax - spec.pit[0], p.y - spec.pit[1]) < 0.1 || (ax > 0.17 && ax < 0.28 && p.y > spec.pit[1] - 0.25 && p.y < spec.pit[1]) || (ax < 0.14 && p.y > maxY - 0.27);
     return spec.chest && ((ax > 0.15 && ax < 0.3 && p.y > 0.02 && p.y < 0.58) || Math.hypot(ax - 0.255, p.y - 0.53) < 0.11);
   };
   // A skin-tight top's sculpted chest and stomach (`tight.sculpt`: its own, finer grid there, so the muscles' edges and
@@ -710,7 +716,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     return (h + foldGain * f) * ramp(0.014, 0.034, openDist[i]);
   };
   /** Crease height in metres (+ out, - in), pushed out along the body's surface. */
-  const crease = (p, back, i) => (spec.tight?.crease ?? spec.crease ?? 1) * ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back, i) + shortsFolds(p, back) + drapeFolds(p, back, i) + sleeveFolds(p, back, i) + detailFolds(p, back, i));
+  // (`folds(p, back)`: a cut's own drape folds, metres out (the basketball shorts' soft folds as the client's pictures, BSF 2026-11-05).)
+  const crease = (p, back, i) => (spec.folds ? spec.folds(p, back) * ramp(0, 0.015, seamDist[i]) : 0) + (spec.tight?.crease ?? spec.crease ?? 1) * ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back, i) + shortsFolds(p, back) + drapeFolds(p, back, i) + sleeveFolds(p, back, i) + detailFolds(p, back, i));
   const neckEdge = poly.filter((q, i) => !seam[i] && q.y > maxY - spec.neck.drop && Math.abs(q.x) < spec.neck.half);
   const nearNeck = (p) => neckEdge.reduce((d, q) => Math.min(d, Math.hypot(p.x - q.x, p.y - q.y)), Infinity);
   /** The body under the fabric (worn.js), kept off the seams and the neckline so those stay even. */
@@ -737,7 +744,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       const sl = sleeveAt[i], near = Math.exp(-((Math.abs(p.x) - worn.pit.x) ** 2 + (p.y - worn.pit.y + 0.012) ** 2) / 0.0022);
       under = 1 - 0.3 * near - (sl ? 0.2 * ramp(-0.2, -1, Math.sin(sl.phi)) * ramp(0.08, 0, sl.l) : 0);
     }
-    const collar = 1 - 0.24 * Math.exp(-(Math.max(0, nearNeck(p) - (spec.legs ? band - 0.002 : 0)) ** 2) / 0.0004);
+    // (`rimShade`: how dark the shadow under the waistband is; the basketball shorts' gathered band has none: BSF.)
+    const collar = 1 - (spec.rimShade ?? 0.24) * Math.exp(-(Math.max(0, nearNeck(p) - (spec.legs ? band - 0.002 : 0)) ** 2) / 0.0004);
     return THREE.MathUtils.clamp(valley * ridge * muscles * under * collar * (worn.shade?.(p, back) ?? 1), 0.4, ridge);
   };
   const positions = new Float32Array(n * 2 * 3);
@@ -760,11 +768,14 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       // (`round`: an elliptical line `reach` wider than the neck, so it meets the cut edge just before the strap's inner
       // corner and the lift comes down to nothing there smoothly: the edge rises steadily into the strap and the cloth
       // under the strap's edge is not sheared against the strap beside it (that left a notch and spikes: NDF).)
-      const w = nx + (spec.backNeck.reach ?? 0);
-      const line = spec.backNeck.round ? ny - (ny - centre) * Math.sqrt(Math.max(0, 1 - (ax / w) ** 2)) : centre + (ny - centre) * (ax / nx) ** 1.4;
-      const lift = Math.max(0, Math.min(line, ny - 0.006) - edge);
+      // (`rise`: a power curve instead, from `centre` up to `top` under the strap tops at the strap's inner corner, so the
+      // edge climbs evenly right into the strap: held 6 mm under it, the cut edge jumped the last 6 mm within a millimetre
+      // there and showed as a step at the far strap from a three-quarter view: NDF.)
+      const w = nx + (spec.backNeck.reach ?? 0), rise = spec.backNeck.rise, top = ny - (spec.backNeck.top ?? 0.006);
+      const line = rise ? centre + (top - centre) * Math.min(1, ax / nx) ** rise : spec.backNeck.round ? ny - (ny - centre) * Math.sqrt(Math.max(0, 1 - (ax / w) ** 2)) : centre + (ny - centre) * (ax / nx) ** 1.4;
+      const lift = Math.max(0, Math.min(line, top) - edge);
       const r = THREE.MathUtils.clamp((p.y - (edge - fade)) / (fade - 0.03), 0, 1);
-      return Math.min(p.y + lift * r * r * (3 - 2 * r), Math.max(p.y, ny - 0.004));
+      return Math.min(p.y + lift * r * r * (3 - 2 * r), Math.max(p.y, rise ? top : ny - 0.004));
     }
     if (spec.dress) {
       const dy = maxY - 0.738;
@@ -883,9 +894,11 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     while (edge[i] && seen < nb) { run.push(i); i = (i + 1) % nb; seen++; }
     // Carry the roll on to the seam at each end, so front and back meet in one even band.
     const before = (run[0] - 1 + nb) % nb, after = (run.at(-1) + 1) % nb;
-    // (A dress's neck and armholes stop at the strap tops: carried on over the shoulder seam they stood up in spikes.)
-    // (Nor at the dress's hem corners, where the carried roll stuck out as a little flap: DT6.)
-    const carry = (j) => seam[j] && !spec.dress;
+    // (A dress's neck and armholes: carried on to the strap tops, where the shoulder is now round (worn.js wornShift), so
+    // front and back meet in one band there, not two tips with a gap: NDT. Not at the dress's hem corners, where the
+    // carried roll stuck out as a little flap: DT6.)
+    // (And at the underarm, so the armhole's binding runs round its foot unbroken: NDT saw a slit there.)
+    const carry = (j) => seam[j] && (!spec.dress || poly[j].y > minY + 0.06);
     if (run.length > 1) runs.push([...(carry(before) ? [before] : []), ...run, ...(carry(after) ? [after] : [])]);
   }
   const roll = { pos: [], uv: [], col: [], idx: [] }, K = 6, cols = K + 2;
@@ -919,7 +932,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       }
       // The hem allowance, folded up inside the garment.
       // (A dress's allowance well inside: so close under the fabric it showed through as a navy band at the hem: DT6.)
-      const inner = q.clone().addScaledVector(T, -0.012).addScaledVector(N, spec.dress ? -2 * r - 0.004 : -2 * r);
+      // (`hemAllowance`: a cut's own, the basketball shorts' bound edge has hardly any, so none shows inside their V splits.)
+      const inner = q.clone().addScaledVector(T, -(spec.hemAllowance ?? 0.012)).addScaledVector(N, spec.dress ? -2 * r - 0.004 : -2 * r);
       roll.pos.push(inner.x, inner.y, inner.z);
       roll.uv.push(ru, rv);
       roll.col.push(0.5, 0.5, 0.5);
@@ -1304,7 +1318,7 @@ function gatheredBand(neck, width, one = false) {
   // depth), over the rounded top, down the inside.
   // (`one`: a single flat channel with fine, shallow gathers.)
   // (`one` 'smooth': a printed band, its gathers barely there: the basketball shorts, BSF 2026-11-04.)
-  const channels = one === 'smooth' ? [[0, 1, 20, 0.0002, 0.00012]] : one ? [[0, 1, 20, 0.0005, 0.0007]] : [[0, 0.27, 9, 0.0016, 0.0015], [0.27, 0.73, 13, 0.0022, 0.0017], [0.73, 1, 9, 0.0018, 0.0015]];
+  const channels = one === 'smooth' ? [[0, 1, 20, 0.0005, 0.0015]] : one ? [[0, 1, 20, 0.0005, 0.0007]] : [[0, 0.27, 9, 0.0016, 0.0015], [0.27, 0.73, 13, 0.0022, 0.0017], [0.73, 1, 9, 0.0018, 0.0015]];
   const rows = [];
   channels.forEach(([from, to, n, puff, depth], c) => {
     for (let k = c ? 1 : 0; k <= n; k++) rows.push({ c, part: from + ((to - from) * k) / n, s: k / n, puff, depth });
