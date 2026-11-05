@@ -1028,13 +1028,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final o = _order;
-    return Scaffold(
-      backgroundColor: Palette.bg,
-      appBar: AppBar(
-        backgroundColor: Palette.bg,
-        title: Text(o == null ? 'Order' : '${o['number']}'),
-      ),
-      body: o == null
+    // The bubble look (user 2026-11-05), the order's number as the title.
+    return BubbleRoute(
+      c: widget.c,
+      title: o == null ? 'ORDER' : '${o['number']}',
+      bubbleKey: const ValueKey('order-detail-bubble'),
+      child: o == null
           ? Center(
               child: _error != null
                   ? Text(_error!, style: const TextStyle(color: Palette.muted))
@@ -1072,7 +1071,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final at = stages.indexWhere((s) => s.$1 == o['stage']);
     final waiting = o['approval'] == 'review' && proof != null;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+      padding: const EdgeInsets.fromLTRB(2, 6, 2, 16),
       children: [
         Text(
           '${o['name']}',

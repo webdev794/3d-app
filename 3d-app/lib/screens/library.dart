@@ -644,109 +644,115 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Widget build(BuildContext context) {
     final items = _items;
     final canUpload = _tab == 'Logos' || _tab == 'Uploads';
-    return Column(
-      children: [
-        TopBar(
-          // Opened from Projects or Profile (no longer a bottom-bar tab).
-          onBack: c.back,
-          title: 'Assets',
-          subtitle: 'Logos · patterns · artwork',
-          trailing: [NotificationBell(widget.c)],
-        ),
-        _Tabs(
-          labels: const ['Logos', 'Patterns', 'Artwork', 'Uploads'],
-          selected: _tab,
-          onSelect: (t) => setState(() => _tab = t),
-        ),
-        Expanded(
-          child: GridView(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-            ),
-            children: [
-              if (canUpload)
-                GlowCard(
-                  radius: 12,
-                  glow: false,
-                  onTap: _upload,
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add, color: Palette.cyan, size: 28),
-                      SizedBox(height: 4),
-                      Text(
-                        'Upload asset',
-                        style: TextStyle(fontSize: 10, color: Palette.muted),
-                      ),
-                    ],
+    // The bubble look (user 2026-11-05), as Projects and Profile.
+    return BubblePage(
+      c: c,
+      title: 'ASSETS',
+      compact: true,
+      bubbleKey: const ValueKey('assets-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('assets-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        // Opened from Projects or Profile (no longer a bottom-bar tab).
+        onTap: c.back,
+      ),
+      child: Column(
+        children: [
+          _Tabs(
+            labels: const ['Logos', 'Patterns', 'Artwork', 'Uploads'],
+            selected: _tab,
+            onSelect: (t) => setState(() => _tab = t),
+          ),
+          Expanded(
+            child: GridView(
+              padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+              ),
+              children: [
+                if (canUpload)
+                  GlowCard(
+                    radius: 12,
+                    glow: false,
+                    onTap: _upload,
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add, color: Palette.cyan, size: 28),
+                        SizedBox(height: 4),
+                        Text(
+                          'Upload asset',
+                          style: TextStyle(fontSize: 10, color: Palette.muted),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              if (_tab == 'Patterns')
-                GlowCard(
-                  radius: 12,
-                  glow: false,
-                  onTap: () =>
-                      _use(null, asset: 'assets/images/pattern_default.png'),
-                  child: artImage(asset: 'assets/images/pattern_default.png'),
-                ),
-              // Bundled samples so a new library is never empty.
-              for (final sample in switch (_tab) {
-                'Logos' => const [
-                  'assets/images/splash_mark.png',
-                  'assets/images/reference_1.png',
-                ],
-                'Uploads' => const [
-                  'assets/images/reference_2.png',
-                  'assets/images/reference_3.png',
-                  'assets/images/reference_4.png',
-                ],
-                _ => const <String>[],
-              })
-                GlowCard(
-                  radius: 12,
-                  glow: false,
-                  onTap: () => _use(null, asset: sample),
-                  child: artImage(
-                    asset: sample,
-                    fit: _tab == 'Logos' ? BoxFit.contain : BoxFit.cover,
-                  ),
-                ),
-              if (_tab == 'Artwork')
-                for (var i = 1; i <= 6; i++)
+                if (_tab == 'Patterns')
                   GlowCard(
                     radius: 12,
                     glow: false,
                     onTap: () =>
-                        _use(null, asset: 'assets/images/project_$i.png'),
-                    child: artImage(asset: 'assets/images/project_$i.png'),
+                        _use(null, asset: 'assets/images/pattern_default.png'),
+                    child: artImage(asset: 'assets/images/pattern_default.png'),
                   ),
-              for (final item in items.reversed)
-                GlowCard(
-                  radius: 12,
-                  glow: false,
-                  onTap: () => _use(item),
-                  child: artImage(
-                    bytes: item,
-                    fit: _tab == 'Logos' ? BoxFit.contain : BoxFit.cover,
+                // Bundled samples so a new library is never empty.
+                for (final sample in switch (_tab) {
+                  'Logos' => const [
+                    'assets/images/splash_mark.png',
+                    'assets/images/reference_1.png',
+                  ],
+                  'Uploads' => const [
+                    'assets/images/reference_2.png',
+                    'assets/images/reference_3.png',
+                    'assets/images/reference_4.png',
+                  ],
+                  _ => const <String>[],
+                })
+                  GlowCard(
+                    radius: 12,
+                    glow: false,
+                    onTap: () => _use(null, asset: sample),
+                    child: artImage(
+                      asset: sample,
+                      fit: _tab == 'Logos' ? BoxFit.contain : BoxFit.cover,
+                    ),
                   ),
-                ),
-            ],
+                if (_tab == 'Artwork')
+                  for (var i = 1; i <= 6; i++)
+                    GlowCard(
+                      radius: 12,
+                      glow: false,
+                      onTap: () =>
+                          _use(null, asset: 'assets/images/project_$i.png'),
+                      child: artImage(asset: 'assets/images/project_$i.png'),
+                    ),
+                for (final item in items.reversed)
+                  GlowCard(
+                    radius: 12,
+                    glow: false,
+                    onTap: () => _use(item),
+                    child: artImage(
+                      bytes: item,
+                      fit: _tab == 'Logos' ? BoxFit.contain : BoxFit.cover,
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-        if (items.isEmpty && _tab == 'Patterns')
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(switch (_tab) {
-              'Logos' => 'Upload your club crest to place it on any kit.',
-              'Patterns' => 'AI patterns you generate are kept here.',
-              _ => 'Reference photos you add appear here.',
-            }, style: const TextStyle(color: Palette.muted, fontSize: 11.5)),
-          ),
-        BottomNav(controller: c),
-      ],
+          if (items.isEmpty && _tab == 'Patterns')
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(switch (_tab) {
+                'Logos' => 'Upload your club crest to place it on any kit.',
+                'Patterns' => 'AI patterns you generate are kept here.',
+                _ => 'Reference photos you add appear here.',
+              }, style: const TextStyle(color: Palette.muted, fontSize: 11.5)),
+            ),
+        ],
+      ),
     );
   }
 }

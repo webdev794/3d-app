@@ -90,3 +90,18 @@ Resume via SendMessage, do not respawn:
 - NDF af583c2f6cd3ff881: folds/shine/yoke colour (-257 list); merge only after the pack is done. NDT aaa2f21c3d04e8914, BST ad3a868f541eb014f test after.
 - 2026-11-05: v2 pushed = d390e95 (with the wrong desktop changes); tar 3deez-update-2026-11-05-a made but NOT for live. After TL undoes the desktop pages: new commit on top of v2 (no force) + remake the tar (REF 11-04-a).
 - 2026-11-05 15:05: v2 pushed = 66cd25b (on top of d390e95); live tar deploy-zips/3deez-update-2026-11-05-b.tar.gz (delta since 11-04-a, code only, DELETE-ON-LIVE.txt inside); 11-05-a deleted, never live.
+- 2026-11-05: v2 pushed = 4e31698 (on top of 66cd25b; shorts viewer etc., no tar).
+- 2026-11-05 evening: user: finish shorts + netball dress first (others wait for client pictures). Final fix round each (BSF on -273 list, NDF on -272 list), then one tester check; leftovers go on a later list. TL: Orders tab opens 449 screen + one glass panel round the prompt bar, then pattern_areas test, then bubble batches 1-5. Rule: ask the user when platform/screen is unclear.
+- 2026-11-05: QA regression tester a67e886bef88faf96 added (user): tests all linked website+app features on its own copy server (8011), reports to main only; re-run after each batch.
+- 2026-11-05: HM a706c0f22b467b17b = app Home design 458 (new agent, user). TL told to keep off the Home files.
+
+## 2026-11-05 late: RUNNING (resume each via SendMessage after a stop)
+- NDF af583c2f6cd3ff881: adding 4 cloth curves (images/459) to the netball dress; then NDT aaa2f21c3d04e8914 tests (ready).
+- TL a3f101741f6eac5d9: rim padding on the bubble forms, then bubble batches 2-5 (app only; Home files are off-limits).
+- HM a706c0f22b467b17b: app Home design 458 (check v3 first; HD jerseys in images/460: left = AI, right = DYO). Mobile app only.
+- QA a67e886bef88faf96: regression sweep (website + app) on its own copy server 8011.
+- Shorts are FINISHED (-275), with a later list in tasks.md. Not pushed since v2 4e31698; no tar since 11-05-b.
+- 2026-11-05 ~86%: dress -276 FAILED (2 of 4 curves, darker, slant and folds back); NDF is redoing it with masked spots on top of the -275 state; -275 stays the reference. TL bubble batches, HM Home, QA sweep still running. No push (user: not yet).
+- 2026-11-05 ~90%: App Home 458 DONE (HM). Clean-up done (D: about 2.9 GB free). URGENT with TL: order form/upload/details use the standard Projects BubblePage bubble + all 4 tabs at about 590 px wide (images/461). Dress: NDT checking -277 against -275. QA sweep running. No push yet.
+- 2026-11-05: QA a67e886bef88faf96 PAUSED by the user; resume tomorrow (2026-11-06) via SendMessage.
+- 2026-11-05 END: TL a3f101741f6eac5d9 is still fixing (app only) the bubbles and spacing on the Orders tab screen and the manual form/Upload/details (content fills the bubble, nothing past the rim, even gaps; 360/390/590x700). Resume it first tomorrow and check its screenshots. NDT is checking dress -277 against -275. Push only when told.

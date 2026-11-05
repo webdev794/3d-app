@@ -12,7 +12,7 @@ import 'screens/create_home.dart';
 import 'screens/home_switcher.dart';
 import 'screens/library.dart';
 import 'screens/orders_board.dart';
-import 'screens/orders_tab.dart';
+import 'screens/order_assistant.dart';
 import 'screens/onboarding.dart';
 import 'screens/showcase.dart';
 import 'screens/product_mockup.dart';
@@ -305,7 +305,8 @@ class _Phone extends StatelessWidget {
     AppScreen.artboard => ArtboardScreen(c),
     AppScreen.pricing => PricingScreen(c),
     AppScreen.orders => OrdersBoardScreen(c),
-    AppScreen.orderHub => OrdersTabScreen(c),
+    // The Orders tab opens the Order Assistant (client 454, 2026-11-05).
+    AppScreen.orderHub => OrderAssistantScreen(c, root: true),
   };
 }
 

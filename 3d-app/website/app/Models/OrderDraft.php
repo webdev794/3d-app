@@ -15,7 +15,7 @@ class OrderDraft extends Model
     public const KINDS = ['form', 'upload'];
 
     /** The order fields a draft's data may hold (anything else the page keeps there is left out when submitting). */
-    public const FIELDS = ['contact_name', 'contact_email', 'phone', 'team_name', 'shipping_address', 'needed_by', 'notes', 'items', 'pricing', 'delivery', 'address', 'supplier_id'];
+    public const FIELDS = ['contact_name', 'contact_email', 'phone', 'team_name', 'shipping_address', 'needed_by', 'notes', 'items', 'pricing', 'delivery', 'address', 'supplier_id', 'assist_token'];
 
     /** The largest data a draft may hold, as JSON. */
     public const MAX_BYTES = 200 * 1024;

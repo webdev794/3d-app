@@ -168,7 +168,12 @@ function addRelief(target, painter) {
   // The skirt's own light (skirtprint.js SKIRT_LIGHT: its black neutral and even, its panels clean), on the tiers.
   // (FN1 2026-10-30: the bucket hat too: its black neutral, as its pictures', not navy from the stage's cool light.)
   const skirtLight = (painter.kind === 'skirt' || painter.kind === 'bucket-hat' || painter.kind === 'beanie') && !!Q;
-  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '');
+  // (The netball dress: its own glow (emissive) shaded by the baked folds and body shading too, and half the edge light:
+  // the user 2026-11-05, 443.)
+  const dress = painter.kind === 'netball-dress';
+  // (The basketball shorts: matte, so the edge light does not run along their fold ridges as shiny streaks: BSF.)
+  const bball = painter.kind === 'bballshorts';
+  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '');
   target.onBeforeCompile = (shader) => {
     if (skirtLight) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `${SKIRT_LIGHT}\n#include <opaque_fragment>`);
     // (LT2 2026-11-02, the client: "a thin highlight around these garments": on the tiers a thin, soft cyan-white edge
@@ -176,9 +181,13 @@ function addRelief(target, painter) {
     // faces the camera and keeps its colours.)
     if (Q) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `{
       float edge = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));
-      outgoingLight += vec3(0.62, 0.86, 1.0) * 0.5 * smoothstep(0.62, 0.95, edge);
+      outgoingLight += vec3(0.62, 0.86, 1.0) * ${dress ? '0.0' : bball ? '0.08' : '0.5'} * smoothstep(${dress || bball ? '0.9, 0.995' : '0.62, 0.95'}, edge);
     }
 #include <opaque_fragment>`);
+    if (dress) shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+#ifdef USE_COLOR
+	totalEmissiveRadiance *= vColor.rgb;
+#endif`);
     shader.uniforms.reliefMap = { value: relief };
     // Look 2: the stitches and seams stand out a little more (the relief's slopes scaled up).
     const slopes = LOOK2 ? 'relief.xy * 1.7' : 'relief.xy';
@@ -623,6 +632,8 @@ function dressMannequin(list) {
   mannequinMat ??= Object.assign(mannequinMaterial(), { userData: { keep: true } });
   let low = Infinity, foot = null;
   for (const part of parts) {
+    // (The basketball shorts: no form inside; its top showed through the waist opening as a grey lid: BSF.)
+    if (part.garment.bball) continue;
     const group = part.rim.parent;
     // The HQ jersey: the body it was made on (hq.js), else our form made for the garment.
     const form = part.garment.form ? part.garment.form(mannequinMat) : part.hq?.avatar ? new THREE.Group().add(new THREE.Mesh(part.hq.avatar, mannequinMat))

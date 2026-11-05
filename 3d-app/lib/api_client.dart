@@ -379,7 +379,8 @@ class ApiClient {
         http.MultipartFile.fromBytes('designs[]', f.bytes, filename: f.name),
       );
     }
-    final sent = files.fold<int>(0, (a, f) => a + f.bytes.length) +
+    final sent =
+        files.fold<int>(0, (a, f) => a + f.bytes.length) +
         designs.fold<int>(0, (a, f) => a + f.bytes.length);
     return await _receive(() => _client.send(request), long: true, sent: sent)
         as Map<String, dynamic>;

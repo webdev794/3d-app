@@ -49,7 +49,7 @@ class OrderBoardTest extends TestCase
     private function form(array $fields = []): array
     {
         return $fields + [
-            'source' => 'form', 'contact_name' => 'Fabian Soutar', 'contact_email' => 'fabian@example.test', 'phone' => '0400 000 000',
+            'source' => 'form', ...$this->artwork(), 'contact_name' => 'Fabian Soutar', 'contact_email' => 'fabian@example.test', 'phone' => '0400 000 000',
             'team_name' => 'MANTIS Rugby League', 'notes' => 'Navy and cyan, logo on the chest.',
             // The order form's date required and delivery (client 2026-10-22).
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup',
@@ -198,8 +198,8 @@ class OrderBoardTest extends TestCase
         $this->getJson("/api/v1/order-drafts/{$draft}")->assertNotFound();
         $this->assertSame(0, OrderDraft::count());
         // The same submission again: the same order (the draft is gone, the key remembers it).
-        $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'upload-key-1'])->assertOk()->assertJsonPath('data.id', $order['id']);
-        $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'upload-key-9'])->assertNotFound();
+        $this->postJson("/api/v1/order-drafts/{$draft}/submit", $this->artwork(), ['Idempotency-Key' => 'upload-key-1'])->assertOk()->assertJsonPath('data.id', $order['id']);
+        $this->postJson("/api/v1/order-drafts/{$draft}/submit", $this->artwork(), ['Idempotency-Key' => 'upload-key-9'])->assertNotFound();
         $this->assertSame(1, Order::count());
         Event::assertDispatchedTimes(OrderSubmitted::class, 1);
         // The files are kept and can be downloaded by the customer.

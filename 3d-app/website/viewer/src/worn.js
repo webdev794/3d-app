@@ -437,7 +437,7 @@ export function wornShorts(spec = {}) {
   // How much of the body shows through (loose cuts: little; behind, the seat hardly at all).
   const reliefScale = m.relief ?? 1, seatScale = m.seat ?? reliefScale;
   // (`hipBox`: the hips a squarer section (wrap's box), as deep in the middle but fuller towards the corners: BSF 2026-11-05.)
-  const hips = (p, back) => { const w = wrap(p.x, along(sideSeam, p.y), m.hipDepth ?? 0.72, back, m.hipBox ?? 2); return new THREE.Vector3(w.x, p.y, w.z); };
+  const hips = (p, back) => { const w = wrap(p.x, along(sideSeam, p.y), m.hipDepth ?? 0.72, back, [m.hipBox ?? 2].flat()[back ? 1 : 0] ?? m.hipBox); return new THREE.Vector3(w.x, p.y, w.z); };
   const leg = (p, back) => {
     const xi = along(inner, p.y), xo = along(sideSeam, p.y);
     const u = THREE.MathUtils.clamp((Math.abs(p.x) - xi) / (xo - xi), 0, 1), phi = (u - 0.5) * Math.PI;
@@ -523,9 +523,10 @@ export function wornShift(spec, { topSeam, outline = [], hemDist = (p) => p.y })
   // Above the underarms the body goes on up to the shoulders under the straps (the armholes open round the arms).
   // (The straps wrap a little round the shoulders: the front no broader at the top than the pictures'.)
   const shoulder = (y) => along([[pitY, pitX], [top - 0.07, pitX - 0.022], [top - 0.03, pitX - 0.04], [top, pitX - 0.06]], y);
-  // (Just above the underarm the body keeps its width at once: the armhole's edges then lie in front of and behind the
-  // side, so its foot is a round U; wrapped as narrow as the armhole's edge they met at the side in a pinched V: NDT.)
-  const half = (y) => (y <= pitY ? own(y) : THREE.MathUtils.lerp(own(y), Math.max(shoulder(y), own(y) + 0.006), ramp(pitY - 0.002, pitY + 0.008, y)));
+  // (Above the underarm the body keeps its width (the larger of the shoulder line and the armhole's edge): the armhole's
+  // edges then lie in front of and behind the side, so its foot is a round U, not a pinched V; and the width runs on
+  // smoothly from the side seam, with no dip, which had rippled the upper back: NDT.)
+  const half = (y) => (y <= pitY ? own(y) : Math.max(shoulder(y), own(y)));
   const SH = top - 0.05;
   // The width the cloth wraps round, eased over 4 cm up and down (no shelf where the underarm meets the bust).
   // (Below the bust too, over 3 cm each way: the side seam's straight runs left small kinks at its points that showed
@@ -536,7 +537,7 @@ export function wornShift(spec, { topSeam, outline = [], hemDist = (p) => p.y })
   const wrapHalf = (y) => (y <= SH ? eased(y) : eased(SH) - 0.75 * (eased(SH) - eased(y)));
   // Depth / width round the body: thin across the shoulders, the chest and bust, the waist, and rounder over the hips
   // and on down to the hem (as deep as the pictures' from the side three-quarter, 426).
-  const depthRaw = (d) => along([[0, 0.52], [0.1, 0.68], [0.16, 0.73], [0.22, 0.77], [0.3, 0.76], [fig.waist, 0.78], [fig.hip, 0.87], [0.88, SHIFT_HEM_DEPTH]], d);
+  const depthRaw = (d) => along([[0, 0.52], [0.1, 0.68], [0.16, 0.73], [0.22, 0.77], [0.3, 0.76], [fig.waist, 0.78], [fig.hip, 0.82], [0.88, SHIFT_HEM_DEPTH]], d);
   // (Smoothed over 4 cm each way: its corner at the waist was a crease where a top light's shadow edge caught: NDT.)
   const depth = (d) => (depthRaw(d - 0.04) + 2 * depthRaw(d) + depthRaw(d + 0.04)) / 4;
   const B = spec.bust ?? fig.bust;
@@ -577,12 +578,23 @@ export function wornShift(spec, { topSeam, outline = [], hemDist = (p) => p.y })
     return -0.0015 * groove(ax, 0.012) * ramp(0.08, 0.16, d) * ramp(fig.waist + 0.06, fig.waist - 0.04, d);
   };
   /** Baked shade: a soft shadow under the bust. */
+  // (Lit and shaded as 443, the user 2026-11-05: light on the top of the bust and the upper stomach, shadow under the
+  // bust and in at the waist on each side, 15-25 % darker: the front swings ~30-40 % across, not flat.)
+  const SLANT = 0.3;
   const shade = (p, back) => {
-    if (back) return 1;
-    const d = D(p.y) - (B.drop + B.under * 0.5);
-    return 1 - 0.03 * ramp(0.19, 0.1, Math.abs(p.x)) * Math.exp(-(d * d) / 0.003);
+    const ax = Math.abs(p.x), d = D(p.y), u = THREE.MathUtils.clamp(ax / half(p.y), 0, 1);
+    const g = (v, w) => Math.exp(-(v * v) / (w * w));
+    const waist = 1 - 0.26 * ramp(0.35, 0.9, u) * g(d - fig.waist + 0.02, 0.13);
+    if (back) return waist * (1 + 0.06 * g(u - 0.3, 0.35) * g(d - 0.28, 0.12));
+    const lit = 1 + 0.2 * g(ax - B.x, 0.07) * g(d - B.drop + 0.045, 0.05);
+    const under = 1 - 0.2 * ramp(0.19, 0.11, ax) * g(d - B.drop - 0.075, 0.03);
+    const belly = 1 + 0.05 * g(ax, 0.075) * g(d - B.drop - 0.19, 0.1);
+    // (NDT -265, 427: the scene's key light falls from one side, so the front ran ~20 % darker on the far side; the dress
+    // alone evens it (key light unchanged for every other garment), the centre a few per cent under the sides.)
+    const even = 1 + SLANT * (1 + 1.7 * ramp(0.44, 0.2, p.y)) * THREE.MathUtils.clamp(p.x / half(p.y), -1, 1) - (0.03 + 0.22 * ramp(0.42, 0.18, p.y)) * g(ax, 0.06);
+    return lit * under * belly * waist * even;
   };
   return { at: torso, sleeve: () => null, relief, shade, pit: new THREE.Vector2(pitX, pitY), half, top, figure: fig };
 }
 /** The shift's depth / width at the hem, and how much its hem corners round in. */
-const SHIFT_HEM_DEPTH = 0.92, SHIFT_HEM_TUCK = 0.05;
+const SHIFT_HEM_DEPTH = 0.8, SHIFT_HEM_TUCK = 0.05;

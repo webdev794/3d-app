@@ -21,10 +21,11 @@ import '../widgets/order_review_approve.dart';
 import '../widgets/order_review_garments.dart';
 import '../widgets/street_address_field.dart';
 import '../widgets/flow_ui.dart' show pickArtwork;
+import '../widgets/bubble_page.dart' show BubbleRoute;
 import '../widgets/glass_bubble.dart';
 import '../widgets/ui.dart';
 import 'orders_board.dart';
-import 'suppliers.dart' show MadeByField, Supplier, SuppliersScreen;
+import 'suppliers.dart' show MadeByField, Supplier;
 
 // 3DEEZI Orders in the app: Create Order Form and Upload Your Order, native, on
 // the same API as the website (drafts, file uploads with progress, one
@@ -724,6 +725,14 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
           ),
         ],
       ),
+      // (Once in the app bar: the bubble pages keep their header plain.)
+      TextButton.icon(
+        key: const Key('order-open-site'),
+        onPressed: () =>
+            openSitePage(context, c.api.sitePage(websitePath), websiteTitle),
+        icon: const Icon(Icons.open_in_new, size: 16),
+        label: const Text('Open on the website'),
+      ),
       if (page > 0)
         TextButton.icon(
           key: const Key('order-back'),
@@ -736,6 +745,10 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
         ),
     ],
   );
+
+  /// This form on the website (Open on the website).
+  String get websitePath;
+  String get websiteTitle;
 
   /// The step names: Create order (Details > Garments > Artwork > Review) or
   /// Upload order (Upload > Check details > Review: its sections 1-2 are
@@ -806,7 +819,7 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
         : page;
     // (Compact: the form keeps most of the screen; the title is in the app bar.)
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 6),
       child: GlassCard(
         radius: 20,
         semanticsLabel: null,
@@ -875,6 +888,10 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
         ? 'NZ'
         : 'INTL';
   }
+
+  /// The choice the review's "Delivery to" was last set from (the details are on the review page now: a changed
+  /// Deliver / Pick up or country sets it again).
+  String? _presetFor;
 
   /// The review's "Delivery to" from section 1 (only a destination the price list has, and not one chosen there).
   Future<void> _presetDestination() async {
@@ -1041,7 +1058,8 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
               }
             }),
           ),
-          _field(suburb, 'Suburb / town'),
+          // (The review on the same page shows the address: it follows each change.)
+          _field(suburb, 'Suburb / town', onChanged: (_) => setState(() {})),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1077,6 +1095,7 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
                   postcode,
                   au ? 'Postcode' : 'Postcode (if any)',
                   keyboard: au ? TextInputType.number : null,
+                  onChanged: (_) => setState(() {}),
                 ),
               ),
             ],
@@ -1284,21 +1303,36 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Text(
-                u.error != null
-                    ? 'Failed'
-                    : u.file != null
-                    ? 'Uploaded'
-                    : '${(u.progress * 100).round()}%',
-                style: const TextStyle(color: Palette.muted, fontSize: 12),
-              ),
-              if (onReplace != null)
-                TextButton(onPressed: onReplace, child: const Text('Replace')),
               IconButton(
                 tooltip: 'Remove ${u.name}',
                 onPressed: () => removeFile(u),
                 icon: const Icon(Icons.close, size: 18),
               ),
+            ],
+          ),
+          // The state and Replace on their own line, so the file name keeps
+          // its room on a narrow phone (360 in the bubble).
+          Row(
+            children: [
+              const SizedBox(width: 28),
+              Expanded(
+                child: Text(
+                  u.error != null
+                      ? 'Failed'
+                      : u.file != null
+                      ? 'Uploaded'
+                      : '${(u.progress * 100).round()}%',
+                  style: const TextStyle(color: Palette.muted, fontSize: 12),
+                ),
+              ),
+              if (onReplace != null)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: onReplace,
+                  child: const Text('Replace'),
+                ),
             ],
           ),
           if (u.file == null && u.error == null)
@@ -1328,7 +1362,7 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
     final invoice = (o['invoice'] as Map?) ?? (o['payment'] as Map?);
     return ListView(
       key: const ValueKey('order-sent'),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 16),
       children: [
         orderSentHeader(kind == 'upload' ? 'Upload files' : 'Order details'),
         const Icon(Icons.check_circle, color: Palette.cyan, size: 56),
@@ -1507,12 +1541,14 @@ Widget _field(
   String label, {
   int lines = 1,
   TextInputType? keyboard,
+  ValueChanged<String>? onChanged,
 }) => Padding(
   padding: const EdgeInsets.only(bottom: 10),
   child: TextField(
     controller: controller,
     maxLines: lines,
     keyboardType: keyboard,
+    onChanged: onChanged,
     decoration: InputDecoration(
       labelText: label,
       border: const OutlineInputBorder(),
@@ -1603,16 +1639,34 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
 
   @override
   void startReview() => setState(() {
-    error = problem();
+    // Two steps (client 2026-11-05): the garments, sizes and artwork are
+    // checked here; the details are on step 2, with Review & approve.
+    error = stepOneProblem();
     if (error == null) {
       step = 'review';
       approved = false;
-    } else {
-      page = total < 1 && error == 'Add at least one size and quantity.'
-          ? 1
-          : 0;
+      page = 0;
     }
   });
+
+  /// Where step 2's details start (Edit on the review, or a missing detail).
+  final detailsKey = GlobalKey();
+
+  /// Step 1: garments with sizes, and artwork (both required).
+  String? stepOneProblem() {
+    if (total < 1) return 'Add at least one size and quantity.';
+    if (!hasArtwork) {
+      return 'Add your artwork: choose a saved design or upload your logo or artwork.';
+    }
+    return null;
+  }
+
+  /// Artwork: a saved design or artwork on a garment, artwork for the whole
+  /// order, or the design pictures of the Order Assistant chat (Edit Order).
+  bool get hasArtwork =>
+      rows.any((r) => r.project != null || r.fileIds.isNotEmpty) ||
+      uploads.any((u) => u.kind == 'artwork' && u.file != null) ||
+      ((widget.assistant?['designs'] as num?) ?? 0) > 0;
 
   /// Continue: this page's checks (the review still checks everything).
   /// Contact and delivery may wait until Review (client 2026-11-05: "too
@@ -1712,8 +1766,6 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         items.isEmpty
             ? 'No garments or sizes found. Try lines like "Polo" then "3 x 4XL".'
             : 'Built ${items.length} ${items.length == 1 ? 'garment' : 'garments'} ($count in all) from your notes. Check them under Garments.',
-        if (items.isNotEmpty && deliveryProblem(dateOptional: true) != null)
-          'Please check: ${deliveryProblem(dateOptional: true)}',
         if (unknown.isNotEmpty)
           'Please check: ${unknown.take(6).map((u) => '"$u"').join(', ')}',
       ].join('\n');
@@ -1788,7 +1840,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
       addItems(items);
       final title = '${from['title'] ?? ''}'.trim();
       if (team.text.trim().isEmpty && title.isNotEmpty) team.text = title;
-      page = 1;
+      page = 0;
       if (widget.review) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) startReview();
@@ -1819,6 +1871,10 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     if (neededBy != null) 'needed_by': _ymd(neededBy!),
     'delivery': delivery,
     'address': address,
+    // Edit Order from the Order Assistant: its design pictures are the artwork.
+    if (widget.assistant?['token'] case final String token
+        when token.isNotEmpty)
+      'assist_token': token,
     // Made by (preferred suppliers): only a maker other than 3DEEZI is sent, as the website does.
     if (MadeByField.idToSend(makers, supplierId) case final id?)
       'supplier_id': id,
@@ -1870,42 +1926,24 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     }
   }
 
-  // The minimum to order (client 2026-11-05): contact name, mobile, delivery
-  // or pick up (with the address when delivering), and garments with sizes.
-  // Team name and date required are optional.
+  // Only the basics (client 2026-11-05): step 1 garments with sizes and
+  // artwork; step 2 name, date required (optional), email, mobile and the
+  // address (or pick up). Team / organisation and notes are not asked.
   String? problem() {
-    if (name.text.trim().isEmpty) return 'Add a contact name.';
+    if (stepOneProblem() case final first?) return first;
+    if (name.text.trim().isEmpty) return 'Add your name.';
     if (deliveryProblem(dateOptional: true) case final details?) return details;
-    if (total < 1) return 'Add at least one size and quantity.';
     return null;
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Palette.bg,
-    appBar: AppBar(
-      backgroundColor: Palette.bg,
-      title: Text(
-        step == 'review'
-            ? 'Review your order'
-            : step == 'done'
-            ? 'Order sent'
-            : 'Create order form',
-      ),
-      actions: [
-        if (step == 'edit')
-          IconButton(
-            tooltip: 'Open on the website',
-            onPressed: () => openSitePage(
-              context,
-              c.api.sitePage('/orders/new'),
-              'Create order form',
-            ),
-            icon: const Icon(Icons.open_in_new),
-          ),
-      ],
-    ),
-    body: Column(
+  Widget build(BuildContext context) => BubbleRoute(
+    c: c,
+    // The bubble look (user 2026-11-05): the form in one glass bubble with
+    // the tab bar; Back from the review returns to step 1.
+    title: step == 'review' ? 'REVIEW YOUR ORDER' : 'CREATE ORDER FORM',
+    onBack: step == 'review' ? () => setState(() => step = 'edit') : null,
+    child: Column(
       children: [
         stepHeader('CREATE ORDER FORM', 'Build your order step by step.'),
         Expanded(
@@ -1923,11 +1961,14 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   );
 
   @override
+  String get websitePath => '/orders/new';
+  @override
+  String get websiteTitle => 'Create order form';
+
+  @override
   List<String> get stepNames => const [
-    'Details',
-    'Garments',
-    'Artwork',
-    'Review',
+    'Garments & artwork',
+    'Details & review',
   ];
 
   Widget _edit() {
@@ -1937,40 +1978,14 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     ];
     // (One built column, not a lazy list: the step bar finds every section.)
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+      padding: const EdgeInsets.fromLTRB(2, 6, 2, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (page == 0) ...[
-            _notesBox(),
-            _section('1 · Contact & team', key: sectionKeys[0]),
-            contactFields(withPhone: false),
-            _field(phone, 'Mobile', keyboard: TextInputType.phone),
-            _whenWhere(),
-            // Made by, at the end of section 1 as on the website (only when there is a choice).
-            MadeByField(
-              makers: makers,
-              value: supplierId,
-              onChanged: (id) => setState(() => supplierId = id),
-              onSeeSuppliers: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c)),
-              ),
-            ),
-          ],
-          if (page == 1) ...[
-            _section('2 · Garments & sizes', key: sectionKeys[1]),
-            if (notesNote != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Text(
-                  notesNote!,
-                  key: const Key('notes-built'),
-                  style: const TextStyle(
-                    color: Color(0xffd7ffe6),
-                    fontSize: 13,
-                  ),
-                ),
-              ),
+          _notesBox(),
+          ...[
+            _section('1 · Garments & sizes', key: sectionKeys[0]),
+            // (The notes' result shows once, under the notes box: same page.)
             SurfaceCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2018,6 +2033,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                       Row(
                         children: [
                           Expanded(
+                            flex: 3,
                             child: DropdownButtonFormField<String>(
                               // A saved design sets the garment: show it.
                               key: ValueKey(
@@ -2052,6 +2068,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
+                            flex: 2,
                             child: DropdownButtonFormField<String>(
                               isExpanded: true,
                               initialValue: r.fit,
@@ -2174,15 +2191,22 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                             more: r.more,
                           ))
                             SizedBox(
-                              width: 64,
+                              width: 60,
                               child: TextFormField(
                                 key: Key('size-$i-$s'),
                                 initialValue: r.sizes[s]?.toString() ?? '',
                                 keyboardType: TextInputType.number,
                                 textAlign: TextAlign.center,
+                                // (Narrow in the bubble at 360: the size
+                                // names keep room to show in full.)
                                 decoration: InputDecoration(
                                   labelText: s,
                                   isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 12,
+                                  ),
+                                  labelStyle: const TextStyle(fontSize: 14),
                                   border: const OutlineInputBorder(),
                                 ),
                                 onChanged: (v) => setState(
@@ -2273,8 +2297,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
               label: const Text('Add garment'),
             ),
           ],
-          if (page == 2) ...[
-            _section('3 · Artwork & files', key: sectionKeys[2]),
+          ...[
+            _section('2 · Artwork', key: sectionKeys[1]),
             Row(
               children: [
                 Expanded(
@@ -2321,8 +2345,6 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
               icon: const Icon(Icons.attach_file),
               label: const Text('Artwork for the whole order'),
             ),
-            const SizedBox(height: 10),
-            _field(notes, 'Notes for your supplier', lines: 3),
             const Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text(
@@ -2333,19 +2355,11 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
           ],
           errorText(),
           const SizedBox(height: 14),
-          pageButtons(
-            last: page == 2,
-            onNext: nextPage,
-            nextLabel: page == 0
-                ? 'CONTINUE TO GARMENTS'
-                : 'CONTINUE TO ARTWORK',
-          ),
+          pageButtons(last: true, onNext: startReview),
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              page == 2
-                  ? 'Reviewing does not submit your order.'
-                  : 'Step ${page + 1} of 4',
+              'Step 1 of 2. Reviewing does not submit your order.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Palette.muted, fontSize: 11),
             ),
@@ -2702,78 +2716,111 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     return ListView(
       // Its own list, so the review starts at its top (not where the form was scrolled to).
       key: const ValueKey('order-review'),
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
-      children: orderReviewApprove(
-        context,
-        onDownloadConfirmation: downloadConfirmation,
-        first: 'Order details',
-        layout: reviewLayout(items),
-        garments: multiGarmentsFrom(
-          items,
-          names: _garments,
-          artwork: art.firstOrNull,
+      padding: const EdgeInsets.fromLTRB(2, 6, 2, 16),
+      children: [
+        // Step 2 (client 2026-11-05): only the basics, then Review & approve.
+        KeyedSubtree(key: detailsKey, child: _section('1 · Your details')),
+        _field(name, 'Name', onChanged: (_) => setState(() {})),
+        _field(
+          email,
+          'Email',
+          keyboard: TextInputType.emailAddress,
+          onChanged: (_) => setState(() {}),
         ),
-        mockups: [
-          for (var i = 0; i < art.length && i < 2; i++)
-            (
-              label: art.length > 1 ? 'ARTWORK ${i + 1}' : 'ARTWORK',
-              src: art[i],
-            ),
-        ],
-        artworkOnly: true,
-        files: [
-          for (final u in uploads)
-            if (u.file != null) u.name,
-        ],
-        filesLabel: 'Artwork',
-        contact: [
-          name.text.trim(),
-          team.text.trim(),
-        ].where((v) => v.isNotEmpty).join(' · '),
-        email: email.text.trim(),
-        mobile: phone.text.trim(),
-        neededBy: neededBy == null ? null : _dayText(neededBy!),
-        pickup: delivery == 'pickup',
-        deliveryText: delivery == 'pickup'
-            ? null
-            : deliveryLine(delivery, address),
-        onEditDelivery: () => setState(() => step = 'edit'),
-        notes: notes.text.trim(),
-        // Who makes it, when the form offered a choice (as the website's review).
-        madeBy: makers.length > 1
-            ? MadeByField.chosenOf(makers, supplierId)?.name
-            : null,
-        price: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            PriceChoices(
-              c,
-              pricing,
-              (next) => setState(() => pricing = next),
-              choice: choiceDestination,
-            ),
-            // Priced as the order will be: the review's choice, else Deliver / Pick up and the country.
-            PriceBox(c, {
-              'items': _named((fields()['items'] as List?) ?? const []),
-              'pricing': {
-                ...pricing,
-                if (pricing['destination'] == null && choiceDestination != null)
-                  'destination': choiceDestination,
-              },
-            }, key: ValueKey('${jsonEncode(pricing)}$choiceDestination')),
+        _field(
+          phone,
+          'Mobile',
+          keyboard: TextInputType.phone,
+          onChanged: (_) => setState(() {}),
+        ),
+        _whenWhere(),
+        const SizedBox(height: 14),
+        ...orderReviewApprove(
+          context,
+          onDownloadConfirmation: downloadConfirmation,
+          first: 'Garments & artwork',
+          layout: reviewLayout(items),
+          garments: multiGarmentsFrom(
+            items,
+            names: _garments,
+            artwork: art.firstOrNull,
+          ),
+          mockups: [
+            for (var i = 0; i < art.length && i < 2; i++)
+              (
+                label: art.length > 1 ? 'ARTWORK ${i + 1}' : 'ARTWORK',
+                src: art[i],
+              ),
           ],
+          artworkOnly: true,
+          files: [
+            for (final u in uploads)
+              if (u.file != null) u.name,
+          ],
+          filesLabel: 'Artwork',
+          contact: [
+            name.text.trim(),
+            team.text.trim(),
+          ].where((v) => v.isNotEmpty).join(' · '),
+          email: email.text.trim(),
+          mobile: phone.text.trim(),
+          dateOptional: true,
+          neededBy: neededBy == null ? null : _dayText(neededBy!),
+          pickup: delivery == 'pickup',
+          deliveryText: delivery == 'pickup'
+              ? null
+              : deliveryLine(delivery, address),
+          onEditDelivery: () {
+            final details = detailsKey.currentContext;
+            if (details != null) Scrollable.ensureVisible(details);
+          },
+          notes: notes.text.trim(),
+          // Who makes it, when the form offered a choice (as the website's review).
+          madeBy: makers.length > 1
+              ? MadeByField.chosenOf(makers, supplierId)?.name
+              : null,
+          price: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              PriceChoices(
+                c,
+                pricing,
+                (next) => setState(() => pricing = next),
+                choice: choiceDestination,
+              ),
+              // Priced as the order will be: the review's choice, else Deliver / Pick up and the country.
+              PriceBox(c, {
+                'items': _named((fields()['items'] as List?) ?? const []),
+                'pricing': {
+                  ...pricing,
+                  if (pricing['destination'] == null &&
+                      choiceDestination != null)
+                    'destination': choiceDestination,
+                },
+              }, key: ValueKey('${jsonEncode(pricing)}$choiceDestination')),
+            ],
+          ),
+          onEditGarments: () => setState(() => step = 'edit'),
+          agreed: approved,
+          onAgree: (v) => setState(() {
+            approved = v;
+            error = null;
+          }),
+          busy: busy,
+          error: errorText(),
+          onBack: () => setState(() => step = 'edit'),
+          onApprove: () {
+            final missing = problem();
+            if (missing == null) {
+              confirm();
+              return;
+            }
+            setState(() => error = missing);
+            final details = detailsKey.currentContext;
+            if (details != null) Scrollable.ensureVisible(details);
+          },
         ),
-        onEditGarments: () => setState(() => step = 'edit'),
-        agreed: approved,
-        onAgree: (v) => setState(() {
-          approved = v;
-          error = null;
-        }),
-        busy: busy,
-        error: errorText(),
-        onBack: () => setState(() => step = 'edit'),
-        onApprove: () => confirm(),
-      ),
+      ],
     );
   }
 }
@@ -2918,31 +2965,13 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Palette.bg,
-    appBar: AppBar(
-      backgroundColor: Palette.bg,
-      title: Text(
-        step == 'review'
-            ? 'Review your upload'
-            : step == 'done'
-            ? 'Order sent'
-            : 'Upload your order',
-      ),
-      actions: [
-        if (step == 'edit')
-          IconButton(
-            tooltip: 'Open on the website',
-            onPressed: () => openSitePage(
-              context,
-              c.api.sitePage('/orders/upload'),
-              'Upload your order',
-            ),
-            icon: const Icon(Icons.open_in_new),
-          ),
-      ],
-    ),
-    body: Column(
+  Widget build(BuildContext context) => BubbleRoute(
+    c: c,
+    // The bubble look (user 2026-11-05): the form in one glass bubble with
+    // the tab bar; Back from the review returns to step 1.
+    title: step == 'review' ? 'REVIEW YOUR UPLOAD' : 'UPLOAD YOUR ORDER',
+    onBack: step == 'review' ? () => setState(() => step = 'edit') : null,
+    child: Column(
       children: [
         stepHeader('UPLOAD ORDER & ARTWORK', 'Already have your order ready?'),
         Expanded(
@@ -2959,84 +2988,75 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
     ),
   );
 
-  // Upload > Check details > Review: the contact and the order sheet are
-  // "Upload", the artwork and notes "Check details".
+  // Two steps (client 2026-11-05): the order form and artwork, then the
+  // details with Review & approve.
   @override
-  List<String> get stepNames => const ['Upload', 'Check details', 'Review'];
+  String get websitePath => '/orders/upload';
   @override
-  int sectionOfStep(int i) => i == 0 ? 0 : 2;
-  @override
-  int stepOfSection(int section) => section < 2 ? 0 : 1;
+  String get websiteTitle => 'Upload your order';
 
-  /// Upload > Check details > Review: the files first, then the details.
-  void nextPage() => setState(() {
-    error = form?.file == null ? 'Upload your completed order form.' : null;
-    if (error == null) {
-      page = 1;
-      if (name.text.trim().isEmpty || team.text.trim().isEmpty)
-        editContact = true;
+  @override
+  List<String> get stepNames => const [
+    'Upload order & artwork',
+    'Details & review',
+  ];
+  @override
+  int sectionOfStep(int i) => 0;
+  @override
+  int stepOfSection(int section) => 0;
+
+  /// Where step 2's details start (Edit on the review, or a missing detail).
+  final detailsKey = GlobalKey();
+
+  /// Step 1: the order form, and artwork (required; a picture uploaded as
+  /// the order form counts, it is often the mockup).
+  String? stepOneProblem() {
+    if (form?.file == null) return 'Upload your completed order form.';
+    final picture = RegExp(
+      r'\.(png|jpe?g|webp|gif|heic)$',
+      caseSensitive: false,
+    ).hasMatch(form!.name);
+    if (!picture &&
+        !uploads.any((u) => u.kind == 'artwork' && u.file != null)) {
+      return 'Add your artwork: upload your logo, artwork or mockup.';
     }
-  });
+    return null;
+  }
 
-  @override
-  void startReview() => setState(() {
-    final details = uploadDetailsProblem(
+  /// Step 2: name, email, mobile, date required and the address (or pick up).
+  String? detailsProblem() {
+    if (name.text.trim().isEmpty) return 'Add your name.';
+    return uploadDetailsProblem(
       phone: phone.text,
       neededBy: neededBy,
       delivery: delivery,
       address: address,
     );
-    error = name.text.trim().isEmpty
-        ? 'Add a contact name.'
-        : team.text.trim().isEmpty
-        ? 'Add your team or organisation name.'
-        : details ??
-              (form?.file == null ? 'Upload your completed order form.' : null);
-    if (error != null &&
-        error != 'Upload your completed order form.' &&
-        details == null)
-      editContact = true;
-    if (error != null)
-      page = error == 'Upload your completed order form.' ? 0 : 1;
+  }
+
+  void nextPage() => startReview();
+
+  @override
+  void startReview() => setState(() {
+    error = stepOneProblem();
     if (error == null) {
       step = 'review';
+      page = 0;
       approved = false;
       editingRows = false;
+      _presetFor = choiceDestination;
       _presetDestination();
       _loadReview();
     }
   });
 
   Widget _edit() => SingleChildScrollView(
-    padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+    padding: const EdgeInsets.fromLTRB(2, 6, 2, 16),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (page == 1) ...[
-          _section('1 · Contact & team', key: sectionKeys[0]),
-          if (editContact)
-            contactFields(withPhone: false)
-          else
-            SurfaceCard(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${name.text}${email.text.isEmpty ? '' : ' · ${email.text}'}\n${team.text.isEmpty ? 'Add your team name' : team.text}',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() => editContact = true),
-                    child: const Text('Edit'),
-                  ),
-                ],
-              ),
-            ),
-          _field(phone, 'Mobile', keyboard: TextInputType.phone),
-          _whenWhere(),
-        ],
-        if (page == 0) ...[
-          _section('2 · Upload order form'),
+        ...[
+          _section('1 · Upload order form', key: sectionKeys[0]),
           if (form != null)
             fileRow(
               form!,
@@ -3064,42 +3084,21 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
             'PDF, Excel, CSV, Word or a photo, up to 25 MB.',
             style: TextStyle(color: Palette.muted, fontSize: 11),
           ),
-          _section('3 · Artwork & notes (optional)', key: sectionKeys[2]),
+          _section('2 · Artwork'),
           for (final u in uploads.where((u) => u.kind == 'artwork')) fileRow(u),
           OutlinedButton.icon(
             onPressed: () => addFile('artwork'),
             icon: const Icon(Icons.attach_file),
-            label: const Text('Add logos, artwork or references'),
-          ),
-          const SizedBox(height: 10),
-          _field(notes, 'Additional instructions', lines: 3),
-          // Made by, as on the website's upload (only when there is a choice).
-          MadeByField(
-            makers: makers,
-            value: supplierId,
-            onChanged: (id) => setState(() => supplierId = id),
-            onSeeSuppliers: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c))),
-          ),
-          const Text(
-            'Assign artwork to each garment when checking details.',
-            style: TextStyle(color: Palette.muted, fontSize: 12),
+            label: const Text('Add your logos, artwork or mockup'),
           ),
         ],
         errorText(),
         const SizedBox(height: 14),
-        pageButtons(
-          last: page == 1,
-          onNext: nextPage,
-          nextLabel: 'CHECK IMPORTED DETAILS',
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 6),
+        pageButtons(last: true, onNext: startReview),
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
           child: Text(
-            page == 0
-                ? 'Review sizes and quantities before approval.'
-                : 'Your order is only submitted after review.',
+            'Step 1 of 2. Your order is only submitted after review.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Palette.muted, fontSize: 11),
           ),
@@ -3112,6 +3111,13 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
   /// size table (corrected in "Edit sizes & garments"), section 1's delivery details, the price, the confirm box (it is
   /// "These details are correct" too, when rows are sent) and APPROVE ORDER.
   Widget _review() {
+    // Deliver / Pick up or the country changed on this page: "Delivery to" follows.
+    if (choiceDestination != _presetFor) {
+      _presetFor = choiceDestination;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _presetDestination();
+      });
+    }
     final items = cleanRows(rows);
     // The rows for the layout and the table, with the youth sizes as the form wrote them (10Y, 12Y) in place of Kids.
     final shown = [
@@ -3146,8 +3152,25 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
     return ListView(
       // Its own list, so the review starts at its top (not where the form was scrolled to).
       key: const ValueKey('order-review'),
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+      padding: const EdgeInsets.fromLTRB(2, 6, 2, 16),
       children: [
+        // Step 2 (client 2026-11-05): only the basics, then Review & approve.
+        KeyedSubtree(key: detailsKey, child: _section('1 · Your details')),
+        _field(name, 'Name', onChanged: (_) => setState(() {})),
+        _field(
+          email,
+          'Email',
+          keyboard: TextInputType.emailAddress,
+          onChanged: (_) => setState(() {}),
+        ),
+        _field(
+          phone,
+          'Mobile',
+          keyboard: TextInputType.phone,
+          onChanged: (_) => setState(() {}),
+        ),
+        _whenWhere(),
+        const SizedBox(height: 14),
         if (readingNow && rows.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 10),
@@ -3160,7 +3183,7 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
         ...orderReviewApprove(
           context,
           onDownloadConfirmation: downloadConfirmation,
-          first: 'Upload files',
+          first: 'Upload order & artwork',
           layout: reviewLayout(shown),
           garments: multiGarmentsFrom(
             shown,
@@ -3196,10 +3219,10 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
           deliveryText: delivery == 'pickup'
               ? null
               : deliveryLine(delivery, address),
-          onEditDelivery: () => setState(() {
-            step = 'edit';
-            editContact = true;
-          }),
+          onEditDelivery: () {
+            final details = detailsKey.currentContext;
+            if (details != null) Scrollable.ensureVisible(details);
+          },
           notes: notes.text.trim(),
           // Who makes it, when the upload offered a choice (as the website's review).
           madeBy: makers.length > 1
@@ -3264,8 +3287,16 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
           busy: busy,
           error: errorText(),
           onBack: () => setState(() => step = 'edit'),
-          onApprove: () =>
-              confirm(items.isNotEmpty ? {'items': items} : const {}),
+          onApprove: () {
+            final missing = detailsProblem();
+            if (missing != null) {
+              setState(() => error = missing);
+              final details = detailsKey.currentContext;
+              if (details != null) Scrollable.ensureVisible(details);
+              return;
+            }
+            confirm(items.isNotEmpty ? {'items': items} : const {});
+          },
         ),
       ],
     );

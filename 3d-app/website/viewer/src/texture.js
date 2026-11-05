@@ -882,7 +882,7 @@ export class KitPainter {
     // The skirt: its seams, the hem's stitching and the waistband's elastic (skirtprint.js).
     if (this.kind === 'skirt') return skirtTailoring();
     // The basketball shorts: their hems, waistband, piping and centre seams (bballprint.js).
-    if (this.kind === 'bballshorts') return bballTailoring(this);
+    if (this.kind === 'bballshorts') return bballTailoring(this, back);
     // The cap: its top-stitching and the brim's rows (capprint.js).
     if (this.kind === 'cap') return capTailoring(back, this.five);
     // The bucket hat: its rows round the crown and the brim (hatprint.js).

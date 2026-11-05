@@ -435,6 +435,9 @@ List<Widget> orderReviewApprove(
   String email = '',
   String mobile = '',
   String? neededBy,
+  // The date required is optional (the order form, client 2026-11-05): not
+  // listed under Please check.
+  bool dateOptional = false,
   String? deliveryText,
   bool pickup = false,
   VoidCallback? onEditDelivery,
@@ -898,7 +901,7 @@ List<Widget> orderReviewApprove(
   final missing = [
     if (garments.isEmpty) 'Garments and sizes',
     if (mobile.isEmpty) 'Mobile',
-    if (neededBy == null) 'Required date',
+    if (neededBy == null && !dateOptional) 'Required date',
     if (!pickup && deliveryText == null && onEditDelivery != null)
       'Delivery address',
   ];

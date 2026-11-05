@@ -45,7 +45,7 @@ class SupplierTest extends TestCase
     private function form(array $more = []): array
     {
         return [
-            'source' => 'form', 'contact_name' => 'Fabian Soutar', 'contact_email' => 'fabian@example.com', 'team_name' => 'Brisbane Bears', 'phone' => '0412 345 678',
+            'source' => 'form', ...$this->artwork(), 'contact_name' => 'Fabian Soutar', 'contact_email' => 'fabian@example.com', 'team_name' => 'Brisbane Bears', 'phone' => '0412 345 678',
             'needed_by' => now()->addWeeks(8)->toDateString(), 'delivery' => 'deliver',
             'address' => ['street' => '12 Smith Street', 'suburb' => 'Brisbane', 'state' => 'QLD', 'postcode' => '4000', 'country' => 'Australia'],
             'items' => [['garment' => 'jersey', 'fit' => 'mens', 'sizes' => ['M' => 6, 'L' => 6]]],
@@ -162,7 +162,7 @@ class SupplierTest extends TestCase
 
         // A saved draft keeps the choice when it is sent.
         $draft = $this->postJson('/api/v1/order-drafts', ['kind' => 'form', 'data' => $this->form(['supplier_id' => $makers['mantis']])])->assertCreated()->json('data.id');
-        $fromDraft = $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'made-by-draft'])->assertCreated()->json('data');
+        $fromDraft = $this->postJson("/api/v1/order-drafts/{$draft}/submit", $this->artwork(), ['Idempotency-Key' => 'made-by-draft'])->assertCreated()->json('data');
         $this->assertSame('Mantis', $fromDraft['made_by']);
 
         // The invoice (priced at once) says who makes it, on the pay page and in the PDF.
@@ -268,6 +268,7 @@ class SupplierTest extends TestCase
 
     public function test_before_the_database_update_orders_still_work_and_the_first_visit_sets_it_up(): void
     {
+        $this->artwork(); // the order's artwork, made before the older database is set up
         // As on a live site updated without a shell: the suppliers table and the orders' columns are not there yet.
         Artisan::call('migrate:rollback', ['--path' => 'database/migrations/2026_10_26_100000_create_suppliers_table.php', '--force' => true]);
         $this->assertFalse(Schema::hasTable('suppliers'));

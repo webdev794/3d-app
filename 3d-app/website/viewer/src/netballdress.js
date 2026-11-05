@@ -17,8 +17,8 @@ const HEX = /^#[0-9a-f]{6}$/i;
 /** The side seam (right half), from the underarm down to the hem's corner: the dress's own cut (garment.js uses it). */
 // (Narrowest at 40% of the height down, 1.33x as wide at the hem: NDT's measures of 425-427.)
 export const ND_SEAM = [
-  [0.248, 0.735], [0.254, 0.7], [0.253, 0.66], [0.243, 0.62], [0.23, 0.58], [0.221, 0.53], [0.224, 0.48], [0.235, 0.43],
-  [0.253, 0.37], [0.276, 0.3], [0.297, 0.22], [0.315, 0.14], [0.327, 0.07], [0.333, 0.03],
+  [0.248, 0.735], [0.254, 0.7], [0.254, 0.66], [0.247, 0.62], [0.238, 0.58], [0.232, 0.53], [0.234, 0.48], [0.242, 0.43],
+  [0.257, 0.37], [0.278, 0.3], [0.297, 0.22], [0.315, 0.14], [0.327, 0.07], [0.333, 0.03],
 ];
 /** The side seam's half-width at a height. */
 export function seamX(y) {
@@ -36,7 +36,9 @@ export function seamX(y) {
  *  (426) it shows about 0.08 of the height wide and reaches round to the silhouette's edge all the way down, while from
  *  the front (427) and the back (425) it stays a narrow band (NDT). */
 const lower = (y) => Math.min(1, Math.max(0, (0.45 - y) / 0.42));
-const panelWidth = (y, back) => 0.06 + (back ? 0.02 : -0.008) * lower(y);
+// (Shaped as 425-427's: wide at the armhole, in at the waist, out again to the hem: NDT.)
+const upperP = (y) => Math.min(1, Math.max(0, (y - 0.5) / 0.23));
+const panelWidth = (y, back) => 0.045 + 0.045 * upperP(y) ** 1.3 + 0.022 * lower(y) + (back ? 0.02 : -0.008) * lower(y) + (back ? 0.05 * upperP(y) ** 1.5 : 0);   // (the back's panel widening into the shoulder blade, as 425: NDT)
 const panelEdge = (back) => {
   const out = [[0.185, 0.78], [0.178, 0.75]];
   for (let y = 0.72; y > -0.011; y -= 0.03) out.push([+(seamX(y) - panelWidth(y, back)).toFixed(4), +y.toFixed(3)]);
@@ -172,7 +174,7 @@ export function paintDressBinding(t, design, back, neckOwn) {
     if (!run?.length) continue;
     g.strokeStyle = run === runs.neck ? neckOwn ?? yoke : yoke;
     // (About 1.1 cm showing at the neck and 1.3 cm round the armholes, as the pictures': half the stroke is off the edge.)
-    g.lineWidth = run === runs.neck ? 0.022 : 0.026;
+    g.lineWidth = run === runs.neck ? 0.03 : 0.034;   // (wider, as 427 and 441: NDT)
     g.beginPath();
     run.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
     g.stroke();

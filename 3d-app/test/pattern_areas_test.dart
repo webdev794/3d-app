@@ -14,8 +14,8 @@ import 'flow_test.dart' show mountPhone, tapText;
 /// sleeveless (viewer zones.js: the dress has no sleeve area). The skirt has its body, side panels and hem only
 /// (viewer skirtprint.js skirtZones).
 List<String> websiteAreas(String id, {String? trackStyle}) {
-  // The socks, the cap and the bucket hat: one area, the whole garment (viewer zones.js).
-  if (id == 'socks' || id == 'cap' || id == 'bucket-hat') return ['Body'];
+  // The socks, the caps, the beanie and the bucket hat: one area, the whole garment (viewer zones.js).
+  if (id == 'socks' || id == 'cap' || id == 'five-panel-cap' || id == 'beanie' || id == 'bucket-hat') return ['Body'];
   final shorts = id == 'shorts', skirt = id == 'skirt';
   return [
     shorts || skirt ? 'Body' : 'Chest & body',
@@ -55,7 +55,7 @@ void main() {
     final tsx = File('website/resources/js/pages/Studio.tsx').readAsStringSync();
     final rules = tsx.substring(tsx.indexOf('function patternAreas('), tsx.indexOf('export default function Studio('));
     Set<String> named(String code) => {for (final m in RegExp(r"garment === '([\w-]+)'").allMatches(code)) m[1]!};
-    expect(named(rules), {'socks', 'cap', 'bucket-hat', 'shorts', 'skirt', 'singlet', 'netball-dress', 'pocketpolo'});
+    expect(named(rules), {'socks', 'cap', 'five-panel-cap', 'beanie', 'bucket-hat', 'shorts', 'skirt', 'singlet', 'netball-dress', 'pocketpolo'});
     expect(named(rules.split('\n').firstWhere((line) => line.contains("label: 'Sleeves'"))), {'singlet', 'netball-dress'});
     for (final MapEntry(key: garment, value: id) in garmentIds.entries) {
       expect(

@@ -636,3 +636,11 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - Website desktop: UNDO the combined card. Home "Order now with 3DEEZI" and the Orders page go back to the earlier THREE cards (Need help ordering? / Order ready to go? / My orders), as in images/447. The combined card (439) and the phone-style Order Assistant (images 4/5) were for the MOBILE APP only.
 - Website /orders/assistant was built in the phone look; the website must not get the mobile design. Restore the earlier desktop flow and pages.
 - Normal (manual) order form: client wants MINIMUM fields so it is quick to fill; keep the three separate tabs as they are.
+
+- 2026-11-05 client: new APP Order Assistant first screen (images/449): logo + spaced "CREATE ORDER FORM", ? and … buttons, one glass bubble incl. one-row prompt bar (clip/image/mic/send) and Powered by / Switch row inside, tab bar below. App only. Given to TL.
+- 2026-11-05 client: order form in every order option = only NAME, DUE DATE, EMAIL, MOBILE, ADDRESS; 2 steps instead of 4 (website + app). Queued to TL after the 449 screen.
+- 2026-11-05 user: bubble look on ALL app screens for a consistent theme (app only, not website). Queued to TL after the 2-step order form.
+
+- Basketball shorts later list (2026-11-05, viewer -275): knit weaker than picture; bright back centre seam; no seat shading; front upper folds a bit busy; waist top edge ~4% narrow front; band ribbing slightly soft.
+- Netball dress later list (2026-11-05, viewer -275): hem flare/side wave; small tuck at far strap inside back neck (3/4 view); back shoulder slope gentler than 425; knit fainter than mesh at full view.
+- 2026-11-05 client: APP Home tab = design images/458 again (keep bubble; brush labels AI/DYO/ARTBOARD/TEAM/TO 3D with their icons, central 3DEEZI emblem + DRAG TO EXPLORE, Classic view / Upgrade pills). Check v3 for existing code. Queued to TL after the 457 fix.

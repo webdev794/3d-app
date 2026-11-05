@@ -522,14 +522,17 @@ class _NavShine extends CustomPainter {
           Offset.zero,
           sz * 1.7,
           Paint()
-            ..shader = RadialGradient(
-              colors: [
-                wh(a),
-                const Color(0xff8fe9ff).withValues(alpha: a * .7),
-                const Color(0x002ab8ff),
-              ],
-              stops: const [0, .35, 1],
-            ).createShader(Rect.fromCircle(center: Offset.zero, radius: sz * 1.7)),
+            ..shader =
+                RadialGradient(
+                  colors: [
+                    wh(a),
+                    const Color(0xff8fe9ff).withValues(alpha: a * .7),
+                    const Color(0x002ab8ff),
+                  ],
+                  stops: const [0, .35, 1],
+                ).createShader(
+                  Rect.fromCircle(center: Offset.zero, radius: sz * 1.7),
+                ),
         );
         canvas.restore();
       }

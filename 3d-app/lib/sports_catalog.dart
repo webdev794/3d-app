@@ -1068,6 +1068,8 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // position letters, the same on the back 3 cm lower (as 425's); no name or
     // number. (NDT: the body a little lighter, 43,88,145 on the stage.)
     'netballDress': {
+      // (Netball has no player numbers: client 2026-10-26.)
+      'number': '',
       'main': '#35547e',
       'secondary': '#0c78c6',
       'accent': '#00d0ff',

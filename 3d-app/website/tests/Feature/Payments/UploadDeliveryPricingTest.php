@@ -38,6 +38,7 @@ class UploadDeliveryPricingTest extends TestCase
         $user = $this->customer();
         Sanctum::actingAs($user);
         $id = $this->postJson('/api/v1/order-drafts', ['kind' => 'upload', 'data' => ['team_name' => 'Te Arawa', 'contact_name' => 'Fabian', 'contact_email' => 'fab@example.test']])->json('data.id');
+        $this->addArtwork($id);
         $this->post("/api/v1/order-drafts/{$id}/files", ['kind' => 'order_form', 'file' => UploadedFile::fake()->createWithContent('order.csv', "Item,Size,Qty\nJersey,M,10\n")], ['Accept' => 'application/json'])->assertCreated();
 
         return $this->postJson("/api/v1/order-drafts/{$id}/submit", $details + ['phone' => '0412 345 678', 'needed_by' => now()->addWeeks(6)->toDateString(),

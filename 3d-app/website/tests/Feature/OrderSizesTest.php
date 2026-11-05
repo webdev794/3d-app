@@ -22,7 +22,7 @@ class OrderSizesTest extends TestCase
 
     private function form(array $items, array $extra = []): array
     {
-        return ['source' => 'form', 'team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'phone' => '0400 000 000',
+        return ['source' => 'form', ...$this->artwork(), 'team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'phone' => '0400 000 000',
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup'] + $extra;
     }
 
@@ -104,7 +104,7 @@ endstream/s', $pdf, $streams);
         // A draft saved with Kids opens as it was and can still be sent (Kids is still a size the order takes).
         $draft = $this->postJson('/api/v1/order-drafts', ['kind' => 'form', 'data' => $this->form([['garment' => 'shorts', 'fit' => 'youth', 'sizes' => ['Kids' => 6]]])])->assertCreated()->json('data.id');
         $this->getJson("/api/v1/order-drafts/{$draft}")->assertOk()->assertJsonPath('data.data.items.0.sizes.Kids', 6);
-        $sent = $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'sizes-old-kids'])->assertCreated()->json('data');
+        $sent = $this->postJson("/api/v1/order-drafts/{$draft}/submit", $this->artwork(), ['Idempotency-Key' => 'sizes-old-kids'])->assertCreated()->json('data');
         $this->assertSame(['Kids' => 6], Order::find($sent['id'])->sizes);
         $this->assertNull(OrderDraft::find($draft));
     }

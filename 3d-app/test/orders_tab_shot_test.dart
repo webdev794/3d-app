@@ -11,7 +11,7 @@ import 'package:three_deezi/screens/library.dart';
 import 'package:three_deezi/screens/order_entry.dart'
     show OrderFormScreen, OrderUploadScreen;
 import 'package:three_deezi/screens/orders_board.dart' show OrdersBoardScreen;
-import 'package:three_deezi/screens/orders_tab.dart';
+import 'package:three_deezi/screens/order_assistant.dart';
 
 import 'orders_app_test.dart' show OrdersServer, signedIn;
 
@@ -78,7 +78,7 @@ void main() {
           );
         }
         final Widget screen = switch (page) {
-          'orders' => OrdersTabScreen(c),
+          'orders' => OrderAssistantScreen(c, root: true),
           'projects' => ProjectsScreen(c),
           'myorders' => OrdersBoardScreen(c),
           'orderform' => OrderFormScreen(c),

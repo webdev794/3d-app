@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../api_client.dart';
+import '../assist.dart' show AssistController;
 import '../app_controller.dart';
 import '../widgets/flow_ui.dart' show pickArtwork;
 import '../widgets/glass_bubble.dart';
@@ -29,8 +32,18 @@ openAssistantLink = openPayLink;
 /// the order summary with the summary page, PDF and Excel, then Edit Order and
 /// Review & Approve. The server reads and collates (POST /order-assistant).
 class OrderAssistantScreen extends StatefulWidget {
-  const OrderAssistantScreen(this.c, {super.key, this.maker, this.token});
+  const OrderAssistantScreen(
+    this.c, {
+    super.key,
+    this.maker,
+    this.token,
+    this.root = false,
+  });
   final AppController c;
+
+  /// The Orders tab's own page (client 454, 2026-11-05): no back arrow on
+  /// screen 1, and My orders, the makers and Rewards in the "…" menu.
+  final bool root;
 
   /// "Make with Mantis": the maker whose branding the PDF carries.
   final String? maker;
@@ -67,15 +80,30 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
   /// The tab the app was on: a tab bar tap elsewhere closes this screen.
   late AppScreen shownOver = c.screen;
 
+  /// "Make with Mantis" (from the Orders page or the "…" menu).
+  late String? maker = widget.maker;
+
   @override
   void initState() {
     super.initState();
     if (widget.token != null) _load(widget.token!);
     c.addListener(_tabChanged);
+    if (widget.root) {
+      // 3DEEZI ASSIST's /orders/new and /orders/upload land on this page:
+      // the Order Assistant takes new orders and order sheets alike.
+      AssistController.orderEntry.addListener(_entry);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _entry());
+    }
+  }
+
+  void _entry() {
+    if (mounted && AssistController.orderEntry.value != null) {
+      AssistController.orderEntry.value = null;
+    }
   }
 
   void _tabChanged() {
-    if (!mounted || c.screen == shownOver) return;
+    if (widget.root || !mounted || c.screen == shownOver) return;
     shownOver = c.screen;
     final nav = Navigator.of(context);
     if (ModalRoute.of(context)?.isCurrent ?? false) nav.maybePop();
@@ -84,6 +112,7 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
   @override
   void dispose() {
     c.removeListener(_tabChanged);
+    AssistController.orderEntry.removeListener(_entry);
     text.dispose();
     focus.dispose();
     scroll.dispose();
@@ -153,7 +182,7 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
         designs: designs,
         assign: assign,
         supplierId: data == null ? await _makerId() : null,
-        setSupplier: data == null && widget.maker != null,
+        setSupplier: data == null && maker != null,
       );
       if (!mounted) return;
       setState(() {
@@ -192,7 +221,7 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
 
   /// "Make with Mantis": the maker's id from the suppliers list.
   Future<int?> _makerId() async {
-    final want = widget.maker?.toLowerCase();
+    final want = maker?.toLowerCase();
     if (want == null) return null;
     try {
       final page = await c.api.suppliers();
@@ -260,11 +289,21 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
     );
   }
 
-  void _manual() => Navigator.of(context).pushReplacement(
-    MaterialPageRoute<void>(
-      builder: (_) => OrderFormScreen(c, maker: widget.maker),
-    ),
-  );
+  void _manual() {
+    final route = MaterialPageRoute<void>(
+      builder: (_) => OrderFormScreen(c, maker: maker),
+    );
+    // (The Orders tab's page stays under the form; a pushed one gives way.)
+    widget.root
+        ? Navigator.of(context).push(route)
+        : Navigator.of(context).pushReplacement(route);
+  }
+
+  /// The "…" menu's Make with 3DEEZI / Mantis: the maker for this order.
+  void _makeWith(String? name) {
+    setState(() => maker = name);
+    showToast(context, 'Making with ${name ?? '3DEEZI'}.');
+  }
 
   void _team() => Navigator.of(
     context,
@@ -281,11 +320,13 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
       MaterialPageRoute<void>(
         builder: (_) => OrderFormScreen(
           c,
-          maker: widget.maker ?? _madeBy,
+          maker: maker ?? _madeBy,
           assistant: {
             'title': title,
             'token': data?['token'],
             'items': analysis['items'] ?? const [],
+            // Its design pictures count as the order's artwork (client 2026-11-05).
+            'designs': ((data?['designs'] as List?) ?? const []).length,
           },
           review: review,
         ),
@@ -369,7 +410,23 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
               children: [
                 _Header(
                   chat: started,
-                  onBack: () => Navigator.of(context).maybePop(),
+                  // The Orders tab's page: back from the chat to screen 1,
+                  // none on screen 1 (it is the tab's root).
+                  onBack: !widget.root
+                      ? () => Navigator.of(context).maybePop()
+                      : started
+                      ? () => setState(() {
+                          data = null;
+                          pending = null;
+                          error = null;
+                        })
+                      : null,
+                  root: widget.root,
+                  maker: maker,
+                  onMyOrders: () => c.go(AppScreen.orders),
+                  onMakeWith: _makeWith,
+                  onRewards: () =>
+                      showToast(context, '3DEEZI Rewards: coming soon.'),
                   onManual: _manual,
                   onNew: started
                       ? () => setState(() {
@@ -401,97 +458,141 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
       final w = box.maxWidth.clamp(0.0, 520.0);
       // A short phone (360 × 740 and less): a smaller picture and tiles, so
       // Powered by / Switch to Manual Form stay above the tab bar.
-      final compact = box.maxHeight < 620;
-      tileHeight = compact ? .62 : .78;
+      // (Client 456's inner panel is taller: the whole bubble fits above the
+      // tab bar on a 390 × 844 phone.)
+      final compact = box.maxHeight < 720;
+      tileHeight = compact ? .62 : .8;
       final hero = compact
-          ? (box.maxHeight - 470).clamp(84.0, 150.0)
+          ? (box.maxHeight - 500).clamp(70.0, 150.0)
           : (w * .44).clamp(150.0, 220.0);
-      return SingleChildScrollView(
+      // The whole bubble always fits above the tab bar (360, 390, a
+      // 590 × 700 window …): on a short screen its content scales down a
+      // little instead of running under the bar. 22 px inside the rim on
+      // each side, so no tile or panel touches it (client 456).
+      final inner = w - 24 - 44;
+      return Padding(
         key: const ValueKey('assistant-welcome'),
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-        child: Center(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+        child: Align(
+          alignment: Alignment.topCenter,
           child: SizedBox(
             width: w - 24,
             child: GlassCard(
               radius: 40,
               bubbleRim: true,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(height: hero, child: const _Hero()),
-                    const SizedBox(height: 4),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text.rich(
-                        key: const ValueKey('assistant-title'),
-                        TextSpan(
-                          children: [
-                            const TextSpan(text: 'CREATE YOUR '),
-                            TextSpan(
-                              text: 'ORDER',
-                              style: TextStyle(
-                                color: Palette.cyan,
-                                shadows: [
-                                  Shadow(
-                                    color: Palette.cyan.withValues(alpha: .6),
-                                    blurRadius: 14,
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 18),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: math.max(120, box.maxHeight - 16 - 30),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.topCenter,
+                    child: SizedBox(
+                      width: inner,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: hero, child: const _Hero()),
+                          const SizedBox(height: 4),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text.rich(
+                              key: const ValueKey('assistant-title'),
+                              TextSpan(
+                                children: [
+                                  const TextSpan(text: 'CREATE YOUR '),
+                                  TextSpan(
+                                    text: 'ORDER',
+                                    style: TextStyle(
+                                      color: Palette.cyan,
+                                      shadows: [
+                                        Shadow(
+                                          color: Palette.cyan.withValues(
+                                            alpha: .6,
+                                          ),
+                                          blurRadius: 14,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              style: const TextStyle(
+                                fontFamily: 'Rajdhani',
+                                fontWeight: FontWeight.w800,
+                                fontStyle: FontStyle.italic,
+                                fontSize: 34,
+                                height: 1.05,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Tell us what you need, upload your notes, images or existing files. I’ll build your complete order form for you.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              height: 1.3,
+                              color: Color(0xffd3dee8),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          _tiles(),
+                          const SizedBox(height: 14),
+                          // Client 456: the prompt bar and Powered by / Switch to
+                          // Manual Form together in ONE glowing inner glass panel.
+                          GlassCard(
+                            key: const ValueKey('assistant-panel'),
+                            radius: 30,
+                            bubbleRim: true,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _bar(
+                                    hint:
+                                        'e.g. I need 9 polos: 3 × 4XL, 2 × 2XL and 4 × 5XL. Black with our club logo on the chest.',
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      const Expanded(child: _Powered()),
+                                      Container(
+                                        width: 14,
+                                        height: 1,
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                        ),
+                                        color: Palette.cyan.withValues(
+                                          alpha: .5,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: _OutlinePill(
+                                          key: const ValueKey(
+                                            'assistant-manual',
+                                          ),
+                                          icon: Icons.keyboard_alt_outlined,
+                                          label: 'Switch to Manual Form',
+                                          onTap: _manual,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
-                        style: const TextStyle(
-                          fontFamily: 'Rajdhani',
-                          fontWeight: FontWeight.w800,
-                          fontStyle: FontStyle.italic,
-                          fontSize: 34,
-                          height: 1.05,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Tell us what you need, upload your notes, images or existing files. I’ll build your complete order form for you.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        height: 1.3,
-                        color: Color(0xffd3dee8),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _tiles(),
-                    const SizedBox(height: 14),
-                    _bar(
-                      hint:
-                          'e.g. I need 9 polos: 3 × 4XL, 2 × 2XL and 4 × 5XL. Black with our club logo on the chest.',
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Expanded(child: _Powered()),
-                        Container(
-                          width: 14,
-                          height: 1,
-                          margin: const EdgeInsets.symmetric(horizontal: 6),
-                          color: Palette.cyan.withValues(alpha: .5),
-                        ),
-                        Expanded(
-                          child: _OutlinePill(
-                            key: const ValueKey('assistant-manual'),
-                            icon: Icons.keyboard_alt_outlined,
-                            label: 'Switch to Manual Form',
-                            onTap: _manual,
                           ),
-                        ),
-                      ],
+                          if (error != null) _errorText(),
+                        ],
+                      ),
                     ),
-                    if (error != null) _errorText(),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -539,8 +640,8 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
       builder: (context, box) {
         final gap = 8.0;
         final w = (box.maxWidth - gap * 2) / 3;
-        Widget tile(_Tile t) =>
-            SizedBox(width: w, height: w * tileHeight, child: t);
+        Widget tile(_Tile t, {double wide = 1}) =>
+            SizedBox(width: w * wide, height: w * tileHeight, child: t);
         return Column(
           children: [
             Row(
@@ -551,9 +652,9 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                tile(tiles[3]),
+                tile(tiles[3], wide: 1.12),
                 SizedBox(width: gap * 2),
-                tile(tiles[4]),
+                tile(tiles[4], wide: 1.12),
               ],
             ),
           ],
@@ -585,7 +686,7 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
           color: const Color(0xcc071522),
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: Palette.cyan.withValues(alpha: .55),
+            color: Palette.cyan.withValues(alpha: .35),
             width: 1.2,
           ),
           boxShadow: [
@@ -595,112 +696,103 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
             ),
           ],
         ),
+        // Client 449: ONE row: sparkle, the text, a thin divider, then
+        // paperclip, picture, mic and the round send button.
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
-          child: Column(
+          child: Row(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 10, right: 6),
-                    child: Icon(
-                      Icons.auto_awesome,
-                      color: Palette.cyan,
-                      size: 22,
-                    ),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      key: const ValueKey('assistant-text'),
-                      controller: text,
-                      focusNode: focus,
-                      minLines: 1,
-                      maxLines: 5,
-                      textInputAction: TextInputAction.newline,
-                      style: const TextStyle(fontSize: 14.5),
-                      decoration: InputDecoration(
-                        hintText: hint,
-                        hintMaxLines: 3,
-                        hintStyle: const TextStyle(
-                          color: Color(0xff9fb3c4),
-                          fontSize: 13.5,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 10,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              const Padding(
+                padding: EdgeInsets.only(right: 6),
+                child: Icon(Icons.auto_awesome, color: Palette.cyan, size: 22),
               ),
-              Row(
-                children: [
-                  _RoundIcon(
-                    key: const ValueKey('assistant-attach'),
-                    icon: Icons.add,
-                    label: 'Add your order sheet or notes',
-                    onTap: () => _addOrderFile(),
-                  ),
-                  _RoundIcon(
-                    key: const ValueKey('assistant-image'),
-                    icon: Icons.image_outlined,
-                    label: 'Add design pictures',
-                    onTap: _addDesign,
-                  ),
-                  _RoundIcon(
-                    key: const ValueKey('assistant-file'),
-                    icon: Icons.insert_drive_file_outlined,
-                    label: 'Add a file',
-                    onTap: () => _addOrderFile(),
-                  ),
-                  _RoundIcon(
-                    key: const ValueKey('assistant-mic'),
-                    icon: Icons.mic_none_rounded,
-                    label: 'Speak your order',
-                    onTap: _mic,
-                  ),
-                  const Spacer(),
-                  Semantics(
-                    button: true,
-                    label: 'Send',
-                    child: InkWell(
-                      key: const ValueKey('assistant-send'),
-                      customBorder: const CircleBorder(),
-                      onTap: sending ? null : () => _send(),
-                      child: Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [Color(0xff00e5ff), Color(0xff00a6ff)],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Palette.cyan.withValues(alpha: .5),
-                              blurRadius: 14,
-                            ),
-                          ],
-                        ),
-                        child: sending
-                            ? const Padding(
-                                padding: EdgeInsets.all(13),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.4,
-                                  color: Color(0xff04202c),
-                                ),
-                              )
-                            : const Icon(
-                                Icons.send_rounded,
-                                color: Color(0xff04202c),
-                              ),
-                      ),
+              Expanded(
+                child: TextField(
+                  key: const ValueKey('assistant-text'),
+                  controller: text,
+                  focusNode: focus,
+                  minLines: 1,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.newline,
+                  style: const TextStyle(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    hintMaxLines: 5,
+                    hintStyle: const TextStyle(
+                      color: Color(0xffb7c6d3),
+                      fontSize: 12,
+                      height: 1.35,
                     ),
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                ],
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                color: Colors.white.withValues(alpha: .25),
+              ),
+              _BarIcon(
+                key: const ValueKey('assistant-attach'),
+                icon: Icons.attach_file_rounded,
+                label: 'Add your order sheet, notes or a file',
+                onTap: () => _addOrderFile(),
+              ),
+              _BarIcon(
+                key: const ValueKey('assistant-image'),
+                icon: Icons.image_outlined,
+                label: 'Add design pictures',
+                onTap: _addDesign,
+              ),
+              _BarIcon(
+                key: const ValueKey('assistant-mic'),
+                icon: Icons.mic_none_rounded,
+                label: 'Speak your order',
+                onTap: _mic,
+              ),
+              const SizedBox(width: 2),
+              Semantics(
+                button: true,
+                label: 'Send',
+                child: InkWell(
+                  key: const ValueKey('assistant-send'),
+                  customBorder: const CircleBorder(),
+                  onTap: sending ? null : () => _send(),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xff00e5ff), Color(0xff00a6ff)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Palette.cyan.withValues(alpha: .5),
+                          blurRadius: 14,
+                        ),
+                      ],
+                    ),
+                    child: sending
+                        ? const Padding(
+                            padding: EdgeInsets.all(13),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: Color(0xff04202c),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.send_rounded,
+                            color: Color(0xff04202c),
+                          ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -1000,15 +1092,39 @@ Color? _hex(Object? v) {
 class _Backdrop extends StatelessWidget {
   const _Backdrop();
   @override
-  Widget build(BuildContext context) => const DecoratedBox(
-    decoration: BoxDecoration(
-      gradient: RadialGradient(
-        center: Alignment(0, -.6),
-        radius: 1.15,
-        colors: [Color(0xff0b2235), Color(0xff06111b), Color(0xff040a10)],
-        stops: [0, .55, 1],
+  Widget build(BuildContext context) => Stack(
+    children: [
+      const Positioned.fill(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0, -.6),
+              radius: 1.15,
+              colors: [Color(0xff0b2235), Color(0xff06111b), Color(0xff040a10)],
+              stops: [0, .55, 1],
+            ),
+          ),
+        ),
       ),
-    ),
+      // Client 449: a faint large "3D" on the right, behind the bubble.
+      Positioned(
+        right: -40,
+        top: MediaQuery.sizeOf(context).height * .17,
+        child: ExcludeSemantics(
+          child: Text(
+            '3D',
+            style: TextStyle(
+              fontFamily: 'Rajdhani',
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              fontSize: 220,
+              height: 1,
+              color: Colors.white.withValues(alpha: .08),
+            ),
+          ),
+        ),
+      ),
+    ],
   );
 }
 
@@ -1016,11 +1132,21 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.chat,
     required this.onBack,
+    this.root = false,
+    this.maker,
+    this.onMyOrders,
+    this.onMakeWith,
+    this.onRewards,
     required this.onManual,
     this.onNew,
   });
   final bool chat;
-  final VoidCallback onBack, onManual;
+  final VoidCallback? onBack;
+  final VoidCallback onManual;
+  final bool root;
+  final String? maker;
+  final VoidCallback? onMyOrders, onRewards;
+  final void Function(String? maker)? onMakeWith;
   final VoidCallback? onNew;
 
   @override
@@ -1028,61 +1154,144 @@ class _Header extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
     child: Row(
       children: [
-        _CircleButton(
-          icon: Icons.chevron_left_rounded,
-          label: 'Back',
-          onTap: onBack,
-        ),
+        if (onBack == null)
+          const SizedBox(width: 44)
+        else
+          _CircleButton(
+            key: const ValueKey('assistant-back'),
+            icon: Icons.chevron_left_rounded,
+            label: 'Back',
+            onTap: onBack,
+          ),
         Expanded(
           child: Column(
             children: [
               const BrandLogo(width: 150),
               const SizedBox(height: 4),
-              Container(
-                key: const ValueKey('assistant-pill'),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 3,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Palette.cyan.withValues(alpha: .7)),
-                  color: const Color(0x66062033),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.auto_awesome,
-                      size: 15,
-                      color: Palette.cyan,
+              if (!chat)
+                // Client 449: CREATE ORDER FORM in thin, widely spaced capitals.
+                const FittedBox(
+                  key: ValueKey('assistant-subtitle'),
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'CREATE ORDER FORM',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w300,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: 5,
+                      color: Colors.white,
                     ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          'ORDER ASSISTANT',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
+                  ),
+                )
+              else
+                Container(
+                  key: const ValueKey('assistant-pill'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Palette.cyan.withValues(alpha: .7),
+                    ),
+                    color: const Color(0x66062033),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.auto_awesome,
+                        size: 15,
+                        color: Palette.cyan,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'ORDER ASSISTANT',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),
+        // Client 449: a round "?" opens 3DEEZI Assist.
+        _CircleButton(
+          key: const ValueKey('assistant-help'),
+          icon: Icons.question_mark_rounded,
+          label: 'Help: 3DEEZI Assist',
+          onTap: () => AssistController.latest?.show(),
+        ),
+        const SizedBox(width: 8),
         PopupMenuButton<String>(
           key: const ValueKey('assistant-menu'),
           tooltip: 'More',
           color: Palette.surface,
-          onSelected: (v) => v == 'manual' ? onManual() : onNew?.call(),
+          onSelected: (v) => switch (v) {
+            'manual' => onManual(),
+            'orders' => onMyOrders?.call(),
+            'make-3deezi' => onMakeWith?.call(null),
+            'make-mantis' => onMakeWith?.call('Mantis'),
+            'rewards' => onRewards?.call(),
+            _ => onNew?.call(),
+          },
           itemBuilder: (_) => [
+            // The Orders tab's page (client 454): My orders first, then the
+            // preferred suppliers and Rewards (once on the Orders page).
+            if (root) ...[
+              const PopupMenuItem(
+                key: ValueKey('assistant-my-orders'),
+                value: 'orders',
+                child: ListTile(
+                  leading: Icon(Icons.view_kanban_outlined),
+                  title: Text('My orders'),
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                key: const ValueKey('assistant-make-3deezi'),
+                value: 'make-3deezi',
+                child: ListTile(
+                  leading: const Icon(Icons.checkroom_outlined),
+                  title: const Text('Make with 3DEEZI'),
+                  trailing: maker == null
+                      ? const Icon(Icons.check, color: Palette.cyan)
+                      : null,
+                ),
+              ),
+              PopupMenuItem(
+                key: const ValueKey('assistant-make-mantis'),
+                value: 'make-mantis',
+                child: ListTile(
+                  leading: const Icon(Icons.checkroom_outlined),
+                  title: const Text('Make with Mantis'),
+                  trailing: maker == 'Mantis'
+                      ? const Icon(Icons.check, color: Palette.cyan)
+                      : null,
+                ),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('assistant-rewards'),
+                value: 'rewards',
+                child: ListTile(
+                  leading: Icon(Icons.auto_awesome_outlined),
+                  title: Text('Rewards'),
+                  subtitle: Text('Coming soon'),
+                ),
+              ),
+              const PopupMenuDivider(),
+            ],
             const PopupMenuItem(
               value: 'manual',
               child: Text('Switch to Manual Form'),
@@ -1104,7 +1313,12 @@ class _Header extends StatelessWidget {
 }
 
 class _CircleButton extends StatelessWidget {
-  const _CircleButton({required this.icon, required this.label, this.onTap});
+  const _CircleButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -1349,45 +1563,6 @@ class _Tile extends StatelessWidget {
           ),
         ),
     ],
-  );
-}
-
-class _RoundIcon extends StatelessWidget {
-  const _RoundIcon({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: label,
-    child: Tooltip(
-      message: label,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Center(
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: .5)),
-              ),
-              child: Icon(icon, size: 19, color: Colors.white),
-            ),
-          ),
-        ),
-      ),
-    ),
   );
 }
 
@@ -1880,6 +2055,33 @@ class _DesignThumb extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+/// A plain icon in the one-row prompt bar (client 449).
+class _BarIcon extends StatelessWidget {
+  const _BarIcon({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: label,
+    child: InkResponse(
+      onTap: onTap,
+      radius: 20,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: Icon(icon, size: 21, color: Colors.white),
       ),
     ),
   );

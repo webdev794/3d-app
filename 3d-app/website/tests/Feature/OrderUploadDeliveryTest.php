@@ -41,6 +41,7 @@ class OrderUploadDeliveryTest extends TestCase
     {
         $id = $this->postJson('/api/v1/order-drafts', ['kind' => 'upload', 'data' => $data + ['team_name' => 'Te Arawa', 'contact_name' => 'Fabian', 'contact_email' => 'fab@example.test']])
             ->assertCreated()->json('data.id');
+        $this->addArtwork($id);
         $this->post("/api/v1/order-drafts/{$id}/files", ['kind' => 'order_form', 'file' => UploadedFile::fake()->createWithContent('order.csv', "Item,Size,Qty\nJersey,M,10\n")], ['Accept' => 'application/json'])
             ->assertCreated();
 
@@ -119,7 +120,7 @@ class OrderUploadDeliveryTest extends TestCase
         $this->getJson("/api/v1/orders/{$old->id}")->assertOk()->assertJsonPath('data.needed_by', null)->assertJsonPath('data.shipping_address', null);
         $this->getJson('/api/v1/orders/board')->assertOk();
         // The order form (Create Order Form) needs them too (2026-10-22), with the same checks and storage.
-        $form = ['source' => 'form', 'contact_name' => 'Fabian', 'team_name' => 'Hawks', 'items' => [['garment' => 'jersey', 'sizes' => ['M' => 2]]]];
+        $form = ['source' => 'form', ...$this->artwork(), 'contact_name' => 'Fabian', 'team_name' => 'Hawks', 'items' => [['garment' => 'jersey', 'sizes' => ['M' => 2]]]];
         $this->postJson('/api/v1/orders', $form, ['Idempotency-Key' => 'form-no-delivery'])->assertUnprocessable()
             // The date required is optional on the order form (client 2026-11-05); mobile and delivery are not.
             ->assertJsonValidationErrors(['phone', 'delivery'])->assertJsonMissingValidationErrors(['needed_by']);

@@ -110,7 +110,9 @@ void main() {
     }
     expect(find.text('REAL PEOPLE'), findsOneWidget);
     expect(find.text('3DEEZI AI'), findsOneWidget);
-    expect(find.text('ORDER ASSISTANT'), findsOneWidget);
+    // Client 449: CREATE ORDER FORM under the logo, and a "?" help button.
+    expect(find.text('CREATE ORDER FORM'), findsOneWidget);
+    expect(find.byKey(const ValueKey('assistant-help')), findsOneWidget);
     // Image 4: the tab bar stays on screen 1, Orders on.
     expect(find.byKey(const ValueKey('nav-orders')), findsOneWidget);
     expect(tester.takeException(), isNull);

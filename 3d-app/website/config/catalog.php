@@ -190,7 +190,7 @@ $look = function (string $name, array $extra = []): array {
         // full-length side panels, yoke and neck and armhole binding (colours measured on 426 as rendered), each its own
         // colour area (viewer netballdress.js: zoneColors body / panels / yoke / binding).
         // (NDT: the body a little lighter, 43,88,145 on the stage as 426's.)
-        'netballDress' => ['main' => '#35547e', 'secondary' => '#0c78c6', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#0c78c6',
+        'netballDress' => ['number' => '', 'main' => '#35547e', 'secondary' => '#0c78c6', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#0c78c6',
             'zoneColors' => ['body' => '#35547e', 'panels' => '#0c78c6', 'yoke' => '#35547e', 'binding' => '#0c78c6']],
     ];
     return $extra + ($looks[$name] ?? []) + $base + ['number' => '23', 'marks' => []];

@@ -8,8 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_controller.dart';
-import '../assist.dart';
-import '../widgets/bubble_page.dart' show BubbleAssistLink;
 import '../widgets/glass_bubble.dart' show HomeGlassPainter;
 import '../widgets/notification_bell.dart';
 import '../widgets/ui.dart';
@@ -35,164 +33,126 @@ class BubbleHomeScreen extends StatefulWidget {
   State<BubbleHomeScreen> createState() => _BubbleHomeScreenState();
 }
 
-/// One destination on the glass: [at] is its centre and [box] its size, as
-/// fractions of the glass area. The five sit evenly round the centre "3"
-/// (a pentagon). Each shows one clean icon (the real jersey art for AI and
-/// DYO, a crisp glass badge for the others) and its [label] in one style.
-class _Spot {
-  const _Spot(
-    this.id,
-    this.name,
-    this.label,
-    this.at, {
-    this.icon,
-    this.art,
-    this.box = const Size(.36, .23),
-  });
-  final String id, name, label;
-  final Offset at;
-  final IconData? icon;
+/// The client design 458 is laid out on its own bubble: [_designGlass] is
+/// the area of that picture that matches our glass canvas (rim to rim,
+/// measured against the painted rim), in the picture's pixels. Every piece
+/// below is placed in those pixels and mapped onto the real glass: centres
+/// stretch with the glass, sizes scale with its width only (so nothing is
+/// squashed).
+const _designGlass = Rect.fromLTRB(-2, 180, 822, 1362);
 
-  /// The client's painted picture (brush word + object). When it loads it
-  /// replaces the icon and label; if it ever fails the icon face shows.
-  final String? art;
-  final Size box;
+/// One picture of an option (a brush word, a jersey, an icon), [r] in the
+/// design's pixels.
+class _Piece {
+  const _Piece(this.asset, this.r);
+  final String asset;
+  final Rect r;
 }
 
+/// One destination on the glass: its pictures ([parts], in the design's
+/// pixels). [at] and [box] are its centre and size as fractions of the
+/// design's glass (the tutorial's demo glass uses them).
+class _Spot {
+  const _Spot(this.id, this.name, this.parts, {this.icon});
+  final String id, name;
+  final List<_Piece> parts;
+  final IconData? icon;
+
+  Rect get r => parts.map((p) => p.r).reduce((a, b) => a.expandToInclude(b));
+
+  Offset get at => Offset(
+    (r.center.dx - _designGlass.left) / _designGlass.width,
+    (r.center.dy - _designGlass.top) / _designGlass.height,
+  );
+  Size get box =>
+      Size(r.width / _designGlass.width, r.height / _designGlass.height);
+
+  /// Its box on a glass of size [s].
+  Rect boxIn(Size s) {
+    final k = s.width / _designGlass.width;
+    return Rect.fromCenter(
+      center: Offset(at.dx * s.width, at.dy * s.height),
+      width: r.width * k,
+      height: r.height * k,
+    );
+  }
+}
+
+const _art = 'assets/images/art/home2_';
+
 const _spots = [
-  _Spot(
-    'ai',
-    'AI DESIGNER',
-    'AI',
-    Offset(.28, .29),
-    box: Size(.42, .21),
-    art: 'assets/images/art/home_ai.png',
-  ),
-  _Spot(
-    'dyo',
-    'DESIGN YOUR OWN',
-    'DYO',
-    Offset(.72, .29),
-    box: Size(.42, .21),
-    art: 'assets/images/art/home_dyo.png',
-  ),
-  _Spot(
-    'artboard',
-    'ARTBOARD',
-    'ARTBOARD',
-    Offset(.28, .515),
-    art: 'assets/images/art/home_artboard.png',
-    box: Size(.42, .21),
-    icon: Icons.draw_rounded,
-  ),
-  _Spot(
-    'team',
-    'DESIGN TEAM',
-    'TEAM',
-    Offset(.72, .515),
-    art: 'assets/images/art/home_team.png',
-    box: Size(.42, .21),
-    icon: Icons.groups_rounded,
-  ),
-  _Spot(
-    'to3d',
-    'ARTWORK TO 3D',
-    'TO 3D',
-    Offset(.5, .735),
-    art: 'assets/images/art/home_to3d.png',
-    box: Size(.42, .21),
-    icon: Icons.view_in_ar_rounded,
-  ),
+  _Spot('ai', 'AI DESIGNER', [
+    _Piece('${_art}ai_word.webp', Rect.fromLTRB(146, 318, 316, 492)),
+    _Piece('${_art}ai_jersey.webp', Rect.fromLTRB(320, 285, 516, 515)),
+    _Piece('${_art}sparkle.webp', Rect.fromLTRB(474, 276, 516, 328)),
+  ]),
+  _Spot('dyo', 'DESIGN YOUR OWN', [
+    _Piece('${_art}dyo_word.webp', Rect.fromLTRB(505, 403, 693, 516)),
+    _Piece('${_art}dyo_jersey.webp', Rect.fromLTRB(509, 508, 717, 734)),
+  ]),
+  _Spot('artboard', 'ARTBOARD', [
+    _Piece('${_art}artboard_icon.webp', Rect.fromLTRB(124, 524, 371, 698)),
+    _Piece('${_art}artboard_word.webp', Rect.fromLTRB(128, 698, 346, 773)),
+  ], icon: Icons.draw_rounded),
+  _Spot('team', 'DESIGN TEAM', [
+    _Piece('${_art}team_icon.webp', Rect.fromLTRB(139, 974, 360, 1124)),
+    _Piece('${_art}team_word.webp', Rect.fromLTRB(176, 1139, 323, 1198)),
+  ], icon: Icons.groups_rounded),
+  _Spot('to3d', 'ARTWORK TO 3D', [
+    _Piece('${_art}to3d_icon.webp', Rect.fromLTRB(465, 968, 660, 1124)),
+    _Piece('${_art}to3d_word.webp', Rect.fromLTRB(489, 1137, 648, 1203)),
+  ], icon: Icons.view_in_ar_rounded),
 ];
 
-/// One option's face: its icon over its label. [glow] tints it all cyan
-/// (the blurred glow behind a lit option).
+/// The central 3DEEZI emblem and "DRAG TO EXPLORE" in the design's pixels.
+const _emblemR = Rect.fromLTRB(280, 740, 537, 899);
+const _dragHintY = 928.0;
+
+/// One option's face: its pictures, placed within its box as in the
+/// design. [glow] tints it all cyan (the blurred glow behind a lit option).
 class _SpotFace extends StatelessWidget {
-  const _SpotFace(this.spot, {this.glow = false, this.showName = true});
+  const _SpotFace(this.spot, {this.glow = false});
   final _Spot spot;
   final bool glow;
 
-  /// Off while this option is chosen: the pop-up beside it shows the name.
-  final bool showName;
-
-  Widget _img(String path) => Image.asset(
-    path,
-    fit: BoxFit.contain,
-    filterQuality: FilterQuality.high,
-    errorBuilder: (_, _, _) => Icon(
-      spot.icon ?? Icons.checkroom_rounded,
-      size: 48,
-      color: const Color(0xffe8fbff),
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
-    // The client's own icon (with its pedestal); AI and DYO get their small
-    // cyan word beside the jersey.
-    final word = spot.id == 'ai' || spot.id == 'dyo';
-    final Widget icon = !word
-        ? _img(spot.art!)
-        // The brush word sits on its own jersey (upper left for AI, upper
-        // right for DYO), placed against the picture, not the bubble.
-        : Center(
-            child: AspectRatio(
-              aspectRatio: 1.24,
-              child: LayoutBuilder(
-                builder: (context, b) {
-                  final ww = b.maxWidth * (spot.id == 'ai' ? .34 : .44);
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned.fill(child: _img(spot.art!)),
-                      Positioned(
-                        left: spot.id == 'ai' ? b.maxWidth * .02 : null,
-                        right: spot.id == 'dyo' ? b.maxWidth * .0 : null,
-                        top: -b.maxHeight * .08,
-                        width: ww,
-                        child: Image.asset(
-                          'assets/images/art/home_word_${spot.id}.png',
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.high,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          );
-    final face = Column(
-      children: [
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // (The pictures carry their own pedestals.)
-              icon,
-            ],
-          ),
-        ),
-        const SizedBox(height: 3),
-        SizedBox(
-          height: 18,
-          child: !showName
-              ? null
-              : FittedBox(
-                  child: Text(
-                    spot.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      height: 1,
-                      letterSpacing: .5,
-                    ),
-                  ),
+    final r = spot.r;
+    final face = LayoutBuilder(
+      builder: (context, b) {
+        final kx = b.maxWidth / r.width, ky = b.maxHeight / r.height;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            for (final p in spot.parts)
+              Positioned(
+                left: (p.r.left - r.left) * kx,
+                top: (p.r.top - r.top) * ky,
+                width: p.r.width * kx,
+                height: p.r.height * ky,
+                child: Image.asset(
+                  p.asset,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (_, _, _) => p == spot.parts.first
+                      ? Center(
+                          child: FittedBox(
+                            child: Text(
+                              spot.name,
+                              style: const TextStyle(
+                                color: _cyan,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
-        ),
-      ],
+              ),
+          ],
+        );
+      },
     );
     return glow
         ? ColorFiltered(
@@ -262,10 +222,15 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
     if (!_artCached) {
       _artCached = true;
       for (final sp in _spots) {
-        if (sp.art != null) {
-          precacheImage(AssetImage(sp.art!), context, onError: (_, _) {});
+        for (final p in sp.parts) {
+          precacheImage(AssetImage(p.asset), context, onError: (_, _) {});
         }
       }
+      precacheImage(
+        const AssetImage('${_art}emblem.webp'),
+        context,
+        onError: (_, _) {},
+      );
     }
     if (!_tutorialChecked) {
       _tutorialChecked = true;
@@ -288,14 +253,22 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
 
   // ---- geometry -----------------------------------------------------------
 
-  Offset _centreOf(int i) =>
-      Offset(_spots[i].at.dx * _area.width, _spots[i].at.dy * _area.height);
+  Offset _centreOf(int i) => _boxOf(i).center;
 
-  Rect _boxOf(int i) => Rect.fromCenter(
-    center: _centreOf(i),
-    width: _spots[i].box.width * _area.width,
-    height: _spots[i].box.height * _area.height,
-  );
+  Rect _boxOf(int i) => _spots[i].boxIn(_area);
+
+  /// A rect in the design's pixels on this glass (as [_Spot.boxIn]).
+  Rect _mapDesign(Rect r) {
+    final k = _area.width / _designGlass.width;
+    return Rect.fromCenter(
+      center: Offset(
+        (r.center.dx - _designGlass.left) / _designGlass.width * _area.width,
+        (r.center.dy - _designGlass.top) / _designGlass.height * _area.height,
+      ),
+      width: r.width * k,
+      height: r.height * k,
+    );
+  }
 
   double get _reach => _area.shortestSide * .21;
 
@@ -680,31 +653,17 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                         child: Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            // "LET'S CREATE" at the top of the bubble.
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              top: s.height * .085,
-                              height: s.height * .08,
-                              child: const _Title(),
-                            ),
-                            // A big, faint dark "3" in the background at
-                            // the top, behind the title and the top row.
-                            Positioned(
-                              left: s.width * .12,
-                              right: s.width * .12,
-                              top: s.height * .02,
-                              height: s.height * .36,
-                              child: Transform.translate(
-                                offset: drift,
-                                child: const Opacity(
-                                  opacity: .16,
-                                  child: ColorFiltered(
-                                    colorFilter: ColorFilter.mode(
-                                      Color(0xff3a4e66),
-                                      BlendMode.srcIn,
-                                    ),
-                                    child: _GlassMark(bright: false),
+                            // The 3DEEZI emblem in the middle (client 458).
+                            Positioned.fromRect(
+                              rect: _mapDesign(_emblemR).shift(drift),
+                              child: AnimatedOpacity(
+                                opacity: labelFor == null ? 1 : .5,
+                                duration: const Duration(milliseconds: 200),
+                                child: const IgnorePointer(
+                                  child: Image(
+                                    image: AssetImage('${_art}emblem.webp'),
+                                    fit: BoxFit.contain,
+                                    filterQuality: FilterQuality.high,
                                   ),
                                 ),
                               ),
@@ -715,20 +674,18 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                               Positioned(
                                 left: 0,
                                 right: 0,
-                                top: s.height * .86,
+                                top:
+                                    _mapDesign(
+                                      Rect.fromCenter(
+                                        center: const Offset(410, _dragHintY),
+                                        width: 1,
+                                        height: 1,
+                                      ),
+                                    ).center.dy -
+                                    10,
+                                height: 20,
                                 child: const _DragHint(),
                               ),
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              top: s.height * .895,
-                              child: Center(
-                                child: BubbleAssistLink(
-                                  onPressed: () =>
-                                      AssistController.latest?.show(),
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                       );
@@ -789,7 +746,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                     duration: ms,
                     child: ImageFiltered(
                       imageFilter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
-                      child: _SpotFace(sp, glow: true, showName: !strong),
+                      child: _SpotFace(sp, glow: true),
                     ),
                   ),
                   AnimatedOpacity(
@@ -799,7 +756,7 @@ class _BubbleHomeScreenState extends State<BubbleHomeScreen>
                       colorFilter: _brightness(
                         strong ? 1.32 : (lit ? 1.16 : 1),
                       ),
-                      child: _SpotFace(sp, showName: !strong),
+                      child: _SpotFace(sp),
                     ),
                   ),
                 ],
@@ -908,26 +865,6 @@ class _GlassMark extends StatelessWidget {
   );
 }
 
-class _Title extends StatelessWidget {
-  const _Title();
-
-  @override
-  Widget build(BuildContext context) => const IgnorePointer(
-    child: FittedBox(
-      child: Text(
-        "LET'S CREATE",
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 30,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.5,
-          shadows: [Shadow(color: _cyan, blurRadius: 14)],
-        ),
-      ),
-    ),
-  );
-}
-
 class _DragHint extends StatelessWidget {
   const _DragHint();
 
@@ -936,49 +873,130 @@ class _DragHint extends StatelessWidget {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.chevron_left, size: 18, color: _cyan),
-        SizedBox(width: 6),
+        Icon(Icons.chevron_left, size: 20, color: _cyan),
+        SizedBox(width: 10),
         Text(
-          'SWIPE OR TAP TO EXPLORE',
+          'DRAG TO EXPLORE',
           style: TextStyle(
-            color: Color(0xffcdefff),
-            fontSize: 11,
+            color: Color(0xffe6f4ff),
+            fontSize: 12,
+            height: 1,
             fontWeight: FontWeight.w600,
-            letterSpacing: 2.6,
+            letterSpacing: 3.6,
           ),
         ),
         SizedBox(width: 6),
-        Icon(Icons.chevron_right, size: 18, color: _cyan),
+        Icon(Icons.chevron_right, size: 20, color: _cyan),
       ],
     ),
   );
 }
+
+/// The dark glass pill of the header buttons (client 458): a deep navy
+/// fill, a thin light-cyan rim and a soft glow.
+BoxDecoration _pill({bool bright = false}) => BoxDecoration(
+  borderRadius: BorderRadius.circular(40),
+  gradient: LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: bright
+        ? const [Color(0xff123a5c), Color(0xff071a2e)]
+        : const [Color(0xff0c2440), Color(0xff061426)],
+  ),
+  border: Border.all(
+    color: bright ? const Color(0xccaef0ff) : const Color(0x8865d8ff),
+    width: bright ? 1.4 : 1.1,
+  ),
+  boxShadow: [
+    BoxShadow(
+      color: const Color(0xff3fd4ff).withValues(alpha: bright ? .45 : .22),
+      blurRadius: bright ? 10 : 7,
+    ),
+  ],
+);
+
+const _pillText = TextStyle(
+  color: Colors.white,
+  fontSize: 12.5,
+  height: 1,
+  fontWeight: FontWeight.w500,
+  letterSpacing: .2,
+);
 
 class _ClassicButton extends StatelessWidget {
   const _ClassicButton({required this.onTap});
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => TextButton.icon(
-    key: const ValueKey('bubble-classic-view'),
-    onPressed: onTap,
-    style: TextButton.styleFrom(
-      foregroundColor: const Color(0xffcdefff),
-      backgroundColor: const Color(0xff06182c).withValues(alpha: .7),
-      minimumSize: const Size(44, 30),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-      shape: const StadiumBorder(side: BorderSide(color: Color(0x553fd4ff))),
-      textStyle: TextStyle(
-        fontFamily: DefaultTextStyle.of(context).style.fontFamily,
-        fontSize: 12.5,
-        fontWeight: FontWeight.w600,
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Classic view',
+    child: GestureDetector(
+      key: const ValueKey('bubble-classic-view'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.fromLTRB(12, 0, 14, 0),
+        decoration: _pill(),
+        child: const ExcludeSemantics(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 11,
+                height: 11,
+                child: CustomPaint(painter: _FourDots()),
+              ),
+              SizedBox(width: 9),
+              Text('Classic view', style: _pillText),
+            ],
+          ),
+        ),
       ),
     ),
-    icon: const Icon(Icons.grid_view_rounded, size: 15),
-    label: const Text('Classic view'),
   );
+}
+
+/// The 2 × 2 dots of the "Classic view" pill.
+class _FourDots extends CustomPainter {
+  const _FourDots();
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final p = Paint()..color = Colors.white;
+    final r = s.width * .2;
+    for (final x in [r, s.width - r]) {
+      for (final y in [r, s.height - r]) {
+        canvas.drawCircle(Offset(x, y), r, p);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FourDots o) => false;
+}
+
+/// A four-point sparkle (the "✦" of "Upgrade").
+class _Sparkle extends CustomPainter {
+  const _Sparkle();
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final c = s.center(Offset.zero);
+    final r = s.shortestSide / 2;
+    final path = Path()
+      ..moveTo(c.dx, c.dy - r)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx + r, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy + r)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx - r, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy - r)
+      ..close();
+    canvas.drawPath(path, Paint()..color = Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(_Sparkle o) => false;
 }
 
 /// "Upgrade ✦": opens the subscription plans.
@@ -992,38 +1010,24 @@ class _UpgradeButton extends StatelessWidget {
     label: 'Upgrade: subscription plans',
     child: GestureDetector(
       key: const ValueKey('bubble-upgrade'),
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(
-            colors: [Color(0xff1f8fe0), Color(0xff0b4f9a)],
-          ),
-          border: Border.all(color: const Color(0xcc7fe6ff), width: 1.2),
-          boxShadow: const [BoxShadow(color: Color(0x663fd4ff), blurRadius: 8)],
-        ),
+        height: 28,
+        padding: const EdgeInsets.fromLTRB(13, 0, 11, 0),
+        decoration: _pill(bright: true),
         child: const ExcludeSemantics(
-          child: Text.rich(
-            TextSpan(
-              text: 'Upgrade ',
-              children: [
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: Icon(
-                    Icons.auto_awesome,
-                    size: 13,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: .3,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Upgrade', style: _pillText),
+              SizedBox(width: 5),
+              SizedBox(
+                width: 11,
+                height: 11,
+                child: CustomPaint(painter: _Sparkle()),
+              ),
+            ],
           ),
         ),
       ),

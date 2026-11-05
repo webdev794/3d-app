@@ -8,6 +8,7 @@ import '../money.dart';
 import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
+import '../widgets/bubble_page.dart' show BubbleRoute;
 import '../widgets/ui.dart';
 
 // Preferred suppliers (task 9.118, as the website's /suppliers, pages/Suppliers.tsx): who makes an order. 3DEEZI (the
@@ -196,18 +197,17 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     final shown = makers == null
         ? null
         : (makers.isEmpty ? const [Supplier.threeDeezi] : makers);
-    return Scaffold(
-      backgroundColor: Palette.bg,
-      appBar: AppBar(
-        backgroundColor: Palette.bg,
-        title: const Text('Preferred suppliers'),
-      ),
-      body: RefreshIndicator(
+    // The bubble look (user 2026-11-05).
+    return BubbleRoute(
+      c: widget.c,
+      title: 'PREFERRED SUPPLIERS',
+      bubbleKey: const ValueKey('suppliers-bubble'),
+      child: RefreshIndicator(
         onRefresh: _load,
         child: LayoutBuilder(
           builder: (context, box) {
             // Phones fill the width; a tablet keeps the phone's column (560 px at most).
-            final side = math.max(16.0, (box.maxWidth - 560) / 2);
+            final side = math.max(2.0, (box.maxWidth - 560) / 2);
             return ListView(
               // Pull to refresh on a short page too.
               physics: const AlwaysScrollableScrollPhysics(),

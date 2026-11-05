@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../app_controller.dart';
-import '../widgets/flow_ui.dart';
+import '../widgets/bubble_page.dart' show BubbleRoute;
 import '../widgets/ui.dart';
 
 /// Profile › Edit profile (as the website's /profile/edit, client 2026-10-26):
@@ -207,98 +207,92 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _name.text.trim() != (_user?.name ?? '') ||
         _emailChanged ||
         _password.text.isNotEmpty;
-    return Scaffold(
-      backgroundColor: Palette.bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            TopBar(
-              onBack: () => Navigator.of(context).maybePop(),
-              title: 'Edit profile',
-            ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(
-                  22,
-                  8,
-                  22,
-                  22 + MediaQuery.viewInsetsOf(context).bottom,
-                ),
-                children: [
-                  if (_done != null) _message(_done!, good: true),
-                  if (_error != null) _message(_error!, good: false),
-                  _heading(Icons.person_outline_rounded, 'Your details'),
-                  _field(
-                    'Your name',
-                    _name,
-                    autofill: const [AutofillHints.name],
-                    key: const ValueKey('edit-name'),
-                  ),
-                  _field(
-                    'Email address',
-                    _email,
-                    keyboard: TextInputType.emailAddress,
-                    autofill: const [AutofillHints.email],
-                    key: const ValueKey('edit-email'),
-                  ),
-                  const SizedBox(height: 8),
-                  _heading(Icons.key_outlined, 'Change password'),
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      'Leave these empty to keep your password.',
-                      style: TextStyle(fontSize: 11, color: Palette.muted),
-                    ),
-                  ),
-                  _field(
-                    'New password',
-                    _password,
-                    secret: true,
-                    hint: 'At least 8 characters',
-                    autofill: const [AutofillHints.newPassword],
-                    key: const ValueKey('edit-password'),
-                  ),
-                  _field(
-                    'Confirm new password',
-                    _confirm,
-                    secret: true,
-                    hint: 'Type it again',
-                    autofill: const [AutofillHints.newPassword],
-                    key: const ValueKey('edit-confirm'),
-                  ),
-                  if (_needsCurrent)
-                    SurfaceCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _field(
-                            'Current password',
-                            _current,
-                            secret: true,
-                            autofill: const [AutofillHints.password],
-                            key: const ValueKey('edit-current'),
-                          ),
-                          const Text(
-                            'Needed to change your email address or password.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Palette.muted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 22),
-                  GradientButton(
-                    label: _busy ? 'Saving…' : 'Save changes',
-                    icon: Icons.check_rounded,
-                    onPressed: _busy || !changed ? null : _save,
-                  ),
-                ],
+    // The bubble look (user 2026-11-05).
+    return BubbleRoute(
+      c: widget.c,
+      title: 'EDIT PROFILE',
+      bubbleKey: const ValueKey('edit-profile-bubble'),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                2,
+                4,
+                2,
+                22 + MediaQuery.viewInsetsOf(context).bottom,
               ),
+              children: [
+                if (_done != null) _message(_done!, good: true),
+                if (_error != null) _message(_error!, good: false),
+                _heading(Icons.person_outline_rounded, 'Your details'),
+                _field(
+                  'Your name',
+                  _name,
+                  autofill: const [AutofillHints.name],
+                  key: const ValueKey('edit-name'),
+                ),
+                _field(
+                  'Email address',
+                  _email,
+                  keyboard: TextInputType.emailAddress,
+                  autofill: const [AutofillHints.email],
+                  key: const ValueKey('edit-email'),
+                ),
+                const SizedBox(height: 8),
+                _heading(Icons.key_outlined, 'Change password'),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'Leave these empty to keep your password.',
+                    style: TextStyle(fontSize: 11, color: Palette.muted),
+                  ),
+                ),
+                _field(
+                  'New password',
+                  _password,
+                  secret: true,
+                  hint: 'At least 8 characters',
+                  autofill: const [AutofillHints.newPassword],
+                  key: const ValueKey('edit-password'),
+                ),
+                _field(
+                  'Confirm new password',
+                  _confirm,
+                  secret: true,
+                  hint: 'Type it again',
+                  autofill: const [AutofillHints.newPassword],
+                  key: const ValueKey('edit-confirm'),
+                ),
+                if (_needsCurrent)
+                  SurfaceCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _field(
+                          'Current password',
+                          _current,
+                          secret: true,
+                          autofill: const [AutofillHints.password],
+                          key: const ValueKey('edit-current'),
+                        ),
+                        const Text(
+                          'Needed to change your email address or password.',
+                          style: TextStyle(fontSize: 11, color: Palette.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 22),
+                GradientButton(
+                  label: _busy ? 'Saving…' : 'Save changes',
+                  icon: Icons.check_rounded,
+                  onPressed: _busy || !changed ? null : _save,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

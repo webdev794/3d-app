@@ -102,7 +102,7 @@ export function fabricOf(kind, part, chosen) {
   if (chosen === 'Smooth') return 'smoothmatt';
   if (part?.hoodie) return 'fleece';
   if (part?.track) return 'knit';
-  return { jersey: 'mesh', nfljersey: 'mesh', 'shooting-shirt': 'shootmesh', compression: 'stretch', socks: 'sockrib', trackpants: 'smoothmatt', skirt: 'interlock', cap: 'twill', 'bucket-hat': 'twill', beanie: 'sockrib', singlet: 'mesh', shorts: 'mesh', bballshorts: 'bballknit', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
+  return { jersey: 'mesh', nfljersey: 'mesh', 'shooting-shirt': 'shootmesh', compression: 'stretch', socks: 'sockrib', trackpants: 'smoothmatt', skirt: 'interlock', cap: 'twill', 'bucket-hat': 'twill', beanie: 'sockrib', singlet: 'mesh', shorts: 'mesh', bballshorts: 'bballknit', 'netball-dress': 'dressknit', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
 }
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -165,7 +165,9 @@ const FABRICS = {
   fleece: { tile: 0.05, scale: 0.45, cavity: 0, strength: 6, make: () => ({ height: fleece() }) },
   // A fine knit (track jackets, and any garment without its own fabric).
   // The basketball shorts' double knit: fine lines running across, as the client's mockups (BSF 2026-11-05).
-  bballknit: { tile: 0.02, scale: 1.4, cavity: 0.3, rough: 0.95, sheen: 0, sheenRough: 0.9, strength: 14, make: () => ({ height: (u, v) => 0.5 + 0.5 * Math.cos(2 * Math.PI * v * 10) }) },
+  bballknit: { tile: 0.02, scale: 0.35, cavity: 0.05, rough: 0.95, sheen: 0, sheenRough: 0.9, strength: 2, make: () => ({ height: (u, v) => 0.5 + 0.5 * Math.cos(2 * Math.PI * v * 10) }) },
+  // The netball dress: a fine matt knit (NDT: not smooth plastic).
+  dressknit: { tile: 0.014, scale: 1.4, cavity: 0.12, rough: 0.86, sheen: 0.1, sheenRough: 0.6, sheenColor: 0x8c99a6, clearcoat: 0, strength: 1.8, make: () => microKnit(24, 20) },
   knit: { tile: 0.02, scale: 0.4, cavity: 0, strength: 2.5, make: () => ({ height: (u, v) => 0.5 + 0.5 * Math.cos(2 * Math.PI * (u + v) * 12) ** 3 }) },
   // The fabric types (FABRIC_TYPES). Mesh: open hexagonal holes about 3.4 mm apart (half the fabric open), thin knitted
   // walls between them; the holes show the shade behind them. (tileV: the tile's height, 10 rows of the hexagons.)

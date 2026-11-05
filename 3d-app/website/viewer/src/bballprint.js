@@ -20,8 +20,8 @@ export const BB = { waist: 0.64, crotch: 0.275, band: 0.029 };
 // the hips: above the crotch the seam is that line over the hips' ellipse (3D half-width 0.7354 x flat), the waist 5 % wider.)
 // (BSF round 4, 2026-11-05: from the crotch up 0.925 of the width cut before: the hips are worn shallower and squarer
 // (bballshorts.js hipDepth / hipBox), as wide as before; from the band's foot the cloth widens smoothly, no ledge.)
-const HIP = 0.925;
-export const BB_SIDE = [[0, 0.313], [0.07, 0.313], [0.2, 0.315], ...[[BB.crotch, 0.32], [0.34, 0.316], [0.42, 0.308], [0.5, 0.294], [0.55, 0.282], [0.575, 0.282], [0.6, 0.262], [BB.waist, 0.256]].map(([y, x]) => [y, x * HIP])];
+const HIP = 0.915;
+export const BB_SIDE = [[0, 0.313], [0.07, 0.313], [0.2, 0.315], ...[[BB.crotch, 0.32], [0.34, 0.316], [0.42, 0.308], [0.5, 0.294], [0.55, 0.282], [0.575, 0.282], [0.6, 0.262], [BB.waist, 0.26]].map(([y, x]) => [y, x * HIP])];
 /** The V split at the side of each leg's hem: the hem's outer corner (x at y 0) and how high the split rises. */
 // (BSF r2, BST -241: a taller, narrower V, 12 % of the height as 420; the panels open along it: bballshorts.js split.)
 export const BB_SPLIT = { x: 0.257, y: 0.075 };
@@ -260,6 +260,37 @@ export function paintBball(painter, design, back, trim) {
   painter.side(back);
   g.fillStyle = painter.partStyle(design, 'waistband')?.own ?? design.main;
   g.fillRect(-0.8, BB.waist - BB.band - 0.004, 1.6, BB.band + 0.05);
+  // (BSF r17, BST on -273, yi-front / yi-back: the shade of the gathers, too fine for the lighting alone: the elastic's
+  // valleys (at the same places as the relief's, bballTailoring), a darker puckered line at the band's foot where the body
+  // starts, and behind, the soft long shadows of the gathers under it, to ~15 % down.)
+  const ws = BB.waist - BB.band - 0.0012, px = Math.abs(g.getTransform().a) || 3000;
+  const rnd = (k, s) => 0.5 + 0.5 * Math.sin(k * s + Math.sin(k * 0.37 * s + (back ? 2.1 : 0.3)));
+  // (Each layer drawn sharp on its own canvas, then laid on blurred once: a filter on every fill is far too slow.)
+  const layer = (blur, draw) => {
+    const c = document.createElement('canvas'); c.width = g.canvas.width; c.height = g.canvas.height;
+    const l = c.getContext('2d'); l.setTransform(g.getTransform()); draw(l);
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.filter = `blur(${(blur * px).toFixed(1)}px)`; g.drawImage(c, 0, 0); g.restore();
+  };
+  layer(0.0009, (l) => {
+    for (let x = -0.45, k = 0; x <= 0.45; k++) {
+      const gap = 0.005 + 0.004 * rnd(k, 2.17);
+      l.fillStyle = `rgba(0,0,0,${0.3 + 0.2 * rnd(k, 1.3)})`;
+      l.fillRect(x - 0.0013, ws, 0.0026, BB.band + 0.02);
+      x += gap;
+    }
+    l.strokeStyle = 'rgba(0,0,0,0.42)'; l.lineWidth = 0.0026;
+    l.beginPath();
+    for (let x = -0.45; x <= 0.45; x += 0.0015) l.lineTo(x, ws + 0.0004 + 0.0007 * Math.sin(x * 1300 + Math.sin(x * 210)));
+    l.stroke();
+  });
+  if (back) layer(0.0028, (l) => {
+    for (let x = -0.28, k = 0; x <= 0.28; k++) {
+      const len = 0.045 + 0.045 * rnd(k, 2.39), w = 0.005 + 0.003 * rnd(k, 1.1), dx = Math.sign(x) * len * 0.12;
+      l.fillStyle = `rgba(0,0,0,${0.24 + 0.14 * rnd(k, 0.93)})`;
+      l.beginPath(); l.moveTo(x - w / 2, ws); l.lineTo(x + w / 2, ws); l.lineTo(x + dx, ws - len); l.closePath(); l.fill();
+      x += 0.013 + 0.012 * rnd(k, 1.61);
+    }
+  });
   painter.side(back);
 }
 
@@ -297,7 +328,7 @@ export function bballBleed(painter, design, back) {
  * crotch, in front and behind. (BSF r3, 419 / 431: the side panels and their piping are printed, no sewn seams down the
  * legs: those read as creases.)
  */
-export function bballTailoring(painter) {
+export function bballTailoring(painter, back = false) {
   const stitches = [], seams = [], folds = [];
   const along = (points) => (c) => points.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
   // (Along the level hem only: carried round the V split's corner, the rows crossed the stripes in a diagonal line.)
@@ -315,23 +346,37 @@ export function bballTailoring(painter) {
     g.save();
     g.lineCap = 'round';
     // The double knit's fine lines running across the whole garment, about 2.5 mm apart (BST on -261: on the body too).
-    for (let y = -0.03, k = 0; y <= BB.waist + 0.01; y += 0.0025, k++) {
-      g.strokeStyle = `rgba(0,0,0,${0.07 + 0.03 * Math.sin(k * 1.3)})`; g.lineWidth = 0.0009;
-      g.beginPath(); g.moveTo(-0.8, y); g.lineTo(0.8, y); g.stroke();
+    // (BSF r17, BST on -273: not here any more: drawn into the relief they beat against the screen's pixels in broad
+    // light and dark bands across the legs; the fabric's own normal map (render-quality.js bballknit) carries them.)
+    // (BSF r16, BST on -270, client yi-front / yi-back: crisp, sharp-edged creases, not mesh bumps.) A crease: a narrow
+    // sunk valley tapering to nothing, with a thin raised ridge beside it, drawn as filled wedges so its edges stay sharp.
+    const wedge = (x, y, dx, len, w, style) => {
+      g.fillStyle = style; g.beginPath();
+      g.moveTo(x - w / 2, y); g.lineTo(x + w / 2, y);
+      g.quadraticCurveTo(x + w / 4 + dx * 0.5, y - len * 0.5, x + dx, y - len);
+      g.quadraticCurveTo(x - w / 4 + dx * 0.5, y - len * 0.5, x - w / 2, y);
+      g.fill();
+    };
+    const rnd = (k, s) => 0.5 + 0.5 * Math.sin(k * s + Math.sin(k * 0.37 * s + (back ? 2.1 : 0.3)));
+    // The band: dense, fine elastic ruching all round, thin uneven gathers about 3-6 mm apart from its foot to the edge.
+    for (let x = -0.45, k = 0; x <= 0.45; k++) {
+      const gap = 0.005 + 0.004 * rnd(k, 2.17), top = BB.waist + 0.012, wav = 0.0008 * Math.sin(k * 1.9);
+      g.fillStyle = `rgba(0,0,0,${0.3 + 0.2 * rnd(k, 1.3)})`;
+      g.beginPath(); g.moveTo(x - 0.0005, waistSeam); g.lineTo(x + 0.0005, waistSeam); g.quadraticCurveTo(x + wav + 0.0004, (waistSeam + top) / 2, x + 0.0004, top); g.lineTo(x - 0.0004, top); g.quadraticCurveTo(x + wav - 0.0004, (waistSeam + top) / 2, x - 0.0005, waistSeam); g.fill();
+      g.strokeStyle = `rgba(255,255,255,${0.22 + 0.18 * rnd(k, 1.7)})`; g.lineWidth = 0.0006 + 0.0006 * rnd(k, 0.83);
+      g.beginPath(); g.moveTo(x + gap / 2, waistSeam + 0.0005); g.quadraticCurveTo(x + gap / 2 + wav, (waistSeam + top) / 2, x + gap / 2, top); g.stroke();
+      x += gap;
     }
-    // The band itself: fine vertical ruching all round, uneven, from its foot to the waist's edge.
-    for (let x = -0.45, k = 0; x <= 0.45; x += 0.0032, k++) {
-      g.strokeStyle = `rgba(255,255,255,${0.28 + 0.12 * Math.sin(k * 1.7)})`; g.lineWidth = 0.0014;
-      g.beginPath(); g.moveTo(x, waistSeam + 0.001); g.lineTo(x + 0.0004 * Math.sin(k * 0.9), BB.waist + 0.01); g.stroke();
-      g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 0.0008;
-      g.beginPath(); g.moveTo(x + 0.0016, waistSeam + 0.001); g.lineTo(x + 0.0016, BB.waist + 0.01); g.stroke();
-    }
-    for (let x = -0.4, k = 0; x <= 0.4; x += 0.005, k++) {
-      const len = 0.005 + 0.004 * (0.5 + 0.5 * Math.sin(k * 2.39 + 0.7)) + 0.0015 * Math.sin(k * 0.73);
-      g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 0.0018;
-      g.beginPath(); g.moveTo(x, waistSeam - 0.001); g.lineTo(x + 0.0006 * Math.sin(k), waistSeam - len); g.stroke();
-      g.strokeStyle = 'rgba(0,0,0,0.1)'; g.lineWidth = 0.0012;
-      g.beginPath(); g.moveTo(x + 0.0025, waistSeam - 0.001); g.lineTo(x + 0.0025, waistSeam - 0.6 * len); g.stroke();
+    // Just under the band: fine creases fanning out and down from the gathered elastic, uneven in spacing and length;
+    // in front reaching ~5-9 cm (to ~15 % down), behind shorter and fewer (fading by ~12 %).
+    for (let x = -0.3, k = 0; x <= 0.3; k++) {
+      const ax = Math.abs(x), gap = (back ? 0.005 : 0.0055) + 0.006 * rnd(k, 1.61);
+      const len = (back ? 0.04 + 0.05 * rnd(k, 2.39) : 0.04 + 0.075 * rnd(k, 2.39)) * (0.55 + 0.45 * Math.min(1, ax / 0.04));
+      const dx = Math.sign(x) * len * (0.08 + 0.25 * Math.min(1, ax / 0.25)) + 0.004 * Math.sin(k * 0.71);
+      const deep = (back ? 0.7 : 1) * (0.65 + 0.35 * rnd(k, 0.93)), wide = back ? 2.2 : 1;
+      wedge(x, waistSeam - 0.0006, dx, len, (0.0024 + 0.0014 * rnd(k, 1.1)) * wide, `rgba(0,0,0,${deep})`);
+      wedge(x + 0.0022 * wide, waistSeam - 0.0006, dx * 0.9, len * 0.8, 0.0018 * wide, `rgba(255,255,255,${deep * 0.8})`);
+      x += gap;
     }
     g.restore();
   };

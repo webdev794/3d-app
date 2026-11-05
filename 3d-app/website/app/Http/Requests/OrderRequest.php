@@ -48,6 +48,8 @@ class OrderRequest extends FormRequest
             'user_id' => $admin ? [$required, 'integer', 'exists:users,id'] : ['prohibited'],
             'project_id' => $byForm ? ['prohibited'] : ['sometimes', 'nullable', 'integer', 'exists:projects,id'],
             'draft_id' => $admin ? ['prohibited'] : ['sometimes', 'nullable', 'integer'],
+            // The Order Assistant chat the order came from (Edit Order): its design pictures count as the artwork.
+            'assist_token' => $admin ? ['prohibited'] : ['sometimes', 'nullable', 'string', 'max:80'],
             'idempotency_key' => ['sometimes', 'nullable', 'string', 'regex:/^[A-Za-z0-9_-]{8,80}$/'],
             // With a players list or garment rows, the sizes are counted from them.
             // (A marquee from the Marquee Studio is counted by its size, Order::MARQUEE_SIZES.)
@@ -57,7 +59,8 @@ class OrderRequest extends FormRequest
             'contact_email' => ['sometimes', 'nullable', 'email', 'max:190'],
             'phone' => [$upload ? 'required' : 'sometimes', 'nullable', 'string', 'max:40'],
             // The order form asks for the minimum (client 2026-11-05): team name and date required are optional there.
-            'team_name' => [$source === 'upload' ? 'required' : 'sometimes', 'nullable', 'string', 'max:120'],
+            // Upload Your Order too asks only the basics now (client 2026-11-05): no team line.
+            'team_name' => ['sometimes', 'nullable', 'string', 'max:120'],
             'shipping_address' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:'.($byForm || $admin ? 4000 : 2000)],
             'needed_by' => [$source === 'upload' ? 'required' : 'sometimes', 'nullable', 'date_format:Y-m-d', ...($admin ? [] : ['after_or_equal:today'])],
@@ -186,6 +189,11 @@ class OrderRequest extends FormRequest
                     }
                 }
             }
+            // The order form needs artwork (client 2026-11-05): a saved design (kit) on a garment, artwork chosen for a
+            // garment, artwork on the draft for the whole order, or the design pictures of the Order Assistant chat.
+            if (! $this->routeIs('admin.*') && (($this->source() === 'form' && $this->filled('items')) || ($this->source() === 'upload' && $this->filled('draft_id'))) && ! $this->hasArtwork()) {
+                $validator->errors()->add('artwork', 'Add your artwork: choose a saved design or upload your logo or artwork.');
+            }
             // "Made by": one of the choices offered (an approved supplier), or any supplier for staff.
             if ($this->filled('supplier_id') && ! $validator->errors()->has('supplier_id') && \App\Models\Supplier::ready()
                 && ! \App\Models\Supplier::forOrder($this->input('supplier_id'), $this->routeIs('admin.*'))) {
@@ -235,6 +243,35 @@ class OrderRequest extends FormRequest
         $request->validateResolved();
 
         return $request->validated();
+    }
+
+    /** Whether a form order has artwork: a design or files on a garment, artwork on its draft, or the chat's design pictures. */
+    private function hasArtwork(): bool
+    {
+        foreach (is_array($this->input('items')) ? $this->input('items') : [] as $item) {
+            if (is_array($item) && (! empty($item['project_id']) || ! empty($item['file_ids']))) {
+                return true;
+            }
+        }
+        $user = $this->user('sanctum') ?? $this->user();
+        if ($this->filled('draft_id') && $user && \App\Models\OrderFile::query()->where('order_draft_id', (int) $this->input('draft_id'))
+            ->where('user_id', $user->id)->where(fn ($q) => $q->where('kind', '!=', 'order_form')
+                // Upload Your Order: a picture uploaded as the order form is often the mockup.
+                ->orWhereIn('extension', ['png', 'jpg', 'jpeg', 'webp', 'gif', 'heic']))->exists()) {
+            return true;
+        }
+        if ($this->filled('assist_token')) {
+            $assist = \App\Models\OrderAssist::query()->where('token', (string) $this->input('assist_token'))->first();
+            if ($assist && (! $assist->user_id || ! $user || $assist->user_id === $user->id)) {
+                foreach ((array) $assist->files as $file) {
+                    if (($file['kind'] ?? '') === 'design') {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /** Where a customer's order comes from: studio (default), form or upload. */

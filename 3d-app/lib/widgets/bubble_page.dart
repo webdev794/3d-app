@@ -23,7 +23,13 @@ class BubblePage extends StatelessWidget {
     this.scrolls = false,
     this.onBellClosed,
     this.onRefresh,
+    this.compact = false,
   });
+
+  /// A working page in the bubble (order form, order details): less room
+  /// over the title and at the sides, so forms keep their width. The main
+  /// pages (Home, Projects, Orders, Profile) leave it off.
+  final bool compact;
   final AppController c;
   final String title;
   final String? subtitle;
@@ -117,6 +123,8 @@ class BubblePage extends StatelessWidget {
                                 // as wide as Home's (full width) with Home's
                                 // top and bottom dome.
                                 final area = Size(w, box.maxHeight);
+                                // (A working page keeps a low dome, so a short
+                                // screen still shows most of the form.)
                                 final dome = homeDomeHeight(area);
                                 final bubble = Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
@@ -132,11 +140,26 @@ class BubblePage extends StatelessWidget {
                                     // glowing rim. Bottom: room above the
                                     // rounded bottom, so the last full-width
                                     // row stays inside it.
+                                    // (The same bubble as Projects on every
+                                    // page, user 2026-11-05: Home's dome, the
+                                    // rim and the room inside it.)
                                     padding: EdgeInsets.fromLTRB(
                                       28,
-                                      bubbleHeadingRoom(area),
+                                      compact
+                                          ? math.min(
+                                              bubbleHeadingRoom(area),
+                                              40.0,
+                                            )
+                                          : bubbleHeadingRoom(area),
                                       28,
-                                      bubbleBottomRoom(inner.maxWidth, dome),
+                                      // A working page scrolls down into the
+                                      // bottom curve (clipped to it below).
+                                      compact
+                                          ? dome * .3 + 10
+                                          : bubbleBottomRoom(
+                                              inner.maxWidth,
+                                              dome,
+                                            ),
                                     ),
                                     child: Column(
                                       mainAxisSize: scrolls
@@ -152,7 +175,9 @@ class BubblePage extends StatelessWidget {
                                               fit: BoxFit.scaleDown,
                                               child: Text(
                                                 title,
-                                                style: bubbleTitle(size),
+                                                style: bubbleTitle(
+                                                  compact ? size * .62 : size,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -167,10 +192,27 @@ class BubblePage extends StatelessWidget {
                                           ),
                                         if (title.isNotEmpty ||
                                             subtitle != null)
-                                          const SizedBox(height: 12),
+                                          SizedBox(height: compact ? 6 : 12),
                                         scrolls
                                             ? child
-                                            : Expanded(child: child),
+                                            : Expanded(
+                                                child: compact
+                                                    // The scrolling content
+                                                    // follows the bottom curve.
+                                                    ? ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.vertical(
+                                                              bottom: Radius.elliptical(
+                                                                inner.maxWidth /
+                                                                        2 -
+                                                                    28,
+                                                                dome * .5,
+                                                              ),
+                                                            ),
+                                                        child: child,
+                                                      )
+                                                    : child,
+                                              ),
                                       ],
                                     ),
                                   ),
@@ -319,6 +361,89 @@ class BubbleCornerPill extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+/// A screen opened on top of a tab (order form, order details …) in the
+/// bubble look (user 2026-11-05: the bubble on every app screen): the same
+/// backdrop, header, bubble and tab bar as the main pages, with a Back pill
+/// at the top-left. A tab bar tap closes it, so the tab shows.
+class BubbleRoute extends StatefulWidget {
+  const BubbleRoute({
+    super.key,
+    required this.c,
+    required this.title,
+    required this.child,
+    this.bubbleKey,
+    this.onBack,
+    this.action,
+  });
+  final AppController c;
+  final String title;
+  final Widget child;
+  final Key? bubbleKey;
+
+  /// Back (default: close this screen).
+  final VoidCallback? onBack;
+
+  /// A small round button beside Back (e.g. Open on the website).
+  final Widget? action;
+
+  @override
+  State<BubbleRoute> createState() => _BubbleRouteState();
+}
+
+class _BubbleRouteState extends State<BubbleRoute> {
+  late AppScreen _tab = widget.c.screen;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.c.addListener(_tabChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.c.removeListener(_tabChanged);
+    super.dispose();
+  }
+
+  void _tabChanged() {
+    if (!mounted || widget.c.screen == _tab) return;
+    _tab = widget.c.screen;
+    if (ModalRoute.of(context)?.isCurrent ?? false) {
+      Navigator.of(context).maybePop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Palette.bg,
+    body: SafeArea(
+      bottom: false,
+      child: BubblePage(
+        c: widget.c,
+        title: widget.title,
+        bubbleKey: widget.bubbleKey,
+        compact: true,
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            BubbleCornerPill(
+              key: const ValueKey('bubble-back'),
+              icon: Icons.arrow_back,
+              label: 'Back',
+              onTap: widget.onBack ?? () => Navigator.of(context).maybePop(),
+            ),
+            if (widget.action != null) ...[
+              const SizedBox(width: 4),
+              widget.action!,
+            ],
+          ],
+        ),
+        child: widget.child,
       ),
     ),
   );

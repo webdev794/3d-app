@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-// 3DEEZI Rewards (coming soon) lives on the Orders tab (orders_tab.dart,
+// 3DEEZI Rewards (coming soon): in the Orders tab's "…" menu (order_assistant.dart);
 // its Rewards strip) since the Home became the four tiles of the client's
 // picture 166.jpg (2026-10-23); the strip draws this gift.
 
