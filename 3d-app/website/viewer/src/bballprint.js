@@ -26,7 +26,7 @@ export const BB_SIDE = [[0, 0.313], [0.07, 0.313], [0.2, 0.315], ...[[BB.crotch,
 // (BSF r2, BST -241: a taller, narrower V, 12 % of the height as 420; the panels open along it: bballshorts.js split.)
 export const BB_SPLIT = { x: 0.257, y: 0.075 };
 /** The legs at the hem as worn (bballshorts.js worn: inLine, outLine, legDepth): inner and outer side, half-depth. */
-export const BB_LEG = { inHem: 0.04, outHem: 0.2315, depthHem: 0.138 };
+export const BB_LEG = { inHem: 0.04, outHem: 0.2335, depthHem: 0.138 };
 /**
  * The V split's edge [x, y], from the hem's corner up to the top of the split: cut so that, worn round the leg, it runs
  * up in a straight line as the client's picture shows it (420, a three-quarter view turned about 40 degrees), with a
@@ -314,6 +314,11 @@ export function bballTailoring(painter) {
   const relief = (g) => {
     g.save();
     g.lineCap = 'round';
+    // The double knit's fine lines running across the whole garment, about 2.5 mm apart (BST on -261: on the body too).
+    for (let y = -0.03, k = 0; y <= BB.waist + 0.01; y += 0.0025, k++) {
+      g.strokeStyle = `rgba(0,0,0,${0.07 + 0.03 * Math.sin(k * 1.3)})`; g.lineWidth = 0.0009;
+      g.beginPath(); g.moveTo(-0.8, y); g.lineTo(0.8, y); g.stroke();
+    }
     // The band itself: fine vertical ruching all round, uneven, from its foot to the waist's edge.
     for (let x = -0.45, k = 0; x <= 0.45; x += 0.0032, k++) {
       g.strokeStyle = `rgba(255,255,255,${0.28 + 0.12 * Math.sin(k * 1.7)})`; g.lineWidth = 0.0014;

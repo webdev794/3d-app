@@ -523,10 +523,9 @@ export function wornShift(spec, { topSeam, outline = [], hemDist = (p) => p.y })
   // Above the underarms the body goes on up to the shoulders under the straps (the armholes open round the arms).
   // (The straps wrap a little round the shoulders: the front no broader at the top than the pictures'.)
   const shoulder = (y) => along([[pitY, pitX], [top - 0.07, pitX - 0.022], [top - 0.03, pitX - 0.04], [top, pitX - 0.06]], y);
-  // (Above the underarm the body keeps its width (the larger of the shoulder line and the armhole's edge): the armhole's
-  // edges then lie in front of and behind the side, so its foot is a round U, not a pinched V; and the width runs on
-  // smoothly from the side seam, with no dip, which had rippled the upper back: NDT.)
-  const half = (y) => (y <= pitY ? own(y) : Math.max(shoulder(y), own(y)));
+  // (Just above the underarm the body keeps its width at once: the armhole's edges then lie in front of and behind the
+  // side, so its foot is a round U; wrapped as narrow as the armhole's edge they met at the side in a pinched V: NDT.)
+  const half = (y) => (y <= pitY ? own(y) : THREE.MathUtils.lerp(own(y), Math.max(shoulder(y), own(y) + 0.006), ramp(pitY - 0.002, pitY + 0.008, y)));
   const SH = top - 0.05;
   // The width the cloth wraps round, eased over 4 cm up and down (no shelf where the underarm meets the bust).
   // (Below the bust too, over 3 cm each way: the side seam's straight runs left small kinks at its points that showed
@@ -537,7 +536,7 @@ export function wornShift(spec, { topSeam, outline = [], hemDist = (p) => p.y })
   const wrapHalf = (y) => (y <= SH ? eased(y) : eased(SH) - 0.75 * (eased(SH) - eased(y)));
   // Depth / width round the body: thin across the shoulders, the chest and bust, the waist, and rounder over the hips
   // and on down to the hem (as deep as the pictures' from the side three-quarter, 426).
-  const depthRaw = (d) => along([[0, 0.52], [0.1, 0.68], [0.16, 0.73], [0.22, 0.77], [0.3, 0.76], [fig.waist, 0.78], [fig.hip, 0.82], [0.88, SHIFT_HEM_DEPTH]], d);
+  const depthRaw = (d) => along([[0, 0.52], [0.1, 0.68], [0.16, 0.73], [0.22, 0.77], [0.3, 0.76], [fig.waist, 0.78], [fig.hip, 0.87], [0.88, SHIFT_HEM_DEPTH]], d);
   // (Smoothed over 4 cm each way: its corner at the waist was a crease where a top light's shadow edge caught: NDT.)
   const depth = (d) => (depthRaw(d - 0.04) + 2 * depthRaw(d) + depthRaw(d + 0.04)) / 4;
   const B = spec.bust ?? fig.bust;
@@ -586,4 +585,4 @@ export function wornShift(spec, { topSeam, outline = [], hemDist = (p) => p.y })
   return { at: torso, sleeve: () => null, relief, shade, pit: new THREE.Vector2(pitX, pitY), half, top, figure: fig };
 }
 /** The shift's depth / width at the hem, and how much its hem corners round in. */
-const SHIFT_HEM_DEPTH = 0.8, SHIFT_HEM_TUCK = 0.05;
+const SHIFT_HEM_DEPTH = 0.92, SHIFT_HEM_TUCK = 0.05;

@@ -43,7 +43,7 @@ export const BBALL_SHORTS = {
     const soft = (v) => Math.sign(v) * Math.abs(v) ** 1.4;
     // (BST on -253: none over the hem band, and none near the side seams, so the outline stays smooth.)
     const sideX = BB_SIDE.reduce((x, [yy, xx], k, a) => (k && y >= a[k - 1][0] && y <= yy ? a[k - 1][1] + ((xx - a[k - 1][1]) * (y - a[k - 1][0])) / (yy - a[k - 1][0]) : x), BB_SIDE.at(-1)[1]);
-    const keep = THREE_ramp(0.035, 0.09, y) * THREE_ramp(sideX - 0.05, sideX - 0.16, ax);
+    const keep = THREE_ramp(0.035, 0.09, y) * (back ? THREE_ramp(sideX - 0.015, sideX - 0.07, ax) : THREE_ramp(sideX - 0.07, sideX - 0.2, ax));
     // (Not at the waist's edge, under the band, so the band stays one smooth piece; softer at the centre seam.)
     const top = THREE_ramp(W - 0.03, W - 0.075, y) * (0.4 + 0.6 * THREE_ramp(0.005, 0.045, ax));
     // In front: a few soft folds from the band, about 6 cm apart, uneven in spacing and length, fading out by ~45 % down.
@@ -59,7 +59,7 @@ export const BBALL_SHORTS = {
     const front = back ? 0 : broad * depth * 0.62 * THREE_ramp(reach - 0.04, reach + 0.06, y) + fine;
     // Behind: a few soft V folds just under the band, towards the centre, gone by ~18 % down; then a smooth seat.
     const vx = ax - (W - 0.03 - y) * 0.5;
-    const vee = back ? soft(Math.sin(vx * 95 + ph)) * 0.013 * THREE_ramp(W - 0.13, W - 0.06, y) * THREE_ramp(0.2, 0.1, ax) : 0;
+    const vee = back ? soft(Math.sin(vx * 95 + ph)) * 0.026 * THREE_ramp(W - 0.13, W - 0.06, y) * THREE_ramp(0.2, 0.1, ax) : 0;
     // Behind below the V, down the seat: soft, faint, uneven upright folds.
     const seatF = back ? soft(Math.sin(p.x * 80 + 1.2 * Math.sin(y * 9 + p.x * 13) + ph)) * 0.0032 * THREE_ramp(W - 0.31, W - 0.2, y) * THREE_ramp(W - 0.06, W - 0.12, y) : 0;
     // The legs: a few long faint vertical folds below the crotch; a small soft fold at the crotch.
@@ -99,7 +99,7 @@ export const BBALL_SHORTS = {
     // rounding in to .60 over its last few cm; above the crotch in to the waist.)
     // (BSF r3, the user 2026-11-04, 429 / 430: the leg openings hang straight down and stay open, not pulled in at the
     // hem; only the last few mm ease in.)
-    outLine: [[0, BB_LEG.outHem], [0.06, BB_LEG.outHem], [C, 0.231], [BB.waist, 0.185]],
+    outLine: [[0, BB_LEG.outHem], [0.06, BB_LEG.outHem], [C, 0.2275], [BB.waist, 0.185]],
     legDepth: [BB_LEG.depthHem, 0.145],
     relief: 0.12,
     seat: 0.05,

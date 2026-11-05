@@ -89,3 +89,4 @@ Resume via SendMessage, do not respawn:
 - BSF a161c7475f4c08d5e: -261 fix list (40° tube folds, knit on body, back legs 60-70% -0.5%, back V 1.5x); merge only after the pack is done.
 - NDF af583c2f6cd3ff881: folds/shine/yoke colour (-257 list); merge only after the pack is done. NDT aaa2f21c3d04e8914, BST ad3a868f541eb014f test after.
 - 2026-11-05: v2 pushed = d390e95 (with the wrong desktop changes); tar 3deez-update-2026-11-05-a made but NOT for live. After TL undoes the desktop pages: new commit on top of v2 (no force) + remake the tar (REF 11-04-a).
+- 2026-11-05 15:05: v2 pushed = 66cd25b (on top of d390e95); live tar deploy-zips/3deez-update-2026-11-05-b.tar.gz (delta since 11-04-a, code only, DELETE-ON-LIVE.txt inside); 11-05-a deleted, never live.

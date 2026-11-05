@@ -1712,8 +1712,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         items.isEmpty
             ? 'No garments or sizes found. Try lines like "Polo" then "3 x 4XL".'
             : 'Built ${items.length} ${items.length == 1 ? 'garment' : 'garments'} ($count in all) from your notes. Check them under Garments.',
-        if (items.isNotEmpty && deliveryProblem() != null)
-          'Please check: ${deliveryProblem()}',
+        if (items.isNotEmpty && deliveryProblem(dateOptional: true) != null)
+          'Please check: ${deliveryProblem(dateOptional: true)}',
         if (unknown.isNotEmpty)
           'Please check: ${unknown.take(6).map((u) => '"$u"').join(', ')}',
       ].join('\n');
