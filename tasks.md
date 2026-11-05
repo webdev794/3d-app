@@ -631,3 +631,8 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - 2026-11-05 (images/438-439, client): Orders page one combined "Create order form" card (start from scratch or upload sheet) -> Order Assistant; normal order form asks too much: assistant first, manual form minimal; APP first then web. TL task 4 (+ task 3 note).
 
 - Netball dress (later, user 2026-11-05): the client's second picture (images/445: green yoke+straps, gold body, plaid side panel) is a colour design that can be made later and put on the model; the model only needs the matching colour areas.
+
+## 2026-11-05 corrections from the user (do first after the limit resets)
+- Website desktop: UNDO the combined card. Home "Order now with 3DEEZI" and the Orders page go back to the earlier THREE cards (Need help ordering? / Order ready to go? / My orders), as in images/447. The combined card (439) and the phone-style Order Assistant (images 4/5) were for the MOBILE APP only.
+- Website /orders/assistant was built in the phone look; the website must not get the mobile design. Restore the earlier desktop flow and pages.
+- Normal (manual) order form: client wants MINIMUM fields so it is quick to fill; keep the three separate tabs as they are.

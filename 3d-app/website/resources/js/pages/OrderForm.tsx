@@ -165,11 +165,13 @@ function validate(f: FormState, o: FormOptions): Record<string, string> {
   const p: Record<string, string> = {};
   if (!f.contact.contact_name.trim()) p.contact_name = 'Add the contact name.';
   if (f.contact.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.contact_email.trim())) p.contact_email = 'Check the email address.';
-  if (!f.contact.team_name.trim()) p.team_name = 'Add your team or organisation.';
+  // The minimum to order (client 2026-11-05): team name and date required are optional.
   // Mobile, date required and delivery, as on Upload Your Order (the server checks the same).
   const mobile = mobileError(f.contact.phone);
   if (mobile) p.phone = mobile;
-  Object.assign(p, deliveryErrors(f.delivery));
+  const where = deliveryErrors(f.delivery);
+  if (!f.delivery.needed_by) delete where.needed_by;
+  Object.assign(p, where);
   if (!f.rows.length) p.items = 'Add at least one garment.';
   f.rows.forEach((r, i) => {
     if (!sum(r.sizes)) p[`items.${i}.sizes`] = `Add sizes and quantities for ${rowName(r, o)}.`;

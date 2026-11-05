@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, House, LoaderCircle, LogOut, Menu, PenTool, Shirt, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
 import { api, draftKey, getToken, keepDraft, media, setToken, type Catalog, type Project, type User } from './api';
 import { defaultDesign, type Design } from './types';
@@ -9,7 +9,6 @@ import AdminPage from './pages/Admin';
 import OrdersBoardPage from './pages/OrdersBoard';
 import OrderUploadPage from './pages/OrderUpload';
 import OrderFormPage from './pages/OrderForm';
-import OrderAssistantPage from './pages/OrderAssistant';
 import OrderSummaryPage from './pages/OrderSummary';
 import OrdersLandingPage from './pages/OrdersLanding';
 import InvoicePayPage from './pages/InvoicePay';
@@ -198,8 +197,8 @@ export default function App() {
       <Route path="/orders" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
       <Route path="/orders/:orderId" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
       <Route path="/orders/upload" element={<OrderUploadPage user={user} checking={checkingSession} requireAuth={requireAuth} onNotice={setNotice} />} />
-      {/* The Order Assistant (task TL-3): the default way to order, and its share page. */}
-      <Route path="/orders/assistant" element={<OrderAssistantPage user={user} requireAuth={requireAuth} />} />
+      {/* The Order Assistant is the app's (phone) way to order; on the website it opens the order form. Its share page stays. */}
+      <Route path="/orders/assistant" element={<Navigate to="/orders/new" replace />} />
       <Route path="/orders/summary/:token" element={<OrderSummaryPage />} />
       <Route path="/orders/new" element={<OrderFormPage user={user} restoring={checkingSession} requireAuth={requireAuth} catalog={catalog} onNotice={setNotice} />} />
       <Route path="/invoices/:number" element={<InvoicePayPage user={user} checking={checkingSession} requireAuth={requireAuth} />} />

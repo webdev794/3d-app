@@ -119,8 +119,9 @@ class OrderBoardTest extends TestCase
 
     public function test_the_order_form_is_checked(): void
     {
+        // The minimum to order (client 2026-11-05): the team name is optional on the order form.
         $this->submit($this->form(['team_name' => '', 'items' => []]))->assertUnprocessable()
-            ->assertJsonValidationErrors(['team_name' => 'Add your team or organisation name.', 'items' => 'Add at least one garment']);
+            ->assertJsonValidationErrors(['items' => 'Add at least one garment'])->assertJsonMissingValidationErrors(['team_name']);
         $this->submit($this->form(['items' => [['garment' => 'jersey', 'sizes' => ['M' => 0]], ['garment' => 'cape', 'sizes' => ['M' => 2]]]]))->assertUnprocessable()
             ->assertJsonValidationErrors(['items.0.sizes' => 'Garment 1: add at least one size and quantity.', 'items.1.garment' => 'Garment 2']);
         $this->submit($this->form(['items' => [['garment' => 'jersey', 'sizes' => ['XXXL' => 2]]]]))->assertJsonValidationErrors('items.0.sizes');

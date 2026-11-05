@@ -948,11 +948,12 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
   }
 
   /// What stops the order being sent from section 1 (mobile, date required, delivery or pick up), or null.
-  String? deliveryProblem() => uploadDetailsProblem(
+  String? deliveryProblem({bool dateOptional = false}) => uploadDetailsProblem(
     phone: phone.text,
     neededBy: neededBy,
     delivery: delivery,
     address: address,
+    dateOptional: dateOptional,
   );
 
   /// Date required, Deliver or Pick up, and the delivery address.
@@ -1452,17 +1453,21 @@ String? uploadDetailsProblem({
   required String delivery,
   required Map<String, String> address,
   DateTime? today,
+  bool dateOptional = false,
 }) {
   final now = today ?? DateTime.now();
   if (phone.trim().isEmpty) return 'Add a mobile number so we can reach you.';
   if (!validMobile(phone))
     return 'Enter a mobile number, e.g. 0412 345 678 or +61 412 345 678.';
-  if (neededBy == null) return 'Choose the date you need the order by.';
-  if (DateTime(
-    neededBy.year,
-    neededBy.month,
-    neededBy.day,
-  ).isBefore(DateTime(now.year, now.month, now.day)))
+  if (neededBy == null && !dateOptional) {
+    return 'Choose the date you need the order by.';
+  }
+  if (neededBy != null &&
+      DateTime(
+        neededBy.year,
+        neededBy.month,
+        neededBy.day,
+      ).isBefore(DateTime(now.year, now.month, now.day)))
     return 'The date required can’t be in the past.';
   if (delivery != 'deliver' && delivery != 'pickup')
     return 'Choose delivery or pick up.';
@@ -1865,10 +1870,12 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     }
   }
 
+  // The minimum to order (client 2026-11-05): contact name, mobile, delivery
+  // or pick up (with the address when delivering), and garments with sizes.
+  // Team name and date required are optional.
   String? problem() {
     if (name.text.trim().isEmpty) return 'Add a contact name.';
-    if (team.text.trim().isEmpty) return 'Add your team or organisation name.';
-    if (deliveryProblem() case final details?) return details;
+    if (deliveryProblem(dateOptional: true) case final details?) return details;
     if (total < 1) return 'Add at least one size and quantity.';
     return null;
   }

@@ -81,3 +81,11 @@ Each worker's 2-line pause reply is added below as it arrives.
 - 2026-11-05: BST failed shorts -255 (folds far too faint at 20-45% of target, waistband looks like a ring, hard lines at 40 deg, knit not visible, back 2-3% wide). Fix list sent to BSF a161c7475f4c08d5e. BST ad3a868f541eb014f tests the next version.
 - 2026-11-05: TL finished the app Order Assistant + one Orders card (shots in scratchpad\TL\shots). Main sent 3 small fixes (pill "ORDER ASSISTANT", tab bar on screen 1, Orders bubble shorter like 439 so suppliers show), then the website. Shorts -256 FAIL (tube folds, ring band, shiny) -> fix list to BSF. Netball: NDF checking hip depth + back neck; keep -254 otherwise.
 - 2026-11-05: TL finished Order Assistant + Orders card (app+web), tested by hand on 8010. Live needs migrate (order_assists) + reach photon.komoot.io; polo price unset -> polo orders wait for a quote.
+
+## 2026-11-05 ~14:00 STOP: all agents hit the 5-hour limit (resets 2:50pm IST)
+Resume via SendMessage, do not respawn:
+- push+tar agent a57a1b2603f6958e5: stopped mid-way, state UNKNOWN. Check git status/log first. HOLD the push and tar until the desktop undo below is done (the user said the website desktop must not change).
+- TL a3f101741f6eac5d9: do the 3 corrections in tasks.md (desktop back to 3 cards, website assistant not phone-style, manual form minimal fields with 3 tabs kept). App stays as built.
+- BSF a161c7475f4c08d5e: -261 fix list (40° tube folds, knit on body, back legs 60-70% -0.5%, back V 1.5x); merge only after the pack is done.
+- NDF af583c2f6cd3ff881: folds/shine/yoke colour (-257 list); merge only after the pack is done. NDT aaa2f21c3d04e8914, BST ad3a868f541eb014f test after.
+- 2026-11-05: v2 pushed = d390e95 (with the wrong desktop changes); tar 3deez-update-2026-11-05-a made but NOT for live. After TL undoes the desktop pages: new commit on top of v2 (no force) + remake the tar (REF 11-04-a).

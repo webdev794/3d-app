@@ -56,10 +56,11 @@ class OrderRequest extends FormRequest
             'contact_name' => [$required, 'string', 'max:120'],
             'contact_email' => ['sometimes', 'nullable', 'email', 'max:190'],
             'phone' => [$upload ? 'required' : 'sometimes', 'nullable', 'string', 'max:40'],
-            'team_name' => [$byForm ? 'required' : 'sometimes', 'nullable', 'string', 'max:120'],
+            // The order form asks for the minimum (client 2026-11-05): team name and date required are optional there.
+            'team_name' => [$source === 'upload' ? 'required' : 'sometimes', 'nullable', 'string', 'max:120'],
             'shipping_address' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:'.($byForm || $admin ? 4000 : 2000)],
-            'needed_by' => [$upload ? 'required' : 'sometimes', 'nullable', 'date_format:Y-m-d', ...($admin ? [] : ['after_or_equal:today'])],
+            'needed_by' => [$source === 'upload' ? 'required' : 'sometimes', 'nullable', 'date_format:Y-m-d', ...($admin ? [] : ['after_or_equal:today'])],
             // Deliver to an address or pick up; kept on the order as its shipping_address text (App\Support\OrderDelivery).
             'delivery' => $upload ? ['required', Rule::in(OrderDelivery::METHODS)] : $delivery([Rule::in(OrderDelivery::METHODS)]),
             'address' => $delivery(['array:'.implode(',', OrderDelivery::ADDRESS_FIELDS)]),

@@ -121,7 +121,8 @@ class OrderUploadDeliveryTest extends TestCase
         // The order form (Create Order Form) needs them too (2026-10-22), with the same checks and storage.
         $form = ['source' => 'form', 'contact_name' => 'Fabian', 'team_name' => 'Hawks', 'items' => [['garment' => 'jersey', 'sizes' => ['M' => 2]]]];
         $this->postJson('/api/v1/orders', $form, ['Idempotency-Key' => 'form-no-delivery'])->assertUnprocessable()
-            ->assertJsonValidationErrors(['needed_by', 'phone', 'delivery']);
+            // The date required is optional on the order form (client 2026-11-05); mobile and delivery are not.
+            ->assertJsonValidationErrors(['phone', 'delivery'])->assertJsonMissingValidationErrors(['needed_by']);
         $this->postJson('/api/v1/orders', $form + ['phone' => '0412 345 678', 'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'deliver',
             'address' => ['street' => '12 Smith Street', 'suburb' => 'Rotorua', 'country' => 'Australia']], ['Idempotency-Key' => 'form-no-delivery'])
             ->assertUnprocessable()->assertJsonValidationErrors(['address.state', 'address.postcode']);
