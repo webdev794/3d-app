@@ -8,7 +8,7 @@ import 'package:three_deezi/assist.dart';
 import 'package:three_deezi/screens/library.dart';
 import 'package:three_deezi/screens/order_assistant.dart';
 import 'package:three_deezi/screens/order_entry.dart';
-import 'package:three_deezi/screens/orders_board.dart' show OrderDetailScreen;
+import 'package:three_deezi/screens/orders_board.dart' show OrderDetailScreen, OrderBoardCard, orderCardLine, orderPayable;
 import 'package:three_deezi/widgets/assist_overlay.dart';
 import 'package:three_deezi/widgets/ui.dart';
 
@@ -103,6 +103,45 @@ void main() {
     await tap(tester, find.byKey(const ValueKey('bubble-back')));
     expect(find.byKey(const ValueKey('assistant-title')), findsOneWidget);
   });
+
+  // QA8 #9: My orders cards read as the website's, with PAY NOW on an unpaid order.
+  testWidgets('My orders card: "5 garments · required 20 Mar" and PAY NOW on an unpaid order', (tester) async {
+    var paid = 0;
+    final o = <String, dynamic>{
+      'id': 4, 'number': '3DZ-00004', 'name': 'Tigers', 'quantity': 5, 'needed_by': '2027-03-20',
+      'stage': 'review', 'stage_label': 'In review', 'sub_status': {'label': 'In review', 'tone': 'blue'},
+      'garments': [{'garment': 'jersey', 'name': 'Jersey'}],
+      'payment': {'status': 'awaiting_payment', 'label': 'Awaiting payment', 'tone': 'amber', 'can_pay': true, 'invoice_number': 'INV-1'},
+    };
+    await _phone(tester, SingleChildScrollView(child: OrderBoardCard(o, onTap: () {}, onPay: () => paid++)), 360, 780);
+    expect(find.text('5 garments · required 20 Mar'), findsOneWidget);
+    expect(find.text('PAY NOW →'), findsOneWidget);
+    expect(find.text('View progress →'), findsNothing);
+    await tester.tap(find.byKey(const Key('order-card-pay')));
+    expect(paid, 1);
+    expect(tester.takeException(), isNull);
+    expect(orderCardLine({'quantity': 1, 'garments': [{'garment': 'marquee'}]}), '1 marquee');
+    expect(orderPayable({'status': 'paid', 'can_pay': false, 'invoice_number': 'INV-1'}), isFalse);
+  });
+
+  // QA8 #1: Home in the tab bar from the Create Order Form did nothing.
+  for (final tab in ['home', 'projects', 'profile']) {
+    testWidgets('Create Order Form (from Switch to Manual Form): $tab in the tab bar leaves the form', (tester) async {
+      final c = signedIn(OrdersServer())..screen = AppScreen.orderHub;
+      await mount(tester, ListenableBuilder(
+        listenable: c,
+        builder: (_, _) => c.screen == AppScreen.orderHub
+            ? OrderAssistantScreen(c, root: true)
+            : Text('screen ${c.screen.name}'),
+      ), width: 390);
+      await tap(tester, find.byKey(const ValueKey('assistant-manual')));
+      expect(find.byType(OrderFormScreen), findsOneWidget);
+      await tester.tap(find.byKey(ValueKey('nav-$tab')).last);
+      await tester.pumpAndSettle();
+      expect(find.byType(OrderFormScreen), findsNothing, reason: tab);
+      expect(c.screen.name, tab == 'home' ? 'home' : tab);
+    });
+  }
 
   for (final width in [360.0, 390.0, 430.0, 768.0]) {
     testWidgets('Orders tab fits a $width px screen (no overflow)', (tester) async {

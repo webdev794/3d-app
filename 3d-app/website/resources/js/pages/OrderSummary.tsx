@@ -23,9 +23,13 @@ export default function OrderSummaryPage() {
   if (missing) return <main className="os-page"><section className="os-empty"><h1>Order summary not found</h1><p>The link may be wrong or the summary removed.</p><Link to="/orders/assistant">Start an order</Link></section></main>;
   if (!order?.analysis) return <main className="os-page"><p className="os-loading">Loading the order summary…</p></main>;
   const a = order.analysis;
-  const garments = Object.keys(a.totals.by_garment);
-  const name = (g: string) => ({ polo: 'Polo', singlet: 'Singlet', tee: 'Tee', jersey: 'Jersey', shorts: 'Shorts', hoodie: 'Hoodie', jacket: 'Jacket', pants: 'Track pants', socks: 'Socks', cap: 'Cap', warmup: 'Warm-up top' } as Record<string, string>)[g] ?? 'Other';
-  const tiles: [string, number, boolean?][] = [['Total garments', a.totals.garments], ...Object.entries(a.totals.by_product).slice(0, 3).map(([k, v]) => [k.replace(/^Line Uniform /, 'Line ') + 's', v] as [string, number]), ['To check', a.totals.to_check, true]];
+  // A column per garment; each sport's model on its own ("Football jersey"), by_column (older readings: by_garment).
+  const byColumn = a.totals.by_column ?? a.totals.by_garment;
+  const garments = Object.keys(byColumn);
+  const name = (g: string) => a.totals.columns?.[g] ?? ({ polo: 'Polo', singlet: 'Singlet', tee: 'Tee', jersey: 'Jersey', shorts: 'Shorts', hoodie: 'Hoodie', jacket: 'Jacket', pants: 'Track pants', socks: 'Socks', cap: 'Cap', warmup: 'Warm-up top' } as Record<string, string>)[g] ?? 'Other';
+  // "Football jerseys", "Jerseys (sport not given)".
+  const plural = (n: string): string => { const m = /^(.*?)(\s*\(.*\))$/.exec(n); if (m) return plural(m[1]) + m[2]; return /(ss|sh|ch|x)$/i.test(n) ? `${n}es` : /s$/i.test(n) ? n : `${n}s`; };
+  const tiles: [string, number, boolean?][] = [['Total garments', a.totals.garments], ...Object.entries(a.totals.by_product).slice(0, 3).map(([k, v]) => [plural(k.replace(/^Line Uniform /, 'Line ')), v] as [string, number]), ['To check', a.totals.to_check, a.totals.to_check > 0]];
   async function copy() { try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* */ } }
 
   return <main className="os-page" data-testid="order-summary">
@@ -45,9 +49,9 @@ export default function OrderSummaryPage() {
       <div className="os-scroll"><table className="os-table">
         <thead><tr><th>Design – colour</th>{garments.map(g => <th key={g}>{name(g)}</th>)}<th>Total</th><th>Lines</th><th>To check</th></tr></thead>
         <tbody>{a.groups.map(g => <tr key={g.key}><th style={{ background: g.colour ?? '#2f6fd6' }}><a href={`#g-${g.key}`}>{g.design}</a></th>
-          {garments.map(x => { const n = g.garments.filter(r => r.garment === x).reduce((s, r) => s + r.total, 0); return <td key={x}>{n || '·'}</td>; })}
+          {garments.map(x => { const n = g.garments.filter(r => (r.column ?? r.garment) === x).reduce((s, r) => s + r.total, 0); return <td key={x}>{n || '·'}</td>; })}
           <td><b>{g.total}</b></td><td>{g.lines}</td><td className={g.check_lines ? 'is-warn' : ''}>{g.check_lines}</td></tr>)}</tbody>
-        <tfoot><tr><th>GRAND TOTAL</th>{garments.map(g => <td key={g}>{a.totals.by_garment[g]}</td>)}<td><b>{a.totals.garments}</b></td><td>{a.totals.lines}</td><td>{a.totals.to_check}</td></tr></tfoot>
+        <tfoot><tr><th>GRAND TOTAL</th>{garments.map(g => <td key={g}>{byColumn[g]}</td>)}<td><b>{a.totals.garments}</b></td><td>{a.totals.lines}</td><td>{a.totals.to_check}</td></tr></tfoot>
       </table></div>
     </section>
 

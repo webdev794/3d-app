@@ -2875,47 +2875,51 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
                 ),
             ],
           ),
-        Row(
-          children: [
-            IconButton(
-              tooltip: 'Attach files',
-              onPressed: () async {
-                final picked = await pickTeamFiles('files');
-                if (mounted)
-                  setState(
-                    () => _attach.addAll(
-                      picked
-                          .where(
-                            (f) => teamReferenceTypes.contains(_ext(f.name)),
-                          )
-                          .take(5 - _attach.length),
+        // Attach and Send count as part of the message box: tapping them
+        // keeps the keyboard up (a tap elsewhere closes it).
+        TextFieldTapRegion(
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'Attach files',
+                onPressed: () async {
+                  final picked = await pickTeamFiles('files');
+                  if (mounted)
+                    setState(
+                      () => _attach.addAll(
+                        picked
+                            .where(
+                              (f) => teamReferenceTypes.contains(_ext(f.name)),
+                            )
+                            .take(5 - _attach.length),
+                      ),
+                    );
+                },
+                icon: const Icon(Icons.attach_file),
+              ),
+              Expanded(
+                child: TextField(
+                  key: const Key('team-message'),
+                  controller: _message,
+                  focusNode: _messageFocus,
+                  minLines: 1,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Message your designer…',
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
                     ),
-                  );
-              },
-              icon: const Icon(Icons.attach_file),
-            ),
-            Expanded(
-              child: TextField(
-                key: const Key('team-message'),
-                controller: _message,
-                focusNode: _messageFocus,
-                minLines: 1,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: 'Message your designer…',
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
                   ),
                 ),
               ),
-            ),
-            IconButton(
-              tooltip: 'Send',
-              onPressed: _busy == 'message' ? null : _sendMessage,
-              icon: const Icon(Icons.send, color: Palette.cyan),
-            ),
-          ],
+              IconButton(
+                tooltip: 'Send',
+                onPressed: _busy == 'message' ? null : _sendMessage,
+                icon: const Icon(Icons.send, color: Palette.cyan),
+              ),
+            ],
+          ),
         ),
       ],
     ),

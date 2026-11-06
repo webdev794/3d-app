@@ -491,10 +491,11 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
               // and the viewer's own screens get exactly the box.
               ? _Zoomed(
                   enabled: !c.boardMode && !c.viewerModal,
-                  child: KitViewer3D(
+                  builder: (hidden) => KitViewer3D(
                     key: _viewerKey,
                     controller: c,
                     height: double.infinity,
+                    hidden: hidden,
                   ),
                 )
               : c.renderFront != null && !c.show3d
@@ -509,7 +510,9 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
         ),
         // Front / Back / Side at the foot of the 3D, as on the website
         // (172.jpg): the sides stay clear for the kit.
-        if (!_preview && !c.boardMode && !c.viewerModal)
+        // (While a logo or words are selected on the kit, the buttons over
+        // the 3D step aside for the viewer's own menu, 486.png.)
+        if (!_preview && !c.boardMode && !c.viewerModal && !c.objectOnKit)
           Positioned(
             left: 0,
             right: 0,
@@ -532,6 +535,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
         if (!_preview &&
             !c.boardMode &&
             !c.viewerModal &&
+            !c.objectOnKit &&
             c.renderFront != null &&
             KitViewer3D.supported)
           Positioned(
@@ -552,6 +556,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
         if (!_preview &&
             !c.boardMode &&
             !c.viewerModal &&
+            !c.objectOnKit &&
             c.productName.isNotEmpty)
           Positioned(
             top: 12,
@@ -1363,9 +1368,11 @@ class _ViewBar extends StatelessWidget {
 /// a tool panel is open) keeps the box; so do the 2D panels and the viewer's
 /// own screens ([enabled] false).
 class _Zoomed extends StatelessWidget {
-  const _Zoomed({required this.enabled, required this.child});
+  const _Zoomed({required this.enabled, required this.builder});
   final bool enabled;
-  final Widget child;
+
+  /// The 3D, told which edges fall outside the box (its menu stays clear).
+  final Widget Function(EdgeInsets hidden) builder;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -1373,12 +1380,13 @@ class _Zoomed extends StatelessWidget {
       final tall = box.maxHeight / math.max(1, box.maxWidth);
       final zoom = enabled ? (1 + (tall - 1) * .4).clamp(1.0, 1.14) : 1.0;
       final w = box.maxWidth * zoom, h = box.maxHeight * zoom;
+      final dx = (w - box.maxWidth) / 2, dy = (h - box.maxHeight) / 2;
       return OverflowBox(
         minWidth: w,
         maxWidth: w,
         minHeight: h,
         maxHeight: h,
-        child: child,
+        child: builder(EdgeInsets.symmetric(horizontal: dx, vertical: dy)),
       );
     },
   );

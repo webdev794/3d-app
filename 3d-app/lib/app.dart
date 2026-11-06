@@ -18,6 +18,7 @@ import 'screens/showcase.dart';
 import 'screens/product_mockup.dart';
 import 'screens/studio.dart';
 import 'widgets/assist_overlay.dart';
+import 'widgets/keyboard_dismiss.dart';
 import 'widgets/notification_bell.dart';
 import 'widgets/ui.dart';
 
@@ -57,6 +58,15 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
     navigatorKey: assist.navigator,
     title: '3DEEZI · Sportswear Designer',
     debugShowCheckedModeBanner: false,
+    // The keyboard goes down on a tap outside a text box, on another screen
+    // or tab and on pages opened or closed (KeyboardDismiss), and when a
+    // page is scrolled by finger.
+    navigatorObservers: [KeyboardDismiss.observer],
+    scrollBehavior: const MaterialScrollBehavior().copyWith(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+    ),
+    builder: (context, child) =>
+        KeyboardDismiss(controller: c, child: child ?? const SizedBox()),
     theme: ThemeData(
       brightness: Brightness.dark,
       useMaterial3: true,

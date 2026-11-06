@@ -9,6 +9,7 @@ import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/screens/order_assistant.dart';
 import 'package:three_deezi/screens/order_entry.dart';
+import 'package:three_deezi/screens/team.dart' show TeamScreen;
 
 import 'features_test.dart' show FakeStore;
 import 'orders_app_test.dart' show OrdersServer, tap;
@@ -136,7 +137,7 @@ void main() {
     expect(find.textContaining('116 lines don’t have a member name.'), findsOneWidget);
     expect(find.textContaining('Torquoise'), findsNothing, reason: 'spelling notes stay in the PDF and Excel');
     expect(find.text('555 garments from 90 orders: 482 polos (including 227 Opening Day polos) and 73 singlets.'), findsOneWidget);
-    expect(find.text('Strickland Family Reunion – Order Summary'), findsWidgets);
+    expect(find.text('Strickland Family Reunion'), findsWidgets, reason: 'the PDF and share page title (QA8 #5)');
 
     // To the end of the answer (it opens at its top, the things to check).
     await tester.drag(find.byKey(const ValueKey('assistant-chat')), const Offset(0, -2000));
@@ -192,6 +193,96 @@ void main() {
     await tap(tester, find.byKey(const ValueKey('assistant-review')));
     expect(find.byType(OrderFormScreen), findsNothing);
     expect(c.screen, AppScreen.auth);
+  });
+
+  test('a summary chip shows the sizes: "Football jersey · 5 (M 3, L 2)"', () {
+    Map<String, dynamic> group(Map<String, dynamic> mens, {Map<String, dynamic> womens = const {}}) => {
+      'design': 'Football jersey',
+      'total': 5,
+      'garments': [
+        {'sizes': {'youth': <String, dynamic>{}, 'womens': womens, 'mens': mens}},
+      ],
+    };
+    expect(groupLine(group({'M': 3, 'L': 2})), 'Football jersey · 5 (M 3, L 2)');
+    expect(groupLine(group({}, womens: {'W10': 5})), 'Football jersey · 5 (10W 5)');
+    expect(groupLine(group({'S': 1, 'M': 1, 'L': 1, 'XL': 1, '2XL': 1})), 'Football jersey · 5 (S 1, M 1, L 1, XL 1, …)');
+    // No sizes read: as before.
+    expect(groupLine({'design': 'Opening Day', 'total': 227}), 'Opening Day · 227');
+  });
+
+  testWidgets('each of the five ways in still runs its action when tapped (after floating into the chat box)', (tester) async {
+    await phone(tester, OrderAssistantScreen(app(AssistantServer())), 390);
+    // A tap: the bubble's copy flies (the bubble hides in its place), then
+    // the option runs.
+    await tester.ensureVisible(find.byKey(const ValueKey('assistant-artwork')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('assistant-artwork')));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('UPLOAD\nARTWORK'), findsNWidgets(2), reason: 'the flying copy and the hidden bubble');
+    expect(find.text('teal.png'), findsNothing, reason: 'the action runs when the bubble lands');
+    await tester.pumpAndSettle();
+    expect(find.text('UPLOAD\nARTWORK'), findsOneWidget);
+    expect(find.text('teal.png'), findsOneWidget);
+
+    await tap(tester, find.byKey(const ValueKey('assistant-sheet')));
+    expect(find.text('Strickland Family Reuion.xlsx'), findsOneWidget);
+    await tap(tester, find.byKey(const ValueKey('assistant-notes')));
+    expect(find.text('Strickland Family Reuion.xlsx'), findsNWidgets(2));
+    await tap(tester, find.byKey(const ValueKey('assistant-scratch')));
+    expect(find.text('I need '), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tap(tester, find.byKey(const ValueKey('assistant-team')));
+    expect(find.byType(TeamScreen), findsOneWidget);
+    // (The 3DEEZI TEAM page's own layout is tested with it.)
+    tester.takeException();
+  });
+
+  testWidgets('screen reader taps and reduced motion: the option runs at once', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(MaterialApp(home: OrderAssistantScreen(app(AssistantServer()))));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('UPLOAD ARTWORK'), findsOneWidget);
+    tester.semantics.tap(find.semantics.byLabel('UPLOAD ARTWORK'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('teal.png'), findsOneWidget, reason: 'no flight with reduced motion');
+    semantics.dispose();
+  });
+
+  testWidgets('drag: a long-pressed bubble dropped on the chat box runs; dropped elsewhere it floats back', (tester) async {
+    await phone(tester, OrderAssistantScreen(app(AssistantServer())), 390);
+    final artwork = find.byKey(const ValueKey('assistant-artwork'));
+    await tester.ensureVisible(artwork);
+    await tester.pumpAndSettle();
+    // Dropped away from the chat box: nothing runs, the bubble is back.
+    var g = await tester.startGesture(tester.getCenter(artwork));
+    await tester.pump(const Duration(milliseconds: 400));
+    await g.moveBy(const Offset(0, -120));
+    await tester.pump();
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(find.text('teal.png'), findsNothing);
+    expect(find.text('UPLOAD\nARTWORK'), findsOneWidget);
+    // Dropped on the chat box: the option runs.
+    final panel = tester.getCenter(find.byKey(const ValueKey('assistant-panel')));
+    final from = tester.getCenter(artwork);
+    g = await tester.startGesture(from);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(artwork, findsNothing, reason: 'picked up: a faint copy stays in its place');
+    for (var k = 1; k <= 6; k++) {
+      await g.moveTo(Offset.lerp(from, panel, k / 6)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(find.text('teal.png'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('nothing typed or added: a hint, no request', (tester) async {

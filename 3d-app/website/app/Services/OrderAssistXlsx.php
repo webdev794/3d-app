@@ -78,12 +78,13 @@ final class OrderAssistXlsx
     private function summary(): array
     {
         $t = $this->a['totals'] ?? [];
-        $garments = array_keys($t['by_garment'] ?? []);
+        // A column per garment, each sport's model on its own ("Football jersey").
+        $garments = array_keys($t['by_column'] ?? $t['by_garment'] ?? []);
         $rows = [];
-        $rows[] = [[$this->assist->title ?: 'Order', 3]];
+        $rows[] = [[$this->assist->displayTitle(), 3]];
         $rows[] = [['Order form & production breakdown · Made by '.$this->assist->brandName(), 5]];
         $rows[] = [];
-        $head = ['Design – colour', ...array_map(fn ($g) => OrderAnalysis::PRODUCT_NAMES[$g] ?? ucfirst($g), $garments), 'Total', 'Order lines', 'Lines to check'];
+        $head = ['Design – colour', ...array_map(fn ($g) => $t['columns'][$g] ?? OrderAnalysis::PRODUCT_NAMES[$g] ?? ucfirst($g), $garments), 'Total', 'Order lines', 'Lines to check'];
         $rows[] = array_map(fn ($h) => [$h, 1], $head);
         $start = count($rows) + 1;
         $last = self::col(count($garments));
@@ -91,7 +92,7 @@ final class OrderAssistXlsx
             $r = count($rows) + 1;
             $cells = [[$g['design'], $this->fill($g['colour'] ?? null)]];
             foreach ($garments as $garment) {
-                $cells[] = array_sum(array_map(fn ($x) => $x['garment'] === $garment ? $x['total'] : 0, $g['garments']));
+                $cells[] = array_sum(array_map(fn ($x) => ($x['column'] ?? $x['garment']) === $garment ? $x['total'] : 0, $g['garments']));
             }
             $cells[] = ['=SUM(B'.$r.':'.$last.$r.')', 2];
             $cells[] = $g['lines'];
@@ -157,7 +158,7 @@ final class OrderAssistXlsx
         $flags = [];
         foreach ($this->a['checks'] ?? [] as $c) {
             foreach ($c['lines'] ?? [] as $i) {
-                $flags[$i][] = ['size' => 'Size', 'double' => 'Possible double', 'sizes' => 'Different sizes', 'names' => 'No name', 'qty' => 'Quantity', 'garment' => 'Garment'][$c['type']] ?? 'Check';
+                $flags[$i][] = ['size' => 'Size', 'double' => 'Possible double', 'sizes' => 'Different sizes', 'names' => 'No name', 'qty' => 'Quantity', 'garment' => 'Garment', 'sport' => 'Sport'][$c['type']] ?? 'Check';
             }
         }
         $head = ['Row', 'Order', 'Member', 'Design – colour', 'Garment', 'Fit', 'Size (as written)', 'Size', 'Qty', 'Check', 'Note', 'From'];

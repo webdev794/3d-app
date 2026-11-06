@@ -24,8 +24,8 @@ class OrderAssistantAi
     }
 
     /**
-     * The order lines in the customer's message and files: {title, lines: [{order, member, garment, type, design,
-     * size, qty, note}], unread: [text]}; null when the AI is off or nothing could be sent.
+     * The order lines in the customer's message and files: {title, lines: [{order, member, garment, type, sport,
+     * design, size, qty, note}], unread: [text]}; null when the AI is off or nothing could be sent.
      *
      * @param  array<int, array{path:string, extension:string, name:string}>  $files
      */
@@ -63,7 +63,8 @@ You read sportswear and teamwear orders for 3DEEZI: typed messages, photos of ha
 Return every ordered garment as order lines, one line per person and garment when names are given, otherwise one line per size.
 - order: the order or invoice number if written, else "".
 - member: the person's name if written, else "".
-- garment: the garment as written ("Polo", "Opening Day Polo", "Singlet", "Jersey", "Hoodie").
+- garment: the garment as written, with the sport when written ("Polo", "Opening Day Polo", "Football jersey", "Netball dress", "Hoodie").
+- sport: the sport the garment is for when written or clear from the order ("football", "rugby union", "netball", "basketball"), else "". Do not guess.
 - type: a separate garment type if the order has one (e.g. "Polo" when the garment column says "Line Uniform"), else "".
 - design: the design, colour, family line or team written for it (e.g. "Annie More - Turquoise", "Black with club logo"), else "".
 - size: the size exactly as written, with the fit when known ("Men 5XL", "Women 14W", "Kids 8Y", "4XL"). Womens sizes are numbers like 8 to 24, kids sizes are ages.
@@ -78,8 +79,8 @@ TXT;
     private function schema(): array
     {
         $s = ['type' => 'string'];
-        $line = ['type' => 'object', 'additionalProperties' => false, 'required' => ['order', 'member', 'garment', 'type', 'design', 'size', 'qty', 'note'],
-            'properties' => ['order' => $s, 'member' => $s, 'garment' => $s, 'type' => $s, 'design' => $s, 'size' => $s, 'qty' => $s, 'note' => $s]];
+        $line = ['type' => 'object', 'additionalProperties' => false, 'required' => ['order', 'member', 'garment', 'type', 'sport', 'design', 'size', 'qty', 'note'],
+            'properties' => ['order' => $s, 'member' => $s, 'garment' => $s, 'type' => $s, 'sport' => $s, 'design' => $s, 'size' => $s, 'qty' => $s, 'note' => $s]];
 
         return ['type' => 'object', 'additionalProperties' => false, 'required' => ['title', 'lines', 'unread'],
             'properties' => ['title' => $s, 'lines' => ['type' => 'array', 'items' => $line], 'unread' => ['type' => 'array', 'items' => $s]]];

@@ -70,7 +70,30 @@ class OrderFormReader
         $unknown = [];
         $count = 0;
         $section = null;
+        // A sport on a line of its own ("Football:"): the garments under it are that sport's (a football jersey).
+        $sport = null;
+        $withSport = function (array $g) use (&$sport): array {
+            return ($g['sport'] ?? null) || ! $sport ? $g : ['sport' => $sport] + $g;
+        };
         $lines = array_slice(preg_split('/\r\n|\r|\n/', mb_substr($text, 0, 20000)) ?: [], 0, self::MAX_ROWS);
+        // "Football jersey: Smith 7 M, Jones 10 L" / "Football: Smith #7 M": the heading on its own line (so the sport
+        // never joins a name), then each player of a comma list on its own line.
+        $expanded = [];
+        foreach ($lines as $raw) {
+            $one = trim($raw);
+            if (preg_match('/^([^:\d]{2,60}):\s*(\S.*)$/u', $one, $m) && ($this->garment($m[1]) || OrderAnalysis::sportOf($m[1]))) {
+                $expanded[] = $m[1];
+                $one = $m[2];
+            }
+            $parts = array_values(array_filter(array_map('trim', preg_split('/[,;]/u', $one) ?: []), fn ($p) => $p !== ''));
+            if (count($parts) > 1 && count(array_filter($parts, fn ($p) => $this->playerOf($p) !== null)) === count($parts)) {
+                array_push($expanded, ...$parts);
+            } else {
+                $expanded[] = $one;
+            }
+        }
+        $lines = $expanded;
+        $unsized = [];
         $sizeWord = '([0-9]{0,1}x{0,3}[sml]|[2-7]xl|xxs|xs|y?\d{1,2}y?|kids?|youth|small|medium|large|extra\s*large)';
         foreach ($lines as $raw) {
             $line = trim(preg_replace('/[•*\t]+/u', ' ', $raw) ?? $raw, " \t-–—:;.");
@@ -78,34 +101,25 @@ class OrderFormReader
                 continue;
             }
             // A player first: a name, a number and a size in any order ("Smith 7 M", "7 Smith M", "J. Wallace - 12 - XL").
-            $tokens = preg_split('/[\s,;\-–|]+/u', $line) ?: [];
-            $size = null;
-            $number = null;
-            $name = [];
-            $other = false;
-            foreach ($tokens as $t) {
-                $t = trim($t, '#.:');
-                if ($t === '') {
-                    continue;
-                }
-                if (preg_match('/^\d{1,3}$/', $t)) {
-                    $other = $other || $number !== null;
-                    $number ??= $t;
-                } elseif (! preg_match('/^\d+$/', $t) && ($s = $this->cellSize($t))) {
-                    $other = $other || $size !== null;
-                    $size ??= $s;
-                } elseif (in_array(mb_strtolower($t), ['x', '×', 'of', 'pcs', 'pc', 'qty'], true) || $this->garment($t)) {
-                    $other = true;
-                } else {
-                    $name[] = $t;
-                }
-            }
-            $nameText = implode(' ', $name);
-            if (! $other && $size && $nameText !== '' && $this->isName(str_replace('.', '', $nameText))) {
-                $garment = $section ?? ['garment' => 'jersey'];
+            if ($p = $this->playerOf($line)) {
+                [$nameText, $number, $size] = $p;
+                $garment = $withSport($section ?? ['garment' => 'jersey']);
                 $key = $this->add($items, $garment, [$size => 1]);
                 $items[$key]['players'][] = ['name' => mb_substr($nameText, 0, 40), 'number' => (string) ($number ?? ''), 'size' => $size];
                 $count++;
+
+                continue;
+            }
+            // "2 polos 3XL", "2 polos size 3XL", "10 football jerseys" (no size): a quantity, a garment, then maybe a size.
+            if (preg_match('/^(\d{1,4})\s*(?:x|×)?\s+([^\d]+?)(?:\s+(?:in\s+)?(?:size\s+|sz\s+)?([0-9]?[A-Za-z]{1,4}|\d{1,2}[Yy]?))?$/u', $line, $m) && ($g = $this->garment($m[2]))
+                && (($m[3] ?? '') === '' || $this->cellSize($m[3]))) {
+                $n = min(10000, max(1, (int) $m[1]));
+                if (($m[3] ?? '') !== '') {
+                    $this->add($items, $withSport($g), [$this->cellSize($m[3]) => $n]);
+                } else {
+                    $unsized[] = $withSport($g) + ['qty' => $n, 'text' => mb_substr($line, 0, 80)];
+                    $unknown[] = mb_substr($line, 0, 80);
+                }
 
                 continue;
             }
@@ -116,6 +130,12 @@ class OrderFormReader
                     $size = $this->cellSize($m[2]);
                     if (! $size) {
                         return $m[0];
+                    }
+                    // "3XL" glued: the size 3XL (one of it), not three XL.
+                    if (preg_match('/^\d{1,4}x{1,3}[sml]$/i', $m[0]) && ($glued = OrderFormAi::siteSize($m[0]))) {
+                        $pairs[] = [$glued, 1];
+
+                        return ' ';
                     }
                     $pairs[] = [$size, (int) $m[1]];
 
@@ -143,7 +163,7 @@ class OrderFormReader
             $words = trim(preg_replace('/\s+/', ' ', preg_replace('/[,;:()\-–]+/', ' ', $rest) ?? '') ?? '');
             if ($pairs) {
                 // "3 x 4XL polo": the garment on the line itself.
-                $garment = ($words !== '' ? $this->garment($words) : null) ?? $section ?? ['garment' => 'jersey'];
+                $garment = $withSport(($words !== '' ? $this->garment($words) : null) ?? $section ?? ['garment' => 'jersey']);
                 foreach ($pairs as [$size, $n]) {
                     $this->add($items, $garment, [$size => min(10000, max(1, $n))]);
                 }
@@ -156,13 +176,48 @@ class OrderFormReader
 
                 continue;
             }
+            if (! preg_match('/\d/', $line) && mb_strlen($line) <= 40 && count(preg_split('/\s+/', $line) ?: []) <= 3 && ($s = OrderAnalysis::sportOf($line))) {
+                $sport = $s;
+
+                continue;
+            }
             $unknown[] = mb_substr($line, 0, 80);
         }
         $items = array_values(array_filter($items, fn ($item) => array_sum(array_map('intval', $item['sizes'] ?? [])) > 0));
         $items = array_map(fn ($item) => $item + ['name' => Order::itemName($item)], $items);
 
         return ['items' => $items, 'players' => $count, 'unknown' => array_slice($unknown, 0, 20), 'rows' => count($lines),
-            'summary' => $this->assistant->summary($items), 'source' => 'notes'];
+            'summary' => $this->assistant->summary($items), 'source' => 'notes', 'unsized' => $unsized];
+    }
+
+    /** A player line ("Smith 7 M", "7 Smith M", "J. Wallace - 12 - XL") as [name, number|null, size], or null. */
+    private function playerOf(string $line): ?array
+    {
+        $tokens = preg_split('/[\s,;\-–|]+/u', $line) ?: [];
+        $size = null;
+        $number = null;
+        $name = [];
+        $other = false;
+        foreach ($tokens as $t) {
+            $t = trim($t, '#.:');
+            if ($t === '') {
+                continue;
+            }
+            if (preg_match('/^\d{1,3}$/', $t)) {
+                $other = $other || $number !== null;
+                $number ??= $t;
+            } elseif (! preg_match('/^\d+$/', $t) && ($s = $this->cellSize($t))) {
+                $other = $other || $size !== null;
+                $size ??= $s;
+            } elseif (in_array(mb_strtolower($t), ['x', '×', 'of', 'pcs', 'pc', 'qty'], true) || $this->garment($t)) {
+                $other = true;
+            } else {
+                $name[] = $t;
+            }
+        }
+        $nameText = implode(' ', $name);
+
+        return ! $other && $size && $nameText !== '' && $this->isName(str_replace('.', '', $nameText)) ? [$nameText, $number, $size] : null;
     }
 
     /** @return array<int, array<int, string>> */

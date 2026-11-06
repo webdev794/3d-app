@@ -106,6 +106,25 @@ class OrderAssistApiTest extends TestCase
         $this->getJson('/api/v1/order-assistant/'.str_repeat('a', 40))->assertNotFound();
     }
 
+    public function test_an_order_with_no_design_picture_or_title_says_so_and_names_its_files(): void
+    {
+        $data = $this->postJson('/api/v1/order-assistant', ['message' => 'Football: 3 x M, 2 x L'])->assertCreated()->json('data');
+        // No design picture: the answer asks for it before Review & Approve (not "nothing looks wrong").
+        $this->assertSame('artwork', $data['analysis']['checks'][0]['type']);
+        $this->assertStringContainsString('add your design or artwork before you review and approve', $data['messages'][1]['text']);
+        $this->assertStringNotContainsString('nothing looks wrong', $data['messages'][1]['text']);
+        // No title: "Football jersey order" on the PDF and Excel, 3DEEZI_Order_Form_<date> as the file names.
+        $assist = OrderAssist::where('token', $data['token'])->firstOrFail();
+        $this->assertSame('Football jersey order', $assist->displayTitle());
+        $day = now()->format('Y-m-d');
+        $this->assertStringContainsString('filename="3DEEZI_Order_Form_'.$day.'.pdf"', $this->get('/api/v1/order-assistant/'.$data['token'].'/pdf')->assertOk()->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('filename="3DEEZI_Order_Form_'.$day.'.xlsx"', $this->get('/api/v1/order-assistant/'.$data['token'].'/xlsx')->assertOk()->headers->get('Content-Disposition'));
+
+        // With a design picture the check goes.
+        $more = $this->postJson('/api/v1/order-assistant/'.$data['token'], ['designs' => [UploadedFile::fake()->image('Football jersey.png', 200, 200)]])->assertOk()->json('data');
+        $this->assertNotContains('artwork', array_column($more['analysis']['checks'], 'type'));
+    }
+
     public function test_an_empty_message_or_a_wrong_file_is_turned_down(): void
     {
         $this->postJson('/api/v1/order-assistant', [])->assertStatus(422);

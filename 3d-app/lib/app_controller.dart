@@ -563,6 +563,11 @@ class AppController extends ChangeNotifier {
   /// the app puts over the 3D view (view buttons, the chat button) hides.
   bool viewerModal = false;
 
+  /// A logo or words on the 3D kit are selected (the viewer's own menu is
+  /// open): the Studio's buttons over the 3D step aside so the menu and the
+  /// selected item both show.
+  bool objectOnKit = false;
+
   /// "High quality jersey (preview)": the 3D jersey is the client's
   /// professional CLO model (the viewer's ?hq=1). Off by default until the
   /// client approves; remembered on this device. Only the jersey changes.

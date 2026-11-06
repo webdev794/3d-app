@@ -325,7 +325,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   /** The rows the last Build made: a second Build replaces them instead of adding them again (392.jpg: 8 and 12). */
   const notesBuilt = useRef<Set<string>>(new Set());
   const [noteImages, setNoteImages] = useState<File[]>([]);
-  const [building, setBuilding] = useState<{ busy: boolean; text?: string; check?: string[]; missing?: string[] }>({ busy: false });
+  const [building, setBuilding] = useState<{ busy: boolean; built?: boolean; text?: string; check?: string[]; missing?: string[] }>({ busy: false });
   const sheetInput = useRef<HTMLInputElement>(null);
   const artInput = useRef<HTMLInputElement>(null);
   const [tried, setTried] = useState(false);
@@ -664,7 +664,9 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     setTried(Object.keys(problems).length > 0); setErrors(problems);
     if (Object.keys(problems).length) {
       setPage(0, false);
-      setTimeout(() => { const first = document.querySelector<HTMLElement>('.op-page [aria-invalid="true"], .op-page .has-error'); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); (first?.matches('input,select,textarea') ? first : first?.querySelector<HTMLElement>('input,select,button'))?.focus({ preventScroll: true }); }, 30);
+      // Missing artwork (e.g. Review & Approve from the Order Assistant): its message, at the foot of a long section,
+      // is brought to the middle of the screen, not hidden under 3DEEZI ASSIST on a phone.
+      setTimeout(() => { const first = document.querySelector<HTMLElement>('.op-page [aria-invalid="true"], .op-page .has-error'); (first?.id === 'of-artwork' ? first.querySelector<HTMLElement>('[role="alert"]') ?? first : first)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); (first?.matches('input,select,textarea') ? first : first?.querySelector<HTMLElement>('input,select,button'))?.focus({ preventScroll: true }); }, 30);
       return;
     }
     if (!userRef.current) { needSignIn('review'); return; }
@@ -759,17 +761,25 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
         players: players.slice(0, MAX_PLAYERS).map(p => ({ key: makeKey('p'), name: String(p?.name ?? '').slice(0, 40), number: String(p?.number ?? '').replace(/\D/g, '').slice(0, 3), size: String(p?.size ?? '') })) });
     });
     if (!built.length) { setBuilding({ busy: false, text: 'No garments or sizes found in your notes. Try lines like “Polo” then “3 x 4XL”.', check: read.unknown }); return; }
-    setForm(f => {
+    const withBuilt = (f: typeof formRef.current) => {
       const kept = f.rows.filter(r => !notesBuilt.current.has(r.key) && (sum(r.sizes) > 0 || r.project_id || r.players.length));
       return { ...f, rows: [...kept, ...built].slice(0, MAX_ROWS), notes: f.notes || (text ? `From my notes:
 ${text}`.slice(0, 4000) : f.notes) };
-    });
+    };
+    // What is still missing is checked on the form as built (not the one from before the build).
+    const builtForm = withBuilt(formRef.current);
+    setForm(f => withBuilt(f));
     notesBuilt.current = new Set(built.map(r => r.key));
     setNotePhotos([]); setNoteImages([]); setNoteFiles([]);
     const count = built.reduce((n, r) => n + sum(r.sizes), 0);
     // Straight on to the built garments (client 394): Details already typed stays; what is still missing is listed, not blocking.
-    const missing = [...new Set(Object.keys(validate(formRef.current, options, hasArt())).filter(k => pageOf(k) === 0).map(k => k.replace(/^(contact|delivery)\./, '').replace(/_/g, ' ')))];
-    setBuilding({ busy: false, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them here, then continue.`, check: read.unknown, missing });
+    const plain = (k: string) => {
+      const row = k.match(/^items\.(\d+)\.(\w+)/);
+      if (row) return `${row[2] === 'players' ? 'players' : 'sizes'} for garment ${Number(row[1]) + 1}`;
+      return k === 'artwork' ? 'your logo or design (artwork)' : k === 'items' ? 'garments' : k === 'general' ? 'order details' : k.replace(/_/g, ' ');
+    };
+    const missing = [...new Set(Object.keys(validate(builtForm, options, hasArt())).filter(k => pageOf(k) === 0).map(plain))];
+    setBuilding({ busy: false, built: true, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them here, then continue.`, check: read.unknown, missing });
     setPage(1);
   }
   /**
@@ -996,12 +1006,12 @@ ${text}`.slice(0, 4000) : f.notes) };
           {notePhotos.map((f, i) => <li key={`p${i}`}><Camera size={15} /><span>{f.name} · photo of notes</span><button type="button" onClick={() => setNotePhotos(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
           {noteImages.map((f, i) => <li key={`i${i}`}><ImagePlus size={15} /><span>{f.name} · image</span><button type="button" onClick={() => setNoteImages(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
         </ul>}
-        {building.text && <p className="of-notes-status" role="status" data-testid="notes-status">{building.text}</p>}
-        {building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}
+        {building.text && !building.built && <p className="of-notes-status" role="status" data-testid="notes-status">{building.text}</p>}
+        {!building.built && building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}
       </section>}
-      {building.text && !building.busy && <div className="op-card of-notes-built" role="status" data-testid="notes-built"><p className="of-notes-status">{building.text}</p>
+      {building.text && !building.busy && building.built && <div className="op-card of-notes-built" role="status" data-testid="notes-built"><p className="of-notes-status">{building.text}</p>
         <button type="button" className="of-btn" onClick={() => void copyFormLink()} data-testid="copy-form-link"><Paperclip size={16} /> Copy form link</button>
-        {building.missing && building.missing.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> still to fill in on step 2 (details): {building.missing.join(', ')}.</div>}
+        {building.missing && building.missing.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> still to add on this step: {building.missing.join(', ')}.</div>}
         {building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}</div>}
       {<OrderSection number={1} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
         action={<button type="button" className="op-link caps" onClick={addRow} disabled={form.rows.length >= MAX_ROWS}><Plus size={18} /> Add garment</button>}>

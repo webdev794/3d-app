@@ -303,4 +303,22 @@ void main() {
     expect(c.closeStudioPanel, isNull);
     await closeApp(tester, c);
   });
+
+  testWidgets('A logo or words selected on the 3D kit: the buttons over the '
+      '3D step aside for its menu (486.png), and come back after', (tester) async {
+    final c = await openStudio(tester, 390, 844);
+    expect(find.text('Back'), findsOneWidget);
+    expect(find.byTooltip('3DEEZI ASSIST'), findsOneWidget);
+
+    c.update(() => c.objectOnKit = true);
+    await tester.pumpAndSettle();
+    expect(find.text('Back'), findsNothing);
+    expect(find.byTooltip('3DEEZI ASSIST'), findsNothing);
+
+    c.update(() => c.objectOnKit = false);
+    await tester.pumpAndSettle();
+    expect(find.text('Back'), findsOneWidget);
+    expect(find.byTooltip('3DEEZI ASSIST'), findsOneWidget);
+    await closeApp(tester, c);
+  });
 }

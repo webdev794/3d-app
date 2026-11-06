@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import OrderNow, { type MiniCard, type MiniColumn } from '../components/OrderNow';
-import { STAGES, readBoard, type BoardData, type BoardOrder } from '../components/orderBoardModel';
+import { STAGES, ownOrderName, readBoard, type BoardData, type BoardOrder } from '../components/orderBoardModel';
 import { orderApi } from '../orderApi';
 import { provideAssistContext } from '../assistBridge';
 import type { User } from '../api';
@@ -23,7 +23,7 @@ export function miniBoard(board: BoardData): MiniColumn[] | null {
       name: stage.short, count: orders.length,
       cards: orders.slice(0, 3).map((order: BoardOrder): MiniCard => {
         const garment = order.garments[0]?.garment ?? 'jersey';
-        return { key: order.id, name: order.name || 'Order', ref: shortRef(order.number), garment: PICTURES.includes(garment) ? garment : 'jersey', tone: 'dark', progress: PROGRESS[stage.key] ?? 0.2, hot: order.action === 'review_design' || order.approval === 'review' };
+        return { key: order.id, name: ownOrderName(order.number, order.name) || 'Order', ref: shortRef(order.number), garment: PICTURES.includes(garment) ? garment : 'jersey', tone: 'dark', progress: PROGRESS[stage.key] ?? 0.2, hot: order.action === 'review_design' || order.approval === 'review' };
       }),
     };
   });

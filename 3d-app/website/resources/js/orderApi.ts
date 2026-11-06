@@ -299,7 +299,7 @@ export function itemName(item: OrderItem, options?: Pick<OrderOptions, 'garments
 /** One group of the Order Assistant's reading: a design / colour with each garment's size sets. */
 export interface AssistantGroup {
   key: string; design: string; colour: string | null; total: number; lines: number; check_lines: number; image: string | null;
-  garments: { garment: string; product: string; collection: string; name: string; total: number; unsure: number; sizes: Record<'youth' | 'womens' | 'mens', Record<string, number>> }[];
+  garments: { garment: string; sport?: string | null; column?: string; product: string; collection: string; name: string; total: number; unsure: number; sizes: Record<'youth' | 'womens' | 'mens', Record<string, number>> }[];
 }
 export interface AssistantCheck { type: string; text: string; people?: string[]; counts?: boolean }
 export interface AssistantItem { garment: string; fit: string; label: string; design: string; sizes: Record<string, number> }
@@ -310,7 +310,7 @@ export interface AssistantOrder {
   messages: { role: 'user' | 'assistant'; text: string; files?: { name: string; kind: string }[]; at?: string }[];
   analysis: null | {
     title: string;
-    totals: { garments: number; lines: number; orders: number; members: number; groups: number; to_check: number; by_garment: Record<string, number>; by_product: Record<string, number> };
+    totals: { garments: number; lines: number; orders: number; members: number; groups: number; to_check: number; by_garment: Record<string, number>; by_product: Record<string, number>; by_column?: Record<string, number>; columns?: Record<string, string> };
     size_columns: Record<'youth' | 'womens' | 'mens', string[]>;
     groups: AssistantGroup[]; checks: AssistantCheck[]; items: AssistantItem[];
   };

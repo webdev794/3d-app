@@ -19,6 +19,11 @@ class AiSessionController extends Controller
     /** How many sessions an account keeps (the oldest go, with their pictures). */
     public const KEEP = 40;
 
+    public function __construct()
+    {
+        AiSession::ensureTable();
+    }
+
     /** The strip: the latest sessions (small pictures inline) and the latest saved projects. */
     public function index(Request $request): JsonResponse
     {

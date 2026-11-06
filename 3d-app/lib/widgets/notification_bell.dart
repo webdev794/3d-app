@@ -32,16 +32,27 @@ String notificationAgo(Object? iso, {DateTime? now}) {
 
 Map _data(Map n) => (n['data'] as Map?) ?? const {};
 
-/// The title the website shows: data.title, else "number · name".
+/// The order's own name, or '' when it has none: the server's "Order 3DZ-00010" fallback (the team name is
+/// optional) isn't a name, so "3DZ-00010 · Order 3DZ-00010" is never shown.
+String ownOrderName(Object? number, Object? name) {
+  final n = name == null ? '' : '$name'.trim();
+  final no = number == null ? '' : '$number'.trim();
+  return n.isEmpty || (no.isNotEmpty && n.toLowerCase() == 'order $no'.toLowerCase()) ? '' : n;
+}
+
+/// "3DZ-00010 · Hawks" with a name, just "3DZ-00010" without (as the website).
+String orderTitle(Object? number, Object? name) {
+  final no = number == null ? '' : '$number'.trim();
+  return [no, ownOrderName(number, name)].where((v) => v.isNotEmpty).join(' · ');
+}
+
+/// The title the website shows: data.title, else "number · name" (just the number when the order has no name).
 String notificationTitle(Map n) {
   final d = _data(n);
   final title = '${d['title'] ?? ''}'.trim();
   if (title.isNotEmpty) return title;
-  final parts = [
-    d['number'],
-    d['name'],
-  ].where((v) => v != null && '$v'.trim().isNotEmpty).map((v) => '$v');
-  return parts.isEmpty ? 'Notification' : parts.join(' · ');
+  final t = orderTitle(d['number'], d['name']);
+  return t.isEmpty ? 'Notification' : t;
 }
 
 bool isTeamNotification(Map n) =>

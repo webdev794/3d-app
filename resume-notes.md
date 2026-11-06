@@ -116,3 +116,41 @@ Resume via SendMessage, do not respawn:
 - Rule: if the platform or screen is unclear, ASK the user.
 - 2026-11-06: HM2 a5aec512ff81f138c = the client's HD Home icons (Downloads\New folder (3); previews images/464-467) on the APP Home only. HM paused.
 - 2026-11-06: bubble work DONE (TL). Dress -281 FINISHED. Home HD icons DONE (HM2). Not pushed since v2 86ec89f; no tar since 11-05-c.
+- 2026-11-06: pushed v2 = 3103a1e (no force; 40 files).
+- 2026-11-06: bubble work ON HOLD, waiting for the client's answer (user). Don't change the bubbles until then. Known issues: bubbles differ between pages; the OUTER bubble on the Orders tab (Create your order) doesn't look like the client's bubble in 474; Create order form tight at the edges (472).
+
+2026-11-06 (later): two new agents running —
+- Regression tester (QA7) ac3f4cade5ce65159: tests everything around the 11-03..11-06 work, website + app, copy servers only.
+- Chat server-error fixer (CHATFIX) a9836eadaf10439cd: order chat 501 on 8088 preview (plain file server) + live 500 on POST /api/v1/order-assistant (likely order_assists migration not run on live) + is ChatGPT connected.
+- 2026-11-06 13:0x: live has no shell, so OrderAssist::ensureTable() (creates order_assists on first use, like ArtboardDocument) added in OrderAssist.php, OrderAssistController store/index, OrderRequest assist_token. Tested on a copy DB without the table: 404 instead of 500, chat works. Live tar 3deez-update-2026-11-06-b (5 files). Not pushed yet.
+- 2026-11-06: live log showed ai_sessions ALSO missing since 10-30 (AI design history fails on live). Added AiSession::ensureTable() (AiSessionController constructor). Tested on a copy DB: both tables created on first use. Tar 3deez-update-2026-11-06-b rebuilt (9 files).
+- OAPROD agent a6480a728e39ec1e0: order chat keeps product name (Football jersey) in summary/PDF/Excel.
+- OFTOP agent aecf52add6e864c03: app Create order form top spacing like Projects tab (480/481), app only.
+- QA7 done 2026-11-06: no big breaks. Open: website phone order form bottom bar overflow (ask user), Number column = qty bug + TO CHECK 0 orange (sent to OAPROD), order name repeats number, pick-up pay page wording. QA7 deleted 30 old test files in storage/app/private/order-files/121 (copy-DB test user only).
+- 2026-11-06 13:28 OAPROD done (Football jersey etc. in chat/PDF/Excel/share page; Number column = shirt number; TO CHECK 0 plain). Live tar 3deez-update-2026-11-06-c (21 files, REF 11-06-b, nothing to delete, no migrate). Not pushed.
+- OFBAR agent ab63a848c4481728f: website phone-width order form bottom bar stack.
+- WORDFIX agent a405cc4517ab854c0: order name repeat + pick-up pay wording.
+- OFTOP done 13:4x: fullHeadingRoom option in bubble_page.dart, on in order_entry.dart; build/web rebuilt (8088).
+- OFBAR done: order-pages.css phone (<=640) stacked bar + 641-760 tighter; scrollWidth ok 360/390/430/700, desktop same.
+- 2026-11-06 13:45 WORDFIX + OFBAR done. Live tar 3deez-update-2026-11-06-d (24 files, REF 11-06-c, nothing to delete, no migrate). App changes (order form spacing, My orders names) are in build/web + lib only (phone app needs a new app build). Not pushed.
+- APPCHK agent a13a4328f7d392d57: on-screen app check of today's changes (order form spacing, order names, order chat Football).
+- APPCHK done: app changes OK. APPFIX agent: 5 findings (badge, artwork scroll+chat text, sizes in summary, PDF title/file names, step 2 button fit).
+- DYOGAP agent: app DYO carousel side models closer (482), create_home.dart.
+- KBFIX agent: app keyboard dismiss app-wide (483).
+- APPFIX done; live tar 3deez-update-2026-11-06-e (REF 11-06-d, no migrate). Not pushed.
+- OABUB agent: app Orders tab outer bubble rounder + 5 option bubbles (user 2026-11-06, ends hold for this screen).
+- DYOGAP: gaps 62-77px -> 13-15px done; follow-up: drag moves 1:1 with finger.
+- OABUB: Home bubble + breathing/shine animation + GlassCapsule options done; follow-up: fill empty bottom glass, jersey picture back to >= old size.
+- KBFIX done: keyboard_dismiss.dart app-wide (tap outside/tab/scroll), tab bar hides with keyboard, Artboard webview releases keyboard; iOS AppDelegate.swift change needs new TestFlight build.
+- DYOGAP done: drag 1:1 with finger, snap/flick one sport, create_home.dart.
+- OABUB done: panel lower, jersey 104/148/180px at 360/390/430; ~50-60px glass still under panel (dome).
+- STUMENU agent: app Studio logo/text menu overlap (486), app-only even if in shared viewer.
+- OABUB edges done: 32px side margins, content clipped inside bubble with fade; jersey 91/129/164px.
+- 2026-11-06: user said push to v2 + tar AFTER pending work (STUMENU) finishes. Then: final-push-v2.sh, and tar 11-06-f if website/viewer changed.
+- QA8 regression tester running (all linked features, today's work, website+app; skips Studio logo menu while STUMENU runs). If many bugs: give it a separate fixer. Push v2 + tar after QA8/fixes and STUMENU finish.
+- AIDES agent: app AI Designer match 487 (client).
+- OABUB: client approved tap-fly + optional drag + bob + chat glow; started.
+- DYOGLASS agent: app DYO options like 489, keep outer bubble.
+- 2026-11-06 VS Code restarted; resumed 5 agents: OABUB aa5ec91d348a25888 (tap-fly/drag/bob/glow), STUMENU aec2d0b0bd29355a3, QA8 ae8288fb4979a98ee, AIDES aa4748e2c454c2e27, DYOGLASS ae7e7663bebf38eef. Then push v2 + tar.
+- OABUB done: tap-fly/drag/bob/glow (order_assistant.dart). D: only ~1.9 GB free — old flutter_tools.* temp folders in D:\systemp to clear.
+- 2026-11-06 ~17:30: STUMENU, AIDES, DYOGLASS, QA8 done. STUMENU resumed (aec2d0b0bd29355a3) only for the final 360/390 screenshot check. Fixers: FIXW a3a3bfb26b5ea59a0 (website QA8 items 2-8,10), FIXA ab6c32dd17e335971 (app items 1,5,8,9). User has ~30 min: push v2 (final-push-v2.sh) + tar 11-06-f (viewer changed: VIEWER_VERSION -282) when they finish. User: "don't stop anyone in 10 minutes".

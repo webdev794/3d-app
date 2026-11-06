@@ -147,13 +147,19 @@ li.is-open .op-chev{transform:rotate(90deg)}
   .op-fields{grid-template-columns:minmax(0,1fr)}
   .op-head-bar{flex-wrap:wrap;gap:8px}
   .op-drop{flex-direction:column;gap:10px;padding:14px}
-  .op-bar-inner{gap:10px;min-height:68px;padding:8px 0}
+  /* Phones: NEXT full width on top (its "Step 1 of 2" under it), the small buttons side by side below (user 2026-11-06). */
+  .op-bar-inner{flex-wrap:wrap;gap:8px 10px;min-height:0;padding:8px 0 10px}
   .op-bar-status{display:none}
-  .op-bar-secondary{gap:8px;min-height:46px;padding:0 14px;font-size:14px}
-  .op-bar-primary-wrap{flex:1;min-width:0}
+  .op-bar-primary-wrap{order:-1;flex:1 1 100%;min-width:0;margin-left:0;gap:3px}
   .op-bar-primary{width:100%;min-height:46px;padding:0 14px;gap:10px;font-size:15px;letter-spacing:.07em}
-  .op-bar-primary-wrap small{font-size:10.5px}
+  .op-bar-primary span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .op-bar-primary-wrap small{font-size:10.5px;line-height:1.2}
+  .op-bar-secondary{flex:1 1 0;min-width:0;justify-content:center;gap:8px;min-height:42px;padding:0 10px;font-size:14px}
+  .op-bar-secondary svg{flex:none;width:20px;height:20px}
+  .op-bar-secondary span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 }
+/* 641-760 px: the three bar buttons were up to ~100 px too wide for one row (sideways scroll); a little less padding fits them. */
+@media(min-width:641px) and (max-width:760px){.op-bar-inner{gap:12px}.op-bar-secondary{gap:10px;padding:0 16px 0 14px}.op-bar-primary{gap:12px;padding:0 18px;font-size:16px;letter-spacing:.08em}}
 @media(max-width:520px){.op-shell,.op-bar-inner{width:calc(100% - 32px)}.op-section-head h2{letter-spacing:.07em}}
 
 /* The order forms' step bar (client pictures images/337, 339). */

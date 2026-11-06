@@ -32,6 +32,17 @@ class OrderAnalysis
         'warmup' => 'Warm-up top', 'pants' => 'Track pants', 'shorts' => 'Shorts', 'socks' => 'Socks', 'cap' => 'Cap',
         'jersey' => 'Jersey', 'tee' => 'Tee', 'other' => 'Garment'];
 
+    /** A jersey with no sport said: each sport has its own jersey, so it is not guessed (a check asks which sport). */
+    public const NO_SPORT_JERSEY = 'Jersey (sport not given)';
+
+    /** Our garments as the catalog's 3D garments, most likely first ("jersey" is a basketball or AFL singlet when the sport has no jersey). */
+    private const CATALOG_GARMENTS = [
+        'jersey' => ['jersey', 'nfljersey', 'netball-dress', 'singlet'], 'singlet' => ['singlet', 'netball-dress'], 'tee' => ['tee', 'shooting-shirt', 'compression'],
+        'polo' => ['polo', 'pocketpolo'], 'hoodie' => ['hoodie', 'ziphoodie'], 'warmup' => ['hoodie', 'trackjacket'], 'jacket' => ['trackjacket', 'varsity'],
+        'pants' => ['track-pants', 'nfl-pants', 'cricket-pants', 'race-pants'], 'shorts' => ['shorts', 'fight-shorts', 'bib-shorts'], 'socks' => ['socks'],
+        'cap' => ['cap', 'five-panel-cap', 'bucket-hat', 'beanie'],
+    ];
+
     /** Header words per column (lower case, without punctuation). */
     private const HEADERS = [
         'order' => ['order', 'order no', 'order number', 'order id', 'order #', 'invoice', 'ref', 'reference'],
@@ -40,9 +51,10 @@ class OrderAnalysis
         'type' => ['type', 'kind', 'cut'],
         'design' => ['colour', 'color', 'design', 'line', 'colour line', 'family line', 'colourway', 'colorway', 'family', 'team', 'group'],
         'size' => ['size', 'sizes', 'garment size'],
-        'qty' => ['qty', 'quantity', 'number', 'count', 'amount', 'no', 'units', 'pcs'],
+        'qty' => ['qty', 'quantity', 'count', 'amount', 'units', 'pcs', 'pieces', 'number of garments', 'number of shirts', 'number of items', 'no of garments', 'no of items'],
         'note' => ['note', 'notes', 'comment', 'comments', 'remarks'],
-        'number' => ['jersey number', 'player number', 'shirt number', 'no on back', 'back number'],
+        // "Number", "No" or "#" in a team sheet is the shirt number (one garment each), not a quantity.
+        'number' => ['jersey number', 'player number', 'shirt number', 'no on back', 'back number', 'number', 'no', 'num', '#', 'jersey no', 'shirt no', 'player no'],
     ];
 
     /** Names that mean "nobody". */
@@ -109,7 +121,7 @@ class OrderAnalysis
             $line = self::line([
                 'row' => is_int($n) ? $n : count($lines) + 1, 'source' => $source, 'order' => $cell('order'), 'member' => $cell('member'),
                 'garment' => $cell('garment'), 'type' => $cell('type'), 'design' => $cell('design'), 'size' => $cell('size'),
-                'qty' => $cell('qty'), 'note' => trim($cell('note').($cell('number') !== '' ? ' #'.$cell('number') : '')),
+                'qty' => isset($columns['qty']) ? $cell('qty') : '1', 'note' => trim($cell('note').($cell('number') !== '' ? ' #'.$cell('number') : '')),
             ]);
             if ($line) {
                 $lines[] = $line;
@@ -175,8 +187,25 @@ class OrderAnalysis
             // "Opening Day Polo": the collection is the words before the garment word.
             $collection = self::withoutGarmentWord($garmentText);
         }
+        // The sport named for it ("Football jersey", or the sport the reader passes): each sport has its own model,
+        // named as in the catalog ("Football jersey", "Netball dress", "Rugby playing shorts").
+        $sportText = trim((string) ($in['sport'] ?? ''));
+        $sport = $garment ? (self::sportId($sportText) ?? self::sportOf($typeText.' '.$garmentText)) : null;
+        if ($sport) {
+            $collection = self::withoutSportWords($collection);
+        }
         $collection = self::tidy($collection);
-        $product = $garment ? self::PRODUCT_NAMES[$garment] : ($typeText !== '' ? self::tidy($typeText) : 'Garment');
+        // "Jersey" on its own (the notes reader's garment) is no collection: "Football jersey", not "Jersey Football jersey".
+        if ($garment && $collection !== '' && self::withoutGarmentWord($collection) === '') {
+            $collection = '';
+        }
+        $model = $sport ? self::model($sport, $garment, $typeText.' '.$garmentText) : null;
+        $product = match (true) {
+            $model !== null => $model,
+            $garment === 'jersey' => self::NO_SPORT_JERSEY,
+            (bool) $garment => self::PRODUCT_NAMES[$garment],
+            default => $typeText !== '' ? self::tidy($typeText) : 'Garment',
+        };
         $design = self::tidyDesign($designText);
         [$size, $fit, $guess] = self::size($sizeText);
         $qtyText = trim((string) ($in['qty'] ?? ''));
@@ -185,7 +214,7 @@ class OrderAnalysis
         return [
             'row' => (int) ($in['row'] ?? 0), 'source' => (string) ($in['source'] ?? ''),
             'order' => self::tidy((string) ($in['order'] ?? '')), 'member' => self::tidy((string) ($in['member'] ?? '')),
-            'garment' => $garment ?? 'other', 'product' => $product, 'collection' => $collection, 'design' => $design,
+            'garment' => $garment ?? 'other', 'sport' => $sport, 'product' => $product, 'collection' => $collection, 'design' => $design,
             'design_written' => $designText, 'size_written' => $sizeText, 'size' => $size, 'fit' => $fit, 'guess' => $guess,
             'qty' => $qty ?? ($qtyText === '' ? 1 : 0), 'qty_written' => $qtyText, 'note' => self::tidy((string) ($in['note'] ?? '')),
         ];
@@ -202,6 +231,110 @@ class OrderAnalysis
         }
 
         return null;
+    }
+
+    /** Sport words in order lines ("training" is a garment word there, "Training tee"; "guernsey" is AFL's). */
+    private static function sportWords(): array
+    {
+        static $words = null;
+        if ($words === null) {
+            $ids = array_column((array) config('catalog.sports', []), 'id');
+            $words = array_filter(OrderAssistant::SPORT_WORDS + ['guernsey' => 'afl'], fn ($id, $word) => in_array($id, $ids, true) && ! in_array($word, ['training', 'teamwear', 'club casual'], true), ARRAY_FILTER_USE_BOTH);
+        }
+
+        return $words;
+    }
+
+    /** The catalog sport named in written words ("Football jersey" football, "Rugby shorts" rugby-union), or null. */
+    public static function sportOf(string $text): ?string
+    {
+        return self::sportsIn($text)[0] ?? null;
+    }
+
+    /** Every catalog sport named in a text, in the order of the sport words ("american football" is not also football). */
+    public static function sportsIn(string $text): array
+    {
+        $t = ' '.mb_strtolower(preg_replace('/[^\p{L}\p{N}]+/u', ' ', $text) ?? '').' ';
+        $found = [];
+        foreach (self::sportWords() as $word => $id) {
+            if (str_contains($t, ' '.$word.' ')) {
+                $found[$id] = true;
+                $t = str_replace(' '.$word.' ', ' | ', $t);
+            }
+        }
+
+        return array_keys($found);
+    }
+
+    /** A catalog sport id as given ("football"), or the sport its words name ("Soccer"), or null. */
+    public static function sportId(string $text): ?string
+    {
+        $id = mb_strtolower(trim($text));
+        if ($id === '') {
+            return null;
+        }
+
+        return in_array($id, self::sportWords(), true) ? $id : self::sportOf($text);
+    }
+
+    /** The words without the sport words ("Opening Day Rugby" "Opening Day"). */
+    private static function withoutSportWords(string $text): string
+    {
+        foreach (array_keys(self::sportWords()) as $word) {
+            $text = preg_replace('/\b'.preg_quote($word, '/').'\b/iu', ' ', $text) ?? $text;
+        }
+
+        return trim(preg_replace('/\s{2,}/', ' ', $text) ?? '', " -–—/");
+    }
+
+    /**
+     * The catalog model for a garment of a sport, named as the customer would pick it: "Football jersey", "Netball
+     * dress", "Rugby playing shorts", "Basketball singlet" (basketball's jersey). The tile whose name has the written
+     * words wins ("training shorts"), else the sport's first tile of that garment. A garment the sport does not list
+     * gets the sport's name in front ("Golf jacket").
+     */
+    public static function model(string $sport, string $garment, string $written = ''): string
+    {
+        $entry = collect((array) config('catalog.sports', []))->firstWhere('id', $sport) ?? [];
+        $sportName = (string) ($entry['heading'] ?? $entry['name'] ?? ucfirst($sport));
+        $words = fn (string $s) => array_values(array_filter(array_map(fn ($w) => preg_replace('/(?<=[a-z]{3})s$/', '', $w) ?? $w,
+            explode(' ', mb_strtolower(preg_replace('/[^\p{L}\p{N}]+/u', ' ', self::withoutSportWords($s)) ?? '')))));
+        $said = $words($written);
+        $kinds = self::CATALOG_GARMENTS[$garment] ?? [];
+        $best = null;
+        $bestRank = null;
+        foreach (array_values((array) ($entry['tiles'] ?? [])) as $i => $tile) {
+            $id = (string) ($tile['garment'] ?? $tile['future'] ?? '');
+            $kind = array_search($id, $kinds, true);
+            $score = count(array_intersect($said, $words((string) $tile['name'])));
+            if ($kind === false && $score === 0) {
+                continue;
+            }
+            // More written words first, then the garment's own kind (a jersey before a singlet), then the catalog order.
+            $rank = [-$score, $kind === false ? 99 : $kind, $i];
+            if ($bestRank === null || $rank < $bestRank) {
+                [$best, $bestRank] = [(string) $tile['name'], $rank];
+            }
+        }
+        $best ??= self::PRODUCT_NAMES[$garment] ?? 'Garment';
+        $has = fn (string $name, string $part) => mb_stripos($name, $part) !== false;
+        if ($has($best, $sportName) || $has($best, (string) ($entry['name'] ?? $sportName))) {
+            return $best;
+        }
+        // "Playing Shorts" "Rugby playing shorts" (words in capitals such as AFL or T-shirt kept).
+        $lower = implode(' ', array_map(fn ($w) => preg_match('/^\p{Lu}\p{Ll}+$/u', $w) ? mb_strtolower($w) : $w, explode(' ', $best)));
+
+        return $sportName.' '.$lower;
+    }
+
+    /** "Football jerseys", "Jerseys (sport not given)", "Shorts" (a name as a plural, for headings). */
+    public static function pluralName(string $name): string
+    {
+        if (preg_match('/^(.*?)(\s*\(.*\))$/u', $name, $m)) {
+            return self::pluralName($m[1]).$m[2];
+        }
+
+        return preg_match('/(ss|sh|ch|x)$/i', $name) ? $name.'es' : (preg_match('/s$/i', $name) ? $name : $name.'s');
     }
 
     private static function withoutGarmentWord(string $text): string
@@ -314,8 +447,9 @@ class OrderAnalysis
             $key = mb_strtolower($design);
             $groups[$key] ??= ['key' => self::slug($design), 'design' => $design, 'colour' => self::colourOf($design), 'garments' => [], 'total' => 0, 'lines' => 0, 'check_lines' => []];
             $g = &$groups[$key];
-            $gk = $l['garment'].'|'.mb_strtolower($l['collection']);
-            $g['garments'][$gk] ??= ['garment' => $l['garment'], 'product' => $l['product'], 'collection' => $l['collection'],
+            // Each sport's garment on its own row (a football jersey and a rugby jersey are different models).
+            $gk = $l['garment'].'|'.($l['sport'] ?? '').'|'.mb_strtolower($l['collection']);
+            $g['garments'][$gk] ??= ['garment' => $l['garment'], 'sport' => $l['sport'] ?? null, 'column' => self::columnOf($l), 'product' => $l['product'], 'collection' => $l['collection'],
                 'name' => self::productName($l), 'total' => 0, 'sizes' => ['youth' => [], 'womens' => [], 'mens' => []], 'unsure' => 0];
             $row = &$g['garments'][$gk];
             $qty = max(0, (int) $l['qty']);
@@ -378,10 +512,14 @@ class OrderAnalysis
 
         $byGarment = [];
         $byCollection = [];
+        $byColumn = [];
+        $columns = [];
         foreach ($groups as $g) {
             foreach ($g['garments'] as $row) {
                 $byGarment[$row['garment']] = ($byGarment[$row['garment']] ?? 0) + $row['total'];
                 $byCollection[$row['name']] = ($byCollection[$row['name']] ?? 0) + $row['total'];
+                $byColumn[$row['column']] = ($byColumn[$row['column']] ?? 0) + $row['total'];
+                $columns[$row['column']] ??= str_contains($row['column'], '@') || $row['product'] === self::NO_SPORT_JERSEY ? $row['product'] : (self::PRODUCT_NAMES[$row['garment']] ?? 'Garment');
             }
         }
         $total = array_sum(array_column($groups, 'total'));
@@ -391,7 +529,9 @@ class OrderAnalysis
         return [
             'title' => $title,
             'totals' => ['garments' => $total, 'lines' => count($lines), 'orders' => count($orders), 'members' => count($members),
-                'groups' => count($groups), 'to_check' => count($flagged), 'by_garment' => $byGarment, 'by_product' => $byCollection],
+                'groups' => count($groups), 'to_check' => count($flagged), 'by_garment' => $byGarment, 'by_product' => $byCollection,
+                // The forms' garment columns: a garment, or a sport's model ("jersey@football" "Football jersey").
+                'by_column' => $byColumn, 'columns' => $columns],
             'size_columns' => self::sizeColumns($groups),
             'groups' => $groups,
             'checks' => $checks,
@@ -415,9 +555,21 @@ class OrderAnalysis
             return $n.' '.implode(' ', $parts);
         };
         $parts = [];
-        foreach ($t['by_garment'] as $garment => $n) {
-            $named = array_filter($t['by_product'], fn ($k) => self::garmentOf($k) === $garment && mb_strtolower($k) !== mb_strtolower(self::PRODUCT_NAMES[$garment] ?? ''), ARRAY_FILTER_USE_KEY);
-            $part = $plural($n, self::PRODUCT_NAMES[$garment] ?? 'garment');
+        // Each sport's model by its own name ("1 Football jersey"); garments with no sport as before.
+        $byColumn = $t['by_column'] ?? $t['by_garment'];
+        foreach ($byColumn as $column => $n) {
+            $garment = explode('@', (string) $column)[0];
+            $name = $t['columns'][$column] ?? self::PRODUCT_NAMES[$garment] ?? 'garment';
+            if (str_contains((string) $column, '@') || $name === self::NO_SPORT_JERSEY) {
+                $shown = $n === 1 ? $name : self::pluralName($name);
+                // "2 jerseys (sport not given)"; a model keeps its own name ("3 Football jerseys").
+                $parts[] = $n.' '.($name === self::NO_SPORT_JERSEY ? mb_strtolower(mb_substr($shown, 0, 1)).mb_substr($shown, 1) : $shown);
+
+                continue;
+            }
+            $named = array_filter($t['by_product'], fn ($k) => self::garmentOf($k) === $garment && mb_strtolower($k) !== mb_strtolower(self::PRODUCT_NAMES[$garment] ?? '')
+                && self::sportOf($k) === null && $k !== self::NO_SPORT_JERSEY, ARRAY_FILTER_USE_KEY);
+            $part = $plural($n, $name);
             if (count($named) > 1) {
                 // The smallest named collection inside it ("including 227 Opening Day polos").
                 $shown = array_slice(array_filter($named, fn ($k) => ! preg_match('/^line\b/i', $k), ARRAY_FILTER_USE_KEY), 0, 1, true);
@@ -431,6 +583,12 @@ class OrderAnalysis
         $list = count($parts) > 1 ? implode(', ', array_slice($parts, 0, -1)).' and '.end($parts) : ($parts[0] ?? '');
 
         return $t['garments'].' garment'.($t['garments'] === 1 ? '' : 's').$from.': '.$list.'.';
+    }
+
+    /** The forms' garment column of a line: "jersey", or "jersey@football" for a sport's model. */
+    private static function columnOf(array $l): string
+    {
+        return $l['garment'].(! empty($l['sport']) ? '@'.$l['sport'] : '');
     }
 
     /** "Line Uniform Polo", "Opening Day Polo", or "Polo". */
@@ -458,16 +616,26 @@ class OrderAnalysis
             if ($l['size'] === null) {
                 $checks[] = $l['guess'] !== null
                     ? ['type' => 'size', 'text' => sprintf('%s size reads "%s", which looks like a typo for %s (row %d). Counted as %s.', self::who($l), $l['size_written'], self::sizeLabel($l['guess']), $l['row'], self::sizeLabel($l['guess'])), 'lines' => [$l['index']]]
-                    : ['type' => 'size', 'text' => sprintf('%s has %s (row %d): not a size we know. Counted, with no size.', self::who($l), $l['size_written'] === '' ? 'no size' : '"'.$l['size_written'].'"', $l['row']), 'lines' => [$l['index']]];
+                    : ['type' => 'size', 'text' => $l['size_written'] === ''
+                        ? sprintf('%s: no size given (row %d).', self::whose($l), $l['row'])
+                        : sprintf('%s has "%s" (row %d): not a size we know. Counted, with no size.', self::who($l), $l['size_written'], $l['row']), 'lines' => [$l['index']]];
             }
             if ($l['qty'] <= 0 || $l['qty_written'] === '') {
                 $checks[] = ['type' => 'qty', 'text' => $l['qty_written'] === ''
-                    ? sprintf('Row %d (%s) has no quantity: counted as 1.', $l['row'], self::who($l))
-                    : sprintf('Row %d (%s) has quantity "%s": not counted.', $l['row'], self::who($l), $l['qty_written']), 'lines' => [$l['index']]];
+                    ? sprintf('Row %d (%s) has no quantity: counted as 1.', $l['row'], self::whose($l))
+                    : sprintf('Row %d (%s) has quantity "%s": not counted.', $l['row'], self::whose($l), $l['qty_written']), 'lines' => [$l['index']]];
             }
             if ($l['garment'] === 'other') {
                 $checks[] = ['type' => 'garment', 'text' => sprintf('Row %d: "%s" is not a garment we know. Check what it is.', $l['row'], trim($l['collection'].' '.$l['product'])), 'lines' => [$l['index']]];
             }
+        }
+        // Jerseys with no sport: each sport has its own jersey, so ask which.
+        $noSport = array_values(array_filter($lines, fn ($l) => $l['product'] === self::NO_SPORT_JERSEY));
+        if ($noSport) {
+            $rows = array_map(fn ($l) => (string) $l['row'], $noSport);
+            $checks[] = ['type' => 'sport', 'text' => sprintf('%s (%s %s): which sport %s for? Each sport has its own model (Football jersey, Rugby jersey, Basketball singlet, Netball dress…).',
+                count($noSport) === 1 ? self::NO_SPORT_JERSEY : self::pluralName(self::NO_SPORT_JERSEY), count($rows) === 1 ? 'row' : 'rows',
+                self::names($rows), count($noSport) === 1 ? 'is it' : 'are they'), 'lines' => array_column($noSport, 'index')];
         }
         // The same person, the same garment and design on more than one line.
         $byPerson = [];
@@ -527,6 +695,14 @@ class OrderAnalysis
         }
 
         return $checks;
+    }
+
+    /** "Football jersey", "Sam’s Football jersey". */
+    private static function whose(array $l): string
+    {
+        $what = self::productName($l);
+
+        return self::hasName($l['member']) ? $l['member'].'’s '.$what : mb_strtoupper(mb_substr($what, 0, 1)).mb_substr($what, 1);
     }
 
     private static function who(array $l): string
@@ -599,7 +775,7 @@ class OrderAnalysis
                     }
                     $label = mb_strtolower($row['name']) === mb_strtolower($g['design']) || mb_stripos($row['name'], $g['design']) !== false
                         ? $row['name'] : $row['name'].' – '.$g['design'];
-                    $items[] = ['garment' => $row['garment'] === 'other' ? 'other' : $row['garment'], 'fit' => $fit,
+                    $items[] = ['garment' => $row['garment'] === 'other' ? 'other' : $row['garment'], 'sport' => $row['sport'] ?? null, 'fit' => $fit,
                         'label' => mb_substr($label, 0, 60), 'design' => $g['design'], 'sizes' => $sizes];
                 }
             }

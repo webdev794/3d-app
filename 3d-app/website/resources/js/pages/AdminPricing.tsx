@@ -10,6 +10,7 @@ import { BadgeDollarSign, Ban, Building2, CheckCircle2, ChevronLeft, ChevronRigh
 import { api, fetchFile, saveBlob } from '../api';
 import { PaymentStatusPill, money, type PaymentSummary, type Quote } from '../components/OrderPayment';
 import { SupplierListingPrices } from './AdminSuppliers';
+import { ownOrderName, orderTitle } from '../components/orderBoardModel';
 
 type Kind = 'garment' | 'extra' | 'shipping' | 'discount';
 interface Rule { id: number; kind: Kind; code: string | null; sport: string | null; name: string; price: string; per_item: string; percent: string | null; unit: 'garment' | 'player' | 'order' | null; auto: boolean; min_quantity: number | null; taxable: boolean; active: boolean; sort: number }
@@ -254,7 +255,7 @@ export function InvoicesAdmin({ onNotice }: { onNotice: (text: string) => void }
     {!result ? <div className="empty-state"><LoaderCircle className="spin" /></div> : <div className="table-wrap"><table className="admin-table"><thead><tr><th>Invoice</th><th>Order</th><th>Customer</th><th>Total</th><th>Due</th><th>Status</th><th>Issued</th><th /></tr></thead><tbody>
       {result.data.map(i => <tr key={i.id}>
         <td><strong>{i.invoice_number ?? '—'}</strong>{!i.invoice_number && <small className="cell-sub">Not issued</small>}</td>
-        <td>{i.order ? <>{i.order.number}<small className="cell-sub">{i.order.name}</small></> : <span className="muted">Deleted</span>}</td>
+        <td>{i.order ? <>{i.order.number}{ownOrderName(i.order.number, i.order.name) && <small className="cell-sub">{i.order.name}</small>}</> : <span className="muted">Deleted</span>}</td>
         <td>{i.customer?.name ?? '—'}<small className="cell-sub">{i.customer?.email}</small></td>
         <td>{i.total ? money(i.total, i.currency) : <span className="muted">To price</span>}</td>
         <td>{i.can_pay ? money(i.amount_due, i.currency) : '—'}{i.due_at && i.can_pay && <small className="cell-sub">by {date(i.due_at)}</small>}</td>
@@ -298,7 +299,7 @@ function InvoiceActions({ inv, onChanged, onNotice }: { inv: InvoiceDetail; onCh
   const payable = inv.can_pay;
   const paidSome = Number(inv.amount_paid) > 0 && inv.status !== 'refunded';
   return <div className="pa-invoice">
-    <div className="pa-invoice-head"><PaymentStatusPill payment={inv} /><span>{inv.order?.number} · {inv.order?.name}</span><span className="muted">{inv.account?.name} ({inv.account?.email})</span></div>
+    <div className="pa-invoice-head"><PaymentStatusPill payment={inv} /><span>{orderTitle(inv.order?.number, inv.order?.name)}</span><span className="muted">{inv.account?.name} ({inv.account?.email})</span></div>
     <div className="admin-grid">
       <section className="admin-card pa-box"><h3>Invoice</h3>
         <table className="admin-table compact"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>

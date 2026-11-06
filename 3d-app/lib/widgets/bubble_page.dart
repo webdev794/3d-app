@@ -27,7 +27,20 @@ class BubblePage extends StatelessWidget {
     this.compact = false,
     this.bell,
     this.backdrop,
+    this.fullHeadingRoom = false,
+    this.bottomRoom,
   });
+
+  /// A [compact] page whose last rows are narrower than the bubble (the
+  /// sport picker's Custom… and Design capsules, client 489): its own room
+  /// under the content, from the bottom dome's height, so they sit lower
+  /// in the dome. Null = the working pages' room.
+  final double Function(double dome)? bottomRoom;
+
+  /// A [compact] page that still keeps the main pages' room over its title
+  /// and the same bubble as Projects (the order form, user 2026-11-06:
+  /// CREATE ORDER FORM as far below the rim as PROJECTS).
+  final bool fullHeadingRoom;
 
   /// A backdrop of the page's own behind the bubble (the sport and garment
   /// pickers keep their stadium and sport backgrounds); the main pages keep
@@ -173,7 +186,7 @@ class BubblePage extends StatelessWidget {
                                     // rim and the room inside it.)
                                     padding: EdgeInsets.fromLTRB(
                                       side,
-                                      compact
+                                      compact && !fullHeadingRoom
                                           ? math.min(
                                               bubbleHeadingRoom(area),
                                               40.0,
@@ -184,7 +197,8 @@ class BubblePage extends StatelessWidget {
                                       // bottom curve (clipped to it below),
                                       // ending above where it curves in.
                                       compact
-                                          ? dome * .55 + 12
+                                          ? bottomRoom?.call(dome) ??
+                                                dome * .55 + 12
                                           : bubbleBottomRoom(
                                               inner.maxWidth,
                                               dome,
@@ -459,7 +473,11 @@ class BubbleRoute extends StatefulWidget {
     this.onBack,
     this.action,
     this.bell,
+    this.fullHeadingRoom = false,
   });
+
+  /// See [BubblePage.fullHeadingRoom].
+  final bool fullHeadingRoom;
 
   /// The page's own bell (see [BubblePage.bell]).
   final Widget? bell;
@@ -479,11 +497,14 @@ class BubbleRoute extends StatefulWidget {
 }
 
 class _BubbleRouteState extends State<BubbleRoute> {
-  late AppScreen _tab = widget.c.screen;
+  // Read now, not on first use: a lazy read in _tabChanged took the new tab
+  // and swallowed the first tab bar tap (QA8 #1, Home from the order form).
+  late AppScreen _tab;
 
   @override
   void initState() {
     super.initState();
+    _tab = widget.c.screen;
     widget.c.addListener(_tabChanged);
   }
 
@@ -511,6 +532,7 @@ class _BubbleRouteState extends State<BubbleRoute> {
         title: widget.title,
         bubbleKey: widget.bubbleKey,
         compact: true,
+        fullHeadingRoom: widget.fullHeadingRoom,
         bell: widget.bell,
         leading: Row(
           mainAxisSize: MainAxisSize.min,

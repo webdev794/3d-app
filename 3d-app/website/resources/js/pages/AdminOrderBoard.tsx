@@ -4,7 +4,7 @@ import { Download, ExternalLink, Eye, EyeOff, LoaderCircle, Lock, Paperclip, Ref
 import { ApiError, api } from '../api';
 import { MadeByFilter } from './AdminSuppliers';
 import GarmentIcon from '../components/GarmentIcon';
-import { unitWord } from '../components/orderBoardModel';
+import { orderTitle, ownOrderName, unitWord } from '../components/orderBoardModel';
 import OrderFormReading from '../components/OrderFormReading';
 import { STAGES, StageBlocked, orderApi, uploadAdminFile, type Board, type BoardOrder, type FileKind, type OrderDetail, type OrderStatus, type StageProblem } from '../orderApi';
 import '../../css/admin-board.css';
@@ -74,8 +74,8 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
           {stage.orders.map(order => <article key={order.id} className={`aob-card${busy === order.id ? ' is-busy' : ''}`} draggable data-order={order.number}
             onDragStart={e => { e.dataTransfer.setData('text/order', String(order.id)); e.dataTransfer.effectAllowed = 'move'; }}>
             <button type="button" className="aob-open" onClick={() => setOpenId(order.id)} aria-label={`Open ${order.number}`}>
-              <span className="aob-ref">{order.number}</span>
-              <strong>{order.name}</strong>
+              {ownOrderName(order.number, order.name) && <span className="aob-ref">{order.number}</span>}
+              <strong>{ownOrderName(order.number, order.name) || order.number}</strong>
               <span className="aob-garments">{order.garments.slice(0, 3).map((g, i) => g.thumbnail ? <img key={i} src={g.thumbnail} alt="" /> : <GarmentIcon key={i} garment={g.garment} />)}{order.garments.length === 0 && (order.cover ? <img src={order.cover} alt="" /> : <Paperclip size={22} />)}</span>
               <span className="aob-meta">{order.quantity ? `${order.quantity} ${unitWord(order.garments)}${order.quantity === 1 ? '' : 's'}` : 'Sizes in the order form'} · {order.customer?.name}</span>
               <span className={`aob-pill tone-${order.sub_status.tone}`}>{order.sub_status.label}</span>
@@ -161,7 +161,7 @@ function OrderPanel({ id, onClose, onNotice }: { id: number; onClose: () => void
     <button className="icon-button modal-close" onClick={onClose} aria-label="Close"><X /></button>
     {!order ? <div className="empty-state">{error ? <p className="error-message">{error}</p> : <LoaderCircle className="spin" />}</div> : <>
       <span className="eyebrow">{order.stage_label} · {order.sub_status.label}</span>
-      <h2 id="aob-panel-title">{order.number} · {order.name}</h2>
+      <h2 id="aob-panel-title">{orderTitle(order.number, order.name)}</h2>
       <p className="muted">{order.customer?.name ?? order.user?.name} ({order.customer?.email ?? order.user?.email}) · {order.contact_name}{order.phone ? ` · ${order.phone}` : ''}{order.contact_email ? ` · ${order.contact_email}` : ''} · placed {when(order.submitted_at)}</p>
       <div className="project-actions"><Link className="button button-outline" to={`/admin/orders/${order.id}`}><Eye size={15} /> Full order page</Link>
         {order.payment?.pdf && <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}{order.payment.amount_due ? ` · ${formatMoney(order.payment.amount_due, order.payment.currency)} due` : ''}</span>}

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 
 import '../accessory_art.dart';
@@ -17,6 +18,7 @@ import '../widgets/bubble_page.dart'
     show BubblePage, BubbleCornerPill, BubbleFillScroll;
 import '../widgets/category_icon.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/glass_bubble.dart' show GlassRim;
 import '../widgets/notification_bell.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
@@ -723,10 +725,83 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       .indexWhere((s) => s.$1 == widget.c.sport)
       .clamp(0, _n - 1);
   // Endless: start far from either end so it rotates both ways.
+  static const _cell = .42;
   late final PageController _pages = PageController(
-    viewportFraction: .42,
+    viewportFraction: _cell,
     initialPage: _n * 500 + _index,
   );
+
+  /// Where each kit picture's garment starts and ends across the picture
+  /// (fractions of its width, measured on the transparent pictures). The
+  /// stage packs the kits by these, so a side kit sits just next to the
+  /// centre one whatever its shape (user 2026-11-06: the side kits sat far
+  /// out with big empty gaps). A picture not listed counts as (.1, .9).
+  static const _kitSpan = <String, (double, double)>{
+    'afl': (.24, .76),
+    'american-football': (.15, .85),
+    'athletics': (.16, .84),
+    'basketball': (.24, .76),
+    'bmx': (.21, .79),
+    'cricket': (.21, .79),
+    'cycling': (.11, .89),
+    'darts': (.16, .84),
+    'esports': (.15, .85),
+    'fight-wear': (.05, .95),
+    'fishing': (.04, .96),
+    'football': (.09, .91),
+    'golf': (.04, .96),
+    'gymwear': (.18, .82),
+    'headwear': (.05, .91),
+    'hockey': (.08, .93),
+    'lacrosse': (.18, .82),
+    'lawn-bowls': (.09, .91),
+    'netball': (.16, .84),
+    'rugby-league': (.10, .90),
+    'rugby-union': (.11, .89),
+    'school-leavers': (.04, .96),
+    'softball': (.20, .80),
+    'swimming': (.23, .77),
+    'teamwear': (.07, .93),
+    'tennis': (.10, .90),
+    'touch': (.06, .94),
+    'training': (.22, .79),
+    'volleyball': (.04, .96),
+    'workwear': (.21, .79),
+  };
+
+  static String _kitSlug(int i) =>
+      ProjectSync.sports[dyoSports[i % _n].$1] ?? 'rugby-league';
+
+  /// A kit's size on the stage: full in the centre, .68 at the sides.
+  static double _kitScale(int i, double page) =>
+      .68 + .32 * (1 - (page - i).abs().clamp(0.0, 1.0));
+
+  /// Centre-to-centre distance of kits [i] and [i] + 1: the garments' own
+  /// half widths (as scaled) plus a small gap.
+  static double _kitStep(int i, double page, double pic) {
+    final a = _kitSpan[_kitSlug(i)] ?? (.1, .9);
+    final b = _kitSpan[_kitSlug(i + 1)] ?? (.1, .9);
+    return (a.$2 - .5) * pic * _kitScale(i, page) +
+        pic * .07 +
+        (.5 - b.$1) * pic * _kitScale(i + 1, page);
+  }
+
+  /// Kit [i]'s centre on the packed stage, from the stage's centre.
+  static double _kitX(int i, double page, double pic) {
+    final p0 = page.floor();
+    var x = -(page - p0) * _kitStep(p0, page, pic);
+    if (i >= p0) {
+      for (var j = p0; j < i; j++) {
+        x += _kitStep(j, page, pic);
+      }
+    } else {
+      for (var j = i; j < p0; j++) {
+        x -= _kitStep(j, page, pic);
+      }
+    }
+    return x;
+  }
+
   final _tiles = ScrollController();
 
   /// The quick-access filter: 'all', 'sports' or 'apparel'.
@@ -831,6 +906,47 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     });
   }
 
+  /// The stage's picture width (set by its layout) and the page a drag
+  /// started on.
+  double _pic = 0;
+  double? _dragFrom;
+
+  double get _page => _pages.hasClients && _pages.position.haveDimensions
+      ? _pages.page ?? _pages.initialPage.toDouble()
+      : _pages.initialPage.toDouble();
+
+  /// A drag moves the kits with the finger (user 2026-11-06): the finger's
+  /// move counts in the packed kit steps, not in whole pages.
+  void _dragStart(DragStartDetails _) {
+    if (!_pages.hasClients || !_pages.position.haveDimensions) return;
+    _dragFrom = _page;
+    _pages.jumpTo(_pages.position.pixels); // Stops a turn under way.
+  }
+
+  void _dragUpdate(DragUpdateDetails e) {
+    if (_dragFrom == null || _pic <= 0) return;
+    final page = _page, step = _kitStep(page.floor(), page, _pic);
+    if (step <= 0) return;
+    final next = page - (e.primaryDelta ?? e.delta.dx) / step;
+    _pages.jumpTo(next * _pages.position.viewportDimension * _cell);
+  }
+
+  /// Let go: the nearest kit, or a flick turns one on in its direction (as
+  /// a page view snaps).
+  void _dragEnd(DragEndDetails e) {
+    final from = _dragFrom;
+    _dragFrom = null;
+    if (from == null || !_pages.hasClients) return;
+    final page = _page, v = e.primaryVelocity ?? e.velocity.pixelsPerSecond.dx;
+    var target = page.round();
+    if (v.abs() > 300) target = (v < 0 ? page + .5 : page - .5).round();
+    _pages.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   void _step(int delta) => _pages.animateToPage(
     (_pages.page ?? _pages.initialPage.toDouble()).round() + delta,
     duration: const Duration(milliseconds: 420),
@@ -848,214 +964,270 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       // (Its stadium background stays behind the bubble.)
       backdrop: const StageBackground(child: SizedBox.expand()),
       bubbleKey: const ValueKey('sport-bubble'),
+      // (Its narrower Custom… and Design capsules sit lower in the bottom
+      // dome than a working page's full-width rows.)
+      bottomRoom: (dome) => dome * .28 + 8,
       leading: BubbleCornerPill(
         key: const ValueKey('sport-bubble-back'),
         icon: Icons.arrow_back,
         label: 'Back',
         onTap: widget.c.back,
       ),
-      // (A short phone: the page scrolls, the kit stage keeps 260 px.)
-      child: BubbleFillScroll(
-        minFlex: (_) => 260,
-        scrollKey: const ValueKey('sport-scroll'),
+      // The options are small glass bubbles (client 489): the sport tiles,
+      // the arrows, the sport's name, Custom… and the Design button. On a
+      // phone the whole picker fits the bubble, the Design button in view;
+      // a very short window scrolls, the kit stage keeping [_minStage].
+      child: LayoutBuilder(
+        builder: (context, room) {
+          // Less room (a 360 × 780 or 390 × 844 phone): tighter spacing.
+          final tight = room.maxHeight < 600;
+          return BubbleFillScroll(
+            minFlex: (_) => _minStage,
+            scrollKey: const ValueKey('sport-scroll'),
+            children: _picker(sport, tight),
+          );
+        },
+      ),
+    );
+  }
+
+  /// The least height of the kit stage before the picker scrolls.
+  static const _minStage = 150.0;
+
+  List<Widget> _picker((String, String, String, String) sport, bool tight) => [
+    const Text(
+      'DESIGN YOUR OWN',
+      style: TextStyle(
+        color: Palette.cyan,
+        fontSize: 10.5,
+        letterSpacing: 2.4,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+    SizedBox(height: tight ? 3 : 6),
+    ScreenTitle(
+      'Different sports.\n',
+      highlight: 'Same team spirit.',
+      size: tight ? 23 : 27,
+    ),
+    SizedBox(height: tight ? 3 : 6),
+    const Text(
+      'Choose your sport. Swipe to rotate.',
+      style: TextStyle(color: Color(0xffc4d2df), fontSize: 12),
+    ),
+    SizedBox(height: tight ? 2 : 8),
+    _CategoryFilters(
+      groups: [
+        'all',
+        for (final g in const ['sports', 'apparel'])
+          if (dyoSports.any((s) => s.$4 == g)) g,
+      ],
+      value: _filter,
+      onChanged: _chooseFilter,
+    ),
+    SizedBox(
+      // (Room above and below for the lit tile's glow.)
+      height: tight ? 82 : 90,
+      child: ListView.separated(
+        key: const ValueKey('dyo-tiles'),
+        controller: _tiles,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+        itemCount: _shown.length,
+        separatorBuilder: (_, _) => const SizedBox(width: _tileGap),
+        itemBuilder: (context, k) {
+          final i = _shown[k];
+          return _CategoryTile(
+            name: dyoSports[i].$1,
+            category: ProjectSync.sports[dyoSports[i].$1] ?? '',
+            width: _tileWidth,
+            selected: i == _index,
+            onTap: () => _goTo(i),
+          );
+        },
+      ),
+    ),
+    // The stage, the centre sport's glass capsule at its foot (client 489:
+    // the kits stand just over it, the capsule over the ring's near side).
+    Expanded(
+      child: Stack(
         children: [
-          const Text(
-            'DESIGN YOUR OWN',
-            style: TextStyle(
-              color: Palette.cyan,
-              fontSize: 10.5,
-              letterSpacing: 2.4,
-              fontWeight: FontWeight.w700,
-            ),
+          Positioned.fill(
+            bottom: (tight ? 50 : 56) - _capOverlap,
+            child: _stage(),
           ),
-          const SizedBox(height: 6),
-          const ScreenTitle(
-            'Different sports.\n',
-            highlight: 'Same team spirit.',
-            size: 27,
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Choose your sport. Swipe to rotate.',
-            style: TextStyle(color: Color(0xffc4d2df), fontSize: 12),
-          ),
-          const SizedBox(height: 8),
-          _CategoryFilters(
-            groups: [
-              'all',
-              for (final g in const ['sports', 'apparel'])
-                if (dyoSports.any((s) => s.$4 == g)) g,
-            ],
-            value: _filter,
-            onChanged: _chooseFilter,
-          ),
-          SizedBox(
-            height: 92,
-            child: ListView.separated(
-              key: const ValueKey('dyo-tiles'),
-              controller: _tiles,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
-              itemCount: _shown.length,
-              separatorBuilder: (_, _) => const SizedBox(width: _tileGap),
-              itemBuilder: (context, k) {
-                final i = _shown[k];
-                return _CategoryTile(
-                  name: dyoSports[i].$1,
-                  category: ProjectSync.sports[dyoSports[i].$1] ?? '',
-                  width: _tileWidth,
-                  selected: i == _index,
-                  onTap: () => _goTo(i),
-                );
-              },
-            ),
-          ),
-          Expanded(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // The glowing stage ring under the kits.
-                Positioned(
-                  bottom: 6,
-                  left: 18,
-                  right: 18,
-                  child: Container(
-                    height: 74,
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.all(
-                        Radius.elliptical(400, 74),
-                      ),
-                      border: Border.all(
-                        color: Palette.cyan.withValues(alpha: .75),
-                        width: 2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Palette.cyan.withValues(alpha: .35),
-                          blurRadius: 24,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                PageView.builder(
-                  controller: _pages,
-                  onPageChanged: (i) => _turned(i % _n),
-                  itemBuilder: (context, i) => AnimatedBuilder(
-                    animation: _pages,
-                    builder: (context, child) {
-                      final page =
-                          _pages.hasClients && _pages.position.haveDimensions
-                          ? _pages.page ?? i.toDouble()
-                          : _pages.initialPage.toDouble();
-                      final d = (page - i).clamp(-2.0, 2.0);
-                      final t = 1 - d.abs().clamp(0.0, 1.0);
-                      return Transform(
-                        alignment: Alignment.bottomCenter,
-                        transform: Matrix4.identity()
-                          ..setEntry(3, 2, .0012)
-                          ..rotateY(d * .32)
-                          ..scaleByDouble(.68 + .32 * t, .68 + .32 * t, 1, 1),
-                        child: Opacity(
-                          opacity: (.62 + .38 * t).clamp(0, 1),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: GestureDetector(
-                      onTap: () {
-                        final current = (_pages.page ?? 0).round();
-                        current == i ? _design() : _step(i - current);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 34, top: 6),
-                        child: Image.asset(
-                          'assets/images/showroom/kit-${ProjectSync.sports[dyoSports[i % _n].$1] ?? 'rugby-league'}.webp',
-                          fit: BoxFit.contain,
-                          alignment: Alignment.bottomCenter,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 6,
-                  child: _ArrowButton(
-                    icon: Icons.chevron_left_rounded,
-                    onTap: () => _step(-1),
-                  ),
-                ),
-                Positioned(
-                  right: 6,
-                  child: _ArrowButton(
-                    icon: Icons.chevron_right_rounded,
-                    onTap: () => _step(1),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // The centre sport's glowing label.
-          Container(
-            padding: const EdgeInsets.fromLTRB(26, 9, 26, 10),
-            decoration: BoxDecoration(
-              color: const Color(0xcc061824),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Palette.cyan, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: Palette.cyan.withValues(alpha: .45),
-                  blurRadius: 18,
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                ScreenTitle(sport.$1, size: 23),
-                const SizedBox(height: 2),
-                Text(
-                  sport.$3,
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: Color(0xffc4d2df),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // A dot each fits a dozen; more show as a count (the tiles pick any).
-          if (_n <= 12)
-            PageDots(count: _n, index: _index)
-          else
-            Text(
-              '${_index + 1} / $_n',
-              style: const TextStyle(
-                color: Color(0xffc4d2df),
-                fontSize: 12,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          // "Custom…" (client 2026-11-02): a sport we do not list, typed.
-          TextButton.icon(
-            key: const Key('dyo-custom-sport'),
-            onPressed: _customSport,
-            icon: const Icon(Icons.edit_outlined, size: 16),
-            label: const Text('Custom… type your own sport'),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
-            child: GradientButton(
-              label: 'DESIGN ${sport.$1.toUpperCase()}',
-              icon: Icons.arrow_forward_rounded,
-              onPressed: _design,
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: tight ? 50 : 56,
+            child: Center(
+              child: _SportName(name: sport.$1, kit: sport.$3, tight: tight),
             ),
           ),
         ],
       ),
-    );
-  }
+    ),
+    SizedBox(height: tight ? 4 : 8),
+    // A dot each fits a dozen; more show as a count (the tiles pick any).
+    if (_n <= 12)
+      Center(
+        child: PageDots(count: _n, index: _index),
+      )
+    else
+      Text(
+        '${_index + 1} / $_n',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Color(0xffd9e4ee),
+          fontSize: 13,
+          letterSpacing: 1.6,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    SizedBox(height: tight ? 4 : 8),
+    // "Custom…" (client 2026-11-02): a sport we do not list, typed.
+    // (Narrower than the bubble, as in 489, so it sits clear of the rim
+    // where the bottom dome curves in.)
+    Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: _GlassOutlineButton(
+        key: const Key('dyo-custom-sport'),
+        icon: Icons.edit_outlined,
+        label: 'Custom… type your own sport',
+        height: tight ? 34 : 38,
+        onTap: _customSport,
+      ),
+    ),
+    SizedBox(height: tight ? 10 : 14),
+    Padding(
+      padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
+      child: _GlossyButton(
+        label: 'DESIGN ${sport.$1.toUpperCase()}',
+        height: tight ? 46 : 50,
+        onPressed: _design,
+      ),
+    ),
+  ];
+
+  /// How far the sport's capsule reaches up over the stage's foot.
+  static const _capOverlap = 28.0;
+
+  /// The kits on their floodlit stage, the arrows at the sides.
+  Widget _stage() => Stack(
+    alignment: Alignment.center,
+    children: [
+      // The glowing stage ring under the kits.
+      Positioned(
+        bottom: 6,
+        left: 18,
+        right: 18,
+        child: Container(
+          height: 74,
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.all(Radius.elliptical(400, 74)),
+            border: Border.all(
+              color: Palette.cyan.withValues(alpha: .75),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Palette.cyan.withValues(alpha: .35),
+                blurRadius: 24,
+              ),
+            ],
+          ),
+        ),
+      ),
+      LayoutBuilder(
+        builder: (context, box) {
+          // The kit picture's width in its page (2:3 pictures in
+          // a page [_cell] of the stage wide, 40 px of padding).
+          final cell = box.maxWidth * _cell;
+          final pic = math.min(cell, math.max(0.0, box.maxHeight - 40) * 2 / 3);
+          _pic = pic;
+          return GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            supportedDevices: ScrollConfiguration.of(context).dragDevices,
+            // (From the touch-down, so the kits keep up with the
+            // finger from where it first touched.)
+            dragStartBehavior: DragStartBehavior.down,
+            onHorizontalDragStart: _dragStart,
+            onHorizontalDragUpdate: _dragUpdate,
+            onHorizontalDragEnd: _dragEnd,
+            onHorizontalDragCancel: () => _dragEnd(DragEndDetails()),
+            child: PageView.builder(
+              controller: _pages,
+              // Dragged by the detector above, 1:1 with the finger.
+              // (No page snapping: it would pull the kits back
+              // between finger moves; a drag's end snaps itself.)
+              physics: const NeverScrollableScrollPhysics(),
+              pageSnapping: false,
+              onPageChanged: (i) => _turned(i % _n),
+              itemBuilder: (context, i) => AnimatedBuilder(
+                animation: _pages,
+                builder: (context, child) {
+                  final page =
+                      _pages.hasClients && _pages.position.haveDimensions
+                      ? _pages.page ?? i.toDouble()
+                      : _pages.initialPage.toDouble();
+                  final d = (page - i).clamp(-2.0, 2.0);
+                  final t = 1 - d.abs().clamp(0.0, 1.0);
+                  // Packed close to the centre kit; a kit further out
+                  // than the side ones fades away as it comes near.
+                  final far = d.abs() <= 1
+                      ? 1.0
+                      : ((1.6 - d.abs()) / .6).clamp(0.0, 1.0);
+                  return Transform.translate(
+                    offset: Offset(_kitX(i, page, pic) + d * cell, 0),
+                    child: Transform(
+                      alignment: Alignment.bottomCenter,
+                      transform: Matrix4.identity()
+                        ..setEntry(3, 2, .0012)
+                        ..rotateY(d * .32)
+                        ..scaleByDouble(.68 + .32 * t, .68 + .32 * t, 1, 1),
+                      child: Opacity(
+                        opacity: ((.62 + .38 * t) * far).clamp(0, 1),
+                        child: child,
+                      ),
+                    ),
+                  );
+                },
+                child: GestureDetector(
+                  onTap: () {
+                    final current = (_pages.page ?? 0).round();
+                    current == i ? _design() : _step(i - current);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 34, top: 6),
+                    child: Image.asset(
+                      'assets/images/showroom/kit-${_kitSlug(i)}.webp',
+                      fit: BoxFit.contain,
+                      alignment: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+      Positioned(
+        left: 6,
+        child: _ArrowButton(
+          icon: Icons.chevron_left_rounded,
+          onTap: () => _step(-1),
+        ),
+      ),
+      Positioned(
+        right: 6,
+        child: _ArrowButton(
+          icon: Icons.chevron_right_rounded,
+          onTap: () => _step(1),
+        ),
+      ),
+    ],
+  );
 
   /// A typed sport: the garment step then offers every garment.
   Future<void> _customSport() async {
@@ -1161,7 +1333,72 @@ class _CategoryFilters extends StatelessWidget {
   );
 }
 
-/// One quick-access tile: the category's 2D outline symbol and its name.
+/// A small glass bubble round a DYO option (client 489): the glass rim of
+/// the AI Designer's controls (glassy band, cyan glow, white lights) round
+/// a dark centre. [lit] = the chosen one: a thicker, brighter rim and glow.
+class _GlassOption extends StatelessWidget {
+  const _GlassOption({
+    required this.child,
+    this.radius = 14,
+    this.lit = false,
+    this.rim = 2,
+    this.glow = .35,
+    this.onTap,
+    this.shape,
+  });
+  final Widget child;
+  final double radius, rim, glow;
+  final bool lit;
+  final VoidCallback? onTap;
+
+  /// A round bubble when [CircleBorder]; else rounded by [radius].
+  final ShapeBorder? shape;
+
+  @override
+  Widget build(BuildContext context) {
+    // The lit one: a cyan line under the glass band and a soft cyan glow
+    // round it. (A shadow, not the rim's own outer glow: in a scrolling row
+    // that glow showed a dark box round the tile in the browser.)
+    final side = lit
+        ? const BorderSide(color: Color(0xff38f3ff), width: 2)
+        : BorderSide.none;
+    final glass = GlassRim(
+      radius: radius,
+      width: lit ? rim + 1 : rim,
+      glow: lit ? 0 : glow,
+      child: Material(
+        color: lit ? const Color(0xf0082233) : const Color(0xe6040d16),
+        shape: shape is CircleBorder
+            ? CircleBorder(side: side)
+            : RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(radius),
+                side: side,
+              ),
+        clipBehavior: Clip.antiAlias,
+        child: onTap == null
+            ? child
+            : InkWell(onTap: onTap, customBorder: shape, child: child),
+      ),
+    );
+    if (!lit) return glass;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xff2fe0ff).withValues(alpha: .6),
+            blurRadius: 10,
+            spreadRadius: .5,
+          ),
+        ],
+      ),
+      child: glass,
+    );
+  }
+}
+
+/// One quick-access tile: the category's 2D outline symbol and its name in
+/// a small glass bubble (client 489), the chosen one lit.
 class _CategoryTile extends StatelessWidget {
   const _CategoryTile({
     required this.name,
@@ -1181,89 +1418,274 @@ class _CategoryTile extends StatelessWidget {
     label: name,
     onTap: onTap,
     excludeSemantics: true,
-    child: GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: width,
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(11),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: selected
-                ? const [Color(0xf20c2a3a), Color(0xf506131d)]
-                : const [Color(0xeb0a1b28), Color(0xf2050d16)],
-          ),
-          border: Border.all(
-            color: selected
-                ? const Color(0xff38f3ff)
-                : Palette.cyan.withValues(alpha: .33),
-            width: selected ? 2 : 1.5,
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: Palette.cyan.withValues(alpha: .55),
-                    blurRadius: 12,
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CategoryIcon(
-              category,
-              size: 34,
-              color: selected
-                  ? const Color(0xff5ff6ff)
-                  : const Color(0xff19e3f2),
-            ),
-            const SizedBox(height: 5),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                name.toUpperCase(),
-                maxLines: 1,
-                style: const TextStyle(
-                  fontFamily: 'Rajdhani',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12.5,
-                  letterSpacing: .5,
-                  color: Colors.white,
+    child: SizedBox(
+      width: width,
+      child: _GlassOption(
+        radius: 14,
+        lit: selected,
+        rim: 1.8,
+        glow: .3,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: CategoryIcon(
+                  category,
+                  size: 30,
+                  color: selected
+                      ? const Color(0xff5ff6ff)
+                      : const Color(0xff19e3f2),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 5),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  name.toUpperCase(),
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontFamily: 'Rajdhani',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                    letterSpacing: .8,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ),
   );
 }
 
+/// The stage's arrows: round glass bubbles (client 489).
 class _ArrowButton extends StatelessWidget {
   const _ArrowButton({required this.icon, required this.onTap});
   final IconData icon;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => Material(
-    color: const Color(0xcc05101a),
-    shape: CircleBorder(
-      side: BorderSide(color: Colors.white.withValues(alpha: .75), width: 1.5),
+  Widget build(BuildContext context) => _GlassOption(
+    radius: 20,
+    rim: 2,
+    glow: .7,
+    shape: const CircleBorder(),
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.all(7),
+      child: Icon(icon, color: Colors.white, size: 26),
     ),
-    shadowColor: Palette.cyan,
-    elevation: 6,
-    child: InkWell(
-      customBorder: const CircleBorder(),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(7),
-        child: Icon(icon, color: Colors.white, size: 26),
+  );
+}
+
+/// The centre sport under the stage (client 489): its name big and its kit
+/// ("Singlet + Shorts") in a glass capsule.
+class _SportName extends StatelessWidget {
+  const _SportName({required this.name, required this.kit, this.tight = false});
+  final String name, kit;
+
+  /// Less room: a little smaller.
+  final bool tight;
+  @override
+  Widget build(BuildContext context) => _GlassOption(
+    radius: 22,
+    rim: 2.6,
+    glow: .6,
+    child: Padding(
+      padding: EdgeInsets.fromLTRB(30, tight ? 4 : 6, 30, tight ? 5 : 7),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            name.toUpperCase(),
+            maxLines: 1,
+            style: TextStyle(
+              fontFamily: 'Rajdhani',
+              fontWeight: FontWeight.w700,
+              fontSize: tight ? 22 : 25,
+              height: 1.05,
+              letterSpacing: 1,
+              color: Colors.white,
+            ),
+          ),
+          if (kit.isNotEmpty)
+            Text(
+              kit,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: tight ? 12 : 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xffd3dee8),
+              ),
+            ),
+        ],
       ),
     ),
   );
+}
+
+/// A full-width glass outline capsule with a cyan icon and label
+/// (the pencil and "Custom... type your own sport", client 489).
+class _GlassOutlineButton extends StatelessWidget {
+  const _GlassOutlineButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.height = 38,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final double height;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: label,
+    excludeSemantics: true,
+    onTap: onTap,
+    child: SizedBox(
+      height: height,
+      width: double.infinity,
+      child: _GlassOption(
+        radius: height / 2,
+        rim: 1.8,
+        glow: .3,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 17, color: Palette.cyan),
+              const SizedBox(width: 8),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: Palette.cyan,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The main action (client 489): a bright cyan glossy capsule, its glass
+/// rim and a white gloss across the top, the label in dark navy.
+class _GlossyButton extends StatelessWidget {
+  const _GlossyButton({
+    required this.label,
+    required this.onPressed,
+    this.height = 50,
+  });
+  final String label;
+  final VoidCallback onPressed;
+  final double height;
+  @override
+  Widget build(BuildContext context) {
+    final r = BorderRadius.circular(height / 2);
+    return Semantics(
+      container: true,
+      button: true,
+      child: GlassRim(
+        radius: height / 2,
+        width: 2.2,
+        glow: 1,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: r,
+            gradient: const LinearGradient(
+              colors: [Color(0xff4fe6ff), Color(0xff16c3f4), Color(0xff1a78e8)],
+              stops: [0, .5, 1],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Palette.cyan.withValues(alpha: .45),
+                blurRadius: 18,
+              ),
+            ],
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            borderRadius: r,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onPressed,
+              child: SizedBox(
+                height: height,
+                child: Stack(
+                  children: [
+                    // The gloss: a soft white band over the top half.
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      height: height * .52,
+                      child: const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0x80ffffff), Color(0x14ffffff)],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  label,
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                    color: Color(0xff04192b),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 17,
+                                    letterSpacing: .4,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 22,
+                              color: Color(0xff04192b),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// The 3D garments: (name, showroom art id). "More teamwear" offers the ones

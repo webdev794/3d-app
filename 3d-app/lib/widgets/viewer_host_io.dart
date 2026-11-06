@@ -91,5 +91,15 @@ class ViewerHost {
   /// A drag that started outside the view keeps its touch on phones.
   set passThrough(bool on) {}
 
-  void dispose() {}
+  /// Leaving the page: a box of its own still being typed in (the Artboard's
+  /// text, colour or name boxes) lets go, so its keyboard does not stay up
+  /// over the next screen (user's picture 483).
+  void dispose() {
+    _web
+        .runJavaScript(
+          'try{var e=document.activeElement;'
+          'if(e&&e.blur)e.blur();}catch(_){}',
+        )
+        .catchError((Object _) {});
+  }
 }

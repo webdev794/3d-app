@@ -42,6 +42,10 @@ class OrderAssistantReader
         }
         // Typed notes: the built-in reader first; what it can't follow goes to 3DEEZI AI with the files.
         $text = trim($message);
+        // One sport named in the message ("football jersey with water logo"): the garments read with no sport of their
+        // own are that sport's models (a football jersey, not any jersey). Two or more sports: not guessed.
+        $sports = OrderAnalysis::sportsIn($text);
+        $sport = count($sports) === 1 ? $sports[0] : '';
         $textForAi = '';
         if ($text !== '') {
             $read = $this->notes->notes($text);
@@ -52,11 +56,20 @@ class OrderAssistantReader
                 $items[0]['garment'] = $said;
                 unset($items[0]['label']);
             }
-            $fromNotes = self::linesFromItems($items, 'Your message');
+            $fromNotes = self::linesFromItems($items, 'Your message', $sport);
+            // "5 hoodies", "10 football jerseys": kept, with no size given (the check list says so).
+            $unsized = (array) ($read['unsized'] ?? []);
+            foreach ($unsized as $u) {
+                $garment = (string) ($u['garment'] ?? 'other');
+                $fromNotes[] = OrderAnalysis::line(['row' => count($fromNotes) + 1, 'source' => 'Your message', 'garment' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? 'Garment',
+                    'type' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? '', 'sport' => (string) ($u['sport'] ?? '') ?: $sport, 'size' => '', 'qty' => (string) (int) ($u['qty'] ?? 1)]);
+            }
+            $fromNotes = array_values(array_filter($fromNotes));
+            $unsizedText = array_column($unsized, 'text');
             if ($fromNotes) {
                 array_push($lines, ...$fromNotes);
                 $sources[] = ['name' => 'Your message', 'how' => 'notes'];
-                $unread = array_merge($unread, array_values(array_filter($read['unknown'] ?? [], fn ($u) => ! self::chatter($u))));
+                $unread = array_merge($unread, array_values(array_filter($read['unknown'] ?? [], fn ($u) => ! self::chatter($u) && ! in_array($u, $unsizedText, true))));
             } elseif (! self::chatter($text)) {
                 $textForAi = $text;
             }
@@ -74,7 +87,9 @@ class OrderAssistantReader
             }
             if ($read) {
                 foreach ($read['lines'] as $i => $l) {
-                    $line = OrderAnalysis::line(['row' => $i + 1, 'source' => '3DEEZI AI'] + array_map('strval', $l));
+                    $l = array_map('strval', $l);
+                    $l['sport'] = ($l['sport'] ?? '') !== '' ? $l['sport'] : $sport;
+                    $line = OrderAnalysis::line(['row' => $i + 1, 'source' => '3DEEZI AI'] + $l);
                     if ($line) {
                         $lines[] = $line;
                     }
@@ -104,14 +119,15 @@ class OrderAssistantReader
         return ['analysis' => $analysis, 'sources' => $sources, 'unread' => array_values($unread), 'ai_used' => $aiUsed];
     }
 
-    /** The built-in notes reader's garments as order lines (a player each, else one line per size). */
-    public static function linesFromItems(array $items, string $source): array
+    /** The built-in notes reader's garments as order lines (a player each, else one line per size), with their sport ($sport when none). */
+    public static function linesFromItems(array $items, string $source, string $sport = ''): array
     {
         $lines = [];
         $n = 0;
         foreach ($items as $item) {
             $garment = (string) ($item['garment'] ?? 'other');
             $name = (string) ($item['label'] ?? '') ?: (OrderAnalysis::PRODUCT_NAMES[$garment] ?? 'Garment');
+            $itemSport = (string) ($item['sport'] ?? '') ?: $sport;
             $players = array_values(array_filter((array) ($item['players'] ?? []), 'is_array'));
             $sizes = array_filter((array) ($item['sizes'] ?? []), fn ($q) => (int) $q > 0);
             foreach ($players as $p) {
@@ -120,11 +136,11 @@ class OrderAssistantReader
                     $sizes[$size]--;
                 }
                 $lines[] = OrderAnalysis::line(['row' => ++$n, 'source' => $source, 'member' => (string) ($p['name'] ?? ''), 'garment' => $name,
-                    'type' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? '', 'size' => $size, 'qty' => '1', 'note' => ($p['number'] ?? '') !== '' ? '#'.$p['number'] : '']);
+                    'type' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? '', 'sport' => $itemSport, 'size' => $size, 'qty' => '1', 'note' => ($p['number'] ?? '') !== '' ? '#'.$p['number'] : '']);
             }
             foreach ($sizes as $size => $qty) {
                 if ((int) $qty > 0) {
-                    $lines[] = OrderAnalysis::line(['row' => ++$n, 'source' => $source, 'garment' => $name, 'type' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? '',
+                    $lines[] = OrderAnalysis::line(['row' => ++$n, 'source' => $source, 'garment' => $name, 'type' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? '', 'sport' => $itemSport,
                         'size' => (string) $size, 'qty' => (string) (int) $qty]);
                 }
             }

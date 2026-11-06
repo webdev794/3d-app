@@ -235,6 +235,13 @@ const GARMENT_NAMES: Record<string, string> = { jersey: 'Jersey', shorts: 'Short
 export const garmentName = (id: string) => GARMENT_NAMES[id] ?? (id ? id[0].toUpperCase() + id.slice(1) : 'Garment');
 /** "#3DZ-01048": the reference exactly as staff, emails and the admin board show it. */
 export const displayRef = (number: string) => `#${number}`;
+/** The order's own name, or '' when it has none: the server's "Order 3DZ-00010" fallback (team name optional) isn't a name. */
+export const ownOrderName = (number?: string | null, name?: string | null) => {
+  const n = (name ?? '').trim();
+  return !n || (number && n.toLowerCase() === `order ${number}`.toLowerCase()) ? '' : n;
+};
+/** "3DZ-00010 · Hawks" with a name, just "3DZ-00010" without (not "3DZ-00010 · Order 3DZ-00010"). */
+export const orderTitle = (number?: string | null, name?: string | null, ref: string = number ?? '') => [ref, ownOrderName(number, name)].filter(Boolean).join(' · ');
 export const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 /** What an order counts: "marquee" for a marquee order (Signage & Marquees), else "garment" ("2 marquees", "12 garments"). */
 export const unitWord = (garments: { garment: string }[]) => (garments.length > 0 && garments.every(g => g.garment === 'marquee') ? 'marquee' : 'garment');

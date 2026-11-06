@@ -35,7 +35,7 @@ class InvoiceIssued extends Notification
             ->line((($order['source'] ?? null) === 'supplier'
                 // A preferred supplier's listing (task 9.118).
                 ? 'Thanks for applying to be a 3DEEZI preferred supplier ('.($order['number'] ?? '').').'
-                : 'Thanks for your order'.(filled($order['number'] ?? null) ? ' '.$order['number'] : '').(filled($order['name'] ?? null) ? ' ('.$order['name'].')' : '').'.')." Your invoice {$invoice->number} is ready.")
+                : 'Thanks for your order'.(filled($order['number'] ?? null) ? ' '.$order['number'] : '').(! \App\Models\Order::isFallbackName($order['name'] ?? null, $order['number'] ?? null) ? ' ('.$order['name'].')' : '').'.')." Your invoice {$invoice->number} is ready.")
             ->line("Amount due: {$total}".(($tax['amount_cents'] ?? 0) > 0 ? ' (includes '.($tax['name'] ?? 'GST').' '.Money::format($tax['amount_cents'], $invoice->currency).')' : '').'.'
                 .($invoice->due_at ? ' Please pay by '.$invoice->due_at->format('j M Y').'.' : ''))
             ->action('Review & pay', (string) $invoice->payUrl())

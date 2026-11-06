@@ -22,6 +22,16 @@ class AiSession extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** Shared hosting has no shell for `php artisan migrate`, so an uploaded update creates its table on first use. */
+    public static function ensureTable(): void
+    {
+        static $checked = false;
+        if (! $checked && ! \Illuminate\Support\Facades\Schema::hasTable('ai_sessions')) {
+            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        }
+        $checked = true;
+    }
+
     protected static function booted(): void
     {
         // The pictures go with the row.

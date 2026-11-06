@@ -45,7 +45,7 @@ final class OrderAssistPdf
     {
         $this->a = $assist->analysis ?? [];
         $this->brand = $assist->brandName();
-        $this->pdf = new PdfDocument(($assist->title ?: 'Order').' – Order Form', $this->brand);
+        $this->pdf = new PdfDocument($assist->displayTitle().' – Order Form', $this->brand);
         $this->logo = $this->brandLogo();
     }
 
@@ -77,7 +77,7 @@ final class OrderAssistPdf
                 $x += $info['w'] * $scale + 18;
             }
         }
-        $title = $this->assist->title ?: 'Your order';
+        $title = $this->assist->displayTitle();
         $size = 20;
         while ($size > 12 && $pdf->width($title, $size, true) > self::RIGHT - $x - 16) {
             $size--;
@@ -90,7 +90,7 @@ final class OrderAssistPdf
         // The totals: all garments, each garment / collection, and the lines to check.
         $tiles = [['TOTAL GARMENTS', (string) ($t['garments'] ?? 0), self::DARK]];
         foreach (array_slice($t['by_product'] ?? [], 0, 3, true) as $name => $n) {
-            $tiles[] = [mb_strtoupper(preg_replace('/^Line Uniform /i', 'Line ', $name).'s'), (string) $n, self::DARK];
+            $tiles[] = [mb_strtoupper(OrderAnalysis::pluralName(preg_replace('/^Line Uniform /i', 'Line ', $name) ?? $name)), (string) $n, self::DARK];
         }
         $tiles[] = ['TO CHECK', (string) ($t['to_check'] ?? 0), self::WARN];
         $w = (self::RIGHT - self::LEFT) / count($tiles);
@@ -102,23 +102,24 @@ final class OrderAssistPdf
         }
         $this->y = 240;
 
-        // By design / colour: a column per garment, then the total.
-        $garments = array_keys($t['by_garment'] ?? []);
+        // By design / colour: a column per garment (each sport's model on its own: "Football jersey"), then the total.
+        $byColumn = $t['by_column'] ?? $t['by_garment'] ?? [];
+        $garments = array_keys($byColumn);
         $this->heading('By design / colour');
-        $cols = [...array_map(fn ($g) => OrderAnalysis::PRODUCT_NAMES[$g] ?? ucfirst($g), $garments), 'Total', 'Page'];
+        $cols = [...array_map(fn ($g) => $t['columns'][$g] ?? OrderAnalysis::PRODUCT_NAMES[$g] ?? ucfirst($g), $garments), 'Total', 'Page'];
         $first = 210;
         $cw = (self::RIGHT - self::LEFT - $first) / count($cols);
         $this->row(['Design – colour', ...$cols], $first, $cw, self::DARK, '#ffffff', true);
         foreach ($this->a['groups'] ?? [] as $i => $g) {
             $counts = [];
             foreach ($garments as $garment) {
-                $n = array_sum(array_map(fn ($r) => $r['garment'] === $garment ? $r['total'] : 0, $g['garments']));
+                $n = array_sum(array_map(fn ($r) => ($r['column'] ?? $r['garment']) === $garment ? $r['total'] : 0, $g['garments']));
                 $counts[] = $n ?: '·';
             }
             $colour = $g['colour'] ?? '#2f6fd6';
             $this->row([$g['design'], ...$counts, $g['total'], 'p. '.($i + 2)], $first, $cw, self::tint($colour, .82), self::INK, false, $colour);
         }
-        $this->row(['GRAND TOTAL', ...array_map(fn ($g) => $t['by_garment'][$g], $garments), $t['garments'] ?? 0, ''], $first, $cw, self::DARK, '#ffffff', true);
+        $this->row(['GRAND TOTAL', ...array_map(fn ($g) => $byColumn[$g], $garments), $t['garments'] ?? 0, ''], $first, $cw, self::DARK, '#ffffff', true);
         $this->y += 14;
 
         // The overall size breakdown (all groups), one table per size set.
@@ -180,7 +181,7 @@ final class OrderAssistPdf
         }
         $tiles = [];
         foreach ($g['garments'] as $r) {
-            $tiles[] = [mb_strtoupper($r['name'].'s'), (string) $r['total'], self::DARK];
+            $tiles[] = [mb_strtoupper(OrderAnalysis::pluralName($r['name'])), (string) $r['total'], self::DARK];
         }
         if (count($g['garments']) > 1) {
             $tiles[] = ['TOTAL GARMENTS', (string) $g['total'], '#2b2f36'];
@@ -248,7 +249,7 @@ final class OrderAssistPdf
         $count = $pdf->pageCount();
         for ($i = 0; $i < $count; $i++) {
             $pdf->usePage($i);
-            $pdf->text(self::RIGHT, 24, ($this->assist->title ?: 'Order').' · Order Form', 7.5, false, self::MUTED, 'right');
+            $pdf->text(self::RIGHT, 24, $this->assist->displayTitle().' · Order Form', 7.5, false, self::MUTED, 'right');
             $pdf->line(self::LEFT, PdfDocument::HEIGHT - 34, self::RIGHT, PdfDocument::HEIGHT - 34, '#e5e7eb');
             $pdf->text(self::LEFT, PdfDocument::HEIGHT - 22, 'Made by '.$this->brand.($this->brand === '3DEEZI' ? ' · AI Sportswear Designer · 3deezi.com' : ''), 7.5, false, self::MUTED);
             $pdf->text(self::RIGHT, PdfDocument::HEIGHT - 22, sprintf('Page %d of %d', $i + 1, $count), 7.5, false, self::MUTED, 'right');
@@ -278,7 +279,27 @@ final class OrderAssistPdf
         }
         $pdf->text(self::LEFT + 5, $this->y + 12, $name, 9, true, $swatch ? self::readableOn($swatch) : $ink);
         foreach (array_slice($cells, 1) as $i => $v) {
-            $pdf->text(self::LEFT + $first + $cw * ($i + .5), $this->y + 12, (string) $v, 9, $bold, $ink, 'center');
+            // A long garment name ("Jersey (sport not given)") in a smaller type to fit its column, on two lines if need be.
+            $v = (string) $v;
+            $x = self::LEFT + $first + $cw * ($i + .5);
+            $fits = fn (string $s, float $size) => $pdf->width($s, $size, $bold) <= $cw - 4;
+            $size = 9;
+            while ($size > 6.5 && ! $fits($v, $size)) {
+                $size -= .5;
+            }
+            $cut = mb_strrpos(mb_substr($v, 0, (int) ceil(mb_strlen($v) / 2) + 1), ' ');
+            if (! $fits($v, $size) && $cut !== false) {
+                [$top, $bottom] = [mb_substr($v, 0, $cut), mb_substr($v, $cut + 1)];
+                $size = 7;
+                while ($size > 5 && (! $fits($top, $size) || ! $fits($bottom, $size))) {
+                    $size -= .5;
+                }
+                $pdf->text($x, $this->y + 7.5, $top, $size, $bold, $ink, 'center');
+                $pdf->text($x, $this->y + 14.5, $bottom, $size, $bold, $ink, 'center');
+
+                continue;
+            }
+            $pdf->text($x, $this->y + 12, $v, $size, $bold, $ink, 'center');
         }
         $this->y += $h;
     }

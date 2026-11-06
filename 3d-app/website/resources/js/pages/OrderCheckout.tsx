@@ -38,7 +38,7 @@ interface CheckoutInvoice extends PaymentSummary {
   payment_rule: { rule: 'none' | 'deposit' | 'full'; deposit_percent: number };
 }
 interface Address { street: string; suburb: string; state: string; postcode: string; country: string }
-interface Billing { same: boolean; name?: string | null; company?: string | null; address?: string | null; fields?: Address }
+interface Billing { same: boolean; name?: string | null; company?: string | null; address?: string | null; fields?: Address; hint?: Partial<Address> }
 interface Checkout { viewer: Viewer; order: CheckoutOrder; items: CheckoutItem[]; projects: Project[]; invoice: CheckoutInvoice | null; billing: Billing | null }
 interface Started { payment: { id: number; client_secret: string | null; intent_id?: string | null }; invoice: CheckoutInvoice }
 
@@ -175,9 +175,14 @@ function PaymentCard({ data, keyQuery, keep, onData, onPaid }: { data: Checkout;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const saved = data.billing?.same === false ? data.billing : null;
+  // A pick-up order delivers nothing: no "Same as delivery address", just the billing address (the customer's own).
+  const pickup = order.delivery === 'pickup';
   const [same, setSame] = useState(!saved);
-  const [open, setOpen] = useState(!!saved);
-  const [bill, setBill] = useState(() => ({ name: saved?.name ?? order.contact_name ?? '', company: saved?.company ?? order.team_name ?? '', street: saved?.fields?.street ?? '', suburb: saved?.fields?.suburb ?? '', state: saved?.fields?.state ?? '', postcode: saved?.fields?.postcode ?? '', country: saved?.fields?.country ?? 'Australia' }));
+  const [open, setOpen] = useState(!!saved || pickup);
+  const [bill, setBill] = useState(() => {
+    const from = saved?.fields ?? data.billing?.hint;
+    return { name: saved?.name ?? order.contact_name ?? '', company: saved?.company ?? order.team_name ?? '', street: from?.street ?? '', suburb: from?.suburb ?? '', state: from?.state ?? '', postcode: from?.postcode ?? '', country: from?.country || 'Australia' };
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const payRef = useRef<HTMLDivElement>(null);
   const [payInView, setPayInView] = useState(true);
@@ -201,8 +206,10 @@ function PaymentCard({ data, keyQuery, keep, onData, onPaid }: { data: Checkout;
 
   /** The billing address: saved with the invoice only when it differs from the delivery address (or changes back). */
   async function saveBilling() {
-    if (!invoice?.number || (same && data.billing?.same !== false)) return;
-    const body = same ? { same: true } : { same: false, name: bill.name, company: bill.company, address: { street: bill.street, suburb: bill.suburb, state: bill.state, postcode: bill.postcode, country: bill.country } };
+    // Pick up: the address typed in is the billing address; left empty, the invoice bills as before (no address).
+    const useSame = pickup ? !(['street', 'suburb', 'state', 'postcode'] as const).some(k => bill[k].trim()) : same;
+    if (!invoice?.number || (useSame && data.billing?.same !== false)) return;
+    const body = useSame ? { same: true } : { same: false, name: bill.name, company: bill.company, address: { street: bill.street, suburb: bill.suburb, state: bill.state, postcode: bill.postcode, country: bill.country } };
     const billing = await api<Billing>(`/invoices/${encodeURIComponent(invoice.number)}/billing${keyQuery}`, { method: 'PUT', body: JSON.stringify(body) });
     onData({ ...data, billing });
   }
@@ -245,7 +252,7 @@ function PaymentCard({ data, keyQuery, keep, onData, onPaid }: { data: Checkout;
   const payLabel = `PAY ${aud(due, invoice?.currency)}`;
   const set = (field: keyof typeof bill) => (e: { target: { value: string } }) => setBill(b => ({ ...b, [field]: e.target.value }));
   const field = (name: keyof typeof bill, label: string, props: Record<string, unknown> = {}) => <label className={`ck-field${name === 'street' ? ' ck-wide' : ''}`}>
-    <span>{label}</span><input className="op-input" value={bill[name]} onChange={set(name)} aria-invalid={!!errors[name]} maxLength={120} {...props} />
+    <span>{label}</span><input className="op-input" value={bill[name]} onChange={set(name)} aria-invalid={!!errors[name]} maxLength={120} disabled={staff} {...props} />
     {errors[name] && <small className="op-error">{errors[name]}</small>}
   </label>;
 
@@ -272,24 +279,24 @@ function PaymentCard({ data, keyQuery, keep, onData, onPaid }: { data: Checkout;
         <CardArea gateway={invoice.gateway} invoiceNumber={invoice.number} outcome={outcome} onOutcome={setOutcome} />
 
         <div className="ck-billing">
-          <h3>Billing &amp; delivery</h3>
-          <label className="ck-check"><input type="checkbox" checked={same} disabled={staff || busy} onChange={e => { setSame(e.target.checked); if (!e.target.checked) setOpen(true); }} />
+          <h3>{pickup ? 'Billing address' : <>Billing &amp; delivery</>}</h3>
+          {!pickup && <label className="ck-check"><input type="checkbox" checked={same} disabled={staff || busy} onChange={e => { setSame(e.target.checked); if (!e.target.checked) setOpen(true); }} />
             <span className="ck-box" aria-hidden="true"><Check size={15} strokeWidth={3} /></span>
-            <span><b>Same as delivery address</b><small>Use the same address for billing and delivery.</small></span></label>
+            <span><b>Same as delivery address</b><small>Use the same address for billing and delivery.</small></span></label>}
           <div className="ck-person"><span className="ck-person-icon"><UserIcon size={18} /></span><span className="ck-person-name">{contactLine}</span>
             <button type="button" className="op-link" aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'Hide address' : 'View / edit address'} <ArrowRight size={15} /></button></div>
           {open && <div className="ck-address">
-            <div className="ck-address-view"><span>{order.delivery === 'pickup' ? 'Pick up' : 'Delivery address'}</span>
+            {pickup ? <p className="ck-quiet">Pick up order: nothing is delivered. Your invoice is billed to this address.</p> : <div className="ck-address-view"><span>Delivery address</span>
               <p>{order.shipping_address ?? 'No delivery address on this order yet.'}</p>
-              <small>Delivery is as you approved it. To change it, contact us before paying.</small></div>
-            {same ? <p className="ck-quiet">Billing uses the delivery address. <button type="button" className="op-link" disabled={staff} onClick={() => setSame(false)}>Use a different billing address</button></p>
+              <small>Delivery is as you approved it. To change it, contact us before paying.</small></div>}
+            {same && !pickup ? <p className="ck-quiet">Billing uses the delivery address. <button type="button" className="op-link" disabled={staff} onClick={() => setSame(false)}>Use a different billing address</button></p>
               : <div className="ck-fields">
                 {field('name', 'Name on the invoice', { autoComplete: 'name' })}
                 {field('company', 'Company / team', { autoComplete: 'organization' })}
                 {field('street', 'Street address', { autoComplete: 'street-address' })}
                 {field('suburb', 'Suburb / town', { autoComplete: 'address-level2' })}
                 {isAustralia(bill.country) ? <label className="ck-field"><span>State</span>
-                  <select className="op-input" value={bill.state.toUpperCase()} onChange={set('state')} aria-invalid={!!errors.state}><option value="">Choose…</option>{AU_STATES.map(s => <option key={s}>{s}</option>)}</select>
+                  <select className="op-input" value={bill.state.toUpperCase()} onChange={set('state')} aria-invalid={!!errors.state} disabled={staff}><option value="">Choose…</option>{AU_STATES.map(s => <option key={s}>{s}</option>)}</select>
                   {errors.state && <small className="op-error">{errors.state}</small>}</label> : field('state', 'State / region')}
                 {field('postcode', 'Postcode', { autoComplete: 'postal-code', inputMode: isAustralia(bill.country) ? 'numeric' : undefined, maxLength: 10 })}
                 {field('country', 'Country', { autoComplete: 'country-name' })}

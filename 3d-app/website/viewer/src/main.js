@@ -1348,6 +1348,9 @@ function dragHover(arg) {
 // changes reach it as the board's do ({type:'marks'} / {type:'layers'}), words as {type:'markText', field, value}.
 let barPending = false;
 let objectEditing = false, selected = null, addSpot = null, hostImages = false, dragObj = null;
+// The apps (command insets, 2026-11-06): the edges of this frame the app hides ({top, right, bottom, left} px; null on
+// the website). There the bar is compact, opens where it doesn't cover the tapped object, and can be dragged anywhere.
+let appView = null, tapAt = null;
 const MARK_LABEL = { wordmark: 'Team name', sockWord: 'Team name', brand: '3DEEZI logo', sponsor: 'Sponsor', crest: 'Crest', name: 'Back name', number: 'Number', frontNumber: 'Front number' };
 const MARK_FIELD = { wordmark: 'logoText', sockWord: 'logoText', name: 'backName', number: 'number', frontNumber: 'number' };
 const SHAPE_LABEL = { shield: 'Shield', circle: 'Circle', square: 'Square', rounded: 'Rounded', diamond: 'Diamond' };
@@ -1486,7 +1489,14 @@ barCss.textContent = `#object-bar{position:fixed;left:50%;bottom:78px;transform:
 #object-bar button:hover{background:rgba(255,255,255,.18)}#object-bar button[aria-pressed=true]{background:#2fd0e0;color:#071018;border-color:#2fd0e0}#object-bar button.danger{border-color:#ff7a7a;color:#ffb3b3}
 #object-bar input[type=range]{width:100px}#object-bar input[type=text]{width:130px;min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:#0b0f16;color:#fff;padding:0 8px;font:inherit}
 #object-bar input[type=color]{width:36px;height:32px;border:0;background:none;padding:0}#object-bar .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center;max-width:100%}
-@media (max-width:640px){#object-bar{left:28px;right:28px;transform:none;width:auto;bottom:74px;padding:6px;flex-direction:column;align-items:stretch;gap:5px}#object-bar .row{flex-wrap:wrap;max-width:100%;justify-content:center;gap:5px}#object-bar span,#object-bar b{white-space:nowrap}#object-bar button{min-height:36px;padding:0 8px}#object-bar input[type=range]{width:80px}}`;
+@media (max-width:640px){#object-bar{left:28px;right:28px;transform:none;width:auto;bottom:74px;padding:6px;flex-direction:column;align-items:stretch;gap:5px}#object-bar .row{flex-wrap:wrap;max-width:100%;justify-content:center;gap:5px}#object-bar span,#object-bar b{white-space:nowrap}#object-bar button{min-height:36px;padding:0 8px}#object-bar input[type=range]{width:80px}}
+body.in-app #object-bar{left:6px;top:6px;right:auto;bottom:auto;transform:none;width:max-content;padding:4px 6px 6px;gap:4px;border-radius:12px;font-size:12px;cursor:grab;touch-action:none}
+body.in-app #object-bar.dragging{cursor:grabbing;opacity:.9}
+body.in-app #object-bar .grip{display:flex;align-items:center;justify-content:center;gap:8px;height:16px;color:#b8c7d6;font-size:11px}
+body.in-app #object-bar .grip i{width:30px;height:4px;border-radius:2px;background:rgba(255,255,255,.45)}
+body.in-app #object-bar .row{flex-wrap:wrap;gap:4px}body.in-app #object-bar button{min-height:30px;min-width:30px;padding:0 7px;border-radius:8px}
+body.in-app #object-bar input[type=range]{width:48px}body.in-app #object-bar input[type=text]{width:112px;min-height:30px}
+body.in-app #object-bar input[type=color]{width:32px;height:28px}body.in-app #object-bar select{min-height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:#1a2130;color:#fff;font:inherit;padding:0 4px}`;
 document.head.append(barCss);
 document.body.append(bar);
 for (const t of ['pointerdown', 'pointerup', 'click', 'wheel', 'touchstart']) bar.addEventListener(t, (e) => e.stopPropagation());
@@ -1494,17 +1504,21 @@ function el(tag, props = {}, ...kids) { const e = document.createElement(tag); f
 function btn(label, onclick, extra = {}) { return el('button', { type: 'button', textContent: label, onclick, ...extra }); }
 function drawBar() {
   bar.replaceChildren();
+  // The apps: a grip with the object's name on top (drag it, or any empty part of the bar).
+  const grip = (name) => el('div', { className: 'grip', title: 'Drag to move' }, el('i'), el('b', { textContent: name }));
   if (addSpot) {
-    bar.append(el('div', { className: 'row' }, el('b', { textContent: 'Empty spot' }),
+    if (appView) bar.append(grip('Empty spot'));
+    bar.append(el('div', { className: 'row' }, ...(appView ? [] : [el('b', { textContent: 'Empty spot' })]),
       btn('Add logo here', () => addHere('logo')),
       btn('Add text here', () => addHere('text')),
       btn('Upload picture here', () => addHere('upload')),
       btn('✕', () => { addSpot = null; drawBar(); }, { ariaLabel: 'Close', title: 'Close' })));
     bar.classList.add('on'); bar.scrollLeft = 0; requestAnimationFrame(() => { bar.scrollLeft = 0; });
+    placeBar('spot');
     return;
   }
   const box = selectedBox();
-  if (!selected || !box) { bar.classList.remove('on'); return; }
+  if (!selected || !box) { bar.classList.remove('on'); placeBar(null); return; }
   const l = selected.kind === 'layer' ? layerOf(selected.id) : null;
   const name = selected.kind === 'mark' ? MARK_LABEL[selected.name] ?? selected.name : l?.type === 'text' ? 'Text' : l?.name || 'Logo';
   const size = el('input', { type: 'range', min: '0.3', max: '3', step: '0.05', title: 'Size', ariaLabel: 'Size' });
@@ -1512,7 +1526,8 @@ function drawBar() {
   else { size.value = '1'; selected.base = { size: l?.size, w: l?.w, h: l?.h }; }
   size.oninput = () => changeSelected({ scale: Number(size.value) }, false);
   size.onchange = () => sendObjects(selected.kind);
-  bar.append(el('div', { className: 'row' }, el('b', { textContent: name }),
+  if (appView) bar.append(grip(name));
+  bar.append(el('div', { className: 'row' }, ...(appView ? [] : [el('b', { textContent: name })]),
     btn('−', () => changeSelected({ scaleBy: 1 / 1.12 }), { title: 'Smaller', ariaLabel: 'Smaller' }), size,
     btn('+', () => changeSelected({ scaleBy: 1.12 }), { title: 'Bigger', ariaLabel: 'Bigger' }),
     btn('⟲', () => changeSelected({ rotBy: -15 }), { title: 'Turn left', ariaLabel: 'Turn left' }),
@@ -1521,8 +1536,12 @@ function drawBar() {
     btn('Done', () => select(null))));
   if (selected.kind === 'mark' && selected.name === 'crest') {
     const now = design.marks?.[selected.key]?.shape ?? 'shield';
-    bar.append(el('div', { className: 'row' }, el('span', { textContent: 'Shape' }),
-      ...Object.entries(SHAPE_LABEL).map(([k, v]) => btn(v, () => { changeSelected({ shape: k }); setTimeout(drawBar, 0); }, { ariaPressed: String(now === k) })),
+    // (The apps: the shapes in one compact list.)
+    const shapes = appView
+      ? [el('select', { ariaLabel: 'Shape', onchange: (e) => { changeSelected({ shape: e.target.value }); setTimeout(drawBar, 0); } },
+        ...Object.entries(SHAPE_LABEL).map(([k, v]) => el('option', { value: k, textContent: v, selected: now === k })))]
+      : Object.entries(SHAPE_LABEL).map(([k, v]) => btn(v, () => { changeSelected({ shape: k }); setTimeout(drawBar, 0); }, { ariaPressed: String(now === k) }));
+    bar.append(el('div', { className: 'row' }, el('span', { textContent: 'Shape' }), ...shapes,
       btn('Copy to other chest', () => copyCrest(box))));
   }
   const text = selected.kind === 'mark' ? (MARK_FIELD[selected.name] ? String(design[MARK_FIELD[selected.name]] ?? '') : null) : l?.type === 'text' ? String(l.text ?? '') : null;
@@ -1543,7 +1562,90 @@ function drawBar() {
     bar.append(row);
   }
   bar.classList.add('on'); bar.scrollLeft = 0; requestAnimationFrame(() => { bar.scrollLeft = 0; });
+  placeBar(`${selected.kind}:${selected.key ?? selected.id}`);
 }
+
+// ---- The apps: where the bar sits, and dragging it (no-ops on the website, appView null).
+let barFor = null, barAt = null, nudge = null;
+/** The bar's last place for this session, chosen by dragging it. */
+let barSpot = (() => { try { return JSON.parse(sessionStorage.getItem('3deezi-object-bar')) ?? null; } catch { return null; } })();
+/** The part of this frame the user sees, less a small margin. */
+function appArea() {
+  const v = appView, m = 6;
+  return { l: v.left + m, t: v.top + m, r: innerWidth - v.right - m, b: innerHeight - v.bottom - m };
+}
+function fitBar(x, y) {
+  const a = appArea();
+  return { x: clamp(x, a.l, Math.max(a.l, a.r - bar.offsetWidth)), y: clamp(y, a.t, Math.max(a.t, a.b - bar.offsetHeight)) };
+}
+function moveBar(at) { barAt = at; bar.style.left = `${at.x}px`; bar.style.top = `${at.y}px`; }
+/** `key`: what the bar is for (null: closed). A new object gets a fresh place that doesn't cover it (the tap): the last
+ * place the user dragged it to, else the foot of the 3D, else its top; when neither leaves it clear (a short 3D), the
+ * camera moves the object into the free part. The same object keeps where the bar is. */
+function placeBar(key) {
+  if (!appView) return;
+  if (!key) { barFor = null; unnudge(); return; }
+  const a = appArea();
+  bar.style.maxWidth = `${Math.max(120, a.r - a.l)}px`;
+  if (key === barFor && barAt) return moveBar(fitBar(barAt.x, barAt.y));
+  barFor = key;
+  unnudge();
+  const w = bar.offsetWidth, h = bar.offsetHeight, mid = (a.l + a.r - w) / 2;
+  const item = tapAt ? { x: tapAt.x * innerWidth, y: tapAt.y * innerHeight } : null, near = 30;
+  const clear = (p) => !item || item.y < p.y - near || item.y > p.y + h + near || item.x < p.x - near || item.x > p.x + w + near;
+  const foot = fitBar(mid, a.b - h), top = fitBar(mid, a.t);
+  const at = [barSpot && fitBar(barSpot.x, barSpot.y), foot, top].find((p) => p && clear(p));
+  if (at) return moveBar(at);
+  // Neither: the bar on the side away from the object, the object moved into the free part.
+  const up = item.y > (a.t + a.b) / 2;
+  moveBar(up ? top : foot);
+  const free = up ? [top.y + h, a.b] : [a.t, foot.y];
+  nudgeTo(item.y, (free[0] + free[1]) / 2);
+}
+/** Moves the camera straight up or down so a point at screen y `from` shows at `to` (px), smoothly. */
+function nudgeTo(from, to) {
+  const dist = camera.position.distanceTo(controls.target);
+  const perPx = (2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / innerHeight;
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+  // (Within the panning limits of the controls' change handler.)
+  const dy = clamp(controls.target.y + up.y * (to - from) * perPx, 0.05, 0.7) - controls.target.y;
+  if (Math.abs(up.y) < 0.2 || Math.abs(dy) < 1e-4) return;
+  const shift = up.multiplyScalar(dy / up.y);
+  shiftCamera(shift);
+  nudge = shift;
+}
+function unnudge() { if (nudge) shiftCamera(nudge.clone().negate()); nudge = null; }
+function shiftCamera(v) {
+  const done = { k: 0 };
+  let last = 0;
+  gsap.to(done, { k: 1, duration: 0.45, ease: 'power2.out', onUpdate: () => {
+    const step = v.clone().multiplyScalar(done.k - last); last = done.k;
+    camera.position.add(step); controls.target.add(step);
+  } });
+}
+let barDrag = null;
+bar.addEventListener('pointerdown', (e) => {
+  // A press on the grip or an empty part of the bar moves it; its buttons, lists and fields work as before.
+  if (!appView || e.button > 0 || e.target.closest('button,input,select,option,label')) return;
+  barDrag = { id: e.pointerId, dx: e.clientX - bar.offsetLeft, dy: e.clientY - bar.offsetTop };
+  try { bar.setPointerCapture(e.pointerId); } catch { /* fine */ }
+  bar.classList.add('dragging');
+  e.preventDefault();
+});
+bar.addEventListener('pointermove', (e) => {
+  if (barDrag?.id !== e.pointerId) return;
+  moveBar(fitBar(e.clientX - barDrag.dx, e.clientY - barDrag.dy));
+});
+const dropBar = (e) => {
+  if (barDrag?.id !== e.pointerId) return;
+  barDrag = null;
+  bar.classList.remove('dragging');
+  barSpot = { x: barAt.x, y: barAt.y };
+  try { sessionStorage.setItem('3deezi-object-bar', JSON.stringify(barSpot)); } catch { /* fine */ }
+};
+bar.addEventListener('pointerup', dropBar);
+bar.addEventListener('pointercancel', dropBar);
+addEventListener('resize', () => { if (appView && barFor && barAt) moveBar(fitBar(barAt.x, barAt.y)); });
 const newId = (what) => `kit-${what}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 function addLayer(layer) {
   design.layers = [...(design.layers ?? []), layer];
@@ -1616,6 +1718,7 @@ function chestSpot(found) {
 /** A tap (task 9.144): an object wins over a part or colour tap. True when the tap was taken. */
 function objectTap(nx, ny) {
   if (!objectEditing || board.visible) return false;
+  tapAt = { x: nx, y: ny };
   const found = pickAt(nx, ny);
   const obj = objectAt(found);
   if (obj) { select(obj); return true; }
@@ -1761,6 +1864,7 @@ function setView(view) {
   // A chosen view stays: no idle auto-turn left over from an earlier drag.
   clearTimeout(idle);
   if (angles[view] == null) return;
+  nudge = null; // (the view's own camera; a shift for the object bar is not taken back)
   let goal = angles[view];
   // Turn the short way round.
   while (goal - s.theta > Math.PI) goal -= Math.PI * 2;
@@ -2077,6 +2181,14 @@ window.viewer = {
   layoutFile,
   /** What the host can do: {layouts: true} = it answers layoutWanted. */
   features: (what = {}) => { if (what?.layouts) hostLayouts = true; if (what?.images) hostImages = true; },
+  /** The apps: {top, right, bottom, left} px of this frame they hide (2026-11-06); the object bar then stays in the rest. */
+  insets: (v = {}) => {
+    const n = (k) => Math.max(0, Number(v?.[k]) || 0), first = !appView;
+    appView = { top: n('top'), right: n('right'), bottom: n('bottom'), left: n('left') };
+    document.body.classList.add('in-app');
+    if (first && (selected || addSpot)) drawBar();
+    else if (barFor && barAt) moveBar(fitBar(barAt.x, barAt.y));
+  },
   /** The design board's items and zoom (read only, for automated checks; not a host command). */
   boardItems: () => board.inspect(),
   captureBoard: async ({ id } = {}) => {
@@ -2087,7 +2199,7 @@ window.viewer = {
   receive: (msg) => {
     try {
       const m = typeof msg === 'string' ? JSON.parse(msg) : msg;
-      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features', 'colourPick', 'dragHover', 'partPick', 'glowPart', 'objectEdit', 'imageChosen', 'neckShot'];
+      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features', 'colourPick', 'dragHover', 'partPick', 'glowPart', 'objectEdit', 'imageChosen', 'neckShot', 'insets'];
       if (m && allowed.includes(m.cmd)) Promise.resolve(window.viewer[m.cmd](m.arg)).catch((error) => post({ type: 'error', command: m.cmd, message: error.message }));
     } catch (error) { post({ type: 'error', message: error.message }); }
   },

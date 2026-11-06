@@ -23,6 +23,7 @@ import '../widgets/street_address_field.dart';
 import '../widgets/flow_ui.dart' show pickArtwork;
 import '../widgets/bubble_page.dart' show BubbleRoute;
 import '../widgets/glass_bubble.dart';
+import '../widgets/notification_bell.dart' show ownOrderName;
 import '../widgets/ui.dart';
 import 'orders_board.dart';
 import 'suppliers.dart' show MadeByField, Supplier;
@@ -1648,18 +1649,38 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
       step = 'review';
       approved = false;
       page = 0;
+    } else {
+      // Show why (user 2026-11-06): Review & Approve from the Order
+      // Assistant chat opens this form at the top, and the message sat far
+      // down under the artwork. Scroll to the section that needs it.
+      final section = error == artworkProblem ? 1 : 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = sectionKeys[section].currentContext;
+        if (mounted && target != null) {
+          Scrollable.ensureVisible(
+            target,
+            duration: const Duration(milliseconds: 350),
+            alignment: 0.02,
+          );
+        }
+      });
     }
   });
 
   /// Where step 2's details start (Edit on the review, or a missing detail).
   final detailsKey = GlobalKey();
 
+  static const artworkProblem =
+      'Add your artwork: choose a saved design or upload your logo or artwork.';
+
+  /// "Add your artwork" is shown, highlighted, in the artwork section (not
+  /// under the form), and goes once artwork is added.
+  bool get artworkMissing => error == artworkProblem && !hasArtwork;
+
   /// Step 1: garments with sizes, and artwork (both required).
   String? stepOneProblem() {
     if (total < 1) return 'Add at least one size and quantity.';
-    if (!hasArtwork) {
-      return 'Add your artwork: choose a saved design or upload your logo or artwork.';
-    }
+    if (!hasArtwork) return artworkProblem;
     return null;
   }
 
@@ -1944,6 +1965,8 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     // The bubble look (user 2026-11-05): the form in one glass bubble with
     // the tab bar; Back from the review returns to step 1.
     title: step == 'review' ? 'REVIEW YOUR ORDER' : 'CREATE ORDER FORM',
+    // As much room over the title as PROJECTS (user 2026-11-06).
+    fullHeadingRoom: true,
     onBack: step == 'review' ? () => setState(() => step = 'edit') : null,
     child: Column(
       children: [
@@ -2301,6 +2324,38 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
           ],
           ...[
             _section('2 · Artwork', key: sectionKeys[1]),
+            if (artworkMissing)
+              Container(
+                key: const Key('order-artwork-error'),
+                margin: const EdgeInsets.fromLTRB(2, 0, 2, 10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: BoxDecoration(
+                  color: const Color(0x26ff6b6b),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xffff8a8a)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 18,
+                      color: Color(0xffff8a8a),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        artworkProblem,
+                        style: TextStyle(
+                          color: Color(0xffffb4b4),
+                          fontWeight: FontWeight.w600,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Row(
               children: [
                 Expanded(
@@ -2361,7 +2416,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
               ),
             ),
           ],
-          errorText(),
+          if (error != artworkProblem) errorText(),
           const SizedBox(height: 14),
           pageButtons(last: true, onNext: startReview),
           Padding(
@@ -2772,10 +2827,13 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
           ].where((v) => v.isNotEmpty).join(' · '),
           email: email.text.trim(),
           mobile: phone.text.trim(),
-          dateOptional: true,
+          // An empty date required is listed under Please check too (QA8 #8);
+          // the form can still be approved without it.
           neededBy: neededBy == null ? null : _dayText(neededBy!),
           pickup: delivery == 'pickup',
-          deliveryText: delivery == 'pickup'
+          // No street yet: listed under Please check (QA8 #8), not just the country.
+          deliveryText:
+              delivery == 'pickup' || (address['street'] ?? '').trim().isEmpty
               ? null
               : deliveryLine(delivery, address),
           onEditDelivery: () {
@@ -3224,7 +3282,9 @@ class _OrderUploadScreenState extends State<OrderUploadScreen>
           mobile: phone.text.trim(),
           neededBy: neededBy == null ? null : _dayText(neededBy!),
           pickup: delivery == 'pickup',
-          deliveryText: delivery == 'pickup'
+          // No street yet: listed under Please check (QA8 #8), not just the country.
+          deliveryText:
+              delivery == 'pickup' || (address['street'] ?? '').trim().isEmpty
               ? null
               : deliveryLine(delivery, address),
           onEditDelivery: () {
@@ -3341,7 +3401,9 @@ List<MiniColumn>? miniBoard(Map<String, dynamic>? board) {
           for (final o
               in ((s['orders'] as List?) ?? const []).whereType<Map>().take(2))
             (
-              name: '${o['name'] ?? 'Order'}',
+              name: ownOrderName(o['number'], o['name']).isEmpty
+                  ? 'Order'
+                  : '${o['name']}',
               ref: '#${o['number'] ?? o['id']}',
               hot: o['action'] == 'review_design' || o['approval'] == 'review',
             ),

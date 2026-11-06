@@ -118,6 +118,18 @@ class OrderAnalysisTest extends TestCase
         @unlink($path);
     }
 
+    /** A team sheet's "Number" is the shirt number (one garment each), not a quantity. */
+    public function test_a_number_column_is_the_shirt_number(): void
+    {
+        $lines = OrderAnalysis::linesFromTable([1 => ['Name', 'Size', 'Number', 'Garment'], 2 => ['Amy', 'M', '7', 'Football jersey'], 3 => ['Ben', 'L', '9', 'Football jersey'], 4 => ['Cal', 'XL', '10', 'Football jersey']]);
+        $a = OrderAnalysis::analyse($lines);
+        $this->assertSame(3, $a['totals']['garments']);
+        $this->assertSame('#7', $a['lines'][0]['note']);
+        $this->assertSame(['Football jersey' => 3], $a['totals']['by_product']);
+        $this->assertSame('3 garments for 3 people: 3 Football jerseys.', OrderAnalysis::summaryText($a));
+        $this->assertSame([], array_values(array_filter($a['checks'], fn ($c) => $c['type'] === 'qty')));
+    }
+
     /**
      * The client's real sheet (kept out of the code: set STRICKLAND_SHEET to its path): 527 lines, 90 orders and 555
      * garments = 482 polos (227 Opening Day, 255 family-line) and 73 singlets, as counted by hand and in the client's

@@ -261,6 +261,7 @@ class OrderRequest extends FormRequest
             return true;
         }
         if ($this->filled('assist_token')) {
+            \App\Models\OrderAssist::ensureTable();
             $assist = \App\Models\OrderAssist::query()->where('token', (string) $this->input('assist_token'))->first();
             if ($assist && (! $assist->user_id || ! $user || $assist->user_id === $user->id)) {
                 foreach ((array) $assist->files as $file) {

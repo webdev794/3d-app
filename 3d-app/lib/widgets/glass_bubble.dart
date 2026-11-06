@@ -695,8 +695,14 @@ class HomeGlassPainter extends CustomPainter {
     this.pocketR = 0,
     this.pocketStrong = false,
     this.dome,
+    this.sweep,
   });
   final double t, pull, pocket, pocketR;
+
+  /// A soft white light gliding round inside the rim (0 to 1 = once round,
+  /// from the right, clockwise); null = none (Home). The Create your order
+  /// bubble's slow shine (user 2026-11-06).
+  final double? sweep;
   final Offset pullAt;
   final Offset? pocketAt;
   final bool pocketStrong;
@@ -1136,6 +1142,10 @@ class HomeGlassPainter extends CustomPainter {
     // corner, and a softer one at the bottom right.
     _streak(canvas, c, -3.0, -1.6, 10, 12, .38, 7, Colors.white);
     _streak(canvas, c, .25, 1.15, 10, 8, .3, 6, const Color(0xff9fe8ff));
+    if (sweep != null) {
+      final a = sweep! * 2 * math.pi;
+      _streak(canvas, c, a, a + .9, 9, 10, .5, 6, Colors.white);
+    }
     canvas.restore();
     // The edge (client 373): a strong, soft cyan glow INSIDE the glass only
     // (clipped, nothing spills outside) and one thin crisp cyan-white line.
@@ -1236,7 +1246,8 @@ class HomeGlassPainter extends CustomPainter {
       o.pocket != pocket ||
       o.pocketR != pocketR ||
       o.pocketStrong != pocketStrong ||
-      o.dome != dome;
+      o.dome != dome ||
+      o.sweep != sweep;
 }
 
 /// Small lights round the rim (client 373): position along the edge (0-1),
@@ -1299,4 +1310,171 @@ void paintRimLights(
     }
     break;
   }
+}
+
+/// Only a glass rim round a control; its own centre stays as it is (dark),
+/// so text and pictures keep clear (client 487, the AI Designer: the prompt
+/// bar, the sport cards, the + / send / › buttons and the Assist button). A
+/// crisp pale-cyan edge over a glassy band [width] thick, a soft cyan glow
+/// outside and just inside the edge ([glow] scales it), and white
+/// reflections: a glare at the top left, a light along the top and a streak
+/// along the bottom. Round when [radius] is half the height or more.
+class GlassRim extends StatelessWidget {
+  const GlassRim({
+    super.key,
+    required this.child,
+    this.radius = 30,
+    this.width = 3,
+    this.glow = 1,
+  });
+  final Widget child;
+  final double radius, width, glow;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    foregroundPainter: GlassRimPainter(
+      radius: radius,
+      width: width,
+      glow: glow,
+    ),
+    child: child,
+  );
+}
+
+/// [GlassRim]'s painting, for a control that paints its own box.
+class GlassRimPainter extends CustomPainter {
+  const GlassRimPainter({this.radius = 30, this.width = 3, this.glow = 1});
+  final double radius, width, glow;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final r = math.min(radius, size.shortestSide / 2);
+    final rr = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(r));
+    final w = width, wd = size.width, h = size.height;
+    Paint line(double sw) => Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sw;
+    Color wh(double a) => Colors.white.withValues(alpha: a.clamp(0, 1));
+    // The cyan halo outside the edge.
+    if (glow > 0) {
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..color = const Color(0xff36d4ff).withValues(alpha: .6 * glow)
+          ..maskFilter = MaskFilter.blur(BlurStyle.outer, 4 + 6 * glow),
+      );
+    }
+    canvas.save();
+    canvas.clipRRect(rr);
+    // A little glow inside the edge, fading inward (the centre stays dark).
+    canvas.drawRRect(
+      rr,
+      line(w * 2.6)
+        ..color = const Color(0xff2ac4ff).withValues(alpha: .22 + .14 * glow)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1 + w * .8),
+    );
+    // The glass band: see-through light cyan, brighter at the top and bottom.
+    canvas.drawRRect(
+      rr.deflate(w / 2),
+      line(w)
+        ..shader = ui.Gradient.linear(
+          Offset.zero,
+          Offset(0, h),
+          [
+            const Color(0xff8eeaff).withValues(alpha: .5),
+            const Color(0xff1fb4dc).withValues(alpha: .28),
+            const Color(0xff7fe6ff).withValues(alpha: .5),
+          ],
+          const [0, .5, 1],
+        ),
+    );
+    // The band's inner edge: a thin cyan line.
+    canvas.drawRRect(
+      rr.deflate(w),
+      line(.9)..color = const Color(0xff5fdcff).withValues(alpha: .65),
+    );
+    // A light along the top, from the left end towards the middle.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, wd, math.max(r, h * .3)));
+    canvas.drawRRect(
+      rr.deflate(w * .45),
+      line(math.max(1.2, w * .45))
+        ..shader = ui.Gradient.linear(
+          Offset.zero,
+          Offset(wd, 0),
+          [wh(.85), wh(.35), wh(0)],
+          const [0, .35, .7],
+        ),
+    );
+    canvas.restore();
+    // A white streak along the bottom, a little right of the middle.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, h - math.max(r, h * .3), wd, h));
+    final bottom = Offset(wd * .6, h);
+    canvas.drawRRect(
+      rr.deflate(w * .45),
+      line(math.max(1.2, w * .5))
+        ..shader = ui.Gradient.radial(
+          bottom,
+          math.max(wd * .32, r),
+          [wh(1), wh(.45), wh(0)],
+          const [0, .45, 1],
+        ),
+    );
+    canvas.restore();
+    canvas.restore();
+    // The crisp outer edge.
+    canvas.drawRRect(
+      rr.deflate(.6),
+      line(1.2)..color = const Color(0xffc4f6ff).withValues(alpha: .95),
+    );
+    // The glare on the top-left curve.
+    final k = r * (1 - math.sqrt1_2);
+    final at = Offset(k + w * .3, k + w * .3);
+    final gr = math.max(r * 1.1, 10.0);
+    canvas.drawCircle(
+      at,
+      gr * .4,
+      Paint()
+        ..color = wh(.6)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, gr * .35),
+    );
+    canvas.drawRRect(
+      rr.deflate(w * .4),
+      line(math.max(2.2, w * 1.1))
+        ..shader = ui.Gradient.radial(
+          at,
+          gr,
+          [wh(1), wh(.7), wh(0)],
+          const [0, .45, 1],
+        ),
+    );
+    // A crisp white arc on that curve, a bright spot at its middle.
+    final arc = Rect.fromCircle(
+      center: Offset(r, r),
+      radius: math.max(r - w * .5, 1),
+    );
+    canvas.drawArc(
+      arc,
+      math.pi * 1.08,
+      math.pi * .34,
+      false,
+      line(math.max(1.6, w * .8))
+        ..strokeCap = StrokeCap.round
+        ..color = wh(.9)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, .6),
+    );
+    canvas.drawCircle(
+      Offset(k + w * .2, k + w * .2),
+      1.5 + w * .5,
+      Paint()
+        ..color = wh(.95)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.5 + w * .5),
+    );
+  }
+
+  @override
+  bool shouldRepaint(GlassRimPainter o) =>
+      o.radius != radius || o.width != width || o.glow != glow;
 }

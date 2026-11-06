@@ -36,7 +36,7 @@ class OrderAssistant
         'full kits' => 'kit', 'full kit' => 'kit', 'uniforms' => 'kit', 'uniform' => 'kit', 'kits' => 'kit', 'kit' => 'kit', 'sets' => 'kit',
     ];
 
-    private const SPORT_WORDS = [
+    public const SPORT_WORDS = [
         // Before 'football' and 'league' (the first match wins); the new categories of 2026-10-21 (task 9.79).
         'american football' => 'american-football', 'gridiron' => 'american-football', 'touch football' => 'touch', 'oztag' => 'touch',
         'school leavers' => 'school-leavers', 'lawn bowls' => 'lawn-bowls', 'fight wear' => 'fight-wear', 'fightwear' => 'fight-wear', 'club casual' => 'teamwear',

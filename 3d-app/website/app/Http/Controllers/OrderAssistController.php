@@ -38,6 +38,7 @@ class OrderAssistController extends Controller
 
     public function store(Request $request, OrderAssistantReader $reader): JsonResponse
     {
+        OrderAssist::ensureTable();
         $assist = new OrderAssist(['user_id' => $request->user('sanctum')?->id, 'messages' => [], 'files' => [], 'analysis' => null]);
 
         return $this->take($request, $reader, $assist, 201);
@@ -62,6 +63,7 @@ class OrderAssistController extends Controller
     /** The signed-in customer's collated orders, newest first. */
     public function index(Request $request): JsonResponse
     {
+        OrderAssist::ensureTable();
         $rows = OrderAssist::query()->where('user_id', $request->user()->id)->latest('updated_at')->limit(30)->get();
 
         return response()->json(['data' => $rows->map(fn (OrderAssist $a) => ['token' => $a->token, 'title' => $a->title,
@@ -74,7 +76,7 @@ class OrderAssistController extends Controller
         $bytes = (new OrderAssistPdf($assist))->render();
 
         return response($bytes, 200, ['Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$this->fileName($assist).'.pdf"', 'Cache-Control' => 'private, no-store']);
+            'Content-Disposition' => 'attachment; filename="'.$assist->downloadName().'.pdf"', 'Cache-Control' => 'private, no-store']);
     }
 
     public function xlsx(OrderAssist $assist): Response
@@ -83,7 +85,7 @@ class OrderAssistController extends Controller
         $bytes = (new OrderAssistXlsx($assist))->render();
 
         return response($bytes, 200, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition' => 'attachment; filename="'.$this->fileName($assist).'.xlsx"', 'Cache-Control' => 'private, no-store']);
+            'Content-Disposition' => 'attachment; filename="'.$assist->downloadName().'.xlsx"', 'Cache-Control' => 'private, no-store']);
     }
 
     /** A design picture the customer added (by its place in the list). */
@@ -159,6 +161,11 @@ class OrderAssistController extends Controller
         if ($unread) {
             $analysis['checks'][] = ['type' => 'unread', 'text' => 'These parts were not read as orders: '.implode('; ', array_map(fn ($u) => '"'.mb_substr($u, 0, 80).'"', array_slice($unread, 0, 6))).(count($unread) > 6 ? ' and '.(count($unread) - 6).' more' : '').'.', 'lines' => [], 'counts' => false];
         }
+        // No design picture yet (user 2026-11-06): the answer said "nothing looks wrong… review and approve", and the
+        // order form then stopped at "Add your artwork". Say it first, before the customer goes to approve.
+        if (! $designs && ($analysis['totals']['garments'] ?? 0) > 0) {
+            array_unshift($analysis['checks'], ['type' => 'artwork', 'text' => 'No design picture yet: add your design or artwork before you review and approve.', 'lines' => [], 'counts' => false]);
+        }
         $analysis['sources'] = array_values(array_merge(array_filter($assist->analysis['sources'] ?? [], fn ($s) => ! in_array($s['name'], array_column($read['sources'], 'name'), true)), $read['sources']));
 
         $messages = $assist->messages ?? [];
@@ -223,12 +230,5 @@ class OrderAssistController extends Controller
             'links' => ['page' => url('/orders/summary/'.$assist->token), 'pdf' => $base.'/pdf', 'xlsx' => $base.'/xlsx'],
             'updated_at' => $assist->updated_at?->toIso8601String(),
         ];
-    }
-
-    private function fileName(OrderAssist $assist): string
-    {
-        $name = trim(preg_replace('/[^A-Za-z0-9]+/', '_', $assist->title ?: 'Order') ?? 'Order', '_');
-
-        return ($name !== '' ? $name : 'Order').'_Order_Form';
     }
 }

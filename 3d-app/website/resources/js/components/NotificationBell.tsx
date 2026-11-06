@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { api } from '../api';
+import { orderTitle } from './orderBoardModel';
 import '../../css/notification-bell.css';
 
 /** One notification as GET /api/v1/notifications returns it (newest first); data.link is a site path. */
@@ -17,7 +18,7 @@ const ago = (iso: string | null) => {
   if (s < 86400 * 30) return `${Math.floor(s / 86400)} d ago`;
   return new Date(iso).toLocaleDateString();
 };
-const titleOf = (d: BellItem['data']) => d.title || [d.number, d.name].filter(Boolean).join(' · ') || 'Notification';
+const titleOf = (d: BellItem['data']) => d.title || orderTitle(d.number, d.name) || 'Notification';
 
 /** The header bell (client picture 145): unread badge, a dropdown of the newest notifications, polled once a minute. Signed-in only. */
 export default function NotificationBell({ signedIn }: { signedIn: boolean }) {
