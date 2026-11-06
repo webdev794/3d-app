@@ -966,7 +966,7 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       bubbleKey: const ValueKey('sport-bubble'),
       // (Its narrower Custom… and Design capsules sit lower in the bottom
       // dome than a working page's full-width rows.)
-      bottomRoom: (dome) => dome * .28 + 8,
+      bottomRoom: (dome) => dome * .2 + 8,
       leading: BubbleCornerPill(
         key: const ValueKey('sport-bubble-back'),
         icon: Icons.arrow_back,
@@ -1008,7 +1008,7 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     ScreenTitle(
       'Different sports.\n',
       highlight: 'Same team spirit.',
-      size: tight ? 23 : 27,
+      size: tight ? 22 : 27,
     ),
     SizedBox(height: tight ? 3 : 6),
     const Text(
@@ -1027,12 +1027,12 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     ),
     SizedBox(
       // (Room above and below for the lit tile's glow.)
-      height: tight ? 82 : 90,
+      height: tight ? 72 : 80,
       child: ListView.separated(
         key: const ValueKey('dyo-tiles'),
         controller: _tiles,
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 9, 16, 7),
         itemCount: _shown.length,
         separatorBuilder: (_, _) => const SizedBox(width: _tileGap),
         itemBuilder: (context, k) {
@@ -1062,30 +1062,24 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
             bottom: 0,
             height: tight ? 50 : 56,
             child: Center(
-              child: _SportName(name: sport.$1, kit: sport.$3, tight: tight),
+              child: _SportName(
+                name: sport.$1,
+                kit: sport.$3,
+                count: _n > 12 ? '${_index + 1} / $_n' : null,
+                tight: tight,
+              ),
             ),
           ),
         ],
       ),
     ),
-    SizedBox(height: tight ? 4 : 8),
-    // A dot each fits a dozen; more show as a count (the tiles pick any).
+    // A dot each fits a dozen; more show as a count in the capsule ("7 / 30",
+    // user 2026-11-06: beside the kit line, so the kits get the room).
     if (_n <= 12)
       Center(
         child: PageDots(count: _n, index: _index),
-      )
-    else
-      Text(
-        '${_index + 1} / $_n',
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Color(0xffd9e4ee),
-          fontSize: 13,
-          letterSpacing: 1.6,
-          fontWeight: FontWeight.w700,
-        ),
       ),
-    SizedBox(height: tight ? 4 : 8),
+    SizedBox(height: tight ? 6 : 10),
     // "Custom…" (client 2026-11-02): a sport we do not list, typed.
     // (Narrower than the bubble, as in 489, so it sits clear of the rim
     // where the bottom dome curves in.)
@@ -1095,23 +1089,27 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
         key: const Key('dyo-custom-sport'),
         icon: Icons.edit_outlined,
         label: 'Custom… type your own sport',
-        height: tight ? 34 : 38,
+        height: tight ? 32 : 38,
         onTap: _customSport,
       ),
     ),
-    SizedBox(height: tight ? 10 : 14),
+    SizedBox(height: tight ? 8 : 12),
     Padding(
       padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
       child: _GlossyButton(
         label: 'DESIGN ${sport.$1.toUpperCase()}',
-        height: tight ? 46 : 50,
+        height: tight ? 44 : 50,
         onPressed: _design,
       ),
     ),
   ];
 
   /// How far the sport's capsule reaches up over the stage's foot.
-  static const _capOverlap = 28.0;
+  static const _capOverlap = 30.0;
+
+  /// The room under a kit picture: its feet stand on the ring, just over
+  /// the sport's capsule (user 2026-11-06, 490: bigger kits).
+  static const _kitPad = 27.0;
 
   /// The kits on their floodlit stage, the arrows at the sides.
   Widget _stage() => Stack(
@@ -1142,9 +1140,12 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       LayoutBuilder(
         builder: (context, box) {
           // The kit picture's width in its page (2:3 pictures in
-          // a page [_cell] of the stage wide, 40 px of padding).
+          // a page [_cell] of the stage wide, [_kitPad] of padding).
           final cell = box.maxWidth * _cell;
-          final pic = math.min(cell, math.max(0.0, box.maxHeight - 40) * 2 / 3);
+          final pic = math.min(
+            cell,
+            math.max(0.0, box.maxHeight - _kitPad) * 2 / 3,
+          );
           _pic = pic;
           return GestureDetector(
             behavior: HitTestBehavior.translucent,
@@ -1199,7 +1200,7 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
                     current == i ? _design() : _step(i - current);
                   },
                   child: Padding(
-                    padding: const EdgeInsets.only(bottom: 34, top: 6),
+                    padding: const EdgeInsets.only(bottom: _kitPad),
                     child: Image.asset(
                       'assets/images/showroom/kit-${_kitSlug(i)}.webp',
                       fit: BoxFit.contain,
@@ -1427,20 +1428,20 @@ class _CategoryTile extends StatelessWidget {
         glow: .3,
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Flexible(
                 child: CategoryIcon(
                   category,
-                  size: 30,
+                  size: 24,
                   color: selected
                       ? const Color(0xff5ff6ff)
                       : const Color(0xff19e3f2),
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 3),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
@@ -1485,8 +1486,16 @@ class _ArrowButton extends StatelessWidget {
 /// The centre sport under the stage (client 489): its name big and its kit
 /// ("Singlet + Shorts") in a glass capsule.
 class _SportName extends StatelessWidget {
-  const _SportName({required this.name, required this.kit, this.tight = false});
+  const _SportName({
+    required this.name,
+    required this.kit,
+    this.count,
+    this.tight = false,
+  });
   final String name, kit;
+
+  /// Where the sport is in the list ("7 / 30"), beside the kit line.
+  final String? count;
 
   /// Less room: a little smaller.
   final bool tight;
@@ -1512,9 +1521,9 @@ class _SportName extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-          if (kit.isNotEmpty)
+          if (kit.isNotEmpty || count != null)
             Text(
-              kit,
+              [if (kit.isNotEmpty) kit, ?count].join('  ·  '),
               maxLines: 1,
               style: TextStyle(
                 fontSize: tight ? 12 : 13,

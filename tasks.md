@@ -647,7 +647,7 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - Netball dress -279 later list (2026-11-06): hem flare; far-strap kink; gentler back shoulder slope; faint knit; hem fold a bit sharp in plain colours; Studio screenshot once :8000 is up.
 - 2026-11-06 user: app bubbles are NOT the same on every page; the OUTER bubble on the Orders tab doesn't match the client's bubble (474); Create order form is too tight at the edges (472). The user is showing the client first; wait for the client's answer before changing anything.
 - [x] Order chat server error: local fixed (8088 now uses node scripts/serve_preview.mjs, not python); live: table now made on first use, tar 3deez-update-2026-11-06-b; ChatGPT connected (agent CHATFIX, 2026-11-06)
-- [ ] Regression test of everything around the last few days' work, website + app (agent QA7, 2026-11-06)
+- [x] Regression test of everything around the last few days' work, website + app (agent QA7, 2026-11-06)
 - [x] Order chat PDF/summary/Excel: show the product the customer named ("Football jersey"), not just "Jersey"; plain "no size given" wording (agent OAPROD, 2026-11-06)
 - [x] App only: Create order form — more space above the title inside the bubble, same as Projects tab (480/481) (agent OFTOP, 2026-11-06)
 - [x] Website phone width only: Create Order Form bottom bar stacked (NEXT full width, Save draft + Copy link below) (agent OFBAR, 2026-11-06)
@@ -664,3 +664,4 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [x] QA8 website fixes done 2026-11-06 (FIXW): typed notes (3XL, several names per line, "Football:" prefix, sizeless lines kept), form-build "Please check" message, Football→Rugby row
 - [ ] QA8 website left (next fixer): share page title "Order" + lowercase "& football shorts" in PDF title; one uploaded logo should cover the whole order; chat asks "which sport?" when sport written; Review & Approve lists only "Mobile missing" + "Delivery address: Australia"; pick-up "Shipping A$0.00" wording; "You" on invoice update; AI-off "how do I order?" answer; NEW: "Football jerseys 3 x M" + "5 hoodies" shows all 8 as "Football hoodie" (OrderAssistantReader::read one-garment override?)
 - [x] QA8 app fixes done 2026-11-06 (FIXA): Home tab from manual order form, chat card title, Review missing-field list, PAY NOW on My orders + "garments · required 20 Mar" wording
+- [x] App only: Design Your Own — make the kit pictures in the carousel bigger (picture 490, 2026-11-06) (agent DYOGLASS resumed)

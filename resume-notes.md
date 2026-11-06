@@ -154,3 +154,5 @@ Resume via SendMessage, do not respawn:
 - 2026-11-06 VS Code restarted; resumed 5 agents: OABUB aa5ec91d348a25888 (tap-fly/drag/bob/glow), STUMENU aec2d0b0bd29355a3, QA8 ae8288fb4979a98ee, AIDES aa4748e2c454c2e27, DYOGLASS ae7e7663bebf38eef. Then push v2 + tar.
 - OABUB done: tap-fly/drag/bob/glow (order_assistant.dart). D: only ~1.9 GB free — old flutter_tools.* temp folders in D:\systemp to clear.
 - 2026-11-06 ~17:30: STUMENU, AIDES, DYOGLASS, QA8 done. STUMENU resumed (aec2d0b0bd29355a3) only for the final 360/390 screenshot check. Fixers: FIXW a3a3bfb26b5ea59a0 (website QA8 items 2-8,10), FIXA ab6c32dd17e335971 (app items 1,5,8,9). User has ~30 min: push v2 (final-push-v2.sh) + tar 11-06-f (viewer changed: VIEWER_VERSION -282) when they finish. User: "don't stop anyone in 10 minutes".
+- 2026-11-06 17:3x: pushed v2 = c7693c4 (all of today incl. QA8 fixes); live tar 3deez-update-2026-11-06-f (19 files, viewer -282). Left: QA8 website items in tasks.md.
+- 2026-11-06: DYOBIG — DYOGLASS ae7e7663bebf38eef resumed: app DYO carousel kits bigger (490.png).
