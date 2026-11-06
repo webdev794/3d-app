@@ -592,7 +592,9 @@ export function wornShift(spec, { topSeam, outline = [], hemDist = (p) => p.y })
     // (NDT -265, 427: the scene's key light falls from one side, so the front ran ~20 % darker on the far side; the dress
     // alone evens it (key light unchanged for every other garment), the centre a few per cent under the sides.)
     const even = 1 + SLANT * (1 + 1.7 * ramp(0.44, 0.2, p.y)) * THREE.MathUtils.clamp(p.x / half(p.y), -1, 1) - (0.03 + 0.22 * ramp(0.42, 0.18, p.y)) * g(ax, 0.06);
-    return lit * under * belly * waist * even;
+    // (459's soft fold low on the front panel by the hem: shading only, broad, so it never reads as a dent: user 2026-11-06.)
+    const hemFold = 1 - 0.1 * Math.exp(-(((p.x - 0.05) / 0.035) ** 2)) * ramp(0.2, 0.06, p.y) * ramp(0.0, 0.04, p.y);
+    return lit * under * belly * waist * even * hemFold;
   };
   return { at: torso, sleeve: () => null, relief, shade, pit: new THREE.Vector2(pitX, pitY), half, top, figure: fig };
 }

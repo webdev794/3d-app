@@ -9,6 +9,7 @@ import '../api_client.dart';
 import '../app_controller.dart';
 import '../marquee.dart';
 import '../project_sync.dart';
+import '../widgets/bubble_page.dart' show BubbleRoute;
 import '../widgets/ui.dart' show showToast;
 import '../widgets/viewer_host_stub.dart'
     if (dart.library.js_interop) '../widgets/viewer_host_web.dart'
@@ -382,16 +383,13 @@ class _SignageScreenState extends State<SignageScreen> {
   @override
   Widget build(BuildContext context) {
     final walls = '${_design['walls']}';
-    return Scaffold(
-      backgroundColor: _bg,
-      appBar: AppBar(
-        backgroundColor: _bg,
-        foregroundColor: Colors.white,
-        title: Text('SIGNAGE & MARQUEES', style: _heading(20)),
-      ),
-      body: ListView(
+    return BubbleRoute(
+      c: widget.c,
+      title: 'SIGNAGE & MARQUEES',
+      bubbleKey: const ValueKey('signage-bubble'),
+      child: ListView(
         key: const ValueKey('signage-list'),
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+        padding: const EdgeInsets.fromLTRB(2, 4, 2, 24),
         children: [
           Text.rich(
             TextSpan(

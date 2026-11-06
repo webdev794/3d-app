@@ -348,6 +348,9 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   // The latest values for requests that finish later and for handlers registered once.
   const formRef = useRef(form); formRef.current = form;
   const filesRef = useRef(files); filesRef.current = files;
+  const uploadsRef = useRef(uploads); uploadsRef.current = uploads;
+  // Artwork added after "Add your artwork" was shown: the message goes.
+  useEffect(() => { if (errors.artwork && (files.some(f => f.kind !== 'order_form') || form.rows.some(r => r.project_id || r.file_ids.length))) setErrors(({ artwork: _done, ...rest }) => rest); }, [files, form.rows, errors.artwork]);
   const userRef = useRef(user); userRef.current = user;
   const draftRef = useRef(draftId); draftRef.current = draftId;
   const authRef = useRef(requireAuth); authRef.current = requireAuth;
@@ -654,6 +657,8 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   function hasArt() { return filesRef.current.some(f => f.kind !== 'order_form'); }
   /** Step 1 → step 2: the garments, sizes and artwork are checked here; the details on step 2, before Approve. */
   async function review() {
+    // An upload still running: wait for it (its artwork counts once it is in).
+    if (uploadsRef.current.some(u => u.status === 'uploading')) { onNotice('Wait for your files to finish uploading, then continue.'); return; }
     const all = validate(formRef.current, options, hasArt());
     const problems = Object.fromEntries(Object.entries(all).filter(([k]) => pageOf(k) === 0));
     setTried(Object.keys(problems).length > 0); setErrors(problems);

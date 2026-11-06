@@ -13,6 +13,8 @@ import '../assist.dart';
 import '../custom_choice.dart';
 import '../project_sync.dart';
 import '../sports_catalog.dart';
+import '../widgets/bubble_page.dart'
+    show BubblePage, BubbleCornerPill, BubbleFillScroll;
 import '../widgets/category_icon.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
@@ -838,10 +840,25 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   @override
   Widget build(BuildContext context) {
     final sport = dyoSports[_index];
-    return StageBackground(
-      child: Column(
+    // The bubble look (user 2026-11-05): the picker in the glass bubble.
+    return BubblePage(
+      c: widget.c,
+      title: '',
+      compact: true,
+      // (Its stadium background stays behind the bubble.)
+      backdrop: const StageBackground(child: SizedBox.expand()),
+      bubbleKey: const ValueKey('sport-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('sport-bubble-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: widget.c.back,
+      ),
+      // (A short phone: the page scrolls, the kit stage keeps 260 px.)
+      child: BubbleFillScroll(
+        minFlex: (_) => 260,
+        scrollKey: const ValueKey('sport-scroll'),
         children: [
-          TopBar(onBack: widget.c.back, center: const BrandLogo(width: 120)),
           const Text(
             'DESIGN YOUR OWN',
             style: TextStyle(
@@ -1669,64 +1686,86 @@ class GarmentScreen extends StatelessWidget {
     // an own background.
     final described = sport?.descriptions ?? true;
     final hint = sport?.selectHint;
-    return StageBackground(
-      dim: true,
-      image: sport?.backdrop,
+    // The bubble look (user 2026-11-05): the picker in the glass bubble.
+    return BubblePage(
+      c: c,
+      title: '',
+      compact: true,
+      // (The sport's own background stays behind the bubble.)
+      backdrop: StageBackground(
+        dim: true,
+        image: sport?.backdrop,
+        child: const SizedBox.expand(),
+      ),
+      bubbleKey: const ValueKey('garment-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('garment-bubble-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: c.back,
+      ),
       child: Column(
         children: [
-          TopBar(onBack: c.back),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Palette.cyan, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Palette.cyan.withValues(alpha: .45),
-                        blurRadius: 12,
-                      ),
-                    ],
-                  ),
-                  child: const Text(
-                    '2',
-                    style: TextStyle(
-                      fontFamily: 'Rajdhani',
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ScreenTitle(heading, size: 22, align: TextAlign.left),
-                      Text(
-                        sport?.subtitle ??
-                            'Choose what you want to design for $title.',
-                        style: const TextStyle(
-                          color: Color(0xffc4d2df),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
           Expanded(
             child: ValueListenableBuilder(
               valueListenable: showAll,
               builder: (context, all, _) => CustomScrollView(
                 slivers: [
+                  // The heading scrolls away with the tiles: on a short phone
+                  // the second row of tiles shows above Continue.
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Palette.cyan, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Palette.cyan.withValues(alpha: .45),
+                                  blurRadius: 12,
+                                ),
+                              ],
+                            ),
+                            child: const Text(
+                              '2',
+                              style: TextStyle(
+                                fontFamily: 'Rajdhani',
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ScreenTitle(
+                                  heading,
+                                  size: 22,
+                                  align: TextAlign.left,
+                                ),
+                                Text(
+                                  sport?.subtitle ??
+                                      'Choose what you want to design for $title.',
+                                  style: const TextStyle(
+                                    color: Color(0xffc4d2df),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
                     sliver: _grid([

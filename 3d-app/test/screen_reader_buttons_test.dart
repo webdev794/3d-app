@@ -437,9 +437,14 @@ void main() {
       c.showcases.add(base64Decode(team.TeamServer.png));
       await mountPhone(tester, c);
       await tester.pumpAndSettle();
+      // (In the bubble the list is shorter: down to the thumbnails first.)
+      await tester.drag(find.byType(ListView).first, const Offset(0, -3000));
+      await tester.pumpAndSettle();
       final thumb = find.byType(GlowCard).last;
       await tester.ensureVisible(thumb);
       await tester.tap(thumb);
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).first, const Offset(0, 3000));
       await tester.pumpAndSettle();
       expect(find.widgetWithText(SecondaryButton, 'Use as cover'), findsOneWidget);
       await expectEveryButtonOwn(tester, 'Showcase');

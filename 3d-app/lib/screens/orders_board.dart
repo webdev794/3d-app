@@ -9,6 +9,7 @@ import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/bubble_page.dart';
+import '../widgets/category_icon.dart' show CategoryIcon;
 import '../widgets/glass_bubble.dart';
 import '../widgets/ui.dart';
 import 'order_entry.dart';
@@ -872,26 +873,30 @@ class _MadeBy extends StatelessWidget {
   );
 }
 
-class _GarmentChip extends StatelessWidget {
-  const _GarmentChip(this.name);
-  final String name;
+/// The picture of the artwork for a garment row: one chosen for it, else the
+/// first artwork of the order (null without one).
+Object? _artworkFor(Map item, List<Map<String, dynamic>> files) {
+  final ids = ((item['file_ids'] as List?) ?? const []).map((e) => '$e');
+  final art = files.where((f) => f['kind'] == 'artwork' && f['thumb'] != null);
+  return (art.where((f) => ids.contains('${f['id']}')).firstOrNull ??
+      art.firstOrNull)?['thumb'];
+}
+
+/// A garment's outline in a small box (no picture of it yet).
+class _GarmentOutline extends StatelessWidget {
+  const _GarmentOutline(this.garment);
+  final String garment;
   @override
   Widget build(BuildContext context) => Container(
     width: 52,
     height: 52,
     alignment: Alignment.center,
-    padding: const EdgeInsets.all(4),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       color: Palette.surface2,
       border: Border.all(color: Palette.border),
     ),
-    child: Text(
-      name,
-      textAlign: TextAlign.center,
-      maxLines: 2,
-      style: const TextStyle(fontSize: 9.5, color: Palette.text),
-    ),
+    child: CategoryIcon(garment.toLowerCase(), size: 36),
   );
 }
 
@@ -1264,8 +1269,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               child: SurfaceCard(
                 child: Row(
                   children: [
+                    // As the website: the kit picture, else the artwork
+                    // uploaded for this garment (or the order), else the
+                    // garment's outline, never just its name.
                     _dataImage(item['thumbnail'], 48) ??
-                        _GarmentChip('${item['name']}'),
+                        _dataImage(_artworkFor(item, files), 48) ??
+                        _GarmentOutline('${item['garment'] ?? item['name']}'),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(

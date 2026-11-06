@@ -466,8 +466,8 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
           ? (box.maxHeight - 500).clamp(70.0, 150.0)
           : (w * .44).clamp(150.0, 220.0);
       // The whole bubble always fits above the tab bar (360, 390, a
-      // 590 × 700 window …): on a short screen its content scales down a
-      // little instead of running under the bar. 22 px inside the rim on
+      // 590 × 700 window …): on a short screen its content scrolls inside
+      // it instead of running under the bar. 22 px inside the rim on
       // each side, so no tile or panel touches it (client 456).
       final inner = w - 24 - 44;
       return Padding(
@@ -486,9 +486,9 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen> {
                   constraints: BoxConstraints(
                     maxHeight: math.max(120, box.maxHeight - 16 - 30),
                   ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.topCenter,
+                  child: SingleChildScrollView(
+                    // (Short or wide windows: the content scrolls inside the
+                    // bubble at its normal size, user 2026-11-06, 468.)
                     child: SizedBox(
                       width: inner,
                       child: Column(

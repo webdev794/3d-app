@@ -32,6 +32,7 @@ import '../player_shot.dart';
 import '../project_sync.dart';
 import '../sports_catalog.dart'
     show GarmentTile, garmentIds, sportNamed, tileLook;
+import '../widgets/bubble_page.dart' show BubblePage, BubbleCornerPill;
 import '../widgets/drag_tray.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/kit_viewer_3d.dart';
@@ -2393,131 +2394,121 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
   @override
   Widget build(BuildContext context) {
     final preview = c.mockupFront ?? c.renderFront;
-    return Column(
-      children: [
-        TopBar(onBack: c.back, title: 'Save project'),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            children: [
-              AspectRatio(
-                aspectRatio: 1.05,
-                child: GlowCard(
-                  child: preview != null
-                      ? artImage(bytes: preview, fit: BoxFit.cover)
-                      : KitPreview(controller: c, height: 260),
+    // The bubble look (user 2026-11-05).
+    return BubblePage(
+      c: c,
+      title: ('Save project').toUpperCase(),
+      compact: true,
+      bubbleKey: const ValueKey('save-project-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('save-project-bubble-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: c.back,
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(2, 4, 2, 16),
+              children: [
+                AspectRatio(
+                  aspectRatio: 1.05,
+                  child: GlowCard(
+                    child: preview != null
+                        ? artImage(bytes: preview, fit: BoxFit.cover)
+                        : KitPreview(controller: c, height: 260),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              const SectionLabel('Project name'),
-              TextField(
-                controller: _name,
-                enabled: !_done,
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Palette.surface,
-                        borderRadius: BorderRadius.circular(13),
-                        border: Border.all(color: Palette.border),
-                      ),
-                      child: ValueListenableBuilder(
-                        valueListenable: _name,
-                        builder: (_, name, _) => Text(
-                          _done
-                              ? 'Version ${c.projects.first.version}'
-                              : 'Version ${c.versionFor(name.text)}',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                const SizedBox(height: 18),
+                const SectionLabel('Project name'),
+                TextField(
+                  controller: _name,
+                  enabled: !_done,
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Icon(
-                    _done ? Icons.bookmark_rounded : Icons.bookmark_border,
-                    color: Palette.cyan,
-                    size: 30,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${c.mode == 'AI' ? 'AI design' : 'Design Your Own'} · '
-                '${c.sport} · ${c.garmentLabel}',
-                style: const TextStyle(color: Palette.muted, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          child: _done
-              ? Column(
-                  children: [
-                    GradientButton(
-                      label: 'EXPORT DESIGN',
-                      icon: Icons.ios_share_rounded,
-                      onPressed: () => c.go(AppScreen.export),
-                    ),
-                    const SizedBox(height: 10),
-                    SecondaryButton(
-                      label: 'View My Projects',
-                      icon: Icons.folder_open_outlined,
-                      onPressed: () => c.go(AppScreen.projects),
-                    ),
-                  ],
-                )
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (c.saveError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(
-                          c.saveError!,
-                          style: const TextStyle(
-                            color: Color(0xffff9b8d),
-                            fontSize: 12,
+                        decoration: BoxDecoration(
+                          color: Palette.surface,
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(color: Palette.border),
+                        ),
+                        child: ValueListenableBuilder(
+                          valueListenable: _name,
+                          builder: (_, name, _) => Text(
+                            _done
+                                ? 'Version ${c.projects.first.version}'
+                                : 'Version ${c.versionFor(name.text)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
                       ),
-                    GradientButton(
-                      label: _saving ? 'SAVING...' : 'SAVE PROJECT',
-                      icon: Icons.bookmark_add_outlined,
-                      onPressed: _saving
-                          ? null
-                          : () async {
-                              setState(() => _saving = true);
-                              final success = await c.saveProject(_name.text);
-                              if (!mounted) return;
-                              setState(() {
-                                _saving = false;
-                                _done = success;
-                              });
-                            },
                     ),
-                    // 9.147: keep the saved project and start a new one.
-                    if (c.selectedProject >= 0) ...[
+                    const SizedBox(width: 10),
+                    Icon(
+                      _done ? Icons.bookmark_rounded : Icons.bookmark_border,
+                      color: Palette.cyan,
+                      size: 30,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${c.mode == 'AI' ? 'AI design' : 'Design Your Own'} · '
+                  '${c.sport} · ${c.garmentLabel}',
+                  style: const TextStyle(color: Palette.muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+            child: _done
+                ? Column(
+                    children: [
+                      GradientButton(
+                        label: 'EXPORT DESIGN',
+                        icon: Icons.ios_share_rounded,
+                        onPressed: () => c.go(AppScreen.export),
+                      ),
                       const SizedBox(height: 10),
                       SecondaryButton(
-                        label: 'SAVE AS NEW COPY',
-                        icon: Icons.copy_rounded,
+                        label: 'View My Projects',
+                        icon: Icons.folder_open_outlined,
+                        onPressed: () => c.go(AppScreen.projects),
+                      ),
+                    ],
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (c.saveError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            c.saveError!,
+                            style: const TextStyle(
+                              color: Color(0xffff9b8d),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      GradientButton(
+                        label: _saving ? 'SAVING...' : 'SAVE PROJECT',
+                        icon: Icons.bookmark_add_outlined,
                         onPressed: _saving
                             ? null
                             : () async {
                                 setState(() => _saving = true);
-                                final success = await c.saveProject(
-                                  _name.text,
-                                  asCopy: true,
-                                );
+                                final success = await c.saveProject(_name.text);
                                 if (!mounted) return;
                                 setState(() {
                                   _saving = false;
@@ -2525,21 +2516,43 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
                                 });
                               },
                       ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'A different name also saves a new project; the '
-                        'saved one stays as it is.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xff8a9bb0),
-                          fontSize: 11,
+                      // 9.147: keep the saved project and start a new one.
+                      if (c.selectedProject >= 0) ...[
+                        const SizedBox(height: 10),
+                        SecondaryButton(
+                          label: 'SAVE AS NEW COPY',
+                          icon: Icons.copy_rounded,
+                          onPressed: _saving
+                              ? null
+                              : () async {
+                                  setState(() => _saving = true);
+                                  final success = await c.saveProject(
+                                    _name.text,
+                                    asCopy: true,
+                                  );
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _saving = false;
+                                    _done = success;
+                                  });
+                                },
                         ),
-                      ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'A different name also saves a new project; the '
+                          'saved one stays as it is.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xff8a9bb0),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-        ),
-      ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2615,50 +2628,114 @@ class _ExportScreenState extends State<ExportScreen> {
         'Everything + design brief',
       ),
     ];
-    return Column(
-      children: [
-        TopBar(onBack: c.back, title: 'Export design'),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 6, 18, 20),
-            children: [
-              SizedBox(
-                height: 210,
-                child: GlowCard(
-                  child: preview != null
-                      ? artImage(bytes: preview, fit: BoxFit.contain)
-                      : KitPreview(controller: c, height: 210),
+    // The bubble look (user 2026-11-05).
+    return BubblePage(
+      c: c,
+      title: ('Export design').toUpperCase(),
+      compact: true,
+      bubbleKey: const ValueKey('export-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('export-bubble-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: c.back,
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(2, 4, 2, 16),
+              children: [
+                SizedBox(
+                  height: 210,
+                  child: GlowCard(
+                    child: preview != null
+                        ? artImage(bytes: preview, fit: BoxFit.contain)
+                        : KitPreview(controller: c, height: 210),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              for (final (kind, icon, title, sub) in rows)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 9),
+                const SizedBox(height: 16),
+                for (final (kind, icon, title, sub) in rows)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 9),
+                    child: SurfaceCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      onTap: _working == null ? () => _export(kind) : null,
+                      child: Row(
+                        children: [
+                          Icon(icon, color: Palette.cyan, size: 24),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  sub,
+                                  style: const TextStyle(
+                                    color: Palette.muted,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          _working == kind
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.chevron_right,
+                                  color: Palette.muted,
+                                ),
+                        ],
+                      ),
+                    ),
+                  ),
+                Opacity(
+                  opacity: .45,
                   child: SurfaceCard(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 12,
                     ),
-                    onTap: _working == null ? () => _export(kind) : null,
-                    child: Row(
+                    child: const Row(
                       children: [
-                        Icon(icon, color: Palette.cyan, size: 24),
-                        const SizedBox(width: 14),
+                        Icon(
+                          Icons.architecture_outlined,
+                          color: Palette.muted,
+                          size: 24,
+                        ),
+                        SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                title,
-                                style: const TextStyle(
+                                'Vector / Tech Pack (Future)',
+                                style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13.5,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              SizedBox(height: 2),
                               Text(
-                                sub,
-                                style: const TextStyle(
+                                'AI, SVG, PDF · coming soon',
+                                style: TextStyle(
                                   color: Palette.muted,
                                   fontSize: 11,
                                 ),
@@ -2666,67 +2743,15 @@ class _ExportScreenState extends State<ExportScreen> {
                             ],
                           ),
                         ),
-                        _working == kind
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.chevron_right,
-                                color: Palette.muted,
-                              ),
                       ],
                     ),
                   ),
                 ),
-              Opacity(
-                opacity: .45,
-                child: SurfaceCard(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.architecture_outlined,
-                        color: Palette.muted,
-                        size: 24,
-                      ),
-                      SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Vector / Tech Pack (Future)',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13.5,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'AI, SVG, PDF · coming soon',
-                              style: TextStyle(
-                                color: Palette.muted,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

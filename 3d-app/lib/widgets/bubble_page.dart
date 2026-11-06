@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../app_controller.dart';
 import 'glass_bubble.dart';
@@ -24,7 +25,18 @@ class BubblePage extends StatelessWidget {
     this.onBellClosed,
     this.onRefresh,
     this.compact = false,
+    this.bell,
+    this.backdrop,
   });
+
+  /// A backdrop of the page's own behind the bubble (the sport and garment
+  /// pickers keep their stadium and sport backgrounds); the main pages keep
+  /// the navy one.
+  final Widget? backdrop;
+
+  /// A bell of the page's own in the top-right corner (e.g. 3DEEZI TEAM's,
+  /// which counts only TEAM notifications); the main pages keep the default.
+  final Widget? bell;
 
   /// A working page in the bubble (order form, order details): less room
   /// over the title and at the sides, so forms keep their width. The main
@@ -72,7 +84,7 @@ class BubblePage extends StatelessWidget {
       Expanded(
         child: Stack(
           children: [
-            const Positioned.fill(child: BubbleBackdrop()),
+            Positioned.fill(child: backdrop ?? const BubbleBackdrop()),
             LayoutBuilder(
               builder: (context, box) {
                 final w = math.min(box.maxWidth, 520.0);
@@ -106,10 +118,12 @@ class BubblePage extends StatelessWidget {
                                     Positioned(left: 0, child: leading!),
                                   Positioned(
                                     right: 0,
-                                    child: NotificationBell(
-                                      c,
-                                      onClosed: onBellClosed,
-                                    ),
+                                    child:
+                                        bell ??
+                                        NotificationBell(
+                                          c,
+                                          onClosed: onBellClosed,
+                                        ),
                                   ),
                                 ],
                               ),
@@ -125,7 +139,21 @@ class BubblePage extends StatelessWidget {
                                 final area = Size(w, box.maxHeight);
                                 // (A working page keeps a low dome, so a short
                                 // screen still shows most of the form.)
-                                final dome = homeDomeHeight(area);
+                                // A working page on a short window: a smaller
+                                // dome, so the form keeps most of the bubble
+                                // (user 2026-11-06, 560 × 520).
+                                final dome = compact && box.maxHeight < 640
+                                    ? math.min(
+                                        homeDomeHeight(area),
+                                        math.max(22.0, box.maxHeight * .07),
+                                      )
+                                    : homeDomeHeight(area);
+                                // A working page keeps 20-24 px clear of the
+                                // rim, more on a wide, short bubble whose
+                                // sides bow in (user 2026-11-06, 463).
+                                final side = compact
+                                    ? math.max(30.0, w * .075)
+                                    : 28.0;
                                 final bubble = Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: GlassBubble(
@@ -144,18 +172,19 @@ class BubblePage extends StatelessWidget {
                                     // page, user 2026-11-05: Home's dome, the
                                     // rim and the room inside it.)
                                     padding: EdgeInsets.fromLTRB(
-                                      28,
+                                      side,
                                       compact
                                           ? math.min(
                                               bubbleHeadingRoom(area),
                                               40.0,
                                             )
                                           : bubbleHeadingRoom(area),
-                                      28,
+                                      side,
                                       // A working page scrolls down into the
-                                      // bottom curve (clipped to it below).
+                                      // bottom curve (clipped to it below),
+                                      // ending above where it curves in.
                                       compact
-                                          ? dome * .3 + 10
+                                          ? dome * .55 + 12
                                           : bubbleBottomRoom(
                                               inner.maxWidth,
                                               dome,
@@ -199,17 +228,67 @@ class BubblePage extends StatelessWidget {
                                                 child: compact
                                                     // The scrolling content
                                                     // follows the bottom curve.
-                                                    ? ClipRRect(
-                                                        borderRadius:
-                                                            BorderRadius.vertical(
-                                                              bottom: Radius.elliptical(
-                                                                inner.maxWidth /
-                                                                        2 -
-                                                                    28,
-                                                                dome * .5,
+                                                    // (A short window: a flatter curve,
+                                                    // so the form keeps its room.)
+                                                    ? LayoutBuilder(
+                                                        builder: (context, room) => ClipRRect(
+                                                          borderRadius: BorderRadius.vertical(
+                                                            bottom: Radius.elliptical(
+                                                              math.min(
+                                                                math.min(
+                                                                  inner.maxWidth /
+                                                                          2 -
+                                                                      side,
+                                                                  dome * .8,
+                                                                ),
+                                                                room.maxHeight *
+                                                                    .6,
+                                                              ),
+                                                              math.min(
+                                                                dome * .45,
+                                                                room.maxHeight *
+                                                                    .18,
                                                               ),
                                                             ),
-                                                        child: child,
+                                                          ),
+                                                          // …and fades out softly
+                                                          // into it, so nothing
+                                                          // ends in a hard cut.
+                                                          child: ShaderMask(
+                                                            blendMode:
+                                                                BlendMode.dstIn,
+                                                            // (A short fade: the last 24 px.)
+                                                            shaderCallback: (r) =>
+                                                                LinearGradient(
+                                                                  begin: Alignment
+                                                                      .topCenter,
+                                                                  end: Alignment
+                                                                      .bottomCenter,
+                                                                  colors: const [
+                                                                    Colors
+                                                                        .white,
+                                                                    Colors
+                                                                        .white,
+                                                                    Color(
+                                                                      0x00ffffff,
+                                                                    ),
+                                                                  ],
+                                                                  stops: [
+                                                                    0,
+                                                                    r.height >
+                                                                            48
+                                                                        ? 1 -
+                                                                              24 /
+                                                                                  r.height
+                                                                        : .5,
+                                                                    1,
+                                                                  ],
+                                                                ).createShader(
+                                                                  r,
+                                                                ),
+                                                            child: child,
+                                                          ),
+                                                        ),
                                                       )
                                                     : child,
                                               ),
@@ -379,7 +458,11 @@ class BubbleRoute extends StatefulWidget {
     this.bubbleKey,
     this.onBack,
     this.action,
+    this.bell,
   });
+
+  /// The page's own bell (see [BubblePage.bell]).
+  final Widget? bell;
   final AppController c;
   final String title;
   final Widget child;
@@ -428,6 +511,7 @@ class _BubbleRouteState extends State<BubbleRoute> {
         title: widget.title,
         bubbleKey: widget.bubbleKey,
         compact: true,
+        bell: widget.bell,
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -447,4 +531,132 @@ class _BubbleRouteState extends State<BubbleRoute> {
       ),
     ),
   );
+}
+
+/// A page column inside the bubble that fills the room like a Column with one
+/// Expanded child, but never squeezes that child below [minFlex]: on a short
+/// phone the whole page scrolls instead (the sport and garment pickers).
+class BubbleFillScroll extends StatelessWidget {
+  const BubbleFillScroll({
+    super.key,
+    required this.minFlex,
+    required this.children,
+    this.scrollKey,
+  });
+
+  /// The least height of the Expanded child, from the page width.
+  final double Function(double width) minFlex;
+  final List<Widget> children;
+  final Key? scrollKey;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) => SingleChildScrollView(
+      key: scrollKey,
+      child: _FillColumn(
+        flexIndex: children.indexWhere((w) => w is Expanded),
+        minFlex: minFlex(box.maxWidth),
+        minHeight: box.maxHeight.isFinite ? box.maxHeight : 0,
+        children: [for (final w in children) w is Expanded ? w.child : w],
+      ),
+    ),
+  );
+}
+
+class _FillColumn extends MultiChildRenderObjectWidget {
+  const _FillColumn({
+    required this.flexIndex,
+    required this.minFlex,
+    required this.minHeight,
+    required super.children,
+  });
+
+  final int flexIndex;
+  final double minFlex, minHeight;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderFillColumn(flexIndex, minFlex, minHeight);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderFillColumn r) => r
+    ..flexIndex = flexIndex
+    ..minFlex = minFlex
+    ..minHeight = minHeight;
+}
+
+class _FillParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderFillColumn extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _FillParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _FillParentData> {
+  _RenderFillColumn(this._flexIndex, this._minFlex, this._minHeight);
+
+  int _flexIndex;
+  double _minFlex, _minHeight;
+
+  set flexIndex(int v) {
+    if (v == _flexIndex) return;
+    _flexIndex = v;
+    markNeedsLayout();
+  }
+
+  set minFlex(double v) {
+    if (v == _minFlex) return;
+    _minFlex = v;
+    markNeedsLayout();
+  }
+
+  set minHeight(double v) {
+    if (v == _minHeight) return;
+    _minHeight = v;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _FillParentData) {
+      child.parentData = _FillParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final w = constraints.maxWidth;
+    // As a Column does: the fixed children first, at their own height…
+    var fixed = 0.0, i = 0;
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      if (i++ != _flexIndex) {
+        child.layout(BoxConstraints(maxWidth: w), parentUsesSize: true);
+        fixed += child.size.height;
+      }
+    }
+    // …then the Expanded one gets the rest, but never less than minFlex.
+    final flex = math.max(_minFlex, _minHeight - fixed);
+    var y = 0.0;
+    i = 0;
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      if (i++ == _flexIndex) {
+        child.layout(
+          BoxConstraints(maxWidth: w, minHeight: flex, maxHeight: flex),
+          parentUsesSize: true,
+        );
+      }
+      (child.parentData! as _FillParentData).offset = Offset(
+        (w - child.size.width) / 2,
+        y,
+      );
+      y += child.size.height;
+    }
+    size = constraints.constrain(Size(w, math.max(y, _minHeight)));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }

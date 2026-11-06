@@ -337,7 +337,7 @@ Future<void> mount(
   double width = 420,
 }) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = Size(width, 1000);
+  tester.view.physicalSize = Size(width, 1600);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));

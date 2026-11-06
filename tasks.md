@@ -644,3 +644,4 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - Basketball shorts later list (2026-11-05, viewer -275): knit weaker than picture; bright back centre seam; no seat shading; front upper folds a bit busy; waist top edge ~4% narrow front; band ribbing slightly soft.
 - Netball dress later list (2026-11-05, viewer -275): hem flare/side wave; small tuck at far strap inside back neck (3/4 view); back shoulder slope gentler than 425; knit fainter than mesh at full view.
 - 2026-11-05 client: APP Home tab = design images/458 again (keep bubble; brush labels AI/DYO/ARTBOARD/TEAM/TO 3D with their icons, central 3DEEZI emblem + DRAG TO EXPLORE, Classic view / Upgrade pills). Check v3 for existing code. Queued to TL after the 457 fix.
+- Netball dress -279 later list (2026-11-06): hem flare; far-strap kink; gentler back shoulder slope; faint knit; hem fold a bit sharp in plain colours; Studio screenshot once :8000 is up.

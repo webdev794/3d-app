@@ -186,7 +186,7 @@ AppController signedIn(OrdersServer server) {
 
 Future<void> mount(WidgetTester tester, Widget child, {double width = 400}) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = Size(width, 900);
+  tester.view.physicalSize = Size(width, 1200);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));

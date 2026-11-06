@@ -83,24 +83,25 @@ const _art = 'assets/images/art/home2_';
 const _spots = [
   _Spot('ai', 'AI DESIGNER', [
     _Piece('${_art}ai_word.webp', Rect.fromLTRB(146, 318, 316, 492)),
-    _Piece('${_art}ai_jersey.webp', Rect.fromLTRB(320, 285, 516, 515)),
+    _Piece('${_art}ai_shirt.webp', Rect.fromLTRB(322, 285, 515, 515)),
     _Piece('${_art}sparkle.webp', Rect.fromLTRB(474, 276, 516, 328)),
   ]),
   _Spot('dyo', 'DESIGN YOUR OWN', [
     _Piece('${_art}dyo_word.webp', Rect.fromLTRB(505, 403, 693, 516)),
-    _Piece('${_art}dyo_jersey.webp', Rect.fromLTRB(509, 508, 717, 734)),
+    _Piece('${_art}dyo_shirt.webp', Rect.fromLTRB(510, 508, 716, 734)),
   ]),
+  // The client's pictures hold the icon and its word together.
   _Spot('artboard', 'ARTBOARD', [
-    _Piece('${_art}artboard_icon.webp', Rect.fromLTRB(124, 524, 371, 698)),
-    _Piece('${_art}artboard_word.webp', Rect.fromLTRB(128, 698, 346, 773)),
+    _Piece('${_art}artboard.webp', Rect.fromLTRB(123, 525, 372, 772)),
   ], icon: Icons.draw_rounded),
   _Spot('team', 'DESIGN TEAM', [
-    _Piece('${_art}team_icon.webp', Rect.fromLTRB(139, 974, 360, 1124)),
-    _Piece('${_art}team_word.webp', Rect.fromLTRB(176, 1139, 323, 1198)),
+    _Piece('${_art}team.webp', Rect.fromLTRB(138, 974, 361, 1198)),
   ], icon: Icons.groups_rounded),
   _Spot('to3d', 'ARTWORK TO 3D', [
-    _Piece('${_art}to3d_icon.webp', Rect.fromLTRB(465, 968, 660, 1124)),
+    // The word first, so nothing paints over the cube (its picture has a
+    // clear margin, so its point and glow are never cut).
     _Piece('${_art}to3d_word.webp', Rect.fromLTRB(489, 1137, 648, 1203)),
+    _Piece('${_art}cube.webp', Rect.fromLTRB(477, 955, 649, 1138)),
   ], icon: Icons.view_in_ar_rounded),
 ];
 

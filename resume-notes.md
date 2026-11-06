@@ -105,3 +105,14 @@ Resume via SendMessage, do not respawn:
 - 2026-11-05 ~90%: App Home 458 DONE (HM). Clean-up done (D: about 2.9 GB free). URGENT with TL: order form/upload/details use the standard Projects BubblePage bubble + all 4 tabs at about 590 px wide (images/461). Dress: NDT checking -277 against -275. QA sweep running. No push yet.
 - 2026-11-05: QA a67e886bef88faf96 PAUSED by the user; resume tomorrow (2026-11-06) via SendMessage.
 - 2026-11-05 END: TL a3f101741f6eac5d9 is still fixing (app only) the bubbles and spacing on the Orders tab screen and the manual form/Upload/details (content fills the bubble, nothing past the rim, even gaps; 360/390/590x700). Resume it first tomorrow and check its screenshots. NDT is checking dress -277 against -275. Push only when told.
+- 2026-11-05 evening: pushed v2 = 86ec89f (no force; 71 files).
+
+## START HERE 2026-11-06 (all agents PAUSED by the user on 2026-11-05 evening; resume each via SendMessage)
+1. TL a3f101741f6eac5d9 (app only): order form bubble at 590x700. The "Build your order step by step" card corners touch the rim near the top curve; at the bottom the clip cuts "Add images" in half with a cyan bar (fade it out softly instead). Then check the batch 2 tests (Assets, Edit profile, Pricing, Suppliers), then bubble batches 3-5. Home files are off-limits. Shots: old scratchpad TL\shots (h-fill*, h-ot*).
+2. NDT aaa2f21c3d04e8914: netball dress -277 (4 cloth curves from images/459). Re-render -275 and -277 back to back with the same tool, then check the 4 spots and all views. NDF af583c2f6cd3ff881 fixes from that list. -275 is the finished reference.
+3. QA a67e886bef88faf96: regression sweep of website + app on its own copy server 8011 (paused by the user; run tomorrow).
+- Done 11-05: shorts and netball dress finished (-275), app Home (458), Orders tab opens Create your order, 2-step order form, address suggestions, collar mark, and more (see task-done-today.md).
+- v2 = 86ec89f (pushed 11-05 evening). Live tar 11-05-b is the last one; a new delta tar against 11-05-b is needed before the next live update.
+- Rule: if the platform or screen is unclear, ASK the user.
+- 2026-11-06: HM2 a5aec512ff81f138c = the client's HD Home icons (Downloads\New folder (3); previews images/464-467) on the APP Home only. HM paused.
+- 2026-11-06: bubble work DONE (TL). Dress -281 FINISHED. Home HD icons DONE (HM2). Not pushed since v2 86ec89f; no tar since 11-05-c.

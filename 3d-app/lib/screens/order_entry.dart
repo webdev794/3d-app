@@ -819,7 +819,8 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
         : page;
     // (Compact: the form keeps most of the screen; the title is in the app bar.)
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, 6),
+      // (In from the sides: clear of the bubble's top curve.)
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
       child: GlassCard(
         radius: 20,
         semanticsLabel: null,
@@ -1557,9 +1558,10 @@ Widget _field(
   ),
 );
 
+/// (Inset like the cards, so the bubble's curved fade never cuts its first letters.)
 Widget _section(String text, {Key? key}) => Padding(
   key: key,
-  padding: const EdgeInsets.fromLTRB(0, 18, 0, 10),
+  padding: const EdgeInsets.fromLTRB(14, 18, 14, 10),
   child: Text(
     text.toUpperCase(),
     style: const TextStyle(
@@ -2312,7 +2314,10 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                       designs,
                     ),
                     icon: const Icon(Icons.palette_outlined, size: 18),
-                    label: const Text('Choose saved design'),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Choose saved design', maxLines: 1),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -2326,7 +2331,10 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                       addFile('artwork');
                     },
                     icon: const Icon(Icons.upload_file, size: 18),
-                    label: const Text('Upload artwork'),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Upload artwork', maxLines: 1),
+                    ),
                   ),
                 ),
               ],

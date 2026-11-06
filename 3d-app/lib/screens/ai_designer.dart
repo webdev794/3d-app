@@ -16,6 +16,7 @@ import '../sports_catalog.dart';
 import '../design_document.dart' show isHoodie, isVarsity, isTrack;
 import '../export_service.dart';
 import '../player_shot.dart';
+import '../widgets/bubble_page.dart' show BubblePage, BubbleCornerPill;
 import '../widgets/ai_stage.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/recent_designs.dart';
@@ -915,116 +916,131 @@ class _AiGeneratingScreenState extends State<AiGeneratingScreen>
       ),
       ('Preparing 3D garment', _step >= 3 && _progress >= 1),
     ];
-    return Column(
-      children: [
-        TopBar(onBack: c.back),
-        const ScreenTitle('Creating your design…', size: 24),
-        const SizedBox(height: 6),
-        const Text(
-          'Analysing your request and generating concepts.',
-          style: TextStyle(color: Palette.muted, fontSize: 12),
-        ),
-        Expanded(child: Center(child: const EmblemLoader(size: 240))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 26),
-          child: Column(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(
-                  height: 5,
-                  child: Stack(
-                    children: [
-                      const Positioned.fill(
-                        child: ColoredBox(color: Palette.surface2),
-                      ),
-                      FractionallySizedBox(
-                        alignment: Alignment.centerLeft,
-                        widthFactor: _progress.clamp(0, 1),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xff00e0e4),
-                                Color(0xff04c6f3),
-                                Color(0xff7560ff),
+    // The bubble look (user 2026-11-05).
+    return BubblePage(
+      c: c,
+      title: ('Creating your design').toUpperCase(),
+      compact: true,
+      bubbleKey: const ValueKey('generating-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('generating-bubble-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: c.back,
+      ),
+      child: Column(
+        children: [
+          const ScreenTitle('Creating your design…', size: 24),
+          const SizedBox(height: 6),
+          const Text(
+            'Analysing your request and generating concepts.',
+            style: TextStyle(color: Palette.muted, fontSize: 12),
+          ),
+          Expanded(child: Center(child: const EmblemLoader(size: 240))),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    height: 5,
+                    child: Stack(
+                      children: [
+                        const Positioned.fill(
+                          child: ColoredBox(color: Palette.surface2),
+                        ),
+                        FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: _progress.clamp(0, 1),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xff00e0e4),
+                                  Color(0xff04c6f3),
+                                  Color(0xff7560ff),
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Palette.cyan.withValues(alpha: .7),
+                                  blurRadius: 8,
+                                ),
                               ],
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Palette.cyan.withValues(alpha: .7),
-                                blurRadius: 8,
-                              ),
-                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              for (final (label, done) in rows)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Row(
-                    children: [
-                      done
-                          ? const Icon(
-                              Icons.check_circle_rounded,
-                              color: Palette.cyan,
-                              size: 21,
-                            )
-                          : const SizedBox(
-                              width: 21,
-                              height: 21,
-                              child: Padding(
-                                padding: EdgeInsets.all(3),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                const SizedBox(height: 16),
+                for (final (label, done) in rows)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    child: Row(
+                      children: [
+                        done
+                            ? const Icon(
+                                Icons.check_circle_rounded,
+                                color: Palette.cyan,
+                                size: 21,
+                              )
+                            : const SizedBox(
+                                width: 21,
+                                height: 21,
+                                child: Padding(
+                                  padding: EdgeInsets.all(3),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                               ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: done ? Palette.text : Palette.muted,
                             ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: done ? Palette.text : Palette.muted,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0x33E92137),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0x88E92137)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(fontSize: 11.5),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0x33E92137),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0x88E92137)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(fontSize: 11.5),
+                          ),
                         ),
-                      ),
-                      TextButton(onPressed: _start, child: const Text('Retry')),
-                    ],
+                        TextButton(
+                          onPressed: _start,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
+                const SizedBox(height: 26),
               ],
-              const SizedBox(height: 26),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

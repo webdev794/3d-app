@@ -201,6 +201,17 @@ void main() {
 
     await tapText(tester, 'Save');
     expect(c.screen, AppScreen.saveProject);
+    // (In the bubble the list is shorter: scroll to the version line.)
+    await tester.scrollUntilVisible(
+      find.text('Version 1'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('save-project-bubble')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(find.text('Version 1'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Thunder Home');
     // The header also reads "SAVE PROJECT"; tap the button below it.

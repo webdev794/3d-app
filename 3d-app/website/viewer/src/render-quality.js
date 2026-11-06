@@ -166,8 +166,8 @@ const FABRICS = {
   // A fine knit (track jackets, and any garment without its own fabric).
   // The basketball shorts' double knit: fine lines running across, as the client's mockups (BSF 2026-11-05).
   bballknit: { tile: 0.02, scale: 0.35, cavity: 0.05, rough: 0.95, sheen: 0, sheenRough: 0.9, strength: 2, make: () => ({ height: (u, v) => 0.5 + 0.5 * Math.cos(2 * Math.PI * v * 10) }) },
-  // The netball dress: a fine matt knit (NDT: not smooth plastic).
-  dressknit: { tile: 0.014, scale: 1.4, cavity: 0.12, rough: 0.86, sheen: 0.1, sheenRough: 0.6, sheenColor: 0x8c99a6, clearcoat: 0, strength: 1.8, make: () => microKnit(24, 20) },
+  // The netball dress: a fine knit (NDT: not smooth plastic) with the mockups' soft whitish satin sheen (user 2026-11-06).
+  dressknit: { tile: 0.014, scale: 1.4, cavity: 0.12, rough: 0.86, sheen: 0.28, sheenRough: 0.38, sheenColor: 0xe6ecf2, clearcoat: 0, strength: 1.8, make: () => microKnit(24, 20) },
   knit: { tile: 0.02, scale: 0.4, cavity: 0, strength: 2.5, make: () => ({ height: (u, v) => 0.5 + 0.5 * Math.cos(2 * Math.PI * (u + v) * 12) ** 3 }) },
   // The fabric types (FABRIC_TYPES). Mesh: open hexagonal holes about 3.4 mm apart (half the fabric open), thin knitted
   // walls between them; the holes show the shade behind them. (tileV: the tile's height, 10 rows of the hexagons.)
