@@ -58,37 +58,10 @@ class OrderAssistantReader
                 && ! preg_match('/\b(?:jerseys?|guernseys?|shirts?|tops?|kits?|uniforms?)\b/i', $text)) {
                 $items[0]['garment'] = $said[0];
             }
-            // The message's one sport for the garments read with no sport of their own: never a sport only in a part
-            // left unread, and when another garment named that sport itself, only if it keeps the garment's kind.
-            // "Jerseys: 4 S, 6 M" then an empty "Netball dresses" heading, or "Jerseys 4 S. Netball dress x 12": the
-            // jerseys stay jerseys, never Netball dresses (bug 2026-11-10); "Football jerseys 3 x M" then "5 hoodies":
-            // Football hoodies.
+            // The garments read with no sport of their own already have the message's one sport where it fits (the notes
+            // reader's shareSport: "Football jerseys 3 x M" then "5 hoodies" are Football hoodies; never a netball
+            // jersey from an empty "Netball dresses" heading).
             $unsized = (array) ($read['unsized'] ?? []);
-            $notesSport = $sport;
-            if ($sport !== '') {
-                $readText = $text;
-                foreach ((array) ($read['unknown'] ?? []) as $u) {
-                    if (! in_array($u, array_column($unsized, 'text'), true)) {
-                        $readText = str_ireplace(preg_replace('/\s*\([^()]*\)$/u', '', (string) $u) ?? (string) $u, ' ', $readText);
-                    }
-                }
-                $notesSport = OrderAnalysis::sportsIn($readText) === [$sport] ? $sport : '';
-            }
-            $ownSport = (bool) array_filter(array_merge($items, $unsized), fn ($i) => ! empty($i['sport']));
-            $borrow = function (array $i) use ($notesSport, $ownSport): array {
-                if (! empty($i['sport']) || $notesSport === '') {
-                    return $i;
-                }
-                $garment = (string) ($i['garment'] ?? 'other');
-                $name = (string) ($i['label'] ?? '') ?: (OrderAnalysis::PRODUCT_NAMES[$garment] ?? 'Garment');
-                if (! $ownSport || OrderAnalysis::garmentOf(OrderAnalysis::model($notesSport, $garment, $name)) === $garment) {
-                    $i['sport'] = $notesSport;
-                }
-
-                return $i;
-            };
-            $items = array_map($borrow, $items);
-            $unsized = array_map($borrow, $unsized);
             $fromNotes = self::linesFromItems($items, 'Your message');
             // "5 hoodies", "10 football jerseys": kept, with no size given (the check list says so).
             foreach ($unsized as $u) {

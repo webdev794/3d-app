@@ -9,7 +9,10 @@
 
 /* ---------- the landing page */
 .signage-page{position:relative;min-height:calc(100vh - 82px);min-height:calc(100svh - 82px);overflow:hidden;background:#020810;isolation:isolate}
-.sg-stage{position:absolute;inset:0;z-index:0}
+/* The stage's place and height come from Signage.tsx (the scene fits between the tiles, MARQUEE SETUP and CUSTOM
+   MARQUEE, 2026-11-10); a stage that ends inside the page fades into it. */
+.sg-stage{position:absolute;left:0;right:0;top:var(--sg-stage-top,0px);height:var(--sg-stage-h,100%);z-index:0;
+  -webkit-mask-image:linear-gradient(#0000,#000 var(--sg-fade-top,0px),#000 calc(100% - var(--sg-fade-bottom,0px)),#0000);mask-image:linear-gradient(#0000,#000 var(--sg-fade-top,0px),#000 calc(100% - var(--sg-fade-bottom,0px)),#0000)}
 .sg-haze{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,#020810e6 0%,#0208109c 18%,#02081000 38%,#02081000 72%,#020810b8 92%,#020810 100%)}
 .sg-head,.sg-products,.sg-setup,.sg-cta{position:relative;z-index:2}
 .sg-head{text-align:center;padding-top:22px;pointer-events:none}
@@ -30,14 +33,15 @@
 .sg-product.is-soon .sg-brand{opacity:.6}
 .sg-product small{position:absolute;top:6px;right:6px;padding:2px 5px;border-radius:4px;background:#0d2a3f;color:#79d6ff;font-size:8px;font-weight:700;letter-spacing:.08em}
 .sg-product:hover{transform:translateY(-2px);border-color:#2ad6ff99}
-.sg-setup{position:absolute;left:44px;top:356px;width:310px;padding:18px 20px 20px;border:1px solid #2a6c9466;border-radius:12px;background:linear-gradient(180deg,#0a1a2bdb,#06111ddb);backdrop-filter:blur(8px);box-shadow:0 0 30px #0090ff1c}
+.sg-setup{position:absolute;left:44px;top:var(--sg-win-top,356px);width:310px;max-height:calc(100% - var(--sg-win-top,356px) - 16px);overflow:auto;scrollbar-width:thin;padding:18px 20px 20px;border:1px solid #2a6c9466;border-radius:12px;background:linear-gradient(180deg,#0a1a2bdb,#06111ddb);backdrop-filter:blur(8px);box-shadow:0 0 30px #0090ff1c}
 .sg-setup h2{margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid #ffffff14;font:700 21px/1 var(--heading);letter-spacing:.03em}
 .sg-choice{margin-top:12px}
 .sg-choice>span{display:block;font:600 15px/1 var(--heading);margin-bottom:9px;color:#dce8f2}
 .sg-choice>div{display:flex;gap:4px}
 .sg-choice button{flex:1;min-height:38px;padding:6px 8px;border:1px solid #ffffff22;border-radius:7px;background:#07121e;color:#cfdbe7;font-size:13px}
 .sg-choice button.is-on{border-color:#2ad6ff;color:#fff;background:#0b3044;box-shadow:0 0 12px #00c8ff55,inset 0 0 10px #00c8ff22}
-.sg-cta{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;text-align:center}
+.sg-cta{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;text-align:center;pointer-events:none}
+.sg-cta>*{pointer-events:auto}
 .sg-cta h2{margin:0;font:700 26px/1 var(--heading);letter-spacing:.03em;text-shadow:0 2px 12px #000}
 .sg-cta p{margin:5px 0 12px;font-size:14px;color:#dbe6f0;line-height:1.3}
 .button.sg-start{min-width:268px;min-height:50px;border-radius:26px;font-size:15px;letter-spacing:.12em;box-shadow:0 0 26px #00b8ff66}
@@ -45,7 +49,26 @@
 .sg-upload span{text-decoration:underline;text-underline-offset:4px}
 .sg-upload svg{color:#4fd6ff}
 .sg-soon{position:absolute;z-index:3;left:50%;top:224px;transform:translateX(-50%);padding:10px 16px;border-radius:8px;border:1px solid #2ad6ff66;background:#06182af2;color:#dff4ff;font-size:13px;white-space:nowrap}
-@media (max-height:820px) and (min-width:761px){.sg-setup{top:330px;padding:14px 16px}.sg-choice{margin-top:8px}.sg-cta h2{font-size:22px}}
+/* Short laptop windows (1322 x 620, 1366 x 768): a smaller heading, lower tiles, a compact MARQUEE SETUP and
+   START DESIGNING beside Upload artwork, so the tent keeps a good size with room round it. */
+@media (max-height:820px) and (min-width:761px){
+  .sg-head{padding-top:12px}
+  .sg-head h1{font-size:clamp(30px,3.4vw,46px)}
+  .sg-head p{margin-top:6px;font-size:16px}
+  .sg-products{margin-top:12px}
+  .sg-product{height:84px;gap:5px}
+  .sg-product svg{width:32px;height:32px}
+  .sg-setup{padding:14px 16px}
+  .sg-setup h2{margin-bottom:8px;padding-bottom:10px;font-size:19px}
+  .sg-choice{margin-top:8px}
+  .sg-choice>span{margin-bottom:6px}
+  .sg-choice button{min-height:34px}
+  .sg-cta{bottom:10px;width:460px;flex-flow:row wrap;justify-content:center;column-gap:22px}
+  .sg-cta h2{flex-basis:100%;font-size:22px}
+  .sg-cta p{flex-basis:100%;margin:3px 0 8px}
+  .button.sg-start{min-height:44px}
+  .sg-upload{margin-top:0}
+}
 @media (max-width:1100px) and (min-width:761px){.sg-setup{left:20px;width:270px}.sg-product>span{font-size:12px}}
 @media (max-width:760px){
   .signage-page{display:flex;flex-direction:column;min-height:0;padding-bottom:24px}
@@ -63,7 +86,7 @@
 .sg-product small{font-size:7px;top:4px;right:4px}
   .sg-stage{position:relative;inset:auto;order:3;height:380px;margin-top:14px}
   .sg-cta{position:relative;order:4;left:auto;bottom:auto;transform:none;margin-top:-58px;padding:0 16px}
-  .sg-setup{position:relative;order:5;left:auto;top:auto;width:auto;margin:20px 16px 0}
+  .sg-setup{position:relative;order:5;left:auto;top:auto;width:auto;max-height:none;overflow:visible;margin:20px 16px 0}
   .sg-soon{top:auto;bottom:16px;position:fixed;white-space:normal;width:calc(100% - 32px);text-align:center}
 }
 

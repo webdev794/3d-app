@@ -232,10 +232,67 @@ class OrderFormReader
         }
         $emptyHeading();
         $items = array_values(array_filter($items, fn ($item) => array_sum(array_map('intval', $item['sizes'] ?? [])) > 0));
+        [$items, $unsized] = $this->shareSport($text, $items, $unsized, $unknown);
         $items = array_map(fn ($item) => $item + ['name' => Order::itemName($item)], $items);
+        $unsized = array_map(fn ($u) => $u + ['name' => Order::itemName($u)], $unsized);
 
         return ['items' => $items, 'players' => $count, 'unknown' => array_slice($unknown, 0, 20), 'rows' => count($lines),
             'summary' => $this->assistant->summary($items), 'source' => 'notes', 'unsized' => $unsized];
+    }
+
+    /**
+     * The one sport a message names, for the garments read with no sport of their own ("Football jerseys 3 x M" then
+     * "5 hoodies": Football hoodies). Never a sport only in a part left unread, and when another garment named that sport
+     * itself, only if the garment stays the same kind: "Jerseys: 4 S, 6 M" then an empty "Netball dresses" heading, or
+     * "Jerseys 4 S. Netball dress x 12", keeps jerseys (a netball jersey would be the Netball dress; bug 2026-11-10).
+     *
+     * @return array{0: array, 1: array} the items (the same garment and sport joined) and the garments with no size
+     */
+    private function shareSport(string $text, array $items, array $unsized, array $unknown): array
+    {
+        $sports = OrderAnalysis::sportsIn($text);
+        if (count($sports) !== 1) {
+            return [$items, $unsized];
+        }
+        $readText = $text;
+        foreach ($unknown as $u) {
+            if (! in_array($u, array_column($unsized, 'text'), true)) {
+                $readText = str_ireplace(preg_replace('/\s*\([^()]*\)$/u', '', (string) $u) ?? (string) $u, ' ', $readText);
+            }
+        }
+        if (OrderAnalysis::sportsIn($readText) !== $sports) {
+            return [$items, $unsized];
+        }
+        $sport = $sports[0];
+        $ownSport = (bool) array_filter(array_merge($items, $unsized), fn ($i) => ! empty($i['sport']));
+        $share = function (array $i) use ($sport, $ownSport): array {
+            if (empty($i['sport'])) {
+                $garment = (string) ($i['garment'] ?? 'other');
+                $name = (string) ($i['label'] ?? '') ?: (OrderAnalysis::PRODUCT_NAMES[$garment] ?? 'Garment');
+                if (! $ownSport || OrderAnalysis::garmentOf(OrderAnalysis::model($sport, $garment, $name)) === $garment) {
+                    $i['sport'] = $sport;
+                }
+            }
+
+            return $i;
+        };
+        $joined = [];
+        foreach (array_map($share, $items) as $item) {
+            $key = implode('|', [$item['garment'], $item['sport'] ?? '', $item['fit'] ?? '', $item['label'] ?? '']);
+            if (! isset($joined[$key])) {
+                $joined[$key] = $item;
+
+                continue;
+            }
+            foreach ($item['sizes'] as $size => $n) {
+                $joined[$key]['sizes'][$size] = ($joined[$key]['sizes'][$size] ?? 0) + $n;
+            }
+            if (! empty($item['players'])) {
+                $joined[$key]['players'] = array_merge($joined[$key]['players'] ?? [], $item['players']);
+            }
+        }
+
+        return [array_values($joined), array_map($share, $unsized)];
     }
 
     /** A player line ("Smith 7 M", "7 Smith M", "J. Wallace - 12 - XL") as [name, number|null, size], or null. */

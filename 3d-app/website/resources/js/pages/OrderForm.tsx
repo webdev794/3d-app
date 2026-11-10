@@ -66,11 +66,19 @@ const MAX_ROWS = 60, MAX_PLAYERS = 300, STORE = '3deezi.order-form';
 /** Garments with a picture (public/media/showroom/garment-<id>.webp); the rest show a shirt icon. */
 const ART = new Set(['jersey', 'shorts', 'tee', 'singlet', 'polo', 'socks', 'hoodie']);
 const WORDS: Record<string, [string, string]> = { jersey: ['jersey', 'jerseys'], shorts: ['shorts', 'shorts'], tee: ['tee', 'tees'], singlet: ['singlet', 'singlets'], polo: ['polo', 'polos'], hoodie: ['hoodie', 'hoodies'], jacket: ['jacket', 'jackets'], warmup: ['warm-up top', 'warm-up tops'], pants: ['track pants', 'track pants'], socks: ['socks', 'socks'], cap: ['cap', 'caps'], other: ['item', 'items'] };
+/**
+ * A product ordered on another garment's row, named by its label: the netball dress is priced and made on a singlet row
+ * (Order::PROJECT_ROWS), but the customer sees "Netball dress" everywhere (QA 2026-11-10). Its word and its picture.
+ */
+const LABEL_WORDS: Record<string, { words: [string, string]; picture: string }> = { dress: { words: ['dress', 'dresses'], picture: 'netball-dress' } };
+const labelProduct = (r: { garment: string; label: string }) => (r.garment !== 'other' ? LABEL_WORDS[(r.label.trim().split(/\s+/).pop() ?? '').toLowerCase().replace(/es$/, '')] : undefined);
+const rowWord = (r: { garment: string; label: string }, n: number) => (labelProduct(r)?.words ?? WORDS[r.garment] ?? WORDS.other)[n === 1 ? 0 : 1];
 
 /* ================================================================================================ the form's data */
 
 interface PlayerRow { key: string; name: string; number: string; size: string }
-interface Row { key: string; garment: string; sport: string; fit: string; label: string; project_id: number | null; sizes: Record<string, number>; players: PlayerRow[]; open: boolean; more: boolean; file_ids: number[]; /** "Custom…" chosen: the sport is typed (screen only; a typed sport shows it too). */ custom?: boolean }
+interface Row { key: string; garment: string; sport: string; fit: string; label: string; project_id: number | null; sizes: Record<string, number>; players: PlayerRow[]; open: boolean; more: boolean; file_ids: number[]; /** "Custom…" chosen: the sport is typed (screen only; a typed sport shows it too). */ custom?: boolean;
+  /** A quantity read from the notes with no sizes ("5 hoodies"): shown until the sizes are added (screen and draft only, never ordered). */ wanted?: number }
 interface FormState { contact: ContactDetails; rows: Row[]; notes: string; pricing: PricingChoice; delivery: DeliveryFields; /** Made by: null is 3DEEZI (the default). */ supplier_id: number | null }
 
 let seq = 0;
@@ -109,7 +117,7 @@ function rowName(r: Row, o: FormOptions, project?: Project | null) {
   const sport = o.sports.find(s => s.id === r.sport)?.name ?? (r.sport.trim() || undefined);
   return sport ? `${sport} ${garment}` : garment;
 }
-const typeLabel = (r: Row) => (r.garment === 'other' ? r.label.trim() || 'Other garments' : capital((WORDS[r.garment] ?? WORDS.other)[1]));
+const typeLabel = (r: Row) => (r.garment === 'other' ? r.label.trim() || 'Other garments' : capital(rowWord(r, 2)));
 const isPicture = (src: unknown): src is string => typeof src === 'string' && /^(data:image\/|https?:\/\/|\/)/.test(src);
 function projectPicture(p: Project | undefined | null): string | null {
   if (!p) return null;
@@ -117,6 +125,8 @@ function projectPicture(p: Project | undefined | null): string | null {
   return isPicture(p.thumbnail) ? p.thumbnail : isPicture(front) ? front : null;
 }
 const garmentPicture = (garment: string) => (ART.has(garment) ? media(`showroom/garment-${garment}.webp`) : null);
+/** A row's own garment picture: a product on another garment's row ("Netball dress") shows that product. */
+const rowPicture = (r: { garment: string; label: string }) => { const p = labelProduct(r); return p ? media(`showroom/garment-${p.picture}.webp`) : garmentPicture(r.garment); };
 
 /** The order fields to send (orders-api.md §2): no screen-only keys, nothing empty. */
 function toOrderFields(f: FormState, sizes: string[]): FormFields {
@@ -135,7 +145,7 @@ function toOrderFields(f: FormState, sizes: string[]): FormFields {
 /** A draft keeps the order fields plus the screen's own keys (row ids, open rows, artwork per garment, blank player rows). */
 function toDraftData(f: FormState, sizes: string[]) {
   const fields = toOrderFields(f, sizes);
-  return { ...fields, notes: f.notes, items: f.rows.map((r, i) => ({ ...fields.items[i], players: r.players.map(p => ({ name: p.name, number: p.number, size: p.size })), key: r.key, open: r.open, more: r.more, file_ids: r.file_ids })) };
+  return { ...fields, notes: f.notes, items: f.rows.map((r, i) => ({ ...fields.items[i], players: r.players.map(p => ({ name: p.name, number: p.number, size: p.size })), key: r.key, open: r.open, more: r.more, file_ids: r.file_ids, ...(r.wanted ? { wanted: r.wanted } : {}) })) };
 }
 function fromData(d: Loose | null | undefined, sizes: string[]): FormState {
   const items: Loose[] = Array.isArray(d?.items) ? d!.items : [];
@@ -155,6 +165,7 @@ function fromData(d: Loose | null | undefined, sizes: string[]): FormState {
         players: players.slice(0, MAX_PLAYERS).map(p => ({ key: makeKey('p'), name: str(p?.name, 40), number: digits(String(p?.number ?? '')), size: str(p?.size, 10) })),
         open: typeof it?.open === 'boolean' ? it.open : sum(s) > 0 || !!project, more: !!it?.more,
         file_ids: Array.isArray(it?.file_ids) ? it.file_ids.filter((n: unknown) => Number.isInteger(n)) : [],
+        ...(Number(it?.wanted) > 0 ? { wanted: Math.min(10000, Math.floor(Number(it.wanted))) } : {}),
       });
     }),
   };
@@ -325,7 +336,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   /** The rows the last Build made: a second Build replaces them instead of adding them again (392.jpg: 8 and 12). */
   const notesBuilt = useRef<Set<string>>(new Set());
   const [noteImages, setNoteImages] = useState<File[]>([]);
-  const [building, setBuilding] = useState<{ busy: boolean; built?: boolean; text?: string; check?: string[]; missing?: string[] }>({ busy: false });
+  const [building, setBuilding] = useState<{ busy: boolean; built?: boolean; text?: string; check?: string[]; missing?: string[]; noSizes?: string[] }>({ busy: false });
   const sheetInput = useRef<HTMLInputElement>(null);
   const artInput = useRef<HTMLInputElement>(null);
   const [tried, setTried] = useState(false);
@@ -737,9 +748,17 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     if (!text && !notePhotos.length && !noteImages.length && !noteFiles.length) { setBuilding({ busy: false, text: 'Write your notes, or add a photo of them, first.' }); return; }
     if ((notePhotos.length || noteImages.length || noteFiles.length) && !userRef.current) { authRef.current(); return; }
     setBuilding({ busy: true, text: notePhotos.length || noteFiles.length ? '3DEEZI AI is reading your notes…' : 'Building your order form…' });
-    const read: { items: Loose[]; unknown: string[] } = { items: [], unknown: [] };
+    const read: { items: Loose[]; unknown: string[]; unsized: Loose[] } = { items: [], unknown: [], unsized: [] };
     try {
-      if (text) { const r = await orderApi.readNotes(text); read.items.push(...((r.items ?? []) as Loose[])); read.unknown.push(...(r.unknown ?? [])); }
+      if (text) {
+        const r = await orderApi.readNotes(text) as Loose;
+        // The built-in reader names a product on another garment's row itself ("Netball dress" on a singlet row): kept.
+        read.items.push(...((Array.isArray(r.items) ? r.items : []) as Loose[]).map(it => ({ ...it, keepLabel: true })));
+        // A garment read with no sizes ("5 hoodies") is built as a row and asked for its sizes below, not "not read".
+        read.unsized.push(...((Array.isArray(r.unsized) ? r.unsized : []) as Loose[]).filter(u => u && typeof u === 'object'));
+        const asked = new Set(read.unsized.map(u => String(u.text ?? '')));
+        read.unknown.push(...((Array.isArray(r.unknown) ? r.unknown : []) as string[]).filter(u => !asked.has(u)));
+      }
       if (notePhotos.length || noteFiles.length) {
         const id = await ensureDraft();
         if (!id) throw new Error('The draft could not be saved.');
@@ -757,9 +776,22 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       const sets = new Set(Object.keys(sizes).map(sizeFit));
       return newRow({ garment, sport: typeof it.sport === 'string' && it.sport ? it.sport : formRef.current.rows[0]?.sport || firstSport,
         fit: typeof it.fit === 'string' && it.fit ? it.fit : sets.size === 1 ? [...sets][0] : 'mens', sizes, open: true,
-        label: garment !== it.garment && typeof it.label === 'string' ? it.label : '',
+        label: (garment !== it.garment || it.keepLabel) && typeof it.label === 'string' ? it.label.slice(0, 60) : '',
         players: players.slice(0, MAX_PLAYERS).map(p => ({ key: makeKey('p'), name: String(p?.name ?? '').slice(0, 40), number: String(p?.number ?? '').replace(/\D/g, '').slice(0, 3), size: String(p?.size ?? '') })) });
     });
+    // "5 hoodies": a row with no sizes yet, its quantity shown until the sizes are added, and asked in the check list.
+    const noSizes: string[] = [];
+    for (const u of read.unsized.slice(0, Math.max(0, MAX_ROWS - built.length))) {
+      const garment = options.garments.some(g => g.id === u.garment) ? String(u.garment) : 'other';
+      const label = typeof u.label === 'string' ? u.label.slice(0, 60) : garment === 'other' ? String(u.name ?? u.text ?? '').slice(0, 60) : '';
+      const wanted = Math.max(1, Math.min(10000, Math.floor(Number(u.qty) || 1)));
+      // A dress's sizes are womens sizes (W8 to W24).
+      const row = newRow({ garment, label, sport: typeof u.sport === 'string' && u.sport ? u.sport : formRef.current.rows[0]?.sport || firstSport,
+        fit: typeof u.fit === 'string' && u.fit ? u.fit : labelProduct({ garment, label }) ? 'womens' : 'mens', sizes: {}, open: true, wanted });
+      built.push(row);
+      const size = String(u.size ?? '').trim();
+      noSizes.push(`${rowName(row, options)} × ${wanted}: ${size ? `size “${size}” is not one of our sizes, please choose the sizes` : 'no sizes given, please add them'}`);
+    }
     if (!built.length) { setBuilding({ busy: false, text: 'No garments or sizes found in your notes. Try lines like “Polo” then “3 x 4XL”.', check: read.unknown }); return; }
     const withBuilt = (f: typeof formRef.current) => {
       const kept = f.rows.filter(r => !notesBuilt.current.has(r.key) && (sum(r.sizes) > 0 || r.project_id || r.players.length));
@@ -771,7 +803,7 @@ ${text}`.slice(0, 4000) : f.notes) };
     setForm(f => withBuilt(f));
     notesBuilt.current = new Set(built.map(r => r.key));
     setNotePhotos([]); setNoteImages([]); setNoteFiles([]);
-    const count = built.reduce((n, r) => n + sum(r.sizes), 0);
+    const count = built.reduce((n, r) => n + (sum(r.sizes) || (r.wanted ?? 0)), 0);
     // Straight on to the built garments (client 394): Details already typed stays; what is still missing is listed, not blocking.
     const plain = (k: string) => {
       const row = k.match(/^items\.(\d+)\.(\w+)/);
@@ -779,7 +811,7 @@ ${text}`.slice(0, 4000) : f.notes) };
       return k === 'artwork' ? 'your logo or design (artwork)' : k === 'items' ? 'garments' : k === 'general' ? 'order details' : k.replace(/_/g, ' ');
     };
     const missing = [...new Set(Object.keys(validate(builtForm, options, hasArt())).filter(k => pageOf(k) === 0).map(plain))];
-    setBuilding({ busy: false, built: true, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them here, then continue.`, check: read.unknown, missing });
+    setBuilding({ busy: false, built: true, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them here, then continue.`, check: read.unknown, missing, noSizes });
     setPage(1);
   }
   /**
@@ -865,15 +897,16 @@ ${text}`.slice(0, 4000) : f.notes) };
   /* ------------------------------------------------------------------------------ what the side shows */
   const totalQty = form.rows.reduce((n, r) => n + sum(r.sizes), 0);
   const summaryRows: SummaryRow[] = useMemo(() => {
-    const groups = new Map<string, { label: string; qty: number; missing: number }>();
+    const groups = new Map<string, { label: string; qty: number; missing: number; wanted: number }>();
     for (const r of form.rows) {
-      const key = r.garment === 'other' ? `other:${r.label.trim().toLowerCase()}` : r.garment;
-      const g = groups.get(key) ?? { label: typeLabel(r), qty: 0, missing: 0 };
+      const key = r.garment === 'other' ? `other:${r.label.trim().toLowerCase()}` : labelProduct(r) ? `${r.garment}:${rowWord(r, 2)}` : r.garment;
+      const g = groups.get(key) ?? { label: typeLabel(r), qty: 0, missing: 0, wanted: 0 };
       const n = sum(r.sizes);
-      g.qty += n; if (!n) g.missing++;
+      // "5 hoodies" read with no sizes: counted as wanted until the sizes are added.
+      g.qty += n; if (!n) { g.missing++; g.wanted += r.wanted ?? 0; }
       groups.set(key, g);
     }
-    return [...groups.entries()].map(([key, g]) => ({ key, label: g.label, ...(g.qty && !g.missing ? { value: g.qty } : {}), pending: g.qty ? `${g.qty} · sizes needed` : 'Sizes needed' }));
+    return [...groups.entries()].map(([key, g]) => ({ key, label: g.label, ...(g.qty && !g.missing ? { value: g.qty } : {}), pending: g.qty + g.wanted ? `${g.qty + g.wanted} · sizes needed` : 'Sizes needed' }));
   }, [form.rows]);
   const problems = useMemo(() => validate(form, options, files.some(f => f.kind !== 'order_form')), [form, options, files]);
   const hint = !form.rows.length ? 'Add a garment to start your order.'
@@ -940,7 +973,7 @@ ${text}`.slice(0, 4000) : f.notes) };
         sub: [fit ? `${fit} fit` : '', project ? `Design: ${project.name}` : r.project_id ? 'Saved design' : own ? 'Your artwork' : ''].filter(Boolean).join(' · '),
         colours: project ? [d?.main, d?.secondary] : [],
         // A full kit's rows (jersey, shorts) show their own garment; a single-garment design shows its saved picture.
-        thumb: (project && project.garment !== 'fullkit' ? projectPicture(project) : null) ?? garmentPicture(r.garment) ?? projectPicture(project),
+        thumb: (project && project.garment !== 'fullkit' ? projectPicture(project) : null) ?? rowPicture(r) ?? projectPicture(project),
         sizes: cleanSizes(r.sizes, options.sizes),
         players: r.players.filter(p => p.name.trim() || p.number).map(p => ({ name: p.name.trim(), number: p.number, size: p.size })),
       };
@@ -1012,6 +1045,7 @@ ${text}`.slice(0, 4000) : f.notes) };
       {building.text && !building.busy && building.built && <div className="op-card of-notes-built" role="status" data-testid="notes-built"><p className="of-notes-status">{building.text}</p>
         <button type="button" className="of-btn" onClick={() => void copyFormLink()} data-testid="copy-form-link"><Paperclip size={16} /> Copy form link</button>
         {building.missing && building.missing.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> still to add on this step: {building.missing.join(', ')}.</div>}
+        {building.noSizes && building.noSizes.length > 0 && <div className="of-notes-check" data-testid="notes-no-sizes"><strong>Please check:</strong> {building.noSizes.join('; ')}.</div>}
         {building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}</div>}
       {<OrderSection number={1} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
         action={<button type="button" className="op-link caps" onClick={addRow} disabled={form.rows.length >= MAX_ROWS}><Plus size={18} /> Add garment</button>}>
@@ -1043,7 +1077,7 @@ ${text}`.slice(0, 4000) : f.notes) };
           {form.rows.length > 0 && <ul className="of-art-rows" aria-label="Artwork for each garment">
             {form.rows.map(r => {
               const project = projects?.find(p => p.id === r.project_id), own = artFiles.filter(f => r.file_ids.includes(f.id)), name = rowName(r, options, project);
-              const picture = projectPicture(project) ?? own.find(f => f.thumb)?.thumb ?? (own[0] ? previews.current.get(own[0].id) : null) ?? garmentPicture(r.garment);
+              const picture = projectPicture(project) ?? own.find(f => f.thumb)?.thumb ?? (own[0] ? previews.current.get(own[0].id) : null) ?? rowPicture(r);
               const busy = uploads.some(u => u.rowKey === r.key && u.status === 'uploading'), added = !!r.project_id || own.length > 0;
               return <li key={r.key} className="of-art-row">
                 <div className="of-art-thumb">{picture ? <img src={picture} alt="" /> : <Shirt size={30} aria-hidden="true" />}</div>
@@ -1103,7 +1137,7 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
   const [focusSizes, setFocusSizes] = useState(false);
   useEffect(() => { if (focusSizes && row.open) { firstSize.current?.focus(); setFocusSizes(false); } }, [focusSizes, row.open]);
   const project = projects?.find(p => p.id === row.project_id);
-  const picture = projectPicture(project) ?? files.find(f => f.thumb)?.thumb ?? garmentPicture(row.garment);
+  const picture = projectPicture(project) ?? files.find(f => f.thumb)?.thumb ?? rowPicture(row);
   // The fit's size set (Mens XS–8XL, Womens W8–W24, Kids 2Y–16Y), its rare sizes with "More sizes", and any other size with a quantity (an older "Kids").
   const { shown, rare } = rowSizes(row.fit, row.sizes, row.more, options.sizes);
   const set = row.fit === 'womens' || row.fit === 'youth' ? row.fit : 'mens';
@@ -1112,19 +1146,22 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
   const customSport = !!row.custom || (!!row.sport && !options.sports.some(s => s.id === row.sport));
   const value = customSport ? CUSTOM : `${row.sport}|${row.garment}`;
   const listed = customSport || ((!row.sport || options.sports.some(s => s.id === row.sport)) && options.garments.some(g => g.id === row.garment));
+  // A product on another garment's row ("Netball dress" on a singlet row) is shown by its own name, first; choosing a
+  // garment from the list makes the row that garment (the product name goes).
+  const product = !customSport && !!labelProduct(row);
   function setSize(size: string, text: string) {
     const n = Math.min(10000, Number(digits(text, 5)) || 0), sizes = { ...row.sizes };
     if (n) sizes[size] = n; else delete sizes[size];
     onChange({ sizes });
   }
   return <li className={`of-row${row.open ? '' : ' is-compact'}${error ? ' has-error' : ''}`}>
-    <div className="of-thumb">{picture ? <img src={picture} alt={project ? `${project.name}` : name} className={picture === garmentPicture(row.garment) ? 'is-art' : undefined} /> : <Shirt size={44} strokeWidth={1.3} aria-hidden="true" />}</div>
-    <p className="of-row-title" aria-hidden="true">{name}<small>{qty ? `${qty} ${word(row.garment, qty)}` : 'Sizes needed'}</small></p>
+    <div className="of-thumb">{picture ? <img src={picture} alt={project ? `${project.name}` : name} className={picture === rowPicture(row) ? 'is-art' : undefined} /> : <Shirt size={44} strokeWidth={1.3} aria-hidden="true" />}</div>
+    <p className="of-row-title" aria-hidden="true">{name}<small>{qty ? `${qty} ${rowWord(row, qty)}` : row.wanted ? `${row.wanted} ${rowWord(row, row.wanted)} · sizes needed` : 'Sizes needed'}</small></p>
     <div className="of-row-main">
       <div className="of-row-fields">
         <OrderField label="Garment" className="of-garment">
-          <select className="op-input" value={value} autoFocus={focus} aria-label={`Garment ${index + 1}`} onChange={e => { if (e.target.value === CUSTOM) { onChange({ custom: true, sport: '' }); return; } const [sport, garment] = e.target.value.split('|'); onChange({ custom: false, sport, garment }); }}>
-            {!listed && <option value={value}>{name}</option>}
+          <select className="op-input" value={value} autoFocus={focus} aria-label={`Garment ${index + 1}`} onChange={e => { const drop = product ? { label: '' } : {}; if (e.target.value === CUSTOM) { onChange({ custom: true, sport: '', ...drop }); return; } if (product && e.target.selectedIndex === 0) return; const [sport, garment] = e.target.value.split('|'); onChange({ custom: false, sport, garment, ...drop }); }}>
+            {(!listed || product) && <option value={value}>{name}</option>}
             {options.sports.map(s => <optgroup key={s.id} label={s.name}>{options.garments.map(g => <option key={g.id} value={`${s.id}|${g.id}`}>{g.id === 'other' ? `${s.name}: other garment` : `${s.name} ${g.name}`}</option>)}</optgroup>)}
             <optgroup label={options.sports.length ? 'Any sport' : 'Garments'}>{options.garments.map(g => <option key={g.id} value={`|${g.id}`}>{g.id === 'other' ? 'Other garment' : g.name}</option>)}</optgroup>
             <optgroup label="Custom"><option value={CUSTOM}>Custom…</option></optgroup>
@@ -1154,7 +1191,7 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
         <div className="of-size-boxes" role="group" aria-labelledby={`${id}s`}>
           {shown.map((s, i) => <label key={s} className="of-size"><span>{s}</span><input ref={i === 0 ? firstSize : undefined} className="op-input" inputMode="numeric" autoComplete="off" maxLength={5} value={row.sizes[s] ? String(row.sizes[s]) : ''} placeholder="0" aria-label={`${name}, size ${s}`} onChange={e => setSize(s, e.target.value)} onFocus={e => e.currentTarget.select()} /></label>)}
         </div>
-        <div className="of-subtotal" aria-live="polite"><span>Subtotal</span><strong>{qty}</strong><span>{word(row.garment, qty)}</span></div>
+        <div className="of-subtotal" aria-live="polite"><span>Subtotal</span><strong>{qty}</strong><span>{rowWord(row, qty)}</span></div>
         {canAdd && otherFits.length > 0 && <p className="of-fit-add"><span>Same garment, also in</span>{otherFits.map(f => <button key={f} type="button" className="op-link" onClick={() => onAddFit(f)} aria-label={`Add ${name} in ${SET_NAMES[f]} sizes`}><Plus size={14} /> {SET_NAMES[f]} sizes</button>)}</p>}
       </div>}
       {(files.length > 0 || uploading > 0) && <ul className="of-row-files" aria-label={`Artwork for ${name}`}>

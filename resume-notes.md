@@ -187,3 +187,9 @@ Resume via SendMessage, do not respawn:
 - 2026-11-10: WEBGLASS ac9b40b52a41c1974 = website glass bubble buttons (spec scratchpad/WEBGLASS/spec.md). For pushing app work while it runs: final-push-v2-noweb.sh (keeps v2 website as is).
 - 2026-11-10: user: Team page -> v2 (last v2 push); every later change incl. website glass buttons -> v3 (final-push-v3.sh).
 - 2026-11-10: pushed v2 = 7bdadb6 (Team page no bubble; website left as is). LAST v2 push. Next pushes -> v3 (final-push-v3.sh) incl. WEBGLASS when done.
+- 2026-11-10: pushed v3 = 8c9bf68 (v2 7bdadb6 + website glass buttons). From now on pushes go to v3.
+- 2026-11-10: WEBGLASS resumed to make zoomed before/after close-ups per control + order chat result shots in screenshots/2026-11-10/website-closeups/ (user wants to see website changes).
+- 2026-11-10: SIGNFIX a584c39434a5649d6 = website Signage: tent hidden behind side menus (500.png); prefer page layout, viewer only website-only if needed. Push to v3 when done.
+- 2026-11-10: WEBGLASS close-ups done (screenshots/2026-11-10/website-closeups 01-09, 20). FIXOC resumed: website form netball dress name + sizeless hoodie row. SIGNFIX running. Push v3 when both done.
+- 2026-11-10: user has 30 min (until ~18:48); SIGNFIX + FIXOC told 15 min; push v3 with msg-1110e.txt right after.
+- 2026-11-10: user asked to delete the shared screenshots: D:\3d-app\screenshots removed (30 files). Agents told not to save there.
