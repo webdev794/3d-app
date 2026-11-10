@@ -674,6 +674,6 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [ ] Plans & pricing note "This is a proposed structure for review…" shown to customers: remove when prices are final (QA9 2026-11-10; kept until prices are confirmed)
 - [x] QA9 round 2 (agent FIXOC, server): order chat with several items in one message drops one and renames jerseys as singlets; netball dress sizes (6-24) and "dresses" plural not read; "Football jerseys 3 x M" + "5 hoodies" all shown as hoodies
 - [x] QA9 round 2 (agent FIX9, app): Studio Save project name hidden behind SAVE PROJECT button; app has no way to open the Suppliers page
-- [ ] AI Designer: client can't tap Recent designs (493, app); test app + website phone/desktop, fix if broken (agent RECENT, 2026-11-10)
+- [x] AI Designer: client can't tap Recent designs (493, app); test app + website phone/desktop, fix if broken (agent RECENT, 2026-11-10)
 - [x] App only: Projects tab — take all example projects out (Warriors Concept, Mantis Elite, Club Jersey, Morahu); real projects only + clean empty state (client 494, 2026-11-10) (agent NOEX)
 - [x] App only: Design Your Own — models much bigger, buttons (Custom, DESIGN, arrows) smaller; no other change (client 495, 2026-11-10) (agent DYOBIG2)

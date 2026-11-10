@@ -126,7 +126,7 @@ class ProjectStore {
         patternTile: images['patternTile'],
         logoImage: images['logoImage'],
         sponsorImage: images['sponsorImage'],
-        spec: spec == null ? null : DesignSpec.fromJson(spec),
+        spec: spec == null ? null : DesignSpec.fromSaved(spec),
         layers: copyLayers(k['layers']),
         zones: copyZones(k['zones']),
         patternScale: (k['patternScale'] as num?)?.toDouble(),

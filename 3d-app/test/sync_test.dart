@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:three_deezi/ai_service.dart';
 import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/project_sync.dart';
@@ -198,6 +200,96 @@ void main() {
       expect(c.projects.any((p) => p.remoteId != null), isFalse);
     },
   );
+
+  test('a project saved with empty texts (null from the website) still loads '
+      'with its AI spec', () {
+    // The website (Laravel) gives every empty text back as null.
+    Object? emptyToNull(Object? v) => v is Map
+        ? {for (final e in v.entries) e.key: emptyToNull(e.value)}
+        : v is List
+        ? [for (final x in v) emptyToNull(x)]
+        : v == ''
+        ? null
+        : v;
+    final c = AppController(store: FakeStore())
+      ..startDyo()
+      ..garment = 'Polo'
+      ..logoText = ''
+      ..backName = ''
+      ..number = ''
+      ..spec = const DesignSpec(
+        designName: 'Your design',
+        detected: 'Polo',
+        summary: '',
+        findings: [],
+        mainColor: Color(0xff4b1d7a),
+        secondaryColor: Color(0xff14d8ec),
+        accentColor: Color(0xffffffff),
+        pattern: 'Chevron',
+        fabric: 'Standard',
+        logoText: '',
+        renderPrompt: '',
+        patternMotif: '',
+      );
+    c.saveProject('No team name');
+    final p = c.projects.first;
+    final back = ProjectSync.fromServer({
+      ...(emptyToNull(ProjectSync.toServer(p)) as Map).cast<String, dynamic>(),
+      'id': 4,
+      'version': 2,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+    expect(back.title, 'No team name');
+    expect(back.garment, 'Polo');
+    expect(back.kit.logoText, '');
+    expect(back.kit.spec?.designName, 'Your design');
+    expect(back.kit.spec?.renderPrompt, '');
+    expect(back.kit.spec?.logoText, '');
+    expect(back.kit.spec?.pattern, 'Chevron');
+    expect(ProjectSync.hex(back.kit.spec!.mainColor), '#4b1d7a');
+
+    // A spec missing fields altogether (an older save) falls back too.
+    final old = DesignSpec.fromSaved({'designName': null, 'findings': null});
+    expect(old.designName, 'Your design');
+    expect(old.findings, isEmpty);
+    expect(old.pattern, 'Velocity');
+  });
+
+  test('a project that cannot be read neither stops the sync nor vanishes '
+      'from the device', () async {
+    final server = FakeServer();
+    final c = AppController(
+      store: FakeStore(),
+      api: ApiClient(client: server.client, baseUrl: 'https://test.example'),
+    );
+    await c.register(
+      name: 'F',
+      email: 'f@x.com',
+      password: 'Password123!',
+      passwordConfirmation: 'Password123!',
+    );
+    await pumpEventQueue();
+    c.saveProject('Kept kit');
+    await pumpEventQueue();
+    final kept = c.projects.first;
+    final id = kept.remoteId!;
+    // Its server copy turns unreadable (a field of an unexpected kind), and
+    // a website project arrives after it.
+    server.projects[id] = {...server.projects[id]!, 'garment': 7};
+    server.projects[20] = {
+      'id': 20,
+      'version': 1,
+      'name': 'After it',
+      'sport': 'netball',
+      'garment': 'jersey',
+      'mode': 'dyo',
+      'design': {'logoText': null, 'backName': null, 'number': null},
+    };
+    await c.syncProjects();
+    expect(c.projects.any((p) => p.remoteId == id), isTrue);
+    expect(c.projects.firstWhere((p) => p.remoteId == 20).title, 'After it');
+    expect(c.syncMessage, isNull);
+  });
 
   test('the session reopens on the next launch', () async {
     final server = FakeServer();

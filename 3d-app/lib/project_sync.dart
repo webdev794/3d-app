@@ -102,29 +102,35 @@ class ProjectSync {
 
   /// A project from `GET /projects`, made in the app or on the website.
   static Project fromServer(Map<String, dynamic> j) {
-    final d = (j['design'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final app = (d['app'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final spec = app['spec'] as Map<String, dynamic>?;
+    // The server gives empty text back as null and an empty object as [];
+    // such fields fall back, so the project still loads (it must never
+    // vanish from the list).
+    Map<String, dynamic>? map(Object? v) =>
+        v is Map ? v.cast<String, dynamic>() : null;
+    String? text(Object? v) => v is String && v.isNotEmpty ? v : null;
+    final d = map(j['design']) ?? const {};
+    final app = map(d['app']) ?? const {};
+    final spec = map(app['spec']);
     final garment =
-        app['garment'] as String? ??
+        text(app['garment']) ??
         _label(garments, j['garment'] as String?, 'Jersey');
-    final remoteVersion = j['version'] as int? ?? 1;
+    final remoteVersion = (j['version'] as num?)?.toInt() ?? 1;
     return Project(
-      id: app['id'] as String? ?? 'r${j['id']}',
+      id: text(app['id']) ?? 'r${j['id']}',
       remoteId: j['id'] as int,
       remoteVersion: remoteVersion,
       persisted: false,
       approved: j['status'] == 'approved',
-      title: j['name'] as String? ?? 'Untitled',
+      title: text(j['name']) ?? 'Untitled',
       sport:
-          app['sport'] as String? ??
+          text(app['sport']) ??
           (d['sportName'] is String &&
                   customName(d['sportName'] as String).isNotEmpty
               ? customName(d['sportName'] as String)
               : _label(sports, j['sport'] as String?, 'Rugby League')),
       garment: garment,
       mode: j['mode'] == 'ai' ? 'AI' : 'DYO',
-      version: app['version'] as int? ?? remoteVersion,
+      version: (app['version'] as num?)?.toInt() ?? remoteVersion,
       updated:
           DateTime.tryParse('${j['updated_at']}')?.toLocal() ?? DateTime.now(),
       brief: d['prompt'] as String? ?? '',
@@ -153,7 +159,7 @@ class ProjectSync {
         patternBody: (d['patternBody'] as num?)?.toDouble(),
         logoImage: bytes(d['logoImage']),
         sponsorImage: bytes(d['sponsorImage']),
-        spec: spec == null ? null : DesignSpec.fromJson(spec),
+        spec: spec == null ? null : DesignSpec.fromSaved(spec),
         layers: copyLayers(d['layers']),
         zones: copyZones(d['zones']),
         zoneColors: copyZones(d['zoneColors']),

@@ -177,3 +177,5 @@ Resume via SendMessage, do not respawn:
 - 2026-11-10: DYOBIG2 done (centre kit 277/341/377 px; undo copy scratchpad/DYOBIG2/create_home.start.dart). Still running: RECENT, NOEX.
 - 2026-11-10: NOEX done for Projects (examples were hard-coded in app_controller.dart sample-1..6). Resumed for Assets example pictures + stale wording_fixes_test ("1 piece" -> "1 garment").
 - 2026-11-10: NOEX Assets done (Uploads/Logos/Artwork examples removed; kept 3DEEZI mark + starter pattern; wording test fixed; full flutter test 502 pass). Only RECENT left -> then push v2.
+- 2026-11-10: RECENT done (showAiSession null fields; spinner). Pushed v2 = 6442d2f (all of 11-10 so far). Next: project_sync.dart line 156 same strict read (RECENT resumed).
+- 2026-11-10: RECENT follow-up done (project_sync/project_store/ai_service fromSaved; sync keeps going on a bad project).

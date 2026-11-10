@@ -398,27 +398,22 @@ class AppController extends ChangeNotifier {
         // back as null (a 1-design brief's "renderPrompt": "", a kit with no
         // team name): such a field falls back, so the design still opens
         // (client 2026-11-10, 493.png: the card did nothing).
-        final spec = DesignSpec.fromJson({
-          'designName': '${m['name'] ?? 'Design ${list.length + 1}'}',
+        final spec = DesignSpec.fromSaved({
+          'designName': m['name'] ?? 'Design ${list.length + 1}',
           'detected': garmentName ?? garment,
-          'summary': '${m['description'] ?? ''}',
-          'findings': const <String>[],
+          'summary': m['description'],
           'mainColor': design['main'] ?? '#101d2a',
           'secondaryColor': design['secondary'] ?? '#00c2cc',
           'accentColor': design['accent'] ?? '#ffffff',
           'pattern': design['pattern'],
           'fabric': design['fabric'],
-          'logoText': '${design['logoText'] ?? ''}',
-          'renderPrompt': '',
-          'patternMotif': '${m['motif'] ?? ''}',
+          'logoText': design['logoText'],
+          'patternMotif': m['motif'],
           'sport': sportName,
           'garment': garmentName,
-          if (from != null) ...{
+          if (from != null)
             for (final e in from.entries)
-              if (e.key != 'findings' && e.value != null) e.key: '${e.value}',
-            if (from['findings'] case final List f)
-              'findings': [for (final x in f) '$x'],
-          },
+              if (e.value != null) e.key: e.value,
         });
         list.add(
           Concept(spec, direction: map(m['direction']))
@@ -1380,7 +1375,15 @@ class AppController extends ChangeNotifier {
         // Marquees (Signage & Marquees) are not kits: they are listed and
         // opened on the Signage & Marquees screen (screens/signage.dart).
         if (json['garment'] == 'marquee') continue;
-        final server = ProjectSync.fromServer(json);
+        final Project server;
+        try {
+          server = ProjectSync.fromServer(json);
+        } on Object {
+          // One project that cannot be read must not stop the sync or remove
+          // this device's copy of it: it stays as it is.
+          if (json['id'] case final num id) seen.add(id.toInt());
+          continue;
+        }
         seen.add(server.remoteId!);
         final i = projects.indexWhere(
           (p) =>
