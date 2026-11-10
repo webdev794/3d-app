@@ -193,3 +193,6 @@ Resume via SendMessage, do not respawn:
 - 2026-11-10: WEBGLASS close-ups done (screenshots/2026-11-10/website-closeups 01-09, 20). FIXOC resumed: website form netball dress name + sizeless hoodie row. SIGNFIX running. Push v3 when both done.
 - 2026-11-10: user has 30 min (until ~18:48); SIGNFIX + FIXOC told 15 min; push v3 with msg-1110e.txt right after.
 - 2026-11-10: user asked to delete the shared screenshots: D:\3d-app\screenshots removed (30 files). Agents told not to save there.
+- 2026-11-10: pushed v3 = 71286fc (signage spacing + order form notes). No agents running. Open: app parity for sizeless rows, singlet price, signage Back view.
+- 2026-11-10 ~18:4x: QA10 a662951b1a1657a99 = read-only regression of later changes (Team no bubble, DYO bigger, examples removed, sync fix, glass buttons, signage, order reading, artboard). If user is away: record results in tasks.md; fixes -> v3.
+- 2026-11-10 18:36: live tar 3deez-update-2026-11-10-a.tar.gz (29 files, delta since 11-06-f, code only, no migrations).

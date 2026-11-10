@@ -822,3 +822,16 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 3. Orders, Team, Subscriptions, My projects (filters and search), Signage: the same look on their main buttons, pills and tiles.
 4. Every button still works; Studio, Artboard and the Marquee Studio look exactly as before.
 ---
+
+---
+**Website Signage: clear space around the tent (2026-11-10)**
+1. Website > Signage & Marquees on a laptop (also with a short window): the whole 3D tent, flag, banner and table cover show, with clear space from the product tiles, the Marquee setup panel and "Custom marquee".
+2. Marquee setup: Size, Walls and View are all reachable (the panel scrolls on very short windows).
+3. Switch 3 x 3 / 3 x 6: the stage resizes and still has space around it.
+---
+
+---
+**Website order form notes: netball dress and sizeless lines (2026-11-10)**
+1. Orders > Create order form > "Write or snap your notes": type "Netball dress x 12 size 12" > Build my order form: one "Netball dress" row, women's size 12 x 12.
+2. Type "Football jerseys 3 x M" and "5 hoodies" on the next line: a Football jersey row (M x 3) and a Football hoodie row "5 hoodies - sizes needed"; the check list asks for the hoodie sizes.
+---

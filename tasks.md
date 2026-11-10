@@ -680,5 +680,9 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [x] CANCELLED (client 2026-11-10): customers will NOT make their own 3D models (no Tripo API, no kiosk generation). All 3D models are made and fixed by us, for consistency.
 - [x] App only: Team page (and its My requests / request screens) — remove the outer bubble, own header like Design Your Own; then push v2 (user 2026-11-10) (TEAMBUB resumed)
 - [x] Website only: glass bubble look on buttons, tiles, chips and bars, exactly like the app's bubble buttons, on Home, Create, Orders landing, Team, Pricing, My projects, Signage landing (decided); NOT Studio, Artboard, Marquee Studio, admin, checkout/order form; CSS-only so the site stays light (user 2026-11-10) (agent WEBGLASS, spec scratchpad/WEBGLASS/spec.md)
-- [ ] Website: Signage & Marquees page — the 3D tent (marquee) is hidden behind the side/top menus (setup panel, tiles row) on laptop screens like 1322x620; make the tent fully visible at all sizes (user 500, 2026-11-10) (agent SIGNFIX)
-- [ ] Website order form "Build my order form" notes: "netball dress" shows as "Netball Singlet (Womens)"; "5 hoodies" (no size) listed as not read instead of a row with sizes to fill (found 2026-11-10 while taking screenshots) (FIXOC resumed)
+- [x] Website: Signage & Marquees page — the 3D tent (marquee) is hidden behind the side/top menus (setup panel, tiles row) on laptop screens like 1322x620; make the tent fully visible at all sizes (user 500, 2026-11-10) (agent SIGNFIX)
+- [x] Website order form "Build my order form" notes: "netball dress" shows as "Netball Singlet (Womens)"; "5 hoodies" (no size) listed as not read instead of a row with sizes to fill (found 2026-11-10 while taking screenshots) (FIXOC resumed)
+- [ ] App parity: app order form notes still list "5 hoodies" (no size) under "Please check" without a row; website now makes a "sizes needed" row (2026-11-10)
+- [ ] Price list: no singlet/Netball dress price locally ("price to be set"); needs the client's price (see Requirements.md prices)
+- [ ] Signage: check the "Back" view (banner/table cover swap to the left, may go behind the setup panel at 1280-1440 wide)
+- [ ] Regression test of the later 2026-11-10 changes + linked features, website + app (agent QA10); many bugs -> separate fixer
