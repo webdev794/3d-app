@@ -392,6 +392,141 @@ const endPan = (e) => { touches.delete(e.pointerId); if (panning && touches.size
 addEventListener('pointerup', endPan);
 addEventListener('pointercancel', endPan);
 
+// Tap gestures, in the app only (client 2026-11-10): a two-finger tap is Undo, a three-finger tap is Redo, as in
+// drawing apps. A tap is short (TAP_MS) and the fingers barely move (TAP_SLOP); it does nothing else: the stroke,
+// node or shape the first finger began is dropped, and the view, the selection and the tool stay as they were.
+// A second finger landing soon after the first (GESTURE_MS: a tap, a pinch or a two-finger pan) drops the first
+// finger's stroke straight away, so zooming no longer leaves a stray line. The website keeps its behaviour.
+const inApp = () => !!window.Artboard || /^3deezi-artboard-\d+$/.test(HOST ?? '');
+const TAP_MS = 350, TAP_SLOP = 10, GESTURE_MS = 250;
+let gesture = null, strokeBlocked = null, tapQueue = Promise.resolve();
+// While a gesture holds the page, the Freehand brush ignores the first finger (it would draw the pinch's path) and
+// draws nothing (Fabric still draws it with the view while it thinks a stroke is on).
+for (const k of ['onMouseDown', 'onMouseMove', 'onMouseUp', '_render']) {
+  const f = PencilBrush.prototype[k];
+  PencilBrush.prototype[k] = function (...a) { return strokeBlocked ? (k === 'onMouseUp' ? false : undefined) : f.apply(this, a); };
+}
+/** A curve drawn click by click (Bézier / Pen, 3-point shapes, angular dimension), copied as it is now. */
+const draftCopy = (d) => d && { ...d, ...(d.nodes && { nodes: d.nodes.map((n) => ({ ...n })) }), ...(d.pts && { pts: d.pts.slice() }) };
+/** A draft as it was before the gesture: a helper line the gesture added goes, the old one comes back. */
+function putDraft(cur, saved) {
+  if (cur?.helper && cur.helper !== saved?.helper) dropHelper(cur.helper);
+  if (saved?.helper && !canvas.getObjects().includes(saved.helper)) { muted++; canvas.add(saved.helper); muted--; }
+  return draftCopy(saved);
+}
+/** The drafts back as they were; `all`: also one the first finger finished (a tap only: its shape is taken back). */
+function backDrafts(g, all) {
+  const d = g.drafts;
+  if (path || all) { path = putDraft(path, d.path); if (path) { path.pressing = false; updatePenPreview(); } }
+  if (curve3 || all) curve3 = putDraft(curve3, d.curve3);
+  if (tp || all) tp = putDraft(tp, d.tp);
+  if (multi || all) multi = putDraft(multi, d.multi);
+}
+/** What the first finger began is dropped: nothing is drawn or added when the fingers lift. */
+function dropStroke(g) {
+  strokeBlocked = g;
+  if (canvas._isCurrentlyDrawing && canvas.freeDrawingBrush) { canvas.freeDrawingBrush._points = []; canvas.freeDrawingBrush.oldEnd = undefined; canvas.clearContext(canvas.contextTop); }
+  const live = sketchStroke?.tool === 'livesketch';
+  media = sketchStroke = lasso = erase = smudge = null; topStroke = null;
+  // LiveSketch's pause timer was stopped by the finger: the strokes waiting for it still become a curve.
+  if (live && livePending.length) { clearTimeout(liveTimer); liveTimer = setTimeout(finishLive, Math.max(0, state.live.timer) * 1000); }
+  if (knife) { dropHelper(knife.helper); knife = null; }
+  cancelDrag(); cancelContourDrag(); cancelConn();
+  backDrafts(g, false);
+  drawTop();
+  canvas.requestRenderAll();
+}
+wrap.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch' || !inApp()) return;
+  const g = gesture;
+  // The first finger of a touch (a lost lift never leaves an old gesture behind).
+  if (!g || e.isPrimary) {
+    strokeBlocked = null;
+    gesture = {
+      t0: e.timeStamp, start: new Map([[e.pointerId, { x: e.clientX, y: e.clientY }]]), down: new Set([e.pointerId]), most: 1, still: true, lifted: false,
+      // The page before the first finger, to take back what it did.
+      top: history.at(-1), future: future.slice(), vpt: canvas.viewportTransform.slice(), tool: state.tool,
+      sel: canvas.getActiveObjects().slice(), editing: !!canvas.getActiveObject()?.isEditing,
+      drafts: { path: draftCopy(path), curve3: draftCopy(curve3), tp: draftCopy(tp), multi: draftCopy(multi) },
+      eye: { mode: eye.mode, colour: eye.colour, fill: state.fill, stroke: state.stroke }, attrSample,
+    };
+    gesture.nums = gesture.sel.map((o) => o.num).filter((n) => n != null);
+    return;
+  }
+  g.start.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  g.down.add(e.pointerId);
+  g.most = Math.max(g.most, g.down.size);
+  const soon = e.timeStamp - g.t0 <= GESTURE_MS;
+  if (g.lifted || !soon) g.still = false;
+  if (soon && !g.lifted && g.down.size === 2) dropStroke(g);
+}, true);
+addEventListener('pointermove', (e) => {
+  const g = gesture, s = g?.start.get(e.pointerId);
+  if (s && g.down.has(e.pointerId) && Math.hypot(e.clientX - s.x, e.clientY - s.y) > TAP_SLOP) g.still = false;
+}, true);
+for (const type of ['pointerup', 'pointercancel']) {
+  addEventListener(type, (e) => {
+    const g = gesture;
+    if (!g?.down.has(e.pointerId)) return;
+    g.down.delete(e.pointerId);
+    g.lifted = true;
+    if (type === 'pointercancel') g.still = false;
+    if (g.down.size) return;
+    gesture = null;
+    const tap = g.still && (g.most === 2 || g.most === 3) && e.timeStamp - g.t0 <= TAP_MS;
+    if (tap) dropStroke(g);
+    // After the page has had this lift (Fabric's touchend comes next): the brush listens again; a tap undoes or redoes.
+    setTimeout(() => {
+      if (strokeBlocked === g) strokeBlocked = null;
+      if (tap) tapQueue = tapQueue.then(() => tapAction(g)).catch((err) => console.error(err));
+    });
+  }, true);
+}
+/** A two-finger tap undoes, a three-finger tap redoes, after taking back anything the first finger did. */
+async function tapAction(g) {
+  // Typing in a text ends here and becomes an undo step of its own (so a tap while typing takes the typing back).
+  const a = canvas.getActiveObject();
+  if (a?.isEditing) a.exitEditing();
+  flushRecord();
+  // A shape dropped by a click, a colour filled, an object nudged … before the second finger came: taken back
+  // (not while typing: the finger leaving the text only ends the typing, which is the change to undo).
+  let changed = false;
+  if (!g.editing && g.top !== undefined && history.at(-1) !== g.top && history.includes(g.top)) {
+    while (history.at(-1) !== g.top) history.pop();
+    future = g.future; // that step had emptied Redo
+    changed = true;
+  }
+  if (state.tool !== g.tool) { if (path) { dropHelper(path.helper); path = null; } setTool(g.tool); }
+  backDrafts(g, true);
+  if (g.vpt.some((v, i) => v !== canvas.viewportTransform[i])) { canvas.setViewportTransform(g.vpt); afterZoom(); }
+  if (g.tool === 'eyedropper') {
+    if (state.fill !== g.eye.fill || state.stroke !== g.eye.stroke) { const c = state.target === 'fill' ? g.eye.fill : g.eye.stroke; state.fill = g.eye.fill; state.stroke = g.eye.stroke; if (typeof c === 'string') setColour(c, { recent: false, apply: false }); }
+    if (eye.mode !== g.eye.mode || eye.colour !== g.eye.colour) { eye.colour = g.eye.colour; $('eyeChip').style.background = eye.colour ?? current(); setEyeMode(g.eye.mode); }
+  }
+  attrSample = g.attrSample;
+  // The selection as it was (Undo keeps it, as the Undo button does).
+  if (PICK_LIKE.has(state.tool)) {
+    const on = g.sel.filter((o) => canvas.getObjects().includes(o));
+    const want = on.length === g.sel.length ? on : userObjects().filter((o) => g.nums.includes(o.num));
+    const now = canvas.getActiveObjects();
+    if (now.length !== want.length || now.some((o) => !want.includes(o))) {
+      canvas.discardActiveObject();
+      if (want.length) canvas.setActiveObject(want.length > 1 ? new ActiveSelection(want, { canvas }) : want[0]);
+    }
+  }
+  drawTop();
+  canvas.requestRenderAll();
+  const redoing = g.most === 3;
+  if (pcEdit || (redoing ? future.length : history.length > 1)) {
+    await (redoing ? redo() : undo());
+    toast(redoing ? 'Redo' : 'Undo', 1200);
+    return;
+  }
+  if (changed) { await restore(g.top); autosave(STORE, g.top); }
+  syncHistory();
+  toast(redoing ? 'Nothing to redo' : 'Nothing to undo', 1600);
+}
+
 function drawRulers() {
   // Both sizes read before either ruler is drawn, and a ruler's bitmap is made again only when its size changed
   // (the rulers are drawn on every pan and zoom step).
@@ -615,11 +750,13 @@ async function restore(snap) {
   if (repaired) setTimeout(() => toast(`${repaired} broken setting${repaired > 1 ? 's were' : ' was'} repaired on this page (a fill or position with bad numbers)`, 6000));
   canvas.discardActiveObject();
   checkFonts();
+  // The Pick tool's flags first: a step taken while a drawing tool was on keeps every object unselectable, so Redo
+  // lost the selection.
+  applyToolFlags();
   const again = keep.length ? userObjects().filter((o) => keep.includes(o.num) && o.selectable !== false && o.visible) : [];
   if (again.length) canvas.setActiveObject(again.length > 1 ? new ActiveSelection(again, { canvas }) : again[0]);
   canvas.requestRenderAll();
   restoring = false;
-  applyToolFlags();
   refreshLayers();
   syncProps();
 }
@@ -1399,7 +1536,12 @@ canvas.on('mouse:dblclick', (opt) => {
   if (pcEdit && !opt.target) { finishPowerClipEdit(); return; }
   if (path) finishPath();
 });
+// One Freehand stroke is one undo step: Fabric adds the stroke before path:created, and that was a step of its own
+// (the stroke without its name), so it took two Undo presses (or two-finger taps) to take a stroke away.
+let brushAdding = false;
+canvas.on('before:path:created', () => { if (!brushAdding) { brushAdding = true; muted++; } });
 canvas.on('path:created', (e) => {
+  if (brushAdding) { brushAdding = false; muted--; }
   style(e.path, { toolName: 'Freehand', strokeUniform: true }); e.path.name = `Freehand ${++counter}`;
   // Ends drawn near an end node (or near its own start) connect there, as in CorelDRAW.
   connectAt(null);

@@ -29,7 +29,15 @@ class BubblePage extends StatelessWidget {
     this.backdrop,
     this.fullHeadingRoom = false,
     this.bottomRoom,
+    this.intoDome = false,
   });
+
+  /// A [compact] page whose content runs on down into the bottom dome
+  /// (3DEEZI TEAM, client 491: VIEW MY REQUESTS was cut off above an empty
+  /// dome): little room under it, and the content clipped to the dome's
+  /// own curve, a little inside the rim, instead of the rounded box. The
+  /// other pages leave it off.
+  final bool intoDome;
 
   /// A [compact] page whose last rows are narrower than the bubble (the
   /// sport picker's Custom… and Design capsules, client 489): its own room
@@ -87,6 +95,56 @@ class BubblePage extends StatelessWidget {
   }
 
   Widget _fill(Widget w) => scrolls ? w : Expanded(child: w);
+
+  /// A working page's scrolling content ([room] under the title), kept
+  /// inside the bubble's own outline at every scroll position (client 492:
+  /// rows ran past the curved top under the title): clipped to the outline
+  /// a little inside the rim, fading out softly under the title once
+  /// scrolled, and at the bottom following the curve. [bubble] is the
+  /// bubble's size, the content sits [side] px in and [below] px above its
+  /// bottom.
+  Widget _working(
+    Size bubble,
+    double dome,
+    double side,
+    double below,
+    BoxConstraints room,
+  ) {
+    final clip = _BubbleClip(
+      bubble: bubble,
+      dome: dome,
+      offset: Offset(side, bubble.height - below - room.maxHeight),
+    );
+    final Widget content;
+    if (intoDome) {
+      // Into the dome: told how far up its full-width rows must end to stay
+      // uncut ([BubbleDomeRoom]), and gone a third of the way up, before the
+      // curve cuts into a row.
+      final clear = clip.clear(room.biggest);
+      content = _BottomFade(
+        length: math.max(clear, 24),
+        gone: clear * .35,
+        child: BubbleDomeRoom(clear: clear, child: child),
+      );
+    } else {
+      // The scrolling content follows the bubble's own bottom curve (the
+      // outline below), so a full-width last row at the end of the scroll,
+      // e.g. Edit profile's Save changes, keeps its corners; it fades out
+      // softly at the very bottom, so nothing ends in a hard cut.
+      content = _BottomFade(child: child);
+    }
+    return ClipPath(
+      clipper: clip,
+      // The content starts just below where the curved top still cuts into
+      // the rows' sides, and fades out softly there once scrolled, so text
+      // under the title fades instead of being sliced by the curve (QA
+      // 2026-11-10: Edit profile's "Your name" read "our name").
+      child: Padding(
+        padding: EdgeInsets.only(top: clip.topCut(room.biggest)),
+        child: _TopFade(child: content),
+      ),
+    );
+  }
 
   /// Called when the bell's sheet closes (a page that reloads then).
   final VoidCallback? onBellClosed;
@@ -167,6 +225,15 @@ class BubblePage extends StatelessWidget {
                                 final side = compact
                                     ? math.max(30.0, w * .075)
                                     : 28.0;
+                                // A working page scrolls down into the bottom
+                                // curve (clipped to it below), ending above
+                                // where it curves in.
+                                final below = compact
+                                    ? bottomRoom?.call(dome) ??
+                                          (intoDome
+                                              ? kIntoDomeRoom
+                                              : dome * .55 + 12)
+                                    : bubbleBottomRoom(inner.maxWidth, dome);
                                 final bubble = Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: GlassBubble(
@@ -193,16 +260,7 @@ class BubblePage extends StatelessWidget {
                                             )
                                           : bubbleHeadingRoom(area),
                                       side,
-                                      // A working page scrolls down into the
-                                      // bottom curve (clipped to it below),
-                                      // ending above where it curves in.
-                                      compact
-                                          ? bottomRoom?.call(dome) ??
-                                                dome * .55 + 12
-                                          : bubbleBottomRoom(
-                                              inner.maxWidth,
-                                              dome,
-                                            ),
+                                      below,
                                     ),
                                     child: Column(
                                       mainAxisSize: scrolls
@@ -240,69 +298,22 @@ class BubblePage extends StatelessWidget {
                                             ? child
                                             : Expanded(
                                                 child: compact
-                                                    // The scrolling content
-                                                    // follows the bottom curve.
-                                                    // (A short window: a flatter curve,
-                                                    // so the form keeps its room.)
                                                     ? LayoutBuilder(
-                                                        builder: (context, room) => ClipRRect(
-                                                          borderRadius: BorderRadius.vertical(
-                                                            bottom: Radius.elliptical(
-                                                              math.min(
-                                                                math.min(
-                                                                  inner.maxWidth /
-                                                                          2 -
-                                                                      side,
-                                                                  dome * .8,
-                                                                ),
-                                                                room.maxHeight *
-                                                                    .6,
+                                                        builder:
+                                                            (
+                                                              context,
+                                                              room,
+                                                            ) => _working(
+                                                              Size(
+                                                                inner.maxWidth,
+                                                                inner.maxHeight -
+                                                                    8,
                                                               ),
-                                                              math.min(
-                                                                dome * .45,
-                                                                room.maxHeight *
-                                                                    .18,
-                                                              ),
+                                                              dome,
+                                                              side,
+                                                              below,
+                                                              room,
                                                             ),
-                                                          ),
-                                                          // …and fades out softly
-                                                          // into it, so nothing
-                                                          // ends in a hard cut.
-                                                          child: ShaderMask(
-                                                            blendMode:
-                                                                BlendMode.dstIn,
-                                                            // (A short fade: the last 24 px.)
-                                                            shaderCallback: (r) =>
-                                                                LinearGradient(
-                                                                  begin: Alignment
-                                                                      .topCenter,
-                                                                  end: Alignment
-                                                                      .bottomCenter,
-                                                                  colors: const [
-                                                                    Colors
-                                                                        .white,
-                                                                    Colors
-                                                                        .white,
-                                                                    Color(
-                                                                      0x00ffffff,
-                                                                    ),
-                                                                  ],
-                                                                  stops: [
-                                                                    0,
-                                                                    r.height >
-                                                                            48
-                                                                        ? 1 -
-                                                                              24 /
-                                                                                  r.height
-                                                                        : .5,
-                                                                    1,
-                                                                  ],
-                                                                ).createShader(
-                                                                  r,
-                                                                ),
-                                                            child: child,
-                                                          ),
-                                                        ),
                                                       )
                                                     : child,
                                               ),
@@ -346,6 +357,159 @@ TextStyle bubbleTitle(double size) => TextStyle(
   color: Colors.white,
   shadows: [Shadow(color: Palette.cyan.withValues(alpha: .35), blurRadius: 18)],
 );
+
+/// Room under a [BubblePage.intoDome] page's content.
+const kIntoDomeRoom = 10.0;
+
+/// A working page's content inside the bubble's own outline: the straight
+/// sides, and the top and bottom domes a little inside the drawn rim (about
+/// .947 of the bubble's half-width and .99 of the dome, as
+/// [bubbleBottomRoom] says): [top] px in under the title, [inset] px at the
+/// sides and the bottom. The bubble is [bubble] in size; the content sits
+/// at [offset] in it.
+class _BubbleClip extends CustomClipper<Path> {
+  const _BubbleClip({
+    required this.bubble,
+    required this.dome,
+    required this.offset,
+  });
+  final Size bubble;
+  final double dome;
+  final Offset offset;
+  static const inset = 14.0, top = 10.0;
+
+  double get _a => math.max(bubble.width / 2 * .947 - inset, 0.0);
+
+  @override
+  Path getClip(Size size) {
+    final w = bubble.width, h = bubble.height, cx = w / 2, a = _a;
+    final bt = math.max(dome * .99 - top, 0.0);
+    final bb = math.max(dome * .99 - inset, 0.0);
+    final path = Path()
+      ..addOval(Rect.fromLTRB(cx - a, dome - bt, cx + a, dome + bt))
+      ..addOval(Rect.fromLTRB(cx - a, h - dome - bb, cx + a, h - dome + bb));
+    if (h - dome > dome) {
+      path.addRect(Rect.fromLTRB(cx - a, dome, cx + a, h - dome));
+    }
+    return path.shift(-offset);
+  }
+
+  /// How far above the bottom of the content ([size]) a full-width row
+  /// (its sides about 8 px in, for its rounded corners and the page's own
+  /// padding) must end, so the bottom curve does not cut it.
+  double clear(Size size) {
+    final a = _a, b = dome * .99 - inset;
+    // (The content's bottom, above the bubble's.)
+    final below = bubble.height - offset.dy - size.height;
+    final half = size.width / 2 - 8;
+    if (a <= 0 || b <= 0 || half >= a) return math.max(dome - below, 0);
+    // How far down the dome the curve is still as wide as the row.
+    final down = b * math.sqrt(1 - (half / a) * (half / a));
+    return math.max(dome - below - down, 0);
+  }
+
+  /// How far below the top of the content ([size]) the curved top still
+  /// cuts into a row's text (its sides about 8 px in).
+  double topCut(Size size) {
+    final a = _a, bt = dome * .99 - top;
+    // (The dome's middle line, below the content's top.)
+    final mid = dome - offset.dy;
+    final half = size.width / 2 - 8;
+    if (a <= 0 || bt <= 0 || half >= a) return mid.clamp(0.0, 40.0);
+    final up = bt * math.sqrt(1 - (half / a) * (half / a));
+    // (At most 40 px, so a short window keeps its room.)
+    return (mid - up).clamp(0.0, 40.0);
+  }
+
+  @override
+  bool shouldReclip(_BubbleClip old) =>
+      old.bubble != bubble || old.dome != dome || old.offset != offset;
+}
+
+/// Inside a [BubblePage.intoDome] page: how far above the bottom of the
+/// page's content a full-width row must end so the bubble's bottom curve
+/// does not cut it (3DEEZI TEAM fits its first view with it, client 491).
+class BubbleDomeRoom extends InheritedWidget {
+  const BubbleDomeRoom({super.key, required this.clear, required super.child});
+  final double clear;
+
+  /// Null outside an [BubblePage.intoDome] page.
+  static double? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<BubbleDomeRoom>()?.clear;
+
+  @override
+  bool updateShouldNotify(BubbleDomeRoom old) => old.clear != clear;
+}
+
+/// A working page's content fades out softly under the title once it is
+/// scrolled (at the top it shows in full).
+class _TopFade extends StatefulWidget {
+  const _TopFade({required this.child});
+  final Widget child;
+
+  @override
+  State<_TopFade> createState() => _TopFadeState();
+}
+
+class _TopFadeState extends State<_TopFade> {
+  var _scrolled = false;
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.depth == 0 && n.metrics.axis == Axis.vertical) {
+      final scrolled = n.metrics.pixels > n.metrics.minScrollExtent + .5;
+      if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: _scrolled ? 22 : 0),
+          duration: const Duration(milliseconds: 160),
+          child: widget.child,
+          builder: (context, length, child) => ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (r) => LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: const [Color(0x00ffffff), Colors.white],
+              stops: [0, r.height > 0 ? (length / r.height).clamp(0, 1) : 0],
+            ).createShader(r),
+            child: child,
+          ),
+        ),
+      );
+}
+
+/// A working page's content fades out over its last [length] px, so
+/// nothing ends in a hard cut; fully gone over the last [gone] px.
+class _BottomFade extends StatelessWidget {
+  const _BottomFade({required this.child, this.length = 24, this.gone = 0});
+  final Widget child;
+  final double length, gone;
+
+  @override
+  Widget build(BuildContext context) => ShaderMask(
+    blendMode: BlendMode.dstIn,
+    shaderCallback: (r) => LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: const [
+        Colors.white,
+        Colors.white,
+        Color(0x00ffffff),
+        Color(0x00ffffff),
+      ],
+      stops: r.height > length * 2
+          ? [0, 1 - length / r.height, 1 - gone / r.height, 1]
+          : const [0, .5, 1, 1],
+    ).createShader(r),
+    child: child,
+  );
+}
 
 /// The bubble pages' dark navy backdrop with the faint large 3DEEZI emblem.
 class BubbleBackdrop extends StatelessWidget {
@@ -474,10 +638,14 @@ class BubbleRoute extends StatefulWidget {
     this.action,
     this.bell,
     this.fullHeadingRoom = false,
+    this.intoDome = false,
   });
 
   /// See [BubblePage.fullHeadingRoom].
   final bool fullHeadingRoom;
+
+  /// See [BubblePage.intoDome].
+  final bool intoDome;
 
   /// The page's own bell (see [BubblePage.bell]).
   final Widget? bell;
@@ -533,6 +701,7 @@ class _BubbleRouteState extends State<BubbleRoute> {
         bubbleKey: widget.bubbleKey,
         compact: true,
         fullHeadingRoom: widget.fullHeadingRoom,
+        intoDome: widget.intoDome,
         bell: widget.bell,
         leading: Row(
           mainAxisSize: MainAxisSize.min,

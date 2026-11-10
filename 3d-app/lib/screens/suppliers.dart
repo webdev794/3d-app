@@ -150,7 +150,7 @@ BoxDecoration _panel() => BoxDecoration(
 /// Preferred suppliers (the website's /suppliers): Mantis and the approved suppliers as cards (logo, name, the "3DEEZI
 /// family" badge, what they make, where they are, Visit website), then "Become a preferred supplier" with the listing
 /// prices, which opens the website's form. With no list from the server (an older site, no connection), 3DEEZI alone.
-/// Opened from the Home's PREFERRED SUPPLIERS strip and the order form's "See the suppliers".
+/// Opened from the Orders tab's "…" menu: Preferred suppliers.
 class SuppliersScreen extends StatefulWidget {
   const SuppliersScreen(this.c, {super.key});
   final AppController c;

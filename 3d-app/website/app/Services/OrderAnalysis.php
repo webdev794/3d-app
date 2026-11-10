@@ -208,6 +208,11 @@ class OrderAnalysis
         };
         $design = self::tidyDesign($designText);
         [$size, $fit, $guess] = self::size($sizeText);
+        // Dress sizes are womens sizes written as numbers ("Netball dress size 12" W12; 8 to 24 on the price list).
+        if ($size === null && preg_match('/^\d{1,2}$/', $sizeText) && $garment === 'singlet' && preg_match('/\bdress/i', $product.' '.$garmentText.' '.$typeText)
+            && ($w = Order::siteSize('W'.(int) $sizeText)) !== null) {
+            [$size, $fit, $guess] = [$w, 'womens', null];
+        }
         $qtyText = trim((string) ($in['qty'] ?? ''));
         $qty = $qtyText === '' ? null : (is_numeric(str_replace(',', '.', $qtyText)) ? (int) round((float) str_replace(',', '.', $qtyText)) : null);
 
@@ -225,12 +230,31 @@ class OrderAnalysis
     {
         $t = ' '.mb_strtolower(preg_replace('/[^\p{L}\p{N}]+/u', ' ', $text) ?? '').' ';
         foreach (self::GARMENT_WORDS as $word => $garment) {
-            if (str_contains($t, ' '.$word.' ') || str_contains($t, ' '.$word.'s ')) {
+            if (str_contains($t, ' '.$word.' ') || str_contains($t, ' '.$word.'s ') || str_contains($t, ' '.$word.'es ')) {
                 return $garment;
             }
         }
 
         return null;
+    }
+
+    /** Every garment named in a text, in the order of the garment words ("Football jerseys … 5 hoodies" hoodie, jersey). */
+    public static function garmentsIn(string $text): array
+    {
+        $t = ' '.mb_strtolower(preg_replace('/[^\p{L}\p{N}]+/u', ' ', $text) ?? '').' ';
+        // "polo shirt" is a polo, not also a shirt.
+        $t = preg_replace('/ polo shirts? /u', ' polo ', $t) ?? $t;
+        $found = [];
+        foreach (self::GARMENT_WORDS as $word => $garment) {
+            foreach ([$word.'es', $word.'s', $word] as $w) {
+                if (str_contains($t, ' '.$w.' ')) {
+                    $found[$garment] = true;
+                    $t = str_replace(' '.$w.' ', ' | ', $t);
+                }
+            }
+        }
+
+        return array_keys($found);
     }
 
     /** Sport words in order lines ("training" is a garment word there, "Training tee"; "guernsey" is AFL's). */
@@ -297,7 +321,7 @@ class OrderAnalysis
     {
         $entry = collect((array) config('catalog.sports', []))->firstWhere('id', $sport) ?? [];
         $sportName = (string) ($entry['heading'] ?? $entry['name'] ?? ucfirst($sport));
-        $words = fn (string $s) => array_values(array_filter(array_map(fn ($w) => preg_replace('/(?<=[a-z]{3})s$/', '', $w) ?? $w,
+        $words = fn (string $s) => array_values(array_filter(array_map(fn ($w) => preg_replace(['/(?<=ss|sh|ch|x)es$/', '/(?<=[a-z]{3})s$/'], '', $w) ?? $w,
             explode(' ', mb_strtolower(preg_replace('/[^\p{L}\p{N}]+/u', ' ', self::withoutSportWords($s)) ?? '')))));
         $said = $words($written);
         $kinds = self::CATALOG_GARMENTS[$garment] ?? [];
@@ -340,7 +364,7 @@ class OrderAnalysis
     private static function withoutGarmentWord(string $text): string
     {
         foreach (array_keys(self::GARMENT_WORDS) as $word) {
-            $out = preg_replace('/\b'.preg_quote($word, '/').'s?\b/i', '', $text, 1, $count);
+            $out = preg_replace('/\b'.preg_quote($word, '/').'(?:es|s)?\b/i', '', $text, 1, $count);
             if ($count) {
                 return trim(preg_replace('/\s{2,}/', ' ', (string) $out) ?? '', " -–—/");
             }

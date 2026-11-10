@@ -188,21 +188,20 @@ class _ArtboardScreenState extends State<ArtboardScreen> {
     int? id(Object? v) => (v as num?)?.toInt();
     try {
       if (msg['op'] == 'projects') {
-        // This device's saved kits (signed in or not); not the samples.
+        // This device's saved kits (signed in or not).
         reply({
           'ok': true,
           'data': [
             for (final p in c.projects)
-              if (p.asset == null || p.persisted)
-                {
-                  'id': p.id,
-                  'name': p.title,
-                  'garment': p.garment,
-                  'artboards': [
-                    for (final l in p.kit.layers)
-                      if (l['artboard'] is num) l['artboard'],
-                  ],
-                },
+              {
+                'id': p.id,
+                'name': p.title,
+                'garment': p.garment,
+                'artboards': [
+                  for (final l in p.kit.layers)
+                    if (l['artboard'] is num) l['artboard'],
+                ],
+              },
           ],
         });
         return;

@@ -50,19 +50,53 @@ class OrderAssistantReader
         if ($text !== '') {
             $read = $this->notes->notes($text);
             $items = $read['items'] ?? [];
-            // "9 polos: 3 x 4XL…" on one line: the built-in reader's garment is a jersey unless a heading says otherwise.
-            $said = OrderAnalysis::garmentOf($text);
-            if (count($items) === 1 && $said !== null && ($items[0]['garment'] ?? '') !== $said && ! preg_match('/'.($items[0]['garment'] ?? 'x').'/i', $text)) {
-                $items[0]['garment'] = $said;
-                unset($items[0]['label']);
+            // "9 polos: 3 x 4XL…" on one line: the built-in reader's garment is a jersey only as its guess (no garment word
+            // read on the line), so the garment the message names is used. Never when the message names a jersey itself
+            // or more than one garment ("Football jerseys 3 x M" then "5 hoodies": the jerseys stay jerseys, bug 2026-11-06).
+            $said = OrderAnalysis::garmentsIn($text);
+            if (count($items) === 1 && count($said) === 1 && ($items[0]['garment'] ?? '') === 'jersey' && $said[0] !== 'jersey' && empty($items[0]['label'])
+                && ! preg_match('/\b(?:jerseys?|guernseys?|shirts?|tops?|kits?|uniforms?)\b/i', $text)) {
+                $items[0]['garment'] = $said[0];
             }
-            $fromNotes = self::linesFromItems($items, 'Your message', $sport);
-            // "5 hoodies", "10 football jerseys": kept, with no size given (the check list says so).
+            // The message's one sport for the garments read with no sport of their own: never a sport only in a part
+            // left unread, and when another garment named that sport itself, only if it keeps the garment's kind.
+            // "Jerseys: 4 S, 6 M" then an empty "Netball dresses" heading, or "Jerseys 4 S. Netball dress x 12": the
+            // jerseys stay jerseys, never Netball dresses (bug 2026-11-10); "Football jerseys 3 x M" then "5 hoodies":
+            // Football hoodies.
             $unsized = (array) ($read['unsized'] ?? []);
+            $notesSport = $sport;
+            if ($sport !== '') {
+                $readText = $text;
+                foreach ((array) ($read['unknown'] ?? []) as $u) {
+                    if (! in_array($u, array_column($unsized, 'text'), true)) {
+                        $readText = str_ireplace(preg_replace('/\s*\([^()]*\)$/u', '', (string) $u) ?? (string) $u, ' ', $readText);
+                    }
+                }
+                $notesSport = OrderAnalysis::sportsIn($readText) === [$sport] ? $sport : '';
+            }
+            $ownSport = (bool) array_filter(array_merge($items, $unsized), fn ($i) => ! empty($i['sport']));
+            $borrow = function (array $i) use ($notesSport, $ownSport): array {
+                if (! empty($i['sport']) || $notesSport === '') {
+                    return $i;
+                }
+                $garment = (string) ($i['garment'] ?? 'other');
+                $name = (string) ($i['label'] ?? '') ?: (OrderAnalysis::PRODUCT_NAMES[$garment] ?? 'Garment');
+                if (! $ownSport || OrderAnalysis::garmentOf(OrderAnalysis::model($notesSport, $garment, $name)) === $garment) {
+                    $i['sport'] = $notesSport;
+                }
+
+                return $i;
+            };
+            $items = array_map($borrow, $items);
+            $unsized = array_map($borrow, $unsized);
+            $fromNotes = self::linesFromItems($items, 'Your message');
+            // "5 hoodies", "10 football jerseys": kept, with no size given (the check list says so).
             foreach ($unsized as $u) {
                 $garment = (string) ($u['garment'] ?? 'other');
-                $fromNotes[] = OrderAnalysis::line(['row' => count($fromNotes) + 1, 'source' => 'Your message', 'garment' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? 'Garment',
-                    'type' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? '', 'sport' => (string) ($u['sport'] ?? '') ?: $sport, 'size' => '', 'qty' => (string) (int) ($u['qty'] ?? 1)]);
+                // "Netball dresses x 12": named as said (a dress on a singlet row), not "Netball singlet with bib".
+                $label = (string) ($u['label'] ?? '');
+                $fromNotes[] = OrderAnalysis::line(['row' => count($fromNotes) + 1, 'source' => 'Your message', 'garment' => $label ?: (OrderAnalysis::PRODUCT_NAMES[$garment] ?? 'Garment'),
+                    'type' => $label !== '' && OrderAnalysis::garmentOf($label) === $garment ? '' : (OrderAnalysis::PRODUCT_NAMES[$garment] ?? ''), 'sport' => (string) ($u['sport'] ?? ''), 'size' => (string) ($u['size'] ?? ''), 'qty' => (string) (int) ($u['qty'] ?? 1)]);
             }
             $fromNotes = array_values(array_filter($fromNotes));
             $unsizedText = array_column($unsized, 'text');
@@ -128,6 +162,8 @@ class OrderAssistantReader
             $garment = (string) ($item['garment'] ?? 'other');
             $name = (string) ($item['label'] ?? '') ?: (OrderAnalysis::PRODUCT_NAMES[$garment] ?? 'Garment');
             $itemSport = (string) ($item['sport'] ?? '') ?: $sport;
+            // A name that says its own garment ("Netball dress" on a singlet row): the model is found from that name.
+            $type = (string) ($item['label'] ?? '') !== '' && OrderAnalysis::garmentOf($name) === $garment ? '' : (OrderAnalysis::PRODUCT_NAMES[$garment] ?? '');
             $players = array_values(array_filter((array) ($item['players'] ?? []), 'is_array'));
             $sizes = array_filter((array) ($item['sizes'] ?? []), fn ($q) => (int) $q > 0);
             foreach ($players as $p) {
@@ -136,11 +172,11 @@ class OrderAssistantReader
                     $sizes[$size]--;
                 }
                 $lines[] = OrderAnalysis::line(['row' => ++$n, 'source' => $source, 'member' => (string) ($p['name'] ?? ''), 'garment' => $name,
-                    'type' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? '', 'sport' => $itemSport, 'size' => $size, 'qty' => '1', 'note' => ($p['number'] ?? '') !== '' ? '#'.$p['number'] : '']);
+                    'type' => $type, 'sport' => $itemSport, 'size' => $size, 'qty' => '1', 'note' => ($p['number'] ?? '') !== '' ? '#'.$p['number'] : '']);
             }
             foreach ($sizes as $size => $qty) {
                 if ((int) $qty > 0) {
-                    $lines[] = OrderAnalysis::line(['row' => ++$n, 'source' => $source, 'garment' => $name, 'type' => OrderAnalysis::PRODUCT_NAMES[$garment] ?? '', 'sport' => $itemSport,
+                    $lines[] = OrderAnalysis::line(['row' => ++$n, 'source' => $source, 'garment' => $name, 'type' => $type, 'sport' => $itemSport,
                         'size' => (string) $size, 'qty' => (string) (int) $qty]);
                 }
             }

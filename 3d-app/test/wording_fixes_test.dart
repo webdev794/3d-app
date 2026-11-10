@@ -153,8 +153,10 @@ void main() {
       },
     );
 
-    testWidgets('My orders card: "1 piece", "36 pieces"', (tester) async {
-      for (final (quantity, text) in [(1, '1 piece'), (36, '36 pieces')]) {
+    // The card's count line as on the website since 2026-11-06 ("5 garments ·
+    // required 20 Mar"; no required date here).
+    testWidgets('My orders card: "1 garment", "36 garments"', (tester) async {
+      for (final (quantity, text) in [(1, '1 garment'), (36, '36 garments')]) {
         await _show(
           tester,
           OrderBoardCard(

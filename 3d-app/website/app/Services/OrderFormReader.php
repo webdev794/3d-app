@@ -76,6 +76,13 @@ class OrderFormReader
             return ($g['sport'] ?? null) || ! $sport ? $g : ['sport' => $sport] + $g;
         };
         $lines = array_slice(preg_split('/\r\n|\r|\n/', mb_substr($text, 0, 20000)) ?: [], 0, self::MAX_ROWS);
+        // Several sentences on one line ("Rugby league jerseys: 5 S, 10 M. Netball dress x 12 size 12"): each its own
+        // line (bug QA9 2026-11-10). Not after an initial ("J. Wallace") or "No." / "St."; "5 M.", "2 x L." and ". 5 hoodies" split.
+        $sentences = [];
+        foreach ($lines as $raw) {
+            array_push($sentences, ...(preg_split('/(?<!\bno|\bnr|\bst|\bmr|\bms|\bdr|\bjr|\bsr|\bmrs|\bnum|\bvs)(?:(?<=[\p{L}\d)\]]{2})|(?<=\d\s\p{L})|(?<=\d\p{L})|(?<=\s[sml]))\.\s+(?=\S)|(?<!\bno|\bnr|\bnum)\.\s+(?=\d)|[!?]+\s+(?=\S)/iu', $raw) ?: [$raw]));
+        }
+        $lines = array_slice($sentences, 0, self::MAX_ROWS);
         // "Football jersey: Smith 7 M, Jones 10 L" / "Football: Smith #7 M": the heading on its own line (so the sport
         // never joins a name), then each player of a comma list on its own line.
         $expanded = [];
@@ -88,12 +95,37 @@ class OrderFormReader
             $parts = array_values(array_filter(array_map('trim', preg_split('/[,;]/u', $one) ?: []), fn ($p) => $p !== ''));
             if (count($parts) > 1 && count(array_filter($parts, fn ($p) => $this->playerOf($p) !== null)) === count($parts)) {
                 array_push($expanded, ...$parts);
+
+                continue;
+            }
+            // "Football jerseys 3 x M, 5 hoodies L" / "5 S, 10 M, Netball dress x 12 size 12": a part naming its own
+            // garment starts a line of its own (the sizes before it stay with the garment before it).
+            $groups = [];
+            foreach ($parts as $p) {
+                if ($groups === [] || $this->garment(preg_replace('/\d+/', ' ', $p) ?? $p)) {
+                    $groups[] = [];
+                }
+                $groups[array_key_last($groups)][] = $p;
+            }
+            if (count($groups) > 1) {
+                array_push($expanded, ...array_map(fn ($g) => implode(', ', $g), $groups));
             } else {
                 $expanded[] = $one;
             }
         }
         $lines = $expanded;
         $unsized = [];
+        // The garment heading last read ("Netball dresses") and how much was ordered when it came.
+        $heading = null;
+        $ordered = function () use (&$items, &$unsized): int {
+            return array_sum(array_map(fn ($item) => array_sum(array_map('intval', $item['sizes'] ?? [])), $items)) + count($unsized);
+        };
+        $emptyHeading = function () use (&$heading, &$unknown, $ordered): void {
+            if ($heading && $ordered() === $heading[1]) {
+                $unknown[] = $heading[0].' (how many, in which sizes?)';
+            }
+            $heading = null;
+        };
         $sizeWord = '([0-9]{0,1}x{0,3}[sml]|[2-7]xl|xxs|xs|y?\d{1,2}y?|kids?|youth|small|medium|large|extra\s*large)';
         foreach ($lines as $raw) {
             $line = trim(preg_replace('/[•*\t]+/u', ' ', $raw) ?? $raw, " \t-–—:;.");
@@ -110,14 +142,23 @@ class OrderFormReader
 
                 continue;
             }
-            // "2 polos 3XL", "2 polos size 3XL", "10 football jerseys" (no size): a quantity, a garment, then maybe a size.
-            if (preg_match('/^(\d{1,4})\s*(?:x|×)?\s+([^\d]+?)(?:\s+(?:in\s+)?(?:size\s+|sz\s+)?([0-9]?[A-Za-z]{1,4}|\d{1,2}[Yy]?))?$/u', $line, $m) && ($g = $this->garment($m[2]))
-                && (($m[3] ?? '') === '' || $this->cellSize($m[3]))) {
-                $n = min(10000, max(1, (int) $m[1]));
-                if (($m[3] ?? '') !== '') {
-                    $this->add($items, $withSport($g), [$this->cellSize($m[3]) => $n]);
+            // "2 polos 3XL", "2 polos size 3XL", "10 football jerseys" (no size): a quantity, a garment, then maybe a size;
+            // or the garment first: "Netball dress x 12 size 12", "Hoodies x 5 L", "Netball dresses x 12" (no size).
+            $sizeAfter = '(?:\s+(?:in\s+)?(?:size\s+|sz\s+)?([0-9]?[A-Za-z]{1,4}|\d{1,2}[Yy]?))?';
+            $qtyGarment = null;
+            if (preg_match('/^(\d{1,4})\s*(?:x|×)?\s+([^\d]+?)'.$sizeAfter.'$/u', $line, $m)) {
+                $qtyGarment = [$m[1], $m[2], $m[3] ?? ''];
+            } elseif (preg_match('/^([^\d]+?)\s*(?:x|×)\s*(\d{1,4})'.$sizeAfter.'$/iu', $line, $m)) {
+                $qtyGarment = [$m[2], $m[1], $m[3] ?? ''];
+            }
+            // A dress in a number size the price list doesn't have ("size 6"): kept, with that size to check.
+            $odd = fn (array $g) => preg_match('/dress/i', (string) ($g['label'] ?? '')) && preg_match('/^\d{1,2}$/', $qtyGarment[2]);
+            if ($qtyGarment && ($g = $this->garment($qtyGarment[1])) && ($qtyGarment[2] === '' || $this->sizeFor($qtyGarment[2], $g) || $odd($g))) {
+                $n = min(10000, max(1, (int) $qtyGarment[0]));
+                if ($qtyGarment[2] !== '' && ($size = $this->sizeFor($qtyGarment[2], $g))) {
+                    $this->add($items, $withSport($g), [$size => $n]);
                 } else {
-                    $unsized[] = $withSport($g) + ['qty' => $n, 'text' => mb_substr($line, 0, 80)];
+                    $unsized[] = $withSport($g) + ['qty' => $n, 'size' => $qtyGarment[2], 'text' => mb_substr($line, 0, 80)];
                     $unknown[] = mb_substr($line, 0, 80);
                 }
 
@@ -167,11 +208,17 @@ class OrderFormReader
                 foreach ($pairs as [$size, $n]) {
                     $this->add($items, $garment, [$size => min(10000, max(1, $n))]);
                 }
+                // Two garments left on one line ("jerseys 3 x M 5 hoodies L"): read as one, so it is shown to check.
+                if (count(OrderAnalysis::garmentsIn($words)) > 1) {
+                    $unknown[] = mb_substr($line, 0, 80).' (several garments on one line: please check)';
+                }
 
                 continue;
             }
             // A garment heading ("Polo", "Jerseys:", "Training shorts").
             if (! preg_match('/\d/', $line) && mb_strlen($line) <= 60 && ($g = $this->garment($line))) {
+                $emptyHeading();
+                $heading = [mb_substr($line, 0, 80), $ordered()];
                 $section = $g;
 
                 continue;
@@ -183,6 +230,7 @@ class OrderFormReader
             }
             $unknown[] = mb_substr($line, 0, 80);
         }
+        $emptyHeading();
         $items = array_values(array_filter($items, fn ($item) => array_sum(array_map('intval', $item['sizes'] ?? [])) > 0));
         $items = array_map(fn ($item) => $item + ['name' => Order::itemName($item)], $items);
 
@@ -617,6 +665,17 @@ class OrderFormReader
         return OrderFormAi::siteSize($cell) ?? $this->size($cell);
     }
 
+    /** A size written for a garment: a dress's size may be a number (womens: "size 12" W12, 8 to 24). */
+    private function sizeFor(string $written, array $garment): ?string
+    {
+        $size = $this->cellSize($written);
+        if ($size === null && preg_match('/^\d{1,2}$/', trim($written)) && preg_match('/dress/i', (string) ($garment['label'] ?? ''))) {
+            $size = Order::siteSize('W'.(int) trim($written));
+        }
+
+        return $size;
+    }
+
     /** A garment (with sport and fit) named in a cell, or null. */
     private function garment(string $cell): ?array
     {
@@ -625,7 +684,16 @@ class OrderFormReader
         }
         $read = $this->assistant->parse('1 '.trim($cell).' M');
         $item = $read['items'][0] ?? null;
+        if (! $item) {
+            return null;
+        }
+        $garment = ['garment' => $item['garment'], 'sport' => $item['sport'], 'fit' => $item['fit']];
+        // A dress is ordered on a singlet row, named as the product ("Netball dress"), not "Netball singlet".
+        if ($item['garment'] === 'singlet' && preg_match('/\bdress(?:es)?\b/iu', $cell)) {
+            $sportName = collect((array) config('catalog.sports', []))->firstWhere('id', $item['sport'])['name'] ?? null;
+            $garment['label'] = $sportName ? $sportName.' dress' : 'Dress';
+        }
 
-        return $item ? ['garment' => $item['garment'], 'sport' => $item['sport'], 'fit' => $item['fit']] : null;
+        return $garment;
     }
 }

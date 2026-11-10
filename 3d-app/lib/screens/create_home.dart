@@ -725,7 +725,7 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       .indexWhere((s) => s.$1 == widget.c.sport)
       .clamp(0, _n - 1);
   // Endless: start far from either end so it rotates both ways.
-  static const _cell = .42;
+  static const _cell = .46;
   late final PageController _pages = PageController(
     viewportFraction: _cell,
     initialPage: _n * 500 + _index,
@@ -956,45 +956,104 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   @override
   Widget build(BuildContext context) {
     final sport = dyoSports[_index];
-    // The bubble look (user 2026-11-05): the picker in the glass bubble.
-    return BubblePage(
-      c: widget.c,
-      title: '',
-      compact: true,
-      // (Its stadium background stays behind the bubble.)
-      backdrop: const StageBackground(child: SizedBox.expand()),
-      bubbleKey: const ValueKey('sport-bubble'),
-      // (Its narrower Custom… and Design capsules sit lower in the bottom
-      // dome than a working page's full-width rows.)
-      bottomRoom: (dome) => dome * .2 + 8,
-      leading: BubbleCornerPill(
-        key: const ValueKey('sport-bubble-back'),
-        icon: Icons.arrow_back,
-        label: 'Back',
-        onTap: widget.c.back,
-      ),
-      // The options are small glass bubbles (client 489): the sport tiles,
-      // the arrows, the sport's name, Custom… and the Design button. On a
-      // phone the whole picker fits the bubble, the Design button in view;
-      // a very short window scrolls, the kit stage keeping [_minStage].
-      child: LayoutBuilder(
-        builder: (context, room) {
-          // Less room (a 360 × 780 or 390 × 844 phone): tighter spacing.
-          final tight = room.maxHeight < 600;
-          return BubbleFillScroll(
-            minFlex: (_) => _minStage,
-            scrollKey: const ValueKey('sport-scroll'),
-            children: _picker(sport, tight),
-          );
-        },
-      ),
+    // No outer glass bubble here (client 2026-11-10: "I don't think we need
+    // outside bubble here"): the picker stands straight on the stadium, its
+    // rows lined up with the page edges ([_side]). The header (Back, the
+    // wordmark, the bell) and the tab bar are the bubble pages' own.
+    return Column(
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              const Positioned.fill(
+                child: StageBackground(child: SizedBox.expand()),
+              ),
+              LayoutBuilder(
+                builder: (context, box) {
+                  final w = math.min(box.maxWidth, 520.0);
+                  return Center(
+                    child: SizedBox(
+                      width: w,
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 10),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: _side,
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 52,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  BrandLogo(width: math.min(w * .46, 246)),
+                                  Positioned(
+                                    left: 0,
+                                    child: BubbleCornerPill(
+                                      key: const ValueKey('sport-bubble-back'),
+                                      icon: Icons.arrow_back,
+                                      label: 'Back',
+                                      onTap: widget.c.back,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    child: NotificationBell(widget.c),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // The options are small glass bubbles (client
+                          // 489): the sport tiles, the arrows, the sport's
+                          // name, Custom… and the Design button. On a phone
+                          // the whole picker fits, the Design button in
+                          // view; a very short window scrolls, the kit stage
+                          // keeping [_minStage].
+                          Expanded(
+                            child: LayoutBuilder(
+                              builder: (context, room) {
+                                // Less room (a 360 × 780 phone): tighter
+                                // spacing, so the kits keep their size.
+                                final tight = room.maxHeight < 700;
+                                return BubbleFillScroll(
+                                  minFlex: (_) => _minStage,
+                                  scrollKey: const ValueKey('sport-scroll'),
+                                  children: _picker(sport, tight),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        BottomNav(controller: widget.c),
+      ],
     );
   }
+
+  /// The page's side margin: the header, the arrows, the stage ring, the
+  /// first sport tile, Custom… and the Design button line up on it.
+  static const _side = 16.0;
+
+  /// The room under the Design button: 3DEEZI Assist's round button sits
+  /// there, just over the tab bar (lib/widgets/assist_overlay.dart: 50 px,
+  /// 92 px over the screen's foot, about 45 px over the tab bar), so it
+  /// never covers the button.
+  static const _assistRoom = 50.0;
 
   /// The least height of the kit stage before the picker scrolls.
   static const _minStage = 150.0;
 
   List<Widget> _picker((String, String, String, String) sport, bool tight) => [
+    SizedBox(height: tight ? 2 : 8),
     const Text(
       'DESIGN YOUR OWN',
       style: TextStyle(
@@ -1026,13 +1085,15 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       onChanged: _chooseFilter,
     ),
     SizedBox(
-      // (Room above and below for the lit tile's glow.)
-      height: tight ? 72 : 80,
+      // (Room above and below for the lit tile's glow.) The row runs to the
+      // screen's edges, its first tile on the page margin. (A little lower
+      // since 2026-11-10, client: "more room for 3D models".)
+      height: tight ? 66 : 72,
       child: ListView.separated(
         key: const ValueKey('dyo-tiles'),
         controller: _tiles,
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 9, 16, 7),
+        padding: const EdgeInsets.fromLTRB(_side, 8, _side, 6),
         itemCount: _shown.length,
         separatorBuilder: (_, _) => const SizedBox(width: _tileGap),
         itemBuilder: (context, k) {
@@ -1051,16 +1112,19 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     // the kits stand just over it, the capsule over the ring's near side).
     Expanded(
       child: Stack(
+        // The kits reach a little over the tiles row's empty glow room.
+        clipBehavior: Clip.none,
         children: [
           Positioned.fill(
-            bottom: (tight ? 50 : 56) - _capOverlap,
+            top: -_kitRise,
+            bottom: (tight ? 50 : 60) - _capOverlap,
             child: _stage(),
           ),
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            height: tight ? 50 : 56,
+            height: tight ? 50 : 60,
             child: Center(
               child: _SportName(
                 name: sport.$1,
@@ -1079,47 +1143,57 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       Center(
         child: PageDots(count: _n, index: _index),
       ),
-    SizedBox(height: tight ? 6 : 10),
-    // "Custom…" (client 2026-11-02): a sport we do not list, typed.
-    // (Narrower than the bubble, as in 489, so it sits clear of the rim
-    // where the bottom dome curves in.)
+    SizedBox(height: tight ? 0 : 2),
+    // "Custom…" (client 2026-11-02): a sport we do not list, typed. It and
+    // the Design button run margin to margin; both slimmer since 2026-11-10
+    // (client: "maybe buttons smaller"), Custom… still 40 px to tap.
     Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding: const EdgeInsets.symmetric(horizontal: _side),
       child: _GlassOutlineButton(
         key: const Key('dyo-custom-sport'),
         icon: Icons.edit_outlined,
         label: 'Custom… type your own sport',
-        height: tight ? 32 : 38,
+        height: tight ? 28 : 32,
         onTap: _customSport,
       ),
     ),
-    SizedBox(height: tight ? 8 : 12),
+    SizedBox(height: tight ? 2 : 4),
     Padding(
-      padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
+      padding: const EdgeInsets.fromLTRB(_side, 0, _side, _assistRoom),
       child: _GlossyButton(
         label: 'DESIGN ${sport.$1.toUpperCase()}',
-        height: tight ? 44 : 50,
+        height: tight ? 40 : 44,
         onPressed: _design,
       ),
     ),
   ];
 
   /// How far the sport's capsule reaches up over the stage's foot.
-  static const _capOverlap = 30.0;
+  static const _capOverlap = 40.0;
 
-  /// The room under a kit picture: its feet stand on the ring, just over
-  /// the sport's capsule (user 2026-11-06, 490: bigger kits).
-  static const _kitPad = 27.0;
+  /// The room under a kit picture: its feet stand on the ring, a little
+  /// behind the sport's capsule (user 2026-11-06, 490: bigger kits; client
+  /// 2026-11-10: "much bigger").
+  static const _kitPad = 24.0;
+
+  /// How far the stage reaches up over the tiles row's glow room (the kit
+  /// pictures' own empty top keeps them off the tiles).
+  static const _kitRise = 11.0;
+
+  /// The widest a kit picture gets, of the stage's width (2:3 pictures, so
+  /// on a phone the stage's height sets their size).
+  static const _kitWide = .62;
 
   /// The kits on their floodlit stage, the arrows at the sides.
   Widget _stage() => Stack(
     alignment: Alignment.center,
     children: [
       // The glowing stage ring under the kits.
+      // (Where it stood by the capsule before the kits grew, 2026-11-10.)
       Positioned(
-        bottom: 6,
-        left: 18,
-        right: 18,
+        bottom: _capOverlap - 24,
+        left: _side,
+        right: _side,
         child: Container(
           height: 74,
           decoration: BoxDecoration(
@@ -1139,11 +1213,13 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       ),
       LayoutBuilder(
         builder: (context, box) {
-          // The kit picture's width in its page (2:3 pictures in
-          // a page [_cell] of the stage wide, [_kitPad] of padding).
+          // The kit picture's width (2:3 pictures, [_kitPad] of
+          // padding under them). A picture may be wider than its page
+          // ([_cell] of the stage): the kits are packed by their
+          // garments' own widths ([_kitX]), not by the pages.
           final cell = box.maxWidth * _cell;
           final pic = math.min(
-            cell,
+            box.maxWidth * _kitWide,
             math.max(0.0, box.maxHeight - _kitPad) * 2 / 3,
           );
           _pic = pic;
@@ -1199,12 +1275,17 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
                     final current = (_pages.page ?? 0).round();
                     current == i ? _design() : _step(i - current);
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: _kitPad),
-                    child: Image.asset(
-                      'assets/images/showroom/kit-${_kitSlug(i)}.webp',
-                      fit: BoxFit.contain,
-                      alignment: Alignment.bottomCenter,
+                  child: OverflowBox(
+                    minWidth: 0,
+                    maxWidth: pic,
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: _kitPad),
+                      child: Image.asset(
+                        'assets/images/showroom/kit-${_kitSlug(i)}.webp',
+                        fit: BoxFit.contain,
+                        alignment: Alignment.bottomCenter,
+                      ),
                     ),
                   ),
                 ),
@@ -1213,15 +1294,17 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
           );
         },
       ),
+      // (Each arrow's 40 px tap room reaches 4 px past its bubble, so the
+      // bubble itself stays on the page margin.)
       Positioned(
-        left: 6,
+        left: _side - 4,
         child: _ArrowButton(
           icon: Icons.chevron_left_rounded,
           onTap: () => _step(-1),
         ),
       ),
       Positioned(
-        right: 6,
+        right: _side - 4,
         child: _ArrowButton(
           icon: Icons.chevron_right_rounded,
           onTap: () => _step(1),
@@ -1470,15 +1553,26 @@ class _ArrowButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => _GlassOption(
-    radius: 20,
-    rim: 2,
-    glow: .7,
-    shape: const CircleBorder(),
+  Widget build(BuildContext context) => GestureDetector(
+    // A smaller bubble since 2026-11-10 (client: "buttons smaller"), still
+    // a 40 px tap.
+    behavior: HitTestBehavior.opaque,
     onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.all(7),
-      child: Icon(icon, color: Colors.white, size: 26),
+    child: SizedBox.square(
+      dimension: 40,
+      child: Center(
+        child: _GlassOption(
+          radius: 16,
+          rim: 2,
+          glow: .7,
+          shape: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(5),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+        ),
+      ),
     ),
   );
 }
@@ -1557,36 +1651,48 @@ class _GlassOutlineButton extends StatelessWidget {
     label: label,
     excludeSemantics: true,
     onTap: onTap,
-    child: SizedBox(
-      height: height,
-      width: double.infinity,
-      child: _GlassOption(
-        radius: height / 2,
-        rim: 1.8,
-        glow: .3,
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 17, color: Palette.cyan),
-              const SizedBox(width: 8),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      color: Palette.cyan,
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
+    // The capsule may be slimmer than a finger: the tap takes at least
+    // 40 px, the room over and under it too.
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(
+        height: math.max(height, 40),
+        width: double.infinity,
+        child: Center(
+          child: SizedBox(
+            height: height,
+            width: double.infinity,
+            child: _GlassOption(
+              radius: height / 2,
+              rim: 1.8,
+              glow: .3,
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 15, color: Palette.cyan),
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          style: const TextStyle(
+                            color: Palette.cyan,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1670,16 +1776,16 @@ class _GlossyButton extends StatelessWidget {
                                   style: const TextStyle(
                                     color: Color(0xff04192b),
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 17,
+                                    fontSize: 15,
                                     letterSpacing: .4,
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             const Icon(
                               Icons.arrow_forward_rounded,
-                              size: 22,
+                              size: 19,
                               color: Color(0xff04192b),
                             ),
                           ],

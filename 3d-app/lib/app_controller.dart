@@ -170,7 +170,8 @@ class Project {
     this.approved = false,
   }) : id = id ?? 'p${DateTime.now().microsecondsSinceEpoch}';
 
-  /// Stable id; samples use "sample-N", user projects a timestamp.
+  /// Stable id: a timestamp (kits saved from the old bundled examples kept
+  /// their "sample-N" id).
   final String id;
 
   /// True once written to the device.
@@ -371,58 +372,65 @@ class AppController extends ChangeNotifier {
 
   /// A Recent designs card: YOUR DESIGNS again with that brief's designs
   /// (from the account, or the last brief on this device), with no AI call.
-  void showAiSession(Map<String, dynamic> s, {int? id}) {
+  /// False when none of its pictures could be read (nothing changes).
+  bool showAiSession(Map<String, dynamic> s, {int? id}) {
     String? pick(List<String> names, Object? v) {
       String key(Object? x) =>
           '$x'.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
       return names.where((n) => key(n) == key(v)).firstOrNull;
     }
 
+    Map<String, dynamic>? map(Object? v) =>
+        v is Map ? v.cast<String, dynamic>() : null;
     final sportName = pick(designSports, s['sport']);
     final garmentName = pick(aiDesignGarments, s['garment']);
     final list = <Concept>[];
     for (final o in (s['options'] as List? ?? const [])) {
-      final m = (o as Map).cast<String, dynamic>();
-      final url = m['image'] as String?;
-      final comma = url?.indexOf(',') ?? -1;
-      if (url == null || comma < 0) continue;
       try {
+        final m = map(o);
+        final url = m?['image'];
+        final comma = url is String ? url.indexOf(',') : -1;
+        if (m == null || url is! String || comma < 0) continue;
         final bytes = base64Decode(url.substring(comma + 1));
-        final design = (m['design'] as Map?)?.cast<String, dynamic>() ?? {};
-        final from = (m['spec'] as Map?)?.cast<String, dynamic>();
-        final spec = DesignSpec.fromJson(
-          from ??
-              {
-                'designName': m['name'] ?? 'Design ${list.length + 1}',
-                'detected': garmentName ?? garment,
-                'summary': m['description'] ?? '',
-                'findings': const <String>[],
-                'mainColor': design['main'] ?? '#101d2a',
-                'secondaryColor': design['secondary'] ?? '#00c2cc',
-                'accentColor': design['accent'] ?? '#ffffff',
-                'pattern': design['pattern'],
-                'fabric': design['fabric'],
-                'logoText': design['logoText'] ?? '',
-                'renderPrompt': '',
-                'patternMotif': m['motif'] ?? '',
-                'sport': sportName,
-                'garment': garmentName,
-              },
-        );
+        final design = map(m['design']) ?? const {};
+        final from = map(m['spec']);
+        // The website keeps the spec as sent, except that empty text comes
+        // back as null (a 1-design brief's "renderPrompt": "", a kit with no
+        // team name): such a field falls back, so the design still opens
+        // (client 2026-11-10, 493.png: the card did nothing).
+        final spec = DesignSpec.fromJson({
+          'designName': '${m['name'] ?? 'Design ${list.length + 1}'}',
+          'detected': garmentName ?? garment,
+          'summary': '${m['description'] ?? ''}',
+          'findings': const <String>[],
+          'mainColor': design['main'] ?? '#101d2a',
+          'secondaryColor': design['secondary'] ?? '#00c2cc',
+          'accentColor': design['accent'] ?? '#ffffff',
+          'pattern': design['pattern'],
+          'fabric': design['fabric'],
+          'logoText': '${design['logoText'] ?? ''}',
+          'renderPrompt': '',
+          'patternMotif': '${m['motif'] ?? ''}',
+          'sport': sportName,
+          'garment': garmentName,
+          if (from != null) ...{
+            for (final e in from.entries)
+              if (e.key != 'findings' && e.value != null) e.key: '${e.value}',
+            if (from['findings'] case final List f)
+              'findings': [for (final x in f) '$x'],
+          },
+        });
         list.add(
-          Concept(
-              spec,
-              direction: (m['direction'] as Map?)?.cast<String, dynamic>(),
-            )
+          Concept(spec, direction: map(m['direction']))
             ..image = bytes
-            ..quality = m['quality'] as String?
-            ..view = m['view'] as String?,
+            ..quality = m['quality'] is String ? m['quality'] as String : null
+            ..view = m['view'] is String ? m['view'] as String : null,
         );
       } on Object {
         continue;
       }
     }
-    if (list.isEmpty) return;
+    if (list.isEmpty) return false;
     resultsRun++;
     newAiSession();
     brief = '${s['prompt'] ?? ''}';
@@ -435,6 +443,7 @@ class AppController extends ChangeNotifier {
     aiSessionId = id;
     _aiSessionSent = id == null ? const [] : [for (final o in list) o.image!];
     go(AppScreen.concepts);
+    return true;
   }
 
   Uint8List? mockupImage;
@@ -1402,12 +1411,8 @@ class AppController extends ChangeNotifier {
       for (final p in projects.where((p) => p.pendingUpload).toList()) {
         await _upload(p);
       }
-      // Newest first, with the bundled samples last.
-      bool sample(Project p) => p.asset != null && !p.persisted;
-      projects.sort((a, b) {
-        if (sample(a) != sample(b)) return sample(a) ? 1 : -1;
-        return b.updated.compareTo(a.updated);
-      });
+      // Newest first.
+      projects.sort((a, b) => b.updated.compareTo(a.updated));
     } on ApiException catch (e) {
       if (e.unauthorized) {
         await _expire(e.message);
@@ -1463,8 +1468,7 @@ class AppController extends ChangeNotifier {
         });
   }
 
-  /// Loads projects saved on the device (newest first) above the samples.
-  /// A saved project replaces the sample it was created from.
+  /// Loads the projects saved on the device (newest first).
   Future<void> restoreProjects() async {
     try {
       final saved = await store.loadAll();
@@ -1491,28 +1495,12 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  final List<Project> projects = [
-    for (final (i, title, sport, garment, mode, version, hours) in const [
-      (1, 'Warriors Concept', 'Rugby League', 'Jersey', 'AI', 1, 2),
-      (2, 'Mantis Elite', 'Training / Gym', 'Training Tee', 'AI', 2, 26),
-      (3, 'Club Jersey', 'Soccer', 'Jersey', 'DYO', 1, 30),
-      (4, 'Morahu', 'Basketball', 'Singlet', 'DYO', 3, 72),
-      (5, 'Coastal Blues', 'Rugby Union', 'Jersey', 'AI', 1, 96),
-      (6, 'Away Edition', 'Soccer', 'Training Tee', 'DYO', 2, 120),
-    ])
-      Project(
-        id: 'sample-$i',
-        title: title,
-        sport: sport,
-        garment: garment,
-        mode: mode,
-        version: version,
-        updated: DateTime.now().subtract(Duration(hours: hours)),
-        asset: 'assets/images/project_$i.png',
-        kit: _sampleKit(i, garment),
-      ),
-  ];
+  /// The customer's own projects only: saved on this device and, signed in,
+  /// the account's. No example projects (client 2026-11-10: "Take all
+  /// examples out").
+  final List<Project> projects = [];
 
+  /// The kit a new design starts from.
   static KitState _sampleKit(int i, String garment) {
     const palettes = [
       (0xff0b1016, 0xff00c2cc, 0xff36e3ee, 'WARRIORS'),
@@ -1546,11 +1534,6 @@ class AppController extends ChangeNotifier {
     Map<String, dynamic> details,
   ) async {
     if (!signedIn) throw ApiException('Sign in to order kits.');
-    if (p.asset != null && !p.persisted) {
-      throw ApiException(
-        'This is a sample design. Open it, then save it as your own project to order it.',
-      );
-    }
     if (p.remoteId == null || p.pendingUpload) await syncProjects();
     if (p.remoteId == null) {
       throw ApiException(

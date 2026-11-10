@@ -27,6 +27,8 @@ class OrderAssistant
         'rain jacket' => 'jacket', 'windbreakers' => 'jacket', 'windbreaker' => 'jacket', 'jackets' => 'jacket', 'jacket' => 'jacket',
         'tracksuit pants' => 'pants', 'track pants' => 'pants', 'trackpants' => 'pants', 'trackies' => 'pants', 'trousers' => 'pants', 'pants' => 'pants',
         'game shorts' => 'shorts', 'training shorts' => 'shorts', 'shorts' => 'shorts',
+        // A dress (the netball / tennis dress) is ordered on a singlet row (Order::PROJECT_ROWS), named by its product.
+        'dresses' => 'singlet', 'dress' => 'singlet',
         'tank tops' => 'singlet', 'tank top' => 'singlet', 'singlets' => 'singlet', 'singlet' => 'singlet', 'vests' => 'singlet', 'vest' => 'singlet',
         'pairs of socks' => 'socks', 'pair of socks' => 'socks', 'socks' => 'socks', 'sock' => 'socks',
         'caps' => 'cap', 'cap' => 'cap', 'hats' => 'cap', 'hat' => 'cap',

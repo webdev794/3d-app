@@ -156,3 +156,24 @@ Resume via SendMessage, do not respawn:
 - 2026-11-06 ~17:30: STUMENU, AIDES, DYOGLASS, QA8 done. STUMENU resumed (aec2d0b0bd29355a3) only for the final 360/390 screenshot check. Fixers: FIXW a3a3bfb26b5ea59a0 (website QA8 items 2-8,10), FIXA ab6c32dd17e335971 (app items 1,5,8,9). User has ~30 min: push v2 (final-push-v2.sh) + tar 11-06-f (viewer changed: VIEWER_VERSION -282) when they finish. User: "don't stop anyone in 10 minutes".
 - 2026-11-06 17:3x: pushed v2 = c7693c4 (all of today incl. QA8 fixes); live tar 3deez-update-2026-11-06-f (19 files, viewer -282). Left: QA8 website items in tasks.md.
 - 2026-11-06: DYOBIG — DYOGLASS ae7e7663bebf38eef resumed: app DYO carousel kits bigger (490.png).
+- 2026-11-06 17:5x: pushed v2 = 6d448f7 (DYO bigger kits, app only; no new live tar needed). Checker workflow wg49mh9cl (360/390/430 screenshots, read-only) still running.
+- 2026-11-06 18:0x: DYO size check workflow: PASS at 360/390/430 (centre kit 135/176/204 px; side kit tucks slightly behind the arrow/name box = normal depth, left as is). Same build as pushed v2 6d448f7.
+- 2026-11-10: TEAMBUB ae4e2394e5b52b975 = app Team page, no rectangle inside the bubble, VIEW MY REQUESTS fully visible (client 491, spec scratchpad/TEAMBUB/spec.md).
+- 2026-11-10: DYONOBUB a4fbf9c1d6f18ba42 = app DYO page without the outer bubble (spec scratchpad/DYONOBUB/spec.md).
+- 2026-11-10: ARTTAP aa52f1df97322f56f = app Artboard tap gestures (2-finger tap undo, 3-finger redo; app-only signal; EDITOR_VERSION bump; spec scratchpad/ARTTAP/spec.md).
+- 2026-11-10: TEAMBUB resumed for 492: scrolled content overlaps bubble top edge (Team page + check other bubble pages).
+- 2026-11-10: ARTTAP done (EDITOR_VERSION 2026-11-10-1; website artboard files changed -> next live tar needs them).
+- 2026-11-10: TEAMBUB 492 scroll fix done (bubble_page.dart shared clip + fade, all Back-button pages); resumed again for Edit profile Save button corners cut by bottom curve.
+- 2026-11-10: QA9 a6d7305aa2a1e98cd = read-only regression tester (DYO no bubble, Team page, shared bubble clip on all Back pages, Artboard gestures/undo on website+app, recheck 11-06 items). Many bugs -> separate fixer.
+- 2026-11-10: TEAMBUB Edit profile Save button fix done (removed the rough bottom cut in bubble_page.dart; all Back-button pages).
+- 2026-11-10: QA9 found no BROKEN; FIX9 a9f6a2d7161bbcb2c fixes LOGIC 1,2,3,5,6 (+START FROM SCRATCH check). QA9 resumed for its not-checked list.
+- 2026-11-10: QA9 round 2 done. FIXOC a48ad0bba88b55fa5 = order chat reader (several items, netball dress sizes/plural, hoodie merge). FIX9 also got Save project name + Suppliers entry in app. questions.md #2 = Artboard designs in My projects.
+- 2026-11-10: RECENT af1e9c81df6670550 = test/fix Recent designs tap on AI Designer (app 493 + website phone/desktop).
+- 2026-11-10: NOEX aecfa3eaf0f6e9193 = app Projects tab, remove example projects (494); report website + other example content.
+- 2026-11-10: DYOBIG2 a81cb364a130ff78e = app DYO kits much bigger + smaller buttons, create_home.dart only (495).
+- 2026-11-10: user: push to v2 once work is finalized, not mid-way. Push at the next quiet point (FIXOC, FIX9, RECENT, NOEX, DYOBIG2 all done).
+- 2026-11-10: FIXOC done (order chat several items, dresses, sport sharing; tests 363 pass; checked on copy 8096). Note: FIXOC stopped a php server on 8097 by mistake (maybe FIX9); FIX9 told.
+- 2026-11-10: FIX9 done (team.dart sport list/garments/plan note/bell, bubble_page top clip, studio.dart save name, Orders ... menu > Preferred suppliers). Still running: RECENT, NOEX, DYOBIG2 -> then push v2.
+- 2026-11-10: DYOBIG2 done (centre kit 277/341/377 px; undo copy scratchpad/DYOBIG2/create_home.start.dart). Still running: RECENT, NOEX.
+- 2026-11-10: NOEX done for Projects (examples were hard-coded in app_controller.dart sample-1..6). Resumed for Assets example pictures + stale wording_fixes_test ("1 piece" -> "1 garment").
+- 2026-11-10: NOEX Assets done (Uploads/Logos/Artwork examples removed; kept 3DEEZI mark + starter pattern; wording test fixed; full flutter test 502 pass). Only RECENT left -> then push v2.

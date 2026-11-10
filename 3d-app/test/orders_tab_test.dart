@@ -8,6 +8,7 @@ import 'package:three_deezi/assist.dart';
 import 'package:three_deezi/screens/library.dart';
 import 'package:three_deezi/screens/order_assistant.dart';
 import 'package:three_deezi/screens/order_entry.dart';
+import 'package:three_deezi/screens/suppliers.dart' show SuppliersScreen;
 import 'package:three_deezi/screens/orders_board.dart' show OrderDetailScreen, OrderBoardCard, orderCardLine, orderPayable;
 import 'package:three_deezi/widgets/assist_overlay.dart';
 import 'package:three_deezi/widgets/ui.dart';
@@ -93,6 +94,15 @@ void main() {
     // Back from My orders comes home to the Orders tab.
     c.back();
     expect(c.screen, AppScreen.orderHub);
+  });
+
+  testWidgets('Suppliers (QA9): Orders "…" > Preferred suppliers opens the suppliers page', (tester) async {
+    final c = signedIn(OrdersServer())..screen = AppScreen.orderHub;
+    await mount(tester, OrderAssistantScreen(c, root: true), width: 390);
+    await tap(tester, find.byKey(const ValueKey('assistant-menu')));
+    expect(find.text('Preferred suppliers'), findsOneWidget);
+    await tap(tester, find.byKey(const ValueKey('assistant-suppliers')));
+    expect(find.byType(SuppliersScreen), findsOneWidget);
   });
 
   testWidgets('Orders tab: Switch to Manual Form opens the form on top, and back returns to the tab', (tester) async {

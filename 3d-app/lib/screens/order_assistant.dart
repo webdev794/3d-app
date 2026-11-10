@@ -18,7 +18,7 @@ import '../widgets/site_page_stub.dart'
 import '../widgets/ui.dart';
 import 'order_entry.dart'
     show OrderFormScreen, pickOrderFile, pickOrderFileIsDefault;
-import 'suppliers.dart' show Supplier;
+import 'suppliers.dart' show Supplier, SuppliersScreen;
 import 'team.dart' show TeamScreen;
 
 /// Opens a page or a file link (the summary page, the PDF, the Excel) in the
@@ -695,6 +695,9 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
                   onMakeWith: _makeWith,
                   onRewards: () =>
                       showToast(context, '3DEEZI Rewards: coming soon.'),
+                  onSuppliers: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => SuppliersScreen(c)),
+                  ),
                   onManual: _manual,
                   onNew: started
                       ? () => setState(() {
@@ -1524,10 +1527,14 @@ class _Header extends StatelessWidget {
     this.onMyOrders,
     this.onMakeWith,
     this.onRewards,
+    this.onSuppliers,
     required this.onManual,
     this.onNew,
   });
   final bool chat;
+
+  /// The website's Suppliers page (Preferred suppliers).
+  final VoidCallback? onSuppliers;
   final VoidCallback? onBack;
   final VoidCallback onManual;
   final bool root;
@@ -1631,6 +1638,7 @@ class _Header extends StatelessWidget {
             'make-3deezi' => onMakeWith?.call(null),
             'make-mantis' => onMakeWith?.call('Mantis'),
             'rewards' => onRewards?.call(),
+            'suppliers' => onSuppliers?.call(),
             _ => onNew?.call(),
           },
           itemBuilder: (_) => [
@@ -1666,6 +1674,14 @@ class _Header extends StatelessWidget {
                   trailing: maker == 'Mantis'
                       ? const Icon(Icons.check, color: Palette.cyan)
                       : null,
+                ),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('assistant-suppliers'),
+                value: 'suppliers',
+                child: ListTile(
+                  leading: Icon(Icons.storefront_outlined),
+                  title: Text('Preferred suppliers'),
                 ),
               ),
               const PopupMenuItem(

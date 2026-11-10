@@ -2417,64 +2417,87 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
       child: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(2, 4, 2, 16),
-              children: [
-                AspectRatio(
-                  aspectRatio: 1.05,
-                  child: GlowCard(
-                    child: preview != null
-                        ? artImage(bytes: preview, fit: BoxFit.cover)
-                        : KitPreview(controller: c, height: 260),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const SectionLabel('Project name'),
-                TextField(
-                  controller: _name,
-                  enabled: !_done,
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 12),
-                Row(
+            child: LayoutBuilder(
+              // The preview leaves room for the project name and its version
+              // on the first view, above SAVE PROJECT (QA9: at 360 x 780 and
+              // 390 x 844 the name sat behind the button).
+              builder: (context, box) {
+                final full = (box.maxWidth - 4) / 1.05;
+                final double high = (box.maxHeight - 4 - 16 - 196).clamp(
+                  120.0,
+                  math.max(full, 120.0),
+                );
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(2, 4, 2, 16),
                   children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Palette.surface,
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(color: Palette.border),
-                        ),
-                        child: ValueListenableBuilder(
-                          valueListenable: _name,
-                          builder: (_, name, _) => Text(
-                            _done
-                                ? 'Version ${c.projects.first.version}'
-                                : 'Version ${c.versionFor(name.text)}',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                    Center(
+                      child: SizedBox(
+                        key: const ValueKey('save-project-preview'),
+                        height: high,
+                        width: high * 1.05,
+                        child: GlowCard(
+                          child: preview != null
+                              ? artImage(bytes: preview, fit: BoxFit.cover)
+                              : KitPreview(controller: c, height: 260),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Icon(
-                      _done ? Icons.bookmark_rounded : Icons.bookmark_border,
-                      color: Palette.cyan,
-                      size: 30,
+                    const SizedBox(height: 18),
+                    const SectionLabel('Project name'),
+                    TextField(
+                      controller: _name,
+                      enabled: !_done,
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Palette.surface,
+                              borderRadius: BorderRadius.circular(13),
+                              border: Border.all(color: Palette.border),
+                            ),
+                            child: ValueListenableBuilder(
+                              valueListenable: _name,
+                              builder: (_, name, _) => Text(
+                                _done
+                                    ? 'Version ${c.projects.first.version}'
+                                    : 'Version ${c.versionFor(name.text)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Icon(
+                          _done
+                              ? Icons.bookmark_rounded
+                              : Icons.bookmark_border,
+                          color: Palette.cyan,
+                          size: 30,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${c.mode == 'AI' ? 'AI design' : 'Design Your Own'} · '
+                      '${c.sport} · ${c.garmentLabel}',
+                      style: const TextStyle(
+                        color: Palette.muted,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${c.mode == 'AI' ? 'AI design' : 'Design Your Own'} · '
-                  '${c.sport} · ${c.garmentLabel}',
-                  style: const TextStyle(color: Palette.muted, fontSize: 12),
-                ),
-              ],
+                );
+              },
             ),
           ),
           Padding(
