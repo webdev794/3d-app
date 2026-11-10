@@ -211,6 +211,109 @@ void main() {
     ]);
   });
 
+  testWidgets('a 1-design brief saved by the app opens although the website '
+      'sent its empty texts back as null (client 493.png); a brief with no '
+      'readable picture says so', (tester) async {
+    final pic = (await tester.runAsync(() => _png(Colors.purple)))!;
+    final url = 'data:image/png;base64,${base64Encode(pic)}';
+    // As GET /ai/sessions/{id} returns it: Laravel turns "" into null.
+    final spec = {
+      ..._spec('Your design').toJson(),
+      'renderPrompt': null,
+      'patternMotif': null,
+      'logoText': null,
+      'summary': null,
+    };
+    final c = AppController(
+      api: ApiClient(
+        baseUrl: 'https://test.example',
+        client: MockClient((r) async {
+          final path = r.url.path;
+          final data = path.endsWith('/ai/sessions')
+              ? {
+                  'sessions': [
+                    for (final (id, p) in [
+                      (8, 'Make a purple shirt with Māori pattern'),
+                      (9, 'Pictures gone'),
+                    ])
+                      {
+                        'id': id,
+                        'prompt': p,
+                        'count': 1,
+                        'thumbs': [url],
+                        'updated_at': DateTime.now()
+                            .subtract(const Duration(days: 2))
+                            .toIso8601String(),
+                      },
+                  ],
+                  'projects': [],
+                }
+              : {
+                  'id': path.endsWith('/8') ? 8 : 9,
+                  'prompt': 'Make a purple shirt with Māori pattern',
+                  'sport': 'Rugby League',
+                  'garment': 'Jersey',
+                  'options': [
+                    {
+                      'name': 'Your design',
+                      'description': null,
+                      'quality': 'medium',
+                      'view': 'presentation',
+                      'direction': {'ownDesign': false},
+                      'spec': spec,
+                      'image': path.endsWith('/8') ? url : null,
+                    },
+                  ],
+                };
+          return http.Response.bytes(
+            utf8.encode(jsonEncode({'data': data})),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }),
+      ),
+    )..user = _user;
+    c.screen = AppScreen.aiDesigner;
+    await mountPhone(tester, c);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+    expect(find.text('1 design · 2d ago'), findsNWidgets(2));
+
+    await tester.ensureVisible(find.text('Pictures gone'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pictures gone'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.aiDesigner);
+    expect(
+      find.text('The pictures of this design are no longer saved.'),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(
+      find.text('Make a purple shirt with Māori pattern'),
+    );
+    await tester.pump(const Duration(seconds: 5));
+    await tester.tap(find.text('Make a purple shirt with Māori pattern'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.screen, AppScreen.concepts);
+    expect(c.concepts, hasLength(1));
+    expect(c.concepts.single.image, isNotNull);
+    expect(c.concepts.single.spec.designName, 'Your design');
+    expect(c.concepts.single.spec.logoText, '');
+    expect(c.concepts.single.spec.renderPrompt, '');
+    expect(c.aiSessionId, 8);
+  });
+
   testWidgets('a guest sees the last brief on this device and "Sign in to '
       'keep all your designs"', (tester) async {
     final pic = (await tester.runAsync(() => _png(Colors.orange)))!;

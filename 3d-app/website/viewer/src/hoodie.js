@@ -151,8 +151,8 @@ export function buildHood(ctx, { zip = false, standing = false } = {}) {
       // about 8 cm over the collar at the back with a peaked top, its opening deep down to the zip.)
       // (FX-H 2026-11-02, DT11: the pull-over's hood the same real hood, taller, its face edges low at the front: a deep V.)
       // (FN14, DT11 on -238: the pull-over's hood lower and laid back, so the shoulders show at 18-20% down as the picture's.)
-      const HOOD_UP = 0.11, LAY = 0.35;
-      const H = zip || true ? (zip ? 0.04 : 0.006) + (zip ? 0.106 : HOOD_UP) * Math.sin((Math.PI / 2) * ramp(0.03, 1, g)) ** 1.4 : 0.02 + 0.012 * ramp(0, 0.45, g) + 0.01 * ramp(0.45, 1, g);
+      const HOOD_UP = 0.09, LAY = 0.35;
+      const H = zip || true ? (zip ? 0.04 : 0.006) + (zip ? 0.106 * Math.sin((Math.PI / 2) * ramp(0.03, 1, g)) ** 1.4 : HOOD_UP * Math.sin((Math.PI / 2) * ramp(0.03, 0.75, g)) ** 0.8) : 0.02 + 0.012 * ramp(0, 0.45, g) + 0.01 * ramp(0.45, 1, g);
       const L = zip || true ? 0.12 + 0.22 * ramp(0.05, 0.5, g) : 0.3 + 0.5 * ramp(0.05, 0.5, g);
       for (let k = 0; k <= 33; k++) {
         const h = -0.004 + ((H + 0.004) * k) / 33, t = Math.max(0, h) / H;

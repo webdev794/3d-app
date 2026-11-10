@@ -53,8 +53,37 @@ export function trackColour(design: { main?: string; secondary?: string; accent?
     if (follows === 'Body') return hex(design.zoneColors?.body) ?? design.main ?? '#ffffff';
     return (follows === 'Secondary' ? design.secondary : follows === 'Accent' ? design.accent : design.main) ?? '#ffffff';
 }
+/** The basketball shorts (the shorts with the royal band colour, zoneColors.bballBand: the viewer cuts and prints them as
+ * basketball shorts) and their own colour areas: the two stripes round each leg's hem (BSF 2026-11-04). Unset, both
+ * follow the Secondary colour. */
+export type BballArea = 'bballTrim1' | 'bballTrim2';
+export const isBballShorts = (design: { garment?: string; zoneColors?: Record<string, string | undefined> | null }) => design.garment === 'shorts' && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.bballBand ?? '');
+export const bballAreas: { key: BballArea; label: string; follows: 'Secondary' }[] = [
+    { key: 'bballTrim1', label: 'Hem stripe 1', follows: 'Secondary' }, { key: 'bballTrim2', label: 'Hem stripe 2 (edge)', follows: 'Secondary' },
+];
+export function bballColour(design: { secondary?: string; zoneColors?: Record<string, string | undefined> | null }, key: BballArea): string {
+    const own = design.zoneColors?.[key];
+    return own && /^#[0-9a-f]{6}$/i.test(own) ? own : design.secondary ?? '#ffffff';
+}
+/** The netball dress's own colour areas (Design.zoneColors; viewer netballdress.js, NDF 2026-11-04): the body, the
+ * full-length side panels, the yoke and the neck and armhole binding. Unset, the body follows the Primary, the panels
+ * and yoke the Secondary, the binding the yoke. */
+export type DressArea = 'body' | 'panels' | 'yoke' | 'binding';
+export const isNetballDress = (garment: string) => garment === 'netball-dress';
+export const dressAreas: { key: DressArea; label: string; follows: 'Primary' | 'Secondary' | 'Yoke' }[] = [
+    { key: 'body', label: 'Body', follows: 'Primary' }, { key: 'panels', label: 'Side panels', follows: 'Secondary' },
+    { key: 'yoke', label: 'Yoke', follows: 'Secondary' }, { key: 'binding', label: 'Neck & armhole binding', follows: 'Yoke' },
+];
+/** A netball dress area's colour: its own, else what it follows (as the 3D viewer paints it). */
+export function dressColour(design: { main?: string; secondary?: string; zoneColors?: Record<string, string | undefined> | null }, key: DressArea): string {
+    const hex = (v?: string) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
+    const own = hex(design.zoneColors?.[key]);
+    if (own) return own;
+    if (key === 'binding') return dressColour(design, 'yoke');
+    return (key === 'body' ? design.main : design.secondary) ?? '#ffffff';
+}
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-export const VIEWER_VERSION = '2026-10-20-240';
+export const VIEWER_VERSION = '2026-10-20-282';
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
@@ -229,7 +258,7 @@ export interface KitViewerProps {
 /** A part chosen by a tap: its key (null on a piece that is not a part: a hood), the garment piece and where it was tapped. */
 export interface PartPick { partKey: PartKey | null; part: 'top' | 'shorts'; side?: 'front' | 'back'; x?: number; y?: number; slot?: ColourPick['slot'] }
 /** A tapped part of the kit: the kit colour it follows and, on hoodies, the varsity and the track jacket, its own area. */
-export interface ColourPick { slot: 'main' | 'secondary' | 'accent' | 'pattern' | 'pattern-image'; area: HoodieArea | VarsityArea | TrackArea | null; zone: string; part?: 'top' | 'shorts'; partKey?: PartKey | null }
+export interface ColourPick { slot: 'main' | 'secondary' | 'accent' | 'pattern' | 'pattern-image'; area: HoodieArea | VarsityArea | TrackArea | DressArea | null; zone: string; part?: 'top' | 'shorts'; partKey?: PartKey | null }
 
 interface CaptureRequest {
     view: View;

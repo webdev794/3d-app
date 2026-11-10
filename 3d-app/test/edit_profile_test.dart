@@ -106,7 +106,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('3deezi.user'), contains('Sam Lee'));
     // Back on Profile: the new name.
-    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded).first);
+    await tester.tap(find.byKey(const ValueKey('bubble-back')));
     await tester.pumpAndSettle();
     expect(find.byType(EditProfileScreen), findsNothing);
     expect(find.text('Sam Lee'), findsOneWidget);

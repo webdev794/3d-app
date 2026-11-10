@@ -73,7 +73,7 @@ export function SignagePage() {
     storeMarqueeDraft(next);
     navigate('/signage/marquee');
   }
-  return <div className="signage-page">
+  return <div className="signage-page glass-ui">
     <MarqueeViewer className="sg-stage" design={design} view={view} showroom />
     <div className="sg-haze" aria-hidden="true" />
     <header className="sg-head">

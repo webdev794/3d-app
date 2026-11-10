@@ -1256,9 +1256,15 @@ class StudioZoneTool extends StatelessWidget {
       // Hoodies, the varsity and track jackets: each area's own colour, from the kit's colours (or back to them).
       if (isHoodie(c.garment) ||
           isVarsity(c.garment) ||
-          isTrack(c.garment)) ...[
+          isTrack(c.garment) ||
+          isBballShorts(c.garment, c.zoneColors) ||
+          isNetballDress(c.garment)) ...[
         SectionLabel(
-          isTrack(c.garment)
+          isNetballDress(c.garment)
+              ? 'Netball dress area colours'
+              : isBballShorts(c.garment, c.zoneColors)
+              ? 'Basketball shorts area colours'
+              : isTrack(c.garment)
               ? 'Track jacket area colours'
               : isVarsity(c.garment)
               ? 'Varsity area colours'
@@ -1272,6 +1278,10 @@ class StudioZoneTool extends StatelessWidget {
                       }
                     : isVarsity(c.garment)
                     ? varsityAreas
+                    : isBballShorts(c.garment, c.zoneColors)
+                    ? bballAreas
+                    : isNetballDress(c.garment)
+                    ? dressAreas
                     : hoodieAreas)
                 .entries)
           if (area.key != 'zip' || c.garment == 'Zip hoodie')

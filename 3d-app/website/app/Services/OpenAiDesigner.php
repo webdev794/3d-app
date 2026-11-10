@@ -1286,7 +1286,7 @@ class OpenAiDesigner
         'cap' => 'six-panel team cap with a curved brim (ball cap, golf, cricket, cycling, club cap)',
         'skirt' => 'a skirt alone: netball and tennis skirts, hockey skorts',
         'bucket-hat' => 'a soft bucket hat with a wide brim (sun hat for golf, cricket, bowls, the sideline)',
-        'polo' => 'polo shirt with a collar and buttons',
+        'polo' => 'polo shirt with a collar and buttons; also the closest for fishing shirts and other button-up or collared shirts (short or long sleeves)',
         'pocketpolo' => 'polo shirt with a chest pocket (pool, darts)',
         'singlet' => 'any other sleeveless top: singlets, tanks, bibs, basketball tops, AFL guernseys',
         'netball-dress' => 'a fitted dress for women, with a skirt: netball dresses and tennis dresses',

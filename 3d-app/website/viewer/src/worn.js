@@ -436,7 +436,8 @@ export function wornShorts(spec = {}) {
   const [inLo, inHi] = m.legIn ?? [0.03, 0.004], [outLo, outHi] = m.legOut ?? [0.202, 0.184], [depthLo, depthHi] = m.legDepth ?? [0.064, 0.097];
   // How much of the body shows through (loose cuts: little; behind, the seat hardly at all).
   const reliefScale = m.relief ?? 1, seatScale = m.seat ?? reliefScale;
-  const hips = (p, back) => { const w = wrap(p.x, along(sideSeam, p.y), m.hipDepth ?? 0.72, back); return new THREE.Vector3(w.x, p.y, w.z); };
+  // (`hipBox`: the hips a squarer section (wrap's box), as deep in the middle but fuller towards the corners: BSF 2026-11-05.)
+  const hips = (p, back) => { const w = wrap(p.x, along(sideSeam, p.y), m.hipDepth ?? 0.72, back, [m.hipBox ?? 2].flat()[back ? 1 : 0] ?? m.hipBox); return new THREE.Vector3(w.x, p.y, w.z); };
   const leg = (p, back) => {
     const xi = along(inner, p.y), xo = along(sideSeam, p.y);
     const u = THREE.MathUtils.clamp((Math.abs(p.x) - xi) / (xo - xi), 0, 1), phi = (u - 0.5) * Math.PI;
@@ -447,14 +448,19 @@ export function wornShorts(spec = {}) {
     // `outLine` ([y, x] pairs): the leg's outer side along its own line instead (the basketball shorts' one straight
     // line from the waist to the hem, FN9 2026-10-30).
     // (`hemRound` [height, inset]: the leg's outer side curving in over the last few cm to a rounded hem corner: FX-R.)
-    const xIn = THREE.MathUtils.lerp(inLo, inHi, top), xOut = m.outLine ? along(m.outLine, p.y) : THREE.MathUtils.lerp(outLo, outHi, top) - (m.hemRound ? m.hemRound[1] * Math.max(0, 1 - p.y / m.hemRound[0]) ** 2 : 0);
+    // (`inLine` ([y, x] pairs): the leg's inner side along its own line (the basketball shorts' inseam gap, BSF 2026-11-04).)
+    const xIn = m.inLine ? along(m.inLine, p.y) : THREE.MathUtils.lerp(inLo, inHi, top), xOut = m.outLine ? along(m.outLine, p.y) : THREE.MathUtils.lerp(outLo, outHi, top) - (m.hemRound ? m.hemRound[1] * Math.max(0, 1 - p.y / m.hemRound[0]) ** 2 : 0);
     const rx = (xOut - xIn) / 2, xc = (xOut + xIn) / 2, rz = THREE.MathUtils.lerp(depthLo, depthHi, top), zc = 0.012 * top;
     // Evenly spaced round the oval, so prints on the legs keep their proportions.
     const e = (rx - rz) / (rx + rz), psi = phi, at = psi - (e / 2) * Math.sin(2 * psi);
     return new THREE.Vector3(Math.sign(p.x || 1) * (xc + rx * Math.sin(at)), p.y, zc + (back ? -1 : 1) * rz * Math.cos(at));
   };
   /** Behind, the waistband rises a little towards the middle, over the seat. */
-  const rise = (p, back) => (back ? 0.012 * ramp(TOP - 0.17, TOP, p.y) * Math.cos((Math.PI / 2) * Math.min(1, Math.abs(p.x) / 0.2)) ** 2 : 0);
+  // (`backRise`: how much higher the waist is behind, in the middle (BSF 2026-11-04: the basketball shorts' higher back rise).)
+  // (`riseFlat` [full, none]: the rise level across the middle of the back out to `full`, easing down to nothing at `none`
+  // (the side seam), not a hump in the middle: BSF 2026-11-04.)
+  const riseAcross = (ax) => (m.riseFlat ? ramp(m.riseFlat[1], m.riseFlat[0], ax) : Math.cos((Math.PI / 2) * Math.min(1, ax / 0.2)) ** 2);
+  const rise = (p, back) => (back ? (m.backRise ?? 0.012) * ramp(TOP - 0.17, TOP, p.y) * riseAcross(Math.abs(p.x)) : 0);
   /**
    * The body under the fabric (metres, + out). In front, a soft fullness above the crotch and the
    * creases where the thighs meet it, running from the crotch up and out to the hips. Behind, the
@@ -480,7 +486,8 @@ export function wornShorts(spec = {}) {
     const inside = y < CROTCH + 0.03 ? Math.exp(-((ax - along(inner, y)) ** 2) / 0.0014) * ramp(0, CROTCH - 0.04, y) : 0;
     // Loose cuts (training shorts) hang away from the body: a lighter, smaller shadow there.
     const deep = Math.min(1, reliefScale + 0.2);
-    return 1 - 0.34 * deep * crotch ** (2 - deep) - 0.22 * deep * inside * (1 - crotch);
+    // (`shade`: how much of that shadow is baked in (BSF 2026-11-04: the basketball shorts' smooth seat, no dark patch).)
+    return 1 - (m.shade ?? 1) * (0.34 * deep * crotch ** (2 - deep) + 0.22 * deep * inside * (1 - crotch));
   };
   return {
     at(p, back) {
@@ -497,54 +504,54 @@ export function wornShorts(spec = {}) {
 }
 
 /**
- * A women's fitted dress (the netball dress, figure.js 'female'): the bodice wrapped round the figure as a top is round
- * the athletic body (each height round an ellipse as wide as the panel there, so the print does not stretch), with the
- * bust's fullness in front (the fabric bridging across between), the straps over the shoulders to the shoulder seam on
- * top, and below the waist the skirt over the hips (fuller behind, over the seat), flaring out to the hem. Its soft
- * flutes are folds on top (garment.js dressFolds). `half(y)`: the panel's half-width at a height (for the flutes).
+ * The netball dress's shift (NDF 2026-11-04, the client's preferred model, images 425-427): one piece from the shoulders
+ * to mid-thigh, wrapped round the female figure (figure.js) as a top is round the athletic body: each height round an
+ * ellipse as wide as the panel there (so the print does not stretch), the bust's fullness in front, the straps over the
+ * shoulders to the shoulder seam on top, a little in at the waist and over the hips and seat, then straight on down in a
+ * slight A-line to a level hem. No skirt and no flutes: it hangs smooth (garment.js shiftFolds). `half(y)`: the panel's
+ * half-width at a height.
  */
-export function wornDress(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
+export function wornShift(spec, { topSeam, outline = [], hemDist = (p) => p.y }) {
   const fig = figureOf(spec) ?? FIGURES.female;
   const top = Math.max(...spec.half.map(([, y]) => y));
   const D = (y) => top - y;   // how far below the shoulder line
-  // (The side seam only, down to its foot at the hem's corner (points.H): the hem's own points made the skirt narrow
-  // sharply over its last 3.5 cm, so the hem tucked under in a dark band: ND1 / DT6.)
+  // The side seam, down to its foot at the hem's corner (points.H).
   const footY = spec.points?.H?.[1] ?? 0;
   const pairs = spec.half.filter(([x, y]) => x > 0.12 && y < top - 0.004 && y >= footY).map(([x, y]) => [y, x]).sort((p, q) => p[0] - q[0]);
   const [pitX, pitY] = spec.pit;
   const own = (y) => along(pairs, y);
-  // Above the underarms the body goes on to the shoulders (the armholes open round the arms), narrowing to the neck.
-  // The straps lie over broad shoulders (the client's dress, ND1): the body under them stays nearly as wide as at the
-  // underarm right up to the shoulder line, so the straps face forward over the upper chest rather than wrapping round
-  // a narrow neck (they show their full width from the front, wide apart, as in the picture).
-  // (From the underarm's own width, narrowing steadily upwards: no dip at the underarm, so the upper chest runs smoothly
-  // into the bust, as on the client's dress: ND1.)
-  const shoulder = (y) => along([[pitY, pitX], [top - 0.07, pitX - 0.016], [top - 0.03, pitX - 0.03], [top, pitX - 0.05]], y);
-  // (Quickly above the underarm, so the armhole is round at its foot, as the arm fills it.)
-  const half = (y) => (y <= pitY ? own(y) : THREE.MathUtils.lerp(own(y), Math.max(shoulder(y), own(y) + 0.006), ramp(pitY - 0.004, pitY + 0.035, y)));
-  // Over the shoulders most of the width below is kept (the seam stays on top), as on a top (wornTop).
+  // Above the underarms the body goes on up to the shoulders under the straps (the armholes open round the arms).
+  // (The straps wrap a little round the shoulders: the front no broader at the top than the pictures'.)
+  const shoulder = (y) => along([[pitY, pitX], [top - 0.07, pitX - 0.022], [top - 0.03, pitX - 0.04], [top, pitX - 0.06]], y);
+  // (Above the underarm the body keeps its width (the larger of the shoulder line and the armhole's edge): the armhole's
+  // edges then lie in front of and behind the side, so its foot is a round U, not a pinched V; and the width runs on
+  // smoothly from the side seam, with no dip, which had rippled the upper back: NDT.)
+  const half = (y) => (y <= pitY ? own(y) : Math.max(shoulder(y), own(y)));
   const SH = top - 0.05;
-  // (The width the cloth wraps round, eased over 4 cm up and down the top: no shelf or hollow where the underarm meets
-  // the bust, the front running smoothly from the straps onto the bust: ND1 / DT6.)
-  const eased = (y) => (y < 0.5 ? half(y) : (half(y - 0.02) + 2 * half(y) + half(Math.min(top, y + 0.02))) / 4);
+  // The width the cloth wraps round, eased over 4 cm up and down (no shelf where the underarm meets the bust).
+  // (Below the bust too, over 3 cm each way: the side seam's straight runs left small kinks at its points that showed
+  // as an uneven band across the waist under a top light: NDT. Not in the bottom 10 cm, so the hem keeps its width.)
+  const eased = (y) => (y < 0.1 ? half(y) : y < 0.5
+    ? (half(y - 0.03) + 2 * half(y - 0.015) + 3 * half(y) + 2 * half(y + 0.015) + half(y + 0.03)) / 9
+    : (half(y - 0.02) + 2 * half(y) + half(Math.min(top, y + 0.02))) / 4);
   const wrapHalf = (y) => (y <= SH ? eased(y) : eased(SH) - 0.75 * (eased(SH) - eased(y)));
-  // Depth / width round the body: thin across the shoulders, the chest, a rounder waist, the hips, and the skirt
-  // hanging rounder still towards the hem.
-  const depth = (d) => along([[0, 0.52], [0.1, 0.62], [0.16, 0.665], [0.22, 0.68], [0.3, 0.68], [fig.waist, 0.74], [fig.hip, 0.7], [0.88, 0.78]], d);
+  // Depth / width round the body: thin across the shoulders, the chest and bust, the waist, and rounder over the hips
+  // and on down to the hem (as deep as the pictures' from the side three-quarter, 426).
+  const depthRaw = (d) => along([[0, 0.52], [0.1, 0.68], [0.16, 0.73], [0.22, 0.77], [0.3, 0.76], [fig.waist, 0.78], [fig.hip, 0.82], [0.88, SHIFT_HEM_DEPTH]], d);
+  // (Smoothed over 4 cm each way: its corner at the waist was a crease where a top light's shadow edge caught: NDT.)
+  const depth = (d) => (depthRaw(d - 0.04) + 2 * depthRaw(d) + depthRaw(d + 0.04)) / 4;
   const B = spec.bust ?? fig.bust;
-  /** The bust's fullness in front (metres, + out): rising from the upper chest, falling under it; across the middle
-   *  the fabric bridges between (a little less there), out to nothing at the sides. */
+  /** The bust's fullness in front (metres, + out): rising from the upper chest, falling under it. */
   const bust = (ax, y) => {
     const d = D(y);
-    // (`under`: how far below its apex the bust ends; the dress's ends just above its bib, which then lies flat: ND1.)
-    return B.depth * ramp(B.drop - 0.14, B.drop - 0.005, d) * ramp(B.drop + (B.under ?? 0.11), B.drop + 0.01, d) * ramp(B.x + 0.1, B.x, ax) * (0.9 + 0.1 * ramp(0, 0.8 * B.x, ax));
+    return B.depth * ramp(B.drop - 0.16, B.drop + 0.005, d) * ramp(B.drop + (B.under ?? 0.11), B.drop + 0.01, d) * ramp(B.x + 0.1, B.x, ax) * (0.9 + 0.1 * ramp(0, 0.8 * B.x, ax));
   };
-  /** Behind, the seat's fullness: from below the waist, the skirt then falling from it. */
+  /** Behind, the seat's fullness: from below the waist, the cloth then falling straight from it. */
   const seat = (ax, y) => {
     const d = D(y);
-    return fig.seat * ramp(fig.waist + 0.05, fig.hip - 0.02, d) * (1 - 0.25 * ramp(fig.hip + 0.02, 0.85, d)) * ramp(0.2, 0.08, ax);
+    return fig.seat * ramp(fig.waist + 0.05, fig.hip - 0.02, d) * (1 - 0.35 * ramp(fig.hip + 0.02, 0.85, d)) * ramp(0.2, 0.08, ax);
   };
-  // The flat pattern's hem rises a little towards the sides; worn, it hangs level all round (as wornTop).
+  // The flat pattern's hem rises a little towards the sides; worn, it hangs level all round.
   const hemCurve = outline.filter((q) => q.x >= 0 && q.y < 0.035).map((q) => [q.x, q.y]).sort((a, b) => a[0] - b[0]);
   const level = (p) => {
     if (hemCurve.length < 2) return p.y;
@@ -553,33 +560,43 @@ export function wornDress(spec, { topSeam, outline = [], hemDist = (p) => p.y })
   };
   const torso = (p, back) => {
     const w = wrap(p.x, wrapHalf(p.y), depth(D(p.y)), back), ax = Math.abs(p.x);
-    // (Over the shoulders in 4 cm: the straps lie flat over them, not puffed: ND1.)
-    let z = w.z * Math.sqrt(ramp(0, 0.04, topSeam(p)));               // round over the shoulders to the seam
-    // (The neck opening's foot 0.138 below the shoulder line: garment.js points.T.)
+    // Round over the shoulders to the seam: the depth falls as the square root of the distance under it, so front and back
+    // meet in one smooth round shoulder top (a linear fall met in a peak with a dark crease along the top: NDT).
+    let z = w.z * Math.sqrt(THREE.MathUtils.clamp(topSeam(p) / 0.04, 0, 1));
     const nd = top - (spec.points?.T?.[1] ?? top - 0.115) - 0.115;
-    // (The front of a scoop neck is not drawn in: the cloth runs smoothly from the straps over the upper chest onto the
-    // bust, as on the client's dress; drawn in, it made a dent above the bust: ND1. The high back neck still is.)
-    if (back) z *= 1 - 0.36 * Math.exp(-(p.x ** 2) / 0.006) * ramp(top - 0.138 - nd, top - 0.038 - nd, p.y); // neck opening
+    // (The high back neck drawn in round the neck; the front's scoop runs smoothly onto the bust.)
+    if (back) z *= 1 - 0.36 * Math.exp(-(p.x ** 2) / 0.006) * ramp(top - 0.138 - nd, top - 0.038 - nd, p.y);
     z += back ? -seat(ax, p.y) : bust(ax, p.y);
-    // (The hem band a touch proud only: the client's dress has a flat turned hem, ND1.)
-    const s = 1;                                                     // the hem band flat (no rim showing under it)
-    // (FN12, DT10: the hem's corners round in, as the client's skirt: .61 of the height across at .95, not .66.)
-    const tuck = 1 - 0.15 * ramp(0.06, 0, p.y);
-    return new THREE.Vector3(w.x * s * tuck, level(p), z * s);
+    // The hem's corners round in a little, as the pictures' (a soft corner, not a point).
+    const tuck = 1 - SHIFT_HEM_TUCK * ramp(0.05, 0, p.y);
+    return new THREE.Vector3(w.x * tuck, level(p), z);
   };
-  /** The body under the fabric behind (metres, + out): the shoulder blades and a shallow hollow down the spine. */
+  /** The body under the fabric behind (metres, + out): a shallow hollow down the spine. */
   const relief = (p, back) => {
     if (!back) return 0;
     const ax = Math.abs(p.x), d = D(p.y);
-    // (No shoulder-blade pillows: they stood as a ridge across the upper back: DT6.)
     return -0.0015 * groove(ax, 0.012) * ramp(0.08, 0.16, d) * ramp(fig.waist + 0.06, fig.waist - 0.04, d);
   };
   /** Baked shade: a soft shadow under the bust. */
+  // (Lit and shaded as 443, the user 2026-11-05: light on the top of the bust and the upper stomach, shadow under the
+  // bust and in at the waist on each side, 15-25 % darker: the front swings ~30-40 % across, not flat.)
+  const SLANT = 0.3;
   const shade = (p, back) => {
-    if (back) return 1;
-    // (A bust ending sooner (B.under) has its soft shade higher up and broader, fainter: no dark line at its foot: ND1.)
-    const d = D(p.y) - (B.drop + (B.under ? B.under * 0.5 : 0.08));
-    return 1 - (B.under ? 0.07 : 0.13) * ramp(0.19, 0.1, Math.abs(p.x)) * Math.exp(-(d * d) / (B.under ? 0.0022 : 0.0012));
+    const ax = Math.abs(p.x), d = D(p.y), u = THREE.MathUtils.clamp(ax / half(p.y), 0, 1);
+    const g = (v, w) => Math.exp(-(v * v) / (w * w));
+    const waist = 1 - 0.26 * ramp(0.35, 0.9, u) * g(d - fig.waist + 0.02, 0.13);
+    if (back) return waist * (1 + 0.06 * g(u - 0.3, 0.35) * g(d - 0.28, 0.12));
+    const lit = 1 + 0.2 * g(ax - B.x, 0.07) * g(d - B.drop + 0.045, 0.05);
+    const under = 1 - 0.2 * ramp(0.19, 0.11, ax) * g(d - B.drop - 0.075, 0.03);
+    const belly = 1 + 0.05 * g(ax, 0.075) * g(d - B.drop - 0.19, 0.1);
+    // (NDT -265, 427: the scene's key light falls from one side, so the front ran ~20 % darker on the far side; the dress
+    // alone evens it (key light unchanged for every other garment), the centre a few per cent under the sides.)
+    const even = 1 + SLANT * (1 + 1.7 * ramp(0.44, 0.2, p.y)) * THREE.MathUtils.clamp(p.x / half(p.y), -1, 1) - (0.03 + 0.22 * ramp(0.42, 0.18, p.y)) * g(ax, 0.06);
+    // (459's soft fold low on the front panel by the hem: shading only, broad, so it never reads as a dent: user 2026-11-06.)
+    const hemFold = 1 - 0.1 * Math.exp(-(((p.x - 0.05) / 0.035) ** 2)) * ramp(0.2, 0.06, p.y) * ramp(0.0, 0.04, p.y);
+    return lit * under * belly * waist * even * hemFold;
   };
   return { at: torso, sleeve: () => null, relief, shade, pit: new THREE.Vector2(pitX, pitY), half, top, figure: fig };
 }
+/** The shift's depth / width at the hem, and how much its hem corners round in. */
+const SHIFT_HEM_DEPTH = 0.8, SHIFT_HEM_TUCK = 0.05;

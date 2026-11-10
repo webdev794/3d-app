@@ -20,9 +20,18 @@ import 'viewer_host_stub.dart'
 /// Runs in a WebView on phones and an iframe on the web; falls back to
 /// [KitPreview] where neither exists (tests).
 class KitViewer3D extends StatefulWidget {
-  const KitViewer3D({super.key, required this.controller, this.height = 380});
+  const KitViewer3D({
+    super.key,
+    required this.controller,
+    this.height = 380,
+    this.hidden = EdgeInsets.zero,
+  });
   final AppController controller;
   final double height;
+
+  /// The edges of the 3D the screen doesn't show (drawn larger than its box):
+  /// the viewer keeps its logo / words menu in the rest.
+  final EdgeInsets hidden;
 
   static bool get supported => ViewerHost.supported;
 
@@ -81,6 +90,7 @@ class KitViewer3DState extends State<KitViewer3D> {
     _sentDesign = _sentView = _sentSelection = null;
     _sentPattern = _sentLogo = _sentSponsor = null;
     _sentBoard = _sentPick = _sentPartPick = _sentObjects = null;
+    c.objectOnKit = false;
     setState(() => _host = _openHost());
   }
 
@@ -109,6 +119,7 @@ class KitViewer3DState extends State<KitViewer3D> {
         c.viewerReady = false;
       }
       if (c.viewerModal) c.viewerModal = false;
+      if (c.objectOnKit) c.objectOnKit = false;
       if (c.processArtwork == processArtwork) c.processArtwork = null;
       if (c.pickGarment == pickGarment) c.pickGarment = null;
       if (c.hoverGarment == _hoverGarment) c.hoverGarment = null;
@@ -143,6 +154,7 @@ class KitViewer3DState extends State<KitViewer3D> {
         // This app answers the viewer's requests for print layout files.
         // and picks pictures for "Upload picture here" on the kit (task 9.144).
         _send('features', {'layouts': true, 'images': true});
+        _sendHidden();
         _sync();
       case 'capture':
         final data = msg['data'] as String?;
@@ -192,6 +204,9 @@ class KitViewer3DState extends State<KitViewer3D> {
         if (msg['hit'] == true) c.partPick?.call(msg);
       case 'modal':
         c.update(() => c.viewerModal = msg['open'] == true);
+      case 'objectSelected':
+        final on = msg['on'] == true;
+        if (c.objectOnKit != on) c.update(() => c.objectOnKit = on);
       case 'layoutWanted':
         if (msg['asset'] case final int asset) unawaited(_sendLayout(asset));
       case 'layoutError':
@@ -350,6 +365,26 @@ class KitViewer3DState extends State<KitViewer3D> {
 
   void _send(String cmd, Object? arg) =>
       _host.send(jsonEncode({'cmd': cmd, 'arg': arg}));
+
+  /// Tells the viewer which edges are out of sight (and that it runs in the
+  /// app: its logo / words menu is compact and can be dragged).
+  void _sendHidden() {
+    final h = widget.hidden;
+    _send('insets', {
+      'top': h.top,
+      'right': h.right,
+      'bottom': h.bottom,
+      'left': h.left,
+    });
+  }
+
+  @override
+  void didUpdateWidget(KitViewer3D old) {
+    super.didUpdateWidget(old);
+    if (KitViewer3D.supported && _ready && old.hidden != widget.hidden) {
+      _sendHidden();
+    }
+  }
 
   Future<Map<String, dynamic>?> _request(
     String command,

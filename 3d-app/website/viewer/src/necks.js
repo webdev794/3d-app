@@ -80,9 +80,9 @@ export function neckCut(kind, spec, shape) {
   if (!shape) return spec;
   const half = spec.half;
   if (kind === 'netball-dress') {
-    // The dress: from the scoop's foot straight up to the strap's inner corner (N), or its own round U.
+    // The dress: from the scoop's foot straight up to the strap's inner corner (N), or its own round scoop.
     const [nx, ny] = spec.points.N, end = half.findIndex(([x, y]) => x === nx && y === ny), foot = half[0][1];
-    const neck = shape === 'round' ? [[0, foot], [0.0269, 0.7757], [0.052, 0.7865], [0.0735, 0.8036], [0.0901, 0.826], [0.1005, 0.852], [nx, ny]]
+    const neck = shape === 'round' ? half.slice(0, end + 1)
       : [[0, foot + (shape === 'shallow' ? 0.03 : 0)], [nx / 2, (foot + (shape === 'shallow' ? 0.03 : 0) + ny) / 2], [nx, ny]];
     return { ...spec, half: [...neck, ...half.slice(end + 1)], neckShape: shape };
   }

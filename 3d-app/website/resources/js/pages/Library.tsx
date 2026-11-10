@@ -172,7 +172,7 @@ export function ProjectsPage({ onOpen, onCreate, approvedOnly = false }: PageAct
         try { const updated = await api<Project>(`/projects/${project.id}`, { method: 'PATCH', body: JSON.stringify({ status: project.status === 'approved' ? 'draft' : 'approved' }) }); setData((previous) => previous?.map((item) => item.id === updated.id ? updated : item) || []); }
         catch (err) { setActionError(message(err)); } finally { setBusy(null); }
     }
-    return <main className="page-shell lib-page">
+    return <main className="page-shell lib-page glass-ui">
         <ProjectsTabs />
         <div className="page-heading lib-heading"><h1>{approvedOnly ? 'Approved designs' : 'My projects'}</h1><button className="button button-primary" onClick={onCreate}><Plus size={17} /> New kit</button></div>
         {available.length > 0 && <div className="lib-toolbar"><div className="lib-tabs" aria-label="Filter projects">{[['all', 'All'], ['ai', 'AI designs'], ['dyo', 'My designs'], ...(!approvedOnly ? [['draft', 'Drafts']] : [])].map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="lib-search"><Search size={17} /><input type="search" placeholder="Search projects…" aria-label="Search projects" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>}

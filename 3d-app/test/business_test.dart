@@ -90,10 +90,26 @@ void main() {
   testWidgets('approved kits have their own tab', (tester) async {
     final c = AppController(store: FakeStore())..screen = AppScreen.projects;
     await mountPhone(tester, c);
-    c.update(() => c.projects.first.approved = true);
+    Project kit(String title, {bool approved = false}) => Project(
+      title: title,
+      sport: 'Soccer',
+      garment: 'Jersey',
+      mode: 'DYO',
+      updated: DateTime.now(),
+      kit: c.kit,
+      approved: approved,
+    );
+    c.update(
+      () => c.projects.addAll([
+        kit('Approved kit', approved: true),
+        kit('Draft kit'),
+      ]),
+    );
     await tester.pump();
     await tapText(tester, 'Approved');
     expect(find.text('APPROVED'), findsOneWidget);
+    expect(find.text('Approved kit'), findsOneWidget);
+    expect(find.text('Draft kit'), findsNothing);
   });
 
   testWidgets('guests are sent to sign in to see orders', (tester) async {

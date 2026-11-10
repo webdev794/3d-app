@@ -43,6 +43,7 @@ class OrderConfirmationTest extends TestCase
             'needed_by' => now()->addWeeks(6)->toDateString(), 'phone' => '+61 412 345 678', 'delivery' => 'pickup',
             'items' => [['garment' => 'jersey', 'sport' => 'rugby-league', 'fit' => 'mens', 'sizes' => ['M' => 6, 'L' => 4]]],
         ]])->assertCreated()->json('data.id');
+        $this->addArtwork($id);
         $this->post("/api/v1/order-drafts/{$id}/files", ['kind' => 'order_form', 'file' => UploadedFile::fake()->createWithContent('order.csv', "Item,Size,Qty\nJersey,M,6\nJersey,L,4\n")], ['Accept' => 'application/json'])
             ->assertCreated();
 

@@ -4,6 +4,7 @@
 
 import { zoneRects, zonePolys, zoneOutlines, COMPRESSION_PIPING, NFL_PANEL, POCKET, hasPocket, isHoodie, isTrack, isDress, KANGAROO, kangarooEdge, HOOD_TOP, partRegion, TOP_PARTS, SHORTS_PARTS } from './zones.js';
 import { POCKET_ZIP, pocketZipX } from './trackjacket.js';
+import { dressDesign, paintDressBleed, paintDressPanels, paintDressYoke, paintDressBinding, paintDressTabs, dressSeams } from './netballdress.js';
 import { isVarsity, varsityTailoring, paintVarsity, paintVarsityMarks } from './varsity.js';
 
 /** The tops with set-in or raglan sleeves. */
@@ -34,7 +35,7 @@ import { paintJerseySweeps, paintSingletFlows } from './jerseysweeps.js';
 import { SOCK_PARTS, paintSocks, sockTailoring, paintSockMarks, setSockLayout } from './sockprint.js';
 import { SKIRT_PARTS, paintSkirt, skirtTailoring, paintSkirtMarks } from './skirtprint.js';
 import { paintTrackPants, paintTrackPantsMarks } from './trackpants.js';
-import { BBALL_PARTS, paintBball, bballTailoring, paintBballMarks, bballZonePath } from './bballprint.js';
+import { BBALL_PARTS, paintBball, bballTailoring, paintBballMarks, bballZonePath, bballBleed } from './bballprint.js';
 import { CAP_PARTS, paintCap, capTailoring, paintCapMarks } from './capprint.js';
 import { TRIBAL } from './tribal.js';
 import { HAT_PARTS, paintHat, hatTailoring, paintHatMarks } from './hatprint.js';
@@ -92,16 +93,6 @@ function trackPocketLine(c, sgn, d = 0) {
   c.lineTo(pocketZipX(sgn, yt) + nx * d, yt + ny * d);
 }
 
-/**
- * The netball dress's side panel line (right half, garment metres; mirrored with `dir`), moved `d` metres in from it:
- * from just inside the underarm, in at the waist and out over the hips to the hem, as on a netball dress's princess
- * side panels. Shared by the paint and the stitching.
- */
-function dressSideLine(c, dir, d = 0, move = true) {
-  if (move) c.moveTo(dir * (0.21 - d), 0.69); else c.lineTo(dir * (0.21 - d), 0.69);
-  c.quadraticCurveTo(dir * (0.175 - d), 0.52, dir * (0.19 - d), 0.4);
-  c.quadraticCurveTo(dir * (0.215 - d), 0.18, dir * (0.31 - d), -0.01);
-}
 /** How far the dress's heights are above a top's (its shoulder seam at 0.88, a singlet's at 0.738): its marks sit as
  *  far below its shoulders as a singlet's. */
 const DRESS_RAISE = 0.142;
@@ -564,7 +555,8 @@ export class KitPainter {
 
   /** The kit's own fill under a part (the body's colour or gradient), to make the kit's pattern fainter on it. */
   baseFill(design) {
-    const ownBody = isTrack(this.kind) && HEX.test(design.zoneColors?.body ?? '') ? design.zoneColors.body : null;
+    // (The netball dress's body too: its own colour zone, netballdress.js.)
+    const ownBody = (isTrack(this.kind) || isDress(this.kind)) && HEX.test(design.zoneColors?.body ?? '') ? design.zoneColors.body : null;
     return ownBody ?? this.zoneFill(design, 'main');
   }
 
@@ -890,7 +882,7 @@ export class KitPainter {
     // The skirt: its seams, the hem's stitching and the waistband's elastic (skirtprint.js).
     if (this.kind === 'skirt') return skirtTailoring();
     // The basketball shorts: their hems, waistband, piping and centre seams (bballprint.js).
-    if (this.kind === 'bballshorts') return bballTailoring(this);
+    if (this.kind === 'bballshorts') return bballTailoring(this, back);
     // The cap: its top-stitching and the brim's rows (capprint.js).
     if (this.kind === 'cap') return capTailoring(back, this.five);
     // The bucket hat: its rows round the crown and the brim (hatprint.js).
@@ -909,10 +901,16 @@ export class KitPainter {
       stitches.push(along(this.inset(points, .0115)), along(this.inset(points, .0147)));
       folds.push(along(this.inset(points, .019, .006)));
     }
-    // The netball dress: its neck and armholes bound (the binding stitched down along each). Its sides are printed in
-    // one piece with the front and back (the client's dress shows no panel seams: ND1), sewn only at the side seams.
+    // The netball dress: its neck and armholes bound (the binding stitched down along each), its side panels and yoke
+    // sewn in (netballdress.js).
     if (isDress(this.kind)) {
-      const runs = this.dressEdges();
+      const runs = this.dressEdges(back);
+      // (NDF: its side panels and yoke are sewn in: a seam with a row of stitching beside it on the body's side; the yoke's
+      // flat, its stitching only.)
+      for (const { seam, stitch, flat } of dressSeams(back)) {
+        if (!flat) seams.push(along(seam));
+        stitches.push(along(stitch));
+      }
       for (const run of [runs.neck, ...runs.armholes]) {
         seams.push(along(this.inset(run, 0.0095)));
         for (const d of [0.0125, 0.0165]) stitches.push(along(this.inset(run, d)));
@@ -1135,10 +1133,12 @@ export class KitPainter {
   /**
    * The netball dress's bound edges, as runs of outline points (garment metres): the neck (from the wearer's right
    * strap round to the left) and each armhole (from the strap's top down to the underarm), as garment.js finds them.
+   * `back`: the back's, along its own raised outline (garment.js `liftZ`: its high back neck).
    */
-  dressEdges() {
-    if (this._dressEdges) return this._dressEdges;
-    const poly = this.outline, n = poly.length, top = this.frame.maxY;
+  dressEdges(back = false) {
+    const key = back && this.backOutline ? '_dressEdgesBack' : '_dressEdges';
+    if (this[key]) return this[key];
+    const poly = back && this.backOutline ? this.backOutline : this.outline, n = poly.length, top = this.frame.maxY;
     const runsOf = (pred) => {
       const ok = poly.map(pred), runs = [], start = ok.findIndex((v, i) => v && !ok[(i - 1 + n) % n]);
       for (let i = start, seen = 0; start >= 0 && seen < n;) {
@@ -1154,8 +1154,18 @@ export class KitPainter {
     const neckX = (this.points?.N?.[0] ?? 0.088) + 0.002, strapX = (this.points?.S?.[0] ?? 0.136) - 0.003;
     const neck = runsOf((p) => p.y > top - 0.15 && Math.abs(p.x) < neckX).sort((a, b) => b.length - a.length)[0] ?? [];
     const pitX = (this.points?.U?.[0] ?? 0.224) + 0.004;
-    const armholes = runsOf((p) => Math.abs(p.x) > strapX && p.y > 0.671 && Math.abs(p.x) < pitX);
-    return (this._dressEdges = { neck, armholes });
+    // (Not below the underarm, points.U: the side seam under it is sewn, not bound.)
+    const pitY = (this.points?.U?.[1] ?? 0.687) - 0.006;
+    const armholes = runsOf((p) => Math.abs(p.x) > strapX && p.y > pitY && Math.abs(p.x) < pitX);
+    // (Each armhole's run carried on to the underarm point itself, so the binding closes over the side seam there: NDT saw
+    // a notch of the panel's colour at the armhole's foot.)
+    const U = this.points?.U;
+    if (U) for (const run of armholes) {
+      const end = Math.abs(run.at(-1).y - U[1]) < Math.abs(run[0].y - U[1]) ? 'end' : 'start', sx = Math.sign((end === 'end' ? run.at(-1) : run[0]).x) || 1;
+      const pit = { x: sx * U[0], y: U[1] };
+      if (end === 'end') run.push(pit); else run.unshift(pit);
+    }
+    return (this[key] = { neck, armholes });
   }
 
   /**
@@ -1638,6 +1648,8 @@ export class KitPainter {
 
   async paint(design) {
     const g = this.ctx;
+    // A design made for the old netball dress opens on the new one with its colours mapped to its parts (netballdress.js).
+    if (isDress(this.kind)) design = dressDesign(design);
     g.setTransform(1, 0, 0, 1, 0, 0);
     // The socks: their tile picture's layout first (the parts' regions follow it).
     if (this.kind === 'socks') setSockLayout(design);
@@ -1660,6 +1672,8 @@ export class KitPainter {
     }
     g.fillStyle = design.main;
     g.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // The basketball shorts: the colours at their edges carried just past them (bballprint.js), so no seam line shows.
+    if (this.kind === 'bballshorts') for (const back of [false, true]) bballBleed(this, design, back);
 
     if (design.patternImage) {
       const key = design.patternImage.length + design.patternColor + design.patternImage.slice(-64);
@@ -1701,13 +1715,16 @@ export class KitPainter {
     // The jersey's Blades: the client's Rugby League picture's shapes (jerseyBlades), loaded once.
     if (this.kind === 'jersey' || this.kind === 'shorts') this._jerseyBlades = await jerseyBladesImage(this.kind === 'shorts');
     for (const back of [false, true]) {
+      // (The netball dress: the margin outside its outline in its parts' colours first: netballdress.js paintDressBleed.)
+      if (isDress(this.kind)) paintDressBleed(this, design, back);
       g.save();
       this.clipOutline(back);
       // Gradient fills, one per colour zone (zoneGradient): the body (Primary), the pattern's ink (Pattern) and
       // the trims (Secondary: side panels, bands, collar, placket, area blocks).
       const body = zoneGradient(design, 'main');
       // The track jacket's body may have its own colour (design.zoneColors.body) instead of the Primary.
-      const ownBody = isTrack(this.kind) && HEX.test(design.zoneColors?.body ?? '') ? design.zoneColors.body : null;
+      // (The netball dress's body too: its own colour zone, netballdress.js.)
+      const ownBody = (isTrack(this.kind) || isDress(this.kind)) && HEX.test(design.zoneColors?.body ?? '') ? design.zoneColors.body : null;
       if (ownBody) { g.fillStyle = ownBody; g.fillRect(-1.6, -0.1, 3.2, 1.6); } else if (body) this.gradientFill(body);
       const ink = zoneGradient(design, 'patternColor');
       // The picture's own print all over the body (printTile), else the chosen pattern.
@@ -1786,14 +1803,16 @@ export class KitPainter {
       // panels are painted below (paintTrack); the varsity jacket has rib trims (varsity.js).
       // The compression top: long sleeves set in over where the panels would be; plain sides (its cuffs and hem banded below).
       // The shooting shirt: no side panels of the tee's shape (its sides carry the kit's pattern, as on the picture).
-      for (const dir of hoodie || track || varsity || bball || this.kind === 'compression' || this.kind === 'shooting-shirt' ? [] : [-1, 1]) {
+      // The netball dress (NDF, netballdress.js): its yoke, then its full-length side panels over the yoke's ends (in the
+      // Side panels part's look when it has one), right up to the armhole binding, as the pictures' (NDT).
+      if (isDress(this.kind)) {
+        paintDressYoke(this, design, back);
+        paintDressPanels(this, design, back, sideStyle ? () => this.paintPartLook(design, sideStyle, this.partBox(sideKey, back), trim) : null);
+        g.fillStyle = trim;
+      }
+      for (const dir of hoodie || track || varsity || bball || isDress(this.kind) || this.kind === 'compression' || this.kind === 'shooting-shirt' ? [] : [-1, 1]) {
         g.beginPath();
-        if (isDress(this.kind)) {
-          // The dress's side panels: in at the waist, out over the hips to the hem.
-          dressSideLine(g, dir);
-          g.lineTo(dir * 0.5, -0.01);
-          g.lineTo(dir * 0.5, 0.7);
-        } else if (shorts) {
+        if (shorts) {
           // Outer-leg stripe.
           // (FN4: an even stripe about 5.5 cm in from the flared side seam of the shorter, wider cut, as the pictures'.)
           [[0.16, 0.36], [0.181, 0.27], [0.207, 0.17], [0.231, 0.095], [0.245, 0.035], [0.247, -0.01]].forEach(([x, y], i) => (i ? g.lineTo(dir * x, y) : g.moveTo(dir * x, y)));
@@ -1903,18 +1922,9 @@ export class KitPainter {
         g.quadraticCurveTo(0, back ? 0.73 : 0.66, 0.092, 0.745);
         g.stroke();
       } else if (isDress(this.kind)) {
-        // The netball dress: its round neck and armholes bound in the trim colour (the neck in the collar's own colour
-        // when it has one: the client's dress has a black neck and cyan armholes).
-        // (The armholes' binding wider, as on the client's dress: about 1.6 cm, turning away round the strap's edge.)
-        const runs = this.dressEdges(), neckInk = g.strokeStyle;
-        g.lineJoin = 'round';
-        for (const run of [runs.neck, ...runs.armholes]) {
-          g.strokeStyle = run === runs.neck ? neckInk : trim;
-          g.lineWidth = run === runs.neck ? 0.018 : 0.032;
-          g.beginPath();
-          run.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
-          g.stroke();
-        }
+        // The netball dress: its neck and armholes bound in the yoke's colour (the neck in the Collar part's own colour
+        // when it has one: netballdress.js).
+        paintDressBinding(this, design, back, this.partStyle(design, 'collar')?.own ?? null);
       } else if (this.kind === 'shooting-shirt') {
         // Its V collar: a wider rib band down to the deeper V.
         g.lineWidth = 0.026;
@@ -2124,7 +2134,7 @@ export class KitPainter {
     else if (pocket) this.markText(design, 'wordmark', { side: 'front', x: -0.105, y: 0.56 }, logo, 0.036, design.accent, 0.12, textOutline);
     // The netball dress: as on the client's dress, the 3DEEZI wordmark across the bust (narrower: the bust curves away)
     // under the "3" mark (the crest, below), the position bib under them; the club's own words as wide as before.
-    else if (isDress(this.kind)) this.markText(design, 'wordmark', { side: 'front', x: 0, y: 0.663 }, logo, 0.075, design.accent, logo === '3DEEZI' ? 0.17 : 0.26, textOutline);
+    else if (isDress(this.kind)) this.markText(design, 'wordmark', { side: 'front', x: 0, y: 0.643 }, logo, 0.075, design.accent, logo === '3DEEZI' ? 0.17 : 0.26, textOutline);
     // The American football jersey (task 9.113; the client's Game Jersey picture, DT1): the team name centred across
     // the chest above the big front number.
     else if (this.kind === 'nfljersey') this.markText(design, 'wordmark', { side: 'front', x: 0, y: 0.566 }, logo, 0.06, design.accent, 0.195, textOutline);
@@ -2161,9 +2171,10 @@ export class KitPainter {
     // The American football jersey: a small crest just under the V of the neck (the client's Game Jersey picture).
     const nflCrest = this.kind === 'nfljersey', stacked = this.kind === 'compression', shoot = this.kind === 'shooting-shirt';
     // (The compression top: the crest centred above the wordmark.)
-    // (The netball dress: the "3" mark above the wordmark's right end, a little smaller, as on the client's dress.)
+    // (The netball dress: the "3" mark above the wordmark's right end, a little smaller, as on the client's dress; both
+    // 2-2.5 cm lower since NDF, clear of the yoke's seam: NDT.)
     // (The shooting shirt: small, above the wordmark on the left chest, as its picture.)
-    const crest = shoot ? SHOOT_MARKS.crest : nflCrest ? { side: 'front', x: 0, y: 0.632 } : stacked ? { side: 'front', x: 0, y: 0.577 } : isDress(this.kind) ? { side: 'front', x: 0.047, y: 0.707 } : hoodie || track ? { side: 'front', x: 0.105, y: 0.575 } : pocket ? { side: 'front', x: (POCKET.x0 + POCKET.x1) / 2, y: (POCKET.bottom + POCKET.top - POCKET.hem) / 2 } : { side: 'front', x: 0.105, y: 0.6 };
+    const crest = shoot ? SHOOT_MARKS.crest : nflCrest ? { side: 'front', x: 0, y: 0.632 } : stacked ? { side: 'front', x: 0, y: 0.577 } : isDress(this.kind) ? { side: 'front', x: 0.047, y: 0.681 } : hoodie || track ? { side: 'front', x: 0.105, y: 0.575 } : pocket ? { side: 'front', x: (POCKET.x0 + POCKET.x1) / 2, y: (POCKET.bottom + POCKET.top - POCKET.hem) / 2 } : { side: 'front', x: 0.105, y: 0.6 };
     // (FX3: the compression top's '3' mark a little wider, as the picture's: 85 px against 77.)
     const crestK = nflCrest ? 0.38 : stacked ? 0.95 : 1;
     if (this._logo) this.markImage(design, 'crest', crest, this._logo, nflCrest ? 0.045 : pocket ? 0.075 : 0.07, nflCrest ? 0.045 : pocket ? 0.075 : 0.07);
@@ -2204,6 +2215,8 @@ export class KitPainter {
       this.markText(design, 'number', { side: 'back', x: 0, y: 0.38 }, String(design.number ?? '23'), 0.24, design.accent, 0.3, textOutline);
     }
     await this.paintLayers(design);
+    // The netball dress's bib-holder tabs, sewn on over everything (a position bib fastens onto them: netballdress.js).
+    if (isDress(this.kind)) paintDressTabs(this, design);
     g.setTransform(1, 0, 0, 1, 0, 0);
     return this.canvas;
   }

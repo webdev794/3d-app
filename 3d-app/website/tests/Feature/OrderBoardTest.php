@@ -49,7 +49,7 @@ class OrderBoardTest extends TestCase
     private function form(array $fields = []): array
     {
         return $fields + [
-            'source' => 'form', 'contact_name' => 'Fabian Soutar', 'contact_email' => 'fabian@example.test', 'phone' => '0400 000 000',
+            'source' => 'form', ...$this->artwork(), 'contact_name' => 'Fabian Soutar', 'contact_email' => 'fabian@example.test', 'phone' => '0400 000 000',
             'team_name' => 'MANTIS Rugby League', 'notes' => 'Navy and cyan, logo on the chest.',
             // The order form's date required and delivery (client 2026-10-22).
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup',
@@ -119,8 +119,9 @@ class OrderBoardTest extends TestCase
 
     public function test_the_order_form_is_checked(): void
     {
+        // The minimum to order (client 2026-11-05): the team name is optional on the order form.
         $this->submit($this->form(['team_name' => '', 'items' => []]))->assertUnprocessable()
-            ->assertJsonValidationErrors(['team_name' => 'Add your team or organisation name.', 'items' => 'Add at least one garment']);
+            ->assertJsonValidationErrors(['items' => 'Add at least one garment'])->assertJsonMissingValidationErrors(['team_name']);
         $this->submit($this->form(['items' => [['garment' => 'jersey', 'sizes' => ['M' => 0]], ['garment' => 'cape', 'sizes' => ['M' => 2]]]]))->assertUnprocessable()
             ->assertJsonValidationErrors(['items.0.sizes' => 'Garment 1: add at least one size and quantity.', 'items.1.garment' => 'Garment 2']);
         $this->submit($this->form(['items' => [['garment' => 'jersey', 'sizes' => ['XXXL' => 2]]]]))->assertJsonValidationErrors('items.0.sizes');
@@ -197,8 +198,8 @@ class OrderBoardTest extends TestCase
         $this->getJson("/api/v1/order-drafts/{$draft}")->assertNotFound();
         $this->assertSame(0, OrderDraft::count());
         // The same submission again: the same order (the draft is gone, the key remembers it).
-        $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'upload-key-1'])->assertOk()->assertJsonPath('data.id', $order['id']);
-        $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'upload-key-9'])->assertNotFound();
+        $this->postJson("/api/v1/order-drafts/{$draft}/submit", $this->artwork(), ['Idempotency-Key' => 'upload-key-1'])->assertOk()->assertJsonPath('data.id', $order['id']);
+        $this->postJson("/api/v1/order-drafts/{$draft}/submit", $this->artwork(), ['Idempotency-Key' => 'upload-key-9'])->assertNotFound();
         $this->assertSame(1, Order::count());
         Event::assertDispatchedTimes(OrderSubmitted::class, 1);
         // The files are kept and can be downloaded by the customer.

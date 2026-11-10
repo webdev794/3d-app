@@ -7,11 +7,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:three_deezi/api_client.dart' show ApiUser;
 import 'package:three_deezi/app_controller.dart';
+import 'package:three_deezi/screens/business.dart' show PricingScreen;
+import 'package:three_deezi/screens/edit_profile.dart';
+import 'package:three_deezi/screens/create_home.dart'
+    show CreateHomeScreen, SportCarouselScreen, GarmentScreen;
 import 'package:three_deezi/screens/library.dart';
+import 'package:three_deezi/screens/onboarding.dart' show AuthScreen;
+import 'package:three_deezi/screens/showcase.dart';
+import 'package:three_deezi/screens/suppliers.dart' show SuppliersScreen;
+import 'package:three_deezi/screens/team.dart' show TeamScreen;
 import 'package:three_deezi/screens/order_entry.dart'
     show OrderFormScreen, OrderUploadScreen;
 import 'package:three_deezi/screens/orders_board.dart' show OrdersBoardScreen;
-import 'package:three_deezi/screens/orders_tab.dart';
+import 'package:three_deezi/screens/order_assistant.dart';
 
 import 'orders_app_test.dart' show OrdersServer, signedIn;
 
@@ -49,6 +57,19 @@ void main() {
     'myorders',
     'orderform',
     'upload',
+    // The other bubble screens (user 2026-11-05: the bubble everywhere).
+    'assets',
+    'pricing',
+    'editprofile',
+    'suppliers',
+    'team',
+    // (Signage asks the server for its price list, which this fake server
+    // doesn't have: test/signage_test.dart covers it.)
+    'showcase',
+    'auth',
+    'classichome',
+    'sport',
+    'garment',
   ]) {
     for (final size in const [
       Size(360, 740),
@@ -78,11 +99,21 @@ void main() {
           );
         }
         final Widget screen = switch (page) {
-          'orders' => OrdersTabScreen(c),
+          'orders' => OrderAssistantScreen(c, root: true),
           'projects' => ProjectsScreen(c),
           'myorders' => OrdersBoardScreen(c),
           'orderform' => OrderFormScreen(c),
           'upload' => OrderUploadScreen(c),
+          'assets' => AssetsScreen(c),
+          'pricing' => PricingScreen(c),
+          'editprofile' => EditProfileScreen(c),
+          'suppliers' => SuppliersScreen(c),
+          'team' => TeamScreen(c),
+          'showcase' => ShowcaseScreen(c),
+          'auth' => AuthScreen(c),
+          'classichome' => CreateHomeScreen(c),
+          'sport' => SportCarouselScreen(c),
+          'garment' => GarmentScreen(c),
           _ => ProfileScreen(c),
         };
         await tester.pumpWidget(
@@ -124,6 +155,39 @@ void main() {
             '$_shots/$page-$tag.png',
           ).writeAsBytesSync(data!.buffer.asUint8List());
         });
+        // The pickers on a short phone: a second picture scrolled down.
+        final scroll = find.byKey(
+          ValueKey(page == 'sport' ? 'sport-scroll' : 'none'),
+        );
+        final tiles = find.descendant(
+          of: find.byType(CustomScrollView),
+          matching: find.byType(Scrollable),
+        );
+        final ScrollPosition? pos = scroll.evaluate().isNotEmpty
+            ? tester
+                  .state<ScrollableState>(
+                    find
+                        .descendant(
+                          of: scroll,
+                          matching: find.byType(Scrollable),
+                        )
+                        .first,
+                  )
+                  .position
+            : page == 'garment' && tiles.evaluate().isNotEmpty
+            ? tester.state<ScrollableState>(tiles.first).position
+            : null;
+        if (pos != null && pos.maxScrollExtent > 0) {
+          pos.jumpTo(page == 'garment' ? 215 : pos.maxScrollExtent);
+          await tester.pump();
+          await tester.runAsync(() async {
+            final img = await boundary.toImage(pixelRatio: 1);
+            final data = await img.toByteData(format: ui.ImageByteFormat.png);
+            File(
+              '$_shots/$page-$tag-scrolled.png',
+            ).writeAsBytesSync(data!.buffer.asUint8List());
+          });
+        }
       });
     }
   }

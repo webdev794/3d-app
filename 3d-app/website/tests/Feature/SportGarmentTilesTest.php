@@ -143,7 +143,7 @@ class SportGarmentTilesTest extends TestCase
         $design = ['garment' => 'jersey', 'main' => '#0b1016', 'secondary' => '#00c2cc', 'accent' => '#36e3ee', 'pattern' => 'Solid', 'productName' => 'Game Jersey'];
         $id = $this->postJson('/api/v1/projects', ['name' => 'Wildcats', 'sport' => 'american-football', 'garment' => 'jersey', 'mode' => 'dyo', 'design' => $design])
             ->assertCreated()->assertJsonPath('data.design.productName', 'Game Jersey')->json('data.id');
-        $form = ['source' => 'form', 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Wildcats',
+        $form = ['source' => 'form', ...$this->artwork(), 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Wildcats',
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup',
             'items' => [['garment' => 'jersey', 'sport' => 'american-football', 'project_id' => $id, 'sizes' => ['L' => 4]]]];
         $this->postJson('/api/v1/orders', $form, ['Idempotency-Key' => 'nfl-form-1'])->assertCreated()
@@ -187,7 +187,7 @@ class SportGarmentTilesTest extends TestCase
             ->assertJsonValidationErrors('design.productName');
 
         // The order form: the row is named after the design's garment.
-        $form = ['source' => 'form', 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Firebirds',
+        $form = ['source' => 'form', ...$this->artwork(), 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Firebirds',
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup',
             'items' => [['garment' => 'singlet', 'sport' => 'netball', 'fit' => 'womens', 'project_id' => $id, 'sizes' => ['M' => 3]], ['garment' => 'shorts', 'sport' => 'netball', 'sizes' => ['M' => 3]]]];
         $this->postJson('/api/v1/orders', $form, ['Idempotency-Key' => 'tile-form-1'])->assertCreated()
@@ -213,7 +213,7 @@ class SportGarmentTilesTest extends TestCase
         $id = $this->postJson('/api/v1/projects', ['name' => 'Firebirds', 'sport' => 'netball', 'garment' => 'singlet', 'mode' => 'dyo', 'design' => $design])->assertCreated()->json('data.id');
 
         // The order form, sent: its invoice line, the pay page's invoice and the PDF say "Netball bibs".
-        $form = ['source' => 'form', 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Firebirds',
+        $form = ['source' => 'form', ...$this->artwork(), 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Firebirds',
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup',
             'items' => [['garment' => 'singlet', 'sport' => 'netball', 'project_id' => $id, 'sizes' => ['M' => 5]]]];
         $this->postJson('/api/v1/orders', $form, ['Idempotency-Key' => 'tile-invoice-1'])->assertCreated();

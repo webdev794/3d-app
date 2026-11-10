@@ -1037,7 +1037,11 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'secondary': '#00e8ff',
       'accent': '#00e8ff',
       'patternColor': '#00e8ff',
-      'zoneColors': {'bballBand': '#0036cc'},
+      'zoneColors': {
+        'bballBand': '#0036f0',
+        'bballTrim1': '#ffffff',
+        'bballTrim2': '#00e8ff',
+      },
       'marks': {
         'shorts_number': {'hidden': true},
       },
@@ -1055,20 +1059,27 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'secondary': '#05c3f2',
       'zoneColors': {'shards': '#03c8f7', 'shardsDeep': '#0065f5'},
     },
-    // The Netball dress picture (ND1, as config/catalog.php 'netballDress' and
-    // $dressBib): its own Blades (royal blue, azure and cyan ribbons down the
-    // sides), bright cyan armhole binding, a black neck; the 3DEEZI mark and
-    // wordmark on the chest, a black bib sewn on below with the white position
-    // letters, the same on the back; no name or number.
+    // The netball dress (NDF 2026-11-04, the client's preferred model, images
+    // 425-427; as config/catalog.php 'netballDress' and $dressBib): a deep blue
+    // shift with azure full-length side panels, yoke and neck and armhole
+    // binding, each its own colour area (zoneColors body / panels / yoke /
+    // binding); the 3DEEZI mark and wordmark on the chest under the yoke, a
+    // position bib a shade lighter than the body below them with the white
+    // position letters, the same on the back 3 cm lower (as 425's); no name or
+    // number. (NDT: the body a little lighter, 43,88,145 on the stage.)
     'netballDress': {
-      'main': '#1b1d20',
-      'secondary': '#00ccff',
+      // (Netball has no player numbers: client 2026-10-26.)
+      'number': '',
+      'main': '#35547e',
+      'secondary': '#0c78c6',
       'accent': '#00d0ff',
-      'pattern': 'Blades',
-      'patternColor': '#0458f0',
-      'parts': {
-        'sides': {'colour': '#1b1d20', 'pattern': 'Blades'},
-        'collar': {'colour': '#1b1d20'},
+      'pattern': 'None',
+      'patternColor': '#0c78c6',
+      'zoneColors': {
+        'body': '#35547e',
+        'panels': '#0c78c6',
+        'yoke': '#35547e',
+        'binding': '#0c78c6',
       },
       'marks': {
         'top_name': {'hidden': true},
@@ -1083,11 +1094,11 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
             'part': 'top',
             'side': side,
             'x': 0,
-            'y': side == 'front' ? 0.491 : 0.501,
+            'y': side == 'front' ? 0.455 : 0.434,
             'shape': 'rectangle',
-            'w': 0.218,
-            'h': 0.213,
-            'color': '#212326',
+            'w': 0.205,
+            'h': 0.215,
+            'color': '#4a6696',
           },
         for (final side in const ['front', 'back'])
           {
@@ -1097,7 +1108,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
             'part': 'top',
             'side': side,
             'x': 0,
-            'y': side == 'front' ? 0.464 : 0.474,
+            'y': side == 'front' ? 0.428 : 0.407,
             'text': 'WA',
             'size': 0.185,
             'color': '#ffffff',

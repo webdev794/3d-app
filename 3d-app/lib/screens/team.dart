@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../api_client.dart';
@@ -11,6 +12,7 @@ import '../app_controller.dart';
 import '../custom_choice.dart';
 import '../money.dart';
 import '../sports_catalog.dart';
+import '../widgets/bubble_page.dart' show BubbleRoute, kAssistRoom, kPageSide;
 import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/site_page_stub.dart'
@@ -278,21 +280,24 @@ class TeamStepsBar extends StatelessWidget {
                     current: i == at && status != 'approved',
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    (i == 3 && status == 'revision'
-                            ? 'Revisions requested'
-                            : label)
-                        .toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: 'Rajdhani',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      letterSpacing: 1,
-                      color: i == at && status != 'approved'
-                          ? Palette.cyan
-                          : i < at || status == 'approved'
-                          ? Palette.text
-                          : Palette.muted,
+                  Flexible(
+                    child: Text(
+                      (i == 3 && status == 'revision'
+                              ? 'Revisions requested'
+                              : label)
+                          .toUpperCase(),
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Rajdhani',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        letterSpacing: 1,
+                        color: i == at && status != 'approved'
+                            ? Palette.cyan
+                            : i < at || status == 'approved'
+                            ? Palette.text
+                            : Palette.muted,
+                      ),
                     ),
                   ),
                 ],
@@ -443,30 +448,37 @@ class _TeamScreenState extends State<TeamScreen> {
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
-    return Scaffold(
-      backgroundColor: Palette.bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            TopBar(
-              onBack: () => Navigator.of(context).maybePop(),
-              title: '3DEEZI TEAM',
-              trailing: [
-                if (c.signedIn)
-                  NotificationBell(
-                    c,
-                    only: isTeamNotification,
-                    title: '3DEEZI TEAM notifications',
-                    onClosed: _load,
-                  ),
-              ],
-            ),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _load,
-                child: SingleChildScrollView(
+    return BubbleRoute(
+      c: c,
+      title: '3DEEZI TEAM',
+      // 3DEEZI TEAM's own bell: only TEAM notifications.
+      bell: c.signedIn
+          ? NotificationBell(
+              c,
+              only: isTeamNotification,
+              title: '3DEEZI TEAM notifications',
+              onClosed: _load,
+            )
+          : const SizedBox.shrink(),
+      bubbleKey: const ValueKey('team-bubble'),
+      // No outer glass bubble (client 2026-11-10): the page stands on the
+      // backdrop, its rows on the page margins ([kPageSide]), the photo
+      // across the whole width.
+      bubble: false,
+      child: Column(
+        children: [
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _load,
+              child: LayoutBuilder(
+                builder: (context, view) => SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+                  // (At the end the last row stays clear of 3DEEZI Assist's
+                  // round button over the tab bar.)
+                  padding: const EdgeInsets.only(
+                    top: 4,
+                    bottom: kAssistRoom + 12,
+                  ),
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 760),
@@ -474,40 +486,66 @@ class _TeamScreenState extends State<TeamScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _TeamHero(
+                            // The first view, above 3DEEZI Assist's button.
+                            fit: view.maxHeight - 4 - kAssistRoom - 8,
                             onRequest: _request,
                             onMyRequests: _myRequests,
                           ),
-                          const SizedBox(height: 26),
-                          const TeamHowItWorks(),
-                          const SizedBox(height: 26),
-                          if (_error != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Text(
-                                _error!,
-                                style: const TextStyle(
-                                  color: Color(0xffff8b9b),
-                                ),
-                              ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: kPageSide,
                             ),
-                          KeyedSubtree(
-                            key: _formAnchor,
-                            child: TeamRequestForm(
-                              c,
-                              allowance: _allowance,
-                              onProgress: (p) {
-                                if (mounted && p != _progress) {
-                                  setState(() => _progress = p);
-                                }
-                              },
-                              onViewRequest: _open,
-                              onSent: _load,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const SizedBox(height: 26),
+                                const TeamHowItWorks(),
+                                // REQUEST A DESIGNER scrolls here: the form's
+                                // heading lands just under the title's fade.
+                                KeyedSubtree(
+                                  key: _formAnchor,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      const SizedBox(height: 26),
+                                      if (_error != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 10,
+                                          ),
+                                          child: Text(
+                                            _error!,
+                                            style: const TextStyle(
+                                              color: Color(0xffff8b9b),
+                                            ),
+                                          ),
+                                        ),
+                                      TeamRequestForm(
+                                        c,
+                                        allowance: _allowance,
+                                        onProgress: (p) {
+                                          if (mounted && p != _progress) {
+                                            setState(() => _progress = p);
+                                          }
+                                        },
+                                        onViewRequest: _open,
+                                        onSent: _load,
+                                        onMyRequests: _myRequests,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TeamGoodToKnow(allowance: _allowance),
+                                const SizedBox(height: 14),
+                                TeamChecklist(
+                                  progress: _progress,
+                                  onPlans: _plans,
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          TeamGoodToKnow(allowance: _allowance),
-                          const SizedBox(height: 14),
-                          TeamChecklist(progress: _progress, onPlans: _plans),
                         ],
                       ),
                     ),
@@ -515,65 +553,47 @@ class _TeamScreenState extends State<TeamScreen> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _TeamHero extends StatelessWidget {
-  const _TeamHero({required this.onRequest, required this.onMyRequests});
+  const _TeamHero({
+    required this.fit,
+    required this.onRequest,
+    required this.onMyRequests,
+  });
+
+  /// The height the photo, the words and the two buttons should end within
+  /// (the first view, above 3DEEZI Assist's button); see [_HeroFit].
+  final double fit;
   final VoidCallback onRequest, onMyRequests;
+
+  // Straight on the page, with no card round it (client 491: "Don't like
+  // the rectangle inside bubble") and, since 2026-11-10, no bubble either:
+  // the photo runs across the page, the words on its margins.
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(16),
-    child: Container(
-      decoration: BoxDecoration(
-        color: const Color(0xff020912),
-        border: Border.all(
-          color: Palette.cyan.withValues(alpha: .5),
-          width: 1.5,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Stack(
+  Widget build(BuildContext context) => Column(
+    key: const Key('team-hero'),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _HeroFit(
+        fit: fit,
         children: [
           // The designer at his two monitors (the 3D singlet and the flat
-          // pattern pieces), as on the website's /team.
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            height: 250,
+          // pattern pieces), as on the website's /team; its edges fade
+          // softly into the page.
+          _SoftEdges(
             child: artImage(
               asset: 'assets/images/art/team_hero.webp',
               alignment: const Alignment(.42, -.25),
             ),
           ),
-          const Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            height: 252,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: [0, .55, .85, 1],
-                  colors: [
-                    Color(0x00020912),
-                    Color(0x22020912),
-                    Color(0xcc020912),
-                    Color(0xff020912),
-                  ],
-                ),
-              ),
-            ),
-          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 200, 18, 20),
+            padding: const EdgeInsets.symmetric(horizontal: kPageSide),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -631,14 +651,19 @@ class _TeamHero extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'REAL DESIGNERS. REAL RESULTS.',
-                  style: TextStyle(
-                    fontFamily: 'Rajdhani',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2.6,
-                    color: Palette.cyan,
+                // (One line, as in the client's picture, on a narrow phone too.)
+                const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'REAL DESIGNERS. REAL RESULTS.',
+                    style: TextStyle(
+                      fontFamily: 'Rajdhani',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.6,
+                      color: Palette.cyan,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -662,35 +687,159 @@ class _TeamHero extends StatelessWidget {
                   icon: Icons.description_outlined,
                   onPressed: onMyRequests,
                 ),
-                const SizedBox(height: 16),
-                for (final (icon, text) in const [
-                  (Icons.groups_outlined, 'Personal design support'),
-                  (Icons.checkroom_outlined, 'Custom sportswear expertise'),
-                  (Icons.verified_user_outlined, 'Review before you approve'),
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        Icon(icon, size: 20, color: Palette.cyan),
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            text,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xffd5e1ea),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
               ],
             ),
           ),
         ],
       ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(kPageSide, 16, kPageSide, 12),
+        child: Column(
+          children: [
+            for (final (icon, text) in const [
+              (Icons.groups_outlined, 'Personal design support'),
+              (Icons.checkroom_outlined, 'Custom sportswear expertise'),
+              (Icons.verified_user_outlined, 'Review before you approve'),
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 20, color: Palette.cyan),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        text,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xffd5e1ea),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+/// The TEAM hero's photo (first child) and its words down to VIEW MY
+/// REQUESTS (second child), which sit over the photo's faded bottom
+/// [overlap] px. The words start up to [maxTop] px down (a bigger photo
+/// since the bubble went, 2026-11-10); on a short phone the photo gets
+/// shorter (down to [minTop]), so the words and both buttons end within
+/// [fit] and show in full on the first view (client 491). The picture
+/// itself keeps its look (it fills its box).
+class _HeroFit extends MultiChildRenderObjectWidget {
+  const _HeroFit({required this.fit, required super.children});
+  final double fit;
+  static const maxTop = 240.0, minTop = 120.0, overlap = 50.0;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderHeroFit(fit);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderHeroFit r) =>
+      r.fit = fit;
+}
+
+class _HeroFitData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderHeroFit extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _HeroFitData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _HeroFitData> {
+  _RenderHeroFit(this._fit);
+
+  double _fit;
+  set fit(double v) {
+    if (v == _fit) return;
+    _fit = v;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _HeroFitData) child.parentData = _HeroFitData();
+  }
+
+  /// Where the words start, from their height.
+  double _top(double words) => (_fit.isFinite ? _fit - words : _HeroFit.maxTop)
+      .clamp(_HeroFit.minTop, _HeroFit.maxTop);
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final words = childAfter(
+      firstChild!,
+    )!.getDryLayout(BoxConstraints.tightFor(width: constraints.maxWidth));
+    return constraints.constrain(
+      Size(constraints.maxWidth, _top(words.height) + words.height),
+    );
+  }
+
+  @override
+  void performLayout() {
+    final w = constraints.maxWidth;
+    final photo = firstChild!, words = childAfter(photo)!;
+    words.layout(BoxConstraints.tightFor(width: w), parentUsesSize: true);
+    final top = _top(words.size.height);
+    photo.layout(
+      BoxConstraints.tightFor(width: w, height: top + _HeroFit.overlap),
+    );
+    (photo.parentData! as _HeroFitData).offset = Offset.zero;
+    (words.parentData! as _HeroFitData).offset = Offset(0, top);
+    size = constraints.constrain(Size(w, top + words.size.height));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
+}
+
+/// A picture whose edges fade softly into the page, so it has no hard
+/// rectangle round it (the TEAM photo, client 491). The picture itself is
+/// not changed.
+class _SoftEdges extends StatelessWidget {
+  const _SoftEdges({required this.child});
+  final Widget child;
+
+  static Shader _fade(
+    Rect r,
+    Alignment begin,
+    Alignment end,
+    double a,
+    double b,
+  ) => LinearGradient(
+    begin: begin,
+    end: end,
+    colors: const [
+      Color(0x00ffffff),
+      Colors.white,
+      Colors.white,
+      Color(0x00ffffff),
+    ],
+    stops: [0, a, b, 1],
+  ).createShader(r);
+
+  @override
+  Widget build(BuildContext context) => ShaderMask(
+    // Top and bottom (the bottom slowly, under the heading)…
+    blendMode: BlendMode.dstIn,
+    shaderCallback: (r) =>
+        _fade(r, Alignment.topCenter, Alignment.bottomCenter, .14, .58),
+    // …and the sides.
+    child: ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (r) =>
+          _fade(r, Alignment.centerLeft, Alignment.centerRight, .14, .86),
+      child: child,
     ),
   );
 }
@@ -892,8 +1041,10 @@ class TeamChecklist extends StatelessWidget {
         progress.date,
       ),
     ];
-    return SurfaceCard(
+    // Straight on the bubble, no card round it (client 491).
+    return Padding(
       key: const Key('team-checklist'),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1070,67 +1221,72 @@ class _TeamRequestsScreenState extends State<TeamRequestsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Palette.bg,
-    body: SafeArea(
-      child: Column(
-        children: [
-          TopBar(
-            onBack: () => Navigator.of(context).maybePop(),
-            title: 'MY DESIGN REQUESTS',
-            trailing: [
-              NotificationBell(
-                widget.c,
-                only: isTeamNotification,
-                title: '3DEEZI TEAM notifications',
-                onClosed: _load,
+  Widget build(BuildContext context) => BubbleRoute(
+    c: widget.c,
+    title: 'MY DESIGN REQUESTS',
+    // 3DEEZI TEAM's own bell: only TEAM notifications.
+    bell: widget.c.signedIn
+        ? NotificationBell(
+            widget.c,
+            only: isTeamNotification,
+            title: '3DEEZI TEAM notifications',
+            onClosed: _load,
+          )
+        : const SizedBox.shrink(),
+    bubbleKey: const ValueKey('team-requests-bubble'),
+    // No bubble, as the TEAM page (client 2026-11-10).
+    bubble: false,
+    child: Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+              // (The last request stays clear of 3DEEZI Assist's button.)
+              padding: const EdgeInsets.fromLTRB(
+                kPageSide,
+                6,
+                kPageSide,
+                24 + kAssistRoom,
               ),
-            ],
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-                children: [
-                  if (_error != null)
-                    Text(
-                      _error!,
-                      style: const TextStyle(color: Color(0xffff8b9b)),
-                    )
-                  else if (_requests == null)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: CircularProgressIndicator(),
-                      ),
-                    )
-                  else if (_requests!.isEmpty) ...[
-                    const Text(
-                      'No design requests yet. Your requests and their progress appear here.',
-                      style: TextStyle(color: Palette.muted),
+              children: [
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: const TextStyle(color: Color(0xffff8b9b)),
+                  )
+                else if (_requests == null)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator(),
                     ),
-                    const SizedBox(height: 16),
-                    GradientButton(
-                      label: 'REQUEST A DESIGNER',
-                      icon: Icons.arrow_forward,
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                  ] else
-                    for (final r in _requests!)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: TeamRequestTile(
-                          r,
-                          onTap: () => _open((r['id'] as num).toInt()),
-                        ),
+                  )
+                else if (_requests!.isEmpty) ...[
+                  const Text(
+                    'No design requests yet. Your requests and their progress appear here.',
+                    style: TextStyle(color: Palette.muted),
+                  ),
+                  const SizedBox(height: 16),
+                  GradientButton(
+                    label: 'REQUEST A DESIGNER',
+                    icon: Icons.arrow_forward,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ] else
+                  for (final r in _requests!)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: TeamRequestTile(
+                        r,
+                        onTap: () => _open((r['id'] as num).toInt()),
                       ),
-                ],
-              ),
+                    ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -1168,7 +1324,7 @@ class TeamRequestTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${teamGarmentsText(r)} · ${r['sport_name'] ?? r['sport']}',
+                  '${teamGarmentsText(r)} · ${teamSportName(r)}',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 Text(
@@ -1198,6 +1354,57 @@ class TeamRequestTile extends StatelessWidget {
 /// (references[], up to 10), from one "Add files" box.
 typedef TeamBriefFile = ({TeamPick pick, String kind});
 
+/// A sport in the TEAM form: its catalogue id, name, group and garments
+/// (website garment ids, in the order Design Your Own shows them).
+typedef TeamSport = ({
+  String id,
+  String name,
+  String group,
+  List<String> garments,
+});
+
+/// The TEAM form's sports: Design Your Own's list (lib/sports_catalog.dart:
+/// the same names, e.g. "Soccer", and order), then any sport the website's
+/// catalogue [server] has that the app does not know yet. A sport without DYO
+/// garment tiles takes the website's garments.
+List<TeamSport> teamSportsFrom(List<Map> server) {
+  final byId = {for (final s in server) '${s['id']}': s};
+  List<String> serverGarments(Map? s) => [
+    for (final g in (s?['garments'] as List?) ?? const []) '$g',
+  ];
+  return [
+    for (final s in sportCategories)
+      (
+        id: s.id,
+        name: s.name,
+        group: s.group,
+        garments: s.garments.isEmpty
+            ? serverGarments(byId[s.id])
+            : [
+                for (final g in s.garments)
+                  if (garmentIds[g] != null) garmentIds[g]!,
+              ],
+      ),
+    for (final s in server)
+      if (!sportCategories.any((x) => x.id == '${s['id']}'))
+        (
+          id: '${s['id']}',
+          name: '${s['name']}',
+          group: '${s['group'] ?? 'sports'}',
+          garments: serverGarments(s),
+        ),
+  ];
+}
+
+/// A request's sport as the app names it (Design Your Own's name for a
+/// catalogue sport, so "football" reads "Soccer"); otherwise the website's
+/// name or the sport as typed.
+String teamSportName(Map r) {
+  final id = '${r['sport'] ?? ''}';
+  return sportCategories.where((s) => s.id == id).firstOrNull?.name ??
+      '${r['sport_name'] ?? r['sport'] ?? ''}';
+}
+
 /// "Tell us what you need" (the client's TEAM form, 2026-10-22): the company /
 /// team name and contact email from the account, sport / activity and the
 /// garments needed from the catalogue, the design brief, one box for logos,
@@ -1211,12 +1418,17 @@ class TeamRequestForm extends StatefulWidget {
     this.onProgress,
     this.onViewRequest,
     this.onSent,
+    this.onMyRequests,
   });
   final AppController c;
   final Map<String, dynamic>? allowance;
   final ValueChanged<TeamBriefProgress>? onProgress;
   final ValueChanged<int>? onViewRequest;
   final VoidCallback? onSent;
+
+  /// "View my requests" in the plan-limit note (the TEAM screen reloads the
+  /// allowance after); by default My requests opens on its own.
+  final VoidCallback? onMyRequests;
   @override
   State<TeamRequestForm> createState() => _TeamRequestFormState();
 }
@@ -1238,8 +1450,7 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
   final _colours = <String>[];
   final _files = <TeamBriefFile>[];
   bool _more = false;
-  List<({String id, String name, String group, List<String> garments})>
-  _sports = [];
+  List<TeamSport> _sports = [];
   List<({String id, String name})> _garmentList = [];
   bool _busy = false;
   String? _error;
@@ -1281,39 +1492,23 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
 
   /// Offline: the app's own copy of the catalogue (it mirrors the website's).
   void _fallbackCatalog() {
-    _sports = [
-      for (final s in sportCategories)
-        (id: s.id, name: s.name, group: s.group, garments: const <String>[]),
-    ];
-    _garmentList = const [
-      (id: 'jersey', name: 'Jersey'),
-      (id: 'shorts', name: 'Shorts'),
-      (id: 'tee', name: 'Training Tee'),
-      (id: 'singlet', name: 'Singlet'),
-      (id: 'polo', name: 'Polo'),
+    _sports = teamSportsFrom(const []);
+    _garmentList = [
+      for (final e in garmentIds.entries) (id: e.value, name: e.key),
     ];
   }
 
-  /// The sports and garments from the website's catalogue (new ones appear
-  /// without an app update).
+  /// The garments (and any sport the app does not know yet) from the
+  /// website's catalogue: new ones appear without an app update. The sports
+  /// keep Design Your Own's names and order.
   Future<void> _loadCatalog() async {
     try {
       final cat = await widget.c.api.catalog();
       final sports = ((cat['sports'] as List?) ?? const []).cast<Map>();
       final garments = ((cat['garments'] as List?) ?? const []).cast<Map>();
-      if (!mounted || sports.isEmpty) return;
+      if (!mounted || (sports.isEmpty && garments.isEmpty)) return;
       setState(() {
-        _sports = [
-          for (final s in sports)
-            (
-              id: '${s['id']}',
-              name: '${s['name']}',
-              group: '${s['group'] ?? 'sports'}',
-              garments: [
-                for (final g in (s['garments'] as List?) ?? const []) '$g',
-              ],
-            ),
-        ];
+        _sports = teamSportsFrom(sports);
         if (garments.isNotEmpty) {
           _garmentList = [
             for (final g in garments) (id: '${g['id']}', name: '${g['name']}'),
@@ -1325,15 +1520,32 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
     }
   }
 
-  /// The chosen sport's garments first.
-  List<({String id, String name})> get _garmentChoices {
-    final wanted =
-        _sports.where((s) => s.id == _sport).firstOrNull?.garments ?? const [];
-    if (wanted.isEmpty) return _garmentList;
-    return [
-      for (final id in wanted) ..._garmentList.where((g) => g.id == id),
-      ..._garmentList.where((g) => !wanted.contains(g.id)),
-    ];
+  /// The garment sheet: the chosen sport's garments first, in Design Your
+  /// Own's order, then the other garments. No sport (or a typed one): every
+  /// garment, the ones the sports use first (in DYO's sport order).
+  ({
+    List<({String id, String name})> sport,
+    List<({String id, String name})> other,
+  })
+  get _garmentChoices {
+    final chosen = _sports.where((s) => s.id == _sport).firstOrNull;
+    final wanted = chosen?.garments ?? const <String>[];
+    if (wanted.isEmpty) {
+      final used = <String>{for (final s in _sports) ...s.garments};
+      return (
+        sport: const [],
+        other: [
+          for (final id in used) ..._garmentList.where((g) => g.id == id),
+          ..._garmentList.where((g) => !used.contains(g.id)),
+        ],
+      );
+    }
+    return (
+      sport: [
+        for (final id in wanted) ..._garmentList.where((g) => g.id == id),
+      ],
+      other: [..._garmentList.where((g) => !wanted.contains(g.id))],
+    );
   }
 
   String _garmentName(String id) =>
@@ -1383,6 +1595,18 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
           final custom = _garments.where(
             (g) => !_garmentList.any((x) => x.id == g),
           );
+          final choices = _garmentChoices;
+          final sportName =
+              _sports.where((s) => s.id == _sport).firstOrNull?.name ?? '';
+          Widget tile(({String id, String name}) g) => CheckboxListTile(
+            dense: true,
+            value: _garments.contains(g.id),
+            title: Text(g.name),
+            activeColor: Palette.cyan,
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (_) => toggle(g.id),
+          );
           return SafeArea(
             child: Padding(
               padding: EdgeInsets.fromLTRB(
@@ -1421,19 +1645,17 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
                     child: ListView(
                       shrinkWrap: true,
                       children: [
+                        if (choices.sport.isNotEmpty)
+                          _sheetHeading('For $sportName', 'garments-sport'),
                         for (final g in [
-                          ..._garmentChoices,
+                          ...choices.sport,
                           for (final id in custom) (id: id, name: id),
                         ])
-                          CheckboxListTile(
-                            dense: true,
-                            value: _garments.contains(g.id),
-                            title: Text(g.name),
-                            activeColor: Palette.cyan,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            contentPadding: EdgeInsets.zero,
-                            onChanged: (_) => toggle(g.id),
-                          ),
+                          tile(g),
+                        if (choices.sport.isNotEmpty &&
+                            choices.other.isNotEmpty)
+                          _sheetHeading('Other garments', 'garments-other'),
+                        for (final g in choices.other) tile(g),
                       ],
                     ),
                   ),
@@ -1479,6 +1701,20 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
     field.didChange(List.of(_garments));
     if (mounted) setState(() {});
   }
+
+  Widget _sheetHeading(String text, String key) => Padding(
+    key: ValueKey(key),
+    padding: const EdgeInsets.only(top: 8, bottom: 2),
+    child: Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        color: Palette.cyan,
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.6,
+      ),
+    ),
+  );
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
@@ -1690,7 +1926,9 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
         : r['billing'] == 'free'
         ? 'No design fee'
         : 'Included in your plan';
-    return SurfaceCard(
+    // Straight on the bubble, no card round it (client 491).
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         children: [
           const SizedBox(height: 8),
@@ -1986,14 +2224,88 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
     ],
   );
 
+  /// The plan's open-request limit, said before the form is filled in
+  /// ("You have 1 request open. The Rookie (Free) plan allows 1 at a time.").
+  /// The website still checks it on send.
+  Widget _limitNote(Map<String, dynamic> a) {
+    final open = a['open_requests'], max = a['max_open_requests'];
+    final plan = '${a['plan_name'] ?? ''}';
+    final text = open is num && max is num && plan.isNotEmpty
+        ? 'You have $open request${open == 1 ? '' : 's'} open. The $plan plan allows $max at a time.'
+        : '${a['blocked_reason'] ?? 'Your plan allows no more open requests just now.'}';
+    const amber = Color(0xfff7dba6);
+    return Container(
+      key: const Key('team-limit'),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      decoration: BoxDecoration(
+        color: const Color(0x33f7b955),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0x99f7b955)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 1),
+                child: Icon(Icons.info_outline, size: 18, color: amber),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  text,
+                  style: const TextStyle(color: amber, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+          Wrap(
+            spacing: 4,
+            children: [
+              TextButton(
+                key: const Key('team-limit-requests'),
+                onPressed: _myRequests,
+                child: const Text('View my requests'),
+              ),
+              TextButton(
+                key: const Key('team-limit-plans'),
+                onPressed: _plans,
+                child: const Text('See plans'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _myRequests() {
+    final open = widget.onMyRequests;
+    if (open != null) return open();
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => TeamRequestsScreen(widget.c)),
+      ),
+    );
+  }
+
+  /// "See plans": the plans screen (the website's /pricing).
+  void _plans() {
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    widget.c.go(AppScreen.pricing);
+  }
+
   Widget _formView() {
     final a = widget.allowance;
     final blocked = a?['can_submit'] == false;
     String? required(String? v) =>
         (v == null || v.trim().isEmpty) ? 'Required' : null;
     final (costIcon, costColor, costText) = _cost;
-    return SurfaceCard(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+    // Straight on the bubble, no card round it (client 491).
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 8),
       child: Form(
         key: _form,
         child: Column(
@@ -2027,6 +2339,7 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
                 fontWeight: FontWeight.w700,
               ),
             ),
+            if (blocked) ...[const SizedBox(height: 12), _limitNote(a!)],
             const SizedBox(height: 14),
             TextFormField(
               key: const Key('team-name'),
@@ -2057,12 +2370,7 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
               hint: const Text('Select a sport'),
               items: [
                 for (final s in _sports)
-                  DropdownMenuItem(
-                    value: s.id,
-                    child: Text(
-                      s.group == 'apparel' ? '${s.name} (apparel)' : s.name,
-                    ),
-                  ),
+                  DropdownMenuItem(value: s.id, child: Text(s.name)),
                 if (_sports.isNotEmpty)
                   const DropdownMenuItem(
                     value: customValue,
@@ -2178,11 +2486,11 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
               ],
             ),
             if (blocked)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
                 child: Text(
-                  '${a?['blocked_reason'] ?? ''}',
-                  style: const TextStyle(color: Color(0xfff7dba6)),
+                  'Sending is off until one of your open requests is finished.',
+                  style: TextStyle(color: Color(0xfff7dba6)),
                 ),
               ),
             if (_error != null)
@@ -2214,27 +2522,30 @@ class TeamRequestFormScreen extends StatelessWidget {
   final AppController c;
   final Map<String, dynamic>? allowance;
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Palette.bg,
-    body: SafeArea(
-      child: Column(
-        children: [
-          TopBar(
-            onBack: () => Navigator.of(context).maybePop(),
-            title: 'REQUEST A DESIGNER',
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
-              child: TeamRequestForm(
-                c,
-                allowance: allowance,
-                onViewRequest: (id) => Navigator.of(context).pop(id),
-              ),
+  Widget build(BuildContext context) => BubbleRoute(
+    c: c,
+    title: 'REQUEST A DESIGNER',
+    bubbleKey: const ValueKey('team-request-form-bubble'),
+    // No bubble, as the TEAM page (client 2026-11-10).
+    bubble: false,
+    child: Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              kPageSide,
+              4,
+              kPageSide,
+              24 + kAssistRoom,
+            ),
+            child: TeamRequestForm(
+              c,
+              allowance: allowance,
+              onViewRequest: (id) => Navigator.of(context).pop(id),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -2558,33 +2869,42 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
   @override
   Widget build(BuildContext context) {
     final r = _r;
-    return Scaffold(
-      backgroundColor: Palette.bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            TopBar(
-              onBack: () => Navigator.of(context).maybePop(),
-              title: r == null ? '3DEEZI TEAM' : '${r['number']}',
-              subtitle: r == null
-                  ? null
-                  : '${teamGarmentsText(r)} · ${r['sport_name'] ?? r['sport']}',
+    return BubbleRoute(
+      c: widget.c,
+      title: r == null ? '3DEEZI TEAM' : '${r['number']}',
+      // 3DEEZI TEAM's own bell, as on the TEAM page and My requests.
+      bell: widget.c.signedIn
+          ? NotificationBell(
+              widget.c,
+              only: isTeamNotification,
+              title: '3DEEZI TEAM notifications',
+              onClosed: _load,
+            )
+          : const SizedBox.shrink(),
+      bubbleKey: const ValueKey('team-request-bubble'),
+      // No bubble, as the TEAM page (client 2026-11-10).
+      bubble: false,
+      child: Column(
+        children: [
+          Expanded(
+            child: r == null
+                ? Center(
+                    child: _error != null
+                        ? Text(
+                            _error!,
+                            style: const TextStyle(color: Color(0xffff8b9b)),
+                          )
+                        : const CircularProgressIndicator(),
+                  )
+                : RefreshIndicator(onRefresh: _load, child: _body(r)),
+          ),
+          // (The message box sits clear of 3DEEZI Assist's round button.)
+          if (r != null && (r['can'] as Map?)?['message'] == true)
+            Padding(
+              padding: const EdgeInsets.only(bottom: kAssistRoom),
+              child: _compose(),
             ),
-            Expanded(
-              child: r == null
-                  ? Center(
-                      child: _error != null
-                          ? Text(
-                              _error!,
-                              style: const TextStyle(color: Color(0xffff8b9b)),
-                            )
-                          : const CircularProgressIndicator(),
-                    )
-                  : RefreshIndicator(onRefresh: _load, child: _body(r)),
-            ),
-            if (r != null && (r['can'] as Map?)?['message'] == true) _compose(),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -2612,16 +2932,31 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
     final messages = ((r['messages'] as List?) ?? const []).cast<Map>();
     final busy = _busy.isNotEmpty;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+      // (Without the message box the last row stays clear of 3DEEZI
+      // Assist's round button.)
+      padding: EdgeInsets.fromLTRB(
+        kPageSide,
+        4,
+        kPageSide,
+        20 + (can['message'] == true ? 0 : kAssistRoom),
+      ),
       children: [
+        // (Narrower in the bubble: the designer's name gives way.)
         Row(
           children: [
             TeamStatusChip(r),
+            const SizedBox(width: 8),
             const Spacer(),
             if (r['designer'] != null)
-              Text(
-                'Designer ${(r['designer'] as Map)['name']}',
-                style: const TextStyle(color: Palette.muted, fontSize: 12),
+              Flexible(
+                flex: 3,
+                child: Text(
+                  'Designer ${(r['designer'] as Map)['name']}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(color: Palette.muted, fontSize: 12),
+                ),
               ),
           ],
         ),
@@ -2863,10 +3198,12 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
     );
   }
 
+  // Straight on the page (no bubble since 2026-11-10): a line over it, on
+  // the page margins.
   Widget _compose() => Container(
-    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+    margin: const EdgeInsets.symmetric(horizontal: kPageSide),
+    padding: const EdgeInsets.symmetric(vertical: 8),
     decoration: const BoxDecoration(
-      color: Palette.surface,
       border: Border(top: BorderSide(color: Palette.border)),
     ),
     child: Column(
@@ -2883,47 +3220,51 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
                 ),
             ],
           ),
-        Row(
-          children: [
-            IconButton(
-              tooltip: 'Attach files',
-              onPressed: () async {
-                final picked = await pickTeamFiles('files');
-                if (mounted)
-                  setState(
-                    () => _attach.addAll(
-                      picked
-                          .where(
-                            (f) => teamReferenceTypes.contains(_ext(f.name)),
-                          )
-                          .take(5 - _attach.length),
+        // Attach and Send count as part of the message box: tapping them
+        // keeps the keyboard up (a tap elsewhere closes it).
+        TextFieldTapRegion(
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'Attach files',
+                onPressed: () async {
+                  final picked = await pickTeamFiles('files');
+                  if (mounted)
+                    setState(
+                      () => _attach.addAll(
+                        picked
+                            .where(
+                              (f) => teamReferenceTypes.contains(_ext(f.name)),
+                            )
+                            .take(5 - _attach.length),
+                      ),
+                    );
+                },
+                icon: const Icon(Icons.attach_file),
+              ),
+              Expanded(
+                child: TextField(
+                  key: const Key('team-message'),
+                  controller: _message,
+                  focusNode: _messageFocus,
+                  minLines: 1,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Message your designer…',
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
                     ),
-                  );
-              },
-              icon: const Icon(Icons.attach_file),
-            ),
-            Expanded(
-              child: TextField(
-                key: const Key('team-message'),
-                controller: _message,
-                focusNode: _messageFocus,
-                minLines: 1,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: 'Message your designer…',
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
                   ),
                 ),
               ),
-            ),
-            IconButton(
-              tooltip: 'Send',
-              onPressed: _busy == 'message' ? null : _sendMessage,
-              icon: const Icon(Icons.send, color: Palette.cyan),
-            ),
-          ],
+              IconButton(
+                tooltip: 'Send',
+                onPressed: _busy == 'message' ? null : _sendMessage,
+                icon: const Icon(Icons.send, color: Palette.cyan),
+              ),
+            ],
+          ),
         ),
       ],
     ),

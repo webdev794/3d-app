@@ -9,6 +9,7 @@ import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/bubble_page.dart';
+import '../widgets/category_icon.dart' show CategoryIcon;
 import '../widgets/glass_bubble.dart';
 import '../widgets/ui.dart';
 import 'order_entry.dart';
@@ -32,6 +33,55 @@ Color _tone(Object? name) => _tones['$name'] ?? Palette.muted;
 String _day(Object? iso) {
   final d = DateTime.tryParse('${iso ?? ''}')?.toLocal();
   return d == null ? '' : '${d.day}/${d.month}/${d.year}';
+}
+
+const _months = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/// "20 Mar", the website's card date (en-AU day and short month).
+String shortDay(Object? iso) {
+  final d = DateTime.tryParse('${iso ?? ''}');
+  return d == null ? '' : '${d.day} ${_months[d.month - 1]}';
+}
+
+/// Whether an order's invoice can be paid now: the server's can_pay, else an
+/// unpaid / part-paid invoice with a number (as the website's board reads it).
+bool orderPayable(Map<String, dynamic>? payment) {
+  if (payment == null) return false;
+  if (payment['can_pay'] != null) return payment['can_pay'] == true;
+  if (payment['payable'] != null) return payment['payable'] == true;
+  final status = '${payment['status'] ?? ''}';
+  return (status == 'awaiting_payment' || status == 'part_paid') &&
+      '${payment['invoice_number'] ?? ''}'.isNotEmpty;
+}
+
+/// The card's count line as on the website: "5 garments · required 20 Mar".
+String orderCardLine(Map<String, dynamic> o) {
+  final count = (o['quantity'] as num? ?? 0).toInt();
+  final garments = ((o['garments'] as List?) ?? const []).whereType<Map>();
+  final unit =
+      garments.isNotEmpty && garments.every((g) => g['garment'] == 'marquee')
+      ? 'marquee'
+      : 'garment';
+  final qty = count > 0
+      ? '$count $unit${count == 1 ? '' : 's'}'
+      : 'Sizes to be confirmed';
+  final needed = '${o['needed_by'] ?? ''}';
+  return needed.isNotEmpty && o['completed'] != true
+      ? '$qty · required ${shortDay(needed)}'
+      : qty;
 }
 
 /// A picture sent as a data URL (garment thumbnails, file previews), else null.
@@ -111,6 +161,24 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
   void initState() {
     super.initState();
     if (widget.c.signedIn) _load();
+  }
+
+  /// PAY NOW on a card: the invoice's pay link in the phone's browser (the
+  /// same pay flow as the order page's PaymentStrip), then the board again.
+  Future<void> _pay(Map<String, dynamic> o) async {
+    final invoice = '${(o['payment'] as Map?)?['invoice_number'] ?? ''}';
+    if (invoice.isEmpty) {
+      _openOrder((o['id'] as num).toInt());
+      return;
+    }
+    try {
+      final url = await widget.c.api.invoicePayLink(invoice);
+      if (!mounted) return;
+      await openPayPage(context, url, 'Pay now');
+      if (mounted) _load();
+    } on ApiException catch (e) {
+      if (mounted) showToast(context, e.message);
+    }
   }
 
   Future<void> _load() async {
@@ -397,6 +465,7 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
                                     o,
                                     onTap: () =>
                                         _openOrder((o['id'] as num).toInt()),
+                                    onPay: () => _pay(o),
                                   ),
                                 ),
                             ],
@@ -502,7 +571,8 @@ class _FilterChip extends StatelessWidget {
   );
 }
 
-/// MY ORDERS, left-aligned with its line under it (images/339), and the
+/// MY ORDERS, centred with its line under it like the other bubble pages
+/// (the rounded top would cut a left-aligned title), and the
 /// "EXAMPLE ORDERS" pill on the right when the orders are demo data.
 // The EXAMPLE ORDERS pill is skipped for now (UT1 round 2).
 const _showExample = false;
@@ -518,13 +588,11 @@ class _Header extends StatelessWidget {
       children: [
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Semantics(
                 header: true,
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
                   child: Text(
                     'MY ORDERS',
                     style: bubbleTitle(34).copyWith(letterSpacing: 1.5),
@@ -534,6 +602,7 @@ class _Header extends StatelessWidget {
               const SizedBox(height: 4),
               const Text(
                 'Your orders, all in one place.',
+                textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14.5, color: Color(0xffd3dee8)),
               ),
             ],
@@ -674,9 +743,12 @@ class _MakingLine extends StatelessWidget {
 /// reference and name, the status badge, the pieces, its action (Review order /
 /// Continue to payment / View progress) and, in production, Print > Cut > Sew.
 class OrderBoardCard extends StatelessWidget {
-  const OrderBoardCard(this.o, {super.key, this.onTap});
+  const OrderBoardCard(this.o, {super.key, this.onTap, this.onPay});
   final Map<String, dynamic> o;
   final VoidCallback? onTap;
+
+  /// PAY NOW on an unpaid order (the invoice's pay page, as the website's card).
+  final VoidCallback? onPay;
 
   @override
   Widget build(BuildContext context) {
@@ -686,7 +758,7 @@ class OrderBoardCard extends StatelessWidget {
     final latest = (o['latest_update'] as Map?)?.cast<String, dynamic>();
     final payment = (o['payment'] as Map?)?.cast<String, dynamic>();
     final action = o['action'];
-    final pay = payment?['payable'] == true;
+    final pay = orderPayable(payment);
     // A jersey picture about 100 x 110 on the left (images/339): the kit's
     // picture, else a jersey from the app's art.
     final picture = SizedBox(
@@ -708,14 +780,48 @@ class OrderBoardCard extends StatelessWidget {
             ),
           ),
     );
-    final pieces = (o['quantity'] as num? ?? 0).toInt();
-    final label = action == 'review_design'
+    final review = action == 'review_design';
+    final label = review
         ? 'Review order →'
-        : pay
-        ? 'Continue to payment →'
         : action == 'track_delivery'
         ? 'Track delivery →'
         : 'View progress →';
+    // An outlined cyan pill with an arrow, almost the full width of the
+    // right column (images/339); PAY NOW filled.
+    Widget actionPill(String text, {Key? key, VoidCallback? tap}) {
+      final pill = Container(
+        key: key,
+        height: 32,
+        width: double.infinity,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: tap != null ? Palette.cyan : const Color(0x33061528),
+          border: Border.all(color: Palette.cyan, width: 1.2),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            text,
+            style: TextStyle(
+              color: tap != null ? const Color(0xff04131c) : Palette.cyan,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      );
+      if (tap == null) return pill;
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: tap,
+          child: pill,
+        ),
+      );
+    }
+
     return _ThinGlass(
       onTap: onTap,
       child: Padding(
@@ -737,7 +843,8 @@ class OrderBoardCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Number · name (two texts, so each can be found).
+                        // Number · name (two texts, so each can be found); just the number when the order has
+                        // no name of its own (not "3DZ-00010 · Order 3DZ-00010").
                         DefaultTextStyle.merge(
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
@@ -745,12 +852,16 @@ class OrderBoardCard extends StatelessWidget {
                           ),
                           child: Wrap(
                             children: [
-                              Text('${o['number']} · '),
-                              Text(
-                                '${o['name']}',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              if (ownOrderName(o['number'], o['name']).isEmpty)
+                                Text('${o['number']}')
+                              else ...[
+                                Text('${o['number']} · '),
+                                Text(
+                                  '${o['name']}',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -781,7 +892,8 @@ class OrderBoardCard extends StatelessWidget {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                '${pieces > 0 ? '$pieces piece${pieces == 1 ? '' : 's'}' : 'Sizes in your order form'}${'${o['needed_by'] ?? ''}'.isNotEmpty && o['completed'] != true ? ' · required ${_day(o['needed_by'])}' : ''}',
+                                orderCardLine(o),
+                                key: const Key('order-card-line'),
                                 style: const TextStyle(fontSize: 12.5),
                               ),
                             ),
@@ -797,29 +909,17 @@ class OrderBoardCard extends StatelessWidget {
                           _MakingLine('${sub['key'] ?? ''}'),
                         ],
                         const SizedBox(height: 8),
-                        // An outlined cyan pill with an arrow, almost the full
-                        // width of the right column (images/339).
-                        Container(
-                          height: 32,
-                          width: double.infinity,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            color: const Color(0x33061528),
-                            border: Border.all(color: Palette.cyan, width: 1.2),
+                        // Unpaid: PAY NOW (the website's card), above Review
+                        // order when that is asked for too.
+                        if (pay) ...[
+                          actionPill(
+                            'PAY NOW →',
+                            key: const Key('order-card-pay'),
+                            tap: onPay ?? onTap,
                           ),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              label,
-                              style: const TextStyle(
-                                color: Palette.cyan,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
+                          if (review) const SizedBox(height: 6),
+                        ],
+                        if (!pay || review) actionPill(label),
                       ],
                     ),
                   ),
@@ -872,26 +972,30 @@ class _MadeBy extends StatelessWidget {
   );
 }
 
-class _GarmentChip extends StatelessWidget {
-  const _GarmentChip(this.name);
-  final String name;
+/// The picture of the artwork for a garment row: one chosen for it, else the
+/// first artwork of the order (null without one).
+Object? _artworkFor(Map item, List<Map<String, dynamic>> files) {
+  final ids = ((item['file_ids'] as List?) ?? const []).map((e) => '$e');
+  final art = files.where((f) => f['kind'] == 'artwork' && f['thumb'] != null);
+  return (art.where((f) => ids.contains('${f['id']}')).firstOrNull ??
+      art.firstOrNull)?['thumb'];
+}
+
+/// A garment's outline in a small box (no picture of it yet).
+class _GarmentOutline extends StatelessWidget {
+  const _GarmentOutline(this.garment);
+  final String garment;
   @override
   Widget build(BuildContext context) => Container(
     width: 52,
     height: 52,
     alignment: Alignment.center,
-    padding: const EdgeInsets.all(4),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       color: Palette.surface2,
       border: Border.all(color: Palette.border),
     ),
-    child: Text(
-      name,
-      textAlign: TextAlign.center,
-      maxLines: 2,
-      style: const TextStyle(fontSize: 9.5, color: Palette.text),
-    ),
+    child: CategoryIcon(garment.toLowerCase(), size: 36),
   );
 }
 
@@ -1028,13 +1132,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final o = _order;
-    return Scaffold(
-      backgroundColor: Palette.bg,
-      appBar: AppBar(
-        backgroundColor: Palette.bg,
-        title: Text(o == null ? 'Order' : '${o['number']}'),
-      ),
-      body: o == null
+    // The bubble look (user 2026-11-05), the order's number as the title.
+    return BubbleRoute(
+      c: widget.c,
+      title: o == null ? 'ORDER' : '${o['number']}',
+      bubbleKey: const ValueKey('order-detail-bubble'),
+      child: o == null
           ? Center(
               child: _error != null
                   ? Text(_error!, style: const TextStyle(color: Palette.muted))
@@ -1071,29 +1174,48 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     ];
     final at = stages.indexWhere((s) => s.$1 == o['stage']);
     final waiting = o['approval'] == 'review' && proof != null;
+    // The number is the page title; an order without a name of its own (the team name is optional) shows no
+    // heading, not "Order 3DZ-00010" under "3DZ-00010".
+    final named = ownOrderName(o['number'], o['name']).isNotEmpty;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+      padding: const EdgeInsets.fromLTRB(2, 6, 2, 16),
       children: [
-        Text(
-          '${o['name']}',
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
-        ),
-        const SizedBox(height: 6),
+        // The name, status and payment sit in from the bubble's rounded
+        // top-left corner, with a little room over the first of them: an
+        // order with no name of its own starts with the status badge, which
+        // touched the bubble's glowing rim on wide phones (430 px).
+        if (named)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+            child: Text(
+              '${o['name']}',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+            ),
+          ),
         // The status once, as on the website's order page: the sub-status ("Order received", "Approval needed"), its
         // stage being in the steps below. The stage pill beside it repeated it ("Order Received", "Delivered").
         if (status.isNotEmpty)
-          Wrap(
-            key: const Key('order-status'),
-            spacing: 6,
-            children: [
-              _pill(status, _tone(sub['label'] == null ? 'blue' : sub['tone'])),
-            ],
+          Padding(
+            padding: EdgeInsets.fromLTRB(12, named ? 0 : 8, 12, 0),
+            child: Wrap(
+              key: const Key('order-status'),
+              spacing: 6,
+              children: [
+                _pill(
+                  status,
+                  _tone(sub['label'] == null ? 'blue' : sub['tone']),
+                ),
+              ],
+            ),
           ),
         // The invoice: its status and, while unpaid, Pay now (the status is read again on the way back).
-        PaymentStrip(
-          widget.c,
-          (o['payment'] as Map?)?.cast<String, dynamic>(),
-          onBack: _load,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: PaymentStrip(
+            widget.c,
+            (o['payment'] as Map?)?.cast<String, dynamic>(),
+            onBack: _load,
+          ),
         ),
         // Who makes it, when that is one of the preferred suppliers.
         if (madeByOf(o) case final maker?)
@@ -1265,8 +1387,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               child: SurfaceCard(
                 child: Row(
                   children: [
+                    // As the website: the kit picture, else the artwork
+                    // uploaded for this garment (or the order), else the
+                    // garment's outline, never just its name.
                     _dataImage(item['thumbnail'], 48) ??
-                        _GarmentChip('${item['name']}'),
+                        _dataImage(_artworkFor(item, files), 48) ??
+                        _GarmentOutline('${item['garment'] ?? item['name']}'),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(

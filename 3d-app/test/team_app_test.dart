@@ -12,6 +12,8 @@ import 'package:three_deezi/screens/library.dart' show ProfileScreen;
 import 'package:three_deezi/screens/order_entry.dart' show openPayPage;
 import 'package:three_deezi/screens/orders_board.dart';
 import 'package:three_deezi/screens/team.dart';
+import 'package:three_deezi/sports_catalog.dart';
+import 'package:three_deezi/widgets/notification_bell.dart';
 import 'package:three_deezi/widgets/ui.dart'
     show GradientButton, SecondaryButton;
 
@@ -204,6 +206,9 @@ class TeamServer {
           {'id': 'shorts', 'name': 'Shorts'},
           {'id': 'tee', 'name': 'Training Tee'},
           {'id': 'hoodie', 'name': 'Hoodie'},
+          {'id': 'singlet', 'name': 'Singlet'},
+          {'id': 'netball-dress', 'name': 'Netball dress'},
+          {'id': 'nfljersey', 'name': 'Football jersey'},
         ],
       });
     }
@@ -337,7 +342,7 @@ Future<void> mount(
   double width = 420,
 }) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = Size(width, 1000);
+  tester.view.physicalSize = Size(width, 1600);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
@@ -487,6 +492,155 @@ void main() {
       expect(c.screen, AppScreen.auth);
     },
   );
+
+  testWidgets(
+    "Request form (QA9): Design Your Own's sport names and order, the sport's garments first",
+    (tester) async {
+      final server = TeamServer();
+      await mount(
+        tester,
+        TeamRequestFormScreen(
+          signedIn(server),
+          allowance: {
+            'next_request': {'billing': 'included'},
+            'can_submit': true,
+          },
+        ),
+      );
+      // The same names and order as Design Your Own ("Soccer", not
+      // "Football"), then a sport only the website knows, then Custom.
+      final names = [
+        for (final item
+            in tester
+                .widget<DropdownButton<String>>(
+                  find.byType(DropdownButton<String>),
+                )
+                .items!)
+          (item.child as Text).data,
+      ];
+      expect(names.take(sportCategories.length), [
+        for (final s in dyoSports) s.$1,
+      ]);
+      expect(names, contains('Soccer'));
+      expect(names, isNot(contains('Football')));
+      expect(names, contains('Pickleball'));
+      // No sport yet: every garment, the ones the sports use first.
+      await tap(tester, find.byKey(const Key('team-garments')));
+      expect(find.text('OTHER GARMENTS'), findsNothing);
+      await tap(tester, find.text('DONE'));
+      // Basketball: its garments in DYO's order, then the others.
+      await tap(tester, find.byKey(const Key('team-sport')));
+      await tap(tester, find.text('Basketball').last);
+      await tap(tester, find.byKey(const Key('team-garments')));
+      final sheet = tester
+          .widgetList<Widget>(
+            find.descendant(
+              of: find.byType(ListView).last,
+              matching: find.byWidgetPredicate(
+                (w) =>
+                    w is CheckboxListTile ||
+                    (w is Text &&
+                        (w.data ?? '') == (w.data ?? '').toUpperCase() &&
+                        (w.data ?? '').isNotEmpty),
+              ),
+            ),
+          )
+          .map(
+            (w) => w is CheckboxListTile
+                ? (w.title! as Text).data
+                : (w as Text).data,
+          )
+          .toList();
+      expect(sheet, [
+        'FOR BASKETBALL',
+        'Singlet',
+        'Shorts',
+        'Training Tee',
+        'Hoodie',
+        'OTHER GARMENTS',
+        'Jersey',
+        'Netball dress',
+        'Football jersey',
+      ]);
+      await tap(tester, find.text('DONE'));
+      // A saved request keeps reading well: the catalogue sport by its DYO
+      // name, a typed sport as typed.
+      expect(
+        teamSportName({'sport': 'football', 'sport_name': 'Football'}),
+        'Soccer',
+      );
+      expect(teamSportName({'sport': 'Football'}), 'Football');
+      expect(
+        teamSportName({'sport': 'lacrosse-x', 'sport_name': 'Lax'}),
+        'Lax',
+      );
+    },
+  );
+
+  testWidgets(
+    "Request form (QA9): the plan's open-request limit is said first and SEND is off",
+    (tester) async {
+      final server = TeamServer(paid: true);
+      await mount(
+        tester,
+        TeamRequestFormScreen(
+          signedIn(server),
+          allowance: {
+            'plan_name': 'Rookie (Free)',
+            'open_requests': 1,
+            'max_open_requests': 1,
+            'can_submit': false,
+            'blocked_reason': 'You have 1 request open.',
+            'next_request': {'billing': 'paid', 'total': '100.00'},
+          },
+        ),
+      );
+      final note = find.byKey(const Key('team-limit'));
+      expect(note, findsOneWidget);
+      expect(
+        find.text(
+          'You have 1 request open. The Rookie (Free) plan allows 1 at a time.',
+        ),
+        findsOneWidget,
+      );
+      // Above the form.
+      expect(
+        tester.getTopLeft(note).dy,
+        lessThan(tester.getTopLeft(find.byKey(const Key('team-name'))).dy),
+      );
+      expect(find.text('See plans'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('SEND DESIGN REQUEST'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        tester
+            .widget<GradientButton>(
+              find.widgetWithText(GradientButton, 'SEND DESIGN REQUEST'),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('team-limit-requests')),
+        -300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tap(tester, find.byKey(const Key('team-limit-requests')));
+      expect(find.byType(TeamRequestsScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets("A request's own screen shows the TEAM bell (QA9)", (
+    tester,
+  ) async {
+    final server = TeamServer();
+    await mount(tester, TeamRequestScreen(signedIn(server), 3));
+    final bell = tester.widget<NotificationBell>(find.byType(NotificationBell));
+    expect(bell.only, isNotNull);
+    expect(bell.title, '3DEEZI TEAM notifications');
+  });
 
   testWidgets('VIEW MY REQUESTS lists my design requests and opens one', (
     tester,
@@ -802,11 +956,7 @@ void main() {
     final c = signedIn(server);
     await mount(tester, CreateHomeScreen(c));
     // The other three ways in are still there.
-    for (final action in [
-      'AI DESIGNER',
-      'DESIGN YOUR OWN',
-      'ARTBOARD',
-    ]) {
+    for (final action in ['AI DESIGNER', 'DESIGN YOUR OWN', 'ARTBOARD']) {
       await tester.scrollUntilVisible(
         find.text(action),
         200,

@@ -81,7 +81,7 @@ class OrderSubmission
                 $data['pricing'] = ['destination' => $destination] + (is_array($data['pricing'] ?? null) ? $data['pricing'] : []);
             }
         }
-        $order = $user->orders()->make(Arr::except($data, ['design_final', 'project_version', 'draft_id', 'idempotency_key', 'items', 'pricing', 'delivery', 'address', 'supplier_id']));
+        $order = $user->orders()->make(Arr::except($data, ['design_final', 'project_version', 'draft_id', 'assist_token', 'idempotency_key', 'items', 'pricing', 'delivery', 'address', 'supplier_id']));
         $order->forceFill(['idempotency_key' => $key]);
         // Sending the order is the customer's approval of the confirmation (the mockups, sizes and garment details,
         // images/336): its record for the confirmation form (images/338). Version 1 is the version approved.

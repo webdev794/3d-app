@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
+import '../widgets/bubble_page.dart' show BubblePage;
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
 import 'forgot_password.dart';
@@ -190,103 +191,103 @@ class AuthScreen extends StatelessWidget {
     _account(context);
   }
 
+  // The bubble look (user 2026-11-05): the 3DEEZI logo in the header, the
+  // welcome and the sign-in buttons in the bubble; it scrolls on a short
+  // screen.
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      gradient: RadialGradient(
-        center: Alignment(0, -.5),
-        radius: 1,
-        colors: [Color(0xff062638), Palette.bg],
-      ),
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 26),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Spacer(flex: 3),
-        const Center(child: BrandLogo(width: 220, tagline: true)),
-        const SizedBox(height: 34),
-        const Text(
-          'Welcome to 3DEEZI',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Create custom sportswear\nwith AI and 3D.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Palette.muted, fontSize: 13, height: 1.5),
-        ),
-        const Spacer(flex: 2),
-        _SignInButton(
-          icon: Icons.apple,
-          label: 'Continue with Apple',
-          onTap: () => _social(context, 'Apple'),
-        ),
-        const SizedBox(height: 12),
-        _SignInButton(
-          google: true,
-          label: 'Continue with Google',
-          onTap: () => _social(context, 'Google'),
-        ),
-        const SizedBox(height: 12),
-        _SignInButton(
-          icon: Icons.mail_outline_rounded,
-          label: 'Continue with Email',
-          outlined: true,
-          onTap: () => _account(context),
-        ),
-        const SizedBox(height: 22),
-        const Row(
-          children: [
-            Expanded(child: Divider()),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'OR',
-                style: TextStyle(color: Palette.muted, fontSize: 11),
+  Widget build(BuildContext context) => BubblePage(
+    c: c,
+    title: 'WELCOME',
+    compact: true,
+    bubbleKey: const ValueKey('auth-bubble'),
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 8),
+          const Text(
+            'Welcome to 3DEEZI',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Create custom sportswear\nwith AI and 3D.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Palette.muted, fontSize: 13, height: 1.5),
+          ),
+          const SizedBox(height: 26),
+          _SignInButton(
+            icon: Icons.apple,
+            label: 'Continue with Apple',
+            onTap: () => _social(context, 'Apple'),
+          ),
+          const SizedBox(height: 12),
+          _SignInButton(
+            google: true,
+            label: 'Continue with Google',
+            onTap: () => _social(context, 'Google'),
+          ),
+          const SizedBox(height: 12),
+          _SignInButton(
+            icon: Icons.mail_outline_rounded,
+            label: 'Continue with Email',
+            outlined: true,
+            onTap: () => _account(context),
+          ),
+          const SizedBox(height: 22),
+          const Row(
+            children: [
+              Expanded(child: Divider()),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'OR',
+                  style: TextStyle(color: Palette.muted, fontSize: 11),
+                ),
               ),
-            ),
-            Expanded(child: Divider()),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Center(
-          child: Text.rich(
-            TextSpan(
-              text: 'Already have an account? ',
-              style: const TextStyle(color: Palette.muted, fontSize: 12.5),
-              children: [
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: GestureDetector(
-                    onTap: () => _account(context, register: false),
-                    child: const Text(
-                      'Sign In',
-                      style: TextStyle(
-                        color: Palette.cyan,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
+              Expanded(child: Divider()),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Center(
+            child: Text.rich(
+              TextSpan(
+                text: 'Already have an account? ',
+                style: const TextStyle(color: Palette.muted, fontSize: 12.5),
+                children: [
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: GestureDetector(
+                      onTap: () => _account(context, register: false),
+                      child: const Text(
+                        'Sign In',
+                        style: TextStyle(
+                          color: Palette.cyan,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Center(
-          child: TextButton(
-            onPressed: () => c.go(AppScreen.home),
-            child: const Text(
-              'Continue as guest (projects stay on this device)',
-              style: TextStyle(color: Palette.muted, fontSize: 11.5),
+          const SizedBox(height: 6),
+          Center(
+            child: TextButton(
+              onPressed: () => c.go(AppScreen.home),
+              child: const Text(
+                'Continue as guest (projects stay on this device)',
+                style: TextStyle(color: Palette.muted, fontSize: 11.5),
+              ),
             ),
           ),
-        ),
-        const Spacer(flex: 2),
-      ],
+          const SizedBox(height: 12),
+        ],
+      ),
     ),
   );
 }
@@ -585,12 +586,18 @@ class _SignInButton extends StatelessWidget {
                 color: outlined ? Palette.cyan : Colors.black,
               ),
             const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: outlined ? Palette.text : Colors.black,
+            // (Narrow in the bubble: the label shrinks, never overflows.)
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: outlined ? Palette.text : Colors.black,
+                  ),
+                ),
               ),
             ),
           ],

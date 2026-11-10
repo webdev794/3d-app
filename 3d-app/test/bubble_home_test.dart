@@ -132,7 +132,7 @@ void main() {
     final mid = _glass(tester).center;
     final ai = _spot(tester, 'ai');
     expect(find.text('Release to enter'), findsNothing);
-    expect(find.text('SWIPE OR TAP TO EXPLORE'), findsOneWidget);
+    expect(find.text('DRAG TO EXPLORE'), findsOneWidget);
 
     final g = await tester.startGesture(mid);
     await _moveTo(tester, g, mid, ai);
@@ -167,7 +167,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     expect(c.screen, AppScreen.home);
     expect(find.text('Release to enter'), findsNothing);
-    expect(find.text('SWIPE OR TAP TO EXPLORE'), findsOneWidget);
+    expect(find.text('DRAG TO EXPLORE'), findsOneWidget);
 
     // Releasing away from every option cancels too.
     final g2 = await tester.startGesture(mid);

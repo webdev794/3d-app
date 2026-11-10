@@ -27,5 +27,17 @@ import UIKit
       }
       UIApplication.shared.open(url, options: [:]) { opened in result(opened) }
     }
+    // Puts the keyboard away whoever opened it: the app calls it when a keyboard is
+    // still up and none of its own text boxes is in use (a web page's box, e.g. the
+    // Artboard's, after leaving that screen). iPhone keyboards have no hide key.
+    let keyboard = FlutterMethodChannel(name: "3deezi/keyboard", binaryMessenger: engineBridge.applicationRegistrar.messenger())
+    keyboard.setMethodCallHandler { call, result in
+      guard call.method == "hide" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+      result(nil)
+    }
   }
 }

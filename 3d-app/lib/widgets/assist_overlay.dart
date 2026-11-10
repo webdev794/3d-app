@@ -3,6 +3,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../app_controller.dart';
 import '../assist.dart';
+import 'glass_bubble.dart' show GlassRim;
 import 'ui.dart';
 
 /// 3DEEZI ASSIST, the help chat on every screen: the launcher (bottom right)
@@ -59,6 +60,10 @@ class _AssistOverlayState extends State<AssistOverlay> {
       // Also out of the way of the 3D view's own screens (the print layout
       // check).
       if (AssistController.hiddenOn.contains(a.app.screen) || a.app.viewerModal)
+        return const SizedBox.shrink();
+      // A logo or words selected on the Studio's 3D kit: its menu has the
+      // room (the chat itself stays while open).
+      if (a.app.screen == AppScreen.studio && a.app.objectOnKit && !a.open)
         return const SizedBox.shrink();
       // The Home has its own "Ask 3DEEZI Assist" link (client picture
       // 166.jpg): the round launcher shows there only while the chat is open.
@@ -151,33 +156,35 @@ class _AssistOverlayState extends State<AssistOverlay> {
             key: const ValueKey('assist-launcher'),
             customBorder: const CircleBorder(),
             onTap: a.toggle,
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xf20a1a2c), Color(0xf2050d18)],
-                ),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Palette.cyan.withValues(alpha: .8),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Palette.cyan.withValues(alpha: .33),
-                    blurRadius: 20,
+            // A round glass bubble: a glass rim with a cyan glow and white
+            // reflections, the centre dark (client 487).
+            child: GlassRim(
+              radius: size / 2,
+              width: 2.5,
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xf20a1a2c), Color(0xf2050d18)],
                   ),
-                  const BoxShadow(
-                    color: Color(0x99000000),
-                    blurRadius: 24,
-                    offset: Offset(0, 10),
-                  ),
-                ],
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Palette.cyan.withValues(alpha: .2),
+                      blurRadius: 20,
+                    ),
+                    const BoxShadow(
+                      color: Color(0x99000000),
+                      blurRadius: 24,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Center(child: Sparkle(size: a.open ? 22 : 25)),
               ),
-              child: Center(child: Sparkle(size: a.open ? 22 : 25)),
             ),
           ),
         ),
@@ -242,7 +249,9 @@ class _AssistOverlayState extends State<AssistOverlay> {
               ],
             ),
           ),
-          _inputRow(),
+          // The send button counts as part of the box: tapping it keeps
+          // the keyboard up for the next question (a tap elsewhere closes it).
+          TextFieldTapRegion(child: _inputRow()),
         ],
       ),
     ),

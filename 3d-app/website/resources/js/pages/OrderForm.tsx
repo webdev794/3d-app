@@ -62,7 +62,7 @@ const DEFAULT_OPTIONS: FormOptions = {
   sizes: ALL_SIZES,
   files: { artwork: { extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'pdf', 'ai', 'eps', 'cdr', 'psd', 'tif', 'tiff', 'heic'], max_kb: 25600 }, max_files: 15 },
 };
-const MAX_ROWS = 30, MAX_PLAYERS = 300, STORE = '3deezi.order-form';
+const MAX_ROWS = 60, MAX_PLAYERS = 300, STORE = '3deezi.order-form';
 /** Garments with a picture (public/media/showroom/garment-<id>.webp); the rest show a shirt icon. */
 const ART = new Set(['jersey', 'shorts', 'tee', 'singlet', 'polo', 'socks', 'hoodie']);
 const WORDS: Record<string, [string, string]> = { jersey: ['jersey', 'jerseys'], shorts: ['shorts', 'shorts'], tee: ['tee', 'tees'], singlet: ['singlet', 'singlets'], polo: ['polo', 'polos'], hoodie: ['hoodie', 'hoodies'], jacket: ['jacket', 'jackets'], warmup: ['warm-up top', 'warm-up tops'], pants: ['track pants', 'track pants'], socks: ['socks', 'socks'], cap: ['cap', 'caps'], other: ['item', 'items'] };
@@ -98,6 +98,8 @@ const sizesText = (sizes: Record<string, number>, order: string[]) => order.filt
 
 function rowName(r: Row, o: FormOptions, project?: Project | null) {
   if (r.garment === 'other') return r.label.trim() || 'Other garment';
+  // A row the Order Assistant made keeps its design's name.
+  if (r.label.trim()) return r.label.trim();
   // A saved design made as one of its sport's garments ("Netball dress", task 9.99) is ordered by that name on rows of
   // that garment; on another garment's row ("Netball bibs" on a Rugby League jersey row) the row keeps its own name.
   const product = project && project.id === r.project_id ? designRowName(project, r.garment) : '';
@@ -123,7 +125,7 @@ function toOrderFields(f: FormState, sizes: string[]): FormFields {
     contact_name: f.contact.contact_name.trim(), contact_email: f.contact.contact_email.trim(), phone: f.contact.phone.trim(), team_name: f.contact.team_name.trim(), notes: f.notes.trim(),
     items: f.rows.map(r => {
       const players = r.players.filter(p => p.name.trim() || p.number).map(p => ({ name: p.name.trim(), number: p.number, ...(p.size ? { size: p.size } : {}) }));
-      return { garment: r.garment, ...(r.sport.trim() ? { sport: r.sport.trim() } : {}), ...(r.fit ? { fit: r.fit } : {}), ...(r.garment === 'other' && r.label.trim() ? { label: r.label.trim() } : {}), ...(r.project_id ? { project_id: r.project_id } : {}), sizes: cleanSizes(r.sizes, sizes), ...(players.length ? { players } : {}) };
+      return { garment: r.garment, ...(r.sport.trim() ? { sport: r.sport.trim() } : {}), ...(r.fit ? { fit: r.fit } : {}), ...(r.label.trim() ? { label: r.label.trim().slice(0, 60) } : {}), ...(r.project_id ? { project_id: r.project_id } : {}), sizes: cleanSizes(r.sizes, sizes), ...(players.length ? { players } : {}) };
     }),
     ...(Object.keys(pricing).length ? { pricing } : {}),
     ...deliveryPayload(f.delivery),
@@ -159,25 +161,31 @@ function fromData(d: Loose | null | undefined, sizes: string[]): FormState {
 }
 
 /** Problems that stop the review, by field (the API's error keys, orders-api.md §6). */
-function validate(f: FormState, o: FormOptions): Record<string, string> {
+function validate(f: FormState, o: FormOptions, art = false): Record<string, string> {
   const p: Record<string, string> = {};
   if (!f.contact.contact_name.trim()) p.contact_name = 'Add the contact name.';
   if (f.contact.contact_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.contact_email.trim())) p.contact_email = 'Check the email address.';
-  if (!f.contact.team_name.trim()) p.team_name = 'Add your team or organisation.';
+  // The minimum to order (client 2026-11-05): team name and date required are optional.
   // Mobile, date required and delivery, as on Upload Your Order (the server checks the same).
   const mobile = mobileError(f.contact.phone);
   if (mobile) p.phone = mobile;
-  Object.assign(p, deliveryErrors(f.delivery));
+  const where = deliveryErrors(f.delivery);
+  if (!f.delivery.needed_by) delete where.needed_by;
+  Object.assign(p, where);
   if (!f.rows.length) p.items = 'Add at least one garment.';
+  // Artwork is required (client 2026-11-05): a saved design on a garment, artwork for a garment or for the whole order.
+  else if (!art && !f.rows.some(r => r.project_id || r.file_ids.length)) p.artwork = 'Add your artwork: choose a saved design or upload your logo or artwork.';
   f.rows.forEach((r, i) => {
     if (!sum(r.sizes)) p[`items.${i}.sizes`] = `Add sizes and quantities for ${rowName(r, o)}.`;
     if (r.players.length > MAX_PLAYERS) p[`items.${i}.players`] = `A garment can have up to ${MAX_PLAYERS} player names.`;
   });
   return p;
 }
-/** Which screen of the form a problem belongs to: 0 Details, 1 Garments, 2 Artwork. */
-function pageOf(key: string) { return key.startsWith('items') ? 1 : key === 'notes' || key === 'general' ? 2 : 0; }
-const PAGE_IDS = ['of-contact', 'of-garments', 'of-artwork'];
+/**
+ * Which step a problem belongs to (client 2026-11-05, two steps): 0 Garments & artwork, 1 Details & review (name,
+ * date required, email, mobile, address, on the review page).
+ */
+function pageOf(key: string) { return key.startsWith('items') || key === 'artwork' || key === 'notes' || key === 'general' ? 0 : 1; }
 const SHEET_TYPES = ['pdf', 'xlsx', 'xls', 'csv'];
 
 /** The server's 422 errors on the same keys: a garment's other problems show under its row. */
@@ -285,6 +293,8 @@ type Pending = 'save' | 'review' | 'upload';
 
 function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const [params, setParams] = useSearchParams();
+  /** The review, for the Order Assistant's Review & Approve (set where review() is defined). */
+  const reviewRef = useRef<(() => Promise<void>) | null>(null);
   const firstSport = catalog?.sports[0]?.id ?? 'rugby-league';
   // This device's copy: the account's, or the one filled in signed out (it becomes the account's when its owner signs in).
   const [initial] = useState(() => {
@@ -315,7 +325,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   /** The rows the last Build made: a second Build replaces them instead of adding them again (392.jpg: 8 and 12). */
   const notesBuilt = useRef<Set<string>>(new Set());
   const [noteImages, setNoteImages] = useState<File[]>([]);
-  const [building, setBuilding] = useState<{ busy: boolean; text?: string; check?: string[]; missing?: string[] }>({ busy: false });
+  const [building, setBuilding] = useState<{ busy: boolean; built?: boolean; text?: string; check?: string[]; missing?: string[] }>({ busy: false });
   const sheetInput = useRef<HTMLInputElement>(null);
   const artInput = useRef<HTMLInputElement>(null);
   const [tried, setTried] = useState(false);
@@ -337,6 +347,10 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
 
   // The latest values for requests that finish later and for handlers registered once.
   const formRef = useRef(form); formRef.current = form;
+  const filesRef = useRef(files); filesRef.current = files;
+  const uploadsRef = useRef(uploads); uploadsRef.current = uploads;
+  // Artwork added after "Add your artwork" was shown: the message goes.
+  useEffect(() => { if (errors.artwork && (files.some(f => f.kind !== 'order_form') || form.rows.some(r => r.project_id || r.file_ids.length))) setErrors(({ artwork: _done, ...rest }) => rest); }, [files, form.rows, errors.artwork]);
   const userRef = useRef(user); userRef.current = user;
   const draftRef = useRef(draftId); draftRef.current = draftId;
   const authRef = useRef(requireAuth); authRef.current = requireAuth;
@@ -638,12 +652,21 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   }
 
   /* ------------------------------------------------------------------------------ review and confirm */
+  reviewRef.current = review;
+  /** Artwork for the whole order counts (files that are not the order sheet). */
+  function hasArt() { return filesRef.current.some(f => f.kind !== 'order_form'); }
+  /** Step 1 → step 2: the garments, sizes and artwork are checked here; the details on step 2, before Approve. */
   async function review() {
-    const problems = validate(formRef.current, options);
-    setTried(true); setErrors(problems);
+    // An upload still running: wait for it (its artwork counts once it is in).
+    if (uploadsRef.current.some(u => u.status === 'uploading')) { onNotice('Wait for your files to finish uploading, then continue.'); return; }
+    const all = validate(formRef.current, options, hasArt());
+    const problems = Object.fromEntries(Object.entries(all).filter(([k]) => pageOf(k) === 0));
+    setTried(Object.keys(problems).length > 0); setErrors(problems);
     if (Object.keys(problems).length) {
-      setPage(Math.min(...Object.keys(problems).map(pageOf)), false);
-      setTimeout(() => { const first = document.querySelector<HTMLElement>('.op-page [aria-invalid="true"], .op-page .has-error'); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); (first?.matches('input,select,textarea') ? first : first?.querySelector<HTMLElement>('input,select,button'))?.focus({ preventScroll: true }); }, 30);
+      setPage(0, false);
+      // Missing artwork (e.g. Review & Approve from the Order Assistant): its message, at the foot of a long section,
+      // is brought to the middle of the screen, not hidden under 3DEEZI ASSIST on a phone.
+      setTimeout(() => { const first = document.querySelector<HTMLElement>('.op-page [aria-invalid="true"], .op-page .has-error'); (first?.id === 'of-artwork' ? first.querySelector<HTMLElement>('[role="alert"]') ?? first : first)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); (first?.matches('input,select,textarea') ? first : first?.querySelector<HTMLElement>('input,select,button'))?.focus({ preventScroll: true }); }, 30);
       return;
     }
     if (!userRef.current) { needSignIn('review'); return; }
@@ -656,8 +679,14 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   }
   async function confirm() {
     if (submitLock.current) return;
-    const problems = validate(formRef.current, options);
-    if (Object.keys(problems).length) { setErrors(problems); setTried(true); setStep('form'); setPage(Math.min(...Object.keys(problems).map(pageOf)), false); return; }
+    const problems = validate(formRef.current, options, hasArt());
+    if (Object.keys(problems).length) {
+      setErrors(problems); setTried(true);
+      // Step 1 problems go back to the garments; the details are on this page (step 2).
+      if (Object.keys(problems).some(k => pageOf(k) === 0)) { setStep('form'); setPage(0, false); return; }
+      setTimeout(() => { const first = document.querySelector<HTMLElement>('#of-contact [aria-invalid="true"], #of-contact .has-error'); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); first?.focus?.(); }, 60);
+      return;
+    }
     if (!userRef.current) { needSignIn('review'); return; }
     submitLock.current = true; setSubmitting(true); setSubmitError('');
     try {
@@ -677,7 +706,7 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
       const err = e as ApiError;
-      if (err.status === 422) { setErrors(serverProblems(err)); setTried(true); setStep('form'); onNotice('Please check the details marked in red.'); }
+      if (err.status === 422) { const sp = serverProblems(err); setErrors(sp); setTried(true); if (Object.keys(sp).some(k => pageOf(k) === 0)) { setStep('form'); setPage(0, false); } onNotice('Please check the details marked in red.'); }
       else if (err.status === 404 && draftRef.current) setSubmitError('This draft was already sent or deleted. Check My Orders before sending it again.');
       else setSubmitError(err.message);
     } finally { submitLock.current = false; setSubmitting(false); }
@@ -689,9 +718,11 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   /** Continue: this screen's checks first (the review still checks everything). */
   function goTo(target: number) {
     if (target <= page) { setPage(target); return; }
-    if (target >= 3) { void review(); return; }
-    const problems = validate(formRef.current, options);
-    const bad = Object.keys(problems).filter(k => pageOf(k) < target);
+    if (target >= 1) { void review(); return; }
+    const problems = validate(formRef.current, options, hasArt());
+    // Contact and delivery may wait until Review (client 2026-11-05: "too much info to input"): only the garments
+    // and sizes are needed to go on; the review still checks everything.
+    const bad = Object.keys(problems).filter(k => pageOf(k) < target && pageOf(k) > 0);
     if (bad.length) {
       setTried(true); setErrors(problems);
       setPage(Math.min(...bad.map(pageOf)), false);
@@ -730,19 +761,53 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
         players: players.slice(0, MAX_PLAYERS).map(p => ({ key: makeKey('p'), name: String(p?.name ?? '').slice(0, 40), number: String(p?.number ?? '').replace(/\D/g, '').slice(0, 3), size: String(p?.size ?? '') })) });
     });
     if (!built.length) { setBuilding({ busy: false, text: 'No garments or sizes found in your notes. Try lines like “Polo” then “3 x 4XL”.', check: read.unknown }); return; }
-    setForm(f => {
+    const withBuilt = (f: typeof formRef.current) => {
       const kept = f.rows.filter(r => !notesBuilt.current.has(r.key) && (sum(r.sizes) > 0 || r.project_id || r.players.length));
       return { ...f, rows: [...kept, ...built].slice(0, MAX_ROWS), notes: f.notes || (text ? `From my notes:
 ${text}`.slice(0, 4000) : f.notes) };
-    });
+    };
+    // What is still missing is checked on the form as built (not the one from before the build).
+    const builtForm = withBuilt(formRef.current);
+    setForm(f => withBuilt(f));
     notesBuilt.current = new Set(built.map(r => r.key));
     setNotePhotos([]); setNoteImages([]); setNoteFiles([]);
     const count = built.reduce((n, r) => n + sum(r.sizes), 0);
     // Straight on to the built garments (client 394): Details already typed stays; what is still missing is listed, not blocking.
-    const missing = [...new Set(Object.keys(validate(formRef.current, options)).filter(k => pageOf(k) === 0).map(k => k.replace(/^(contact|delivery)\./, '').replace(/_/g, ' ')))];
-    setBuilding({ busy: false, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them here, then continue.`, check: read.unknown, missing });
+    const plain = (k: string) => {
+      const row = k.match(/^items\.(\d+)\.(\w+)/);
+      if (row) return `${row[2] === 'players' ? 'players' : 'sizes'} for garment ${Number(row[1]) + 1}`;
+      return k === 'artwork' ? 'your logo or design (artwork)' : k === 'items' ? 'garments' : k === 'general' ? 'order details' : k.replace(/_/g, ' ');
+    };
+    const missing = [...new Set(Object.keys(validate(builtForm, options, hasArt())).filter(k => pageOf(k) === 0).map(plain))];
+    setBuilding({ busy: false, built: true, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them here, then continue.`, check: read.unknown, missing });
     setPage(1);
   }
+  /**
+   * Edit Order / Review & Approve from the Order Assistant (?assistant={token}, task TL-3): its collated rows (a row
+   * per design, garment and fit, named by the design; "any sport": a reunion is no rugby order) replace the empty
+   * ones; the team name is its title when empty.
+   */
+  const assistantToken = params.get('assistant');
+  const assistantReview = params.get('review') === '1';
+  const assistantDone = useRef(false);
+  useEffect(() => {
+    if (!assistantToken || assistantDone.current || !user) return;
+    assistantDone.current = true;
+    orderApi.assistantOrder(assistantToken).then(o => {
+      const items = o.analysis?.items ?? [];
+      if (!items.length) return;
+      const built = items.slice(0, MAX_ROWS).map(it => newRow({
+        garment: options.garments.some(g => g.id === it.garment) ? it.garment : 'other', sport: '',
+        fit: it.fit || 'mens', sizes: cleanSizes(it.sizes, options.sizes), label: (it.label || '').slice(0, 60), open: false,
+      }));
+      setForm(f => ({ ...f, rows: [...f.rows.filter(r => sum(r.sizes) > 0 || r.project_id || r.players.length), ...built].slice(0, MAX_ROWS),
+        contact: { ...f.contact, team_name: f.contact.team_name || (o.title || '').slice(0, 120) } }));
+      const next = new URLSearchParams(params); next.delete('assistant'); next.delete('review'); setParams(next, { replace: true });
+      onNotice(`Added ${built.length} garment rows (${o.analysis?.totals.garments ?? 0} garments) from the Order Assistant.`);
+      if (assistantReview) setTimeout(() => void reviewRef.current?.(), 50); else setPage(1);
+    }).catch(() => onNotice('The Order Assistant’s order could not be opened. Try again from the Order Assistant.'));
+  }, [assistantToken, user]);
+
   /** "Have an order sheet?": the same reading as Upload order (OrderFormReader); its sizes come into the garments. */
   async function addSheet(file: File) {
     const ext = (file.name.split('.').pop() ?? '').toLowerCase();
@@ -810,13 +875,13 @@ ${text}`.slice(0, 4000) : f.notes) };
     }
     return [...groups.entries()].map(([key, g]) => ({ key, label: g.label, ...(g.qty && !g.missing ? { value: g.qty } : {}), pending: g.qty ? `${g.qty} · sizes needed` : 'Sizes needed' }));
   }, [form.rows]);
-  const problems = useMemo(() => validate(form, options), [form, options]);
+  const problems = useMemo(() => validate(form, options, files.some(f => f.kind !== 'order_form')), [form, options, files]);
   const hint = !form.rows.length ? 'Add a garment to start your order.'
     : form.rows.some(r => !sum(r.sizes)) ? 'Complete garment quantities before review.'
-    : problems.contact_name || problems.team_name || problems.contact_email || problems.phone ? 'Add your contact and team details before review.'
-    : problems.needed_by || problems.delivery || problems.street || problems.suburb || problems.state || problems.postcode || problems.country ? 'Add the date required and the delivery address (or Pick up) before review.'
-    : `Ready to review: ${totalQty} ${totalQty === 1 ? 'piece' : 'pieces'}.`;
-  const hintTone = Object.keys(problems).length ? 'info' : 'ok';
+    : problems.artwork ? 'Add your artwork before review.'
+    // Step 2 asks the details (name, date required, email, mobile, address).
+    : `Ready for step 2: ${totalQty} ${totalQty === 1 ? 'piece' : 'pieces'}.`;
+  const hintTone = Object.keys(problems).some(k => pageOf(k) === 0) ? 'info' : 'ok';
   // Section 1 follows what is typed now (a fixed field loses its message at once); the rest as last checked.
   const shownErrors: Record<string, string | undefined> = tried ? { ...errors, ...Object.fromEntries(['contact_name', 'contact_email', 'team_name', 'phone'].map(k => [k, problems[k]])) } : {};
   const describe = () => {
@@ -882,32 +947,38 @@ ${text}`.slice(0, 4000) : f.notes) };
     });
     const reviewFiles: ReviewFile[] = files.map(f => ({ id: f.id, name: f.name, kind: f.kind, extension: f.extension, size: f.size, thumb: f.thumb, preview: previews.current.get(f.id) ?? null, download: f.download }));
     // The rows as the order takes them (with the row key and its artwork), for the layout rule and the per-garment sections.
-    const reviewRows: ReviewRow[] = form.rows.map(r => ({ key: r.key, garment: r.garment, sport: r.sport || null, fit: r.fit || null, label: r.garment === 'other' ? r.label.trim() || null : null, project_id: r.project_id,
+    const reviewRows: ReviewRow[] = form.rows.map(r => ({ key: r.key, garment: r.garment, sport: r.sport || null, fit: r.fit || null, label: r.label.trim() || null, project_id: r.project_id,
       sizes: cleanSizes(r.sizes, options.sizes), players: r.players.filter(p => p.name.trim() || p.number).map(p => ({ name: p.name.trim(), number: p.number, size: p.size || null })), file_ids: r.file_ids }));
     const layout = layoutFor(reviewRows);
     const priced = quote.data?.status === 'priced';
     const toForm = (id?: string) => {
       setStep('form');
-      setPageState(id ? Math.max(0, PAGE_IDS.indexOf(id)) : 2);
+      setPageState(0);
       requestAnimationFrame(() => requestAnimationFrame(() => (id ? document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : window.scrollTo({ top: 0, behavior: 'smooth' }))));
     };
     return <OrderPageLayout className="of-page is-review"
-      header={<ReviewApproveHeader step="review" firstStep="Order details" layout={layout} />}
-      main={<OrderReviewApprove garments={garments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} shareLink={draftId ? () => orderApi.confirmationLinks(draftId, true, true).then(l => l.pdf) : undefined} sizeOrder={options.sizes} design={reviewDesign} artwork={reviewFiles} files={reviewFiles} filesLabel="Artwork"
+      header={<ReviewApproveHeader step="review" firstStep="Garments & artwork" layout={layout} />}
+      main={<>
+{<div id="of-contact"><ContactDetailsCard number={1} title="Your details" team={false} value={form.contact} onChange={contact => setForm(f => ({ ...f, contact }))} errors={shownErrors} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
+        <DeliveryFieldsCard value={form.delivery} errors={(tried ? problems : {}) as DeliveryErrors} leadWeeks={leadWeeks} onChange={next => setForm(f => ({ ...f, delivery: { ...f.delivery, ...next },
+          // A "Delivery to" chosen on the review was for the earlier Deliver / Pick up or country: the price follows the new one.
+          pricing: ('delivery' in next || 'country' in next) && f.pricing.destination ? withoutDestination(f.pricing) : f.pricing }))} />
+      </ContactDetailsCard></div>}
+<OrderReviewApprove garments={garments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} shareLink={draftId ? () => orderApi.confirmationLinks(draftId, true, true).then(l => l.pdf) : undefined} sizeOrder={options.sizes} design={reviewDesign} artwork={reviewFiles} files={reviewFiles} filesLabel="Artwork"
         layout={layout} rows={reviewRows} projects={projects} options={options} quote={quote.data as unknown as PayQuote | null} quoteLoading={quote.loading} quoteError={quote.error}
         onEditGarment={i => { const row = form.rows.filter(r => sum(r.sizes) > 0)[i]; if (row) updateRow(row.key, { open: true }); toForm('of-garments'); }}
         onDownload={f => { const file = files.find(x => x.id === f.id); if (file) orderApi.download(file).catch(e => onNotice(`Couldn’t download ${file.name}: ${(e as Error).message}`)); }}
         fetchFile={f => fetchFile(String(f.download))}
         delivery={{ contactName: c.contact_name, team: c.team_name, email: c.contact_email, phone: c.phone, phoneProblem: c.phone.trim() && !validMobile(c.phone) ? MOBILE_MESSAGE : null,
-          neededBy: form.delivery.needed_by, neededByText: form.delivery.needed_by ? dateText(form.delivery.needed_by) : '', method: form.delivery.delivery === 'pickup' ? 'pickup' : 'deliver',
+          neededBy: form.delivery.needed_by, dateOptional: true, neededByText: form.delivery.needed_by ? dateText(form.delivery.needed_by) : '', method: form.delivery.delivery === 'pickup' ? 'pickup' : 'deliver',
           address: form.delivery.delivery === 'pickup' ? null : deliveryText(form.delivery), notes: form.notes, ...(suppliers.length > 1 ? { madeBy: madeByName } : {}) }}
-        onEditDelivery={() => toForm('of-contact')}
+        onEditDelivery={() => document.getElementById('of-contact')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         onEditGarments={() => toForm('of-garments')}
         price={priced || (quote.loading && !quote.data) ? <PriceBreakdown quote={quote.data as unknown as PayQuote | null} loading={quote.loading} error={quote.error} /> : undefined}
         priceNote={quote.error ? `The price couldn’t be worked out (${quote.error}). 3DEEZI confirms it after review.` : quote.data?.reasons?.map(r => r.message).join(' ') || '3DEEZI confirms the price after review, before you pay anything.'}
         priceOptions={pricingOptions ? <PricingChoices value={form.pricing} onChange={pricing => setForm(f => ({ ...f, pricing }))} choice={choiceDestination(form.delivery)} shipping={quote.data?.shipping} /> : undefined}
         agreed={approved} onAgree={setApproved} busy={submitting} error={submitError}
-        onBack={() => toForm()} onApprove={() => void confirm()} assistContext={describe} />} />;
+        onBack={() => toForm()} onApprove={() => void confirm()} assistContext={describe} /></>} />;
   }
   const side = <>
     <OrderSummaryCard name={form.contact.team_name.trim() || 'Your team'} rows={summaryRows} empty="No garments added yet." hint={hint} tone={hintTone} />
@@ -920,7 +991,7 @@ ${text}`.slice(0, 4000) : f.notes) };
   const main = <>
       {!user && <div className="of-signin" role="note"><LogIn size={20} /><p><strong>Sign in to save and send your order.</strong> What you enter here is kept on this device.</p><button type="button" className="of-btn is-primary" onClick={() => authRef.current()}>Sign in</button></div>}
       {tried && shownErrors.general && <p className="of-general-error" role="alert"><TriangleAlert size={16} /> {shownErrors.general}</p>}
-      {page === 0 && <section className="op-card of-notes" aria-labelledby="of-notes-title" data-testid="notes-box">
+      {<section className="op-card of-notes" aria-labelledby="of-notes-title" data-testid="notes-box">
         <h2 id="of-notes-title"><ClipboardPaste size={20} /> Write or snap your notes</h2>
         <p className="op-hint">Type your order the way you’d write it (e.g. “Polo”, “3 x 4XL”, “2 x 2XL”, or “Smith 7 M”), or add a photo of handwritten notes or a screenshot. 3DEEZI builds a neat order form from it, and you can still change everything.</p>
         <textarea className="op-input of-notes-text" rows={5} maxLength={20000} value={notesText} onChange={e => setNotesText(e.target.value)} placeholder={'Polo\n3 x 4XL\n2 x 2XL\n4 x 5XL'} aria-label="Your notes" />
@@ -935,20 +1006,14 @@ ${text}`.slice(0, 4000) : f.notes) };
           {notePhotos.map((f, i) => <li key={`p${i}`}><Camera size={15} /><span>{f.name} · photo of notes</span><button type="button" onClick={() => setNotePhotos(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
           {noteImages.map((f, i) => <li key={`i${i}`}><ImagePlus size={15} /><span>{f.name} · image</span><button type="button" onClick={() => setNoteImages(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
         </ul>}
-        {building.text && <p className="of-notes-status" role="status" data-testid="notes-status">{building.text}</p>}
-        {building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}
+        {building.text && !building.built && <p className="of-notes-status" role="status" data-testid="notes-status">{building.text}</p>}
+        {!building.built && building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}
       </section>}
-      {page === 0 && <div id="of-contact"><ContactDetailsCard value={form.contact} onChange={contact => setForm(f => ({ ...f, contact }))} errors={shownErrors} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
-        <DeliveryFieldsCard value={form.delivery} errors={(tried ? problems : {}) as DeliveryErrors} leadWeeks={leadWeeks} onChange={next => setForm(f => ({ ...f, delivery: { ...f.delivery, ...next },
-          // A "Delivery to" chosen on the review was for the earlier Deliver / Pick up or country: the price follows the new one.
-          pricing: ('delivery' in next || 'country' in next) && f.pricing.destination ? withoutDestination(f.pricing) : f.pricing }))} />
-        <MadeByField suppliers={suppliers} value={form.supplier_id} error={shownErrors.supplier_id} onChange={supplier_id => setForm(f => ({ ...f, supplier_id }))} />
-      </ContactDetailsCard></div>}
-      {page === 1 && building.text && !building.busy && <div className="op-card of-notes-built" role="status" data-testid="notes-built"><p className="of-notes-status">{building.text}</p>
+      {building.text && !building.busy && building.built && <div className="op-card of-notes-built" role="status" data-testid="notes-built"><p className="of-notes-status">{building.text}</p>
         <button type="button" className="of-btn" onClick={() => void copyFormLink()} data-testid="copy-form-link"><Paperclip size={16} /> Copy form link</button>
-        {building.missing && building.missing.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> still to fill in under Details: {building.missing.join(', ')}.</div>}
+        {building.missing && building.missing.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> still to add on this step: {building.missing.join(', ')}.</div>}
         {building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}</div>}
-      {page === 1 && <OrderSection number={2} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
+      {<OrderSection number={1} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
         action={<button type="button" className="op-link caps" onClick={addRow} disabled={form.rows.length >= MAX_ROWS}><Plus size={18} /> Add garment</button>}>
         {form.rows.length ? <ul className="of-rows">{form.rows.map((r, i) => <GarmentRow key={r.key} row={r} index={i} options={options} projects={projects} signedIn={!!user} focus={r.key === focusKey}
           files={files.filter(f => r.file_ids.includes(f.id))} uploading={uploads.filter(u => u.rowKey === r.key && u.status === 'uploading').length}
@@ -966,7 +1031,7 @@ ${text}`.slice(0, 4000) : f.notes) };
             onChange={players => updateRow(playersRow.key, { players })} onSizes={sizes => updateRow(playersRow.key, { sizes, open: true })} />}
         </div>
       </OrderSection>}
-      {page === 2 && <OrderSection number={3} title="Artwork & files" id="of-artwork">
+      {<OrderSection number={2} title="Artwork" id="of-artwork" className={shownErrors.artwork ? 'has-error' : ''}>
         <div className="of-artwork">
           <div className="of-art-actions">
             <button type="button" className="of-btn" aria-expanded={designsOpen} onClick={() => setDesignsOpen(o => !o)}><Palette size={18} /> Choose saved design</button>
@@ -1011,20 +1076,17 @@ ${text}`.slice(0, 4000) : f.notes) };
           <FileDropBox items={dropItems} onFiles={list => void addFiles(list)} onRemove={item => (item.id.startsWith('f') && item.status === 'done' ? void removeFile(Number(item.id.slice(1))) : dropUpload(item))} onRetry={retryUpload}
             extensions={options.files.artwork.extensions} maxKb={options.files.artwork.max_kb} maxFiles={options.files.max_files} label="Upload logos, artwork or a reference"
             hint={`Artwork for the whole order · PNG, JPG, SVG, PDF, AI or EPS · up to ${Math.round(options.files.artwork.max_kb / 1024)} MB each`} />
-          <OrderField label="Notes for your supplier" error={shownErrors.notes}>
-            <textarea className="op-input" rows={3} maxLength={4000} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Tell us about colours, logo placement and any special requests..." />
-          </OrderField>
+          {shownErrors.artwork && <p className="of-row-error" role="alert"><TriangleAlert size={14} /> {shownErrors.artwork}</p>}
           <p className="of-confirm-hint">Confirmation download: PDF / Excel (available on the next step)</p>
         </div>
       </OrderSection>}
-      {page > 0 && <button type="button" className="op-link of-back" onClick={() => setPage(page - 1)}><ArrowLeft size={18} /> Back to {page === 1 ? 'details' : 'garments'}</button>}
     </>;
 
   return <OrderPageLayout className="of-page"
     header={<><OrderPageHeader current="Create Order Form" title="Create order form" subtitle="Build your order step by step." />
-      <OrderSteps steps={[{ label: 'Details', target: 'of-contact' }, { label: 'Garments', target: 'of-garments' }, { label: 'Artwork', target: 'of-artwork' }, { label: 'Review' }]} current={page} onGo={goTo} onReview={() => void review()} /></>}
+      <OrderSteps steps={[{ label: 'Garments & artwork', target: 'of-garments' }, { label: 'Details & review' }]} current={0} onGo={goTo} onReview={() => void review()} /></>}
     main={main} side={side}
-    bar={<OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} extra={user ? { label: 'Copy form link', onClick: () => void copyFormLink() } : undefined} primary={page < 2 ? { label: page === 0 ? 'Continue to garments' : 'Continue to artwork', onClick: () => goTo(page + 1) } : { label: 'Review confirmation form', onClick: () => void review() }} note={page < 2 ? `Step ${page + 1} of 4` : 'Reviewing does not submit your order.'} status={statusText} />} />;
+    bar={<OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} extra={user ? { label: 'Copy form link', onClick: () => void copyFormLink() } : undefined} primary={{ label: 'Next: details & review', onClick: () => void review() }} note="Step 1 of 2" status={statusText} />} />;
 }
 
 /* ================================================================================================ a garment */
@@ -1082,6 +1144,7 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
         <OrderField label="Type your sport" className="of-other"><input className="op-input" maxLength={CUSTOM_MAX} value={row.sport} placeholder="e.g. Lacrosse, Bowling" autoFocus={!row.sport} onChange={e => onChange({ sport: typedName(e.target.value) })} /></OrderField>
         <OrderField label="Garment" className="of-other"><select className="op-input" value={row.garment} aria-label={`Garment type ${index + 1}`} onChange={e => onChange({ garment: e.target.value })}>{options.garments.map(g => <option key={g.id} value={g.id}>{g.id === 'other' ? 'Custom…' : g.name}</option>)}</select></OrderField>
       </div>}
+      {row.garment !== 'other' && row.label && <OrderField label="Name / design" className="of-other"><input className="op-input" maxLength={60} value={row.label} onChange={e => onChange({ label: e.target.value })} /></OrderField>}
       {row.garment === 'other' && <OrderField label={customSport ? 'Type your garment' : 'What is it?'} className="of-other"><input className="op-input" maxLength={60} value={row.label} placeholder={customSport ? CUSTOM_PLACEHOLDER : 'e.g. Long-sleeve compression top'} onChange={e => onChange({ label: e.target.value })} /></OrderField>}
       {row.open && <div className="of-sizes">
         <div className="of-sizes-head">

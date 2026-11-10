@@ -56,6 +56,7 @@ class OrderFormAiTest extends TestCase
     {
         $id = $this->postJson('/api/v1/order-drafts', ['kind' => 'upload', 'data' => ['team_name' => 'Te Arawa', 'contact_name' => 'Fabian', 'contact_email' => 'fab@example.test']])
             ->assertCreated()->json('data.id');
+        $this->addArtwork($id);
         $file = $this->post("/api/v1/order-drafts/{$id}/files", ['kind' => 'order_form', 'file' => $file ?? $this->sample()], ['Accept' => 'application/json'])
             ->assertCreated()->json('data.id');
 

@@ -3,7 +3,7 @@
 // loaded from media/vendor only when someone downloads a sheet.
 import { media } from './api';
 import type { Design } from './types';
-import { varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, fabricLabel } from './components/KitViewer';
+import { varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, dressAreas, dressColour, fabricLabel } from './components/KitViewer';
 import { styleRows } from './garmentStyle';
 import { allParts, partLabels, partSummary } from './parts';
 
@@ -132,6 +132,11 @@ export async function designSheetPdf(info: SheetInfo): Promise<Blob> {
         // Short labels: the sheet's label column is narrow.
         const short: Partial<Record<string, string>> = { shoulder: 'Shoulder panels', cuffs: 'Cuffs & hem' };
         for (const a of trackAreas) { const hex = trackColour(d, a.key); row(short[a.key] ?? trackAreaLabel(a.key, d.trackStyle), `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}${d.zoneColors?.[a.key] ? '' : `   (${a.follows})`}`); }
+    } else if (d.garment === 'netball-dress') {
+        // The netball dress's NETBALL DRESS AREAS, each as the 3D kit shows it (NDF).
+        heading('NETBALL DRESS AREAS');
+        const short: Partial<Record<string, string>> = { binding: 'Binding' };
+        for (const a of dressAreas) { const hex = dressColour(d as never, a.key); row(short[a.key] ?? a.label, `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}${(d.zoneColors as Record<string, string> | null | undefined)?.[a.key] ? '' : `   (${a.follows})`}`); }
     } else if (areas.length) {
         heading('HOODIE AREAS');
         const names: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Rib cuffs', pocket: 'Pocket', zip: 'Zip', stripe: 'Sleeve stripe' };

@@ -201,6 +201,17 @@ void main() {
 
     await tapText(tester, 'Save');
     expect(c.screen, AppScreen.saveProject);
+    // (In the bubble the list is shorter: scroll to the version line.)
+    await tester.scrollUntilVisible(
+      find.text('Version 1'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('save-project-bubble')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(find.text('Version 1'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Thunder Home');
     // The header also reads "SAVE PROJECT"; tap the button below it.
@@ -221,6 +232,34 @@ void main() {
     expect(find.text('Thunder Home'), findsOneWidget);
     expect(find.text('Warriors Concept'), findsNothing);
   });
+
+  testWidgets(
+    'Save project: the name shows above SAVE PROJECT on the first view (QA9)',
+    (tester) async {
+      for (final size in const [
+        Size(360, 780),
+        Size(390, 844),
+        Size(430, 932),
+      ]) {
+        final c = AppController(store: FakeStore())..screen = AppScreen.home;
+        await mountPhone(tester, c);
+        tester.view.physicalSize = size;
+        c.startDyo();
+        c.go(AppScreen.saveProject);
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(const Duration(milliseconds: 400));
+        final field = tester.getRect(find.byType(TextField));
+        final button = tester.getRect(find.text('SAVE PROJECT').last);
+        final version = tester.getRect(find.textContaining('Version '));
+        // ignore: avoid_print
+        print('$size field $field version $version button $button');
+        expect(field.top, greaterThan(0), reason: '$size');
+        // Clear of the button and of the list's soft bottom edge.
+        expect(version.bottom, lessThan(button.top - 30), reason: '$size');
+        await tester.pumpWidget(const SizedBox());
+      }
+    },
+  );
 
   testWidgets('every screen fits a 375 x 720 phone', (tester) async {
     final c = AppController();

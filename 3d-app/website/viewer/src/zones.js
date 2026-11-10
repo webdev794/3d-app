@@ -5,6 +5,7 @@ import { hatPartAt, hatRegion } from './hatprint.js';
 import { beaniePartAt, beanieRegion } from './beanieprint.js';
 import { bballPartAt, bballRegion, bballZoneAt, BBALL_ZONES } from './bballprint.js';
 import { SHOOT_ZONES } from './shootingshirt.js';
+import { ND_PANEL, ND_YOKE_FRONT, panelOf } from './netballdress.js';
 
 // Garment areas a pattern can be dropped onto, in garment metres (y up,
 // hem at 0, x = 0 down the middle). Rectangles are mirrored left/right and
@@ -86,16 +87,14 @@ const HOODIE = {
   hood: [[-0.7, 0, 0.7, 0.8]],
 };
 
-/** The netball dress (garment.js): a women's dress, sleeveless, with a skirt (its own heights: the hem at 0, the
- *  shoulder seam at 0.88, the waist at 0.48). */
+/** The netball dress (garment.js): a women's sleeveless shift dress (its own heights: the hem at 0, the shoulder seam
+ *  at 0.88, the waist at 0.48). Its side panels and yoke are its own outlines (netballdress.js). */
 export const isDress = (kind) => kind === 'netball-dress';
 const DRESS = {
-  // The straps and the upper chest and back.
   yoke: [[-0.3, 0.72, 0.3, 0.95]],
-  // The side panels: from the underarm down the bodice's and the skirt's sides (its hem 0.405 out at the sides).
-  sides: [[0.17, 0, 0.45, 0.68]],
-  hem: [[-0.45, 0, 0.45, 0.12]],
-  body: [[-0.2, 0.12, 0.2, 0.72]],
+  sides: [[0.17, 0, 0.35, 0.74]],
+  hem: [[-0.35, 0, 0.35, 0.08]],
+  body: [[-0.2, 0.08, 0.2, 0.72]],
 };
 
 // The varsity jacket (varsity.js): the hoodie's long sleeves, no hood.
@@ -161,7 +160,9 @@ const RAGLAN_SLEEVE = [[0.06, 0.9], ...Array.from({ length: 25 }, (_, k) => {
   const t = k / 24, a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t;
   return [a * 0.06 + b * 0.17 + c * 0.258, a * 0.728 + b * 0.645 + c * 0.53];
 }), [0.27, 0.44], [0.9, 0.44], [0.9, 0.9]];
-const ownOutline = (kind, zone) => (kind === 'shooting-shirt' ? SHOOT_ZONES[zone] ?? null : (kind === 'tee' || kind === 'raglan') && zone === 'sleeves' ? RAGLAN_SLEEVE : null);
+// (The netball dress: its side panels and its yoke, as netballdress.js paints them; the yoke as in front.)
+const ownOutline = (kind, zone) => (kind === 'shooting-shirt' ? SHOOT_ZONES[zone] ?? null : (kind === 'tee' || kind === 'raglan') && zone === 'sleeves' ? RAGLAN_SLEEVE
+  : isDress(kind) ? { sides: ND_PANEL, yoke: ND_YOKE_FRONT }[zone] ?? null : null);
 /** A zone's outlines (both sides): its own, else its rectangles as outlines. */
 export function zoneOutlines(kind, zone) {
   const own = ownOutline(kind, zone);
@@ -214,10 +215,10 @@ const quad = (p0, p1, p2, n = 12) => Array.from({ length: n + 1 }, (_, i) => {
   return [u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]];
 });
 /** One side panel as painted (texture.js), on the +x side: a top's, the dress's or the shorts' side stripe. */
-function panelOutline(kind) {
+function panelOutline(kind, back = false) {
   // (FN4 2026-10-30: an even stripe about 5.5 cm in from the flared side seam, as on the shorts pictures.)
   if (kind === 'shorts') return [[0.16, 0.37], [0.181, 0.27], [0.207, 0.17], [0.231, 0.095], [0.245, 0.035], [0.247, -0.01], [0.36, -0.01], [0.36, 0.37]];
-  if (isDress(kind)) return [...quad([0.21, 0.69], [0.175, 0.52], [0.19, 0.4]), ...quad([0.19, 0.4], [0.215, 0.18], [0.31, -0.01]).slice(1), [0.5, -0.01], [0.5, 0.7]];
+  if (isDress(kind)) return panelOf(back);
   if (kind === 'nfljersey') return NFL_PANEL;
   return [...quad([0.262, 0.54], [0.215, 0.3], [0.23, 0]), [0.3, 0], [0.3, 0.54]];
 }
@@ -227,7 +228,7 @@ function panelOutline(kind) {
 export const NFL_PANEL = [...quad([0.258, 0.53], [0.172, 0.51], [0.166, 0.4]), ...quad([0.166, 0.4], [0.15, 0.2], [0.144, 0]).slice(1), [0.3, 0], [0.3, 0.5]];
 const mirror = (poly) => poly.map(([x, y]) => [-x, y]).reverse();
 /** The side panels (both sides) as outlines. */
-const panels = (kind) => { const one = panelOutline(kind); return [one, mirror(one)]; };
+const panels = (kind, back = false) => { const one = panelOutline(kind, back); return [one, mirror(one)]; };
 const box = ([x0, y0, x1, y1]) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 function inPoly(x, y, poly) {
   let inside = false;
@@ -243,7 +244,7 @@ export function partAt(kind, zone, side, x, y) {
   if (kind === 'skirt') return skirtPartAt(side, x, y);
   if (kind === 'bballshorts') return bballPartAt(side, x, y);
   // A garment with painted side panels: only the panel itself is the side panels' part.
-  if (zone === 'sides' && panelled(kind) && Number.isFinite(y) && !panels(kind).some((poly) => inPoly(x, y, poly))) {
+  if (zone === 'sides' && panelled(kind) && Number.isFinite(y) && !panels(kind, side === 'back').some((poly) => inPoly(x, y, poly))) {
     zone = zoneRects(kind, 'hem').some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1) ? 'hem' : 'body';
   }
   if (kind === 'socks') return sockPartAt(side, x, y);
@@ -287,7 +288,7 @@ export function partRegion(kind, key, back) {
     const keep = ownOutline(kind, 'sleeves') ? zoneOutlines(kind, 'sleeves').filter((poly) => Math.sign(poly[0][0]) === (key === 'leftSleeve' ? 1 : -1)) : half(zoneRects(kind, 'sleeves'), key === 'leftSleeve' ? 1 : -1);
     return keep.length ? { keep, cut: [] } : null;
   }
-  if (key === 'sides') return panelled(kind) ? { keep: panels(kind), cut: [] } : { keep: R('sides'), cut: [R('sleeves'), R('yoke'), ...hood] };
+  if (key === 'sides') return panelled(kind) ? { keep: panels(kind, back), cut: [] } : { keep: R('sides'), cut: [R('sleeves'), R('yoke'), ...hood] };
   if (key === 'hem') return { keep: R('hem'), cut: [R('sleeves'), R('yoke'), sides, ...hood] };
   // (A sleeveless top's sleeve area is its body's.)
   if (key === (back ? 'back' : 'front')) return { keep: ALL, cut: [sleeveless(kind) ? [] : R('sleeves'), sides, R('hem'), ...hood] };

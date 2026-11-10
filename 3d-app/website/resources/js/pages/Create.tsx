@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowUp, Box, Check, ChevronDown, ChevronLeft, ChevronRight, Download, Ellipsis, ImagePlus, ImageUp, Lightbulb, LoaderCircle, Mic, MicOff, Paperclip, PenLine, Plus, RefreshCw, SendHorizontal, Sparkles, Undo2, WandSparkles, X } from 'lucide-react';
-import { api, ApiError, media, saveBlob, type Catalog, type CatalogItem, type Concept, type GarmentTile, type Project } from '../api';
+import { api, ApiError, baseUrl, keepDraft, media, saveBlob, type Catalog, type CatalogItem, type Concept, type GarmentTile, type Project } from '../api';
 import type { Draft } from '../App';
 import { defaultDesign, type Design } from '../types';
 import { DesignThumbnail } from './Library';
 import Loader from '../components/Loader';
 import ImageEditor from '../components/ImageEditor';
 import { CategoryIcon } from '../components/GarmentIcon';
-import { allGarments, formatCount, friendlyError, garmentChips, garmentInBrief, garmentLabels, MAX_BRIEF, sportInBrief, SportRow, sportTiles, useVoice, type GarmentChip } from '../components/AiStage';
+import { allGarments, closestModel, formatCount, friendlyError, garmentChips, garmentInBrief, garmentLabels, MAX_BRIEF, sportInBrief, SportRow, sportTiles, useVoice, type GarmentChip } from '../components/AiStage';
 import { ResultsViewer } from '../components/ResultsViewer';
 import { preparePattern } from '../components/OwnPatterns';
 import { PlayerShotButton } from '../components/PlayerShot';
@@ -46,7 +46,7 @@ export function SportSelection({ catalog, selected, onSelect, onNext }: { catalo
   const offset = (i: number) => { const n = sports.length; let o = i - active; if (o > n / 2) o -= n; if (o < -n / 2) o += n; return o; };
   const sport = sports[active];
 
-  return <section className="showroom sport-step" onPointerDown={e => { dragStart.current = e.clientX; }} onPointerUp={e => { if (dragStart.current !== null && Math.abs(e.clientX - dragStart.current) > 50) rotate(e.clientX < dragStart.current ? 1 : -1); dragStart.current = null; }} onWheel={e => { const now = Date.now(); if (Math.abs(e.deltaX) > 20 && now - wheelLock.current > 350) { wheelLock.current = now; rotate(e.deltaX > 0 ? 1 : -1); } }}>
+  return <section className="showroom sport-step glass-ui" onPointerDown={e => { dragStart.current = e.clientX; }} onPointerUp={e => { if (dragStart.current !== null && Math.abs(e.clientX - dragStart.current) > 50) rotate(e.clientX < dragStart.current ? 1 : -1); dragStart.current = null; }} onWheel={e => { const now = Date.now(); if (Math.abs(e.deltaX) > 20 && now - wheelLock.current > 350) { wheelLock.current = now; rotate(e.deltaX > 0 ? 1 : -1); } }}>
     <div className="showroom-bg" style={{ backgroundImage: `url(${media('showroom/stadium-stage.webp')})` }} />
     <div className="showroom-head">
       <Link className="back-link" to="/"><ArrowLeft size={16} /> Back to create</Link>
@@ -274,6 +274,17 @@ export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: {
  * with Try again) instead of a blank page (a missing picture read inside a state update unmounted the whole page).
  */
 /** The 3D garments a design picture (print sheet) goes on as drawn. */
+/** Artwork to 3D: the Studio is loaded as a whole page when the in-place page change has not happened by then. */
+const STUDIO_FALLBACK_MS = 1500;
+/** Artwork to 3D, a cap's logos: the AI reading usually takes about 15 s; past this the Studio opens in the preview's colours. */
+const ACCESSORY_WAIT_MS = 30000;
+/** The work's result, or an error when it has not finished within `ms` (the work itself is left to finish unused). */
+const withinTime = <T,>(work: Promise<T>, ms: number) => new Promise<T>((resolve, reject) => {
+  const timer = window.setTimeout(() => reject(new Error(`no reply within ${Math.round(ms / 1000)} s`)), ms);
+  work.then(value => { window.clearTimeout(timer); resolve(value); }, e => { window.clearTimeout(timer); reject(e); });
+});
+/** The note for a design shown on our closest garment (images/416): the app says the same. */
+const closestNote = (m: { name: string; coming: boolean }, shown: string) => `3D preview on the closest garment: ${shown}${m.coming ? `; a ${m.name} 3D model is coming` : ''}.`;
 const drawnGarments = ['singlet', 'netball-dress', 'jersey', 'nfljersey', 'tee', 'polo', 'pocketpolo'];
 /** An AI picture read for the 3D kit (POST /ai/designs/read, task 9.116). */
 type DesignReading = { garment: string; seen: string; exact: boolean; hood: boolean; motif: string | null; crest: { x: number; y: number; w: number; h: number } | null; print?: { x: number; y: number; w: number; h: number } | null; design: Partial<Design> };
@@ -800,14 +811,16 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
       const read = await api<DesignReading>('/ai/designs/read', { method: 'POST', body: JSON.stringify({ image, sport: draft.sport, garment: draft.garment }) })
         .then(r => r && typeof r.garment === 'string' && r.design ? r : null, () => null);
       if (!current()) return;
-      const garment = (read?.garment ?? draft.garment) as Design['garment'];
+      // A shirt we have no 3D model of (a fishing shirt, images/416) opens on its closest garment, with a note saying so.
+      const missing = closestModel(lastBrief.current?.prompt ?? '');
+      const garment = (missing?.garment ?? read?.garment ?? draft.garment) as Design['garment'];
       const attached = primary.design.logoImage || references.find(r => r.preview.startsWith('data:image/'))?.preview || null;
       const logo = attached || (read?.crest ? await cropCrest(image, read.crest).catch(() => null) : null);
       // The picture's own print on the body (no generic pattern when the picture shows one).
       const print = read?.print ? await cropPrint(image, read.print).catch(() => null) : null;
       if (!current()) return;
       const shown = catalog?.garments.find(g => g.id === garment)?.name ?? garment;
-      const note = read && !read.exact ? `Shown on our ${shown.toLowerCase()}: the closest 3D garment to your ${read.seen || 'design'}.` : '';
+      const note = missing ? closestNote(missing, shown) : read && !read.exact ? `Shown on our ${shown.toLowerCase()}: the closest 3D garment to your ${read.seen || 'design'}.` : '';
       const design: Design = { ...primary.design, ...(read?.design ?? {}), garment, layout: null, logoImage: logo ?? primary.design.logoImage ?? null, ...(print ? { patternImage: print.image, patternScale: print.scale } : {}) };
       // In the picture's colours (no print sheet): the other garments, and the fallback when the print sheet fails.
       const inColours = (why: string) => {
@@ -921,6 +934,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     // Four designs (the PRIMARY and three options): the three not shown float as thumbnails; while the plan is written their places wait.
     const total = Math.max(options.length, planning ? 4 : 0);
     const shown = Math.min(sel, Math.max(0, total - 1));
+    const closest = closestModel(lastBrief.current?.prompt ?? '');
     const thumbs = Array.from({ length: total }, (_, i) => i).filter(i => i !== shown).map(i => {
       const o = options[i];
       return { index: i, label: o ? `Design ${i + 1}: ${o.name}. Show this design` : `Design ${i + 1}: on its way`, disabled: !o || (!o.image && !!o.direction && !o.error), content: o ? art(o, false) : <span className="aid-art-wait" role="status"><LoaderCircle className="spin" size={20} /></span> };
@@ -984,6 +998,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
               {bar}
             </div>}
           </div>
+          {closest && <p className="aid-info aid-closest" role="status">{closestNote(closest, catalog?.garments.find(g => g.id === closest.garment)?.name ?? closest.garment)}</p>}
           {notes}
         </div>
       </div>
@@ -991,7 +1006,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     </section>;
   }
 
-  return <section className={`aid-stage${dropping ? ' dropping' : ''}`} aria-labelledby="aid-title" {...stageProps}>
+  return <section className={`aid-stage glass-ui${dropping ? ' dropping' : ''}`} aria-labelledby="aid-title" {...stageProps}>
     {background}
     <div className="aid-inner">
       <img className="aid-logo" src={media('images/brand-final.png')} alt="3DEEZI" width={1712} height={272} />
@@ -1091,7 +1106,7 @@ const readFileData = (file: Blob, type: string) => new Promise<string>((resolve,
  * layout (front, back and sleeve panels side by side) is read into its panels and checked in the Studio; one design or
  * logo goes on the front (moved and resized there) or as an all-over print. The AI reading is only an extra.
  */
-export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }: { catalog: Catalog | null; draft: Draft; onChange: (draft: Draft) => void; requireAuth: (action?: () => void) => void; onStudio: () => void }) {
+export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, onNotice }: { catalog: Catalog | null; draft: Draft; onChange: (draft: Draft) => void; requireAuth: (action?: () => void) => void; onStudio: () => void; onNotice?: (text: string) => void }) {
   const [art, setArt] = useState<ArtworkFile | null>(null);
   const [kind, setKind] = useState<ArtworkKind>('layout');
   const [sport, setSport] = useState(draft.design.sportName ? CUSTOM : draft.sport);
@@ -1101,6 +1116,8 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
   const [garmentText, setGarmentText] = useState('');
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState(false);
+  /** "Open AI preview in 3D Studio" was pressed: the button says so at once and stays off until the Studio opens. */
+  const [opening, setOpening] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ name: string; summary: string; sport: string; garment: string; motif: string | null; design: Design } | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -1209,10 +1226,14 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
    * where its front, back and side logos are; each logo is cut out and put on its place on our 3D model (accessoryArt.ts).
    */
   async function fromAccessory(base: Draft, plain: Design, image: string, model: string) {
+    onChange(await accessoryDraft(base, plain, image, model));
+    onStudio();
+  }
+  /** The cap (or other accessory) kit with its logos on their places, from the AI reading of its artwork. */
+  async function accessoryDraft(base: Draft, plain: Design, image: string, model: string): Promise<Draft> {
     const read = aiReply(await api<AccessoryReading>('/ai/accessory/read', { method: 'POST', body: JSON.stringify({ image, garment: model }) }), ['design', 'marks'], 'The AI could not read this artwork. Please try again.');
     const { design } = await accessoryDesign({ ...plain, garment: model as Design['garment'] }, read, image);
-    onChange({ ...base, garment: model, mode: 'dyo', design: { ...design, ...typed } });
-    onStudio();
+    return { ...base, garment: model, mode: 'dyo', design: { ...design, ...typed } };
   }
 
   async function convert() {
@@ -1226,21 +1247,43 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
     }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
+  /**
+   * Opens the 3D Studio on this kit, every time (client 2026-11-04, images 415 / 417: on live the button seemed to do
+   * nothing). The kit is first kept where the Studio reads it on a page load, then the page changes in place; when the
+   * address has not changed within 1.5 s, the Studio is loaded as a whole page, so the button never silently stays.
+   */
+  const openStudioWith = (next: Draft) => {
+    if (!keepDraft(next)) console.warn('[Artwork to 3D] the browser did not keep the preview for a page load; opening in place only');
+    try { onChange(next); } catch (e) { console.error('[Artwork to 3D] the preview could not be handed to the Studio', e); }
+    const from = window.location.pathname;
+    try { onStudio(); } catch (e) { console.error('[Artwork to 3D] the Studio did not open in place', e); }
+    window.setTimeout(() => {
+      if (window.location.pathname !== from) return;
+      console.warn('[Artwork to 3D] the Studio did not open in place within 1.5 s: loading it as a page');
+      window.location.assign(`${baseUrl}/studio`);
+    }, STUDIO_FALLBACK_MS);
+  };
   const open = () => {
-    if (!result || !art) return;
+    if (!result || !art || opening) return;
+    setOpening(true); setError('');
     // A cap (or other accessory): its logos cut from the artwork and put on their places (the preview gives only colours).
+    // A failed or slow reading still opens the Studio, in the preview's colours.
     if (isAccessory(result.garment)) {
       const model = result.garment;
-      setPlacing(true); setError('');
+      const base = { ...draft, id: undefined, version: undefined, name: result.name || 'My design', sport: result.sport || sportId, garment: model, mode: 'dyo' as const, patternMotif: undefined, pendingDrawing: undefined };
+      const plain: Design = { ...defaultDesign, ...result.design, garment: model as Design['garment'], layout: null, layers: [], patternImage: null };
       void (async () => {
-        try {
-          const base = { ...draft, id: undefined, version: undefined, name: result.name || 'My design', sport: result.sport || sportId, garment: model, mode: 'dyo' as const, patternMotif: undefined, pendingDrawing: undefined };
-          await fromAccessory(base, { ...defaultDesign, ...result.design, garment: model as Design['garment'], layout: null, layers: [], patternImage: null }, await artworkPicture(art, 1536, true), model);
-        } catch (e) { setError(friendlyError(e)); } finally { setPlacing(false); }
+        let next: Draft = { ...base, design: { ...plain, ...typed } };
+        try { next = await withinTime((async () => accessoryDraft(base, plain, await artworkPicture(art, 1536, true), model))(), ACCESSORY_WAIT_MS); }
+        catch (e) {
+          console.error('[Artwork to 3D] the logos were not placed; the Studio opens in the preview colours', e);
+          onNotice?.('Your logos could not be placed automatically, so the 3D model opens in your artwork’s colours. Add them from Artwork in the Studio.');
+        }
+        openStudioWith(next);
       })();
       return;
     }
-    onChange({ ...draft, id: undefined, version: undefined, name: result.name, sport: result.sport, garment: result.garment, mode: 'ai', design: { ...draft.design, ...result.design, patternImage: null, layout: null, productName: undefined }, patternMotif: result.motif || undefined, pendingDrawing: undefined }); onStudio();
+    openStudioWith({ ...draft, id: undefined, version: undefined, name: result.name || 'My design', sport: result.sport || sportId, garment: result.garment, mode: 'ai', design: { ...draft.design, ...result.design, patternImage: null, layout: null, productName: undefined }, patternMotif: result.motif || undefined, pendingDrawing: undefined });
   };
   const modelName = (g: string) => catalog?.garments.find(c => c.id === g)?.name ?? garmentLabels[g] ?? g;
 
@@ -1262,13 +1305,14 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio }:
       <div className="convert-side glow-panel">
         {result ? <><span className="eyebrow">AI PREVIEW</span><h2>{result.name}</h2><p className="muted">{result.summary}</p>
           <div className="convert-palette">{(['main', 'secondary', 'accent'] as const).map(k => <span key={k}><i style={{ background: result.design[k] }} />{result.design[k]}</span>)}</div>
-          <button className="button button-outline full-width" disabled={placing} onClick={() => requireAuth(open)}>{placing && <LoaderCircle className="spin" size={18} />} OPEN AI PREVIEW IN 3D STUDIO <ArrowRight size={18} /></button>
-          <button className="button button-outline full-width" disabled={placing} onClick={() => setResult(null)}><ArrowLeft size={16} /> Back to my artwork</button>
+          {/* No sign-in wait here: the preview is made (signed in) and the Studio itself is open to everyone. */}
+          <button className="button button-outline full-width convert-open" disabled={placing || opening} aria-busy={opening} onClick={open}>{opening ? <><LoaderCircle className="spin" size={18} /> OPENING 3D STUDIO…</> : <>OPEN AI PREVIEW IN 3D STUDIO <ArrowRight size={18} /></>}</button>
+          <button className="button button-outline full-width" disabled={placing || opening} onClick={() => setResult(null)}><ArrowLeft size={16} /> Back to my artwork</button>
           {/* What happens next (the space under the buttons was empty, client picture 294.jpg). */}
           <div className="convert-next" role="status">
             <span className="eyebrow">OPENS ON</span>
             <strong>{modelName(result.garment)}</strong>
-            <small>{placing ? 'Cutting your logos out of the artwork and putting them on the 3D model…'
+            <small>{(placing || opening) && isAccessory(result.garment) ? 'Cutting your logos out of the artwork and putting them on the 3D model…'
               : isAccessory(result.garment) ? 'Your front logo goes on the front panels, the back logo on the back and the side labels on the sides, in your artwork’s colours. Move, resize or recolour them in the Studio.'
               : 'The 3D kit takes the colours, pattern and lettering read from your artwork.'}</small>
           </div>

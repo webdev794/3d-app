@@ -170,7 +170,12 @@ class DesignReading {
       'Jersey',
       'short-sleeve sports jersey (rugby, soccer, league, cricket shirts)',
     ),
-    'polo': ('Polo', 'polo shirt with a collar and buttons'),
+    'polo': (
+      'Polo',
+      'polo shirt with a collar and buttons; also the closest for fishing '
+          'shirts and other button-up or collared shirts (short or long '
+          'sleeves)',
+    ),
     'pocketpolo': (
       'Polo with pocket',
       'polo shirt with a chest pocket (pool, darts)',
@@ -380,6 +385,43 @@ class DesignSpec {
     sport: designSports.contains(j['sport']) ? j['sport'] : 'Rugby League',
     garment: aiDesignGarments.contains(j['garment']) ? j['garment'] : 'Jersey',
   );
+
+  /// A spec saved earlier (a project, a Recent design). The website gives
+  /// empty text back as null (a kit with no team name, the AI primary's
+  /// empty render prompt) and older saves can miss fields: each falls back,
+  /// so the project or design still opens.
+  factory DesignSpec.fromSaved(Map<String, dynamic> j) {
+    String text(String key, [String fallback = '']) =>
+        j[key] == null ? fallback : '${j[key]}';
+    return DesignSpec(
+      designName: text('designName', 'Your design'),
+      detected: text('detected', 'Jersey'),
+      summary: text('summary'),
+      findings: [
+        if (j['findings'] case final List f)
+          for (final x in f)
+            if (x != null) '$x',
+      ],
+      mainColor: _color(j['mainColor']),
+      secondaryColor: _color(j['secondaryColor']),
+      accentColor: _color(j['accentColor']),
+      pattern: designPatterns.contains(j['pattern'])
+          ? j['pattern'] as String
+          : 'Velocity',
+      fabric: designFabrics.contains(j['fabric'])
+          ? j['fabric'] as String
+          : 'Standard',
+      logoText: text('logoText').trim().toUpperCase(),
+      renderPrompt: text('renderPrompt'),
+      patternMotif: text('patternMotif'),
+      sport: designSports.contains(j['sport'])
+          ? j['sport'] as String
+          : 'Rugby League',
+      garment: aiDesignGarments.contains(j['garment'])
+          ? j['garment'] as String
+          : 'Jersey',
+    );
+  }
 
   /// For saving projects on the device.
   Map<String, dynamic> toJson() => {

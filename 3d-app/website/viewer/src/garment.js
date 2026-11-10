@@ -1,6 +1,7 @@
 ﻿import * as THREE from 'three';
 import Delaunator from 'delaunator';
-import { wornTop, wornShorts, wornDress } from './worn.js';
+import { wornTop, wornShorts, wornShift } from './worn.js';
+import { ND_SEAM, tabInside } from './netballdress.js';
 import { POCKET, isHoodie, isTrack } from './zones.js';
 import { panelSampler, buildHood, buildKangaroo, buildRib, buildZip, cuffRingAbove } from './hoodie.js';
 import { buildTrackParts } from './trackjacket.js';
@@ -128,43 +129,46 @@ SPECS.trainingShorts = {
 SPECS.shorts.worn = SPECS.trainingShorts.worn;
 
 /**
- * The netball dress (tasks.md 9.126): a women's fitted dress, cut for the female figure (figure.js; `form`), worn over
- * it (worn.js wornDress). Sleeveless with a round scoop neck and bound armholes, the bodice fitted over the bust and in
- * at the waist, then an A-line skirt over the hips flaring out to a hem at mid-thigh, sewn at the sides. Its own heights:
- * the shoulder seam (the strap tops) at 0.88, the underarm at 0.676, the waist at 0.48, the hem at 0. `points`: the
- * corners a garment drawing's are matched to (layout-warp.js DRAWN), as the singlet's.
+ * The netball dress (NDF 2026-11-04, the client's preferred model, images 425-427; it replaces the old bodice and flared
+ * skirt): a straight, fitted SHIFT dress cut in one piece from the shoulders to mid-thigh, worn over the female figure
+ * (figure.js; `form`; worn.js wornShift). Sleeveless, a round scoop neck and deep armholes, both bound; in a little at
+ * the waist and out again in a slight A-line to a level hem. Its parts (netballdress.js): the body, full-length side
+ * panels, a yoke across the back shoulders (the straps in front) with the neck and armhole binding, and the bib-holder
+ * tabs on the front, each in its own colour (design.zoneColors body / panels / yoke). Its heights: the strap tops at
+ * 0.88, the underarm at 0.735, the waist at 0.53, the hem at 0. `points`: the corners a garment drawing's are matched to
+ * (layout-warp.js DRAWN).
  */
 SPECS['netball-dress'] = {
-  // As the client's Netball dress picture (WF1 / ND1 2026-10-29): a wide round U scoop neck (level across its foot, up
-  // into the straps), wide straps (about 6.5 cm), the armholes straight down from the strap and round under the arm,
-  // the bodice a little fuller and the skirt flaring out wider to the hem.
   half: [
-    [0, 0.772], [0.0269, 0.7757], [0.052, 0.7865], [0.0735, 0.8036], [0.0901, 0.826], [0.1005, 0.852], [0.104, 0.88], [0.168, 0.88],
-    [0.166, 0.83], [0.172, 0.78], [0.2, 0.739], [0.244, 0.708], [0.25, 0.687],
-    [0.276, 0.664], [0.27, 0.64], [0.255, 0.6], [0.24, 0.556], [0.23, 0.51], [0.225, 0.48],
-    [0.225, 0.44], [0.236, 0.38], [0.273, 0.3], [0.325, 0.2], [0.373, 0.1], [0.405, 0.035],
-    [0.31, 0.014], [0.15, 0.002], [0, 0],
+    // (The neck's top corners rounded into the straps, as 426's round neck, not straight up: the high back neck (liftZ)
+    // then eases off over them instead of within a millimetre, which creased the back beside the straps: NDT.)
+    // (The strap's top rounding over into the armhole, as 426's near strap, not a square corner: NDT.)
+    [0, 0.785], [0.03, 0.789], [0.056, 0.8], [0.076, 0.817], [0.088, 0.833], [0.097, 0.849], [0.103, 0.864], [0.106, 0.88], [0.126, 0.879], [0.141, 0.876], [0.151, 0.87], [0.157, 0.861],
+    // (The armholes high and close, as 426's, their foot a quarter ellipse coming in level to the underarm, so front and
+    // back make a round U there, not a pinched V: NDT.)
+    [0.159, 0.848], [0.158, 0.82], [0.166, 0.795], [0.1688, 0.7795], [0.177, 0.765], [0.19, 0.7526], [0.207, 0.743], [0.2268, 0.737],
+    // (The side seam: netballdress.js ND_SEAM, which its side panels follow.)
+    ...ND_SEAM,
+    [0.22, 0.012], [0.1, 0.002], [0, 0],
   ],
-  neck: { drop: 0.12, half: 0.107 },
-  rim: { drop: 0.125, half: 0.11, radius: 0.0085 },
+  neck: { drop: 0.1, half: 0.109 },
+  rim: { drop: 0.105, half: 0.112, radius: 0.0085 },
   armholes: true,
-  armhole: { x0: 0.165, y0: 0.682, x1: 0.254 },
-  pit: [0.25, 0.687],
+  armhole: { x0: 0.151, y0: 0.73, x1: 0.25 },
+  pit: [0.248, 0.735],
   depth: 0.175,
   chest: true,
   dress: true,
   form: 'female',
   // Shown in the new look on the female form standing a little higher on its stand, so its thighs show below the hem.
   lift: 0.08,
-  points: { N: [0.104, 0.88], S: [0.168, 0.88], U: [0.25, 0.687], H: [0.405, 0.035], T: [0, 0.772] },
-  // Its back neck (garment.js backHeight): high and round, its middle `centre` high (4.5 cm under the strap tops, as the
-  // inside of the back shows through the neck in the client's picture), meeting the straps' inner corners; the cloth
-  // under it drawn up over `fade` (none further down).
-  backNeck: { centre: 0.835, fade: 0.15 },
-  // Its bust a little higher than the female figure's (fullest 22.5 cm under the shoulder line), as on the client's
-  // dress: the 3DEEZI logo sits on it (ND1, the user 2026-10-30).
-  // (`under` 8 cm and a little less full: the bust rounds softly into the stomach just above the bib, no shelf: ND1.)
-  bust: { drop: 0.215, x: 0.09, depth: 0.027, under: 0.095 },
+  points: { N: [0.106, 0.88], S: [0.157, 0.871], U: [0.248, 0.735], H: [0.333, 0.03], T: [0, 0.785] },
+  // Its back neck (backHeight): high, level with the strap tops (1 cm under them in the middle), as 425's, meeting the
+  // straps' inner corners. `liftZ`: the back is worn and printed where it is raised to (its own cut, not stretched).
+  backNeck: { centre: 0.846, fade: 0.16, round: true, reach: 0.012, rise: 2, top: 0.0015, crew: 0.066 },
+  liftZ: true,
+  // The bust (wornShift): fullest 21.5 cm under the shoulder line, softly into the waist.
+  bust: { drop: 0.215, x: 0.09, depth: 0.033, under: 0.14 },
 };
 
 // The pocket polo (pool and darts shirts): the polo with a stitched patch pocket on the wearer's left chest (zones.js
@@ -307,15 +311,15 @@ SPECS.hoodie = {
   half: [[0, 0.69], [0.055, 0.716], [0.1, 0.738], [0.2, 0.732], ...HOODIE_SLEEVE, [0.335, 0.42], [0.345, 0.3], [0.352, 0.16], [0.352, 0.03], [0.27, 0.012], [0.1, 0.002], [0, 0]],
   cuff: [[0.79, 0.16], [0.715, 0.09]],
   points: { CT: [0.79, 0.16], CB: [0.715, 0.09] },
-  long: { ...SPECS.hoodie.long, upper: 0.062, wrist: 0.045, length: 0.76 },
-  armDrop: 83,   // (FN13, DT11 on -225: the arms hang down by the body, not splayed out; was 73)
+  long: { ...SPECS.hoodie.long, upper: 0.072, wrist: 0.038, length: 0.76 },
+  armDrop: 81, elbow: { at: 0.5, bend: -7 },   // (FN13, DT11 on -225: the arms hang down by the body, not splayed out; was 73)
   armpitX: 0.325,
   flat: 0.3,
   // (FN13, DT11 on -236: the waistband drawn in more, the shoulder line flatter and wider below the hood.)
   hemSqueeze: 0.16,
   fleece: { hemIn: 0.1, wide: 0.04 }, // (FN14, DT11 on -238: body 4% wider at 40-80% down, the hem band 5% in)
 };
-SPECS.ziphoodie = { ...SPECS.hoodie, zip: true };
+SPECS.ziphoodie = { ...SPECS.hoodie, zip: true, armDrop: 83, elbow: null, long: { ...SPECS.hoodie.long, upper: 0.062, wrist: 0.045 } }; // (FN15: the zip hoodies / hooded tracksuits keep their -240 arms)
 SPECS.raglan = { ...SPECS.tee, loose: true, cuffKeep: 0.07 };
 
 // The basketball shooting shirt (shootingshirt.js): a loose raglan V-neck warm-up tee with wide short sleeves.
@@ -405,8 +409,9 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   const fineZone = (p) => {
     const ax = Math.abs(p.x);
     if (spec.legs) return (ax > 0.14 && p.y < waist - 0.05) || p.y > waist - 0.11 || Math.hypot(ax, p.y - crotchY) < 0.13;
-    // A dress: round the armholes and down the bodice's sides.
-    if (spec.dress) return Math.hypot(ax - spec.pit[0], p.y - spec.pit[1]) < 0.1 || (ax > 0.17 && ax < 0.28 && p.y > spec.pit[1] - 0.25 && p.y < spec.pit[1]);
+    // A dress: round the armholes and down the bodice's sides, and round the neck (the back neck's cloth drawn up there:
+    // a finer mesh keeps the yoke's edge and the binding smooth, NDF).
+    if (spec.dress) return Math.hypot(ax - spec.pit[0], p.y - spec.pit[1]) < 0.1 || (ax > 0.17 && ax < 0.28 && p.y > spec.pit[1] - 0.25 && p.y < spec.pit[1]) || (ax < 0.14 && p.y > maxY - 0.27) || p.y < minY + 0.42;   // (and the lower dress, where its folds run: finer, so they stay smooth)
     return spec.chest && ((ax > 0.15 && ax < 0.3 && p.y > 0.02 && p.y < 0.58) || Math.hypot(ax - 0.255, p.y - 0.53) < 0.11);
   };
   // A skin-tight top's sculpted chest and stomach (`tight.sculpt`: its own, finer grid there, so the muscles' edges and
@@ -446,9 +451,9 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
   // The hem, so its band and folds sit an even distance from it all the way round.
   const hemMask = poly.map((q, i) => !seam[i] && q.y < minY + (spec.dress ? 0.038 : 0.03));
   const hemDistance = (p) => distanceToOutline(p, poly, hemMask);
-  // A dress is worn by the female figure (figure.js), its skirt flaring from the hips.
+  // A dress is worn by the female figure (figure.js): the netball dress's straight shift.
   const worn = spec.dress
-    ? wornDress(spec, { topSeam: (p) => distanceToOutline(p, poly, topMask), outline: poly, hemDist: hemDistance })
+    ? wornShift(spec, { topSeam: (p) => distanceToOutline(p, poly, topMask), outline: poly, hemDist: hemDistance })
     : spec.chest
     ? wornTop(spec, { topSeam: (p) => distanceToOutline(p, poly, topMask), outline: poly, hemDist: hemDistance })
     : wornShorts(spec);
@@ -470,7 +475,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
    *  a few centimetres apart that fade out upwards, more towards the sides. */
   const hemFolds = (p, back, i) => {
     if (spec.legs || sleeveAt[i]) return 0;
-    // A dress: its skirt's flutes instead (dressFolds).
+    // A dress: its shift's few soft folds instead (dressFolds).
     if (spec.dress) return dressFolds(p, back);
     // Fleece: no hem band; the body gathers into its rib waistband in soft upright folds just above it.
     if (spec.fleece) {
@@ -527,18 +532,60 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     return (spec.loose ? (back ? 0 : 0.0038) * ramp(0.035, 0.07, p.y) : 0.003) * drag + (spec.loose ? 0 : 0.0013) * gather + 0.0055 * fall;
   };
   /**
-   * A dress's skirt hangs in soft flutes where it flares: none over the hips, deepening towards the hem, eight round the
-   * skirt (two each side of the front and of the back, the side seams and the middles between them), wandering a
-   * little. The new look (detail) lets them fall a little deeper.
+   * The netball dress's folds (the user's crops 440-442, Yellow Images): a few soft, uneven upright ripples round the hem,
+   * its lower edge waving a little in and out; two or three soft drag folds from under each armhole down and back across
+   * the side panel to about the waist, deepest by the armhole; the armhole binding rolled outward with a small pull fold
+   * at the armhole's foot. Elsewhere it hangs smooth.
    */
+  const ndArm = !spec.dress ? [] : poly.filter((q) => Math.abs(q.x) > 0.148 && q.y > spec.pit[1] - 0.004 && q.y < spec.points.S[1] - 0.006);
+  const HEMD = 0.011;   // the broad folds' depth (m)
+  // (459's lower-right fold: on one side only, low on the front panel by the hem, 60-70 % across at -45: NDT.)
+  const HEMFOLD_X = 0.05;
   const dressFolds = (p, back) => {
-    // (As the client's skirt, ND1: big soft flared folds from below the bib to the hem, a ridge down the middle of the
-    // front and halfway to each side, valleys between: eight round the skirt, about 2.5 cm deep at the hem, the hem waving with them.)
-    const ax = Math.abs(p.x), th = THREE.MathUtils.clamp(ax / worn.half(p.y), 0, 1) * (Math.PI / 2), ph = back ? 1.9 : Math.PI / 2;
-    // (Shallow: the client's dress falls smooth to a clean round hem, with only soft folds: ND1.)
-    const depth = 0.019 * (detail ? 1.35 : 1) * ramp(0.43, 0.03, p.y) * (0.85 + 0.15 * Math.sin(3 * th + ph));
-    // (Three broad folds across the front, as the picture: one down the middle, one by each side: DT6.)
-    return depth * fold(4 * th + ph + 0.2 * Math.sin(2 * th) * Math.sin(p.y * 9 + ph));
+    const ax = Math.abs(p.x), u = THREE.MathUtils.clamp(ax / worn.half(p.y), 0, 1), th = u * (Math.PI / 2);
+    // Round the body: -pi .. pi, continuous over the side seams (front and back meet there).
+    const T = Math.sign(p.x || 1) * (back ? Math.PI - th : th);
+    // Lower body (NDT -263, 426/425/440): only a few broad, soft, uneven folds (about 3 round the body, so 1-2 on a
+    // side), rising from the hem and fading out by the hips; the hem edge itself only gently wavy, its stitching intact.
+    const aT = Math.abs(T), q = aT * 5 + 1.6 * Math.sin(aT * 1.7 + 0.6) + 0.5 * Math.sin(aT * 4.3 + 1.9);   // (mirrored: the front reads even left and right)
+    const amp = 0.6 + 0.4 * Math.sin(T * 2.1 + 0.8), seamFade = 0.5 + 0.5 * ramp(1, 0.8, u);
+    const up = ramp(0.4 + 0.06 * Math.sin(T * 2.7 + 0.4), 0.12, p.y), edge = 0.45 + 0.55 * ramp(0.0, 0.05, p.y);
+    const offCentre = ramp(0.12, 0.45, u);   // (smooth down the centre front and back, folds towards the sides: NDT)
+    const hem = (back ? 1 : 0.5) * HEMD * amp * seamFade * offCentre * up * edge * 0.5 * (Math.sin(q) - 0.5);   // (mostly falling in: the outline keeps the -254 width)
+    // Side: drag folds running down and back from under the armhole, to about the waist (lengths unequal).
+    const pitY = spec.pit[1], s = (back ? 1 : -1) * (1 - u) * 0.16;   // metres round from the side seam, + towards the back
+    const c = s - 0.3 * (pitY - p.y);                                 // constant along a fold
+    const lane = Math.cos(THREE.MathUtils.clamp((c + 0.04) / 0.05, -1, 1) * (Math.PI / 2)) ** 2;
+    const end = 0.47 + 0.07 * Math.sin(c * 140 + 0.7);
+    const sideD = 0.0016 * lane * ramp(pitY - 0.004, pitY - 0.03, p.y) * ramp(end, end + 0.07, p.y) * (0.55 + 0.45 * ramp(0.5, pitY - 0.03, p.y));
+    const side = sideD * fold(c * (2 * Math.PI / 0.032) + 1.2);
+    // Armhole: the binding rolled outward (2-3 mm), and a small soft pull fold at the armhole's foot.
+    let arm = 0;
+    if (ax > 0.13 && p.y > pitY - 0.06) {
+      const dA = ndArm.reduce((d, e) => Math.min(d, Math.hypot(ax - Math.abs(e.x), p.y - e.y)), Infinity);
+      arm = 0.0034 * Math.exp(-((dA - 0.005) ** 2) / 0.00007);   // (wider: smooth along the armhole, not lumpy)   // (rounder, thicker roll: NDT 441)
+      const fx = ax - (spec.pit[0] - 0.035), fy = p.y - (pitY - 0.03);
+      const along = fx * 0.8 - fy * 0.6, across = fx * 0.6 + fy * 0.8;
+      arm -= 0.0022 * Math.exp(-(along * along) / 0.0006 - (across * across) / 0.00004);
+    }
+    // (A small wave in the hem at the sides, as 426's: NDT.)
+    const sideWave = 0.004 * ramp(0.72, 0.95, u) * ramp(0.14, 0.08, p.y) * ramp(0.035, 0.06, p.y) * Math.sin(T * 9 + 1.3);
+    // The cloth curves the user marked on 426 (459.png), each soft:
+    // the strap rolling over the shoulder (a rounded top, not a flat cut);
+    const [nx2] = spec.points.N, [sx2, sy2] = spec.points.S;
+    const across = THREE.MathUtils.clamp((ax - nx2) / (sx2 - nx2), 0, 1);
+    const dTop = Math.max(0, sy2 + (nx2 - ax) * 0 - p.y), roll = across > 0 && across < 1 ? 0.014 * Math.sin(Math.PI * across) ** 0.6 * (Math.exp(-(((dTop - 0.022) / 0.014) ** 2)) - 0.7 * Math.exp(-((dTop / 0.007) ** 2))) : 0;   // (a bulge just under the top, the very top drawn in: the strap curls over)
+    // a curved fold on the side panel where the cloth pulls in at the waist;
+    const yc = 0.5 - 0.12 * (1 - u), waistFold = -0.0038 * Math.exp(-((p.y - yc) ** 2) / 0.0005) * ramp(0.68, 0.88, u) * ramp(1.02, 0.96, u);
+    // on the lower front a soft diagonal drape fold from the side down towards the centre and hem, and a short soft bend
+    // near the hem at the side (front only; the centre stays smooth).
+    const diag = (x0, y0, x1, y1, w, d) => {
+      const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy), t = ((ax - x0) * dx + (p.y - y0) * dy) / (L * L);
+      const off = ((ax - x0) * dy - (p.y - y0) * dx) / L;
+      return d * Math.exp(-(off * off) / (w * w)) * ramp(-0.05, 0.25, t) * ramp(1.05, 0.7, t);
+    };
+    const drape = back ? 0 : -diag(0.27, 0.36, 0.09, 0.1, 0.024, 0.005) - 0.0022 * Math.exp(-(((p.x - HEMFOLD_X) / 0.04) ** 2)) * ramp(0.2, 0.05, p.y) * ramp(0.0, 0.03, p.y);   // (a soft upright fold just above the hem, as 426)
+    return hem + side + arm + sideWave + roll + waistFold + drape;
   };
   /**
    * Loose garments hang in soft folds: on a training tee from under the chest down to the hem, fuller towards the
@@ -657,15 +704,10 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     const h = 0.002 * heavy * (0.5 * Math.sin(p.x * 41 + y * 13 + ph + 1.7 * Math.sin(y * 23 + p.x * 7))
       + 0.35 * Math.sin(y * 57 - p.x * 29 + 2.1 + ph + 1.3 * Math.sin(p.x * 31)) + 0.15 * Math.sin((p.x + y) * 83 + 2 * ph));
     if (spec.loose) return h * ramp(0.012, 0.03, openDist[i]);
-    // A dress: soft level folds at the sides of the waist, where the fitted bodice gives way to the skirt.
+    // The netball dress (NDF): a faint drape, and its bib-holder tabs raised 1.5 mm over the cloth (netballdress.js).
     if (spec.dress) {
-      const ax = Math.abs(p.x), d = worn.top - y;
-      const waist = 0.002 * ramp(0.1, 0.17, ax) * Math.exp(-(((d - 0.4) / 0.05) ** 2)) * fold((y + 0.1 * ax) * 105 + ph + side + 1.2 * Math.sin(ax * 27 + ph));
-      // (Smooth, as the client's dress: no ripples along the side panels, only a faint drape: DT6.)
-      // An upright crease each side of the bib, just outside its edge, from under the bust towards the waist: a narrow
-      // valley with a lit ridge beside it (the client's dress: ND1 / DT6).
-      const crease2 = back ? 0 : (p.x > 0 ? 1.5 : 1) * (-0.012 * Math.exp(-(((ax - 0.124) / 0.007) ** 2)) + 0.006 * Math.exp(-(((ax - 0.142) / 0.01) ** 2))) * ramp(0.39, 0.44, y) * ramp(0.58, 0.54, y);
-      return ((detail ? 0.25 * h : 0) + crease2) * ramp(0.014, 0.034, openDist[i]);
+      const tab = back ? 0 : 0.0015 * ramp(-0.0008, 0.0022, tabInside(p.x, y));
+      return ((detail ? 0.25 * h : 0) + tab) * ramp(0.014, 0.034, openDist[i]);
     }
     // The varsity jacket's leather sleeves are stiff: they keep their own shape (and sleeveFolds' few soft folds).
     if (spec.varsity && sl) return 0;
@@ -722,7 +764,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     return (h + foldGain * f) * ramp(0.014, 0.034, openDist[i]);
   };
   /** Crease height in metres (+ out, - in), pushed out along the body's surface. */
-  const crease = (p, back, i) => (spec.tight?.crease ?? spec.crease ?? 1) * ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back, i) + shortsFolds(p, back) + drapeFolds(p, back, i) + sleeveFolds(p, back, i) + detailFolds(p, back, i));
+  // (`folds(p, back)`: a cut's own drape folds, metres out (the basketball shorts' soft folds as the client's pictures, BSF 2026-11-05).)
+  const crease = (p, back, i) => (spec.folds ? spec.folds(p, back) * ramp(0, 0.015, seamDist[i]) : 0) + (spec.tight?.crease ?? spec.crease ?? 1) * ramp(0, 0.015, seamDist[i]) * (pitFolds(p, back, i) + hemFolds(p, back, i) + sideRipple(p, back) + backFolds(p, back, i) + shortsFolds(p, back) + drapeFolds(p, back, i) + sleeveFolds(p, back, i) + detailFolds(p, back, i));
   const neckEdge = poly.filter((q, i) => !seam[i] && q.y > maxY - spec.neck.drop && Math.abs(q.x) < spec.neck.half);
   const nearNeck = (p) => neckEdge.reduce((d, q) => Math.min(d, Math.hypot(p.x - q.x, p.y - q.y)), Infinity);
   /** The body under the fabric (worn.js), kept off the seams and the neckline so those stay even. */
@@ -742,18 +785,18 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     // Detail: the folds' valleys a little deeper in shade, so the drape reads at the Studio's distance too.
     const valley = 1 - (spec.loose ? (spec.legs ? 0.3 : back ? 0.18 : 0.22) : detail ? 0.31 : 0.16) * Math.min(1, Math.max(0, -crease(p, back, i) / (spec.loose ? (back && !spec.legs ? 0.007 : 0.004) : detail ? 0.0045 : 0.003)));
     // A loose top's fold ridges catch the light, as in the client's photo (the only shading above 1).
-    const ridge = spec.loose && !spec.legs ? 1 + (back ? 0.26 : 0.14) * Math.min(1, Math.max(0, crease(p, back, i) / 0.004)) : 1;
-    // The netball dress: the lit ridge beside each bib crease caught by the light on both sides, as the client's evenly
-    // lit picture (the studio's key light alone leaves the wearer's left one dull: DT8).
-    const bibRidge = spec.dress && !back ? 1 + (p.x > 0 ? 1.7 : 0.3) * Math.exp(-(((Math.abs(p.x) - 0.142) / 0.01) ** 2)) * ramp(0.39, 0.44, p.y) * ramp(0.58, 0.54, p.y) : 1;
+    const ridge = spec.loose && !spec.legs ? 1 + (back ? 0.26 : 0.14) * Math.min(1, Math.max(0, crease(p, back, i) / 0.004)) : spec.dress ? 1.35 : 1;
+    // (The netball dress: its fold crests catch the light and its valleys fall 15-25 % darker, as 440-443.)
+    const crest = spec.dress ? 1 + 0.16 * Math.min(1, Math.max(0, crease(p, back, i) / 0.002)) ** 2 - 0.12 * Math.min(1, Math.max(0, -crease(p, back, i) / 0.002)) : 1;
     const muscles = 1 - 0.5 * THREE.MathUtils.clamp(hollow(p, back) / 0.006, 0, 1);
     let under = 1;
     if (worn.pit) {
       const sl = sleeveAt[i], near = Math.exp(-((Math.abs(p.x) - worn.pit.x) ** 2 + (p.y - worn.pit.y + 0.012) ** 2) / 0.0022);
       under = 1 - 0.3 * near - (sl ? 0.2 * ramp(-0.2, -1, Math.sin(sl.phi)) * ramp(0.08, 0, sl.l) : 0);
     }
-    const collar = 1 - 0.24 * Math.exp(-(Math.max(0, nearNeck(p) - (spec.legs ? band - 0.002 : 0)) ** 2) / 0.0004);
-    return THREE.MathUtils.clamp(valley * ridge * bibRidge * muscles * under * collar * (worn.shade?.(p, back) ?? 1), 0.4, ridge * bibRidge);
+    // (`rimShade`: how dark the shadow under the waistband is; the basketball shorts' gathered band has none: BSF.)
+    const collar = 1 - (spec.rimShade ?? 0.24) * Math.exp(-(Math.max(0, nearNeck(p) - (spec.legs ? band - 0.002 : 0)) ** 2) / 0.0004);
+    return THREE.MathUtils.clamp(valley * crest * (spec.dress ? 1 : ridge) * muscles * under * collar * (worn.shade?.(p, back) ?? 1), 0.4, ridge);
   };
   const positions = new Float32Array(n * 2 * 3);
   const uvs = new Float32Array(n * 2 * 2);
@@ -770,9 +813,23 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       const [x0, y0] = curve[k - 1], [x1, y1] = curve[k], edge = y0 + ((y1 - y0) * (ax - x0)) / Math.max(1e-6, x1 - x0);
       // (Never lifting the edge past 6 mm under the strap tops: by the straps' inner corners it would stand up in spikes,
       // and capped afterwards it crumpled the binding there.)
-      const lift = Math.max(0, Math.min(centre + (ny - centre) * (ax / nx) ** 1.4, ny - 0.006) - edge);
+      // (`round`: an elliptical line, rising steadily from the middle to the straps, so the lift eases off evenly towards
+      // them and the bound edge stays smooth: the netball dress, NDF.)
+      // (`round`: an elliptical line `reach` wider than the neck, so it meets the cut edge just before the strap's inner
+      // corner and the lift comes down to nothing there smoothly: the edge rises steadily into the strap and the cloth
+      // under the strap's edge is not sheared against the strap beside it (that left a notch and spikes: NDF).)
+      // (`rise`: a power curve instead, from `centre` up to `top` under the strap tops at the strap's inner corner, so the
+      // edge climbs evenly right into the strap: held 6 mm under it, the cut edge jumped the last 6 mm within a millimetre
+      // there and showed as a step at the far strap from a three-quarter view: NDF.)
+      const w = nx + (spec.backNeck.reach ?? 0), rise = spec.backNeck.rise, top = ny - (spec.backNeck.top ?? 0.006);
+      // (`crew`: 425's small high round crew neck: the back cloth stands level with the strap tops out from `crew`,
+      // with a round dip between: NDT.)
+      // (Eased to level at `crew`: an upright ellipse end tore the inside edge into spikes: NDT -272.)
+      const crew = spec.backNeck.crew;
+      const line = crew ? (ax >= crew ? top : top - (top - centre) * (1 - (ax / crew) ** 2) ** 1.6) : rise ? centre + (top - centre) * Math.min(1, ax / nx) ** rise : spec.backNeck.round ? ny - (ny - centre) * Math.sqrt(Math.max(0, 1 - (ax / w) ** 2)) : centre + (ny - centre) * (ax / nx) ** 1.4;
+      const lift = Math.max(0, Math.min(line, top) - edge);
       const r = THREE.MathUtils.clamp((p.y - (edge - fade)) / (fade - 0.03), 0, 1);
-      return Math.min(p.y + lift * r * r * (3 - 2 * r), Math.max(p.y, ny - 0.004));
+      return Math.min(p.y + lift * r * r * (3 - 2 * r), Math.max(p.y, rise ? top : ny - 0.004));
     }
     if (spec.dress) {
       const dy = maxY - 0.738;
@@ -856,12 +913,49 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     for (let c = 0; c < 3; c++) positions[j * 3 + c] += bare[j * 3 + c] * h;
   }
   const normals = weldedNormals();
+  // (BSF 2026-11-04: the basketball shorts' waist corners, where front and back meet edge-on, came out with no normal at
+  // all; seen straight from the front or back their NaN shading spread through the glow into a black picture. There the
+  // normal points straight out sideways.)
+  if (kind === 'bballshorts') for (let j = 0; j < 2 * n; j++) {
+    const k = j * 3;
+    if (Math.hypot(normals[k], normals[k + 1], normals[k + 2]) > 1e-6) continue;
+    normals[k] = Math.sign(positions[k]) || 1; normals[k + 1] = 0; normals[k + 2] = 0;
+  }
+  // `seatNormals` [from, to, share] (the basketball shorts, BSF 2026-11-04): above the crotch the cloth is shaded as if it
+  // hung straight down (that share of its downward tilt taken out), so the curve in to the crotch shows no dark hollow.
+  if (spec.seatNormals) {
+    const [lo, hi, share] = spec.seatNormals;
+    for (let j = 0; j < 2 * n; j++) {
+      const k = j * 3, q = points[j % n];
+      if (normals[k + 1] >= 0) continue;
+      const w = share * ramp(lo, lo + 0.02, q.y) * ramp(hi, hi - 0.04, q.y) * ramp(0.17, 0.11, Math.abs(q.x));
+      if (w <= 0) continue;
+      normals[k + 1] *= 1 - w;
+      const l = Math.hypot(normals[k], normals[k + 1], normals[k + 2]) || 1;
+      normals[k] /= l; normals[k + 1] /= l; normals[k + 2] /= l;
+    }
+  }
+
+  // `bandNormals` [from, to, share] (the basketball shorts, BSF): under the waistband the cloth's upward tilt taken out.
+  if (spec.bandNormals) {
+    const [lo, hi, share] = spec.bandNormals;
+    for (let j = 0; j < 2 * n; j++) {
+      const k = j * 3, q = points[j % n];
+      if (normals[k + 1] <= 0) continue;
+      const w = share * ramp(lo, lo + 0.015, q.y) * ramp(hi + 0.004, hi - 0.004, q.y);
+      if (w <= 0) continue;
+      normals[k + 1] *= 1 - w;
+      const l = Math.hypot(normals[k], normals[k + 1], normals[k + 2]) || 1;
+      normals[k] /= l; normals[k + 1] /= l; normals[k + 2] /= l;
+    }
+  }
 
   // Finished edges: the hem, sleeve ends and leg openings are turned inside in a small
   // rounded roll (2 - 2.5 mm), so they look thick and sewn rather than paper-thin.
   const isNeck = (p) => p.y > maxY - spec.neck.drop && Math.abs(p.x) < spec.neck.half;
   // (A dress's scoop neck is bound as its armholes are, rolled the same: it has no collar rib.)
-  const edge = poly.map((p, i) => !seam[i] && (spec.dress || !isNeck(p)));
+  // (`waistFold` {roll, inside}: the waist's edge folded over inside too, as an elastic band is (the basketball shorts).)
+  const edge = poly.map((p, i) => !seam[i] && (spec.dress || !!spec.waistFold || !isNeck(p)));
   const runs = [], first = edge.findIndex((e, i) => e && !edge[(i - 1 + nb) % nb]);
   for (let i = first, seen = 0; first >= 0 && seen < nb;) {
     if (!edge[i]) { i = (i + 1) % nb; seen++; continue; }
@@ -869,9 +963,11 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     while (edge[i] && seen < nb) { run.push(i); i = (i + 1) % nb; seen++; }
     // Carry the roll on to the seam at each end, so front and back meet in one even band.
     const before = (run[0] - 1 + nb) % nb, after = (run.at(-1) + 1) % nb;
-    // (A dress's neck and armholes stop at the strap tops: carried on over the shoulder seam they stood up in spikes.)
-    // (Nor at the dress's hem corners, where the carried roll stuck out as a little flap: DT6.)
-    const carry = (j) => seam[j] && !spec.dress;
+    // (A dress's neck and armholes: carried on to the strap tops, where the shoulder is now round (worn.js wornShift), so
+    // front and back meet in one band there, not two tips with a gap: NDT. Not at the dress's hem corners, where the
+    // carried roll stuck out as a little flap: DT6.)
+    // (And at the underarm, so the armhole's binding runs round its foot unbroken: NDT saw a slit there.)
+    const carry = (j) => seam[j] && (!spec.dress || poly[j].y > minY + 0.06);
     if (run.length > 1) runs.push([...(carry(before) ? [before] : []), ...run, ...(carry(after) ? [after] : [])]);
   }
   const roll = { pos: [], uv: [], col: [], idx: [] }, K = 6, cols = K + 2;
@@ -891,7 +987,9 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       T.addScaledVector(N, -T.dot(N)).normalize();
       firstNormal ??= N;
       // Detail: a fuller roll, as a real double-stitched hem.
-      const r = (p.y < minY + 0.05 ? 0.0024 : 0.002) * (detail ? 1.4 : 1);
+      // (`hemRoll`: a cut's own roll, the basketball shorts' thin flat binding (BSF 2026-11-04): the opening stays open.)
+      const waist = spec.waistFold && isNeck(p);
+      const r = (waist ? spec.waistFold.roll : spec.hemRoll ?? (p.y < minY + 0.05 ? 0.0024 : 0.002)) * (detail ? 1.4 : 1);
       // Colour from just inside the edge, so the roll shows the edge band, not a blend with the outside.
       const ix = p.x - ox * 0.005, iy = p.y - oy * 0.005;
       const ru = back ? 0.5 + (0.5 * (maxX - ix)) / span : (0.5 * (ix - minX)) / span, rv = (iy - minY) / span;
@@ -904,7 +1002,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
       }
       // The hem allowance, folded up inside the garment.
       // (A dress's allowance well inside: so close under the fabric it showed through as a navy band at the hem: DT6.)
-      const inner = q.clone().addScaledVector(T, -0.012).addScaledVector(N, spec.dress ? -2 * r - 0.004 : -2 * r);
+      // (`hemAllowance`: a cut's own, the basketball shorts' bound edge has hardly any, so none shows inside their V splits.)
+      const inner = q.clone().addScaledVector(T, -(waist ? spec.waistFold.inside : spec.hemAllowance ?? 0.012)).addScaledVector(N, spec.dress ? -2 * r - 0.004 : -2 * r);
       roll.pos.push(inner.x, inner.y, inner.z);
       roll.uv.push(ru, rv);
       roll.col.push(0.5, 0.5, 0.5);
@@ -944,7 +1043,10 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     .filter((i) => !seam[i] && poly[i].y > maxY - spec.rim.drop && Math.abs(poly[i].x) < spec.rim.half);
   neckIdx.sort((a, b) => poly[a].x - poly[b].x);
   const vertex = (j) => new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]);
-  const neck = [...neckIdx.map((i) => vertex(i)), ...neckIdx.slice().reverse().map((i) => vertex(n + i))];
+  let neck = [...neckIdx.map((i) => vertex(i)), ...neckIdx.slice().reverse().map((i) => vertex(n + i))];
+  // (The basketball shorts, BSF 2026-11-04: the front's and the back's last points meet at each side seam; doubled, the
+  // band's curve overshot there and its ends stood out past the body.)
+  if (kind === 'bballshorts') neck = neck.filter((p, i) => p.distanceTo(neck[(i + neck.length - 1) % neck.length]) > 0.001);
   const uvAt = (x, y) => [(0.5 * (x - minX)) / span, (y - minY) / span];
   const partsCtx = () => ({ poly, seam, points, faces, positions, normals, colours, n, nb, maxY, minY, neck: spec.neck, uvAt, detail,
     uvBack: (x, y) => [0.5 + (0.5 * (maxX - x)) / span, (y - minY) / span],
@@ -983,7 +1085,7 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     backNeckEdge: spec.liftZ ? neckIdx.map((i) => ({ x: poly[i].x, y: backHeight(poly[i]) })) : null,
     rimWidth: spec.rim.width ?? (spec.legs ? 0.026 : 0.011),
     rimStand: spec.rim.stand ?? 0,
-    rimOne: !!spec.rim.one,
+    rimOne: spec.rim.one === 'smooth' ? 'smooth' : !!spec.rim.one,
     // A flat collar band of the body's fabric (the compression top), not a rib.
     rimFlat: !!spec.rim.flat,
     // How much higher it stands on the podium in the new look (on its mannequin; 0 for most garments).
@@ -1203,7 +1305,8 @@ export function buildDrawstring(garment) {
 export function buildCollar(neck, shorts = false, width = shorts ? 0.026 : 0.011, thick = 1, stand = 0, one = false) {
   // `thick` (render tiers): a fuller rib, folded over more roundly (1 = as before).
   // A deep elastic waistband (training shorts): three gathered channels (gatheredBand).
-  if (shorts && width >= 0.035) return gatheredBand(neck, width, one);
+  // (`one`, the basketball shorts: their band is one gathered piece whatever its depth: BSF 2026-11-04, a lower band.)
+  if (shorts && (width >= 0.035 || one)) return gatheredBand(neck, width, one);
   const curve = new THREE.CatmullRomCurve3(neck, true);
   const gathered = false, count = 160;
   const points = curve.getSpacedPoints(count);
@@ -1284,7 +1387,8 @@ function gatheredBand(neck, width, one = false) {
   // Cross-section rows: up the outside (per channel: [from, to] as parts of the band's height, rows, puff, folds
   // depth), over the rounded top, down the inside.
   // (`one`: a single flat channel with fine, shallow gathers.)
-  const channels = one ? [[0, 1, 20, 0.0005, 0.0007]] : [[0, 0.27, 9, 0.0016, 0.0015], [0.27, 0.73, 13, 0.0022, 0.0017], [0.73, 1, 9, 0.0018, 0.0015]];
+  // (`one` 'smooth': a printed band, its gathers barely there: the basketball shorts, BSF 2026-11-04.)
+  const channels = one === 'smooth' ? [[0, 1, 20, 0.0005, 0.0015]] : one ? [[0, 1, 20, 0.0005, 0.0007]] : [[0, 0.27, 9, 0.0016, 0.0015], [0.27, 0.73, 13, 0.0022, 0.0017], [0.73, 1, 9, 0.0018, 0.0015]];
   const rows = [];
   channels.forEach(([from, to, n, puff, depth], c) => {
     for (let k = c ? 1 : 0; k <= n; k++) rows.push({ c, part: from + ((to - from) * k) / n, s: k / n, puff, depth });

@@ -25,7 +25,7 @@ const costs = [['AI edit in the studio (“Ask 3DEEZI”)', 1], ['Convert an ima
 export default function PricingPage({ onStart }: { onStart: () => void }) {
   const [yearly, setYearly] = useState(false);
   const [applying, setApplying] = useState(false);
-  return <div className="page-shell pricing-page">
+  return <div className="page-shell pricing-page glass-ui">
     <div className="page-heading centered"><span className="eyebrow">PROPOSED PLANS · FOR DISCUSSION</span><h1>Design more. <span>Pay for what you use.</span></h1><p>Monthly plans with AI credits, like ChatGPT, Midjourney and Canva. The 3D studio is unlimited on every plan; credits are only used when AI creates something.</p>
       <div className="billing-toggle" role="radiogroup" aria-label="Billing period"><button role="radio" aria-checked={!yearly} className={!yearly ? 'active' : ''} onClick={() => setYearly(false)}>Monthly</button><button role="radio" aria-checked={yearly} className={yearly ? 'active' : ''} onClick={() => setYearly(true)}>Yearly <small>2 months free</small></button></div></div>
     <div className="plan-grid">{plans.map(p => <article key={p.id} className={`plan glow-panel ${p.popular ? 'popular' : ''}`}>

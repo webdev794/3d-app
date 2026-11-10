@@ -23,7 +23,7 @@ class CustomChoiceTest extends TestCase
 
     private function form(array $items): array
     {
-        return ['source' => 'form', 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Mantis',
+        return ['source' => 'form', ...$this->artwork(), 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Mantis',
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup', 'items' => $items];
     }
 

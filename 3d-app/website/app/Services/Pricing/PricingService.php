@@ -16,7 +16,7 @@ use Illuminate\Support\Collection;
 class PricingService
 {
     /** Garment rows a quote request may hold. */
-    public const MAX_ITEMS = 30;
+    public const MAX_ITEMS = 60;
 
     /** @var Collection<int, PriceRule>|null */
     private ?Collection $rules = null;

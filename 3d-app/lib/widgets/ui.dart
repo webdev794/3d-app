@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'glass_bubble.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../app_controller.dart';
+import 'keyboard_dismiss.dart' show KeyboardOpen;
 import 'stretchy_nav.dart';
 
 class Palette {
@@ -40,11 +41,16 @@ class GradientButton extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.compact = false,
+    this.twoLineLabel = false,
   });
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
   final bool compact;
+
+  /// A long label goes onto a second line inside the button instead of
+  /// ending in "…".
+  final bool twoLineLabel;
   @override
   Widget build(BuildContext context) => Semantics(
     // A node of its own, as Material's buttons are: without it the button
@@ -87,16 +93,29 @@ class GradientButton extends StatelessWidget {
                 children: [
                   if (label.isNotEmpty)
                     Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xff001923),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
+                      child: twoLineLabel
+                          ? Text(
+                              label,
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xff001923),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                height: 1.15,
+                              ),
+                            )
+                          : Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xff001923),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
                     ),
                   if (icon != null) ...[
                     if (label.isNotEmpty) const SizedBox(width: 10),
@@ -309,6 +328,10 @@ class BottomNav extends StatelessWidget {
   );
 
   Widget _build(BuildContext context, bool phone) {
+    // While the keyboard is up the bar makes way (as on iPhone apps, it
+    // stays under the keyboard): the text box keeps the room above it
+    // (user's picture 483: the bar rode up over the page).
+    if (KeyboardOpen.of(context)) return const SizedBox.shrink();
     final entries = [
       (AppScreen.home, Icons.home_outlined, Icons.home_rounded, 'Home'),
       (
@@ -406,43 +429,10 @@ class BottomNav extends StatelessWidget {
     return StretchyNav(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 4, 14, 31),
-        child: GlassShine(
-          radius: 30,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30),
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xd02a5f96),
-                  Color(0xc8123660),
-                  Color(0xd8081a33),
-                ],
-                stops: [0, .45, 1],
-              ),
-              border: Border.all(color: const Color(0x994ab4d8), width: 1.6),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x5536c8ff),
-                  blurRadius: 10,
-                  spreadRadius: 1,
-                ),
-                BoxShadow(
-                  color: Color(0x80000000),
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: CustomPaint(
-              // Uneven shine just inside the thin edge (client 379).
-              painter: const _NavShine(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                child: RepaintBoundary(child: row),
-              ),
-            ),
+        child: GlassCapsule(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            child: RepaintBoundary(child: row),
           ),
         ),
       ),
@@ -450,18 +440,61 @@ class BottomNav extends StatelessWidget {
   }
 }
 
+/// The phone tab bar's glass capsule: light blue glass with a thin glassy
+/// rim, a soft glow, white gloss along the top and small lights inside the
+/// edge (client 379). Also the Create your order option bubbles (user
+/// 2026-11-06), so they look like the tab bar's bubble.
+class GlassCapsule extends StatelessWidget {
+  const GlassCapsule({super.key, required this.child, this.radius = 30});
+  final Widget child;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => GlassShine(
+    radius: radius,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xd02a5f96), Color(0xc8123660), Color(0xd8081a33)],
+          stops: [0, .45, 1],
+        ),
+        border: Border.all(color: const Color(0x994ab4d8), width: 1.6),
+        boxShadow: const [
+          BoxShadow(color: Color(0x5536c8ff), blurRadius: 10, spreadRadius: 1),
+          BoxShadow(
+            color: Color(0x80000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: CustomPaint(
+        // Uneven shine just inside the thin edge (client 379).
+        painter: _NavShine(radius),
+        child: child,
+      ),
+    ),
+  );
+}
+
 /// Glass lights inside the nav capsule's edge: a glossy white streak along
 /// the top-left and the left end, a softer patch at the right end and the
 /// bottom curve. Gradients only.
 class _NavShine extends CustomPainter {
-  const _NavShine();
+  const _NavShine([this.radius = 30]);
+
+  /// The capsule's corner radius (the tab bar's: 30).
+  final double radius;
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final rr = RRect.fromRectAndRadius(
       rect.deflate(4),
-      const Radius.circular(26),
+      Radius.circular(math.max(radius - 4, 0)),
     );
     void glow(Rect clip, double w, Gradient g) {
       canvas.save();
@@ -522,14 +555,17 @@ class _NavShine extends CustomPainter {
           Offset.zero,
           sz * 1.7,
           Paint()
-            ..shader = RadialGradient(
-              colors: [
-                wh(a),
-                const Color(0xff8fe9ff).withValues(alpha: a * .7),
-                const Color(0x002ab8ff),
-              ],
-              stops: const [0, .35, 1],
-            ).createShader(Rect.fromCircle(center: Offset.zero, radius: sz * 1.7)),
+            ..shader =
+                RadialGradient(
+                  colors: [
+                    wh(a),
+                    const Color(0xff8fe9ff).withValues(alpha: a * .7),
+                    const Color(0x002ab8ff),
+                  ],
+                  stops: const [0, .35, 1],
+                ).createShader(
+                  Rect.fromCircle(center: Offset.zero, radius: sz * 1.7),
+                ),
         );
         canvas.restore();
       }
@@ -564,7 +600,7 @@ class _NavShine extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_NavShine o) => false;
+  bool shouldRepaint(_NavShine o) => o.radius != radius;
 }
 
 /// The phone nav's active item: a round glass button with a cyan rim, a

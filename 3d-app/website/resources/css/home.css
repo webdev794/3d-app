@@ -51,6 +51,28 @@
    leaving room on the right for 3DEEZI ASSIST. On computers the design's 1600 px grid scales with the
    page width: --u is 1 px at 1600 px wide. Tablets and phones stack it (see the media queries). */
 .home-next{background:#020912;overflow:hidden}
+/* Glass look (2026-11-04), like the app but lighter: no big bubble. The cards, panels and tiles and the main buttons
+   get a thin bright cyan rim, a soft glow inside the edge only (nothing spills outside), a soft white highlight along
+   the top, a faint violet-pink tint at the lower corners and a dark see-through fill over a light blur. Static, no
+   animation. The buttons sit on glass already, so they get no blur of their own (no blur stacks); START CREATING,
+   over the photo, does. ORDER NOW and the Rewards banner get it here, on the homepage only (.home-next), so the
+   Orders page keeps its own look. */
+.home-next{--glass-rim:#7af3ffd9;--glass-rim-hover:#c2fcff;
+  --glass-corners:radial-gradient(180px 130px at 0 100%,#b25cff47,transparent 70%),radial-gradient(180px 130px at 100% 100%,#e45cf03d,transparent 70%);
+  --glass-top:linear-gradient(180deg,#ffffff24,#ffffff0a 22px,transparent 60px);
+  --glass-fill:linear-gradient(180deg,#0b2438a8,#05121fc4);
+  --glass-glow:inset 0 1px 0 #ffffffb8,inset 0 0 0 1px #12e1f01f,inset 0 0 8px #3fe9f866,inset 0 0 28px #12e1f01f;
+  --glass-glow-hover:inset 0 1px 0 #ffffffd0,inset 0 0 0 1px #12e1f038,inset 0 0 10px #3fe9f899,inset 0 0 36px #12e1f033;
+  --glass-blur:blur(8px) saturate(1.15);
+  --glass-cta:linear-gradient(180deg,#ffffff33,#ffffff0d 46%,transparent 64%),radial-gradient(28% 90% at 0 100%,#b25cff5c,transparent 72%),radial-gradient(28% 90% at 100% 100%,#e45cf052,transparent 72%),linear-gradient(180deg,#0f4466d9,#082139e6);
+  --glass-cta-rim:#8ef6ff;--glass-cta-rim-hover:#d4fdff;
+  --glass-cta-glow:inset 0 1px 0 #ffffffd9,inset 0 0 0 1px #8ef6ff26,inset 0 0 10px #22e6f5b3,inset 0 0 24px #12e1f040;
+  --glass-cta-glow-hover:inset 0 1px 0 #fffffff0,inset 0 0 0 1px #8ef6ff40,inset 0 0 12px #22e6f5e6,inset 0 0 30px #12e1f066}
+.path-card,.i3d-panel,.hero-soon>a,.home-next .on-tile,.home-next .rewards-card{border:1px solid var(--glass-rim);background:var(--glass-corners),var(--glass-top),var(--glass-fill);box-shadow:var(--glass-glow);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur)}
+.home-next .on-tile{background:var(--glass-corners),var(--glass-top),radial-gradient(ellipse 80% 45% at 50% 62%,#0b2a4a59,transparent 72%),var(--glass-fill)}
+.home-next .on-tile:hover{border-color:var(--glass-rim-hover);box-shadow:var(--glass-glow-hover)}
+.home-next .on-icon{border:1px solid var(--glass-rim);background:var(--glass-top),var(--glass-fill);box-shadow:var(--glass-glow)}
+.home-next .rewards-card{background:var(--glass-corners),var(--glass-top),radial-gradient(ellipse 34% 120% at 0 100%,#0f3d7a59,transparent 70%),radial-gradient(ellipse 30% 110% at 100% 100%,#1b3f8f4d,transparent 70%),var(--glass-fill)}
 .home-stage{position:relative;container-type:inline-size;background:radial-gradient(ellipse 55% 75% at 70% 38%,#0c2c4c55,transparent 70%),linear-gradient(180deg,#030b16,#020912)}
 .home-stage-inner{--u:min(calc(100cqw / 1600),1.2px);position:relative;width:calc(1600 * var(--u));margin:0 auto;padding-bottom:calc(29 * var(--u))}
 .campaign-backdrop{position:absolute;left:calc(267 * var(--u));top:calc(-48 * var(--u));width:calc(1224 * var(--u));max-width:none;height:auto;pointer-events:none;-webkit-mask-image:linear-gradient(90deg,transparent,#000 24%),linear-gradient(180deg,#000 80%,transparent);-webkit-mask-composite:source-in;mask-image:linear-gradient(90deg,transparent,#000 24%),linear-gradient(180deg,#000 80%,transparent);mask-composite:intersect}
@@ -138,8 +160,8 @@
 
 .creation-paths{position:relative;z-index:3;margin-left:calc(95 * var(--u));width:calc(1410 * var(--u));display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:calc(16 * var(--u))}
 /* The cards always use the full width (user 2026-10-20); an open 3DEEZI ASSIST floats over them. */
-.path-card{position:relative;min-width:0;padding:calc(20 * var(--u)) calc(18 * var(--u)) calc(18 * var(--u));border:1.5px solid #12e1f0b3;border-radius:calc(10 * var(--u));overflow:hidden;background:linear-gradient(180deg,#071a2bf2,#04101cf2);color:#eaf4fc;text-align:left;display:flex;flex-direction:column;align-items:stretch;box-shadow:0 0 18px #00d9ed45,0 0 46px #00d9ed1f,inset 0 0 26px #00d9ed12;transition:border-color .2s,transform .2s,box-shadow .2s}
-.path-card:hover{transform:translateY(-4px);border-color:#36e3ee;box-shadow:0 0 26px #00d9ed88,0 0 70px #00d9ed33,inset 0 0 30px #00d9ed22}
+.path-card{position:relative;min-width:0;padding:calc(20 * var(--u)) calc(18 * var(--u)) calc(18 * var(--u));border-radius:calc(10 * var(--u));overflow:hidden;color:#eaf4fc;text-align:left;display:flex;flex-direction:column;align-items:stretch;transition:border-color .2s,transform .2s,box-shadow .2s}
+.path-card:hover{transform:translateY(-4px);border-color:var(--glass-rim-hover);box-shadow:var(--glass-glow-hover)}
 .path-card:focus-visible{outline:2px solid #7df3ff;outline-offset:3px}
 .path-heading{display:flex;align-items:flex-start;gap:calc(14 * var(--u));margin-bottom:calc(14 * var(--u))}
 .path-icon{display:grid;place-items:center;flex-shrink:0;width:max(32px,calc(42 * var(--u)));height:max(32px,calc(42 * var(--u)));color:#3fe6f4;filter:drop-shadow(0 0 8px #12e1f0aa)}
@@ -183,11 +205,11 @@
 .i3d-title{display:flex;align-items:center;justify-content:center;gap:calc(22 * var(--u));margin:0 0 calc(16 * var(--u));font-family:var(--heading);font-weight:700;font-size:max(17px,calc(27 * var(--u)));line-height:1.1;letter-spacing:.14em;color:#21e3f2;text-align:center;text-shadow:0 0 calc(16 * var(--u)) #12e1f070}
 .i3d-title::before,.i3d-title::after{content:"";flex:0 1 calc(150 * var(--u));height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#12e1f0d9);box-shadow:0 0 8px #12e1f080}
 .i3d-title::after{background:linear-gradient(270deg,transparent,#12e1f0d9)}
-.i3d-panel{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:calc(34 * var(--u));padding:calc(14 * var(--u)) calc(30 * var(--u)) calc(14 * var(--u)) calc(22 * var(--u));border:1.5px solid #12e1f0b3;border-radius:calc(22 * var(--u));overflow:hidden;color:#eaf4fc;text-align:left;
-  background:radial-gradient(ellipse 24% 140% at 9% 50%,#1569b852,transparent 70%),radial-gradient(ellipse 26% 160% at 100% 50%,#6d74ff1f,transparent 70%),linear-gradient(180deg,#071a2bf2,#04101cf2);
-  box-shadow:0 0 18px #00d9ed45,0 0 46px #00d9ed1f,inset 0 0 26px #00d9ed12;transition:border-color .2s,transform .2s,box-shadow .2s}
+.i3d-panel{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:calc(34 * var(--u));padding:calc(14 * var(--u)) calc(30 * var(--u)) calc(14 * var(--u)) calc(22 * var(--u));border-radius:calc(22 * var(--u));overflow:hidden;color:#eaf4fc;text-align:left;
+  background:var(--glass-corners),var(--glass-top),radial-gradient(ellipse 24% 140% at 9% 50%,#1569b852,transparent 70%),radial-gradient(ellipse 26% 160% at 100% 50%,#6d74ff1f,transparent 70%),var(--glass-fill);
+  transition:border-color .2s,transform .2s,box-shadow .2s}
 .i3d-panel::before{content:"";position:absolute;left:10%;right:10%;top:0;height:1px;background:linear-gradient(90deg,transparent,#9ff6ffb3,transparent);pointer-events:none}
-.i3d-panel:hover{transform:translateY(-3px);border-color:#36e3ee;box-shadow:0 0 26px #00d9ed88,0 0 70px #00d9ed33,inset 0 0 30px #00d9ed22}
+.i3d-panel:hover{transform:translateY(-3px);border-color:var(--glass-rim-hover);box-shadow:var(--glass-glow-hover)}
 .i3d-panel:focus-visible{outline:2px solid #7df3ff;outline-offset:3px}
 /* The picture: a flat jersey artwork on the artboard (selection frame and handles), the 3D step, the 3D kit. */
 .i3d-visual{position:relative;display:flex;align-items:center;width:calc(282 * var(--u));height:calc(108 * var(--u))}
@@ -279,7 +301,7 @@
   .campaign-copy>.button{min-width:0;width:max(48%,190px);min-height:clamp(40px,6svh,46px);padding:0 18px 0 22px;gap:12px;border-radius:12px;font-size:12px;letter-spacing:.06em}
   .hero-app{position:relative;z-index:2;left:auto;top:auto;width:auto;margin-top:clamp(10px,2svh,16px)}
   .hero-soon{display:grid;grid-template-columns:1fr 1fr;gap:3.6%}
-  .hero-soon>a{display:flex;align-items:center;gap:10px;min-width:0;min-height:clamp(48px,7.4svh,56px);padding:6px 8px 6px 12px;border:1.5px solid #22c6dd;border-radius:12px;background:#040f1cd9;box-shadow:0 0 12px #12e1f040,inset 0 0 12px #12e1f014;color:#fff}
+  .hero-soon>a{display:flex;align-items:center;gap:10px;min-width:0;min-height:clamp(48px,7.4svh,56px);padding:6px 8px 6px 12px;border-radius:12px;color:#fff}
   .hero-soon svg{width:23px;height:23px;flex:none;color:#fff}
   .hero-soon span{display:flex;flex-direction:column;line-height:1.05;min-width:0}
   .hero-soon small{font-size:clamp(6.5px,1.9vw,9px);letter-spacing:.12em;color:#cfe6f2;margin-bottom:4px;white-space:nowrap}
@@ -337,3 +359,9 @@
   .i3d-copy>span{font-size:13.5px}
   .i3d-button{justify-self:stretch;min-height:48px;padding:0 14px;font-size:13.5px;letter-spacing:.08em}
 }
+
+/* Bright buttons with a glass shine (user 2026-11-04: "brighter was better"): the bright cyan-violet fill stays,
+   with a glossy highlight on the top half, a thin light rim and a soft glow, like a lit glass button. */
+.campaign-copy>.button,.path-cta{border:1px solid #b6f9ffb3;background:linear-gradient(180deg,#ffffff5e,#ffffff1c 44%,#ffffff00 56%),linear-gradient(100deg,#12e2f1,#1cc6f6 45%,#6d74ff 85%,#8c5cff);box-shadow:0 0 22px #12e1f05c,0 6px 16px #0b5fa833,inset 0 1px 0 #ffffffd9,inset 0 -3px 8px #3b2ab04d}
+.i3d-button,.home-next .on-button{border:1px solid #b6f9ffb3;background:linear-gradient(180deg,#ffffff5e,#ffffff1c 44%,#ffffff00 56%),linear-gradient(100deg,#12e2f1,#1cc6f6 32%,#3f8cff 66%,#8c5cff);box-shadow:0 0 22px #12e1f05c,0 6px 16px #0b5fa833,inset 0 1px 0 #ffffffd9,inset 0 -3px 8px #3b2ab04d}
+.campaign-copy>.button:hover,.path-card:hover .path-cta,.i3d-panel:hover .i3d-button,.home-next .on-tile:hover .on-button{filter:brightness(1.08);box-shadow:0 0 32px #12e1f08c,0 8px 20px #0b5fa84d,inset 0 1px 0 #fffffff2,inset 0 -3px 8px #3b2ab04d}

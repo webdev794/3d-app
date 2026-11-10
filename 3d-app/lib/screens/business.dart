@@ -5,6 +5,7 @@ import '../api_client.dart';
 import '../app_controller.dart';
 import '../money.dart';
 import '../order_names.dart';
+import '../widgets/bubble_page.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
 
@@ -132,115 +133,127 @@ class _PricingScreenState extends State<PricingScreen> {
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
-    return Column(
-      children: [
-        TopBar(onBack: c.back, title: 'Plans & pricing'),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 6, 18, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'PROPOSED PLANS · FOR DISCUSSION',
-                  style: _eyebrow,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                const ScreenTitle(
-                  'Design more. ',
-                  highlight: 'Pay for what you use.',
-                  size: 25,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'The 3D studio is unlimited on every plan. Credits are only used when AI creates something.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Palette.muted,
-                    fontSize: 12.5,
-                    height: 1.4,
+    // The bubble look (user 2026-11-05).
+    return BubblePage(
+      c: c,
+      title: 'PLANS & PRICING',
+      compact: true,
+      bubbleKey: const ValueKey('pricing-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('pricing-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: c.back,
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(2, 2, 2, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'PROPOSED PLANS · FOR DISCUSSION',
+                    style: _eyebrow,
+                    textAlign: TextAlign.center,
                   ),
-                ),
-                const SizedBox(height: 14),
-                Center(
-                  child: SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('Monthly')),
-                      ButtonSegment(
-                        value: true,
-                        label: Text('Yearly · 2 months free'),
-                      ),
-                    ],
-                    selected: {_yearly},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (v) =>
-                        setState(() => _yearly = v.first),
+                  const SizedBox(height: 8),
+                  const ScreenTitle(
+                    'Design more. ',
+                    highlight: 'Pay for what you use.',
+                    size: 25,
                   ),
-                ),
-                const SizedBox(height: 16),
-                for (final p in _plans) ...[
-                  _PlanCard(p, yearly: _yearly, onStart: c.startDyo),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'The 3D studio is unlimited on every plan. Credits are only used when AI creates something.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Palette.muted,
+                      fontSize: 12.5,
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 14),
-                ],
-                _PartnerCard(onApply: () => showPartnerSheet(context, c)),
-                const SizedBox(height: 14),
-                SurfaceCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('WHAT A CREDIT BUYS', style: _eyebrow),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Simple, predictable AI costs.',
-                        style: _heading,
-                      ),
-                      const SizedBox(height: 10),
-                      for (final (label, n) in _costs)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 7),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  label,
-                                  style: const TextStyle(fontSize: 12.5),
+                  Center(
+                    child: SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('Monthly')),
+                        ButtonSegment(
+                          value: true,
+                          label: Text('Yearly · 2 months free'),
+                        ),
+                      ],
+                      selected: {_yearly},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (v) =>
+                          setState(() => _yearly = v.first),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  for (final p in _plans) ...[
+                    _PlanCard(p, yearly: _yearly, onStart: c.startDyo),
+                    const SizedBox(height: 14),
+                  ],
+                  _PartnerCard(onApply: () => showPartnerSheet(context, c)),
+                  const SizedBox(height: 14),
+                  SurfaceCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('WHAT A CREDIT BUYS', style: _eyebrow),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Simple, predictable AI costs.',
+                          style: _heading,
+                        ),
+                        const SizedBox(height: 10),
+                        for (final (label, n) in _costs)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    label,
+                                    style: const TextStyle(fontSize: 12.5),
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                '$n credit${n > 1 ? 's' : ''}',
-                                style: const TextStyle(
-                                  color: Palette.cyan,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12.5,
+                                Text(
+                                  '$n credit${n > 1 ? 's' : ''}',
+                                  style: const TextStyle(
+                                    color: Palette.cyan,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Extra credits: 100 for A\$9 or 500 for A\$39, and they never expire. Prices include GST.',
+                          style: TextStyle(
+                            color: Palette.muted,
+                            fontSize: 11.5,
+                            height: 1.4,
                           ),
                         ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Extra credits: 100 for A\$9 or 500 for A\$39, and they never expire. Prices include GST.',
-                        style: TextStyle(
-                          color: Palette.muted,
-                          fontSize: 11.5,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'This is a proposed structure for review. Prices, credit amounts and features can be adjusted before payments go live.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Palette.muted, fontSize: 11),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  const Text(
+                    'This is a proposed structure for review. Prices, credit amounts and features can be adjusted before payments go live.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Palette.muted, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

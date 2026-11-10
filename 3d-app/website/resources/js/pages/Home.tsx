@@ -18,7 +18,7 @@ export default function Home({onStart}:{onStart:(mode:'ai'|'dyo')=>void}) {
   }, []);
   // Layout from the client's homepage design (2026-10-15): the app with its store badges on the left,
   // the headline and Start creating in the middle, the kit on the right, the three ways to create below.
-  return <div className="home-next">
+  return <div className="home-next glass-ui">
     <div className="home-stage" style={{'--hero-photo': `url("${media('campaign/hero-3deezi.webp')}")`} as CSSProperties}><div className="home-stage-inner">
       <img className="campaign-backdrop" src={media('campaign/hero-3deezi.webp')} alt="Realistic 3DEEZI jersey in a cinematic floodlit stadium" fetchPriority="high"/>
       <div className="campaign-shade"/>

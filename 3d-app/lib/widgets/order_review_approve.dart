@@ -435,6 +435,9 @@ List<Widget> orderReviewApprove(
   String email = '',
   String mobile = '',
   String? neededBy,
+  // The date required is optional (the order form, client 2026-11-05): not
+  // listed under Please check.
+  bool dateOptional = false,
   String? deliveryText,
   bool pickup = false,
   VoidCallback? onEditDelivery,
@@ -898,7 +901,7 @@ List<Widget> orderReviewApprove(
   final missing = [
     if (garments.isEmpty) 'Garments and sizes',
     if (mobile.isEmpty) 'Mobile',
-    if (neededBy == null) 'Required date',
+    if (neededBy == null && !dateOptional) 'Required date',
     if (!pickup && deliveryText == null && onEditDelivery != null)
       'Delivery address',
   ];
@@ -1011,7 +1014,13 @@ List<Widget> orderReviewApprove(
                     key: const Key('confirmation-pdf'),
                     onPressed: () => onDownloadConfirmation('pdf'),
                     icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                    label: const Text('Download PDF'),
+                    // Short labels (user 2026-11-06): "Download PDF" wrapped
+                    // onto two lines at 390 px; the icon says it downloads.
+                    label: const Text(
+                      'PDF',
+                      maxLines: 1,
+                      semanticsLabel: 'Download PDF',
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1020,7 +1029,11 @@ List<Widget> orderReviewApprove(
                     key: const Key('confirmation-excel'),
                     onPressed: () => onDownloadConfirmation('excel'),
                     icon: const Icon(Icons.table_chart_outlined, size: 18),
-                    label: const Text('Download Excel'),
+                    label: const Text(
+                      'Excel',
+                      maxLines: 1,
+                      semanticsLabel: 'Download Excel',
+                    ),
                   ),
                 ),
               ],
@@ -1045,6 +1058,9 @@ List<Widget> orderReviewApprove(
             key: const Key('approve-order'),
             label: busy ? 'SENDING…' : 'APPROVE & CONTINUE TO PAYMENT',
             icon: Icons.arrow_forward,
+            // The whole text, on two lines on narrow phones (it was cut to
+            // "APPROVE & CONTINUE TO PA…" at 390 px).
+            twoLineLabel: true,
             onPressed: agreed && !busy ? onApprove : null,
           ),
           if (!agreed)

@@ -402,3 +402,5 @@ Yes: [3DEEZI TEAM](/team). Press REQUEST A DESIGNER, describe what you want, add
 
 ### How much does a 3DEEZI TEAM designer cost?
 It depends on your plan (prices include GST): a design request is A$100 on Rookie (Free) and A$49.95 on Creator. Club includes 15 design requests a month and Pro Studio 30; after those, each extra request is A$49.95 on Club and A$49 on Pro Studio. The 3DEEZI TEAM page shows your plan and the price of your next request before you send it. [3DEEZI TEAM](/team) or [Compare plans](/pricing)
+
+- Kits made from your own design picture or print layout carry a small 3DEEZI mark printed under the back collar. It never covers your artwork: if something sits there, it goes lower, onto one line, or is left off.

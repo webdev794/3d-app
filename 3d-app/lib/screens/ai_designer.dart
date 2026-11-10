@@ -16,8 +16,10 @@ import '../sports_catalog.dart';
 import '../design_document.dart' show isHoodie, isVarsity, isTrack;
 import '../export_service.dart';
 import '../player_shot.dart';
+import '../widgets/bubble_page.dart' show BubblePage, BubbleCornerPill;
 import '../widgets/ai_stage.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/glass_bubble.dart' show GlassRim;
 import '../widgets/recent_designs.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
@@ -613,167 +615,190 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
     ),
   );
 
-  Widget _bar(AiQuickSport? chosen) => Container(
-    padding: const EdgeInsets.all(6),
-    decoration: BoxDecoration(
-      color: const Color(0xd9061019),
-      borderRadius: BorderRadius.circular(c.references.isEmpty ? 30 : 22),
-      border: Border.all(color: Palette.cyan.withValues(alpha: .8), width: 1.4),
-      boxShadow: [
-        BoxShadow(color: Palette.cyan.withValues(alpha: .22), blurRadius: 18),
-      ],
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (c.references.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var i = 0; i < c.references.length; i++)
-                  if (c.referenceFiles[c.references[i]] case final file?)
-                    _fileChip(file, i)
-                  else
-                    SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(9),
-                            child: artImage(bytes: c.references[i]),
-                          ),
-                          Positioned(
-                            top: 2,
-                            right: 2,
-                            child: Semantics(
-                              button: true,
-                              label: 'Remove picture ${i + 1}',
-                              child: GestureDetector(
-                                onTap: () =>
-                                    c.update(() => c.references.removeAt(i)),
-                                child: const CircleAvatar(
-                                  radius: 9,
-                                  backgroundColor: Colors.black87,
-                                  child: Icon(Icons.close, size: 12),
+  /// Its outline is a glass rim with a cyan glow and white reflections; the
+  /// inside stays dark (client 487).
+  Widget _bar(AiQuickSport? chosen) => GlassRim(
+    radius: c.references.isEmpty ? 30 : 22,
+    width: 4.5,
+    child: Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: const Color(0xd9061019),
+        borderRadius: BorderRadius.circular(c.references.isEmpty ? 30 : 22),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (c.references.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var i = 0; i < c.references.length; i++)
+                    if (c.referenceFiles[c.references[i]] case final file?)
+                      _fileChip(file, i)
+                    else
+                      SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(9),
+                              child: artImage(bytes: c.references[i]),
+                            ),
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: Semantics(
+                                button: true,
+                                label: 'Remove picture ${i + 1}',
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      c.update(() => c.references.removeAt(i)),
+                                  child: const CircleAvatar(
+                                    radius: 9,
+                                    backgroundColor: Colors.black87,
+                                    child: Icon(Icons.close, size: 12),
+                                  ),
                                 ),
                               ),
                             ),
+                          ],
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // The + and send buttons: round glass bubbles (client 487).
+              Padding(
+                padding: const EdgeInsets.all(2),
+                child: GlassRim(
+                  radius: 21,
+                  width: 2,
+                  glow: .45,
+                  child: IconButton(
+                    tooltip: 'Attach and suggestions',
+                    onPressed: _busy ? null : _openPlus,
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xff0e1b27),
+                      fixedSize: const Size(42, 42),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.add, size: 22),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: TextField(
+                  controller: _text,
+                  minLines: 1,
+                  maxLines: 5,
+                  enabled: !_busy,
+                  textCapitalization: TextCapitalization.sentences,
+                  onChanged: (_) => setState(() {}),
+                  inputFormatters: [
+                    BriefLimit(() {
+                      if (mounted) {
+                        showToast(
+                          context,
+                          'Your brief was shortened to ${formatCount(maxBrief)} characters.',
+                        );
+                      }
+                    }),
+                  ],
+                  // Pictures pasted from the keyboard's clipboard join the
+                  // references, as with the picture button.
+                  contentInsertionConfiguration: ContentInsertionConfiguration(
+                    allowedMimeTypes: const [
+                      'image/png',
+                      'image/jpeg',
+                      'image/webp',
+                    ],
+                    onContentInserted: _insertPicture,
+                  ),
+                  style: const TextStyle(fontSize: 14.5),
+                  decoration: InputDecoration(
+                    hintText: chosen == null
+                        ? 'Describe your design...'
+                        : 'Describe your ${chosen.label} design...',
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    filled: false,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Upload a reference image',
+                onPressed: _busy ? null : _pickAny,
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 22),
+              ),
+              _busy
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: GlassRim(
+                        radius: 22,
+                        width: 2,
+                        glow: .6,
+                        child: IconButton.filled(
+                          tooltip: 'Generate designs',
+                          onPressed: () => _generate(),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Palette.cyan,
+                            foregroundColor: Colors.black,
+                            fixedSize: const Size(44, 44),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                        ],
+                          icon: const Icon(
+                            Icons.arrow_upward_rounded,
+                            size: 22,
+                          ),
+                        ),
                       ),
                     ),
-              ],
-            ),
+            ],
           ),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            IconButton(
-              tooltip: 'Attach and suggestions',
-              onPressed: _busy ? null : _openPlus,
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0xff0e1b27),
-                side: const BorderSide(color: Color(0x33ffffff)),
-                fixedSize: const Size(42, 42),
-              ),
-              icon: const Icon(Icons.add, size: 22),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: TextField(
-                controller: _text,
-                minLines: 1,
-                maxLines: 5,
-                enabled: !_busy,
-                textCapitalization: TextCapitalization.sentences,
-                onChanged: (_) => setState(() {}),
-                inputFormatters: [
-                  BriefLimit(() {
-                    if (mounted) {
-                      showToast(
-                        context,
-                        'Your brief was shortened to ${formatCount(maxBrief)} characters.',
-                      );
-                    }
-                  }),
-                ],
-                // Pictures pasted from the keyboard's clipboard join the
-                // references, as with the picture button.
-                contentInsertionConfiguration: ContentInsertionConfiguration(
-                  allowedMimeTypes: const [
-                    'image/png',
-                    'image/jpeg',
-                    'image/webp',
-                  ],
-                  onContentInserted: _insertPicture,
-                ),
-                style: const TextStyle(fontSize: 14.5),
-                decoration: InputDecoration(
-                  hintText: chosen == null
-                      ? 'Describe your design...'
-                      : 'Describe your ${chosen.label} design...',
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  filled: false,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 12,
+          // Over 3,500 characters: a small counter (the limit in amber).
+          if (_text.text.length > maxBrief - 500)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 56, 4),
+                child: Text(
+                  '${formatCount(_text.text.length)} / ${formatCount(maxBrief)}',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: _text.text.length >= maxBrief
+                        ? const Color(0xffffc46b)
+                        : Palette.muted,
                   ),
                 ),
               ),
             ),
-            IconButton(
-              tooltip: 'Upload a reference image',
-              onPressed: _busy ? null : _pickAny,
-              icon: const Icon(Icons.add_photo_alternate_outlined, size: 22),
-            ),
-            _busy
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : IconButton.filled(
-                    tooltip: 'Generate designs',
-                    onPressed: () => _generate(),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Palette.cyan,
-                      foregroundColor: Colors.black,
-                      fixedSize: const Size(44, 44),
-                    ),
-                    icon: const Icon(Icons.arrow_upward_rounded, size: 22),
-                  ),
-          ],
-        ),
-        // Over 3,500 characters: a small counter (the limit in amber).
-        if (_text.text.length > maxBrief - 500)
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(0, 0, 56, 4),
-              child: Text(
-                '${formatCount(_text.text.length)} / ${formatCount(maxBrief)}',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: _text.text.length >= maxBrief
-                      ? const Color(0xffffc46b)
-                      : Palette.muted,
-                ),
-              ),
-            ),
-          ),
-      ],
+        ],
+      ),
     ),
   );
 }
@@ -915,116 +940,131 @@ class _AiGeneratingScreenState extends State<AiGeneratingScreen>
       ),
       ('Preparing 3D garment', _step >= 3 && _progress >= 1),
     ];
-    return Column(
-      children: [
-        TopBar(onBack: c.back),
-        const ScreenTitle('Creating your design…', size: 24),
-        const SizedBox(height: 6),
-        const Text(
-          'Analysing your request and generating concepts.',
-          style: TextStyle(color: Palette.muted, fontSize: 12),
-        ),
-        Expanded(child: Center(child: const EmblemLoader(size: 240))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 26),
-          child: Column(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(
-                  height: 5,
-                  child: Stack(
-                    children: [
-                      const Positioned.fill(
-                        child: ColoredBox(color: Palette.surface2),
-                      ),
-                      FractionallySizedBox(
-                        alignment: Alignment.centerLeft,
-                        widthFactor: _progress.clamp(0, 1),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xff00e0e4),
-                                Color(0xff04c6f3),
-                                Color(0xff7560ff),
+    // The bubble look (user 2026-11-05).
+    return BubblePage(
+      c: c,
+      title: ('Creating your design').toUpperCase(),
+      compact: true,
+      bubbleKey: const ValueKey('generating-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('generating-bubble-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: c.back,
+      ),
+      child: Column(
+        children: [
+          const ScreenTitle('Creating your design…', size: 24),
+          const SizedBox(height: 6),
+          const Text(
+            'Analysing your request and generating concepts.',
+            style: TextStyle(color: Palette.muted, fontSize: 12),
+          ),
+          Expanded(child: Center(child: const EmblemLoader(size: 240))),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    height: 5,
+                    child: Stack(
+                      children: [
+                        const Positioned.fill(
+                          child: ColoredBox(color: Palette.surface2),
+                        ),
+                        FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: _progress.clamp(0, 1),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xff00e0e4),
+                                  Color(0xff04c6f3),
+                                  Color(0xff7560ff),
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Palette.cyan.withValues(alpha: .7),
+                                  blurRadius: 8,
+                                ),
                               ],
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Palette.cyan.withValues(alpha: .7),
-                                blurRadius: 8,
-                              ),
-                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              for (final (label, done) in rows)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Row(
-                    children: [
-                      done
-                          ? const Icon(
-                              Icons.check_circle_rounded,
-                              color: Palette.cyan,
-                              size: 21,
-                            )
-                          : const SizedBox(
-                              width: 21,
-                              height: 21,
-                              child: Padding(
-                                padding: EdgeInsets.all(3),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                const SizedBox(height: 16),
+                for (final (label, done) in rows)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    child: Row(
+                      children: [
+                        done
+                            ? const Icon(
+                                Icons.check_circle_rounded,
+                                color: Palette.cyan,
+                                size: 21,
+                              )
+                            : const SizedBox(
+                                width: 21,
+                                height: 21,
+                                child: Padding(
+                                  padding: EdgeInsets.all(3),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                               ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: done ? Palette.text : Palette.muted,
                             ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: done ? Palette.text : Palette.muted,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0x33E92137),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0x88E92137)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(fontSize: 11.5),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0x33E92137),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0x88E92137)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(fontSize: 11.5),
+                          ),
                         ),
-                      ),
-                      TextButton(onPressed: _start, child: const Text('Retry')),
-                    ],
+                        TextButton(
+                          onPressed: _start,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
+                const SizedBox(height: 26),
               ],
-              const SizedBox(height: 26),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1432,7 +1472,10 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
       final printBox = reading.print;
       final print = printBox == null ? null : await cropPrint(image, printBox);
       if (c.resultsRun != run || c.screen != AppScreen.concepts) return;
-      closest = reading.exact
+      final missing = closestModel(c.brief);
+      closest = missing != null
+          ? '${closestNote(missing)} '
+          : reading.exact
           ? ''
           : 'Shown on our ${garment.toLowerCase()}: the closest 3D garment '
                 'to your ${reading.seen.isEmpty ? 'design' : reading.seen}. ';
@@ -2535,6 +2578,17 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
             padding: const EdgeInsets.only(right: 60),
             child: _refineBar(hasPicture && !(primary?.busy ?? true)),
           ),
+          // A shirt we have no 3D model of (images/416): which garment the
+          // 3D preview uses.
+          if (closestModel(c.brief) case final m?)
+            Padding(
+              key: const ValueKey('closest-note'),
+              padding: const EdgeInsets.only(top: 6, right: 60),
+              child: Text(
+                closestNote(m),
+                style: const TextStyle(fontSize: 12, color: Palette.cyan),
+              ),
+            ),
           if (c.planError != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),

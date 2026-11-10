@@ -4,7 +4,7 @@ import { ArrowRight, Clock3, FileText, Info, LoaderCircle, Plus, RefreshCw, Sear
 import { orderApi } from '../orderApi';
 import { OrderPageHeader } from '../components/OrderPageParts';
 import OrderDetailDrawer, { type DetailFocus } from '../components/OrderDetail';
-import { GarmentPicture, PaymentPill, STAGES, StatusPill, cardLine, displayRef, payPath, plural, readBoard, unitWord, shortDate, type BoardData, type BoardOrder, type OrderDetail, type StageKey } from '../components/orderBoardModel';
+import { GarmentPicture, PaymentPill, STAGES, StatusPill, cardLine, displayRef, ownOrderName, payPath, plural, readBoard, unitWord, shortDate, type BoardData, type BoardOrder, type OrderDetail, type StageKey } from '../components/orderBoardModel';
 import '../../css/orders-board.css';
 
 type View = 'current' | 'completed';
@@ -333,8 +333,9 @@ function OrderCard({ order, compact, onOpen }: { order: BoardOrder; compact: boo
   const lineEl = line.text && <p className="ob-line" title={line.title}>{line.text}</p>;
   return <article className={`ob-card${compact ? ' is-compact' : ''}${review ? ' needs-approval' : ''}${pay ? ' needs-payment' : ''}`} data-order={order.number}
     onClick={e => { if (!(e.target as HTMLElement).closest('button, a')) onOpen(order); }} draggable={false} onDragStart={e => e.preventDefault()}>
-    <p className="ob-ref">{displayRef(order.number)}</p>
-    <h3 className="ob-name"><button type="button" onClick={() => onOpen(order)} title={`Open order ${order.number}`}>{order.name}</button></h3>
+    {/* No name of its own (the team name is optional): the number once, as the title (not "#3DZ-00010" over "Order 3DZ-00010"). */}
+    {ownOrderName(order.number, order.name) && <p className="ob-ref">{displayRef(order.number)}</p>}
+    <h3 className="ob-name"><button type="button" onClick={() => onOpen(order)} title={`Open order ${order.number}`}>{ownOrderName(order.number, order.name) || displayRef(order.number)}</button></h3>
     <div className={`ob-pics count-${pictures.length}`}>
       {pictures.map((g, i) => <GarmentPicture key={`${g.garment}-${i}`} garment={g.garment} thumbnail={g.thumbnail} alt={g.name} />)}
       {more > 0 && <span className="ob-more" title={garments.slice(pictures.length).map(g => g.name).join(', ')}>+{more}</span>}

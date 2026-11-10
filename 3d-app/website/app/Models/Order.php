@@ -44,7 +44,7 @@ class Order extends Model
     /** The design approval: in progress, proof sent (approval needed), approved, changes requested. */
     public const APPROVALS = ['waiting', 'review', 'approved', 'changes'];
 
-    public const MAX_ITEMS = 30;
+    public const MAX_ITEMS = 60;
 
     /** Delivered orders count as completed (off the current board) this many days after delivery. */
     public const COMPLETED_AFTER_DAYS = 14;
@@ -317,7 +317,21 @@ class Order extends Model
     /** The name shown for the order: the team, else the kit, else its reference. */
     public function displayName(): string
     {
-        return $this->team_name ?: ($this->project?->name ?: ($this->getAttribute('kit_name') ?: 'Order '.$this->number));
+        return $this->ownName() ?? 'Order '.$this->number;
+    }
+
+    /** The team, kit or design name, or null when the order has none (the team name is optional). */
+    public function ownName(): ?string
+    {
+        return ($this->team_name ?: ($this->project?->name ?: $this->getAttribute('kit_name'))) ?: null;
+    }
+
+    /** True when a name is only the "Order 3DZ-00010" fallback (or empty), so "3DZ-00010 · Order 3DZ-00010" isn't shown. */
+    public static function isFallbackName(?string $name, ?string $number): bool
+    {
+        $name = trim((string) $name);
+
+        return $name === '' || ($number !== null && strcasecmp($name, 'Order '.$number) === 0);
     }
 
     /** Completed orders are off the current board: cancelled, or delivered over COMPLETED_AFTER_DAYS ago. */

@@ -77,6 +77,11 @@ void main() {
     expect(notificationTitle({'data': {'title': 'Hi'}}), 'Hi');
     expect(notificationTitle({'data': {'number': '3DZ-00012', 'name': 'Hawks kit'}}), '3DZ-00012 · Hawks kit');
     expect(notificationTitle({'data': {}}), 'Notification');
+    // No team name: the server's "Order 3DZ-00010" fallback isn't repeated after the number.
+    expect(notificationTitle({'data': {'number': '3DZ-00010', 'name': 'Order 3DZ-00010'}}), '3DZ-00010');
+    expect(orderTitle('3DZ-00010', null), '3DZ-00010');
+    expect(ownOrderName('3DZ-00010', 'Order 3DZ-00010'), '');
+    expect(ownOrderName('3DZ-00010', 'Hawks'), 'Hawks');
   });
 
   testWidgets('the main screens show the bell signed in, not signed out', (tester) async {

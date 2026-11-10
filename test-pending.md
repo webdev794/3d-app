@@ -685,3 +685,140 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 4. The same in the app (Style tab).
 
 ---
+
+---
+3DEEZI mark under the back collar (2026-11-05): open an AI design in 3D (AI Designer > Open in 3D Designer, or Artwork to 3D) and turn to the back. A small 3DEEZI mark sits under the collar. A Design Your Own kit shows none. Put your own logo under the collar: the mark moves lower or is left off.
+---
+
+---
+**Order chat: sport name on each garment (2026-11-06, website and app)**
+1. Orders > Create your order. Type "Football: 3 x M, 2 x L" and send: the answer says 5 Football jerseys, with sizes M 3, L 2.
+2. Press PDF and Excel: both files say "Football jersey" (not just "Jersey"), with the sizes.
+3. Type "Smith 7 M" and "Jones 10 L" on two lines under "Football jersey:": 2 players, numbers 7 and 10.
+4. The same on the live site, on the website and in the app: no server error.
+---
+
+---
+**Website phone view: order form buttons fit (2026-11-06)**
+1. On a phone (or a narrow browser): Orders > Create order form.
+2. At the bottom: NEXT is full width, Save draft and Copy link are under it, and nothing runs off the right edge.
+---
+
+---
+**App: order form room at the top (2026-11-06)**
+1. App > Orders tab > Create your order > Switch to Manual Form: the heading has space above it, like the Projects tab.
+2. Tap Home in the bottom bar: you go back Home.
+---
+
+---
+**App: close the keyboard (2026-11-06)**
+1. Tap any text box (Orders chat, Team, Assist): the keyboard opens and the bottom bar hides.
+2. Tap anywhere outside the box: the keyboard closes and the bottom bar comes back.
+3. On iPhone this needs the next app update.
+---
+
+---
+**App Orders tab: glass bubble (2026-11-06)**
+1. App > Orders tab: "Create your order" sits in the same moving glass bubble as Home.
+2. The 5 options are small glass bubbles, and they and the text stay inside the bubble's edges (small and large phones).
+3. Tap an option: it floats into the chat box and fills it, and the chat box glows. Dragging an option onto the chat box also works.
+---
+
+---
+**App Studio: logo and text menu (2026-11-06)**
+1. App > Studio, any kit (try the netball dress and a jersey). Tap the logo, then the team name on the garment.
+2. The small menu opens away from the item, so the item stays visible. The Front/Back/Side buttons step aside.
+3. Drag the menu by its top bar, or anywhere on it: it moves and the 3D doesn't turn.
+4. Press Done: the buttons come back. Tap the item again: the menu opens where you left it.
+5. Try it with a colour panel open too. The website Studio menu is unchanged.
+---
+
+---
+**App AI Designer: glass outlines (2026-11-06)**
+1. App > AI Designer: the prompt bar, + and send buttons, sport cards, arrows and the Assist button have glass outlines with a cyan glow. The centres stay dark.
+2. The chosen sport card glows brighter. Tapping everything works as before.
+---
+
+---
+**App Design Your Own: glass options and bigger kits (2026-11-06)**
+1. App > Home > Design Your Own: glass sport tiles (the chosen one glows cyan) and round glass arrows.
+2. The kits are big and close together; swiping follows your finger.
+3. Under the kits, the name box shows the sport, its garments and the count (e.g. "Jersey + Shorts - 7 / 30").
+4. Custom and the DESIGN button are under it, all inside the bubble, with no scrolling (small and large phones).
+---
+
+---
+**App Design Your Own: no outer bubble (2026-11-10)**
+1. App > Home > Design Your Own: no big glass bubble; the page sits on the stadium background.
+2. Sport tiles run edge to edge; kits are bigger; Custom and DESIGN are full width.
+3. Swipe, arrows, Custom and DESIGN work; the Assist button never covers DESIGN; Back goes Home.
+---
+
+---
+**App Team page: no box inside the bubble (2026-11-10)**
+1. App > Home > 3DEEZI TEAM: no dark box inside the bubble; the photo fades softly into it.
+2. REQUEST A DESIGNER and VIEW MY REQUESTS are both fully visible (small and large phones).
+3. REQUEST A DESIGNER goes to the form; send a request: the confirmation shows; VIEW MY REQUESTS lists it.
+---
+
+---
+**App Artboard: tap gestures (2026-11-10)**
+1. App > Artboard. Pick Freehand, draw 2 strokes.
+2. Tap with two fingers: the last stroke goes ("Undo" shows). Tap with three fingers: it comes back ("Redo").
+3. The tap leaves no dot or line. Pinch to zoom and two-finger drag still work, with no stray line.
+4. Website Artboard: one Undo press removes one Freehand stroke (before it needed two).
+---
+
+---
+**App bubble pages: scrolling stays inside the bubble (2026-11-10)**
+1. App > Home > 3DEEZI TEAM: scroll down slowly. The content is cut along the bubble's curved top and fades under "3DEEZI TEAM"; nothing crosses the bubble edge.
+2. The same on other Back-button pages: Profile > Edit profile, Orders > Create order form, Plans & pricing, Assets.
+3. At the very bottom of the Team page, "View subscription options" is fully visible.
+---
+
+---
+**Order chat: several items and netball dresses (2026-11-10, website and app)**
+1. Orders > Create your order. Send "Rugby league jerseys: 5 S, 10 M, 8 L, 2 XXL. Netball dress x 12 size 12": 25 Rugby League jerseys (S 5, M 10, L 8, XXL 2) and 12 Netball dresses size 12.
+2. Send "12 netball dresses size 12": 12 Netball dresses, size 12.
+3. Send "Football jerseys 3 x M" and "5 hoodies" on the next line: 3 Football jerseys and 5 Football hoodies (no size, in the check list).
+4. PDF and Excel show the same garments and sizes.
+---
+
+---
+**App Team form, Save project, Suppliers (2026-11-10)**
+1. App > Home > 3DEEZI TEAM > REQUEST A DESIGNER: "Sport / activity" shows the same names as Design Your Own (e.g. Soccer). Pick Basketball: "For Basketball" garments come first, then "Other garments".
+2. With one request already open on the free plan: an amber note above the form says so, with "View my requests" and "See plans"; SEND is off.
+3. App > Studio > Save: PROJECT NAME is visible above SAVE PROJECT without scrolling.
+4. App > Orders tab > "..." menu > Preferred suppliers: the suppliers page opens.
+5. Profile > Edit profile: scroll slowly; "Your name" fades under the title instead of being cut.
+---
+
+---
+**App Projects: no example projects (2026-11-10)**
+1. App > Projects tab, signed out: no Warriors Concept / Mantis Elite / Club Jersey / Morahu; a "Make it yours." sign-in card with AI Designer and Design Your Own buttons.
+2. Signed in with no projects: "No projects yet" with the same two buttons.
+3. Save a kit in the Studio: it shows in Projects; All / AI / DYO / Approved and search work; tapping it opens it.
+4. Home recent designs and the Studio "My designs" also show only your own kits.
+---
+
+---
+**App Assets: no example pictures (2026-11-10)**
+1. App > Projects tab > Assets: Uploads shows "No uploads yet" with UPLOAD ASSET (no reference pictures); Artwork shows "No artwork yet"; Logos shows only the 3DEEZI mark.
+2. Upload a picture: it replaces the empty card.
+---
+
+---
+**App Team page: no bubble (2026-11-10)**
+1. App > Home > 3DEEZI TEAM: no glass bubble; Back, logo, TEAM bell and "3DEEZI TEAM" stay at the top; the photo is bigger and fades into the background.
+2. Scroll: content slides under the title and fades softly; at the end everything is visible above the tab bar.
+3. VIEW MY REQUESTS and a single request page look the same (no bubble). Sending a request still works.
+4. Other pages (Home, Projects, Orders, Profile, Edit profile) still have their bubble.
+---
+
+---
+**Website: glass bubble buttons (2026-11-10)**
+1. Website Home (desktop and phone): START CREATING, the card buttons and UPLOAD ARTWORK HERE look like the app's glossy cyan DESIGN button; the big cards have a glass rim and glow.
+2. Create > Design Your Own: glass sport tiles (chosen one glows), round glass arrows, glass "Custom..." capsule, glossy DESIGN button. AI Designer: glass prompt bar, + and send, sport cards.
+3. Orders, Team, Subscriptions, My projects (filters and search), Signage: the same look on their main buttons, pills and tiles.
+4. Every button still works; Studio, Artboard and the Marquee Studio look exactly as before.
+---

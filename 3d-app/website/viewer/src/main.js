@@ -10,7 +10,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import gsap from 'gsap';
 import { buildGarment, buildCollar, buildDrawstring, SPECS } from './garment.js';
-import { buildLabel, paintLabel, mainColour } from './label.js';
+import { buildLabel, paintLabel, mainColour, buildNeckPrint, placeNeckPrint } from './label.js';
 import { KitPainter, knitNormalMap } from './texture.js';
 import { createStudio } from './studio.js';
 import { qualityTier, TIERS, stadiumEnvironment, dressFabric, fabricInk, hdrBackdrop } from './render-quality.js';
@@ -168,7 +168,12 @@ function addRelief(target, painter) {
   // The skirt's own light (skirtprint.js SKIRT_LIGHT: its black neutral and even, its panels clean), on the tiers.
   // (FN1 2026-10-30: the bucket hat too: its black neutral, as its pictures', not navy from the stage's cool light.)
   const skirtLight = (painter.kind === 'skirt' || painter.kind === 'bucket-hat' || painter.kind === 'beanie') && !!Q;
-  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '');
+  // (The netball dress: its own glow (emissive) shaded by the baked folds and body shading too, and half the edge light:
+  // the user 2026-11-05, 443.)
+  const dress = painter.kind === 'netball-dress';
+  // (The basketball shorts: matte, so the edge light does not run along their fold ridges as shiny streaks: BSF.)
+  const bball = painter.kind === 'bballshorts';
+  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '');
   target.onBeforeCompile = (shader) => {
     if (skirtLight) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `${SKIRT_LIGHT}\n#include <opaque_fragment>`);
     // (LT2 2026-11-02, the client: "a thin highlight around these garments": on the tiers a thin, soft cyan-white edge
@@ -176,9 +181,13 @@ function addRelief(target, painter) {
     // faces the camera and keeps its colours.)
     if (Q) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `{
       float edge = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));
-      outgoingLight += vec3(0.62, 0.86, 1.0) * 0.5 * smoothstep(0.62, 0.95, edge);
+      outgoingLight += vec3(0.62, 0.86, 1.0) * ${dress ? '0.0' : bball ? '0.08' : '0.5'} * smoothstep(${dress || bball ? '0.9, 0.995' : '0.62, 0.95'}, edge);
     }
 #include <opaque_fragment>`);
+    if (dress) shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+#ifdef USE_COLOR
+	totalEmissiveRadiance *= vColor.rgb;
+#endif`);
     shader.uniforms.reliefMap = { value: relief };
     // Look 2: the stitches and seams stand out a little more (the relief's slopes scaled up).
     const slopes = LOOK2 ? 'relief.xy * 1.7' : 'relief.xy';
@@ -383,6 +392,8 @@ function buildKit(kind) {
     // The socks (FN10 2026-11-02, tester DT10): less shine, so the top of the foot under the overhead lights stays as
     // black as the shin (the pictures' 13-28), not grey-blue (their knit has no sheen either: render-quality.js sockrib).
     if (garment.socks) partMaterial.specularIntensity = 0.3;
+    // (The basketball shorts: a matte knit, its fold ridges not shining: BSF 2026-11-05.)
+    if (garment.bball) Object.assign(partMaterial, { specularIntensity: 0.15, sheen: 0, envMapIntensity: 0.45 });
     addRelief(partMaterial, painter);
     const group = new THREE.Group();
     // The inside of the fabric, seen through the neck, hem and cuffs: the garment's own colour in shade (paintAll).
@@ -534,7 +545,8 @@ function buildKit(kind) {
       rim.material.normalScale.set(0.75, 0.75);
     }
     // (The netball dress's scoop neck is bound and rolled as its armholes are: no collar rib.)
-    rim.visible = !hoodie && !track && !varsity && !garment.socks && !garment.skirt && !garment.cap && !garment.hat && garment.kind !== 'netball-dress';
+    // (The basketball shorts: their band is printed on the shorts themselves, flush, with its ruching in the relief: BSF.)
+    rim.visible = !garment.bball && !hoodie && !track && !varsity && !garment.socks && !garment.skirt && !garment.cap && !garment.hat && garment.kind !== 'netball-dress';
     // The HQ jersey's own collar piece, in the collar rib's material.
     if (hq?.collar) { rim.geometry.dispose(); rim.geometry = hq.collar; }
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
@@ -551,11 +563,11 @@ function buildKit(kind) {
     const stretch = partKind === 'shorts' && layout ? 1.12 : garment.display ?? 1;
     group.scale.setScalar(stretch);
     // (FN13, DT10: the Game Jersey picture (zoneColors.badge) is cut much wider over the shoulder pads than tall.)
-    if (partKind === 'nfljersey' && HEX6.test(design.zoneColors?.badge ?? '')) group.scale.x *= NFL_GAME_WIDE;
+    if (partKind === 'nfljersey' && HEX6.test(design.zoneColors?.badge ?? '')) group.scale.x *= NFL_GAME_WIDE; else if (partKind === 'nfljersey' && HEX6.test(design.zoneColors?.vInsert ?? '')) group.scale.y *= 1.045; // (FN15, user 2026-11-04: the Practice Jersey longer, h/w 1.58 -> 1.65)
     // (FN13, DT11 on -227: the rugby / netball / NFL training tees' pictures are wide, boxy tees (h/w about 1.02).)
     if (partKind === 'tee' && teeFlare) group.scale.x *= teeSport(design).wide;
     // (FX-H 2026-11-02, DT11: the hoodies broader from the front, as the pictures (the form's shoulders fix the cut's width).)
-    if (partKind === 'hoodie' || partKind === 'ziphoodie') group.scale.x *= 1.11; if (partKind === 'hoodie') group.scale.y *= 1.03; // (FN14: the lower hood's height back) // (FN13, DT11 on -230/-231: wider, h/w 1.20)
+    if (partKind === 'hoodie' || partKind === 'ziphoodie') group.scale.x *= 1.11; if (partKind === 'hoodie') group.scale.y *= 1.05; // (FN14: the lower hood's height back) // (FN13, DT11 on -230/-231: wider, h/w 1.20)
     if (partKind === 'varsity' && varsityBoxy) { group.scale.x *= VARSITY_BOXY.wide; group.scale.z *= VARSITY_BOXY.wide; group.scale.y *= VARSITY_BOXY.tall; }
     // In a full kit the jersey sits over the shorts' waistband.
     // Look 2: a garment shown on a form with legs (the netball dress) stands a little higher (garment.js lift).
@@ -620,6 +632,8 @@ function dressMannequin(list) {
   mannequinMat ??= Object.assign(mannequinMaterial(), { userData: { keep: true } });
   let low = Infinity, foot = null;
   for (const part of parts) {
+    // (The basketball shorts: no form inside; its top showed through the waist opening as a grey lid: BSF.)
+    if (part.garment.bball) continue;
     const group = part.rim.parent;
     // The HQ jersey: the body it was made on (hq.js), else our form made for the garment.
     const form = part.garment.form ? part.garment.form(mannequinMat) : part.hq?.avatar ? new THREE.Group().add(new THREE.Mesh(part.hq.avatar, mannequinMat))
@@ -642,13 +656,20 @@ function dressMannequin(list) {
 
 /** Re-centres the camera on whatever is on the podium. */
 function frameKit() {
+  // (FN15: measured at the kit's full size, not part-way through the reveal's grow-in.)
+  const was = kit.scale.clone(); kit.scale.setScalar(1); kit.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(kit);
+  kit.scale.copy(was); kit.updateMatrixWorld(true);
   const height = box.max.y - box.min.y, width = box.max.x - box.min.x;
   // (VW1: aimed a little low, so the smaller pedestal stays in the frame.)
   CENTER.set(0, (box.min.y + box.max.y) / 2 - height * 0.05, 0);
   // Fit the taller of height and (narrow-screen) width, never closer than a jersey.
   // (VW1 2026-11-03, client 363 item 5: the kit larger in the frame; was 2.05 / 2.65.)
-  HOME.radius = Math.max(1.85, Math.max(height, width * 0.8) * 2.4);
+  // (FN15, DT12 on -240: never closer than the whole kit fits, the hood's top included, with a small margin: the half
+  // height above the aimed-low centre (+5%), and the half width on a narrow screen, from the camera's own field of view.)
+  const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2), depth = (box.max.z - box.min.z) / 2;
+  const fit = depth * 0.3 + Math.max((height * 0.55 * 1.08) / tanV, (width * 0.5 * 1.08) / (tanV * camera.aspect));
+  HOME.radius = Math.max(1.85, Math.max(height, width * 0.8) * 2.4, fit);
   controls.maxDistance = Math.max(3.4, HOME.radius * 1.6);
   controls.target.copy(CENTER);
   setCamera({ ...HOME, theta: new THREE.Spherical().setFromVector3(camera.position.clone().sub(CENTER)).theta || 0 });
@@ -728,6 +749,32 @@ function collarStripe(rim, colour, to = 0.62) {
   if (!m.vertexColors) { m.vertexColors = true; m.needsUpdate = true; }
 }
 
+/**
+ * A customer's own design (a design picture or print layout on the kit: the AI Designer's and Artwork to 3D's kits, QD
+ * 2026-11-04): a top with its print gets the small 3DEEZI mark printed under the back collar, where the print there is
+ * plain (label.js); every other part and kit none (catalogue kits keep their own marks).
+ */
+async function neckPrint(part) {
+  const own = !!(layout && part.painter.layoutBase) && part.painter.kind !== 'shorts' && !!part.garment?.neck?.length;
+  if (!own) { if (part.neckPrint) part.neckPrint.visible = false; return; }
+  if (part.neckPrint === undefined) {
+    part.neckPrint = buildNeckPrint(part.hq?.geometry ?? part.garment.geometry, part.garment.neck, part.rim);
+    if (part.neckPrint) part.rim.parent.add(part.neckPrint);
+  }
+  if (!part.neckPrint) return;
+  // The customer's own objects on the back (texture.js layerBoxes, 4 mm round each): the mark never goes on them.
+  const boxes = (part.painter.layerBoxes ?? []).filter((b) => b.side === 'back').map((b) => {
+    const t = ((b.rot ?? 0) * Math.PI) / 180, c = Math.abs(Math.cos(t)), s = Math.abs(Math.sin(t));
+    return { x: b.x, y: b.y, w: (b.w * c + b.h * s) / 2 + 0.004, h: (b.w * s + b.h * c) / 2 + 0.004 };
+  });
+  const taken = (px, py) => {
+    if (!boxes.length) return false;
+    const at = part.painter.fromCanvas(px, py);
+    return at.side === 'back' && boxes.some((b) => Math.abs(at.x - b.x) <= b.w && Math.abs(at.y - b.y) <= b.h);
+  };
+  await placeNeckPrint(part.neckPrint, part.painter.canvas, taken);
+}
+
 async function paintAll() {
   await prepareLayout();
   buildKit(design.garment);
@@ -741,6 +788,7 @@ async function paintAll() {
   for (const part of parts) {
     await part.painter.paint(design);
     part.texture.needsUpdate = true;
+    await neckPrint(part);
     // (The football jersey: its print solid over the mesh, render-quality.js.)
     if (Q) fabricInk(part, layout ? null : design.main);
     const ribOwn = part.painter.partStyle(design, part.painter.partName === 'shorts' ? 'waistband' : 'collar')?.own;
@@ -763,10 +811,13 @@ async function paintAll() {
     }
     // The inside: the print's (or the kit's) main colour, a little darker for shade; the label shows the kit's size.
     // The football jersey's wide sleeves show their inside from below: kept in shade (darker, little reflected light).
-    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(nfl ? 0.45 : 0.72);
+    // (The basketball shorts' inside in shade too: their V splits show as open dark triangles and the leg openings stay
+    // dark inside, as the client's pictures (BSF 2026-11-04).)
+    const shadeIn = nfl || !!part.garment?.bball;
+    part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(nfl ? 0.45 : part.garment?.bball ? 0.12 : 0.72);
     // (The Custom shallow V's light inner, as the client's reference: rugbycollars.js.)
     if (part.rugby?.collar.inside) part.inside.color.set(part.rugby.collar.inside).multiplyScalar(0.8);
-    part.inside.envMapIntensity = nfl ? 0.3 : 1;
+    part.inside.envMapIntensity = nfl ? 0.3 : part.garment?.bball ? 0.12 : 1;
     // (The compression top: a black label with the cyan "3", as its picture.)
     if (part.label) paintLabel(part.label, design.size || 'L', part.painter.kind === 'compression' ? 'mark' : HEX6.test(design.zoneColors?.labelDark ?? '') || HEX6.test(design.zoneColors?.sweep ?? '') || part.painter.kind === 'tee' || part.track ? 'dark' : 'word');
     if (part.hoodie) paintHoodie(part);
@@ -1297,6 +1348,9 @@ function dragHover(arg) {
 // changes reach it as the board's do ({type:'marks'} / {type:'layers'}), words as {type:'markText', field, value}.
 let barPending = false;
 let objectEditing = false, selected = null, addSpot = null, hostImages = false, dragObj = null;
+// The apps (command insets, 2026-11-06): the edges of this frame the app hides ({top, right, bottom, left} px; null on
+// the website). There the bar is compact, opens where it doesn't cover the tapped object, and can be dragged anywhere.
+let appView = null, tapAt = null;
 const MARK_LABEL = { wordmark: 'Team name', sockWord: 'Team name', brand: '3DEEZI logo', sponsor: 'Sponsor', crest: 'Crest', name: 'Back name', number: 'Number', frontNumber: 'Front number' };
 const MARK_FIELD = { wordmark: 'logoText', sockWord: 'logoText', name: 'backName', number: 'number', frontNumber: 'number' };
 const SHAPE_LABEL = { shield: 'Shield', circle: 'Circle', square: 'Square', rounded: 'Rounded', diamond: 'Diamond' };
@@ -1435,7 +1489,14 @@ barCss.textContent = `#object-bar{position:fixed;left:50%;bottom:78px;transform:
 #object-bar button:hover{background:rgba(255,255,255,.18)}#object-bar button[aria-pressed=true]{background:#2fd0e0;color:#071018;border-color:#2fd0e0}#object-bar button.danger{border-color:#ff7a7a;color:#ffb3b3}
 #object-bar input[type=range]{width:100px}#object-bar input[type=text]{width:130px;min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:#0b0f16;color:#fff;padding:0 8px;font:inherit}
 #object-bar input[type=color]{width:36px;height:32px;border:0;background:none;padding:0}#object-bar .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center;max-width:100%}
-@media (max-width:640px){#object-bar{left:28px;right:28px;transform:none;width:auto;bottom:74px;padding:6px;flex-direction:column;align-items:stretch;gap:5px}#object-bar .row{flex-wrap:wrap;max-width:100%;justify-content:center;gap:5px}#object-bar span,#object-bar b{white-space:nowrap}#object-bar button{min-height:36px;padding:0 8px}#object-bar input[type=range]{width:80px}}`;
+@media (max-width:640px){#object-bar{left:28px;right:28px;transform:none;width:auto;bottom:74px;padding:6px;flex-direction:column;align-items:stretch;gap:5px}#object-bar .row{flex-wrap:wrap;max-width:100%;justify-content:center;gap:5px}#object-bar span,#object-bar b{white-space:nowrap}#object-bar button{min-height:36px;padding:0 8px}#object-bar input[type=range]{width:80px}}
+body.in-app #object-bar{left:6px;top:6px;right:auto;bottom:auto;transform:none;width:max-content;padding:4px 6px 6px;gap:4px;border-radius:12px;font-size:12px;cursor:grab;touch-action:none}
+body.in-app #object-bar.dragging{cursor:grabbing;opacity:.9}
+body.in-app #object-bar .grip{display:flex;align-items:center;justify-content:center;gap:8px;height:16px;color:#b8c7d6;font-size:11px}
+body.in-app #object-bar .grip i{width:30px;height:4px;border-radius:2px;background:rgba(255,255,255,.45)}
+body.in-app #object-bar .row{flex-wrap:wrap;gap:4px}body.in-app #object-bar button{min-height:30px;min-width:30px;padding:0 7px;border-radius:8px}
+body.in-app #object-bar input[type=range]{width:48px}body.in-app #object-bar input[type=text]{width:112px;min-height:30px}
+body.in-app #object-bar input[type=color]{width:32px;height:28px}body.in-app #object-bar select{min-height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:#1a2130;color:#fff;font:inherit;padding:0 4px}`;
 document.head.append(barCss);
 document.body.append(bar);
 for (const t of ['pointerdown', 'pointerup', 'click', 'wheel', 'touchstart']) bar.addEventListener(t, (e) => e.stopPropagation());
@@ -1443,17 +1504,21 @@ function el(tag, props = {}, ...kids) { const e = document.createElement(tag); f
 function btn(label, onclick, extra = {}) { return el('button', { type: 'button', textContent: label, onclick, ...extra }); }
 function drawBar() {
   bar.replaceChildren();
+  // The apps: a grip with the object's name on top (drag it, or any empty part of the bar).
+  const grip = (name) => el('div', { className: 'grip', title: 'Drag to move' }, el('i'), el('b', { textContent: name }));
   if (addSpot) {
-    bar.append(el('div', { className: 'row' }, el('b', { textContent: 'Empty spot' }),
+    if (appView) bar.append(grip('Empty spot'));
+    bar.append(el('div', { className: 'row' }, ...(appView ? [] : [el('b', { textContent: 'Empty spot' })]),
       btn('Add logo here', () => addHere('logo')),
       btn('Add text here', () => addHere('text')),
       btn('Upload picture here', () => addHere('upload')),
       btn('✕', () => { addSpot = null; drawBar(); }, { ariaLabel: 'Close', title: 'Close' })));
     bar.classList.add('on'); bar.scrollLeft = 0; requestAnimationFrame(() => { bar.scrollLeft = 0; });
+    placeBar('spot');
     return;
   }
   const box = selectedBox();
-  if (!selected || !box) { bar.classList.remove('on'); return; }
+  if (!selected || !box) { bar.classList.remove('on'); placeBar(null); return; }
   const l = selected.kind === 'layer' ? layerOf(selected.id) : null;
   const name = selected.kind === 'mark' ? MARK_LABEL[selected.name] ?? selected.name : l?.type === 'text' ? 'Text' : l?.name || 'Logo';
   const size = el('input', { type: 'range', min: '0.3', max: '3', step: '0.05', title: 'Size', ariaLabel: 'Size' });
@@ -1461,7 +1526,8 @@ function drawBar() {
   else { size.value = '1'; selected.base = { size: l?.size, w: l?.w, h: l?.h }; }
   size.oninput = () => changeSelected({ scale: Number(size.value) }, false);
   size.onchange = () => sendObjects(selected.kind);
-  bar.append(el('div', { className: 'row' }, el('b', { textContent: name }),
+  if (appView) bar.append(grip(name));
+  bar.append(el('div', { className: 'row' }, ...(appView ? [] : [el('b', { textContent: name })]),
     btn('−', () => changeSelected({ scaleBy: 1 / 1.12 }), { title: 'Smaller', ariaLabel: 'Smaller' }), size,
     btn('+', () => changeSelected({ scaleBy: 1.12 }), { title: 'Bigger', ariaLabel: 'Bigger' }),
     btn('⟲', () => changeSelected({ rotBy: -15 }), { title: 'Turn left', ariaLabel: 'Turn left' }),
@@ -1470,8 +1536,12 @@ function drawBar() {
     btn('Done', () => select(null))));
   if (selected.kind === 'mark' && selected.name === 'crest') {
     const now = design.marks?.[selected.key]?.shape ?? 'shield';
-    bar.append(el('div', { className: 'row' }, el('span', { textContent: 'Shape' }),
-      ...Object.entries(SHAPE_LABEL).map(([k, v]) => btn(v, () => { changeSelected({ shape: k }); setTimeout(drawBar, 0); }, { ariaPressed: String(now === k) })),
+    // (The apps: the shapes in one compact list.)
+    const shapes = appView
+      ? [el('select', { ariaLabel: 'Shape', onchange: (e) => { changeSelected({ shape: e.target.value }); setTimeout(drawBar, 0); } },
+        ...Object.entries(SHAPE_LABEL).map(([k, v]) => el('option', { value: k, textContent: v, selected: now === k })))]
+      : Object.entries(SHAPE_LABEL).map(([k, v]) => btn(v, () => { changeSelected({ shape: k }); setTimeout(drawBar, 0); }, { ariaPressed: String(now === k) }));
+    bar.append(el('div', { className: 'row' }, el('span', { textContent: 'Shape' }), ...shapes,
       btn('Copy to other chest', () => copyCrest(box))));
   }
   const text = selected.kind === 'mark' ? (MARK_FIELD[selected.name] ? String(design[MARK_FIELD[selected.name]] ?? '') : null) : l?.type === 'text' ? String(l.text ?? '') : null;
@@ -1492,7 +1562,90 @@ function drawBar() {
     bar.append(row);
   }
   bar.classList.add('on'); bar.scrollLeft = 0; requestAnimationFrame(() => { bar.scrollLeft = 0; });
+  placeBar(`${selected.kind}:${selected.key ?? selected.id}`);
 }
+
+// ---- The apps: where the bar sits, and dragging it (no-ops on the website, appView null).
+let barFor = null, barAt = null, nudge = null;
+/** The bar's last place for this session, chosen by dragging it. */
+let barSpot = (() => { try { return JSON.parse(sessionStorage.getItem('3deezi-object-bar')) ?? null; } catch { return null; } })();
+/** The part of this frame the user sees, less a small margin. */
+function appArea() {
+  const v = appView, m = 6;
+  return { l: v.left + m, t: v.top + m, r: innerWidth - v.right - m, b: innerHeight - v.bottom - m };
+}
+function fitBar(x, y) {
+  const a = appArea();
+  return { x: clamp(x, a.l, Math.max(a.l, a.r - bar.offsetWidth)), y: clamp(y, a.t, Math.max(a.t, a.b - bar.offsetHeight)) };
+}
+function moveBar(at) { barAt = at; bar.style.left = `${at.x}px`; bar.style.top = `${at.y}px`; }
+/** `key`: what the bar is for (null: closed). A new object gets a fresh place that doesn't cover it (the tap): the last
+ * place the user dragged it to, else the foot of the 3D, else its top; when neither leaves it clear (a short 3D), the
+ * camera moves the object into the free part. The same object keeps where the bar is. */
+function placeBar(key) {
+  if (!appView) return;
+  if (!key) { barFor = null; unnudge(); return; }
+  const a = appArea();
+  bar.style.maxWidth = `${Math.max(120, a.r - a.l)}px`;
+  if (key === barFor && barAt) return moveBar(fitBar(barAt.x, barAt.y));
+  barFor = key;
+  unnudge();
+  const w = bar.offsetWidth, h = bar.offsetHeight, mid = (a.l + a.r - w) / 2;
+  const item = tapAt ? { x: tapAt.x * innerWidth, y: tapAt.y * innerHeight } : null, near = 30;
+  const clear = (p) => !item || item.y < p.y - near || item.y > p.y + h + near || item.x < p.x - near || item.x > p.x + w + near;
+  const foot = fitBar(mid, a.b - h), top = fitBar(mid, a.t);
+  const at = [barSpot && fitBar(barSpot.x, barSpot.y), foot, top].find((p) => p && clear(p));
+  if (at) return moveBar(at);
+  // Neither: the bar on the side away from the object, the object moved into the free part.
+  const up = item.y > (a.t + a.b) / 2;
+  moveBar(up ? top : foot);
+  const free = up ? [top.y + h, a.b] : [a.t, foot.y];
+  nudgeTo(item.y, (free[0] + free[1]) / 2);
+}
+/** Moves the camera straight up or down so a point at screen y `from` shows at `to` (px), smoothly. */
+function nudgeTo(from, to) {
+  const dist = camera.position.distanceTo(controls.target);
+  const perPx = (2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / innerHeight;
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+  // (Within the panning limits of the controls' change handler.)
+  const dy = clamp(controls.target.y + up.y * (to - from) * perPx, 0.05, 0.7) - controls.target.y;
+  if (Math.abs(up.y) < 0.2 || Math.abs(dy) < 1e-4) return;
+  const shift = up.multiplyScalar(dy / up.y);
+  shiftCamera(shift);
+  nudge = shift;
+}
+function unnudge() { if (nudge) shiftCamera(nudge.clone().negate()); nudge = null; }
+function shiftCamera(v) {
+  const done = { k: 0 };
+  let last = 0;
+  gsap.to(done, { k: 1, duration: 0.45, ease: 'power2.out', onUpdate: () => {
+    const step = v.clone().multiplyScalar(done.k - last); last = done.k;
+    camera.position.add(step); controls.target.add(step);
+  } });
+}
+let barDrag = null;
+bar.addEventListener('pointerdown', (e) => {
+  // A press on the grip or an empty part of the bar moves it; its buttons, lists and fields work as before.
+  if (!appView || e.button > 0 || e.target.closest('button,input,select,option,label')) return;
+  barDrag = { id: e.pointerId, dx: e.clientX - bar.offsetLeft, dy: e.clientY - bar.offsetTop };
+  try { bar.setPointerCapture(e.pointerId); } catch { /* fine */ }
+  bar.classList.add('dragging');
+  e.preventDefault();
+});
+bar.addEventListener('pointermove', (e) => {
+  if (barDrag?.id !== e.pointerId) return;
+  moveBar(fitBar(e.clientX - barDrag.dx, e.clientY - barDrag.dy));
+});
+const dropBar = (e) => {
+  if (barDrag?.id !== e.pointerId) return;
+  barDrag = null;
+  bar.classList.remove('dragging');
+  barSpot = { x: barAt.x, y: barAt.y };
+  try { sessionStorage.setItem('3deezi-object-bar', JSON.stringify(barSpot)); } catch { /* fine */ }
+};
+bar.addEventListener('pointerup', dropBar);
+bar.addEventListener('pointercancel', dropBar);
+addEventListener('resize', () => { if (appView && barFor && barAt) moveBar(fitBar(barAt.x, barAt.y)); });
 const newId = (what) => `kit-${what}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 function addLayer(layer) {
   design.layers = [...(design.layers ?? []), layer];
@@ -1565,6 +1718,7 @@ function chestSpot(found) {
 /** A tap (task 9.144): an object wins over a part or colour tap. True when the tap was taken. */
 function objectTap(nx, ny) {
   if (!objectEditing || board.visible) return false;
+  tapAt = { x: nx, y: ny };
   const found = pickAt(nx, ny);
   const obj = objectAt(found);
   if (obj) { select(obj); return true; }
@@ -1710,6 +1864,7 @@ function setView(view) {
   // A chosen view stays: no idle auto-turn left over from an earlier drag.
   clearTimeout(idle);
   if (angles[view] == null) return;
+  nudge = null; // (the view's own camera; a shift for the object bar is not taken back)
   let goal = angles[view];
   // Turn the short way round.
   while (goal - s.theta > Math.PI) goal -= Math.PI * 2;
@@ -2026,6 +2181,14 @@ window.viewer = {
   layoutFile,
   /** What the host can do: {layouts: true} = it answers layoutWanted. */
   features: (what = {}) => { if (what?.layouts) hostLayouts = true; if (what?.images) hostImages = true; },
+  /** The apps: {top, right, bottom, left} px of this frame they hide (2026-11-06); the object bar then stays in the rest. */
+  insets: (v = {}) => {
+    const n = (k) => Math.max(0, Number(v?.[k]) || 0), first = !appView;
+    appView = { top: n('top'), right: n('right'), bottom: n('bottom'), left: n('left') };
+    document.body.classList.add('in-app');
+    if (first && (selected || addSpot)) drawBar();
+    else if (barFor && barAt) moveBar(fitBar(barAt.x, barAt.y));
+  },
   /** The design board's items and zoom (read only, for automated checks; not a host command). */
   boardItems: () => board.inspect(),
   captureBoard: async ({ id } = {}) => {
@@ -2036,7 +2199,7 @@ window.viewer = {
   receive: (msg) => {
     try {
       const m = typeof msg === 'string' ? JSON.parse(msg) : msg;
-      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features', 'colourPick', 'dragHover', 'partPick', 'glowPart', 'objectEdit', 'imageChosen', 'neckShot'];
+      const allowed = ['setDesign', 'setView', 'capture', 'reset', 'pick', 'processImage', 'board', 'select', 'boardZoom', 'captureBoard', 'checkLayout', 'layoutFile', 'features', 'colourPick', 'dragHover', 'partPick', 'glowPart', 'objectEdit', 'imageChosen', 'neckShot', 'insets'];
       if (m && allowed.includes(m.cmd)) Promise.resolve(window.viewer[m.cmd](m.arg)).catch((error) => post({ type: 'error', command: m.cmd, message: error.message }));
     } catch (error) { post({ type: 'error', message: error.message }); }
   },

@@ -15,6 +15,7 @@ class GlassBubble extends StatelessWidget {
     this.padding = const EdgeInsets.fromLTRB(14, 18, 14, 16),
     this.accent = const Color(0xff2fd2ff),
     this.blob,
+    this.dome,
   });
   final Widget child;
   final double radius;
@@ -26,6 +27,10 @@ class GlassBubble extends StatelessWidget {
   /// left; a negative inset bulges out. Null = a plain rounded rectangle.
   final List<Offset>? blob;
 
+  /// With [pageBlob]: the top and bottom dome's height in px (Home's,
+  /// [homeDomeHeight]); null = from the bubble's own size.
+  final double? dome;
+
   /// A gentle blob for the tall pages (Projects, Profile).
   static const pageBlob = [Offset(.1, 0), Offset(.5, -4), Offset(.9, 0)];
 
@@ -35,7 +40,7 @@ class GlassBubble extends StatelessWidget {
       // The rim is drawn in its own layer, cached until the size changes.
       // Page bubbles share Home's glass (shape, rim, lights, glow).
       painter: identical(blob, pageBlob)
-          ? HomeGlassPainter()
+          ? HomeGlassPainter(dome: dome)
           : _GlassPainter(radius: radius, accent: accent, glow: 1, blob: blob),
       isComplex: true,
       child: RepaintBoundary(
@@ -626,13 +631,59 @@ class _GlassPainter extends CustomPainter {
       old.blob != blob;
 }
 
-//// The glass: an organic blob (a raised lobe at the top left, fuller
+/// Height of the top / bottom dome: [kDomeH] of the half-height, but never
+/// more than [kDomeW] of the half-width, so the tall scrolling pages
+/// (Profile, Projects) get the same top curve as Home, not a pointed dome.
+const kDomeH = .42, kDomeW = .7;
+
+/// The size of Home's glass on a screen whose space above the tab bar is
+/// [area] (lib/screens/bubble_home.dart): full width (600 at most), under
+/// Home's 6 px gap, 52 px logo row and 30.4 px Classic view row, and at
+/// least 1.45 x as tall as wide. The bubble pages (Projects, Profile, Orders,
+/// My orders) take their width, dome and heading room from it, so they
+/// match Home on every phone.
+Size homeGlassSize(Size area) {
+  final w = math.min(area.width, 600.0);
+  return Size(w, math.max(area.height - 88.4, w * 1.45));
+}
+
+/// The height of Home's top and bottom dome on that screen (as
+/// [HomeGlassPainter] works it out for Home's glass).
+double homeDomeHeight(Size area) {
+  final s = homeGlassSize(area);
+  return math.min(s.height / 2 * kDomeH, s.width / 2 * kDomeW);
+}
+
+/// Room above a bubble page's heading: its letters sit at least as far
+/// below the rim as Home's LET'S CREATE (Home: the title's box at 8.5 % of
+/// the glass height, its letters about 2 % lower).
+double bubbleHeadingRoom(Size area) => homeGlassSize(area).height * .1;
+
+/// Room under a bubble page's content, so the corners of a full-width last
+/// row (corner radius [corner], [side] px in from the bubble's sides) keep
+/// [clear] px from the rim where the bottom dome curves in. [width] is the
+/// bubble's, [dome] its dome height. The drawn rim is about .947 of the
+/// half-width and .99 of the dome, 2.5 px in from the edge.
+double bubbleBottomRoom(
+  double width,
+  double dome, {
+  double side = 28,
+  double corner = 23,
+  double clear = 16,
+}) {
+  final a = width / 2 * .947, r = dome * .99, d = corner + clear;
+  // The corner's centre, from the middle; how high it must sit above the
+  // bottom of the dome to keep [d] from the rim (an ellipse [d] smaller).
+  final k = ((width / 2 - side - corner) / math.max(a - d, 1)).clamp(0.0, 1.0);
+  final centre = r - math.max(r - d, 0) * math.sqrt(1 - k * k);
+  return math.max(14.0, centre - corner + 2.5);
+}
+
+/// The glass: an organic blob (a raised lobe at the top left, fuller
 /// corners and a slightly pinched waist, like the client's picture) with a
 /// deep navy body, soft glassy swirls and a thick bright cyan rim. Its edge
 /// stretches towards [pullAt] by [pull] (0 to 1), floats with [t], and forms
 /// a rounded pocket (its own lobe) around [pocketAt] by [pocket] (0 to 1).
-/// Height of the top / bottom dome as a share of the half-height.
-const kDomeH = .42;
 
 class HomeGlassPainter extends CustomPainter {
   HomeGlassPainter({
@@ -643,11 +694,23 @@ class HomeGlassPainter extends CustomPainter {
     this.pocket = 0,
     this.pocketR = 0,
     this.pocketStrong = false,
+    this.dome,
+    this.sweep,
   });
   final double t, pull, pocket, pocketR;
+
+  /// A soft white light gliding round inside the rim (0 to 1 = once round,
+  /// from the right, clockwise); null = none (Home). The Create your order
+  /// bubble's slow shine (user 2026-11-06).
+  final double? sweep;
   final Offset pullAt;
   final Offset? pocketAt;
   final bool pocketStrong;
+
+  /// The bubble pages: this dome height in px (Home's, [homeDomeHeight]),
+  /// and the top and bottom kept at the edge however tall the page grows.
+  /// Null (Home): the dome from this glass's own size.
+  final double? dome;
 
   /// The outline's points from the last [_blob], in order of direction.
   List<Offset> _outline = const [];
@@ -675,6 +738,8 @@ class HomeGlassPainter extends CustomPainter {
         ? 0.0
         : math.atan2(pocketR, math.max(o.distance, 1)).clamp(.2, 1.1);
     final pts = <Offset>[];
+    // (Pages: the straight part of the sides, for the breathing below.)
+    var sides = 0.0;
     for (var k = 0; k < n; k++) {
       final th = k / n * 2 * math.pi;
       // Tall rounded rectangle (client 399/403): flat top and bottom,
@@ -722,7 +787,11 @@ class HomeGlassPainter extends CustomPainter {
       // Client 406/410: a half-oval dome on top and bottom (as wide as the
       // glass, about half the bubble's half-height tall) and straight sides.
       {
-        final ry = b * kDomeH, sb = b - ry;
+        final ry = dome == null
+                ? math.min(b * kDomeH, a * kDomeW)
+                : math.min(dome!, b),
+            sb = b - ry;
+        sides = sb;
         final arc =
             math.pi *
             (3 * (a + ry) - math.sqrt((3 * a + ry) * (a + 3 * ry))) /
@@ -761,7 +830,18 @@ class HomeGlassPainter extends CustomPainter {
           .0025 * math.sin(3 * th + ph) +
           .002 * math.sin(5 * th - 2 * ph + 1) +
           .0015 * math.sin(7 * th + 3 * ph);
-      var p = Offset(x, y) * f;
+      // Pages: the breathing shapes the domes about their own base, so a
+      // long page keeps Home's top and bottom right at the edge.
+      var p = dome == null
+          ? Offset(x, y) * f
+          : Offset(
+              x * f,
+              // (and the tips sit as far in from the edge as Home's)
+              (y.abs() <= sides
+                      ? y
+                      : y.sign * (sides + (y.abs() - sides) * f)) *
+                  (1 - dome! * .01 / b),
+            );
       if (pull > 0) {
         final diff = _ang(p.direction, dir);
         final g = _bump(diff, .42);
@@ -1062,6 +1142,10 @@ class HomeGlassPainter extends CustomPainter {
     // corner, and a softer one at the bottom right.
     _streak(canvas, c, -3.0, -1.6, 10, 12, .38, 7, Colors.white);
     _streak(canvas, c, .25, 1.15, 10, 8, .3, 6, const Color(0xff9fe8ff));
+    if (sweep != null) {
+      final a = sweep! * 2 * math.pi;
+      _streak(canvas, c, a, a + .9, 9, 10, .5, 6, Colors.white);
+    }
     canvas.restore();
     // The edge (client 373): a strong, soft cyan glow INSIDE the glass only
     // (clipped, nothing spills outside) and one thin crisp cyan-white line.
@@ -1161,7 +1245,9 @@ class HomeGlassPainter extends CustomPainter {
       o.pocketAt != pocketAt ||
       o.pocket != pocket ||
       o.pocketR != pocketR ||
-      o.pocketStrong != pocketStrong;
+      o.pocketStrong != pocketStrong ||
+      o.dome != dome ||
+      o.sweep != sweep;
 }
 
 /// Small lights round the rim (client 373): position along the edge (0-1),
@@ -1224,4 +1310,171 @@ void paintRimLights(
     }
     break;
   }
+}
+
+/// Only a glass rim round a control; its own centre stays as it is (dark),
+/// so text and pictures keep clear (client 487, the AI Designer: the prompt
+/// bar, the sport cards, the + / send / › buttons and the Assist button). A
+/// crisp pale-cyan edge over a glassy band [width] thick, a soft cyan glow
+/// outside and just inside the edge ([glow] scales it), and white
+/// reflections: a glare at the top left, a light along the top and a streak
+/// along the bottom. Round when [radius] is half the height or more.
+class GlassRim extends StatelessWidget {
+  const GlassRim({
+    super.key,
+    required this.child,
+    this.radius = 30,
+    this.width = 3,
+    this.glow = 1,
+  });
+  final Widget child;
+  final double radius, width, glow;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    foregroundPainter: GlassRimPainter(
+      radius: radius,
+      width: width,
+      glow: glow,
+    ),
+    child: child,
+  );
+}
+
+/// [GlassRim]'s painting, for a control that paints its own box.
+class GlassRimPainter extends CustomPainter {
+  const GlassRimPainter({this.radius = 30, this.width = 3, this.glow = 1});
+  final double radius, width, glow;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final r = math.min(radius, size.shortestSide / 2);
+    final rr = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(r));
+    final w = width, wd = size.width, h = size.height;
+    Paint line(double sw) => Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sw;
+    Color wh(double a) => Colors.white.withValues(alpha: a.clamp(0, 1));
+    // The cyan halo outside the edge.
+    if (glow > 0) {
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..color = const Color(0xff36d4ff).withValues(alpha: .6 * glow)
+          ..maskFilter = MaskFilter.blur(BlurStyle.outer, 4 + 6 * glow),
+      );
+    }
+    canvas.save();
+    canvas.clipRRect(rr);
+    // A little glow inside the edge, fading inward (the centre stays dark).
+    canvas.drawRRect(
+      rr,
+      line(w * 2.6)
+        ..color = const Color(0xff2ac4ff).withValues(alpha: .22 + .14 * glow)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1 + w * .8),
+    );
+    // The glass band: see-through light cyan, brighter at the top and bottom.
+    canvas.drawRRect(
+      rr.deflate(w / 2),
+      line(w)
+        ..shader = ui.Gradient.linear(
+          Offset.zero,
+          Offset(0, h),
+          [
+            const Color(0xff8eeaff).withValues(alpha: .5),
+            const Color(0xff1fb4dc).withValues(alpha: .28),
+            const Color(0xff7fe6ff).withValues(alpha: .5),
+          ],
+          const [0, .5, 1],
+        ),
+    );
+    // The band's inner edge: a thin cyan line.
+    canvas.drawRRect(
+      rr.deflate(w),
+      line(.9)..color = const Color(0xff5fdcff).withValues(alpha: .65),
+    );
+    // A light along the top, from the left end towards the middle.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, wd, math.max(r, h * .3)));
+    canvas.drawRRect(
+      rr.deflate(w * .45),
+      line(math.max(1.2, w * .45))
+        ..shader = ui.Gradient.linear(
+          Offset.zero,
+          Offset(wd, 0),
+          [wh(.85), wh(.35), wh(0)],
+          const [0, .35, .7],
+        ),
+    );
+    canvas.restore();
+    // A white streak along the bottom, a little right of the middle.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, h - math.max(r, h * .3), wd, h));
+    final bottom = Offset(wd * .6, h);
+    canvas.drawRRect(
+      rr.deflate(w * .45),
+      line(math.max(1.2, w * .5))
+        ..shader = ui.Gradient.radial(
+          bottom,
+          math.max(wd * .32, r),
+          [wh(1), wh(.45), wh(0)],
+          const [0, .45, 1],
+        ),
+    );
+    canvas.restore();
+    canvas.restore();
+    // The crisp outer edge.
+    canvas.drawRRect(
+      rr.deflate(.6),
+      line(1.2)..color = const Color(0xffc4f6ff).withValues(alpha: .95),
+    );
+    // The glare on the top-left curve.
+    final k = r * (1 - math.sqrt1_2);
+    final at = Offset(k + w * .3, k + w * .3);
+    final gr = math.max(r * 1.1, 10.0);
+    canvas.drawCircle(
+      at,
+      gr * .4,
+      Paint()
+        ..color = wh(.6)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, gr * .35),
+    );
+    canvas.drawRRect(
+      rr.deflate(w * .4),
+      line(math.max(2.2, w * 1.1))
+        ..shader = ui.Gradient.radial(
+          at,
+          gr,
+          [wh(1), wh(.7), wh(0)],
+          const [0, .45, 1],
+        ),
+    );
+    // A crisp white arc on that curve, a bright spot at its middle.
+    final arc = Rect.fromCircle(
+      center: Offset(r, r),
+      radius: math.max(r - w * .5, 1),
+    );
+    canvas.drawArc(
+      arc,
+      math.pi * 1.08,
+      math.pi * .34,
+      false,
+      line(math.max(1.6, w * .8))
+        ..strokeCap = StrokeCap.round
+        ..color = wh(.9)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, .6),
+    );
+    canvas.drawCircle(
+      Offset(k + w * .2, k + w * .2),
+      1.5 + w * .5,
+      Paint()
+        ..color = wh(.95)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.5 + w * .5),
+    );
+  }
+
+  @override
+  bool shouldRepaint(GlassRimPainter o) =>
+      o.radius != radius || o.width != width || o.glow != glow;
 }

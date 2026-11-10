@@ -32,6 +32,9 @@ final class PdfDocument
     /** @var array<string, array{w: int, h: int, dict: string, data: string, smask?: array{dict: string, data: string}}> */
     private array $images = [];
 
+    /** @var array<string, string> picture bytes' md5 => its name */
+    private array $imageNames = [];
+
     public function __construct(private string $title = '', private string $author = '') {}
 
     public function addPage(): void
@@ -142,12 +145,18 @@ final class PdfDocument
     /** Draws a JPEG or PNG; false if the file can't be used. */
     public function image(string $bytes, float $x, float $y, float $w, float $h): bool
     {
-        $info = self::imageInfo($bytes);
-        if (! $info) {
-            return false;
+        // The same picture again (a logo on every page) is kept once and not decoded again.
+        $key = md5($bytes);
+        $name = $this->imageNames[$key] ?? null;
+        if ($name === null) {
+            $info = self::imageInfo($bytes);
+            if (! $info) {
+                return false;
+            }
+            $name = 'Im'.(count($this->images) + 1);
+            $this->images[$name] = $info;
+            $this->imageNames[$key] = $name;
         }
-        $name = 'Im'.(count($this->images) + 1);
-        $this->images[$name] = $info;
         $this->put(sprintf('q %.2F 0 0 %.2F %.2F %.2F cm /%s Do Q', $w, $h, $x, self::HEIGHT - $y - $h, $name));
 
         return true;

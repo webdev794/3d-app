@@ -7,6 +7,9 @@ import { baseUrl, setToken } from './api';
 import './viewerLook';
 import '../css/app.css';
 import '../css/showroom.css';
+// Glass bubbles on Home, Create, Orders, Team, Subscriptions, My projects and Signage (only inside .glass-ui); last, so
+// it is drawn over those pages' own button styles.
+import '../css/glass.css';
 
 // The 3DEEZI app opens the order pages signed in: its sign-in token comes in the address's #app-token= (browsers never
 // send the part after # to a server). It is kept like a normal sign-in and removed from the address at once.

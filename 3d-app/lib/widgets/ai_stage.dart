@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../sports_catalog.dart';
+import 'glass_bubble.dart' show GlassRim;
 import 'ui.dart';
 
 /// A quick pick on the AI Designer's sports row (as the website's
@@ -102,6 +103,30 @@ class BriefLimit extends TextInputFormatter {
   }
 }
 
+/// A shirt we have no 3D model of yet (client 2026-11-04, images/416): the
+/// closest garment we have shows it, with a note on the AI card; coming = the
+/// model is on the build queue. As the website's closestModel (AiStage.tsx).
+({String name, String garment, bool coming})? closestModel(String text) {
+  final t = text.toLowerCase();
+  if (RegExp(
+    r"\bfishing (?:shirts?|tops?|jerseys?)\b|\bangler(?:'s)? shirts?\b",
+  ).hasMatch(t)) {
+    return (name: 'fishing shirt', garment: 'Polo', coming: true);
+  }
+  if (RegExp(
+    r'\bbutton[- ]?(?:up|down)?[- ]shirts?\b|\bcollared shirts?\b|\blong[- ]sleeved? polos?\b',
+  ).hasMatch(t)) {
+    return (name: 'button shirt', garment: 'Polo', coming: false);
+  }
+  return null;
+}
+
+/// The note for a design shown on our closest garment (the website's
+/// closestNote in Create.tsx).
+String closestNote(({String name, String garment, bool coming}) m) =>
+    '3D preview on the closest garment: ${m.garment}'
+    '${m.coming ? '; a ${m.name} 3D model is coming' : ''}.';
+
 /// The garment a brief names, if any ("navy polo" → Polo; "jersey and
 /// shorts" → Full Kit), as the website's garmentInBrief.
 String? garmentInBrief(String text) {
@@ -138,6 +163,8 @@ String? garmentInBrief(String text) {
     r"\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b",
   ))
     return 'Varsity jacket';
+  // A fishing, button-up or collared shirt: the polo is the closest.
+  if (closestModel(t) != null) return 'Polo';
   if (has(
     r'\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b',
   ))
@@ -321,23 +348,27 @@ class _AiSportRowState extends State<AiSportRow> {
     );
   }
 
-  Widget _arrow(int dir) => Material(
+  /// A round glass bubble (client 487).
+  Widget _arrow(int dir) => GlassRim(
     key: ValueKey(dir < 0 ? 'ai-sports-prev' : 'ai-sports-next'),
-    color: const Color(0xcc03101a),
-    shape: CircleBorder(
-      side: BorderSide(color: Palette.cyan.withValues(alpha: .7), width: 1.5),
-    ),
-    elevation: 3,
-    child: InkWell(
-      customBorder: const CircleBorder(),
-      onTap: () => _page(dir),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(
-          dir < 0 ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-          color: Colors.white,
-          size: 22,
-          semanticLabel: dir < 0 ? 'Previous sports' : 'More sports',
+    radius: 20,
+    width: 2,
+    glow: .6,
+    child: Material(
+      color: const Color(0xcc03101a),
+      shape: const CircleBorder(),
+      elevation: 3,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () => _page(dir),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(
+            dir < 0 ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+            color: Colors.white,
+            size: 22,
+            semanticLabel: dir < 0 ? 'Previous sports' : 'More sports',
+          ),
         ),
       ),
     ),
@@ -410,75 +441,67 @@ class _AiSportRowState extends State<AiSportRow> {
                             width: 106,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: on
-                                    ? Palette.cyan
-                                    : const Color(0x33ffffff),
-                                width: on ? 2 : 1,
-                              ),
-                              boxShadow: on
-                                  ? [
-                                      BoxShadow(
-                                        color: Palette.cyan.withValues(
-                                          alpha: .45,
-                                        ),
-                                        blurRadius: 16,
-                                      ),
-                                    ]
-                                  : const [],
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(11),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  Image.asset(
-                                    s.art,
-                                    fit: BoxFit.cover,
-                                    cacheWidth: 300,
-                                    errorBuilder: (_, _, _) => const ColoredBox(
-                                      color: Palette.surface,
+                            // A glass rim (client 487); the chosen
+                            // sport's thicker, brighter and glowing.
+                            child: GlassRim(
+                              radius: 12,
+                              width: on ? 3.5 : 1.8,
+                              glow: on ? 1.1 : .25,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.asset(
+                                      s.art,
+                                      fit: BoxFit.cover,
+                                      cacheWidth: 300,
+                                      errorBuilder: (_, _, _) =>
+                                          const ColoredBox(
+                                            color: Palette.surface,
+                                          ),
                                     ),
-                                  ),
-                                  const DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          Color(0x0002060b),
-                                          Color(0xf002060b),
-                                        ],
-                                        stops: [.45, .95],
+                                    const DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Color(0x0002060b),
+                                            Color(0xf002060b),
+                                          ],
+                                          stops: [.45, .95],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Positioned(
-                                    left: 4,
-                                    right: 4,
-                                    bottom: 16,
-                                    child: Text(
-                                      s.label.toUpperCase(),
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
+                                    Positioned(
+                                      left: 4,
+                                      right: 4,
+                                      bottom: 16,
+                                      child: Text(
+                                        s.label.toUpperCase(),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Positioned(
-                                    left: 42,
-                                    right: 42,
-                                    bottom: 8,
-                                    child: Container(
-                                      height: 2,
-                                      color: Palette.cyan,
+                                    Positioned(
+                                      left: 42,
+                                      right: 42,
+                                      bottom: 8,
+                                      child: Container(
+                                        height: 2,
+                                        color: Palette.cyan,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),

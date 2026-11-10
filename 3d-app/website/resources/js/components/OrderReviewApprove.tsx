@@ -58,6 +58,8 @@ export interface ReviewDelivery {
   neededBy?: string | null; method?: 'deliver' | 'pickup' | null; address?: ReviewAddress | string | null; notes?: string;
   /** The page's own wording of the date ("Fri 4 Dec 2026"); otherwise it is written here. */
   neededByText?: string;
+  /** The date required is optional here (the order form, client 2026-11-05): not listed under Please check. */
+  dateOptional?: boolean;
   /** Shown under the mobile when the page's check finds it wrong. */
   phoneProblem?: string | null;
   /** Who makes the order (preferred suppliers): shown when the form offered a choice. */
@@ -646,7 +648,7 @@ export function OrderReviewApprove(p: OrderReviewApproveProps) {
     !garments.length && 'Garments and sizes',
     !delivery.phone?.trim() && 'Mobile',
     delivery.phoneProblem && delivery.phone?.trim() && 'A valid mobile',
-    !delivery.neededBy && 'Required date',
+    !delivery.neededBy && !delivery.dateOptional && 'Required date',
     delivery.method !== 'pickup' && !address && p.onEditDelivery && 'Delivery address',
   ].filter((x): x is string => !!x);
   const toCheck = p.toCheck ?? [];

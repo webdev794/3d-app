@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Box, Check, ChevronRight, Cpu, FolderOpen, House, LoaderCircle, LogOut, Menu, PenTool, Shirt, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
-import { api, getToken, media, setToken, type Catalog, type Project, type User } from './api';
+import { api, draftKey, getToken, keepDraft, media, setToken, type Catalog, type Project, type User } from './api';
 import { defaultDesign, type Design } from './types';
 import { AiDesigner, ConvertPage, GarmentSelection, SportSelection, backForSport, tileMarks } from './pages/Create';
 import PricingPage from './pages/Pricing';
@@ -9,6 +9,7 @@ import AdminPage from './pages/Admin';
 import OrdersBoardPage from './pages/OrdersBoard';
 import OrderUploadPage from './pages/OrderUpload';
 import OrderFormPage from './pages/OrderForm';
+import OrderSummaryPage from './pages/OrderSummary';
 import OrdersLandingPage from './pages/OrdersLanding';
 import InvoicePayPage from './pages/InvoicePay';
 import OrderCheckoutPage from './pages/OrderCheckout';
@@ -47,7 +48,7 @@ function normalizeDraft(draft: Draft): Draft {
 }
 function loadDraft(): Draft {
   try {
-    const saved = sessionStorage.getItem('3deezi.draft');
+    const saved = sessionStorage.getItem(draftKey);
     return saved ? normalizeDraft({ ...newDraft(), ...JSON.parse(saved) }) : newDraft();
   } catch { return newDraft(); }
 }
@@ -76,7 +77,7 @@ export default function App() {
     window.addEventListener('session-expired', expire);
     return () => window.removeEventListener('session-expired', expire);
   }, []);
-  useEffect(() => { try { sessionStorage.setItem('3deezi.draft', JSON.stringify(draft)); } catch { /* Large image edits remain in memory. */ } }, [draft]);
+  useEffect(() => { keepDraft(draft); /* Large image edits that the browser refuses remain in memory. */ }, [draft]);
   useEffect(() => { setMenuOpen(false); window.scrollTo({ top: 0 }); }, [location.pathname]);
   useEffect(() => { if (notice) { const timer = setTimeout(() => setNotice(''), 6500); return () => clearTimeout(timer); } }, [notice]);
 
@@ -184,7 +185,7 @@ export default function App() {
       <Route path="/create/sport" element={<SportSelection catalog={catalog} selected={draft.sport} onSelect={(sport, sportName) => setDraft(d => ({ ...d, sport, mode: 'dyo', design: { ...d.design, ...backForSport(d.design, catalog, d.sport, sport), sportName: sportName || undefined } }))} onNext={() => navigate('/create/garment')} />} />
       <Route path="/create/garment" element={<GarmentSelection catalog={catalog} draft={draft} onSelect={({ garment, productName, design }) => setDraft(d => ({ ...d, garment, design: { ...d.design, ...design, ...tileMarks(d.design, design, garment), garment: garment as Design['garment'], productName } }))} onNext={() => navigate('/studio')} onBack={() => navigate('/create/sport', { state: { keep: true } })} />} />
       {/* Convert is in the PROJECTS menu (client 2026-10-26): the Projects tab row above it, as on My projects, Approved and Assets. */}
-      <Route path="/convert" element={<><ProjectsTabs shell /><ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} /></>} />
+      <Route path="/convert" element={<><ProjectsTabs shell /><ConvertPage catalog={catalog} draft={draft} onChange={setDraft} requireAuth={requireAuth} onStudio={() => navigate('/studio')} onNotice={setNotice} /></>} />
       <Route path="/admin" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
       <Route path="/admin/:section/:itemId" element={protectedPage(user && (user.is_admin ? <AdminPage me={user} onNotice={setNotice} onLogout={logout} catalog={catalog} /> : <NotAdmin />))} />
@@ -196,6 +197,9 @@ export default function App() {
       <Route path="/orders" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
       <Route path="/orders/:orderId" element={protectedPage(<OrdersBoardPage onNotice={setNotice} />)} />
       <Route path="/orders/upload" element={<OrderUploadPage user={user} checking={checkingSession} requireAuth={requireAuth} onNotice={setNotice} />} />
+      {/* The Order Assistant is the app's (phone) way to order; on the website it opens the order form. Its share page stays. */}
+      <Route path="/orders/assistant" element={<Navigate to="/orders/new" replace />} />
+      <Route path="/orders/summary/:token" element={<OrderSummaryPage />} />
       <Route path="/orders/new" element={<OrderFormPage user={user} restoring={checkingSession} requireAuth={requireAuth} catalog={catalog} onNotice={setNotice} />} />
       <Route path="/invoices/:number" element={<InvoicePayPage user={user} checking={checkingSession} requireAuth={requireAuth} />} />
       {/* COMPLETE YOUR PAYMENT and its Confirmation: after REVIEW & APPROVE ORDER (the app's pay link works here too). */}

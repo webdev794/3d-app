@@ -7,7 +7,7 @@ import { artboardOf, placements, readAsset, type ArtboardLayer, type LibraryAsse
 import { openAssist } from '../components/Assist';
 
 /** Bump when the editor (media/artboard/index.html) is rebuilt, so browsers load the new copy. */
-const EDITOR_VERSION = '2026-11-03-2';
+const EDITOR_VERSION = '2026-11-10-1';
 
 /** The garments artwork can be sent to (config/catalog.php), in the Studio's order, and the parts each has. */
 const GARMENTS: { id: Design['garment']; name: string }[] = [{ id: 'fullkit', name: 'Full Kit' }, { id: 'jersey', name: 'Jersey' }, { id: 'shorts', name: 'Shorts' }, { id: 'tee', name: 'Training Tee' }, { id: 'singlet', name: 'Singlet' }, { id: 'polo', name: 'Polo' }];

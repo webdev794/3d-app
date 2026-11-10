@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Database, Download, ExternalLink, Eye, FolderOpen, Handshake, KeyRound, LayoutDashboard, LoaderCircle, LogOut, Package, Pencil, PlugZap, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, TriangleAlert, Users, X, Clock } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type User } from '../api';
-import { KitViewer, defaultDesign, varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, fabricLabel, type Design, type KitViewerHandle } from '../components/KitViewer';
+import { KitViewer, defaultDesign, varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, dressAreas, dressColour, fabricLabel, type Design, type KitViewerHandle } from '../components/KitViewer';
 import { Columns3 } from 'lucide-react';
 import AdminOrderBoard from './AdminOrderBoard';
 import OrderFormReading from '../components/OrderFormReading';
@@ -457,7 +457,7 @@ function printedBack(order: KitOrder, d: SavedDesign): Partial<Design> {
 }
 const ZONE_NAMES: Record<string, string> = { body: 'Body', yoke: 'Yoke', sleeves: 'Sleeves', sides: 'Sides', hem: 'Hem', pocket: 'Pocket', hood: 'Hood' };
 /** A hoodie's own colour areas (design.zoneColors), as the Studio's HOODIE AREAS names them. */
-const AREA_NAMES: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Cuffs & waistband', pocket: 'Pocket', zip: 'Zip', stripe: 'Sleeve stripe' };
+const AREA_NAMES: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Cuffs & waistband', pocket: 'Pocket', zip: 'Zip', stripe: 'Sleeve stripe', bballBand: 'Side panel band', bballTrim1: 'Hem stripe 1', bballTrim2: 'Hem stripe 2 (edge)' };
 const shownImage = (src?: string | null) => !!src && /^(data:image\/|https?:\/\/|\/)/.test(src);
 const fileType = (src: string) => (src.startsWith('data:image/jpeg') ? 'jpg' : 'png');
 
@@ -528,7 +528,7 @@ function OrderKit({ id, catalog, onNotice }: { id: number; catalog: Catalog | nu
   if (shownImage(d.renderBack)) pictures.push(['AI back render', d.renderBack]);
   const colours: [string, string | undefined][] = [['Main', d.main], ['Secondary', d.secondary], ['Accent', d.accent], ['Pattern colour', d.patternColor], ...(d.gradient ? [['Gradient from', d.gradient.from], ['Gradient to', d.gradient.to]] as [string, string][] : []),
     // The varsity jacket: every VARSITY AREA as the kit shows it; a hoodie: the areas given their own colour.
-    ...(project?.garment === 'varsity' ? varsityAreas.map(a => [a.label, varsityColour(d, a.key)] as [string, string]) : project?.garment === 'trackjacket' ? trackAreas.map(a => [trackAreaLabel(a.key, d.trackStyle), trackColour(d, a.key)] as [string, string]) : Object.entries(d.zoneColors ?? {}).filter(([, c]) => typeof c === 'string' && c).map(([area, c]) => [AREA_NAMES[area] ?? area, c] as [string, string]))];
+    ...(project?.garment === 'varsity' ? varsityAreas.map(a => [a.label, varsityColour(d, a.key)] as [string, string]) : project?.garment === 'trackjacket' ? trackAreas.map(a => [trackAreaLabel(a.key, d.trackStyle), trackColour(d, a.key)] as [string, string]) : project?.garment === 'netball-dress' ? dressAreas.map(a => [a.label, dressColour(d as never, a.key)] as [string, string]) : Object.entries(d.zoneColors ?? {}).filter(([, c]) => typeof c === 'string' && c).map(([area, c]) => [AREA_NAMES[area] ?? area, c] as [string, string]))];
   const zones = Object.entries(d.zones ?? {}).filter(([, v]) => v && v !== 'None');
   const layers = d.layers ?? [];
   const ordered = SIZES.filter(s => (order.sizes[s] ?? 0) > 0);

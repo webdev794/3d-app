@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Check, CheckCircle2, ClipboardList, Copy, CreditCard, Download, ExternalLink, FileText, Image as ImageIcon, LoaderCircle, MessageSquareText, Package, Palette, PenLine, Receipt, Shirt, Truck, TriangleAlert, Upload, X } from 'lucide-react';
 import { ApiError, downloadFile, fetchFile } from '../api';
 import { orderApi } from '../orderApi';
-import { DetailSection, GarmentPicture, PaymentPill, STAGES, StatusPill, dateTime, displayRef, fileSize, garmentName, money, payPath, plural, unitWord, readOrderDetail, safeLink, shortDate, type BoardOrder, type OrderDetail, type OrderFile, type OrderUpdate, type PaymentSummary, type Player } from './orderBoardModel';
+import { DetailSection, GarmentPicture, PaymentPill, STAGES, StatusPill, dateTime, displayRef, fileSize, orderTitle, ownOrderName, garmentName, money, payPath, plural, unitWord, readOrderDetail, safeLink, shortDate, type BoardOrder, type OrderDetail, type OrderFile, type OrderUpdate, type PaymentSummary, type Player } from './orderBoardModel';
 import { ALL_SIZES, FIT_NAMES } from '../orderSizes';
 
 export type DetailFocus = 'review' | 'track' | 'pay' | null;
@@ -124,8 +124,8 @@ export default function OrderDetailDrawer({ orderId, initial, focus, refreshedAt
     <div className="obd-shell">
       <header className="obd-head">
         <div>
-          <p className="ob-ref">{order ? displayRef(order.number) : 'Order'}</p>
-          <h2 id="obd-title">{order?.name ?? 'Loading the order…'}</h2>
+          {(!order || ownOrderName(order.number, order.name)) && <p className="ob-ref">{order ? displayRef(order.number) : 'Order'}</p>}
+          <h2 id="obd-title">{order ? ownOrderName(order.number, order.name) || displayRef(order.number) : 'Loading the order…'}</h2>
         </div>
         <button type="button" className="obd-close" onClick={onClose} aria-label="Close the order"><X size={22} /></button>
       </header>
@@ -403,7 +403,7 @@ function ReviewDesign({ order, onClose, onRecorded, onStale }: { order: OrderDet
 
   return <dialog ref={ref} className="ob-review" aria-labelledby="obr-title" onCancel={e => { e.preventDefault(); if (!busy) onClose(); }} onClick={e => { if (e.target === ref.current && !busy) onClose(); }}>
     <header className="obr-head">
-      <div><p className="ob-ref">{displayRef(order.number)} · {order.name}</p><h2 id="obr-title">{waiting ? 'Review design' : 'Design proof'}</h2>{proof && <p className="obr-sub">Version {proof.version}{proof.created_at ? ` · sent ${dateTime(proof.created_at)}` : ''}</p>}</div>
+      <div><p className="ob-ref">{orderTitle(order.number, order.name, displayRef(order.number))}</p><h2 id="obr-title">{waiting ? 'Review design' : 'Design proof'}</h2>{proof && <p className="obr-sub">Version {proof.version}{proof.created_at ? ` · sent ${dateTime(proof.created_at)}` : ''}</p>}</div>
       <button type="button" className="obd-close" onClick={onClose} disabled={busy} aria-label="Close the design review"><X size={22} /></button>
     </header>
     <div className="obr-body">

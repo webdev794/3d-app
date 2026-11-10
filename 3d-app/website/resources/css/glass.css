@@ -1,0 +1,104 @@
+/*
+ * Glass bubbles (user 2026-11-10): the app's bubble buttons on Home, Create (Design Your Own and the AI Designer's
+ * first screen), Orders, 3DEEZI Team, Subscriptions, My projects and Signage. Only inside .glass-ui, the class on those
+ * pages' own root, so the Studio, Artboard, Marquee Studio, admin, checkout and the order form never get it.
+ * Gradients and shadows only: no pictures, no blur filters, no animation (a short hover change).
+ * From the app: lib/widgets/glass_bubble.dart (GlassRim), lib/screens/create_home.dart (_GlossyButton = main button,
+ * _GlassOutlineButton = Custom…, _ArrowButton = ‹ ›, _CategoryTile = sport tiles), lib/widgets/ai_stage.dart and
+ * lib/screens/ai_designer.dart (prompt bar, + and send, sport cards), lib/screens/library.dart (_FilterPill, search).
+ */
+
+/* The rim's settings; each look below changes them. --g-k: where the glare sits on the top-left curve; --g-gs: its
+   size on the rim, --g-hs inside; --g-top: how far down the top light reaches; --g-bs: the bottom streak's size; --g-fill: the centre. */
+.glass-ui{--g-t:.2s;--g-k:7px;--g-gs:24px;--g-hs:13px;--g-top:50%;--g-bs:32% 60%;--g-rim:#c4f6fff2;--g-fill:linear-gradient(#040d16,#040d16) padding-box}
+
+/* GlassRim's edge, painted in the control's own border: pale cyan, white through the top-left curve and along the
+   top from the left, a white streak along the bottom a little right of the middle, and the glare's soft light just
+   inside the curve. */
+.glass-ui :is(.campaign-copy>.button,.path-cta,.i3d-button,.on-button,.design-sport,.tm-cta,.tm-send,.tm-confirm-actions .button,.tm-page-head .button-gradient,.plan .button,.partner-copy .button-gradient,.lib-heading .button-primary,.sg-start,.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.lib-empty .button-secondary,.on-maker,.carousel-arrow,.sport-strip-arrow,.aid-arrow,.aid-plus,.aid-go,.sport-tile,.sg-product,.aid-tile,.rd-card){
+  border-color:transparent;
+  background:
+    radial-gradient(var(--g-hs) at var(--g-k) var(--g-k),#ffffff73,#ffffff26 30%,#ffffff0a 60%,#fff0) padding-box,
+    var(--g-fill),
+    radial-gradient(var(--g-gs) at var(--g-k) var(--g-k),#fff,#ffffffb3 45%,#fff0) border-box,
+    linear-gradient(90deg,#ffffffd9,#ffffff59 35%,#fff0 70%) 0 0/100% var(--g-top) no-repeat border-box,
+    radial-gradient(var(--g-bs) at 60% 100%,#fff,#ffffff73 45%,#fff0) border-box,
+    linear-gradient(var(--g-rim),var(--g-rim)) border-box}
+
+/* Main buttons, like the app's DESIGN button: a cyan-to-blue capsule, white gloss over the top half, cyan glow,
+   dark navy text. */
+.glass-ui :is(.campaign-copy>.button,.path-cta,.i3d-button,.on-button,.design-sport,.tm-cta,.tm-send,.tm-confirm-actions .button-gradient,.tm-page-head .button-gradient,.plan .button-gradient,.partner-copy .button-gradient,.lib-heading .button-primary,.sg-start){
+  --g-fill:linear-gradient(#ffffff80,#ffffff14) 0 0/100% 52% no-repeat padding-box,linear-gradient(90deg,#4fe6ff,#16c3f4,#1a78e8) padding-box;
+  border-radius:999px;color:#04192b;transition:box-shadow var(--g-t),filter var(--g-t),transform var(--g-t);
+  box-shadow:0 0 20px #36d4ff99,0 0 22px #00dbea73,inset 0 0 0 1.65px #5fdcffa6,inset 0 0 5.5px 1.9px #2ac4ff5c}
+.glass-ui :is(.campaign-copy>.button,.path-cta,.i3d-button,.on-button,.design-sport,.tm-cta,.tm-send,.tm-confirm-actions .button-gradient,.tm-page-head .button-gradient,.plan .button-gradient,.partner-copy .button-gradient,.lib-heading .button-primary,.sg-start):hover:not(:disabled),
+.glass-ui :is(.path-card,.i3d-panel,.on-tile):hover :is(.path-cta,.i3d-button,.on-button){
+  box-shadow:0 0 26px #36d4ffbf,0 0 28px #00dbea8c,inset 0 0 0 1.65px #5fdcffa6,inset 0 0 5.5px 1.9px #2ac4ff5c}
+/* (The Orders page's order buttons have no border of their own: one 1px border, 1px less padding, same size.) */
+.glass-ui.orders-landing .on-button{border:1px solid transparent;padding-inline:calc(20 * var(--u) - 1px)}
+
+/* Second buttons, like the app's Custom… capsule: a glass rim, a dark centre, cyan text. */
+.glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary){border-radius:999px;color:#00dbea;transition:box-shadow var(--g-t),transform var(--g-t)}
+.glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary,.sport-tile,.sg-product,.rd-card){
+  box-shadow:0 0 12px #36d4ff2e,inset 0 0 0 1.25px #5fdcffa6,inset 0 0 5px 1.35px #2ac4ff43}
+.glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary,.sport-tile:not([aria-pressed=true]),.sg-product:not(.is-on),.rd-card):hover:not(:disabled){
+  --g-rim:#e6fbff;box-shadow:0 0 16px #36d4ff66,inset 0 0 0 1.25px #7fe6ffd9,inset 0 0 6px 1.6px #2ac4ff59}
+/* "Make with …": the same glass in each maker's own colour. */
+.glass-ui .on-maker{--g-rim:color-mix(in srgb,var(--accent) 30%,#fff);--g-fill:linear-gradient(180deg,color-mix(in srgb,var(--accent) 30%,#071628),#071628 70%) padding-box;
+  box-shadow:0 0 18px color-mix(in srgb,var(--accent) 40%,transparent),inset 0 0 0 1.25px color-mix(in srgb,var(--accent) 65%,transparent),inset 0 0 12px color-mix(in srgb,var(--accent) 22%,transparent)}
+.glass-ui .on-maker:is(:hover,:focus-visible){box-shadow:0 0 26px color-mix(in srgb,var(--accent) 60%,transparent),inset 0 0 0 1.25px color-mix(in srgb,var(--accent) 80%,#fff),inset 0 0 14px color-mix(in srgb,var(--accent) 30%,transparent)}
+
+/* Round buttons, like the app's ‹ › bubbles and the AI Designer's + and send. */
+.glass-ui :is(.carousel-arrow,.sport-strip-arrow,.aid-arrow,.aid-plus,.aid-go){--g-k:17%;--g-gs:55% 55%;--g-hs:30% 30%;--g-bs:50% 50%;color:#fff;
+  box-shadow:0 0 16px #36d4ff6b,inset 0 0 0 1.45px #5fdcffa6,inset 0 0 5px 1.6px #2ac4ff51}
+.glass-ui .aid-arrow{--g-fill:linear-gradient(#03101a,#03101a) padding-box;box-shadow:0 0 15px #36d4ff5c,0 2px 5px #0006,inset 0 0 0 1.45px #5fdcffa6,inset 0 0 5px 1.6px #2ac4ff4e}
+.glass-ui .aid-plus{--g-fill:linear-gradient(#0e1b27,#0e1b27) padding-box;box-shadow:0 0 13px #36d4ff45,inset 0 0 0 1.45px #5fdcffa6,inset 0 0 5px 1.6px #2ac4ff48}
+.glass-ui .aid-go{--g-fill:linear-gradient(#00dbea,#00dbea) padding-box;border:1px solid transparent;color:#000;box-shadow:0 0 15px #36d4ff5c,inset 0 0 0 1.45px #5fdcffa6,inset 0 0 5px 1.6px #2ac4ff4e}
+.glass-ui :is(.carousel-arrow,.sport-strip-arrow,.aid-arrow,.aid-plus):hover:not(:disabled),.glass-ui .aid-plus[aria-expanded=true]{--g-rim:#e6fbff;box-shadow:0 0 20px #36d4ff99,inset 0 0 0 1.45px #7fe6ffd9,inset 0 0 6px 1.8px #2ac4ff66}
+.glass-ui .aid-go:hover{--g-fill:linear-gradient(#3fe6f5,#3fe6f5) padding-box;box-shadow:0 0 22px #36d4ffb3,inset 0 0 0 1.45px #5fdcffa6,inset 0 0 5px 1.6px #2ac4ff4e}
+
+/* Tiles, like the app's sport tiles: the glass rim round a dark centre; the chosen one a brighter cyan rim and glow. */
+.glass-ui :is(.sport-tile,.sg-product,.aid-tile,.rd-card){--g-k:4.6px;--g-gs:15.4px;--g-hs:9px;--g-top:30%;--g-bs:32% 42%}
+.glass-ui :is(.sport-tile,.sg-product){border-radius:14px}
+.glass-ui :is(.sport-tile[aria-pressed=true],.sg-product.is-on){--g-fill:linear-gradient(#082233,#082233) padding-box;
+  box-shadow:0 0 12.5px .5px #2fe0ff99,inset 0 0 0 1px #38f3ff,inset 0 0 0 2.25px #5fdcffa6,inset 0 0 6.5px 2.6px #2ac4ff38}
+.glass-ui .rd-card{-webkit-backdrop-filter:none;backdrop-filter:none}
+/* The AI Designer's sport cards: their picture fills the card, so only the rim and its glow show. */
+.glass-ui .aid-tile{--g-k:4px;--g-gs:13.2px;box-shadow:0 10px 26px #0009,0 0 11px #36d4ff26}
+.glass-ui .aid-tile:hover{box-shadow:0 10px 26px #0009,0 0 16px #36d4ff59}
+.glass-ui .aid-tile[aria-pressed=true]{--g-rim:#7ff0ff;box-shadow:0 10px 26px #0009,0 0 21px #36d4ffa8}
+.glass-ui .aid-tile::before{content:"";position:absolute;z-index:1;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 0 0 1.25px #5fdcffa6,inset 0 0 5px 1.35px #2ac4ff43}
+.glass-ui .aid-tile[aria-pressed=true]::before{box-shadow:inset 0 0 0 1px #38f3ff,inset 0 0 0 2.5px #5fdcffa6,inset 0 0 8px 3px #2ac4ff59}
+
+/* Home's large cards keep their own glass; they get the bubble rim, its glow and the glare at the top-left. */
+.glass-ui :is(.path-card,.i3d-panel,.on-tile){border-color:#c4f6ffd9;
+  box-shadow:0 0 12px #36d4ff2e,inset 0 1px 0 #ffffffb8,inset 0 0 0 1.25px #5fdcff80,inset 0 0 5px 1.35px #2ac4ff43,inset 0 0 28px #12e1f01f}
+.glass-ui :is(.path-card,.i3d-panel,.on-tile):hover{border-color:#e6fbff;
+  box-shadow:0 0 24px #36d4ff59,inset 0 1px 0 #ffffffd0,inset 0 0 0 1.25px #7fe6ffd9,inset 0 0 6px 1.6px #2ac4ff59,inset 0 0 36px #12e1f033}
+.glass-ui :is(.path-card,.i3d-panel,.on-tile)::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(22px at 5px 5px,#ffffffb3,#ffffff4d 30%,#fff0)}
+
+/* The AI Designer's prompt bar: the app's thick glass rim (a see-through band, a cyan line, a glow inside and out)
+   with its white lights on the edge. */
+.glass-ui .aid-prompt{border-color:#c4f6fff2;
+  background:radial-gradient(24px at 13px 13px,#ffffff73,#ffffff26 30%,#ffffff0a 60%,#fff0) padding-box,linear-gradient(#061019d9,#061019d9) padding-box;
+  box-shadow:0 0 20px #36d4ff99,inset 0 3px 0 #8eeaff38,inset 0 -3px 0 #7fe6ff38,inset 0 0 0 3px #1fb4dc47,inset 0 0 0 3px #061019,inset 0 0 0 3.9px #5fdcffa6,inset 0 0 9px 4.8px #2ac4ff5c}
+.glass-ui .aid-prompt:focus-within,.glass-ui.dropping .aid-prompt{border-color:#e6fbff;
+  box-shadow:0 0 28px #36d4ffcc,inset 0 3px 0 #8eeaff38,inset 0 -3px 0 #7fe6ff38,inset 0 0 0 3px #1fb4dc47,inset 0 0 0 3px #061019,inset 0 0 0 3.9px #7fe6ffd9,inset 0 0 10px 5px #2ac4ff70}
+.glass-ui .aid-prompt::after{content:"";position:absolute;inset:-1.5px;border:3px solid transparent;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(44px at 13px 13px,#fff,#ffffffb3 45%,#fff0) border-box,linear-gradient(90deg,#ffffffd9,#ffffff59 35%,#fff0 70%) 0 0/100% 50% no-repeat border-box,radial-gradient(32% 60% at 60% 100%,#fff,#ffffff73 45%,#fff0) border-box;
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) padding-box exclude,linear-gradient(#000 0 0)}
+
+/* Filter pills and choices, like the app's Projects filters: glass with a gloss along the top; the chosen one blue
+   with a cyan rim. The search box and the Monthly / Yearly switch the same glass. */
+.glass-ui :is(.lib-tabs button,.sg-choice button,.aid-ask button){border-radius:999px;border-color:#00dbea4d;background:#0615289a;color:#b9c5cf;box-shadow:inset 0 3px 1px -1px #ffffff4d}
+.glass-ui :is(.lib-tabs button:not(.active),.sg-choice button:not(.is-on),.aid-ask button):hover:not(:disabled){border-color:#00dbea99;color:#e8f7fa}
+.glass-ui :is(.lib-tabs button.active,.sg-choice button.is-on),.glass-ui .billing-toggle button.active{border-color:#00dbea;background:#0f5d8a;color:#fff;box-shadow:inset 0 0 0 .5px #00dbea,inset 0 3px 1px -1px #ffffff59}
+.glass-ui .billing-toggle button.active{box-shadow:inset 0 0 0 1.5px #00dbea,inset 0 4px 1px -1px #ffffff59}
+.glass-ui :is(.lib-search,.billing-toggle){border-color:#00dbea59;background:#0615289a;box-shadow:inset 0 3px 1px -1px #ffffff4d}
+.glass-ui .lib-search{border-radius:22px}
+.glass-ui .lib-search:focus-within{border-color:#00dbeab3}
+
+/* A short change on hover; none at all for people who ask for less motion. */
+@media(prefers-reduced-motion:reduce){.glass-ui{--g-t:0s}}

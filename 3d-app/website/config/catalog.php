@@ -179,17 +179,19 @@ $look = function (string $name, array $extra = []): array {
         // panels with a royal blue band slanting across them (zoneColors.bballBand: the viewer cuts them as basketball
         // shorts, bballshorts.js), the 3DEEZI mark low on the right leg, no number.
         // (FN6 2026-10-30, DT8: a vivid aqua #00e8ff, the smooth matt fabric (viewer) and a neutral black, as rendered on the stage.)
-        'bballShorts' => ['main' => '#1d1d1e', 'secondary' => '#00e8ff', 'accent' => '#00e8ff', 'patternColor' => '#00e8ff', 'zoneColors' => ['bballBand' => '#0036cc'], 'marks' => ['shorts_number' => ['hidden' => true]]],
+        'bballShorts' => ['main' => '#1d1d1e', 'secondary' => '#00e8ff', 'accent' => '#00e8ff', 'patternColor' => '#00e8ff', 'zoneColors' => ['bballBand' => '#0036f0', 'bballTrim1' => '#ffffff', 'bballTrim2' => '#00e8ff'], 'marks' => ['shorts_number' => ['hidden' => true]]],
         // The bucket hat pictures (FN1 2026-10-30, colours measured on them): a black hat with a cyan bound edge; the
         // general picture with flat cyan and royal blue shards up the crown and round the brim (viewer hatprint.js).
         'hat' => ['main' => '#1b1c1e', 'secondary' => '#05c3f2'],
         // (FN11 2026-11-02, DT10: the NFL beanie picture: no pom-pom, one cyan stripe at the cuff's top, a big logo.)
         'nflBeanie' => ['main' => '#1b1c1e', 'secondary' => '#05c3f2', 'zoneColors' => ['beanieOne' => '#05c3f2']],
         'hatShards' => ['main' => '#1b1c1e', 'secondary' => '#05c3f2', 'zoneColors' => ['shards' => '#03c8f7', 'shardsDeep' => '#0065f5']],
-        // The Netball dress picture (ND1, colours measured on it): its own Blades, royal blue, azure and cyan ribbons down
-        // the sides (the side panels printed in one with them), bright cyan armhole binding, a black neck.
-        'netballDress' => ['main' => '#1b1d20', 'secondary' => '#00ccff', 'accent' => '#00d0ff', 'pattern' => 'Blades', 'patternColor' => '#0458f0',
-            'parts' => ['sides' => ['colour' => '#1b1d20', 'pattern' => 'Blades'], 'collar' => ['colour' => '#1b1d20']]],
+        // The netball dress (NDF 2026-11-04, the client's preferred model, images 425-427): a deep blue shift with azure
+        // full-length side panels, yoke and neck and armhole binding (colours measured on 426 as rendered), each its own
+        // colour area (viewer netballdress.js: zoneColors body / panels / yoke / binding).
+        // (NDT: the body a little lighter, 43,88,145 on the stage as 426's.)
+        'netballDress' => ['number' => '', 'main' => '#35547e', 'secondary' => '#0c78c6', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#0c78c6',
+            'zoneColors' => ['body' => '#35547e', 'panels' => '#0c78c6', 'yoke' => '#35547e', 'binding' => '#0c78c6']],
     ];
     return $extra + ($looks[$name] ?? []) + $base + ['number' => '23', 'marks' => []];
 };
@@ -581,14 +583,15 @@ $gameThree = ['layers' => [
 $sleeveThree = ['secondary' => '#008ad8', 'accent' => '#008ad8', 'patternColor' => '#008ad8', 'zoneColors' => ['piping' => '#00c4f0'], 'marks' => ['top_crest' => ['scale' => 1]], 'layers' => [
     ['type' => 'text', 'id' => 'tile-sleeve', 'name' => 'Sleeve number', 'part' => 'top', 'side' => 'front', 'x' => 0.3565, 'y' => 0.5467, 'rot' => -45, 'text' => '3', 'size' => 0.112, 'narrow' => 0.39, 'color' => '#00c4f0', 'font' => 'JerseyBlock'],
 ]];
-// The Netball dress picture on its own 3D dress (ND1): the 3DEEZI mark and wordmark on the chest, a black bib sewn on
-// below them with the white position letters (tall condensed letters on the dress), the same on the back; no name or
-// number. (Keyed picture@garment: the Tennis dress tile shows the same picture on the singlet, with the bibs' letters.)
+// The netball dress on its own 3D dress (NDF, the client's 425 / 427): the 3DEEZI mark and wordmark on the chest under
+// the yoke, a position bib a shade lighter than the body below them (0.36 to 0.61 of the height down, inside the
+// viewer's bib-holder tabs) with the white position letters, the same on the back 3 cm lower (as 425's); no name or number. (Keyed
+// picture@garment: the Tennis dress tile shows the same picture on the singlet, with the bibs' letters.)
 $dressBib = ['marks' => ['top_name' => ['hidden' => true], 'top_number' => ['hidden' => true]], 'layers' => [
-    ['type' => 'shape', 'id' => 'tile-bib', 'name' => 'Position bib', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => 0.491, 'shape' => 'rectangle', 'w' => 0.218, 'h' => 0.213, 'color' => '#212326'],
-    ['type' => 'shape', 'id' => 'tile-bib-back', 'name' => 'Position bib', 'part' => 'top', 'side' => 'back', 'x' => 0, 'y' => 0.501, 'shape' => 'rectangle', 'w' => 0.218, 'h' => 0.213, 'color' => '#212326'],
-    ['type' => 'text', 'id' => 'tile-position', 'name' => 'Position', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => 0.464, 'text' => 'WA', 'size' => 0.185, 'color' => '#ffffff'],
-    ['type' => 'text', 'id' => 'tile-position-back', 'name' => 'Position', 'part' => 'top', 'side' => 'back', 'x' => 0, 'y' => 0.474, 'text' => 'WA', 'size' => 0.185, 'color' => '#ffffff'],
+    ['type' => 'shape', 'id' => 'tile-bib', 'name' => 'Position bib', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => 0.455, 'shape' => 'rectangle', 'w' => 0.205, 'h' => 0.215, 'color' => '#4a6696'],
+    ['type' => 'shape', 'id' => 'tile-bib-back', 'name' => 'Position bib', 'part' => 'top', 'side' => 'back', 'x' => 0, 'y' => 0.434, 'shape' => 'rectangle', 'w' => 0.205, 'h' => 0.215, 'color' => '#4a6696'],
+    ['type' => 'text', 'id' => 'tile-position', 'name' => 'Position', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => 0.428, 'text' => 'WA', 'size' => 0.185, 'color' => '#ffffff'],
+    ['type' => 'text', 'id' => 'tile-position-back', 'name' => 'Position', 'part' => 'top', 'side' => 'back', 'x' => 0, 'y' => 0.407, 'text' => 'WA', 'size' => 0.185, 'color' => '#ffffff'],
 ]];
 // The Rugby kit picture (FN4): the cyan "3" over a small white 3DEEZI, low on the shorts' left leg.
 $rugbyShorts = ['layers' => [
@@ -639,8 +642,8 @@ return [
         ['id' => 'shorts', 'name' => 'Shorts', 'description' => 'Complete your team look.'],
         ['id' => 'tee', 'name' => 'Training Tee', 'description' => 'From warm-up to wind-down.'],
         ['id' => 'singlet', 'name' => 'Singlet', 'description' => 'Lightweight and ready to move.'],
-        // Task 9.126: a women's fitted netball dress (bust, waist, flared skirt to mid-thigh) on the female figure.
-        ['id' => 'netball-dress', 'name' => 'Netball dress', 'description' => 'Fitted dress for women, with a flared skirt hem.'],
+        // Task 9.126 (NDF 2026-11-04): a women's fitted shift dress to mid-thigh, side panels and a yoke, on the female figure.
+        ['id' => 'netball-dress', 'name' => 'Netball dress', 'description' => 'Fitted shift dress for women, with side panels and a yoke.'],
         // Task 9.113: the American football jersey, cut wide over shoulder pads with short cap sleeves (Game / Practice Jersey).
         ['id' => 'nfljersey', 'name' => 'Football jersey', 'description' => 'American football cut: wide over the shoulder pads, short cap sleeves.'],
         // The compression top (NFL base layer): skin-tight long sleeves, crew neck, smooth stretch fabric.

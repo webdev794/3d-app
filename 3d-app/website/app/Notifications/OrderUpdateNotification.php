@@ -23,7 +23,7 @@ class OrderUpdateNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $name = $this->order->displayName();
+        $name = $this->order->ownName();
         $subject = match (true) {
             $this->update->kind === 'approval' => "Approval needed for {$this->order->number}",
             $this->update->kind === 'stage' || $this->update->kind === 'tracking' => "{$this->order->number} is on its way",
@@ -32,7 +32,7 @@ class OrderUpdateNotification extends Notification
         $mail = (new MailMessage)
             ->subject("3DEEZI · {$subject}")
             ->greeting('Hi '.(explode(' ', trim((string) $notifiable->name))[0] ?: 'there').',')
-            ->line("{$this->update->text()} · {$this->order->number} ({$name}).");
+            ->line("{$this->update->text()} · {$this->order->number}".($name ? " ({$name})" : '').'.');
         if (filled($this->update->message)) {
             $mail->line('“'.$this->update->message.'”');
         }

@@ -85,8 +85,8 @@ function contactErrors(f: UploadFields) {
   else if (name.length > 120) e.contact_name = 'The name can be up to 120 characters.';
   if (!email) e.contact_email = 'Add an email address so we can reach you.';
   else if (email.length > 190 || !EMAIL.test(email)) e.contact_email = 'Check the email address (for example name@club.com).';
-  if (!team) e.team_name = 'Add your team or organisation name.';
-  else if (team.length > 120) e.team_name = 'The team name can be up to 120 characters.';
+  // Only the basics (client 2026-11-05): name, date required, email, mobile and address; no team line.
+  if (team.length > 120) e.team_name = 'The team name can be up to 120 characters.';
   const mobile = mobileError(phone);
   if (mobile) e.phone = mobile;
   // Date required, and the address when delivering (components/OrderDeliveryFields.tsx, as the server checks them).
@@ -132,7 +132,11 @@ function filesProblem(list: Row[]) {
   if (!forms.some(r => r.status === 'done' && r.remote)) {
     return forms.some(busyRow) ? 'Wait for your order form to finish uploading.' : forms.some(r => r.status === 'waiting') ? 'Sign in to upload your order form.' : 'Add your order form: upload at least one file.';
   }
-  return list.some(busyRow) ? 'Wait for your files to finish uploading.' : null;
+  if (list.some(busyRow)) return 'Wait for your files to finish uploading.';
+  // Artwork is required (client 2026-11-05): an artwork file, or a picture uploaded with the order form (a mockup).
+  const picture = (r: Row) => ['png', 'jpg', 'jpeg', 'webp', 'gif', 'heic'].includes(String(r.remote?.extension ?? fileExtension(r.name)).toLowerCase());
+  if (!list.some(r => r.status === 'done' && r.remote && (r.kind === 'artwork' || picture(r)))) return 'Add your artwork: upload your logo, artwork or mockup.';
+  return null;
 }
 const MAX_PARALLEL = 2;
 
@@ -561,7 +565,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     setServerErrors(({ notes: _gone, ...rest }) => rest);
   }
   const clientErrors = contactErrors(fields);
-  const showContactErrors = tried || contactTried;
+  const showContactErrors = contactTried;
   const errorFor = (name: keyof UploadFields) => (showContactErrors ? clientErrors[name] : undefined) ?? serverErrors[name]?.[0] ?? serverErrors[`address.${name}`]?.[0];
   const contactErrorList = { contact_name: errorFor('contact_name'), contact_email: errorFor('contact_email'), team_name: errorFor('team_name'), phone: errorFor('phone') };
   const delivering = fields.delivery === 'deliver';
@@ -586,7 +590,7 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     setServerErrors(({ files: _retry, ...rest }) => rest);
     if (!getToken()) { requireAuth(() => { pending.current = 'review'; }); return; }
     if (filesProblem(rowsRef.current)) { setPageState(0); focusFirstError(); return; }
-    if (Object.keys(contactErrors(fieldsRef.current)).length) { setPageState(1); setContactOpen(true); focusFirstError(); return; }
+    // Two steps (client 2026-11-05): the details are asked on the review page (step 2).
     setBusy(true);
     // Saved first, then shown as the server holds it: the review is exactly what will be sent.
     const ok = await saveNow(false);
@@ -740,6 +744,11 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   async function submit() {
     if (submitting.current || step !== 'review') return;
     // Rows left empty are not sent (3DEEZI reads the form for those); rows with sizes are confirmed with the tick.
+    if (Object.keys(contactErrors(fieldsRef.current)).length) {
+      setContactTried(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => { const first = document.querySelector<HTMLElement>('#ou-contact [aria-invalid="true"]') ?? document.getElementById('ou-contact'); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); first?.focus?.({ preventScroll: true }); }));
+      return;
+    }
     if (cleanRows(items).length && !itemsConfirmed) { setConfirmTried(true); focusFirstError(); return; }
     const id = draftRef.current;
     if (!id) { setSubmitError('Your draft is not saved yet. Press Back to Edit, then Review order again.'); focusFirstError(); return; }
@@ -828,23 +837,6 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
   // Section 1's date required and delivery (client 2026-10-22: required date, delivery address, mobile not optional).
   const whenWhere = <DeliveryFieldsCard value={fields} errors={detailErrorList} onChange={setDetail} leadWeeks={leadWeeks} />;
 
-  const contactSection = contactOpen
-    ? <div id="ou-contact" className="ou-contact-edit"><ContactDetailsCard value={fields} onChange={setContact} errors={contactErrorList} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
-      {whenWhere}
-      <div className="ou-contact-actions"><span className="op-hint">Mobile, date required and delivery are needed to send your order.</span><button type="button" className="op-link" onClick={() => { setContactTried(true); if (!Object.keys(contactErrors(fieldsRef.current)).some(k => k !== 'notes')) setContactOpen(false); else focusFirstError(); }}><Check size={16} /> Done</button></div>
-    </ContactDetailsCard></div>
-    : <OrderSection number={1} id="ou-contact" title="Contact & team details" action={<button type="button" className="op-link" onClick={() => setContactOpen(true)}><Pencil size={15} /> Edit</button>}>
-      <dl className="ou-contact">
-        <div><dt>Contact name</dt><dd className={fields.contact_name.trim() ? '' : 'is-missing'}>{fields.contact_name.trim() || 'Not added'}</dd></div>
-        <div><dt>Email</dt><dd className={fields.contact_email.trim() ? '' : 'is-missing'}>{fields.contact_email.trim() || 'Not added'}</dd></div>
-        <div><dt>Team / organisation</dt><dd className={team ? '' : 'is-missing'}>{team || <button type="button" className="ou-add" onClick={() => { setContactOpen(true); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.ou-page input[name="team_name"]')?.focus()); }}>Add your team</button>}</dd></div>
-        <div><dt>Mobile</dt><dd className={fields.phone.trim() ? '' : 'is-missing'}>{fields.phone.trim() || missing('Add your mobile', 'phone')}</dd></div>
-        <div><dt>Date required</dt><dd className={fields.needed_by ? '' : 'is-missing'} data-testid="date-required">{fields.needed_by ? dateText(fields.needed_by) : missing('Add the date required', 'needed_by')}</dd></div>
-        <div className="ou-contact-wide"><dt>{fields.delivery === 'pickup' ? 'Pick up' : 'Delivery address'}</dt><dd className={fields.delivery === 'pickup' || fields.street.trim() ? '' : 'is-missing'} data-testid="delivery-text">{fields.delivery === 'pickup' ? 'Pick up from 3DEEZI' : fields.street.trim() ? deliveryText(fields) : missing('Add the delivery address', 'street')}</dd></div>
-      </dl>
-      {showContactErrors && contactBad ? <p className="ou-alert" role="alert"><CircleAlert size={15} /> {Object.values(contactErrorList).find(Boolean)} <button type="button" className="ou-add" onClick={() => setContactOpen(true)}>Edit</button></p>
-        : user && <p className="ou-contact-note"><Info size={14} /> From your account{lastTeam ? ' and your last order' : ''}. Edit them for this order if they’re different.</p>}
-    </OrderSection>;
 
   // What the review says about the reading: 3DEEZI AI or the built-in one, the files, and the date words on the form.
   const aiForm = readings.find(r => r.source === 'ai' && r.form)?.form;
@@ -888,14 +880,18 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     const reviewRows: ReviewRow[] = (items ?? []).map(it => ({ ...it, sizes: youthSplit(it.sizes, it._form?.form_sizes) }));
     const layout = layoutFor(reviewRows);
     return <div id="ou-top"><OrderPageLayout className="ou-page is-review" header={<>
-      <ReviewApproveHeader step="review" firstStep="Upload files" layout={layout} />
+      <ReviewApproveHeader step="review" firstStep="Upload order & artwork" layout={layout} />
       {signInNote}{bannerNote}
-    </>} main={<OrderReviewApprove garments={reviewGarments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} shareLink={draftId ? () => orderApi.confirmationLinks(draftId, true, true).then(l => l.pdf) : undefined} sizeOrder={SIZES} artwork={pictures.map(asFile)} files={done.map(asFile)} filesLabel={artDone.length ? 'Order form & artwork' : 'Order form'}
+    </>} main={<>
+      <div id="ou-contact" className="ou-contact-edit"><ContactDetailsCard number={1} title="Your details" team={false} value={fields} onChange={setContact} errors={contactErrorList} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
+        {whenWhere}
+      </ContactDetailsCard></div>
+      <OrderReviewApprove garments={reviewGarments} confirmationLinks={draftId ? () => orderApi.confirmationLinks(draftId) : undefined} shareLink={draftId ? () => orderApi.confirmationLinks(draftId, true, true).then(l => l.pdf) : undefined} sizeOrder={SIZES} artwork={pictures.map(asFile)} files={done.map(asFile)} filesLabel={artDone.length ? 'Order form & artwork' : 'Order form'}
       layout={layout} rows={reviewRows} options={{ garments }} quote={(quote.quote ?? null) as unknown as PayQuote | null} quoteLoading={quote.state === 'loading'}
       onDownload={f => { const file = done.find(r => r.remote?.id === f.id)?.remote; if (file) void download(file); }} fetchFile={f => fetchFile(String(f.download))}
       delivery={{ contactName: fields.contact_name, team: fields.team_name, email: fields.contact_email, phone: fields.phone, phoneProblem: fields.phone.trim() && !validMobile(fields.phone) ? MOBILE_MESSAGE : null,
         neededBy: fields.needed_by, neededByText: fields.needed_by ? dateText(fields.needed_by) : '', method: fields.delivery === 'pickup' ? 'pickup' : 'deliver', address: fields.delivery === 'pickup' ? null : deliveryText(fields), notes: fields.notes, ...(suppliers.length > 1 ? { madeBy: madeByName } : {}) }}
-      onEditDelivery={() => editAgain('contact')} onEditGarments={() => editAgain('files')}
+      onEditDelivery={() => document.getElementById('ou-contact')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} onEditGarments={() => editAgain('files')}
       garmentEditor={<OrderFormRead items={items} note={readNote} unread={unread} sizes={SIZES} garments={garments} confirmed={itemsConfirmed} confirmTried={confirmTried} onConfirm={reviewItems.onConfirm}
         onSize={setItem} onGarment={setGarment} onRemove={removeItem} onPlayer={setPlayer} onAddRow={addRow} showConfirm={false} />}
       toCheck={unread}
@@ -904,20 +900,11 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
       priceNote={rowsToSend && !itemsConfirmed ? 'Tick the box below to see the price now.' : reasons || '3DEEZI confirms the price after checking your order form, before you pay anything.'}
       priceOptions={<PricingChoices value={pricing} onChange={setPricing} choice={choiceDestination(fields)} shipping={quote.quote?.shipping} />}
       agreed={rowsToSend ? itemsConfirmed : approved} onAgree={v => { setApproved(v); if (rowsToSend) { setItemsConfirmed(v); setConfirmTried(false); } }}
-      busy={busy} error={submitError} onBack={() => editAgain('top')} onApprove={() => void submit()} />} /></div>;
+      busy={busy} error={submitError} onBack={() => editAgain('top')} onApprove={() => void submit()} /></>} /></div>;
   }
 
-  /** Continue on the Upload screen: the files are checked here, the details on the next screen. */
-  const toDetails = () => {
-    if (filesProblem(rowsRef.current)) { setTried(true); focusFirstError(); return; }
-    setPage(1);
-    if (Object.keys(contactErrors(fieldsRef.current)).length) setContactOpen(true);
-  };
-  const goStep = (i: number) => { if (i === 0) setPage(0); else if (i === 1) { if (page > 0) setPage(1); else toDetails(); } else void goReview(); };
   const main = <>
-    {page === 1 && contactSection}
-    {page === 1 && <button type="button" className="op-link" style={{ marginTop: 12 }} onClick={() => setPage(0)}><ArrowLeft size={18} /> Back to upload</button>}
-    {page === 0 && <><OrderSection number={2} id="ou-upload" title="Upload order form">
+    {<><OrderSection number={1} id="ou-upload" title="Upload order form">
       <DropArea kind="order_form" rule={rules.order_form} invalid={tried && !!filesError && !formsDone.length} onFiles={list => addFiles('order_form', list)} />
       {fileList(forms, 'Order form files')}
       {formsDone.length > 0 && aiState !== 'idle' && <p className="ou-ai-status" role="status" data-testid="ai-status">{aiState === 'reading'
@@ -926,17 +913,14 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
         : <><Check size={15} /> Uploaded. Nothing to type in: 3DEEZI reads your order form and confirms the sizes with you.</>}</p>}
       {tried && filesError && <p className="ou-alert" role="alert"><CircleAlert size={15} /> {filesError}</p>}
     </OrderSection>
-    <OrderSection number={3} id="ou-art" title="Artwork & notes">
+    <OrderSection number={2} id="ou-art" title="Artwork">
       <div className="ou-art">
         <div className="ou-art-files">
-          <span className="op-label">Add logos, artwork or references <span className="ou-optional">(Optional)</span></span>
+          <span className="op-label">Add your logos, artwork or mockup</span>
           <DropArea kind="artwork" compact rule={rules.artwork} onFiles={list => addFiles('artwork', list)} />
           {fileList(art, 'Artwork files')}
         </div>
-        <OrderField label="Additional instructions" error={errorFor('notes')}><textarea id="ou-notes" className="op-input ou-notes" rows={3} maxLength={4000} value={fields.notes} onChange={e => setNotes(e.target.value)} placeholder="Anything else we should know about this order?" aria-invalid={!!errorFor('notes')} /></OrderField>
       </div>
-      <MadeByField suppliers={suppliers} value={supplierId} error={serverErrors.supplier_id?.[0]} onChange={id => { setSupplierId(id); dirty.current = true; setServerErrors(({ supplier_id: _gone, ...rest }) => rest); }} />
-      <p className="op-hint">Assign artwork to each garment when checking details.</p>
     </OrderSection></>}
   </>;
 
@@ -967,11 +951,11 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
 
   const bar = <OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveNow(true), busy: save.state === 'saving' }}
     status={save.state === 'error' ? <span className="ou-bar-error">{save.message}</span> : save.state === 'saved' && draftId ? `Draft saved ${timeText(save.at)}` : !user ? 'Kept on this device' : ''}
-    primary={page === 0 ? { label: 'Check imported details', onClick: toDetails, busy } : { label: 'Review order', onClick: () => void goReview(), busy }} note={page === 0 ? 'Review sizes and quantities before approval.' : 'Your order is only submitted after review.'} />;
+    primary={{ label: 'Next: details & review', onClick: () => void goReview(), busy }} note="Step 1 of 2" />;
 
   return <div id="ou-top"><OrderPageLayout className="ou-page" header={<>
     {header('Upload Your Order', 'Upload order & artwork', 'Already have your order ready? Upload your form and artwork below.')}
-    <OrderSteps steps={[{ label: 'Upload', target: 'ou-upload' }, { label: 'Check details', target: 'ou-art' }, { label: 'Review' }]} current={page} onGo={goStep} onReview={() => void goReview()} />
+    <OrderSteps steps={[{ label: 'Upload order & artwork', target: 'ou-upload' }, { label: 'Details & review' }]} current={0} onGo={i => (i === 0 ? setPage(0) : void goReview())} onReview={() => void goReview()} />
     {signInNote}{bannerNote}
   </>} main={main} side={side} bar={bar} /></div>;
 }

@@ -608,3 +608,75 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - 2026-11-04: Projects / Orders / Profile / My orders get the same outer bubble as Home (shape + rim lights). PB1 (only agent).
 - 2026-11-04 (images/405): Home drag shows the AI / DYO name twice, and release on an option does not open it (stuck). DR1 fixing.
 - 2026-11-04 (images/406, client): Home bubble rounder at top and bottom like a real bubble; move content down so nothing touches the rim; nothing else changes. Client will send non-pixelated icons soon. RB1.
+- 2026-11-04 (images/415): Artwork to 3D: "Open AI preview in 3D Studio" does not work for the client (hoodie PDF). TW task 1.
+- 2026-11-04 (images/416): AI Designer "fishing shirt" opens on a poor 3D garment (no fishing-shirt model). TW task 2: closest garment + clear note; Fishing shirt added to the model list.
+- MODEL TO BUILD LATER: Fishing shirt (long sleeve, collar, button front, chest pockets, vented back yoke) (client 2026-11-04, images/416).
+- 2026-11-04 (user): American Football Practice Jersey: make it longer (h/w 1.58 -> about 1.65 per its client picture). Given to FN15 after the hoodie.
+- 2026-11-04 (images/418-420, client): Basketball shorts: wrong shape; long straight-leg, 2 hem stripes with own colours, side notch; Place on model like 418. Separate fixer BSF + tester BST (spec SP/BS/spec.md). Moved off the Finished list.
+
+- 2026-11-04 (client, VERY IMPORTANT): ALL 3D models must follow the Yellow Images apparel mockups exactly (https://yellowimages.com/mockups/category/apparel-mockup ; search per garment e.g. /mockups/s/basketball%20shorts ; AI look: /ai-image-generator/create). Reference only, never ship their images.
+- 2026-11-04 (images/423-424, Yellow Images): Netball dress to look like their mockup: sleeveless round neck, fitted bodice to a dropped waist at the hips, navy side panels + binding, short flared pleated skirt with 2 hem stripes. FN15 first.
+- 2026-11-04 (images/425-427): netball dress = client preferred model (straight shift, full-length side panels, back yoke, binding, bib tabs). Separate fixer NDF + tester NDT, spec SP/ND/spec.md. Taken off FN15.
+- 2026-11-04: client preferred-model pictures per garment are the only target from now (user sends them one by one).
+- 2026-11-04 (user: client has not answered, go with my best answers): questions.md 2, 4, 5, 6, 7 decided; 1 (Airwallex) left for later. QD worker builds: (1) website home lighter glass, (2) 3DEEZI back-collar mark on AI / artwork kits. List SP/QD/tasks.md.
+
+### Decisions recorded from questions.md (removed there 2026-11-04, answered)
+- 2. 3DEEZI mark on customers' AI / artwork kits: YES, a small "3" + 3DEEZI under the back collar only, never over the customer's artwork. Being built (QD task 2).
+- 4. Website home: the lighter touch: glass cards and panels with the app's cyan rim and shine, dark glass, no big drag bubble, CSS only so it stays fast. Being built (QD task 1).
+- 5. Yellow Images 3D models: no purchase (spending money needs the client's OK). We keep improving our own models, now built to the client's preferred-model pictures, which the client is sending per garment.
+- 6. AI Designer "Redraw all designs" button: KEEP it as built; the customer chooses to redraw.
+- 7. Practice Jersey length: keep the longer version the user asked for (viewer -242) for now; its final shape follows the client's preferred-model pictures for that jersey when they arrive (model work is paused until then).
+- 2026-11-05: app DYO Studio garments too far apart (TL task 1). images/433 (order form contact details circled) sent with it: purpose unclear.
+- 2026-11-05 (client tasks via user, files in SP/TL/ref): (2) address autocomplete on Create order form; (3) ORDER ASSISTANT like images 4/5 + the Grok bot output (PDF / Excel / link / issue list); our xlsx import of the Strickland sheet was wrong (image 1). TL tasks 2-3.
+- 2026-11-05 (images/438-439, client): Orders page one combined "Create order form" card (start from scratch or upload sheet) -> Order Assistant; normal order form asks too much: assistant first, manual form minimal; APP first then web. TL task 4 (+ task 3 note).
+
+- Netball dress (later, user 2026-11-05): the client's second picture (images/445: green yoke+straps, gold body, plaid side panel) is a colour design that can be made later and put on the model; the model only needs the matching colour areas.
+
+## 2026-11-05 corrections from the user (do first after the limit resets)
+- Website desktop: UNDO the combined card. Home "Order now with 3DEEZI" and the Orders page go back to the earlier THREE cards (Need help ordering? / Order ready to go? / My orders), as in images/447. The combined card (439) and the phone-style Order Assistant (images 4/5) were for the MOBILE APP only.
+- Website /orders/assistant was built in the phone look; the website must not get the mobile design. Restore the earlier desktop flow and pages.
+- Normal (manual) order form: client wants MINIMUM fields so it is quick to fill; keep the three separate tabs as they are.
+
+- 2026-11-05 client: new APP Order Assistant first screen (images/449): logo + spaced "CREATE ORDER FORM", ? and … buttons, one glass bubble incl. one-row prompt bar (clip/image/mic/send) and Powered by / Switch row inside, tab bar below. App only. Given to TL.
+- 2026-11-05 client: order form in every order option = only NAME, DUE DATE, EMAIL, MOBILE, ADDRESS; 2 steps instead of 4 (website + app). Queued to TL after the 449 screen.
+- 2026-11-05 user: bubble look on ALL app screens for a consistent theme (app only, not website). Queued to TL after the 2-step order form.
+
+- Basketball shorts later list (2026-11-05, viewer -275): knit weaker than picture; bright back centre seam; no seat shading; front upper folds a bit busy; waist top edge ~4% narrow front; band ribbing slightly soft.
+- Netball dress later list (2026-11-05, viewer -275): hem flare/side wave; small tuck at far strap inside back neck (3/4 view); back shoulder slope gentler than 425; knit fainter than mesh at full view.
+- 2026-11-05 client: APP Home tab = design images/458 again (keep bubble; brush labels AI/DYO/ARTBOARD/TEAM/TO 3D with their icons, central 3DEEZI emblem + DRAG TO EXPLORE, Classic view / Upgrade pills). Check v3 for existing code. Queued to TL after the 457 fix.
+- Netball dress -279 later list (2026-11-06): hem flare; far-strap kink; gentler back shoulder slope; faint knit; hem fold a bit sharp in plain colours; Studio screenshot once :8000 is up.
+- 2026-11-06 user: app bubbles are NOT the same on every page; the OUTER bubble on the Orders tab doesn't match the client's bubble (474); Create order form is too tight at the edges (472). The user is showing the client first; wait for the client's answer before changing anything.
+- [x] Order chat server error: local fixed (8088 now uses node scripts/serve_preview.mjs, not python); live: table now made on first use, tar 3deez-update-2026-11-06-b; ChatGPT connected (agent CHATFIX, 2026-11-06)
+- [x] Regression test of everything around the last few days' work, website + app (agent QA7, 2026-11-06)
+- [x] Order chat PDF/summary/Excel: show the product the customer named ("Football jersey"), not just "Jersey"; plain "no size given" wording (agent OAPROD, 2026-11-06)
+- [x] App only: Create order form — more space above the title inside the bubble, same as Projects tab (480/481) (agent OFTOP, 2026-11-06)
+- [x] Website phone width only: Create Order Form bottom bar stacked (NEXT full width, Save draft + Copy link below) (agent OFBAR, 2026-11-06)
+- [x] Fix: order name repeats number (app My orders + admin board); pay page Pick up billing wording (agent WORDFIX, 2026-11-06)
+- [x] Fix app check findings: status badge touches bubble (430), Review&Approve without artwork unclear, chat summary sizes, PDF/Excel title 'Order – Order Form', app step 2 button cut off at 390 (agent APPFIX, 2026-11-06)
+- [x] App only: Design Your Own carousel — side models too far from centre model (482), bring closer (agent DYOGAP, 2026-11-06)
+- [x] App only: keyboard can't be closed (Home, 483) — tap outside / tab switch closes it, find the field that kept focus (agent KBFIX, 2026-11-06)
+- [x] App only: Create your order (Orders tab) — outer bubble = Home page bubble, gently animated (floating/shine); rounder, 5 option buttons as real glass bubbles (agent OABUB, 2026-11-06)
+- [x] App only: Create your order — option bubbles/panel touch outer bubble edges (484): add side spacing, clip scrolled content inside (agent OABUB, 2026-11-06)
+- [x] App only: Studio — logo/text menu covers the selected item (486); make it visible together (agent STUMENU, 2026-11-06)
+- [x] App only: AI Designer — glass rim (cyan glow, white reflections) on outlines only: prompt bar, sport cards, +/send, carousel arrow, Assist button; dark centres; no layout change, no outer bubble (client 487/488) (agent AIDES, 2026-11-06)
+- [x] App only: Orders tab options — tap pops/floats into chat box then acts; drag into chat box also works; bubbles bob; chat box glows when near (client approved 2026-11-06) (agent OABUB)
+- [x] App only: Design Your Own — keep outer bubble; options look exactly like client 489 with small glass bubble effect (sport chips, arrows, name capsule + subtitle, counter, Custom capsule, DESIGN button) (agent DYOGLASS, 2026-11-06)
+- [x] QA8 website fixes done 2026-11-06 (FIXW): typed notes (3XL, several names per line, "Football:" prefix, sizeless lines kept), form-build "Please check" message, Football→Rugby row
+- [ ] QA8 website left (next fixer): share page title "Order" + lowercase "& football shorts" in PDF title; one uploaded logo should cover the whole order; chat asks "which sport?" when sport written; Review & Approve lists only "Mobile missing" + "Delivery address: Australia"; pick-up "Shipping A$0.00" wording; "You" on invoice update; AI-off "how do I order?" answer; NEW: "Football jerseys 3 x M" + "5 hoodies" shows all 8 as "Football hoodie" (OrderAssistantReader::read one-garment override?)
+- [x] QA8 app fixes done 2026-11-06 (FIXA): Home tab from manual order form, chat card title, Review missing-field list, PAY NOW on My orders + "garments · required 20 Mar" wording
+- [x] App only: Design Your Own — make the kit pictures in the carousel bigger (picture 490, 2026-11-06) (agent DYOGLASS resumed)
+- [x] App only: Team page — remove the rectangle inside the bubble; content sits right in the bubble; VIEW MY REQUESTS fully visible (client 491, 2026-11-10) (agent TEAMBUB, spec scratchpad/TEAMBUB/spec.md)
+- [x] App only: Design Your Own — remove the outer bubble on this page only; use the space for bigger kits (client, 2026-11-10) (agent DYONOBUB, spec scratchpad/DYONOBUB/spec.md)
+- [x] App only: Artboard — tap gestures: two-finger tap = Undo, three-finger tap = Redo (my reading, decided; client 2026-11-10) (agent ARTTAP, spec scratchpad/ARTTAP/spec.md)
+- [x] App only: Team page — scrolled content crosses the bubble top edge; clip along the curve + soft fade; same check on other scrolling bubble pages (user 492, 2026-11-10) (TEAMBUB resumed)
+- [x] Regression test of 2026-11-10 changes + linked features, website + app (agent QA9); many bugs -> separate fixer
+- [x] QA9 findings 2026-11-10, app (agent FIX9): Team form sport names = DYO names (Soccer/Football); Team form garments follow the sport; free-plan limit shown before filling the form; TEAM bell on request screen; Edit profile label cut by top curve; check Orders "START FROM SCRATCH"
+- [ ] Plans & pricing note "This is a proposed structure for review…" shown to customers: remove when prices are final (QA9 2026-11-10; kept until prices are confirmed)
+- [x] QA9 round 2 (agent FIXOC, server): order chat with several items in one message drops one and renames jerseys as singlets; netball dress sizes (6-24) and "dresses" plural not read; "Football jerseys 3 x M" + "5 hoodies" all shown as hoodies
+- [x] QA9 round 2 (agent FIX9, app): Studio Save project name hidden behind SAVE PROJECT button; app has no way to open the Suppliers page
+- [x] AI Designer: client can't tap Recent designs (493, app); test app + website phone/desktop, fix if broken (agent RECENT, 2026-11-10)
+- [x] App only: Projects tab — take all example projects out (Warriors Concept, Mantis Elite, Club Jersey, Morahu); real projects only + clean empty state (client 494, 2026-11-10) (agent NOEX)
+- [x] App only: Design Your Own — models much bigger, buttons (Custom, DESIGN, arrows) smaller; no other change (client 495, 2026-11-10) (agent DYOBIG2)
+- [x] CANCELLED (client 2026-11-10): customers will NOT make their own 3D models (no Tripo API, no kiosk generation). All 3D models are made and fixed by us, for consistency.
+- [x] App only: Team page (and its My requests / request screens) — remove the outer bubble, own header like Design Your Own; then push v2 (user 2026-11-10) (TEAMBUB resumed)
+- [x] Website only: glass bubble look on buttons, tiles, chips and bars, exactly like the app's bubble buttons, on Home, Create, Orders landing, Team, Pricing, My projects, Signage landing (decided); NOT Studio, Artboard, Marquee Studio, admin, checkout/order form; CSS-only so the site stays light (user 2026-11-10) (agent WEBGLASS, spec scratchpad/WEBGLASS/spec.md)

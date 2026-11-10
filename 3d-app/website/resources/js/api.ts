@@ -17,6 +17,12 @@ export class ApiError extends Error {
 export const baseUrl = (document.querySelector('meta[name="app-base"]')?.getAttribute('content') || '').replace(/\/$/, '');
 export const media = (path: string) => `${baseUrl}/media/${path}`;
 const tokenKey = '3deezi.session';
+/** The design being edited, kept for this tab: App.tsx reads it on a page load, so a full load of the Studio reopens it. */
+export const draftKey = '3deezi.draft';
+/** Keeps a design where App.tsx reads it; false when the browser refused (a very large design stays in memory only). */
+export function keepDraft(draft: unknown): boolean {
+  try { sessionStorage.setItem(draftKey, JSON.stringify(draft)); return true; } catch { return false; }
+}
 export const getToken = () => sessionStorage.getItem(tokenKey);
 export const setToken = (token: string | null) => token ? sessionStorage.setItem(tokenKey, token) : sessionStorage.removeItem(tokenKey);
 

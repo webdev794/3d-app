@@ -24,8 +24,10 @@ class OrdersServer {
   final submitted = <Map<String, dynamic>>[];
   final quotes = <Map<String, dynamic>>[];
   var approval = 'review';
+
   /// More fields for order 2's detail (e.g. the date required and the delivery address of a newer upload).
   Map<String, dynamic> detailExtra = {};
+
   /// Admin › Settings' production lead time, as GET /orders/options gives it.
   var leadWeeks = 4;
 
@@ -39,14 +41,30 @@ class OrdersServer {
   Map<String, dynamic> quote(List items, Map<String, dynamic> pricing) {
     final missing = [
       for (final (k, i) in items.cast<Map>().indexed)
-        if (unpriced.contains(i['garment'])) {'code': 'garment_unpriced', 'message': 'No price is set for ${i['label'] ?? i['garment']} yet.', 'key': 'item-$k'},
+        if (unpriced.contains(i['garment']))
+          {
+            'code': 'garment_unpriced',
+            'message': 'No price is set for ${i['label'] ?? i['garment']} yet.',
+            'key': 'item-$k',
+          },
     ];
     if (missing.isNotEmpty) {
       return {
-        'status': 'quote_required', 'currency': 'AUD', 'total': null, 'reasons': missing,
+        'status': 'quote_required',
+        'currency': 'AUD',
+        'total': null,
+        'reasons': missing,
         'lines': [
           for (final i in items.cast<Map>())
-            {'name': i['label'] ?? i['garment'], 'quantity': (i['sizes'] as Map).values.fold<int>(0, (a, b) => a + (b as num).toInt()), 'total': unpriced.contains(i['garment']) ? null : '50.00', 'priced': !unpriced.contains(i['garment'])},
+            {
+              'name': i['label'] ?? i['garment'],
+              'quantity': (i['sizes'] as Map).values.fold<int>(
+                0,
+                (a, b) => a + (b as num).toInt(),
+              ),
+              'total': unpriced.contains(i['garment']) ? null : '50.00',
+              'priced': !unpriced.contains(i['garment']),
+            },
         ],
         'shipping': {'name': 'Australia', 'amount': '100.00'},
         'tax': {'name': 'GST', 'amount': null},
@@ -55,13 +73,25 @@ class OrdersServer {
     final lines = [
       for (final i in items.cast<Map>())
         () {
-          final qty = (i['sizes'] as Map).values.fold<int>(0, (a, b) => a + (b as num).toInt());
+          final qty = (i['sizes'] as Map).values.fold<int>(
+            0,
+            (a, b) => a + (b as num).toInt(),
+          );
           final unit = i['garment'] == 'shorts' ? 30 : 50;
-          return {'name': i['garment'] == 'shorts' ? 'Shorts' : 'Jersey', 'quantity': qty, 'total': (qty * unit).toStringAsFixed(2)};
+          return {
+            'name': i['garment'] == 'shorts' ? 'Shorts' : 'Jersey',
+            'quantity': qty,
+            'total': (qty * unit).toStringAsFixed(2),
+          };
         }(),
     ];
-    final garments = lines.fold<double>(0, (a, l) => a + double.parse('${l['total']}'));
-    final express = ((pricing['extras'] as List?) ?? const []).contains('express');
+    final garments = lines.fold<double>(
+      0,
+      (a, l) => a + double.parse('${l['total']}'),
+    );
+    final express = ((pricing['extras'] as List?) ?? const []).contains(
+      'express',
+    );
     final extras = express ? 150.0 : 0.0;
     final nz = pricing['destination'] == 'NZ';
     final shipping = nz ? 250.0 : 100.0;
@@ -70,117 +100,424 @@ class OrdersServer {
     final discount = good ? (garments + extras) * .1 : 0.0;
     final subtotal = garments + extras + shipping - discount;
     return {
-      'status': 'priced', 'currency': 'AUD', 'lines': lines,
-      'extras': [if (express) {'name': 'Express production', 'quantity': 1, 'total': '150.00'}],
-      'shipping': {'name': nz ? 'New Zealand' : 'Australia', 'amount': shipping.toStringAsFixed(2)},
-      'discounts': [if (good) {'name': 'Team 10%', 'amount': discount.toStringAsFixed(2)}],
+      'status': 'priced',
+      'currency': 'AUD',
+      'lines': lines,
+      'extras': [
+        if (express)
+          {'name': 'Express production', 'quantity': 1, 'total': '150.00'},
+      ],
+      'shipping': {
+        'name': nz ? 'New Zealand' : 'Australia',
+        'amount': shipping.toStringAsFixed(2),
+      },
+      'discounts': [
+        if (good) {'name': 'Team 10%', 'amount': discount.toStringAsFixed(2)},
+      ],
       'tax': {'name': 'GST', 'amount': (subtotal * .1).toStringAsFixed(2)},
-      'total': (subtotal * 1.1).toStringAsFixed(2), 'reasons': [],
-      'discount_code': code == null ? null : {'code': code, 'valid': good, 'message': good ? null : 'This code isn’t valid.'},
+      'total': (subtotal * 1.1).toStringAsFixed(2),
+      'reasons': [],
+      'discount_code': code == null
+          ? null
+          : {
+              'code': code,
+              'valid': good,
+              'message': good ? null : 'This code isn’t valid.',
+            },
     };
   }
 
-  Map<String, dynamic> card(int id, String status, String stage, String label, Map<String, String> sub) => {
-    'id': id, 'number': '3DZ-0000$id', 'name': id == 1 ? 'MANTIS Rugby League' : 'Club Hoodies', 'status': status, 'stage': stage,
-    'stage_label': label, 'sub_status': sub, 'approval': id == 2 ? approval : 'waiting', 'quantity': 36,
-    'garments': [{'garment': 'jersey', 'name': 'Rugby League Jersey', 'quantity': 18, 'thumbnail': null}],
-    'submitted_at': '2026-10-19T08:00:00Z', 'latest_update': {'kind': 'submitted', 'text': 'Order received from your order form', 'message': null},
-    'action': id == 2 && approval == 'review' ? 'review_design' : null, 'payment': null,
+  Map<String, dynamic> card(
+    int id,
+    String status,
+    String stage,
+    String label,
+    Map<String, String> sub,
+  ) => {
+    'id': id,
+    'number': '3DZ-0000$id',
+    'name': id == 1 ? 'MANTIS Rugby League' : 'Club Hoodies',
+    'status': status,
+    'stage': stage,
+    'stage_label': label,
+    'sub_status': sub,
+    'approval': id == 2 ? approval : 'waiting',
+    'quantity': 36,
+    'garments': [
+      {
+        'garment': 'jersey',
+        'name': 'Rugby League Jersey',
+        'quantity': 18,
+        'thumbnail': null,
+      },
+    ],
+    'submitted_at': '2026-10-19T08:00:00Z',
+    'latest_update': {
+      'kind': 'submitted',
+      'text': 'Order received from your order form',
+      'message': null,
+    },
+    'action': id == 2 && approval == 'review' ? 'review_design' : null,
+    'payment': null,
   };
 
   late final client = MockClient((r) async {
     requests.add(r);
     final path = r.url.path.replaceFirst('/api/v1', '');
     // UTF-8, as the server sends it (messages use typographic apostrophes).
-    http.Response ok(Object data, [int status = 200]) =>
-        http.Response.bytes(utf8.encode(jsonEncode({'data': data})), status, headers: {'content-type': 'application/json; charset=utf-8'});
-    if (r.headers['Authorization'] != 'Bearer tok') return http.Response('{"message":"Unauthenticated."}', 401);
+    http.Response ok(Object data, [int status = 200]) => http.Response.bytes(
+      utf8.encode(jsonEncode({'data': data})),
+      status,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
+    if (r.headers['Authorization'] != 'Bearer tok')
+      return http.Response('{"message":"Unauthenticated."}', 401);
     if (path == '/orders/board') {
       return ok({
-        'counts': {'current': 2, 'completed': 0}, 'cancelled': [], 'drafts': [],
+        'counts': {'current': 2, 'completed': 0},
+        'cancelled': [],
+        'drafts': [],
         'stages': [
-          {'key': 'received', 'status': 'pending', 'label': 'Order Received', 'tone': 'blue', 'count': 1, 'orders': [card(1, 'pending', 'received', 'Order Received', {'label': 'Order received', 'tone': 'blue'})]},
-          {'key': 'design', 'status': 'confirmed', 'label': 'Design & Approval', 'tone': 'amber', 'count': 1, 'orders': [card(2, 'confirmed', 'design', 'Design & Approval', {'label': approval == 'review' ? 'Approval needed' : 'Design approved', 'tone': 'amber'})]},
-          for (final (key, status, label) in [('production', 'in_production', 'Production'), ('shipped', 'shipped', 'Shipped'), ('delivered', 'delivered', 'Delivered')])
-            {'key': key, 'status': status, 'label': label, 'tone': 'blue', 'count': 0, 'orders': []},
+          {
+            'key': 'received',
+            'status': 'pending',
+            'label': 'Order Received',
+            'tone': 'blue',
+            'count': 1,
+            'orders': [
+              card(1, 'pending', 'received', 'Order Received', {
+                'label': 'Order received',
+                'tone': 'blue',
+              }),
+            ],
+          },
+          {
+            'key': 'design',
+            'status': 'confirmed',
+            'label': 'Design & Approval',
+            'tone': 'amber',
+            'count': 1,
+            'orders': [
+              card(2, 'confirmed', 'design', 'Design & Approval', {
+                'label': approval == 'review'
+                    ? 'Approval needed'
+                    : 'Design approved',
+                'tone': 'amber',
+              }),
+            ],
+          },
+          for (final (key, status, label) in [
+            ('production', 'in_production', 'Production'),
+            ('shipped', 'shipped', 'Shipped'),
+            ('delivered', 'delivered', 'Delivered'),
+          ])
+            {
+              'key': key,
+              'status': status,
+              'label': label,
+              'tone': 'blue',
+              'count': 0,
+              'orders': [],
+            },
         ],
       });
     }
     if (path == '/notifications') return ok({'unread': 1, 'items': []});
     if (path == '/orders/2' || path == '/orders/2/approval') {
-      if (path.endsWith('approval')) approval = jsonDecode(r.body)['decision'] == 'approve' ? 'approved' : 'changes';
+      if (path.endsWith('approval'))
+        approval = jsonDecode(r.body)['decision'] == 'approve'
+            ? 'approved'
+            : 'changes';
       return ok({
-        ...card(2, 'confirmed', 'design', 'Design & Approval', {'label': approval == 'review' ? 'Approval needed' : 'Design approved', 'tone': 'amber'}),
-        'items': [{'garment': 'hoodie', 'name': 'Hoodie', 'fit': 'mens', 'sizes': {'M': 10}, 'quantity': 10}],
-        'sizes': {'M': 10}, 'stages_reached': {'received': '2026-10-19T08:00:00Z', 'design': '2026-10-19T09:00:00Z'},
-        'proof': {'id': 9, 'version': 1, 'review_status': approval == 'review' ? 'pending' : approval, 'name': 'proof.png'},
-        'proofs': [{'id': 9, 'version': 1, 'review_status': approval == 'review' ? 'pending' : approval, 'name': 'proof.png'}],
-        'files': [{'id': 5, 'kind': 'artwork', 'name': 'logo.png', 'download': '/order-files/5'}],
-        'tracking': null, 'updates': [{'kind': 'approval', 'text': 'Design proof v1 is ready for your approval', 'author': 'staff', 'created_at': '2026-10-19T09:30:00Z'}],
+        ...card(2, 'confirmed', 'design', 'Design & Approval', {
+          'label': approval == 'review' ? 'Approval needed' : 'Design approved',
+          'tone': 'amber',
+        }),
+        'items': [
+          {
+            'garment': 'hoodie',
+            'name': 'Hoodie',
+            'fit': 'mens',
+            'sizes': {'M': 10},
+            'quantity': 10,
+          },
+        ],
+        'sizes': {'M': 10},
+        'stages_reached': {
+          'received': '2026-10-19T08:00:00Z',
+          'design': '2026-10-19T09:00:00Z',
+        },
+        'proof': {
+          'id': 9,
+          'version': 1,
+          'review_status': approval == 'review' ? 'pending' : approval,
+          'name': 'proof.png',
+        },
+        'proofs': [
+          {
+            'id': 9,
+            'version': 1,
+            'review_status': approval == 'review' ? 'pending' : approval,
+            'name': 'proof.png',
+          },
+        ],
+        'files': [
+          {
+            'id': 5,
+            'kind': 'artwork',
+            'name': 'logo.png',
+            'download': '/order-files/5',
+          },
+        ],
+        'tracking': null,
+        'updates': [
+          {
+            'kind': 'approval',
+            'text': 'Design proof v1 is ready for your approval',
+            'author': 'staff',
+            'created_at': '2026-10-19T09:30:00Z',
+          },
+        ],
         ...detailExtra,
       });
     }
     if (path == '/orders/read-notes') {
       readNotes.add(jsonDecode(r.body)['text'] as String);
-      return ok({'items': [{'garment': 'polo', 'name': 'Polo', 'sizes': {'4XL': 3, '2XL': 2, '5XL': 4}},
-        {'garment': 'jersey', 'name': 'Jersey', 'sizes': {'M': 1}, 'players': [{'name': 'Smith', 'number': '7', 'size': 'M'}]}], 'players': 1, 'unknown': ['something odd'], 'summary': '', 'source': 'notes'});
+      return ok({
+        'items': [
+          {
+            'garment': 'polo',
+            'name': 'Polo',
+            'sizes': {'4XL': 3, '2XL': 2, '5XL': 4},
+          },
+          {
+            'garment': 'jersey',
+            'name': 'Jersey',
+            'sizes': {'M': 1},
+            'players': [
+              {'name': 'Smith', 'number': '7', 'size': 'M'},
+            ],
+          },
+        ],
+        'players': 1,
+        'unknown': ['something odd'],
+        'summary': '',
+        'source': 'notes',
+      });
     }
     if (path == '/orders/assist') {
-      return ok({'items': [{'garment': 'jersey', 'sport': null, 'fit': null, 'sizes': {'M': 12}, 'name': 'Jersey'}, {'garment': 'shorts', 'sizes': {'L': 12}, 'name': 'Shorts'}], 'unknown': [], 'summary': '12 Jerseys (M), 12 Shorts (L)', 'source': 'parser'});
+      return ok({
+        'items': [
+          {
+            'garment': 'jersey',
+            'sport': null,
+            'fit': null,
+            'sizes': {'M': 12},
+            'name': 'Jersey',
+          },
+          {
+            'garment': 'shorts',
+            'sizes': {'L': 12},
+            'name': 'Shorts',
+          },
+        ],
+        'unknown': [],
+        'summary': '12 Jerseys (M), 12 Shorts (L)',
+        'source': 'parser',
+      });
     }
-    if (path == '/order-drafts' && r.method == 'POST') return ok({'id': 7, 'kind': jsonDecode(r.body)['kind'], 'files': []}, 201);
+    if (path == '/order-drafts' && r.method == 'POST')
+      return ok({
+        'id': 7,
+        'kind': jsonDecode(r.body)['kind'],
+        'files': [],
+      }, 201);
     if (path == '/order-drafts/7' && r.method == 'PATCH') return ok({'id': 7});
     if (path == '/order-drafts/7/files') {
-      final isForm = utf8.decode(r.bodyBytes, allowMalformed: true).contains('order_form');
+      final isForm = utf8
+          .decode(r.bodyBytes, allowMalformed: true)
+          .contains('order_form');
       return ok({
-        'id': isForm ? 31 : 32, 'kind': isForm ? 'order_form' : 'artwork', 'name': isForm ? 'order.csv' : 'logo.png', 'download': '/order-files/31',
-        if (isForm) 'suggested': {'items': [{'garment': 'jersey', 'name': 'Jersey', 'sizes': {'M': 10}}], 'players': 0, 'unknown': [], 'rows': 1, 'summary': '10 Jerseys (M)'},
+        'id': isForm ? 31 : 32,
+        'kind': isForm ? 'order_form' : 'artwork',
+        'name': isForm ? 'order.csv' : 'logo.png',
+        'download': '/order-files/31',
+        if (isForm)
+          'suggested': {
+            'items': [
+              {
+                'garment': 'jersey',
+                'name': 'Jersey',
+                'sizes': {'M': 10},
+              },
+            ],
+            'players': 0,
+            'unknown': [],
+            'rows': 1,
+            'summary': '10 Jerseys (M)',
+          },
       }, 201);
     }
     if (path == '/order-drafts/7/read' && aiReading != null) {
-      return ok({'id': 7, 'kind': 'upload', 'files': [], 'suggested': [aiReading]});
+      return ok({
+        'id': 7,
+        'kind': 'upload',
+        'files': [],
+        'suggested': [aiReading],
+      });
     }
     if (path == '/order-drafts/7/submit') {
-      submitted.add({...jsonDecode(r.body) as Map<String, dynamic>, 'key': r.headers['Idempotency-Key']});
+      submitted.add({
+        ...jsonDecode(r.body) as Map<String, dynamic>,
+        'key': r.headers['Idempotency-Key'],
+      });
       final items = (submitted.last['items'] as List?) ?? const [];
       // Invoiced at the price of the choices sent, as the payments feature does.
-      final total = items.isEmpty ? null : quote(items, (submitted.last['pricing'] as Map?)?.cast<String, dynamic>() ?? const {})['total'];
-      return ok({'id': 12, 'number': '3DZ-00012', 'status': 'pending', 'invoice': total != null
-          ? {'invoice_number': 'INV-1001', 'status': 'awaiting_payment', 'label': 'Awaiting payment', 'tone': 'amber', 'currency': 'AUD', 'total': total, 'amount_due': total, 'can_pay': true}
-          : null}, 201);
+      final total = items.isEmpty
+          ? null
+          : quote(
+              items,
+              (submitted.last['pricing'] as Map?)?.cast<String, dynamic>() ??
+                  const {},
+            )['total'];
+      return ok({
+        'id': 12,
+        'number': '3DZ-00012',
+        'status': 'pending',
+        'invoice': total != null
+            ? {
+                'invoice_number': 'INV-1001',
+                'status': 'awaiting_payment',
+                'label': 'Awaiting payment',
+                'tone': 'amber',
+                'currency': 'AUD',
+                'total': total,
+                'amount_due': total,
+                'can_pay': true,
+              }
+            : null,
+      }, 201);
     }
     if (path == '/orders/options') return ok({'lead_time_weeks': leadWeeks});
+    if (path == '/address/suggest') {
+      return ok([
+        if ('${r.url.queryParameters['q']}'.contains('Marabou'))
+          {
+            'label': '7 Marabou Close, Narre Warren South VIC 3805, Australia',
+            'street': '7 Marabou Close',
+            'suburb': 'Narre Warren South',
+            'state': 'VIC',
+            'postcode': '3805',
+            'country': 'Australia',
+          },
+      ]);
+    }
     if (path == '/pricing/options') {
       return ok({
-        'currency': 'AUD', 'default_destination': 'AU', 'discount_codes': true,
-        'destinations': [{'code': 'AU', 'name': 'Australia'}, {'code': 'NZ', 'name': 'New Zealand'}],
-        'extras': [{'code': 'names_numbers', 'name': 'Names & numbers printing', 'unit': 'player', 'unit_price': '5.00', 'auto': true},
-          {'code': 'express', 'name': 'Express production', 'unit': 'order', 'unit_price': '150.00', 'auto': false}],
+        'currency': 'AUD',
+        'default_destination': 'AU',
+        'discount_codes': true,
+        'destinations': [
+          {'code': 'AU', 'name': 'Australia'},
+          {'code': 'NZ', 'name': 'New Zealand'},
+        ],
+        'extras': [
+          {
+            'code': 'names_numbers',
+            'name': 'Names & numbers printing',
+            'unit': 'player',
+            'unit_price': '5.00',
+            'auto': true,
+          },
+          {
+            'code': 'express',
+            'name': 'Express production',
+            'unit': 'order',
+            'unit_price': '150.00',
+            'auto': false,
+          },
+        ],
       });
     }
     if (path == '/pricing/quote') {
       final body = jsonDecode(r.body) as Map<String, dynamic>;
       final items = (body['items'] as List?) ?? const [];
       quotes.add(body);
-      return ok(items.isEmpty
-          ? {'status': 'quote_required', 'currency': 'AUD', 'lines': [], 'total': null, 'reasons': [{'code': 'no_items', 'message': 'We price uploaded order forms after checking them.'}]}
-          : quote(items, (body['pricing'] as Map?)?.cast<String, dynamic>() ?? const {}));
+      return ok(
+        items.isEmpty
+            ? {
+                'status': 'quote_required',
+                'currency': 'AUD',
+                'lines': [],
+                'total': null,
+                'reasons': [
+                  {
+                    'code': 'no_items',
+                    'message':
+                        'We price uploaded order forms after checking them.',
+                  },
+                ],
+              }
+            : quote(
+                items,
+                (body['pricing'] as Map?)?.cast<String, dynamic>() ?? const {},
+              ),
+      );
     }
-    if (path == '/invoices/INV-1001/link') return ok({'url': 'https://test.example/invoices/INV-1001?key=abc', 'expires_at': '2026-10-20T15:00:00Z'});
+    if (path == '/invoices/INV-1001/link')
+      return ok({
+        'url': 'https://test.example/invoices/INV-1001?key=abc',
+        'expires_at': '2026-10-20T15:00:00Z',
+      });
     return http.Response('{"message":"Not found."}', 404);
   });
 }
 
+/// A saved singlet kit to copy (the app no longer ships example projects).
+Project singletBase(AppController c) => Project(
+  id: 'base-singlet',
+  title: 'Morahu',
+  sport: 'Basketball',
+  garment: 'Singlet',
+  mode: 'DYO',
+  updated: DateTime.now(),
+  kit: const KitState(
+    garment: 'Singlet',
+    mainColor: Color(0xff1a0507),
+    secondaryColor: Color(0xfff44d56),
+    accentColor: Color(0xffffffff),
+    pattern: 'Velocity',
+    fabric: 'Standard',
+    logoText: 'MORAHU',
+    backName: 'MORAHU',
+    number: '11',
+    patternTile: null,
+    logoImage: null,
+    spec: null,
+  ),
+);
+
 AppController signedIn(OrdersServer server) {
-  final c = AppController(store: FakeStore(), api: ApiClient(client: server.client, baseUrl: 'https://test.example'));
-  c.user = const ApiUser(id: 1, name: 'Fabian Soutar', email: 'fab@example.test');
+  final c = AppController(
+    store: FakeStore(),
+    api: ApiClient(client: server.client, baseUrl: 'https://test.example'),
+  );
+  c.user = const ApiUser(
+    id: 1,
+    name: 'Fabian Soutar',
+    email: 'fab@example.test',
+  );
   c.api.token = 'tok';
   return c;
 }
 
-Future<void> mount(WidgetTester tester, Widget child, {double width = 400}) async {
+Future<void> mount(
+  WidgetTester tester,
+  Widget child, {
+  double width = 400,
+}) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = Size(width, 900);
+  tester.view.physicalSize = Size(width, 1200);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
@@ -205,9 +542,42 @@ Future<void> fillDelivery(WidgetTester tester, {bool pickup = false}) async {
   await typeIn(tester, 'Postcode', '4000');
 }
 
+/// Step 1's artwork (required, client 2026-11-05): a logo for the whole order.
+Future<void> addArtwork(WidgetTester tester) async {
+  final before = pickOrderFile;
+  pickOrderFile = (kind) async =>
+      (name: 'logo.png', bytes: Uint8List.fromList(const [137, 80, 78, 71]));
+  await tap(tester, find.text('Artwork for the whole order'));
+  pickOrderFile = before;
+}
+
+/// Step 1 (sizes by 3DEEZI Assist and a logo), then REVIEW ORDER: step 2, the details and the review.
+Future<void> toReview(WidgetTester tester) async {
+  await typeIn(
+    tester,
+    '12 jerseys M, 12 shorts L, 6 hoodies XL',
+    '12 jerseys M, 12 shorts L',
+  );
+  await tap(tester, find.text('Help me add sizes').last);
+  await addArtwork(tester);
+  await tap(tester, find.text('REVIEW ORDER'));
+}
+
+/// Drags the screen's list down until [target] is built (the review starts with step 2's details).
+Future<void> scrollTo(WidgetTester tester, Finder target) async {
+  for (var i = 0; i < 40 && target.evaluate().isEmpty; i++) {
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
+    await tester.pumpAndSettle();
+  }
+}
+
 /// Scrolls the screen's list back to the top (a tap lower down may have scrolled past the next target).
 Future<void> fromTop(WidgetTester tester) async {
-  await tester.fling(find.byType(Scrollable).first, const Offset(0, 4000), 4000);
+  await tester.fling(
+    find.byType(Scrollable).first,
+    const Offset(0, 4000),
+    4000,
+  );
   await tester.pumpAndSettle();
 }
 
@@ -217,9 +587,17 @@ Future<void> typeIn(WidgetTester tester, String label, String text) async {
   await onPage(tester, field);
   if (field.evaluate().isEmpty) {
     // From the top of the list down (a tap lower down may have scrolled past it).
-    await tester.fling(find.byType(Scrollable).first, const Offset(0, 4000), 4000);
+    await tester.fling(
+      find.byType(Scrollable).first,
+      const Offset(0, 4000),
+      4000,
+    );
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(field, 300, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      field,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
   }
   await tester.ensureVisible(field);
   await tester.enterText(field, text);
@@ -229,7 +607,12 @@ Future<void> typeIn(WidgetTester tester, String label, String text) async {
 /// Scrolls the screen's list until [target] is built (lists build their rows lazily), then expects it once.
 Future<void> seeIt(WidgetTester tester, Finder target) async {
   await onPage(tester, target);
-  if (target.evaluate().isEmpty) await tester.scrollUntilVisible(target, 300, scrollable: find.byType(Scrollable).first);
+  if (target.evaluate().isEmpty)
+    await tester.scrollUntilVisible(
+      target,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
   expect(target, findsOneWidget);
 }
 
@@ -237,14 +620,24 @@ Future<void> seeIt(WidgetTester tester, Finder target) async {
 /// until then), then APPROVE ORDER.
 Future<void> approve(WidgetTester tester) async {
   for (var i = 0; i < 3; i++) {
-    await tester.fling(find.byType(Scrollable).first, const Offset(0, -4000), 4000);
+    await tester.fling(
+      find.byType(Scrollable).first,
+      const Offset(0, -4000),
+      4000,
+    );
     await tester.pumpAndSettle();
   }
-  final check = find.byKey(const Key('approve-check')), button = find.byKey(const Key('approve-order'));
+  final check = find.byKey(const Key('approve-check')),
+      button = find.byKey(const Key('approve-order'));
   expect(tester.widget<GradientButton>(button).onPressed, isNull);
+  // (In the bubble the list is shorter: bring the box and the button into view.)
+  await tester.ensureVisible(check);
+  await tester.pumpAndSettle();
   await tester.tap(check);
   await tester.pumpAndSettle();
   expect(tester.widget<GradientButton>(button).onPressed, isNotNull);
+  await tester.ensureVisible(button);
+  await tester.pumpAndSettle();
   await tester.tap(button);
   await tester.pumpAndSettle();
 }
@@ -252,7 +645,9 @@ Future<void> approve(WidgetTester tester) async {
 /// One step per screen (2026-11-03): a target on another page of the form is reached through the step bar.
 Future<void> onPage(WidgetTester tester, Finder target) async {
   // Only on the form's pages (their Continue / Review button), never from the review.
-  if (find.byKey(const Key('order-continue')).evaluate().isEmpty && find.byKey(const Key('order-review-button')).evaluate().isEmpty) return;
+  if (find.byKey(const Key('order-continue')).evaluate().isEmpty &&
+      find.byKey(const Key('order-review-button')).evaluate().isEmpty)
+    return;
   for (var i = 0; i < 3 && target.evaluate().isEmpty; i++) {
     final step = find.byKey(Key('order-step-$i'));
     if (step.evaluate().isEmpty) return;
@@ -261,11 +656,26 @@ Future<void> onPage(WidgetTester tester, Finder target) async {
   }
 }
 
+/// Back: the bubble screens' Back pill, else the app bar's back button.
+Future<void> goBack(WidgetTester tester) async {
+  final pill = find.byKey(const ValueKey('bubble-back'));
+  if (pill.evaluate().isNotEmpty) {
+    await tester.tap(pill.last);
+  } else {
+    await tester.pageBack();
+  }
+  await tester.pumpAndSettle();
+}
+
 Future<void> tap(WidgetTester tester, Finder target) async {
   await onPage(tester, target);
   // Lists build their rows lazily: scroll until the target is built.
   if (target.evaluate().isEmpty) {
-    await tester.scrollUntilVisible(target, 300, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      target,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
   }
   await tester.ensureVisible(target);
   // Still off the screen or under the app bar: into the middle of the screen, laid out there before tapping.
@@ -275,71 +685,132 @@ Future<void> tap(WidgetTester tester, Finder target) async {
     await Scrollable.ensureVisible(tester.element(target), alignment: 0.5);
     await tester.pump();
   }
+  // (A field still focused from typing takes the first tap in the bubble.)
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
   await tester.tap(target);
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('My Orders: one list with search and filters (images/339), cards, and approving a proof in the order', (tester) async {
-    final server = OrdersServer();
-    await mount(tester, OrdersBoardScreen(signedIn(server)), width: 1000);
-    expect(find.text('MANTIS Rugby League'), findsOneWidget);
-    expect(find.text('Order received'), findsOneWidget);
-    expect(find.text('Club Hoodies'), findsOneWidget);
-    // Action needed: only the order waiting on the customer; search finds by name.
-    await tap(tester, find.byKey(const ValueKey('my-orders-filter-action')));
-    expect(find.text('MANTIS Rugby League'), findsNothing);
-    expect(find.text('Club Hoodies'), findsOneWidget);
-    await tap(tester, find.byKey(const ValueKey('my-orders-filter-all')));
-    await tester.enterText(find.byKey(const ValueKey('my-orders-search')), 'mantis');
-    await tester.pumpAndSettle();
-    expect(find.text('Club Hoodies'), findsNothing);
-    await tester.enterText(find.byKey(const ValueKey('my-orders-search')), '');
-    await tester.pumpAndSettle();
-    expect(find.text('Approval needed'), findsOneWidget);
-    expect(find.text('Review order →'), findsOneWidget);
-    await tap(tester, find.text('Club Hoodies'));
-    expect(find.text('Proof v1'), findsOneWidget);
-    expect(find.byTooltip('Download logo.png'), findsOneWidget);
-    await tap(tester, find.text('APPROVE DESIGN'));
-    final answer = server.requests.lastWhere((r) => r.url.path.endsWith('/approval'));
-    expect(jsonDecode(answer.body), {'decision': 'approve', 'proof_id': 9, 'message': null});
-    expect(find.text('Design approved'), findsOneWidget);
-  });
+  testWidgets(
+    'My Orders: one list with search and filters (images/339), cards, and approving a proof in the order',
+    (tester) async {
+      final server = OrdersServer();
+      await mount(tester, OrdersBoardScreen(signedIn(server)), width: 1000);
+      expect(find.text('MANTIS Rugby League'), findsOneWidget);
+      expect(find.text('Order received'), findsOneWidget);
+      expect(find.text('Club Hoodies'), findsOneWidget);
+      // Action needed: only the order waiting on the customer; search finds by name.
+      await tap(tester, find.byKey(const ValueKey('my-orders-filter-action')));
+      expect(find.text('MANTIS Rugby League'), findsNothing);
+      expect(find.text('Club Hoodies'), findsOneWidget);
+      await tap(tester, find.byKey(const ValueKey('my-orders-filter-all')));
+      await tester.enterText(
+        find.byKey(const ValueKey('my-orders-search')),
+        'mantis',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Club Hoodies'), findsNothing);
+      await tester.enterText(
+        find.byKey(const ValueKey('my-orders-search')),
+        '',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Approval needed'), findsOneWidget);
+      expect(find.text('Review order →'), findsOneWidget);
+      await tap(tester, find.text('Club Hoodies'));
+      expect(find.text('Proof v1'), findsOneWidget);
+      expect(find.byTooltip('Download logo.png'), findsOneWidget);
+      await tap(tester, find.text('APPROVE DESIGN'));
+      final answer = server.requests.lastWhere(
+        (r) => r.url.path.endsWith('/approval'),
+      );
+      expect(jsonDecode(answer.body), {
+        'decision': 'approve',
+        'proof_id': 9,
+        'message': null,
+      });
+      expect(find.text('Design approved'), findsOneWidget);
+    },
+  );
 
-  testWidgets('Create Order Form: sizes with help, review, one confirmed order', (tester) async {
+  testWidgets('Create Order Form: sizes with help, review, one confirmed order', (
+    tester,
+  ) async {
     final server = OrdersServer();
     await mount(tester, OrderFormScreen(signedIn(server)));
-    expect(find.widgetWithText(TextField, 'Fabian Soutar'), findsOneWidget);
-    await typeIn(tester, 'Team / organisation', 'MANTIS Rugby League');
-    await typeIn(tester, '12 jerseys M, 12 shorts L, 6 hoodies XL', '12 jerseys M, 12 shorts L');
+    // Step 1: garments and artwork; no contact or team fields (client 2026-11-05: two steps, only the basics).
+    expect(find.text('Team / organisation'), findsNothing);
+    expect(find.text('Notes for your supplier'), findsNothing);
+    await typeIn(
+      tester,
+      '12 jerseys M, 12 shorts L, 6 hoodies XL',
+      '12 jerseys M, 12 shorts L',
+    );
     await tap(tester, find.text('Help me add sizes').last);
-    expect(find.textContaining('Added 12 Jerseys (M), 12 Shorts (L)'), findsOneWidget);
+    expect(
+      find.textContaining('Added 12 Jerseys (M), 12 Shorts (L)'),
+      findsOneWidget,
+    );
     expect(find.text('Subtotal 12'), findsNWidgets(2));
-    // Section 1 needs the mobile, the date required and the delivery address (2026-10-22, as Upload Your Order).
+    // Artwork is required on step 1.
     await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('Add a mobile number so we can reach you.'), findsOneWidget);
+    expect(
+      find.text(
+        'Add your artwork: choose a saved design or upload your logo or artwork.',
+      ),
+      findsOneWidget,
+    );
+    await addArtwork(tester);
+    await tap(tester, find.text('REVIEW ORDER'));
+    // Step 2: the details (name from the account), then the review.
+    expect(find.widgetWithText(TextField, 'Fabian Soutar'), findsOneWidget);
+    // Approve asks for the mobile, the date and the delivery address first; nothing is sent.
+    await approve(tester);
+    await seeIt(tester, find.text('Add a mobile number so we can reach you.'));
+    expect(server.submitted, isEmpty);
     await fillDelivery(tester);
-    await tap(tester, find.text('REVIEW ORDER'));
     // REVIEW & APPROVE ORDER: two garment styles (different sizes), one section each.
-    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
+    await seeIt(tester, find.text('REVIEW & APPROVE ORDER'));
     expect(find.text('2 garment styles · 24 garments'), findsOneWidget);
     // The price from the server's quote, in the website's price style (task 9.85): "A$1,166.00", never "AUD 1166.00".
     await seeIt(tester, find.text(r'A$1,166.00'));
     expect(find.text('Jersey x 12'), findsOneWidget);
     expect(find.text(r'A$600.00'), findsOneWidget);
     expect(find.textContaining('AUD', findRichText: true), findsNothing);
-    await approve(tester);
+    // (Ticked already: Approve again.)
+    await seeIt(tester, find.byKey(const Key('approve-order')));
+    await tester.ensureVisible(find.byKey(const Key('approve-order')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('approve-order')));
+    await tester.pumpAndSettle();
+    expect(
+      find
+          .byKey(const Key('order-error'))
+          .evaluate()
+          .map((e) => ((e.widget as Text).data)),
+      isEmpty,
+    );
     expect(find.byKey(const Key('order-reference')), findsOneWidget);
     expect(find.text('3DZ-00012'), findsOneWidget);
     expect(server.submitted, hasLength(1));
     final sent = server.submitted.single;
-    expect(sent['team_name'], 'MANTIS Rugby League');
-    expect((sent['items'] as List).map((i) => i['garment']), ['jersey', 'shorts']);
+    expect(sent['team_name'], '');
+    expect((sent['items'] as List).map((i) => i['garment']), [
+      'jersey',
+      'shorts',
+    ]);
     expect(sent['phone'], '0412 345 678');
     expect(sent['needed_by'], matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
     expect(sent['delivery'], 'deliver');
-    expect(sent['address'], {'street': '12 Smith Street', 'suburb': 'Rotorua', 'state': 'QLD', 'postcode': '4000', 'country': 'Australia'});
+    expect(sent['address'], {
+      'street': '12 Smith Street',
+      'suburb': 'Rotorua',
+      'state': 'QLD',
+      'postcode': '4000',
+      'country': 'Australia',
+    });
     expect(sent['key'], startsWith('app-'));
     expect(find.text('VIEW MY ORDER'), findsOneWidget);
     // Pay now: a 2-hour pay link from the server, opened as the pay page.
@@ -351,633 +822,1231 @@ void main() {
     expect(opened, ['https://test.example/invoices/INV-1001?key=abc']);
   });
 
-  testWidgets('Create Order Form: the fit chooses the sizes; a team adds the same garment in womens and kids sizes', (tester) async {
-    final server = OrdersServer();
-    await mount(tester, OrderFormScreen(signedIn(server)));
-    await typeIn(tester, 'Team / organisation', 'MANTIS Rugby League');
-    Future<void> size(String key, String n) async {
-      await seeIt(tester, find.byKey(Key(key)));
-      await tester.ensureVisible(find.byKey(Key(key)));
-      await tester.enterText(find.byKey(Key(key)), n);
-      await tester.pumpAndSettle();
-    }
-
-    // Mens: XS to 4XL; More sizes adds 5XL to 8XL.
-    await seeIt(tester, find.byKey(const Key('size-0-XS')));
-    expect(find.byKey(const Key('size-0-4XL')), findsOneWidget);
-    expect(find.byKey(const Key('size-0-5XL')), findsNothing);
-    expect(find.byKey(const Key('size-0-Kids')), findsNothing);
-    await tap(tester, find.byKey(const Key('more-sizes-0')));
-    expect(find.byKey(const Key('size-0-8XL')), findsOneWidget);
-    await size('size-0-M', '4');
-    await size('size-0-6XL', '1');
-    // + Womens sizes, then + Kids sizes: the same garment again, just after it, in that fit.
-    await tap(tester, find.byKey(const Key('add-fit-0-womens')));
-    expect(find.byKey(const Key('size-1-W8')), findsOneWidget);
-    expect(find.byKey(const Key('size-1-W24')), findsNothing);
-    await size('size-1-W10', '3');
-    await tap(tester, find.byKey(const Key('add-fit-0-youth')));
-    expect(find.byKey(const Key('size-1-16Y')), findsOneWidget);
-    expect(find.byKey(const Key('size-1-2Y')), findsNothing);
-    await size('size-1-10Y', '2');
-    expect(find.text('Subtotal 2'), findsOneWidget);
-    await fillDelivery(tester, pickup: true);
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
-    await approve(tester);
-    final items = (server.submitted.single['items'] as List).cast<Map>();
-    expect(items.map((i) => i['fit']), ['mens', 'youth', 'womens']);
-    expect(items.map((i) => i['garment']).toSet(), {'jersey'});
-    expect(items.map((i) => i['sizes']), [
-      {'M': 4, '6XL': 1},
-      {'10Y': 2},
-      {'W10': 3},
-    ]);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Create Order Form: a design made as a sport garment ("Netball bibs") is reviewed and priced by that name', (tester) async {
-    // QA T4a: the review named it "Singlet" / "Netball singlet" while the placed order and invoice say "Netball bibs".
-    final server = OrdersServer();
-    final c = signedIn(server);
-    final sample = c.projects.firstWhere((p) => p.garment == 'Singlet');
-    final j = ProjectStore.encode(sample)
-      ..['id'] = 'bibs-1'
-      ..['title'] = 'Firebirds bibs'
-      ..['remoteId'] = 77;
-    (j['kit'] as Map)['productName'] = 'Netball bibs';
-    c.projects.insert(0, ProjectStore.decode(jsonDecode(jsonEncode(j)) as Map<String, dynamic>, ProjectStore.images(sample)));
-    await mount(tester, OrderFormScreen(c));
-    await typeIn(tester, 'Team / organisation', 'Firebirds');
-    await tap(tester, find.text('No saved design'));
-    await tap(tester, find.text('Firebirds bibs').last);
-    await seeIt(tester, find.byKey(const Key('size-0-M')));
-    await tester.ensureVisible(find.byKey(const Key('size-0-M')));
-    await tester.enterText(find.byKey(const Key('size-0-M')), '7');
-    await tester.pumpAndSettle();
-    await fillDelivery(tester, pickup: true);
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
-    expect(find.textContaining('NETBALL BIBS', findRichText: true), findsWidgets);
-    expect(find.textContaining('SINGLET', findRichText: true), findsNothing);
-    // Priced under its name, as the order will be (the server names the placed row the same way).
-    await seeIt(tester, find.byType(PriceBox));
-    await tester.pumpAndSettle();
-    final quoted = (server.quotes.last['items'] as List).cast<Map>().single;
-    expect([quoted['label'], quoted['project_id'], quoted['garment']], ['Netball bibs', 77, 'singlet']);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Create Order Form: American Football designs ("Game Jersey", "Varsity Jacket") are reviewed by name; an unpriced jacket asks for a quote, no NaN', (tester) async {
-    // Linked modules of 9.106: the client's American Football tiles in the app's order form.
-    final server = OrdersServer()..unpriced.add('jacket');
-    final c = signedIn(server);
-    final sample = c.projects.firstWhere((p) => p.garment == 'Singlet');
-    Project design(String id, int remote, String title, String garment, String product) {
-      final j = ProjectStore.encode(sample)
-        ..['id'] = id
-        ..['title'] = title
-        ..['sport'] = 'American Football'
-        ..['garment'] = garment
-        ..['remoteId'] = remote;
-      (j['kit'] as Map)
-        ..['garment'] = garment
-        ..['productName'] = product;
-      return ProjectStore.decode(jsonDecode(jsonEncode(j)) as Map<String, dynamic>, ProjectStore.images(sample));
-    }
-
-    c.projects.insertAll(0, [design('nfl-1', 81, 'Wildcats game jersey', 'Jersey', 'Game Jersey'), design('nfl-2', 82, 'Wildcats varsity', 'Varsity jacket', 'Varsity Jacket')]);
-    await mount(tester, OrderFormScreen(c));
-    await typeIn(tester, 'Team / organisation', 'Wildcats');
-    await tap(tester, find.text('No saved design'));
-    await tap(tester, find.text('Wildcats game jersey').last);
-    await seeIt(tester, find.byKey(const Key('size-0-M')));
-    await tester.ensureVisible(find.byKey(const Key('size-0-M')));
-    await tester.enterText(find.byKey(const Key('size-0-M')), '6');
-    await tester.pumpAndSettle();
-    await tap(tester, find.text('Add garment').last);
-    await tap(tester, find.text('No saved design').last);
-    await tap(tester, find.text('Wildcats varsity').last);
-    await seeIt(tester, find.byKey(const Key('size-1-L')));
-    await tester.ensureVisible(find.byKey(const Key('size-1-L')));
-    await tester.enterText(find.byKey(const Key('size-1-L')), '3');
-    await tester.pumpAndSettle();
-    await fillDelivery(tester, pickup: true);
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
-    // Each garment's own section, by its name (the review is a list: scroll to the second), then the price.
-    expect(find.textContaining('GAME JERSEY', findRichText: true), findsWidgets);
-    await tester.scrollUntilVisible(find.textContaining('02 — VARSITY JACKET', findRichText: true), 300, scrollable: find.byType(Scrollable).first);
-    await seeIt(tester, find.byType(PriceBox));
-    await tester.pumpAndSettle();
-    final quoted = (server.quotes.last['items'] as List).cast<Map>();
-    expect([for (final q in quoted) [q['label'], q['project_id'], q['garment']]], [['Game Jersey', 81, 'jersey'], ['Varsity Jacket', 82, 'jacket']]);
-    // The jacket has no price yet: a quote is asked for, with the reason; never NaN or a broken total.
-    expect(find.textContaining('Quote required', findRichText: true), findsWidgets);
-    expect(find.textContaining('No price is set for Varsity Jacket yet.', findRichText: true), findsWidgets);
-    expect(find.textContaining('NaN', findRichText: true), findsNothing);
-    expect(find.textContaining('null', findRichText: true), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Create Order Form: a saved design names only rows of its own garment ("Netball bibs" on a jersey row is a Jersey)', (tester) async {
-    // QA U O4 (task 9.97): the "Netball bibs" design (a singlet) named every row it was on, a jersey row too; the
-    // server and the website now name only the design's own garment's rows (SP/W1/price-format.md).
-    final server = OrdersServer();
-    final c = signedIn(server);
-    final sample = c.projects.firstWhere((p) => p.garment == 'Singlet');
-    final j = ProjectStore.encode(sample)
-      ..['id'] = 'bibs-1'
-      ..['title'] = 'Firebirds bibs'
-      ..['remoteId'] = 77;
-    (j['kit'] as Map)['productName'] = 'Netball bibs';
-    c.projects.insert(0, ProjectStore.decode(jsonDecode(jsonEncode(j)) as Map<String, dynamic>, ProjectStore.images(sample)));
-    await mount(tester, OrderFormScreen(c));
-    await typeIn(tester, 'Team / organisation', 'Firebirds');
-    // Row 1: the bibs design (it sets the singlet).
-    await tap(tester, find.text('No saved design'));
-    await tap(tester, find.text('Firebirds bibs').last);
-    await seeIt(tester, find.byKey(const Key('size-0-M')));
-    await tester.ensureVisible(find.byKey(const Key('size-0-M')));
-    await tester.enterText(find.byKey(const Key('size-0-M')), '7');
-    await tester.pumpAndSettle();
-    // Row 2: the same design, then the garment changed to a jersey.
-    await tap(tester, find.text('Add garment').last);
-    await tap(tester, find.text('No saved design').last);
-    await tap(tester, find.text('Firebirds bibs').last);
-    await tap(tester, find.text('Singlet').last);
-    await tap(tester, find.text('Jersey').last);
-    await seeIt(tester, find.byKey(const Key('size-1-L')));
-    await tester.ensureVisible(find.byKey(const Key('size-1-L')));
-    await tester.enterText(find.byKey(const Key('size-1-L')), '5');
-    await tester.pumpAndSettle();
-    await fillDelivery(tester, pickup: true);
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
-    expect(find.textContaining('01 — NETBALL BIBS', findRichText: true), findsOneWidget);
-    await tester.scrollUntilVisible(find.textContaining('02 — JERSEY', findRichText: true), 300, scrollable: find.byType(Scrollable).first);
-    expect(find.textContaining('02 — NETBALL BIBS', findRichText: true), findsNothing);
-    // Priced the same way: only the singlet row under the design's name.
-    await seeIt(tester, find.byType(PriceBox));
-    await tester.pumpAndSettle();
-    final quoted = (server.quotes.last['items'] as List).cast<Map>();
-    expect([for (final q in quoted) [q['label'], q['project_id'], q['garment']]], [['Netball bibs', 77, 'singlet'], [null, 77, 'jersey']]);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Create Order Form: REVIEW & APPROVE ORDER fits 360, 390 and 430 wide', (tester) async {
-    for (final width in [360.0, 390.0, 430.0]) {
+  testWidgets(
+    'Create Order Form: the fit chooses the sizes; a team adds the same garment in womens and kids sizes',
+    (tester) async {
       final server = OrdersServer();
-      await mount(tester, OrderFormScreen(signedIn(server), key: ValueKey(width)), width: width);
-      await typeIn(tester, 'Team / organisation', 'MANTIS Rugby League');
-      await typeIn(tester, '12 jerseys M, 12 shorts L, 6 hoodies XL', '12 jerseys M, 12 shorts L');
-      await tap(tester, find.text('Help me add sizes').last);
-      await fillDelivery(tester, pickup: true);
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      Future<void> size(String key, String n) async {
+        await seeIt(tester, find.byKey(Key(key)));
+        await tester.ensureVisible(find.byKey(Key(key)));
+        await tester.enterText(find.byKey(Key(key)), n);
+        await tester.pumpAndSettle();
+      }
+
+      // Mens: XS to 4XL; More sizes adds 5XL to 8XL.
+      await seeIt(tester, find.byKey(const Key('size-0-XS')));
+      expect(find.byKey(const Key('size-0-4XL')), findsOneWidget);
+      expect(find.byKey(const Key('size-0-5XL')), findsNothing);
+      expect(find.byKey(const Key('size-0-Kids')), findsNothing);
+      await tap(tester, find.byKey(const Key('more-sizes-0')));
+      expect(find.byKey(const Key('size-0-8XL')), findsOneWidget);
+      await size('size-0-M', '4');
+      await size('size-0-6XL', '1');
+      // + Womens sizes, then + Kids sizes: the same garment again, just after it, in that fit.
+      await tap(tester, find.byKey(const Key('add-fit-0-womens')));
+      expect(find.byKey(const Key('size-1-W8')), findsOneWidget);
+      expect(find.byKey(const Key('size-1-W24')), findsNothing);
+      await size('size-1-W10', '3');
+      await tap(tester, find.byKey(const Key('add-fit-0-youth')));
+      expect(find.byKey(const Key('size-1-16Y')), findsOneWidget);
+      expect(find.byKey(const Key('size-1-2Y')), findsNothing);
+      await size('size-1-10Y', '2');
+      expect(find.text('Subtotal 2'), findsOneWidget);
+      await addArtwork(tester);
       await tap(tester, find.text('REVIEW ORDER'));
-      expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
-      expect(find.byKey(const Key('review-steps')), findsOneWidget);
+      await fillDelivery(tester, pickup: true);
+      await fromTop(tester);
+      await seeIt(tester, find.text('REVIEW & APPROVE ORDER'));
       await approve(tester);
-      expect(server.submitted, hasLength(1));
-      expect(find.text('ORDER SENT'), findsOneWidget);
-      expect(tester.takeException(), isNull, reason: 'width $width');
-    }
-  });
+      final items = (server.submitted.single['items'] as List).cast<Map>();
+      expect(items.map((i) => i['fit']), ['mens', 'youth', 'womens']);
+      expect(items.map((i) => i['garment']).toSet(), {'jersey'});
+      expect(items.map((i) => i['sizes']), [
+        {'M': 4, '6XL': 1},
+        {'10Y': 2},
+        {'W10': 3},
+      ]);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets('Review price choices: destination, extras and discount code reprice; the invoice matches', (tester) async {
-    final server = OrdersServer();
-    await mount(tester, OrderFormScreen(signedIn(server)));
-    await typeIn(tester, 'Team / organisation', 'MANTIS Rugby League');
-    await typeIn(tester, '12 jerseys M, 12 shorts L, 6 hoodies XL', '12 jerseys M, 12 shorts L');
-    await tap(tester, find.text('Help me add sizes').last);
-    await fillDelivery(tester);
-    await tap(tester, find.text('REVIEW ORDER'));
-    // Australia by default: 960 + 100 shipping, GST 106 (prices as the website writes them, task 9.85).
-    await seeIt(tester, find.text(r'A$1,166.00'));
-    expect(find.text(r'A$100.00'), findsOneWidget);
-    expect(find.text(r'A$106.00'), findsOneWidget);
-    // The extras' prices too.
-    expect(find.text(r'A$150.00 per order'), findsOneWidget);
-    // To New Zealand: shipping and GST change.
-    await tap(tester, find.byKey(const Key('price-destination')));
-    await tap(tester, find.text('New Zealand').last);
-    expect(find.text('Shipping · New Zealand'), findsOneWidget);
-    expect(find.text(r'A$1,331.00'), findsOneWidget);
-    // An extra.
-    await tap(tester, find.text('Express production'));
-    expect(find.text('Express production x 1'), findsOneWidget);
-    expect(find.text(r'A$1,496.00'), findsOneWidget);
-    // A wrong code is named; a good one takes 10% off garments and extras.
-    await tester.enterText(find.byKey(const Key('price-code')), 'NOPE');
-    await tap(tester, find.text('Apply'));
-    await tester.scrollUntilVisible(find.byKey(const Key('code-error')), 200, scrollable: find.byType(Scrollable).first);
-    expect(find.byKey(const Key('code-error')), findsOneWidget);
-    expect(find.text(r'A$1,496.00'), findsOneWidget);
-    await tester.enterText(find.byKey(const Key('price-code')), 'team10');
-    await tap(tester, find.text('Apply'));
-    expect(find.text('Team 10%'), findsOneWidget);
-    // The discount with the minus before the prefix, as on the website.
-    expect(find.text(r'-A$111.00'), findsOneWidget);
-    expect(find.text(r'A$1,373.90'), findsOneWidget);
-    expect(find.textContaining('AUD', findRichText: true), findsNothing);
-    expect(server.quotes.last['pricing'], {'destination': 'NZ', 'extras': ['express'], 'discount_code': 'TEAM10'});
-    // Approved with those choices: the invoice is the reviewed total.
-    await approve(tester);
-    expect(server.submitted.single['pricing'], {'destination': 'NZ', 'extras': ['express'], 'discount_code': 'TEAM10'});
-    expect(find.text(r'Invoice INV-1001: A$1,373.90'), findsOneWidget);
-    // Pay now's amount due.
-    expect(find.text(r'A$1,373.90 due'), findsOneWidget);
-  });
-
-  testWidgets('Review "Delivery to" follows section 1: Pick up (no list), New Zealand, International (task 9.97)', (tester) async {
-    // It showed "Australia" for a picked-up order or another country, while the price was for those (as the website).
-    final server = OrdersServer();
-    await mount(tester, OrderFormScreen(signedIn(server)));
-    await typeIn(tester, 'Team / organisation', 'MANTIS Rugby League');
-    await typeIn(tester, '12 jerseys M, 12 shorts L, 6 hoodies XL', '12 jerseys M, 12 shorts L');
-    await tap(tester, find.text('Help me add sizes').last);
-    await fillDelivery(tester, pickup: true);
-    await tap(tester, find.text('REVIEW ORDER'));
-    await seeIt(tester, find.byKey(const Key('price-pickup')));
-    await tester.pumpAndSettle();
-    expect(find.text('Pick up from 3DEEZI (no delivery)'), findsOneWidget);
-    expect(find.byKey(const Key('price-destination')), findsNothing);
-    expect((server.quotes.last['pricing'] as Map)['destination'], 'PICKUP');
-    Finder shows(String name) => find.descendant(of: find.byKey(const Key('price-destination')), matching: find.text(name));
-    // Delivered to New Zealand: the list shows New Zealand, the price is for New Zealand.
-    await tap(tester, find.text('BACK TO EDIT'));
-    await fromTop(tester);
-    await tap(tester, find.byKey(const Key('delivery-deliver')));
-    await typeIn(tester, 'Street address', '12 Smith Street');
-    await typeIn(tester, 'Suburb / town', 'Rotorua');
-    await typeIn(tester, 'Country', 'New Zealand');
-    await tap(tester, find.text('REVIEW ORDER'));
-    await seeIt(tester, find.byKey(const Key('price-destination')));
-    await tester.pumpAndSettle();
-    expect(shows('New Zealand'), findsOneWidget);
-    expect(shows('Australia'), findsNothing);
-    expect(find.byKey(const Key('price-pickup')), findsNothing);
-    expect((server.quotes.last['pricing'] as Map)['destination'], 'NZ');
-    // A country the price list has no price for: shown as itself (3DEEZI prices it).
-    await tap(tester, find.text('BACK TO EDIT'));
-    await typeIn(tester, 'Country', 'Fiji');
-    await tap(tester, find.text('REVIEW ORDER'));
-    await seeIt(tester, find.byKey(const Key('price-destination')));
-    await tester.pumpAndSettle();
-    expect(shows('International'), findsOneWidget);
-    expect((server.quotes.last['pricing'] as Map)['destination'], 'INTL');
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('AI designer results: a reference picture can go on the 3D kit (guests sign in first)', (tester) async {
-    final c = AppController(store: FakeStore());
-    // A real 1 x 1 PNG.
-    c.references.add(base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
-    // The results show a design; the picture is in its ⋯ menu (146.jpg).
-    c.concepts = [Concept(const DesignSpec(designName: 'Mine', detected: 'Jersey', summary: '', findings: [], mainColor: Color(0xff000000), secondaryColor: Color(0xff00d9ed), accentColor: Color(0xffffffff), pattern: 'Velocity', fabric: 'Standard', logoText: 'MINE', renderPrompt: '', patternMotif: ''))..image = c.references.first];
-    await mount(tester, ConceptsScreen(c));
-    await tester.tap(find.byTooltip('Design 1 actions'));
-    await tester.pumpAndSettle();
-    expect(find.text('Put my design on the 3D kit'), findsOneWidget);
-    await tap(tester, find.text('Put my design on the 3D kit'));
-    expect(c.screen, AppScreen.auth);
-  });
-
-  testWidgets('App home: Order now with 3DEEZI opens My Orders, and asks guests to sign in', (tester) async {
-    final server = OrdersServer();
-    final c = signedIn(server);
-    await mount(tester, ListView(children: [OrderNowSection(c)]));
-    expect(find.text('ORDER NOW WITH'), findsOneWidget);
-    expect(find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '3DEEZI'), findsOneWidget);
-    await tap(tester, find.text('VIEW MY ORDERS →'));
-    expect(c.screen, AppScreen.orders);
-    c.user = null;
-    await tap(tester, find.text('CREATE ORDER FORM →'));
-    expect(c.screen, AppScreen.auth);
-  });
-
-  testWidgets('Orders screen: opened from the home heading, own orders on the mini board, each card opens its screen', (tester) async {
-    final server = OrdersServer();
-    final c = signedIn(server);
-    await mount(tester, ListView(children: [OrderNowSection(c)]));
-    // The home's ORDER NOW heading opens the Orders screen (the website's /order-now).
-    await tap(tester, find.byKey(const ValueKey('order-now-open')));
-    expect(find.byType(OrderNowScreen), findsOneWidget);
-    expect(find.text('Orders'), findsOneWidget);
-    expect(find.text('Start an order. Upload your details. Follow its progress.'), findsWidgets);
-    // Signed in: the My Orders card shows the customer's own orders by stage.
-    final screen = find.byType(OrderNowScreen);
-    expect(find.descendant(of: screen, matching: find.text('Received')), findsOneWidget);
-    expect(find.descendant(of: screen, matching: find.text('MANTIS Rugby League')), findsOneWidget);
-    expect(find.descendant(of: screen, matching: find.text('#3DZ-00002')), findsOneWidget);
-    expect(server.requests.where((r) => r.url.path.endsWith('/orders/board')), hasLength(1));
-    // Create Order Form and Upload Your Order open the native screens on top.
-    await tap(tester, find.descendant(of: screen, matching: find.text('CREATE ORDER FORM →')));
-    expect(find.byType(OrderFormScreen), findsOneWidget);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    await tap(tester, find.descendant(of: screen, matching: find.text('UPLOAD YOUR ORDER →')));
-    expect(find.byType(OrderUploadScreen), findsOneWidget);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    // My Orders closes the Orders screen and shows the app's My orders.
-    await tap(tester, find.descendant(of: screen, matching: find.text('VIEW MY ORDERS →')));
-    expect(find.byType(OrderNowScreen), findsNothing);
-    expect(c.screen, AppScreen.orders);
-  });
-
-  testWidgets('Orders screen: a guest sees the cards (no board) and is asked to sign in', (tester) async {
-    final server = OrdersServer();
-    final c = AppController(store: FakeStore(), api: ApiClient(client: server.client, baseUrl: 'https://test.example'));
-    await mount(tester, OrderNowScreen(c));
-    expect(find.text('ORDER NOW WITH'), findsOneWidget);
-    expect(find.text('Received'), findsNothing);
-    expect(server.requests, isEmpty);
-    await tap(tester, find.text('UPLOAD YOUR ORDER →'));
-    expect(c.screen, AppScreen.auth);
-  });
-
-  test('a saved design sets its order row: zip hoodie → hoodie, pocket polo → polo, full kit → jersey', () {
-    expect(orderGarmentFor('Zip hoodie'), 'hoodie');
-    expect(orderGarmentFor('Hoodie'), 'hoodie');
-    expect(orderGarmentFor('Polo with pocket'), 'polo');
-    expect(orderGarmentFor('Full Kit'), 'jersey');
-    expect(orderGarmentFor('Training Tee'), 'tee');
-    expect(orderGarmentFor('Shorts'), 'shorts');
-    expect(orderGarmentFor('ziphoodie'), 'hoodie');
-    expect(orderGarmentFor('Something new'), 'jersey');
-  });
-
-  test('a saved design names only rows of its own garment, as the server and website (task 9.97)', () {
-    // The same garment, or the row the order form lists it under.
-    for (final (design, row) in [('Singlet', 'singlet'), ('Jersey', 'jersey'), ('Zip hoodie', 'hoodie'), ('Polo with pocket', 'polo'), ('Varsity jacket', 'jacket'), ('Track jacket', 'jacket'), ('singlet', 'singlet')]) {
-      expect(isDesignRow(design, row), isTrue, reason: '$design on $row');
-    }
-    // Another garment's row keeps its own name; a full kit names no single row.
-    for (final (design, row) in [('Singlet', 'jersey'), ('Jersey', 'tee'), ('Hoodie', 'jacket'), ('Full Kit', 'jersey'), ('Full Kit', 'shorts'), ('Singlet', 'other'), ('', 'jersey')]) {
-      expect(isDesignRow(design, row), isFalse, reason: '$design on $row');
-    }
-    expect(designRowName('Singlet', ' Netball bibs ', 'singlet'), 'Netball bibs');
-    expect(designRowName('Singlet', 'Netball bibs', 'jersey'), '');
-    expect(designRowName('Singlet', '', 'singlet'), '');
-  });
-
-  test('miniBoard: the first three stages with counts; null without orders', () {
-    final board = miniBoard({
-      'stages': [
-        {'key': 'received', 'count': 3, 'orders': [{'id': 1, 'number': '3DZ-1', 'name': 'A'}, {'id': 2, 'number': '3DZ-2', 'name': 'B'}, {'id': 3, 'number': '3DZ-3', 'name': 'C'}]},
-        {'key': 'design', 'count': 1, 'orders': [{'id': 4, 'number': '3DZ-4', 'name': 'D', 'action': 'review_design'}]},
-        {'key': 'production', 'count': 0, 'orders': []},
-        {'key': 'shipped', 'count': 5, 'orders': []},
-      ],
-    })!;
-    expect(board.map((c) => c.name), ['Received', 'Design', 'Production']);
-    expect(board.map((c) => c.count), [3, 1, 0]);
-    expect(board.first.cards, hasLength(2));
-    expect(board[1].cards.single.hot, isTrue);
-    expect(miniBoard({'stages': [{'key': 'received', 'count': 0, 'orders': []}]}), isNull);
-    expect(miniBoard(null), isNull);
-  });
-
-  testWidgets('Upload Your Order: the order form uploads, its rows are confirmed, then one order', (tester) async {
-    final server = OrdersServer();
-    pickOrderFile = (kind) async => (name: kind == 'order_form' ? 'order.csv' : 'logo.png', bytes: Uint8List.fromList(utf8.encode('Item,Size,Qty\nJersey,M,10\n')));
-    addTearDown(() => pickOrderFile = (kind) async => null);
-    await mount(tester, OrderUploadScreen(signedIn(server)));
-    await onPage(tester, find.textContaining('Fabian Soutar'));
-    expect(find.textContaining('Fabian Soutar'), findsOneWidget);
-    await tap(tester, find.text('Edit'));
-    await typeIn(tester, 'Team / organisation', 'Lions FC');
-    await tap(tester, find.text('Choose your order form'));
-    expect(find.text('Uploaded'), findsOneWidget);
-    expect(find.text('Replace'), findsOneWidget);
-    // Section 1 needs the mobile, the date required and the delivery address (client 2026-10-22).
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('Add a mobile number so we can reach you.'), findsOneWidget);
-    await typeIn(tester, 'Mobile', '0412 345');
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('Enter a mobile number, e.g. 0412 345 678 or +61 412 345 678.'), findsOneWidget);
-    await typeIn(tester, 'Mobile', '0412 345 678');
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('Choose the date you need the order by.'), findsOneWidget);
-    await fromTop(tester);
-    await tap(tester, find.byKey(const Key('date-required')));
-    await tap(tester, find.text('OK'));
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('Add the street address for delivery.'), findsOneWidget);
-    await typeIn(tester, 'Street address', '12 Smith Street');
-    await typeIn(tester, 'Suburb / town', 'Rotorua');
-    await fromTop(tester);
-    await tap(tester, find.byKey(const Key('address-state')));
-    await tap(tester, find.text('QLD').last);
-    await typeIn(tester, 'Postcode', '4000');
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
-    await seeIt(tester, find.byKey(const Key('review-date-required')));
-    expect(find.text('12 Smith Street, Rotorua QLD 4000, Australia'), findsOneWidget);
-    // Not confirmed yet: no garments to price, so the server asks for a quote (below the rows read from the form).
-    await tester.scrollUntilVisible(find.byKey(const Key('quote-required')), 300, scrollable: find.byType(Scrollable).first);
-    expect(find.byKey(const Key('quote-required')), findsOneWidget);
-    expect(find.textContaining('We price uploaded order forms after checking them.'), findsOneWidget);
-    await approve(tester);
-    expect(find.text('3DZ-00012'), findsOneWidget);
-    final sent = server.submitted.single;
-    expect(sent['team_name'], 'Lions FC');
-    expect((sent['items'] as List).single['sizes'], {'M': 10});
-    expect(sent['phone'], '0412 345 678');
-    expect(sent['needed_by'], matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
-    expect(sent['delivery'], 'deliver');
-    expect(sent['address'], {'street': '12 Smith Street', 'suburb': 'Rotorua', 'state': 'QLD', 'postcode': '4000', 'country': 'Australia'});
-    // The review's "Delivery to" starts from the address's country.
-    expect((sent['pricing'] as Map)['destination'], 'AU');
-  });
-
-  testWidgets('Upload Your Order: 3DEEZI AI reads the club form into rows and players to check, and fills the date required', (tester) async {
-    // Client 2026-10-22: "user doesn't need to fill this out because they are uploading the form".
-    final server = OrdersServer();
-    final due = DateTime.now().add(const Duration(days: 30));
-    final ymd = '${due.year}-${due.month.toString().padLeft(2, '0')}-${due.day.toString().padLeft(2, '0')}';
-    server.aiReading = {
-      'file_id': 31, 'source': 'ai', 'file_name': 'order.csv', 'read_at': '2026-10-22T10:00:00Z', 'players': 3, 'rows': 0, 'summary': '',
-      'items': [
-        {'garment': 'jersey', 'sport': 'rugby-league', 'fit': 'youth', 'name': 'Rugby League Jersey', 'sizes': {'Kids': 2},
-          'players': [{'name': 'WALKER', 'number': '1', 'size': 'Kids'}, {'name': 'HALE', 'number': '6', 'size': 'Kids'}, {'name': 'PARKER', 'number': '4', 'size': null}]},
-      ],
-      'details': [{'form_sizes': {'10Y': 1, '16Y': 1}, 'player_sizes': ['10Y', '16Y', '']}],
-      'unknown': ['Jersey: PARKER 4 (size missing)'],
-      'form': {'team_name': 'TE ARAWA RUGBY LEAGUE U13', 'contact_name': '', 'contact_email': '', 'phone': '0412 345 678', 'needed_by': ymd, 'needed_by_text': '',
-        'delivery': '', 'address': {'street': '', 'suburb': '', 'state': '', 'postcode': '', 'country': ''}, 'notes': ''},
-    };
-    pickOrderFile = (kind) async => (name: 'order.csv', bytes: Uint8List.fromList(utf8.encode('10Y,WALKER,1\n16Y,HALE,6\n,PARKER,4\n')));
-    addTearDown(() => pickOrderFile = (kind) async => null);
-    await mount(tester, OrderUploadScreen(signedIn(server)));
-    await tap(tester, find.text('Choose your order form'));
-    // Read at once: the team, mobile and date required come from the form (the customer left them empty).
-    expect(find.byKey(const Key('ai-status')), findsOneWidget);
-    await fromTop(tester);
-    await onPage(tester, find.textContaining('TE ARAWA RUGBY LEAGUE U13'));
-    expect(find.textContaining('TE ARAWA RUGBY LEAGUE U13'), findsOneWidget);
-    await tap(tester, find.byKey(const Key('delivery-pickup')));
-    await tap(tester, find.text('REVIEW ORDER'));
-    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
-    expect(find.textContaining('Read by 3DEEZI AI from order.csv'), findsOneWidget);
-    // The youth sizes as the form wrote them, in place of Kids.
-    await seeIt(tester, find.text('10Y'));
-    expect(find.text('16Y'), findsOneWidget);
-    // Edit garment opens the rows read from the form, to correct.
-    await tap(tester, find.text('Edit garment'));
-    await seeIt(tester, find.text('WALKER'));
-    expect(find.textContaining('As on your form: 10Y 1 · 16Y 1'), findsOneWidget);
-    await seeIt(tester, find.textContaining('PARKER 4 (size missing)'));
-    await approve(tester);
-    expect(find.text('3DZ-00012'), findsOneWidget);
-    final sent = server.submitted.single;
-    expect(sent['needed_by'], ymd);
-    expect(sent['phone'], '0412 345 678');
-    expect(sent['team_name'], 'TE ARAWA RUGBY LEAGUE U13');
-    // Only the order's own fields go: no display fields.
-    expect(sent['items'], [
-      {'garment': 'jersey', 'sport': 'rugby-league', 'fit': 'youth', 'sizes': {'Kids': 2},
-        'players': [{'name': 'WALKER', 'number': '1', 'size': 'Kids'}, {'name': 'HALE', 'number': '6', 'size': 'Kids'}, {'name': 'PARKER', 'number': '4', 'size': null}]},
-    ]);
-  });
-
-  testWidgets('Upload Your Order: pick up is quoted without shipping and fits 360, 390 and 430 wide', (tester) async {
-    for (final width in [360.0, 390.0, 430.0]) {
+  testWidgets(
+    'Create Order Form: a design made as a sport garment ("Netball bibs") is reviewed and priced by that name',
+    (tester) async {
+      // QA T4a: the review named it "Singlet" / "Netball singlet" while the placed order and invoice say "Netball bibs".
       final server = OrdersServer();
-      pickOrderFile = (kind) async => (name: 'order.csv', bytes: Uint8List.fromList(utf8.encode('Item,Size,Qty\nJersey,M,10\n')));
-      // A new screen each time (the same one would keep the last run's state).
-      await mount(tester, OrderUploadScreen(signedIn(server), key: ValueKey(width)), width: width);
-      await tap(tester, find.text('Edit'));
-      await typeIn(tester, 'Team / organisation', 'Lions FC');
-      await typeIn(tester, 'Mobile', '+61 412 345 678');
+      final c = signedIn(server);
+      final sample = singletBase(c);
+      final j = ProjectStore.encode(sample)
+        ..['id'] = 'bibs-1'
+        ..['title'] = 'Firebirds bibs'
+        ..['remoteId'] = 77;
+      (j['kit'] as Map)['productName'] = 'Netball bibs';
+      c.projects.insert(
+        0,
+        ProjectStore.decode(
+          jsonDecode(jsonEncode(j)) as Map<String, dynamic>,
+          ProjectStore.images(sample),
+        ),
+      );
+      await mount(tester, OrderFormScreen(c));
+      await tap(tester, find.text('No saved design'));
+      await tap(tester, find.text('Firebirds bibs').last);
+      await seeIt(tester, find.byKey(const Key('size-0-M')));
+      await tester.ensureVisible(find.byKey(const Key('size-0-M')));
+      await tester.enterText(find.byKey(const Key('size-0-M')), '7');
+      await tester.pumpAndSettle();
+      await addArtwork(tester);
+      await tap(tester, find.text('REVIEW ORDER'));
+      await fillDelivery(tester, pickup: true);
+      await fromTop(tester);
+      await seeIt(tester, find.text('REVIEW & APPROVE ORDER'));
+      await scrollTo(
+        tester,
+        find.textContaining('NETBALL BIBS', findRichText: true),
+      );
+      expect(
+        find.textContaining('NETBALL BIBS', findRichText: true),
+        findsWidgets,
+      );
+      expect(find.textContaining('SINGLET', findRichText: true), findsNothing);
+      // Priced under its name, as the order will be (the server names the placed row the same way).
+      await seeIt(tester, find.byType(PriceBox));
+      await tester.pumpAndSettle();
+      final quoted = (server.quotes.last['items'] as List).cast<Map>().single;
+      expect(
+        [quoted['label'], quoted['project_id'], quoted['garment']],
+        ['Netball bibs', 77, 'singlet'],
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: American Football designs ("Game Jersey", "Varsity Jacket") are reviewed by name; an unpriced jacket asks for a quote, no NaN',
+    (tester) async {
+      // Linked modules of 9.106: the client's American Football tiles in the app's order form.
+      final server = OrdersServer()..unpriced.add('jacket');
+      final c = signedIn(server);
+      final sample = singletBase(c);
+      Project design(
+        String id,
+        int remote,
+        String title,
+        String garment,
+        String product,
+      ) {
+        final j = ProjectStore.encode(sample)
+          ..['id'] = id
+          ..['title'] = title
+          ..['sport'] = 'American Football'
+          ..['garment'] = garment
+          ..['remoteId'] = remote;
+        (j['kit'] as Map)
+          ..['garment'] = garment
+          ..['productName'] = product;
+        return ProjectStore.decode(
+          jsonDecode(jsonEncode(j)) as Map<String, dynamic>,
+          ProjectStore.images(sample),
+        );
+      }
+
+      c.projects.insertAll(0, [
+        design('nfl-1', 81, 'Wildcats game jersey', 'Jersey', 'Game Jersey'),
+        design(
+          'nfl-2',
+          82,
+          'Wildcats varsity',
+          'Varsity jacket',
+          'Varsity Jacket',
+        ),
+      ]);
+      await mount(tester, OrderFormScreen(c));
+      await tap(tester, find.text('No saved design'));
+      await tap(tester, find.text('Wildcats game jersey').last);
+      await seeIt(tester, find.byKey(const Key('size-0-M')));
+      await tester.ensureVisible(find.byKey(const Key('size-0-M')));
+      await tester.enterText(find.byKey(const Key('size-0-M')), '6');
+      await tester.pumpAndSettle();
+      await tap(tester, find.text('Add garment').last);
+      await tap(tester, find.text('No saved design').last);
+      await tap(tester, find.text('Wildcats varsity').last);
+      await seeIt(tester, find.byKey(const Key('size-1-L')));
+      await tester.ensureVisible(find.byKey(const Key('size-1-L')));
+      await tester.enterText(find.byKey(const Key('size-1-L')), '3');
+      await tester.pumpAndSettle();
+      await addArtwork(tester);
+      await tap(tester, find.text('REVIEW ORDER'));
+      await fillDelivery(tester, pickup: true);
+      await fromTop(tester);
+      await seeIt(tester, find.text('REVIEW & APPROVE ORDER'));
+      // Each garment's own section, by its name (the review is a list: scroll to the second), then the price.
+      await scrollTo(
+        tester,
+        find.textContaining('GAME JERSEY', findRichText: true),
+      );
+      expect(
+        find.textContaining('GAME JERSEY', findRichText: true),
+        findsWidgets,
+      );
+      await tester.scrollUntilVisible(
+        find.textContaining('02 — VARSITY JACKET', findRichText: true),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await seeIt(tester, find.byType(PriceBox));
+      await tester.pumpAndSettle();
+      final quoted = (server.quotes.last['items'] as List).cast<Map>();
+      expect(
+        [
+          for (final q in quoted) [q['label'], q['project_id'], q['garment']],
+        ],
+        [
+          ['Game Jersey', 81, 'jersey'],
+          ['Varsity Jacket', 82, 'jacket'],
+        ],
+      );
+      // The jacket has no price yet: a quote is asked for, with the reason; never NaN or a broken total.
+      expect(
+        find.textContaining('Quote required', findRichText: true),
+        findsWidgets,
+      );
+      expect(
+        find.textContaining(
+          'No price is set for Varsity Jacket yet.',
+          findRichText: true,
+        ),
+        findsWidgets,
+      );
+      expect(find.textContaining('NaN', findRichText: true), findsNothing);
+      expect(find.textContaining('null', findRichText: true), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: a saved design names only rows of its own garment ("Netball bibs" on a jersey row is a Jersey)',
+    (tester) async {
+      // QA U O4 (task 9.97): the "Netball bibs" design (a singlet) named every row it was on, a jersey row too; the
+      // server and the website now name only the design's own garment's rows (SP/W1/price-format.md).
+      final server = OrdersServer();
+      final c = signedIn(server);
+      final sample = singletBase(c);
+      final j = ProjectStore.encode(sample)
+        ..['id'] = 'bibs-1'
+        ..['title'] = 'Firebirds bibs'
+        ..['remoteId'] = 77;
+      (j['kit'] as Map)['productName'] = 'Netball bibs';
+      c.projects.insert(
+        0,
+        ProjectStore.decode(
+          jsonDecode(jsonEncode(j)) as Map<String, dynamic>,
+          ProjectStore.images(sample),
+        ),
+      );
+      await mount(tester, OrderFormScreen(c));
+      // Row 1: the bibs design (it sets the singlet).
+      await tap(tester, find.text('No saved design'));
+      await tap(tester, find.text('Firebirds bibs').last);
+      await seeIt(tester, find.byKey(const Key('size-0-M')));
+      await tester.ensureVisible(find.byKey(const Key('size-0-M')));
+      await tester.enterText(find.byKey(const Key('size-0-M')), '7');
+      await tester.pumpAndSettle();
+      // Row 2: the same design, then the garment changed to a jersey.
+      await tap(tester, find.text('Add garment').last);
+      await tap(tester, find.text('No saved design').last);
+      await tap(tester, find.text('Firebirds bibs').last);
+      await tap(tester, find.text('Singlet').last);
+      await tap(tester, find.text('Jersey').last);
+      await seeIt(tester, find.byKey(const Key('size-1-L')));
+      await tester.ensureVisible(find.byKey(const Key('size-1-L')));
+      await tester.enterText(find.byKey(const Key('size-1-L')), '5');
+      await tester.pumpAndSettle();
+      await addArtwork(tester);
+      await tap(tester, find.text('REVIEW ORDER'));
+      await fillDelivery(tester, pickup: true);
+      await fromTop(tester);
+      await seeIt(tester, find.text('REVIEW & APPROVE ORDER'));
+      await scrollTo(
+        tester,
+        find.textContaining('01 — NETBALL BIBS', findRichText: true),
+      );
+      expect(
+        find.textContaining('01 — NETBALL BIBS', findRichText: true),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.textContaining('02 — JERSEY', findRichText: true),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.textContaining('02 — NETBALL BIBS', findRichText: true),
+        findsNothing,
+      );
+      // Priced the same way: only the singlet row under the design's name.
+      await seeIt(tester, find.byType(PriceBox));
+      await tester.pumpAndSettle();
+      final quoted = (server.quotes.last['items'] as List).cast<Map>();
+      expect(
+        [
+          for (final q in quoted) [q['label'], q['project_id'], q['garment']],
+        ],
+        [
+          ['Netball bibs', 77, 'singlet'],
+          [null, 77, 'jersey'],
+        ],
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: REVIEW & APPROVE ORDER fits 360, 390 and 430 wide',
+    (tester) async {
+      for (final width in [360.0, 390.0, 430.0]) {
+        final server = OrdersServer();
+        await mount(
+          tester,
+          OrderFormScreen(signedIn(server), key: ValueKey(width)),
+          width: width,
+        );
+        await typeIn(
+          tester,
+          '12 jerseys M, 12 shorts L, 6 hoodies XL',
+          '12 jerseys M, 12 shorts L',
+        );
+        await tap(tester, find.text('Help me add sizes').last);
+        await addArtwork(tester);
+        await tap(tester, find.text('REVIEW ORDER'));
+        await fillDelivery(tester, pickup: true);
+        await fromTop(tester);
+        await seeIt(tester, find.text('REVIEW & APPROVE ORDER'));
+        expect(find.byKey(const Key('review-steps')), findsOneWidget);
+        await approve(tester);
+        expect(server.submitted, hasLength(1));
+        expect(find.text('ORDER SENT'), findsOneWidget);
+        expect(tester.takeException(), isNull, reason: 'width $width');
+      }
+    },
+  );
+
+  testWidgets(
+    'Review price choices: destination, extras and discount code reprice; the invoice matches',
+    (tester) async {
+      final server = OrdersServer();
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      await typeIn(
+        tester,
+        '12 jerseys M, 12 shorts L, 6 hoodies XL',
+        '12 jerseys M, 12 shorts L',
+      );
+      await tap(tester, find.text('Help me add sizes').last);
+      await addArtwork(tester);
+      await tap(tester, find.text('REVIEW ORDER'));
+      await fillDelivery(tester);
+      // Australia by default: 960 + 100 shipping, GST 106 (prices as the website writes them, task 9.85).
+      await seeIt(tester, find.text(r'A$1,166.00'));
+      expect(find.text(r'A$100.00'), findsOneWidget);
+      expect(find.text(r'A$106.00'), findsOneWidget);
+      // The extras' prices too.
+      expect(find.text(r'A$150.00 per order'), findsOneWidget);
+      // To New Zealand: shipping and GST change.
+      await tap(tester, find.byKey(const Key('price-destination')));
+      await tap(tester, find.text('New Zealand').last);
+      expect(find.text('Shipping · New Zealand'), findsOneWidget);
+      expect(find.text(r'A$1,331.00'), findsOneWidget);
+      // An extra.
+      await tap(tester, find.text('Express production'));
+      expect(find.text('Express production x 1'), findsOneWidget);
+      expect(find.text(r'A$1,496.00'), findsOneWidget);
+      // A wrong code is named; a good one takes 10% off garments and extras.
+      await tester.enterText(find.byKey(const Key('price-code')), 'NOPE');
+      await tap(tester, find.text('Apply'));
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('code-error')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byKey(const Key('code-error')), findsOneWidget);
+      expect(find.text(r'A$1,496.00'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('price-code')), 'team10');
+      await tap(tester, find.text('Apply'));
+      expect(find.text('Team 10%'), findsOneWidget);
+      // The discount with the minus before the prefix, as on the website.
+      expect(find.text(r'-A$111.00'), findsOneWidget);
+      expect(find.text(r'A$1,373.90'), findsOneWidget);
+      expect(find.textContaining('AUD', findRichText: true), findsNothing);
+      expect(server.quotes.last['pricing'], {
+        'destination': 'NZ',
+        'extras': ['express'],
+        'discount_code': 'TEAM10',
+      });
+      // Approved with those choices: the invoice is the reviewed total.
+      await approve(tester);
+      expect(server.submitted.single['pricing'], {
+        'destination': 'NZ',
+        'extras': ['express'],
+        'discount_code': 'TEAM10',
+      });
+      expect(find.text(r'Invoice INV-1001: A$1,373.90'), findsOneWidget);
+      // Pay now's amount due.
+      expect(find.text(r'A$1,373.90 due'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Review "Delivery to" follows section 1: Pick up (no list), New Zealand, International (task 9.97)',
+    (tester) async {
+      // It showed "Australia" for a picked-up order or another country, while the price was for those (as the website).
+      final server = OrdersServer();
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      await typeIn(
+        tester,
+        '12 jerseys M, 12 shorts L, 6 hoodies XL',
+        '12 jerseys M, 12 shorts L',
+      );
+      await tap(tester, find.text('Help me add sizes').last);
+      await addArtwork(tester);
+      await tap(tester, find.text('REVIEW ORDER'));
+      await fillDelivery(tester, pickup: true);
+      await seeIt(tester, find.byKey(const Key('price-pickup')));
+      await tester.pumpAndSettle();
+      expect(find.text('Pick up from 3DEEZI (no delivery)'), findsOneWidget);
+      expect(find.byKey(const Key('price-destination')), findsNothing);
+      expect((server.quotes.last['pricing'] as Map)['destination'], 'PICKUP');
+      Finder shows(String name) => find.descendant(
+        of: find.byKey(const Key('price-destination')),
+        matching: find.text(name),
+      );
+      // Delivered to New Zealand (changed on the same page, step 2): the list shows New Zealand, the price is for it.
+      await fromTop(tester);
+      await tap(tester, find.byKey(const Key('delivery-deliver')));
+      await typeIn(tester, 'Street address', '12 Smith Street');
+      await typeIn(tester, 'Suburb / town', 'Rotorua');
+      await typeIn(tester, 'Country', 'New Zealand');
+      await seeIt(tester, find.byKey(const Key('price-destination')));
+      await tester.pumpAndSettle();
+      expect(shows('New Zealand'), findsOneWidget);
+      expect(shows('Australia'), findsNothing);
+      expect(find.byKey(const Key('price-pickup')), findsNothing);
+      expect((server.quotes.last['pricing'] as Map)['destination'], 'NZ');
+      // A country the price list has no price for: shown as itself (3DEEZI prices it).
+      await typeIn(tester, 'Country', 'Fiji');
+      await seeIt(tester, find.byKey(const Key('price-destination')));
+      await tester.pumpAndSettle();
+      expect(shows('International'), findsOneWidget);
+      expect((server.quotes.last['pricing'] as Map)['destination'], 'INTL');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'AI designer results: a reference picture can go on the 3D kit (guests sign in first)',
+    (tester) async {
+      final c = AppController(store: FakeStore());
+      // A real 1 x 1 PNG.
+      c.references.add(
+        base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+        ),
+      );
+      // The results show a design; the picture is in its ⋯ menu (146.jpg).
+      c.concepts = [
+        Concept(
+          const DesignSpec(
+            designName: 'Mine',
+            detected: 'Jersey',
+            summary: '',
+            findings: [],
+            mainColor: Color(0xff000000),
+            secondaryColor: Color(0xff00d9ed),
+            accentColor: Color(0xffffffff),
+            pattern: 'Velocity',
+            fabric: 'Standard',
+            logoText: 'MINE',
+            renderPrompt: '',
+            patternMotif: '',
+          ),
+        )..image = c.references.first,
+      ];
+      await mount(tester, ConceptsScreen(c));
+      await tester.tap(find.byTooltip('Design 1 actions'));
+      await tester.pumpAndSettle();
+      expect(find.text('Put my design on the 3D kit'), findsOneWidget);
+      await tap(tester, find.text('Put my design on the 3D kit'));
+      expect(c.screen, AppScreen.auth);
+    },
+  );
+
+  testWidgets(
+    'App home: Order now with 3DEEZI opens My Orders, and asks guests to sign in',
+    (tester) async {
+      final server = OrdersServer();
+      final c = signedIn(server);
+      await mount(tester, ListView(children: [OrderNowSection(c)]));
+      expect(find.text('ORDER NOW WITH'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Image && w.semanticLabel == '3DEEZI',
+        ),
+        findsOneWidget,
+      );
+      await tap(tester, find.text('VIEW MY ORDERS →'));
+      expect(c.screen, AppScreen.orders);
+      c.user = null;
+      await tap(tester, find.text('CREATE ORDER FORM →'));
+      expect(c.screen, AppScreen.auth);
+    },
+  );
+
+  testWidgets(
+    'Orders screen: opened from the home heading, own orders on the mini board, each card opens its screen',
+    (tester) async {
+      final server = OrdersServer();
+      final c = signedIn(server);
+      await mount(tester, ListView(children: [OrderNowSection(c)]));
+      // The home's ORDER NOW heading opens the Orders screen (the website's /order-now).
+      await tap(tester, find.byKey(const ValueKey('order-now-open')));
+      expect(find.byType(OrderNowScreen), findsOneWidget);
+      expect(find.text('Orders'), findsOneWidget);
+      expect(
+        find.text('Start an order. Upload your details. Follow its progress.'),
+        findsWidgets,
+      );
+      // Signed in: the My Orders card shows the customer's own orders by stage.
+      final screen = find.byType(OrderNowScreen);
+      expect(
+        find.descendant(of: screen, matching: find.text('Received')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: screen, matching: find.text('MANTIS Rugby League')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: screen, matching: find.text('#3DZ-00002')),
+        findsOneWidget,
+      );
+      expect(
+        server.requests.where((r) => r.url.path.endsWith('/orders/board')),
+        hasLength(1),
+      );
+      // Create Order Form and Upload Your Order open the native screens on top.
+      await tap(
+        tester,
+        find.descendant(of: screen, matching: find.text('CREATE ORDER FORM →')),
+      );
+      expect(find.byType(OrderFormScreen), findsOneWidget);
+      await goBack(tester);
+      await tester.pumpAndSettle();
+      await tap(
+        tester,
+        find.descendant(of: screen, matching: find.text('UPLOAD YOUR ORDER →')),
+      );
+      expect(find.byType(OrderUploadScreen), findsOneWidget);
+      await goBack(tester);
+      await tester.pumpAndSettle();
+      // My Orders closes the Orders screen and shows the app's My orders.
+      await tap(
+        tester,
+        find.descendant(of: screen, matching: find.text('VIEW MY ORDERS →')),
+      );
+      expect(find.byType(OrderNowScreen), findsNothing);
+      expect(c.screen, AppScreen.orders);
+    },
+  );
+
+  testWidgets(
+    'Orders screen: a guest sees the cards (no board) and is asked to sign in',
+    (tester) async {
+      final server = OrdersServer();
+      final c = AppController(
+        store: FakeStore(),
+        api: ApiClient(client: server.client, baseUrl: 'https://test.example'),
+      );
+      await mount(tester, OrderNowScreen(c));
+      expect(find.text('ORDER NOW WITH'), findsOneWidget);
+      expect(find.text('Received'), findsNothing);
+      expect(server.requests, isEmpty);
+      await tap(tester, find.text('UPLOAD YOUR ORDER →'));
+      expect(c.screen, AppScreen.auth);
+    },
+  );
+
+  test(
+    'a saved design sets its order row: zip hoodie → hoodie, pocket polo → polo, full kit → jersey',
+    () {
+      expect(orderGarmentFor('Zip hoodie'), 'hoodie');
+      expect(orderGarmentFor('Hoodie'), 'hoodie');
+      expect(orderGarmentFor('Polo with pocket'), 'polo');
+      expect(orderGarmentFor('Full Kit'), 'jersey');
+      expect(orderGarmentFor('Training Tee'), 'tee');
+      expect(orderGarmentFor('Shorts'), 'shorts');
+      expect(orderGarmentFor('ziphoodie'), 'hoodie');
+      expect(orderGarmentFor('Something new'), 'jersey');
+    },
+  );
+
+  test(
+    'a saved design names only rows of its own garment, as the server and website (task 9.97)',
+    () {
+      // The same garment, or the row the order form lists it under.
+      for (final (design, row) in [
+        ('Singlet', 'singlet'),
+        ('Jersey', 'jersey'),
+        ('Zip hoodie', 'hoodie'),
+        ('Polo with pocket', 'polo'),
+        ('Varsity jacket', 'jacket'),
+        ('Track jacket', 'jacket'),
+        ('singlet', 'singlet'),
+      ]) {
+        expect(isDesignRow(design, row), isTrue, reason: '$design on $row');
+      }
+      // Another garment's row keeps its own name; a full kit names no single row.
+      for (final (design, row) in [
+        ('Singlet', 'jersey'),
+        ('Jersey', 'tee'),
+        ('Hoodie', 'jacket'),
+        ('Full Kit', 'jersey'),
+        ('Full Kit', 'shorts'),
+        ('Singlet', 'other'),
+        ('', 'jersey'),
+      ]) {
+        expect(isDesignRow(design, row), isFalse, reason: '$design on $row');
+      }
+      expect(
+        designRowName('Singlet', ' Netball bibs ', 'singlet'),
+        'Netball bibs',
+      );
+      expect(designRowName('Singlet', 'Netball bibs', 'jersey'), '');
+      expect(designRowName('Singlet', '', 'singlet'), '');
+    },
+  );
+
+  test(
+    'miniBoard: the first three stages with counts; null without orders',
+    () {
+      final board = miniBoard({
+        'stages': [
+          {
+            'key': 'received',
+            'count': 3,
+            'orders': [
+              {'id': 1, 'number': '3DZ-1', 'name': 'A'},
+              {'id': 2, 'number': '3DZ-2', 'name': 'B'},
+              {'id': 3, 'number': '3DZ-3', 'name': 'C'},
+            ],
+          },
+          {
+            'key': 'design',
+            'count': 1,
+            'orders': [
+              {
+                'id': 4,
+                'number': '3DZ-4',
+                'name': 'D',
+                'action': 'review_design',
+              },
+            ],
+          },
+          {'key': 'production', 'count': 0, 'orders': []},
+          {'key': 'shipped', 'count': 5, 'orders': []},
+        ],
+      })!;
+      expect(board.map((c) => c.name), ['Received', 'Design', 'Production']);
+      expect(board.map((c) => c.count), [3, 1, 0]);
+      expect(board.first.cards, hasLength(2));
+      expect(board[1].cards.single.hot, isTrue);
+      expect(
+        miniBoard({
+          'stages': [
+            {'key': 'received', 'count': 0, 'orders': []},
+          ],
+        }),
+        isNull,
+      );
+      expect(miniBoard(null), isNull);
+    },
+  );
+
+  testWidgets(
+    'Upload Your Order: two steps; the order form and artwork, then the details and the review, then one order',
+    (tester) async {
+      final server = OrdersServer();
+      pickOrderFile = (kind) async => (
+        name: kind == 'order_form' ? 'order.csv' : 'logo.png',
+        bytes: Uint8List.fromList(utf8.encode('Item,Size,Qty\nJersey,M,10\n')),
+      );
+      addTearDown(() => pickOrderFile = (kind) async => null);
+      await mount(tester, OrderUploadScreen(signedIn(server)));
+      // Step 1 (client 2026-11-05): the order form and the artwork, both required; no contact, team or Made by.
+      expect(find.text('Team / organisation'), findsNothing);
+      expect(find.byKey(const Key('made-by')), findsNothing);
+      await tap(tester, find.text('REVIEW ORDER'));
+      expect(find.text('Upload your completed order form.'), findsOneWidget);
+      await tap(tester, find.text('Choose your order form'));
+      expect(find.text('Uploaded'), findsOneWidget);
+      expect(find.text('Replace'), findsOneWidget);
+      // A spreadsheet is not artwork: the artwork is asked for.
+      await tap(tester, find.text('REVIEW ORDER'));
+      expect(
+        find.text('Add your artwork: upload your logo, artwork or mockup.'),
+        findsOneWidget,
+      );
+      await tap(tester, find.text('Add your logos, artwork or mockup'));
+      await tap(tester, find.text('REVIEW ORDER'));
+      // Step 2: the details (name from the account), then the review; Approve checks them one by one.
+      expect(find.widgetWithText(TextField, 'Fabian Soutar'), findsOneWidget);
+      // Not confirmed yet: no garments to price, so the server asks for a quote (below the rows read from the form).
+      await fromTop(tester);
+      await scrollTo(tester, find.byKey(const Key('quote-required')));
+      expect(find.byKey(const Key('quote-required')), findsOneWidget);
+      expect(
+        find.textContaining(
+          'We price uploaded order forms after checking them.',
+        ),
+        findsOneWidget,
+      );
+      await fromTop(tester);
+      Future<void> again() async {
+        await seeIt(tester, find.byKey(const Key('approve-order')));
+        await tester.ensureVisible(find.byKey(const Key('approve-order')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('approve-order')));
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> asks(String text) async {
+        await fromTop(tester);
+        await seeIt(tester, find.text(text));
+        expect(server.submitted, isEmpty);
+      }
+
+      await approve(tester);
+      await asks('Add a mobile number so we can reach you.');
+      await typeIn(tester, 'Mobile', '0412 345');
+      await again();
+      await asks(
+        'Enter a mobile number, e.g. 0412 345 678 or +61 412 345 678.',
+      );
+      await typeIn(tester, 'Mobile', '0412 345 678');
+      await again();
+      await asks('Choose the date you need the order by.');
       await fromTop(tester);
       await tap(tester, find.byKey(const Key('date-required')));
       await tap(tester, find.text('OK'));
-      await tap(tester, find.byKey(const Key('delivery-pickup')));
-      expect(find.text('Street address'), findsNothing);
-      await tap(tester, find.text('Choose your order form'));
-      await tap(tester, find.text('REVIEW ORDER'));
-      await seeIt(tester, find.text('Pick up from 3DEEZI'));
-      await tap(tester, find.byKey(const Key('approve-check')));
-      // The price list has no pick-up price: the quote asks for PICKUP (no shipping), the order leaves it to the server.
-      expect((server.quotes.last['pricing'] as Map)['destination'], 'PICKUP');
-      await tap(tester, find.text('APPROVE & CONTINUE TO PAYMENT'));
+      await again();
+      await asks('Add the street address for delivery.');
+      await typeIn(tester, 'Street address', '12 Smith Street');
+      await typeIn(tester, 'Suburb / town', 'Rotorua');
+      await fromTop(tester);
+      await tap(tester, find.byKey(const Key('address-state')));
+      await tap(tester, find.text('QLD').last);
+      await typeIn(tester, 'Postcode', '4000');
+      await scrollTo(tester, find.text('REVIEW & APPROVE ORDER'));
+      await scrollTo(tester, find.byKey(const Key('review-date-required')));
+      await fromTop(tester);
+      await scrollTo(tester, find.byKey(const Key('review-delivery')));
+      expect(
+        tester.widget<Text>(find.byKey(const Key('review-delivery'))).data,
+        '12 Smith Street, Rotorua QLD 4000, Australia',
+      );
+      await again();
+      expect(find.text('3DZ-00012'), findsOneWidget);
       final sent = server.submitted.single;
-      expect(sent['delivery'], 'pickup');
-      expect((sent['pricing'] as Map?)?['destination'], isNull);
-      expect(tester.takeException(), isNull, reason: 'width $width');
+      expect(sent['team_name'] ?? '', '');
+      expect((sent['items'] as List).single['sizes'], {'M': 10});
+      expect(sent['phone'], '0412 345 678');
+      expect(sent['needed_by'], matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
+      expect(sent['delivery'], 'deliver');
+      expect(sent['address'], {
+        'street': '12 Smith Street',
+        'suburb': 'Rotorua',
+        'state': 'QLD',
+        'postcode': '4000',
+        'country': 'Australia',
+      });
+      // The review's "Delivery to" starts from the address's country.
+      expect((sent['pricing'] as Map)['destination'], 'AU');
+    },
+  );
+
+  testWidgets(
+    'Upload Your Order: 3DEEZI AI reads the club form into rows and players to check, and fills the date required',
+    (tester) async {
+      // Client 2026-10-22: "user doesn't need to fill this out because they are uploading the form".
+      final server = OrdersServer();
+      final due = DateTime.now().add(const Duration(days: 30));
+      final ymd =
+          '${due.year}-${due.month.toString().padLeft(2, '0')}-${due.day.toString().padLeft(2, '0')}';
+      server.aiReading = {
+        'file_id': 31,
+        'source': 'ai',
+        'file_name': 'order.csv',
+        'read_at': '2026-10-22T10:00:00Z',
+        'players': 3,
+        'rows': 0,
+        'summary': '',
+        'items': [
+          {
+            'garment': 'jersey',
+            'sport': 'rugby-league',
+            'fit': 'youth',
+            'name': 'Rugby League Jersey',
+            'sizes': {'Kids': 2},
+            'players': [
+              {'name': 'WALKER', 'number': '1', 'size': 'Kids'},
+              {'name': 'HALE', 'number': '6', 'size': 'Kids'},
+              {'name': 'PARKER', 'number': '4', 'size': null},
+            ],
+          },
+        ],
+        'details': [
+          {
+            'form_sizes': {'10Y': 1, '16Y': 1},
+            'player_sizes': ['10Y', '16Y', ''],
+          },
+        ],
+        'unknown': ['Jersey: PARKER 4 (size missing)'],
+        'form': {
+          'team_name': 'TE ARAWA RUGBY LEAGUE U13',
+          'contact_name': '',
+          'contact_email': '',
+          'phone': '0412 345 678',
+          'needed_by': ymd,
+          'needed_by_text': '',
+          'delivery': '',
+          'address': {
+            'street': '',
+            'suburb': '',
+            'state': '',
+            'postcode': '',
+            'country': '',
+          },
+          'notes': '',
+        },
+      };
+      pickOrderFile = (kind) async => (
+        name: kind == 'order_form' ? 'order.csv' : 'logo.png',
+        bytes: Uint8List.fromList(
+          utf8.encode('10Y,WALKER,1\n16Y,HALE,6\n,PARKER,4\n'),
+        ),
+      );
       addTearDown(() => pickOrderFile = (kind) async => null);
-    }
-  });
+      await mount(tester, OrderUploadScreen(signedIn(server)));
+      await tap(tester, find.text('Choose your order form'));
+      // Read at once: the team, mobile and date required come from the form (the customer left them empty).
+      expect(find.byKey(const Key('ai-status')), findsOneWidget);
+      await tap(tester, find.text('Add your logos, artwork or mockup'));
+      await tap(tester, find.text('REVIEW ORDER'));
+      // Step 2: the mobile from the form; only Pick up to choose.
+      expect(find.widgetWithText(TextField, '0412 345 678'), findsOneWidget);
+      await tap(tester, find.byKey(const Key('delivery-pickup')));
+      await fromTop(tester);
+      await seeIt(tester, find.text('REVIEW & APPROVE ORDER'));
+      await fromTop(tester);
+      await scrollTo(
+        tester,
+        find.textContaining('Read by 3DEEZI AI from order.csv'),
+      );
+      expect(
+        find.textContaining('Read by 3DEEZI AI from order.csv'),
+        findsOneWidget,
+      );
+      // The youth sizes as the form wrote them, in place of Kids.
+      await seeIt(tester, find.text('10Y'));
+      expect(find.text('16Y'), findsOneWidget);
+      // Edit garment opens the rows read from the form, to correct.
+      await tap(tester, find.text('Edit garment'));
+      await seeIt(tester, find.text('WALKER'));
+      expect(
+        find.textContaining('As on your form: 10Y 1 · 16Y 1'),
+        findsOneWidget,
+      );
+      await seeIt(tester, find.textContaining('PARKER 4 (size missing)'));
+      await approve(tester);
+      expect(find.text('3DZ-00012'), findsOneWidget);
+      final sent = server.submitted.single;
+      expect(sent['needed_by'], ymd);
+      expect(sent['phone'], '0412 345 678');
+      expect(sent['team_name'], 'TE ARAWA RUGBY LEAGUE U13');
+      // Only the order's own fields go: no display fields.
+      expect(sent['items'], [
+        {
+          'garment': 'jersey',
+          'sport': 'rugby-league',
+          'fit': 'youth',
+          'sizes': {'Kids': 2},
+          'players': [
+            {'name': 'WALKER', 'number': '1', 'size': 'Kids'},
+            {'name': 'HALE', 'number': '6', 'size': 'Kids'},
+            {'name': 'PARKER', 'number': '4', 'size': null},
+          ],
+        },
+      ]);
+    },
+  );
 
-  testWidgets('My orders: the order shows its date required and delivery address; older orders show neither', (tester) async {
-    final server = OrdersServer();
-    await mount(tester, OrderDetailScreen(signedIn(server), 2));
-    expect(find.byKey(const Key('order-delivery-details')), findsNothing);
-    expect(tester.takeException(), isNull);
-    server.detailExtra = {'needed_by': '2026-12-03', 'shipping_address': '12 Smith Street\nParramatta NSW 2150\nAustralia', 'phone': '0412 345 678'};
-    await mount(tester, OrderDetailScreen(signedIn(server), 2, key: const ValueKey('newer')));
-    await tester.scrollUntilVisible(find.byKey(const Key('order-delivery-details')), 300, scrollable: find.byType(Scrollable).first);
-    expect(find.text('Date required: 3/12/2026'), findsOneWidget);
-    expect(find.text('Delivery address'), findsOneWidget);
-    expect(find.text('12 Smith Street\nParramatta NSW 2150\nAustralia'), findsOneWidget);
-    server.detailExtra = {'shipping_address': 'Pick up from 3DEEZI (no delivery)'};
-    await mount(tester, OrderDetailScreen(signedIn(server), 2, key: const ValueKey('pickup')));
-    await tester.scrollUntilVisible(find.byKey(const Key('order-delivery-details')), 300, scrollable: find.byType(Scrollable).first);
-    expect(find.text('Pick up'), findsOneWidget);
-  });
+  testWidgets(
+    'Upload Your Order: pick up is quoted without shipping and fits 360, 390 and 430 wide',
+    (tester) async {
+      for (final width in [360.0, 390.0, 430.0]) {
+        final server = OrdersServer();
+        pickOrderFile = (kind) async => (
+          name: 'order.jpg',
+          bytes: Uint8List.fromList(
+            utf8.encode('Item,Size,Qty\nJersey,M,10\n'),
+          ),
+        );
+        // A new screen each time (the same one would keep the last run's state).
+        await mount(
+          tester,
+          OrderUploadScreen(signedIn(server), key: ValueKey(width)),
+          width: width,
+        );
+        // Step 1: a photo of the order form counts as the artwork too.
+        await tap(tester, find.text('Choose your order form'));
+        await tap(tester, find.text('REVIEW ORDER'));
+        // Step 2: the details, then the review.
+        await typeIn(tester, 'Mobile', '+61 412 345 678');
+        await fromTop(tester);
+        await tap(tester, find.byKey(const Key('date-required')));
+        await tap(tester, find.text('OK'));
+        await tap(tester, find.byKey(const Key('delivery-pickup')));
+        expect(find.text('Street address'), findsNothing);
+        await seeIt(tester, find.text('Pick up from 3DEEZI'));
+        await scrollTo(tester, find.byKey(const Key('approve-check')));
+        await tap(tester, find.byKey(const Key('approve-check')));
+        // The price list has no pick-up price: the quote asks for PICKUP (no shipping), the order leaves it to the server.
+        expect((server.quotes.last['pricing'] as Map)['destination'], 'PICKUP');
+        await scrollTo(tester, find.text('APPROVE & CONTINUE TO PAYMENT'));
+        await tap(tester, find.text('APPROVE & CONTINUE TO PAYMENT'));
+        final sent = server.submitted.single;
+        expect(sent['delivery'], 'pickup');
+        expect((sent['pricing'] as Map?)?['destination'], isNull);
+        expect(tester.takeException(), isNull, reason: 'width $width');
+        addTearDown(() => pickOrderFile = (kind) async => null);
+      }
+    },
+  );
 
-  testWidgets('Date required sooner than the production lead time: a gentle warning, the order can still be sent', (tester) async {
-    final server = OrdersServer()..leadWeeks = 6;
-    await mount(tester, OrderFormScreen(signedIn(server)));
-    // The picker suggests 4 weeks ahead: sooner than this site's 6 weeks.
-    await fromTop(tester);
-    await tap(tester, find.byKey(const Key('date-required')));
-    await tap(tester, find.text('OK'));
-    expect(find.text('Usually 6 weeks for production and delivery; we’ll confirm if we can meet your date.'), findsOneWidget);
-    final today = DateTime(2026, 10, 22);
-    expect(leadWarningText(DateTime(2026, 11, 5), 4, today: today), 'Usually 4 weeks for production and delivery; we’ll confirm if we can meet your date.');
-    expect(leadWarningText(DateTime(2026, 11, 19), 4, today: today), isNull);
-    expect(leadWarningText(DateTime(2026, 11, 5), 0, today: today), isNull);
-    // Only a warning: nothing stops the review.
-    expect(uploadDetailsProblem(phone: '0412 345 678', neededBy: DateTime(2026, 10, 23), delivery: 'pickup', address: const {}, today: today), isNull);
-  });
+  testWidgets(
+    'My orders: the order shows its date required and delivery address; older orders show neither',
+    (tester) async {
+      final server = OrdersServer();
+      await mount(tester, OrderDetailScreen(signedIn(server), 2));
+      expect(find.byKey(const Key('order-delivery-details')), findsNothing);
+      expect(tester.takeException(), isNull);
+      server.detailExtra = {
+        'needed_by': '2026-12-03',
+        'shipping_address': '12 Smith Street\nParramatta NSW 2150\nAustralia',
+        'phone': '0412 345 678',
+      };
+      await mount(
+        tester,
+        OrderDetailScreen(signedIn(server), 2, key: const ValueKey('newer')),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('order-delivery-details')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Date required: 3/12/2026'), findsOneWidget);
+      expect(find.text('Delivery address'), findsOneWidget);
+      expect(
+        find.text('12 Smith Street\nParramatta NSW 2150\nAustralia'),
+        findsOneWidget,
+      );
+      server.detailExtra = {
+        'shipping_address': 'Pick up from 3DEEZI (no delivery)',
+      };
+      await mount(
+        tester,
+        OrderDetailScreen(signedIn(server), 2, key: const ValueKey('pickup')),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('order-delivery-details')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Pick up'), findsOneWidget);
+    },
+  );
 
-  test('Upload Your Order: the mobile, date required and delivery checks match the website', () {
-    for (final ok in ['0412 345 678', '+61 412 345 678', '+61 (0)412 345 678', '(02) 9876 5432', '+64 21 123 4567']) {
-      expect(validMobile(ok), isTrue, reason: ok);
-    }
-    for (final bad in ['', '1234', '0412 345', 'call me', '04123456789']) {
-      expect(validMobile(bad), isFalse, reason: bad);
-    }
-    final today = DateTime(2026, 10, 22);
-    const home = {'street': '12 Smith St', 'suburb': 'Rotorua', 'state': 'QLD', 'postcode': '4000', 'country': 'Australia'};
-    expect(uploadDetailsProblem(phone: '0412 345 678', neededBy: DateTime(2026, 10, 21), delivery: 'deliver', address: home, today: today), 'The date required can’t be in the past.');
-    expect(uploadDetailsProblem(phone: '0412 345 678', neededBy: today, delivery: 'deliver', address: home, today: today), isNull);
-    expect(uploadDetailsProblem(phone: '0412 345 678', neededBy: today, delivery: 'deliver', address: {...home, 'postcode': '40'}, today: today), 'Enter the 4-digit postcode.');
-    expect(uploadDetailsProblem(phone: '0412 345 678', neededBy: today, delivery: 'pickup', address: const {}, today: today), isNull);
-    expect(uploadDetailsProblem(phone: '+64 21 123 4567', neededBy: today, delivery: 'deliver', address: const {'street': '5 Queen St', 'suburb': 'Auckland', 'country': 'New Zealand'}, today: today), isNull);
-    expect(deliveryLine('pickup', const {}), 'Pick up from 3DEEZI');
-    expect(deliveryLine('deliver', home), '12 Smith St, Rotorua QLD 4000, Australia');
-  });
+  testWidgets(
+    'Date required sooner than the production lead time: a gentle warning, the order can still be sent',
+    (tester) async {
+      final server = OrdersServer()..leadWeeks = 6;
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      await toReview(tester);
+      // The picker suggests 4 weeks ahead: sooner than this site's 6 weeks.
+      await fromTop(tester);
+      await tap(tester, find.byKey(const Key('date-required')));
+      await tap(tester, find.text('OK'));
+      expect(
+        find.text(
+          'Usually 6 weeks for production and delivery; we’ll confirm if we can meet your date.',
+        ),
+        findsOneWidget,
+      );
+      final today = DateTime(2026, 10, 22);
+      expect(
+        leadWarningText(DateTime(2026, 11, 5), 4, today: today),
+        'Usually 4 weeks for production and delivery; we’ll confirm if we can meet your date.',
+      );
+      expect(leadWarningText(DateTime(2026, 11, 19), 4, today: today), isNull);
+      expect(leadWarningText(DateTime(2026, 11, 5), 0, today: today), isNull);
+      // Only a warning: nothing stops the review.
+      expect(
+        uploadDetailsProblem(
+          phone: '0412 345 678',
+          neededBy: DateTime(2026, 10, 23),
+          delivery: 'pickup',
+          address: const {},
+          today: today,
+        ),
+        isNull,
+      );
+    },
+  );
 
-  testWidgets('Profile: a guest is "Guest", never the demo name; signed in it is the account name', (tester) async {
-    // QA 2026-10-21 (from D): the profile showed "Alex Morgan" (AppController.name's demo default) to everyone.
-    final c = AppController(store: FakeStore());
-    await mount(tester, ProfileScreen(c));
-    expect(find.text('Guest'), findsOneWidget);
-    expect(find.text('Alex Morgan'), findsNothing);
-    expect(find.text('Guest · projects stay on this device'), findsOneWidget);
-    c.user = const ApiUser(id: 1, name: 'Fabian Soutar', email: 'fab@example.test');
-    await mount(tester, ProfileScreen(c));
-    expect(find.text('Fabian Soutar'), findsOneWidget);
-    expect(find.text('fab@example.test'), findsOneWidget);
-    expect(find.text('Alex Morgan'), findsNothing);
-    // An account without a name shows its email.
-    c.user = const ApiUser(id: 2, name: ' ', email: 'noname@example.test');
-    await mount(tester, ProfileScreen(c));
-    expect(find.text('noname@example.test'), findsNWidgets(2));
-  });
+  test(
+    'Upload Your Order: the mobile, date required and delivery checks match the website',
+    () {
+      for (final ok in [
+        '0412 345 678',
+        '+61 412 345 678',
+        '+61 (0)412 345 678',
+        '(02) 9876 5432',
+        '+64 21 123 4567',
+      ]) {
+        expect(validMobile(ok), isTrue, reason: ok);
+      }
+      for (final bad in ['', '1234', '0412 345', 'call me', '04123456789']) {
+        expect(validMobile(bad), isFalse, reason: bad);
+      }
+      final today = DateTime(2026, 10, 22);
+      const home = {
+        'street': '12 Smith St',
+        'suburb': 'Rotorua',
+        'state': 'QLD',
+        'postcode': '4000',
+        'country': 'Australia',
+      };
+      expect(
+        uploadDetailsProblem(
+          phone: '0412 345 678',
+          neededBy: DateTime(2026, 10, 21),
+          delivery: 'deliver',
+          address: home,
+          today: today,
+        ),
+        'The date required can’t be in the past.',
+      );
+      expect(
+        uploadDetailsProblem(
+          phone: '0412 345 678',
+          neededBy: today,
+          delivery: 'deliver',
+          address: home,
+          today: today,
+        ),
+        isNull,
+      );
+      expect(
+        uploadDetailsProblem(
+          phone: '0412 345 678',
+          neededBy: today,
+          delivery: 'deliver',
+          address: {...home, 'postcode': '40'},
+          today: today,
+        ),
+        'Enter the 4-digit postcode.',
+      );
+      expect(
+        uploadDetailsProblem(
+          phone: '0412 345 678',
+          neededBy: today,
+          delivery: 'pickup',
+          address: const {},
+          today: today,
+        ),
+        isNull,
+      );
+      expect(
+        uploadDetailsProblem(
+          phone: '+64 21 123 4567',
+          neededBy: today,
+          delivery: 'deliver',
+          address: const {
+            'street': '5 Queen St',
+            'suburb': 'Auckland',
+            'country': 'New Zealand',
+          },
+          today: today,
+        ),
+        isNull,
+      );
+      expect(deliveryLine('pickup', const {}), 'Pick up from 3DEEZI');
+      expect(
+        deliveryLine('deliver', home),
+        '12 Smith St, Rotorua QLD 4000, Australia',
+      );
+    },
+  );
 
-  testWidgets('Create Order Form: Write or snap your notes builds the garments, sizes and players (2026-11-03)', (tester) async {
-    final server = OrdersServer();
-    await mount(tester, OrderFormScreen(signedIn(server)));
-    expect(find.text('WRITE OR SNAP YOUR NOTES'), findsOneWidget);
-    await tester.enterText(find.byKey(const Key('notes-text')), 'Polo\n3 x 4XL\n2 x 2XL\n4 x 5XL\nSmith 7 M');
-    await tap(tester, find.byKey(const Key('build-form')));
-    expect(server.readNotes.single, contains('3 x 4XL'));
-    expect(find.textContaining('Built 2 garments (10 in all)'), findsOneWidget);
-    expect(find.textContaining('Please check: "something odd"'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'Profile: a guest is "Guest", never the demo name; signed in it is the account name',
+    (tester) async {
+      // QA 2026-10-21 (from D): the profile showed "Alex Morgan" (AppController.name's demo default) to everyone.
+      final c = AppController(store: FakeStore());
+      await mount(tester, ProfileScreen(c));
+      expect(find.text('Guest'), findsOneWidget);
+      expect(find.text('Alex Morgan'), findsNothing);
+      expect(find.text('Guest · projects stay on this device'), findsOneWidget);
+      c.user = const ApiUser(
+        id: 1,
+        name: 'Fabian Soutar',
+        email: 'fab@example.test',
+      );
+      await mount(tester, ProfileScreen(c));
+      expect(find.text('Fabian Soutar'), findsOneWidget);
+      expect(find.text('fab@example.test'), findsOneWidget);
+      expect(find.text('Alex Morgan'), findsNothing);
+      // An account without a name shows its email.
+      c.user = const ApiUser(id: 2, name: ' ', email: 'noname@example.test');
+      await mount(tester, ProfileScreen(c));
+      expect(find.text('noname@example.test'), findsNWidgets(2));
+    },
+  );
 
-  testWidgets('Create Order Form: one step per screen; step 3 artwork per garment and the order sheet fills the sizes (2026-11-03)', (tester) async {
-    final server = OrdersServer();
-    pickOrderFile = (kind) async => (name: kind == 'order_form' ? 'sheet.csv' : 'logo.png', bytes: Uint8List.fromList(utf8.encode('Item,Size,Qty\nJersey,M,10\n')));
-    addTearDown(() => pickOrderFile = (kind) async => null);
-    await mount(tester, OrderFormScreen(signedIn(server)));
-    // Details only: Continue checks this step first.
-    expect(find.text('Help me add sizes'), findsNothing);
-    await tap(tester, find.byKey(const Key('order-continue')));
-    expect(find.text('Add your team or organisation name.'), findsOneWidget);
-    await typeIn(tester, 'Team / organisation', 'Lions FC');
-    await fillDelivery(tester, pickup: true);
-    await tap(tester, find.byKey(const Key('order-continue')));
-    expect(find.text('Team / organisation'), findsNothing);
-    // Garments: no sizes yet, so Continue stops here.
-    await tap(tester, find.byKey(const Key('order-continue')));
-    expect(find.text('Add at least one size and quantity.'), findsOneWidget);
-    await tap(tester, find.byKey(const Key('order-step-2')));
-    expect(find.text('Have an order sheet?'), findsOneWidget);
-    expect(find.byKey(const Key('art-status-0')), findsOneWidget);
-    expect(find.text('Add artwork'), findsOneWidget);
-    await tap(tester, find.byKey(const Key('order-sheet-upload')));
-    expect(find.text('Check imported sizes and quantities in Review.'), findsOneWidget);
-    // Artwork for the garment: its row shows it.
-    await tap(tester, find.byKey(const Key('art-change-0')));
-    await tap(tester, find.byKey(const Key('art-upload-row')));
-    expect(find.text('Artwork added (1)'), findsOneWidget);
-    await tap(tester, find.byKey(const Key('order-review-button')));
-    expect(find.text('REVIEW & APPROVE ORDER'), findsOneWidget);
-  });
+  testWidgets(
+    'Create Order Form: a street address suggestion fills suburb, state, postcode and country (task TL-2)',
+    (tester) async {
+      final server = OrdersServer();
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      await toReview(tester);
+      final street = find.byKey(const Key('address-street'));
+      await seeIt(tester, street);
+      await tester.ensureVisible(street);
+      await tester.enterText(street, '7 Marabou');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(
+        server.requests.where((r) => r.url.path.endsWith('/address/suggest')),
+        hasLength(1),
+      );
+      await tap(tester, find.textContaining('Narre Warren South VIC 3805'));
+      expect(find.byKey(const Key('address-suggestions')), findsNothing);
+      expect(
+        find
+            .widgetWithText(TextField, 'Suburb / town')
+            .evaluate()
+            .map((e) => (e.widget as TextField).controller!.text),
+        ['Narre Warren South'],
+      );
+      expect(
+        find
+            .widgetWithText(TextField, 'Postcode')
+            .evaluate()
+            .map((e) => (e.widget as TextField).controller!.text),
+        ['3805'],
+      );
+      expect(find.byKey(const ValueKey('address-state-VIC')), findsOneWidget);
+      // Nothing found: no list, and the typed street stays.
+      await tester.enterText(street, '99 Nowhere Road');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('address-suggestions')), findsNothing);
+      expect(
+        (tester.widget(street) as TextField).controller!.text,
+        '99 Nowhere Road',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: Write or snap your notes builds the garments, sizes and players (2026-11-03)',
+    (tester) async {
+      final server = OrdersServer();
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      expect(find.text('WRITE OR SNAP YOUR NOTES'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('notes-text')),
+        'Polo\n3 x 4XL\n2 x 2XL\n4 x 5XL\nSmith 7 M',
+      );
+      await tap(tester, find.byKey(const Key('build-form')));
+      expect(server.readNotes.single, contains('3 x 4XL'));
+      expect(
+        find.textContaining('Built 2 garments (10 in all)'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Please check: "something odd"'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: two steps; step 1 garments and artwork (both required), the order sheet fills the sizes; step 2 the details and the review (2026-11-05)',
+    (tester) async {
+      final server = OrdersServer();
+      pickOrderFile = (kind) async => (
+        name: kind == 'order_form' ? 'sheet.csv' : 'logo.png',
+        bytes: Uint8List.fromList(utf8.encode('Item,Size,Qty\nJersey,M,10\n')),
+      );
+      addTearDown(() => pickOrderFile = (kind) async => null);
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      // Step 1 shows the garments and the artwork together; no contact, team or notes fields.
+      expect(find.byKey(const Key('order-continue')), findsNothing);
+      expect(find.text('Team / organisation'), findsNothing);
+      expect(find.text('Mobile'), findsNothing);
+      await seeIt(tester, find.text('Help me add sizes'));
+      // No sizes yet: the review waits.
+      await tap(tester, find.byKey(const Key('order-review-button')));
+      expect(find.text('Add at least one size and quantity.'), findsOneWidget);
+      await seeIt(tester, find.text('Have an order sheet?'));
+      expect(find.byKey(const Key('art-status-0')), findsOneWidget);
+      expect(find.text('Add artwork'), findsOneWidget);
+      await tap(tester, find.byKey(const Key('order-sheet-upload')));
+      expect(
+        find.text('Check imported sizes and quantities in Review.'),
+        findsOneWidget,
+      );
+      // Sizes from the sheet, but no artwork yet: the review still waits.
+      await tap(tester, find.byKey(const Key('order-review-button')));
+      expect(
+        find.text(
+          'Add your artwork: choose a saved design or upload your logo or artwork.',
+        ),
+        findsOneWidget,
+      );
+      // Artwork for the garment: its row shows it.
+      await tap(tester, find.byKey(const Key('art-change-0')));
+      await tap(tester, find.byKey(const Key('art-upload-row')));
+      expect(find.text('Artwork added (1)'), findsOneWidget);
+      await tap(tester, find.byKey(const Key('order-review-button')));
+      // Step 2: the details first (name, email, mobile, date, delivery), then the review on the same screen.
+      expect(
+        find
+                .textContaining('Your details', findRichText: true)
+                .evaluate()
+                .isNotEmpty ||
+            find
+                .textContaining('YOUR DETAILS', findRichText: true)
+                .evaluate()
+                .isNotEmpty,
+        isTrue,
+      );
+      expect(find.widgetWithText(TextField, 'Mobile'), findsOneWidget);
+      expect(find.text('Team / organisation'), findsNothing);
+      await seeIt(tester, find.text('REVIEW & APPROVE ORDER'));
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

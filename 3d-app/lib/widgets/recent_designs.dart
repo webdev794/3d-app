@@ -44,7 +44,7 @@ class RecentDesignsStrip extends StatefulWidget {
 class _RecentDesignsStripState extends State<RecentDesignsStrip> {
   List<Map<String, dynamic>> _sessions = const [];
   Map<String, dynamic>? _local;
-  bool _opening = false;
+  int? _opening;
   AppController get c => widget.c;
 
   @override
@@ -75,24 +75,32 @@ class _RecentDesignsStripState extends State<RecentDesignsStrip> {
     }
   }
 
+  void _say(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Palette.surface2,
+      ),
+    );
+  }
+
+  static const _gone = 'The pictures of this design are no longer saved.';
+
+  /// Opens a saved brief: the card shows a small spinner while its pictures
+  /// load (a few seconds on a phone), and says so when it cannot open.
   Future<void> _open(Map<String, dynamic> s) async {
-    if (_opening) return;
-    setState(() => _opening = true);
+    if (_opening != null) return;
+    final id = (s['id'] as num).toInt();
+    setState(() => _opening = id);
     try {
-      final full = await c.api.aiSession((s['id'] as num).toInt());
-      c.showAiSession(full, id: (s['id'] as num).toInt());
+      final full = await c.api.aiSession(id);
+      if (!c.showAiSession(full, id: id)) _say(_gone);
     } on Object {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Those designs could not be opened. Try again.'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Palette.surface2,
-          ),
-        );
-      }
+      _say('Those designs could not be opened. Try again.');
     } finally {
-      if (mounted) setState(() => _opening = false);
+      if (mounted) setState(() => _opening = null);
     }
   }
 
@@ -127,6 +135,7 @@ class _RecentDesignsStripState extends State<RecentDesignsStrip> {
     required String sub,
     required VoidCallback onTap,
     bool project = false,
+    bool busy = false,
   }) => Padding(
     padding: const EdgeInsets.only(right: 10),
     child: Material(
@@ -144,7 +153,20 @@ class _RecentDesignsStripState extends State<RecentDesignsStrip> {
             padding: const EdgeInsets.fromLTRB(6, 6, 10, 6),
             child: Row(
               children: [
-                pics,
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    pics,
+                    if (busy)
+                      const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Palette.cyan,
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Column(
@@ -199,13 +221,12 @@ class _RecentDesignsStripState extends State<RecentDesignsStrip> {
             sub:
                 '$count ${count == 1 ? 'design' : 'designs'} · ${_ago(DateTime.tryParse('${s['updated_at']}')?.toLocal())}',
             onTap: () => _open(s),
+            busy: _opening == (s['id'] as num?)?.toInt(),
           ),
         );
       }
-      final projects = [
-        for (final p in c.projects)
-          if (!p.id.startsWith('sample')) p,
-      ]..sort((a, b) => b.updated.compareTo(a.updated));
+      final projects = [...c.projects]
+        ..sort((a, b) => b.updated.compareTo(a.updated));
       for (final p in projects.take(3)) {
         cards.add(
           _card(
@@ -243,7 +264,9 @@ class _RecentDesignsStripState extends State<RecentDesignsStrip> {
           title: '${s['prompt'] ?? ''}',
           sub:
               'Last design on this device · ${_ago(DateTime.tryParse('${s['at']}')?.toLocal())}',
-          onTap: () => c.showAiSession(s),
+          onTap: () {
+            if (!c.showAiSession(s)) _say(_gone);
+          },
         ),
       );
     }

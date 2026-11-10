@@ -324,6 +324,72 @@ class ApiClient {
   Future<Map<String, dynamic>> orderOptions() async =>
       await _send('GET', '/orders/options') as Map<String, dynamic>;
 
+  /// Street address suggestions (task TL-2): Photon / OpenStreetMap through our
+  /// server, Australia / New Zealand first. Each has label, street, suburb,
+  /// state, postcode and country. Empty when nothing is found.
+  Future<List<Map<String, dynamic>>> addressSuggestions(String q) async {
+    final data = await _send(
+      'GET',
+      '/address/suggest?q=${Uri.encodeQueryComponent(q)}',
+    );
+    return [
+      if (data is List)
+        for (final e in data)
+          if (e is Map) e.map((k, v) => MapEntry('$k', v)),
+    ];
+  }
+
+  /// The Order Assistant (task TL-3): a message with order files (sheets,
+  /// notes, photos, PDFs) and design pictures; a new order without [token],
+  /// more to the same order with it. [assign] puts a design picture on a
+  /// group (its key, or "none"). Answers the whole collated order: messages,
+  /// analysis (groups, totals, checks, form items), designs and links.
+  Future<Map<String, dynamic>> orderAssistant({
+    String? token,
+    String message = '',
+    List<({String name, Uint8List bytes})> files = const [],
+    List<({String name, Uint8List bytes})> designs = const [],
+    Map<String, String> assign = const {},
+    int? supplierId,
+    bool setSupplier = false,
+  }) async {
+    if (!configured) {
+      throw ApiException('No 3DEEZI server is set. Add it under Server.');
+    }
+    final url = Uri.parse(
+      '$baseUrl/api/v1/order-assistant${token == null ? '' : '/$token'}',
+    );
+    final request = http.MultipartRequest('POST', url)
+      ..headers.addAll({
+        'Accept': 'application/json',
+        if (this.token != null) 'Authorization': 'Bearer ${this.token}',
+      })
+      ..fields['message'] = message;
+    if (setSupplier) request.fields['supplier_id'] = '${supplierId ?? ''}';
+    for (final e in assign.entries) {
+      request.fields['assign[${e.key}]'] = e.value;
+    }
+    for (final f in files) {
+      request.files.add(
+        http.MultipartFile.fromBytes('files[]', f.bytes, filename: f.name),
+      );
+    }
+    for (final f in designs) {
+      request.files.add(
+        http.MultipartFile.fromBytes('designs[]', f.bytes, filename: f.name),
+      );
+    }
+    final sent =
+        files.fold<int>(0, (a, f) => a + f.bytes.length) +
+        designs.fold<int>(0, (a, f) => a + f.bytes.length);
+    return await _receive(() => _client.send(request), long: true, sent: sent)
+        as Map<String, dynamic>;
+  }
+
+  /// A collated order by its token (the share link).
+  Future<Map<String, dynamic>> orderAssistantGet(String token) async =>
+      await _send('GET', '/order-assistant/$token') as Map<String, dynamic>;
+
   /// "Help me add sizes": garment rows read from a plain description.
   Future<Map<String, dynamic>> orderAssist(String text) async =>
       await _send('POST', '/orders/assist', body: {'text': text})
