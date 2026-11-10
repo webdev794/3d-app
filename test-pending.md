@@ -806,3 +806,11 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 1. App > Projects tab > Assets: Uploads shows "No uploads yet" with UPLOAD ASSET (no reference pictures); Artwork shows "No artwork yet"; Logos shows only the 3DEEZI mark.
 2. Upload a picture: it replaces the empty card.
 ---
+
+---
+**App Team page: no bubble (2026-11-10)**
+1. App > Home > 3DEEZI TEAM: no glass bubble; Back, logo, TEAM bell and "3DEEZI TEAM" stay at the top; the photo is bigger and fades into the background.
+2. Scroll: content slides under the title and fades softly; at the end everything is visible above the tab bar.
+3. VIEW MY REQUESTS and a single request page look the same (no bubble). Sending a request still works.
+4. Other pages (Home, Projects, Orders, Profile, Edit profile) still have their bubble.
+---

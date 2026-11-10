@@ -677,3 +677,6 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [x] AI Designer: client can't tap Recent designs (493, app); test app + website phone/desktop, fix if broken (agent RECENT, 2026-11-10)
 - [x] App only: Projects tab — take all example projects out (Warriors Concept, Mantis Elite, Club Jersey, Morahu); real projects only + clean empty state (client 494, 2026-11-10) (agent NOEX)
 - [x] App only: Design Your Own — models much bigger, buttons (Custom, DESIGN, arrows) smaller; no other change (client 495, 2026-11-10) (agent DYOBIG2)
+- [x] CANCELLED (client 2026-11-10): customers will NOT make their own 3D models (no Tripo API, no kiosk generation). All 3D models are made and fixed by us, for consistency.
+- [x] App only: Team page (and its My requests / request screens) — remove the outer bubble, own header like Design Your Own; then push v2 (user 2026-11-10) (TEAMBUB resumed)
+- [ ] Website only: glass bubble look on buttons, tiles, chips and bars, exactly like the app's bubble buttons, on Home, Create, Orders landing, Team, Pricing, My projects, Signage landing (decided); NOT Studio, Artboard, Marquee Studio, admin, checkout/order form; CSS-only so the site stays light (user 2026-11-10) (agent WEBGLASS, spec scratchpad/WEBGLASS/spec.md)

@@ -12,7 +12,7 @@ import '../app_controller.dart';
 import '../custom_choice.dart';
 import '../money.dart';
 import '../sports_catalog.dart';
-import '../widgets/bubble_page.dart' show BubbleDomeRoom, BubbleRoute;
+import '../widgets/bubble_page.dart' show BubbleRoute, kAssistRoom, kPageSide;
 import '../widgets/flow_ui.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/site_page_stub.dart'
@@ -461,9 +461,10 @@ class _TeamScreenState extends State<TeamScreen> {
             )
           : const SizedBox.shrink(),
       bubbleKey: const ValueKey('team-bubble'),
-      // Down into the bubble's bottom, so VIEW MY REQUESTS shows in full
-      // (client 491).
-      intoDome: true,
+      // No outer glass bubble (client 2026-11-10): the page stands on the
+      // backdrop, its rows on the page margins ([kPageSide]), the photo
+      // across the whole width.
+      bubble: false,
       child: Column(
         children: [
           Expanded(
@@ -472,12 +473,11 @@ class _TeamScreenState extends State<TeamScreen> {
               child: LayoutBuilder(
                 builder: (context, view) => SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  // (At the end the last row ends above the bottom curve.)
-                  padding: EdgeInsets.fromLTRB(
-                    2,
-                    4,
-                    2,
-                    8 + (BubbleDomeRoom.of(context) ?? 16),
+                  // (At the end the last row stays clear of 3DEEZI Assist's
+                  // round button over the tab bar.)
+                  padding: const EdgeInsets.only(
+                    top: 4,
+                    bottom: kAssistRoom + 12,
                   ),
                   child: Center(
                     child: ConstrainedBox(
@@ -486,46 +486,66 @@ class _TeamScreenState extends State<TeamScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _TeamHero(
-                            // The first view, above the bottom curve.
-                            fit:
-                                view.maxHeight -
-                                4 -
-                                (BubbleDomeRoom.of(context) ?? 0),
+                            // The first view, above 3DEEZI Assist's button.
+                            fit: view.maxHeight - 4 - kAssistRoom - 8,
                             onRequest: _request,
                             onMyRequests: _myRequests,
                           ),
-                          const SizedBox(height: 26),
-                          const TeamHowItWorks(),
-                          const SizedBox(height: 26),
-                          if (_error != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Text(
-                                _error!,
-                                style: const TextStyle(
-                                  color: Color(0xffff8b9b),
-                                ),
-                              ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: kPageSide,
                             ),
-                          KeyedSubtree(
-                            key: _formAnchor,
-                            child: TeamRequestForm(
-                              c,
-                              allowance: _allowance,
-                              onProgress: (p) {
-                                if (mounted && p != _progress) {
-                                  setState(() => _progress = p);
-                                }
-                              },
-                              onViewRequest: _open,
-                              onSent: _load,
-                              onMyRequests: _myRequests,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const SizedBox(height: 26),
+                                const TeamHowItWorks(),
+                                // REQUEST A DESIGNER scrolls here: the form's
+                                // heading lands just under the title's fade.
+                                KeyedSubtree(
+                                  key: _formAnchor,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      const SizedBox(height: 26),
+                                      if (_error != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 10,
+                                          ),
+                                          child: Text(
+                                            _error!,
+                                            style: const TextStyle(
+                                              color: Color(0xffff8b9b),
+                                            ),
+                                          ),
+                                        ),
+                                      TeamRequestForm(
+                                        c,
+                                        allowance: _allowance,
+                                        onProgress: (p) {
+                                          if (mounted && p != _progress) {
+                                            setState(() => _progress = p);
+                                          }
+                                        },
+                                        onViewRequest: _open,
+                                        onSent: _load,
+                                        onMyRequests: _myRequests,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TeamGoodToKnow(allowance: _allowance),
+                                const SizedBox(height: 14),
+                                TeamChecklist(
+                                  progress: _progress,
+                                  onPlans: _plans,
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          TeamGoodToKnow(allowance: _allowance),
-                          const SizedBox(height: 14),
-                          TeamChecklist(progress: _progress, onPlans: _plans),
                         ],
                       ),
                     ),
@@ -548,12 +568,13 @@ class _TeamHero extends StatelessWidget {
   });
 
   /// The height the photo, the words and the two buttons should end within
-  /// (the first view, above the bubble's bottom curve); see [_HeroFit].
+  /// (the first view, above 3DEEZI Assist's button); see [_HeroFit].
   final double fit;
   final VoidCallback onRequest, onMyRequests;
 
-  // Straight on the bubble's glass, with no card round it (client 491:
-  // "Don't like the rectangle inside bubble").
+  // Straight on the page, with no card round it (client 491: "Don't like
+  // the rectangle inside bubble") and, since 2026-11-10, no bubble either:
+  // the photo runs across the page, the words on its margins.
   @override
   Widget build(BuildContext context) => Column(
     key: const Key('team-hero'),
@@ -564,7 +585,7 @@ class _TeamHero extends StatelessWidget {
         children: [
           // The designer at his two monitors (the 3D singlet and the flat
           // pattern pieces), as on the website's /team; its edges fade
-          // softly into the bubble.
+          // softly into the page.
           _SoftEdges(
             child: artImage(
               asset: 'assets/images/art/team_hero.webp',
@@ -572,7 +593,7 @@ class _TeamHero extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            padding: const EdgeInsets.symmetric(horizontal: kPageSide),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -672,7 +693,7 @@ class _TeamHero extends StatelessWidget {
         ],
       ),
       Padding(
-        padding: const EdgeInsets.fromLTRB(6, 16, 6, 12),
+        padding: const EdgeInsets.fromLTRB(kPageSide, 16, kPageSide, 12),
         child: Column(
           children: [
             for (final (icon, text) in const [
@@ -707,14 +728,15 @@ class _TeamHero extends StatelessWidget {
 
 /// The TEAM hero's photo (first child) and its words down to VIEW MY
 /// REQUESTS (second child), which sit over the photo's faded bottom
-/// [overlap] px. The words start [maxTop] px down; on a short phone the
-/// photo gets shorter (down to [minTop]), so the words and both buttons end
-/// within [fit] and show in full on the first view (client 491). The
-/// picture itself keeps its look (it fills its box).
+/// [overlap] px. The words start up to [maxTop] px down (a bigger photo
+/// since the bubble went, 2026-11-10); on a short phone the photo gets
+/// shorter (down to [minTop]), so the words and both buttons end within
+/// [fit] and show in full on the first view (client 491). The picture
+/// itself keeps its look (it fills its box).
 class _HeroFit extends MultiChildRenderObjectWidget {
   const _HeroFit({required this.fit, required super.children});
   final double fit;
-  static const maxTop = 200.0, minTop = 120.0, overlap = 50.0;
+  static const maxTop = 240.0, minTop = 120.0, overlap = 50.0;
 
   @override
   RenderObject createRenderObject(BuildContext context) => _RenderHeroFit(fit);
@@ -781,9 +803,9 @@ class _RenderHeroFit extends RenderBox
       defaultHitTestChildren(result, position: position);
 }
 
-/// A picture whose edges fade softly into the bubble's glass, so it has no
-/// hard rectangle round it (the TEAM photo, client 491). The picture itself
-/// is not changed.
+/// A picture whose edges fade softly into the page, so it has no hard
+/// rectangle round it (the TEAM photo, client 491). The picture itself is
+/// not changed.
 class _SoftEdges extends StatelessWidget {
   const _SoftEdges({required this.child});
   final Widget child;
@@ -1022,7 +1044,7 @@ class TeamChecklist extends StatelessWidget {
     // Straight on the bubble, no card round it (client 491).
     return Padding(
       key: const Key('team-checklist'),
-      padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1212,13 +1234,21 @@ class _TeamRequestsScreenState extends State<TeamRequestsScreen> {
           )
         : const SizedBox.shrink(),
     bubbleKey: const ValueKey('team-requests-bubble'),
+    // No bubble, as the TEAM page (client 2026-11-10).
+    bubble: false,
     child: Column(
       children: [
         Expanded(
           child: RefreshIndicator(
             onRefresh: _load,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(2, 6, 2, 24),
+              // (The last request stays clear of 3DEEZI Assist's button.)
+              padding: const EdgeInsets.fromLTRB(
+                kPageSide,
+                6,
+                kPageSide,
+                24 + kAssistRoom,
+              ),
               children: [
                 if (_error != null)
                   Text(
@@ -1898,7 +1928,7 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
         : 'Included in your plan';
     // Straight on the bubble, no card round it (client 491).
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         children: [
           const SizedBox(height: 8),
@@ -2275,7 +2305,7 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
     final (costIcon, costColor, costText) = _cost;
     // Straight on the bubble, no card round it (client 491).
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
+      padding: const EdgeInsets.only(top: 6, bottom: 8),
       child: Form(
         key: _form,
         child: Column(
@@ -2496,11 +2526,18 @@ class TeamRequestFormScreen extends StatelessWidget {
     c: c,
     title: 'REQUEST A DESIGNER',
     bubbleKey: const ValueKey('team-request-form-bubble'),
+    // No bubble, as the TEAM page (client 2026-11-10).
+    bubble: false,
     child: Column(
       children: [
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(2, 4, 2, 24),
+            padding: const EdgeInsets.fromLTRB(
+              kPageSide,
+              4,
+              kPageSide,
+              24 + kAssistRoom,
+            ),
             child: TeamRequestForm(
               c,
               allowance: allowance,
@@ -2845,6 +2882,8 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
             )
           : const SizedBox.shrink(),
       bubbleKey: const ValueKey('team-request-bubble'),
+      // No bubble, as the TEAM page (client 2026-11-10).
+      bubble: false,
       child: Column(
         children: [
           Expanded(
@@ -2859,7 +2898,12 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
                   )
                 : RefreshIndicator(onRefresh: _load, child: _body(r)),
           ),
-          if (r != null && (r['can'] as Map?)?['message'] == true) _compose(),
+          // (The message box sits clear of 3DEEZI Assist's round button.)
+          if (r != null && (r['can'] as Map?)?['message'] == true)
+            Padding(
+              padding: const EdgeInsets.only(bottom: kAssistRoom),
+              child: _compose(),
+            ),
         ],
       ),
     );
@@ -2888,7 +2932,14 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
     final messages = ((r['messages'] as List?) ?? const []).cast<Map>();
     final busy = _busy.isNotEmpty;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(2, 4, 2, 20),
+      // (Without the message box the last row stays clear of 3DEEZI
+      // Assist's round button.)
+      padding: EdgeInsets.fromLTRB(
+        kPageSide,
+        4,
+        kPageSide,
+        20 + (can['message'] == true ? 0 : kAssistRoom),
+      ),
       children: [
         // (Narrower in the bubble: the designer's name gives way.)
         Row(
@@ -3147,10 +3198,12 @@ class _TeamRequestScreenState extends State<TeamRequestScreen> {
     );
   }
 
+  // Straight on the page (no bubble since 2026-11-10): a line over it, on
+  // the page margins.
   Widget _compose() => Container(
-    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+    margin: const EdgeInsets.symmetric(horizontal: kPageSide),
+    padding: const EdgeInsets.symmetric(vertical: 8),
     decoration: const BoxDecoration(
-      color: Palette.surface,
       border: Border(top: BorderSide(color: Palette.border)),
     ),
     child: Column(

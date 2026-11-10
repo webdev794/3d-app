@@ -179,3 +179,10 @@ Resume via SendMessage, do not respawn:
 - 2026-11-10: NOEX Assets done (Uploads/Logos/Artwork examples removed; kept 3DEEZI mark + starter pattern; wording test fixed; full flutter test 502 pass). Only RECENT left -> then push v2.
 - 2026-11-10: RECENT done (showAiSession null fields; spinner). Pushed v2 = 6442d2f (all of 11-10 so far). Next: project_sync.dart line 156 same strict read (RECENT resumed).
 - 2026-11-10: RECENT follow-up done (project_sync/project_store/ai_service fromSaved; sync keeps going on a bad project).
+- 2026-11-10: pushed v2 = eea6d72 (project sync fix). No agents running.
+- 2026-11-10: Kiosk 3D via Tripo API: questions.md #3 + Requirements.md + tasks.md. Nothing started; waiting for answers + key.
+- 2026-11-10: user is checking kiosk/Tripo with the client first (do not build). Tripo API = pay-as-you-go, developers.tripo3d.ai/en/pricing, ~US$0.40-0.50 per model.
+- 2026-11-10: client: NO user-made 3D models (Tripo API/kiosk cancelled); models are fixed by us for consistency. questions.md #3 = unclear "search on chat gpt for these workers".
+- 2026-11-10: TEAMBUB ae4e2394e5b52b975 resumed: remove bubble from app Team page + Team sub-screens (like DYO). User: push to v2 when done.
+- 2026-11-10: WEBGLASS ac9b40b52a41c1974 = website glass bubble buttons (spec scratchpad/WEBGLASS/spec.md). For pushing app work while it runs: final-push-v2-noweb.sh (keeps v2 website as is).
+- 2026-11-10: user: Team page -> v2 (last v2 push); every later change incl. website glass buttons -> v3 (final-push-v3.sh).

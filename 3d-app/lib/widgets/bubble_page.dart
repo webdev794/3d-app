@@ -29,15 +29,18 @@ class BubblePage extends StatelessWidget {
     this.backdrop,
     this.fullHeadingRoom = false,
     this.bottomRoom,
-    this.intoDome = false,
+    this.bubble = true,
   });
 
-  /// A [compact] page whose content runs on down into the bottom dome
-  /// (3DEEZI TEAM, client 491: VIEW MY REQUESTS was cut off above an empty
-  /// dome): little room under it, and the content clipped to the dome's
-  /// own curve, a little inside the rim, instead of the rounded box. The
-  /// other pages leave it off.
-  final bool intoDome;
+  /// Off: no glass bubble (the 3DEEZI TEAM screens, client 2026-11-10). The
+  /// page stands straight on the backdrop: the header (the corner pill, the
+  /// wordmark, the bell) and the title stay put on the page's side margins
+  /// ([kPageSide]), and [child] fills the rest down to the tab bar, fading
+  /// out softly under the title once scrolled and at the bottom. [child]
+  /// keeps its own side margins (a picture may run to the screen's edges)
+  /// and room for 3DEEZI Assist's round button ([kAssistRoom]). [scrolls],
+  /// [compact] and the bubble's room settings do not apply.
+  final bool bubble;
 
   /// A [compact] page whose last rows are narrower than the bubble (the
   /// sport picker's Custom… and Design capsules, client 489): its own room
@@ -115,24 +118,11 @@ class BubblePage extends StatelessWidget {
       dome: dome,
       offset: Offset(side, bubble.height - below - room.maxHeight),
     );
-    final Widget content;
-    if (intoDome) {
-      // Into the dome: told how far up its full-width rows must end to stay
-      // uncut ([BubbleDomeRoom]), and gone a third of the way up, before the
-      // curve cuts into a row.
-      final clear = clip.clear(room.biggest);
-      content = _BottomFade(
-        length: math.max(clear, 24),
-        gone: clear * .35,
-        child: BubbleDomeRoom(clear: clear, child: child),
-      );
-    } else {
-      // The scrolling content follows the bubble's own bottom curve (the
-      // outline below), so a full-width last row at the end of the scroll,
-      // e.g. Edit profile's Save changes, keeps its corners; it fades out
-      // softly at the very bottom, so nothing ends in a hard cut.
-      content = _BottomFade(child: child);
-    }
+    // The scrolling content follows the bubble's own bottom curve (the
+    // outline below), so a full-width last row at the end of the scroll,
+    // e.g. Edit profile's Save changes, keeps its corners; it fades out
+    // softly at the very bottom, so nothing ends in a hard cut.
+    final content = _BottomFade(child: child);
     return ClipPath(
       clipper: clip,
       // The content starts just below where the curved top still cuts into
@@ -149,8 +139,108 @@ class BubblePage extends StatelessWidget {
   /// Called when the bell's sheet closes (a page that reloads then).
   final VoidCallback? onBellClosed;
 
+  /// The header: the wordmark in the middle, the corner pill on the left and
+  /// the bell on the right; [w] is the page's width.
+  Widget _header(double w) => SizedBox(
+    width: double.infinity,
+    height: 52,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        // (narrower beside a corner pill, so the two never touch)
+        BrandLogo(width: math.min(w * (leading == null ? .56 : .46), 246)),
+        if (leading != null) Positioned(left: 0, child: leading!),
+        Positioned(
+          right: 0,
+          child: bell ?? NotificationBell(c, onClosed: onBellClosed),
+        ),
+      ],
+    ),
+  );
+
+  /// The page without the bubble (see [bubble]).
+  Widget _plain() => Column(
+    children: [
+      Expanded(
+        child: Stack(
+          children: [
+            Positioned.fill(child: backdrop ?? const BubbleBackdrop()),
+            LayoutBuilder(
+              builder: (context, box) {
+                final w = math.min(box.maxWidth, 520.0);
+                final size = (w * .113).clamp(34.0, 50.0);
+                return Center(
+                  child: SizedBox(
+                    width: w,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: kPageSide,
+                          ),
+                          child: _header(w),
+                        ),
+                        const SizedBox(height: 6),
+                        if (title.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: kPageSide,
+                            ),
+                            child: Semantics(
+                              header: true,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  title,
+                                  style: bubbleTitle(size * .62),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (subtitle != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: kPageSide,
+                            ),
+                            child: Text(
+                              subtitle!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 17,
+                                color: Color(0xffd3dee8),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        // The content scrolls under the title, fading out
+                        // softly just below it, and fades out at the bottom
+                        // over the tab bar.
+                        Expanded(
+                          child: KeyedSubtree(
+                            key: bubbleKey,
+                            child: _TopFade(child: _BottomFade(child: child)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+      BottomNav(controller: c),
+    ],
+  );
+
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => bubble ? _bubbled() : _plain();
+
+  /// The page in its glass bubble.
+  Widget _bubbled() => Column(
     children: [
       Expanded(
         child: Stack(
@@ -172,33 +262,7 @@ class BubblePage extends StatelessWidget {
                           const SizedBox(height: 10),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  // (narrower beside a corner pill, so the two never touch)
-                                  BrandLogo(
-                                    width: math.min(
-                                      w * (leading == null ? .56 : .46),
-                                      246,
-                                    ),
-                                  ),
-                                  if (leading != null)
-                                    Positioned(left: 0, child: leading!),
-                                  Positioned(
-                                    right: 0,
-                                    child:
-                                        bell ??
-                                        NotificationBell(
-                                          c,
-                                          onClosed: onBellClosed,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                            child: _header(w),
                           ),
                           const SizedBox(height: 8),
                           _fill(
@@ -229,10 +293,7 @@ class BubblePage extends StatelessWidget {
                                 // curve (clipped to it below), ending above
                                 // where it curves in.
                                 final below = compact
-                                    ? bottomRoom?.call(dome) ??
-                                          (intoDome
-                                              ? kIntoDomeRoom
-                                              : dome * .55 + 12)
+                                    ? bottomRoom?.call(dome) ?? dome * .55 + 12
                                     : bubbleBottomRoom(inner.maxWidth, dome);
                                 final bubble = Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
@@ -358,8 +419,15 @@ TextStyle bubbleTitle(double size) => TextStyle(
   shadows: [Shadow(color: Palette.cyan.withValues(alpha: .35), blurRadius: 18)],
 );
 
-/// Room under a [BubblePage.intoDome] page's content.
-const kIntoDomeRoom = 10.0;
+/// A page's side margin without the bubble ([BubblePage.bubble] off): the
+/// header, the title and the content line up on it, as on Design your own.
+const kPageSide = 16.0;
+
+/// The room 3DEEZI Assist's round button takes just over the tab bar
+/// (lib/widgets/assist_overlay.dart: 50 px, 92 px over the screen's foot):
+/// a page without the bubble ends its content this far above the tab bar
+/// at rest, so the button never covers a button.
+const kAssistRoom = 50.0;
 
 /// A working page's content inside the bubble's own outline: the straight
 /// sides, and the top and bottom domes a little inside the drawn rim (about
@@ -394,20 +462,6 @@ class _BubbleClip extends CustomClipper<Path> {
     return path.shift(-offset);
   }
 
-  /// How far above the bottom of the content ([size]) a full-width row
-  /// (its sides about 8 px in, for its rounded corners and the page's own
-  /// padding) must end, so the bottom curve does not cut it.
-  double clear(Size size) {
-    final a = _a, b = dome * .99 - inset;
-    // (The content's bottom, above the bubble's.)
-    final below = bubble.height - offset.dy - size.height;
-    final half = size.width / 2 - 8;
-    if (a <= 0 || b <= 0 || half >= a) return math.max(dome - below, 0);
-    // How far down the dome the curve is still as wide as the row.
-    final down = b * math.sqrt(1 - (half / a) * (half / a));
-    return math.max(dome - below - down, 0);
-  }
-
   /// How far below the top of the content ([size]) the curved top still
   /// cuts into a row's text (its sides about 8 px in).
   double topCut(Size size) {
@@ -424,21 +478,6 @@ class _BubbleClip extends CustomClipper<Path> {
   @override
   bool shouldReclip(_BubbleClip old) =>
       old.bubble != bubble || old.dome != dome || old.offset != offset;
-}
-
-/// Inside a [BubblePage.intoDome] page: how far above the bottom of the
-/// page's content a full-width row must end so the bubble's bottom curve
-/// does not cut it (3DEEZI TEAM fits its first view with it, client 491).
-class BubbleDomeRoom extends InheritedWidget {
-  const BubbleDomeRoom({super.key, required this.clear, required super.child});
-  final double clear;
-
-  /// Null outside an [BubblePage.intoDome] page.
-  static double? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<BubbleDomeRoom>()?.clear;
-
-  @override
-  bool updateShouldNotify(BubbleDomeRoom old) => old.clear != clear;
 }
 
 /// A working page's content fades out softly under the title once it is
@@ -484,12 +523,11 @@ class _TopFadeState extends State<_TopFade> {
       );
 }
 
-/// A working page's content fades out over its last [length] px, so
-/// nothing ends in a hard cut; fully gone over the last [gone] px.
+/// A page's content fades out over its last 24 px, so nothing ends in a
+/// hard cut.
 class _BottomFade extends StatelessWidget {
-  const _BottomFade({required this.child, this.length = 24, this.gone = 0});
+  const _BottomFade({required this.child});
   final Widget child;
-  final double length, gone;
 
   @override
   Widget build(BuildContext context) => ShaderMask(
@@ -497,15 +535,8 @@ class _BottomFade extends StatelessWidget {
     shaderCallback: (r) => LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: const [
-        Colors.white,
-        Colors.white,
-        Color(0x00ffffff),
-        Color(0x00ffffff),
-      ],
-      stops: r.height > length * 2
-          ? [0, 1 - length / r.height, 1 - gone / r.height, 1]
-          : const [0, .5, 1, 1],
+      colors: const [Colors.white, Colors.white, Color(0x00ffffff)],
+      stops: [0, r.height > 48 ? 1 - 24 / r.height : .5, 1],
     ).createShader(r),
     child: child,
   );
@@ -638,14 +669,14 @@ class BubbleRoute extends StatefulWidget {
     this.action,
     this.bell,
     this.fullHeadingRoom = false,
-    this.intoDome = false,
+    this.bubble = true,
   });
 
   /// See [BubblePage.fullHeadingRoom].
   final bool fullHeadingRoom;
 
-  /// See [BubblePage.intoDome].
-  final bool intoDome;
+  /// See [BubblePage.bubble].
+  final bool bubble;
 
   /// The page's own bell (see [BubblePage.bell]).
   final Widget? bell;
@@ -701,7 +732,7 @@ class _BubbleRouteState extends State<BubbleRoute> {
         bubbleKey: widget.bubbleKey,
         compact: true,
         fullHeadingRoom: widget.fullHeadingRoom,
-        intoDome: widget.intoDome,
+        bubble: widget.bubble,
         bell: widget.bell,
         leading: Row(
           mainAxisSize: MainAxisSize.min,
