@@ -205,3 +205,16 @@ Resume via SendMessage, do not respawn:
 - 2026-11-11: FIXW10 done (Assist on Home, pick-up totals, garment names, draft names) -> resumed for pick-up+region shipping bug. FIXA10 resumed for app parity of those. Then push v3 + tar 11-11-a.
 - 2026-11-11: FIXW10 pick-up overcharge fixed (PricingService/PricingController/OrderSubmission, OrderForm/OrderUpload/OrderPayment). Admin pick-up price (if set) still applies (kept). Waiting FIXA10 app parity -> push v3 + tar 11-11-a.
 - 2026-11-11 11:0x: live tar 3deez-update-2026-11-11-a.tar.gz (38 files, delta since 11-10-a, no migrations). Pushing v3.
+- 2026-11-11: pushed v3 = 9db62b8 (all of 11-11 so far).
+- 2026-11-11: DYOMATCH: DYOFIX a7bd1299a48148c63 (fixer) + DYOTEST a2fc8cf9048da6773 (tester, read-only, measures vs 506). Relay tester lists to fixer; repeat until PASS. Kit pictures exactly like 506 may need paid image model -> ask user.
+- 2026-11-11: user: no colour changes in DYOMATCH (layout only). Fixer + tester told.
+- 2026-11-11: user: garment colours accepted, never change them (memory saved).
+- 2026-11-11: user: side garments must be fully opaque (not transparent) like 506. Fixer + tester told.
+- 2026-11-11: user 507: garment bottoms covered by capsule and below the stage; hard rule sent to DYOFIX + spec.
+- 2026-11-11 12:1x: DYOTEST round 1 PASS (layout matches 506; no covered garments; feet on stage; solid sides; no scroll). DYOFIX round 2 for small leftovers (icons 25pt, 360 sizing, arrows 39pt if safe, short-window hard edge). Then quick tester recheck + push v3 (app only).
+- 2026-11-11: user: show before v3 push; round 2 stopped, keep round 1 (DYOFIX told to undo any round-2 edits).
+- 2026-11-11: user: keep round 2 going; show the final output before the v3 push. DYOFIX resumed for round 2; then DYOTEST recheck; then show user; push after OK.
+- 2026-11-11: user: no bigger tile icons (client wants smaller buttons, bigger clothes). DYOFIX told to drop item 1.
+- 2026-11-11 13:4x: DYOTEST round 2 PASS. Waiting for user OK before v3 push (show-before-push rule).
+- 2026-11-11: user: name capsule must be glass bubble like 506 (not black). DYOFIX round 3; then tester; then show user; push after OK.
+- 2026-11-11 13:5x: DYO round 3 + tweaks done (water-bubble name/Custom capsules: darker glass, thin white rim, glints). analyze + 3 DYO tests pass (I re-ran). WAITING for user OK -> then push v3 (app only, no tar). Open polish: outer glow weaker than 506; tiles/arrows silver rims; DESIGN top shine.

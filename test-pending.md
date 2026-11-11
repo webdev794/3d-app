@@ -866,3 +866,11 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 3. My orders and Admin > Order board: cards name the garments, e.g. "Rugby League Jersey · 25 · required 20 Dec"; the order page shows the garments under its title.
 4. Not sent yet: drafts are named like "Rugby League Jersey · 25 · draft from 11 Nov" (not "Untitled order").
 ---
+
+---
+**App Design Your Own: layout like the client picture (2026-11-11)**
+1. App > Home > Design Your Own: three garments fill the width, the middle one big, the side ones close, slightly behind it and fully solid.
+2. All garments stand on the round stage (feet inside the ring); nothing covers them.
+3. Under the stage: name box, "2 / 30", "Custom... type your own sport", DESIGN button; no scrolling on a normal phone.
+4. Swipe through all sports, tap the arrows, tap a side garment, Custom and DESIGN: all work.
+---

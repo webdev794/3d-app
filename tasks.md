@@ -695,3 +695,5 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [x] Pick-up orders still charged a region's shipping if a region was picked before switching to Pick up (server + UI) (FIXW10 resumed, 2026-11-11)
 - [x] App parity: order cards name the garments, drafts named "<garment> · <qty> · draft from <date>", "Pick up · Free", sizeless chat lines become rows (FIXA10 resumed, 2026-11-11)
 - [x] App parity: app order form notes sizeless line row -> included in the line above
+- [x] App only: Design Your Own must match client picture 506: kits inside the stage circle (ring at their feet), three kits filling the width, no "DESIGN YOUR OWN" label, count under the capsule, full "Custom... type your own sport" (LAYOUT ONLY: user 2026-11-11 "I have not told to change colors" - no kit colour changes); one fixer + one tester until it matches (user 505/506, 2026-11-11) (agents DYOFIX + DYOTEST, spec scratchpad/DYOMATCH/spec.md)
+- [x] DYO round 3: name capsule (and other controls) glass bubble like 506, not black (user, 2026-11-11) (DYOFIX)
