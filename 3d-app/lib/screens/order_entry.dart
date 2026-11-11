@@ -40,6 +40,20 @@ openPayPage = openPayLink;
 /// "A$1,870.00", the website's price style (money.dart); "To be confirmed" without an amount.
 String _money(Object? amount, Object? currency) => moneyOr(amount, currency);
 
+/// A quote's shipping that is a pick up at no cost (the price list's Pick up,
+/// or the server's own): shown as "Pick up · Free", as the website's
+/// freePickup. Servers without `priced` count as priced.
+bool freePickup(Map? shipping) {
+  if (shipping == null || shipping['priced'] == false) return false;
+  final amount = double.tryParse('${shipping['amount'] ?? ''}');
+  if (amount == null || amount != 0) return false;
+  return '${shipping['destination'] ?? ''}'.toUpperCase() == 'PICKUP' ||
+      RegExp(
+        r'^pick ?up$',
+        caseSensitive: false,
+      ).hasMatch('${shipping['name'] ?? ''}'.trim());
+}
+
 /// The price for the review step, from the server's quote (or "Quote required" with the reasons).
 class PriceBox extends StatefulWidget {
   const PriceBox(this.c, this.body, {super.key});
@@ -99,7 +113,19 @@ class _PriceBoxState extends State<PriceBox> {
                 ),
               ],
             ),
-          if (shipping != null)
+          // Picked up at no cost: "Pick up · Free", not "Shipping A$0.00"
+          // (QA10 2026-11-11, as the website's freePickup).
+          if (shipping != null && freePickup(q['shipping'] as Map?))
+            const Row(
+              key: Key('price-pickup-free'),
+              children: [
+                Expanded(
+                  child: Text('Pick up', style: TextStyle(fontSize: 13)),
+                ),
+                Text('Free', style: TextStyle(fontSize: 13)),
+              ],
+            )
+          else if (shipping != null)
             Row(
               children: [
                 Expanded(
@@ -623,7 +649,19 @@ class _Row {
   /// Artwork uploaded for this garment (step 3 "Artwork & files").
   final fileIds = <int>[];
   String players = '';
+
+  /// A quantity read from the notes with no sizes ("5 hoodies"; QA10
+  /// 2026-11-11, as the website's form): the row shows "5 · sizes needed"
+  /// until its sizes are added. Never sent.
+  int wanted = 0;
   int get total => sizes.values.fold(0, (a, b) => a + b);
+
+  /// Built from the notes, its sizes still to fill.
+  bool get sizesNeeded => wanted > 0 && total == 0;
+
+  /// "Hoodie", or the name it was given ("Netball dress").
+  String get name =>
+      label.trim().isNotEmpty ? label.trim() : _garments[garment] ?? 'Garment';
   Map<String, dynamic> toJson() => {
     'garment': garment,
     if (customName(sport).isNotEmpty) 'sport': customName(sport),
@@ -1680,6 +1718,12 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   /// Step 1: garments with sizes, and artwork (both required).
   String? stepOneProblem() {
     if (total < 1) return 'Add at least one size and quantity.';
+    // A garment from the notes with no sizes ("5 hoodies") is not dropped
+    // quietly: its sizes are asked for, as on the website.
+    if (rows.where((r) => r.sizesNeeded).firstOrNull case final r?) {
+      return 'Add sizes and quantities for ${r.name} (${r.wanted} wanted), '
+          'or remove it.';
+    }
     if (!hasArtwork) return artworkProblem;
     return null;
   }
@@ -1765,36 +1809,84 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         .whereType<Map>()
         .map((m) => m.cast<String, dynamic>())
         .toList();
-    final unknown = ((read['unknown'] as List?) ?? const []).map((u) => '$u');
+    // "5 hoodies" (a garment and how many, no sizes; QA10 2026-11-11, as the
+    // website): a row of its own with the sizes to fill, not only a line
+    // under Please check. (Servers before 2026-11-11 send no `unsized`.)
+    final unsized = ((read['unsized'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((m) => m.cast<String, dynamic>())
+        .toList();
+    final unsizedText = {for (final u in unsized) '${u['text'] ?? ''}'};
+    final unknown = ((read['unknown'] as List?) ?? const [])
+        .map((u) => '$u')
+        .where((u) => !unsizedText.contains(u));
     if (!mounted) return;
+    final built = items.isNotEmpty || unsized.isNotEmpty;
+    final noSizes = <String>[];
     setState(() {
-      if (items.isNotEmpty) {
+      if (built) {
         rows.removeWhere(notesBuilt.contains);
         final before = rows.toSet();
         addItems(items);
+        if (items.isEmpty && rows.length == 1 && rows.first.total == 0) {
+          rows.clear();
+        }
+        for (final u in unsized) {
+          final garment = _garments.containsKey(u['garment'])
+              ? '${u['garment']}'
+              : 'other';
+          final said = '${u['label'] ?? ''}'.trim();
+          final label = said.isNotEmpty
+              ? said
+              : garment == 'other'
+              ? '${u['name'] ?? u['text'] ?? ''}'.trim()
+              : '';
+          final row = _Row()
+            ..garment = garment
+            ..label = label.length > 60 ? label.substring(0, 60) : label
+            // A dress's sizes are womens sizes.
+            ..fit = _fits.containsKey(u['fit'])
+                ? '${u['fit']}'
+                : RegExp('dress', caseSensitive: false).hasMatch(label)
+                ? 'womens'
+                : 'mens'
+            ..wanted = ((u['qty'] as num?)?.toInt() ?? 1).clamp(1, 10000);
+          rows.add(row);
+          final size = '${u['size'] ?? ''}'.trim();
+          noSizes.add(
+            '${row.name} × ${row.wanted}: ${size.isNotEmpty ? 'size "$size" is not one of our sizes, please choose the sizes' : 'no sizes given, please add them'}',
+          );
+        }
         notesBuilt
           ..clear()
           ..addAll(rows.where((r) => !before.contains(r)));
       }
-      final count = items.fold<int>(
-        0,
-        (a, i) =>
-            a +
-            ((i['sizes'] as Map?) ?? const {}).values.fold<int>(
-              0,
-              (b, v) => b + ((v as num?)?.toInt() ?? 0),
-            ),
-      );
+      final count =
+          items.fold<int>(
+            0,
+            (a, i) =>
+                a +
+                ((i['sizes'] as Map?) ?? const {}).values.fold<int>(
+                  0,
+                  (b, v) => b + ((v as num?)?.toInt() ?? 0),
+                ),
+          ) +
+          unsized.fold<int>(
+            0,
+            (a, u) => a + ((u['qty'] as num?)?.toInt() ?? 1).clamp(1, 10000),
+          );
+      final made = items.length + unsized.length;
       notesNote = [
-        items.isEmpty
+        !built
             ? 'No garments or sizes found. Try lines like "Polo" then "3 x 4XL".'
-            : 'Built ${items.length} ${items.length == 1 ? 'garment' : 'garments'} ($count in all) from your notes. Check them under Garments.',
+            : 'Built $made ${made == 1 ? 'garment' : 'garments'} ($count in all) from your notes. Check them under Garments.',
+        if (noSizes.isNotEmpty) 'Sizes needed: ${noSizes.join('; ')}.',
         if (unknown.isNotEmpty)
           'Please check: ${unknown.take(6).map((u) => '"$u"').join(', ')}',
       ].join('\n');
     });
     // Straight on to the built garments (client 394).
-    if (items.isNotEmpty) goToStep(1);
+    if (built) goToStep(1);
   }
 
   void addItems(List<Map<String, dynamic>> items) {
@@ -2249,13 +2341,24 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: Text(
-                              'Subtotal ${r.total}',
-                              style: const TextStyle(
-                                color: Palette.cyan,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                            // From the notes with no sizes ("5 hoodies"):
+                            // how many, and that the sizes are needed.
+                            child: r.sizesNeeded
+                                ? Text(
+                                    '${r.wanted} · sizes needed',
+                                    key: Key('sizes-needed-$i'),
+                                    style: const TextStyle(
+                                      color: Color(0xffffbc75),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  )
+                                : Text(
+                                    'Subtotal ${r.total}',
+                                    style: const TextStyle(
+                                      color: Palette.cyan,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                           ),
                           if (rareFor(r.fit).isNotEmpty)
                             TextButton(

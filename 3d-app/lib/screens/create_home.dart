@@ -772,6 +772,23 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   static String _kitSlug(int i) =>
       ProjectSync.sports[dyoSports[i % _n].$1] ?? 'rugby-league';
 
+  /// The kits redrawn in the 3DEEZI blue, black and white for this stage
+  /// (client 2026-11-11: "rebrand the mock ups"), kit-<id>-brand.webp; the
+  /// others are blue, black and white already. (The original pictures stay
+  /// for the other screens and the website.)
+  static const _brandKits = {
+    'afl', 'athletics', 'basketball', 'bmx', 'cricket', 'cycling', 'darts',
+    'esports', 'fight-wear', 'golf', 'gymwear', 'hockey', 'lacrosse',
+    'netball', 'rugby-union', 'school-leavers', 'softball', 'teamwear',
+    'tennis', 'touch', 'volleyball', 'workwear',
+  };
+
+  static String _kitArt(int i) {
+    final slug = _kitSlug(i);
+    final brand = _brandKits.contains(slug) ? '-brand' : '';
+    return 'assets/images/showroom/kit-$slug$brand.webp';
+  }
+
   /// A kit's size on the stage: full in the centre, .68 at the sides.
   static double _kitScale(int i, double page) =>
       .68 + .32 * (1 - (page - i).abs().clamp(0.0, 1.0));
@@ -781,8 +798,10 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   static double _kitStep(int i, double page, double pic) {
     final a = _kitSpan[_kitSlug(i)] ?? (.1, .9);
     final b = _kitSpan[_kitSlug(i + 1)] ?? (.1, .9);
-    return (a.$2 - .5) * pic * _kitScale(i, page) +
-        pic * .07 +
+    // (Since 2026-11-11 a little less than touching: the side kits stand
+    // partly behind the centre one, client: "a bit closer".)
+    return (a.$2 - .5) * pic * _kitScale(i, page) -
+        pic * .05 +
         (.5 - b.$1) * pic * _kitScale(i + 1, page);
   }
 
@@ -1017,8 +1036,21 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
                                 // Less room (a 360 × 780 phone): tighter
                                 // spacing, so the kits keep their size.
                                 final tight = room.maxHeight < 700;
+                                // A short window (a desktop browser) scrolls
+                                // rather than shrink the kits (user
+                                // 2026-11-11: the kit is the page's hero):
+                                // the stage keeps the room for a big kit, as
+                                // long as the kit and its capsule still fit
+                                // in one view; Custom and Design follow.
+                                final stage = math.max(
+                                  _minStage,
+                                  math.min(
+                                    _bigStage,
+                                    room.maxHeight - _kitRise - 6,
+                                  ),
+                                );
                                 return BubbleFillScroll(
-                                  minFlex: (_) => _minStage,
+                                  minFlex: (_) => stage,
                                   scrollKey: const ValueKey('sport-scroll'),
                                   children: _picker(sport, tight),
                                 );
@@ -1052,6 +1084,10 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   /// The least height of the kit stage before the picker scrolls.
   static const _minStage = 150.0;
 
+  /// The stage's height (the sport's capsule included) for a big kit,
+  /// about 300 px tall: a short window scrolls to keep it.
+  static const _bigStage = 323.0;
+
   List<Widget> _picker((String, String, String, String) sport, bool tight) => [
     SizedBox(height: tight ? 2 : 8),
     const Text(
@@ -1063,18 +1099,10 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
         fontWeight: FontWeight.w700,
       ),
     ),
-    SizedBox(height: tight ? 3 : 6),
-    ScreenTitle(
-      'Different sports.\n',
-      highlight: 'Same team spirit.',
-      size: tight ? 22 : 27,
-    ),
-    SizedBox(height: tight ? 3 : 6),
-    const Text(
-      'Choose your sport. Swipe to rotate.',
-      style: TextStyle(color: Color(0xffc4d2df), fontSize: 12),
-    ),
-    SizedBox(height: tight ? 2 : 8),
+    // Only the small label over the tabs (client 2026-11-11: "too much
+    // writing on this page"; the title and the swipe hint went, the kits
+    // got the room).
+    SizedBox(height: tight ? 2 : 4),
     _CategoryFilters(
       groups: [
         'all',
@@ -1152,7 +1180,7 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
       child: _GlassOutlineButton(
         key: const Key('dyo-custom-sport'),
         icon: Icons.edit_outlined,
-        label: 'Custom… type your own sport',
+        label: 'Custom sport',
         height: tight ? 28 : 32,
         onTap: _customSport,
       ),
@@ -1182,7 +1210,65 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
 
   /// The widest a kit picture gets, of the stage's width (2:3 pictures, so
   /// on a phone the stage's height sets their size).
-  static const _kitWide = .62;
+  static const _kitWide = .8;
+
+  /// Kit [i] on the stage (the page [page] in the centre, [pic] its
+  /// picture's width, in a stage [width] wide): full size in the centre,
+  /// smaller and turned at the sides.
+  Widget _kit(int i, double page, double pic, double width) {
+    final d = (page - i).clamp(-2.0, 2.0);
+    final t = 1 - d.abs().clamp(0.0, 1.0);
+    final far = d.abs() <= 1 ? 1.0 : ((1.6 - d.abs()) / .6).clamp(0.0, 1.0);
+    final scale = .68 + .32 * t;
+    final span = _kitSpan[_kitSlug(i)] ?? (.1, .9);
+    return Positioned(
+      key: ValueKey(i),
+      left: (width - pic) / 2 + _kitX(i, page, pic),
+      width: pic,
+      top: 0,
+      bottom: 0,
+      child: Transform(
+        alignment: Alignment.bottomCenter,
+        transform: Matrix4.identity()
+          ..setEntry(3, 2, .0012)
+          ..rotateY(d * .32)
+          ..scaleByDouble(scale, scale, 1, 1),
+        child: Opacity(
+          opacity: ((.62 + .38 * t) * far).clamp(0, 1),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: _kitPad),
+                  child: Image.asset(
+                    _kitArt(i),
+                    fit: BoxFit.contain,
+                    alignment: Alignment.bottomCenter,
+                  ),
+                ),
+              ),
+              // A tap on the garment itself (not on the picture's empty
+              // sides, over the next kit): the centre kit opens Design,
+              // a side kit turns to the centre.
+              Positioned(
+                left: pic * span.$1,
+                width: pic * (span.$2 - span.$1),
+                top: 0,
+                bottom: _kitPad,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    final current = (_pages.page ?? 0).round();
+                    current == i ? _design() : _step(i - current);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   /// The kits on their floodlit stage, the arrows at the sides.
   Widget _stage() => Stack(
@@ -1217,7 +1303,6 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
           // padding under them). A picture may be wider than its page
           // ([_cell] of the stage): the kits are packed by their
           // garments' own widths ([_kitX]), not by the pages.
-          final cell = box.maxWidth * _cell;
           final pic = math.min(
             box.maxWidth * _kitWide,
             math.max(0.0, box.maxHeight - _kitPad) * 2 / 3,
@@ -1233,63 +1318,48 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
             onHorizontalDragUpdate: _dragUpdate,
             onHorizontalDragEnd: _dragEnd,
             onHorizontalDragCancel: () => _dragEnd(DragEndDetails()),
-            child: PageView.builder(
-              controller: _pages,
-              // Dragged by the detector above, 1:1 with the finger.
-              // (No page snapping: it would pull the kits back
-              // between finger moves; a drag's end snaps itself.)
-              physics: const NeverScrollableScrollPhysics(),
-              pageSnapping: false,
-              onPageChanged: (i) => _turned(i % _n),
-              itemBuilder: (context, i) => AnimatedBuilder(
-                animation: _pages,
-                builder: (context, child) {
-                  final page =
-                      _pages.hasClients && _pages.position.haveDimensions
-                      ? _pages.page ?? i.toDouble()
-                      : _pages.initialPage.toDouble();
-                  final d = (page - i).clamp(-2.0, 2.0);
-                  final t = 1 - d.abs().clamp(0.0, 1.0);
-                  // Packed close to the centre kit; a kit further out
-                  // than the side ones fades away as it comes near.
-                  final far = d.abs() <= 1
-                      ? 1.0
-                      : ((1.6 - d.abs()) / .6).clamp(0.0, 1.0);
-                  return Transform.translate(
-                    offset: Offset(_kitX(i, page, pic) + d * cell, 0),
-                    child: Transform(
-                      alignment: Alignment.bottomCenter,
-                      transform: Matrix4.identity()
-                        ..setEntry(3, 2, .0012)
-                        ..rotateY(d * .32)
-                        ..scaleByDouble(.68 + .32 * t, .68 + .32 * t, 1, 1),
-                      child: Opacity(
-                        opacity: ((.62 + .38 * t) * far).clamp(0, 1),
-                        child: child,
-                      ),
-                    ),
-                  );
-                },
-                child: GestureDetector(
-                  onTap: () {
-                    final current = (_pages.page ?? 0).round();
-                    current == i ? _design() : _step(i - current);
-                  },
-                  child: OverflowBox(
-                    minWidth: 0,
-                    maxWidth: pic,
-                    alignment: Alignment.bottomCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: _kitPad),
-                      child: Image.asset(
-                        'assets/images/showroom/kit-${_kitSlug(i)}.webp',
-                        fit: BoxFit.contain,
-                        alignment: Alignment.bottomCenter,
-                      ),
-                    ),
+            child: Stack(
+              children: [
+                // The page view keeps the turn (its pages are empty);
+                // the kits are drawn over it, the centre one in front, so
+                // the side kits can stand close, a little behind it
+                // (client 2026-11-11: "the other mock ups a bit closer").
+                Positioned.fill(
+                  child: PageView.builder(
+                    controller: _pages,
+                    // Dragged by the detector above, 1:1 with the finger.
+                    // (No page snapping: it would pull the kits back
+                    // between finger moves; a drag's end snaps itself.)
+                    physics: const NeverScrollableScrollPhysics(),
+                    pageSnapping: false,
+                    onPageChanged: (i) => _turned(i % _n),
+                    itemBuilder: (_, _) => const SizedBox.expand(),
                   ),
                 ),
-              ),
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: _pages,
+                    builder: (context, _) {
+                      final page = _page, p0 = page.round();
+                      // A kit further out than the side ones fades away
+                      // as it comes near; the farthest are drawn first.
+                      final shown = [
+                        for (var i = p0 - 2; i <= p0 + 2; i++)
+                          if ((page - i).abs() < 1.6) i,
+                      ]..sort(
+                          (a, b) =>
+                              (page - b).abs().compareTo((page - a).abs()),
+                        );
+                      return Stack(
+                        children: [
+                          for (final i in shown)
+                            _kit(i, page, pic, box.maxWidth),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           );
         },

@@ -15,7 +15,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, CircleCheck, ClipboardCheck, Copy, CreditCard, Info, LoaderCircle, Lock, Mail, ShieldCheck, TriangleAlert, Truck, User as UserIcon, Wallet } from 'lucide-react';
 import { api, ApiError, getToken, type Project, type User } from '../api';
 import type { OrderFile, OrderItem } from '../orderApi';
-import { PaymentStatusPill, downloadInvoice, money, type PaymentSummary, type Quote } from '../components/OrderPayment';
+import { PaymentStatusPill, downloadInvoice, freePickup, money, type PaymentSummary, type Quote } from '../components/OrderPayment';
 import { GarmentPicture } from '../components/orderBoardModel';
 import { DownloadReviewPdf } from '../components/OrderReviewGarments';
 import { artworkOf, reviewDeliveryFromOrder, reviewGarmentsFrom, summaryText } from '../components/orderReviewData';
@@ -397,7 +397,7 @@ function OrderSummary({ data, paid }: { data: Checkout; paid: boolean }) {
   const rows = useMemo<[string, string][]>(() => (priced && q ? [
     ['Garments', aud(q.garments_total, c)],
     ...(Number(q.extras_total) > 0 ? [['Extras', aud(q.extras_total, c)] as [string, string]] : []),
-    ...(q.shipping ? [['Shipping', q.shipping.priced ? aud(q.shipping.amount, c) : 'To be confirmed'] as [string, string]] : []),
+    ...(q.shipping ? [(freePickup(q.shipping) ? ['Pick up', 'Free'] : ['Shipping', q.shipping.priced ? aud(q.shipping.amount, c) : 'To be confirmed']) as [string, string]] : []),
     ...q.discounts.map(d => [d.name, `-${aud(d.amount, c)}`] as [string, string]),
     [q.tax.included ? `${q.tax.name} (included)` : q.tax.name, aud(q.tax.amount, c)],
   ] : []), [priced, q, c]);

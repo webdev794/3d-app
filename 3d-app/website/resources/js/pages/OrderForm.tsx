@@ -869,6 +869,9 @@ ${text}`.slice(0, 4000) : f.notes) };
   // The price for the review step (payments-api.md §3), again when the delivery, extras or discount code change.
   // Only where prices are switched on (GET /pricing/options answers); otherwise the review says 3DEEZI confirms it.
   const pricingKey = JSON.stringify(form.pricing);
+  // Deliver / Pick up and the country are chosen on the review too: a new choice prices again (QA10 2026-11-11: picked
+  // up, the review still added the Australia shipping that the pay page then left out).
+  const destinationKey = choiceDestination(form.delivery) ?? '';
   useEffect(() => {
     if (step !== 'review' || !pricingOptions) { setQuote({ data: null, loading: pricingOptions === undefined && step === 'review', error: '' }); return; }
     let live = true;
@@ -882,16 +885,17 @@ ${text}`.slice(0, 4000) : f.notes) };
     });
     // As the order will be priced: the review's destination, else Deliver / Pick up and the country (as the server does).
     const choice = choiceDestination(formRef.current.delivery);
-    const withChoice = (p: PricingChoice) => (p.destination || !choice ? p : { ...p, destination: choice });
+    // Picked up: never a "Delivery to" region (it is never charged shipping, the server's rule too).
+    const withChoice = (p: PricingChoice) => (choice === 'PICKUP' ? { ...p, destination: choice } : p.destination || !choice ? p : { ...p, destination: choice });
     setQuote(q => ({ ...q, loading: true, error: '' }));
     const t = setTimeout(() => {
-      api<Quote>('/pricing/quote', { method: 'POST', body: JSON.stringify({ items, pricing: withChoice(fields.pricing ?? {}) }) })
+      api<Quote>('/pricing/quote', { method: 'POST', body: JSON.stringify({ items, pricing: withChoice(fields.pricing ?? {}), ...(choice === 'PICKUP' ? { delivery: 'pickup' } : {}) }) })
         .then(q => { if (live) setQuote({ data: q, loading: false, error: '' }); })
         .catch(e => { if (live) setQuote({ data: null, loading: false, error: [0, 404, 405].includes((e as ApiError).status) ? '' : (e as Error).message }); });
     }, 200);
     return () => { live = false; clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, pricingKey, pricingOptions, projects]);
+  }, [step, pricingKey, destinationKey, pricingOptions, projects]);
   useEffect(() => { if (step === 'review' && pricingOptions === undefined) api<PricingOptions>('/pricing/options').then(setPricingOptions).catch(() => setPricingOptions(null)); }, [step, pricingOptions]);
 
   /* ------------------------------------------------------------------------------ what the side shows */

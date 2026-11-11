@@ -94,7 +94,9 @@ class OrdersServer {
     );
     final extras = express ? 150.0 : 0.0;
     final nz = pricing['destination'] == 'NZ';
-    final shipping = nz ? 250.0 : 100.0;
+    // Picked up: never charged for shipping (the server's PICKUP, QA10).
+    final pickup = pricing['destination'] == 'PICKUP';
+    final shipping = pickup ? 0.0 : nz ? 250.0 : 100.0;
     final code = pricing['discount_code'];
     final good = code == 'TEAM10';
     final discount = good ? (garments + extras) * .1 : 0.0;
@@ -108,8 +110,10 @@ class OrdersServer {
           {'name': 'Express production', 'quantity': 1, 'total': '150.00'},
       ],
       'shipping': {
-        'name': nz ? 'New Zealand' : 'Australia',
+        'destination': pickup ? 'PICKUP' : nz ? 'NZ' : 'AU',
+        'name': pickup ? 'Pick up' : nz ? 'New Zealand' : 'Australia',
         'amount': shipping.toStringAsFixed(2),
+        'priced': true,
       },
       'discounts': [
         if (good) {'name': 'Team 10%', 'amount': discount.toStringAsFixed(2)},
@@ -282,7 +286,22 @@ class OrdersServer {
       });
     }
     if (path == '/orders/read-notes') {
-      readNotes.add(jsonDecode(r.body)['text'] as String);
+      final text = jsonDecode(r.body)['text'] as String;
+      readNotes.add(text);
+      // "5 hoodies": a garment and how many, no sizes (the server's unsized, QA10).
+      if (text.contains('5 hoodies')) {
+        return ok({
+          'items': [
+            {'garment': 'polo', 'name': 'Polo', 'sizes': {'M': 2}},
+          ],
+          'unsized': [
+            {'garment': 'hoodie', 'qty': 5, 'size': '', 'text': '5 hoodies', 'name': 'Hoodie'},
+          ],
+          'unknown': ['5 hoodies'],
+          'summary': '',
+          'source': 'notes',
+        });
+      }
       return ok({
         'items': [
           {

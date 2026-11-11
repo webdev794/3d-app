@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -35,16 +36,31 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
   // The notification bells' list, polled once a minute while the app is open and signed in.
   late final NotificationFeed bell = NotificationFeed.of(c);
 
+  // Saves the account did not take yet (no connection, a refusal) are tried
+  // again every minute (with a growing wait while they keep failing) and when
+  // the app comes back to the front (QA10 2026-11-11).
+  Timer? _retry;
+  AppLifecycleListener? _life;
+
   @override
   void initState() {
     super.initState();
     bell.startPolling();
+    _retry = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => unawaited(c.retryUploads()),
+    );
+    _life = AppLifecycleListener(
+      onResume: () => unawaited(c.retryUploads(now: true)),
+    );
     // The phone's saved Home (bubble or classic), read before Home opens.
     HomeSwitcher.preload();
   }
 
   @override
   void dispose() {
+    _retry?.cancel();
+    _life?.dispose();
     bell.stopPolling();
     assist.dispose();
     if (widget.controller == null) c.dispose();

@@ -67,7 +67,48 @@ bool orderPayable(Map<String, dynamic>? payment) {
       '${payment['invoice_number'] ?? ''}'.isNotEmpty;
 }
 
-/// The card's count line as on the website: "5 garments · required 20 Mar".
+/// What an order holds, by name, as the website's garmentsLine: "Rugby League
+/// Jersey · 25", "Rugby League Jersey + 1 more · 40" (QA10 2026-11-11: cards
+/// without a team name only said "25 garments"). '' when no garment has a
+/// name; [quantity] 0 leaves the count out.
+String orderGarmentsLine(Iterable<Map> garments, int quantity) {
+  final names = <String>{
+    for (final g in garments)
+      if ('${g['name'] ?? ''}'.trim().isNotEmpty) '${g['name']}'.trim(),
+  }.toList();
+  if (names.isEmpty) return '';
+  final name = names.length > 1
+      ? '${names.first} + ${names.length - 1} more'
+      : names.first;
+  return quantity > 0 ? '$name · $quantity' : name;
+}
+
+/// A draft (Not sent yet) as the website names it (QA10 2026-11-11: every
+/// unnamed draft read the same): its team name, else what it holds and when it
+/// was started, "Not sent yet: Rugby League Jersey · 25 · draft from 11 Nov"
+/// (the website's heading). Servers before 2026-11-11 send no `name`: the line as before.
+String draftLine(Map d) {
+  final title = '${d['title'] ?? ''}'.trim();
+  if (!d.containsKey('name')) {
+    return 'Draft, not submitted: ${title.isNotEmpty ? title : (d['kind'] == 'upload' ? 'uploaded order' : 'order form')}';
+  }
+  if (title.isNotEmpty) return 'Not sent yet: $title';
+  final name = '${d['name'] ?? ''}'.trim();
+  final what = name.isNotEmpty
+      ? name
+      : d['kind'] == 'upload'
+      ? 'Uploaded order'
+      : 'Order form';
+  final from = DateTime.tryParse('${d['created_at'] ?? ''}')?.toLocal();
+  final day = from == null
+      ? ''
+      : '${from.day} ${_months[from.month - 1]}'
+            '${from.year != DateTime.now().year ? ' ${from.year}' : ''}';
+  return 'Not sent yet: ${day.isEmpty ? what : '$what · draft from $day'}';
+}
+
+/// The card's count line as on the website: "Rugby League Jersey · 25 ·
+/// required 20 Dec", else (no garment names) "5 garments · required 20 Mar".
 String orderCardLine(Map<String, dynamic> o) {
   final count = (o['quantity'] as num? ?? 0).toInt();
   final garments = ((o['garments'] as List?) ?? const []).whereType<Map>();
@@ -75,9 +116,13 @@ String orderCardLine(Map<String, dynamic> o) {
       garments.isNotEmpty && garments.every((g) => g['garment'] == 'marquee')
       ? 'marquee'
       : 'garment';
+  final named = orderGarmentsLine(garments, count);
   final qty = count > 0
-      ? '$count $unit${count == 1 ? '' : 's'}'
-      : 'Sizes to be confirmed';
+      ? (named.isNotEmpty ? named : '$count $unit${count == 1 ? '' : 's'}')
+      : [
+          orderGarmentsLine(garments, 0),
+          'Sizes to be confirmed',
+        ].where((s) => s.isNotEmpty).join(' · ');
   final needed = '${o['needed_by'] ?? ''}';
   return needed.isNotEmpty && o['completed'] != true
       ? '$qty · required ${shortDay(needed)}'
@@ -425,7 +470,10 @@ class _OrdersBoardScreenState extends State<OrdersBoardScreen> {
                                             const SizedBox(width: 10),
                                             Expanded(
                                               child: Text(
-                                                'Draft, not submitted: ${d['title'] ?? (d['kind'] == 'upload' ? 'uploaded order' : 'order form')}',
+                                                draftLine(d),
+                                                key: ValueKey(
+                                                  'draft-${d['id']}',
+                                                ),
                                                 style: const TextStyle(
                                                   fontSize: 13,
                                                 ),

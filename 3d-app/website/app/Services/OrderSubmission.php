@@ -77,7 +77,10 @@ class OrderSubmission
             $data['shipping_address'] = \App\Support\OrderDelivery::text($data['delivery'], $data['address'] ?? null) ?? ($data['shipping_address'] ?? null);
             // The price list's destination follows the choice (pick up, the country), unless one was chosen on the review.
             $destination = \App\Support\OrderDelivery::destination($data['delivery'], $data['address'] ?? null);
-            if ($destination && blank($data['pricing']['destination'] ?? null)) {
+            // Picked up: always the pick-up destination, even when a "Delivery to" region was chosen before switching.
+            if ($destination === 'PICKUP') {
+                $data['pricing'] = ['destination' => 'PICKUP'] + (is_array($data['pricing'] ?? null) ? $data['pricing'] : []);
+            } elseif ($destination && blank($data['pricing']['destination'] ?? null)) {
                 $data['pricing'] = ['destination' => $destination] + (is_array($data['pricing'] ?? null) ? $data['pricing'] : []);
             }
         }

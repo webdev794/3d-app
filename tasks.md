@@ -685,4 +685,13 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [ ] App parity: app order form notes still list "5 hoodies" (no size) under "Please check" without a row; website now makes a "sizes needed" row (2026-11-10)
 - [ ] Price list: no singlet/Netball dress price locally ("price to be set"); needs the client's price (see Requirements.md prices)
 - [ ] Signage: check the "Back" view (banner/table cover swap to the left, may go behind the setup panel at 1280-1440 wide)
-- [ ] Regression test of the later 2026-11-10 changes + linked features, website + app (agent QA10); many bugs -> separate fixer
+- [x] Regression test of the later 2026-11-10 changes + linked features, website + app (agent QA10); many bugs -> separate fixer
+- [x] App only: Design Your Own — less writing (drop slogan + instruction line, shorter Custom), centre kit bigger, side kits closer, carousel kit pictures rebranded to blue/black/white (new files, originals kept) (client 502, 2026-11-11) (agent DYOBIG2 resumed, spec scratchpad/DYOBRAND/spec.md)
+- [x] QA10 (2026-11-11) BROKEN: app Studio saves rejected by the server (422: socks/sweeps/raglan parts and zone colours, shorts tile layer not allowed) -> projects stay on the phone (agent FIXA10)
+- [x] QA10 LOGIC, app: Team form sport list shows "Headwear"; empty brief SEND gives no message (agent FIXA10)
+- [x] QA10 LOGIC, website: Assist panel auto-opens over the 3DEEZI TEAM card on Home at 1440; pick-up review total may still include shipping; order-form orders show no garment names on My orders / admin board / order page; drafts all "Untitled order" (agent FIXW10)
+- [x] QA10 LOGIC, website + app: Signage Back view shows the logo mirrored; first Back/360 turn slow (SIGNFIX resumed)
+- [ ] (low) Signage Back view: the feather flag and pull-up banner beside the tent still show their print mirrored from behind (like a real one-sided flag); change only if wanted
+- [x] Pick-up orders still charged a region's shipping if a region was picked before switching to Pick up (server + UI) (FIXW10 resumed, 2026-11-11)
+- [x] App parity: order cards name the garments, drafts named "<garment> · <qty> · draft from <date>", "Pick up · Free", sizeless chat lines become rows (FIXA10 resumed, 2026-11-11)
+- [x] App parity: app order form notes sizeless line row -> included in the line above

@@ -6,13 +6,14 @@ import GarmentIcon from '../components/GarmentIcon';
 import StoreBadges, { AppleLogo, GooglePlayLogo } from '../components/StoreBadges';
 import RewardsBanner from '../components/RewardsBanner';
 import OrderNow from '../components/OrderNow';
+import { homeAssistScale } from '../components/Assist';
 import '../../css/home.css';
 
 export default function Home({onStart}:{onStart:(mode:'ai'|'dyo')=>void}) {
   // 3DEEZI ASSIST scales with the page here, as in the design: 341 px wide at 1600 px, the cards beside it.
   useEffect(() => {
     const root = document.documentElement;
-    const fit = () => root.style.setProperty('--assist-scale', String(Math.min(1.2, Math.max(.8, root.clientWidth / 1600 * 341 / 344))));
+    const fit = () => root.style.setProperty('--assist-scale', String(homeAssistScale()));
     fit(); window.addEventListener('resize', fit);
     return () => { window.removeEventListener('resize', fit); root.style.removeProperty('--assist-scale'); };
   }, []);

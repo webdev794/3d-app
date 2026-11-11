@@ -196,3 +196,12 @@ Resume via SendMessage, do not respawn:
 - 2026-11-10: pushed v3 = 71286fc (signage spacing + order form notes). No agents running. Open: app parity for sizeless rows, singlet price, signage Back view.
 - 2026-11-10 ~18:4x: QA10 a662951b1a1657a99 = read-only regression of later changes (Team no bubble, DYO bigger, examples removed, sync fix, glass buttons, signage, order reading, artboard). If user is away: record results in tasks.md; fixes -> v3.
 - 2026-11-10 18:36: live tar 3deez-update-2026-11-10-a.tar.gz (29 files, delta since 11-06-f, code only, no migrations).
+- 2026-11-10: live extracted 3deez-update-2026-11-10-a (2nd try; 1st extract did not land). Verified: live serves main-DMZOJE26.css / main-DhmTW-0l.js, artboard index.html from 11-10. Tip: after each upload, curl the live page for the new build/assets names.
+- 2026-11-11: new day. DYOBIG2 a81cb364a130ff78e resumed for DYOBRAND (502: less text, bigger kit, closer sides, kits blue/black/white, app only). QA10 a662951b1a1657a99 stopped at session end -> resumed (skip DYO page while it changes).
+- 2026-11-11: QA10 done: 1 BROKEN (app project save 422) + logic items. Fixers: FIXA10 ab17ff47954f9e076 (ProjectRequest.php + project_sync + team.dart), FIXW10 acae35ca5b6e1014b (Assist/Home, pick-up total, order names, draft names), SIGNFIX a584c39434a5649d6 (mirrored back-wall logo, viewer). DYOBIG2 still on DYO. Push v3 + live tar when all done.
+- 2026-11-11: DYOBIG2 done (DYOBRAND): kit 346/410/466 px; 22 kit-*-brand.webp recoloured; weaker: cricket (dark), teamwear (cream trim). Wait for FIXA10/FIXW10/SIGNFIX, then push v3 + live tar.
+- 2026-11-11: SIGNFIX done (marquee back sides read correctly; faster turns; VIEWER_VERSION 2026-10-20-283). Still running: FIXA10, FIXW10.
+- 2026-11-11: FIXA10 done (ProjectRequest.php allowed lists; app save retry + amber notice; Team form). Live needs the new ProjectRequest.php (next tar). Waiting for FIXW10, then push v3 + tar 11-11-a.
+- 2026-11-11: FIXW10 done (Assist on Home, pick-up totals, garment names, draft names) -> resumed for pick-up+region shipping bug. FIXA10 resumed for app parity of those. Then push v3 + tar 11-11-a.
+- 2026-11-11: FIXW10 pick-up overcharge fixed (PricingService/PricingController/OrderSubmission, OrderForm/OrderUpload/OrderPayment). Admin pick-up price (if set) still applies (kept). Waiting FIXA10 app parity -> push v3 + tar 11-11-a.
+- 2026-11-11 11:0x: live tar 3deez-update-2026-11-11-a.tar.gz (38 files, delta since 11-10-a, no migrations). Pushing v3.

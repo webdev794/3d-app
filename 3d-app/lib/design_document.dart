@@ -173,3 +173,8 @@ const studioPatterns = [
   'Tribal',
   'Camo',
 ];
+
+/// The patterns a saved design keeps: the Studio's, and Shards (the
+/// basketball shooting shirt tile's starting look, not in the Studio's list),
+/// which a save turned into Solid before (QA10 2026-11-11).
+const savedPatterns = [...studioPatterns, 'Shards'];

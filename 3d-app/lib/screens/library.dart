@@ -644,15 +644,25 @@ class _ProjectCard extends StatelessWidget {
                       Positioned(
                         top: 6,
                         left: 6,
-                        child: Icon(
-                          p.syncError != null
-                              ? Icons.cloud_off_outlined
-                              : p.pendingUpload
-                              ? Icons.cloud_upload_outlined
-                              : Icons.cloud_done_outlined,
-                          size: 16,
-                          color: Palette.cyan,
-                          shadows: const [Shadow(blurRadius: 6)],
+                        child: Tooltip(
+                          // Why it is not on the account yet (QA10).
+                          message:
+                              p.syncError ??
+                              (p.pendingUpload
+                                  ? 'Waiting to upload to your account'
+                                  : 'Saved to your account'),
+                          child: Icon(
+                            p.syncError != null
+                                ? Icons.cloud_off_outlined
+                                : p.pendingUpload
+                                ? Icons.cloud_upload_outlined
+                                : Icons.cloud_done_outlined,
+                            size: 16,
+                            color: p.syncError != null
+                                ? const Color(0xffffc36b)
+                                : Palette.cyan,
+                            shadows: const [Shadow(blurRadius: 6)],
+                          ),
                         ),
                       ),
                     Positioned(
@@ -1425,7 +1435,11 @@ class _SyncCard extends StatelessWidget {
         : c.syncMessage != null
         ? (Icons.cloud_off_outlined, c.syncMessage!)
         : failed.isNotEmpty
-        ? (Icons.cloud_off_outlined, failed.first.syncError!)
+        ? (
+            Icons.cloud_off_outlined,
+            '${failed.first.title}: ${failed.first.syncError!}'
+                '${failed.length > 1 ? ' (${failed.length - 1} more not on your account yet.)' : ''}',
+          )
         : (
             Icons.cloud_done_outlined,
             '$cloud project${cloud == 1 ? '' : 's'} saved to your account'

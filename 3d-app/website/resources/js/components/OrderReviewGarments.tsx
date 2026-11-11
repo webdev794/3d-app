@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ArrowUpRight, ChevronDown, FileText, LoaderCircle, Pencil, Shirt, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { KitViewer, type Design, type KitViewerHandle } from './KitViewer';
 import GarmentIcon from './GarmentIcon';
-import type { Quote } from './OrderPayment';
+import { freePickup, type Quote } from './OrderPayment';
 import { downloadReviewPdf, type ReviewPdfInput } from './orderReviewPdf';
 import { artworkPicture, aud, garmentQty, mockupDesign, orderedSizes, projectPicture, rowGarmentOf, summaryText, type Mockup, type ReviewDelivery, type ReviewGarment } from './orderReviewData';
 import '../../css/order-review-multi.css';
@@ -275,7 +275,8 @@ function QuoteBreakdown({ quote, updating }: { quote: Quote; updating: boolean }
       <span>{r.name}<small>{r.quantity} × {r.priced ? aud(r.unit_price, c) : 'price to be confirmed'}</small></span><b>{r.priced ? aud(r.total, c) : 'To be confirmed'}</b>
     </li>)}</ul>
     <ul className="orm-quote-sums">
-      {quote.shipping && <li><span>Shipping{quote.shipping.name ? ` · ${quote.shipping.name}` : ''}</span><b>{quote.shipping.priced ? aud(quote.shipping.amount, c) : 'To be confirmed'}</b></li>}
+      {quote.shipping && (freePickup(quote.shipping) ? <li><span>Pick up</span><b>Free</b></li>
+        : <li><span>Shipping{quote.shipping.name ? ` · ${quote.shipping.name}` : ''}</span><b>{quote.shipping.priced ? aud(quote.shipping.amount, c) : 'To be confirmed'}</b></li>)}
       {quote.discounts.map(d => <li key={d.name + d.code} className="is-discount"><span>{d.name}{d.code ? ` (${d.code})` : ''}</span><b>-{aud(d.amount, c)}</b></li>)}
       <li><span>Subtotal</span><b>{aud(quote.subtotal, c)}</b></li>
       <li><span>{quote.tax.name} {quote.tax.applies ? `(${Number(quote.tax.rate)}%${quote.tax.included ? ', included' : ''})` : '(not applicable)'}</span><b>{aud(quote.tax.amount, c)}</b></li>

@@ -1363,6 +1363,13 @@ typedef TeamSport = ({
   List<String> garments,
 });
 
+/// Catalogue entries that are a kind of garment, not a sport or activity
+/// (QA10 2026-11-11): Headwear's caps, bucket hats and beanies are picked under
+/// "Garments needed", which lists every garment. The apparel activities
+/// (Training / Gym, Workwear, School Leavers…) stay: they send the request's
+/// Apparel category, as on the website.
+const teamNotActivities = {'headwear'};
+
 /// The TEAM form's sports: Design Your Own's list (lib/sports_catalog.dart:
 /// the same names, e.g. "Soccer", and order), then any sport the website's
 /// catalogue [server] has that the app does not know yet. A sport without DYO
@@ -1374,19 +1381,21 @@ List<TeamSport> teamSportsFrom(List<Map> server) {
   ];
   return [
     for (final s in sportCategories)
-      (
-        id: s.id,
-        name: s.name,
-        group: s.group,
-        garments: s.garments.isEmpty
-            ? serverGarments(byId[s.id])
-            : [
-                for (final g in s.garments)
-                  if (garmentIds[g] != null) garmentIds[g]!,
-              ],
-      ),
+      if (!teamNotActivities.contains(s.id))
+        (
+          id: s.id,
+          name: s.name,
+          group: s.group,
+          garments: s.garments.isEmpty
+              ? serverGarments(byId[s.id])
+              : [
+                  for (final g in s.garments)
+                    if (garmentIds[g] != null) garmentIds[g]!,
+                ],
+        ),
     for (final s in server)
-      if (!sportCategories.any((x) => x.id == '${s['id']}'))
+      if (!sportCategories.any((x) => x.id == '${s['id']}') &&
+          !teamNotActivities.contains('${s['id']}'))
         (
           id: '${s['id']}',
           name: '${s['name']}',
@@ -1800,7 +1809,10 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
 
   Future<void> _send() async {
     setState(() => _error = null);
-    if (!_form.currentState!.validate()) return;
+    if (!_form.currentState!.validate()) {
+      _showFirstProblem();
+      return;
+    }
     if (!widget.c.signedIn) return _signIn(context, widget.c);
     final size = _files.fold<int>(0, (a, f) => a + f.pick.bytes.length);
     if (size > 100 * 1024 * 1024) {
@@ -1848,6 +1860,36 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// A field that is not filled in right (e.g. an empty Design brief) may be
+  /// off the screen above SEND DESIGN REQUEST: scroll to the first one, where
+  /// its message shows (QA10 2026-11-11: the tap seemed to do nothing).
+  void _showFirstProblem() {
+    BuildContext? first;
+    void visit(Element e) {
+      if (first != null) return;
+      if (e is StatefulElement &&
+          e.state is FormFieldState &&
+          (e.state as FormFieldState).hasError) {
+        first = e;
+        return;
+      }
+      e.visitChildElements(visit);
+    }
+
+    _form.currentContext?.visitChildElements(visit);
+    final target = first;
+    if (target == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !target.mounted) return;
+      Scrollable.ensureVisible(
+        target,
+        alignment: 0.15,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   void _another() => setState(() {
@@ -2433,8 +2475,12 @@ class _TeamRequestFormState extends State<TeamRequestForm> {
               minLines: 3,
               maxLines: 8,
               maxLength: 4000,
-              validator: (v) => (v ?? '').trim().length < 10
-                  ? 'Describe your design in a few words (10 characters or more).'
+              // QA10: an empty brief says so here (and the form scrolls to it).
+              validator: (v) => (v ?? '').trim().isEmpty
+                  ? 'Please describe your design'
+                  : (v ?? '').trim().length < 10
+                  ? 'Please describe your design in a few more words '
+                        '(10 characters or more).'
                   : null,
             ),
             const SizedBox(height: 4),

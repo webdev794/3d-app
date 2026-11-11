@@ -159,6 +159,8 @@ function floorOutline(w, d) {
 let design = defaultMarqueeDesign();
 let model = null, modelKey = '';
 const textures = {};
+/** The same prints for the panels' other side, turned so they read the right way round from there too. */
+const backTextures = {};
 const canvases = {};
 const painted = {};
 const marquee = new THREE.Group();
@@ -177,12 +179,20 @@ function rebuild() {
   for (const [zone, mesh] of Object.entries(model.zones)) {
     canvases[zone] ??= document.createElement('canvas');
     textures[zone]?.dispose();
+    backTextures[zone]?.dispose();
     const texture = new THREE.CanvasTexture(canvases[zone]);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     textures[zone] = texture;
+    // Seen from its other side (the back wall from behind, a side wall or the roof from inside) a panel's artwork
+    // reads the right way round too, not mirrored (2026-11-11: the 3DEEZI logo on the back wall was backwards in the
+    // Back view). The print itself (the canvas, the 2D layout and the exports) is unchanged.
+    const back = texture.clone();
+    back.repeat.set(-1, 1);
+    back.offset.set(1, 0);
+    backTextures[zone] = back;
     mesh.material.map = texture;
-    mesh.userData.through.material.map = texture;
+    mesh.userData.through.material.map = back;
     mesh.userData.through.material.needsUpdate = true;
     mesh.material.needsUpdate = true;
   }
@@ -206,6 +216,7 @@ async function paint() {
     painted[zone] = sig;
     await paintZone(canvases[zone], zone, zd, size);
     textures[zone].needsUpdate = true;
+    backTextures[zone].needsUpdate = true;
     previews[zone] = preview(zone);
   }
   if (Object.keys(previews).length) post({ type: 'panels', images: previews, sizes: Object.fromEntries(ZONES.map((z) => [z, zoneSize(z, design)])) });
@@ -416,14 +427,33 @@ async function outlineLayer() {
     return new THREE.Vector3(pos.getX(best), pos.getY(best), pos.getZ(best));
   };
   const x0 = box.x - box.w / 2, x1 = box.x + box.w / 2, y0 = 1 - (box.y - box.h / 2), y1 = 1 - (box.y + box.h / 2);
-  const pts = [at(x0, y0), at(x1, y0), at(x1, y1), at(x0, y1)];
-  const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.9 }));
-  line.renderOrder = 12;
-  layerLine.add(line);
+  // One box for each side of the panel (its other side shows the artwork turned round, see rebuild); the one for the
+  // side the camera sees shows (frame()).
+  for (const [a, b] of [[x0, x1], [1 - x0, 1 - x1]]) {
+    const pts = [at(a, y0), at(b, y0), at(b, y1), at(a, y1)];
+    const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.9 }));
+    line.renderOrder = 12;
+    layerLine.add(line);
+  }
+  // Which way the panel faces (its first triangle); the roof is only ever seen from above.
+  const index = mesh.geometry.index, corner = (k) => new THREE.Vector3().fromBufferAttribute(pos, index ? index.getX(k) : k).applyMatrix4(mesh.matrixWorld);
+  const [a, b, c] = [corner(0), corner(1), corner(2)];
+  layerLine.userData.facing = zone === 'roof' ? null : { point: a, normal: b.clone().sub(a).cross(c.clone().sub(a)) };
+  showLayerSide();
+}
+/** The selected layer's box on the side of its panel that the camera sees. */
+function showLayerSide() {
+  const [front, back] = layerLine.children, f = layerLine.userData.facing;
+  if (!front || !back) return;
+  const seen = !f || f.normal.dot(v3.copy(camera.position).sub(f.point)) >= 0;
+  front.visible = seen;
+  back.visible = !seen;
 }
 
 // ---------- picking: a tap on a zone selects it; a drag with Move / Scale changes the selected layer
 const raycaster = new THREE.Raycaster();
+/** Where a hit is on its zone's print: a panel's other side shows the print turned round (rebuild), so its u turns too. */
+const printUv = (hit) => (hit.object.userData.through ? { x: 1 - hit.uv.x, y: hit.uv.y } : hit.uv);
 function hitAt(e) {
   const r = canvas.getBoundingClientRect();
   raycaster.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
@@ -439,7 +469,8 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!hit || hit.object.userData.zone !== selectedLayer.zone || !layer || layer.type === 'pattern') return;
   controls.enabled = false;
   canvas.setPointerCapture(e.pointerId);
-  drag = { layer, startY: e.clientY, w: Number(layer.w) || 0.3, size: Number(layer.size) || 0.15, offset: [layer.x - hit.uv.x, layer.y - (1 - hit.uv.y)] };
+  const uv = printUv(hit);
+  drag = { layer, startY: e.clientY, w: Number(layer.w) || 0.3, size: Number(layer.size) || 0.15, offset: [layer.x - uv.x, layer.y - (1 - uv.y)] };
 });
 let dragPost = 0;
 canvas.addEventListener('pointermove', (e) => {
@@ -448,8 +479,9 @@ canvas.addEventListener('pointermove', (e) => {
   if (toolMode === 'move') {
     const hit = hitAt(e);
     if (!hit || hit.object.userData.zone !== selectedLayer.zone) return;
-    layer.x = Math.min(1, Math.max(0, hit.uv.x + drag.offset[0]));
-    layer.y = Math.min(1, Math.max(0, 1 - hit.uv.y + drag.offset[1]));
+    const uv = printUv(hit);
+    layer.x = Math.min(1, Math.max(0, uv.x + drag.offset[0]));
+    layer.y = Math.min(1, Math.max(0, 1 - uv.y + drag.offset[1]));
   } else {
     const k = Math.exp((drag.startY - e.clientY) / 160);
     if (layer.type === 'image') layer.w = Math.min(1, Math.max(0.02, drag.w * k));
@@ -505,9 +537,16 @@ addEventListener('resize', resize);
 
 let released = false;
 const v3 = new THREE.Vector3();
+// Turns keep to the clock on a slow device (2026-11-11: the first Back or 360° turn took seconds): the camera's turn
+// to a view isn't slowed down when frames come late, and the 360° spin goes by the time passed, not by frames drawn.
+gsap.ticker.lagSmoothing(0);
+let lastFrame = performance.now();
 function frame() {
   if (released) return;
-  controls.update();
+  const now = performance.now();
+  controls.update(Math.min(0.5, (now - lastFrame) / 1000));
+  lastFrame = now;
+  showLayerSide();
   composer.render();
   if (labelAt && label.style.display !== 'none') {
     v3.copy(labelAt).project(camera);

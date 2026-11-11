@@ -32,6 +32,8 @@ class PricingController extends Controller
             'items.*.players.*.name' => ['nullable', 'string', 'max:40'],
             'items.*.players.*.number' => ['nullable', 'string', 'max:3'],
             'shipping_address' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            // Deliver or Pick up as chosen on the review: picked up is never charged shipping (PricingService::isPickup).
+            'delivery' => ['sometimes', 'nullable', 'in:deliver,pickup'],
             ...PricingService::choiceRules(),
         ], ['items.*.garment.required' => 'Choose a garment for each row.']);
 

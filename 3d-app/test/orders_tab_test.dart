@@ -9,7 +9,7 @@ import 'package:three_deezi/screens/library.dart';
 import 'package:three_deezi/screens/order_assistant.dart';
 import 'package:three_deezi/screens/order_entry.dart';
 import 'package:three_deezi/screens/suppliers.dart' show SuppliersScreen;
-import 'package:three_deezi/screens/orders_board.dart' show OrderDetailScreen, OrderBoardCard, orderCardLine, orderPayable;
+import 'package:three_deezi/screens/orders_board.dart' show OrderDetailScreen, OrderBoardCard, orderCardLine, orderPayable, draftLine;
 import 'package:three_deezi/widgets/assist_overlay.dart';
 import 'package:three_deezi/widgets/ui.dart';
 
@@ -115,24 +115,84 @@ void main() {
   });
 
   // QA8 #9: My orders cards read as the website's, with PAY NOW on an unpaid order.
-  testWidgets('My orders card: "5 garments · required 20 Mar" and PAY NOW on an unpaid order', (tester) async {
+  testWidgets('My orders card: "Rugby League Jersey · 5 · required 20 Mar" and PAY NOW on an unpaid order', (tester) async {
     var paid = 0;
     final o = <String, dynamic>{
       'id': 4, 'number': '3DZ-00004', 'name': 'Tigers', 'quantity': 5, 'needed_by': '2027-03-20',
       'stage': 'review', 'stage_label': 'In review', 'sub_status': {'label': 'In review', 'tone': 'blue'},
-      'garments': [{'garment': 'jersey', 'name': 'Jersey'}],
+      'garments': [{'garment': 'jersey', 'name': 'Rugby League Jersey'}],
       'payment': {'status': 'awaiting_payment', 'label': 'Awaiting payment', 'tone': 'amber', 'can_pay': true, 'invoice_number': 'INV-1'},
     };
     await _phone(tester, SingleChildScrollView(child: OrderBoardCard(o, onTap: () {}, onPay: () => paid++)), 360, 780);
-    expect(find.text('5 garments · required 20 Mar'), findsOneWidget);
+    // QA10: the garments by name, as the website's cards.
+    expect(find.text('Rugby League Jersey · 5 · required 20 Mar'), findsOneWidget);
     expect(find.text('PAY NOW →'), findsOneWidget);
     expect(find.text('View progress →'), findsNothing);
     await tester.tap(find.byKey(const Key('order-card-pay')));
     expect(paid, 1);
     expect(tester.takeException(), isNull);
     expect(orderCardLine({'quantity': 1, 'garments': [{'garment': 'marquee'}]}), '1 marquee');
+    expect(orderCardLine({'quantity': 5, 'needed_by': '2027-03-20', 'garments': [{'garment': 'jersey'}]}), '5 garments · required 20 Mar');
+    expect(orderCardLine({'quantity': 30, 'garments': [{'garment': 'jersey', 'name': 'Rugby League Jersey'}, {'garment': 'shorts', 'name': 'Rugby League Shorts'}, {'garment': 'jersey', 'name': 'Rugby League Jersey'}]}), 'Rugby League Jersey + 1 more · 30');
+    expect(orderCardLine({'quantity': 0, 'garments': [{'garment': 'hoodie', 'name': 'Hoodie'}]}), 'Hoodie · Sizes to be confirmed');
+    expect(orderCardLine({'quantity': 5, 'needed_by': '2027-03-20', 'completed': true, 'garments': [{'name': 'Polo'}]}), 'Polo · 5');
     expect(orderPayable({'status': 'paid', 'can_pay': false, 'invoice_number': 'INV-1'}), isFalse);
   });
+
+  // QA10 (website parity 2026-11-11): drafts by what they hold, pick up is free, notes' "5 hoodies" get a row.
+  test('My orders drafts: the team name, else what it holds and when; older servers as before', () {
+    final year = DateTime.now().year;
+    expect(draftLine({'id': 1, 'kind': 'form', 'title': null, 'name': 'Rugby League Jersey · 25', 'quantity': 25, 'created_at': '$year-11-11T09:00:00Z'}),
+        'Not sent yet: Rugby League Jersey · 25 · draft from 11 Nov');
+    expect(draftLine({'id': 2, 'kind': 'form', 'title': 'Hawks', 'name': 'Hawks', 'created_at': '$year-11-11T09:00:00Z'}), 'Not sent yet: Hawks');
+    expect(draftLine({'id': 3, 'kind': 'upload', 'title': null, 'name': null, 'created_at': '2025-03-02T09:00:00Z'}), 'Not sent yet: Uploaded order · draft from 2 Mar 2025');
+    // No `name` (a server before 2026-11-11): the old line.
+    expect(draftLine({'id': 4, 'kind': 'form', 'title': null}), 'Draft, not submitted: order form');
+    expect(draftLine({'id': 5, 'kind': 'upload', 'title': 'Tigers'}), 'Draft, not submitted: Tigers');
+  });
+
+  for (final width in [360.0, 390.0]) {
+    testWidgets('Review price: a pick-up order shows "Pick up · Free", not "Shipping A\$0.00" ($width wide)', (tester) async {
+      final server = OrdersServer();
+      final c = signedIn(server);
+      await _phone(tester, SingleChildScrollView(child: Column(children: [
+        PriceBox(c, const {'items': [{'garment': 'jersey', 'sizes': {'M': 10}}], 'pricing': {'destination': 'PICKUP'}}, key: const ValueKey('pickup')),
+        PriceBox(c, const {'items': [{'garment': 'jersey', 'sizes': {'M': 10}}], 'pricing': {'destination': 'AU'}}, key: const ValueKey('ship')),
+      ])), width);
+      expect(find.byKey(const Key('price-pickup-free')), findsOneWidget);
+      expect(find.text('Pick up'), findsOneWidget);
+      expect(find.text('Free'), findsOneWidget);
+      expect(find.textContaining('Shipping · Pick up'), findsNothing);
+      expect(find.text('Shipping · Australia'), findsOneWidget);
+      expect(freePickup({'destination': 'PICKUP', 'name': 'Pick up', 'amount': '0.00', 'priced': true}), isTrue);
+      expect(freePickup({'name': 'Pick up', 'amount': '0.00'}), isTrue);
+      expect(freePickup({'destination': 'PICKUP', 'name': 'Pick up', 'amount': '25.00', 'priced': true}), isFalse);
+      expect(freePickup({'destination': 'AU', 'name': 'Australia', 'amount': '0.00', 'priced': true}), isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Create Order Form: notes\' "5 hoodies" (no sizes) becomes a row marked sizes needed ($width wide)', (tester) async {
+      final server = OrdersServer();
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 1600);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: OrderFormScreen(signedIn(server)))));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('notes-text')), 'Polo 2 x M\n5 hoodies');
+      await tap(tester, find.byKey(const Key('build-form')));
+      expect(find.textContaining('Built 2 garments (7 in all)'), findsOneWidget);
+      expect(find.textContaining('Sizes needed: Hoodie × 5: no sizes given, please add them.'), findsOneWidget);
+      // Not only a line under Please check: the hoodie has a row of its own.
+      expect(find.textContaining('Please check: "5 hoodies"'), findsNothing);
+      await tester.scrollUntilVisible(find.byKey(const Key('sizes-needed-1')), 300, scrollable: find.byType(Scrollable).first);
+      expect(find.text('5 · sizes needed'), findsOneWidget);
+      // Review waits for the hoodies' sizes (they are never dropped quietly).
+      await tap(tester, find.byKey(const Key('order-review-button')));
+      expect(find.text('Add sizes and quantities for Hoodie (5 wanted), or remove it.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   // QA8 #1: Home in the tab bar from the Create Order Form did nothing.
   for (final tab in ['home', 'projects', 'profile']) {

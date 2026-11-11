@@ -48,8 +48,10 @@ class OrderSizesTest extends TestCase
             ['garment' => 'jersey', 'sport' => 'rugby-league', 'fit' => 'womens', 'sizes' => ['W24' => 1, 'W10' => 3]],
             ['garment' => 'jersey', 'sport' => 'rugby-league', 'fit' => 'youth', 'sizes' => ['16Y' => 2, '2Y' => 1, '10Y' => 2]],
         ];
-        // The review's price: every row at the jersey price, each named with its fit.
-        $quote = $this->postJson('/api/v1/pricing/quote', ['items' => $items, 'pricing' => ['destination' => 'AU']])->assertOk()->json('data');
+        // The review's price: every row at the jersey price, each named with its fit. Picked up (as form() places it):
+        // the Australia region chosen before is not charged (2026-11-11).
+        $quote = $this->postJson('/api/v1/pricing/quote', ['items' => $items, 'pricing' => ['destination' => 'AU'], 'delivery' => 'pickup'])->assertOk()->json('data');
+        $this->assertSame('0.00', $quote['shipping']['amount']);
         $this->assertSame('priced', $quote['status']);
         $this->assertSame(15, $quote['quantity']);
         $this->assertSame([6, 4, 5], array_column($quote['lines'], 'quantity'));

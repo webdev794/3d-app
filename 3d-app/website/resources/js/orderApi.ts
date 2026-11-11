@@ -66,7 +66,7 @@ export interface OrderFile {
   /** Staff only: what the server keeps with the file (an order form's reading: `suggested`, and `ai` {status, at, model}). */
   meta?: { suggested?: Suggested | null; ai?: { status: string; at: string; model?: string } | null; [key: string]: unknown } | null;
 }
-export interface DraftSummary { id: number; kind: DraftKind; title: string | null; files_count: number; garments_count: number; link: string; created_at: string; updated_at: string }
+export interface DraftSummary { id: number; kind: DraftKind; title: string | null; name?: string | null; quantity?: number; files_count: number; garments_count: number; link: string; created_at: string; updated_at: string }
 export interface OrderDraft {
   id: number; kind: DraftKind; title: string | null; data: OrderFields & Record<string, unknown>; files: OrderFile[]; link: string;
   suggested: (Suggested & { file_id: number })[]; created_at: string; updated_at: string;

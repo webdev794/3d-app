@@ -7,8 +7,46 @@ use Illuminate\Validation\Rule;
 
 class ProjectRequest extends FormRequest
 {
-    /** The parts of a kit that can have a look of their own (task 9.134; viewer zones.js TOP_PARTS, SHORTS_PARTS). */
-    public const PARTS = ['front', 'back', 'leftSleeve', 'rightSleeve', 'collar', 'sides', 'hem', 'shortsFront', 'shortsBack', 'shortsSides', 'shortsHem', 'waistband'];
+    /**
+     * The parts of a kit that can have a look of their own (task 9.134): every part the viewer paints on its own (zones.js
+     * TOP_PARTS, SHORTS_PARTS; bballprint.js, sockprint.js, skirtprint.js, capprint.js, hatprint.js, beanieprint.js).
+     * (QA10 2026-11-11: the socks' parts were missing, so the Rugby League Kit could not be saved.)
+     */
+    public const PARTS = [
+        'front', 'back', 'leftSleeve', 'rightSleeve', 'collar', 'sides', 'hem',
+        'shortsFront', 'shortsBack', 'shortsSides', 'shortsHem', 'waistband', 'shortsBand', 'shortsPiping',
+        'sockBand', 'sockHoops', 'sockFoot',
+        'skirtBand',
+        'capBrim', 'capUnder', 'capPiping', 'capSweep', 'capSweepLow',
+        'hatTop', 'hatBrim', 'hatUnder', 'hatBinding',
+        'beanieCuff', 'beanieStripe', 'beaniePom',
+    ];
+
+    /**
+     * The colour areas a design can colour on their own (design.zoneColors, each a hex colour): the hoodie, varsity, track
+     * jacket, basketball shorts and netball dress areas the Studio lists, and the garment tiles' own details the viewer
+     * draws (config/catalog.php looks, lib/sports_catalog.dart: the rugby sweeps and raglan, the socks' toe line and
+     * mark, the polo's quarter zip…). (QA10 2026-11-11: most of the tiles' areas were missing.)
+     */
+    public const ZONE_COLORS = [
+        // Hoodies, the varsity jacket, the track jacket (and its pants), the netball dress, the basketball shorts.
+        'hood', 'lining', 'rib', 'pocket', 'zip', 'body', 'sleeves', 'ribStripe', 'snaps', 'pocketTrim', 'shoulder', 'side',
+        'stripe', 'stripeDeep', 'cord', 'collar', 'cuffs', 'collarStripe', 'pantsStripe', 'sideBlade', 'varsityBoxy',
+        'panels', 'yoke', 'binding', 'bballBand', 'bballTrim1', 'bballTrim2',
+        // Tops: the rugby sweeps and raglan, the wing collar, the crew neck, the quarter zip, piping and inks.
+        'raglan', 'sweep', 'sweepDeep', 'wingCollar', 'wingCollarInside', 'crewNeck', 'quarterZip', 'collarPiping', 'piping',
+        'vInsert', 'badge', 'brandInk', 'crestWord', 'crestMark', 'labelDark', 'teeFlare', 'teeLong', 'teeNetball',
+        'flow', 'flowLight', 'flowDeep',
+        // Shorts, socks and hats.
+        'kitBlade', 'cordTips', 'shortsPlain', 'shortsNarrow', 'sockToeLine', 'sockMark', 'sockHoopsWide', 'beanieOne',
+        'shards', 'shardsDeep',
+    ];
+
+    /** The fixed marks that can be moved, resized, turned or hidden (top_frontNumber: the football jerseys' front number). */
+    public const MARKS = ['top_wordmark', 'top_sponsor', 'top_crest', 'top_name', 'top_number', 'top_frontNumber', 'shorts_crest', 'shorts_number', 'shorts_wordmark'];
+
+    /** A text object's own font (viewer texture.js LAYER_FONTS; the marquee's text fonts). */
+    public const LAYER_FONTS = ['JerseyBlock', 'Rajdhani'];
 
     /** The fabric types (Colours › Fabric type; KitViewer.tsx fabricTypes, the apps' designFabrics). */
     public const FABRICS = ['Standard', 'Mesh', 'Pro', 'Eco'];
@@ -38,6 +76,15 @@ class ProjectRequest extends FormRequest
         $required = $this->isMethod('post') ? 'required' : 'sometimes';
         $patterns = ['Solid', 'Stripes', 'Chevron', 'Velocity', 'Blades', 'Swirl', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
         $color = 'regex:/^#[0-9a-fA-F]{6}$/';
+        // How a word looks (task 9.146): viewer/src/wordart.js; on a fixed mark and on a text object.
+        $wordLook = fn (string $at) => [
+            "$at" => ['sometimes', 'nullable', 'array:style,width,color,shape,spacing'],
+            "$at.style" => ['sometimes', Rule::in(['plain', 'outline', 'shadow', 'extrude', 'contour'])],
+            "$at.width" => ['sometimes', 'numeric', 'between:0,0.3'],
+            "$at.color" => ['sometimes', $color],
+            "$at.shape" => ['sometimes', Rule::in(['straight', 'archUp', 'archDown', 'wave', 'bridge', 'slant'])],
+            "$at.spacing" => ['sometimes', 'numeric', 'between:-0.1,0.6'],
+        ];
 
         return [
             'name' => [$required, 'string', 'max:120'],
@@ -84,7 +131,8 @@ class ProjectRequest extends FormRequest
             'design.main' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.secondary' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design.accent' => ['required_with:design', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'design.pattern' => ['required_with:design', Rule::in($patterns)],
+            // (Also None, no pattern, and Shards, the basketball shooting shirt's: the garment tiles' starting looks.)
+            'design.pattern' => ['required_with:design', Rule::in([...$patterns, 'None', 'Shards'])],
             'design.presetId' => ['sometimes', 'nullable', 'string', 'max:80'],
             // The sport's garment tile the design was made as ("Netball dress", task 9.99); 'garment' stays the 3D garment.
             // (Or a garment typed in "Custom…", client 2026-11-02: plain text only.)
@@ -139,8 +187,9 @@ class ProjectRequest extends FormRequest
             }],
             'design.parts.*.patternColour' => ['sometimes', 'nullable', $color],
             'design.parts.*.patternOpacity' => ['sometimes', 'nullable', 'numeric', 'between:0,1'],
-            // Hoodies: each area's own colour (the hood, its lining, the rib cuffs and waistband, the pocket, the zip).
-            'design.zoneColors' => ['sometimes', 'nullable', 'array:hood,lining,rib,pocket,zip,body,sleeves,ribStripe,snaps,pocketTrim,shoulder,side,stripe,collar,cuffs,collarStripe'],
+            // Each colour area's own colour (hoodies: the hood, its lining, the rib cuffs and waistband, the pocket, the zip;
+            // the garment tiles' details: ZONE_COLORS).
+            'design.zoneColors' => ['sometimes', 'nullable', 'array:'.implode(',', self::ZONE_COLORS)],
             'design.zoneColors.*' => ['nullable', $color],
             // The track jacket's style: its stand-up collar or a hood.
             'design.trackStyle' => ['sometimes', 'nullable', Rule::in(['collar', 'hood'])],
@@ -149,15 +198,10 @@ class ProjectRequest extends FormRequest
             'design.neck' => ['sometimes', 'nullable', Rule::in(self::NECKS)],
             'design.fit' => ['sometimes', 'nullable', Rule::in(['classic', 'pro', 'tight'])],
             // The fixed marks moved, resized, turned or hidden on the 2D panels.
-            'design.marks' => ['sometimes', 'array:top_wordmark,top_sponsor,top_crest,top_name,top_number,shorts_crest,shorts_number,shorts_wordmark'],
+            'design.marks' => ['sometimes', 'array:'.implode(',', self::MARKS)],
             'design.marks.*' => ['array:side,x,y,scale,rot,hidden,shape,color,look'],
             // How a word looks (task 9.146): viewer/src/wordart.js.
-            'design.marks.*.look' => ['sometimes', 'nullable', 'array:style,width,color,shape,spacing'],
-            'design.marks.*.look.style' => ['sometimes', Rule::in(['plain', 'outline', 'shadow', 'extrude', 'contour'])],
-            'design.marks.*.look.width' => ['sometimes', 'numeric', 'between:0,0.3'],
-            'design.marks.*.look.color' => ['sometimes', $color],
-            'design.marks.*.look.shape' => ['sometimes', Rule::in(['straight', 'archUp', 'archDown', 'wave', 'bridge', 'slant'])],
-            'design.marks.*.look.spacing' => ['sometimes', 'numeric', 'between:-0.1,0.6'],
+            ...$wordLook('design.marks.*.look'),
             // Chosen on the 3D kit (task 9.144): the crest's badge shape and a word's own colour.
             'design.marks.*.shape' => ['sometimes', Rule::in(['shield', 'circle', 'square', 'rounded', 'diamond'])],
             'design.marks.*.color' => ['sometimes', $color],
@@ -184,7 +228,12 @@ class ProjectRequest extends FormRequest
             // (The netball dress takes a design picture as the singlet does: task 9.126.)
             'design.layout.parts.*' => [Rule::in(['raglan', 'shorts', 'singlet', 'netball-dress', 'jersey', 'tee', 'polo'])],
             'design.layers' => ['sometimes', 'array', 'max:40'],
-            'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape,artboard,clip'],
+            'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape,artboard,clip,font,look,narrow'],
+            // A text object's own font, word look and squeeze (the garment tiles' numbers: the Rugby League Kit's shorts
+            // "3", the football jerseys' "3"s; viewer texture.js).
+            'design.layers.*.font' => ['sometimes', 'nullable', Rule::in(self::LAYER_FONTS)],
+            ...$wordLook('design.layers.*.look'),
+            'design.layers.*.narrow' => ['sometimes', 'nullable', 'numeric', 'between:0.1,1'],
             // An object on one part of the kit only (task 9.134): cut to that part's edges.
             'design.layers.*.clip' => ['sometimes', 'nullable', Rule::in(self::PARTS)],
             // Artwork sent from the Artboard: the id of the design it came from (Edit in Artboard opens it again).

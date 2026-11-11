@@ -98,6 +98,10 @@ export function useQuote(request: QuoteRequest | null): { quote: Quote | null; l
   return state;
 }
 
+/** Picked up at no cost (the price list's Pick up, or the server's own when it has none): shown as "Pick up · Free". */
+export const freePickup = (s: { destination?: string | null; name?: string | null; amount: string | null; priced: boolean } | null | undefined) =>
+  !!s && s.priced && !Number(s.amount) && ((s.destination ?? '').toUpperCase() === 'PICKUP' || /^pick ?up$/i.test((s.name ?? '').trim()));
+
 /** The review step's breakdown: items, extras, shipping, discounts, subtotal, tax and TOTAL; or "Quote required". */
 export function PriceBreakdown({ quote, loading = false, error = '' }: { quote: Quote | null; loading?: boolean; error?: string }) {
   if (error) return <div className="pay-breakdown"><p className="error-message">{error}</p></div>;
@@ -111,7 +115,8 @@ export function PriceBreakdown({ quote, loading = false, error = '' }: { quote: 
     <dl className="pay-totals">
       <div><dt>Garments</dt><dd>{money(quote.garments_total, c)}</dd></div>
       {Number(quote.extras_total) > 0 && <div><dt>Extras</dt><dd>{money(quote.extras_total, c)}</dd></div>}
-      {quote.shipping && <div><dt>Shipping{quote.shipping.name ? ` · ${quote.shipping.name}` : ''}</dt><dd>{quote.shipping.priced ? money(quote.shipping.amount, c) : 'To be confirmed'}</dd></div>}
+      {quote.shipping && (freePickup(quote.shipping) ? <div data-testid="pay-pickup-free"><dt>Pick up</dt><dd>Free</dd></div>
+        : <div><dt>Shipping{quote.shipping.name ? ` · ${quote.shipping.name}` : ''}</dt><dd>{quote.shipping.priced ? money(quote.shipping.amount, c) : 'To be confirmed'}</dd></div>)}
       {quote.discounts.map(d => <div key={d.name + d.code} className="is-discount"><dt>{d.name}{d.code ? ` (${d.code})` : ''}</dt><dd>-{money(d.amount, c)}</dd></div>)}
       {!required && <>
         <div className="is-rule"><dt>Subtotal</dt><dd>{money(quote.subtotal, c)}</dd></div>
@@ -149,7 +154,8 @@ export function PricingChoices({ value, onChange, choice, shipping }: { value: P
     const named = DESTINATION_NAMES[up]?.toLowerCase();
     return options.destinations.find(d => d.code.toUpperCase() === up)?.code ?? (named ? options.destinations.find(d => d.name.trim().toLowerCase() === named)?.code : undefined) ?? null;
   };
-  const pickup = choice?.toUpperCase() === 'PICKUP' && (!value.destination || value.destination.toUpperCase() === 'PICKUP' || value.destination === listed('PICKUP'));
+  // Picked up: nothing is delivered, whatever region was chosen before switching (it is never charged shipping).
+  const pickup = choice?.toUpperCase() === 'PICKUP';
   const shown = value.destination || shipping?.destination || choice || options.default_destination || '';
   const selected = listed(shown) ?? shown.toUpperCase();
   const destinations = selected && !options.destinations.some(d => d.code === selected)

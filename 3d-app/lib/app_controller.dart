@@ -1432,7 +1432,8 @@ class AppController extends ChangeNotifier {
   }
 
   /// Uploads one project. An expired session is rethrown; other failures
-  /// are recorded on the project.
+  /// are recorded on the project (shown on its card, the Projects screen's
+  /// cloud line and the Save screen) and tried again later ([retryUploads]).
   Future<void> _upload(Project p) async {
     try {
       final body = ProjectSync.toServer(p);
@@ -1452,9 +1453,45 @@ class AppController extends ChangeNotifier {
         p.remoteId = null;
         return _upload(p);
       }
-      p.syncError = e.message;
+      p.syncError = notOnAccount(e.message);
     } finally {
       notifyListeners();
+    }
+  }
+
+  /// Why a save did not reach the account, in words the customer can act on
+  /// (QA10 2026-11-11: a refused save only showed a cloud mark).
+  static String notOnAccount(String reason) {
+    final why = reason.trim();
+    return 'Saved on this device, but not on your account yet'
+        '${why.isEmpty ? '.' : ' (${why.endsWith('.') ? why.substring(0, why.length - 1) : why}).'}'
+        ' The app will try again by itself; you can also tap Sync now in '
+        'Projects.';
+  }
+
+  /// Projects saved on this device that the account has not taken yet.
+  bool get uploadsWaiting => projects.any((p) => p.pendingUpload);
+
+  /// When the next automatic try of [retryUploads] may run, and the wait
+  /// after it (doubling up to 30 minutes while the saves keep failing).
+  DateTime _nextRetry = DateTime.fromMillisecondsSinceEpoch(0);
+  Duration _retryWait = const Duration(minutes: 1);
+
+  /// Tries the saves that did not reach the account again (the app runs it
+  /// every minute and when it comes back to the front; [now] skips the wait).
+  Future<void> retryUploads({bool now = false}) async {
+    if (!signedIn || _sync != null || !uploadsWaiting) return;
+    final at = DateTime.now();
+    if (!now && at.isBefore(_nextRetry)) return;
+    await syncProjects();
+    if (uploadsWaiting) {
+      _nextRetry = DateTime.now().add(_retryWait);
+      final longer = _retryWait * 2;
+      _retryWait = longer > const Duration(minutes: 30)
+          ? const Duration(minutes: 30)
+          : longer;
+    } else {
+      _retryWait = const Duration(minutes: 1);
     }
   }
 
@@ -1783,6 +1820,7 @@ class AppController extends ChangeNotifier {
     projectName = '';
     saved = false;
     saveError = null;
+    saveNotice = null;
   }
 
   void startAi() {
@@ -2119,6 +2157,7 @@ class AppController extends ChangeNotifier {
     projectName = project.title;
     saved = false;
     saveError = null;
+    saveNotice = null;
     notifyListeners();
     try {
       await store.save(project);
@@ -2129,11 +2168,19 @@ class AppController extends ChangeNotifier {
           'full or unavailable. Keep this tab open, free some space and retry, '
           'or sign in to save your design to your account.';
     }
+    saveNotice = null;
     if (signedIn) {
       try {
         await _upload(project);
       } on ApiException catch (e) {
         await _expire(e.message);
+        saveNotice = notOnAccount(e.message);
+      }
+      // Kept here, but the account refused it or could not be reached: say
+      // so on the Save screen (the next tries run by themselves).
+      if (project.pendingUpload && project.syncError != null) {
+        saveNotice = project.syncError;
+        _nextRetry = DateTime.now().add(_retryWait);
       }
     }
     saved =
@@ -2143,6 +2190,11 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     return saved;
   }
+
+  /// After a save: it is on this device, but not on the account yet (why,
+  /// and that it is tried again). Null when it reached the account or no
+  /// account is signed in.
+  String? saveNotice;
 
   void loadProject(Project project) {
     _resetDesign();

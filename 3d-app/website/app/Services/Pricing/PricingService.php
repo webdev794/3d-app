@@ -326,9 +326,12 @@ class PricingService
     private function shipping(array $request, array $choices, int $quantity, array $settings, array $overrides, bool $explain, array &$reasons): array
     {
         $rules = $this->rules()->where('kind', 'shipping');
-        $code = $choices['destination']
+        // Picked up (the review's Pick up, or an order's pick-up note): never shipped, so never charged a region's shipping,
+        // whatever "Delivery to" region was chosen before switching (2026-11-11). Only the price list's own pick-up price
+        // (none by default: free) or a staff amount on the invoice applies.
+        $code = self::isPickup($request) ? 'PICKUP' : ($choices['destination']
             ?? self::destinationFromAddress((string) ($request['shipping_address'] ?? ''), $rules->pluck('name', 'code')->all())
-            ?? (filled($settings['default_destination']) ? strtoupper((string) $settings['default_destination']) : null);
+            ?? (filled($settings['default_destination']) ? strtoupper((string) $settings['default_destination']) : null));
         $rule = $code ? $rules->first(fn (PriceRule $r) => strtoupper((string) $r->code) === $code) : null;
         // The admin may use another code for a known place ("AUS" for Australia): match it by name.
         if (! $rule && isset(self::DESTINATIONS[$code])) {
@@ -349,6 +352,17 @@ class PricingService
         }
 
         return ['destination' => $code, 'name' => $name, 'amount_cents' => $amount, 'priced' => $amount !== null, 'taxable' => $rule ? $rule->taxable : true];
+    }
+
+    /** Whether a request is picked up: delivery "pickup" (the review's choice) or the order's pick-up note as its address. */
+    public static function isPickup(array $request): bool
+    {
+        if (($request['delivery'] ?? null) === 'pickup') {
+            return true;
+        }
+        $address = strtoupper(trim((string) preg_replace('/[^A-Za-z0-9]+/', ' ', (string) ($request['shipping_address'] ?? ''))));
+
+        return $address !== '' && $address === strtoupper(trim((string) preg_replace('/[^A-Za-z0-9]+/', ' ', \App\Support\OrderDelivery::PICKUP_TEXT)));
     }
 
     /** Names for destination codes the admin has not named. */

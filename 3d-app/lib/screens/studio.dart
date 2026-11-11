@@ -2505,6 +2505,34 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
             child: _done
                 ? Column(
                     children: [
+                      // Kept on this device, but the account did not take it
+                      // (QA10 2026-11-11: only a cloud mark said so).
+                      if (c.saveNotice != null)
+                        Padding(
+                          key: const ValueKey('save-account-notice'),
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.cloud_off_outlined,
+                                color: Color(0xffffc36b),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  c.saveNotice!,
+                                  style: const TextStyle(
+                                    color: Color(0xffffc36b),
+                                    fontSize: 12,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       GradientButton(
                         label: 'EXPORT DESIGN',
                         icon: Icons.ios_share_rounded,

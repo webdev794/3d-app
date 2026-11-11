@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Check, CheckCircle2, ClipboardList, Copy, CreditCard, Download, ExternalLink, FileText, Image as ImageIcon, LoaderCircle, MessageSquareText, Package, Palette, PenLine, Receipt, Shirt, Truck, TriangleAlert, Upload, X } from 'lucide-react';
 import { ApiError, downloadFile, fetchFile } from '../api';
 import { orderApi } from '../orderApi';
-import { DetailSection, GarmentPicture, PaymentPill, STAGES, StatusPill, dateTime, displayRef, fileSize, orderTitle, ownOrderName, garmentName, money, payPath, plural, unitWord, readOrderDetail, safeLink, shortDate, type BoardOrder, type OrderDetail, type OrderFile, type OrderUpdate, type PaymentSummary, type Player } from './orderBoardModel';
+import { DetailSection, GarmentPicture, PaymentPill, STAGES, StatusPill, dateTime, displayRef, fileSize, orderTitle, ownOrderName, garmentName, garmentsLine, garmentsTitle, money, payPath, plural, unitWord, readOrderDetail, safeLink, shortDate, type BoardOrder, type OrderDetail, type OrderFile, type OrderUpdate, type PaymentSummary, type Player } from './orderBoardModel';
 import { ALL_SIZES, FIT_NAMES } from '../orderSizes';
 
 export type DetailFocus = 'review' | 'track' | 'pay' | null;
@@ -126,6 +126,7 @@ export default function OrderDetailDrawer({ orderId, initial, focus, refreshedAt
         <div>
           {(!order || ownOrderName(order.number, order.name)) && <p className="ob-ref">{order ? displayRef(order.number) : 'Order'}</p>}
           <h2 id="obd-title">{order ? ownOrderName(order.number, order.name) || displayRef(order.number) : 'Loading the order…'}</h2>
+          {order && garmentsLine(order.garments, order.quantity) && <p className="obd-what" data-testid="order-garments" title={garmentsTitle(order.garments)}>{garmentsLine(order.garments, order.quantity)}</p>}
         </div>
         <button type="button" className="obd-close" onClick={onClose} aria-label="Close the order"><X size={22} /></button>
       </header>

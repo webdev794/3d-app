@@ -835,3 +835,34 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 1. Orders > Create order form > "Write or snap your notes": type "Netball dress x 12 size 12" > Build my order form: one "Netball dress" row, women's size 12 x 12.
 2. Type "Football jerseys 3 x M" and "5 hoodies" on the next line: a Football jersey row (M x 3) and a Football hoodie row "5 hoodies - sizes needed"; the check list asks for the hoodie sizes.
 ---
+
+---
+**App Design Your Own: less text, bigger kit, blue/black/white kits (2026-11-11)**
+1. App > Home > Design Your Own: only a small "DESIGN YOUR OWN" label above the tabs (no slogan, no "Choose your sport" line); "Custom sport" button.
+2. The middle kit is much bigger; the side kits stand closer, partly behind it.
+3. Swipe through all sports: every kit picture is in blue, black and white (e.g. basketball, school leavers, netball, volleyball).
+4. Swipe, arrows, tapping a side kit, Custom sport and DESIGN all work; DESIGN is visible without scrolling on a normal phone.
+---
+
+---
+**Signage: tent back wall reads correctly (2026-11-11, website and app)**
+1. Website > Signage & Marquees > View: Back. The 3DEEZI logo and "3" on the back wall read the right way round (not mirrored).
+2. Start designing > Marquee Studio > Back view: moving a logo goes the way you drag; the print preview is unchanged.
+3. Back and 360 turn quickly.
+---
+
+---
+**Studio saves reach the account (2026-11-11, app and website)**
+1. App > Design Your Own > Rugby League > Continue to Studio > Save > SAVE PROJECT (signed in): the project saves to the account; sign out and in again, or open My projects on the website: it is there.
+2. Try a kit with socks, a cap or the basketball shooting shirt (Shards pattern): it saves and reopens with the same look.
+3. If a save can't reach the account, the Save screen says so in amber, and Projects shows an amber cloud with the reason; it tries again by itself.
+4. App > 3DEEZI TEAM > Request a designer: no "Headwear" under Sport / activity; SEND with an empty brief shows "Please describe your design".
+---
+
+---
+**Website orders: Assist, pick-up total, garment names, draft names (2026-11-11)**
+1. Website Home on a laptop: the Assist chat starts as the small button; clicking the 3DEEZI TEAM card opens Team.
+2. Order form > Review & Approve: choose a "Delivery to" region, then switch to Pick up: "Pick up · Free", the total drops, the pay page charges the same amount.
+3. My orders and Admin > Order board: cards name the garments, e.g. "Rugby League Jersey · 25 · required 20 Dec"; the order page shows the garments under its title.
+4. Not sent yet: drafts are named like "Rugby League Jersey · 25 · draft from 11 Nov" (not "Untitled order").
+---

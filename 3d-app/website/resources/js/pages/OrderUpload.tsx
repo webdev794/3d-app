@@ -732,14 +732,15 @@ export default function OrderUploadPage({ user, checking, requireAuth, onNotice 
     const timer = setTimeout(() => {
       // As the order will be priced: the review's choice, else section 1's (pick up, the country).
       const chosen = cleanPricing(pricing) ?? {};
-      const destination = chosen.destination ?? choiceDestination(fieldsRef.current);
+      // Picked up: never a "Delivery to" region (never charged shipping, the server's rule too).
+      const destination = choiceDestination(fieldsRef.current) === 'PICKUP' ? 'PICKUP' : chosen.destination ?? choiceDestination(fieldsRef.current);
       quoteFor(priced, destination ? { ...chosen, destination } : chosen).then(q => { if (live) setQuote(q?.status === 'priced' && q.total !== null ? { state: 'ready', quote: q } : { state: 'required', quote: q }); })
         .catch(() => { if (live) setQuote({ state: 'required' }); });
     }, 300);
     return () => { live = false; clearTimeout(timer); };
-    // Again whenever a price choice changes.
+    // Again whenever a price choice changes, or Deliver / Pick up and the country.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, items, itemsConfirmed, JSON.stringify(pricing)]);
+  }, [step, items, itemsConfirmed, JSON.stringify(pricing), choiceDestination(fields)]);
 
   async function submit() {
     if (submitting.current || step !== 'review') return;
