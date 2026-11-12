@@ -20,7 +20,7 @@ export const PROJECT_SECTIONS: (NavMenuItem & { tab: string })[] = [
   { to: '/projects', tab: 'Projects', title: 'My projects', text: 'Your saved kits and their versions', Icon: ProjectsIcon },
   { to: '/convert', tab: 'Convert', title: 'Convert', text: 'Instant 3D from your artwork', Icon: ConvertIcon },
   { to: '/approved', tab: 'Approved', title: 'Approved', text: 'Your final, approved designs', Icon: ApprovedIcon },
-  { to: '/assets', tab: 'Assets', title: 'Assets', text: 'Your logos, artwork and patterns', Icon: AssetsIcon },
+  { to: '/assets', tab: 'Assets', title: 'Assets', text: 'Your logos, artwork, patterns and Artboard designs', Icon: AssetsIcon },
 ];
 
 const isActive = (pathname: string) => PROJECT_SECTIONS.some(({ to }) => pathname === to || pathname.startsWith(`${to}/`));

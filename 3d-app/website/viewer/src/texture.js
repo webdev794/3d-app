@@ -4,7 +4,7 @@
 
 import { zoneRects, zonePolys, zoneOutlines, COMPRESSION_PIPING, NFL_PANEL, POCKET, hasPocket, isHoodie, isTrack, isDress, KANGAROO, kangarooEdge, HOOD_TOP, partRegion, TOP_PARTS, SHORTS_PARTS } from './zones.js';
 import { POCKET_ZIP, pocketZipX } from './trackjacket.js';
-import { dressDesign, paintDressBleed, paintDressPanels, paintDressYoke, paintDressBinding, paintDressTabs, dressSeams } from './netballdress.js';
+import { dressDesign, paintDressBleed, paintDressPanels, paintDressYoke, paintDressBinding, paintDressTabs, dressSeams, dressModel } from './netballdress.js';
 import { isVarsity, varsityTailoring, paintVarsity, paintVarsityMarks } from './varsity.js';
 
 /** The tops with set-in or raglan sleeves. */
@@ -106,6 +106,19 @@ const loadImage = (src) =>
     img.src = src;
   });
 
+/**
+ * A pattern picture decoded once (the last 4 kept; LIVEFIX L1 2026-11-12): a new Pattern colour re-tints it (stencil, at
+ * every repaint while the colour changes) without decoding the picture again.
+ */
+const patternPictures = new Map();
+function patternPicture(src) {
+  if (!patternPictures.has(src)) {
+    if (patternPictures.size >= 4) patternPictures.delete(patternPictures.keys().next().value);
+    patternPictures.set(src, loadImage(src).catch((error) => { patternPictures.delete(src); throw error; }));
+  }
+  return patternPictures.get(src);
+}
+
 /** Black-on-white AI artwork → a stencil tinted in `color`. */
 /**
  * The picture's own print (task 9.116): a full-colour patch cut from an AI design picture, marked by the hosts with two
@@ -114,12 +127,13 @@ const loadImage = (src) =>
  */
 export const PRINT_MARK = [[3, 222, 177], [17, 61, 233]];
 async function printTile(src) {
-  const img = await loadImage(src);
+  const img = await patternPicture(src);
   if (img.width < 8 || img.height < 8) return null;
   const c = document.createElement('canvas');
   c.width = img.width;
   c.height = img.height;
-  const g = c.getContext('2d');
+  // (Read back on the CPU: willReadFrequently, LIVEFIX L1.)
+  const g = c.getContext('2d', { willReadFrequently: true });
   g.drawImage(img, 0, 0);
   const px = g.getImageData(0, 0, 2, 1).data;
   if (!PRINT_MARK.every(([r, gr, b], i) => px[i * 4] === r && px[i * 4 + 1] === gr && px[i * 4 + 2] === b)) return null;
@@ -172,11 +186,13 @@ function clockwise(poly) {
 const isPicture = (v) => typeof v === 'string' && (v.startsWith('data:image/') || v.startsWith('/') || v.startsWith('http'));
 
 async function stencil(src, color) {
-  const img = await loadImage(src);
+  const img = await patternPicture(src);
   const c = document.createElement('canvas');
   c.width = img.width;
   c.height = img.height;
-  const g = c.getContext('2d');
+  // (LIVEFIX L1 2026-11-12: read and written back on the CPU (willReadFrequently), not copied back from the graphics card;
+  // with an AI pattern this runs at every repaint while the Pattern colour changes.)
+  const g = c.getContext('2d', { willReadFrequently: true });
   g.drawImage(img, 0, 0);
   const data = g.getImageData(0, 0, c.width, c.height);
   const [r, gr, b] = hexRgb(color);
@@ -1047,7 +1063,10 @@ export class KitPainter {
     const W = this.canvas.width, H = this.canvas.height;
     const height = document.createElement('canvas');
     height.width = W; height.height = H;
-    const g = height.getContext('2d');
+    // (Kept in main memory, as the soft copy below that is read back: drawing it over then needs no read-back from the
+    // graphics card, which also waited there for every other canvas's pending drawing: up to 10-20 s on a slow PC,
+    // L1 2026-11-12. The same picture.)
+    const g = height.getContext('2d', { willReadFrequently: true });
     g.fillStyle = 'rgb(128,128,128)';
     g.fillRect(0, 0, W, H);
     const stroke = (paths, style, width, dash = []) => {
@@ -1074,13 +1093,17 @@ export class KitPainter {
     const sg = soft.getContext('2d', { willReadFrequently: true });
     sg.filter = 'blur(0.8px)';
     sg.drawImage(height, 0, 0);
+    sg.filter = 'none';
     const h = sg.getImageData(0, 0, W, H).data, out = sg.createImageData(W, H), o = out.data;
+    // (The sharp heights are read: their memory freed now, not at some later garbage collection.)
+    height.width = height.height = 0;
     for (let y = 0; y < H; y++) {
       const up = Math.max(0, y - 1) * W, down = Math.min(H - 1, y + 1) * W, row = y * W;
       for (let x = 0; x < W; x++) {
         const nx = (h[(row + Math.max(0, x - 1)) * 4] - h[(row + Math.min(W - 1, x + 1)) * 4]) / 255 * 2.4;
         const ny = (h[(up + x) * 4] - h[(down + x) * 4]) / 255 * 2.4;
-        const len = Math.hypot(nx, ny, 1), i = (row + x) * 4;
+        // (Math.sqrt, not Math.hypot: the same length, several times faster over the print's millions of points.)
+        const len = Math.sqrt(nx * nx + ny * ny + 1), i = (row + x) * 4;
         o[i] = (nx / len * 0.5 + 0.5) * 255; o[i + 1] = (ny / len * 0.5 + 0.5) * 255; o[i + 2] = (1 / len * 0.5 + 0.5) * 255; o[i + 3] = 255;
       }
     }
@@ -1136,6 +1159,8 @@ export class KitPainter {
    * `back`: the back's, along its own raised outline (garment.js `liftZ`: its high back neck).
    */
   dressEdges(back = false) {
+    // (A ready-made model's own bindings instead, netballdress.js useDressShape: none of the made outline's.)
+    if (dressModel()?.band) return { neck: [], armholes: [] };
     const key = back && this.backOutline ? '_dressEdgesBack' : '_dressEdges';
     if (this[key]) return this[key];
     const poly = back && this.backOutline ? this.backOutline : this.outline, n = poly.length, top = this.frame.maxY;
@@ -1573,15 +1598,23 @@ export class KitPainter {
     } else if (name === 'Swirl') {
       // A dense maze of winding lines, like brain coral (the client's football and hockey jersey pictures, task 9.154;
       // DT3): the ridges of a band-limited wave sum, drawn as a mask, strong up top and fading down the sleeve and chest.
-      const mask = swirlMask(this._swirlSleeve === true);
-      const c = document.createElement('canvas');
-      c.width = mask.width;
-      c.height = mask.height;
-      const cg = c.getContext('2d');
-      cg.drawImage(mask, 0, 0);
-      cg.globalCompositeOperation = 'source-in';
-      cg.fillStyle = typeof ink === 'string' ? ink : HEX.test(design.patternColor ?? '') ? design.patternColor : design.secondary;
-      cg.fillRect(0, 0, c.width, c.height);
+      const sleeve = this._swirlSleeve === true, mask = swirlMask(sleeve);
+      const fill = typeof ink === 'string' ? ink : HEX.test(design.patternColor ?? '') ? design.patternColor : design.secondary;
+      // (LIVEFIX L1 2026-11-12: the tinted maze kept per colour (the last 4), not a new canvas per side at every repaint.)
+      this._swirlTints ??= new Map();
+      let c = this._swirlTints.get(`${sleeve}|${fill}`);
+      if (!c) {
+        if (this._swirlTints.size >= 4) this._swirlTints.clear();
+        c = document.createElement('canvas');
+        c.width = mask.width;
+        c.height = mask.height;
+        const cg = c.getContext('2d');
+        cg.drawImage(mask, 0, 0);
+        cg.globalCompositeOperation = 'source-in';
+        cg.fillStyle = fill;
+        cg.fillRect(0, 0, c.width, c.height);
+        this._swirlTints.set(`${sleeve}|${fill}`, c);
+      }
       // The mask's row 0 is the top (y 0.82); the side's frame has y up.
       g.save();
       g.translate(-0.5, 0.82);
@@ -1685,6 +1718,8 @@ export class KitPainter {
     } else {
       this._stencil = null;
       this._print = null;
+      // (The AI pattern's layer canvas freed with it: LIVEFIX L1.)
+      if (this._yokeLayer) { this._yokeLayer.width = this._yokeLayer.height = 0; this._yokeLayer = null; }
     }
 
     // Uploaded patterns dropped onto areas (design.zones values that are pictures): each a full-colour repeat (marked,
@@ -1862,11 +1897,16 @@ export class KitPainter {
       // AI pattern across the shoulders and sleeves (the yoke), fading out.
       if (this._stencil) {
         const tile = design.patternScale ?? 0.3;
-        const layer = document.createElement('canvas');
+        // (LIVEFIX L1 2026-11-12: one layer kept per painter and cleared for each side, not two new print-high canvases on
+        // the graphics card at every repaint, as the shorts' -290 fix (bballprint.js).)
+        const layer = (this._yokeLayer ??= document.createElement('canvas'));
         const s = this.side(back);
-        layer.width = this.canvas.height;
-        layer.height = this.canvas.height;
+        if (layer.width !== this.canvas.height || layer.height !== this.canvas.height) { layer.width = this.canvas.height; layer.height = this.canvas.height; }
         const lg = layer.getContext('2d');
+        lg.setTransform(1, 0, 0, 1, 0, 0);
+        lg.globalCompositeOperation = 'source-over';
+        lg.globalAlpha = 1;
+        lg.clearRect(0, 0, layer.width, layer.height);
         const pattern = lg.createPattern(this._stencil, 'repeat');
         const k = (tile * s) / this._stencil.width;
         pattern.setTransform(new DOMMatrix([k, 0, 0, k, 0, 0]));

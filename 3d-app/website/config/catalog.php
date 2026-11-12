@@ -179,7 +179,10 @@ $look = function (string $name, array $extra = []): array {
         // panels with a royal blue band slanting across them (zoneColors.bballBand: the viewer cuts them as basketball
         // shorts, bballshorts.js), the 3DEEZI mark low on the right leg, no number.
         // (FN6 2026-10-30, DT8: a vivid aqua #00e8ff, the smooth matt fabric (viewer) and a neutral black, as rendered on the stage.)
-        'bballShorts' => ['main' => '#1d1d1e', 'secondary' => '#00e8ff', 'accent' => '#00e8ff', 'patternColor' => '#00e8ff', 'zoneColors' => ['bballBand' => '#0036f0', 'bballTrim1' => '#ffffff', 'bballTrim2' => '#00e8ff'], 'marks' => ['shorts_number' => ['hidden' => true]]],
+        // (TRS 2026-11-12, the user: the 3D shorts start as their mockup picture 523: purple body, waistband and side
+        // panels, the two hem stripes yellow with purple between, as rendered on the stage; the "3" mark low on the right
+        // leg and the 3DEEZI wordmark up the outer left leg, reading upward, placed and sized as the client's demo 524's text; no number.)
+        'bballShorts' => ['main' => '#6a5bb2', 'secondary' => '#6a5bb2', 'accent' => '#00e8ff', 'patternColor' => '#00e8ff', 'zoneColors' => ['bballBand' => '#6a5bb2', 'bballTrim1' => '#ffff4a', 'bballTrim2' => '#ffff4a'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.185, 'y' => 0.115, 'scale' => 2.8], 'shorts_wordmark' => ['x' => 0.195, 'y' => 0.205, 'scale' => 2.8, 'rot' => -90]]],
         // The bucket hat pictures (FN1 2026-10-30, colours measured on them): a black hat with a cyan bound edge; the
         // general picture with flat cyan and royal blue shards up the crown and round the brim (viewer hatprint.js).
         'hat' => ['main' => '#1b1c1e', 'secondary' => '#05c3f2'],
@@ -190,8 +193,11 @@ $look = function (string $name, array $extra = []): array {
         // full-length side panels, yoke and neck and armhole binding (colours measured on 426 as rendered), each its own
         // colour area (viewer netballdress.js: zoneColors body / panels / yoke / binding).
         // (NDT: the body a little lighter, 43,88,145 on the stage as 426's.)
-        'netballDress' => ['number' => '', 'main' => '#35547e', 'secondary' => '#0c78c6', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#0c78c6',
-            'zoneColors' => ['body' => '#35547e', 'panels' => '#0c78c6', 'yoke' => '#35547e', 'binding' => '#0c78c6']],
+        // (TRD 2026-11-12, the user: the Tripo dress's starting look in the colours of its own picture, images/525 (the
+        // mockup it was made from): a deep blue body (and yoke), light azure side panels and binding, the tabs a deeper
+        // shade of the body; set so the stage renders them as the picture's. No bib: position letters are added in Studio.)
+        'netballDress' => ['number' => '', 'main' => '#30508a', 'secondary' => '#2295dc', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#2295dc',
+            'zoneColors' => ['body' => '#30508a', 'panels' => '#2295dc', 'yoke' => '#30508a', 'binding' => '#2295dc']],
     ];
     return $extra + ($looks[$name] ?? []) + $base + ['number' => '23', 'marks' => []];
 };
@@ -605,7 +611,9 @@ $shortsWord = ['layers' => [
 ]];
 $pictureExtras = [
     'bibs' => $trainingBibs, 'netball-bibs' => $netballBibs, 'netball-singlet-bib' => $letters('GA'), 'netball-dress' => $letters('WA'),
-    'netball-dress@netball-dress' => $dressBib,
+    // (TRD 2026-11-12: the dress starts as its picture, images/525: no bib or letters; its position letters are the
+    // Numbers panel's, as every netball top's.)
+    'netball-dress@netball-dress' => ['marks' => ['top_name' => ['hidden' => true]], 'layers' => []],
     'nfl-kit' => $chestThree, 'nfl-compression-top' => $sleeveThree,
     'rugby-kit' => $rugbyShorts,
     'shorts' => $shortsWord, 'rugby-shorts' => $shortsWord, 'rugby-training-shorts' => $shortsWord, 'nfl-training-shorts' => $shortsWord,

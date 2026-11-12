@@ -112,7 +112,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
 
   return <div className={`console ${menu ? 'menu-open' : ''}`}>
     <aside className="console-side">
-      <Link to="/admin" className="console-brand"><img src={media('showroom/emblem-256.webp')} alt="" /><span><strong>3DEEZI</strong><small>ADMIN CONSOLE</small></span></Link>
+      <Link to="/" className="console-brand" aria-label="3DEEZI home"><img src={media('showroom/emblem-256.webp')} alt="" /><span><strong>3DEEZI</strong><small>ADMIN CONSOLE</small></span></Link>
       <span className="console-label">MAIN NAVIGATION</span>
       <nav onClick={() => setMenu(false)}>{sections.map(s => <NavLink key={s.id} to={s.id === 'dashboard' ? '/admin' : `/admin/${s.id}`} end className={({ isActive }) => isActive || s.id === section ? 'active' : ''}>
         <s.icon size={17} /><span>{s.label}</span>

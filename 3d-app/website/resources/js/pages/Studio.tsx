@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Box, Camera, Check, ChevronRight, Component, Package, Download, Expand, Grid2X2, Pencil,Hash, ImagePlus, Layers, LoaderCircle, Maximize, MoreVertical, Palette, Plus, Redo2, RotateCcw, Save, SendHorizontal, Shirt, SlidersHorizontal, Sparkles, Type, Undo2, WandSparkles, X, PenTool, FileText, ZoomIn, ZoomOut, Copy } from 'lucide-react';
 import { api, fetchFile, media, saveBlob, type Catalog, type Project, type User } from '../api';
@@ -321,11 +321,19 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   useEffect(() => { const on = draft.design.layout; if (on) setShelved(s => ({ ...s, [on.kind === 'drawing' ? 'drawing' : 'print']: { layout: on, garment: draft.design.garment } })); }, [draft.design.layout, draft.design.garment]);
   // YOUR DESIGN (Preset designs): the user's own design before the first preset, kept with the kit in this browser.
   const ownKey = `3deezi.own.${draft.id ?? 'new'}`;
-  const readOwn = (key: string): { own: OwnDesign | null; preset: boolean } => { try { return JSON.parse(localStorage.getItem(key) || 'null') ?? { own: null, preset: false }; } catch { return { own: null, preset: false }; } };
+  // (An unsaved kit's is kept only for that same kit, as it was last shown: a new kit never shows another kit's design
+  // and still, as the card did (THUMB 2026-11-12, images/526 and 534).)
+  const readOwn = (key: string): { own: OwnDesign | null; preset: boolean } => {
+    try {
+      const kept = JSON.parse(localStorage.getItem(key) || 'null');
+      if (kept && key.endsWith('.new') && kept.kit !== designSignature(draft.design)) { localStorage.removeItem(key); return { own: null, preset: false }; }
+      return kept ?? { own: null, preset: false };
+    } catch { return { own: null, preset: false }; }
+  };
   const [ownState, setOwnState] = useState(() => readOwn(ownKey));
   const ownLoaded = useRef(ownKey);
   useEffect(() => { if (ownLoaded.current === ownKey) return; ownLoaded.current = ownKey; const kept = readOwn(ownKey); if (kept.own || ownState.own === null) setOwnState(kept); }, [ownKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { try { if (ownState.own) localStorage.setItem(ownKey, JSON.stringify(ownState)); } catch { /* full or private: kept for this visit */ } }, [ownState, ownKey]);
+  useEffect(() => { try { if (ownState.own) localStorage.setItem(ownKey, JSON.stringify({ ...ownState, kit: designSignature(draft.design) })); } catch { /* full or private: kept for this visit */ } }, [ownState, ownKey, draft.design]);
   // While the kit is the user's own (not a preset), YOUR DESIGN follows it; a fresh kit untouched since it started has none.
   useEffect(() => {
     const now = designSignature(draft.design), own = ownState.own;
@@ -335,14 +343,31 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     setOwnState(s => ({ own: { design: draft.design, thumb: s.own?.thumb }, preset: false }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.design]);
+  // YOUR DESIGN's still follows the user's own kit (THUMB 2026-11-12): a moment after the changes stop, the 3D view
+  // (once it has the design on) gives a still of the whole kit, so the card shows the kit as it is now, not the colour
+  // swatch (or an older kit's still) until a preset is chosen. The last still shows meanwhile.
+  const ownSig = useMemo(() => (ownState.own && !ownState.preset ? designSignature(ownState.own.design) : null), [ownState.own, ownState.preset]);
+  useEffect(() => {
+    if (!ready || !ownSig || ownState.own?.shot === ownSig) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      captureThumbnail(240).then(thumb => {
+        if (live && thumb) setOwnState(s => (s.own && !s.preset && designSignature(s.own.design) === ownSig ? { ...s, own: { ...s.own, thumb, shot: ownSig } } : s));
+      }, () => undefined);
+    }, 1200);
+    return () => { live = false; clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, ownSig, ownState.own?.shot]);
   /** A preset is about to replace the kit: keep the user's own design (with a still of it) for YOUR DESIGN. */
   async function beforePreset() {
     if (ownState.preset) return;
     // A fresh kit that starts from a preset has no design of its own.
     if (!ownState.own) { setOwnState({ own: null, preset: true }); return; }
-    let thumb: string | null | undefined = ownState.own.thumb;
-    try { thumb = await captureThumbnail(240); } catch { /* the swatch shows */ }
-    setOwnState({ own: { design: latest.current.design, thumb }, preset: true });
+    // (A still of the kit as it is now; the last one stays when the 3D view cannot give one.)
+    let { thumb, shot } = ownState.own;
+    const now = designSignature(latest.current.design);
+    if (shot !== now) { try { const still = await captureThumbnail(240); if (still) { thumb = still; shot = now; } } catch { /* the last still (or the swatch) shows */ } }
+    setOwnState({ own: { design: latest.current.design, thumb, shot }, preset: true });
   }
   function restoreOwn() {
     const own = ownState.own; if (!own) return;

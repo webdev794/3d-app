@@ -100,6 +100,9 @@ export default function Assist() {
   const input = useRef<HTMLInputElement>(null);
   const { open, messages } = state;
   const tool = /^\/(studio|artboard|admin)/.test(location.pathname);
+  // The water-bubble look (glass.css) only on the pages with the glass buttons: Home, Create, Orders, 3DEEZI Team,
+  // Subscriptions, My projects and Signage (never the Studio, Artboard or Marquee Studio).
+  const bubble = /^\/(create\/(sport|ai)|order-now|team(\/requests)?|pricing|projects|approved|signage)?\/?$/.test(location.pathname);
   // Phones: on the homepage's first screen the button waits until the visitor scrolls (it would cover
   // the jersey, as in the mobile design); it is there from the first scroll on.
   const [waiting, setWaiting] = useState(false);
@@ -405,7 +408,7 @@ export default function Assist() {
   const button = <button ref={launcher} className="assist-launcher" onClick={toggle} aria-expanded={open} aria-controls="assist-panel" title={open ? 'Hide 3DEEZI ASSIST' : 'Ask 3DEEZI ASSIST'}>
     <Sparkle size={tool ? 24 : 26} /><span>3DEEZI ASSIST</span>
   </button>;
-  return <div ref={root} className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${dock ? 'is-docked' : ''} ${waiting && !open && !dock ? 'is-waiting' : ''} ${avoid.round ? 'avoid-round' : ''} ${avoid.lift ? 'avoid-raised' : ''}`} style={{ '--assist-round': `${avoid.size}px`, '--assist-avoid': `${avoid.lift}px` } as React.CSSProperties}>
+  return <div ref={root} className={`assist ${bubble ? 'assist-water' : ''} ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${dock ? 'is-docked' : ''} ${waiting && !open && !dock ? 'is-waiting' : ''} ${avoid.round ? 'avoid-round' : ''} ${avoid.lift ? 'avoid-raised' : ''}`} style={{ '--assist-round': `${avoid.size}px`, '--assist-avoid': `${avoid.lift}px` } as React.CSSProperties}>
     {open && <section className="assist-panel" id="assist-panel" role="dialog" aria-label="3DEEZI ASSIST help chat">
       <header className="assist-head">
         <Sparkle size={30} />

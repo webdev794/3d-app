@@ -7,7 +7,7 @@ import { artboardOf, placements, readAsset, type ArtboardLayer, type LibraryAsse
 import { openAssist } from '../components/Assist';
 
 /** Bump when the editor (media/artboard/index.html) is rebuilt, so browsers load the new copy. */
-const EDITOR_VERSION = '2026-11-10-1';
+const EDITOR_VERSION = '2026-11-12-2';
 
 /** The garments artwork can be sent to (config/catalog.php), in the Studio's order, and the parts each has. */
 const GARMENTS: { id: Design['garment']; name: string }[] = [{ id: 'fullkit', name: 'Full Kit' }, { id: 'jersey', name: 'Jersey' }, { id: 'shorts', name: 'Shorts' }, { id: 'tee', name: 'Training Tee' }, { id: 'singlet', name: 'Singlet' }, { id: 'polo', name: 'Polo' }];
@@ -29,6 +29,8 @@ type Message = {
  * it, keeps its designs in the account and sends finished artwork to the 3D
  * studio (linked to the design: the Studio's Edit in Artboard opens it again
  * with /artboard?doc=ID, and sending again updates that artwork in place).
+ * The Assets page lists the saved designs and opens one with
+ * /artboard?doc=ID&from=assets&version=N.
  */
 export default function ArtboardPage({ draft, onChange, user, onNotice, requireAuth, onStart }: { draft: Draft; onChange: (draft: Draft) => void; user: User | null; onNotice: (text: string) => void; requireAuth: (action?: () => void) => void; onStart: (mode: 'ai' | 'dyo' | 'home') => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
@@ -43,9 +45,14 @@ export default function ArtboardPage({ draft, onChange, user, onNotice, requireA
   const startRef = useRef(onStart);
   startRef.current = onStart;
   const ready = useRef(false);
-  /** Edit in Artboard: the design to open once the editor is ready and the user is signed in. */
-  const pendingDoc = useRef<number | null>(null);
+  /**
+   * The design to open once the editor is ready and the user is signed in: Edit in Artboard (?doc=ID), or a design
+   * picked on the Assets page (?doc=ID&from=assets&version=N, opened as File > Open from my account).
+   */
+  const pendingDoc = useRef<{ id: number; from?: 'assets'; version?: number } | null>(null);
   const docParam = Number(params.get('doc')) || 0;
+  const fromParam = params.get('from') === 'assets' ? 'assets' : undefined;
+  const versionParam = Number(params.get('version')) || undefined;
 
   const send = useCallback((cmd: string, arg: unknown) => frame.current?.contentWindow?.postMessage(JSON.stringify({ cmd, arg }), window.location.origin), []);
   /** What the Artboard needs to know: the account, the kit open in the Studio, the garments and placements. */
@@ -59,14 +66,14 @@ export default function ArtboardPage({ draft, onChange, user, onNotice, requireA
     });
   }, [send]);
   const openPending = useCallback(() => {
-    const id = pendingDoc.current;
-    if (!id || !ready.current) return;
+    const pending = pendingDoc.current;
+    if (!pending || !ready.current) return;
     if (!userRef.current) { authRef.current(); return; } // opened again once signed in (the effect below)
     pendingDoc.current = null;
-    send('openDoc', { id });
+    send('openDoc', pending);
     setParams({}, { replace: true });
   }, [send, setParams]);
-  useEffect(() => { if (docParam) { pendingDoc.current = docParam; openPending(); } }, [docParam, openPending]);
+  useEffect(() => { if (docParam) { pendingDoc.current = { id: docParam, from: fromParam, version: versionParam }; openPending(); } }, [docParam, fromParam, versionParam, openPending]);
   // Leaving the Artboard with its colour panel open: the 3DEEZI ASSIST button comes back.
   useEffect(() => () => document.documentElement.removeAttribute('data-artboard-dock'), []);
   useEffect(() => { if (ready.current) { sendHost(); openPending(); } }, [user, sendHost, openPending]);

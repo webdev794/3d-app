@@ -4,7 +4,9 @@
 // points of the garment's outline), so the print atlas, the colours, logos and artwork all stay where they are.
 
 /** The garments whose neck can be switched (their own default shape). The full kit's top is the jersey. */
-export const NECK_DEFAULTS = { jersey: 'v', tee: 'round', raglan: 'round', singlet: 'round', 'netball-dress': 'round', 'shooting-shirt': 'v' };
+// (Not the netball dress since 2026-11-12: its Tripo model has its own round neck, and a chosen V built the old made dress,
+// which the client refused. A neck variation will be a model of its own.)
+export const NECK_DEFAULTS = { jersey: 'v', tee: 'round', raglan: 'round', singlet: 'round', 'shooting-shirt': 'v' };
 
 /**
  * The rugby collar library (client mockup images/300, "Rugby Jersey Studio"): each collar's neck shape and its finish.

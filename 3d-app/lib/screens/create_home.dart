@@ -2080,45 +2080,67 @@ class _ArrowButton extends StatelessWidget {
   );
 }
 
-/// A clear glass "water bubble" (client 506 / 508, user 2026-11-11: "these
-/// two look like bubble of water"): a see-through blue-grey glass body,
-/// darker in its middle so it looks rounded, a bright white gloss along
-/// the top inside edge and a smaller one at the bottom, a thick bright
-/// glassy rim and a soft cyan glow outside. The sport's capsule and
-/// Custom... wear it.
+/// A water bubble as in the client's 506 / 509 capsules (user 2026-11-11:
+/// "these two look like bubble of water"; the website's glass.css water
+/// bubbles, colours sampled from 506): a clear dark body the stage shows
+/// through, a thick liquid rim (a white top edge, silvery ends, a cyan-white
+/// foot, a cyan glow inside the edge strongest along the top and the foot),
+/// sparkles at the top-right and bottom-left corners, a softer reflection at
+/// the bottom right, and a soft cyan glow outside. The sport's capsule and
+/// Custom... wear it; the text stays crisp over it.
 class _WaterBubble extends StatelessWidget {
   const _WaterBubble({required this.radius, required this.child});
   final double radius;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(radius),
-      boxShadow: const [
-        BoxShadow(color: Color(0x6638d8ff), blurRadius: 12, spreadRadius: .5),
-      ],
-    ),
-    child: CustomPaint(
-      painter: _WaterBubblePainter(radius),
-      foregroundPainter: _WaterBubbleGloss(radius),
-      child: child,
-    ),
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _WaterBody(radius),
+    foregroundPainter: _WaterSparkles(radius),
+    child: child,
   );
 }
 
-/// The bubble's glass body (under its text).
-class _WaterBubblePainter extends CustomPainter {
-  const _WaterBubblePainter(this.radius);
+/// The bubble's glow, body and liquid rim (under its text).
+class _WaterBody extends CustomPainter {
+  const _WaterBody(this.radius);
   final double radius;
+
+  /// The rim's width.
+  static const _rim = 1.5;
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
     final rect = Offset.zero & size;
-    final r = math.min(radius, size.height / 2);
-    final rr = RRect.fromRectAndRadius(rect, Radius.circular(r));
-    // The see-through blue-grey glass, lighter at its top and foot, darker
-    // in its middle: a rounded drop.
+    final rr = RRect.fromRectAndRadius(
+      rect,
+      Radius.circular(math.min(radius, size.height / 2)),
+    );
+    // (A CSS blur is twice the blur's sigma.)
+    MaskFilter? blur(double b) =>
+        b > 0 ? MaskFilter.blur(BlurStyle.normal, b / 2) : null;
+    // The soft cyan glow, outside only (the clear body must not take it).
+    canvas.save();
+    canvas.clipPath(
+      Path()
+        ..fillType = PathFillType.evenOdd
+        ..addRect(rect.inflate(40))
+        ..addRRect(rr),
+    );
+    for (final (b, spread, c) in const [
+      (18.0, 2.0, Color(0x8538d8ff)),
+      (5.0, 1.0, Color(0xb39feeff)),
+    ]) {
+      canvas.drawRRect(
+        rr.inflate(spread),
+        Paint()
+          ..color = c
+          ..maskFilter = blur(b),
+      );
+    }
+    canvas.restore();
+    // The clear dark body.
     canvas.drawRRect(
       rr,
       Paint()
@@ -2126,127 +2148,160 @@ class _WaterBubblePainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xb8263f4f),
-            Color(0xb00c1c28),
-            Color(0xb0081620),
-            Color(0xb81b3343),
+            Color(0xc70c3242),
+            Color(0xa6041a26),
+            Color(0xa6041a26),
+            Color(0xc70a2f40),
           ],
-          stops: [0, .3, .68, 1],
+          stops: [0, .38, .64, 1],
         ).createShader(rect),
     );
-    // Its ends a touch darker (the glass curving away).
+    // The liquid glow inside the rim: (y offset, blur, spread, colour), the
+    // deepest first.
+    final inner = rr.deflate(_rim);
     canvas.save();
-    canvas.clipRRect(rr);
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = const LinearGradient(
-          colors: [
-            Color(0x40000000),
-            Color(0x00000000),
-            Color(0x00000000),
-            Color(0x40000000),
-          ],
-          stops: [0, .16, .84, 1],
-        ).createShader(rect),
-    );
+    canvas.clipRRect(inner);
+    for (final (dy, b, spread, c) in const [
+      (0.0, 11.0, 1.0, Color(0x663f94ae)),
+      (-9.0, 9.0, -6.0, Color(0x8c4aa2bc)),
+      (9.0, 9.0, -6.0, Color(0x996fc4db)),
+      (-3.0, 2.0, -1.0, Color(0x8c7cc8dc)),
+      (3.0, 2.0, -1.0, Color(0xa69fd8e8)),
+      (0.0, 1.5, 1.0, Color(0x598fd3e6)),
+      (-1.0, .5, -.5, Color(0xb3d2f6fe)),
+      (1.5, .5, -.5, Color(0xe6ffffff)),
+    ]) {
+      canvas.drawPath(
+        Path()
+          ..fillType = PathFillType.evenOdd
+          ..addRect(rect.inflate(40))
+          ..addRRect(inner.shift(Offset(0, dy)).deflate(spread)),
+        Paint()
+          ..color = c
+          ..maskFilter = blur(b),
+      );
+    }
     canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_WaterBubblePainter old) => old.radius != radius;
-}
-
-/// The bubble's gloss and rim (over its text, kept clear of it).
-class _WaterBubbleGloss extends CustomPainter {
-  const _WaterBubbleGloss(this.radius);
-  final double radius;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final r = math.min(radius, size.height / 2);
-    final rr = RRect.fromRectAndRadius(rect, Radius.circular(r));
-    final h = size.height, w = size.width;
-    canvas.save();
-    canvas.clipRRect(rr);
-    // The white gloss along the top inside edge, fading down and towards
-    // the ends.
-    final top = Rect.fromLTWH(r * .45, 2, w - r * .9, math.min(h * .2, 9));
-    // (Its own layer, so its faded ends erase only the gloss.)
-    canvas.saveLayer(top, Paint());
+    // The rim: white along the top, silvery at the ends, cyan-white at the
+    // foot.
     canvas.drawRRect(
-      RRect.fromRectAndRadius(top, Radius.circular(top.height / 2)),
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0x9effffff), Color(0x00ffffff)],
-        ).createShader(top),
-    );
-    canvas.drawRect(
-      top,
-      Paint()
-        ..blendMode = BlendMode.dstOut
-        ..shader = const LinearGradient(
-          colors: [
-            Color(0xff000000),
-            Color(0x00000000),
-            Color(0x00000000),
-            Color(0xff000000),
-          ],
-          stops: [0, .22, .78, 1],
-        ).createShader(top),
-    );
-    canvas.restore();
-    // A smaller one at the foot.
-    final foot = Rect.fromLTWH(w * .3, h - 4.5, w * .4, 2.5);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(foot, const Radius.circular(1.25)),
-      Paint()
-        ..shader = const LinearGradient(
-          colors: [Color(0x00ffffff), Color(0x80ffffff), Color(0x00ffffff)],
-        ).createShader(foot),
-    );
-    canvas.restore();
-    // The thin bright glassy rim (506: about 1 px): white along the top and
-    // the foot, a faint cyan at the ends.
-    canvas.drawRRect(
-      rr.deflate(.6),
+      rr.deflate(_rim / 2),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
+        ..strokeWidth = _rim
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
             Color(0xffffffff),
-            Color(0xffe2f2f7),
-            Color(0xffc9ebf4),
-            Color(0xfff4fbff),
+            Color(0xffc9eef8),
+            Color(0xffc9eef8),
+            Color(0xffe2f8fe),
           ],
-          stops: [0, .35, .7, 1],
+          stops: [0, .3, .7, 1],
         ).createShader(rect),
     );
-    // Its outer edge softly lit cyan.
-    canvas.drawRRect(
-      rr.inflate(1),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0x8038d8ff)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
-    );
-    // Two bright specks where the light catches the rim.
-    final speck = Paint()
-      ..color = const Color(0xd0ffffff)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-    canvas.drawCircle(Offset(r * .5, r * .3), 2.6, speck);
-    canvas.drawCircle(Offset(w - r * .5, h - r * .3), 2.2, speck);
   }
 
   @override
-  bool shouldRepaint(_WaterBubbleGloss old) => old.radius != radius;
+  bool shouldRepaint(_WaterBody old) => old.radius != radius;
+}
+
+/// The sparkles just inside the bubble's rim (clear of the text): the
+/// top-right corner (509) with a flare along the top, the bottom-left
+/// corner, a reflection at the bottom right and a light at the foot.
+class _WaterSparkles extends CustomPainter {
+  const _WaterSparkles(this.radius);
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final w = size.width, h = size.height;
+    final r = math.min(radius, h / 2);
+    // Every light stays inside the bubble, just inside its rim (user 514:
+    // "lights are shining outside their bubble boundary").
+    canvas.save();
+    canvas.clipRRect(
+      RRect.fromRectAndRadius(
+        Offset.zero & size,
+        Radius.circular(r),
+      ).deflate(_WaterBody._rim),
+    );
+    // A point on the inside of the rim round the corner centred at [c],
+    // [deg] degrees round (0 = right, 90 = down).
+    Offset corner(Offset c, double deg) {
+      final a = deg * math.pi / 180, d = math.max(r - 4, 0.0);
+      return c + Offset(math.cos(a), math.sin(a)) * d;
+    }
+
+    // An oval light [rx] x [ry] round [c].
+    void light(
+      Offset c,
+      double rx,
+      double ry,
+      List<Color> cs,
+      List<double> at,
+    ) {
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.scale(rx, ry);
+      canvas.drawCircle(
+        Offset.zero,
+        1,
+        Paint()
+          ..shader = RadialGradient(
+            colors: cs,
+            stops: at,
+          ).createShader(Rect.fromCircle(center: Offset.zero, radius: 1)),
+      );
+      canvas.restore();
+    }
+
+    const white = Color(0xffffffff), none = Color(0x00ffffff);
+    // The glint in the top-right corner (509), a flare along the top.
+    light(
+      corner(Offset(w - r, r), -55),
+      4,
+      4,
+      const [white, white, Color(0xb3ffffff), none],
+      const [0, .2, .4, 1],
+    );
+    light(
+      Offset(w - r - 6, 3),
+      14,
+      1.6,
+      const [Color(0xe6ffffff), none],
+      const [0, 1],
+    );
+    // A smaller one in the bottom-left corner.
+    light(
+      corner(Offset(r, h - r), 125),
+      3.2,
+      3.2,
+      const [white, white, Color(0x99ffffff), none],
+      const [0, .2, .45, 1],
+    );
+    // A reflection at the bottom right and a light at the foot.
+    light(
+      Offset(w - r - 8, h - 3),
+      16,
+      1.8,
+      const [Color(0xb3ffffff), none],
+      const [0, 1],
+    );
+    light(
+      Offset(w * .42, h - 2.6),
+      14,
+      1.2,
+      const [Color(0xb3c8f6ff), Color(0x00c8f6ff)],
+      const [0, 1],
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_WaterSparkles old) => old.radius != radius;
 }
 
 /// The centre sport under the stage (client 489, 506): its name big and its

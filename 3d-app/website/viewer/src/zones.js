@@ -5,7 +5,7 @@ import { hatPartAt, hatRegion } from './hatprint.js';
 import { beaniePartAt, beanieRegion } from './beanieprint.js';
 import { bballPartAt, bballRegion, bballZoneAt, BBALL_ZONES } from './bballprint.js';
 import { SHOOT_ZONES } from './shootingshirt.js';
-import { ND_PANEL, ND_YOKE_FRONT, panelOf } from './netballdress.js';
+import { ND_YOKE_FRONT, panelOf } from './netballdress.js';
 
 // Garment areas a pattern can be dropped onto, in garment metres (y up,
 // hem at 0, x = 0 down the middle). Rectangles are mirrored left/right and
@@ -162,7 +162,7 @@ const RAGLAN_SLEEVE = [[0.06, 0.9], ...Array.from({ length: 25 }, (_, k) => {
 }), [0.27, 0.44], [0.9, 0.44], [0.9, 0.9]];
 // (The netball dress: its side panels and its yoke, as netballdress.js paints them; the yoke as in front.)
 const ownOutline = (kind, zone) => (kind === 'shooting-shirt' ? SHOOT_ZONES[zone] ?? null : (kind === 'tee' || kind === 'raglan') && zone === 'sleeves' ? RAGLAN_SLEEVE
-  : isDress(kind) ? { sides: ND_PANEL, yoke: ND_YOKE_FRONT }[zone] ?? null : null);
+  : isDress(kind) ? { sides: panelOf(false), yoke: ND_YOKE_FRONT }[zone] ?? null : null);
 /** A zone's outlines (both sides): its own, else its rectangles as outlines. */
 export function zoneOutlines(kind, zone) {
   const own = ownOutline(kind, zone);

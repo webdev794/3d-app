@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
 import '../assist.dart';
 import '../widgets/bubble_page.dart';
@@ -53,13 +56,19 @@ class _Tabs extends StatelessWidget {
                       : null,
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: selected == label ? Colors.black : Palette.muted,
+                // Five tabs on a narrow phone: a name shrinks a little
+                // rather than wrapping.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: selected == label ? Colors.black : Palette.muted,
+                    ),
                   ),
                 ),
               ),
@@ -764,6 +773,143 @@ class _AssetsScreenState extends State<AssetsScreen> {
   String _tab = 'Logos';
   AppController get c => widget.c;
 
+  /// Back from the Artboard after opening a design from the Artboard tab:
+  /// that tab again (read once, by the next Assets screen).
+  static String? _returnTab;
+
+  /// The Artboard designs kept in the account (File > Save to my account,
+  /// website or app), newest first; null until loaded.
+  List<_ArtboardDesign>? _designs;
+  String? _designsError;
+  int? _designsStatus;
+  bool _designsLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final back = _returnTab;
+    _returnTab = null;
+    if (back != null) {
+      _tab = back;
+      if (c.signedIn) {
+        _designsLoading = true;
+        _fetchDesigns();
+      }
+    }
+  }
+
+  void _select(String tab) {
+    setState(() => _tab = tab);
+    if (tab == 'Artboard' && _designs == null) _loadDesigns();
+  }
+
+  void _loadDesigns() {
+    if (_designsLoading || !c.signedIn) return;
+    setState(() {
+      _designsLoading = true;
+      _designsError = null;
+      _designsStatus = null;
+    });
+    _fetchDesigns();
+  }
+
+  Future<void> _fetchDesigns() async {
+    try {
+      final list = await c.api.artboards();
+      if (!mounted) return;
+      setState(() => _designs = [for (final j in list) _ArtboardDesign.of(j)]);
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _designsError = e.message;
+          _designsStatus = e.status;
+        });
+      }
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _designsError = 'That did not work. Please try again.';
+          _designsStatus = null;
+        });
+      }
+    } finally {
+      _designsLoading = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// Opens the design in the Artboard, as File > Open from my account would.
+  void _openDesign(_ArtboardDesign d) {
+    _returnTab = 'Artboard';
+    c.openArtboardDesign(d.id, version: d.version);
+  }
+
+  /// Assets › Artboard: the designs kept in the account from the Artboard; a
+  /// tap opens one there, ready to edit.
+  Widget _artboardTab() {
+    Widget scroll(Widget child) => SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
+      child: child,
+    );
+    final designs = _designs;
+    if (!c.signedIn || _designsStatus == 401) {
+      return scroll(
+        _EmptyCard(
+          key: const ValueKey('assets-artboard-signin'),
+          icon: Icons.draw_outlined,
+          title: 'Your Artboard designs',
+          text: _designsStatus == 401
+              ? 'Your session has expired. Sign in again to see the designs you keep in the Artboard.'
+              : 'Sign in to see the designs you keep in the Artboard with File > Save to my account, on the website and in the app.',
+          action: 'SIGN IN',
+          onAction: () => c.go(AppScreen.auth),
+        ),
+      );
+    }
+    if (_designsError case final error?) {
+      return scroll(
+        _EmptyCard(
+          key: const ValueKey('assets-artboard-error'),
+          icon: Icons.cloud_off_outlined,
+          title: 'Your Artboard designs could not be loaded',
+          text: error,
+          action: 'TRY AGAIN',
+          onAction: _loadDesigns,
+        ),
+      );
+    }
+    if (designs == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (designs.isEmpty) {
+      return scroll(
+        _EmptyCard(
+          key: const ValueKey('assets-artboard-empty'),
+          icon: Icons.draw_outlined,
+          title: 'No Artboard designs yet',
+          text:
+              'Designs you keep in the Artboard with File > Save to my account show here. Tap one to carry on editing it.',
+          action: 'OPEN THE ARTBOARD',
+          onAction: () => c.go(AppScreen.artboard),
+        ),
+      );
+    }
+    return GridView(
+      key: const ValueKey('assets-artboard-grid'),
+      padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: .9,
+      ),
+      children: [
+        for (final d in designs)
+          _ArtboardCard(d: d, onTap: () => _openDesign(d)),
+      ],
+    );
+  }
+
   List<Uint8List> get _items => switch (_tab) {
     'Logos' => c.logos,
     'Patterns' => c.aiPatterns,
@@ -876,13 +1022,22 @@ class _AssetsScreenState extends State<AssetsScreen> {
       child: Column(
         children: [
           _Tabs(
-            labels: const ['Logos', 'Patterns', 'Artwork', 'Uploads'],
+            labels: const [
+              'Logos',
+              'Patterns',
+              'Artwork',
+              'Artboard',
+              'Uploads',
+            ],
             selected: _tab,
-            onSelect: (t) => setState(() => _tab = t),
+            onSelect: _select,
           ),
+          // The designs saved in the Artboard (as on the website's Assets).
+          if (_tab == 'Artboard')
+            Expanded(child: _artboardTab())
           // Uploads and Artwork hold only the customer's own pictures: empty,
           // the website's "No assets yet" card.
-          if (items.isEmpty && (_tab == 'Uploads' || _tab == 'Artwork'))
+          else if (items.isEmpty && (_tab == 'Uploads' || _tab == 'Artwork'))
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
@@ -985,6 +1140,191 @@ class _AssetsScreenState extends State<AssetsScreen> {
               }, style: const TextStyle(color: Palette.muted, fontSize: 11.5)),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// A design kept in the account from the Artboard (`GET /artboards`): its
+/// name, a small picture of its page, its pages, version and last save.
+@immutable
+class _ArtboardDesign {
+  const _ArtboardDesign({
+    required this.id,
+    required this.name,
+    required this.picture,
+    required this.pages,
+    required this.version,
+    required this.updated,
+  });
+
+  factory _ArtboardDesign.of(Map<String, dynamic> j) {
+    // The picture: a PNG, JPEG or WebP data URL (or none).
+    final preview = j['preview'];
+    Uint8List? picture;
+    if (preview is String && preview.startsWith('data:image/')) {
+      try {
+        picture = base64Decode(preview.substring(preview.indexOf(',') + 1));
+      } on FormatException {
+        picture = null;
+      }
+    }
+    final name = '${j['name'] ?? ''}'.trim();
+    return _ArtboardDesign(
+      id: (j['id'] as num).toInt(),
+      name: name.isEmpty ? 'Artboard design' : name,
+      picture: picture,
+      pages: (j['pages'] as num?)?.toInt() ?? 1,
+      version: (j['version'] as num?)?.toInt() ?? 1,
+      updated: DateTime.tryParse('${j['updated_at'] ?? ''}')?.toLocal(),
+    );
+  }
+
+  final int id, pages, version;
+  final String name;
+  final Uint8List? picture;
+  final DateTime? updated;
+
+  /// "2 pages · Updated 3h ago", as the kit cards' "Updated …".
+  String get detail {
+    final at = updated;
+    String? ago;
+    if (at != null) {
+      final d = DateTime.now().difference(at);
+      ago = d.inMinutes < 1
+          ? 'just now'
+          : d.inHours < 1
+          ? '${d.inMinutes}m ago'
+          : d.inDays < 1
+          ? '${d.inHours}h ago'
+          : '${d.inDays}d ago';
+    }
+    return [
+      if (pages > 1) '$pages pages',
+      if (ago != null) 'Updated $ago',
+    ].join(' · ');
+  }
+}
+
+/// A saved Artboard design on Assets › Artboard: its page picture (or the
+/// Artboard's pen when it has none), the ARTBOARD label, its name and when
+/// it was saved. A tap opens it in the Artboard.
+class _ArtboardCard extends StatelessWidget {
+  const _ArtboardCard({required this.d, required this.onTap});
+  final _ArtboardDesign d;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const placeholder = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.draw_outlined, color: Palette.cyan, size: 30),
+        SizedBox(height: 6),
+        Text(
+          'Artboard design',
+          style: TextStyle(fontSize: 10, color: Palette.muted),
+        ),
+      ],
+    );
+    final picture = d.picture;
+    return Semantics(
+      button: true,
+      label: 'Open ${d.name} in the Artboard',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: GlowCard(
+        radius: 12,
+        glow: false,
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColoredBox(
+                    color: const Color(0xff0b1420),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 28, 12, 8),
+                      child: picture == null
+                          ? placeholder
+                          : Image.memory(
+                              picture,
+                              fit: BoxFit.contain,
+                              gaplessPlayback: true,
+                              filterQuality: FilterQuality.medium,
+                              errorBuilder: (_, _, _) => placeholder,
+                            ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xe606111e),
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(
+                          color: Palette.cyan.withValues(alpha: .4),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.draw_outlined,
+                            size: 11,
+                            color: Palette.cyan,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'ARTBOARD',
+                            style: TextStyle(
+                              color: Palette.cyan,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 7, 10, 9),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    d.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    d.detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Palette.muted, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

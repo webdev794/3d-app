@@ -15,7 +15,7 @@
 /* GlassRim's edge, painted in the control's own border: pale cyan, white through the top-left curve and along the
    top from the left, a white streak along the bottom a little right of the middle, and the glare's soft light just
    inside the curve. */
-.glass-ui :is(.campaign-copy>.button,.path-cta,.i3d-button,.on-button,.design-sport,.tm-cta,.tm-send,.tm-confirm-actions .button,.tm-page-head .button-gradient,.plan .button,.partner-copy .button-gradient,.lib-heading .button-primary,.sg-start,.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.lib-empty .button-secondary,.on-maker,.carousel-arrow,.sport-strip-arrow,.aid-arrow,.aid-plus,.aid-go,.sport-tile,.sg-product,.aid-tile,.rd-card){
+.glass-ui :is(.campaign-copy>.button,.path-cta,.i3d-button,.on-button,.design-sport,.tm-cta,.tm-send,.tm-confirm-actions .button-gradient,.tm-page-head .button-gradient,.plan .button-gradient,.partner-copy .button-gradient,.lib-heading .button-primary,.sg-start,.on-maker,.carousel-arrow,.sport-strip-arrow,.aid-arrow,.aid-plus,.aid-go,.sport-tile,.sg-product,.aid-tile,.rd-card){
   border-color:transparent;
   background:
     radial-gradient(var(--g-hs) at var(--g-k) var(--g-k),#ffffff73,#ffffff26 30%,#ffffff0a 60%,#fff0) padding-box,
@@ -37,11 +37,40 @@
 /* (The Orders page's order buttons have no border of their own: one 1px border, 1px less padding, same size.) */
 .glass-ui.orders-landing .on-button{border:1px solid transparent;padding-inline:calc(20 * var(--u) - 1px)}
 
-/* Second buttons, like the app's Custom… capsule: a glass rim, a dark centre, cyan text. */
+/* Second buttons: a water bubble (below), cyan text. */
 .glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary){border-radius:999px;color:#00dbea;transition:box-shadow var(--g-t),transform var(--g-t)}
-.glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary,.sport-tile,.sg-product,.rd-card){
+/* Water bubbles like the client's 506 / 509 capsules (user 2026-11-11): the second buttons, the sport's name under the
+   stage, and 3DEEZI ASSIST's button and panel edge. Colours sampled from 506 (per css px): a 1 px light rim (#cde1ea
+   on top, #82b9cd at the ends, #87b5c5 at the foot); inside it a lit teal band (#417080 > #265a72 > #1b4b61 >
+   #103140) fading into a dark centre (#04151c) over about a quarter of the height, a shorter one above the foot
+   (#154d5e > #093a4b > #0a2f3f), lit ends; a bright white streak along the top-left, white glints on the corners
+   (strongest at the top right, 509) and a faint, wide cyan glow. */
+.glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary,.carousel-item.is-active .carousel-label),.assist.assist-water .assist-launcher{
+  --wb-glow:0 0 12px 1px #38d8ff4d,0 0 4px #38d8ff40;
+  border-style:solid;border-color:#f2fafd #b3dbe8 #b7e9f3;
+  background:linear-gradient(90deg,#4c8fa84d,#0000 9px calc(100% - 9px),#4c8fa84d) padding-box,
+    linear-gradient(#4f8aa0,#2a6378 5%,#1b4b60 11%,#123749 18%,#0a2a3a 26%,#061d2c 40%,#05192a 62%,#072536 76%,#0a2f3f 85%,#0f3c4d 93%,#1a5566) padding-box;
+  box-shadow:var(--wb-glow),inset 0 0 2px 1px #cfeaf580,inset 0 0 0 1px #9fcfdd5c,inset 0 1px 0 #ffffff26}
+.glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary,.carousel-item.is-active .carousel-label):hover:not(:disabled),.assist.assist-water .assist-launcher:hover{--wb-glow:0 0 18px 2px #38d8ff80,0 0 5px #38d8ff59}
+.glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary),.assist.assist-water .assist-launcher{position:relative}
+/* (The sport's name had a 2px border: now the 1px rim and 1px more padding, the same size.) */
+.glass-ui .carousel-item.is-active .carousel-label{border-width:1px;padding:11px 21px;border-radius:22px;
+  background:linear-gradient(90deg,#4c8fa859,#0000 12px calc(100% - 12px),#4c8fa859) padding-box,
+    linear-gradient(#6aa9be,#4a8fa6 2%,#357790 4%,#2c687e 6%,#235a70 8%,#1d4d62 10%,#184256 12.5%,#123647 15%,#0b2a3a 18%,#071e2c 30% 62%,#092b39 78%,#0b3442 84%,#0e4252 89%,#12546a 93%,#1d6f84 96.5%,#3d93a6) padding-box}
+/* Assist's panel: the same rim, lit edge band and glow round its own dark inside (nothing busy behind the words). */
+.assist.assist-water .assist-panel{border-color:#f2fafd #b3dbe8 #b7e9f3;
+  box-shadow:0 0 14px 1px #38d8ff59,0 0 4px #38d8ff40,0 24px 60px #000c,inset 0 0 2px 1px #cfeaf580,inset 0 0 0 1px #9fcfdd5c,inset 0 1px 0 #ffffff26,inset 0 7px 8px -5px #4f8aa080,inset 0 -6px 8px -5px #1a556699,inset 6px 0 8px -5px #4c8fa859,inset -6px 0 8px -5px #4c8fa859}
+/* The white lights inside the rim (never on or past it, user 2026-11-11, 514): a streak under the top-left third and
+   a smaller one at the right, and the corner glints; the layer's own rounded shape clips them. */
+.glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary,.carousel-item.is-active .carousel-label)::before,.assist.assist-water :is(.assist-launcher,.assist-panel)::before{
+  content:"";position:absolute;z-index:2;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(28% 2px at 24% 1.5px,#ffffffd9,#fff0),radial-gradient(14% 1.5px at 78% 1.5px,#ffffff99,#fff0),
+    radial-gradient(4.5px at calc(100% - 10px) 5px,#fff 0 .9px,#ffffffb3 2px,#fff0),radial-gradient(14px 1.6px at calc(100% - 18px) 2px,#ffffffd9,#fff0),
+    radial-gradient(3.5px at 10px 5px,#ffffffcc 0 .5px,#ffffff66 1.6px,#fff0),radial-gradient(4px at calc(100% - 11px) calc(100% - 5px),#fff 0 .8px,#ffffff99 1.8px,#fff0),
+    radial-gradient(3px at 11px calc(100% - 5px),#ffffff99 0 .4px,#ffffff4d 1.2px,#fff0)}
+.glass-ui :is(.sport-tile,.sg-product,.rd-card){
   box-shadow:0 0 12px #36d4ff2e,inset 0 0 0 1.25px #5fdcffa6,inset 0 0 5px 1.35px #2ac4ff43}
-.glass-ui :is(.sport-custom-open,.sport-custom .button-outline,.tm-mine-cta,.tm-confirm-actions .button-outline,.plan .button-outline,.lib-empty .button-secondary,.sport-tile:not([aria-pressed=true]),.sg-product:not(.is-on),.rd-card):hover:not(:disabled){
+.glass-ui :is(.sport-tile:not([aria-pressed=true]),.sg-product:not(.is-on),.rd-card):hover:not(:disabled){
   --g-rim:#e6fbff;box-shadow:0 0 16px #36d4ff66,inset 0 0 0 1.25px #7fe6ffd9,inset 0 0 6px 1.6px #2ac4ff59}
 /* "Make with …": the same glass in each maker's own colour. */
 .glass-ui .on-maker{--g-rim:color-mix(in srgb,var(--accent) 30%,#fff);--g-fill:linear-gradient(180deg,color-mix(in srgb,var(--accent) 30%,#071628),#071628 70%) padding-box;

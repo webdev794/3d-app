@@ -642,12 +642,30 @@ class AppController extends ChangeNotifier {
   void selectLayer(String? id) => update(() => selectedLayerId = id);
 
   /// The Artboard design to open when the Artboard next starts (the
-  /// Studio's "Edit in Artboard" on artwork sent from it): its account id.
+  /// Studio's "Edit in Artboard" on artwork sent from it, or a design picked
+  /// on Assets): its account id.
   int? openArtboardDoc;
+
+  /// Where [openArtboardDoc] was picked: 'assets' (it opens as File > Open
+  /// from my account does; [openArtboardVersion] is the version Assets
+  /// listed) or null (Edit in Artboard).
+  String? openArtboardFrom;
+  int? openArtboardVersion;
 
   /// Opens the Artboard with the design an artwork layer came from.
   void editInArtboard(int doc) {
     openArtboardDoc = doc;
+    openArtboardFrom = null;
+    openArtboardVersion = null;
+    go(AppScreen.artboard);
+  }
+
+  /// Assets › Artboard: opens a design saved in the account in the Artboard,
+  /// ready to edit ([version]: the one Assets listed).
+  void openArtboardDesign(int doc, {int? version}) {
+    openArtboardDoc = doc;
+    openArtboardFrom = 'assets';
+    openArtboardVersion = version;
     go(AppScreen.artboard);
   }
 
@@ -1045,15 +1063,54 @@ class AppController extends ChangeNotifier {
   }
 
   /// A 3D still of the user's own kit for the YOUR DESIGN card, taken just
-  /// before a preset replaces it.
+  /// before a preset replaces it (unless the one there is of the kit now).
   Future<void> captureOwnThumb() async {
     if (_onPreset) return;
     final capture = captureMockup;
     if (capture == null) return;
+    final shot = _signature(kit);
+    if (ownThumb != null && _ownShot == shot) return;
     try {
-      ownThumb = await capture('Front') ?? ownThumb;
+      final still = await capture('Front');
+      if (still != null) {
+        ownThumb = still;
+        _ownShot = shot;
+      }
     } on Object {
-      // The swatch shows.
+      // The last still (or the swatch) shows.
+    }
+  }
+
+  /// The kit (its signature) [ownThumb] shows; null: not known.
+  String? _ownShot;
+
+  /// YOUR DESIGN's still is not of the user's own kit as it is on the 3D
+  /// view now (THUMB 2026-11-12: it followed only presets, so the card
+  /// showed the colour swatch, or an older kit, while the user designed).
+  bool get ownStillWanted {
+    final own = ownKit;
+    if (own == null || _onPreset || captureMockup == null) return false;
+    final now = _signature(own);
+    return now != _ownShot && now == _signature(kit);
+  }
+
+  /// Takes YOUR DESIGN's still of the user's own kit (the 3D viewer calls
+  /// this once the kit is on and the changes have stopped).
+  Future<void> takeOwnStill() async {
+    final capture = captureMockup, own = ownKit;
+    if (capture == null || own == null || _onPreset) return;
+    final shot = _signature(own);
+    try {
+      final still = await capture('Front');
+      // (Kept only while the kit is still that one: a change takes another.)
+      final now = ownKit;
+      if (still == null || _onPreset || now == null) return;
+      if (_signature(now) != shot) return;
+      ownThumb = still;
+      _ownShot = shot;
+      notifyListeners();
+    } on Object {
+      // The last still (or the swatch) shows.
     }
   }
 
@@ -1798,6 +1855,7 @@ class AppController extends ChangeNotifier {
     _restore(_sampleKit(1, 'Jersey'));
     shelvedLayouts.clear();
     ownKit = ownThumb = null;
+    _ownShot = null;
     _onPreset = false;
     logoText = backName = 'MANTIS';
     number = '23';
@@ -2212,6 +2270,7 @@ class AppController extends ChangeNotifier {
       ownThumb = thumb;
       _onPreset = preset;
     }
+    _ownShot = null;
     projectName = project.title;
     saved = true;
     go(AppScreen.studio);

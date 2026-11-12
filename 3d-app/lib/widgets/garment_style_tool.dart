@@ -76,7 +76,7 @@ class GarmentStyleTool extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Text(
-              '${c.garment == 'Track jacket' ? 'The track jacket comes with a stand-up collar or a hood: choose it in Patterns.' : 'The ${_product.toLowerCase()} keeps its own collar.'} Neck styles: jerseys, tees, singlets, netball dresses and shooting shirts.',
+              '${c.garment == 'Track jacket' ? 'The track jacket comes with a stand-up collar or a hood: choose it in Patterns.' : 'The ${_product.toLowerCase()} keeps its own collar.'} Neck styles: jerseys, tees, singlets and shooting shirts.',
               style: const TextStyle(color: Palette.muted, fontSize: 12),
             ),
           )

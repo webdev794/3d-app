@@ -1032,18 +1032,26 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // band across them (the viewer's basketball shorts), no number (website
     // catalog.php).
     // FN6 2026-10-30 (DT8): a vivid aqua and a neutral black as rendered.
+    // TRS 2026-11-12 (the user): the 3D shorts start as their mockup picture
+    // 523: purple body, waistband and side panels, the two hem stripes yellow
+    // with purple between, as rendered on the stage; the "3" mark low on the
+    // right leg and the 3DEEZI wordmark up the outer left leg (reading upward),
+    // placed and sized as the client's demo 524's text; no number (website
+    // catalog.php).
     'bballShorts': {
-      'main': '#1d1d1e',
-      'secondary': '#00e8ff',
+      'main': '#6a5bb2',
+      'secondary': '#6a5bb2',
       'accent': '#00e8ff',
       'patternColor': '#00e8ff',
       'zoneColors': {
-        'bballBand': '#0036f0',
-        'bballTrim1': '#ffffff',
-        'bballTrim2': '#00e8ff',
+        'bballBand': '#6a5bb2',
+        'bballTrim1': '#ffff4a',
+        'bballTrim2': '#ffff4a',
       },
       'marks': {
         'shorts_number': {'hidden': true},
+        'shorts_crest': {'x': -0.185, 'y': 0.115, 'scale': 2.8},
+        'shorts_wordmark': {'x': 0.195, 'y': 0.205, 'scale': 2.8, 'rot': -90},
       },
     },
     // The bucket hat pictures: a cyan bound edge; the general one's flat cyan
@@ -1069,51 +1077,26 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // number. (NDT: the body a little lighter, 43,88,145 on the stage.)
     'netballDress': {
       // (Netball has no player numbers: client 2026-10-26.)
+      // (TRD 2026-11-12, the user: the Tripo dress's starting look in the
+      // colours of its own picture, images/525, as config/catalog.php: deep
+      // blue body and yoke, light azure side panels and binding; no bib, the
+      // position letters are the Numbers panel's.)
       'number': '',
-      'main': '#35547e',
-      'secondary': '#0c78c6',
+      'main': '#30508a',
+      'secondary': '#2295dc',
       'accent': '#00d0ff',
       'pattern': 'None',
-      'patternColor': '#0c78c6',
+      'patternColor': '#2295dc',
       'zoneColors': {
-        'body': '#35547e',
-        'panels': '#0c78c6',
-        'yoke': '#35547e',
-        'binding': '#0c78c6',
+        'body': '#30508a',
+        'panels': '#2295dc',
+        'yoke': '#30508a',
+        'binding': '#2295dc',
       },
       'marks': {
         'top_name': {'hidden': true},
-        'top_number': {'hidden': true},
       },
-      'layers': [
-        for (final side in const ['front', 'back'])
-          {
-            'id': side == 'front' ? 'tile-bib' : 'tile-bib-back',
-            'name': 'Position bib',
-            'type': 'shape',
-            'part': 'top',
-            'side': side,
-            'x': 0,
-            'y': side == 'front' ? 0.455 : 0.434,
-            'shape': 'rectangle',
-            'w': 0.205,
-            'h': 0.215,
-            'color': '#4a6696',
-          },
-        for (final side in const ['front', 'back'])
-          {
-            'id': side == 'front' ? 'tile-position' : 'tile-position-back',
-            'name': 'Position',
-            'type': 'text',
-            'part': 'top',
-            'side': side,
-            'x': 0,
-            'y': side == 'front' ? 0.428 : 0.407,
-            'text': 'WA',
-            'size': 0.185,
-            'color': '#ffffff',
-          },
-      ],
+      'layers': <Map<String, dynamic>>[],
     },
   };
   return {

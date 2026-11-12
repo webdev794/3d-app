@@ -6395,6 +6395,16 @@ const startKit = (mode) => {
 $('goAi').onclick = () => startKit('ai');
 $('goDyo').onclick = () => startKit('dyo');
 $('goHome').onclick = () => startKit('home');
+// The 3DEEZI logo goes to the home page, as on every website page (same path as HOME: the artwork stays here).
+// In the app the logo stays a picture, as on the app's other screens.
+if (HOST === 'web' || !embedded()) {
+  const brand = document.querySelector('.top .brand');
+  Object.assign(brand, { tabIndex: 0, title: '3DEEZI home (your artwork stays here)' });
+  brand.setAttribute('role', 'link'); brand.setAttribute('aria-label', '3DEEZI home');
+  brand.style.cursor = 'pointer';
+  brand.onclick = () => startKit('home');
+  brand.onkeydown = (e) => { if (e.key === 'Enter') startKit('home'); };
+}
 // The pills show as much as the top bar has room for (not by screen width alone, so the icons stay whenever they
 // fit): icon and word at full size, then step by step smaller, words only, HOME as its house only, smallest, and last
 // no HOME (classes f1…f8, see artboard.css). Checked again whenever the bar or its buttons change size.

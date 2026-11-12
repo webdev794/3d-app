@@ -874,3 +874,35 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 3. Under the stage: name box, "2 / 30", "Custom... type your own sport", DESIGN button; no scrolling on a normal phone.
 4. Swipe through all sports, tap the arrows, tap a side garment, Custom and DESIGN: all work.
 ---
+
+---
+**Water-bubble buttons (2026-11-11, app and website)**
+1. App > Design Your Own: the name box and "Custom... type your own sport" look like water bubbles (clear dark inside, glowing white rim, shine on top, corner sparkle), no thick border.
+2. Website (Design Your Own, 3DEEZI Team, Subscriptions, My projects): "Custom...", "Design it", VIEW MY REQUESTS, the plan buttons and Clear filters have the same water-bubble look; all still work.
+3. Website 3DEEZI ASSIST button is a water bubble; the open chat has a glowing edge and stays readable. Not on Studio, Artboard or Marquee Studio.
+---
+
+---
+**New 3D models from Tripo: Netball dress and Basketball shorts (2026-11-12, website and app)**
+1. Studio > Netball > Netball dress: the new dress shape (with the 6 bib tabs) opens in deep blue with light blue side panels and edges, the 3DEEZI logo on the chest, no bib. The straps' edges are clean bands.
+2. Change the dress colour areas (body, panels, yoke, edging) and add position letters: all show on the dress.
+3. Studio > Basketball > Basketball shorts: the new shorts shape opens purple with yellow hem stripes running up the side slits; the "3" logo low on the right leg, the 3DEEZI text on the left leg.
+4. Change the shorts' colours and move the logo / text: all work.
+5. Other garments (jersey, tee, singlet, other shorts, skirt) look the same as before.
+---
+
+---
+**Saved Artboard designs on the Assets page (2026-11-12, website and app)**
+1. Website: Artboard > File > Save to my account. Then PROJECTS > Assets: the design shows with an ARTBOARD label (in All and under the Artboard filter).
+2. Click it: it opens in the Artboard, ready to edit; save again and it comes back first on Assets with its new picture.
+3. Delete one from Assets: it asks first, then it's gone.
+4. App: Projects > Assets > Artboard tab shows the same designs; tap one: it opens in the Artboard; Back returns to Assets.
+5. Logos, patterns and artwork still show on Assets as before.
+---
+
+---
+**Logo, shorts crash fix (2026-11-12)**
+1. Artboard: click the 3DEEZI logo (top left): the homepage opens. Admin console: the logo opens the homepage too.
+2. Studio > Basketball > Basketball shorts: drag colours for a while, move the logo and text, change patterns: no crash or slowdown.
+3. Dashboard: the Assets count includes your saved Artboard designs; PROJECTS menu says "Your logos, artwork, patterns and Artboard designs".
+---

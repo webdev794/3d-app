@@ -10,7 +10,9 @@ export type NeckStyle = 'round' | 'v';
 export type RugbyFit = 'classic' | 'pro' | 'tight';
 
 /** The garments with a neck to choose and their own neck (the full kit's top is the jersey). */
-export const neckGarments: Record<string, NeckStyle> = { jersey: 'v', fullkit: 'v', tee: 'round', singlet: 'round', 'netball-dress': 'round', 'shooting-shirt': 'v' };
+export const neckGarments: Record<string, NeckStyle> = { jersey: 'v', fullkit: 'v', tee: 'round', singlet: 'round', 'shooting-shirt': 'v' };
+// (Not the netball dress since 2026-11-12: its 3D model has its own round neck; a V built the old dress, which the client
+// refused. A neck variation will be a model of its own.)
 export const neckLabels: Record<NeckStyle, string> = { round: 'Round neck', v: 'V-neck' };
 
 /** The rugby collar library, as on the client's Rugby Jersey Studio (images/300). */

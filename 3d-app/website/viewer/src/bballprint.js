@@ -155,7 +155,35 @@ export function bballZonePath(g, zone) {
 
 /** The hem stripes [colour key, from, to] (metres up from the hem's edge): trim 1 above, trim 2 along the edge. */
 // (BSF r3, 419 / 431: the upper stripe 2.7-3.9 cm up, the edge binding 1.05 cm.)
-export const BB_TRIMS = [['bballTrim1', 0.027, 0.039], ['bballTrim2', 0, 0.0105]];
+// (TRS 2026-11-12, on the ready-made model, measured against the user's 523 at the same angle: the binding 1.5 % of the
+// height, the gap 2.3 %, the stripe 1.6 %: the binding 1.4 cm, the stripe 3.05-4.15 cm up.)
+export const BB_TRIMS = [['bballTrim1', 0.0305, 0.0415], ['bballTrim2', 0, 0.014]];
+/**
+ * The hem stripes' light (TRS 2026-11-12, the user: the stripes as in the mockup picture 523 from every side): on the
+ * stripe and the edge binding the light never falls below `floor` of their own colour, so on the side of the leg, where
+ * less of the stage's light reaches, they keep their colour's brightness and hue; where they are lit more (the front)
+ * nothing changes. The stripes are found as trimBand paints them: by their height above the hem's edge, which runs level
+ * and then up the V split (and level past its top). For main.js (the shorts' fabric shader): its uniforms, their
+ * declarations and the code run on the light just before it is output.
+ */
+export function bballTrimLight(frame, floor = 0.54) {
+  const [[, a0, a1], [, b0, b1]] = BB_TRIMS;
+  return {
+    uniforms: {
+      bbFrame: { value: [frame.minX, frame.maxX, frame.minY, frame.span] },
+      bbVent: { value: [BB_SPLIT.x, BB_VENT.at(-1)[0], BB_SPLIT.y, floor] },
+      bbTrims: { value: [a0, a1, b0 > 0 ? b0 : -0.03, b1] },
+    },
+    pars: 'uniform vec4 bbFrame;\nuniform vec4 bbVent;\nuniform vec4 bbTrims;',
+    code: `{
+      float bbX = vMapUv.x < 0.5 ? bbFrame.x + 2.0 * vMapUv.x * bbFrame.w : bbFrame.y - 2.0 * (vMapUv.x - 0.5) * bbFrame.w;
+      float bbD = bbFrame.z + vMapUv.y * bbFrame.w - bbVent.z * clamp((abs(bbX) - bbVent.x) / (bbVent.y - bbVent.x), 0.0, 1.0);
+      float bbTrim = (bbD >= bbTrims.x && bbD <= bbTrims.y) || (bbD >= bbTrims.z && bbD <= bbTrims.w) ? 1.0 : 0.0;
+      outgoingLight = mix(outgoingLight, max(outgoingLight, diffuseColor.rgb * bbVent.w), bbTrim);
+    }`,
+  };
+}
+
 /** A hem stripe on both legs: `d0`-`d1` above the hem's edge, which runs level and then up the V split's edge to the
  *  side seam (so each stripe bends up along the V, keeping its height: BSF r2, the stripes' peak 18 % up as 420). */
 export function trimBand(d0, d1) {
@@ -195,6 +223,8 @@ const BIG = [-1.6, -0.2, 3.2, 1.8];
  * own looks; on each side the panel in the trim colour (or its own look), the band, the shading under the band, the
  * piping; the hems' own look; the body's colour under the 3D waistband.
  */
+/** The scratch canvas the shading layers are drawn on before they are laid on blurred (paintBball). */
+let layerCanvas = null;
 export function paintBball(painter, design, back, trim) {
   const g = painter.ctx;
   painter.paintParts(design, back, { skip: ['shortsSides', 'shortsBand', 'shortsPiping', 'shortsHem'] });
@@ -267,8 +297,11 @@ export function paintBball(painter, design, back, trim) {
   const rnd = (k, s) => 0.5 + 0.5 * Math.sin(k * s + Math.sin(k * 0.37 * s + (back ? 2.1 : 0.3)));
   // (Each layer drawn sharp on its own canvas, then laid on blurred once: a filter on every fill is far too slow.)
   const layer = (blur, draw) => {
-    const c = document.createElement('canvas'); c.width = g.canvas.width; c.height = g.canvas.height;
-    const l = c.getContext('2d'); l.setTransform(g.getTransform()); draw(l);
+    // (L2 2026-11-12: one scratch canvas kept and cleared, not a new full-size one per layer and repaint: a colour drag in
+    // the Studio made dozens a second and the graphics memory climbed past 1 GB until the tab crashed on a small PC.)
+    const c = (layerCanvas ??= document.createElement('canvas'));
+    if (c.width !== g.canvas.width || c.height !== g.canvas.height) { c.width = g.canvas.width; c.height = g.canvas.height; }
+    const l = c.getContext('2d'); l.setTransform(1, 0, 0, 1, 0, 0); l.clearRect(0, 0, c.width, c.height); l.setTransform(g.getTransform()); draw(l);
     g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.filter = `blur(${(blur * px).toFixed(1)}px)`; g.drawImage(c, 0, 0); g.restore();
   };
   layer(0.0009, (l) => {

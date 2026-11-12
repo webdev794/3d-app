@@ -79,7 +79,7 @@ export function StylePanel({ design, sport, product, edit, onGarment, onMoreColo
                 <h4>FIT</h4>
                 <div className="fit-options" role="radiogroup" aria-label="Rugby jersey fit">{rugbyFits.map(f => { const on = fitOf(design) === f.id; return <button key={f.id} type="button" role="radio" aria-checked={on} className={on ? 'selected' : ''} onClick={() => edit({ fit: f.id === 'pro' ? null : f.id })}><strong>{f.label}</strong><small>{f.note}</small></button>; })}</div>
             </>}
-        </> : <p className="field-hint">{isTrack(design.garment) ? 'The track jacket comes with a stand-up collar or a hood: choose it under Garment.' : `The ${product.toLowerCase()} keeps its own collar.`} Neck styles: jerseys, tees, singlets, netball dresses and shooting shirts.</p>}
+        </> : <p className="field-hint">{isTrack(design.garment) ? 'The track jacket comes with a stand-up collar or a hood: choose it under Garment.' : `The ${product.toLowerCase()} keeps its own collar.`} Neck styles: jerseys, tees, singlets and shooting shirts.</p>}
         <p className="style-foot"><StyleIcon size={15} /> Also available on compatible netball dresses and tees.</p>
     </div>;
 }

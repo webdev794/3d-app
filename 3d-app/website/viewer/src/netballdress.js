@@ -12,6 +12,8 @@
  * All in garment metres on the flat dress (y up, the hem at 0, the strap tops at 0.88; right half, mirrored).
  */
 
+import { BAND_SWATCH } from './tripomesh.js';
+
 const HEX = /^#[0-9a-f]{6}$/i;
 
 /** The side seam (right half), from the underarm down to the hem's corner: the dress's own cut (garment.js uses it). */
@@ -50,8 +52,21 @@ const panelEdge = (back) => {
 export const ND_PANEL_EDGE = panelEdge(false), ND_PANEL_EDGE_BACK = panelEdge(true);
 /** The side panel (right half) as a closed outline, front and back: its inner edge, then out past the side seam. */
 export const ND_PANEL = [...ND_PANEL_EDGE, [0.6, -0.01], [0.6, 0.75]], ND_PANEL_BACK = [...ND_PANEL_EDGE_BACK, [0.6, -0.01], [0.6, 0.75]];
-/** A side's panel outline. */
-export const panelOf = (back) => (back ? ND_PANEL_BACK : ND_PANEL);
+/**
+ * The ready-made model's own seams and trims on the flat pattern (tripomesh.js layoutOf: the Tripo dress, 2026-11-12),
+ * while that shape is shown: its front side panels' inner edge, its bindings' bands and free edges, its bib tabs. null:
+ * the made dress's own (ND_PANEL_EDGE, the outline's bound edges, ND_TABS). Set by main.js with each dress it builds.
+ */
+let MODEL = null;
+export function useDressShape(layout) {
+  const p = layout?.panel;
+  // (Its top level with the seam's top, under the armhole binding: above it the model's straps are the yoke's.)
+  MODEL = layout ? { ...layout, panelPoly: p && [...p, [p.at(-1)[0], -0.01], [0.6, -0.01], [0.6, p[0][1]]] } : null;
+}
+/** The model's layout while its shape is shown (useDressShape), else null. */
+export const dressModel = () => MODEL;
+/** A side's panel outline (the model's own front edge while its shape is shown). */
+export const panelOf = (back) => (back ? ND_PANEL_BACK : MODEL?.panelPoly ?? ND_PANEL);
 /** The yoke in front: over the straps and the upper chest, down to a line from the neck's foot out to the armholes. */
 // (Its foot 0.17 of the height under the shoulders in the middle, coming down towards the sides to about 0.21-0.23
 // where it meets the side panels, as 427's: NDT.)
@@ -129,8 +144,10 @@ export function paintDressBleed(t, design, back) {
   const g = t.ctx, c = dressColours(design);
   g.save();
   t.side(back);
+  // (The model: its straps reach a little past the made outline on the pattern; there they are the yoke's, as within it.)
+  if (MODEL?.band) { g.fillStyle = c.yoke; fillBoth(g, (back ? ND_YOKE_BACK : ND_YOKE_FRONT).map(([x, y]) => [Math.min(x, 0.36), y])); }
   g.fillStyle = c.panels;
-  fillBoth(g, panelOf(back).map(([x, y]) => [Math.min(x, 0.36), y]));
+  fillBoth(g, panelOf(back).map(([x, y]) => [Math.min(x, 0.36), MODEL ? Math.min(y, 0.735) : y]));   // (the model: none past the outline above the underarm, where its straps lie)
   const runs = t.dressEdges(back);
   g.strokeStyle = c.binding;
   g.lineWidth = 0.04;
@@ -142,8 +159,17 @@ export function paintDressBleed(t, design, back) {
     run.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
     g.stroke();
   }
+  // (The model: its bindings' plain colours, where its bands are printed from (tripomesh.js BAND_SWATCH): the neck's
+  // in the Collar part's own colour when it has one.)
+  if (MODEL?.band && !back) {
+    BAND_SWATCH.forEach(([x, y], which) => {
+      g.fillStyle = which ? c.binding : t.partStyle?.(design, 'collar')?.own ?? c.binding;
+      g.fillRect(x - 0.015, y - 0.015, 0.03, 0.03);
+    });
+  }
   g.restore();
 }
+
 
 /** The side panels (both sides) in the panels' colour, or a part look (paintLook) when the Side panels part has one. */
 export function paintDressPanels(t, design, back, paintLook) {
@@ -188,7 +214,7 @@ export function paintDressBinding(t, design, back, neckOwn) {
  */
 export function dressSeams(back) {
   const run = (pts, dx, dy) => pts.map(([x, y]) => ({ x: x + dx(x), y: y + dy }));
-  const yoke = back ? ND_YOKE_BACK_EDGE : ND_YOKE_FRONT_EDGE, edge = back ? ND_PANEL_EDGE_BACK : ND_PANEL_EDGE;
+  const yoke = back ? ND_YOKE_BACK_EDGE : ND_YOKE_FRONT_EDGE, edge = back ? ND_PANEL_EDGE_BACK : MODEL?.panel ?? ND_PANEL_EDGE;
   const across = [...yoke.slice().reverse().map(([x, y]) => [-x, y]), ...yoke.slice(1)];
   return [
     { seam: run(edge, () => 0, 0), stitch: run(edge, () => -0.003, 0) },
@@ -206,7 +232,8 @@ export function paintDressTabs(t, design) {
   const g = t.ctx, body = dressColours(design).body;
   g.save();
   t.clipOutline(false);
-  for (const [cx, cy, w, h] of ND_TABS) {
+  // (The model's own tabs while its shape is shown: useDressShape.)
+  for (const [cx, cy, w, h] of MODEL?.tabs ?? ND_TABS) {
     const x0 = cx - w / 2, y0 = cy - h / 2, r = 0.003;
     g.fillStyle = shade(body, 0.72);
     g.beginPath(); g.roundRect(x0, y0, w, h, r); g.fill();

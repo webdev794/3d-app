@@ -13,7 +13,8 @@ const neckGarments = {
   'Full Kit': 'v',
   'Training Tee': 'round',
   'Singlet': 'round',
-  'Netball dress': 'round',
+  // (Not the Netball dress since 2026-11-12: its 3D model has its own round
+  // neck; a V built the old dress, which the client refused.)
   'Shooting shirt': 'v',
 };
 const neckLabels = {'round': 'Round neck', 'v': 'V-neck'};

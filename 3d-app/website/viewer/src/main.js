@@ -16,6 +16,7 @@ import { createStudio } from './studio.js';
 import { qualityTier, TIERS, stadiumEnvironment, dressFabric, fabricInk, hdrBackdrop } from './render-quality.js';
 import { buildSocks } from './socks.js';
 import { buildBballShorts } from './bballshorts.js';
+import { bballTrimLight } from './bballprint.js';
 import { buildTrackPants } from './trackpants.js';
 import { buildSkirt } from './skirt.js';
 import { SKIRT_LIGHT } from './skirtprint.js';
@@ -24,6 +25,8 @@ import { buildBucketHat } from './bucket.js';
 import { buildBeanie } from './beanie.js';
 import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
 import { hqWanted, loadHQ, hqJersey } from './hq.js';
+import { loadTripo, tripoReady, tripoGarment } from './tripomesh.js';
+import { useDressShape, dressModel } from './netballdress.js';
 import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
 import { zoneAt, partAt } from './zones.js';
@@ -68,7 +71,15 @@ const DEFAULT_DESIGN = {
 
 // ---------- renderer, scene, camera
 const canvas = document.getElementById('stage');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+// (LIVEFIX L1 2026-11-12: a browser can switch 3D off for a page, as Edge does after the computer ran low on memory: "Web
+// page caused context loss and was blocked". The host is told plainly (its own words: retrying in the same browser does
+// not help); if the 3D comes back, the viewer starts again. Not when the page itself gives its graphics back: pagehide.)
+const webglOff = (why) => post({ type: 'error', command: 'webgl', message: String(why || '3D switched off') });
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true }); }
+catch (error) { webglOff(error?.message); throw error; }
+canvas.addEventListener('webglcontextlost', (event) => { event.preventDefault(); if (!released) webglOff('WebGL context lost'); });
+canvas.addEventListener('webglcontextrestored', () => { if (released) return; post({ type: 'webglRestored' }); setTimeout(() => location.reload(), 50); });
 renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 2 : 2.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.02;
@@ -148,13 +159,19 @@ if (LOOK2) {
 }
 
 // ---------- garment
-/** Relief of the sewing (stitches, seams, hem edges) per garment shape, made once. */
+/** Relief of the sewing (stitches, seams, hem edges) per garment shape, made once; the last RELIEFS_KEPT kept. */
 const reliefs = new Map();
+// (L1 2026-11-12: each is a print-sized picture (about 19-32 MB in memory and more on the graphics card), and one was kept
+// for every garment, neck and collar shown in a session, filling a modest PC's memory. A kit uses at most two.)
+const RELIEFS_KEPT = 4;
 /** Adds the sewing relief on top of the fabric weave (both are normal maps, blended in the shader). */
 function addRelief(target, painter) {
   // A garment cut like a drawing has its own (only the latest such is kept).
   // (The crew-neck jersey, FN6: its own, its neck sewn round.)
-  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}${painter.crewNeck ? ':crew' : ''}${painter.neckShape ? `:neck-${painter.neckShape}` : ''}${painter.rugbyCollar ? `:collar-${painter.rugbyCollar.id}` : ''}:${painter.canvas.width}${LOOK2 ? ':pucker' : ''}`;
+  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}${painter.crewNeck ? ':crew' : ''}${painter.neckShape ? `:neck-${painter.neckShape}` : ''}${painter.rugbyCollar ? `:collar-${painter.rugbyCollar.id}` : ''}:${painter.canvas.width}${LOOK2 ? ':pucker' : ''}${painter.kind === 'netball-dress' && dressModel() ? ':model' : ''}`;
+  // (LIVEFIX L1 2026-11-12, ':model': the dress built on the Tripo model has the model's seams and none of the made
+  // outline's bound edges in its relief (texture.js dressEdges, netballdress.js dressSeams); a made dress built first
+  // (the model's file slow or failed) left its relief on the model's dress after.)
   if (painter.cut && !reliefs.has(key)) {
     for (const [k, old] of reliefs) if (k.startsWith('cut:')) { old.dispose(); reliefs.delete(k); }
   }
@@ -165,6 +182,15 @@ function addRelief(target, painter) {
     reliefs.set(key, relief);
   }
   const relief = reliefs.get(key);
+  // The most recently used last; the oldest beyond RELIEFS_KEPT freed (never this kit's: the newest).
+  reliefs.delete(key);
+  reliefs.set(key, relief);
+  for (const [k, old] of reliefs) {
+    if (reliefs.size <= RELIEFS_KEPT) break;
+    old.dispose();
+    old.image.width = old.image.height = 0;
+    reliefs.delete(k);
+  }
   // The skirt's own light (skirtprint.js SKIRT_LIGHT: its black neutral and even, its panels clean), on the tiers.
   // (FN1 2026-10-30: the bucket hat too: its black neutral, as its pictures', not navy from the stage's cool light.)
   const skirtLight = (painter.kind === 'skirt' || painter.kind === 'bucket-hat' || painter.kind === 'beanie') && !!Q;
@@ -197,6 +223,12 @@ function addRelief(target, painter) {
         'mapN.xy *= normalScale;',
         `mapN.xy *= normalScale;\n\tvec3 relief = texture2D( reliefMap, vMapUv ).xyz * 2.0 - 1.0;\n\tmapN = normalize( vec3( mapN.xy + ${slopes}, mapN.z * relief.z ) );`,
       ));
+    // (The basketball shorts' hem stripes keep their colour's light on the side of the leg, as the user's 523: TRS.)
+    if (bball) {
+      const trims = bballTrimLight(painter.frame);
+      Object.assign(shader.uniforms, trims.uniforms);
+      shader.fragmentShader = `${trims.pars}\n${shader.fragmentShader.replace('#include <opaque_fragment>', `${trims.code}\n#include <opaque_fragment>`)}`;
+    }
   };
 }
 
@@ -267,6 +299,11 @@ const PARTS = {
   fullkit: ['shorts', 'jersey'],
 };
 
+// Ready-made models (tripomesh.js, 2026-11-12): the parts shown in their model's shape (part: the model's name) once its
+// data file is here; the made shape until then, if it cannot be read, and for a cut the model does not have (a V neck
+// on the dress's round one).
+const TRIPO_PARTS = { 'netball-dress': 'netball-dress', bballshorts: 'basketball-shorts' };
+
 const HEX6 = /^#[0-9a-f]{6}$/i;
 function buildKit(kind) {
   // A print layout brings its own parts (a raglan top, shorts or both); the garment chosen shows its top, its
@@ -317,9 +354,11 @@ function buildKit(kind) {
   const rugbyCut = !layout && list.includes('jersey') && HEX6.test(design.zoneColors?.sweep ?? '');
   const plainShorts = !layout && HEX6.test(design.zoneColors?.shortsPlain ?? '') ? (HEX6.test(design.zoneColors?.shortsNarrow ?? '') ? 'n' : 'p') : '';
   const noCord = !!plainShorts || rugbyCut;
-  const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '') + (kind === 'beanie' && HEX6.test(design.zoneColors?.beanieOne ?? '') ? ':nopom' : '') + (list.includes('trackpants') && HEX6.test(design.zoneColors?.sideBlade ?? '') ? ':jog' : '') + (teeFlare ? `:flare${design.zones?.sides ? 's' : ''}${HEX6.test(design.zoneColors?.teeNetball ?? '') ? 'n' : ''}` : '') + (teeLong ? ':long' : '') + (rugbyCut ? ':rugcut' : '') + (plainShorts ? `:plain${plainShorts}` : '') + (varsityBoxy ? ':boxy' : '') + (list.includes('jersey') && HEX6.test(design.zoneColors?.wingCollar ?? '') ? ':soccer' : '') + (list.includes('nfljersey') && HEX6.test(design.zoneColors?.badge ?? '') ? ':game' : '');
+  const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '') + (kind === 'beanie' && HEX6.test(design.zoneColors?.beanieOne ?? '') ? ':nopom' : '') + (list.includes('trackpants') && HEX6.test(design.zoneColors?.sideBlade ?? '') ? ':jog' : '') + (teeFlare ? `:flare${design.zones?.sides ? 's' : ''}${HEX6.test(design.zoneColors?.teeNetball ?? '') ? 'n' : ''}` : '') + (teeLong ? ':long' : '') + (rugbyCut ? ':rugcut' : '') + (plainShorts ? `:plain${plainShorts}` : '') + (varsityBoxy ? ':boxy' : '') + (list.includes('jersey') && HEX6.test(design.zoneColors?.wingCollar ?? '') ? ':soccer' : '') + (list.includes('nfljersey') && HEX6.test(design.zoneColors?.badge ?? '') ? ':game' : '') + (list.some((p) => TRIPO_PARTS[p] && tripoReady(TRIPO_PARTS[p])) ? ':tripo' : '');
   if (key === currentKind) return;
-  currentKind = key;
+  // (Set when the kit is built, at the end: a build that throws half way is made again by the next design instead of
+  // being taken as built, which left a half-made kit until another garment was chosen: LIVEFIX L1 2026-11-12.)
+  currentKind = null;
   const geometries = new Set();
   // (The mannequin's finishes are kept: made once, so their shaders are not compiled again on every change.)
   kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); [o.material].flat().forEach((m) => { if (m.userData.keep) return; m.map?.dispose(); if (m.normalMap?.userData.own) m.normalMap.dispose(); m.dispose(); }); } });
@@ -362,7 +401,14 @@ function buildKit(kind) {
       // (A cut it cannot be laid onto keeps our own jersey.)
       try { hq = hqJersey(garment, own ?? SPECS.jersey); } catch (error) { console.warn('HQ jersey:', error); }
     }
-    const shape = hq?.geometry ?? garment.geometry;
+    // A ready-made model (tripomesh.js): the part's printed shape, and the form and neck label under it, from the model.
+    // (Never the old made shape for a garment that has its model (the client refused it, 2026-11-12): without the model's
+    // data the design is not put on and the host says why. Its data is in the page, so this does not happen.)
+    if (TRIPO_PARTS[partKind] && !tripoReady(TRIPO_PARTS[partKind])) throw new Error('The 3D model of this garment did not load.');
+    const tripo = TRIPO_PARTS[partKind] ? tripoGarment(TRIPO_PARTS[partKind], garment) : null;
+    const shape = hq?.geometry ?? tripo?.geometry ?? garment.geometry;
+    // (The dress's painter then follows the model's own seams and trims: netballdress.js useDressShape.)
+    if (partKind === 'netball-dress') useDressShape(tripo?.layout ?? null);
     const texture = new THREE.CanvasTexture(painter.canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -551,7 +597,7 @@ function buildKit(kind) {
     if (hq?.collar) { rim.geometry.dispose(); rim.geometry = hq.collar; }
     // Tops: the 3DEEZI neck label inside the back neck (label.js).
     // (No size label in the shooting shirt's neck: its picture has none; FN5, tester DT8.)
-    const label = partKind === 'shorts' || partKind === 'shooting-shirt' || garment.socks || garment.bball || garment.pants || garment.skirt || garment.cap || garment.hat ? null : buildLabel(garment);
+    const label = partKind === 'shorts' || partKind === 'shooting-shirt' || garment.socks || garment.bball || garment.pants || garment.skirt || garment.cap || garment.hat ? null : buildLabel(tripo?.wearer ?? garment);
     // Shorts: the drawstring out of the front of the waistband.
     const cord = garment.drawstring && !noCord ? buildDrawstring(garment) : null;
     if (cord) group.add(cord.group);
@@ -576,7 +622,7 @@ function buildKit(kind) {
     base += partKind === 'shorts' || partKind === 'trackpants' ? garment.frame.maxY * stretch - (partKind === 'trackpants' ? 0.09 : 0.06) : 0;
     kit.add(group);
     group.add(glow);
-    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow });
+    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow, tripo });
   }
   dressParts(true);
   frameKit();
@@ -593,6 +639,7 @@ function buildKit(kind) {
   });
   // Look 2: the mannequin under the kit and its stand into the podium, also after framing (never picked).
   if (LOOK2) dressMannequin(list);
+  currentKind = key;
 }
 
 /**
@@ -637,7 +684,7 @@ function dressMannequin(list) {
     const group = part.rim.parent;
     // The HQ jersey: the body it was made on (hq.js), else our form made for the garment.
     const form = part.garment.form ? part.garment.form(mannequinMat) : part.hq?.avatar ? new THREE.Group().add(new THREE.Mesh(part.hq.avatar, mannequinMat))
-      : buildMannequin(part.garment, mannequinMat, { over: list.includes('shorts') && part.painter.kind !== 'shorts' });
+      : buildMannequin(part.tripo?.wearer ?? part.garment, mannequinMat, { over: list.includes('shorts') && part.painter.kind !== 'shorts' });
     if (!form) continue;
     group.add(form);
     const s = group.scale.y;
@@ -647,6 +694,7 @@ function dressMannequin(list) {
     if (tip) foot = { x: tip.x * s, y: group.position.y + s * tip.y, z: tip.z * s };
     // Its points are no longer needed (the garment object lives as long as the kit).
     part.garment.body = null;
+    if (part.tripo) part.tripo.wearer.body = null;
   }
   // The podium's top is at y -0.0675 (studio.js); the rod goes a little into it, so the kit's gentle bob never lifts it off.
   const stand = foot ? buildStand(foot.y + 0.012, -0.075, foot.x, foot.z) : Number.isFinite(low) ? buildStand(low + 0.012, -0.075) : null;
@@ -758,7 +806,7 @@ async function neckPrint(part) {
   const own = !!(layout && part.painter.layoutBase) && part.painter.kind !== 'shorts' && !!part.garment?.neck?.length;
   if (!own) { if (part.neckPrint) part.neckPrint.visible = false; return; }
   if (part.neckPrint === undefined) {
-    part.neckPrint = buildNeckPrint(part.hq?.geometry ?? part.garment.geometry, part.garment.neck, part.rim);
+    part.neckPrint = buildNeckPrint(part.hq?.geometry ?? part.tripo?.geometry ?? part.garment.geometry, part.tripo?.neck ?? part.garment.neck, part.rim);
     if (part.neckPrint) part.rim.parent.add(part.neckPrint);
   }
   if (!part.neckPrint) return;
@@ -775,20 +823,35 @@ async function neckPrint(part) {
   await placeNeckPrint(part.neckPrint, part.painter.canvas, taken);
 }
 
+/** What the design being put on is doing now, in plain words: told to the host, which names it if that stops or fails
+ *  (LIVEFIX L1 2026-11-12: a customer's browser waited a minute and nobody could see where). */
+let paintStep = '';
+const step = (what) => { paintStep = what; post({ type: 'step', step: what }); };
+
 async function paintAll() {
+  step('reading the print layout');
   await prepareLayout();
+  // A part with a ready-made model: its data file first (loaded once; the made shape if it cannot be read).
+  for (const part of PARTS[design.garment] ?? []) if (TRIPO_PARTS[part]) { step('loading the 3D garment model'); await loadTripo(TRIPO_PARTS[part]); }
+  // (The basketball shorts are the Shorts with the bballBand look, buildKit: their model too.)
+  if (design.garment === 'shorts' && !layout && HEX6.test(design.zoneColors?.bballBand ?? '')) { step('loading the 3D garment model'); await loadTripo(TRIPO_PARTS.bballshorts); }
+  step('building the 3D garment');
   buildKit(design.garment);
   // A new fabric type on the same kit.
   dressParts(false);
   warpParts();
+  step('loading the lettering fonts');
   await document.fonts.load('700 100px Rajdhani').catch(() => {});
   // The football jersey's square block numerals (texture.js NFL_FONT).
   // (Also a text object's own font: texture.js LAYER_FONTS.)
   if (design.garment === 'nfljersey' || (design.layers ?? []).some((l) => l?.font === 'JerseyBlock')) await document.fonts.load('700 100px JerseyBlock').catch(() => {});
   for (const part of parts) {
+    step('painting the print');
     await part.painter.paint(design);
     part.texture.needsUpdate = true;
+    step('adding the neck label');
     await neckPrint(part);
+    step('finishing the garment');
     // (The football jersey: its print solid over the mesh, render-quality.js.)
     if (Q) fabricInk(part, layout ? null : design.main);
     const ribOwn = part.painter.partStyle(design, part.painter.partName === 'shorts' ? 'waistband' : 'collar')?.own;
@@ -835,6 +898,7 @@ async function paintAll() {
   }
   ringMat.color.set(design.secondary).multiplyScalar(Q ? 2.4 : 4);
   pool.material.color.set(design.secondary);
+  step('updating the 2D panels');
   await board.refresh();
   // Not while the user types or slides in the bar (the host's echo would take the focus away).
   // The bar is built once per selection (a repaint only moves the outline), so typing and sliding are never cut off.
@@ -845,7 +909,8 @@ async function paintAll() {
 let paintQueue = Promise.resolve();
 const enqueuePaint = (work) => {
   const task = paintQueue.then(work);
-  paintQueue = task.catch((error) => post({ type: 'error', command: 'setDesign', message: error.message }));
+  // (With the step it failed in, for the host's message.)
+  paintQueue = task.catch((error) => post({ type: 'error', command: 'setDesign', message: error.message, step: paintStep }));
   return task;
 };
 function applyDesign(next) {
@@ -856,7 +921,33 @@ function applyDesign(next) {
     // (FN12: and its zone colours: a full kit's crewNeck left over made the Rugby League jersey's V round, images/320.)
     const whole = typeof next.garment === 'string' ? { trackStyle: null, neck: null, fit: null, zoneColors: null } : {};
     design = { ...design, ...whole, ...next };
-    await paintAll();
+    try {
+      await paintAll();
+    } catch (error) {
+      // (LIVEFIX L1 2026-11-12: a saved design with a part the garment cannot take now (an old print layout or cut, a neck,
+      // fit or part look made for an old shape) is put on without those parts; failing that, as the garment starts. Never
+      // the old shape, never the whole garment failing for one part; the host says so in one line. A model that did not
+      // load fails as before, as nothing else can show it.)
+      const full = design, why = `${error?.message} (while ${paintStep})`;
+      if (/did not load/.test(error?.message ?? '')) throw error;
+      console.warn('3D: the design could not be put on as it is:', why);
+      let notice = 'Some parts of this design could not be shown in 3D, so they are left out of the 3D view.';
+      try {
+        design = { ...full, layout: null, neck: null, fit: null, trackStyle: null, parts: null, zones: {}, layers: [], marks: {}, gradient: null, gradients: null, patternImage: null };
+        await paintAll();
+      } catch (again) {
+        console.warn('3D: the design without those parts could not be put on either:', again?.message);
+        notice = 'This design could not be shown in 3D, so the garment is shown as it starts.';
+        try {
+          design = { ...DEFAULT_DESIGN, garment: full.garment };
+          await paintAll();
+        } catch {
+          design = full;
+          throw error;
+        }
+      }
+      post({ type: 'notice', message: notice, reason: why });
+    }
     post({ type: 'designApplied' });
   });
 }
@@ -1250,10 +1341,13 @@ function partGlow(piece, key, { hold = false } = {}) {
   return true;
 }
 /** The pattern's pixels (those near the tapped ink colour) flash. False when none is found. */
+let glowCanvas = null;
 function patternGlow(piece, ink) {
   const src = piece.painter.canvas, W = Math.round(src.width / 4), H = Math.round(src.height / 4);
-  const m = document.createElement('canvas'); m.width = W; m.height = H;
-  const g = m.getContext('2d'); g.drawImage(src, 0, 0, W, H);
+  // (LIVEFIX L1 2026-11-12: one canvas kept and cleared, not a new one per tap.)
+  const m = (glowCanvas ??= document.createElement('canvas'));
+  if (m.width !== W || m.height !== H) { m.width = W; m.height = H; }
+  const g = m.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H); g.drawImage(src, 0, 0, W, H);
   const img = g.getImageData(0, 0, W, H), d = img.data;
   let n = 0;
   for (let i = 0; i < d.length; i += 4) {
@@ -2047,9 +2141,9 @@ function neckShot(size = 480) {
   const turn = kit.rotation.y;
   kit.rotation.y = 0;
   kit.updateMatrixWorld(true);
-  const group = part.rim.parent, front = part.garment.neck.filter((p) => p.z > 0);
+  const neck = part.tripo?.neck ?? part.garment.neck, group = part.rim.parent, front = neck.filter((p) => p.z > 0);
   const centre = new THREE.Vector3(), box = new THREE.Box3();
-  for (const p of part.garment.neck) box.expandByPoint(group.localToWorld(p.clone()));
+  for (const p of neck) box.expandByPoint(group.localToWorld(p.clone()));
   front.forEach((p) => centre.add(group.localToWorld(p.clone())));
   centre.divideScalar(Math.max(1, front.length));
   // Framed on the opening: its width with room round it (a collar, the shoulders' start), its middle a little low.

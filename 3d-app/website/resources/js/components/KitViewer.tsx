@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
-import { ApiError, fetchFile, getToken } from '../api';
+import { ApiError, draftKey, fetchFile, getToken } from '../api';
 import { viewerLook } from '../viewerLook';
 import type { PartKey, PartStyle } from '../parts';
 
@@ -83,7 +83,43 @@ export function dressColour(design: { main?: string; secondary?: string; zoneCol
     return (key === 'body' ? design.main : design.secondary) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-export const VIEWER_VERSION = '2026-10-20-283';
+export const VIEWER_VERSION = '2026-10-20-295';
+
+/**
+ * The browser's own private mode, in its own words and with its own shortcut (LIVEFIX L1 2026-11-12): what works at once
+ * when something saved in the browser, or the browser itself, stops the 3D.
+ */
+export function privateWindow(): string {
+    const ua = navigator.userAgent || '';
+    const touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua) || touchMac) return 'a private tab';
+    const mac = /Macintosh|Mac OS X/.test(ua);
+    const keys = (letter: string) => `${mac ? '⌘' : 'Ctrl'}+Shift+${letter}`;
+    if (/Firefox\//.test(ua)) return `a private window (${keys('P')})`;
+    if (/Edg\//.test(ua)) return `an InPrivate window (${keys('N')})`;
+    if (/OPR\/|Opera/.test(ua)) return `a private window (${keys('N')})`;
+    if ((navigator as Navigator & { brave?: unknown }).brave) return `a private window (${keys('N')})`;
+    if (/Chrome\/|CriOS\//.test(ua)) return `an Incognito window (${keys('N')})`;
+    if (mac && /Safari\//.test(ua)) return `a private window (${keys('N')})`;
+    return 'a private window';
+}
+
+const ERROR_BUTTON = { padding: '9px 18px', border: '1px solid #00c2cc', borderRadius: 6, background: '#09202c', color: '#d9fcff', cursor: 'pointer' } as const;
+
+/**
+ * "Fix it" on a 3D error: clears only what this site keeps for the Studio and its 3D view in this browser (the Studio's
+ * draft, YOUR DESIGN's entries, the remembered 3D look and HQ preview, the site's Cache Storage), then reloads. The
+ * sign-in (sessionStorage 3deezi.session) and everything saved on the server (projects, orders) stay. LIVEFIX L1 2026-11-12:
+ * a remembered setting made the dress fail on every try in one browser while a private window worked.
+ */
+async function clearSavedKit() {
+    try { sessionStorage.removeItem(draftKey); } catch { /* blocked storage: nothing kept */ }
+    try {
+        for (const key of Object.keys(localStorage)) if (key === draftKey || key.startsWith('3deezi.own.') || key === '3deezi.look' || key === '3deezi.hq') localStorage.removeItem(key);
+    } catch { /* blocked storage: nothing kept */ }
+    try { if ('caches' in window) await Promise.all((await caches.keys()).map((name) => caches.delete(name))); } catch { /* no caches */ }
+    window.location.reload();
+}
 /** Testing: a page opened with ?quality=low|high|flat shows the 3D viewer in that render tier (else the device's own). */
 const viewerQuality = () => { const q = new URLSearchParams(window.location.search).get('quality'); return q && /^(low|high|flat)$/.test(q) ? `&quality=${q}` : ''; };
 
@@ -290,6 +326,14 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     const appBase = document.querySelector('meta[name="app-base"]')?.getAttribute('content')?.replace(/\/$/, '') || '';
     const iframe = useRef<HTMLIFrameElement>(null);
     const [attempt, setAttempt] = useState(0);
+    // The browser switched 3D off for this page (the viewer's 'webgl' error, LIVEFIX L1 2026-11-12): its own message, with
+    // what works (a private window) first, and no Retry, which cannot help in the same browser.
+    const [webglOff, setWebglOff] = useState(false);
+    const [linkCopied, setLinkCopied] = useState(false);
+    const copyLink = () => { void navigator.clipboard?.writeText(window.location.href).then(() => setLinkCopied(true), () => setLinkCopied(false)); };
+    // The viewer left part of a design out of the 3D view (its 'notice'): one line over the view for a while.
+    const [notice, setNotice] = useState('');
+    const noticeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
     const [error, setError] = useState('');
     const engineReady = useRef(false);
@@ -300,6 +344,9 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     const latestDesign = useRef('');
     const inFlightDesign = useRef<string | null>(null);
     const appliedDesign = useRef<string | null>(null);
+    // What the viewer said it is doing for the design in flight (its 'step' messages, plain words): named in the message
+    // if that design stops or fails (LIVEFIX L1 2026-11-12).
+    const viewerStep = useRef('');
     const latestView = useRef({ view, rotating });
     const readyCallback = useRef(onReady);
     const boardMode = useRef(board);
@@ -376,8 +423,13 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         if (!engineReady.current || failed.current || inFlightDesign.current || activeCapture.current) return;
         if (appliedDesign.current !== latestDesign.current) {
             inFlightDesign.current = latestDesign.current;
+            viewerStep.current = '';
             send('setDesign', JSON.parse(latestDesign.current));
-            designTimer.current = setTimeout(() => fail('The 3D preview could not apply this design. Please retry.'), 20000);
+            // (60 s: a slow but working apply on a modest PC, such as a new garment's first build, never shows the error.)
+            designTimer.current = setTimeout(() => {
+                console.warn('3D viewer did not finish the design; last step:', viewerStep.current || '(none reported)');
+                fail(`The 3D preview could not apply this design${viewerStep.current ? ` (it stopped while ${viewerStep.current})` : ''}. Please retry.`);
+            }, 60000);
             return;
         }
         if (!revealed.current) return;
@@ -389,6 +441,9 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         const request = captureQueue.current.shift();
         if (request) {
             activeCapture.current = request;
+            // Its 30 s from now: while queued it waited behind the design, which has its own timer (LIVEFIX L1).
+            clearTimeout(request.timeout);
+            request.timeout = setTimeout(() => fail(request.kind === 'board' ? 'The 2D panels export timed out. Please retry.' : 'The 3D export timed out. Please retry the preview.'), 30000);
             send(request.kind === 'board' ? 'captureBoard' : 'capture', request.kind === 'board' ? { id: 'board-export' } : views[request.view]);
         }
     }, [send, fail]);
@@ -410,7 +465,8 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         },
         captureBoard: () => new Promise<string>((resolve, reject) => {
             if (!mounted.current || status === 'error') { reject(new Error('The design board is unavailable. Please retry.')); return; }
-            captureQueue.current.push({ view: 'front', kind: 'board', resolve, reject, timeout: setTimeout(() => fail('The 2D panels export timed out. Please retry.'), 30000) });
+            // (90 s while queued: the design in flight may take 60 s; flush gives it its own 30 s once sent.)
+            captureQueue.current.push({ view: 'front', kind: 'board', resolve, reject, timeout: setTimeout(() => fail('The 2D panels export timed out. Please retry.'), 90000) });
             flushRef.current();
         }),
         capture: (requestedView = latestView.current.view) => new Promise<string>((resolve, reject) => {
@@ -422,7 +478,8 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
                 view: requestedView,
                 resolve,
                 reject,
-                timeout: setTimeout(() => fail('The 3D export timed out. Please retry the preview.'), 30000),
+                // (90 s while queued: the design in flight may take 60 s; flush gives it its own 30 s once sent.)
+                timeout: setTimeout(() => fail('The 3D export timed out. Please retry the preview.'), 90000),
             };
             captureQueue.current.push(request);
             flushRef.current();
@@ -439,6 +496,8 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         appliedDesign.current = null;
         setStatus('loading');
         setError('');
+        setWebglOff(false);
+        setLinkCopied(false);
         let rotationTimer: ReturnType<typeof setTimeout> | undefined;
 
         const begin = () => {
@@ -494,6 +553,30 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
                 appliedDesign.current = inFlightDesign.current;
                 inFlightDesign.current = null;
                 flushRef.current();
+            }
+            // The viewer could not put the design on (it posts why): said now, not after the whole wait; the reason goes to
+            // the console for us (LIVEFIX L1 2026-11-12). (It posts this twice; the second finds nothing in flight.)
+            if (message.type === 'step' && typeof (message as { step?: unknown }).step === 'string') viewerStep.current = (message as { step: string }).step;
+            // The browser switched 3D off (or would not start it): said plainly, at once. If it comes back, a fresh viewer.
+            if (message.type === 'error' && (message as { command?: string }).command === 'webgl') {
+                console.warn('The browser switched off 3D for the viewer:', message.message);
+                setWebglOff(true);
+                fail('Your browser switched off 3D for this page.');
+                return;
+            }
+            if (message.type === 'webglRestored') { setAttempt((value) => value + 1); return; }
+            if (message.type === 'notice' && typeof message.message === 'string') {
+                console.warn('3D viewer:', message.message, (message as { reason?: string }).reason ?? '');
+                setNotice(message.message);
+                clearTimeout(noticeTimer.current);
+                noticeTimer.current = setTimeout(() => setNotice(''), 12000);
+            }
+            if (message.type === 'error' && (message as { command?: string }).command === 'setDesign' && inFlightDesign.current) {
+                const where = String((message as { step?: unknown }).step || viewerStep.current || '');
+                console.warn('3D viewer could not apply the design:', message.message, where ? `(while ${where})` : '');
+                // (In plain words: the model's own message when it is ours and plain, else the step it failed in.)
+                const own = /^The 3D model of this garment did not load\.?$/.test(message.message ?? '');
+                fail(own ? 'The 3D model of this garment did not load. Check your connection and press Retry.' : `The 3D preview could not apply this design${where ? ` (a problem while ${where})` : ''}. Please retry.`);
             }
             if ((message.type === 'capture' || message.type === 'captureBoard') && activeCapture.current) {
                 const request = activeCapture.current;
@@ -552,8 +635,24 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             />
             {status !== 'ready' && (
                 <div role={status === 'error' ? 'alert' : 'status'} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 14, padding: 30, textAlign: 'center', color: '#a9bbc9', background: '#03060a', fontSize: 13 }}>
-                    {status === 'loading' ? <><span style={{ color: '#00d9e8', letterSpacing: 3, fontWeight: 700 }}>3DEEZI</span><span>Preparing your 3D kit…</span></> : <><span>{error}</span><button type="button" onClick={() => setAttempt((value) => value + 1)} style={{ padding: '9px 18px', border: '1px solid #00c2cc', borderRadius: 6, background: '#09202c', color: '#d9fcff', cursor: 'pointer' }}>Retry preview</button></>}
+                    {status === 'loading' ? <><span style={{ color: '#00d9e8', letterSpacing: 3, fontWeight: 700 }}>3DEEZI</span><span>Preparing your 3D kit…</span></> : webglOff ? <>
+                        <strong style={{ color: '#e6f7ff', fontSize: 14, maxWidth: 420, lineHeight: 1.45 }}>Your browser switched off 3D for this page. To continue, open this page in {privateWindow()}.</strong>
+                        <button type="button" onClick={copyLink} style={ERROR_BUTTON}>{linkCopied ? 'Link copied' : 'Copy page link'}</button>
+                        <span style={{ maxWidth: 420, lineHeight: 1.45 }}>Or open it in another browser.</span>
+                        <span style={{ maxWidth: 420, lineHeight: 1.45, opacity: 0.8 }}>Restarting the browser also fixes it.</span>
+                    </> : <>
+                        {attempt > 0 && <strong style={{ color: '#e6f7ff', fontSize: 14, maxWidth: 440, lineHeight: 1.45 }}>If it keeps happening, open this page in {privateWindow()}, or clear this site's saved data in your browser.</strong>}
+                        <span style={{ maxWidth: 440, lineHeight: 1.45 }}>{error}</span>
+                        <button type="button" onClick={() => { void clearSavedKit(); }} style={{ ...ERROR_BUTTON, background: '#0b3a4a', fontWeight: 700 }}>Fix it: clear this page&apos;s saved kit and reload</button>
+                        <span style={{ maxWidth: 440, lineHeight: 1.4, fontSize: 12, opacity: 0.85, marginTop: -8 }}>Your unsaved changes on this page will be lost. Saved projects are kept.</span>
+                        <button type="button" onClick={() => setAttempt((value) => value + 1)} style={ERROR_BUTTON}>Retry preview</button>
+                        {attempt === 0 && <span style={{ maxWidth: 440, lineHeight: 1.45 }}>If it keeps happening, open this page in {privateWindow()}, or clear this site&apos;s saved data in your browser.</span>}
+                        <button type="button" onClick={copyLink} style={ERROR_BUTTON}>{linkCopied ? 'Link copied' : 'Copy page link'}</button>
+                    </>}
                 </div>
+            )}
+            {status === 'ready' && notice && (
+                <div role="status" style={{ position: 'absolute', left: 12, right: 12, bottom: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(3,6,10,.86)', border: '1px solid #00c2cc55', color: '#d9fcff', fontSize: 12, lineHeight: 1.4, textAlign: 'center', pointerEvents: 'none' }}>{notice}</div>
             )}
         </div>
     );

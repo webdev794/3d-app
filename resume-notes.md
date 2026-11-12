@@ -1,7 +1,15 @@
 # Resume notes
 Updated 2026-11-04 evening (weekly limit nearly used). Only what is still open; history is in tasks.md, detail-checks.md and git.
 - SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder `images\NNN` (latest 432).
+- SP2 = `D:\systemp\claude\0fe865e4811eb60b\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad` (this session's own scratchpad; TRIPO spec: SP2\TRIPO\spec.md).
 - Old notes (before this clean-up) are saved in SP\resume-notes.before-1104-cleanup.md.
+
+## START HERE (2026-11-13), end of 2026-11-12
+1. Live (https://testcaresortwork.co.in/3deez/) had 11-12-d at 18:0x. MAKE A TAR ONLY WHEN THE USER ASKS (user 2026-11-12). Today's tars: deploy-zips\3deez-update-2026-11-12-a..f, made from a clean copy with SP2\PACK1112\final-pack-1112X.sh (copy the last one, set OUT and REF = the tar live has; check live's build/assets main-*.js with curl first). The user extracts them; tars include ALL finished work, without asking.
+2. Nothing from 11-12 is pushed to git (v3 still 1b4d9d4). Push only when the user says so (final-push-v3.sh).
+3. Tripo models: D:\3d-app\tripo\ (netball-dress.glb, basketball-shorts.glb) and NEW-MODEL-CHECKLIST.md, which every new model follows. From viewer -293 the model data sits inside the viewer page. The old shapes of these two garments are deleted, and V-neck is hidden for the dress until the client's V-neck picture comes. The other garments keep their models until the client sends new ones.
+4. Open: patch 05 (app host one design in flight) if TRD didn't merge it; L1-CODE's idea of skipping the made-dress build under the Tripo dress (1.5 s, memory); the Basketball shorts tile picture still black and cyan while the 3D starts purple (pictures are never changed by us).
+5. The user's PC runs low on memory (2 VS Code windows, Edge, agent browsers) and D: is nearly full: one browser per agent, tiny temporary files. Old playwright_chromiumdev_profile-* folders in D:\systemp (~3 GB) can only be deleted by the user.
 
 ## START HERE (2026-11-05)
 1. Check SP\viewer.lock and SP\vite.lock are free; run `dart analyze lib` (D:\3d-app\3d-app) and `npx tsc --noEmit` (website).
@@ -57,6 +65,13 @@ Updated 2026-11-04 evening (weekly limit nearly used). Only what is still open; 
 ## PAUSED 2026-11-04 evening (user): resume these tomorrow, each from its log's HANDBACK
 | Worker | ID | Log (HANDBACK) | Next step |
 |---|---|---|---|
+| Your-design card picture THUMB (2026-11-12) | a4da4d6ba3bdf2b17 | SP2\LIVEFIX\THUMB\notes.md | Finds why the Studio "YOUR DESIGN" card is a blue fill for the Tripo dress; patch for TRD; no project edits |
+| L1 helper L1-CODE (2026-11-12) | a9769952d9b547998 | SP2\LIVEFIX\L1\code-review.md | Reads the dress path for hangs / ignored errors / heavy repeated work; patches in L1\patches; no project edits |
+| L1 helper L1-REPRO (2026-11-12) | a65afca0a94ef093f | SP2\LIVEFIX\L1\repro.md | Times each step of the dress apply in a browser (slow-PC setting too); no project edits |
+| Logo to homepage LOGO (2026-11-12) | a9f05372830a58959 | SP2\LIVEFIX\LOGO\log.md | L3: logo goes home on every website page (Artboard broken on live); app consistent |
+| Artboard designs on Assets ARTASSETS (2026-11-12) | acffec51cf6ba2a63 | SP2\ARTASSETS\log.md | Website + app Assets list saved Artboard designs (label "Artboard"), open in the Artboard |
+| Tripo dress builder TRD | a486782d357dbc636 | SP2\TRIPO\TRD\log.md | NOW L1 (SP2\LIVEFIX\spec.md): dress "could not apply" on live. Before: (tester removed + models final, user 2026-11-12: no shape changes, self-check) Netball dress -> D:\3d-app\tripo\netball-dress.glb; owns tripomesh.js |
+| Tripo shorts builder TRS | a7536d28a31a1963f | SP2\TRIPO\TRS\log.md | NOW L2 (SP2\LIVEFIX\spec.md): Studio crash with shorts on live. Before: (tester removed + models final: no shape changes, self-check) Basketball shorts -> basketball-shorts.glb; reuses tripomesh.js |
 | Page worker PW1 (phone bubble pages) | a5f768a90a0758a35 | SP\PW1\log.md | Headings as far from the rim as Home; the same width and top / bottom curve as Home; everything inside at top and bottom; then flutter build web + browser check (SP\DR1\bot.cjs) |
 | Basketball shorts fixer BSF | a161c7475f4c08d5e | SP\BS\fixer-log.md | Round 4: V split sharp / straight / near black; straight side outline (hips); waistband gathers, no ledge; back 2-3% narrower; colours vs tile |
 | Basketball shorts tester BST | ad3a868f541eb014f | SP\BS\tester-log.md | Test BSF's next version with the full checklist (round.sh N, studio-trim.mjs, the 40-degree view) |
@@ -218,3 +233,19 @@ Resume via SendMessage, do not respawn:
 - 2026-11-11 13:4x: DYOTEST round 2 PASS. Waiting for user OK before v3 push (show-before-push rule).
 - 2026-11-11: user: name capsule must be glass bubble like 506 (not black). DYOFIX round 3; then tester; then show user; push after OK.
 - 2026-11-11 13:5x: DYO round 3 + tweaks done (water-bubble name/Custom capsules: darker glass, thin white rim, glints). analyze + 3 DYO tests pass (I re-ran). WAITING for user OK -> then push v3 (app only, no tar). Open polish: outer glow weaker than 506; tiles/arrows silver rims; DESIGN top shine.
+- 2026-11-11: user OK -> pushed v3 = 1b4d9d4 (DYO water bubbles, app only). WEBGLASS ac9b40b52a41c1974 resumed: website secondary buttons + DYO name capsule to water-bubble look; show user before push; then live tar.
+- 2026-11-11: WEBGLASS also: Assist button/panel bubble look (website, CSS only, not on Studio/Artboard/Marquee).
+- 2026-11-11: user 509: 506 capsule looks more bubble-like than ours -> DYOFIX round 4 (match 506 by sampled colours); WEBGLASS told to use 506 as target. Then tester + show user + push.
+- 2026-11-11: user: water bubble, NOT glass; use the app water-bubble style (HomeGlassPainter / GlassCapsule tab bar) for app capsules + website buttons/Assist. Both agents told.
+- 2026-11-11: user: website water bubble only on the few controls changed on 11-10 (glass-ui pages) + Assist; not site-wide; keep speed. WEBGLASS told.
+- 2026-11-11: user: NO push and NO tar before showing them and getting consent (memory updated).
+- 2026-11-11 14:1x: DYOTEST round 4 PASS (water-bubble capsules = tab bar GlassCapsule; Custom text contrast 4.9:1, weaker than 506). WAITING user choice: round 4 (app water bubble) vs round 3 (506-like dark glass, saved create_home.round3.dart). No push without consent.
+- 2026-11-11 14:3x: WEBGLASS done: website water bubble (506-like dark body, liquid white rim, glints) on 11-10 secondary controls + DYO name capsule + Assist (glass pages only); +0.5 KB gz; speed unchanged. App round 4 = tab-bar style (lighter blue). WAITING user choice of ONE look for both; no push/tar without consent.
+- 2026-11-11: user chose the APP look (light-blue liquid, thick glossy rim = tab bar GlassCapsule) for both. App round 4 stays. WEBGLASS resumed to match website controls + Assist to it. Then show user; push v3 + tar only after consent.
+- 2026-11-11: user: the CLIENT 506 bubble images are the best -> target 506 look for BOTH app capsules (DYOFIX round 5) and website controls (WEBGLASS back to its 506-like version, refine). Show user; push/tar only after consent.
+- 2026-11-11: user 510/511: thick border worse; make capsules like 511 (506 bubble); round 5 = LAST DYO round, then stop DYO.
+- 2026-11-11 15:0x: DYOFIX round 5 (LAST) done: name + Custom capsules like 511/513 (clear dark body, glowing white rim, top streak, glints); 68 tests pass. DYO work stopped. Waiting user OK. WEBGLASS still refining website to 506.
+- 2026-11-11 15:2x: WEBGLASS done (506-matched website bubbles + Assist; +0.65 KB gz; ~4 ms style). App round 5 done. ASKED user consent: push v3 + live tar 11-11-b.
+- 2026-11-11: user 514: glints outside bubble edge -> DYOFIX + WEBGLASS fixing. Push/tar still waiting for consent.
+- 2026-11-11 15:4x: glints fixed inside the rim (app _WaterSparkles clipped; website glass.css glint layer inside rim + soft even glow). All finished. ASKED consent: push v3 + live tar 11-11-b.
+- 2026-11-11 15:29: live tar 3deez-update-2026-11-11-b.tar.gz (39 files, ALL of 11-11 since 11-10-a; replaces 11-11-a, which was never extracted). v3 push still waiting for consent.

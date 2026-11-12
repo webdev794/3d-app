@@ -229,7 +229,7 @@ const FAVOURITES = '3deezi.favouritePresets';
 const readFavourites = (): string[] => { try { return JSON.parse(localStorage.getItem(FAVOURITES) || '[]'); } catch { return []; } };
 
 /** The user's own design in this Studio (before the first preset, and as changed after it is chosen again), with a still of it. */
-export type OwnDesign = { design: Design; thumb?: string | null };
+export type OwnDesign = { design: Design; thumb?: string | null; /** The design (its designSignature) the still shows. */ shot?: string };
 /** The keys that make a design what it is (YOUR DESIGN compares them). */
 const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternColorOwn', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'parts', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks', 'fabric', 'neck', 'fit'] as const;
 /** "1 panel", "4 panels": a print layout's panels on the kit (its roles other than 'none'). */

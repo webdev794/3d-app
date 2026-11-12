@@ -683,7 +683,9 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     }
     return best;
   };
-  const openDist = detail ? points.map((p, i) => (i < nb && !seam[i] ? 0 : toOpen(p))) : null;
+  // (Also for the netball dress without the render detail (look 1): its tab relief reads it in every tier (detailFolds).
+  // Without it the dress threw on a device that remembers look 1, "could not apply" on every try: LIVEFIX L1 2026-11-12.)
+  const openDist = detail || spec.dress ? points.map((p, i) => (i < nb && !seam[i] ? 0 : toOpen(p))) : null;
   /** A fold's profile: a rounded ridge and a narrower, deeper valley (cloth folds are not sine waves). */
   const fold = (q) => { const v = Math.sin(q); return v > 0 ? v * (1 - 0.25 * v) : -(Math.abs(v) ** 0.7); };
   /**
