@@ -197,7 +197,9 @@ export function paintCollarPrint(painter, collar, colours, back) {
   const g = painter.ctx, { foot } = neckEnds(painter);
   g.save();
   if (collar.insert === 'v') {
-    const top = foot + 0.012, tip = foot - 0.095, w = 0.072;
+    // (On a ready-made model (the football jersey's: its own neck band printed from a swatch) the insert reaches on up past
+    // the neck's edge, so its top is the band's foot all along, one clean line.)
+    const top = foot + (painter.swatch ? 0.06 : 0.012), tip = foot - 0.095, w = painter.swatch ? 0.072 * (0.155 / 0.107) : 0.072;
     g.fillStyle = colours.accent;
     g.beginPath(); g.moveTo(-w, top); g.lineTo(0, tip); g.lineTo(w, top); g.closePath(); g.fill();
     g.strokeStyle = colours.band; g.lineWidth = 0.013; g.lineJoin = 'miter';

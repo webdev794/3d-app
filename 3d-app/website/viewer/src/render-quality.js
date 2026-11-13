@@ -100,6 +100,7 @@ export function fabricOf(kind, part, chosen) {
   if (Object.hasOwn(FABRIC_TYPES, chosen)) return FABRIC_TYPES[chosen];
   // (A tile picture's smooth matt print, main.js: the skirt's smooth interlock instead of the jersey's mesh.)
   if (chosen === 'Smooth') return 'smoothmatt';
+  if (kind === 'singlet' && part?.painter?.model?.matte) return 'polymesh';
   if (part?.hoodie) return 'fleece';
   if (part?.track) return 'knit';
   return { jersey: 'mesh', nfljersey: 'mesh', 'shooting-shirt': 'shootmesh', compression: 'stretch', socks: 'sockrib', trackpants: 'smoothmatt', skirt: 'interlock', cap: 'twill', 'bucket-hat': 'twill', beanie: 'sockrib', singlet: 'mesh', shorts: 'mesh', bballshorts: 'bballknit', 'netball-dress': 'dressknit', tee: 'birdseye', raglan: 'birdseye', polo: 'pique', pocketpolo: 'pique' }[kind] ?? 'knit';
@@ -155,6 +156,9 @@ const FABRICS = {
   // (FN10 2026-11-02, tester DT10: the sheen made the top of the foot read grey-blue under the overhead lights; none.)
   sockrib: { tile: 0.007, scale: 1.25, cavity: 0.2, rough: 0.97, sheen: 0, sheenRough: 0.85, sheenColor: 0x80848a, clearcoat: 0, strength: 3.5, make: () => { const fuzz = valueNoise(24, 11); return { height: (u, v) => 0.5 + 0.36 * Math.cos(4 * Math.PI * u) + 0.08 * Math.cos(2 * Math.PI * (6 * v + 2 * Math.abs(((2 * u) % 1) - 0.5))) + 0.12 * (fuzz(u, v) - 0.5), cavity: null }; } },
   mesh: { tile: 0.0336, scale: 0.75, cavity: 0.22, rough: 0.6, sheen: 0.48, sheenRough: 0.38, strength: 4, make: () => eyelets(8, 0.3) },
+  // (The basketball singlet's model, BBSINGLET 2026-11-13: the same mesh, matt polyester: little sheen, so no glossy
+  // streaks at low and side angles.)
+  polymesh: { tile: 0.0336, scale: 0.75, cavity: 0.22, rough: 0.74, sheen: 0.12, sheenRough: 0.6, sheenColor: 0x80848a, strength: 4, make: () => eyelets(8, 0.3) },
   // (FN10 2026-11-02, DT10: the shooting shirt's mesh with hardly any sheen, so its cyan and royal stay deep on the stage.)
   shootmesh: { tile: 0.0336, scale: 0.75, cavity: 0.22, rough: 0.6, sheen: 0.1, sheenRough: 0.5, sheenColor: 0x80848a, strength: 4, make: () => eyelets(8, 0.3) },
   // Bird's-eye knit: the same, finer and with small holes.

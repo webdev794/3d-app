@@ -76,7 +76,7 @@ class GarmentStyleTool extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Text(
-              '${c.garment == 'Track jacket' ? 'The track jacket comes with a stand-up collar or a hood: choose it in Patterns.' : 'The ${_product.toLowerCase()} keeps its own collar.'} Neck styles: jerseys, tees, singlets, netball dresses and shooting shirts.',
+              '${c.garment == 'Track jacket' ? 'The track jacket comes with a stand-up collar or a hood: choose it in Patterns.' : hasNoNeck(c.garment) || hasNoNeck(_product) ? 'This garment has no collar or neck to choose.' : 'The ${_product.toLowerCase()} keeps its own collar.'} Neck styles: jerseys, tees, singlets, shooting shirts and netball dresses.',
               style: const TextStyle(color: Palette.muted, fontSize: 12),
             ),
           )
@@ -137,7 +137,7 @@ class GarmentStyleTool extends StatelessWidget {
               crossAxisSpacing: 8,
               childAspectRatio: 1.05,
               children: [
-                for (final (id, code, _) in rugbyCollars)
+                for (final (id, code, _) in collarsFor(c.garment, c.zoneColors))
                   _NeckCard(
                     key: ValueKey('collar-$id'),
                     id: id,
@@ -203,14 +203,16 @@ class GarmentStyleTool extends StatelessWidget {
           ),
           if (rugby) ...[
             const SectionLabel('Fit'),
-            for (final (id, label, note) in rugbyFits)
+            for (final (id, label, note) in fitsFor(c.garment, c.zoneColors))
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: GlowCard(
                   key: ValueKey('fit-$id'),
                   radius: 10,
                   glow: false,
-                  selected: fitOf(c.fit) == id,
+                  selected: isModelJersey(c.garment, c.zoneColors)
+                      ? (id == 'tight') == (c.fit == 'tight')
+                      : fitOf(c.fit) == id,
                   onTap: () => c.edit(() => c.fit = id == 'pro' ? null : id),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -239,13 +241,18 @@ class GarmentStyleTool extends StatelessWidget {
               ),
           ],
         ],
-        const Padding(
-          padding: EdgeInsets.only(top: 14),
-          child: Text(
-            'Also available on compatible netball dresses and tees.',
-            style: TextStyle(color: Palette.muted, fontSize: 12),
+        // (Only where it helps: a neck choice that tees and netball dresses
+        // also have; not on them, nor without a neck.)
+        if (hasNeckStyle(c.garment) &&
+            c.garment != 'Training Tee' &&
+            c.garment != 'Netball dress')
+          const Padding(
+            padding: EdgeInsets.only(top: 14),
+            child: Text(
+              'Also available on compatible netball dresses and tees.',
+              style: TextStyle(color: Palette.muted, fontSize: 12),
+            ),
           ),
-        ),
       ],
     );
   }

@@ -46,7 +46,7 @@ export function SportSelection({ catalog, selected, onSelect, onNext }: { catalo
   const offset = (i: number) => { const n = sports.length; let o = i - active; if (o > n / 2) o -= n; if (o < -n / 2) o += n; return o; };
   const sport = sports[active];
 
-  return <section className="showroom sport-step" onPointerDown={e => { dragStart.current = e.clientX; }} onPointerUp={e => { if (dragStart.current !== null && Math.abs(e.clientX - dragStart.current) > 50) rotate(e.clientX < dragStart.current ? 1 : -1); dragStart.current = null; }} onWheel={e => { const now = Date.now(); if (Math.abs(e.deltaX) > 20 && now - wheelLock.current > 350) { wheelLock.current = now; rotate(e.deltaX > 0 ? 1 : -1); } }}>
+  return <section className="showroom sport-step glass-ui" onPointerDown={e => { dragStart.current = e.clientX; }} onPointerUp={e => { if (dragStart.current !== null && Math.abs(e.clientX - dragStart.current) > 50) rotate(e.clientX < dragStart.current ? 1 : -1); dragStart.current = null; }} onWheel={e => { const now = Date.now(); if (Math.abs(e.deltaX) > 20 && now - wheelLock.current > 350) { wheelLock.current = now; rotate(e.deltaX > 0 ? 1 : -1); } }}>
     <div className="showroom-bg" style={{ backgroundImage: `url(${media('showroom/stadium-stage.webp')})` }} />
     <div className="showroom-head">
       <Link className="back-link" to="/"><ArrowLeft size={16} /> Back to create</Link>
@@ -1006,7 +1006,7 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
     </section>;
   }
 
-  return <section className={`aid-stage${dropping ? ' dropping' : ''}`} aria-labelledby="aid-title" {...stageProps}>
+  return <section className={`aid-stage glass-ui${dropping ? ' dropping' : ''}`} aria-labelledby="aid-title" {...stageProps}>
     {background}
     <div className="aid-inner">
       <img className="aid-logo" src={media('images/brand-final.png')} alt="3DEEZI" width={1712} height={272} />

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { collarOf } from '../garmentStyle';
 import type { FormEvent, ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowDownToLine, ArrowRight, CheckCircle2, Clock3, FileImage, FileText, FolderOpen, History, ImagePlus, Layers3, LoaderCircle, LogOut, PenLine, Plus, Search, ShieldCheck, Sparkles, Trash2, UploadCloud, UserRound, X } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowDownToLine, ArrowRight, CheckCircle2, Clock3, FileImage, FileText, FolderOpen, History, ImagePlus, Layers3, LoaderCircle, LogOut, PenLine, PenTool, Plus, Search, ShieldCheck, Sparkles, Trash2, UploadCloud, UserRound, X } from 'lucide-react';
 import { api, downloadFile, fetchFile } from '../api';
-import type { Project, User } from '../api';
+import type { ApiError, Project, User } from '../api';
 import type { Design } from '../types';
 import ImageEditor, { keepInAssets } from '../components/ImageEditor';
 import { ProjectsTabs } from '../components/ProjectsMenu';
@@ -12,6 +12,8 @@ import './library.css';
 
 type PageActions = { onOpen: (project: Project) => void; onCreate: () => void };
 type Asset = { id: number; name: string; type: 'logo' | 'pattern' | 'artwork' | 'reference' | 'layout' | 'design'; mime_type: string; size: number; url: string; created_at: string };
+/** A design kept in the account from the Artboard (File > Save to my account): `preview` is a small picture of its page. */
+type ArtboardDesign = { id: number; name: string; preview: string | null; pages: number; version: number; updated_at: string };
 type ProjectVersion = { id: number; version: number; design: Project['design']; name: string; created_at: string };
 type Dashboard = { projects: number; drafts: number; approved: number; assets: number; recent_projects: Project[] };
 
@@ -172,7 +174,7 @@ export function ProjectsPage({ onOpen, onCreate, approvedOnly = false }: PageAct
         try { const updated = await api<Project>(`/projects/${project.id}`, { method: 'PATCH', body: JSON.stringify({ status: project.status === 'approved' ? 'draft' : 'approved' }) }); setData((previous) => previous?.map((item) => item.id === updated.id ? updated : item) || []); }
         catch (err) { setActionError(message(err)); } finally { setBusy(null); }
     }
-    return <main className="page-shell lib-page">
+    return <main className="page-shell lib-page glass-ui">
         <ProjectsTabs />
         <div className="page-heading lib-heading"><h1>{approvedOnly ? 'Approved designs' : 'My projects'}</h1><button className="button button-primary" onClick={onCreate}><Plus size={17} /> New kit</button></div>
         {available.length > 0 && <div className="lib-toolbar"><div className="lib-tabs" aria-label="Filter projects">{[['all', 'All'], ['ai', 'AI designs'], ['dyo', 'My designs'], ...(!approvedOnly ? [['draft', 'Drafts']] : [])].map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="lib-search"><Search size={17} /><input type="search" placeholder="Search projects…" aria-label="Search projects" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>}
@@ -201,8 +203,26 @@ function AssetPreview({ asset }: { asset: Asset }) {
     return <div className={`lib-asset-preview ${asset.type === 'pattern' ? 'is-pattern' : ''}`}>{url && !failed ? <img src={url} alt={asset.name} onError={() => setFailed(true)} /> : failed ? <div className="lib-asset-fallback"><FileImage size={30} /><span>Preview unavailable</span></div> : <LoaderCircle className="lib-spin" size={23} />}</div>;
 }
 
+/** A saved Artboard design on the Assets page: its picture (or the Artboard's pen when it has none), its name and date; it opens in the Artboard. */
+function ArtboardCard({ design, showType, onOpen, onDelete }: { design: ArtboardDesign; showType: boolean; onOpen: (design: ArtboardDesign) => void; onDelete: (design: ArtboardDesign) => void }) {
+    const [failed, setFailed] = useState('');
+    const picture = design.preview?.startsWith('data:image/') && failed !== design.preview ? design.preview : '';
+    return <article className="lib-asset-card lib-artboard-card">
+        <button className="lib-asset-preview lib-artboard-preview" onClick={() => onOpen(design)} aria-label={`Open ${design.name} in the Artboard`}>
+            <span className="lib-artboard-badge"><PenTool size={11} />Artboard</span>
+            {picture ? <img src={picture} alt="" onError={() => setFailed(picture)} /> : <span className="lib-asset-fallback"><PenTool size={30} /><span>Artboard design</span></span>}
+            <span className="lib-open-overlay">Open in Artboard <ArrowRight size={16} /></span>
+        </button>
+        <div className="lib-asset-info">{showType && <span className="lib-asset-type">artboard design</span>}<h3 title={design.name}>{design.name}</h3><div className="lib-project-footer"><span>{design.pages > 1 && <>{design.pages} pages <span>·</span> </>}{date(design.updated_at)}</span><div className="lib-card-actions"><button className="lib-small-button" onClick={() => onOpen(design)} title="Open in Artboard" aria-label={`Open ${design.name} in the Artboard`}><PenTool size={15} /></button><button className="lib-small-button lib-delete-button" onClick={() => onDelete(design)} title="Delete design" aria-label={`Delete ${design.name}`}><Trash2 size={14} /></button></div></div></div>
+    </article>;
+}
+
 export function AssetsPage() {
     const { data, setData, loading, error, reload } = useRemote<Asset[]>('/assets');
+    // The Artboard designs kept in the account (not the templates): listed with the assets, newest first, opened in the Artboard.
+    const designs = useRemote<ArtboardDesign[]>('/artboards?template=0');
+    const navigate = useNavigate();
+    const [deletingDesign, setDeletingDesign] = useState<ArtboardDesign | null>(null);
     const [filter, setFilter] = useState('all');
     const [search, setSearch] = useState('');
     const [uploading, setUploading] = useState(false);
@@ -214,7 +234,24 @@ export function AssetsPage() {
     const [actionError, setActionError] = useState('');
     const [notice, setNotice] = useState('');
     const [editing, setEditing] = useState<{ asset: Asset; src: string } | null>(null);
-    const assets = (data || []).filter((asset) => (filter === 'all' || asset.type === filter) && asset.name.toLowerCase().includes(search.toLowerCase()));
+    const query = search.toLowerCase();
+    const assets = (data || []).filter((asset) => (filter === 'all' || asset.type === filter) && asset.name.toLowerCase().includes(query));
+    const boards = (designs.data || []).filter((design) => (filter === 'all' || filter === 'artboard') && design.name.toLowerCase().includes(query));
+    // Assets and Artboard designs together, newest first (an asset by when it was added, a design by when it was last saved).
+    const cards = [...assets.map((asset) => ({ asset, at: asset.created_at })), ...boards.map((design) => ({ design, at: design.updated_at }))].sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0));
+    const noDesigns = filter === 'artboard' && !search && !designs.error;
+    /** Opens the design in the Artboard as File > Open from my account does (ArtboardPage, ?from=assets). */
+    function openDesign(design: ArtboardDesign) { navigate(`/artboard?doc=${design.id}&from=assets&version=${design.version}`); }
+    async function deleteDesign() {
+        if (!deletingDesign) return;
+        const gone = deletingDesign;
+        setBusy(true); setActionError('');
+        try {
+            // Already deleted somewhere else (another tab, the app): gone from the list too.
+            try { await api(`/artboards/${gone.id}`, { method: 'DELETE' }); } catch (err) { if ((err as ApiError).status !== 404) throw err; }
+            designs.setData((previous) => previous?.filter((design) => design.id !== gone.id) || []); setDeletingDesign(null); setNotice('Artboard design deleted.');
+        } catch (err) { setActionError(message(err)); } finally { setBusy(false); }
+    }
     function openUpload() { setFile(null); setName(''); setType('logo'); setActionError(''); setUploading(true); }
     async function upload(event: FormEvent) {
         event.preventDefault();
@@ -252,17 +289,20 @@ export function AssetsPage() {
         try { const extension = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'application/pdf': 'pdf' } as Record<string, string>)[asset.mime_type] || 'png'; await downloadFile(`/assets/${asset.id}/file`, `${asset.name}.${extension}`); }
         catch (err) { setActionError(message(err)); }
     }
+    const assetCard = (asset: Asset) => <article className="lib-asset-card" key={asset.id}><AssetPreview asset={asset} /><div className="lib-asset-info">{filter === 'all' && <span className="lib-asset-type">{asset.type === 'layout' ? 'print layout' : asset.type === 'design' ? 'design file' : asset.type}</span>}<h3 title={asset.name}>{asset.name}</h3><div className="lib-project-footer"><span>{bytes(asset.size)} <span>·</span> {date(asset.created_at)}</span><div className="lib-card-actions">{['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type) && <button className="lib-small-button" onClick={() => edit(asset)} title="Edit image" aria-label={`Edit ${asset.name}`}><PenLine size={15} /></button>}<button className="lib-small-button" onClick={() => download(asset)} title="Download asset" aria-label={`Download ${asset.name}`}><ArrowDownToLine size={15} /></button><button className="lib-small-button lib-delete-button" onClick={() => { setActionError(''); setDeleting(asset); }} title="Delete asset" aria-label={`Delete ${asset.name}`}><Trash2 size={14} /></button></div></div></div></article>;
     return <main className="page-shell lib-page">
         <ProjectsTabs />
         <div className="page-heading lib-heading"><h1>Asset library</h1><button className="button button-primary" onClick={openUpload}><UploadCloud size={18} /> Upload asset</button></div>
-        {!!data?.length && <div className="lib-toolbar"><div className="lib-tabs" aria-label="Filter assets">{[['all', 'All'], ['logo', 'Logos'], ['pattern', 'Patterns'], ['artwork', 'Artwork'], ['reference', 'References'], ['design', 'Design files'], ['layout', 'Print layouts']].map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="lib-search"><Search size={17} /><input type="search" placeholder="Search assets…" aria-label="Search assets" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>}
+        {(!!data?.length || !!designs.data?.length) && <div className="lib-toolbar"><div className="lib-tabs" aria-label="Filter assets">{[['all', 'All'], ['logo', 'Logos'], ['pattern', 'Patterns'], ['artwork', 'Artwork'], ['mockup', 'Mockups'], ['artboard', 'Artboard'], ['reference', 'References'], ['design', 'Design files'], ['layout', 'Print layouts']].map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="lib-search"><Search size={17} /><input type="search" placeholder="Search assets…" aria-label="Search assets" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>}
         {notice && <div className="lib-notice" role="status"><CheckCircle2 size={17} />{notice}<button onClick={() => setNotice('')} aria-label="Dismiss notification"><X size={16} /></button></div>}
-        {actionError && !uploading && !deleting && <div className="lib-error lib-inline-error" role="alert">{actionError}</div>}
-        <Feedback loading={loading} error={error} onRetry={reload} />
-        {!loading && !error && (assets.length ? <div className="lib-assets-grid">{assets.map((asset) => <article className="lib-asset-card" key={asset.id}><AssetPreview asset={asset} /><div className="lib-asset-info">{filter === 'all' && <span className="lib-asset-type">{asset.type === 'layout' ? 'print layout' : asset.type === 'design' ? 'design file' : asset.type}</span>}<h3 title={asset.name}>{asset.name}</h3><div className="lib-project-footer"><span>{bytes(asset.size)} <span>·</span> {date(asset.created_at)}</span><div className="lib-card-actions">{['image/png', 'image/jpeg', 'image/webp'].includes(asset.mime_type) && <button className="lib-small-button" onClick={() => edit(asset)} title="Edit image" aria-label={`Edit ${asset.name}`}><PenLine size={15} /></button>}<button className="lib-small-button" onClick={() => download(asset)} title="Download asset" aria-label={`Download ${asset.name}`}><ArrowDownToLine size={15} /></button><button className="lib-small-button lib-delete-button" onClick={() => { setActionError(''); setDeleting(asset); }} title="Delete asset" aria-label={`Delete ${asset.name}`}><Trash2 size={14} /></button></div></div></div></article>)}</div> : <div className="empty-state lib-empty"><span className="lib-empty-icon"><ImagePlus size={32} /></span><h2>{search || filter !== 'all' ? 'No matching assets' : 'No assets yet'}</h2><p>{search || filter !== 'all' ? 'Try another search or clear the filters.' : 'Upload logos, patterns or reference images to use in your designs.'}</p>{(search || filter !== 'all') && <button className="button button-secondary" onClick={() => { setSearch(''); setFilter('all'); }}>Clear filters</button>}</div>)}
+        {actionError && !uploading && !deleting && !deletingDesign && <div className="lib-error lib-inline-error" role="alert">{actionError}</div>}
+        <Feedback loading={loading || designs.loading} error={error} onRetry={() => { void reload(); void designs.reload(); }} />
+        {!loading && !designs.loading && !error && designs.error && <div className="lib-error lib-inline-error" role="alert">Your Artboard designs could not be loaded: {designs.error}<button className="lib-retry-link" onClick={() => void designs.reload()}>Try again</button></div>}
+        {!loading && !designs.loading && !error && (cards.length ? <div className="lib-assets-grid">{cards.map((card) => 'design' in card ? <ArtboardCard key={`artboard-${card.design.id}`} design={card.design} showType={filter === 'all'} onOpen={openDesign} onDelete={(design) => { setActionError(''); setDeletingDesign(design); }} /> : assetCard(card.asset))}</div> : filter === 'artboard' && designs.error ? null : <div className="empty-state lib-empty"><span className="lib-empty-icon">{noDesigns ? <PenTool size={32} /> : <ImagePlus size={32} />}</span><h2>{noDesigns ? 'No Artboard designs yet' : search || filter !== 'all' ? 'No matching assets' : 'No assets yet'}</h2><p>{noDesigns ? 'Designs you keep in the Artboard with File > Save to my account show here. Open one to carry on editing it.' : search || filter !== 'all' ? 'Try another search or clear the filters.' : 'Upload logos, patterns or reference images to use in your designs.'}</p>{noDesigns ? <Link className="button button-secondary" to="/artboard"><PenTool size={16} />Open the Artboard</Link> : (search || filter !== 'all') && <button className="button button-secondary" onClick={() => { setSearch(''); setFilter('all'); }}>Clear filters</button>}</div>)}
         {uploading && <Dialog title="Add to your library" onClose={() => { if (!busy) setUploading(false); }}><form onSubmit={upload}><label className="lib-upload-zone"><input type="file" accept="image/png,image/jpeg,image/webp" required onChange={(event) => { const next = event.target.files?.[0] || null; setFile(next); if (next && !name) setName(next.name.replace(/\.[^.]+$/, '')); }} /><UploadCloud size={30} /><strong>{file ? file.name : 'Choose an image'}</strong><span>{file ? bytes(file.size) : 'PNG, JPG or WebP · up to 10 MB'}</span></label><label className="field lib-field">Asset name<input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Club crest" maxLength={150} required /></label><label className="field lib-field">Category<select className="input" value={type} onChange={(event) => setType(event.target.value as Asset['type'])}><option value="logo">Logo</option><option value="pattern">Pattern</option><option value="artwork">Artwork</option><option value="reference">Reference image</option></select></label>{actionError && <p className="lib-form-error" role="alert">{actionError}</p>}<div className="lib-dialog-actions"><button type="button" className="button button-secondary" onClick={() => setUploading(false)} disabled={busy}>Cancel</button><button className="button button-primary" disabled={busy}>{busy ? <LoaderCircle size={17} className="lib-spin" /> : <UploadCloud size={17} />}{busy ? 'Uploading…' : 'Upload asset'}</button></div></form></Dialog>}
         {editing && <ImageEditor src={editing.src} title={editing.asset.name} fileName={editing.asset.name.replace(/[^a-z0-9-]+/gi, '-').toLowerCase()} useLabel="Save as new asset" onUse={saveEdited} onClose={closeEditor} />}
         {deleting && <Dialog title="Delete this asset?" onClose={() => { if (!busy) setDeleting(null); }}><p className="muted">“{deleting.name}” will be permanently removed from your asset library.{deleting.type === 'layout' && ' Kits that use this print layout are shown without it until it is uploaded again.'}</p>{actionError && <p className="lib-form-error" role="alert">{actionError}</p>}<div className="lib-dialog-actions"><button className="button button-secondary" disabled={busy} onClick={() => setDeleting(null)}>Keep asset</button><button className="button lib-danger-button" disabled={busy} onClick={deleteAsset}>{busy ? <LoaderCircle size={16} className="lib-spin" /> : <Trash2 size={16} />}Delete asset</button></div></Dialog>}
+        {deletingDesign && <Dialog title="Delete this design?" onClose={() => { if (!busy) setDeletingDesign(null); }}><p className="muted">“{deletingDesign.name}” will be permanently removed from your account. Artwork you sent from it to a kit stays on the kit.</p>{actionError && <p className="lib-form-error" role="alert">{actionError}</p>}<div className="lib-dialog-actions"><button className="button button-secondary" disabled={busy} onClick={() => setDeletingDesign(null)}>Keep design</button><button className="button lib-danger-button" disabled={busy} onClick={deleteDesign}>{busy ? <LoaderCircle size={16} className="lib-spin" /> : <Trash2 size={16} />}Delete design</button></div></Dialog>}
     </main>;
 }
 

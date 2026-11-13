@@ -35,7 +35,30 @@ final class PdfDocument
     /** @var array<string, string> picture bytes' md5 => its name */
     private array $imageNames = [];
 
+    /** The page size in points: A4 portrait (WIDTH x HEIGHT), or landscape after landscape(). */
+    private float $pageW = self::WIDTH;
+
+    private float $pageH = self::HEIGHT;
+
     public function __construct(private string $title = '', private string $author = '') {}
+
+    /** A4 landscape pages (842 x 595 pt), for every page of this document. */
+    public function landscape(): static
+    {
+        [$this->pageW, $this->pageH] = [self::HEIGHT, self::WIDTH];
+
+        return $this;
+    }
+
+    public function pageWidth(): float
+    {
+        return $this->pageW;
+    }
+
+    public function pageHeight(): float
+    {
+        return $this->pageH;
+    }
 
     public function addPage(): void
     {
@@ -112,7 +135,8 @@ final class PdfDocument
         return array_values(array_filter($lines, fn ($l) => $l !== '')) ?: [''];
     }
 
-    public function text(float $x, float $y, string $text, float $size = 10, bool $bold = false, string $color = '#000000', string $align = 'left'): void
+    /** $slant leans the letters (0.2 reads as italic: the fonts have no italic face of their own). */
+    public function text(float $x, float $y, string $text, float $size = 10, bool $bold = false, string $color = '#000000', string $align = 'left', float $slant = 0): void
     {
         if ($text === '') {
             return;
@@ -120,17 +144,17 @@ final class PdfDocument
         if ($align !== 'left') {
             $x -= $this->width($text, $size, $bold) / ($align === 'center' ? 2 : 1);
         }
-        $this->put(sprintf('BT /%s %.2F Tf %s 1 0 0 1 %.2F %.2F Tm (%s) Tj ET', $bold ? 'F2' : 'F1', $size, self::rgb($color, 'rg'), $x, self::HEIGHT - $y, self::escape(self::encode($text))));
+        $this->put(sprintf('BT /%s %.2F Tf %s 1 0 %.3F 1 %.2F %.2F Tm (%s) Tj ET', $bold ? 'F2' : 'F1', $size, self::rgb($color, 'rg'), $slant, $x, $this->pageH - $y, self::escape(self::encode($text))));
     }
 
     public function line(float $x1, float $y1, float $x2, float $y2, string $color = '#d0d7e0', float $width = 0.6): void
     {
-        $this->put(sprintf('%.2F w %s %.2F %.2F m %.2F %.2F l S', $width, self::rgb($color, 'RG'), $x1, self::HEIGHT - $y1, $x2, self::HEIGHT - $y2));
+        $this->put(sprintf('%.2F w %s %.2F %.2F m %.2F %.2F l S', $width, self::rgb($color, 'RG'), $x1, $this->pageH - $y1, $x2, $this->pageH - $y2));
     }
 
     public function rect(float $x, float $y, float $w, float $h, ?string $fill = null, ?string $stroke = null, float $radius = 0, float $lineWidth = 0.6): void
     {
-        $bottom = self::HEIGHT - $y - $h;
+        $bottom = $this->pageH - $y - $h;
         $path = $radius > 0 ? self::rounded($x, $bottom, $w, $h, $radius) : sprintf('%.2F %.2F %.2F %.2F re', $x, $bottom, $w, $h);
         $ops = [];
         if ($fill) {
@@ -157,7 +181,7 @@ final class PdfDocument
             $this->images[$name] = $info;
             $this->imageNames[$key] = $name;
         }
-        $this->put(sprintf('q %.2F 0 0 %.2F %.2F %.2F cm /%s Do Q', $w, $h, $x, self::HEIGHT - $y - $h, $name));
+        $this->put(sprintf('q %.2F 0 0 %.2F %.2F %.2F cm /%s Do Q', $w, $h, $x, $this->pageH - $y - $h, $name));
 
         return true;
     }
@@ -321,7 +345,7 @@ final class PdfDocument
         foreach ($this->pages as $content) {
             $compressed = function_exists('gzcompress') ? gzcompress($content) : false;
             $contents = $add($compressed !== false ? self::stream('/Filter /FlateDecode', $compressed) : self::stream('', $content));
-            $kids[] = $add(sprintf('<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %.2F %.2F] /Resources %s /Contents %d 0 R >>', $pagesId, self::WIDTH, self::HEIGHT, $resources, $contents)).' 0 R';
+            $kids[] = $add(sprintf('<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %.2F %.2F] /Resources %s /Contents %d 0 R >>', $pagesId, $this->pageW, $this->pageH, $resources, $contents)).' 0 R';
         }
         $info = $add(sprintf('<< /Title (%s) /Author (%s) /Producer (3DEEZI) /CreationDate (D:%s) >>', self::escape(self::encode($this->title)), self::escape(self::encode($this->author)), gmdate('YmdHis').'Z'));
         $objects[$catalog - 1] = "<< /Type /Catalog /Pages {$pagesId} 0 R >>";

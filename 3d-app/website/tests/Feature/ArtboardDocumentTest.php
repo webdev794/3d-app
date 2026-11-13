@@ -79,6 +79,20 @@ class ArtboardDocumentTest extends TestCase
         $this->getJson('/api/v1/artboards')->assertOk()->assertJsonCount(2, 'data');
     }
 
+    public function test_the_dashboard_counts_the_designs_with_the_assets(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $user->assets()->create(['name' => 'Club crest', 'type' => 'logo', 'path' => 'assets/crest.png', 'mime_type' => 'image/png', 'size' => 10]);
+        $this->postJson('/api/v1/artboards', ['name' => 'Home crest', 'document' => $this->document()])->assertCreated();
+        $this->postJson('/api/v1/artboards', ['name' => 'Club badge layout', 'document' => $this->document(), 'template' => true])->assertCreated();
+
+        // As the Assets page lists them: the logo and the design, not the template.
+        $this->getJson('/api/v1/dashboard')->assertOk()->assertJsonPath('data.assets', 2);
+        Sanctum::actingAs(User::factory()->create());
+        $this->getJson('/api/v1/dashboard')->assertOk()->assertJsonPath('data.assets', 0);
+    }
+
     public function test_each_account_sees_and_changes_only_its_own_designs(): void
     {
         $owner = User::factory()->create();

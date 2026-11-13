@@ -320,6 +320,15 @@ class ApiClient {
       await _send('POST', '/orders/read-notes', body: {'text': text})
           as Map<String, dynamic>;
 
+  /// "Paste your order here" (ORDERPASTE 2026-11-13, as the website): anything
+  /// pasted or typed read into garments, sizes, players and, when written, the
+  /// team, contact, date and delivery (`form`). 3DEEZI AI reads it when signed
+  /// in, the built-in reading otherwise (`ai`: used, failed, off, sign_in);
+  /// `garment_named` false: the sizes are for the garment already on the form.
+  Future<Map<String, dynamic>> fillOrder(String text) async =>
+      await _send('POST', '/orders/fill', body: {'text': text}, long: true)
+          as Map<String, dynamic>;
+
   /// The order forms' choices: garments, sports, fits, sizes (public).
   Future<Map<String, dynamic>> orderOptions() async =>
       await _send('GET', '/orders/options') as Map<String, dynamic>;
@@ -389,6 +398,16 @@ class ApiClient {
   /// A collated order by its token (the share link).
   Future<Map<String, dynamic>> orderAssistantGet(String token) async =>
       await _send('GET', '/order-assistant/$token') as Map<String, dynamic>;
+
+  /// The order form maker's form corrected in place (client 2026-11-13):
+  /// brand, garment and the designs in order ({key, name, colourway, sizes});
+  /// a design left out comes off the form. No AI. Answers the whole order.
+  Future<Map<String, dynamic>> orderAssistantForm(
+    String token,
+    Map<String, dynamic> form,
+  ) async =>
+      await _send('POST', '/order-assistant/$token/form', body: form)
+          as Map<String, dynamic>;
 
   /// "Help me add sizes": garment rows read from a plain description.
   Future<Map<String, dynamic>> orderAssist(String text) async =>

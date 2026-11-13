@@ -57,6 +57,26 @@ class KitViewer3DState extends State<KitViewer3D> {
   DateTime _typedAt = DateTime(0);
   bool? _sentPick, _sentPartPick, _sentObjects;
 
+  /// A whole design sent that the viewer has not answered yet (designApplied,
+  /// or its error): the next one waits for it, so a colour drag never queues
+  /// dozens of full repaints in the viewer (LIVEFIX L1 2026-11-12, as the
+  /// website's host). The watch frees it if no answer ever comes.
+  bool _designBusy = false;
+  Timer? _designWatch;
+
+  /// Designs sent and not answered yet (the pictures go on their own), and
+  /// YOUR DESIGN's still a moment after the last is on (THUMB 2026-11-12).
+  int _paints = 0;
+  Timer? _stillTimer;
+
+  /// The phone switched 3D off for the viewer (its 'webgl' error, LIVEFIX L1
+  /// 2026-11-12): said plainly over the stage; cleared when the 3D comes back.
+  bool _webglOff = false;
+
+  /// The viewer could not put the design on (its setDesign error): said over
+  /// the stage with what helps, and Try again (LIVEFIX L1 2026-11-12).
+  bool _designFailed = false;
+
   AppController get c => widget.controller;
 
   @override
@@ -86,6 +106,8 @@ class KitViewer3DState extends State<KitViewer3D> {
     _host.dispose();
     _hq = c.hqJersey;
     _ready = false;
+    _designBusy = false;
+    _designWatch?.cancel();
     c.viewerReady = false;
     _sentDesign = _sentView = _sentSelection = null;
     _sentPattern = _sentLogo = _sentSponsor = null;
@@ -110,6 +132,8 @@ class KitViewer3DState extends State<KitViewer3D> {
   void dispose() {
     if (KitViewer3D.supported) {
       _host.dispose();
+      _designWatch?.cancel();
+      _stillTimer?.cancel();
       c.removeListener(_sync);
       if (c.captureMockup == capture) c.captureMockup = null;
       if (c.captureBoard == captureBoard) c.captureBoard = null;
@@ -148,14 +172,43 @@ class KitViewer3DState extends State<KitViewer3D> {
     }
     switch (msg['type']) {
       case 'ready':
-        setState(() => _ready = true);
+        setState(() {
+          _ready = true;
+          _webglOff = false;
+          _designFailed = false;
+        });
         c.viewerReady = true;
+        _designBusy = false;
+        _paints = 0;
         _sentPick = _sentPartPick = _sentObjects = null;
         // This app answers the viewer's requests for print layout files.
         // and picks pictures for "Upload picture here" on the kit (task 9.144).
         _send('features', {'layouts': true, 'images': true});
         _sendHidden();
         _sync();
+      case 'designApplied':
+        if (_paints > 0) _paints--;
+        if (_designFailed) setState(() => _designFailed = false);
+        _designDone();
+        _stillLater();
+      case 'error':
+        if (msg['command'] == 'setDesign') {
+          if (_paints > 0) _paints--;
+          _designDone();
+          debugPrint('3D could not apply the design: ${msg['message']} (${msg['step'] ?? ''})');
+          setState(() => _designFailed = true);
+        }
+        if (msg['command'] == 'webgl') {
+          debugPrint('3D switched off for the viewer: ${msg['message']}');
+          setState(() => _webglOff = true);
+        }
+      case 'webglRestored':
+        setState(() => _webglOff = false);
+      case 'notice':
+        final text = msg['message'];
+        if (text is String && mounted) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(text)));
+        }
       case 'capture':
         final data = msg['data'] as String?;
         _captures
@@ -289,23 +342,31 @@ class KitViewer3DState extends State<KitViewer3D> {
       // on the 3D kit (Standard: the garment's own fabric; viewer -40).
       'fabric': c.fabric,
     });
-    if (design != _sentDesign) {
+    // One whole design in flight at a time; the latest goes when it is answered.
+    if (design != _sentDesign && !_designBusy) {
       _sentDesign = design;
+      _designBusy = true;
+      _designWatch?.cancel();
+      _designWatch = Timer(const Duration(seconds: 60), _designDone);
+      _paints++;
       _send('setDesign', jsonDecode(design));
     }
     final tile = c.patternTile;
     if (!identical(tile, _sentPattern)) {
       _sentPattern = tile;
+      _paints++;
       _send('setDesign', {'patternImage': ProjectSync.dataUrl(tile)});
     }
     final logo = c.logoImage;
     if (!identical(logo, _sentLogo)) {
       _sentLogo = logo;
+      _paints++;
       _send('setDesign', {'logoImage': ProjectSync.dataUrl(logo)});
     }
     final sponsor = c.sponsorImage;
     if (!identical(sponsor, _sentSponsor)) {
       _sentSponsor = sponsor;
+      _paints++;
       _send('setDesign', {'sponsorImage': ProjectSync.dataUrl(sponsor)});
     }
     final view = c.view;
@@ -339,6 +400,28 @@ class KitViewer3DState extends State<KitViewer3D> {
       _sentSelection = c.selectedLayerId;
       _send('select', c.selectedLayerId);
     }
+    _stillLater();
+  }
+
+  /// YOUR DESIGN's still of the user's own kit: taken a moment after the
+  /// viewer has put the latest design on and the changes have stopped.
+  void _stillLater() {
+    _stillTimer?.cancel();
+    if (!_ready || _paints > 0 || c.ownKit == null) return;
+    _stillTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted && _ready && _paints == 0 && c.ownStillWanted) {
+        unawaited(c.takeOwnStill());
+      }
+    });
+  }
+
+  /// The viewer answered the design in flight (or never did, after a
+  /// minute): the latest design, if it changed meanwhile, goes now.
+  void _designDone() {
+    _designWatch?.cancel();
+    if (!_designBusy) return;
+    _designBusy = false;
+    if (mounted) _sync();
   }
 
   /// "Upload picture here" on the kit: a picture from the gallery, sent back
@@ -516,9 +599,52 @@ class KitViewer3DState extends State<KitViewer3D> {
           fit: StackFit.expand,
           children: [
             _host.build(),
+            if (_designFailed && !_webglOff)
+              ColoredBox(
+                color: const Color(0xff03060a),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'The 3D preview could not show this design. If it keeps happening, close and reopen the app.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Color(0xffe6f7ff), fontSize: 14, height: 1.45),
+                        ),
+                        const SizedBox(height: 14),
+                        OutlinedButton(
+                          onPressed: () {
+                            setState(() => _designFailed = false);
+                            _sentDesign = null;
+                            _designBusy = false;
+                            _sync();
+                          },
+                          child: const Text('Try again'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            if (_webglOff)
+              const ColoredBox(
+                color: Color(0xff03060a),
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      '3D was switched off on this screen. Close and reopen the app to continue.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xffe6f7ff), fontSize: 14, height: 1.45, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ),
             IgnorePointer(
               child: AnimatedOpacity(
-                opacity: _ready ? 0 : 1,
+                opacity: _ready || _webglOff ? 0 : 1,
                 duration: const Duration(milliseconds: 400),
                 child: const ColoredBox(
                   color: Color(0xff03060a),

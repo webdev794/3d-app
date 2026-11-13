@@ -112,7 +112,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
 
   return <div className={`console ${menu ? 'menu-open' : ''}`}>
     <aside className="console-side">
-      <Link to="/admin" className="console-brand"><img src={media('showroom/emblem-256.webp')} alt="" /><span><strong>3DEEZI</strong><small>ADMIN CONSOLE</small></span></Link>
+      <Link to="/" className="console-brand" aria-label="3DEEZI home"><img src={media('showroom/emblem-256.webp')} alt="" /><span><strong>3DEEZI</strong><small>ADMIN CONSOLE</small></span></Link>
       <span className="console-label">MAIN NAVIGATION</span>
       <nav onClick={() => setMenu(false)}>{sections.map(s => <NavLink key={s.id} to={s.id === 'dashboard' ? '/admin' : `/admin/${s.id}`} end className={({ isActive }) => isActive || s.id === section ? 'active' : ''}>
         <s.icon size={17} /><span>{s.label}</span>
@@ -457,7 +457,7 @@ function printedBack(order: KitOrder, d: SavedDesign): Partial<Design> {
 }
 const ZONE_NAMES: Record<string, string> = { body: 'Body', yoke: 'Yoke', sleeves: 'Sleeves', sides: 'Sides', hem: 'Hem', pocket: 'Pocket', hood: 'Hood' };
 /** A hoodie's own colour areas (design.zoneColors), as the Studio's HOODIE AREAS names them. */
-const AREA_NAMES: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Cuffs & waistband', pocket: 'Pocket', zip: 'Zip', stripe: 'Sleeve stripe', bballBand: 'Side panel band', bballTrim1: 'Hem stripe 1', bballTrim2: 'Hem stripe 2 (edge)' };
+const AREA_NAMES: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Cuffs & waistband', pocket: 'Pocket', zip: 'Zip', stripe: 'Sleeve stripe', bballBand: 'Side panel band', bballTrim1: 'Hem stripe 1', bballTrim2: 'Hem stripe 2 (edge)', bibEdge: 'Edge binding', bibTies: 'Side ties' };
 const shownImage = (src?: string | null) => !!src && /^(data:image\/|https?:\/\/|\/)/.test(src);
 const fileType = (src: string) => (src.startsWith('data:image/jpeg') ? 'jpg' : 'png');
 

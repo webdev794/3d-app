@@ -5,7 +5,7 @@ import { hatPartAt, hatRegion } from './hatprint.js';
 import { beaniePartAt, beanieRegion } from './beanieprint.js';
 import { bballPartAt, bballRegion, bballZoneAt, BBALL_ZONES } from './bballprint.js';
 import { SHOOT_ZONES } from './shootingshirt.js';
-import { ND_PANEL, ND_YOKE_FRONT, panelOf } from './netballdress.js';
+import { ND_YOKE_FRONT, panelOf } from './netballdress.js';
 
 // Garment areas a pattern can be dropped onto, in garment metres (y up,
 // hem at 0, x = 0 down the middle). Rectangles are mirrored left/right and
@@ -19,10 +19,33 @@ const TOP = {
   body: [[-0.2, 0.14, 0.2, 0.56]],
 };
 // (FN4 2026-10-30: fitted to the shorter, wider shorts: the hem area the bottom 6 cm.)
+// (The Rugby League shorts' model (main.js, 2026-11-13: useModelHem): the hem area is its own hem binding, the bottom
+// `modelHem` metres of the print, where the model's binding is mapped.)
+let modelHem = null;
+/** The Rugby League shorts' model's hem binding height on the print (null: the made shorts' 6 cm hem area). */
+export function useModelHem(top) { modelHem = top ?? null; }
 const SHORTS = {
   sides: [[0.2, 0, 0.34, 0.37]],
-  hem: [[-0.34, 0, 0.34, 0.06]],
-  body: [[-0.2, 0.06, 0.2, 0.37]],
+  get hem() { return [[-0.34, 0, 0.34, modelHem ?? 0.06]]; },
+  get body() { return [[-0.2, modelHem ?? 0.06, 0.2, 0.37]]; },
+};
+
+// (The basketball singlet's model (BBSINGLET 2026-11-13, main.js useModelTop): its own side insert between the two seams
+// under each arm (the Side panels part, data `insert`: [y, front seam x, back seam x] every 2 cm up to the underarm) and
+// its own hem turned up inside (the Hem part, `hemTop` high); null: the made singlet's areas.)
+let modelTop = null;
+/** The basketball singlet's model's own areas ({ insert, hemTop }), or null. */
+export function useModelTop(own) { modelTop = own ?? null; }
+const modelTopZones = () => {
+  const top = modelTop.insert.at(-1)[0], inner = Math.min(...modelTop.insert.map(([, f, b]) => Math.min(f, b)));
+  return { ...TOP, sides: [[inner - 0.002, 0, 0.3, top]], hem: [[-0.3, 0, 0.3, modelTop.hemTop]], body: [[-0.2, modelTop.hemTop, 0.2, 0.56]] };
+};
+/** The basketball singlet's model's side insert (+x side) on the front or back of the pattern: from its seam out past the
+ *  side seam, from the hem up to the underarm. */
+export const modelPanel = (back = false) => {
+  const run = modelTop.insert.map((r) => [back ? r[2] : r[1], r[0]]);
+  const top = run.at(-1)[1];
+  return [[run[0][0], -0.01], ...run, [run.at(-1)[0] + 0.02, top + 0.008], [0.3, top + 0.008], [0.3, -0.01]];
 };
 
 // (FN13, DT10: the tee's side panels 1.5 cm further forward, 2.5-4.5% of the width from the front as the pictures.)
@@ -147,7 +170,7 @@ const COMPRESSION = { ...VARSITY_ZONES, sleeves: [[0.262, 0.1, 0.8, 0.76]], side
 // The bucket hat (hatprint.js): one area, the whole hat (its parts are its top, brim, underside and binding).
 const HAT = { body: [[-0.3, 0, 0.3, 0.36]] };
 
-const table = (kind) => (kind === 'tee' ? TEE_ZONES : kind === 'bballshorts' ? BBALL_ZONES : kind === 'skirt' ? skirtZones() : kind === 'nfljersey' ? NFL : kind === 'bucket-hat' || kind === 'beanie' ? HAT : kind === 'cap' ? CAP : kind === 'socks' ? SOCKS : kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : kind === 'compression' ? COMPRESSION : TOP);
+const table = (kind) => (kind === 'singlet' && modelTop ? modelTopZones() : kind === 'tee' ? TEE_ZONES : kind === 'bballshorts' ? BBALL_ZONES : kind === 'skirt' ? skirtZones() : kind === 'nfljersey' ? NFL : kind === 'bucket-hat' || kind === 'beanie' ? HAT : kind === 'cap' ? CAP : kind === 'socks' ? SOCKS : kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : kind === 'compression' ? COMPRESSION : TOP);
 
 /**
  * A garment's areas that are not rectangles: outlines on the wearer's left (+x), mirrored (the shooting shirt's raglan
@@ -160,9 +183,13 @@ const RAGLAN_SLEEVE = [[0.06, 0.9], ...Array.from({ length: 25 }, (_, k) => {
   const t = k / 24, a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t;
   return [a * 0.06 + b * 0.17 + c * 0.258, a * 0.728 + b * 0.645 + c * 0.53];
 }), [0.27, 0.44], [0.9, 0.44], [0.9, 0.9]];
+// The football jersey's model (fbjersey.js, 2026-11-13) has raglan sleeves: while it is the jersey shown (main.js
+// buildKit: useRaglanJersey), the jersey's sleeves are the raglan's piece too, up to the neck along its raglan seams.
+let raglanJersey = false;
+export function useRaglanJersey(on) { raglanJersey = !!on; }
 // (The netball dress: its side panels and its yoke, as netballdress.js paints them; the yoke as in front.)
-const ownOutline = (kind, zone) => (kind === 'shooting-shirt' ? SHOOT_ZONES[zone] ?? null : (kind === 'tee' || kind === 'raglan') && zone === 'sleeves' ? RAGLAN_SLEEVE
-  : isDress(kind) ? { sides: ND_PANEL, yoke: ND_YOKE_FRONT }[zone] ?? null : null);
+const ownOutline = (kind, zone) => (kind === 'shooting-shirt' ? SHOOT_ZONES[zone] ?? null : (kind === 'tee' || kind === 'raglan' || (kind === 'jersey' && raglanJersey)) && zone === 'sleeves' ? RAGLAN_SLEEVE
+  : isDress(kind) ? { sides: panelOf(false), yoke: ND_YOKE_FRONT }[zone] ?? null : null);
 /** A zone's outlines (both sides): its own, else its rectangles as outlines. */
 export function zoneOutlines(kind, zone) {
   const own = ownOutline(kind, zone);
@@ -220,6 +247,7 @@ function panelOutline(kind, back = false) {
   if (kind === 'shorts') return [[0.16, 0.37], [0.181, 0.27], [0.207, 0.17], [0.231, 0.095], [0.245, 0.035], [0.247, -0.01], [0.36, -0.01], [0.36, 0.37]];
   if (isDress(kind)) return panelOf(back);
   if (kind === 'nfljersey') return NFL_PANEL;
+  if (kind === 'singlet' && modelTop) return modelPanel(back);
   return [...quad([0.262, 0.54], [0.215, 0.3], [0.23, 0]), [0.3, 0], [0.3, 0.54]];
 }
 /** The football jersey's side panel (+x side), as painted (texture.js): from the underarm, its inner edge well round

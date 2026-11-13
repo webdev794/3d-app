@@ -263,3 +263,15 @@ p.of-helper-result.is-ok{color:#9af0cd}
 .of-notes-actions label.of-btn{cursor:pointer}
 .of-notes-status{margin:10px 0 0;color:#d7ffe6;font-size:14px}
 .of-notes-check{margin-top:8px;padding:10px 12px;border:1px solid #b7862a;border-radius:8px;background:#2a2009;color:#ffe6b0;font-size:13.5px}
+/* "Paste your order here" (ORDERPASTE 2026-11-13): one big box, one button, what was filled and what to check. */
+.of-paste-box .of-notes-text{min-height:150px;font-size:15px}
+.of-paste-box .of-notes-actions{align-items:center;gap:16px}
+.of-fill-btn{min-width:200px;justify-content:center;font-size:15px}
+.of-paste-add{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px}
+.of-notes-check ul{margin:6px 0 0;padding-left:18px}
+.of-notes-check li{margin:3px 0;line-height:1.45}
+.of-notes-built{padding:14px 20px 16px;margin-bottom:16px}
+.of-notes-built .of-notes-status{display:flex;align-items:center;gap:8px;margin:0;font-weight:600}
+.of-notes-built .of-notes-status .is-ok{color:#3ddc84;flex:none}
+.of-filled{margin:10px 0 0;padding-left:20px;color:#e9f6ff;font-size:14.5px;line-height:1.5}
+.of-filled-also{margin:8px 0 0;color:var(--op-light);font-size:13.5px}

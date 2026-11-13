@@ -14,8 +14,7 @@ import '../assist.dart';
 import '../custom_choice.dart';
 import '../project_sync.dart';
 import '../sports_catalog.dart';
-import '../widgets/bubble_page.dart'
-    show BubblePage, BubbleCornerPill, BubbleFillScroll;
+import '../widgets/bubble_page.dart' show BubblePage, BubbleCornerPill;
 import '../widgets/category_icon.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/glass_bubble.dart' show GlassRim;
@@ -731,75 +730,305 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     initialPage: _n * 500 + _index,
   );
 
-  /// Where each kit picture's garment starts and ends across the picture
-  /// (fractions of its width, measured on the transparent pictures). The
-  /// stage packs the kits by these, so a side kit sits just next to the
-  /// centre one whatever its shape (user 2026-11-06: the side kits sat far
-  /// out with big empty gaps). A picture not listed counts as (.1, .9).
-  static const _kitSpan = <String, (double, double)>{
-    'afl': (.24, .76),
-    'american-football': (.15, .85),
-    'athletics': (.16, .84),
-    'basketball': (.24, .76),
-    'bmx': (.21, .79),
-    'cricket': (.21, .79),
-    'cycling': (.11, .89),
-    'darts': (.16, .84),
-    'esports': (.15, .85),
-    'fight-wear': (.05, .95),
-    'fishing': (.04, .96),
-    'football': (.09, .91),
-    'golf': (.04, .96),
-    'gymwear': (.18, .82),
-    'headwear': (.05, .91),
-    'hockey': (.08, .93),
-    'lacrosse': (.18, .82),
-    'lawn-bowls': (.09, .91),
-    'netball': (.16, .84),
-    'rugby-league': (.10, .90),
-    'rugby-union': (.11, .89),
-    'school-leavers': (.04, .96),
-    'softball': (.20, .80),
-    'swimming': (.23, .77),
-    'teamwear': (.07, .93),
-    'tennis': (.10, .90),
-    'touch': (.06, .94),
-    'training': (.22, .79),
-    'volleyball': (.04, .96),
-    'workwear': (.21, .79),
+  /// Where each kit picture's garment starts and ends, across and down the
+  /// picture (fractions of its width and height, measured on the
+  /// transparent 2:3 pictures). The stage sizes every garment to the same
+  /// box and stands it on the floor by its own hem, and packs the kits by
+  /// their garments' widths, so a side kit stands just beside the centre
+  /// one whatever its shape (user 2026-11-06: big empty gaps; client 506,
+  /// 2026-11-11: all three on the stage's circle). A picture not listed
+  /// counts as (.1, .9, .05, .95).
+  static const _kitBox = <String, (double, double, double, double)>{
+    'afl': (.236, .762, .102, .891),
+    'american-football': (.150, .850, .057, .994),
+    'athletics': (.163, .837, .056, .994),
+    'basketball': (.236, .764, .054, .908),
+    'bmx': (.210, .790, .056, .994),
+    'cricket': (.207, .793, .056, .994),
+    'cycling': (.111, .889, .057, .994),
+    'darts': (.160, .840, .286, .846),
+    'esports': (.154, .845, .286, .846),
+    'fight-wear': (.055, .945, .057, .994),
+    'fishing': (.042, .958, .165, .994),
+    'football': (.089, .912, .028, .960),
+    'golf': (.042, .958, .207, .994),
+    'gymwear': (.178, .820, .057, .994),
+    'headwear': (.050, .913, .134, .811),
+    'hockey': (.076, .925, .121, .874),
+    'lacrosse': (.176, .823, .056, .994),
+    'lawn-bowls': (.086, .913, .057, .994),
+    'netball': (.163, .836, .086, .897),
+    'rugby-league': (.104, .897, .040, .936),
+    'rugby-union': (.113, .887, .023, .919),
+    'school-leavers': (.042, .958, .200, .994),
+    'softball': (.198, .801, .057, .993),
+    'swimming': (.229, .770, .056, .994),
+    'teamwear': (.073, .927, .057, .994),
+    'tennis': (.096, .904, .057, .994),
+    'touch': (.057, .941, .057, .993),
+    'training': (.221, .786, .021, .977),
+    'volleyball': (.046, .954, .057, .994),
+    'workwear': (.215, .784, .057, .994),
   };
 
   static String _kitSlug(int i) =>
       ProjectSync.sports[dyoSports[i % _n].$1] ?? 'rugby-league';
 
-  /// A kit's size on the stage: full in the centre, .68 at the sides.
-  static double _kitScale(int i, double page) =>
-      .68 + .32 * (1 - (page - i).abs().clamp(0.0, 1.0));
+  static (double, double, double, double) _box(int i) =>
+      _kitBox[_kitSlug(i)] ?? (.1, .9, .05, .95);
 
-  /// Centre-to-centre distance of kits [i] and [i] + 1: the garments' own
-  /// half widths (as scaled) plus a small gap.
-  static double _kitStep(int i, double page, double pic) {
-    final a = _kitSpan[_kitSlug(i)] ?? (.1, .9);
-    final b = _kitSpan[_kitSlug(i + 1)] ?? (.1, .9);
-    return (a.$2 - .5) * pic * _kitScale(i, page) +
-        pic * .07 +
-        (.5 - b.$1) * pic * _kitScale(i + 1, page);
+  /// The kits redrawn in the 3DEEZI blue, black and white for this stage
+  /// (client 2026-11-11: "rebrand the mock ups"), kit-<id>-brand.webp; the
+  /// others are blue, black and white already. (The original pictures stay
+  /// for the other screens and the website.)
+  static const _brandKits = {
+    'afl',
+    'athletics',
+    'basketball',
+    'bmx',
+    'cricket',
+    'cycling',
+    'darts',
+    'esports',
+    'fight-wear',
+    'golf',
+    'gymwear',
+    'hockey',
+    'lacrosse',
+    'netball',
+    'rugby-union',
+    'school-leavers',
+    'softball',
+    'teamwear',
+    'tennis',
+    'touch',
+    'volleyball',
+    'workwear',
+  };
+
+  static String _kitArt(int i) {
+    final slug = _kitSlug(i);
+    final brand = _brandKits.contains(slug) ? '-brand' : '';
+    return 'assets/images/showroom/kit-$slug$brand.webp';
   }
 
-  /// Kit [i]'s centre on the packed stage, from the stage's centre.
-  static double _kitX(int i, double page, double pic) {
+  /// Each kit picture's garment edges in 20 bands of its height, from the
+  /// hem up: two-digit left and right edges in each band (percent of the
+  /// picture's width, measured on the pictures). The stage keeps every
+  /// garment clear of the arrows and its hem inside the stage's ring by
+  /// them ([_fit]).
+  static const _kitBands = <String, String>{
+    'afl':
+        '23772376247624752575257426742773287228723071297128712872267426742674267427732971',
+    'american-football':
+        '27732674267427732772277326742674267427732871306932683268307015851486158516842080',
+    'athletics':
+        '24761684168418822080217923772476247626742674277326742674247624762575277329722971',
+    'basketball':
+        '23772377247624762476257525742674277328712971307030702970287227722872307030693169',
+    'bmx':
+        '30703071297228732873297330713071307131703170208020802080217921792278247725753071',
+    'cricket':
+        '31693169316931693268326832683268316931693269326833673467336720802080237725753466',
+    'cycling':
+        '24762377237723772377237724762675277427732971297129711189118912871486158519813466',
+    'darts':
+        '29712971297130703070306931693169316930702179168416841783188120802179247631684060',
+    'esports':
+        '28722871297130703070307031703169316930703070188215851684178318812080227826743565',
+    'fight-wear':
+        '17831387158517831981208006940694069405950595059506940892099110901189128815852872',
+    'fishing':
+        '04960496049604960496049604960496049605950694069407930892099111891387227830703268',
+    'football':
+        '18821982198120802080217922782377247725752575267525751485089210911189138716842872',
+    'golf':
+        '20802179217922782377247625752575257524762377049604960595079308921091138725753664',
+    'gymwear':
+        '17831882198119802080217823772476257526742773277327732575247623772575277328722872',
+    'headwear':
+        '12681287168826882887298631853487389245920592049109891489158716852382558156805878',
+    'hockey':
+        '23772179089207930793079307930793089309920992109110901190118912881486168420803268',
+    'lacrosse':
+        '17831782198120802179227823772476257525752674267427742773267425752674277328722971',
+    'lawn-bowls':
+        '16841783188219812179227823762476257527732872287227730892089211891387158521793664',
+    'netball':
+        '16841684178318822080217923772476267428723070316930702872277327732773287229703070',
+    'rugby-league':
+        '19811981208021792278237724762575267427732773267326741586109011891387158518823070',
+    'rugby-union':
+        '21792179227822782377247625752674267427732773277316841189128813871486158522783663',
+    'school-leavers':
+        '20790793059504960496049604960496049604960496059506940694079309911090148624753565',
+    'softball':
+        '30703070307030703070316932683168316931683268336733673466346622781981227825752971',
+    'swimming':
+        '34673467346734673466346634673467316931682476237722772377237624752674277230693762',
+    'teamwear':
+        '15851684178319812080217922782477247625752674267425750793079309911189138719813466',
+    'tennis':
+        '17831783198220812180227824772575267426742773277328722080099110901288148617832773',
+    'touch':
+        '18821981208020802179227824772575267426732773287227730793059508921090138716842674',
+    'training':
+        '33683269326931693169326832683269326932692278227922792279227923782476257527733763',
+    'volleyball':
+        '16841684168417831882198120802279237726752773267425752377049604960693099112882476',
+    'workwear':
+        '31683169316931693168326832683169316931682278227821792179217822782476267428723763',
+  };
+
+  static final _bandCache = <String, List<double>>{};
+
+  /// Kit [i]'s garment edges, band by band from the hem up (fractions of the
+  /// picture's width; its box's edges in each band when not measured).
+  static List<double> _bands(int i) => _bandCache.putIfAbsent(_kitSlug(i), () {
+    final t = _kitBands[_kitSlug(i)];
+    final b = _box(i);
+    return [
+      for (var k = 0; k < 40; k++)
+        t == null
+            ? (k.isEven ? b.$1 : b.$2)
+            : int.parse(t.substring(2 * k, 2 * k + 2)) / 100,
+    ];
+  });
+
+  /// The side kits' size (client 506: a little smaller than the centre one,
+  /// a little behind it).
+  static const _sideScale = .76;
+
+  /// How much of the narrower of two neighbours the nearer one covers (506:
+  /// the side kits stand partly behind the centre one).
+  static const _overlap = .18;
+
+  /// The stage's measures, set by its layout.
+  _DyoRows? _rows;
+
+  /// A kit's size on the stage: full in the centre, [_sideScale] at the sides.
+  static double _kitScale(int i, double page) =>
+      _sideScale + (1 - _sideScale) * (1 - (page - i).abs().clamp(0.0, 1.0));
+
+  /// Kit [i]'s picture height (2:3 pictures) at full size: its garment fits
+  /// the centre's box, the trio's size [f] of it ([_fitAt]).
+  double _picH(int i, double f) {
+    final b = _box(i), m = _rows!;
+    return f *
+        math.min(m.kitH / (b.$4 - b.$3), m.kitMaxW / ((b.$2 - b.$1) * 2 / 3));
+  }
+
+  /// Kit [i]'s garment width at full size.
+  double _garmentW(int i, double f) {
+    final b = _box(i);
+    return (b.$2 - b.$1) * 2 / 3 * _picH(i, f);
+  }
+
+  /// Centre-to-centre distance of kits [i] and [i] + 1: the garments' own
+  /// half widths (as scaled), less a little overlap.
+  double _kitStep(int i, double page, double f) {
+    final a = _garmentW(i, f) * _kitScale(i, page);
+    final b = _garmentW(i + 1, f) * _kitScale(i + 1, page);
+    return a / 2 + b / 2 - _overlap * math.min(a, b);
+  }
+
+  /// Kit [i]'s garment centre on the packed stage, from the stage's centre.
+  double _kitX(int i, double page, double f) {
     final p0 = page.floor();
-    var x = -(page - p0) * _kitStep(p0, page, pic);
+    var x = -(page - p0) * _kitStep(p0, page, f);
     if (i >= p0) {
       for (var j = p0; j < i; j++) {
-        x += _kitStep(j, page, pic);
+        x += _kitStep(j, page, f);
       }
     } else {
       for (var j = i; j < p0; j++) {
-        x -= _kitStep(j, page, pic);
+        x -= _kitStep(j, page, f);
       }
     }
     return x;
+  }
+
+  /// The trio's size at [page] (1 = full): between two kits, the two
+  /// resting trios' sizes blended.
+  double _fitAt(double page) {
+    final p0 = page.floor(), t = page - p0;
+    return _fit(p0) * (1 - t) + _fit(p0 + 1) * t;
+  }
+
+  final _fits = <int, double>{};
+  _DyoRows? _fitsFor;
+
+  /// The size of the trio resting with kit [centre] in the middle: full,
+  /// unless wide kits would reach under the arrows or a hem past the
+  /// stage's ring (user 2026-11-11: every garment in full, standing in the
+  /// ring); then just small enough.
+  double _fit(int centre) {
+    final m = _rows!;
+    if (!identical(_fitsFor, m)) {
+      _fits.clear();
+      _fitsFor = m;
+    }
+    return _fits.putIfAbsent(centre % _n, () {
+      if (_fits0(centre, 1)) return 1;
+      var lo = .5, hi = 1.0;
+      for (var k = 0; k < 14; k++) {
+        final mid = (lo + hi) / 2;
+        _fits0(centre, mid) ? lo = mid : hi = mid;
+      }
+      return lo;
+    });
+  }
+
+  /// Whether the trio resting on [centre] fits at size [f].
+  bool _fits0(int centre, double f) {
+    final m = _rows!, w = m.width;
+    // A point on the stage's top at [dx] from its middle, [gap] inside its
+    // ring (seen from in front: the far edge up, the near edge down).
+    double ring(double dx, int side) {
+      final q = 1 - math.pow(dx / m.ringRx, 2);
+      return q <= 0
+          ? double.nan
+          : m.ringY + side * m.ringRy * math.sqrt(q.toDouble());
+    }
+
+    final a = _garmentW(centre, f);
+    for (final d in const [-1, 1]) {
+      final k = centre + d, b = _box(k), e = _bands(k);
+      final sw = _garmentW(k, f) * _sideScale;
+      final step = a / 2 + sw / 2 - _overlap * math.min(a, sw);
+      final ph = _picH(k, f) * _sideScale, pw = ph * 2 / 3;
+      final gx = (b.$1 + b.$2) / 2, cx = w / 2 + d * step;
+      final hem = m.floor - _DyoRows.lift(m.kitH) * f;
+      final gh = (b.$4 - b.$3) * ph;
+      for (var n = 0; n < 20; n++) {
+        final top = hem - (n + 1) / 20 * gh, bottom = hem - n / 20 * gh;
+        final left = cx + (e[2 * n] - gx) * pw;
+        final right = cx + (e[2 * n + 1] - gx) * pw;
+        // Clear of its arrow (a round bubble), with a little room.
+        if (bottom > m.arrowY - m.arrowR && top < m.arrowY + m.arrowR) {
+          final dy = top <= m.arrowY && m.arrowY <= bottom
+              ? 0.0
+              : math.min((top - m.arrowY).abs(), (bottom - m.arrowY).abs());
+          final reach = m.arrowX + math.sqrt(m.arrowR * m.arrowR - dy * dy) + 2;
+          if (d < 0 ? left < reach : right > w - reach) return false;
+        }
+        // The hem's corners on the stage, in front of its far edge.
+        if (n == 0) {
+          for (final x in [left, right]) {
+            final back = ring((x - w / 2).abs(), -1);
+            if (back.isNaN || hem < back + 2) return false;
+          }
+        }
+      }
+    }
+    // The centre kit's hem behind the stage's near edge.
+    final b = _box(centre), e = _bands(centre);
+    final pw = _picH(centre, f) * 2 / 3, gx = (b.$1 + b.$2) / 2;
+    for (final x in [e[0], e[1]]) {
+      final front = ring(((x - gx) * pw).abs(), 1);
+      if (front.isNaN || m.floor > front - 2) return false;
+    }
+    return true;
   }
 
   final _tiles = ScrollController();
@@ -811,12 +1040,17 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   /// the way do not reset the filter (Headwear, an apparel, sits among the
   /// sports since 2026-11-02, CP1).
   int? _filterTarget;
-  static const _tileWidth = 92.0, _tileGap = 10.0;
+  static const _tileWidth = 84.0, _tileGap = 9.0;
+
+  /// The page's rows (they scroll only in a short window).
+  final _scroll = ScrollController();
+  final _rowsKey = GlobalKey();
 
   @override
   void dispose() {
     _pages.dispose();
     _tiles.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -906,9 +1140,7 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     });
   }
 
-  /// The stage's picture width (set by its layout) and the page a drag
-  /// started on.
-  double _pic = 0;
+  /// The page a drag started on.
   double? _dragFrom;
 
   double get _page => _pages.hasClients && _pages.position.haveDimensions
@@ -924,8 +1156,9 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   }
 
   void _dragUpdate(DragUpdateDetails e) {
-    if (_dragFrom == null || _pic <= 0) return;
-    final page = _page, step = _kitStep(page.floor(), page, _pic);
+    if (_dragFrom == null || _rows == null) return;
+    final page = _page;
+    final step = _kitStep(page.floor(), page, _fitAt(page));
     if (step <= 0) return;
     final next = page - (e.primaryDelta ?? e.delta.dx) / step;
     _pages.jumpTo(next * _pages.position.viewportDimension * _cell);
@@ -965,8 +1198,23 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
         Expanded(
           child: Stack(
             children: [
+              // The night sky (client 506); the stadium and its round stage
+              // stand behind the kits ([_podium]).
               const Positioned.fill(
-                child: StageBackground(child: SizedBox.expand()),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xff02070f),
+                        Color(0xff041628),
+                        Color(0xff030a14),
+                      ],
+                      stops: [0, .5, 1],
+                    ),
+                  ),
+                ),
               ),
               LayoutBuilder(
                 builder: (context, box) {
@@ -1006,21 +1254,49 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
                             ),
                           ),
                           // The options are small glass bubbles (client
-                          // 489): the sport tiles, the arrows, the sport's
-                          // name, Custom… and the Design button. On a phone
-                          // the whole picker fits, the Design button in
-                          // view; a very short window scrolls, the kit stage
-                          // keeping [_minStage].
+                          // 489, 506): the tabs, the sport tiles, the kits on
+                          // their stage with the arrows, the sport's name,
+                          // the count, Custom... and the Design button. On a
+                          // phone all of it fits in one view; a very short
+                          // window scrolls (the kits keep their size).
                           Expanded(
                             child: LayoutBuilder(
                               builder: (context, room) {
-                                // Less room (a 360 × 780 phone): tighter
-                                // spacing, so the kits keep their size.
-                                final tight = room.maxHeight < 700;
-                                return BubbleFillScroll(
-                                  minFlex: (_) => _minStage,
-                                  scrollKey: const ValueKey('sport-scroll'),
-                                  children: _picker(sport, tight),
+                                final m = _DyoRows(room.maxHeight, w);
+                                // (The same measures keep the trios' sizes.)
+                                if (_rows?.same(m) != true) _rows = m;
+                                // A short window scrolls: its rows fade out
+                                // softly under the header and over the tab
+                                // bar rather than end in a hard edge.
+                                // (The rows keep their state when the fade
+                                // comes or goes, e.g. under the keyboard.)
+                                return _ScrollEdgeFade(
+                                  controller: _scroll,
+                                  extent: m.total - room.maxHeight,
+                                  child: KeyedSubtree(
+                                    key: _rowsKey,
+                                    child: SingleChildScrollView(
+                                      key: const ValueKey('sport-scroll'),
+                                      controller: _scroll,
+                                      child: SizedBox(
+                                        width: w,
+                                        height: m.total,
+                                        child: Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            _podium(
+                                              w,
+                                              m.tabs + m.tiles + m.ringY,
+                                              sides: box.maxWidth > w + 1,
+                                            ),
+                                            Column(
+                                              children: _picker(sport, m, w),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 );
                               },
                             ),
@@ -1039,56 +1315,97 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
     );
   }
 
-  /// The page's side margin: the header, the arrows, the stage ring, the
-  /// first sport tile, Custom… and the Design button line up on it.
+  /// The page's side margin: the header, the arrows and the first sport
+  /// tile line up on it.
   static const _side = 16.0;
 
-  /// The room under the Design button: 3DEEZI Assist's round button sits
-  /// there, just over the tab bar (lib/widgets/assist_overlay.dart: 50 px,
-  /// 92 px over the screen's foot, about 45 px over the tab bar), so it
-  /// never covers the button.
-  static const _assistRoom = 50.0;
+  /// The stadium and its round stage behind the kits (client 506; user
+  /// 2026-11-11: "You are not showing clothes within circles, circle is far
+  /// behind"): the stadium picture sized so the stage's top fills the
+  /// page's width, its middle at [y] (just behind the centre kit's hem), so
+  /// the three kits stand on it, its glowing ring round their feet. Its top
+  /// and foot fade into the night sky (its sides too in a window wider than
+  /// the page).
+  static Widget _podium(double width, double y, {bool sides = false}) {
+    // The stage's top in the picture (1920 x 1280): its middle at
+    // (964, 908), 570 px out to each side; drawn [sy] taller, so the side
+    // kits, further back, still stand inside its ring.
+    const sy = 1.28;
+    final s = (width / 2 - 10) / 570;
+    final picW = 1920 * s, picH = 1280 * s * sy, top = y - 908 * s * sy;
+    Widget pic = Image.asset(
+      'assets/images/showroom/stadium-stage.webp',
+      fit: BoxFit.fill,
+    );
+    Widget fade(Widget child, Alignment from, Alignment to, List<double> at) =>
+        ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (r) => LinearGradient(
+            begin: from,
+            end: to,
+            colors: const [
+              Color(0x00000000),
+              Color(0xff000000),
+              Color(0xff000000),
+              Color(0x00000000),
+            ],
+            stops: at,
+          ).createShader(r),
+          child: child,
+        );
+    // (Its top fades in from the rows' own top: in a short window, where
+    // the picture's top stands above them, it would end in a hard edge
+    // under the header.)
+    final a = math.max(0.0, -top / picH);
+    pic = fade(pic, Alignment.topCenter, Alignment.bottomCenter, [
+      a,
+      math.min(.8, math.max(.22, a + .2)),
+      .82,
+      1,
+    ]);
+    if (sides) {
+      final a = (964 * s - width / 2) / picW, b = a + width / picW;
+      pic = fade(pic, Alignment.centerLeft, Alignment.centerRight, [
+        a,
+        a + .06,
+        b - .06,
+        b,
+      ]);
+    }
+    return Positioned(
+      left: width / 2 - 964 * s,
+      top: top,
+      width: picW,
+      height: picH,
+      child: IgnorePointer(child: pic),
+    );
+  }
 
-  /// The least height of the kit stage before the picker scrolls.
-  static const _minStage = 150.0;
-
-  List<Widget> _picker((String, String, String, String) sport, bool tight) => [
-    SizedBox(height: tight ? 2 : 8),
-    const Text(
-      'DESIGN YOUR OWN',
-      style: TextStyle(
-        color: Palette.cyan,
-        fontSize: 10.5,
-        letterSpacing: 2.4,
-        fontWeight: FontWeight.w700,
+  List<Widget> _picker(
+    (String, String, String, String) sport,
+    _DyoRows m,
+    double width,
+  ) => [
+    // The tabs, small, without a title over them (client 506; 2026-11-11:
+    // "too much writing on this page").
+    SizedBox(
+      height: m.tabs,
+      child: Center(
+        child: _CategoryFilters(
+          groups: [
+            'all',
+            for (final g in const ['sports', 'apparel'])
+              if (dyoSports.any((s) => s.$4 == g)) g,
+          ],
+          value: _filter,
+          onChanged: _chooseFilter,
+        ),
       ),
-    ),
-    SizedBox(height: tight ? 3 : 6),
-    ScreenTitle(
-      'Different sports.\n',
-      highlight: 'Same team spirit.',
-      size: tight ? 22 : 27,
-    ),
-    SizedBox(height: tight ? 3 : 6),
-    const Text(
-      'Choose your sport. Swipe to rotate.',
-      style: TextStyle(color: Color(0xffc4d2df), fontSize: 12),
-    ),
-    SizedBox(height: tight ? 2 : 8),
-    _CategoryFilters(
-      groups: [
-        'all',
-        for (final g in const ['sports', 'apparel'])
-          if (dyoSports.any((s) => s.$4 == g)) g,
-      ],
-      value: _filter,
-      onChanged: _chooseFilter,
     ),
     SizedBox(
       // (Room above and below for the lit tile's glow.) The row runs to the
-      // screen's edges, its first tile on the page margin. (A little lower
-      // since 2026-11-10, client: "more room for 3D models".)
-      height: tight ? 66 : 72,
+      // screen's edges, its first tile on the page margin.
+      height: m.tiles,
       child: ListView.separated(
         key: const ValueKey('dyo-tiles'),
         controller: _tiles,
@@ -1108,210 +1425,231 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
         },
       ),
     ),
-    // The stage, the centre sport's glass capsule at its foot (client 489:
-    // the kits stand just over it, the capsule over the ring's near side).
-    Expanded(
-      child: Stack(
-        // The kits reach a little over the tiles row's empty glow room.
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            top: -_kitRise,
-            bottom: (tight ? 50 : 60) - _capOverlap,
-            child: _stage(),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: tight ? 50 : 60,
-            child: Center(
-              child: _SportName(
-                name: sport.$1,
-                kit: sport.$3,
-                count: _n > 12 ? '${_index + 1} / $_n' : null,
-                tight: tight,
-              ),
-            ),
-          ),
-        ],
+    SizedBox(height: m.stage, child: _stage(m, width)),
+    // The centre sport's glass capsule just under the kits, over the stage's
+    // near side (client 506).
+    SizedBox(
+      height: m.capsule,
+      // (A long name or big text scales the capsule down to its row.)
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: _SportName(name: sport.$1, kit: sport.$3, tight: m.tight),
       ),
     ),
-    // A dot each fits a dozen; more show as a count in the capsule ("7 / 30",
-    // user 2026-11-06: beside the kit line, so the kits get the room).
-    if (_n <= 12)
-      Center(
-        child: PageDots(count: _n, index: _index),
+    // Where the sport is in the list, on its own line under the capsule
+    // (506: "2 / 30"); a dot each when they are a dozen or fewer.
+    SizedBox(
+      height: m.count,
+      child: Center(
+        child: _n > 12
+            ? Text(
+                '${_index + 1} / $_n',
+                style: TextStyle(
+                  fontSize: m.tight ? 12.5 : 13.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: .8,
+                  color: const Color(0xffd3dee8),
+                ),
+              )
+            : PageDots(count: _n, index: _index),
       ),
-    SizedBox(height: tight ? 0 : 2),
-    // "Custom…" (client 2026-11-02): a sport we do not list, typed. It and
-    // the Design button run margin to margin; both slimmer since 2026-11-10
-    // (client: "maybe buttons smaller"), Custom… still 40 px to tap.
+    ),
+    // "Custom..." (client 2026-11-02): a sport we do not list, typed. It and
+    // the Design button are a little narrower than the page (506).
     Padding(
-      padding: const EdgeInsets.symmetric(horizontal: _side),
+      padding: EdgeInsets.symmetric(horizontal: m.customSide),
       child: _GlassOutlineButton(
         key: const Key('dyo-custom-sport'),
         icon: Icons.edit_outlined,
-        label: 'Custom… type your own sport',
-        height: tight ? 28 : 32,
+        label: 'Custom... type your own sport',
+        height: m.custom,
+        room: m.customRoom,
         onTap: _customSport,
       ),
     ),
-    SizedBox(height: tight ? 2 : 4),
+    SizedBox(height: m.gap),
     Padding(
-      padding: const EdgeInsets.fromLTRB(_side, 0, _side, _assistRoom),
+      // (The room under it: 3DEEZI Assist's round button sits there, just
+      // over the tab bar, so it never covers the button.)
+      padding: EdgeInsets.fromLTRB(m.designSide, 0, m.designSide, m.assist),
       child: _GlossyButton(
         label: 'DESIGN ${sport.$1.toUpperCase()}',
-        height: tight ? 40 : 44,
+        height: m.design,
         onPressed: _design,
       ),
     ),
   ];
 
-  /// How far the sport's capsule reaches up over the stage's foot.
-  static const _capOverlap = 40.0;
-
-  /// The room under a kit picture: its feet stand on the ring, a little
-  /// behind the sport's capsule (user 2026-11-06, 490: bigger kits; client
-  /// 2026-11-10: "much bigger").
-  static const _kitPad = 24.0;
-
-  /// How far the stage reaches up over the tiles row's glow room (the kit
-  /// pictures' own empty top keeps them off the tiles).
-  static const _kitRise = 11.0;
-
-  /// The widest a kit picture gets, of the stage's width (2:3 pictures, so
-  /// on a phone the stage's height sets their size).
-  static const _kitWide = .62;
-
-  /// The kits on their floodlit stage, the arrows at the sides.
-  Widget _stage() => Stack(
-    alignment: Alignment.center,
-    children: [
-      // The glowing stage ring under the kits.
-      // (Where it stood by the capsule before the kits grew, 2026-11-10.)
-      Positioned(
-        bottom: _capOverlap - 24,
-        left: _side,
-        right: _side,
-        child: Container(
-          height: 74,
-          decoration: BoxDecoration(
-            borderRadius: const BorderRadius.all(Radius.elliptical(400, 74)),
-            border: Border.all(
-              color: Palette.cyan.withValues(alpha: .75),
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Palette.cyan.withValues(alpha: .35),
-                blurRadius: 24,
+  /// Kit [i] on the stage (the page [page] in the centre, in a stage
+  /// [width] wide): full size in the centre, a little smaller, turned and
+  /// further back at the sides, its hem on the stage's floor. Solid at the
+  /// sides too (client 506), just a touch darker.
+  Widget _kit(int i, double page, double width) {
+    final d = (page - i).clamp(-2.0, 2.0);
+    final t = 1 - d.abs().clamp(0.0, 1.0);
+    // A kit further out than the side ones fades in as it comes near.
+    final far = d.abs() <= 1 ? 1.0 : ((1.6 - d.abs()) / .6).clamp(0.0, 1.0);
+    final b = _box(i), f = _fitAt(page);
+    final ph = _picH(i, f) * _kitScale(i, page), pw = ph * 2 / 3;
+    final gx = (b.$1 + b.$2) / 2, gw = (b.$2 - b.$1) * pw;
+    // The side kits stand a little further back on the stage (506).
+    final m = _rows!;
+    final foot = m.floor - _DyoRows.lift(m.kitH) * f * (1 - t);
+    final kit = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Its soft shadow on the stage.
+        Positioned(
+          left: pw * gx - gw * .5,
+          width: gw,
+          top: b.$4 * ph - gw / 2,
+          height: gw,
+          child: Transform.scale(
+            scaleY: .09,
+            child: const IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [Color(0xb3000000), Color(0x00000000)],
+                  ),
+                ),
               ),
-            ],
+            ),
           ),
         ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Image.asset(
+              _kitArt(i),
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+              color: Color.fromRGBO(0, 0, 0, .12 * (1 - t)),
+              colorBlendMode: BlendMode.srcATop,
+            ),
+          ),
+        ),
+        // A tap on the garment itself (not on the picture's empty sides,
+        // over the next kit): the centre kit opens Design, a side kit turns
+        // to the centre.
+        Positioned(
+          left: pw * b.$1,
+          width: gw,
+          top: ph * b.$3,
+          bottom: ph * (1 - b.$4),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              final current = (_pages.page ?? 0).round();
+              current == i ? _design() : _step(i - current);
+            },
+          ),
+        ),
+      ],
+    );
+    return Positioned(
+      key: ValueKey(i),
+      left: width / 2 + _kitX(i, page, f) - gx * pw,
+      top: foot - b.$4 * ph,
+      width: pw,
+      height: ph,
+      child: Opacity(
+        opacity: far,
+        child: Transform(
+          // Turned a little towards the middle, about its own hem.
+          alignment: Alignment(gx * 2 - 1, b.$4 * 2 - 1),
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, .0012)
+            ..rotateY(d * .24),
+          child: kit,
+        ),
       ),
-      LayoutBuilder(
-        builder: (context, box) {
-          // The kit picture's width (2:3 pictures, [_kitPad] of
-          // padding under them). A picture may be wider than its page
-          // ([_cell] of the stage): the kits are packed by their
-          // garments' own widths ([_kitX]), not by the pages.
-          final cell = box.maxWidth * _cell;
-          final pic = math.min(
-            box.maxWidth * _kitWide,
-            math.max(0.0, box.maxHeight - _kitPad) * 2 / 3,
-          );
-          _pic = pic;
-          return GestureDetector(
+    );
+  }
+
+  /// The kits on their stage, the arrows at the sides at the kits' middle.
+  Widget _stage(_DyoRows m, double width) {
+    final arrowY = m.arrowY;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
             behavior: HitTestBehavior.translucent,
             supportedDevices: ScrollConfiguration.of(context).dragDevices,
-            // (From the touch-down, so the kits keep up with the
-            // finger from where it first touched.)
+            // (From the touch-down, so the kits keep up with the finger
+            // from where it first touched.)
             dragStartBehavior: DragStartBehavior.down,
             onHorizontalDragStart: _dragStart,
             onHorizontalDragUpdate: _dragUpdate,
             onHorizontalDragEnd: _dragEnd,
             onHorizontalDragCancel: () => _dragEnd(DragEndDetails()),
-            child: PageView.builder(
-              controller: _pages,
-              // Dragged by the detector above, 1:1 with the finger.
-              // (No page snapping: it would pull the kits back
-              // between finger moves; a drag's end snaps itself.)
-              physics: const NeverScrollableScrollPhysics(),
-              pageSnapping: false,
-              onPageChanged: (i) => _turned(i % _n),
-              itemBuilder: (context, i) => AnimatedBuilder(
-                animation: _pages,
-                builder: (context, child) {
-                  final page =
-                      _pages.hasClients && _pages.position.haveDimensions
-                      ? _pages.page ?? i.toDouble()
-                      : _pages.initialPage.toDouble();
-                  final d = (page - i).clamp(-2.0, 2.0);
-                  final t = 1 - d.abs().clamp(0.0, 1.0);
-                  // Packed close to the centre kit; a kit further out
-                  // than the side ones fades away as it comes near.
-                  final far = d.abs() <= 1
-                      ? 1.0
-                      : ((1.6 - d.abs()) / .6).clamp(0.0, 1.0);
-                  return Transform.translate(
-                    offset: Offset(_kitX(i, page, pic) + d * cell, 0),
-                    child: Transform(
-                      alignment: Alignment.bottomCenter,
-                      transform: Matrix4.identity()
-                        ..setEntry(3, 2, .0012)
-                        ..rotateY(d * .32)
-                        ..scaleByDouble(.68 + .32 * t, .68 + .32 * t, 1, 1),
-                      child: Opacity(
-                        opacity: ((.62 + .38 * t) * far).clamp(0, 1),
-                        child: child,
-                      ),
-                    ),
-                  );
-                },
-                child: GestureDetector(
-                  onTap: () {
-                    final current = (_pages.page ?? 0).round();
-                    current == i ? _design() : _step(i - current);
-                  },
-                  child: OverflowBox(
-                    minWidth: 0,
-                    maxWidth: pic,
-                    alignment: Alignment.bottomCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: _kitPad),
-                      child: Image.asset(
-                        'assets/images/showroom/kit-${_kitSlug(i)}.webp',
-                        fit: BoxFit.contain,
-                        alignment: Alignment.bottomCenter,
-                      ),
-                    ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // The page view keeps the turn (its pages are empty); the
+                // kits are drawn over it, the centre one in front, so the
+                // side kits can stand close, a little behind it (client
+                // 2026-11-11: "the other mock ups a bit closer").
+                Positioned.fill(
+                  child: PageView.builder(
+                    controller: _pages,
+                    // Dragged by the detector above, 1:1 with the finger.
+                    // (No page snapping: it would pull the kits back
+                    // between finger moves; a drag's end snaps itself.)
+                    physics: const NeverScrollableScrollPhysics(),
+                    pageSnapping: false,
+                    onPageChanged: (i) => _turned(i % _n),
+                    itemBuilder: (_, _) => const SizedBox.expand(),
                   ),
                 ),
-              ),
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: _pages,
+                    builder: (context, _) {
+                      final page = _page, p0 = page.round();
+                      // The farthest are drawn first.
+                      final shown =
+                          [
+                            for (var i = p0 - 2; i <= p0 + 2; i++)
+                              if ((page - i).abs() < 1.6) i,
+                          ]..sort(
+                            (a, b) =>
+                                (page - b).abs().compareTo((page - a).abs()),
+                          );
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [for (final i in shown) _kit(i, page, width)],
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          );
-        },
-      ),
-      // (Each arrow's 40 px tap room reaches 4 px past its bubble, so the
-      // bubble itself stays on the page margin.)
-      Positioned(
-        left: _side - 4,
-        child: _ArrowButton(
-          icon: Icons.chevron_left_rounded,
-          onTap: () => _step(-1),
+          ),
         ),
-      ),
-      Positioned(
-        right: _side - 4,
-        child: _ArrowButton(
-          icon: Icons.chevron_right_rounded,
-          onTap: () => _step(1),
+        // Round glass arrows near the screen's edges (506).
+        Positioned(
+          left: m.arrowX - 22,
+          top: arrowY - 22,
+          child: _ArrowButton(
+            icon: Icons.chevron_left_rounded,
+            label: 'Previous sport',
+            onTap: () => _step(-1),
+          ),
         ),
-      ),
-    ],
-  );
+        Positioned(
+          right: m.arrowX - 22,
+          top: arrowY - 22,
+          child: _ArrowButton(
+            icon: Icons.chevron_right_rounded,
+            label: 'Next sport',
+            onTap: () => _step(1),
+          ),
+        ),
+      ],
+    );
+  }
 
   /// A typed sport: the garment step then offers every garment.
   Future<void> _customSport() async {
@@ -1364,6 +1702,158 @@ class _SportCarouselScreenState extends State<SportCarouselScreen> {
   }
 }
 
+/// The Design Your Own rows in a short window, [extent] px longer than it:
+/// they fade out over 22 px under the header once scrolled and over 24 px
+/// over the tab bar while more lies below, rather than end in a hard edge.
+/// (A window they fit draws them as they are.)
+class _ScrollEdgeFade extends StatelessWidget {
+  const _ScrollEdgeFade({
+    required this.controller,
+    required this.extent,
+    required this.child,
+  });
+  final ScrollController controller;
+  final double extent;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (extent <= .5) return child;
+    return ListenableBuilder(
+      listenable: controller,
+      child: child,
+      builder: (context, child) {
+        final at = controller.hasClients ? controller.offset : 0.0;
+        final top = at > .5 ? 22.0 : 0.0;
+        final bottom = at < extent - .5 ? 24.0 : 0.0;
+        return ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (r) {
+            final h = math.max(r.height, 1.0);
+            return LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                top > 0 ? const Color(0x00ffffff) : Colors.white,
+                Colors.white,
+                Colors.white,
+                bottom > 0 ? const Color(0x00ffffff) : Colors.white,
+              ],
+              stops: [
+                0,
+                (top / h).clamp(0.0, .5),
+                (1 - bottom / h).clamp(.5, 1.0),
+                1,
+              ],
+            ).createShader(r);
+          },
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+/// The Design Your Own rows under the header (client 506, a 393 x 852
+/// phone): the tabs, the sport tiles, the kits' stage (the rest of the
+/// room), the sport's capsule, the count, Custom... and the Design button,
+/// then the room for 3DEEZI Assist's round button. A short window scrolls
+/// rather than shrink the kits (user 2026-11-11: the kit is the page's hero).
+class _DyoRows {
+  _DyoRows(double room, this.width) : tight = room < 600 {
+    // A phone taller than 506's (393 x 852: 643 px under the header) gives
+    // its extra room to the stage and, a little, to the gaps under it, so
+    // the kits stand where 506 has them, not lower.
+    final extra = tight ? 0.0 : math.max(0.0, room - 643);
+    gap = (tight ? 6 : 10) + extra * .12;
+    assist = 52 + extra * .25;
+    final fixed =
+        tabs + tiles + capsule + count + customRoom + gap + design + assist;
+    final fill = room - fixed;
+    stage = fill >= 220
+        ? fill
+        : math.max(200.0, math.min(300.0, room - tabs - tiles));
+    total = math.max(room, fixed + stage);
+  }
+
+  /// The page's width.
+  final double width;
+
+  /// Less room (a 360 x 780 phone): the rows round the stage a little
+  /// tighter, so the kits keep 506's share of the screen (DYOMATCH round 2:
+  /// the centre kit about .32 of the screen's height, its hem about .57
+  /// down, as on a 393 x 852 phone).
+  final bool tight;
+
+  late final double stage, total;
+
+  /// The gap over the Design button.
+  late final double gap;
+
+  /// The room under the Design button: 3DEEZI Assist's round button sits
+  /// there, just over the tab bar (lib/widgets/assist_overlay.dart: 50 px,
+  /// 92 px over the screen's foot), so it never covers the button.
+  late final double assist;
+
+  double get tabs => tight ? 22 : 28;
+
+  /// The tiles row: the tiles 14 px less (room for the lit tile's glow).
+  double get tiles => tight ? 74 : 80;
+
+  /// The sport's capsule (its tight one is about 46 px tall).
+  double get capsule => tight ? 48 : 59;
+
+  /// The count line under the capsule ("2 / 30").
+  double get count => tight ? 16 : 22;
+
+  /// Custom...'s capsule and its tap room.
+  double get custom => tight ? 30 : 31;
+  double get customRoom => tight ? 36 : 40;
+  double get design => tight ? 40 : 44;
+
+  /// The room over the centre kit's garment.
+  double get top => tight ? 3 : 5;
+
+  /// The floor the centre kit's hem stands on, from the stage's top; the
+  /// stage's ring runs round it, the sport's capsule just under the ring's
+  /// near edge.
+  double get floor => stage - (tight ? 24 : 28);
+
+  /// The stage's top (an ellipse, from the stage picture): its middle a
+  /// little behind the centre kit's hem, its far edge behind the side kits'
+  /// hems, its near edge just over the sport's capsule.
+  double get ringY => floor - 14;
+  double get ringRx => width / 2 - 10;
+  double get ringRy => ringRx / 570 * 60 * 1.28;
+
+  /// The round arrows: their middle [arrowX] in from the page's edges, at
+  /// the kits' middle height, [arrowR] round. (506 has them 39 px in, but
+  /// there they would stand over 20 of the 30 sports' side kits, or shrink
+  /// them; a small phone has them a touch lower, at the side kits' middle,
+  /// so no kit there has to shrink for them.)
+  double get arrowX => 33;
+  double get arrowY => floor - kitH * (tight ? .45 : .485);
+  double get arrowR => 19;
+
+  /// Whether [o] has the same measures (so the trios keep their sizes).
+  bool same(_DyoRows o) =>
+      o.width == width && o.stage == stage && o.tight == tight;
+
+  /// The centre kit's garment box: as tall as the stage allows, at most
+  /// this wide (so the three kits fit the page's width, 506).
+  double get kitH => math.min(floor - top, width * .8);
+  double get kitMaxW => width * .4;
+
+  /// Custom... and the Design button's side margins (506: a little in from
+  /// the page's edges, Custom... a touch narrower).
+  double get customSide => width * .134;
+  double get designSide => width * .126;
+
+  /// How much higher a side kit stands (further back on the stage; 506:
+  /// 27 px over the centre kit's hem).
+  static double lift(double kitH) => kitH * .09;
+}
+
 /// ALL · SPORTS · APPAREL over the quick-access tiles: the chosen one cyan
 /// and underlined.
 class _CategoryFilters extends StatelessWidget {
@@ -1390,7 +1880,7 @@ class _CategoryFilters extends StatelessWidget {
             child: InkWell(
               onTap: () => onChanged(g),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 6, 14, 7),
+                padding: const EdgeInsets.fromLTRB(12, 3, 12, 5),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
@@ -1404,8 +1894,9 @@ class _CategoryFilters extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Rajdhani',
                     fontWeight: FontWeight.w700,
-                    fontSize: 13.5,
-                    letterSpacing: 1.8,
+                    fontSize: 12,
+                    height: 1.1,
+                    letterSpacing: 1.6,
                     color: g == value ? Palette.cyan : const Color(0xffe9f1f7),
                   ),
                 ),
@@ -1518,7 +2009,7 @@ class _CategoryTile extends StatelessWidget {
               Flexible(
                 child: CategoryIcon(
                   category,
-                  size: 24,
+                  size: 26,
                   color: selected
                       ? const Color(0xff5ff6ff)
                       : const Color(0xff19e3f2),
@@ -1533,7 +2024,7 @@ class _CategoryTile extends StatelessWidget {
                   style: const TextStyle(
                     fontFamily: 'Rajdhani',
                     fontWeight: FontWeight.w700,
-                    fontSize: 12.5,
+                    fontSize: 12,
                     letterSpacing: .8,
                     color: Colors.white,
                   ),
@@ -1549,27 +2040,39 @@ class _CategoryTile extends StatelessWidget {
 
 /// The stage's arrows: round glass bubbles (client 489).
 class _ArrowButton extends StatelessWidget {
-  const _ArrowButton({required this.icon, required this.onTap});
+  const _ArrowButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
   final IconData icon;
+
+  /// What it does, for screen readers.
+  final String label;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    // A smaller bubble since 2026-11-10 (client: "buttons smaller"), still
-    // a 40 px tap.
-    behavior: HitTestBehavior.opaque,
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: label,
     onTap: onTap,
-    child: SizedBox.square(
-      dimension: 40,
-      child: Center(
-        child: _GlassOption(
-          radius: 16,
-          rim: 2,
-          glow: .7,
-          shape: const CircleBorder(),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(5),
-            child: Icon(icon, color: Colors.white, size: 22),
+    excludeSemantics: true,
+    child: GestureDetector(
+      // A round glass bubble as in 506, a 44 px tap.
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox.square(
+        dimension: 44,
+        child: Center(
+          child: _GlassOption(
+            radius: 16,
+            rim: 2,
+            glow: .7,
+            shape: const CircleBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(icon, color: Colors.white, size: 24),
+            ),
           ),
         ),
       ),
@@ -1577,29 +2080,243 @@ class _ArrowButton extends StatelessWidget {
   );
 }
 
-/// The centre sport under the stage (client 489): its name big and its kit
-/// ("Singlet + Shorts") in a glass capsule.
-class _SportName extends StatelessWidget {
-  const _SportName({
-    required this.name,
-    required this.kit,
-    this.count,
-    this.tight = false,
-  });
-  final String name, kit;
+/// A water bubble as in the client's 506 / 509 capsules (user 2026-11-11:
+/// "these two look like bubble of water"; the website's glass.css water
+/// bubbles, colours sampled from 506): a clear dark body the stage shows
+/// through, a thick liquid rim (a white top edge, silvery ends, a cyan-white
+/// foot, a cyan glow inside the edge strongest along the top and the foot),
+/// sparkles at the top-right and bottom-left corners, a softer reflection at
+/// the bottom right, and a soft cyan glow outside. The sport's capsule and
+/// Custom... wear it; the text stays crisp over it.
+class _WaterBubble extends StatelessWidget {
+  const _WaterBubble({required this.radius, required this.child});
+  final double radius;
+  final Widget child;
 
-  /// Where the sport is in the list ("7 / 30"), beside the kit line.
-  final String? count;
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _WaterBody(radius),
+    foregroundPainter: _WaterSparkles(radius),
+    child: child,
+  );
+}
+
+/// The bubble's glow, body and liquid rim (under its text).
+class _WaterBody extends CustomPainter {
+  const _WaterBody(this.radius);
+  final double radius;
+
+  /// The rim's width.
+  static const _rim = 1.5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final rect = Offset.zero & size;
+    final rr = RRect.fromRectAndRadius(
+      rect,
+      Radius.circular(math.min(radius, size.height / 2)),
+    );
+    // (A CSS blur is twice the blur's sigma.)
+    MaskFilter? blur(double b) =>
+        b > 0 ? MaskFilter.blur(BlurStyle.normal, b / 2) : null;
+    // The soft cyan glow, outside only (the clear body must not take it).
+    canvas.save();
+    canvas.clipPath(
+      Path()
+        ..fillType = PathFillType.evenOdd
+        ..addRect(rect.inflate(40))
+        ..addRRect(rr),
+    );
+    for (final (b, spread, c) in const [
+      (18.0, 2.0, Color(0x8538d8ff)),
+      (5.0, 1.0, Color(0xb39feeff)),
+    ]) {
+      canvas.drawRRect(
+        rr.inflate(spread),
+        Paint()
+          ..color = c
+          ..maskFilter = blur(b),
+      );
+    }
+    canvas.restore();
+    // The clear dark body.
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xc70c3242),
+            Color(0xa6041a26),
+            Color(0xa6041a26),
+            Color(0xc70a2f40),
+          ],
+          stops: [0, .38, .64, 1],
+        ).createShader(rect),
+    );
+    // The liquid glow inside the rim: (y offset, blur, spread, colour), the
+    // deepest first.
+    final inner = rr.deflate(_rim);
+    canvas.save();
+    canvas.clipRRect(inner);
+    for (final (dy, b, spread, c) in const [
+      (0.0, 11.0, 1.0, Color(0x663f94ae)),
+      (-9.0, 9.0, -6.0, Color(0x8c4aa2bc)),
+      (9.0, 9.0, -6.0, Color(0x996fc4db)),
+      (-3.0, 2.0, -1.0, Color(0x8c7cc8dc)),
+      (3.0, 2.0, -1.0, Color(0xa69fd8e8)),
+      (0.0, 1.5, 1.0, Color(0x598fd3e6)),
+      (-1.0, .5, -.5, Color(0xb3d2f6fe)),
+      (1.5, .5, -.5, Color(0xe6ffffff)),
+    ]) {
+      canvas.drawPath(
+        Path()
+          ..fillType = PathFillType.evenOdd
+          ..addRect(rect.inflate(40))
+          ..addRRect(inner.shift(Offset(0, dy)).deflate(spread)),
+        Paint()
+          ..color = c
+          ..maskFilter = blur(b),
+      );
+    }
+    canvas.restore();
+    // The rim: white along the top, silvery at the ends, cyan-white at the
+    // foot.
+    canvas.drawRRect(
+      rr.deflate(_rim / 2),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _rim
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xffffffff),
+            Color(0xffc9eef8),
+            Color(0xffc9eef8),
+            Color(0xffe2f8fe),
+          ],
+          stops: [0, .3, .7, 1],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_WaterBody old) => old.radius != radius;
+}
+
+/// The sparkles just inside the bubble's rim (clear of the text): the
+/// top-right corner (509) with a flare along the top, the bottom-left
+/// corner, a reflection at the bottom right and a light at the foot.
+class _WaterSparkles extends CustomPainter {
+  const _WaterSparkles(this.radius);
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final w = size.width, h = size.height;
+    final r = math.min(radius, h / 2);
+    // Every light stays inside the bubble, just inside its rim (user 514:
+    // "lights are shining outside their bubble boundary").
+    canvas.save();
+    canvas.clipRRect(
+      RRect.fromRectAndRadius(
+        Offset.zero & size,
+        Radius.circular(r),
+      ).deflate(_WaterBody._rim),
+    );
+    // A point on the inside of the rim round the corner centred at [c],
+    // [deg] degrees round (0 = right, 90 = down).
+    Offset corner(Offset c, double deg) {
+      final a = deg * math.pi / 180, d = math.max(r - 4, 0.0);
+      return c + Offset(math.cos(a), math.sin(a)) * d;
+    }
+
+    // An oval light [rx] x [ry] round [c].
+    void light(
+      Offset c,
+      double rx,
+      double ry,
+      List<Color> cs,
+      List<double> at,
+    ) {
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.scale(rx, ry);
+      canvas.drawCircle(
+        Offset.zero,
+        1,
+        Paint()
+          ..shader = RadialGradient(
+            colors: cs,
+            stops: at,
+          ).createShader(Rect.fromCircle(center: Offset.zero, radius: 1)),
+      );
+      canvas.restore();
+    }
+
+    const white = Color(0xffffffff), none = Color(0x00ffffff);
+    // The glint in the top-right corner (509), a flare along the top.
+    light(
+      corner(Offset(w - r, r), -55),
+      4,
+      4,
+      const [white, white, Color(0xb3ffffff), none],
+      const [0, .2, .4, 1],
+    );
+    light(
+      Offset(w - r - 6, 3),
+      14,
+      1.6,
+      const [Color(0xe6ffffff), none],
+      const [0, 1],
+    );
+    // A smaller one in the bottom-left corner.
+    light(
+      corner(Offset(r, h - r), 125),
+      3.2,
+      3.2,
+      const [white, white, Color(0x99ffffff), none],
+      const [0, .2, .45, 1],
+    );
+    // A reflection at the bottom right and a light at the foot.
+    light(
+      Offset(w - r - 8, h - 3),
+      16,
+      1.8,
+      const [Color(0xb3ffffff), none],
+      const [0, 1],
+    );
+    light(
+      Offset(w * .42, h - 2.6),
+      14,
+      1.2,
+      const [Color(0xb3c8f6ff), Color(0x00c8f6ff)],
+      const [0, 1],
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_WaterSparkles old) => old.radius != radius;
+}
+
+/// The centre sport under the stage (client 489, 506): its name big and its
+/// kit ("Singlet + Shorts") in a glass capsule.
+class _SportName extends StatelessWidget {
+  const _SportName({required this.name, required this.kit, this.tight = false});
+  final String name, kit;
 
   /// Less room: a little smaller.
   final bool tight;
   @override
-  Widget build(BuildContext context) => _GlassOption(
+  Widget build(BuildContext context) => _WaterBubble(
     radius: 22,
-    rim: 2.6,
-    glow: .6,
     child: Padding(
-      padding: EdgeInsets.fromLTRB(30, tight ? 4 : 6, 30, tight ? 5 : 7),
+      padding: EdgeInsets.fromLTRB(32, tight ? 4 : 8, 32, tight ? 5 : 11),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1609,15 +2326,15 @@ class _SportName extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'Rajdhani',
               fontWeight: FontWeight.w700,
-              fontSize: tight ? 22 : 25,
+              fontSize: tight ? 21 : 23,
               height: 1.05,
               letterSpacing: 1,
               color: Colors.white,
             ),
           ),
-          if (kit.isNotEmpty || count != null)
+          if (kit.isNotEmpty)
             Text(
-              [if (kit.isNotEmpty) kit, ?count].join('  ·  '),
+              kit,
               maxLines: 1,
               style: TextStyle(
                 fontSize: tight ? 12 : 13,
@@ -1640,11 +2357,15 @@ class _GlassOutlineButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.height = 38,
+    this.room = 40,
   });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final double height;
+
+  /// The least tap room (over and under the capsule too).
+  final double room;
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
@@ -1652,29 +2373,26 @@ class _GlassOutlineButton extends StatelessWidget {
     excludeSemantics: true,
     onTap: onTap,
     // The capsule may be slimmer than a finger: the tap takes at least
-    // 40 px, the room over and under it too.
+    // [room] px, the room over and under it too.
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: SizedBox(
-        height: math.max(height, 40),
+        height: math.max(height, room),
         width: double.infinity,
         child: Center(
           child: SizedBox(
             height: height,
             width: double.infinity,
-            child: _GlassOption(
+            child: _WaterBubble(
               radius: height / 2,
-              rim: 1.8,
-              glow: .3,
-              onTap: onTap,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 15, color: Palette.cyan),
-                    const SizedBox(width: 7),
+                    Icon(icon, size: 17, color: Palette.cyan),
+                    const SizedBox(width: 8),
                     Flexible(
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
@@ -1683,7 +2401,7 @@ class _GlassOutlineButton extends StatelessWidget {
                           maxLines: 1,
                           style: const TextStyle(
                             color: Palette.cyan,
-                            fontSize: 13,
+                            fontSize: 14.5,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -1777,7 +2495,7 @@ class _GlossyButton extends StatelessWidget {
                                     color: Color(0xff04192b),
                                     fontWeight: FontWeight.w800,
                                     fontSize: 15,
-                                    letterSpacing: .4,
+                                    letterSpacing: .5,
                                   ),
                                 ),
                               ),

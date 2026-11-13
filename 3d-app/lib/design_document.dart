@@ -146,6 +146,28 @@ const bballAreas = {
   'bballTrim2': 'Hem stripe 2 (edge)',
 };
 
+/// The Basketball singlet tile's own 3D singlet (the Singlet with the
+/// bballSinglet flag, as on the website: BBSINGLET 2026-11-13).
+bool isBballSinglet(String garment, Map<String, String> zoneColors) =>
+    garment == 'Singlet' &&
+    RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(zoneColors['bballSinglet'] ?? '');
+
+/// The basketball singlet's own colour area, as the website's BASKETBALL
+/// SINGLET AREAS: its reverse side (the inside; a reversible singlet's other
+/// side). Unset, it follows the parts and the main colour.
+const bballSingletAreas = {'reverseSide': 'Reverse side (inside)'};
+
+/// The Netball bibs tile's own 3D bib (the Singlet with the netballBib
+/// flag, as on the website: NBBIB 2026-11-13).
+bool isNetballBib(String garment, Map<String, String> zoneColors) =>
+    garment == 'Singlet' &&
+    RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(zoneColors['netballBib'] ?? '');
+
+/// The netball bib's own colour areas, as the website's NETBALL BIB AREAS:
+/// the edge binding and the side ties. Unset, both follow the secondary
+/// colour (the neck binding is the Neck trim, Style).
+const bibAreas = {'bibEdge': 'Edge binding', 'bibTies': 'Side ties'};
+
 /// The netball dress, as the app names it.
 bool isNetballDress(String garment) => garment == 'Netball dress';
 
@@ -173,3 +195,8 @@ const studioPatterns = [
   'Tribal',
   'Camo',
 ];
+
+/// The patterns a saved design keeps: the Studio's, and Shards (the
+/// basketball shooting shirt tile's starting look, not in the Studio's list),
+/// which a save turned into Solid before (QA10 2026-11-11).
+const savedPatterns = [...studioPatterns, 'Shards'];

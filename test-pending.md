@@ -814,3 +814,111 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 3. VIEW MY REQUESTS and a single request page look the same (no bubble). Sending a request still works.
 4. Other pages (Home, Projects, Orders, Profile, Edit profile) still have their bubble.
 ---
+
+---
+**Website: glass bubble buttons (2026-11-10)**
+1. Website Home (desktop and phone): START CREATING, the card buttons and UPLOAD ARTWORK HERE look like the app's glossy cyan DESIGN button; the big cards have a glass rim and glow.
+2. Create > Design Your Own: glass sport tiles (chosen one glows), round glass arrows, glass "Custom..." capsule, glossy DESIGN button. AI Designer: glass prompt bar, + and send, sport cards.
+3. Orders, Team, Subscriptions, My projects (filters and search), Signage: the same look on their main buttons, pills and tiles.
+4. Every button still works; Studio, Artboard and the Marquee Studio look exactly as before.
+---
+
+---
+**Website Signage: clear space around the tent (2026-11-10)**
+1. Website > Signage & Marquees on a laptop (also with a short window): the whole 3D tent, flag, banner and table cover show, with clear space from the product tiles, the Marquee setup panel and "Custom marquee".
+2. Marquee setup: Size, Walls and View are all reachable (the panel scrolls on very short windows).
+3. Switch 3 x 3 / 3 x 6: the stage resizes and still has space around it.
+---
+
+---
+**Website order form notes: netball dress and sizeless lines (2026-11-10)**
+1. Orders > Create order form > "Write or snap your notes": type "Netball dress x 12 size 12" > Build my order form: one "Netball dress" row, women's size 12 x 12.
+2. Type "Football jerseys 3 x M" and "5 hoodies" on the next line: a Football jersey row (M x 3) and a Football hoodie row "5 hoodies - sizes needed"; the check list asks for the hoodie sizes.
+---
+
+---
+**App Design Your Own: less text, bigger kit, blue/black/white kits (2026-11-11)**
+1. App > Home > Design Your Own: only a small "DESIGN YOUR OWN" label above the tabs (no slogan, no "Choose your sport" line); "Custom sport" button.
+2. The middle kit is much bigger; the side kits stand closer, partly behind it.
+3. Swipe through all sports: every kit picture is in blue, black and white (e.g. basketball, school leavers, netball, volleyball).
+4. Swipe, arrows, tapping a side kit, Custom sport and DESIGN all work; DESIGN is visible without scrolling on a normal phone.
+---
+
+---
+**Signage: tent back wall reads correctly (2026-11-11, website and app)**
+1. Website > Signage & Marquees > View: Back. The 3DEEZI logo and "3" on the back wall read the right way round (not mirrored).
+2. Start designing > Marquee Studio > Back view: moving a logo goes the way you drag; the print preview is unchanged.
+3. Back and 360 turn quickly.
+---
+
+---
+**Studio saves reach the account (2026-11-11, app and website)**
+1. App > Design Your Own > Rugby League > Continue to Studio > Save > SAVE PROJECT (signed in): the project saves to the account; sign out and in again, or open My projects on the website: it is there.
+2. Try a kit with socks, a cap or the basketball shooting shirt (Shards pattern): it saves and reopens with the same look.
+3. If a save can't reach the account, the Save screen says so in amber, and Projects shows an amber cloud with the reason; it tries again by itself.
+4. App > 3DEEZI TEAM > Request a designer: no "Headwear" under Sport / activity; SEND with an empty brief shows "Please describe your design".
+---
+
+---
+**Website orders: Assist, pick-up total, garment names, draft names (2026-11-11)**
+1. Website Home on a laptop: the Assist chat starts as the small button; clicking the 3DEEZI TEAM card opens Team.
+2. Order form > Review & Approve: choose a "Delivery to" region, then switch to Pick up: "Pick up · Free", the total drops, the pay page charges the same amount.
+3. My orders and Admin > Order board: cards name the garments, e.g. "Rugby League Jersey · 25 · required 20 Dec"; the order page shows the garments under its title.
+4. Not sent yet: drafts are named like "Rugby League Jersey · 25 · draft from 11 Nov" (not "Untitled order").
+---
+
+---
+**App Design Your Own: layout like the client picture (2026-11-11)**
+1. App > Home > Design Your Own: three garments fill the width, the middle one big, the side ones close, slightly behind it and fully solid.
+2. All garments stand on the round stage (feet inside the ring); nothing covers them.
+3. Under the stage: name box, "2 / 30", "Custom... type your own sport", DESIGN button; no scrolling on a normal phone.
+4. Swipe through all sports, tap the arrows, tap a side garment, Custom and DESIGN: all work.
+---
+
+---
+**Water-bubble buttons (2026-11-11, app and website)**
+1. App > Design Your Own: the name box and "Custom... type your own sport" look like water bubbles (clear dark inside, glowing white rim, shine on top, corner sparkle), no thick border.
+2. Website (Design Your Own, 3DEEZI Team, Subscriptions, My projects): "Custom...", "Design it", VIEW MY REQUESTS, the plan buttons and Clear filters have the same water-bubble look; all still work.
+3. Website 3DEEZI ASSIST button is a water bubble; the open chat has a glowing edge and stays readable. Not on Studio, Artboard or Marquee Studio.
+---
+
+---
+**New 3D models from Tripo: Netball dress and Basketball shorts (2026-11-12, website and app)**
+1. Studio > Netball > Netball dress: the new dress shape (with the 6 bib tabs) opens in deep blue with light blue side panels and edges, the 3DEEZI logo on the chest, no bib. The straps' edges are clean bands.
+2. Change the dress colour areas (body, panels, yoke, edging) and add position letters: all show on the dress.
+3. Studio > Basketball > Basketball shorts: the new shorts shape opens purple with yellow hem stripes running up the side slits; the "3" logo low on the right leg, the 3DEEZI text on the left leg.
+4. Change the shorts' colours and move the logo / text: all work.
+5. Other garments (jersey, tee, singlet, other shorts, skirt) look the same as before.
+---
+
+---
+**Saved Artboard designs on the Assets page (2026-11-12, website and app)**
+1. Website: Artboard > File > Save to my account. Then PROJECTS > Assets: the design shows with an ARTBOARD label (in All and under the Artboard filter).
+2. Click it: it opens in the Artboard, ready to edit; save again and it comes back first on Assets with its new picture.
+3. Delete one from Assets: it asks first, then it's gone.
+4. App: Projects > Assets > Artboard tab shows the same designs; tap one: it opens in the Artboard; Back returns to Assets.
+5. Logos, patterns and artwork still show on Assets as before.
+---
+
+---
+**Logo, shorts crash fix (2026-11-12)**
+1. Artboard: click the 3DEEZI logo (top left): the homepage opens. Admin console: the logo opens the homepage too.
+2. Studio > Basketball > Basketball shorts: drag colours for a while, move the logo and text, change patterns: no crash or slowdown.
+3. Dashboard: the Assets count includes your saved Artboard designs; PROJECTS menu says "Your logos, artwork, patterns and Artboard designs".
+---
+
+---
+**Netball dress collar choice (2026-11-13, website and app)**
+1. Studio > Netball > Netball dress > Style: Round and V-neck are offered.
+2. V-neck: a clean V with its own edging band in the neck-edge colour; Round: the dress as before.
+3. Change colours (body, panels, edging), patterns, position letters with each neck: all show.
+4. Other garments' neck choices (jersey, tee, polo) still work.
+---
+
+---
+**Order form: paste and fill (2026-11-13, website and app)**
+1. Orders > new order: paste "XS x 3 , S x 5 , M x 5 , L x 5 , XL x 8 , 2XL x 8 , 3XL x 6 , 4xl x 5 , 5XL x 5" and press "Fill my order": 50 garments, each size right.
+2. Paste a list of names with numbers and sizes: the players fill in.
+3. Paste a screenshot of a list (website: Ctrl+V; app: "Add a screenshot or photo"): read the same way.
+4. "Please check" lists anything it couldn't read; Undo puts the form back.
+---

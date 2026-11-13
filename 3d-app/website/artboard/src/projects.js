@@ -13,7 +13,8 @@
 //   host -> artboard  host {docs: true, signedIn, kit: {name, garment, artboards: [ids]}, garments: [{id, name,
 //                     parts}], placements: [{id, label, part}]}: the account is there (sent when ready, and again
 //                     after signing in or out)
-//   host -> artboard  openDoc {id}: the Studio's "Edit in Artboard" (the design an artwork layer came from)
+//   host -> artboard  openDoc {id}: the Studio's "Edit in Artboard" (the design an artwork layer came from);
+//                     openDoc {id, from: 'assets', version}: a design picked on the Assets page (as File > Open)
 //   artboard -> host  {type: 'signin'}: the host shows its sign-in
 //   artboard -> host  {type: 'artwork', data, name, artboard, target: {kind: 'current' | 'garment' | 'project',
 //                     garment, project}, placement}: Send to 3D Studio. `artboard` is the design's id in the account:
@@ -295,13 +296,21 @@ export function createProjects(ctx) {
     toast(from === 'kit' ? `“${d.name}” is open: change it, then Send to 3D Studio to update it on the kit` : `Opened “${d.name}” from your account`, 5000);
     return true;
   }
-  /** The Studio's Edit in Artboard: the design an artwork layer came from. */
+  /**
+   * A design the host opens: the Studio's Edit in Artboard (the design an artwork layer came from) or, with from
+   * 'assets', one picked on the Assets page (website and app), opened as File > Open from my account does. `version`:
+   * the one the Assets page listed; the page opens it again when it has an older one.
+   */
   function openDoc(arg) {
     const id = Number(arg?.id ?? arg);
     if (!(id > 0)) return;
-    if (doc.id === id) { toast(`“${doc.name}” is open: change it, then Send to 3D Studio to update it on the kit`, 5000); return; }
-    if (!host?.signedIn) { needSignIn(() => openDoc(id)); return; }
-    openFromAccount(id, { from: 'kit' });
+    const assets = arg?.from === 'assets', listed = Number(arg?.version) || null;
+    if (doc.id === id && (!assets || (!doc.dirty && (!listed || listed === doc.version)))) {
+      toast(assets ? `“${doc.name}” is already open` : `“${doc.name}” is open: change it, then Send to 3D Studio to update it on the kit`, 5000);
+      return;
+    }
+    if (!host?.signedIn) { needSignIn(() => openDoc(arg)); return; }
+    openFromAccount(id, { from: assets ? 'list' : 'kit' });
   }
   /** A new design from a template (built-in or the user's own): not in the account until saved. */
   async function useTemplate(json, name) {

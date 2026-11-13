@@ -53,6 +53,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::get('/address/suggest', [AddressController::class, 'suggest']);
     Route::post('/orders/assist', [OrderController::class, 'assist'])->middleware('throttle:assist');
     Route::post('/orders/read-notes', [OrderController::class, 'readNotes'])->middleware('throttle:assist');
+    // "Paste your order here" (ORDERPASTE): 3DEEZI AI for signed-in customers, the built-in reading otherwise.
+    Route::post('/orders/fill', \App\Http\Controllers\OrderFillController::class)->middleware('throttle:assist');
     // The Order Assistant (task TL-3): collates sheets, notes and pictures into an order, a share page, a PDF and an Excel.
     // Open to visitors (sheets and typed notes, no AI); the token is the share link.
     Route::post('/order-assistant', [\App\Http\Controllers\OrderAssistController::class, 'store'])->middleware('throttle:assist');
@@ -61,6 +63,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::get('/order-assistant/{assist}/pdf', [\App\Http\Controllers\OrderAssistController::class, 'pdf'])->where('assist', '[A-Za-z0-9]{40}');
     Route::get('/order-assistant/{assist}/xlsx', [\App\Http\Controllers\OrderAssistController::class, 'xlsx'])->where('assist', '[A-Za-z0-9]{40}');
     Route::get('/order-assistant/{assist}/designs/{n}', [\App\Http\Controllers\OrderAssistController::class, 'design'])->where('assist', '[A-Za-z0-9]{40}')->whereNumber('n');
+    // The order form maker's form corrected in place (names, colourways, sizes): no AI (client 2026-11-13).
+    Route::post('/order-assistant/{assist}/form', [\App\Http\Controllers\OrderAssistController::class, 'form'])->where('assist', '[A-Za-z0-9]{40}')->middleware('throttle:60,1');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);

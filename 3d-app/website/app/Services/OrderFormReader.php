@@ -36,9 +36,28 @@ class OrderFormReader
         } catch (Throwable) {
             return null;
         }
-        if ($rows === null) {
+        return $rows === null ? null : $this->fromRows($rows);
+    }
+
+    /**
+     * Cells copied from a spreadsheet and pasted as text (a tab between cells, a line per row), read like an uploaded
+     * sheet. Null unless at least two lines have cells.
+     *
+     * @return array<string, mixed>|null the same shape as suggest()
+     */
+    public function cells(string $text): ?array
+    {
+        $lines = array_slice(preg_split('/\r\n|\r|\n/', mb_substr($text, 0, 200000)) ?: [], 0, self::MAX_ROWS);
+        if (count(array_filter($lines, fn ($l) => str_contains($l, "\t"))) < 2) {
             return null;
         }
+
+        return $this->fromRows(array_map(fn ($l) => explode("\t", $l), $lines));
+    }
+
+    /** suggest() for the rows of cells read from the file. */
+    private function fromRows(array $rows): array
+    {
         $rows = array_values(array_filter(array_map(fn ($r) => array_map(fn ($c) => trim((string) $c), array_slice($r, 0, self::MAX_COLUMNS)), $rows),
             fn ($r) => implode('', $r) !== ''));
         $result = $this->table($rows);
@@ -75,7 +94,7 @@ class OrderFormReader
         $withSport = function (array $g) use (&$sport): array {
             return ($g['sport'] ?? null) || ! $sport ? $g : ['sport' => $sport] + $g;
         };
-        $lines = array_slice(preg_split('/\r\n|\r|\n/', mb_substr($text, 0, 20000)) ?: [], 0, self::MAX_ROWS);
+        $lines = array_slice(preg_split('/\r\n|\r|\n/', self::joinSpacedSizes(mb_substr($text, 0, 20000))) ?: [], 0, self::MAX_ROWS);
         // Several sentences on one line ("Rugby league jerseys: 5 S, 10 M. Netball dress x 12 size 12"): each its own
         // line (bug QA9 2026-11-10). Not after an initial ("J. Wallace") or "No." / "St."; "5 M.", "2 x L." and ". 5 hoodies" split.
         $sentences = [];
@@ -88,9 +107,15 @@ class OrderFormReader
         $expanded = [];
         foreach ($lines as $raw) {
             $one = trim($raw);
-            if (preg_match('/^([^:\d]{2,60}):\s*(\S.*)$/u', $one, $m) && ($this->garment($m[1]) || OrderAnalysis::sportOf($m[1]))) {
-                $expanded[] = $m[1];
-                $one = $m[2];
+            if (preg_match('/^([^:\d]{2,60}):\s*(\S.*)$/u', $one, $m)) {
+                // "Polo XS: 2, S: 4": the size before the colon is the first size, not part of the heading (LINKTEST r1).
+                if (preg_match('/^(.*\S)\s+(x{0,3}[sml]|[2-8]xl|xxs)$/iu', trim($m[1]), $last)) {
+                    $m = [$m[0], $last[1], $last[2].': '.$m[2]];
+                }
+                if ($this->garment($m[1]) || OrderAnalysis::sportOf($m[1])) {
+                    $expanded[] = $m[1];
+                    $one = $m[2];
+                }
             }
             $parts = array_values(array_filter(array_map('trim', preg_split('/[,;]/u', $one) ?: []), fn ($p) => $p !== ''));
             if (count($parts) > 1 && count(array_filter($parts, fn ($p) => $this->playerOf($p) !== null)) === count($parts)) {
@@ -126,7 +151,9 @@ class OrderFormReader
             }
             $heading = null;
         };
-        $sizeWord = '([0-9]{0,1}x{0,3}[sml]|[2-7]xl|xxs|xs|y?\d{1,2}y?|kids?|youth|small|medium|large|extra\s*large)';
+        // Womens W8 to W24 ("W12", "12W", "Womens 12", "Ladies 12") and kids ("10Y", "Y10", "Kids 10", "Youth 10") too:
+        // "W12: 3, 10Y = 2" is W12 3 and 10Y 2 (ORDERFORMGEN 2026-11-13).
+        $sizeWord = '((?:womens?|ladies|lds|kids?|youth|yth)\s?\d{1,2}|w\d{1,2}|\d{1,2}w|[0-9]{0,1}x{0,3}[sml]|[2-7]xl|xxs|xs|y?\d{1,2}y?|kids?|youth|small|medium|large|extra\s*large)';
         foreach ($lines as $raw) {
             $line = trim(preg_replace('/[•*\t]+/u', ' ', $raw) ?? $raw, " \t-–—:;.");
             if ($line === '') {
@@ -164,53 +191,25 @@ class OrderFormReader
 
                 continue;
             }
-            $pairs = [];
-            $numberFirst = function (string $text) use (&$pairs, $sizeWord): string {
-                // "3 x 4XL", "3x 4XL", "3 4XL", "3 of 4XL"
-                return preg_replace_callback('/(?<![\w])(\d{1,4})(?:\s*(?:×|of|pcs?)\s*|\s+x\s+|x\s+|\s+)?'.$sizeWord.'(?![\w])/iu', function ($m) use (&$pairs) {
-                    $size = $this->cellSize($m[2]);
-                    if (! $size) {
-                        return $m[0];
-                    }
-                    // "3XL" glued: the size 3XL (one of it), not three XL.
-                    if (preg_match('/^\d{1,4}x{1,3}[sml]$/i', $m[0]) && ($glued = OrderFormAi::siteSize($m[0]))) {
-                        $pairs[] = [$glued, 1];
-
-                        return ' ';
-                    }
-                    $pairs[] = [$size, (int) $m[1]];
-
-                    return ' ';
-                }, $text) ?? $text;
-            };
-            $sizeFirst = function (string $text) use (&$pairs, $sizeWord): string {
-                // "4XL x 3", "4xl - 3", "4XL: 3", "L 4"
-                return preg_replace_callback('/(?<![\w])'.$sizeWord.'\s*(?:x|×|-|–|:|=)?\s*(\d{1,4})(?![\w])/iu', function ($m) use (&$pairs) {
-                    $size = $this->cellSize($m[1]);
-                    if (! $size) {
-                        return $m[0];
-                    }
-                    $pairs[] = [$size, (int) $m[2]];
-
-                    return ' ';
-                }, $text) ?? $text;
-            };
-            // A line that starts with a size ("4XL x 3") is size first; else number first ("3 x 4XL").
-            $startsWithSize = preg_match('/^'.$sizeWord.'(?![\w])/iu', $line) === 1 && $this->cellSize(preg_split('/[\s:×=\-–]+/u', $line)[0] ?? '');
-            $rest = $startsWithSize ? $sizeFirst($line) : $numberFirst($line);
-            if (! $pairs) {
-                $rest = $startsWithSize ? $numberFirst($line) : $sizeFirst($line);
-            }
+            [$pairs, $rest] = $this->sizePairs($line, $sizeWord);
             $words = trim(preg_replace('/\s+/', ' ', preg_replace('/[,;:()\-–]+/', ' ', $rest) ?? '') ?? '');
             if ($pairs) {
                 // "3 x 4XL polo": the garment on the line itself.
                 $garment = $withSport(($words !== '' ? $this->garment($words) : null) ?? $section ?? ['garment' => 'jersey']);
                 foreach ($pairs as [$size, $n]) {
-                    $this->add($items, $garment, [$size => min(10000, max(1, $n))]);
+                    // Womens and kids sizes are a garment of their own fit ("W12: 3, 10Y = 2": womens W12 3, kids 10Y 2).
+                    $fit = empty($garment['fit']) ? Order::fitFromSizes([$size => 1]) : null;
+                    $this->add($items, $fit ? ['fit' => $fit] + $garment : $garment, [$size => min(10000, max(1, $n))]);
                 }
+                // "I need 50 jerseys: XS x 3, S x 5 …": a total written beside the sizes that they don't add up to is shown to check.
                 // Two garments left on one line ("jerseys 3 x M 5 hoodies L"): read as one, so it is shown to check.
                 if (count(OrderAnalysis::garmentsIn($words)) > 1) {
                     $unknown[] = mb_substr($line, 0, 80).' (several garments on one line: please check)';
+                } elseif (($said = $this->statedTotal($words)) !== null && $said !== ($read = array_sum(array_column($pairs, 1)))) {
+                    $unknown[] = "You wrote {$said}, but the sizes add up to {$read}: please check the quantities.";
+                } elseif ($this->leftoverNumbers($rest, $said)) {
+                    // Never silently wrong (LINKTEST r1): a number left over on a size line was not read.
+                    $unknown[] = mb_substr($line, 0, 80).' (part of this line was not read: please check the sizes)';
                 }
 
                 continue;
@@ -232,10 +231,176 @@ class OrderFormReader
         }
         $emptyHeading();
         $items = array_values(array_filter($items, fn ($item) => array_sum(array_map('intval', $item['sizes'] ?? [])) > 0));
+        [$items, $unsized] = $this->shareSport($text, $items, $unsized, $unknown);
         $items = array_map(fn ($item) => $item + ['name' => Order::itemName($item)], $items);
+        $unsized = array_map(fn ($u) => $u + ['name' => Order::itemName($u)], $unsized);
 
         return ['items' => $items, 'players' => $count, 'unknown' => array_slice($unknown, 0, 20), 'rows' => count($lines),
             'summary' => $this->assistant->summary($items), 'source' => 'notes', 'unsized' => $unsized];
+    }
+
+    /**
+     * The one sport a message names, for the garments read with no sport of their own ("Football jerseys 3 x M" then
+     * "5 hoodies": Football hoodies). Never a sport only in a part left unread, and when another garment named that sport
+     * itself, only if the garment stays the same kind: "Jerseys: 4 S, 6 M" then an empty "Netball dresses" heading, or
+     * "Jerseys 4 S. Netball dress x 12", keeps jerseys (a netball jersey would be the Netball dress; bug 2026-11-10).
+     *
+     * @return array{0: array, 1: array} the items (the same garment and sport joined) and the garments with no size
+     */
+    private function shareSport(string $text, array $items, array $unsized, array $unknown): array
+    {
+        $sports = OrderAnalysis::sportsIn($text);
+        if (count($sports) !== 1) {
+            return [$items, $unsized];
+        }
+        $readText = $text;
+        foreach ($unknown as $u) {
+            if (! in_array($u, array_column($unsized, 'text'), true)) {
+                $readText = str_ireplace(preg_replace('/\s*\([^()]*\)$/u', '', (string) $u) ?? (string) $u, ' ', $readText);
+            }
+        }
+        if (OrderAnalysis::sportsIn($readText) !== $sports) {
+            return [$items, $unsized];
+        }
+        $sport = $sports[0];
+        $ownSport = (bool) array_filter(array_merge($items, $unsized), fn ($i) => ! empty($i['sport']));
+        $share = function (array $i) use ($sport, $ownSport): array {
+            if (empty($i['sport'])) {
+                $garment = (string) ($i['garment'] ?? 'other');
+                $name = (string) ($i['label'] ?? '') ?: (OrderAnalysis::PRODUCT_NAMES[$garment] ?? 'Garment');
+                if (! $ownSport || OrderAnalysis::garmentOf(OrderAnalysis::model($sport, $garment, $name)) === $garment) {
+                    $i['sport'] = $sport;
+                }
+            }
+
+            return $i;
+        };
+        $joined = [];
+        foreach (array_map($share, $items) as $item) {
+            $key = implode('|', [$item['garment'], $item['sport'] ?? '', $item['fit'] ?? '', $item['label'] ?? '']);
+            if (! isset($joined[$key])) {
+                $joined[$key] = $item;
+
+                continue;
+            }
+            foreach ($item['sizes'] as $size => $n) {
+                $joined[$key]['sizes'][$size] = ($joined[$key]['sizes'][$size] ?? 0) + $n;
+            }
+            if (! empty($item['players'])) {
+                $joined[$key]['players'] = array_merge($joined[$key]['players'] ?? [], $item['players']);
+            }
+        }
+
+        return [array_values($joined), array_map($share, $unsized)];
+    }
+
+    /**
+     * The size-and-quantity pairs on a line, read both ways, number first ("3 x 4XL", "3 XS") and size first ("XS x 3",
+     * "XS-3", "XS: 3", "L 4"); the reading with more real quantities wins. A glued "2XL" in the number-first reading is
+     * the size 2XL with no quantity (one), so "XS x 3, …, 2XL x 8" is never read as "2XL 1" (order 537, 2026-11-13:
+     * 50 garments came out as 4). Equal: a line that starts with a size is size first, else number first.
+     *
+     * @param  bool  $whole  read the text as one part (pairs keep their third value: true when no quantity was written)
+     * @return array{0: array<int, array{0: string, 1: int}>, 1: string} the pairs [size, quantity] and the line's other words
+     */
+    private function sizePairs(string $line, string $sizeWord, bool $whole = false): array
+    {
+        $numberFirst = function (string $text, array &$pairs) use ($sizeWord): string {
+            // "3 x 4XL", "3x 4XL", "3 4XL", "3 of 4XL"; "2xS", "4xM" (two S, four M)
+            return preg_replace_callback('/(?<![\w])(\d{1,4})(?:\s*(?:×|of|pcs?)\s*|\s+x\s+|x\s+|x(?=[sm](?![\w]))|\s+)?'.$sizeWord.'(?![\w])/iu', function ($m) use (&$pairs) {
+                $size = $this->cellSize($m[2]);
+                if (! $size) {
+                    return $m[0];
+                }
+                // "3XL" glued: the size 3XL (one of it, no quantity written), not three XL.
+                if (preg_match('/^\d{1,4}x{1,3}l$/i', $m[0]) && ($glued = OrderFormAi::siteSize($m[0]))) {
+                    $pairs[] = [$glued, 1, true];
+
+                    return ' ';
+                }
+                // A written "x", "of" or "pcs" between them: the reading is surer than with a space only.
+                $pairs[] = [$size, (int) $m[1], false, (bool) preg_match('/^\d+\s*(?:x|×|of|pcs?)/iu', $m[0])];
+
+                return ' ';
+            }, $text) ?? $text;
+        };
+        $sizeFirst = function (string $text, array &$pairs) use ($sizeWord): string {
+            // "4XL x 3", "4xl - 3", "4XL: 3", "L 4"
+            return preg_replace_callback('/(?<![\w])'.$sizeWord.'\s*(?:x|×|-|–|:|=)?\s*(\d{1,4})(?![\w])/iu', function ($m) use (&$pairs) {
+                $size = $this->cellSize($m[1]);
+                if (! $size) {
+                    return $m[0];
+                }
+                $pairs[] = [$size, (int) $m[2], false, (bool) preg_match('/[x×\-–:=]\s*\d+$/iu', $m[0])];
+
+                return ' ';
+            }, $text) ?? $text;
+        };
+        $bySize = [];
+        $byNumber = [];
+        $restBySize = $sizeFirst($line, $bySize);
+        $restByNumber = $numberFirst($line, $byNumber);
+        $real = fn (array $pairs) => count(array_filter($pairs, fn ($p) => ! $p[2]));
+        // Equal: the reading that follows the written "x" / ":" / "-" ("XS x 3 S x 5" is XS 3, S 5, never 3 S, 5 M).
+        $written = fn (array $pairs) => count(array_filter($pairs, fn ($p) => ! $p[2] && ! empty($p[3])));
+        if ($real($bySize) !== $real($byNumber)) {
+            $useSize = $real($bySize) > $real($byNumber);
+        } elseif ($written($bySize) !== $written($byNumber)) {
+            $useSize = $written($bySize) > $written($byNumber);
+        } else {
+            $startsWithSize = preg_match('/^'.$sizeWord.'(?![\w])/iu', $line) === 1 && $this->cellSize(preg_split('/[\s:×=\-–]+/u', $line)[0] ?? '');
+            $useSize = $startsWithSize ? $bySize || ! $byNumber : ! $byNumber && $bySize;
+        }
+        [$pairs, $rest] = $useSize ? [$bySize, $restBySize] : [$byNumber, $restByNumber];
+        // Parts split by commas may be written each their own way ("3 x XS, 5 S, M-5, L: 5"): read part by part when
+        // that finds more.
+        $parts = preg_split('/\s*[,;]\s*/u', $line) ?: [];
+        if (! $whole && count($parts) > 1) {
+            $each = array_map(fn ($p) => $this->sizePairs($p, $sizeWord, true), $parts);
+            $eachPairs = array_merge(...array_column($each, 0));
+            if ($real($eachPairs) > $real($pairs)) {
+                [$pairs, $rest] = [$eachPairs, implode(', ', array_column($each, 1))];
+            }
+        }
+
+        return [$whole ? $pairs : array_map(fn ($p) => [$p[0], $p[1]], $pairs), $rest];
+    }
+
+    /**
+     * "3 XL x 5", "2 XL - 4", "3 XL: 2", "3 XL 5," (a space inside the size, a quantity after it) as "3XL x 5" (LINKTEST r1:
+     * the client's own message had "3 XL X 5", read as XL). "3 XL, 5 L" and "3 XL 5 L" stay three XL.
+     */
+    public static function joinSpacedSizes(string $text): string
+    {
+        return preg_replace('/(?<![\w.])([2-8])[ \t]+(xl)(?=[ \t]*(?:[x×:=\-–][ \t]*\d{1,4}(?![\w])|\d{1,4}[ \t]*(?:[,;.]|$)))/imu', '$1$2', $text) ?? $text;
+    }
+
+    /**
+     * Numbers or sizes left on a size line after its sizes were read ("XS: 2" or a last "M x" not read), other than a
+     * total written ($said).
+     */
+    private function leftoverNumbers(string $rest, ?int $said): bool
+    {
+        preg_match_all('/(?<![\w#\/.:\-])\d{1,4}(?![\w\/.:\-]|\s*(?:am|pm)\b)/iu', $rest, $all);
+
+        return (bool) array_filter($all[0], fn ($n) => (int) $n !== $said)
+            || preg_match('/(?<![\w.\'’])(?:x{0,3}[sml]|xs|[2-8]xl)(?![\w.\'’])/iu', $rest) === 1;
+    }
+
+    /** A total written beside sizes ("i need 50 jerseys", "40 in total", "total 40"), or null. */
+    private function statedTotal(string $words): ?int
+    {
+        if (preg_match('/(?<![\w.])(\d{1,4})\s+(?:in\s+(?:total|all)\b|total\b|garments?\b|items?\b|pieces?\b|pcs\b|units?\b)/iu', $words, $m)
+            || preg_match('/\btotal\s*(?:of\s*)?(\d{1,4})(?![\d.])/iu', $words, $m)) {
+            return (int) $m[1];
+        }
+        // "i need 9 polos …" (not "U13 jerseys"): the number, then a garment in the next word or two.
+        if (preg_match_all('/(?<![\w.])(\d{1,4})\s+([\p{L}]+)(?:\s+([\p{L}]+))?/u', $words, $all, PREG_SET_ORDER) === 1
+            && ($this->garment($all[0][2]) || (($all[0][3] ?? '') !== '' && $this->garment($all[0][2].' '.$all[0][3])))) {
+            return (int) $all[0][1];
+        }
+
+        return null;
     }
 
     /** A player line ("Smith 7 M", "7 Smith M", "J. Wallace - 12 - XL") as [name, number|null, size], or null. */

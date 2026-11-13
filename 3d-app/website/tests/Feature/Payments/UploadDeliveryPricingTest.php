@@ -72,6 +72,29 @@ class UploadDeliveryPricingTest extends TestCase
         $this->assertSame('PICKUP', \App\Services\Pricing\PricingService::destinationFromAddress(OrderDelivery::PICKUP_TEXT, ['AU' => 'Australia']));
     }
 
+    public function test_pick_up_never_pays_the_region_chosen_before_switching(): void
+    {
+        // The review: Australia chosen under "Delivery to" ($100 shipping), then Pick up. No shipping on the quote.
+        $q = $this->postJson('/api/v1/pricing/quote', ['items' => [['garment' => 'jersey', 'sizes' => ['M' => 10]]], 'pricing' => ['destination' => 'AU'], 'delivery' => 'pickup'])->assertOk()->json('data');
+        $this->assertSame(['0.00', 'PICKUP', 'Pick up', '550.00'], [$q['shipping']['amount'], $q['shipping']['destination'], $q['shipping']['name'], $q['total']]);
+        // Placed that way: picked up, and the invoice (what the pay page charges) has no shipping.
+        $order = $this->place(['delivery' => 'pickup', 'pricing' => ['destination' => 'AU']], 'pickup-region-1');
+        $this->assertSame(OrderDelivery::PICKUP_TEXT, $order['shipping_address']);
+        $placed = Order::findOrFail($order['id']);
+        $this->assertSame('PICKUP', $placed->pricing['destination'] ?? null);
+        $invoice = $placed->invoices()->latest('id')->first();
+        $this->assertNotNull($invoice);
+        $this->assertSame(0, data_get($invoice->quote, 'shipping.amount_cents'));
+        $this->assertSame(55000, $invoice->total_cents, '10 jerseys at $50 and GST, no shipping');
+        // An order saved with a region but picked up (its pick-up note) is priced without that region's shipping too.
+        $placed->forceFill(['pricing' => ['destination' => 'AU']])->save();
+        $pricing = app(\App\Services\Pricing\PricingService::class);
+        $again = $pricing->quote($pricing->requestFor($placed->fresh()));
+        $this->assertSame([0, 'PICKUP'], [$again['shipping']['amount_cents'], $again['shipping']['destination']]);
+        // Delivering to Australia still pays its shipping.
+        $this->assertSame('100.00', $this->postJson('/api/v1/pricing/quote', ['items' => [['garment' => 'jersey', 'sizes' => ['M' => 10]]], 'pricing' => ['destination' => 'AU'], 'delivery' => 'deliver'])->assertOk()->json('data.shipping.amount'));
+    }
+
     public function test_the_country_chooses_the_destination_and_each_gets_its_price(): void
     {
         $this->rule(['kind' => 'shipping', 'code' => 'NZ', 'name' => 'New Zealand', 'amount_cents' => 25000, 'taxable' => false]);

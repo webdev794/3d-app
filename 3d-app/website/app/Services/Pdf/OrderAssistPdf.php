@@ -51,6 +51,10 @@ final class OrderAssistPdf
 
     public function render(): string
     {
+        // An order made from design pictures and one prompt (the order form maker): the design order form.
+        if (is_array($this->a['form'] ?? null)) {
+            return (new DesignOrderPdf($this->assist))->render();
+        }
         $this->cover();
         foreach ($this->a['groups'] ?? [] as $g) {
             $this->groupPage($g);

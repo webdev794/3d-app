@@ -29,13 +29,19 @@ const LAYOUTS = {
   two: { band: 0.034, hoops: [[0.034, 0.052], [0.064, 0.081]], ankle: false, toeLine: false, crest: [0.14, 0.07] },
   wide: { band: 0.03, hoops: [[0.03, 0.055], [0.069, 0.095]], ankle: false, toeLine: false, crest: [0.165, 0.08] },
   rugby: { band: 0.037, hoops: [[0.043, 0.09]], ankle: true, toeLine: true, crest: [0.215, 0.07] },
+  // (RGSOCKS 2026-11-13: the Rugby League socks' own model (Tripo, design.zoneColors.rlSocks): the top band is the model's
+  // knitted welt, down to its seam 6.4 cm under the top (`welt`: the seam's painted fold there too); two hoops under it in
+  // the trim colour; the toe cap as the general picture's and a round heel cup on the back only (`heel`: its half-width
+  // round the heel; the model's heel is sharper than the made one's, the cup's front ends would meet it unevenly); the
+  // "3" small, high on the shin, as the client's booklet picture's logo.)
+  model: { band: 0.064, welt: 0.064, hoops: [[0.074, 0.09], [0.1, 0.116]], ankle: false, toeLine: false, crest: [0.15, 0.05], heel: 0.055 },
 };
 const HEX = /^#[0-9a-f]{6}$/i;
 let layout = LAYOUTS.two;
 /** Picks the layout for a design (texture.js calls it before painting, so the parts' regions follow it). */
 export function setSockLayout(design) {
   const zc = design?.zoneColors ?? {};
-  layout = HEX.test(zc.sockToeLine ?? '') ? LAYOUTS.rugby : HEX.test(zc.sockHoopsWide ?? '') ? LAYOUTS.wide : LAYOUTS.two;
+  layout = HEX.test(zc.rlSocks ?? '') ? LAYOUTS.model : HEX.test(zc.sockToeLine ?? '') ? LAYOUTS.rugby : HEX.test(zc.sockHoopsWide ?? '') ? LAYOUTS.wide : LAYOUTS.two;
 }
 const HOOPS = () => [...layout.hoops.map(([a, b]) => [L - b, L - a]), ...(layout.ankle ? ANKLE : [])];
 /** The thin line across the top of the forefoot, where the toes start (Rugby). */
@@ -49,18 +55,20 @@ const HEEL = { cy: SOCK_FOOT.heel + (SOCK_FOOT.ankle - SOCK_FOOT.heel) * 0.45, r
 export const SOCK_CREST = { side: 'front', x: 0, y: L - 0.18 };
 
 const box = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-const heelPoly = () => Array.from({ length: 40 }, (_, i) => { const a = (i / 40) * 2 * Math.PI; return [HEEL.rx * Math.cos(a), HEEL.cy + HEEL.ry * Math.sin(a)]; });
+const heelRx = () => layout.heel ?? HEEL.rx;
+const heelPoly = () => Array.from({ length: 40 }, (_, i) => { const a = (i / 40) * 2 * Math.PI; return [heelRx() * Math.cos(a), HEEL.cy + HEEL.ry * Math.sin(a)]; });
 /** The cup's ends round the sides of the ankle (on the front panel, at its side seams), so the cyan shows each side of
  *  the ankle from the front, as in the general picture (FN4). */
 const SIDE = { x: 0.07, cy: HEEL.cy - 0.002, rx: 0.026, ry: 0.04 };
 // (The back cup reaches its side seams, rx 0.09, about as deep there as the side ends, so the two meet there in one cup.)
 const sidePoly = (dir) => Array.from({ length: 32 }, (_, i) => { const a = (i / 32) * 2 * Math.PI; return [dir * SIDE.x + SIDE.rx * Math.cos(a), SIDE.cy + SIDE.ry * Math.sin(a)]; });
-const inSide = (x, y) => ((Math.abs(x) - SIDE.x) / SIDE.rx) ** 2 + ((y - SIDE.cy) / SIDE.ry) ** 2 <= 1;
+const inSide = (x, y) => !layout.heel && ((Math.abs(x) - SIDE.x) / SIDE.rx) ** 2 + ((y - SIDE.cy) / SIDE.ry) ** 2 <= 1;
+const sides = () => (layout.heel ? [] : [sidePoly(1), sidePoly(-1)]);
 const band = () => [box(-1, L - layout.band, 1, L + 1)];
 const hoops = () => HOOPS().map(([a, b]) => box(-1, a, 1, b));
 const toe = (back) => (layout.toeLine ? (back ? [] : [box(-1, TOE_LINE[0], 1, TOE_LINE[1])]) : [box(-1, -0.2, 1, TOE_CAP)]);
-const foot = (back) => [...toe(back), ...(back ? [heelPoly()] : [sidePoly(1), sidePoly(-1)])];
-const inHeel = (x, y) => (x / HEEL.rx) ** 2 + ((y - HEEL.cy) / HEEL.ry) ** 2 <= 1;
+const foot = (back) => [...toe(back), ...(back ? [heelPoly()] : sides())];
+const inHeel = (x, y) => (x / heelRx()) ** 2 + ((y - HEEL.cy) / HEEL.ry) ** 2 <= 1;
 const inToe = (back, y) => (layout.toeLine ? !back && y >= TOE_LINE[0] && y <= TOE_LINE[1] : y <= TOE_CAP);
 
 /** The part at a print point. */
@@ -75,7 +83,7 @@ export function sockPartAt(side, x, y) {
 /** A part's region on one side (zones.js partRegion's shape: outlines to keep, groups to cut out). */
 export function sockRegion(key, back) {
   if (key === 'sockBand') return { keep: band(), cut: [] };
-  if (key === 'sockHoops') return { keep: hoops(), cut: back ? [[heelPoly()]] : [[sidePoly(1)], [sidePoly(-1)]] };
+  if (key === 'sockHoops') return { keep: hoops(), cut: back ? [[heelPoly()]] : sides().map((p) => [p]) };
   if (key === 'sockFoot') return { keep: foot(back), cut: [] };
   if (key === (back ? 'back' : 'front')) return { keep: [box(-1.6, -0.2, 1.6, 1.6)], cut: [band(), hoops(), foot(back)] };
   return null;
@@ -152,10 +160,11 @@ function ribShade(g) {
   g.restore();
 }
 
-/** How the socks are made: the toe's linking seam across the foot, the welt's turned-in edge (painted and relief). */
-export function sockTailoring() {
+/** How the socks are made: the toe's linking seam across the foot, the welt's turned-in edge (painted and relief).
+ *  `model`: the Rugby League socks' model (its welt's seam lower: LAYOUTS.model; RGSOCKS). */
+export function sockTailoring(model = false) {
   const line = (y) => (c) => { c.moveTo(-0.4, y); c.lineTo(0.4, y); };
-  return { stitches: [], seams: [line(SOCK_FOOT.toe - 0.012)], folds: [line(L - SOCK_WELT)] };
+  return { stitches: [], seams: [line(SOCK_FOOT.toe - 0.012)], folds: [line(L - (model ? LAYOUTS.model.welt : SOCK_WELT))] };
 }
 
 /** The 3DEEZI "3" mark (the app's splash mark, images/splash_mark.png) as outlines, 400 x 255 units, y down: its silver

@@ -9,8 +9,13 @@ const UploadIcon = () => <svg {...line}><path d="M4 14.5v4a2 2 0 0 0 2 2h12a2 2 
 /** A board with two columns: the orders and their progress. */
 const BoardIcon = () => <svg {...line}><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><path d="M12 8v8M5.5 9H9M5.5 12H9M15 9h3M15 12h2.5" /><path d="M5.5 15h2" opacity=".5" /></svg>;
 
+/** Pages with a sheet: the order form maker (design pictures + one message -> a PDF order form). */
+const MakerIcon = () => <svg {...line}><rect x="4" y="3" width="13" height="17" rx="2" /><path d="M7.5 7.5h6M7.5 11h6M7.5 14.5h3.5" /><path d="M19.5 9.5q.5 2.4 2.5 3-2 .5-2.5 3-.5-2.5-2.5-3 2-.6 2.5-3Z" fill="currentColor" strokeWidth={1} /></svg>;
+
 const items: NavMenuItem[] = [
   { to: '/orders/new', title: 'Create Order Form', text: 'Build an order with 3DEEZI Assist', Icon: FormIcon },
+  // (User 2026-11-13, questions.md: "Order form maker" in the ORDERS menu; the Orders page cards stay as approved.)
+  { to: '/orders/assistant', title: 'Order Form Maker', text: 'Your design pictures + one message: a PDF order form', Icon: MakerIcon },
   { to: '/orders/upload', title: 'Upload Your Order', text: 'Submit your form and artwork', Icon: UploadIcon },
   { to: '/orders', title: 'My Orders', text: 'View your orders and progress', Icon: BoardIcon },
 ];

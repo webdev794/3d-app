@@ -4,7 +4,7 @@ import { ArrowRight, Clock3, FileText, Info, LoaderCircle, Plus, RefreshCw, Sear
 import { orderApi } from '../orderApi';
 import { OrderPageHeader } from '../components/OrderPageParts';
 import OrderDetailDrawer, { type DetailFocus } from '../components/OrderDetail';
-import { GarmentPicture, PaymentPill, STAGES, StatusPill, cardLine, displayRef, ownOrderName, payPath, plural, readBoard, unitWord, shortDate, type BoardData, type BoardOrder, type OrderDetail, type StageKey } from '../components/orderBoardModel';
+import { GarmentPicture, PaymentPill, STAGES, StatusPill, cardLine, displayRef, garmentsLine, garmentsTitle, ownOrderName, payPath, plural, readBoard, unitWord, shortDate, type BoardData, type BoardOrder, type OrderDetail, type StageKey } from '../components/orderBoardModel';
 import '../../css/orders-board.css';
 
 type View = 'current' | 'completed';
@@ -305,13 +305,24 @@ function CompletedOrders({ board, onOpen, searching }: { board: BoardData; onOpe
   </div>;
 }
 
+/**
+ * A draft's name: the team name, else what it holds and when it was started ("Rugby League Jersey · 25 · draft from
+ * 11 Nov"; QA10 2026-11-11: every unnamed draft was "Untitled order").
+ */
+function draftName(d: BoardData['drafts'][number]) {
+  if (d.title) return d.title;
+  const from = shortDate(d.created_at);
+  const what = d.name || (d.kind === 'upload' ? 'Uploaded order' : 'Order form');
+  return from ? `${what} · draft from ${from}` : what;
+}
+
 /** Order forms and uploads saved but not sent. */
 function Drafts({ drafts }: { drafts: BoardData['drafts'] }) {
   return <section className="ob-drafts" aria-labelledby="ob-drafts-h">
     <h2 id="ob-drafts-h"><FileText size={18} aria-hidden="true" /> Not sent yet <span>{drafts.length}</span></h2>
     <ul>{drafts.map(d => <li key={d.id}>
       <Link to={`/orders/${d.kind === 'upload' ? 'upload' : 'new'}?draft=${d.id}`}>
-        <span><strong>{d.title || 'Untitled order'}</strong><small>{d.kind === 'upload' ? 'Upload' : 'Order form'}{d.updated_at ? ` · saved ${shortDate(d.updated_at)}` : ''}</small></span>
+        <span><strong title={draftName(d)}>{draftName(d)}</strong><small>{d.kind === 'upload' ? 'Upload' : 'Order form'}{d.updated_at ? ` · saved ${shortDate(d.updated_at)}` : ''}</small></span>
         <em>Continue <ArrowRight size={15} /></em>
       </Link>
     </li>)}</ul>
@@ -340,7 +351,7 @@ function OrderCard({ order, compact, onOpen }: { order: BoardOrder; compact: boo
       {pictures.map((g, i) => <GarmentPicture key={`${g.garment}-${i}`} garment={g.garment} thumbnail={g.thumbnail} alt={g.name} />)}
       {more > 0 && <span className="ob-more" title={garments.slice(pictures.length).map(g => g.name).join(', ')}>+{more}</span>}
     </div>
-    <p className="ob-qty">{order.quantity > 0 ? plural(order.quantity, unitWord(order.garments)) : 'Sizes to be confirmed'}{order.needed_by && !order.completed ? ` · required ${new Date(`${order.needed_by}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}` : ''}</p>
+    <p className="ob-qty" title={garmentsTitle(order.garments) || undefined}>{(order.quantity > 0 ? garmentsLine(order.garments, order.quantity) || plural(order.quantity, unitWord(order.garments)) : [garmentsLine(order.garments, 0), 'Sizes to be confirmed'].filter(Boolean).join(' · '))}{order.needed_by && !order.completed ? ` · required ${new Date(`${order.needed_by}T00:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}` : ''}</p>
     <div className="ob-pills"><StatusPill status={order.sub_status} />{order.payment && <PaymentPill payment={order.payment} />}</div>
     {order.stage === 'production' && <MakingLine step={order.sub_status.key} />}
     {!hasButtons && lineEl}

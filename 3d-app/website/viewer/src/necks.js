@@ -4,7 +4,9 @@
 // points of the garment's outline), so the print atlas, the colours, logos and artwork all stay where they are.
 
 /** The garments whose neck can be switched (their own default shape). The full kit's top is the jersey. */
-export const NECK_DEFAULTS = { jersey: 'v', tee: 'round', raglan: 'round', singlet: 'round', 'netball-dress': 'round', 'shooting-shirt': 'v' };
+// (The netball dress: its Tripo model's own round neck; a V cuts the model's neck and binds it, tripomesh.js cutNeck: user
+// 2026-11-13. The old made dress is never shown.)
+export const NECK_DEFAULTS = { jersey: 'v', tee: 'round', raglan: 'round', singlet: 'round', 'shooting-shirt': 'v', 'netball-dress': 'round' };
 
 /**
  * The rugby collar library (client mockup images/300, "Rugby Jersey Studio"): each collar's neck shape and its finish.
@@ -76,15 +78,17 @@ export function roundBack(kind, spec) {
  * where it is (so the shoulders, sleeves and the whole print atlas keep their places); only the opening's foot and its
  * curve change, with the collar band (rim), the open edge and the back neck's line to match.
  */
-export function neckCut(kind, spec, shape) {
+export function neckCut(kind, spec, shape, model = null) {
   if (!shape) return spec;
   const half = spec.half;
   if (kind === 'netball-dress') {
-    // The dress: from the scoop's foot straight up to the strap's inner corner (N), or its own round scoop.
-    const [nx, ny] = spec.points.N, end = half.findIndex(([x, y]) => x === nx && y === ny), foot = half[0][1];
-    const neck = shape === 'round' ? half.slice(0, end + 1)
-      : [[0, foot + (shape === 'shallow' ? 0.03 : 0)], [nx / 2, (foot + (shape === 'shallow' ? 0.03 : 0) + ny) / 2], [nx, ny]];
-    return { ...spec, half: [...neck, ...half.slice(end + 1)], neckShape: shape };
+    // The dress (its Tripo model, user 2026-11-13): only its outline on the pattern (the 2D panels, the print's edge),
+    // its V as the model's own is cut (tripomesh.js DRESS_V, seen on the pattern): from its point, 5 cm under the round
+    // neck's foot, up to where it meets the round neck (6.3 cm out), the round neck on from there. (A point 4 mm out on
+    // the same line keeps the outline's curve from rounding the V's point.)
+    if (shape === 'round') return spec;
+    const from = half.findIndex(([x]) => x > 0.07);
+    return { ...spec, half: [[0, 0.7327], [0.004, 0.7380], [0.0219, 0.7616], [0.0424, 0.7842], [0.063, 0.806], ...half.slice(from)], neckShape: 'v' };
   }
   if (kind === 'singlet') {
     // The singlet: its scoop's foot (0.64) kept; the V straight from it to the strap's inner corner.
@@ -97,10 +101,12 @@ export function neckCut(kind, spec, shape) {
   const [nx, ny] = half[2];
   // (The V: 10 cm deep, straight sides and a sharp point (a point 1 cm out on the same line keeps the spline from
   // rounding it); the shallow V 5 cm, also straight and pointed.)
-  const foot = { round: 0.038, v: 0.1, shallow: 0.05 }[shape];
+  // (A ready-made model's V (the football jersey, fbjersey.js): `model`, its own edge on the pattern as cut in the model
+  // (tripomesh.js tripoNeckOutline), from its point out to its own round neck, which goes on to the shoulder from there.)
+  const foot = model?.length ? ny - model[0][1] : { round: 0.038, v: 0.1, shallow: 0.05 }[shape];
   const tip = ny - foot;
   const on = (x) => [x, tip + (foot * x) / nx];
-  const neck = shape === 'round' ? [[0, tip], [0.05, ny - 0.016]] : [[0, tip], on(0.01), on(nx / 2)];
+  const neck = model?.length ? [...model.filter(([x]) => x < nx - 0.004), ...half.slice(1, 2).filter(([x]) => x > model.at(-1)[0] + 0.004)] : shape === 'round' ? [[0, tip], [0.05, ny - 0.016]] : [[0, tip], on(0.01), on(nx / 2)];
   const drop = foot + 0.006;
   return {
     ...spec,

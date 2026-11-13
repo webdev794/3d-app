@@ -213,6 +213,27 @@ class OrderAssistantReaderTest extends TestCase
         $this->assertSame(['singlet', 'Netball dress', 'W12', 'womens'], [$line['garment'], $line['product'], $line['size'], $line['fit']]);
     }
 
+    /** The order form's "Build my order form" (POST /orders/read-notes, QA 2026-11-10): the dress is named as said, a garment with no sizes is kept with its quantity and sport. */
+    public function test_the_order_form_notes_reading_names_the_dress_and_keeps_garments_with_no_sizes(): void
+    {
+        foreach (['Netball dress x 12 size 12', '12 netball dresses size 12'] as $text) {
+            $items = $this->postJson('/api/v1/orders/read-notes', ['text' => $text])->assertOk()->json('data.items');
+            $this->assertCount(1, $items, $text);
+            $this->assertSame(['singlet', 'netball', 'Netball dress', ['W12' => 12], 'Netball dress'],
+                [$items[0]['garment'], $items[0]['sport'], $items[0]['label'], $items[0]['sizes'], $items[0]['name']], $text);
+        }
+        $data = $this->postJson('/api/v1/orders/read-notes', ['text' => "Football jerseys 3 x M\n5 hoodies"])->assertOk()->json('data');
+        $this->assertSame([['jersey', 'football', ['M' => 3]]], array_map(fn ($i) => [$i['garment'], $i['sport'], $i['sizes']], $data['items']));
+        $this->assertSame(['hoodie', 'football', 5, '5 hoodies', 'Football Hoodie'],
+            [$data['unsized'][0]['garment'], $data['unsized'][0]['sport'], $data['unsized'][0]['qty'], $data['unsized'][0]['text'], $data['unsized'][0]['name']]);
+        // Still listed for older readers (the app shows it under "Please check").
+        $this->assertSame(['5 hoodies'], $data['unknown']);
+        // An empty heading's sport is not shared: the jerseys keep no sport.
+        $data = $this->postJson('/api/v1/orders/read-notes', ['text' => "Jerseys: 4 S, 6 M\nNetball dresses"])->assertOk()->json('data');
+        $this->assertNull($data['items'][0]['sport'] ?? null);
+        $this->assertSame(['Netball dresses (how many, in which sizes?)'], $data['unknown']);
+    }
+
     /** Nothing a customer wrote disappears: a garment named with nothing ordered, or a garment we don't make, is in the "not read" list. */
     public function test_parts_not_read_are_listed(): void
     {

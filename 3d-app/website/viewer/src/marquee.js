@@ -230,7 +230,8 @@ export function buildMarquee(design) {
   wall('wallLeft', new THREE.Vector3(-hw + inset, 0, -hd), new THREE.Vector3(-hw + inset, 0, hd));
   wall('wallRight', new THREE.Vector3(hw - inset, 0, hd), new THREE.Vector3(hw - inset, 0, -hd));
 
-  // The print side faces out (the back wall: in); the other side shows the print through the fabric, dimmer and mirrored.
+  // The print side faces out (the back wall: in); the other side shows the print dimmer, as through the fabric, but the
+  // right way round (marquee-main.js turns its texture, 2026-11-11), so a logo never reads backwards.
   for (const [zone, mesh] of Object.entries(zones)) {
     mesh.userData.zone = zone;
     const through = new THREE.Mesh(mesh.geometry, new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0, side: THREE.BackSide, color: 0x5a6068 }));

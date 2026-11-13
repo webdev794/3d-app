@@ -175,7 +175,7 @@ function figureRing(figure, top, y, kept) {
  * neck out to a rounded arm plate, level slices across it (each an ellipse in its own up / forward plane) kept inside
  * the fabric round it (the straps over it, the bodice in front and behind). Its rings, inner end first.
  */
-function shoulderRings(trunk, figure, top, sg) {
+function shoulderRings(trunk, figure, top, sg, fit = false) {
   const S = figure.shoulder, rings = [];
   for (let x = S.from; x <= S.to + 1e-6; x += 0.01) {
     // The shoulder's top slopes down from beside the neck to the arm plate (under the strap); its foot is level.
@@ -187,6 +187,9 @@ function shoulderRings(trunk, figure, top, sg) {
       const u = p.z - zc, v = p.y - yc, k = Math.floor(((Math.atan2(v, u) / (2 * Math.PI)) + 1) * BINS) % BINS, d = Math.hypot(u, v);
       if (lim[k] == null || d < lim[k]) lim[k] = d;
     }
+    // (`fit`, a ready-made dress (tripomesh.js): where no fabric is round it (towards the armhole) it is kept as far in as
+    // the fabric either side, smoothed, so it never stands out past the model's narrower straps.)
+    if (fit) { const f = fillRing(lim); if (f) f.forEach((v, k) => { lim[k] = v; }); }
     rings.push(Array.from({ length: BINS }, (_, k) => {
       const th = (2 * Math.PI * (k + 0.5)) / BINS, c = Math.cos(th), s = Math.sin(th);
       const ra = 1 / Math.hypot(c / rz, s / ry), r = lim[k] != null ? Math.min(ra, lim[k] - 0.006) : ra;
@@ -236,7 +239,7 @@ function femaleForm(trunk, body, figure, openingFoot, minY) {
     }
     thighs.push(rings);
   }
-  return { torso, thighs, shoulders: [1, -1].map((sg) => shoulderRings(trunk, figure, top, sg)) };
+  return { torso, thighs, shoulders: [1, -1].map((sg) => shoulderRings(trunk, figure, top, sg, !!body.shoulderFit)) };
 }
 
 /** The neck: rising from inside the torso through the neck opening, a little forward at the top, cut level. */
@@ -271,7 +274,8 @@ export function buildMannequin(garment, material, { over = false } = {}) {
   if (!body) return null;
   const { n, positions, sleeve } = body;
   const all = [];
-  for (let j = 0; j < 2 * n; j++) all.push(Object.assign(new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]), { l: sleeve[j % n] }));
+  // (A ready-made model's points (tripomesh.js) each have their own: 2n of them; a made garment's front and back share.)
+  for (let j = 0; j < 2 * n; j++) all.push(Object.assign(new THREE.Vector3(positions[j * 3], positions[j * 3 + 1], positions[j * 3 + 2]), { l: sleeve.length >= 2 * n ? sleeve[j] : sleeve[j % n] }));
   const trunk = all.filter((p) => p.l < 0);
   const group = new THREE.Group();
   group.name = 'mannequin';

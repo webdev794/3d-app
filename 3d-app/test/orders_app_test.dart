@@ -94,7 +94,9 @@ class OrdersServer {
     );
     final extras = express ? 150.0 : 0.0;
     final nz = pricing['destination'] == 'NZ';
-    final shipping = nz ? 250.0 : 100.0;
+    // Picked up: never charged for shipping (the server's PICKUP, QA10).
+    final pickup = pricing['destination'] == 'PICKUP';
+    final shipping = pickup ? 0.0 : nz ? 250.0 : 100.0;
     final code = pricing['discount_code'];
     final good = code == 'TEAM10';
     final discount = good ? (garments + extras) * .1 : 0.0;
@@ -108,8 +110,10 @@ class OrdersServer {
           {'name': 'Express production', 'quantity': 1, 'total': '150.00'},
       ],
       'shipping': {
-        'name': nz ? 'New Zealand' : 'Australia',
+        'destination': pickup ? 'PICKUP' : nz ? 'NZ' : 'AU',
+        'name': pickup ? 'Pick up' : nz ? 'New Zealand' : 'Australia',
         'amount': shipping.toStringAsFixed(2),
+        'priced': true,
       },
       'discounts': [
         if (good) {'name': 'Team 10%', 'amount': discount.toStringAsFixed(2)},
@@ -281,8 +285,101 @@ class OrdersServer {
         ...detailExtra,
       });
     }
+    // "Paste your order here" (ORDERPASTE 2026-11-13): the order-537 size list (no garment named) as 3DEEZI AI reads it,
+    // with the team and date written in it; other texts: 404 (a server from before), the notes reading below.
+    if (path == '/orders/fill') {
+      final text = jsonDecode(r.body)['text'] as String;
+      readNotes.add(text);
+      if (!text.contains('XS x 3')) return http.Response('{"message":"Not found."}', 404);
+      return ok({
+        'items': [
+          {
+            'garment': 'jersey',
+            'name': 'Jersey',
+            'sizes': {'XS': 3, 'S': 5, 'M': 5, 'L': 5, 'XL': 8, '2XL': 8, '3XL': 6, '4XL': 5, '5XL': 5},
+          },
+        ],
+        'unknown': <String>[],
+        'unsized': <Map>[],
+        'source': 'ai',
+        'ai': 'used',
+        'garment_named': false,
+        'total': 50,
+        'form': {
+          'team_name': 'Mantis',
+          'contact_name': '',
+          'contact_email': '',
+          'phone': '',
+          'needed_by': '2099-02-01',
+          'needed_by_text': '',
+          'delivery': '',
+          'address': {'street': '', 'suburb': '', 'state': '', 'postcode': '', 'country': ''},
+          'notes': '',
+        },
+      });
+    }
     if (path == '/orders/read-notes') {
-      readNotes.add(jsonDecode(r.body)['text'] as String);
+      final text = jsonDecode(r.body)['text'] as String;
+      readNotes.add(text);
+      if (text.contains('12 jerseys M')) {
+        return ok({
+          'items': [
+            {'garment': 'jersey', 'name': 'Jersey', 'sizes': {'M': 12}},
+            {'garment': 'shorts', 'name': 'Shorts', 'sizes': {'L': 12}},
+          ],
+          'unknown': <String>[],
+          'summary': '12 Jerseys (M), 12 Shorts (L)',
+          'source': 'notes',
+        });
+      }
+      // A name, the shirt number and a size: a player each (LINKTEST r1: never 7 + 10 + 23 = 40 jerseys).
+      if (text.contains('John Smith 7 M')) {
+        return ok({
+          'items': [
+            {
+              'garment': 'jersey',
+              'name': 'Jersey',
+              'sizes': {'M': 1, 'L': 1, 'XL': 1},
+              'players': [
+                {'name': 'John Smith', 'number': '7', 'size': 'M'},
+                {'name': 'Jane Doe', 'number': '10', 'size': 'L'},
+                {'name': 'Ari Tane', 'number': '23', 'size': 'XL'},
+              ],
+            },
+          ],
+          'unknown': <String>[],
+          'summary': '3 Jerseys (M 1, L 1, XL 1)',
+          'source': 'notes',
+        });
+      }
+      if (text.contains('XS x 3')) {
+        return ok({
+          'items': [
+            {
+              'garment': 'jersey',
+              'name': 'Jersey',
+              'sizes': {'XS': 3, 'S': 5, 'M': 5, 'L': 5, 'XL': 8, '2XL': 8, '3XL': 6, '4XL': 5, '5XL': 5},
+            },
+          ],
+          'unknown': <String>[],
+          'summary': '50 Jerseys (XS 3, S 5, M 5, L 5, XL 8, 2XL 8, 3XL 6, 4XL 5, 5XL 5)',
+          'source': 'notes',
+        });
+      }
+      // "5 hoodies": a garment and how many, no sizes (the server's unsized, QA10).
+      if (text.contains('5 hoodies')) {
+        return ok({
+          'items': [
+            {'garment': 'polo', 'name': 'Polo', 'sizes': {'M': 2}},
+          ],
+          'unsized': [
+            {'garment': 'hoodie', 'qty': 5, 'size': '', 'text': '5 hoodies', 'name': 'Hoodie'},
+          ],
+          'unknown': ['5 hoodies'],
+          'summary': '',
+          'source': 'notes',
+        });
+      }
       return ok({
         'items': [
           {
@@ -306,6 +403,10 @@ class OrdersServer {
       });
     }
     if (path == '/orders/assist') {
+      // The Order Assistant's reader can't follow order 537's "XS x 3 , S x 5 …": no items.
+      if ((jsonDecode(r.body)['text'] as String).contains('XS x 3')) {
+        return ok({'items': <Map>[], 'unknown': <String>[], 'summary': '', 'source': 'parser'});
+      }
       return ok({
         'items': [
           {
@@ -1057,7 +1158,8 @@ void main() {
       await tap(tester, find.text('Add garment').last);
       await tap(tester, find.text('No saved design').last);
       await tap(tester, find.text('Firebirds bibs').last);
-      await tap(tester, find.text('Singlet').last);
+      // The Garment shows the design's product name (LINKTEST r2), then Jersey is chosen.
+      await tap(tester, find.text('Netball bibs').last);
       await tap(tester, find.text('Jersey').last);
       await seeIt(tester, find.byKey(const Key('size-1-L')));
       await tester.ensureVisible(find.byKey(const Key('size-1-L')));
@@ -1969,25 +2071,234 @@ void main() {
   );
 
   testWidgets(
-    'Create Order Form: Write or snap your notes builds the garments, sizes and players (2026-11-03)',
+    'Create Order Form: Paste your order here fills the garments, sizes and players (2026-11-03, ORDERPASTE 2026-11-13)',
     (tester) async {
       final server = OrdersServer();
       await mount(tester, OrderFormScreen(signedIn(server)));
-      expect(find.text('WRITE OR SNAP YOUR NOTES'), findsOneWidget);
+      expect(find.text('PASTE YOUR ORDER HERE'), findsOneWidget);
       await tester.enterText(
         find.byKey(const Key('notes-text')),
         'Polo\n3 x 4XL\n2 x 2XL\n4 x 5XL\nSmith 7 M',
       );
       await tap(tester, find.byKey(const Key('build-form')));
-      expect(server.readNotes.single, contains('3 x 4XL'));
+      // /orders/fill first; a server without it: the notes reading.
+      expect(server.readNotes, hasLength(2));
+      expect(server.readNotes.last, contains('3 x 4XL'));
       expect(
-        find.textContaining('Built 2 garments (10 in all)'),
+        find.textContaining('Filled your order: 10 garments'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Polo: 2 2XL, 3 4XL, 4 5XL (9)'), findsOneWidget);
+      expect(find.textContaining('Not read: "something odd"'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: Help me add sizes reads "John Smith 7 M, …" as 3 players, not 40 jerseys (LINKTEST 2026-11-13)',
+    (tester) async {
+      final server = OrdersServer();
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      await typeIn(
+        tester,
+        '12 jerseys M, 12 shorts L, 6 hoodies XL',
+        'John Smith 7 M, Jane Doe 10 L, Ari Tane 23 XL',
+      );
+      await tap(tester, find.text('Help me add sizes').last);
+      final state = tester.state(find.byType(OrderFormScreen)) as dynamic;
+      final row = (state.rows as List).single;
+      expect(row.total, 3);
+      expect(row.sizes, {'M': 1, 'L': 1, 'XL': 1});
+      expect((row.players as String).split('\n'), ['John Smith, 7, M', 'Jane Doe, 10, L', 'Ari Tane, 23, XL']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: a dress row says "Netball dress" in Garment, and the Fit shows "Womens" in full at phone width (LINKTEST r2)',
+    (tester) async {
+      final server = OrdersServer();
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      final state = tester.state(find.byType(OrderFormScreen)) as dynamic;
+      state.setState(() {
+        (state.rows as List).single
+          ..garment = 'singlet'
+          ..label = 'Netball dress'
+          ..fit = 'womens';
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('Netball dress'), findsWidgets);
+      expect(find.text('Singlet'), findsNothing);
+      final fit = find.ancestor(of: find.text('Womens'), matching: find.byType(DropdownButtonFormField<String>));
+      expect(fit, findsOneWidget);
+      expect(tester.getSize(fit).width, greaterThanOrEqualTo(150));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  /// A netball dress made in the app's Studio: no product name of its own (LINKTEST r3).
+  void addDress(AppController c) {
+    final sample = singletBase(c);
+    final j = ProjectStore.encode(sample)
+      ..['id'] = 'dress-1'
+      ..['title'] = 'App dress V'
+      ..['garment'] = 'Netball dress'
+      ..['remoteId'] = 91;
+    (j['kit'] as Map)['garment'] = 'Netball dress';
+    (j['kit'] as Map)['productName'] = '';
+    c.projects.insert(
+      0,
+      ProjectStore.decode(
+        jsonDecode(jsonEncode(j)) as Map<String, dynamic>,
+        ProjectStore.images(sample),
+      ),
+    );
+  }
+
+  testWidgets(
+    'Create Order Form: the netball dress from Choose saved design is a Netball dress row, Womens, named so in the review (LINKTEST r3)',
+    (tester) async {
+      final server = OrdersServer();
+      final c = signedIn(server);
+      addDress(c);
+      await mount(tester, OrderFormScreen(c));
+      final state = tester.state(find.byType(OrderFormScreen)) as dynamic;
+      await tap(tester, find.byKey(const Key('choose-saved-design')));
+      await tap(tester, find.text('App dress V').last);
+      final row = (state.rows as List).single;
+      expect([row.garment, row.fit, row.project], ['singlet', 'womens', 91]);
+      expect(find.text('Netball dress'), findsWidgets);
+      // W10 3, W12 4: the review's rows are named "Netball dress" (never "Singlet").
+      state.setState(() => row.sizes.addAll({'W10': 3, 'W12': 4}));
+      await tester.pumpAndSettle();
+      await addArtwork(tester);
+      await tap(tester, find.text('REVIEW ORDER'));
+      await fillDelivery(tester, pickup: true);
+      await fromTop(tester);
+      await seeIt(tester, find.text('REVIEW & APPROVE ORDER'));
+      await scrollTo(tester, find.textContaining('NETBALL DRESS', findRichText: true));
+      expect(find.textContaining('NETBALL DRESS', findRichText: true), findsWidgets);
+      expect(find.textContaining('SINGLET', findRichText: true), findsNothing);
+      // Priced (and summed up) as it will be ordered: "Netball dress".
+      await seeIt(tester, find.byType(PriceBox));
+      await tester.pumpAndSettle();
+      final quoted = (server.quotes.last['items'] as List).cast<Map>();
+      expect([for (final q in quoted) [q['label'], q['garment']]], [['Netball dress', 'singlet']]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: the netball dress chosen in the row\'s own Design list makes it a Womens Netball dress row (LINKTEST r3)',
+    (tester) async {
+      final server = OrdersServer();
+      final c = signedIn(server);
+      addDress(c);
+      await mount(tester, OrderFormScreen(c));
+      final state = tester.state(find.byType(OrderFormScreen)) as dynamic;
+      await tap(tester, find.text('No saved design'));
+      await tap(tester, find.text('App dress V').last);
+      final row = (state.rows as List).single;
+      expect([row.garment, row.fit, row.project], ['singlet', 'womens', 91]);
+      expect(find.text('Netball dress'), findsWidgets);
+      // Womens sizes shown (W8 …), no mens sizes.
+      expect(find.byKey(const Key('size-0-W12')), findsOneWidget);
+      expect(find.byKey(const Key('size-0-M')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: Choose saved design puts a design of another garment on the empty row as that garment, else on a new row (LINKTEST 2026-11-13)',
+    (tester) async {
+      final server = OrdersServer();
+      final c = signedIn(server);
+      final sample = singletBase(c);
+      final j = ProjectStore.encode(sample)
+        ..['id'] = 'bibs-2'
+        ..['title'] = 'Firebirds bibs'
+        ..['remoteId'] = 78;
+      c.projects.insert(
+        0,
+        ProjectStore.decode(
+          jsonDecode(jsonEncode(j)) as Map<String, dynamic>,
+          ProjectStore.images(sample),
+        ),
+      );
+      await mount(tester, OrderFormScreen(c));
+      final state = tester.state(find.byType(OrderFormScreen)) as dynamic;
+      // The form's empty Jersey row becomes the design's singlet (it was ordered as jerseys).
+      expect((state.rows as List).single.garment, 'jersey');
+      await tap(tester, find.byKey(const Key('choose-saved-design')));
+      await tap(tester, find.text('Firebirds bibs').last);
+      expect((state.rows as List).single.garment, 'singlet');
+      expect((state.rows as List).single.project, 78);
+      // A jersey row with sizes keeps its garment: the design gets a new row.
+      state.setState(() {
+        (state.rows as List).single
+          ..garment = 'jersey'
+          ..project = null
+          ..sizes.addAll({'M': 4});
+      });
+      await tester.pumpAndSettle();
+      await tap(tester, find.byKey(const Key('choose-saved-design')));
+      await tap(tester, find.text('Firebirds bibs').last);
+      final rows = state.rows as List;
+      expect(rows.map((r) => r.garment).toList(), ['jersey', 'singlet']);
+      expect(rows.first.project, isNull);
+      expect(rows.last.project, 78);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: Help me add sizes reads order 537 "XS x 3 , S x 5 …" through the notes reading (ORDERPASTE 2026-11-13)',
+    (tester) async {
+      final server = OrdersServer();
+      await mount(tester, OrderFormScreen(signedIn(server)));
+      await typeIn(
+        tester,
+        '12 jerseys M, 12 shorts L, 6 hoodies XL',
+        'XS x 3 , S x 5 , M x 5 , L x 5 , XL x 8 , 2XL x 8 , 3XL x 6 , 4xl x 5 , 5XL x 5',
+      );
+      await tap(tester, find.text('Help me add sizes').last);
+      expect(find.textContaining('Added 50 Jerseys'), findsOneWidget);
+      final state = tester.state(find.byType(OrderFormScreen)) as dynamic;
+      expect((state.rows as List).single.total, 50);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Create Order Form: order 537 "XS x 3 , S x 5 …" (no garment named) fills 50 on the garment already on the form; Undo (ORDERPASTE 2026-11-13)',
+    (tester) async {
+      final server = OrdersServer();
+      final c = signedIn(server);
+      await mount(tester, OrderFormScreen(c));
+      await tester.enterText(
+        find.byKey(const Key('notes-text')),
+        'i need XS x 3 , S x 5 , M x 5 , L x 5 , XL x 8 , 2XL x 8 , 3XL x 6 , 4xl x 5 , 5XL x 5',
+      );
+      await tap(tester, find.byKey(const Key('build-form')));
+      expect(server.readNotes.single, contains('2XL x 8'));
+      expect(
+        find.textContaining('Filled your order: 50 garments, read by 3DEEZI AI'),
         findsOneWidget,
       );
       expect(
-        find.textContaining('Please check: "something odd"'),
+        find.textContaining('Jersey: 3 XS, 5 S, 5 M, 5 L, 8 XL, 8 2XL, 6 3XL, 5 4XL, 5 5XL (50)'),
         findsOneWidget,
       );
+      expect(find.textContaining('Also filled in: team name, date required.'), findsOneWidget);
+      // One garment row (the one already on the form), its total 50.
+      final state = tester.state(find.byType(OrderFormScreen)) as dynamic;
+      expect((state.rows as List).length, 1);
+      expect((state.rows as List).first.total, 50);
+      expect((state.team as TextEditingController).text, 'Mantis');
+      await tap(tester, find.byKey(const Key('undo-fill')));
+      expect((state.rows as List).first.total, 0);
+      expect((state.team as TextEditingController).text, '');
+      expect(find.byKey(const Key('undo-fill')), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

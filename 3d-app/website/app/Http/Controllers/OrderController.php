@@ -57,9 +57,16 @@ class OrderController extends Controller
     }
 
     /** "Help me add sizes": garment rows read from a plain description (public, throttled like the chat). */
-    public function assist(Request $request, OrderAssistant $assistant): JsonResponse
+    public function assist(Request $request, OrderAssistant $assistant, \App\Services\OrderFormReader $reader): JsonResponse
     {
         $data = $request->validate(['text' => ['required', 'string', 'max:1500']], ['text.required' => 'Describe your order, e.g. 12 jerseys M, 12 shorts L.']);
+        // The order form's own reader first, so nothing reads differently from the paste box (LINKTEST r2): "2 XL x 4" is
+        // 2XL, "John Smith 7 M" a player (never 7 jerseys); what it can't place is in `unknown`. Nothing read: as before.
+        $read = $reader->notes($data['text']);
+        if ($read['items']) {
+            return response()->json(['data' => ['items' => $read['items'], 'team_name' => null, 'notes' => null,
+                'unknown' => $read['unknown'], 'summary' => $read['summary'], 'source' => 'parser']]);
+        }
 
         return response()->json(['data' => $assistant->read($data['text'])]);
     }

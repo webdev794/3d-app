@@ -40,6 +40,20 @@ openPayPage = openPayLink;
 /// "A$1,870.00", the website's price style (money.dart); "To be confirmed" without an amount.
 String _money(Object? amount, Object? currency) => moneyOr(amount, currency);
 
+/// A quote's shipping that is a pick up at no cost (the price list's Pick up,
+/// or the server's own): shown as "Pick up · Free", as the website's
+/// freePickup. Servers without `priced` count as priced.
+bool freePickup(Map? shipping) {
+  if (shipping == null || shipping['priced'] == false) return false;
+  final amount = double.tryParse('${shipping['amount'] ?? ''}');
+  if (amount == null || amount != 0) return false;
+  return '${shipping['destination'] ?? ''}'.toUpperCase() == 'PICKUP' ||
+      RegExp(
+        r'^pick ?up$',
+        caseSensitive: false,
+      ).hasMatch('${shipping['name'] ?? ''}'.trim());
+}
+
 /// The price for the review step, from the server's quote (or "Quote required" with the reasons).
 class PriceBox extends StatefulWidget {
   const PriceBox(this.c, this.body, {super.key});
@@ -99,7 +113,19 @@ class _PriceBoxState extends State<PriceBox> {
                 ),
               ],
             ),
-          if (shipping != null)
+          // Picked up at no cost: "Pick up · Free", not "Shipping A$0.00"
+          // (QA10 2026-11-11, as the website's freePickup).
+          if (shipping != null && freePickup(q['shipping'] as Map?))
+            const Row(
+              key: Key('price-pickup-free'),
+              children: [
+                Expanded(
+                  child: Text('Pick up', style: TextStyle(fontSize: 13)),
+                ),
+                Text('Free', style: TextStyle(fontSize: 13)),
+              ],
+            )
+          else if (shipping != null)
             Row(
               children: [
                 Expanded(
@@ -581,6 +607,22 @@ String designRowName(
       : '';
 }
 
+/// Whether a saved design is the netball dress (ordered on a singlet row, in
+/// womens sizes W8 to W24).
+bool isDressDesign(Project p) =>
+    (ProjectSync.garments[p.kit.garment] ??
+        p.kit.garment.trim().toLowerCase()) ==
+    'netball-dress';
+
+/// A saved design's product name: its own ("Netball bibs"), else the product
+/// its garment is: "Netball dress" (a dress made in the app's Studio has no
+/// name of its own; LINKTEST r3: the row, review and summary said "Singlet").
+String designProduct(Project p) {
+  final own = p.kit.productName.trim();
+  if (own.isNotEmpty) return own;
+  return isDressDesign(p) ? 'Netball dress' : '';
+}
+
 /// The fits (Order::FITS): the fit chooses the row's sizes (order_sizes.dart).
 const _fits = fitNames;
 const _maxBytes = 25 * 1024 * 1024;
@@ -623,7 +665,19 @@ class _Row {
   /// Artwork uploaded for this garment (step 3 "Artwork & files").
   final fileIds = <int>[];
   String players = '';
+
+  /// A quantity read from the notes with no sizes ("5 hoodies"; QA10
+  /// 2026-11-11, as the website's form): the row shows "5 · sizes needed"
+  /// until its sizes are added. Never sent.
+  int wanted = 0;
   int get total => sizes.values.fold(0, (a, b) => a + b);
+
+  /// Built from the notes, its sizes still to fill.
+  bool get sizesNeeded => wanted > 0 && total == 0;
+
+  /// "Hoodie", or the name it was given ("Netball dress").
+  String get name =>
+      label.trim().isNotEmpty ? label.trim() : _garments[garment] ?? 'Garment';
   Map<String, dynamic> toJson() => {
     'garment': garment,
     if (customName(sport).isNotEmpty) 'sport': customName(sport),
@@ -1192,7 +1246,11 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
     }
   }
 
-  Future<void> addFile(String fileKind, {_Upload? replacing}) async {
+  Future<void> addFile(
+    String fileKind, {
+    _Upload? replacing,
+    bool picture = false,
+  }) async {
     // Phones: artwork comes from the photo library, the camera or Files (the
     // same sheet as Artwork to 3D); the Files-only picker did nothing on an
     // iPhone (user 2026-11-03).
@@ -1201,7 +1259,10 @@ mixin _OrderEntry<T extends StatefulWidget> on State<T> {
         (defaultTargetPlatform == TargetPlatform.iOS ||
             defaultTargetPlatform == TargetPlatform.android);
     final picked =
-        phone && fileKind == 'artwork' && identical(pickOrderFile, _pick)
+        // A screenshot or photo of the order (Paste your order here) too.
+        phone &&
+            (fileKind == 'artwork' || picture) &&
+            identical(pickOrderFile, _pick)
         ? await pickArtwork(context)
         : await pickOrderFile(fileKind);
     if (picked == null) return;
@@ -1680,6 +1741,12 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   /// Step 1: garments with sizes, and artwork (both required).
   String? stepOneProblem() {
     if (total < 1) return 'Add at least one size and quantity.';
+    // A garment from the notes with no sizes ("5 hoodies") is not dropped
+    // quietly: its sizes are asked for, as on the website.
+    if (rows.where((r) => r.sizesNeeded).firstOrNull case final r?) {
+      return 'Add sizes and quantities for ${r.name} (${r.wanted} wanted), '
+          'or remove it.';
+    }
     if (!hasArtwork) return artworkProblem;
     return null;
   }
@@ -1701,26 +1768,63 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     if (error == null) page++;
   });
 
-  /// "Write or snap your notes" (client 2026-11-03): typed notes, a photo of notes, images.
+  /// "Paste your order here" (ORDERPASTE, client 2026-11-13, as the website;
+  /// before: "Write or snap your notes", 2026-11-03): anything pasted or typed
+  /// (notes like "XS x 3, S x 5", names with numbers and sizes, copied cells)
+  /// and a screenshot or photo of the order, filled into the form.
   final notes = TextEditingController();
   bool notesPhoto = false, notesFile = false, building = false;
 
-  /// The rows the last Build made: a second Build replaces them (392.jpg).
+  /// The rows the last fill made: a second fill replaces them (392.jpg).
   final notesBuilt = <_Row>{};
+
+  /// The garment already on the form that the last fill's sizes went on
+  /// ("XS x 3, S x 5" names no garment), and its sizes before that fill.
+  _Row? notesInto;
+  Map<String, int> notesIntoWas = const {};
   String? notesNote;
 
-  /// Build my order form: the typed notes read on the server without AI.
+  /// What the last fill did: a line per garment, the details it filled in,
+  /// and what to check.
+  List<String> filledLines = const [], filledDetails = const [];
+  List<String> filledCheck = const [];
+
+  /// The form before the last fill (Undo).
+  ({
+    List<_Row> rows,
+    Map<TextEditingController, String> texts,
+    DateTime? neededBy,
+    String delivery,
+    String auState,
+  })?
+  beforeFill;
+
+  /// Fill my order: the text read on the server (3DEEZI AI when signed in,
+  /// the built-in reading otherwise; a server from before 2026-11-13 only
+  /// has the built-in notes reading).
   Future<void> buildFromNotes() async {
     final text = notes.text.trim();
     if (text.isEmpty) {
       setState(
-        () => notesNote = 'Write your notes, or add a photo of them, first.',
+        () => notesNote =
+            'Paste or type your order first (e.g. "XS x 3, S x 5, M x 5"), or add a screenshot or photo of it.',
       );
       return;
     }
-    setState(() => building = true);
+    setState(() {
+      building = true;
+      notesNote = c.api.token != null
+          ? '3DEEZI AI is reading your order…'
+          : 'Reading your order…';
+    });
     try {
-      final read = await c.api.readOrderNotes(text);
+      Map<String, dynamic> read;
+      try {
+        read = await c.api.fillOrder(text);
+      } on ApiException catch (e) {
+        if (e.status != 404 && e.status != 405) rethrow;
+        read = await c.api.readOrderNotes(text);
+      }
       applyNotes(read);
     } on ApiException catch (e) {
       if (mounted) setState(() => notesNote = e.message);
@@ -1729,21 +1833,26 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     }
   }
 
-  /// A photo of notes: uploaded as an order form, then read by 3DEEZI AI.
+  /// A screenshot, photo or file of the order: uploaded as an order form,
+  /// then read by 3DEEZI AI.
   Future<void> readNotesPhoto() async {
     if (draftId == null) return;
     setState(() {
       building = true;
-      notesNote = '3DEEZI AI is reading your notes…';
+      notesNote = '3DEEZI AI is reading your order…';
     });
     try {
       final d = await c.api.readOrderDraft(draftId!);
       final items = <Map<String, dynamic>>[];
       final unknown = <String>[];
+      Map<String, dynamic>? form;
+      var ai = false;
       for (final s
           in ((d['suggested'] as List?) ?? const []).whereType<Map>()) {
         // A photo is read by AI; an uploaded order form file by any reader.
         if (s['source'] != 'ai' && !notesFile) continue;
+        ai = ai || s['source'] == 'ai';
+        form ??= (s['form'] as Map?)?.cast<String, dynamic>();
         items.addAll(
           ((s['items'] as List?) ?? const []).whereType<Map>().map(
             (m) => m.cast<String, dynamic>(),
@@ -1752,7 +1861,12 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         unknown.addAll(((s['unknown'] as List?) ?? const []).map((u) => '$u'));
       }
       notesFile = false;
-      applyNotes({'items': items, 'unknown': unknown});
+      applyNotes({
+        'items': items,
+        'unknown': unknown,
+        if (form != null) 'form': form,
+        'source': ai ? 'ai' : 'reader',
+      });
     } on ApiException catch (e) {
       if (mounted) setState(() => notesNote = e.message);
     } finally {
@@ -1760,42 +1874,254 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     }
   }
 
+  _Row _copyRow(_Row r) => _Row()
+    ..garment = r.garment
+    ..fit = r.fit
+    ..project = r.project
+    ..custom = r.custom
+    ..sport = r.sport
+    ..label = r.label
+    ..more = r.more
+    ..sizes.addAll(r.sizes)
+    ..fileIds.addAll(r.fileIds)
+    ..players = r.players
+    ..wanted = r.wanted;
+
+  /// Undo the last fill: the garments, contact and delivery as they were.
+  void undoLastFill() {
+    final was = beforeFill;
+    if (was == null) return;
+    setState(() {
+      rows
+        ..clear()
+        ..addAll(was.rows);
+      was.texts.forEach((ctl, value) => ctl.text = value);
+      neededBy = was.neededBy;
+      delivery = was.delivery;
+      auState = was.auState;
+      notesBuilt.clear();
+      notesInto = null;
+      beforeFill = null;
+      notesNote = null;
+      filledLines = filledDetails = filledCheck = const [];
+    });
+  }
+
+  /// The team, contact, date and delivery written in the order (3DEEZI AI):
+  /// only the empty fields. Returns what was filled.
+  List<String> _fillDetails(Map<String, dynamic>? form) {
+    if (form == null) return const [];
+    final done = <String>[];
+    String said(String k) => '${form[k] ?? ''}'.trim();
+    void take(TextEditingController ctl, String value, String what) {
+      if (value.isNotEmpty && ctl.text.trim().isEmpty) {
+        ctl.text = value;
+        done.add(what);
+      }
+    }
+
+    take(team, said('team_name'), 'team name');
+    take(name, said('contact_name'), 'contact name');
+    take(email, said('contact_email'), 'email');
+    take(phone, said('phone'), 'mobile');
+    final date = DateTime.tryParse(said('needed_by'));
+    final today = DateUtils.dateOnly(DateTime.now());
+    if (neededBy == null && date != null && !date.isBefore(today)) {
+      neededBy = date;
+      done.add('date required');
+    }
+    final empty =
+        street.text.trim().isEmpty &&
+        suburb.text.trim().isEmpty &&
+        postcode.text.trim().isEmpty;
+    final at = ((form['address'] as Map?) ?? const {}).map(
+      (k, v) => MapEntry('$k', '${v ?? ''}'.trim()),
+    );
+    if (said('delivery') == 'pickup' && empty) {
+      delivery = 'pickup';
+      done.add('pick up');
+    } else if (empty &&
+        ['street', 'suburb', 'postcode'].any((k) => (at[k] ?? '').isNotEmpty)) {
+      delivery = 'deliver';
+      street.text = at['street'] ?? '';
+      suburb.text = at['suburb'] ?? '';
+      postcode.text = at['postcode'] ?? '';
+      if ((at['country'] ?? '').isNotEmpty) country.text = at['country']!;
+      final state = (at['state'] ?? '').toUpperCase();
+      if (isAustralia(country.text)) {
+        if (auStates.contains(state)) auState = state;
+      } else {
+        region.text = at['state'] ?? '';
+      }
+      done.add('delivery address');
+    }
+    return done;
+  }
+
   void applyNotes(Map<String, dynamic> read) {
     final items = ((read['items'] as List?) ?? const [])
         .whereType<Map>()
         .map((m) => m.cast<String, dynamic>())
         .toList();
-    final unknown = ((read['unknown'] as List?) ?? const []).map((u) => '$u');
+    // "5 hoodies" (a garment and how many, no sizes; QA10 2026-11-11, as the
+    // website): a row of its own with the sizes to fill, not only a line
+    // under Please check. (Servers before 2026-11-11 send no `unsized`.)
+    final unsized = ((read['unsized'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((m) => m.cast<String, dynamic>())
+        .toList();
+    final unsizedText = {for (final u in unsized) '${u['text'] ?? ''}'};
+    final unknown = ((read['unknown'] as List?) ?? const [])
+        .map((u) => '$u')
+        .where((u) => !unsizedText.contains(u))
+        .toList();
     if (!mounted) return;
+    final built = items.isNotEmpty || unsized.isNotEmpty;
+    final noSizes = <String>[];
+    final ai = read['source'] == 'ai';
     setState(() {
-      if (items.isNotEmpty) {
+      filledLines = filledDetails = const [];
+      if (built) {
+        beforeFill = (
+          rows: [for (final r in rows) _copyRow(r)],
+          texts: {
+            for (final ctl in [
+              team,
+              name,
+              email,
+              phone,
+              street,
+              suburb,
+              region,
+              postcode,
+              country,
+            ])
+              ctl: ctl.text,
+          },
+          neededBy: neededBy,
+          delivery: delivery,
+          auState: auState,
+        );
         rows.removeWhere(notesBuilt.contains);
+        // The garment the last fill put its sizes on, as it was before.
+        final last = notesInto;
+        if (last != null && rows.contains(last)) {
+          last.sizes
+            ..clear()
+            ..addAll(notesIntoWas);
+        }
+        notesInto = null;
         final before = rows.toSet();
-        addItems(items);
+        // No garment named ("XS x 3, S x 5 …", order 537): the sizes go on the
+        // garment already on the form (its design and sport stay).
+        final into =
+            read['garment_named'] == false &&
+                items.length == 1 &&
+                unsized.isEmpty
+            ? (last != null && rows.contains(last) && last.total == 0
+                  ? last
+                  : rows
+                        .where((r) => r.total == 0 && r.players.trim().isEmpty)
+                        .firstOrNull)
+            : null;
+        final changed = <_Row>[];
+        if (into != null) {
+          final sizes = ((items.first['sizes'] as Map?) ?? const {}).map(
+            (k, v) => MapEntry('$k', (v as num).toInt()),
+          );
+          notesInto = into;
+          notesIntoWas = Map.of(into.sizes);
+          into
+            ..sizes.clear()
+            ..sizes.addAll(sizes)
+            ..wanted = 0;
+          final players = [
+            for (final p
+                in ((items.first['players'] as List?) ?? const [])
+                    .whereType<Map>())
+              [
+                '${p['name'] ?? ''}'.trim(),
+                '${p['number'] ?? ''}'.trim(),
+                '${p['size'] ?? ''}'.trim(),
+              ].join(', '),
+          ];
+          if (players.isNotEmpty) into.players = players.join('\n');
+          final fit = fitFromSizes(sizes);
+          if (fit != null && fit != 'mens') into.fit = fit;
+          changed.add(into);
+        } else {
+          addItems(items);
+          if (items.isEmpty && rows.length == 1 && rows.first.total == 0) {
+            rows.clear();
+          }
+        }
+        for (final u in unsized) {
+          final garment = _garments.containsKey(u['garment'])
+              ? '${u['garment']}'
+              : 'other';
+          final said = '${u['label'] ?? ''}'.trim();
+          final label = said.isNotEmpty
+              ? said
+              : garment == 'other'
+              ? '${u['name'] ?? u['text'] ?? ''}'.trim()
+              : '';
+          final row = _Row()
+            ..garment = garment
+            ..label = label.length > 60 ? label.substring(0, 60) : label
+            // A dress's sizes are womens sizes.
+            ..fit = _fits.containsKey(u['fit'])
+                ? '${u['fit']}'
+                : RegExp('dress', caseSensitive: false).hasMatch(label)
+                ? 'womens'
+                : 'mens'
+            ..wanted = ((u['qty'] as num?)?.toInt() ?? 1).clamp(1, 10000);
+          rows.add(row);
+          final size = '${u['size'] ?? ''}'.trim();
+          noSizes.add(
+            '${row.name} × ${row.wanted}: ${size.isNotEmpty ? 'size "$size" is not one of our sizes, please choose the sizes' : 'no sizes given, please add them'}',
+          );
+        }
         notesBuilt
           ..clear()
           ..addAll(rows.where((r) => !before.contains(r)));
+        changed.addAll(notesBuilt);
+        filledLines = [
+          for (final r in changed)
+            '${r.name}: ${r.total > 0 ? '${_sizesLine(r.sizes)} (${r.total})' : '${r.wanted}, sizes to add'}'
+                '${r.players.trim().isEmpty ? '' : ' · ${r.players.trim().split('\n').length} players'}',
+        ];
+        filledDetails = _fillDetails(
+          (read['form'] as Map?)?.cast<String, dynamic>(),
+        );
       }
-      final count = items.fold<int>(
-        0,
-        (a, i) =>
-            a +
-            ((i['sizes'] as Map?) ?? const {}).values.fold<int>(
-              0,
-              (b, v) => b + ((v as num?)?.toInt() ?? 0),
-            ),
-      );
-      notesNote = [
-        items.isEmpty
-            ? 'No garments or sizes found. Try lines like "Polo" then "3 x 4XL".'
-            : 'Built ${items.length} ${items.length == 1 ? 'garment' : 'garments'} ($count in all) from your notes. Check them under Garments.',
-        if (unknown.isNotEmpty)
-          'Please check: ${unknown.take(6).map((u) => '"$u"').join(', ')}',
-      ].join('\n');
+      final count = rows
+          .where((r) => r == notesInto || notesBuilt.contains(r))
+          .fold<int>(0, (a, r) => a + (r.total > 0 ? r.total : r.wanted));
+      filledCheck = [
+        ...noSizes,
+        for (final u in unknown.take(10))
+          RegExp(r'[():]|^please check', caseSensitive: false).hasMatch(u)
+              ? u
+              : 'Not read: "$u"',
+        if (read['ai'] == 'sign_in' && unknown.isNotEmpty)
+          'Sign in and 3DEEZI AI reads anything you paste: notes in any words, lists and screenshots.',
+      ];
+      notesNote = !built
+          ? 'No garments or sizes found. Try "XS x 3, S x 5, M x 5" or a list like "Smith 7 M".'
+          : 'Filled your order: $count ${count == 1 ? 'garment' : 'garments'}${ai ? ', read by 3DEEZI AI' : ''}. Check it below, then continue.';
     });
-    // Straight on to the built garments (client 394).
-    if (items.isNotEmpty) goToStep(1);
+    // The result stays in view under the box, the garments under it (with two
+    // steps, goToStep(1) was the review: it jumped to "Add your artwork").
   }
+
+  /// "3 XS, 5 S, 5 M" in the site's size order.
+  String _sizesLine(Map<String, int> sizes) => [
+    for (final s in [
+      ...allOrderSizes,
+      ...sizes.keys.where((k) => !allOrderSizes.contains(k)),
+    ])
+      if ((sizes[s] ?? 0) > 0) '${sizes[s]} $s',
+  ].join(', ');
 
   void addItems(List<Map<String, dynamic>> items) {
     if (rows.length == 1 && rows.first.total == 0) rows.clear();
@@ -1905,13 +2231,97 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
 
   int get total => rows.fold(0, (a, r) => a + r.total);
 
+  /// The product a row is ordered as, when it has one: "Netball dress" for a
+  /// dress on its singlet row (from the notes' label or the saved design, as
+  /// My orders and the review say it; LINKTEST r2), "Netball bibs"; else ''.
+  String _productName(_Row r) {
+    final project = r.project == null
+        ? null
+        : c.projects
+              .where((p) => p.remoteId != null && p.remoteId == r.project)
+              .firstOrNull;
+    final fromDesign = project == null
+        ? ''
+        : designRowName(project.kit.garment, designProduct(project), r.garment);
+    if (fromDesign.isNotEmpty) return fromDesign;
+    final label = r.label.trim();
+    return r.garment != 'other' &&
+            RegExp(r'\bdress(es)?$', caseSensitive: false).hasMatch(label)
+        ? label
+        : '';
+  }
+
+  Widget _garmentField(_Row r) {
+    final product = _productName(r);
+    return DropdownButtonFormField<String>(
+      // A saved design sets the garment: show it.
+      key: ValueKey(
+        'garment-${identityHashCode(r)}-${r.garment}-${r.custom}-$product',
+      ),
+      isExpanded: true,
+      initialValue: r.custom ? customValue : r.garment,
+      decoration: const InputDecoration(labelText: 'Garment', isDense: true),
+      // The chosen garment by its product's name ("Netball dress").
+      selectedItemBuilder: (context) => [
+        for (final e in _garments.entries)
+          Text(
+            e.key == r.garment && !r.custom && product.isNotEmpty
+                ? product
+                : e.value,
+            overflow: TextOverflow.ellipsis,
+          ),
+        const Text(customLabel),
+      ],
+      items: [
+        for (final e in _garments.entries)
+          DropdownMenuItem(value: e.key, child: Text(e.value)),
+        // "Custom…" (client 2026-11-02): a sport typed.
+        const DropdownMenuItem(value: customValue, child: Text(customLabel)),
+      ],
+      onChanged: (v) => setState(() {
+        r.custom = v == customValue;
+        if (!r.custom) {
+          // Another garment chosen: the product's name goes with it.
+          if (v != r.garment && product.isNotEmpty) r.label = '';
+          r.garment = v ?? r.garment;
+          r.sport = '';
+        }
+      }),
+    );
+  }
+
+  Widget _fitField(_Row r) => DropdownButtonFormField<String>(
+    isExpanded: true,
+    initialValue: r.fit,
+    decoration: const InputDecoration(labelText: 'Fit', isDense: true),
+    items: [
+      for (final e in _fits.entries)
+        DropdownMenuItem(value: e.key, child: Text(e.value)),
+    ],
+    onChanged: (v) => setState(() => r.fit = v ?? r.fit),
+  );
+
   Future<void> helpMe() async {
     if (help.text.trim().isEmpty) return;
     setState(() => busy = true);
     try {
-      final read = await c.api.orderAssist(help.text.trim());
+      // The order form's own reading first (no AI; LINKTEST 2026-11-13, as
+      // the website): players ("John Smith 7 M" is one jersey for #7, never 7
+      // jerseys), "3 XL x 5", "XS x 3 , S x 5 …" (order 537); what it can't
+      // place comes back to check. Then the Order Assistant's reader.
+      Map<String, dynamic>? fromNotes;
+      try {
+        final notes = await c.api.readOrderNotes(help.text.trim());
+        if (((notes['items'] as List?) ?? const []).isNotEmpty)
+          fromNotes = notes;
+      } on ApiException {
+        // The next reader.
+      }
+      final read = fromNotes ?? await c.api.orderAssist(help.text.trim());
       final items = ((read['items'] as List?) ?? const [])
-          .cast<Map<String, dynamic>>();
+          .whereType<Map>()
+          .map((m) => m.cast<String, dynamic>())
+          .toList();
       setState(() {
         if (rows.length == 1 && rows.first.total == 0) rows.clear();
         for (final item in items) {
@@ -1925,6 +2335,17 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                   (k, v) => MapEntry('$k', (v as num).toInt()),
                 ),
               )
+              // Players read with their sizes: their names and numbers too.
+              ..players = [
+                for (final pl
+                    in ((item['players'] as List?) ?? const [])
+                        .whereType<Map>())
+                  [
+                    '${pl['name'] ?? ''}'.trim(),
+                    '${pl['number'] ?? ''}'.trim(),
+                    '${pl['size'] ?? ''}'.trim(),
+                  ].join(', '),
+              ].join('\n')
               // Only womens or only kids sizes: that fit, so the row shows that size set.
               ..fit = _fits.containsKey(item['fit'])
                   ? '${item['fit']}'
@@ -2055,71 +2476,48 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: DropdownButtonFormField<String>(
-                              // A saved design sets the garment: show it.
-                              key: ValueKey(
-                                'garment-${identityHashCode(r)}-${r.garment}-${r.custom}',
-                              ),
-                              isExpanded: true,
-                              initialValue: r.custom ? customValue : r.garment,
-                              decoration: const InputDecoration(
-                                labelText: 'Garment',
-                                isDense: true,
-                              ),
-                              items: [
-                                for (final e in _garments.entries)
-                                  DropdownMenuItem(
-                                    value: e.key,
-                                    child: Text(e.value),
-                                  ),
-                                // "Custom…" (client 2026-11-02): a sport typed.
-                                const DropdownMenuItem(
-                                  value: customValue,
-                                  child: Text(customLabel),
-                                ),
-                              ],
-                              onChanged: (v) => setState(() {
-                                r.custom = v == customValue;
-                                if (!r.custom) {
-                                  r.garment = v ?? r.garment;
-                                  r.sport = '';
-                                }
-                              }),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 2,
-                            child: DropdownButtonFormField<String>(
-                              isExpanded: true,
-                              initialValue: r.fit,
-                              decoration: const InputDecoration(
-                                labelText: 'Fit',
-                                isDense: true,
-                              ),
-                              items: [
-                                for (final e in _fits.entries)
-                                  DropdownMenuItem(
-                                    value: e.key,
-                                    child: Text(e.value),
-                                  ),
-                              ],
-                              onChanged: (v) =>
-                                  setState(() => r.fit = v ?? r.fit),
-                            ),
-                          ),
-                          IconButton(
+                      // Garment, Fit and Remove: on one line when wide, on
+                      // two at phone width so the Fit shows "Womens" in full
+                      // (LINKTEST r2: it showed "Wo").
+                      LayoutBuilder(
+                        builder: (context, box) {
+                          final garment = _garmentField(r);
+                          final fit = _fitField(r);
+                          final remove = IconButton(
                             tooltip: 'Remove garment ${i + 1}',
                             onPressed: rows.length < 2
                                 ? null
                                 : () => setState(() => rows.remove(r)),
                             icon: const Icon(Icons.delete_outline),
-                          ),
-                        ],
+                          );
+                          if (box.maxWidth < 440) {
+                            return Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(child: garment),
+                                    remove,
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    SizedBox(width: 170, child: fit),
+                                    const Spacer(),
+                                  ],
+                                ),
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(flex: 3, child: garment),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: fit),
+                              remove,
+                            ],
+                          );
+                        },
                       ),
                       if (r.custom) ...[
                         TextFormField(
@@ -2200,8 +2598,12 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                             final p = designs
                                 .where((p) => p.remoteId == v)
                                 .firstOrNull;
-                            if (p != null)
+                            if (p != null) {
                               r.garment = orderGarmentFor(p.kit.garment);
+                              // The netball dress: womens sizes (LINKTEST r3:
+                              // it kept Mens and the mens sizes).
+                              if (isDressDesign(p)) r.fit = 'womens';
+                            }
                           }),
                         ),
                       const SizedBox(height: 10),
@@ -2249,13 +2651,24 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: Text(
-                              'Subtotal ${r.total}',
-                              style: const TextStyle(
-                                color: Palette.cyan,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                            // From the notes with no sizes ("5 hoodies"):
+                            // how many, and that the sizes are needed.
+                            child: r.sizesNeeded
+                                ? Text(
+                                    '${r.wanted} · sizes needed',
+                                    key: Key('sizes-needed-$i'),
+                                    style: const TextStyle(
+                                      color: Color(0xffffbc75),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  )
+                                : Text(
+                                    'Subtotal ${r.total}',
+                                    style: const TextStyle(
+                                      color: Palette.cyan,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                           ),
                           if (rareFor(r.fit).isNotEmpty)
                             TextButton(
@@ -2367,6 +2780,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                         orElse: () => rows.first,
                       ),
                       designs,
+                      auto: true,
                     ),
                     icon: const Icon(Icons.palette_outlined, size: 18),
                     label: const FittedBox(
@@ -2523,7 +2937,11 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   }
 
   /// Change: a saved design (front & back) or artwork uploaded for this garment.
-  Future<void> _artSheet(_Row r, List<Project> designs) async {
+  Future<void> _artSheet(
+    _Row r,
+    List<Project> designs, {
+    bool auto = false,
+  }) async {
     final choice = await showModalBottomSheet<Object>(
       context: context,
       backgroundColor: Palette.bg,
@@ -2578,11 +2996,45 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
         r.fileIds.clear();
       });
     } else if (choice is int) {
-      setState(() => r.project = choice);
+      setState(() => _useDesign(r, choice, designs, auto: auto));
     }
   }
 
-  /// "Write or snap your notes": a text box, Add photo of notes, Add images, Build my order form.
+  /// A saved design on [r]. From "Choose saved design" ([auto], as the
+  /// website's "The garment it names (or a new one)"; LINKTEST 2026-11-13: a
+  /// netball dress went on the empty jersey row and was ordered as jerseys):
+  /// a row of another garment takes it only when empty, and becomes the
+  /// design's garment; otherwise the design gets a new row of its own.
+  void _useDesign(_Row r, int id, List<Project> designs, {bool auto = false}) {
+    final p = designs.where((d) => d.remoteId == id).firstOrNull;
+    final garment = p == null ? r.garment : orderGarmentFor(p.kit.garment);
+    final dress =
+        p != null &&
+        orderGarmentFor(p.kit.garment) == 'singlet' &&
+        (ProjectSync.garments[p.kit.garment] ?? p.kit.garment.toLowerCase()) ==
+            'netball-dress';
+    if (!auto || garment == r.garment) {
+      r.project = id;
+      return;
+    }
+    final empty =
+        r.total == 0 &&
+        r.players.trim().isEmpty &&
+        r.wanted == 0 &&
+        r.fileIds.isEmpty;
+    final row = empty ? r : _Row();
+    row
+      ..garment = garment
+      ..label = ''
+      ..project = id;
+    // A dress's sizes are womens sizes (W8 to W24).
+    if (dress) row.fit = 'womens';
+    if (!empty) rows.add(row);
+  }
+
+  /// "Paste your order here" (ORDERPASTE 2026-11-13, as the website): one
+  /// box, Paste, Add a screenshot or photo, and one Fill my order button;
+  /// then what was filled, what to check, and Undo.
   Widget _notesBox() => Container(
     key: const Key('notes-box'),
     margin: const EdgeInsets.only(bottom: 14),
@@ -2595,62 +3047,82 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'WRITE OR SNAP YOUR NOTES',
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
+        const Row(
+          children: [
+            Icon(Icons.content_paste, size: 20, color: Color(0xff5cc8ec)),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'PASTE YOUR ORDER HERE',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 4),
         const Text(
-          'Type your order the way you\'d write it, or add a photo of handwritten notes. 3DEEZI builds the form; you can still change everything.',
+          'Paste or type it any way you like: "XS x 3, S x 5, M x 5…", names with numbers and sizes, or cells copied from a spreadsheet. Or add a screenshot or photo. 3DEEZI AI fills in your order; you just check it.',
           style: TextStyle(color: Palette.muted, fontSize: 12.5),
         ),
         const SizedBox(height: 8),
         TextField(
           key: const Key('notes-text'),
           controller: notes,
-          minLines: 4,
-          maxLines: 8,
+          minLines: 5,
+          maxLines: 10,
           decoration: const InputDecoration(
-            hintText: 'Polo\n3 x 4XL\n2 x 2XL\n4 x 5XL',
+            hintText:
+                'e.g. XS x 3, S x 5, M x 5, L x 5, XL x 8\nor a list of players: Smith 7 M, Jones 10 L',
             border: OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
-          runSpacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            OutlinedButton.icon(
-              key: const Key('notes-photo'),
+            TextButton.icon(
+              key: const Key('notes-paste'),
               onPressed: building
                   ? null
-                  : () {
-                      notesPhoto = true;
-                      unawaited(addFile('order_form'));
+                  : () async {
+                      final data = await Clipboard.getData(
+                        Clipboard.kTextPlain,
+                      );
+                      final text = data?.text ?? '';
+                      if (!mounted) return;
+                      setState(() {
+                        if (text.trim().isEmpty) {
+                          notesNote =
+                              'Nothing to paste: copy your order first, or add a screenshot or photo of it.';
+                          return;
+                        }
+                        notes.text = notes.text.trim().isEmpty
+                            ? text
+                            : '${notes.text}\n$text';
+                      });
                     },
-              icon: const Icon(Icons.photo_camera_outlined, size: 18),
-              label: const Text('Add photo of notes'),
+              icon: const Icon(Icons.content_paste_go, size: 18),
+              label: const Text('Paste'),
             ),
-            OutlinedButton.icon(
+            TextButton.icon(
               key: const Key('notes-upload-file'),
               onPressed: building
                   ? null
                   : () {
                       notesFile = true;
-                      unawaited(addFile('order_form'));
+                      unawaited(addFile('order_form', picture: true));
                     },
-              icon: const Icon(Icons.upload_file_outlined, size: 18),
-              label: const Text('Upload file'),
-            ),
-            OutlinedButton.icon(
-              key: const Key('notes-images'),
-              onPressed: building ? null : () => unawaited(addFile('artwork')),
-              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
-              label: const Text('Add images'),
+              icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+              label: const Text('Add a screenshot or photo'),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         FilledButton.icon(
           key: const Key('build-form'),
           onPressed: building ? null : () => unawaited(buildFromNotes()),
@@ -2661,15 +3133,77 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.auto_awesome, size: 18),
-          label: const Text('Build my order form'),
+          label: const Text('Fill my order'),
         ),
         if (notesNote != null)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.only(top: 10),
             child: Text(
               notesNote!,
               key: const Key('notes-status'),
-              style: const TextStyle(color: Color(0xffd7ffe6), fontSize: 13),
+              style: const TextStyle(
+                color: Color(0xffd7ffe6),
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        for (final line in filledLines)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(
+              '• $line',
+              key: const Key('filled-line'),
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        if (filledDetails.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Also filled in: ${filledDetails.join(', ')}.',
+              style: const TextStyle(color: Palette.muted, fontSize: 12.5),
+            ),
+          ),
+        if (filledCheck.isNotEmpty)
+          Container(
+            key: const Key('notes-check'),
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xffb7862a)),
+              color: const Color(0xff2a2009),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Please check',
+                  style: TextStyle(
+                    color: Color(0xffffe6b0),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                for (final line in filledCheck)
+                  Text(
+                    '• $line',
+                    style: const TextStyle(
+                      color: Color(0xffffe6b0),
+                      fontSize: 12.5,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (beforeFill != null && !building)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const Key('undo-fill'),
+              onPressed: undoLastFill,
+              icon: const Icon(Icons.undo, size: 18),
+              label: const Text('Undo'),
             ),
           ),
       ],
@@ -2750,7 +3284,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
             ? ''
             : designRowName(
                 project.kit.garment,
-                project.kit.productName,
+                designProduct(project),
                 '${m['garment'] ?? ''}',
               );
         return product.isNotEmpty && '${m['label'] ?? ''}'.trim().isEmpty

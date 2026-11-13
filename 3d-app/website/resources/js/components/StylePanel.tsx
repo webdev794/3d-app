@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronRight, Info, Search } from 'lucide-react';
 import type { Design, KitViewerHandle } from './KitViewer';
 import { isTrack } from './KitViewer';
 import { withPart } from '../parts';
-import { collarOf, fitOf, hasNeckStyle, hasRugbyStyle, neckLabel, neckLabels, neckOf, ownNeck, rugbyCollars, rugbyFits, trimOf, trimSwatches, type NeckStyle } from '../garmentStyle';
+import { collarOf, collarsFor, fitOf, fitsFor, hasNeckStyle, hasNoNeck, hasRugbyStyle, neckLabel, neckLabels, neckOf, ownNeck, rugbyCollars, rugbyFits, trimOf, trimSwatches, type NeckStyle } from '../garmentStyle';
 import '../../css/garment-style.css';
 
 /** The Style tool's icon: a sleeveless top, as on the client's mockup (images/299). */
@@ -68,7 +68,7 @@ export function StylePanel({ design, sport, product, edit, onGarment, onMoreColo
             <p className="field-hint">Available styles vary by garment.</p>
             {rugby && <>
                 <h4>RUGBY COLLAR OPTIONS</h4>
-                <div className="neck-cards rugby-collars" role="radiogroup" aria-label="Rugby collar">{rugbyCollars.map(c => { const on = neck === c.id; return <button key={c.id} type="button" role="radio" aria-checked={on} className={`${on ? 'selected' : ''} ${c.id === 'shallow-v' ? 'wide' : ''}`} onClick={() => setNeck(c.id)} title={c.name}><NeckArt id={c.id} design={design} /><span>{c.id === 'shallow-v' ? 'CUSTOM SHALLOW V' : c.code}</span>{on && <i className="neck-tick"><Check size={13} /></i>}</button>; })}</div>
+                <div className="neck-cards rugby-collars" role="radiogroup" aria-label="Rugby collar">{collarsFor(design).map(c => { const on = neck === c.id; return <button key={c.id} type="button" role="radio" aria-checked={on} className={`${on ? 'selected' : ''} ${c.id === 'shallow-v' ? 'wide' : ''}`} onClick={() => setNeck(c.id)} title={c.name}><NeckArt id={c.id} design={design} /><span>{c.id === 'shallow-v' ? 'CUSTOM SHALLOW V' : c.code}</span>{on && <i className="neck-tick"><Check size={13} /></i>}</button>; })}</div>
                 {collar && <p className="field-hint"><Info size={13} /> {collar.name}. Final shape to match supplier pattern.</p>}
             </>}
             <h4>{rugby ? 'COLLAR COLOUR' : 'NECK TRIM'}</h4>
@@ -77,10 +77,11 @@ export function StylePanel({ design, sport, product, edit, onGarment, onMoreColo
             <button type="button" className="text-button more-colours" onClick={onMoreColours}>More colours <ChevronRight size={15} /></button>
             {rugby && <>
                 <h4>FIT</h4>
-                <div className="fit-options" role="radiogroup" aria-label="Rugby jersey fit">{rugbyFits.map(f => { const on = fitOf(design) === f.id; return <button key={f.id} type="button" role="radio" aria-checked={on} className={on ? 'selected' : ''} onClick={() => edit({ fit: f.id === 'pro' ? null : f.id })}><strong>{f.label}</strong><small>{f.note}</small></button>; })}</div>
+                <div className="fit-options" role="radiogroup" aria-label="Rugby jersey fit">{fitsFor(design).map(f => { const on = fitsFor(design) === rugbyFits ? fitOf(design) === f.id : (f.id === 'tight') === (design.fit === 'tight'); return <button key={f.id} type="button" role="radio" aria-checked={on} className={on ? 'selected' : ''} onClick={() => edit({ fit: f.id === 'pro' ? null : f.id })}><strong>{f.label}</strong><small>{f.note}</small></button>; })}</div>
             </>}
-        </> : <p className="field-hint">{isTrack(design.garment) ? 'The track jacket comes with a stand-up collar or a hood: choose it under Garment.' : `The ${product.toLowerCase()} keeps its own collar.`} Neck styles: jerseys, tees, singlets, netball dresses and shooting shirts.</p>}
-        <p className="style-foot"><StyleIcon size={15} /> Also available on compatible netball dresses and tees.</p>
+        </> : <p className="field-hint">{isTrack(design.garment) ? 'The track jacket comes with a stand-up collar or a hood: choose it under Garment.' : hasNoNeck(design.garment, product) ? 'This garment has no collar or neck to choose.' : `The ${product.toLowerCase()} keeps its own collar.`} Neck styles: jerseys, tees, singlets, shooting shirts and netball dresses.</p>}
+        {/* (Only where it helps: a neck choice that tees and netball dresses also have; not on them, nor without a neck.) */}
+        {hasNeckStyle(design.garment) && design.garment !== 'tee' && design.garment !== 'netball-dress' && <p className="style-foot"><StyleIcon size={15} /> Also available on compatible netball dresses and tees.</p>}
     </div>;
 }
 

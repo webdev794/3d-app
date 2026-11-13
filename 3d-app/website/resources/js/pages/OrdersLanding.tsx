@@ -53,7 +53,7 @@ export default function OrdersLandingPage({ user }: { user: User | null }) {
     return lines.join('\n');
   }), [user, board]);
 
-  return <div className="orders-landing">
+  return <div className="orders-landing glass-ui">
     <OrderNow variant="page" board={board ? miniBoard(board) : null} />
   </div>;
 }

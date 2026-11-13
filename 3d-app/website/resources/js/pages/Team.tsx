@@ -219,7 +219,7 @@ export function TeamPage({ user, requireAuth, catalog }: { user: User | null; re
   useEffect(load, [load]);
   const toForm = () => document.getElementById('tm-request')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const myRequests = () => requireAuth(() => navigate('/team/requests'));
-  return <div className="tm-page">
+  return <div className="tm-page glass-ui">
     <section className="tm-hero" style={{ ['--tm-hero' as string]: `url(${media('images/art/team_hero.webp')})` }}>
       <div className="tm-hero-inner">
         <span className="tm-kicker"><Users size={15} /> HUMAN DESIGN SERVICE</span>
@@ -478,7 +478,7 @@ export function TeamRequestsPage() {
   const [requests, setRequests] = useState<TeamRequest[] | null>(null); const [error, setError] = useState('');
   const load = () => { setError(''); teamApi.list().then(setRequests).catch(e => setError((e as Error).message)); };
   useEffect(load, []);
-  return <div className="page-shell tm-shell tm-requests-page">
+  return <div className="page-shell tm-shell tm-requests-page glass-ui">
     <div className="tm-page-head"><div><span className="tm-kicker"><Users size={15} /> 3DEEZI TEAM</span><h1>MY DESIGN <span>REQUESTS</span></h1></div><Link className="button button-gradient" to="/team#tm-request">REQUEST A DESIGNER <ArrowRight size={16} /></Link></div>
     {error ? <p className="error-message" role="alert">{error} <button className="tm-link" onClick={load}>Try again</button></p> : requests ? <RequestList requests={requests} /> : <p className="muted"><LoaderCircle className="spin" size={16} /> Loading…</p>}
   </div>;

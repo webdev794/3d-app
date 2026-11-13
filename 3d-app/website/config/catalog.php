@@ -170,6 +170,12 @@ $look = function (string $name, array $extra = []): array {
         // Game Socks picture's two wide hoops under a deep black top and a bigger "3".)
         'rugbySocks' => ['parts' => ['sockBand' => ['colour' => '#0b95dd'], 'sockHoops' => ['colour' => '#0b95dd'], 'sockFoot' => ['colour' => $cyan]], 'zoneColors' => ['sockToeLine' => '#2b91c1', 'sockMark' => '#0a93ee']],
         'gameSocks' => ['zoneColors' => ['sockHoopsWide' => $cyan]],
+        // (RGSOCKS 2026-11-13, the user: the Rugby League > Socks tile's own 3D model (Tripo; viewer zoneColors.rlSocks shows
+        // it, every other socks tile keeps the made pair) starts as the client's booklet picture "Full rugby kit": knee-high
+        // navy socks with a small yellow logo high on the front of each shin: our "3" mark there in yellow (zoneColors.sockMark,
+        // flat), the hoops under the welt in the navy too (Secondary, the trim colour); colours set so the stage renders them
+        // as the picture's (30,40,85 and 240,190,30). No text or logo from the picture.)
+        'rlSocks' => ['main' => '#303656', 'secondary' => '#303656', 'accent' => '#f0be1e', 'zoneColors' => ['rlSocks' => '#f0be1e', 'sockMark' => '#f0be1e']],
         // The cap (garment 4): cyan piping (its trim colour); the pictures' cyan and royal blue side sweeps and cyan under the brim.
         'capSweep' => ['parts' => ['capSweep' => ['colour' => $cyan], 'capSweepLow' => ['colour' => '#1a6ef0'], 'capUnder' => ['colour' => $cyan]]],
         // The skirt picture (netball skirt, hockey skort, tennis skirt): its side panels a lighter, greener cyan, as
@@ -179,7 +185,16 @@ $look = function (string $name, array $extra = []): array {
         // panels with a royal blue band slanting across them (zoneColors.bballBand: the viewer cuts them as basketball
         // shorts, bballshorts.js), the 3DEEZI mark low on the right leg, no number.
         // (FN6 2026-10-30, DT8: a vivid aqua #00e8ff, the smooth matt fabric (viewer) and a neutral black, as rendered on the stage.)
-        'bballShorts' => ['main' => '#1d1d1e', 'secondary' => '#00e8ff', 'accent' => '#00e8ff', 'patternColor' => '#00e8ff', 'zoneColors' => ['bballBand' => '#0036f0', 'bballTrim1' => '#ffffff', 'bballTrim2' => '#00e8ff'], 'marks' => ['shorts_number' => ['hidden' => true]]],
+        // (TRS 2026-11-12, the user: the 3D shorts start as their mockup picture 523: purple body, waistband and side
+        // panels, the two hem stripes yellow with purple between, as rendered on the stage; the "3" mark low on the right
+        // leg and the 3DEEZI wordmark up the outer left leg, reading upward, placed and sized as the client's demo 524's text; no number.)
+        // (RGSHORTS 2026-11-13: the Rugby League Playing Shorts on their own 3D model (viewer zoneColors.rlShorts), in the
+        // colours and places of the client's reference "Rugby shorts" (Yellow Images 14565): a golden yellow body, the navy
+        // waistband with our 3DEEZI wordmark repeated on it in white (zoneColors.bandWord), navy hem bindings, our number in
+        // navy on the wearer's right leg, our small 3DEEZI wordmark low on the wearer's left leg; no "3" mark there. Set so the
+        // stage renders them as the picture's (about 240,190,30 and 30,40,85). None of the picture's own text or logos.)
+        'rlShorts' => ['main' => '#fcd12a', 'secondary' => '#fcd12a', 'accent' => '#343a64', 'patternColor' => '#343a64', 'parts' => ['waistband' => ['colour' => '#343a64'], 'shortsHem' => ['colour' => '#343a64']], 'zoneColors' => ['rlShorts' => '#343a64', 'cordTips' => '#343a64', 'bandWord' => '#ffffff'], 'marks' => ['shorts_number' => ['x' => -0.165, 'y' => 0.085, 'scale' => 1.25, 'color' => '#343a64', 'look' => ['style' => 'outline', 'width' => 0]], 'shorts_crest' => ['hidden' => true], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.19, 'y' => 0.055, 'scale' => 0.5]], 'layers' => []],
+        'bballShorts' => ['main' => '#6a5bb2', 'secondary' => '#6a5bb2', 'accent' => '#00e8ff', 'patternColor' => '#00e8ff', 'zoneColors' => ['bballBand' => '#6a5bb2', 'bballTrim1' => '#ffff4a', 'bballTrim2' => '#ffff4a'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.185, 'y' => 0.115, 'scale' => 2.8], 'shorts_wordmark' => ['x' => 0.195, 'y' => 0.205, 'scale' => 2.8, 'rot' => -90]]],
         // The bucket hat pictures (FN1 2026-10-30, colours measured on them): a black hat with a cyan bound edge; the
         // general picture with flat cyan and royal blue shards up the crown and round the brim (viewer hatprint.js).
         'hat' => ['main' => '#1b1c1e', 'secondary' => '#05c3f2'],
@@ -190,9 +205,37 @@ $look = function (string $name, array $extra = []): array {
         // full-length side panels, yoke and neck and armhole binding (colours measured on 426 as rendered), each its own
         // colour area (viewer netballdress.js: zoneColors body / panels / yoke / binding).
         // (NDT: the body a little lighter, 43,88,145 on the stage as 426's.)
-        'netballDress' => ['number' => '', 'main' => '#35547e', 'secondary' => '#0c78c6', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#0c78c6',
-            'zoneColors' => ['body' => '#35547e', 'panels' => '#0c78c6', 'yoke' => '#35547e', 'binding' => '#0c78c6']],
+        // (TRD 2026-11-12, the user: the Tripo dress's starting look in the colours of its own picture, images/525 (the
+        // mockup it was made from): a deep blue body (and yoke), light azure side panels and binding, the tabs a deeper
+        // shade of the body; set so the stage renders them as the picture's. No bib: position letters are added in Studio.)
+        // (BBSINGLET 2026-11-13, the user: the Basketball singlet tile's own 3D model (Tripo; viewer zoneColors.bballSinglet
+        // shows it, every other singlet keeps the made one) starts as its mockup picture, images/538: a golden yellow mesh
+        // body, a dark charcoal V-neck and armhole binding (Secondary), the "3" mark small on the wearer's right chest and the
+        // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
+        // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
+        'bballSinglet' => ['main' => '#e4bf00', 'secondary' => '#42444c', 'accent' => '#42444c', 'patternColor' => '#42444c', 'zoneColors' => ['bballSinglet' => '#42444c'], 'marks' => ['top_crest' => ['x' => -0.1, 'y' => 0.6, 'scale' => 0.3], 'top_wordmark' => ['x' => 0, 'y' => 0.45, 'scale' => 0.75]]],
+        // (NBBIB 2026-11-13, the user: the Netball bibs tile's own 3D model (Tripo; viewer zoneColors.netballBib shows it,
+        // every other singlet keeps the made one) starts as the booklet's "Netball bib" (Yellow Images 37504): a royal blue
+        // bib with a yellow neck binding (the Neck trim), our big white position letters centred front and back (the
+        // Number, which netball's Numbers panel calls Position letters), our 3DEEZI wordmark high on the wearer's right chest
+        // and our "3" mark in yellow high on the left (zoneColors.crestInk); its edge binding and side ties follow the
+        // Secondary (Colours › Netball bib areas); set so the stage renders them as the picture's. Nothing from the picture.)
+        'netballBib' => ['number' => 'GS', 'main' => '#2c48bc', 'secondary' => '#2c48bc', 'accent' => '#ffffff', 'patternColor' => $cyan, 'parts' => ['collar' => ['colour' => '#f2bb00']], 'zoneColors' => ['netballBib' => '#2c48bc', 'crestInk' => '#f2bb00'],
+            'marks' => ['top_name' => ['hidden' => true], 'top_number' => ['x' => 0, 'y' => 0.26, 'scale' => 0.6], 'top_frontNumber' => ['x' => 0, 'y' => 0.42, 'scale' => 1.4], 'top_crest' => ['x' => 0.095, 'y' => 0.585, 'scale' => 0.45], 'top_wordmark' => ['x' => -0.095, 'y' => 0.585, 'scale' => 0.4]], 'layers' => []],
+        'netballDress' => ['number' => '', 'main' => '#30508a', 'secondary' => '#2295dc', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#2295dc',
+            'zoneColors' => ['body' => '#30508a', 'panels' => '#2295dc', 'yoke' => '#30508a', 'binding' => '#2295dc']],
     ];
+    // The Rugby League Jersey tile (FBJERSEY 2026-11-13, the user: on its own 3D model (viewer fbjersey.js, chosen by
+    // zoneColors.fbJersey) in the colours and places of its reference, the booklet's "Rugby jersey" (Yellow Images 15814,
+    // images/539): a golden yellow body and round neck band, navy raglan sleeves and navy cuffs (zoneColors.cuffStripe: no
+    // band at the cuffs; the picture's thin yellow stripe could not be printed cleanly on the model's cuffs), the number big
+    // and navy in the middle of the chest (marks.top_frontNumber) and on the back, our "3" mark on the left chest and the
+    // small 3DEEZI wordmark on the right chest, where the picture has its badge and its brand's mark (no text or logo from
+    // the picture); set so the stage renders them as the picture's. Its collar, sleeves, side panels and hem are parts.)
+    $looks['rlJersey'] = ['main' => '#e2bf3a', 'secondary' => '#e2bf3a', 'accent' => '#32324c', 'patternColor' => '#32324c',
+        'parts' => ['leftSleeve' => ['colour' => '#32324c'], 'rightSleeve' => ['colour' => '#32324c']],
+        'zoneColors' => ['fbJersey' => '#32324c', 'cuffStripe' => '#e2bf3a'],
+        'marks' => ['top_number' => ['color' => '#32324c'], 'top_frontNumber' => ['x' => 0, 'y' => 0.45], 'top_wordmark' => ['x' => -0.1, 'y' => 0.6, 'scale' => 0.42], 'top_crest' => ['x' => 0.1, 'y' => 0.6, 'scale' => 1.0]]];
     return $extra + ($looks[$name] ?? []) + $base + ['number' => '23', 'marks' => []];
 };
 
@@ -201,9 +244,10 @@ $sports = [
     // the client's own tiles (images/161.jpg) remade in high resolution, garment-rugby-*.webp.
     ['id' => 'rugby-league', 'name' => 'Rugby League', 'description' => 'Made for every tackle. Built for your team.', 'group' => 'sports', 'more' => false, 'tiles' => [
         $tile('Rugby League Kit', 'Jersey, playing shorts and socks.', 'fullkit', 'rugby-kit'),
-        $tile('Jersey', 'Performance rugby league jersey.', 'jersey', 'rugby-jersey'),
-        $tile('Playing Shorts', 'Durable rugby league shorts.', 'shorts', 'rugby-shorts'),
-        $tile('Socks', 'Knee-high match socks.', 'socks', 'rugby-socks'),
+        // (On its own 3D model in its reference's colours, FBJERSEY 2026-11-13; the kit keeps the made jersey.)
+        $tile('Jersey', 'Performance rugby league jersey.', 'jersey', 'rugby-jersey') + ['design' => $look('rlJersey')],
+        $tile('Playing Shorts', 'Durable rugby league shorts.', 'shorts', 'rugby-shorts') + ['design' => $look('rlShorts')],
+        $tile('Socks', 'Knee-high match socks.', 'socks', 'rugby-socks') + ['design' => $look('rlSocks')],
         $tile('Polo', 'Smart team polo with collar.', 'polo', 'rugby-polo'),
         $tile('Training Tee', 'Breathable tee for training.', 'tee', 'rugby-tee'),
         $tile('Training Shorts', 'Lightweight shorts with zip pockets.', 'shorts', 'rugby-training-shorts'),
@@ -238,7 +282,7 @@ $sports = [
         $tile('Football socks', 'Match socks with team bands.', 'socks'),
     ]],
     ['id' => 'basketball', 'name' => 'Basketball', 'description' => 'Court-ready looks for a different kind of game.', 'group' => 'sports', 'tiles' => [
-        $tile('Basketball singlet', 'Game singlet with a big number.', 'singlet'),
+        $tile('Basketball singlet', 'Game singlet with a big number.', 'singlet') + ['design' => $look('bballSinglet')],
         $tile('Basketball shorts', 'Long, loose game shorts.', 'shorts', 'basketball-shorts'),
         $tile('Shooting shirt', 'Warm-up shirt for the shoot-around.', 'shooting-shirt'),
         $tile('Reversible training singlet', 'Light singlet for practice games.', 'singlet'),
@@ -258,7 +302,8 @@ $sports = [
         $tile('Singlet with bib', 'Netball singlet with removable bib.', 'singlet', 'netball-singlet-bib'),
         $tile('Training singlet', 'Lightweight top for training.', 'singlet', 'netball-training-singlet'),
         $tile('Training T-shirt', 'Breathable tee for training and warm-ups.', 'tee', 'netball-tee'),
-        $near('Netball bibs', 'Pullover bibs with position patches.', 'singlet', 'bibs', 'netball-bibs'),
+        // Its own 3D model since 2026-11-13 (NBBIB, Tripo; look 'netballBib').
+        $tile('Netball bibs', 'Pullover bibs with position patches.', 'singlet', 'netball-bibs') + ['design' => $look('netballBib')],
         $tile('Tracksuit', 'Full-zip jacket and matching pants.', 'trackjacket', 'netball-tracksuit'),
         $tile('Hoodie', 'Warm hoodie for on and off court.', 'hoodie', 'netball-hoodie'),
     ]],
@@ -605,7 +650,9 @@ $shortsWord = ['layers' => [
 ]];
 $pictureExtras = [
     'bibs' => $trainingBibs, 'netball-bibs' => $netballBibs, 'netball-singlet-bib' => $letters('GA'), 'netball-dress' => $letters('WA'),
-    'netball-dress@netball-dress' => $dressBib,
+    // (TRD 2026-11-12: the dress starts as its picture, images/525: no bib or letters; its position letters are the
+    // Numbers panel's, as every netball top's.)
+    'netball-dress@netball-dress' => ['marks' => ['top_name' => ['hidden' => true]], 'layers' => []],
     'nfl-kit' => $chestThree, 'nfl-compression-top' => $sleeveThree,
     'rugby-kit' => $rugbyShorts,
     'shorts' => $shortsWord, 'rugby-shorts' => $shortsWord, 'rugby-training-shorts' => $shortsWord, 'nfl-training-shorts' => $shortsWord,
@@ -618,7 +665,8 @@ foreach ($sports as &$sport) {
             $name = $pictureLooks[$t['image']] ?? (in_array($t['garment'], $sideLooks, true) ? 'sides' : 'plain');
             $t['design'] = $look($name, $t['design'] ?? []);
         }
-        $extra = $pictureExtras[$t['image'].'@'.$t['garment']] ?? $pictureExtras[$t['image']] ?? ($t['image'] === 'nfl-jersey' ? $gameThree : []);
+        // (A look with its own objects (the Rugby League Playing Shorts' 'rlShorts': none) keeps them, not its picture's.)
+        $extra = isset($t['design']['layers']) ? [] : $pictureExtras[$t['image'].'@'.$t['garment']] ?? $pictureExtras[$t['image']] ?? ($t['image'] === 'nfl-jersey' ? $gameThree : []);
         $t['design'] = array_merge($t['design'], $extra);
     }
     unset($t);

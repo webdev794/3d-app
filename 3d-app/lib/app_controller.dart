@@ -15,6 +15,7 @@ import 'project_store.dart';
 import 'project_sync.dart';
 import 'session_store.dart';
 import 'sports_catalog.dart';
+import 'model_flags.dart';
 
 /// The screens of the client's "Complete App Flow", in order.
 enum AppScreen {
@@ -642,12 +643,30 @@ class AppController extends ChangeNotifier {
   void selectLayer(String? id) => update(() => selectedLayerId = id);
 
   /// The Artboard design to open when the Artboard next starts (the
-  /// Studio's "Edit in Artboard" on artwork sent from it): its account id.
+  /// Studio's "Edit in Artboard" on artwork sent from it, or a design picked
+  /// on Assets): its account id.
   int? openArtboardDoc;
+
+  /// Where [openArtboardDoc] was picked: 'assets' (it opens as File > Open
+  /// from my account does; [openArtboardVersion] is the version Assets
+  /// listed) or null (Edit in Artboard).
+  String? openArtboardFrom;
+  int? openArtboardVersion;
 
   /// Opens the Artboard with the design an artwork layer came from.
   void editInArtboard(int doc) {
     openArtboardDoc = doc;
+    openArtboardFrom = null;
+    openArtboardVersion = null;
+    go(AppScreen.artboard);
+  }
+
+  /// Assets › Artboard: opens a design saved in the account in the Artboard,
+  /// ready to edit ([version]: the one Assets listed).
+  void openArtboardDesign(int doc, {int? version}) {
+    openArtboardDoc = doc;
+    openArtboardFrom = 'assets';
+    openArtboardVersion = version;
     go(AppScreen.artboard);
   }
 
@@ -1045,15 +1064,54 @@ class AppController extends ChangeNotifier {
   }
 
   /// A 3D still of the user's own kit for the YOUR DESIGN card, taken just
-  /// before a preset replaces it.
+  /// before a preset replaces it (unless the one there is of the kit now).
   Future<void> captureOwnThumb() async {
     if (_onPreset) return;
     final capture = captureMockup;
     if (capture == null) return;
+    final shot = _signature(kit);
+    if (ownThumb != null && _ownShot == shot) return;
     try {
-      ownThumb = await capture('Front') ?? ownThumb;
+      final still = await capture('Front');
+      if (still != null) {
+        ownThumb = still;
+        _ownShot = shot;
+      }
     } on Object {
-      // The swatch shows.
+      // The last still (or the swatch) shows.
+    }
+  }
+
+  /// The kit (its signature) [ownThumb] shows; null: not known.
+  String? _ownShot;
+
+  /// YOUR DESIGN's still is not of the user's own kit as it is on the 3D
+  /// view now (THUMB 2026-11-12: it followed only presets, so the card
+  /// showed the colour swatch, or an older kit, while the user designed).
+  bool get ownStillWanted {
+    final own = ownKit;
+    if (own == null || _onPreset || captureMockup == null) return false;
+    final now = _signature(own);
+    return now != _ownShot && now == _signature(kit);
+  }
+
+  /// Takes YOUR DESIGN's still of the user's own kit (the 3D viewer calls
+  /// this once the kit is on and the changes have stopped).
+  Future<void> takeOwnStill() async {
+    final capture = captureMockup, own = ownKit;
+    if (capture == null || own == null || _onPreset) return;
+    final shot = _signature(own);
+    try {
+      final still = await capture('Front');
+      // (Kept only while the kit is still that one: a change takes another.)
+      final now = ownKit;
+      if (still == null || _onPreset || now == null) return;
+      if (_signature(now) != shot) return;
+      ownThumb = still;
+      _ownShot = shot;
+      notifyListeners();
+    } on Object {
+      // The last still (or the swatch) shows.
     }
   }
 
@@ -1127,7 +1185,8 @@ class AppController extends ChangeNotifier {
     gradient = copyGradient(design['gradient']);
     gradients = copyGradient(design['gradients']);
     zones = copyZones(design['zones']);
-    zoneColors = copyZones(design['zoneColors']);
+    // (The kit's ready-made 3D model stays: its flag is kept, model_flags.dart.)
+    zoneColors = keepModelFlags(zoneColors, copyZones(design['zoneColors']));
     patternColor = design['patternColor'] is String
         ? design['patternColor'] as String
         : null;
@@ -1432,7 +1491,8 @@ class AppController extends ChangeNotifier {
   }
 
   /// Uploads one project. An expired session is rethrown; other failures
-  /// are recorded on the project.
+  /// are recorded on the project (shown on its card, the Projects screen's
+  /// cloud line and the Save screen) and tried again later ([retryUploads]).
   Future<void> _upload(Project p) async {
     try {
       final body = ProjectSync.toServer(p);
@@ -1452,9 +1512,45 @@ class AppController extends ChangeNotifier {
         p.remoteId = null;
         return _upload(p);
       }
-      p.syncError = e.message;
+      p.syncError = notOnAccount(e.message);
     } finally {
       notifyListeners();
+    }
+  }
+
+  /// Why a save did not reach the account, in words the customer can act on
+  /// (QA10 2026-11-11: a refused save only showed a cloud mark).
+  static String notOnAccount(String reason) {
+    final why = reason.trim();
+    return 'Saved on this device, but not on your account yet'
+        '${why.isEmpty ? '.' : ' (${why.endsWith('.') ? why.substring(0, why.length - 1) : why}).'}'
+        ' The app will try again by itself; you can also tap Sync now in '
+        'Projects.';
+  }
+
+  /// Projects saved on this device that the account has not taken yet.
+  bool get uploadsWaiting => projects.any((p) => p.pendingUpload);
+
+  /// When the next automatic try of [retryUploads] may run, and the wait
+  /// after it (doubling up to 30 minutes while the saves keep failing).
+  DateTime _nextRetry = DateTime.fromMillisecondsSinceEpoch(0);
+  Duration _retryWait = const Duration(minutes: 1);
+
+  /// Tries the saves that did not reach the account again (the app runs it
+  /// every minute and when it comes back to the front; [now] skips the wait).
+  Future<void> retryUploads({bool now = false}) async {
+    if (!signedIn || _sync != null || !uploadsWaiting) return;
+    final at = DateTime.now();
+    if (!now && at.isBefore(_nextRetry)) return;
+    await syncProjects();
+    if (uploadsWaiting) {
+      _nextRetry = DateTime.now().add(_retryWait);
+      final longer = _retryWait * 2;
+      _retryWait = longer > const Duration(minutes: 30)
+          ? const Duration(minutes: 30)
+          : longer;
+    } else {
+      _retryWait = const Duration(minutes: 1);
     }
   }
 
@@ -1761,6 +1857,7 @@ class AppController extends ChangeNotifier {
     _restore(_sampleKit(1, 'Jersey'));
     shelvedLayouts.clear();
     ownKit = ownThumb = null;
+    _ownShot = null;
     _onPreset = false;
     logoText = backName = 'MANTIS';
     number = '23';
@@ -1783,6 +1880,7 @@ class AppController extends ChangeNotifier {
     projectName = '';
     saved = false;
     saveError = null;
+    saveNotice = null;
   }
 
   void startAi() {
@@ -2119,6 +2217,7 @@ class AppController extends ChangeNotifier {
     projectName = project.title;
     saved = false;
     saveError = null;
+    saveNotice = null;
     notifyListeners();
     try {
       await store.save(project);
@@ -2129,11 +2228,19 @@ class AppController extends ChangeNotifier {
           'full or unavailable. Keep this tab open, free some space and retry, '
           'or sign in to save your design to your account.';
     }
+    saveNotice = null;
     if (signedIn) {
       try {
         await _upload(project);
       } on ApiException catch (e) {
         await _expire(e.message);
+        saveNotice = notOnAccount(e.message);
+      }
+      // Kept here, but the account refused it or could not be reached: say
+      // so on the Save screen (the next tries run by themselves).
+      if (project.pendingUpload && project.syncError != null) {
+        saveNotice = project.syncError;
+        _nextRetry = DateTime.now().add(_retryWait);
       }
     }
     saved =
@@ -2143,6 +2250,11 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     return saved;
   }
+
+  /// After a save: it is on this device, but not on the account yet (why,
+  /// and that it is tried again). Null when it reached the account or no
+  /// account is signed in.
+  String? saveNotice;
 
   void loadProject(Project project) {
     _resetDesign();
@@ -2160,6 +2272,7 @@ class AppController extends ChangeNotifier {
       ownThumb = thumb;
       _onPreset = preset;
     }
+    _ownShot = null;
     projectName = project.title;
     saved = true;
     go(AppScreen.studio);

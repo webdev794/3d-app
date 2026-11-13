@@ -6,6 +6,8 @@ use App\Models\OrderAssist;
 use App\Models\Supplier;
 use App\Services\OrderAnalysis;
 use App\Services\OrderAssistantReader;
+use App\Services\OrderDesignForm;
+use App\Services\OrderFormMaker;
 use App\Services\Pdf\OrderAssistPdf;
 use App\Services\OrderAssistXlsx;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +27,11 @@ use Symfony\Component\HttpFoundation\Response;
  * POST /order-assistant (new) and POST /order-assistant/{token} (more to the same order): message, files[] (the
  * order), designs[] (design pictures), supplier_id (Made by). GET /order-assistant/{token} (+ /pdf, /xlsx,
  * /designs/{n}).
+ *
+ * Design pictures with one prompt and no order sheet (client 2026-11-13, the MANTIS example: "from one prompt it done
+ * it perfect") are the order form maker: OrderFormMaker reads the pictures and the prompt in one 3DEEZI AI call (the
+ * garment, the team's brand, each design's name and colourway, its sizes), the customer corrects the form in place
+ * (POST /order-assistant/{token}/form, no AI) and the PDF is the design order form (Pdf\DesignOrderPdf).
  */
 class OrderAssistController extends Controller
 {
@@ -36,23 +43,61 @@ class OrderAssistController extends Controller
 
     private const MAX_DESIGNS = 20;
 
-    public function store(Request $request, OrderAssistantReader $reader): JsonResponse
+    public function store(Request $request, OrderAssistantReader $reader, OrderFormMaker $maker): JsonResponse
     {
         OrderAssist::ensureTable();
         $assist = new OrderAssist(['user_id' => $request->user('sanctum')?->id, 'messages' => [], 'files' => [], 'analysis' => null]);
 
-        return $this->take($request, $reader, $assist, 201);
+        return $this->take($request, $reader, $maker, $assist, 201);
     }
 
-    public function append(Request $request, OrderAssistantReader $reader, OrderAssist $assist): JsonResponse
+    public function append(Request $request, OrderAssistantReader $reader, OrderFormMaker $maker, OrderAssist $assist): JsonResponse
+    {
+        $this->owner($request, $assist);
+
+        return $this->take($request, $reader, $maker, $assist, 200);
+    }
+
+    /**
+     * The customer's corrections to the order form maker's form (the summary on screen): brand, garment, title, and
+     * the designs in their order ({key, name, colourway, sizes: {size: qty}}; a design left out comes off the form).
+     * No AI: the form, the totals, the PDF and the Excel are made again from it.
+     */
+    public function form(Request $request, OrderAssist $assist): JsonResponse
+    {
+        $this->owner($request, $assist);
+        $form = $assist->analysis['form'] ?? null;
+        abort_unless(is_array($form), 422, 'This order has no design form to change.');
+        $request->validate([
+            'brand' => ['nullable', 'string', 'max:40'],
+            'garment' => ['nullable', 'string', 'max:60'],
+            'title' => ['nullable', 'string', 'max:80'],
+            'designs' => ['nullable', 'array', 'max:'.OrderDesignForm::MAX_DESIGNS],
+            'designs.*.key' => ['required', 'string', 'max:80'],
+            'designs.*.name' => ['nullable', 'string', 'max:60'],
+            'designs.*.colourway' => ['nullable', 'string', 'max:40'],
+            'designs.*.sizes' => ['nullable', 'array', 'max:40'],
+            'designs.*.sizes.*' => ['nullable', 'integer', 'min:0', 'max:10000'],
+        ]);
+        $form = OrderDesignForm::edit($form, $request->only(['brand', 'garment', 'title', 'designs']));
+        $analysis = OrderDesignForm::analysis($form);
+        $analysis['sources'] = $assist->analysis['sources'] ?? [];
+        // The chat says what the form now holds (the app's chat and the page's answer show the latest).
+        $messages = $assist->messages ?? [];
+        $messages[] = ['role' => 'assistant', 'text' => OrderDesignForm::reply($form, null, 'saved'), 'at' => now()->toIso8601String()];
+        $assist->fill(['title' => mb_substr(OrderDesignForm::title($form), 0, 120), 'analysis' => $analysis, 'messages' => array_slice($messages, -60)])->save();
+
+        return response()->json(['data' => $this->resource($assist->fresh())]);
+    }
+
+    /** Only the account that started an order changes it (a visitor's order becomes the signed-in customer's). */
+    private function owner(Request $request, OrderAssist $assist): void
     {
         $user = $request->user('sanctum');
         abort_if($assist->user_id && $assist->user_id !== $user?->id, 403, 'This order belongs to another account.');
         if (! $assist->user_id && $user) {
             $assist->user_id = $user->id;
         }
-
-        return $this->take($request, $reader, $assist, 200);
     }
 
     public function show(OrderAssist $assist): JsonResponse
@@ -98,7 +143,7 @@ class OrderAssistController extends Controller
         return response(Storage::disk('local')->get($file['path']), 200, ['Content-Type' => $file['mime'] ?? 'application/octet-stream', 'Cache-Control' => 'private, max-age=3600']);
     }
 
-    private function take(Request $request, OrderAssistantReader $reader, OrderAssist $assist, int $status): JsonResponse
+    private function take(Request $request, OrderAssistantReader $reader, OrderFormMaker $maker, OrderAssist $assist, int $status): JsonResponse
     {
         $request->validate([
             'message' => ['nullable', 'string', 'max:8000'],
@@ -147,6 +192,13 @@ class OrderAssistController extends Controller
         }
         $designs = array_map(fn ($f) => ['name' => $f['name'], 'colour' => $f['colour'] ?? null, 'group' => $f['group'] ?? null], array_values(array_filter($files, fn ($f) => $f['kind'] === 'design')));
 
+        // Design pictures and a prompt with no order sheet: the order form maker.
+        $formBefore = is_array($assist->analysis['form'] ?? null) ? $assist->analysis['form'] : null;
+        $pictures = array_values(array_filter($files, fn ($f) => $f['kind'] === 'design' && $f['extension'] !== 'pdf'));
+        if (! array_filter($files, fn ($f) => $f['kind'] === 'order') && ($formBefore || $pictures)) {
+            return $this->makeForm($request, $maker, $assist, $files, $pictures, $stored, $formBefore, $message, $status);
+        }
+
         $read = $reader->read($message, array_map(fn ($f) => ['path' => Storage::disk('local')->path($f['path']), 'extension' => $f['extension'], 'name' => $f['name']], $newOrder),
             $designs, (bool) $request->user('sanctum'), (string) $request->input('title', ''));
         // Earlier lines stay, except those of a file sent again (read afresh).
@@ -172,6 +224,48 @@ class OrderAssistController extends Controller
         $messages[] = ['role' => 'user', 'text' => $message, 'files' => array_map(fn ($f) => ['name' => $f['name'], 'kind' => $f['kind']], $stored), 'at' => now()->toIso8601String()];
         $messages[] = ['role' => 'assistant', 'text' => self::reply($analysis, $read['sources']), 'at' => now()->toIso8601String()];
         $assist->fill(['title' => mb_substr($title, 0, 120), 'files' => $files, 'analysis' => $analysis, 'messages' => array_slice($messages, -60)]);
+        $assist->save();
+
+        return response()->json(['data' => $this->resource($assist->fresh())], $status);
+    }
+
+    /**
+     * The order form maker's turn: the pictures and the prompt read by 3DEEZI AI (new words or new pictures; the earlier
+     * messages go with them, and the form so far), else the form kept with the customer's picture choices.
+     */
+    private function makeForm(Request $request, OrderFormMaker $maker, OrderAssist $assist, array $files, array $pictures, array $stored, ?array $before, string $message, int $status): JsonResponse
+    {
+        $note = null;
+        $ai = false;
+        if ($before === null || $message !== '' || array_filter($stored, fn ($f) => $f['kind'] === 'design')) {
+            $earlier = array_values(array_filter(array_map(fn ($m) => ($m['role'] ?? '') === 'user' ? trim((string) ($m['text'] ?? '')) : '', $assist->messages ?? [])));
+            // Typed first, pictures after: the garment read from the words so far is kept (without the AI too).
+            $first = $assist->analysis['lines'][0] ?? null;
+            $hint = $before ?? ($first ? ['designs' => [], 'garment_id' => $first['garment'] ?? null, 'sport' => $first['sport'] ?? null,
+                'garment' => ($first['product'] ?? '') === OrderAnalysis::NO_SPORT_JERSEY ? 'Jersey' : (string) ($first['product'] ?? '')] : null);
+            $made = $maker->make($message, $earlier, array_map(fn ($f) => ['name' => $f['name'], 'path' => Storage::disk('local')->path($f['path']), 'colour' => $f['colour'] ?? null], $pictures),
+                $hint, (bool) $request->user('sanctum'));
+            [$form, $ai, $note] = [$made['form'], $made['ai'], $made['note']];
+        } else {
+            $form = $before;
+        }
+        if ($request->has('assign')) {
+            $form = OrderDesignForm::assign($form, (array) $request->input('assign', []));
+        }
+        if (trim((string) $request->input('title', '')) !== '') {
+            $form = OrderDesignForm::tidy(['title' => mb_substr(trim((string) $request->input('title')), 0, 80)] + $form);
+        }
+        $analysis = OrderDesignForm::analysis($form);
+        $how = $ai ? 'ai' : ($request->user('sanctum') ? 'unread' : 'sign_in');
+        // Read again: how each part was read; kept (a picture's design or the maker chosen): as it was read before.
+        $analysis['sources'] = isset($made) ? [...($message !== '' ? [['name' => 'Your message', 'how' => $ai ? 'ai' : 'notes']] : []),
+            ...array_map(fn ($f) => ['name' => $f['name'], 'how' => $how], $pictures)] : ($assist->analysis['sources'] ?? []);
+        $messages = $assist->messages ?? [];
+        if ($message !== '' || $stored) {
+            $messages[] = ['role' => 'user', 'text' => $message, 'files' => array_map(fn ($f) => ['name' => $f['name'], 'kind' => $f['kind']], $stored), 'at' => now()->toIso8601String()];
+            $messages[] = ['role' => 'assistant', 'text' => OrderDesignForm::reply($form, $note, ! empty($before['designs']) ? 'updated' : 'made'), 'at' => now()->toIso8601String()];
+        }
+        $assist->fill(['title' => mb_substr(OrderDesignForm::title($form), 0, 120), 'files' => $files, 'analysis' => $analysis, 'messages' => array_slice($messages, -60)]);
         $assist->save();
 
         return response()->json(['data' => $this->resource($assist->fresh())], $status);

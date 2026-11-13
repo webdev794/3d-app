@@ -18,6 +18,7 @@ import '../widgets/site_page_stub.dart'
 import '../widgets/ui.dart';
 import 'order_entry.dart'
     show OrderFormScreen, pickOrderFile, pickOrderFileIsDefault;
+import 'order_form_editor.dart' show OrderFormEditor;
 import 'suppliers.dart' show Supplier, SuppliersScreen;
 import 'team.dart' show TeamScreen;
 
@@ -617,6 +618,38 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
     final url = '${(data?['links'] as Map?)?['page'] ?? ''}';
     await Clipboard.setData(ClipboardData(text: url));
     if (mounted) showToast(context, 'Summary page link copied.');
+  }
+
+  /// The order form maker's names and sizes, corrected in place (client
+  /// 2026-11-13; as the website): saved without AI, the PDF follows.
+  Future<void> _editForm(Map form) async {
+    final token = data?['token'] as String?;
+    if (token == null) return;
+    final body = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => OrderFormEditor(
+          form: form,
+          pictures: {
+            for (final d in ((data?['designs'] as List?) ?? const [])
+                .whereType<Map>())
+              '${d['name']}': '${d['url']}',
+          },
+        ),
+      ),
+    );
+    if (body == null || !mounted) return;
+    setState(() {
+      sending = true;
+      error = null;
+    });
+    try {
+      final d = await c.api.orderAssistantForm(token, body);
+      if (mounted) setState(() => data = d);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
   }
 
   /// A design picture's group: the customer's choice.
@@ -1244,6 +1277,7 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
     final groups = ((analysis['groups'] as List?) ?? const [])
         .whereType<Map>()
         .toList();
+    final form = analysis['form'] is Map ? analysis['form'] as Map : null;
     return Padding(
       key: analysisKey,
       padding: const EdgeInsets.only(top: 6),
@@ -1270,7 +1304,11 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    checks.isEmpty
+                    // The order form maker's answer in full (the designs it
+                    // found, the sizes, the total); else the first line.
+                    form != null
+                        ? all
+                        : checks.isEmpty
                         ? intro
                         : 'I’ve analysed your order and highlighted a few things to check before production:',
                     style: const TextStyle(fontSize: 14, height: 1.35),
@@ -1302,6 +1340,15 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
                         ],
                       ),
                     ),
+                  if (form != null) ...[
+                    const SizedBox(height: 10),
+                    _OutlinePill(
+                      key: const ValueKey('assistant-form-edit'),
+                      icon: Icons.edit_note_rounded,
+                      label: 'Check names & sizes',
+                      onTap: () => _editForm(form),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   _GlowBox(
                     key: const ValueKey('assistant-summary'),

@@ -8,6 +8,7 @@ use App\Services\DesignSvg;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ProjectController extends Controller
 {
@@ -119,9 +120,16 @@ class ProjectController extends Controller
             'projects' => (clone $projects)->count(),
             'drafts' => (clone $projects)->where('status', 'draft')->count(),
             'approved' => (clone $projects)->where('status', 'approved')->count(),
-            'assets' => $request->user()->assets()->count(),
+            // As the Assets page lists them: the pictures and files, and the designs saved in the Artboard (not its templates).
+            'assets' => $request->user()->assets()->count() + $this->artboardDesigns($request),
             'recent_projects' => (clone $projects)->latest('updated_at')->limit(6)->get(),
         ]]);
+    }
+
+    /** The Artboard designs kept in the account (none while its table does not exist yet on a site not updated). */
+    private function artboardDesigns(Request $request): int
+    {
+        return Schema::hasTable('artboard_documents') ? $request->user()->artboardDocuments()->where('template', false)->count() : 0;
     }
 
     private function owned(Request $request, int $project): Project

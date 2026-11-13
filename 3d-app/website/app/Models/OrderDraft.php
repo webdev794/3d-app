@@ -58,11 +58,42 @@ class OrderDraft extends Model
             'id' => $this->id,
             'kind' => $this->kind,
             'title' => $this->title,
+            // What the lists call it: the team name, else what it holds ("Rugby League Jersey · 25"); null when empty.
+            // My orders adds "draft from 11 Nov" (QA10 2026-11-11: every unnamed draft was "Untitled order").
+            'name' => $this->title ?? self::contentName($items),
+            'quantity' => self::quantityOf($items),
             'files_count' => (int) ($this->files_count ?? $this->files()->count()),
             'garments_count' => count($items),
             'link' => $this->kind === 'upload' ? '/orders/upload?draft='.$this->id : '/orders/new?draft='.$this->id,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /** "Rugby League Jersey · 25", "Rugby League Jersey + 1 more · 40": the first garment by name and the total; null without rows. */
+    public static function contentName(array $items): ?string
+    {
+        $rows = array_values(array_filter($items, 'is_array'));
+        $names = array_values(array_unique(array_filter(array_map(fn (array $row) => trim(Order::itemName($row)), $rows))));
+        if (! $names) {
+            return null;
+        }
+        $name = $names[0].(count($names) > 1 ? ' + '.(count($names) - 1).' more' : '');
+        $quantity = self::quantityOf($rows);
+
+        return mb_substr($quantity > 0 ? "{$name} · {$quantity}" : $name, 0, 160);
+    }
+
+    /** The rows' garments together: each row's quantity, else its sizes added up. */
+    public static function quantityOf(array $items): int
+    {
+        return array_sum(array_map(function ($row) {
+            if (! is_array($row)) {
+                return 0;
+            }
+            $sizes = is_array($row['sizes'] ?? null) ? array_sum(array_map(fn ($n) => max(0, (int) $n), $row['sizes'])) : 0;
+
+            return max(0, (int) ($row['quantity'] ?? 0)) ?: $sizes;
+        }, $items));
     }
 }

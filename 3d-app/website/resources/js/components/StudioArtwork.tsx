@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Check, Copy, FileUp, ImagePlus, Layers, LoaderCircl
 import { api, fetchFile, getToken, media, type Project } from '../api';
 import type { ArtworkLayer, Design } from '../types';
 import type { DesignLayout, KitViewerHandle } from './KitViewer';
+import { keepModelFlags } from '../modelFlags';
 
 export type LibraryAsset = { id: number; name: string; type: string; src?: string };
 export type ArtworkDrop = { asset?: LibraryAsset; pattern?: string; label?: string };
@@ -229,7 +230,7 @@ const FAVOURITES = '3deezi.favouritePresets';
 const readFavourites = (): string[] => { try { return JSON.parse(localStorage.getItem(FAVOURITES) || '[]'); } catch { return []; } };
 
 /** The user's own design in this Studio (before the first preset, and as changed after it is chosen again), with a still of it. */
-export type OwnDesign = { design: Design; thumb?: string | null };
+export type OwnDesign = { design: Design; thumb?: string | null; /** The design (its designSignature) the still shows. */ shot?: string };
 /** The keys that make a design what it is (YOUR DESIGN compares them). */
 const designKeys = ['garment', 'main', 'secondary', 'accent', 'pattern', 'patternColor', 'patternColorOwn', 'patternImage', 'patternBody', 'patternScale', 'gradient', 'gradients', 'zones', 'zoneColors', 'parts', 'layout', 'layers', 'logoText', 'number', 'backName', 'logoImage', 'sponsorImage', 'marks', 'fabric', 'neck', 'fit'] as const;
 /** "1 panel", "4 panels": a print layout's panels on the kit (its roles other than 'none'). */
@@ -292,7 +293,8 @@ export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset, 
         // layout on the kit (these hide the colours and pattern); keys older saves lack are cleared so the look matches.
         const replaced = design.layout ? (design.layout.kind === 'drawing' ? 'design picture' : 'print layout') : null;
         // A hoodie's own area colours go too: its lining, rib and zip then follow the preset's colours.
-        edit({ gradient: null, gradients: null, zoneColors: null, patternColorOwn: null, parts: null, ...style, zones: areas(style.zones), patternImage: style.patternImage ?? null, layout: style.layout ?? null });
+        // (The kit's ready-made 3D model stays: its zoneColors flag is kept, modelFlags.ts.)
+        edit({ gradient: null, gradients: null, patternColorOwn: null, parts: null, ...style, zoneColors: keepModelFlags(design.zoneColors as Record<string, string> | null, style.zoneColors as Record<string, string> | null), zones: areas(style.zones), patternImage: style.patternImage ?? null, layout: style.layout ?? null });
         onNotice(replaced ? `${name} applied in place of your ${replaced}: Undo, or Artwork › ${replaced === 'design picture' ? 'My design picture' : 'Factory print layout'}, puts it back.` : `${name} applied. Your logos and player details are preserved.`);
     }
     function toggleFavourite(id: string) {

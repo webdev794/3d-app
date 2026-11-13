@@ -683,7 +683,9 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     }
     return best;
   };
-  const openDist = detail ? points.map((p, i) => (i < nb && !seam[i] ? 0 : toOpen(p))) : null;
+  // (Also for the netball dress without the render detail (look 1): its tab relief reads it in every tier (detailFolds).
+  // Without it the dress threw on a device that remembers look 1, "could not apply" on every try: LIVEFIX L1 2026-11-12.)
+  const openDist = detail || spec.dress ? points.map((p, i) => (i < nb && !seam[i] ? 0 : toOpen(p))) : null;
   /** A fold's profile: a rounded ridge and a narrower, deeper valley (cloth folds are not sine waves). */
   const fold = (q) => { const v = Math.sin(q); return v > 0 ? v * (1 - 0.25 * v) : -(Math.abs(v) ** 0.7); };
   /**
@@ -1093,6 +1095,8 @@ export function buildGarment(kind = 'jersey', { step = 0.0085, spec: cut = null,
     drawstring: !!spec.legs,
     /** Where a flat panel point sits on the worn garment (before creases). */
     at: (x, y, back = false) => worn.at(new THREE.Vector2(x, y), back),
+    /** How far along its sleeve a flat panel point is (metres from the armhole, as body.sleeve), -1 on the body. */
+    sleeveAt: (x, y) => worn.sleeve(new THREE.Vector2(x, y))?.l ?? -1,
     /** The same with the back's raised neckline: the fabric's shape as worn (a garment drawing's map keeps shapes on it). */
     surface: (x, y, back = false) => {
       const p = new THREE.Vector2(x, y);

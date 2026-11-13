@@ -278,14 +278,22 @@ class _ArtboardScreenState extends State<ArtboardScreen> {
         // 3DEEZI ASSIST can run commands here from now on.
         AssistBridge.register('artboard', _assistRunner);
         _sendHost();
-        // Edit in Artboard: the design an artwork layer came from.
+        // Edit in Artboard (the design an artwork layer came from), or a
+        // design picked on Assets (opened as File > Open from my account).
         final doc = c.openArtboardDoc;
         if (doc != null) {
+          final from = c.openArtboardFrom, version = c.openArtboardVersion;
           c.openArtboardDoc = null;
+          c.openArtboardFrom = null;
+          c.openArtboardVersion = null;
           _host?.send(
             jsonEncode({
               'cmd': 'openDoc',
-              'arg': {'id': doc},
+              'arg': {
+                'id': doc,
+                if (from != null) 'from': from,
+                if (version != null) 'version': version,
+              },
             }),
           );
         }

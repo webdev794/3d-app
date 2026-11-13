@@ -1,7 +1,29 @@
 # Resume notes
 Updated 2026-11-04 evening (weekly limit nearly used). Only what is still open; history is in tasks.md, detail-checks.md and git.
 - SP = `D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad`; client pictures in SP's sibling folder `images\NNN` (latest 432).
+- SP2 = `D:\systemp\claude\0fe865e4811eb60b\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad` (this session's own scratchpad; TRIPO spec: SP2\TRIPO\spec.md).
 - Old notes (before this clean-up) are saved in SP\resume-notes.before-1104-cleanup.md.
+
+## START HERE (after 2026-11-13 17:05)
+Session usage hit 92%: the user said to pause agents, let the closest one finish, then run ONE agent at a time, one model each.
+- Order and agent IDs: D:\3d-app\models.md, section "Queue". Model guide, status and the client's card details are in the same file.
+- Agent work folders: D:\systemp\claude\0fe865e4811eb60b\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad\TRIPO\<AGENT>\ (log.md with HANDBACK). Shared notes between agents: TRIPO\shared.md.
+- Running at the pause: BBSINGLET (ab55c7d0c2b3fe25e), merging round 2 (-306): MODELTEST's 11 findings, the preset fix for ALL new-model tiles, round neck + all styles, reversible.
+- Then, one at a time, resuming each by SendMessage with its ID:
+  1. RGSHORTS a8a5d93dd59ceb897 (Rugby League shorts, MODELTEST findings)
+  2. RGSOCKS af060b073481f869e (Rugby League socks, MODELTEST findings)
+  3. SCJERSEY a9dec922a8f4927fc (Football soccer jersey, mid-build)
+  4. NBBIB a07a3318f33cdf8b8 (Netball bib, merged -302; final checks)
+  5. MODELTEST a2bb053c7e0bdc5c8 (test the Rugby League jersey -305, then each fixed model)
+- Rules: D:\3d-app\tripo\NEW-MODEL-CHECKLIST.md. Models only on the named tile; colours and placement from the PDF card, only our marks; all neck and collar styles built; no tar or push unless the user asks.
+- Done today and not on live yet: collar choice on the dress, order form paste, order form maker + its ORDERS menu link, the new models above. Tar 3deez-update-2026-11-13-a made 17:07 (everything to -306); the user extracts it, then live has it.
+
+## START HERE (2026-11-13), end of 2026-11-12
+1. Live (https://testcaresortwork.co.in/3deez/) had 11-12-d at 18:0x. MAKE A TAR ONLY WHEN THE USER ASKS (user 2026-11-12). Today's tars: deploy-zips\3deez-update-2026-11-12-a..f, made from a clean copy with SP2\PACK1112\final-pack-1112X.sh (copy the last one, set OUT and REF = the tar live has; check live's build/assets main-*.js with curl first). The user extracts them; tars include ALL finished work, without asking.
+2. v3 pushed 2026-11-12 18:3x = b4e85b7 (all work to date, viewer -295; the user asked). Push only when the user says so (SP final-push-v3.sh with a message file).
+3. Tripo models: D:\3d-app\tripo\ (netball-dress.glb, basketball-shorts.glb) and NEW-MODEL-CHECKLIST.md, which every new model follows. From viewer -293 the model data sits inside the viewer page. The old shapes of these two garments are deleted, and V-neck is hidden for the dress until the client's V-neck picture comes. The other garments keep their models until the client sends new ones.
+4. Open: patch 05 (app host one design in flight) if TRD didn't merge it; L1-CODE's idea of skipping the made-dress build under the Tripo dress (1.5 s, memory); the Basketball shorts tile picture still black and cyan while the 3D starts purple (pictures are never changed by us).
+5. The user's PC runs low on memory (2 VS Code windows, Edge, agent browsers) and D: is nearly full: one browser per agent, tiny temporary files. Old playwright_chromiumdev_profile-* folders in D:\systemp (~3 GB) can only be deleted by the user.
 
 ## START HERE (2026-11-05)
 1. Check SP\viewer.lock and SP\vite.lock are free; run `dart analyze lib` (D:\3d-app\3d-app) and `npx tsc --noEmit` (website).
@@ -57,6 +79,24 @@ Updated 2026-11-04 evening (weekly limit nearly used). Only what is still open; 
 ## PAUSED 2026-11-04 evening (user): resume these tomorrow, each from its log's HANDBACK
 | Worker | ID | Log (HANDBACK) | Next step |
 |---|---|---|---|
+| Model quality tester MODELTEST (2026-11-13) | a2bb053c7e0bdc5c8 | SP2\TRIPO\MODELTEST | Tests each finished model until perfect (first: Basketball singlet -297); replies with findings |
+| Football soccer jersey SCJERSEY (2026-11-13) | a9dec922a8f4927fc | SP2\TRIPO\SCJERSEY\log.md | soccer-jersey.glb on the Football jersey tile only; booklet 138303 look |
+| Netball bib model NBBIB (2026-11-13) | a07a3318f33cdf8b8 | SP2\TRIPO\NBBIB\log.md | netball-bib.glb on the Netball bibs tile only; royal blue, yellow binding, our letters and marks |
+| Rugby League socks model RGSOCKS (2026-11-13) | af060b073481f869e | SP2\TRIPO\RGSOCKS\log.md | rugby-socks.glb on the Rugby League Socks tile only; navy, our yellow 3 mark |
+| Rugby League shorts model RGSHORTS (2026-11-13) | a8a5d93dd59ceb897 | SP2\TRIPO\RGSHORTS\log.md | rugby-shorts.glb on the Rugby League Playing Shorts tile only; booklet 14565 look |
+| Football jersey model FBJERSEY (2026-11-13) | a8c7151daec96b778 | SP2\TRIPO\FBJERSEY\log.md | football-jersey.glb for the Football jersey + Full kit jersey only; look as images 539; necks |
+| Basketball singlet model BBSINGLET (2026-11-13) | ab55c7d0c2b3fe25e | SP2\TRIPO\BBSINGLET\log.md | basketball-jersey.glb for the Basketball singlet tiles only; look as images 538; necks |
+| Linked-feature tester LINKTEST (2026-11-13) | a0389290ad086bec9 | SP2\LINKTEST\findings.md | Baseline, then re-test linked features after each ORDERPASTE / ORDERFORMGEN / COLLAR merge |
+| Order Assistant like ChatGPT ORDERFORMGEN (2026-11-13) | a54bd33020458e3f7 | SP2\ORDERFORMGEN\log.md | Pictures + one prompt -> PDF order form like the client MANTIS example |
+| Order form paste-to-fill ORDERPASTE (2026-11-13) | abecd6d4fa96f102f | SP2\ORDERPASTE\log.md | Paste anything into the order form, ChatGPT fills it; size reading fix; app too |
+| Collar choices on the Tripo dress COLLAR (2026-11-13) | aa8ffa2528367b3cb | SP2\TRIPO\COLLAR\log.md | V-neck etc. cut into the Tripo dress neck; neck choices back for the dress |
+| Your-design card picture THUMB (2026-11-12) | a4da4d6ba3bdf2b17 | SP2\LIVEFIX\THUMB\notes.md | Finds why the Studio "YOUR DESIGN" card is a blue fill for the Tripo dress; patch for TRD; no project edits |
+| L1 helper L1-CODE (2026-11-12) | a9769952d9b547998 | SP2\LIVEFIX\L1\code-review.md | Reads the dress path for hangs / ignored errors / heavy repeated work; patches in L1\patches; no project edits |
+| L1 helper L1-REPRO (2026-11-12) | a65afca0a94ef093f | SP2\LIVEFIX\L1\repro.md | Times each step of the dress apply in a browser (slow-PC setting too); no project edits |
+| Logo to homepage LOGO (2026-11-12) | a9f05372830a58959 | SP2\LIVEFIX\LOGO\log.md | L3: logo goes home on every website page (Artboard broken on live); app consistent |
+| Artboard designs on Assets ARTASSETS (2026-11-12) | acffec51cf6ba2a63 | SP2\ARTASSETS\log.md | Website + app Assets list saved Artboard designs (label "Artboard"), open in the Artboard |
+| Tripo dress builder TRD | a486782d357dbc636 | SP2\TRIPO\TRD\log.md | NOW L1 (SP2\LIVEFIX\spec.md): dress "could not apply" on live. Before: (tester removed + models final, user 2026-11-12: no shape changes, self-check) Netball dress -> D:\3d-app\tripo\netball-dress.glb; owns tripomesh.js |
+| Tripo shorts builder TRS | a7536d28a31a1963f | SP2\TRIPO\TRS\log.md | NOW L2 (SP2\LIVEFIX\spec.md): Studio crash with shorts on live. Before: (tester removed + models final: no shape changes, self-check) Basketball shorts -> basketball-shorts.glb; reuses tripomesh.js |
 | Page worker PW1 (phone bubble pages) | a5f768a90a0758a35 | SP\PW1\log.md | Headings as far from the rim as Home; the same width and top / bottom curve as Home; everything inside at top and bottom; then flutter build web + browser check (SP\DR1\bot.cjs) |
 | Basketball shorts fixer BSF | a161c7475f4c08d5e | SP\BS\fixer-log.md | Round 4: V split sharp / straight / near black; straight side outline (hips); waistband gathers, no ledge; back 2-3% narrower; colours vs tile |
 | Basketball shorts tester BST | ad3a868f541eb014f | SP\BS\tester-log.md | Test BSF's next version with the full checklist (round.sh N, studio-trim.mjs, the 40-degree view) |
@@ -186,3 +226,51 @@ Resume via SendMessage, do not respawn:
 - 2026-11-10: TEAMBUB ae4e2394e5b52b975 resumed: remove bubble from app Team page + Team sub-screens (like DYO). User: push to v2 when done.
 - 2026-11-10: WEBGLASS ac9b40b52a41c1974 = website glass bubble buttons (spec scratchpad/WEBGLASS/spec.md). For pushing app work while it runs: final-push-v2-noweb.sh (keeps v2 website as is).
 - 2026-11-10: user: Team page -> v2 (last v2 push); every later change incl. website glass buttons -> v3 (final-push-v3.sh).
+- 2026-11-10: pushed v2 = 7bdadb6 (Team page no bubble; website left as is). LAST v2 push. Next pushes -> v3 (final-push-v3.sh) incl. WEBGLASS when done.
+- 2026-11-10: pushed v3 = 8c9bf68 (v2 7bdadb6 + website glass buttons). From now on pushes go to v3.
+- 2026-11-10: WEBGLASS resumed to make zoomed before/after close-ups per control + order chat result shots in screenshots/2026-11-10/website-closeups/ (user wants to see website changes).
+- 2026-11-10: SIGNFIX a584c39434a5649d6 = website Signage: tent hidden behind side menus (500.png); prefer page layout, viewer only website-only if needed. Push to v3 when done.
+- 2026-11-10: WEBGLASS close-ups done (screenshots/2026-11-10/website-closeups 01-09, 20). FIXOC resumed: website form netball dress name + sizeless hoodie row. SIGNFIX running. Push v3 when both done.
+- 2026-11-10: user has 30 min (until ~18:48); SIGNFIX + FIXOC told 15 min; push v3 with msg-1110e.txt right after.
+- 2026-11-10: user asked to delete the shared screenshots: D:\3d-app\screenshots removed (30 files). Agents told not to save there.
+- 2026-11-10: pushed v3 = 71286fc (signage spacing + order form notes). No agents running. Open: app parity for sizeless rows, singlet price, signage Back view.
+- 2026-11-10 ~18:4x: QA10 a662951b1a1657a99 = read-only regression of later changes (Team no bubble, DYO bigger, examples removed, sync fix, glass buttons, signage, order reading, artboard). If user is away: record results in tasks.md; fixes -> v3.
+- 2026-11-10 18:36: live tar 3deez-update-2026-11-10-a.tar.gz (29 files, delta since 11-06-f, code only, no migrations).
+- 2026-11-10: live extracted 3deez-update-2026-11-10-a (2nd try; 1st extract did not land). Verified: live serves main-DMZOJE26.css / main-DhmTW-0l.js, artboard index.html from 11-10. Tip: after each upload, curl the live page for the new build/assets names.
+- 2026-11-11: new day. DYOBIG2 a81cb364a130ff78e resumed for DYOBRAND (502: less text, bigger kit, closer sides, kits blue/black/white, app only). QA10 a662951b1a1657a99 stopped at session end -> resumed (skip DYO page while it changes).
+- 2026-11-11: QA10 done: 1 BROKEN (app project save 422) + logic items. Fixers: FIXA10 ab17ff47954f9e076 (ProjectRequest.php + project_sync + team.dart), FIXW10 acae35ca5b6e1014b (Assist/Home, pick-up total, order names, draft names), SIGNFIX a584c39434a5649d6 (mirrored back-wall logo, viewer). DYOBIG2 still on DYO. Push v3 + live tar when all done.
+- 2026-11-11: DYOBIG2 done (DYOBRAND): kit 346/410/466 px; 22 kit-*-brand.webp recoloured; weaker: cricket (dark), teamwear (cream trim). Wait for FIXA10/FIXW10/SIGNFIX, then push v3 + live tar.
+- 2026-11-11: SIGNFIX done (marquee back sides read correctly; faster turns; VIEWER_VERSION 2026-10-20-283). Still running: FIXA10, FIXW10.
+- 2026-11-11: FIXA10 done (ProjectRequest.php allowed lists; app save retry + amber notice; Team form). Live needs the new ProjectRequest.php (next tar). Waiting for FIXW10, then push v3 + tar 11-11-a.
+- 2026-11-11: FIXW10 done (Assist on Home, pick-up totals, garment names, draft names) -> resumed for pick-up+region shipping bug. FIXA10 resumed for app parity of those. Then push v3 + tar 11-11-a.
+- 2026-11-11: FIXW10 pick-up overcharge fixed (PricingService/PricingController/OrderSubmission, OrderForm/OrderUpload/OrderPayment). Admin pick-up price (if set) still applies (kept). Waiting FIXA10 app parity -> push v3 + tar 11-11-a.
+- 2026-11-11 11:0x: live tar 3deez-update-2026-11-11-a.tar.gz (38 files, delta since 11-10-a, no migrations). Pushing v3.
+- 2026-11-11: pushed v3 = 9db62b8 (all of 11-11 so far).
+- 2026-11-11: DYOMATCH: DYOFIX a7bd1299a48148c63 (fixer) + DYOTEST a2fc8cf9048da6773 (tester, read-only, measures vs 506). Relay tester lists to fixer; repeat until PASS. Kit pictures exactly like 506 may need paid image model -> ask user.
+- 2026-11-11: user: no colour changes in DYOMATCH (layout only). Fixer + tester told.
+- 2026-11-11: user: garment colours accepted, never change them (memory saved).
+- 2026-11-11: user: side garments must be fully opaque (not transparent) like 506. Fixer + tester told.
+- 2026-11-11: user 507: garment bottoms covered by capsule and below the stage; hard rule sent to DYOFIX + spec.
+- 2026-11-11 12:1x: DYOTEST round 1 PASS (layout matches 506; no covered garments; feet on stage; solid sides; no scroll). DYOFIX round 2 for small leftovers (icons 25pt, 360 sizing, arrows 39pt if safe, short-window hard edge). Then quick tester recheck + push v3 (app only).
+- 2026-11-11: user: show before v3 push; round 2 stopped, keep round 1 (DYOFIX told to undo any round-2 edits).
+- 2026-11-11: user: keep round 2 going; show the final output before the v3 push. DYOFIX resumed for round 2; then DYOTEST recheck; then show user; push after OK.
+- 2026-11-11: user: no bigger tile icons (client wants smaller buttons, bigger clothes). DYOFIX told to drop item 1.
+- 2026-11-11 13:4x: DYOTEST round 2 PASS. Waiting for user OK before v3 push (show-before-push rule).
+- 2026-11-11: user: name capsule must be glass bubble like 506 (not black). DYOFIX round 3; then tester; then show user; push after OK.
+- 2026-11-11 13:5x: DYO round 3 + tweaks done (water-bubble name/Custom capsules: darker glass, thin white rim, glints). analyze + 3 DYO tests pass (I re-ran). WAITING for user OK -> then push v3 (app only, no tar). Open polish: outer glow weaker than 506; tiles/arrows silver rims; DESIGN top shine.
+- 2026-11-11: user OK -> pushed v3 = 1b4d9d4 (DYO water bubbles, app only). WEBGLASS ac9b40b52a41c1974 resumed: website secondary buttons + DYO name capsule to water-bubble look; show user before push; then live tar.
+- 2026-11-11: WEBGLASS also: Assist button/panel bubble look (website, CSS only, not on Studio/Artboard/Marquee).
+- 2026-11-11: user 509: 506 capsule looks more bubble-like than ours -> DYOFIX round 4 (match 506 by sampled colours); WEBGLASS told to use 506 as target. Then tester + show user + push.
+- 2026-11-11: user: water bubble, NOT glass; use the app water-bubble style (HomeGlassPainter / GlassCapsule tab bar) for app capsules + website buttons/Assist. Both agents told.
+- 2026-11-11: user: website water bubble only on the few controls changed on 11-10 (glass-ui pages) + Assist; not site-wide; keep speed. WEBGLASS told.
+- 2026-11-11: user: NO push and NO tar before showing them and getting consent (memory updated).
+- 2026-11-11 14:1x: DYOTEST round 4 PASS (water-bubble capsules = tab bar GlassCapsule; Custom text contrast 4.9:1, weaker than 506). WAITING user choice: round 4 (app water bubble) vs round 3 (506-like dark glass, saved create_home.round3.dart). No push without consent.
+- 2026-11-11 14:3x: WEBGLASS done: website water bubble (506-like dark body, liquid white rim, glints) on 11-10 secondary controls + DYO name capsule + Assist (glass pages only); +0.5 KB gz; speed unchanged. App round 4 = tab-bar style (lighter blue). WAITING user choice of ONE look for both; no push/tar without consent.
+- 2026-11-11: user chose the APP look (light-blue liquid, thick glossy rim = tab bar GlassCapsule) for both. App round 4 stays. WEBGLASS resumed to match website controls + Assist to it. Then show user; push v3 + tar only after consent.
+- 2026-11-11: user: the CLIENT 506 bubble images are the best -> target 506 look for BOTH app capsules (DYOFIX round 5) and website controls (WEBGLASS back to its 506-like version, refine). Show user; push/tar only after consent.
+- 2026-11-11: user 510/511: thick border worse; make capsules like 511 (506 bubble); round 5 = LAST DYO round, then stop DYO.
+- 2026-11-11 15:0x: DYOFIX round 5 (LAST) done: name + Custom capsules like 511/513 (clear dark body, glowing white rim, top streak, glints); 68 tests pass. DYO work stopped. Waiting user OK. WEBGLASS still refining website to 506.
+- 2026-11-11 15:2x: WEBGLASS done (506-matched website bubbles + Assist; +0.65 KB gz; ~4 ms style). App round 5 done. ASKED user consent: push v3 + live tar 11-11-b.
+- 2026-11-11: user 514: glints outside bubble edge -> DYOFIX + WEBGLASS fixing. Push/tar still waiting for consent.
+- 2026-11-11 15:4x: glints fixed inside the rim (app _WaterSparkles clipped; website glass.css glint layer inside rim + soft even glow). All finished. ASKED consent: push v3 + live tar 11-11-b.
+- 2026-11-11 15:29: live tar 3deez-update-2026-11-11-b.tar.gz (39 files, ALL of 11-11 since 11-10-a; replaces 11-11-a, which was never extracted). v3 push still waiting for consent.

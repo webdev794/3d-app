@@ -57,6 +57,26 @@ const noAvoid = { round: false, lift: 0, size: 0 };
 /** The homepage design shows the chat open (2026-10-15): it opens by itself there on computer screens. */
 const opensOn = (page: string) => page === '/' && window.matchMedia('(min-width: 1200px)').matches;
 
+/** The chat's size on the homepage's computer screens, as in the design: 341 px wide at 1600 px (Home.tsx sets it). */
+export const homeAssistScale = () => Math.min(1.2, Math.max(.8, document.documentElement.clientWidth / 1600 * 341 / 344));
+
+/**
+ * Whether the open chat would leave the homepage's four ways to create uncovered (2026-11-11: at 1440 x 900 it sat over
+ * 3DEEZI TEAM, so a click on the card typed into the chat). The chat stands on its button in the bottom-right corner:
+ * 344 px wide, up to 620 px tall, both scaled. On most screens the cards reach under it, so it starts as its button.
+ */
+function roomBesideCards(root: HTMLElement | null) {
+  if (!root) return false;
+  const corner = root.getBoundingClientRect(), k = homeAssistScale();
+  if (!corner.width) return false;
+  const bottom = corner.bottom - (root.offsetHeight + 16) * k, top = bottom - Math.min(620 * k, window.innerHeight - 130), left = corner.right - 344 * k;
+  const cards = [...document.querySelectorAll('.creation-paths .path-card')];
+  return cards.length > 0 && !cards.some(card => {
+    const b = card.getBoundingClientRect();
+    return b.width > 0 && b.right > left - 8 && b.left < corner.right && b.bottom > top && b.top < bottom;
+  });
+}
+
 /** Opens the chat from a page's own button (e.g. the Support page's "Open 3DEEZI ASSIST"). */
 export const openAssist = () => { window.dispatchEvent(new Event('assist-open')); };
 
@@ -73,18 +93,16 @@ export default function Assist() {
   // Opened by itself on the homepage and not used yet: it leaves the keyboard focus on the page, and
   // closes again when the visitor goes to another page.
   const auto = useRef(false);
-  const [state, setState] = useState(() => {
-    const saved = load();
-    if (saved.open || !opensOn(location.pathname)) return saved;
-    auto.current = true;
-    return { ...saved, open: true };
-  });
+  const [state, setState] = useState(load);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const list = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const { open, messages } = state;
   const tool = /^\/(studio|artboard|admin)/.test(location.pathname);
+  // The water-bubble look (glass.css) only on the pages with the glass buttons: Home, Create, Orders, 3DEEZI Team,
+  // Subscriptions, My projects and Signage (never the Studio, Artboard or Marquee Studio).
+  const bubble = /^\/(create\/(sport|ai)|order-now|team(\/requests)?|pricing|projects|approved|signage)?\/?$/.test(location.pathname);
   // Phones: on the homepage's first screen the button waits until the visitor scrolls (it would cover
   // the jersey, as in the mobile design); it is there from the first scroll on.
   const [waiting, setWaiting] = useState(false);
@@ -150,9 +168,11 @@ export default function Assist() {
         if (f.folded) {
           f.folded = false;
           setFolded(false);
-          if (!isOpen.current && window.matchMedia('(min-width: 1200px)').matches) { quiet.current = true; setState(s => ({ ...s, open: true })); }
+          if (!isOpen.current && window.matchMedia('(min-width: 1200px)').matches && (!auto.current || roomBesideCards(root.current))) { quiet.current = true; setState(s => ({ ...s, open: true })); }
         }
       }
+      // Opened by itself where there was room, then the window narrowed: back to its button, clear of the cards.
+      if (auto.current && isOpen.current && !f.folded && !roomBesideCards(root.current)) setState(s => ({ ...s, open: false }));
     };
     const soon = () => { if (!frame) frame = requestAnimationFrame(update); };
     update();
@@ -249,11 +269,11 @@ export default function Assist() {
   useEffect(() => { if (open && !auto.current && !quiet.current) input.current?.focus({ preventScroll: true }); quiet.current = false; }, [open]);
   // The homepage keeps a column for the chat beside its creation cards unless the visitor closed it (home.css).
   useLayoutEffect(() => { document.documentElement.toggleAttribute('data-assist-closed', !open && !folded); }, [open, folded]);
-  // Every visit to the homepage opens the chat; leaving it closes a chat that opened by itself, unused. (Before the
-  // page is painted, so the homepage's cards appear with the chat's column straight away.)
+  // Every visit to the homepage opens the chat where it covers none of the ways to create (only very wide screens);
+  // leaving it closes a chat that opened by itself, unused. (Before the page is painted, so it doesn't appear and go.)
   useLayoutEffect(() => {
     if (opensOn(location.pathname)) {
-      if (!state.open) { auto.current = true; setState(s => ({ ...s, open: true })); }
+      if (!state.open && roomBesideCards(root.current)) { auto.current = true; setState(s => ({ ...s, open: true })); }
     } else if (auto.current) {
       auto.current = false;
       setState(s => ({ ...s, open: false }));
@@ -388,7 +408,7 @@ export default function Assist() {
   const button = <button ref={launcher} className="assist-launcher" onClick={toggle} aria-expanded={open} aria-controls="assist-panel" title={open ? 'Hide 3DEEZI ASSIST' : 'Ask 3DEEZI ASSIST'}>
     <Sparkle size={tool ? 24 : 26} /><span>3DEEZI ASSIST</span>
   </button>;
-  return <div ref={root} className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${dock ? 'is-docked' : ''} ${waiting && !open && !dock ? 'is-waiting' : ''} ${avoid.round ? 'avoid-round' : ''} ${avoid.lift ? 'avoid-raised' : ''}`} style={{ '--assist-round': `${avoid.size}px`, '--assist-avoid': `${avoid.lift}px` } as React.CSSProperties}>
+  return <div ref={root} className={`assist ${bubble ? 'assist-water' : ''} ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${dock ? 'is-docked' : ''} ${waiting && !open && !dock ? 'is-waiting' : ''} ${avoid.round ? 'avoid-round' : ''} ${avoid.lift ? 'avoid-raised' : ''}`} style={{ '--assist-round': `${avoid.size}px`, '--assist-avoid': `${avoid.lift}px` } as React.CSSProperties}>
     {open && <section className="assist-panel" id="assist-panel" role="dialog" aria-label="3DEEZI ASSIST help chat">
       <header className="assist-head">
         <Sparkle size={30} />

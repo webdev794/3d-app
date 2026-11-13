@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Check, ChevronDown, ChevronRight, Download, Eye, EyeOff, FileText, GripVertical, Image as ImageIcon, Info, LoaderCircle, Mouse, MousePointer2, Move, Palette, Redo2, Save, Scaling, Sparkles, Trash2, Type, Undo2, Upload, UploadCloud, X, ExternalLink } from 'lucide-react';
 import { api, saveBlob, type Project, type User } from '../api';
@@ -44,6 +44,18 @@ export const SIGNAGE_PRODUCTS: { id: string; name: string; ready: boolean; icon:
   { id: 'backdrops', name: 'Backdrops', ready: false, icon: icon(<><path d="M6 10c6 3 30 3 36 0v26c-6 3-30 3-36 0z" /><path d="M6 10v26M42 10v26" /></>) },
 ];
 
+/**
+ * Where the showroom scene (the tent with the feather flag, pull-up banner and table cover beside it) sits inside the
+ * marquee viewer, as fractions of the viewer's height (measured 2026-11-10): top and bottom from its top edge, left and
+ * right from its centre. The camera keeps its angle, so the scene grows with the viewer's height.
+ */
+const SCENE_FIT: Record<MarqueeSize, { top: number; bottom: number; left: number; right: number }> = {
+  '3x3': { top: 0.333, bottom: 0.814, left: 0.472, right: 0.679 },
+  '3x6': { top: 0.333, bottom: 0.814, left: 0.691, right: 0.886 },
+};
+/** The clear space kept round the tent and its products (to the tiles, MARQUEE SETUP, CUSTOM MARQUEE and the sides). */
+const STAGE_GAP = 28;
+
 /** The landing page's setup choices (MARQUEE SETUP), on the draft that START DESIGNING opens. */
 function Choice<T extends string>({ label, options, value, onChange }: { label: string; options: [T, string][]; value: T; onChange: (v: T) => void }) {
   return <div className="sg-choice" role="group" aria-label={label}><span>{label}</span><div>{options.map(([v, text]) => <button key={v} type="button" className={v === value ? 'is-on' : ''} aria-pressed={v === value} onClick={() => onChange(v)}>{text}</button>)}</div></div>;
@@ -65,6 +77,37 @@ export function SignagePage() {
   useEffect(() => { storeMarqueeDraft(draft); }, [draft]);
   useEffect(() => { if (!soon) return; const t = setTimeout(() => setSoon(null), 3200); return () => clearTimeout(t); }, [soon]);
   useEffect(() => provideAssistContext(() => 'The Signage & Marquees page (SIGNAGE & MARQUEES in the top menu, /signage): products for clubs and events. Marquees are ready: choose the size (3 x 3 m or 3 x 6 m), the walls (roof only, a back wall or full walls) and press START DESIGNING to open the Marquee Studio, or Upload artwork to start from your own picture. Feather flags, pull-up banners, banners, table covers and backdrops are coming soon.'), []);
+  // The whole tent and its products in the clear space between the tiles, MARQUEE SETUP and CUSTOM MARQUEE, with room
+  // round them (user 2026-11-10: the tent was under the tiles and the panels on a 1322 x 620 laptop window): the 3D
+  // stage gets the height that makes the scene fit there, and sits so the scene is in the middle of that space.
+  // Phones keep their own stacked layout (signage.css).
+  const pageRef = useRef<HTMLDivElement>(null), headRef = useRef<HTMLElement>(null), tilesRef = useRef<HTMLElement>(null), setupRef = useRef<HTMLElement>(null), ctaRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const page = pageRef.current;
+    if (!page) return;
+    const vars = ['--sg-stage-top', '--sg-stage-h', '--sg-win-top', '--sg-fade-top', '--sg-fade-bottom'];
+    const fit = () => {
+      const s = page.style, tiles = tilesRef.current, cta = ctaRef.current, setup = setupRef.current;
+      if (!tiles || !cta || !setup || window.matchMedia('(max-width: 760px)').matches) { vars.forEach(v => s.removeProperty(v)); return; }
+      const p = page.getBoundingClientRect(), e = SCENE_FIT[design.size] ?? SCENE_FIT['3x3'];
+      const top = tiles.getBoundingClientRect().bottom - p.top + STAGE_GAP, bottom = cta.getBoundingClientRect().top - p.top - STAGE_GAP;
+      const cx = p.width / 2, left = setup.getBoundingClientRect().right - p.left + STAGE_GAP, right = p.width - STAGE_GAP;
+      const h = Math.max(200, Math.min((bottom - top) / (e.bottom - e.top), (cx - left) / e.left, (right - cx) / e.right));
+      const y = top + Math.max(0, bottom - top - (e.bottom - e.top) * h) / 2 - e.top * h;
+      s.setProperty('--sg-win-top', `${Math.round(top)}px`);
+      s.setProperty('--sg-stage-top', `${Math.round(y)}px`);
+      s.setProperty('--sg-stage-h', `${Math.round(h)}px`);
+      // A stage that ends inside the page fades into it.
+      s.setProperty('--sg-fade-top', y > 0 ? '56px' : '0px');
+      s.setProperty('--sg-fade-bottom', y + h < p.height ? '64px' : '0px');
+    };
+    fit();
+    const watch = new ResizeObserver(fit);
+    for (const el of [page, headRef.current, tilesRef.current, setupRef.current, ctaRef.current]) if (el) watch.observe(el);
+    window.addEventListener('resize', fit);
+    document.fonts?.ready.then(fit).catch(() => {});
+    return () => { watch.disconnect(); window.removeEventListener('resize', fit); };
+  }, [design.size]);
   async function uploaded(file?: File | null) {
     if (!file) return;
     if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { setSoon('Upload a PNG, JPEG or WebP picture.'); return; }
@@ -73,27 +116,27 @@ export function SignagePage() {
     storeMarqueeDraft(next);
     navigate('/signage/marquee');
   }
-  return <div className="signage-page">
+  return <div ref={pageRef} className="signage-page glass-ui">
     <MarqueeViewer className="sg-stage" design={design} view={view} showroom />
     <div className="sg-haze" aria-hidden="true" />
-    <header className="sg-head">
+    <header ref={headRef} className="sg-head">
       <h1>SIGNAGE &amp; <span>MARQUEES</span></h1>
       <p>Choose a product. Make it yours.</p>
     </header>
-    <nav className="sg-products" aria-label="Signage products">
+    <nav ref={tilesRef} className="sg-products" aria-label="Signage products">
       {SIGNAGE_PRODUCTS.map(p => <button key={p.id} type="button" className={`sg-product ${p.ready ? 'is-on' : 'is-soon'}`} aria-current={p.ready ? 'true' : undefined} aria-disabled={!p.ready} onClick={() => (p.ready ? navigate('/signage/marquee') : setSoon(`${p.name} are coming soon. Marquees are ready to design now.`))}>
         {p.icon}<span>{p.name}</span>{!p.ready && <small>COMING SOON</small>}
         {/* Every product carries the "3" emblem and the wordmark (branding, BR1 2026-11-02): the brand pictures, not typed text. */}
         <i className="sg-brand" aria-hidden="true"><img src={media('images/splash_mark.png')} alt="" /><img src={media('images/brand-wordmark.png')} alt="" /></i>
       </button>)}
     </nav>
-    <section className="sg-setup" aria-label="Marquee setup">
+    <section ref={setupRef} className="sg-setup" aria-label="Marquee setup">
       <h2>MARQUEE SETUP</h2>
       <Choice label="Size" options={[['3x3', '3 × 3 m'], ['3x6', '3 × 6 m']]} value={design.size} onChange={size => setup({ size })} />
       <Choice label="Walls" options={[['none', 'Roof only'], ['back', 'Back wall'], ['full', 'Full walls']]} value={design.walls} onChange={walls => setup({ walls })} />
       <Choice label="View" options={[['Front', 'Front'], ['Back', 'Back'], ['360°', '360°']]} value={view === 'Front' || view === 'Back' || view === '360°' ? view : 'Front'} onChange={setView} />
     </section>
-    <div className="sg-cta">
+    <div ref={ctaRef} className="sg-cta">
       <h2>CUSTOM MARQUEE</h2>
       <p>Roof, valance &amp; wall artwork</p>
       <Link className="button button-gradient sg-start" to="/signage/marquee">START DESIGNING <ArrowRight size={18} /></Link>

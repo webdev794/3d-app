@@ -10,7 +10,7 @@
  */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Camera, Check, CircleCheck, ImagePlus, Sparkles, FileSpreadsheet, FileUp, ChevronDown, ClipboardPaste, CreditCard, Info, LoaderCircle, LogIn, Palette, Paperclip, Plus, Settings, Shirt, Trash2, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, Check, CircleCheck, Sparkles, FileSpreadsheet, FileUp, ChevronDown, ClipboardPaste, CreditCard, Info, LoaderCircle, LogIn, Palette, Paperclip, Plus, Settings, Shirt, Trash2, TriangleAlert, X } from 'lucide-react';
 import { api, ApiError, fetchFile, media, type Catalog, type Project, type User } from '../api';
 import { clearIdempotencyKey, idempotencyKey, orderApi, uploadOrderFile, type OrderDetail, type OrderFile, type Payment } from '../orderApi';
 import { AssistCard, ContactDetailsCard, FileDropBox, OrderBottomBar, OrderField, OrderPageHeader, OrderPageLayout, OrderSection, OrderSteps, OrderSummaryCard, checkFiles, emptyContact, type ContactDetails, type SummaryRow, type UploadItem } from '../components/OrderPageParts';
@@ -21,6 +21,7 @@ import { moneyOr } from '../money';
 import { CUSTOM, CUSTOM_MAX, CUSTOM_PLACEHOLDER, customName, typedName } from '../customChoice';
 import { DEFAULT_LEAD_WEEKS, DeliveryFieldsCard, EMPTY_DELIVERY, MOBILE_MESSAGE, choiceDestination, dateText, deliveryErrors, deliveryPayload, deliveryText, mobileError, pickDelivery, validMobile, type DeliveryErrors, type DeliveryFields } from '../components/OrderDeliveryFields';
 import { ALL_SIZES, SET_NAMES, rareText, rowSizes, siteSize, sizeFit, sizeGroups } from '../orderSizes';
+import { fillOrder, readSizesHere, type AssistItem, type FillReply, type SizesReply } from '../orderPaste';
 import '../../css/order-form.css';
 import { MadeByField } from './Suppliers';
 import type { MadeByOptions, Supplier } from '../supplierApi';
@@ -40,9 +41,6 @@ interface FormFields { contact_name: string; contact_email: string; phone: strin
   needed_by: string; delivery: string; address: Record<string, string>;
   /** "Made by" (preferred suppliers): none is 3DEEZI. */
   supplier_id?: number }
-/** A garment read from "Help me add sizes" (the server's reader, or this page's own: it may have no garment yet). */
-interface AssistItem { garment: string | null; sport?: string | null; fit?: string | null; sizes: Record<string, number>; stated?: number }
-interface SizesReply { items: AssistItem[]; unknown?: string[] }
 interface Money { name: string; code?: string | null; amount: string }
 interface QuoteLine { key: string; name: string; quantity: number; unit_price: string | null; total: string | null; priced: boolean; unit?: string }
 interface Quote {
@@ -66,11 +64,32 @@ const MAX_ROWS = 60, MAX_PLAYERS = 300, STORE = '3deezi.order-form';
 /** Garments with a picture (public/media/showroom/garment-<id>.webp); the rest show a shirt icon. */
 const ART = new Set(['jersey', 'shorts', 'tee', 'singlet', 'polo', 'socks', 'hoodie']);
 const WORDS: Record<string, [string, string]> = { jersey: ['jersey', 'jerseys'], shorts: ['shorts', 'shorts'], tee: ['tee', 'tees'], singlet: ['singlet', 'singlets'], polo: ['polo', 'polos'], hoodie: ['hoodie', 'hoodies'], jacket: ['jacket', 'jackets'], warmup: ['warm-up top', 'warm-up tops'], pants: ['track pants', 'track pants'], socks: ['socks', 'socks'], cap: ['cap', 'caps'], other: ['item', 'items'] };
+/**
+ * A product ordered on another garment's row, named by its label: the netball dress is priced and made on a singlet row
+ * (Order::PROJECT_ROWS), but the customer sees "Netball dress" everywhere (QA 2026-11-10). Its word and its picture.
+ */
+const LABEL_WORDS: Record<string, { words: [string, string]; picture: string }> = { dress: { words: ['dress', 'dresses'], picture: 'netball-dress' } };
+const labelProduct = (r: { garment: string; label: string }) => (r.garment !== 'other' ? LABEL_WORDS[(r.label.trim().split(/\s+/).pop() ?? '').toLowerCase().replace(/es$/, '')] : undefined);
+/** A saved design's product name on its own garment's row; a dress made in the app's Studio has no name of its own: "Netball dress" (LINKTEST r3). */
+const designName = (project: Project | null | undefined, rowGarment: string) => designRowName(project, rowGarment) || (project?.garment === 'netball-dress' && rowGarment === 'singlet' ? 'Netball dress' : '');
+/** A row as the customer sees it: a saved design's product on its own garment's row ("Netball dress" on a singlet row) names it (LINKTEST r2). */
+type Shown = { garment: string; label: string; designName?: boolean };
+const shownRow = <T extends { garment: string; label: string; project_id: number | null }>(r: T, project?: Project | null): T & Shown => {
+  const name = !r.label.trim() && project && project.id === r.project_id ? designName(project, r.garment) : '';
+  return name ? { ...r, label: name, designName: true } : r;
+};
+/** "7 netball dresses" (the product's whole name), "7 netball bibs", else the garment's word ("7 singlets"). */
+const rowWord = (r: Shown, n: number) => {
+  const p = labelProduct(r), label = r.label.trim();
+  if (p) { const lead = label.split(/\s+/).slice(0, -1).join(' ').toLowerCase(); return `${lead ? `${lead} ` : ''}${p.words[n === 1 ? 0 : 1]}`; }
+  return r.designName && label ? label.toLowerCase() : (WORDS[r.garment] ?? WORDS.other)[n === 1 ? 0 : 1];
+};
 
 /* ================================================================================================ the form's data */
 
 interface PlayerRow { key: string; name: string; number: string; size: string }
-interface Row { key: string; garment: string; sport: string; fit: string; label: string; project_id: number | null; sizes: Record<string, number>; players: PlayerRow[]; open: boolean; more: boolean; file_ids: number[]; /** "Custom…" chosen: the sport is typed (screen only; a typed sport shows it too). */ custom?: boolean }
+interface Row { key: string; garment: string; sport: string; fit: string; label: string; project_id: number | null; sizes: Record<string, number>; players: PlayerRow[]; open: boolean; more: boolean; file_ids: number[]; /** "Custom…" chosen: the sport is typed (screen only; a typed sport shows it too). */ custom?: boolean;
+  /** A quantity read from the notes with no sizes ("5 hoodies"): shown until the sizes are added (screen and draft only, never ordered). */ wanted?: number }
 interface FormState { contact: ContactDetails; rows: Row[]; notes: string; pricing: PricingChoice; delivery: DeliveryFields; /** Made by: null is 3DEEZI (the default). */ supplier_id: number | null }
 
 let seq = 0;
@@ -102,14 +121,14 @@ function rowName(r: Row, o: FormOptions, project?: Project | null) {
   if (r.label.trim()) return r.label.trim();
   // A saved design made as one of its sport's garments ("Netball dress", task 9.99) is ordered by that name on rows of
   // that garment; on another garment's row ("Netball bibs" on a Rugby League jersey row) the row keeps its own name.
-  const product = project && project.id === r.project_id ? designRowName(project, r.garment) : '';
+  const product = project && project.id === r.project_id ? designName(project, r.garment) : '';
   if (product) return product;
   const garment = o.garments.find(g => g.id === r.garment)?.name ?? capital(r.garment);
   // A sport typed in "Custom…" (client 2026-11-02) as typed.
   const sport = o.sports.find(s => s.id === r.sport)?.name ?? (r.sport.trim() || undefined);
   return sport ? `${sport} ${garment}` : garment;
 }
-const typeLabel = (r: Row) => (r.garment === 'other' ? r.label.trim() || 'Other garments' : capital((WORDS[r.garment] ?? WORDS.other)[1]));
+const typeLabel = (r: Row & Shown) => (r.garment === 'other' ? r.label.trim() || 'Other garments' : capital(rowWord(r, 2)));
 const isPicture = (src: unknown): src is string => typeof src === 'string' && /^(data:image\/|https?:\/\/|\/)/.test(src);
 function projectPicture(p: Project | undefined | null): string | null {
   if (!p) return null;
@@ -117,6 +136,8 @@ function projectPicture(p: Project | undefined | null): string | null {
   return isPicture(p.thumbnail) ? p.thumbnail : isPicture(front) ? front : null;
 }
 const garmentPicture = (garment: string) => (ART.has(garment) ? media(`showroom/garment-${garment}.webp`) : null);
+/** A row's own garment picture: a product on another garment's row ("Netball dress") shows that product. */
+const rowPicture = (r: { garment: string; label: string }) => { const p = labelProduct(r); return p ? media(`showroom/garment-${p.picture}.webp`) : garmentPicture(r.garment); };
 
 /** The order fields to send (orders-api.md §2): no screen-only keys, nothing empty. */
 function toOrderFields(f: FormState, sizes: string[]): FormFields {
@@ -135,7 +156,7 @@ function toOrderFields(f: FormState, sizes: string[]): FormFields {
 /** A draft keeps the order fields plus the screen's own keys (row ids, open rows, artwork per garment, blank player rows). */
 function toDraftData(f: FormState, sizes: string[]) {
   const fields = toOrderFields(f, sizes);
-  return { ...fields, notes: f.notes, items: f.rows.map((r, i) => ({ ...fields.items[i], players: r.players.map(p => ({ name: p.name, number: p.number, size: p.size })), key: r.key, open: r.open, more: r.more, file_ids: r.file_ids })) };
+  return { ...fields, notes: f.notes, items: f.rows.map((r, i) => ({ ...fields.items[i], players: r.players.map(p => ({ name: p.name, number: p.number, size: p.size })), key: r.key, open: r.open, more: r.more, file_ids: r.file_ids, ...(r.wanted ? { wanted: r.wanted } : {}) })) };
 }
 function fromData(d: Loose | null | undefined, sizes: string[]): FormState {
   const items: Loose[] = Array.isArray(d?.items) ? d!.items : [];
@@ -155,6 +176,7 @@ function fromData(d: Loose | null | undefined, sizes: string[]): FormState {
         players: players.slice(0, MAX_PLAYERS).map(p => ({ key: makeKey('p'), name: str(p?.name, 40), number: digits(String(p?.number ?? '')), size: str(p?.size, 10) })),
         open: typeof it?.open === 'boolean' ? it.open : sum(s) > 0 || !!project, more: !!it?.more,
         file_ids: Array.isArray(it?.file_ids) ? it.file_ids.filter((n: unknown) => Number.isInteger(n)) : [],
+        ...(Number(it?.wanted) > 0 ? { wanted: Math.min(10000, Math.floor(Number(it.wanted))) } : {}),
       });
     }),
   };
@@ -214,68 +236,25 @@ function writeStore(owner: number | null, s: Stored | null) {
 
 /* ================================================================================================ "Help me add sizes" */
 
-/** The server's reader (orders-api.md §7); this page's own when that can't be reached. */
+/** The server's reader (orders-api.md §7); this page's own (orderPaste.ts) when that can't be reached or reads nothing. */
 async function readSizes(text: string, o: FormOptions): Promise<SizesReply> {
-  try { return await orderApi.assist(text); }
-  catch (e) { const status = (e as ApiError).status; if (!status || status === 404 || status === 405 || status >= 500) return readSizesHere(text, o); throw e; }
-}
-
-const GARMENT_ALIASES: [RegExp, string][] = [[/^(jerseys?|guernseys?|jumpers?)$/, 'jersey'], [/^shorts?$/, 'shorts'], [/^(tees?|tshirts?|t-shirts?|shirts?)$/, 'tee'], [/^singlets?$/, 'singlet'], [/^polos?$/, 'polo'], [/^(hoodies?|hoodys?)$/, 'hoodie'], [/^jackets?$/, 'jacket'], [/^(warmups?|warm-ups?)$/, 'warmup'], [/^(pants|trackpants|trackies)$/, 'pants'], [/^socks?$/, 'socks'], [/^(caps?|hats?)$/, 'cap']];
-const FIT_ALIASES: Record<string, string> = { men: 'mens', mens: 'mens', male: 'mens', women: 'womens', womens: 'womens', ladies: 'womens', female: 'womens', youth: 'youth', junior: 'youth', juniors: 'youth', kids: 'youth', unisex: 'unisex' };
-const NUMBER_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50 };
-type Tok = { t: 'n'; v: number } | { t: 's' | 'g' | 'fit'; v: string } | { t: 'sep' };
-
-/** Reads "12 jerseys: 2 S, 4 M, 6 L", "18 jerseys M", "jerseys 2xS 4xM", "M x 12 jerseys", "12 jerseys M, 12 shorts L". */
-function readSizesHere(text: string, o: FormOptions): SizesReply {
-  // "M", "xxl", "5xl", "10y", "w12", "kids" (orderSizes.ts siteSize): only sizes the site has.
-  const sizeOf = (w: string) => { const found = siteSize(w); return found && o.sizes.includes(found) ? found : null; };
-  const garmentOf = (w: string) => GARMENT_ALIASES.find(([re]) => re.test(w))?.[1] ?? null;
-  const toks: Tok[] = [];
-  for (const m of text.toLowerCase().replace(/['’]/g, '').matchAll(/[a-z0-9]+(?:-[a-z0-9]+)*|[;\n]/g)) {
-    const w = m[0];
-    if (w === ';' || w === '\n') { toks.push({ t: 'sep' }); continue; }
-    if (/^\d+$/.test(w)) { toks.push({ t: 'n', v: Math.min(10000, Number(w)) }); continue; }
-    if (NUMBER_WORDS[w]) { toks.push({ t: 'n', v: NUMBER_WORDS[w] }); continue; }
-    const size = sizeOf(w), garment = garmentOf(w), fit = FIT_ALIASES[w];
-    if (size) toks.push({ t: 's', v: size });
-    else if (garment) toks.push({ t: 'g', v: garment });
-    else if (fit) toks.push({ t: 'fit', v: fit });
-    else {
-      const times = w.match(/^(\d+)x([a-z0-9]+)$/), glued = w.match(/^(\d+)([a-z][a-z-]*)$/);
-      const part = times?.[2] ?? glued?.[2];
-      const n = Number(times?.[1] ?? glued?.[1]);
-      if (part && sizeOf(part)) toks.push({ t: 'n', v: n }, { t: 's', v: sizeOf(part)! });
-      else if (glued && garmentOf(part!)) toks.push({ t: 'n', v: n }, { t: 'g', v: garmentOf(part!)! });
+  // The order form's own reader first (OrderFormReader, no AI, LINKTEST 2026-11-13): players ("John Smith 7 M" is one
+  // jersey for #7, never 7 jerseys), "3 XL x 5", "Polo XS: 2"; what it can't place comes back to check.
+  try {
+    const notes = await orderApi.readNotes(text);
+    const found = (notes.items ?? []).filter(i => sum(i.sizes ?? {}) > 0);
+    if (found.length) {
+      // No garment word: the sizes are for the garment chosen (or the first with no sizes), not a guessed jersey.
+      const named = /\b(jerseys?|guernseys?|shorts?|tees?|t-?shirts?|shirts?|singlets?|polos?|hoodies?|hoodys?|jackets?|warm-?ups?|pants|trackpants|trackies|socks?|caps?|hats?|dress(es)?|bibs?)\b/i.test(text);
+      return { items: found.map(i => ({ garment: named ? i.garment : null, sport: i.sport ?? null, fit: i.fit ?? null, sizes: i.sizes, players: i.players ?? undefined })), unknown: notes.unknown ?? [] };
     }
-  }
-  const items: (AssistItem & { stated: number })[] = [];
-  let cur: (AssistItem & { stated: number }) | null = null, num: number | null = null, size: string | null = null, fit: string | null = null;
-  const push = (garment: string | null) => { const item = { garment, sport: null, fit, sizes: {} as Record<string, number>, stated: 0 }; fit = null; items.push(item); return item; };
-  const put = (s: string, n: number) => { cur ??= push(null); cur.sizes[s] = Math.min(10000, (cur.sizes[s] ?? 0) + n); };
-  // A size waiting for its number gets the garment's stated quantity ("18 jerseys M").
-  const settle = () => { if (cur && size && cur.stated && !sum(cur.sizes)) { cur.sizes[size] = cur.stated; size = null; } };
-  toks.forEach((tok, i) => {
-    const next = toks[i + 1], after = toks[i + 2];
-    if (tok.t === 'sep') { settle(); cur = null; num = null; size = null; return; }
-    if (tok.t === 'fit') { if (cur && !cur.fit && !num) cur.fit = tok.v; else fit = tok.v; return; }
-    if (tok.t === 'n') {
-      if (next?.t === 'g' || (next?.t === 'fit' && after?.t === 'g')) { settle(); num = tok.v; return; }   // "12 jerseys": the garment's quantity
-      if (size) { put(size, tok.v); size = null; return; }                                                 // "M 4", "M x 12"
-      num = tok.v; return;
-    }
-    if (tok.t === 's') {
-      if (num !== null) { put(tok.v, num); num = null; return; }                                           // "4 M"
-      if (cur && cur.stated && !sum(cur.sizes) && next?.t !== 'n') { cur.sizes[tok.v] = cur.stated; return; } // "18 jerseys M"
-      size = tok.v; return;
-    }
-    if (cur && !cur.garment && sum(cur.sizes) && num === null) { cur.garment = tok.v; return; }           // "2 S, 4 M jerseys"
-    settle();
-    cur = push(tok.v);
-    cur.stated = num ?? 0; num = null;
-    if (size && cur.stated) { cur.sizes[size] = cur.stated; size = null; }                                  // "M x 12 jerseys"
-  });
-  settle();
-  return { items };
+  } catch { /* the next reader */ }
+  try {
+    const read = await orderApi.assist(text);
+    // "XS x 3 , S x 5 …" (order 537): read here when the server's reader found no sizes.
+    if (!read.items?.some(i => sum(i.sizes ?? {}) > 0)) { const here = readSizesHere(text, o.sizes); if (here.items.some(i => sum(i.sizes) > 0)) return here; }
+    return read;
+  } catch (e) { const status = (e as ApiError).status; if (!status || status === 404 || status === 405 || status >= 500) return readSizesHere(text, o.sizes); throw e; }
 }
 
 /* ================================================================================================ the page */
@@ -317,15 +296,18 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
   const [artOpen, setArtOpen] = useState<string | null>(null);
   const [designsOpen, setDesignsOpen] = useState(false);
   const [sheet, setSheet] = useState<{ name: string; state: 'uploading' | 'error'; text?: string } | null>(null);
-  // "Write or snap your notes" (client 2026-11-03): typed notes, photos of notes and images, built into the form.
+  // "Paste your order here" (ORDERPASTE, client 2026-11-13; before: "Write or snap your notes", 2026-11-03): anything
+  // pasted or typed, and pasted screenshots, photos and order files, filled into the order with one button.
   const [notesText, setNotesText] = useState('');
-  const [notePhotos, setNotePhotos] = useState<File[]>([]);
-  /** "Upload file": an existing order form (messy or incomplete) read with the notes (client 2026-11-04, 391.jpg). */
+  /** Pasted screenshots, photos of notes and order files (read by 3DEEZI AI as order forms; client 2026-11-04, 391.jpg). */
   const [noteFiles, setNoteFiles] = useState<File[]>([]);
-  /** The rows the last Build made: a second Build replaces them instead of adding them again (392.jpg: 8 and 12). */
+  /** The rows the last fill made: a second fill replaces them instead of adding them again (392.jpg: 8 and 12). */
   const notesBuilt = useRef<Set<string>>(new Set());
-  const [noteImages, setNoteImages] = useState<File[]>([]);
-  const [building, setBuilding] = useState<{ busy: boolean; built?: boolean; text?: string; check?: string[]; missing?: string[] }>({ busy: false });
+  /** The garment already on the form that the last fill's sizes went on ("XS x 3, S x 5" names no garment), as it was. */
+  const notesFilled = useRef<{ key: string; was: Pick<Row, 'sizes' | 'players' | 'fit' | 'open' | 'wanted'> } | null>(null);
+  const [building, setBuilding] = useState<{ busy: boolean; built?: boolean; text?: string; check?: string[]; missing?: string[]; noSizes?: string[];
+    /** What was filled, a line per garment; the details filled from the text; the form before (Undo). */ lines?: string[]; details?: string[]; undo?: FormState; hint?: string }>({ busy: false });
+  const builtCard = useRef<HTMLDivElement>(null);
   const sheetInput = useRef<HTMLInputElement>(null);
   const artInput = useRef<HTMLInputElement>(null);
   const [tried, setTried] = useState(false);
@@ -621,14 +603,16 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
       let i = target !== 'auto' && n === 0 ? rows.findIndex(r => r.key === target) : -1;
       if (i < 0 && item.garment) { i = rows.findIndex(r => fits(r) && !sum(r.sizes)); if (i < 0) i = rows.findIndex(fits); }
       if (i < 0 && !item.garment) { i = rows.findIndex(r => !sum(r.sizes)); if (i < 0 && rows.length) i = 0; }
+      // Players read with the sizes ("John Smith 7 M"): their names and numbers go on the garment too.
+      const players = (item.players ?? []).slice(0, MAX_PLAYERS).map(p => ({ key: makeKey('p'), name: String(p?.name ?? '').slice(0, 40), number: String(p?.number ?? '').replace(/\D/g, '').slice(0, 3), size: String(p?.size ?? '') }));
       if (i < 0) {
         if (rows.length >= MAX_ROWS) return;
         const last = rows.at(-1);
-        rows.push(newRow({ garment: item.garment ?? 'jersey', sport: item.sport ?? last?.sport ?? firstSport, fit: item.fit ?? (sets.size === 1 ? 'mens' : last?.fit ?? 'mens'), sizes, open: true }));
+        rows.push(newRow({ garment: item.garment ?? 'jersey', sport: item.sport ?? last?.sport ?? firstSport, fit: item.fit ?? (sets.size === 1 ? 'mens' : last?.fit ?? 'mens'), sizes, players, open: true }));
         i = rows.length - 1;
-      } else rows[i] = { ...rows[i], sizes, open: true, ...(item.fit && !rows[i].fit ? { fit: item.fit } : {}) };
+      } else rows[i] = { ...rows[i], sizes, open: true, ...(players.length ? { players } : {}), ...(item.fit && !rows[i].fit ? { fit: item.fit } : {}) };
       const counted = sum(sizes);
-      filled.push(`${rowName(rows[i], options)}: ${sizesText(sizes, options.sizes)} (${counted})${item.stated && item.stated !== counted ? `. You said ${item.stated}, the sizes add up to ${counted}` : ''}`);
+      filled.push(`${rowName(rows[i], options)}: ${sizesText(sizes, options.sizes)} (${counted})${players.length ? `, ${players.length} player${players.length === 1 ? '' : 's'} with their numbers` : ''}${item.stated && item.stated !== counted ? `. You said ${item.stated}, the sizes add up to ${counted}` : ''}`);
     });
     if (filled.length) setForm(f => ({ ...f, rows }));
     return { ok: filled.length > 0, text: [filled.length ? `Filled ${filled.join('; ')}.` : '', missing.length ? `Which sizes for the ${missing.join(' and the ')}? For example “18 jerseys M” or “12 shorts: 6 M, 6 L”.` : ''].filter(Boolean).join(' ') || 'No sizes found. Try “12 jerseys: 2 S, 4 M, 6 L”.' };
@@ -639,16 +623,22 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     const garment = orderGarment(p.garment, options);
     let i = target === 'new' ? -1 : target !== 'auto' ? rows.findIndex(r => r.key === target) : rows.findIndex(r => r.garment === garment && !r.project_id);
     if (i < 0 && target === 'auto') i = rows.findIndex(r => r.garment === garment);
-    if (i < 0 && target === 'auto') i = rows.findIndex(r => !r.project_id);
+    // A design's typed sport ("Custom…") is the row's sport.
+    const typed = customName((p.design as Loose | undefined)?.sportName);
+    const sport = (fallback: string) => typed || (options.sports.some(s => s.id === p.sport) ? p.sport : fallback);
+    // "The garment it names (or a new one)" (LINKTEST 2026-11-13: a netball dress went on the empty Rugby League Jersey
+    // row and was ordered as jerseys): an empty row of another garment becomes the design's garment; else a new row.
+    let switched = false;
+    // A dress's sizes are womens sizes (W8 to W24).
+    const dressFit = p.garment === 'netball-dress' ? { fit: 'womens' } : {};
+    if (i < 0 && target === 'auto') { i = rows.findIndex(r => !r.project_id && !sum(r.sizes) && !r.players.length && !r.file_ids.length && !r.wanted); switched = i >= 0; }
     if (i < 0) {
       if (rows.length >= MAX_ROWS) return `A form can have up to ${MAX_ROWS} garments.`;
-      // A design's typed sport ("Custom…") is the row's sport.
-      const typed = customName((p.design as Loose | undefined)?.sportName);
-      rows.push(newRow({ garment, sport: typed || (options.sports.some(s => s.id === p.sport) ? p.sport : rows.at(-1)?.sport ?? firstSport), project_id: p.id, open: true }));
+      rows.push(newRow({ garment, sport: sport(rows.at(-1)?.sport ?? firstSport), project_id: p.id, open: true, ...dressFit }));
       i = rows.length - 1;
-    } else rows[i] = { ...rows[i], project_id: p.id, open: true };
+    } else rows[i] = { ...rows[i], project_id: p.id, open: true, ...(switched ? { garment, sport: sport(rows[i].sport), label: '', custom: false, ...dressFit } : {}) };
     setForm(f => ({ ...f, rows }));
-    return `${rowName(rows[i], options)} now uses “${p.name}”.`;
+    return `${rowName(rows[i], options, p)} now uses “${p.name}”.`;
   }
 
   /* ------------------------------------------------------------------------------ review and confirm */
@@ -731,56 +721,143 @@ function OrderForm({ user, requireAuth, catalog, onNotice }: Props) {
     }
     setPage(target);
   }
-  /** Build my order form: typed notes (read here without AI), photos of notes (3DEEZI AI) and images (artwork). */
-  async function buildFromNotes() {
+  /**
+   * "Fill my order" (ORDERPASTE, client 2026-11-13): the pasted or typed text read on the server (3DEEZI AI when signed
+   * in, the built-in reading otherwise; this page's own for a size list when the server can't be reached), pasted
+   * screenshots, photos and files read by 3DEEZI AI as order forms. The garments, sizes and players fill the form;
+   * a size list naming no garment ("XS x 3, S x 5") goes on the garment already on the form; the team, contact, date
+   * and delivery written in the text fill the empty fields. What was filled is listed, and what to check under it.
+   */
+  async function fillFromPaste() {
     const text = notesText.trim();
-    if (!text && !notePhotos.length && !noteImages.length && !noteFiles.length) { setBuilding({ busy: false, text: 'Write your notes, or add a photo of them, first.' }); return; }
-    if ((notePhotos.length || noteImages.length || noteFiles.length) && !userRef.current) { authRef.current(); return; }
-    setBuilding({ busy: true, text: notePhotos.length || noteFiles.length ? '3DEEZI AI is reading your notes…' : 'Building your order form…' });
-    const read: { items: Loose[]; unknown: string[] } = { items: [], unknown: [] };
+    if (!text && !noteFiles.length) { setBuilding({ busy: false, text: 'Paste or type your order first (e.g. “XS x 3, S x 5, M x 5”), or add a screenshot or file of it.' }); return; }
+    if (noteFiles.length && !userRef.current) { authRef.current(); return; }
+    setBuilding({ busy: true, text: userRef.current ? '3DEEZI AI is reading your order…' : 'Reading your order…' });
+    const read: { items: Loose[]; unknown: string[]; unsized: Loose[]; form: FillReply['form'] | null; ai: boolean; named: boolean; status: FillReply['ai'] | null } =
+      { items: [], unknown: [], unsized: [], form: null, ai: false, named: noteFiles.length > 0, status: null };
     try {
-      if (text) { const r = await orderApi.readNotes(text); read.items.push(...((r.items ?? []) as Loose[])); read.unknown.push(...(r.unknown ?? [])); }
-      if (notePhotos.length || noteFiles.length) {
+      if (text) {
+        const r = await fillOrder(text, options.sizes);
+        // The built-in reader names a product on another garment's row itself ("Netball dress" on a singlet row): kept.
+        read.items.push(...((Array.isArray(r.items) ? r.items : []) as Loose[]).map(it => ({ ...it, keepLabel: true })));
+        // A garment read with no sizes ("5 hoodies") is built as a row and asked for its sizes below, not "not read".
+        read.unsized.push(...((Array.isArray(r.unsized) ? r.unsized : []) as Loose[]).filter(u => u && typeof u === 'object'));
+        const asked = new Set(read.unsized.map(u => String(u.text ?? '')));
+        read.unknown.push(...((Array.isArray(r.unknown) ? r.unknown : []) as string[]).filter(u => !asked.has(u)));
+        read.form = r.form ?? null; read.ai = r.source === 'ai'; read.named = read.named || r.garment_named !== false; read.status = r.ai;
+      }
+      if (noteFiles.length) {
         const id = await ensureDraft();
         if (!id) throw new Error('The draft could not be saved.');
         const ids: number[] = [];
-        for (const f of [...notePhotos, ...noteFiles]) { const done = await uploadOrderFile(id, f, 'order_form'); ids.push(done.id); setFiles(fs => [...fs.filter(x => x.id !== done.id), done]); }
+        for (const f of noteFiles) { const done = await uploadOrderFile(id, f, 'order_form'); ids.push(done.id); setFiles(fs => [...fs.filter(x => x.id !== done.id), done]); }
         const d = await orderApi.readDraft(id);
-        for (const sgg of d.suggested ?? []) if (ids.includes(sgg.file_id)) { read.items.push(...((sgg.items ?? []) as Loose[])); read.unknown.push(...(sgg.unknown ?? [])); }
+        for (const sgg of d.suggested ?? []) if (ids.includes(sgg.file_id)) {
+          read.items.push(...((sgg.items ?? []) as Loose[])); read.unknown.push(...(sgg.unknown ?? []));
+          if (sgg.source === 'ai') { read.ai = true; read.form ??= sgg.form ?? null; }
+        }
       }
-      if (noteImages.length) await addFiles(noteImages);
-    } catch (e) { setBuilding({ busy: false, text: (e as Error).message || 'Your notes could not be read. Try again.' }); return; }
-    const built: Row[] = read.items.filter(it => it && typeof it === 'object').slice(0, MAX_ROWS).map(it => {
+    } catch (e) { setBuilding({ busy: false, text: (e as Error).message || 'Your order could not be read. Try again.' }); return; }
+    // The form as it is now (changes made while it was read stay), for the fill and for Undo; the garment the last fill
+    // put its sizes on as it was before that (a new fill replaces the last one).
+    const before = formRef.current, prev = notesFilled.current;
+    const base: FormState = prev ? { ...before, rows: before.rows.map(r => (r.key === prev.key ? { ...r, ...prev.was } : r)) } : before;
+    let built: Row[] = read.items.filter(it => it && typeof it === 'object').slice(0, MAX_ROWS).map(it => {
       const sizes = cleanSizes((it.sizes ?? {}) as Record<string, number>, options.sizes);
       const players: Loose[] = Array.isArray(it.players) ? it.players : [];
       const garment = options.garments.some(g => g.id === it.garment) ? String(it.garment) : 'jersey';
       const sets = new Set(Object.keys(sizes).map(sizeFit));
       return newRow({ garment, sport: typeof it.sport === 'string' && it.sport ? it.sport : formRef.current.rows[0]?.sport || firstSport,
         fit: typeof it.fit === 'string' && it.fit ? it.fit : sets.size === 1 ? [...sets][0] : 'mens', sizes, open: true,
-        label: garment !== it.garment && typeof it.label === 'string' ? it.label : '',
+        label: (garment !== it.garment || it.keepLabel) && typeof it.label === 'string' ? it.label.slice(0, 60) : '',
         players: players.slice(0, MAX_PLAYERS).map(p => ({ key: makeKey('p'), name: String(p?.name ?? '').slice(0, 40), number: String(p?.number ?? '').replace(/\D/g, '').slice(0, 3), size: String(p?.size ?? '') })) });
     });
-    if (!built.length) { setBuilding({ busy: false, text: 'No garments or sizes found in your notes. Try lines like “Polo” then “3 x 4XL”.', check: read.unknown }); return; }
-    const withBuilt = (f: typeof formRef.current) => {
-      const kept = f.rows.filter(r => !notesBuilt.current.has(r.key) && (sum(r.sizes) > 0 || r.project_id || r.players.length));
-      return { ...f, rows: [...kept, ...built].slice(0, MAX_ROWS), notes: f.notes || (text ? `From my notes:
-${text}`.slice(0, 4000) : f.notes) };
+    // "5 hoodies": a row with no sizes yet, its quantity shown until the sizes are added, and asked in the check list.
+    const noSizes: string[] = [];
+    for (const u of read.unsized.slice(0, Math.max(0, MAX_ROWS - built.length))) {
+      const garment = options.garments.some(g => g.id === u.garment) ? String(u.garment) : 'other';
+      const label = typeof u.label === 'string' ? u.label.slice(0, 60) : garment === 'other' ? String(u.name ?? u.text ?? '').slice(0, 60) : '';
+      const wanted = Math.max(1, Math.min(10000, Math.floor(Number(u.qty) || 1)));
+      // A dress's sizes are womens sizes (W8 to W24).
+      const row = newRow({ garment, label, sport: typeof u.sport === 'string' && u.sport ? u.sport : formRef.current.rows[0]?.sport || firstSport,
+        fit: typeof u.fit === 'string' && u.fit ? u.fit : labelProduct({ garment, label }) ? 'womens' : 'mens', sizes: {}, open: true, wanted });
+      built.push(row);
+      const size = String(u.size ?? '').trim();
+      noSizes.push(`${rowName(row, options)} × ${wanted}: ${size ? `size “${size}” is not one of our sizes, please choose the sizes` : 'no sizes given, please add them'}`);
+    }
+    const signInHint = read.status === 'sign_in' ? 'Sign in and 3DEEZI AI reads anything you paste: notes in any words, lists and screenshots.' : undefined;
+    if (!built.length) { setBuilding({ busy: false, text: 'No garments or sizes found. Try “XS x 3, S x 5, M x 5” or a list like “Smith 7 M”.', check: read.unknown, hint: signInHint }); return; }
+    // No garment named ("XS x 3, S x 5 …", order 537): the sizes go on the garment already on the form (its design and
+    // sport stay), the one the last fill used, else the first with no sizes yet.
+    const into = !read.named && built.length === 1 && sum(built[0].sizes) > 0
+      ? base.rows.find(r => r.key === prev?.key && !sum(r.sizes) && !r.players.length) ?? base.rows.find(r => !sum(r.sizes) && !r.players.length && !notesBuilt.current.has(r.key))
+      : undefined;
+    const intoPatch: Partial<Row> | null = into ? (() => {
+      const sets = new Set(Object.keys(built[0].sizes).map(sizeFit));
+      // The row's fit follows the sizes pasted (mens sizes on a womens row are mens; a unisex row stays unisex).
+      const fit = sets.size === 1 ? [...sets][0] : null;
+      return { sizes: built[0].sizes, players: built[0].players.length ? built[0].players : into.players, open: true, wanted: undefined, ...(fit && !(fit === 'mens' && into.fit === 'unisex') ? { fit } : {}) };
+    })() : null;
+    if (into) built = [];
+    // Team, contact, date and delivery written in the text (3DEEZI AI): only the empty fields.
+    const details: string[] = [];
+    const withDetails = (f: FormState): FormState => {
+      const w = read.form;
+      if (!w) return f;
+      const contact = { ...f.contact }, delivery = { ...f.delivery };
+      const take = <K extends keyof typeof contact>(k: K, v: string | undefined, name: string) => { if (v && !contact[k].trim()) { contact[k] = v as (typeof contact)[K]; details.push(name); } };
+      take('team_name', w.team_name, 'team name'); take('contact_name', w.contact_name, 'contact name'); take('contact_email', w.contact_email, 'email'); take('phone', w.phone, 'mobile');
+      if (w.needed_by && !delivery.needed_by && w.needed_by >= new Date().toISOString().slice(0, 10)) { delivery.needed_by = w.needed_by; details.push('date required'); }
+      const empty = !delivery.street.trim() && !delivery.suburb.trim() && !delivery.postcode.trim();
+      if (w.delivery === 'pickup' && empty) { delivery.delivery = 'pickup'; details.push('pick up'); }
+      else if (empty && w.address && (w.address.street || w.address.suburb || w.address.postcode)) {
+        for (const k of ['street', 'suburb', 'state', 'postcode', 'country'] as const) if (w.address[k]) delivery[k] = w.address[k].slice(0, k === 'street' ? 200 : 80);
+        delivery.delivery = 'deliver'; details.push('delivery address');
+      }
+      return { ...f, contact, delivery };
     };
-    // What is still missing is checked on the form as built (not the one from before the build).
-    const builtForm = withBuilt(formRef.current);
-    setForm(f => withBuilt(f));
+    const withBuilt = (f: FormState): FormState => {
+      const kept = f.rows.filter(r => !notesBuilt.current.has(r.key) && (r.key === into?.key || sum(r.sizes) > 0 || r.project_id || r.players.length))
+        .map(r => (r.key === into?.key && intoPatch ? { ...r, ...intoPatch } : r));
+      return withDetails({ ...f, rows: [...kept, ...built].slice(0, MAX_ROWS), notes: f.notes || (text ? `From my notes:
+${text}`.slice(0, 4000) : f.notes) });
+    };
+    // What is still missing is checked on the form as filled (not the one from before).
+    details.length = 0;
+    const builtForm = withBuilt(base);
+    setForm(builtForm);
     notesBuilt.current = new Set(built.map(r => r.key));
-    setNotePhotos([]); setNoteImages([]); setNoteFiles([]);
-    const count = built.reduce((n, r) => n + sum(r.sizes), 0);
-    // Straight on to the built garments (client 394): Details already typed stays; what is still missing is listed, not blocking.
+    notesFilled.current = into ? { key: into.key, was: { sizes: into.sizes, players: into.players, fit: into.fit, open: into.open, wanted: into.wanted } } : null;
+    setNoteFiles([]);
+    const changed = builtForm.rows.filter(r => r.key === into?.key || built.some(b => b.key === r.key));
+    const count = changed.reduce((n, r) => n + (sum(r.sizes) || (r.wanted ?? 0)), 0);
+    const lines = changed.map(r => `${rowName(r, options, projects?.find(p => p.id === r.project_id))}: ${sum(r.sizes) ? `${sizesText(r.sizes, options.sizes)} (${sum(r.sizes)})` : `${r.wanted ?? 0}, sizes to add`}${r.players.length ? ` · ${r.players.length} player${r.players.length === 1 ? '' : 's'}` : ''}`);
+    // Straight on to the filled garments (client 394): Details already typed stays; what is still missing is listed, not blocking.
     const plain = (k: string) => {
       const row = k.match(/^items\.(\d+)\.(\w+)/);
       if (row) return `${row[2] === 'players' ? 'players' : 'sizes'} for garment ${Number(row[1]) + 1}`;
       return k === 'artwork' ? 'your logo or design (artwork)' : k === 'items' ? 'garments' : k === 'general' ? 'order details' : k.replace(/_/g, ' ');
     };
     const missing = [...new Set(Object.keys(validate(builtForm, options, hasArt())).filter(k => pageOf(k) === 0).map(plain))];
-    setBuilding({ busy: false, built: true, text: `Built ${built.length} garment${built.length === 1 ? '' : 's'} (${count} in all) from your notes. Check them here, then continue.`, check: read.unknown, missing });
-    setPage(1);
+    setBuilding({ busy: false, built: true, text: `Filled your order: ${count} garment${count === 1 ? '' : 's'}${read.ai ? ', read by 3DEEZI AI' : ''}. Check it below, then continue.`,
+      lines, details: [...details], undo: before, check: read.unknown, missing, noSizes, hint: read.unknown.length ? signInHint : undefined });
+    setPage(1, false);
+    requestAnimationFrame(() => builtCard.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  }
+  /** Undo the last fill: the form as it was before it. */
+  function undoFill() {
+    if (!building.undo) return;
+    setForm(building.undo);
+    notesBuilt.current = new Set(); notesFilled.current = null;
+    setBuilding({ busy: false });
+  }
+  /** Ctrl+V of a screenshot (or copied picture files) into the paste box: kept to be read with the text. */
+  function onPasteFiles(e: React.ClipboardEvent) {
+    const list = Array.from(e.clipboardData?.files ?? []).filter(f => f.type.startsWith('image/') || /\.(pdf|xlsx|xls|csv|ods|docx?|txt)$/i.test(f.name));
+    if (!list.length) return;
+    if (!e.clipboardData.getData('text/plain')) e.preventDefault();
+    const named = list.map((f, i) => (f.name && f.name !== 'image.png' ? f : new File([f], `screenshot-${new Date().toISOString().slice(11, 19).replace(/:/g, '')}${i ? `-${i + 1}` : ''}.${(f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`, { type: f.type })));
+    setNoteFiles(p => [...p, ...named].slice(0, 4));
   }
   /**
    * Edit Order / Review & Approve from the Order Assistant (?assistant={token}, task TL-3): its collated rows (a row
@@ -837,6 +914,9 @@ ${text}`.slice(0, 4000) : f.notes) };
   // The price for the review step (payments-api.md §3), again when the delivery, extras or discount code change.
   // Only where prices are switched on (GET /pricing/options answers); otherwise the review says 3DEEZI confirms it.
   const pricingKey = JSON.stringify(form.pricing);
+  // Deliver / Pick up and the country are chosen on the review too: a new choice prices again (QA10 2026-11-11: picked
+  // up, the review still added the Australia shipping that the pay page then left out).
+  const destinationKey = choiceDestination(form.delivery) ?? '';
   useEffect(() => {
     if (step !== 'review' || !pricingOptions) { setQuote({ data: null, loading: pricingOptions === undefined && step === 'review', error: '' }); return; }
     let live = true;
@@ -845,36 +925,39 @@ ${text}`.slice(0, 4000) : f.notes) };
     // only rows of that garment (the server's rule, OrderSubmission).
     const items = fields.items.map((item, i) => {
       const r = formRef.current.rows[i];
-      const product = r && r.garment !== 'other' && r.project_id ? designRowName(projects?.find(p => p.id === r.project_id), r.garment) : '';
+      const product = r && r.garment !== 'other' && r.project_id ? designName(projects?.find(p => p.id === r.project_id), r.garment) : '';
       return product && !item.label ? { ...item, label: product.slice(0, 60) } : item;
     });
     // As the order will be priced: the review's destination, else Deliver / Pick up and the country (as the server does).
     const choice = choiceDestination(formRef.current.delivery);
-    const withChoice = (p: PricingChoice) => (p.destination || !choice ? p : { ...p, destination: choice });
+    // Picked up: never a "Delivery to" region (it is never charged shipping, the server's rule too).
+    const withChoice = (p: PricingChoice) => (choice === 'PICKUP' ? { ...p, destination: choice } : p.destination || !choice ? p : { ...p, destination: choice });
     setQuote(q => ({ ...q, loading: true, error: '' }));
     const t = setTimeout(() => {
-      api<Quote>('/pricing/quote', { method: 'POST', body: JSON.stringify({ items, pricing: withChoice(fields.pricing ?? {}) }) })
+      api<Quote>('/pricing/quote', { method: 'POST', body: JSON.stringify({ items, pricing: withChoice(fields.pricing ?? {}), ...(choice === 'PICKUP' ? { delivery: 'pickup' } : {}) }) })
         .then(q => { if (live) setQuote({ data: q, loading: false, error: '' }); })
         .catch(e => { if (live) setQuote({ data: null, loading: false, error: [0, 404, 405].includes((e as ApiError).status) ? '' : (e as Error).message }); });
     }, 200);
     return () => { live = false; clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, pricingKey, pricingOptions, projects]);
+  }, [step, pricingKey, destinationKey, pricingOptions, projects]);
   useEffect(() => { if (step === 'review' && pricingOptions === undefined) api<PricingOptions>('/pricing/options').then(setPricingOptions).catch(() => setPricingOptions(null)); }, [step, pricingOptions]);
 
   /* ------------------------------------------------------------------------------ what the side shows */
   const totalQty = form.rows.reduce((n, r) => n + sum(r.sizes), 0);
   const summaryRows: SummaryRow[] = useMemo(() => {
-    const groups = new Map<string, { label: string; qty: number; missing: number }>();
-    for (const r of form.rows) {
-      const key = r.garment === 'other' ? `other:${r.label.trim().toLowerCase()}` : r.garment;
-      const g = groups.get(key) ?? { label: typeLabel(r), qty: 0, missing: 0 };
+    const groups = new Map<string, { label: string; qty: number; missing: number; wanted: number }>();
+    for (const row of form.rows) {
+      const r = shownRow(row, projects?.find(p => p.id === row.project_id));
+      const key = r.garment === 'other' ? `other:${r.label.trim().toLowerCase()}` : labelProduct(r) || r.designName ? `${r.garment}:${rowWord(r, 2)}` : r.garment;
+      const g = groups.get(key) ?? { label: typeLabel(r), qty: 0, missing: 0, wanted: 0 };
       const n = sum(r.sizes);
-      g.qty += n; if (!n) g.missing++;
+      // "5 hoodies" read with no sizes: counted as wanted until the sizes are added.
+      g.qty += n; if (!n) { g.missing++; g.wanted += r.wanted ?? 0; }
       groups.set(key, g);
     }
-    return [...groups.entries()].map(([key, g]) => ({ key, label: g.label, ...(g.qty && !g.missing ? { value: g.qty } : {}), pending: g.qty ? `${g.qty} · sizes needed` : 'Sizes needed' }));
-  }, [form.rows]);
+    return [...groups.entries()].map(([key, g]) => ({ key, label: g.label, ...(g.qty && !g.missing ? { value: g.qty } : {}), pending: g.qty + g.wanted ? `${g.qty + g.wanted} · sizes needed` : 'Sizes needed' }));
+  }, [form.rows, projects]);
   const problems = useMemo(() => validate(form, options, files.some(f => f.kind !== 'order_form')), [form, options, files]);
   const hint = !form.rows.length ? 'Add a garment to start your order.'
     : form.rows.some(r => !sum(r.sizes)) ? 'Complete garment quantities before review.'
@@ -893,7 +976,7 @@ ${text}`.slice(0, 4000) : f.notes) };
       ...f.rows.map((r, i) => `${i + 1}. ${rowName(r, options)}, ${options.fits.find(x => x.id === r.fit)?.name ?? 'no fit'}, ${r.project_id ? `saved design "${names(r) ?? r.project_id}"` : 'no saved design'}, sizes: ${sizesText(r.sizes, options.sizes) || 'not filled yet'}${r.players.length ? `, ${r.players.length} player names` : ''}.`),
       `Made by: ${madeByName}${suppliers.length > 1 ? ` (choices: ${suppliers.map(s => s.name).join(', ')}; the "Made by" box in section 1)` : ''}.`,
       `Artwork files: ${files.length}. Design instructions: ${f.notes.trim() ? 'written' : 'empty'}. Draft ${draftRef.current ? 'saved in the account' : 'not saved to the account yet'}.`,
-      'On this page: + ADD GARMENT adds a garment; "Add sizes" opens its size boxes, chosen by the Fit (Mens and Unisex XS to 4XL, "+ 5XL–8XL" for more; Womens W8 to W20, "+ W22, W24"; Kids 6Y to 16Y, "+ 2Y, 4Y"); "+ Womens sizes" / "+ Kids sizes" under a garment adds the same garment in that fit; the 3DEEZI Assist card has "Help me add sizes" (type e.g. "12 jerseys: 2 S, 4 M, 6 L") and "Use one of my saved designs"; "+ Add player names & numbers" takes a list (Paste from Excel); section 3 takes logos and artwork and the design instructions; Save draft keeps it in the account; REVIEW ORDER opens REVIEW & APPROVE ORDER with the mockups, sizes and price, then the confirm box and Approve & continue to payment place it and give a 3DZ- reference.',
+      'On this page: the PASTE YOUR ORDER HERE box at the top takes anything pasted or typed (notes like "XS x 3, S x 5", names with numbers and sizes, cells copied from Excel, a screenshot with Ctrl+V or Add a screenshot, photo or file) and FILL MY ORDER fills the garments, sizes and players by itself (3DEEZI AI when signed in), lists what was filled, what to check, and has Undo; + ADD GARMENT adds a garment; "Add sizes" opens its size boxes, chosen by the Fit (Mens and Unisex XS to 4XL, "+ 5XL–8XL" for more; Womens W8 to W20, "+ W22, W24"; Kids 6Y to 16Y, "+ 2Y, 4Y"); "+ Womens sizes" / "+ Kids sizes" under a garment adds the same garment in that fit; the 3DEEZI Assist card has "Help me add sizes" (type e.g. "12 jerseys: 2 S, 4 M, 6 L") and "Use one of my saved designs"; "+ Add player names & numbers" takes a list (Paste from Excel); section 3 takes logos and artwork and the design instructions; Save draft keeps it in the account; REVIEW ORDER opens REVIEW & APPROVE ORDER with the mockups, sizes and price, then the confirm box and Approve & continue to payment place it and give a 3DZ- reference.',
     ].join('\n').slice(0, 2900);
   };
 
@@ -936,11 +1019,11 @@ ${text}`.slice(0, 4000) : f.notes) };
       const project = projects?.find(p => p.id === r.project_id), d = project?.design as Loose | undefined;
       const fit = options.fits.find(f => f.id === r.fit)?.name, own = files.some(f => r.file_ids.includes(f.id));
       return {
-        key: r.key, garment: r.garment, name: rowName(r, options, project), column: typeLabel(r),
+        key: r.key, garment: r.garment, name: rowName(r, options, project), column: typeLabel(shownRow(r, project)),
         sub: [fit ? `${fit} fit` : '', project ? `Design: ${project.name}` : r.project_id ? 'Saved design' : own ? 'Your artwork' : ''].filter(Boolean).join(' · '),
         colours: project ? [d?.main, d?.secondary] : [],
         // A full kit's rows (jersey, shorts) show their own garment; a single-garment design shows its saved picture.
-        thumb: (project && project.garment !== 'fullkit' ? projectPicture(project) : null) ?? garmentPicture(r.garment) ?? projectPicture(project),
+        thumb: (project && project.garment !== 'fullkit' ? projectPicture(project) : null) ?? rowPicture(r) ?? projectPicture(project),
         sizes: cleanSizes(r.sizes, options.sizes),
         players: r.players.filter(p => p.name.trim() || p.number).map(p => ({ name: p.name.trim(), number: p.number, size: p.size })),
       };
@@ -991,28 +1074,35 @@ ${text}`.slice(0, 4000) : f.notes) };
   const main = <>
       {!user && <div className="of-signin" role="note"><LogIn size={20} /><p><strong>Sign in to save and send your order.</strong> What you enter here is kept on this device.</p><button type="button" className="of-btn is-primary" onClick={() => authRef.current()}>Sign in</button></div>}
       {tried && shownErrors.general && <p className="of-general-error" role="alert"><TriangleAlert size={16} /> {shownErrors.general}</p>}
-      {<section className="op-card of-notes" aria-labelledby="of-notes-title" data-testid="notes-box">
-        <h2 id="of-notes-title"><ClipboardPaste size={20} /> Write or snap your notes</h2>
-        <p className="op-hint">Type your order the way you’d write it (e.g. “Polo”, “3 x 4XL”, “2 x 2XL”, or “Smith 7 M”), or add a photo of handwritten notes or a screenshot. 3DEEZI builds a neat order form from it, and you can still change everything.</p>
-        <textarea className="op-input of-notes-text" rows={5} maxLength={20000} value={notesText} onChange={e => setNotesText(e.target.value)} placeholder={'Polo\n3 x 4XL\n2 x 2XL\n4 x 5XL'} aria-label="Your notes" />
-        <div className="of-notes-actions">
-          <label className="of-btn"><Camera size={18} /> Add photo of notes<input type="file" hidden multiple accept="image/*,.pdf" onChange={e => { const l = Array.from(e.target.files ?? []); e.target.value = ''; setNotePhotos(p => [...p, ...l].slice(0, 4)); }} /></label>
-          <label className="of-btn"><ImagePlus size={18} /> Add images<input type="file" hidden multiple accept={options.files.artwork.extensions.map(x => `.${x}`).join(',')} onChange={e => { const l = Array.from(e.target.files ?? []); e.target.value = ''; setNoteImages(p => [...p, ...l].slice(0, 10)); }} /></label>
-          <label className="of-btn" data-testid="notes-upload-file"><FileUp size={18} /> Upload file<input type="file" hidden multiple accept=".pdf,.xlsx,.xls,.csv,.ods,.doc,.docx,.txt,image/*" onChange={e => { const l = Array.from(e.target.files ?? []); e.target.value = ''; setNoteFiles(p => [...p, ...l].slice(0, 4)); }} /></label>
-          <button type="button" className="of-btn is-primary" onClick={() => void buildFromNotes()} disabled={building.busy} data-testid="build-form">{building.busy ? <LoaderCircle className="spin" size={18} /> : <Sparkles size={18} />} Build my order form</button>
-        </div>
-        {(notePhotos.length > 0 || noteImages.length > 0 || noteFiles.length > 0) && <ul className="of-sheet-files">
-          {noteFiles.map((f, i) => <li key={`f${i}`}><FileUp size={15} /><span>{f.name} · order form file</span><button type="button" onClick={() => setNoteFiles(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
-          {notePhotos.map((f, i) => <li key={`p${i}`}><Camera size={15} /><span>{f.name} · photo of notes</span><button type="button" onClick={() => setNotePhotos(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
-          {noteImages.map((f, i) => <li key={`i${i}`}><ImagePlus size={15} /><span>{f.name} · image</span><button type="button" onClick={() => setNoteImages(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
+      {<section className="op-card of-notes of-paste-box" aria-labelledby="of-notes-title" data-testid="notes-box">
+        <h2 id="of-notes-title"><ClipboardPaste size={20} /> Paste your order here</h2>
+        <p className="op-hint">Paste or type it any way you like: “XS x 3, S x 5, M x 5…”, names with numbers and sizes, cells copied from Excel, or a screenshot (Ctrl+V). 3DEEZI AI fills in your order; you just check it.</p>
+        <textarea className="op-input of-notes-text" rows={6} maxLength={20000} value={notesText} onChange={e => setNotesText(e.target.value)} onPaste={onPasteFiles}
+          placeholder={'e.g. XS x 3, S x 5, M x 5, L x 5, XL x 8, 2XL x 8\nor a list of players: Smith 7 M, Jones 10 L'} aria-label="Paste your order here" data-testid="paste-text" />
+        {noteFiles.length > 0 && <ul className="of-sheet-files" aria-label="Pictures and files to read">
+          {noteFiles.map((f, i) => <li key={`f${i}`}>{f.type.startsWith('image/') ? <Camera size={15} /> : <FileUp size={15} />}<span>{f.name} · {f.type.startsWith('image/') ? 'picture' : 'order file'}</span><button type="button" onClick={() => setNoteFiles(l => l.filter((_, k) => k !== i))} aria-label={`Remove ${f.name}`}><X size={14} /></button></li>)}
         </ul>}
+        <div className="of-notes-actions">
+          <button type="button" className="of-btn is-primary of-fill-btn" onClick={() => void fillFromPaste()} disabled={building.busy} data-testid="build-form">{building.busy ? <LoaderCircle className="spin" size={18} /> : <Sparkles size={18} />} Fill my order</button>
+          <label className="op-link of-paste-add" data-testid="notes-upload-file"><Paperclip size={16} /> Add a screenshot, photo or file<input type="file" hidden multiple accept=".pdf,.xlsx,.xls,.csv,.ods,.doc,.docx,.txt,image/*" onChange={e => { const l = Array.from(e.target.files ?? []); e.target.value = ''; setNoteFiles(p => [...p, ...l].slice(0, 4)); }} /></label>
+        </div>
         {building.text && !building.built && <p className="of-notes-status" role="status" data-testid="notes-status">{building.text}</p>}
-        {!building.built && building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}
+        {!building.built && ((building.check?.length ?? 0) > 0 || building.hint) && <div className="of-notes-check"><strong>Please check</strong><ul>
+          {(building.check ?? []).slice(0, 8).map((l, i) => <li key={i}>Not read: “{l}”</li>)}{building.hint && <li>{building.hint}</li>}</ul></div>}
       </section>}
-      {building.text && !building.busy && building.built && <div className="op-card of-notes-built" role="status" data-testid="notes-built"><p className="of-notes-status">{building.text}</p>
-        <button type="button" className="of-btn" onClick={() => void copyFormLink()} data-testid="copy-form-link"><Paperclip size={16} /> Copy form link</button>
-        {building.missing && building.missing.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> still to add on this step: {building.missing.join(', ')}.</div>}
-        {building.check && building.check.length > 0 && <div className="of-notes-check"><strong>Please check:</strong> these lines were not read: {building.check.slice(0, 8).map(l => `“${l}”`).join(', ')}</div>}</div>}
+      {building.text && !building.busy && building.built && <div className="op-card of-notes-built" role="status" data-testid="notes-built" ref={builtCard}>
+        <p className="of-notes-status"><CircleCheck size={18} className="is-ok" /> {building.text}</p>
+        {building.lines && building.lines.length > 0 && <ul className="of-filled" data-testid="filled-lines">{building.lines.map((l, i) => <li key={i}>{l}</li>)}</ul>}
+        {building.details && building.details.length > 0 && <p className="of-filled-also">Also filled in: {building.details.join(', ')}.</p>}
+        {((building.missing?.length ?? 0) + (building.noSizes?.length ?? 0) + (building.check?.length ?? 0) > 0 || building.hint) && <div className="of-notes-check" data-testid="notes-no-sizes"><strong>Please check</strong><ul>
+          {(building.noSizes ?? []).map((l, i) => <li key={`n${i}`}>{l}</li>)}
+          {(building.check ?? []).slice(0, 10).map((l, i) => <li key={`c${i}`}>{/[():]|^please check/i.test(l) ? l : `Not read: “${l}”`}</li>)}
+          {building.missing && building.missing.length > 0 && <li>Still to add: {building.missing.join(', ')}.</li>}
+          {building.hint && <li>{building.hint}</li>}</ul></div>}
+        <div className="of-notes-actions">
+          {building.undo && <button type="button" className="of-btn" onClick={undoFill} data-testid="undo-fill"><ArrowLeft size={16} /> Undo</button>}
+          <button type="button" className="of-btn" onClick={() => void copyFormLink()} data-testid="copy-form-link"><Paperclip size={16} /> Copy form link</button>
+        </div></div>}
       {<OrderSection number={1} title="Garments & sizes" id="of-garments" className={shownErrors.items ? 'has-error' : ''}
         action={<button type="button" className="op-link caps" onClick={addRow} disabled={form.rows.length >= MAX_ROWS}><Plus size={18} /> Add garment</button>}>
         {form.rows.length ? <ul className="of-rows">{form.rows.map((r, i) => <GarmentRow key={r.key} row={r} index={i} options={options} projects={projects} signedIn={!!user} focus={r.key === focusKey}
@@ -1043,7 +1133,7 @@ ${text}`.slice(0, 4000) : f.notes) };
           {form.rows.length > 0 && <ul className="of-art-rows" aria-label="Artwork for each garment">
             {form.rows.map(r => {
               const project = projects?.find(p => p.id === r.project_id), own = artFiles.filter(f => r.file_ids.includes(f.id)), name = rowName(r, options, project);
-              const picture = projectPicture(project) ?? own.find(f => f.thumb)?.thumb ?? (own[0] ? previews.current.get(own[0].id) : null) ?? garmentPicture(r.garment);
+              const picture = projectPicture(project) ?? own.find(f => f.thumb)?.thumb ?? (own[0] ? previews.current.get(own[0].id) : null) ?? rowPicture(r);
               const busy = uploads.some(u => u.rowKey === r.key && u.status === 'uploading'), added = !!r.project_id || own.length > 0;
               return <li key={r.key} className="of-art-row">
                 <div className="of-art-thumb">{picture ? <img src={picture} alt="" /> : <Shirt size={30} aria-hidden="true" />}</div>
@@ -1103,7 +1193,7 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
   const [focusSizes, setFocusSizes] = useState(false);
   useEffect(() => { if (focusSizes && row.open) { firstSize.current?.focus(); setFocusSizes(false); } }, [focusSizes, row.open]);
   const project = projects?.find(p => p.id === row.project_id);
-  const picture = projectPicture(project) ?? files.find(f => f.thumb)?.thumb ?? garmentPicture(row.garment);
+  const picture = projectPicture(project) ?? files.find(f => f.thumb)?.thumb ?? rowPicture(row);
   // The fit's size set (Mens XS–8XL, Womens W8–W24, Kids 2Y–16Y), its rare sizes with "More sizes", and any other size with a quantity (an older "Kids").
   const { shown, rare } = rowSizes(row.fit, row.sizes, row.more, options.sizes);
   const set = row.fit === 'womens' || row.fit === 'youth' ? row.fit : 'mens';
@@ -1112,19 +1202,24 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
   const customSport = !!row.custom || (!!row.sport && !options.sports.some(s => s.id === row.sport));
   const value = customSport ? CUSTOM : `${row.sport}|${row.garment}`;
   const listed = customSport || ((!row.sport || options.sports.some(s => s.id === row.sport)) && options.garments.some(g => g.id === row.garment));
+  // A product on another garment's row ("Netball dress" on a singlet row) is shown by its own name, first; choosing a
+  // garment from the list makes the row that garment (the product name goes).
+  // A saved design's product on its own garment's row ("Netball dress" on a singlet row) too (LINKTEST r2).
+  const seen = shownRow(row, project);
+  const product = !customSport && (!!labelProduct(row) || !!seen.designName);
   function setSize(size: string, text: string) {
     const n = Math.min(10000, Number(digits(text, 5)) || 0), sizes = { ...row.sizes };
     if (n) sizes[size] = n; else delete sizes[size];
     onChange({ sizes });
   }
   return <li className={`of-row${row.open ? '' : ' is-compact'}${error ? ' has-error' : ''}`}>
-    <div className="of-thumb">{picture ? <img src={picture} alt={project ? `${project.name}` : name} className={picture === garmentPicture(row.garment) ? 'is-art' : undefined} /> : <Shirt size={44} strokeWidth={1.3} aria-hidden="true" />}</div>
-    <p className="of-row-title" aria-hidden="true">{name}<small>{qty ? `${qty} ${word(row.garment, qty)}` : 'Sizes needed'}</small></p>
+    <div className="of-thumb">{picture ? <img src={picture} alt={project ? `${project.name}` : name} className={picture === rowPicture(row) ? 'is-art' : undefined} /> : <Shirt size={44} strokeWidth={1.3} aria-hidden="true" />}</div>
+    <p className="of-row-title" aria-hidden="true">{name}<small>{qty ? `${qty} ${rowWord(seen, qty)}` : row.wanted ? `${row.wanted} ${rowWord(seen, row.wanted)} · sizes needed` : 'Sizes needed'}</small></p>
     <div className="of-row-main">
       <div className="of-row-fields">
         <OrderField label="Garment" className="of-garment">
-          <select className="op-input" value={value} autoFocus={focus} aria-label={`Garment ${index + 1}`} onChange={e => { if (e.target.value === CUSTOM) { onChange({ custom: true, sport: '' }); return; } const [sport, garment] = e.target.value.split('|'); onChange({ custom: false, sport, garment }); }}>
-            {!listed && <option value={value}>{name}</option>}
+          <select className="op-input" value={value} autoFocus={focus} aria-label={`Garment ${index + 1}`} onChange={e => { const drop = product ? { label: '' } : {}; if (e.target.value === CUSTOM) { onChange({ custom: true, sport: '', ...drop }); return; } if (product && e.target.selectedIndex === 0) return; const [sport, garment] = e.target.value.split('|'); onChange({ custom: false, sport, garment, ...drop }); }}>
+            {(!listed || product) && <option value={value}>{name}</option>}
             {options.sports.map(s => <optgroup key={s.id} label={s.name}>{options.garments.map(g => <option key={g.id} value={`${s.id}|${g.id}`}>{g.id === 'other' ? `${s.name}: other garment` : `${s.name} ${g.name}`}</option>)}</optgroup>)}
             <optgroup label={options.sports.length ? 'Any sport' : 'Garments'}>{options.garments.map(g => <option key={g.id} value={`|${g.id}`}>{g.id === 'other' ? 'Other garment' : g.name}</option>)}</optgroup>
             <optgroup label="Custom"><option value={CUSTOM}>Custom…</option></optgroup>
@@ -1154,7 +1249,7 @@ function GarmentRow({ row, index, options, projects, signedIn, focus, files, upl
         <div className="of-size-boxes" role="group" aria-labelledby={`${id}s`}>
           {shown.map((s, i) => <label key={s} className="of-size"><span>{s}</span><input ref={i === 0 ? firstSize : undefined} className="op-input" inputMode="numeric" autoComplete="off" maxLength={5} value={row.sizes[s] ? String(row.sizes[s]) : ''} placeholder="0" aria-label={`${name}, size ${s}`} onChange={e => setSize(s, e.target.value)} onFocus={e => e.currentTarget.select()} /></label>)}
         </div>
-        <div className="of-subtotal" aria-live="polite"><span>Subtotal</span><strong>{qty}</strong><span>{word(row.garment, qty)}</span></div>
+        <div className="of-subtotal" aria-live="polite"><span>Subtotal</span><strong>{qty}</strong><span>{rowWord(seen, qty)}</span></div>
         {canAdd && otherFits.length > 0 && <p className="of-fit-add"><span>Same garment, also in</span>{otherFits.map(f => <button key={f} type="button" className="op-link" onClick={() => onAddFit(f)} aria-label={`Add ${name} in ${SET_NAMES[f]} sizes`}><Plus size={14} /> {SET_NAMES[f]} sizes</button>)}</p>}
       </div>}
       {(files.length > 0 || uploading > 0) && <ul className="of-row-files" aria-label={`Artwork for ${name}`}>

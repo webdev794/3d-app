@@ -120,7 +120,9 @@ export function createBoard({ getParts, getDesign, onLayers, onMarks = () => {},
         g.save();
         g.beginPath();
         // With any pieces of their own on that side (a hoodie's hood).
-        for (const outline of [painter.outline, ...(painter.piecesOn?.(back) ?? [])]) {
+        // (A ready-made model's back with its own neck (the basketball singlet's high back neck: painter.backOutline).)
+        const own = back && painter.model && painter.backOutline ? painter.backOutline : painter.outline;
+        for (const outline of [own, ...(painter.piecesOn?.(back) ?? [])]) {
           outline.forEach((pt, i) => {
             const c = painter.toCanvas(back, pt.x, pt.y);
             const x = row.ox + c.x * row.k, y = row.oy + c.y * row.k;
@@ -132,6 +134,16 @@ export function createBoard({ getParts, getDesign, onLayers, onMarks = () => {},
         g.clip();
         g.shadowBlur = 0;
         g.drawImage(tex, row.ox, row.oy, tex.width * row.k, tex.height * row.k);
+        // (A ready-made model's bindings, printed on it from plain swatches, not on the pattern: drawn along the panel's
+        // neck and armholes here, inside its edge, so the panels show them as the 3D garment: the basketball singlet.)
+        if (painter.model?.colours) for (const run of painter.modelEdges?.(back) ?? []) {
+          g.beginPath();
+          run.points.forEach((pt, i) => { const c = painter.toCanvas(back, pt.x, pt.y); const x = row.ox + c.x * row.k, y = row.oy + c.y * row.k; i ? g.lineTo(x, y) : g.moveTo(x, y); });
+          g.strokeStyle = painter.model.colours[run.which];
+          g.lineWidth = 2 * run.width * (tex.height / painter.frame.span) * row.k;
+          g.lineJoin = 'round';
+          g.stroke();
+        }
         g.restore();
         g.strokeStyle = 'rgba(18,225,240,0.55)';
         g.lineWidth = 1.5 * d;

@@ -518,9 +518,14 @@ void main() {
                 .items!)
           (item.child as Text).data,
       ];
-      expect(names.take(sportCategories.length), [
-        for (final s in dyoSports) s.$1,
-      ]);
+      // (QA10: not Headwear, a kind of garment; the apparel activities stay.)
+      final activities = [
+        for (final s in dyoSports)
+          if (s.$2 != 'headwear') s.$1,
+      ];
+      expect(names.take(activities.length), activities);
+      expect(names, isNot(contains('Headwear')));
+      expect(names, containsAll(['Workwear', 'School Leavers']));
       expect(names, contains('Soccer'));
       expect(names, isNot(contains('Football')));
       expect(names, contains('Pickleball'));
@@ -848,6 +853,78 @@ void main() {
       expect(find.textContaining('Pay invoice INV-2042'), findsOneWidget);
       await tap(tester, find.text('PAY NOW'));
       expect(opened, 'https://test.example/invoices/INV-2042?key=abc');
+    },
+  );
+
+  testWidgets(
+    'Request form (QA10): no Headwear sport; an empty Design brief says so and scrolls to it',
+    (tester) async {
+      // Headwear is a kind of garment (under Garments needed), not a sport.
+      final sports = teamSportsFrom(const []);
+      expect(sports.map((s) => s.id), isNot(contains('headwear')));
+      expect(
+        sports.length,
+        sportCategories.where((s) => s.id != 'headwear').length,
+      );
+      expect(
+        teamSportsFrom(const [
+          {'id': 'headwear', 'name': 'Headwear', 'group': 'apparel'},
+        ]).map((s) => s.id),
+        isNot(contains('headwear')),
+      );
+      final server = TeamServer();
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(400, 720);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TeamRequestFormScreen(
+              signedIn(server),
+              allowance: {
+                'next_request': {'billing': 'included'},
+                'can_submit': true,
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tap(tester, find.byKey(const Key('team-sport')));
+      expect(find.text('Headwear'), findsNothing);
+      await tap(tester, find.text('Rugby League').last);
+      await tap(tester, find.byKey(const Key('team-garments')));
+      await tap(tester, find.text('Jersey'));
+      await tap(tester, find.text('DONE'));
+      // Down to the button: the empty brief is off the screen above it.
+      await tester.scrollUntilVisible(
+        find.text('SEND DESIGN REQUEST'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('SEND DESIGN REQUEST'));
+      await tester.pumpAndSettle();
+      expect(find.text('Please describe your design'), findsOneWidget);
+      final brief = tester.getRect(find.byKey(const Key('team-description')));
+      expect(brief.top, greaterThanOrEqualTo(0));
+      expect(brief.bottom, lessThanOrEqualTo(720));
+      expect(
+        server.requests.where(
+          (r) => r.method == 'POST' && r.url.path.endsWith('/team/requests'),
+        ),
+        isEmpty,
+      );
+      // A few letters: asks for a few more words.
+      await tester.enterText(find.byKey(const Key('team-description')), 'Red');
+      await tap(tester, find.text('SEND DESIGN REQUEST'));
+      expect(
+        find.text(
+          'Please describe your design in a few more words (10 characters or more).',
+        ),
+        findsOneWidget,
+      );
     },
   );
 

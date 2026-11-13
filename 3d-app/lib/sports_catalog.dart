@@ -1012,6 +1012,17 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       // the band's black line, the forefoot line and a flat blue "3".
       'zoneColors': {'sockToeLine': '#2b91c1', 'sockMark': '#0a93ee'},
     },
+    // RGSOCKS 2026-11-13 (the user): the Rugby League > Socks tile's own 3D
+    // model (Tripo; viewer zoneColors.rlSocks shows it, every other socks tile
+    // keeps the made pair) starts as the client's booklet picture "Full rugby
+    // kit": navy knee-high socks, our "3" mark small and yellow high on each
+    // shin (website catalog.php). No text or logo from the picture.
+    'rlSocks': {
+      'main': '#303656',
+      'secondary': '#303656',
+      'accent': '#f0be1e',
+      'zoneColors': {'rlSocks': '#f0be1e', 'sockMark': '#f0be1e'},
+    },
     // Game Socks: two wide hoops under a deep black top, a bigger "3".
     'gameSocks': {
       'zoneColors': {'sockHoopsWide': cyan},
@@ -1032,18 +1043,65 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // band across them (the viewer's basketball shorts), no number (website
     // catalog.php).
     // FN6 2026-10-30 (DT8): a vivid aqua and a neutral black as rendered.
+    // TRS 2026-11-12 (the user): the 3D shorts start as their mockup picture
+    // 523: purple body, waistband and side panels, the two hem stripes yellow
+    // with purple between, as rendered on the stage; the "3" mark low on the
+    // right leg and the 3DEEZI wordmark up the outer left leg (reading upward),
+    // placed and sized as the client's demo 524's text; no number (website
+    // catalog.php).
+    // RGSHORTS 2026-11-13: the Rugby League Playing Shorts on their own 3D
+    // model (viewer zoneColors.rlShorts), in the colours and places of the
+    // client's reference "Rugby shorts": a golden yellow body, the navy
+    // waistband with our 3DEEZI wordmark repeated on it in white, navy hem
+    // bindings, our number in navy on the wearer's right leg, our small 3DEEZI
+    // wordmark low on the wearer's left leg; no picture text or logos (website
+    // catalog.php).
+    'rlShorts': {
+      'main': '#fcd12a',
+      'secondary': '#fcd12a',
+      'accent': '#343a64',
+      'patternColor': '#343a64',
+      'parts': {
+        'waistband': {'colour': '#343a64'},
+        'shortsHem': {'colour': '#343a64'},
+      },
+      'zoneColors': {
+        'rlShorts': '#343a64',
+        'cordTips': '#343a64',
+        'bandWord': '#ffffff',
+      },
+      'marks': {
+        'shorts_number': {
+          'x': -0.165,
+          'y': 0.085,
+          'scale': 1.25,
+          'color': '#343a64',
+          'look': {'style': 'outline', 'width': 0},
+        },
+        'shorts_crest': {'hidden': true},
+        'shorts_wordmark': {
+          'side': 'front',
+          'x': 0.19,
+          'y': 0.055,
+          'scale': 0.5,
+        },
+      },
+      'layers': <Map<String, dynamic>>[],
+    },
     'bballShorts': {
-      'main': '#1d1d1e',
-      'secondary': '#00e8ff',
+      'main': '#6a5bb2',
+      'secondary': '#6a5bb2',
       'accent': '#00e8ff',
       'patternColor': '#00e8ff',
       'zoneColors': {
-        'bballBand': '#0036f0',
-        'bballTrim1': '#ffffff',
-        'bballTrim2': '#00e8ff',
+        'bballBand': '#6a5bb2',
+        'bballTrim1': '#ffff4a',
+        'bballTrim2': '#ffff4a',
       },
       'marks': {
         'shorts_number': {'hidden': true},
+        'shorts_crest': {'x': -0.185, 'y': 0.115, 'scale': 2.8},
+        'shorts_wordmark': {'x': 0.195, 'y': 0.205, 'scale': 2.8, 'rot': -90},
       },
     },
     // The bucket hat pictures: a cyan bound edge; the general one's flat cyan
@@ -1067,53 +1125,93 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // position bib a shade lighter than the body below them with the white
     // position letters, the same on the back 3 cm lower (as 425's); no name or
     // number. (NDT: the body a little lighter, 43,88,145 on the stage.)
+    // BBSINGLET 2026-11-13 (the user): the Basketball singlet tile's own 3D
+    // model (Tripo; viewer zoneColors.bballSinglet shows it, every other
+    // singlet keeps the made one) starts as its mockup picture 538: a golden
+    // yellow mesh body, a dark charcoal V-neck and armhole binding, the "3"
+    // mark small on the wearer's right chest and the 3DEEZI wordmark big
+    // across the chest (website catalog.php). No text or logo from the picture.
+    'bballSinglet': {
+      'main': '#e4bf00',
+      'secondary': '#42444c',
+      'accent': '#42444c',
+      'patternColor': '#42444c',
+      'zoneColors': {'bballSinglet': '#42444c'},
+      'marks': {
+        'top_crest': {'x': -0.1, 'y': 0.6, 'scale': 0.3},
+        'top_wordmark': {'x': 0, 'y': 0.45, 'scale': 0.75},
+      },
+    },
+    // NBBIB 2026-11-13 (the user): the Netball bibs tile's own 3D model
+    // (Tripo; viewer zoneColors.netballBib shows it, every other singlet keeps
+    // the made one) starts as the booklet's "Netball bib" (Yellow Images
+    // 37504): a royal blue bib, the yellow neck binding (Neck trim), our big
+    // white position letters front and back (the Number), our 3DEEZI wordmark
+    // high on the wearer's right chest and our yellow "3" mark high on the
+    // left (website catalog.php). Nothing from the picture.
+    'netballBib': {
+      'number': 'GS',
+      'main': '#2c48bc',
+      'secondary': '#2c48bc',
+      'accent': '#ffffff',
+      'patternColor': cyan,
+      'parts': {
+        'collar': {'colour': '#f2bb00'},
+      },
+      'zoneColors': {'netballBib': '#2c48bc', 'crestInk': '#f2bb00'},
+      'marks': {
+        'top_name': {'hidden': true},
+        'top_number': {'x': 0, 'y': 0.26, 'scale': 0.6},
+        'top_frontNumber': {'x': 0, 'y': 0.42, 'scale': 1.4},
+        'top_crest': {'x': 0.095, 'y': 0.585, 'scale': 0.45},
+        'top_wordmark': {'x': -0.095, 'y': 0.585, 'scale': 0.4},
+      },
+      'layers': <Map<String, dynamic>>[],
+    },
     'netballDress': {
       // (Netball has no player numbers: client 2026-10-26.)
+      // (TRD 2026-11-12, the user: the Tripo dress's starting look in the
+      // colours of its own picture, images/525, as config/catalog.php: deep
+      // blue body and yoke, light azure side panels and binding; no bib, the
+      // position letters are the Numbers panel's.)
       'number': '',
-      'main': '#35547e',
-      'secondary': '#0c78c6',
+      'main': '#30508a',
+      'secondary': '#2295dc',
       'accent': '#00d0ff',
       'pattern': 'None',
-      'patternColor': '#0c78c6',
+      'patternColor': '#2295dc',
       'zoneColors': {
-        'body': '#35547e',
-        'panels': '#0c78c6',
-        'yoke': '#35547e',
-        'binding': '#0c78c6',
+        'body': '#30508a',
+        'panels': '#2295dc',
+        'yoke': '#30508a',
+        'binding': '#2295dc',
       },
       'marks': {
         'top_name': {'hidden': true},
-        'top_number': {'hidden': true},
       },
-      'layers': [
-        for (final side in const ['front', 'back'])
-          {
-            'id': side == 'front' ? 'tile-bib' : 'tile-bib-back',
-            'name': 'Position bib',
-            'type': 'shape',
-            'part': 'top',
-            'side': side,
-            'x': 0,
-            'y': side == 'front' ? 0.455 : 0.434,
-            'shape': 'rectangle',
-            'w': 0.205,
-            'h': 0.215,
-            'color': '#4a6696',
-          },
-        for (final side in const ['front', 'back'])
-          {
-            'id': side == 'front' ? 'tile-position' : 'tile-position-back',
-            'name': 'Position',
-            'type': 'text',
-            'part': 'top',
-            'side': side,
-            'x': 0,
-            'y': side == 'front' ? 0.428 : 0.407,
-            'text': 'WA',
-            'size': 0.185,
-            'color': '#ffffff',
-          },
-      ],
+      'layers': <Map<String, dynamic>>[],
+    },
+  };
+  // The Rugby League Jersey tile (FBJERSEY 2026-11-13, as config/catalog.php
+  // 'rlJersey'): on its own 3D model in its reference's colours (the booklet's
+  // "Rugby jersey", images/539): a golden yellow body and neck band, navy
+  // raglan sleeves and cuffs, the number big and navy on the chest and back,
+  // our "3" on the left chest and the small 3DEEZI wordmark on the right chest.
+  looks['rlJersey'] = {
+    'main': '#e2bf3a',
+    'secondary': '#e2bf3a',
+    'accent': '#32324c',
+    'patternColor': '#32324c',
+    'parts': {
+      'leftSleeve': {'colour': '#32324c'},
+      'rightSleeve': {'colour': '#32324c'},
+    },
+    'zoneColors': {'fbJersey': '#32324c', 'cuffStripe': '#e2bf3a'},
+    'marks': {
+      'top_number': {'color': '#32324c'},
+      'top_frontNumber': {'x': 0, 'y': 0.45},
+      'top_wordmark': {'x': -0.1, 'y': 0.6, 'scale': 0.42},
+      'top_crest': {'x': 0.1, 'y': 0.6, 'scale': 1.0},
     },
   };
   return {
@@ -1167,23 +1265,28 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full Kit',
       image: 'rugby-kit',
     ),
+    // (On its own 3D model in its reference's colours, FBJERSEY 2026-11-13;
+    // the kit keeps the made jersey.)
     GarmentTile(
       'Jersey',
       'Performance rugby league jersey.',
       'Jersey',
       image: 'rugby-jersey',
+      look: 'rlJersey',
     ),
     GarmentTile(
       'Playing Shorts',
       'Durable rugby league shorts.',
       'Shorts',
       image: 'rugby-shorts',
+      look: 'rlShorts',
     ),
     GarmentTile(
       'Socks',
       'Knee-high match socks.',
       'Socks',
       image: 'rugby-socks',
+      look: 'rlSocks',
     ),
     GarmentTile(
       'Polo',
@@ -1329,6 +1432,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Basketball singlet',
       'Game singlet with a big number.',
       'Singlet',
+      look: 'bballSinglet',
     ),
     GarmentTile(
       'Basketball shorts',
@@ -1402,12 +1506,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Training Tee',
       image: 'netball-tee',
     ),
-    GarmentTile.nearest(
+    // (On its own 3D model, NBBIB 2026-11-13.)
+    GarmentTile(
       'Netball bibs',
       'Pullover bibs with position patches.',
       'Singlet',
-      future: 'bibs',
       image: 'netball-bibs',
+      look: 'netballBib',
     ),
     GarmentTile(
       'Tracksuit',

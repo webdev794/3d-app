@@ -1258,12 +1258,18 @@ class StudioZoneTool extends StatelessWidget {
           isVarsity(c.garment) ||
           isTrack(c.garment) ||
           isBballShorts(c.garment, c.zoneColors) ||
+          isNetballBib(c.garment, c.zoneColors) ||
+          isBballSinglet(c.garment, c.zoneColors) ||
           isNetballDress(c.garment)) ...[
         SectionLabel(
           isNetballDress(c.garment)
               ? 'Netball dress area colours'
               : isBballShorts(c.garment, c.zoneColors)
               ? 'Basketball shorts area colours'
+              : isNetballBib(c.garment, c.zoneColors)
+              ? 'Netball bib area colours'
+              : isBballSinglet(c.garment, c.zoneColors)
+              ? 'Basketball singlet area colours'
               : isTrack(c.garment)
               ? 'Track jacket area colours'
               : isVarsity(c.garment)
@@ -1280,6 +1286,10 @@ class StudioZoneTool extends StatelessWidget {
                     ? varsityAreas
                     : isBballShorts(c.garment, c.zoneColors)
                     ? bballAreas
+                    : isNetballBib(c.garment, c.zoneColors)
+                    ? bibAreas
+                    : isBballSinglet(c.garment, c.zoneColors)
+                    ? bballSingletAreas
                     : isNetballDress(c.garment)
                     ? dressAreas
                     : hoodieAreas)

@@ -13,6 +13,8 @@ const neckGarments = {
   'Full Kit': 'v',
   'Training Tee': 'round',
   'Singlet': 'round',
+  // (The Netball dress: its 3D model's own round neck; a V cuts the model's
+  // neck and binds it with our own binding: user 2026-11-13.)
   'Netball dress': 'round',
   'Shooting shirt': 'v',
 };
@@ -52,16 +54,65 @@ const trimSwatches = [
 bool isRugbySport(String sport) => sport.toLowerCase().contains('rugby');
 bool hasNeckStyle(String garment) => neckGarments.containsKey(garment);
 
+/// A garment with no neck at all (shorts, pants, skirts, socks, headwear), by
+/// its name or product name.
+bool hasNoNeck(String name) => RegExp(
+      r'shorts|pants|tights|skirt|skort|socks|\bcap\b|\bhat\b|beanie',
+      caseSensitive: false,
+    ).hasMatch(name);
+
 /// A rugby jersey (or the rugby kit's jersey): the collar library and the fit.
 bool hasRugbyStyle(String sport, String garment) =>
     isRugbySport(sport) && (garment == 'Jersey' || garment == 'Full Kit');
 
 final _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
 
+/// The Basketball singlet tile's own 3D model (its look's
+/// zoneColors.bballSinglet, BBSINGLET 2026-11-13): its own neck is a V (null
+/// for any other design); its round neck is our own neck piece filled in on
+/// it, as garmentStyle.ts.
+String? bballOwnNeck(String garment, Map<String, String> zoneColors) =>
+    garment == 'Singlet' && _hex.hasMatch(zoneColors['bballSinglet'] ?? '')
+    ? 'v'
+    : null;
+
+/// The Rugby League Jersey tile on its own 3D model (FBJERSEY 2026-11-13,
+/// zoneColors.fbJersey, as garmentStyle.ts): its own round neck; the collar
+/// library but for the collars whose own pieces (a wing collar, fold-down
+/// polo collars) do not yet sit cleanly on it; its own Regular fit and a
+/// slimmer Pro fit ('tight').
+bool isModelJersey(String garment, Map<String, String> zoneColors) =>
+    garment == 'Jersey' && _hex.hasMatch(zoneColors['fbJersey'] ?? '');
+const _notOnModel = <String>[]; // every collar is made on it (FBJERSEY round 3)
+List<(String, String, String)> collarsFor(
+  String garment,
+  Map<String, String> zoneColors,
+) => isModelJersey(garment, zoneColors)
+    ? [
+        for (final c in rugbyCollars)
+          if (!_notOnModel.contains(c.$1)) c,
+      ]
+    : rugbyCollars;
+List<(String, String, String)> fitsFor(
+  String garment,
+  Map<String, String> zoneColors,
+) => isModelJersey(garment, zoneColors)
+    ? const [
+        ('pro', 'Regular', 'The jersey as made'),
+        ('tight', 'Pro fit', 'Slimmer, athletic'),
+      ]
+    : rugbyFits;
+
 /// The garment's own neck (the Full kit picture's crew-neck look makes its
 /// jersey's round).
 String? ownNeck(String garment, Map<String, String> zoneColors) {
   if (!hasNeckStyle(garment)) return null;
+  final bball = bballOwnNeck(garment, zoneColors);
+  if (bball != null) return bball;
+  if (isModelJersey(garment, zoneColors) &&
+      !_hex.hasMatch(zoneColors['fbV'] ?? '')) {
+    return 'round';
+  }
   if (garment == 'Full Kit' && _hex.hasMatch(zoneColors['crewNeck'] ?? '')) {
     return 'round';
   }

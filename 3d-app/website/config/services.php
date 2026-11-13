@@ -32,6 +32,8 @@ return [
         'planning_model' => env('OPENAI_PLANNING_MODEL'),
         // HD renders ("HD primary", "Make HD") and the image editor; empty: the image model.
         'hd_image_model' => env('OPENAI_HD_IMAGE_MODEL'),
+        // Development only (never in production): a JSON file answered instead of the order form maker's paid call.
+        'order_form_canned' => env('ORDER_FORM_CANNED'),
     ],
 
     'resend' => [

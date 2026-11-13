@@ -66,7 +66,7 @@ export interface OrderFile {
   /** Staff only: what the server keeps with the file (an order form's reading: `suggested`, and `ai` {status, at, model}). */
   meta?: { suggested?: Suggested | null; ai?: { status: string; at: string; model?: string } | null; [key: string]: unknown } | null;
 }
-export interface DraftSummary { id: number; kind: DraftKind; title: string | null; files_count: number; garments_count: number; link: string; created_at: string; updated_at: string }
+export interface DraftSummary { id: number; kind: DraftKind; title: string | null; name?: string | null; quantity?: number; files_count: number; garments_count: number; link: string; created_at: string; updated_at: string }
 export interface OrderDraft {
   id: number; kind: DraftKind; title: string | null; data: OrderFields & Record<string, unknown>; files: OrderFile[]; link: string;
   suggested: (Suggested & { file_id: number })[]; created_at: string; updated_at: string;
@@ -180,6 +180,8 @@ export const orderApi = {
   assistant: (form: FormData, token?: string | null) => api<AssistantOrder>(`/order-assistant${token ? `/${token}` : ''}`, { method: 'POST', body: form }),
   /** A collated order by its token (the share link). */
   assistantOrder: (token: string) => api<AssistantOrder>(`/order-assistant/${token}`),
+  /** The order form maker's form corrected in place (names, colourways, sizes; a design left out comes off): no AI. */
+  assistantForm: (token: string, body: AssistantFormEdit) => api<AssistantOrder>(`/order-assistant/${token}/form`, post(body)),
   draft: (id: number) => api<OrderDraft>(`/order-drafts/${id}`),
   /** The draft, after 3DEEZI AI has read its order forms (once per file; later calls answer at once). */
   readDraft: (id: number) => api<OrderDraft>(`/order-drafts/${id}/read`, post({})),
@@ -302,6 +304,17 @@ export interface AssistantGroup {
   garments: { garment: string; sport?: string | null; column?: string; product: string; collection: string; name: string; total: number; unsure: number; sizes: Record<'youth' | 'womens' | 'mens', Record<string, number>> }[];
 }
 export interface AssistantCheck { type: string; text: string; people?: string[]; counts?: boolean }
+/** One design of the order form maker's form (OrderDesignForm): its pictures (front / back) and its sizes. */
+export interface AssistantFormDesign {
+  key: string; number: number; name: string; colourway: string; label: string; colour: string | null; total: number; note: string;
+  pictures: { name: string; view: 'front_back' | 'front' | 'back' | 'other' }[]; sizes: Record<string, number>;
+}
+/** The order form maker's form: pictures and one prompt read by 3DEEZI AI (client 2026-11-13, the MANTIS example). */
+export interface AssistantForm {
+  brand: string; garment: string; garment_id: string; sport: string | null; title: string; notes: string; unclear: string[]; unplaced: string[];
+  source: 'ai' | 'built-in' | 'edited'; same_sizes: boolean; total: number; designs: AssistantFormDesign[];
+}
+export interface AssistantFormEdit { brand?: string; garment?: string; title?: string; designs: { key: string; name: string; colourway: string; sizes: Record<string, number> }[] }
 export interface AssistantItem { garment: string; fit: string; label: string; design: string; sizes: Record<string, number> }
 /** The collated order (OrderAssistController::resource). */
 export interface AssistantOrder {
@@ -313,6 +326,8 @@ export interface AssistantOrder {
     totals: { garments: number; lines: number; orders: number; members: number; groups: number; to_check: number; by_garment: Record<string, number>; by_product: Record<string, number>; by_column?: Record<string, number>; columns?: Record<string, string> };
     size_columns: Record<'youth' | 'womens' | 'mens', string[]>;
     groups: AssistantGroup[]; checks: AssistantCheck[]; items: AssistantItem[];
+    /** Present when the order was made from design pictures and one prompt (the order form maker). */
+    form?: AssistantForm;
   };
   files: { name: string; kind: string }[];
   designs: { name: string; url: string; group: string | null; how?: string | null }[];

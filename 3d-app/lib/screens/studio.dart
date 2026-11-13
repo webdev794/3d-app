@@ -2210,13 +2210,30 @@ class _TextToolState extends State<_TextTool> {
         word: widget.c.backName,
         title: 'Name',
       ),
-      const SectionLabel('Number'),
-      TextField(
-        controller: _number,
-        maxLength: 2,
-        keyboardType: TextInputType.number,
-        onChanged: (v) => _set(() => widget.c.number = v),
-      ),
+      // Netball (as the website's Numbers panel): the playing position letters
+      // (GS, WD...) in the number's place, front and back on the bibs.
+      if (sportNamed(widget.c.sport)?.positions.isNotEmpty ?? false) ...[
+        const SectionLabel('Position letters'),
+        TextField(
+          controller: _number,
+          maxLength: 3,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(hintText: 'GS'),
+          onChanged: (v) => _set(
+            () => widget.c.number = v
+                .replaceAll(RegExp('[^A-Za-z]'), '')
+                .toUpperCase(),
+          ),
+        ),
+      ] else ...[
+        const SectionLabel('Number'),
+        TextField(
+          controller: _number,
+          maxLength: 2,
+          keyboardType: TextInputType.number,
+          onChanged: (v) => _set(() => widget.c.number = v),
+        ),
+      ],
       WordLookEditor(
         c: widget.c,
         markKey: 'top_number',
@@ -2505,6 +2522,34 @@ class _SaveProjectScreenState extends State<SaveProjectScreen> {
             child: _done
                 ? Column(
                     children: [
+                      // Kept on this device, but the account did not take it
+                      // (QA10 2026-11-11: only a cloud mark said so).
+                      if (c.saveNotice != null)
+                        Padding(
+                          key: const ValueKey('save-account-notice'),
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.cloud_off_outlined,
+                                color: Color(0xffffc36b),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  c.saveNotice!,
+                                  style: const TextStyle(
+                                    color: Color(0xffffc36b),
+                                    fontSize: 12,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       GradientButton(
                         label: 'EXPORT DESIGN',
                         icon: Icons.ios_share_rounded,

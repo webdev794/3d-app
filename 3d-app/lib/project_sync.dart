@@ -39,7 +39,7 @@ class ProjectSync {
         'main': hex(k.mainColor),
         'secondary': hex(k.secondaryColor),
         'accent': hex(k.accentColor),
-        'pattern': studioPatterns.contains(k.pattern) ? k.pattern : 'Solid',
+        'pattern': savedPatterns.contains(k.pattern) ? k.pattern : 'Solid',
         'logoText': _clip(k.logoText, 40),
         'backName': _clip(k.backName, 40),
         'number': _clip(k.number, 3),
@@ -142,7 +142,7 @@ class ProjectSync {
         mainColor: color(d['main']),
         secondaryColor: color(d['secondary']),
         accentColor: color(d['accent']),
-        pattern: studioPatterns.contains(d['pattern'])
+        pattern: savedPatterns.contains(d['pattern'])
             ? d['pattern'] as String
             : 'Solid',
         // The website's design.fabric first, then the app's own (older saves).
