@@ -922,3 +922,18 @@ Open any page of the test site once with ?look=2 at the end of the address (e.g.
 3. Paste a screenshot of a list (website: Ctrl+V; app: "Add a screenshot or photo"): read the same way.
 4. "Please check" lists anything it couldn't read; Undo puts the form back.
 ---
+
+---
+**Basketball singlet: round neck and inside (2026-11-13, website and app)**
+1. Studio > Basketball > Basketball singlet > Style: Round neck: one smooth band all the way round, no corners at the shoulders. Turn it and look from above.
+2. Look inside the neck and the armholes: one even colour, no blotches. Set a Reverse side colour: the inside takes it.
+3. V-neck looks as before; the other singlets and garments are unchanged.
+---
+
+---
+**3D comes back by itself + new message (2026-11-13, website)**
+1. Studio, any garment (today it happened on Rugby League > Jersey in Edge): work as usual. If the browser stops the 3D for a moment, the kit comes back by itself in a few seconds with your colours kept, and no message shows.
+2. If it cannot come back, a calm message shows: "Your 3D view needs a quick restart" with the button "Restart 3D view". Press it: the kit is back with your design kept.
+3. Under it: "wait a few minutes, then refresh the page" and a short list of other things that help (close tabs, clear cache and cookies with the Fix it button, another browser, private window, reopen the browser). The old sentence "To continue, open this page in a private window" is gone.
+4. On a phone the message fits the screen and says "device", not "computer".
+---

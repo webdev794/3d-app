@@ -191,9 +191,10 @@ $look = function (string $name, array $extra = []): array {
         // (RGSHORTS 2026-11-13: the Rugby League Playing Shorts on their own 3D model (viewer zoneColors.rlShorts), in the
         // colours and places of the client's reference "Rugby shorts" (Yellow Images 14565): a golden yellow body, the navy
         // waistband with our 3DEEZI wordmark repeated on it in white (zoneColors.bandWord), navy hem bindings, our number in
-        // navy on the wearer's right leg, our small 3DEEZI wordmark low on the wearer's left leg; no "3" mark there. Set so the
+        // navy on the wearer's right leg, our small 3DEEZI wordmark low on the wearer's left leg with the "3" mark (or the team's logo) above it; the number in
+        // the Accent colour. Set so the
         // stage renders them as the picture's (about 240,190,30 and 30,40,85). None of the picture's own text or logos.)
-        'rlShorts' => ['main' => '#fcd12a', 'secondary' => '#fcd12a', 'accent' => '#343a64', 'patternColor' => '#343a64', 'parts' => ['waistband' => ['colour' => '#343a64'], 'shortsHem' => ['colour' => '#343a64']], 'zoneColors' => ['rlShorts' => '#343a64', 'cordTips' => '#343a64', 'bandWord' => '#ffffff'], 'marks' => ['shorts_number' => ['x' => -0.165, 'y' => 0.085, 'scale' => 1.25, 'color' => '#343a64', 'look' => ['style' => 'outline', 'width' => 0]], 'shorts_crest' => ['hidden' => true], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.19, 'y' => 0.055, 'scale' => 0.5]], 'layers' => []],
+        'rlShorts' => ['main' => '#fcd12a', 'secondary' => '#fcd12a', 'accent' => '#343a64', 'patternColor' => '#343a64', 'parts' => ['waistband' => ['colour' => '#343a64'], 'shortsHem' => ['colour' => '#343a64']], 'zoneColors' => ['rlShorts' => '#343a64', 'cordTips' => '#343a64', 'bandWord' => '#ffffff'], 'marks' => ['shorts_number' => ['x' => -0.165, 'y' => 0.085, 'scale' => 1.25, 'look' => ['style' => 'outline', 'width' => 0]], 'shorts_crest' => ['x' => 0.19, 'y' => 0.11, 'scale' => 0.9], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.19, 'y' => 0.055, 'scale' => 0.5]], 'layers' => []],
         'bballShorts' => ['main' => '#6a5bb2', 'secondary' => '#6a5bb2', 'accent' => '#00e8ff', 'patternColor' => '#00e8ff', 'zoneColors' => ['bballBand' => '#6a5bb2', 'bballTrim1' => '#ffff4a', 'bballTrim2' => '#ffff4a'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.185, 'y' => 0.115, 'scale' => 2.8], 'shorts_wordmark' => ['x' => 0.195, 'y' => 0.205, 'scale' => 2.8, 'rot' => -90]]],
         // The bucket hat pictures (FN1 2026-10-30, colours measured on them): a black hat with a cyan bound edge; the
         // general picture with flat cyan and royal blue shards up the crown and round the brim (viewer hatprint.js).
@@ -221,7 +222,7 @@ $look = function (string $name, array $extra = []): array {
         // and our "3" mark in yellow high on the left (zoneColors.crestInk); its edge binding and side ties follow the
         // Secondary (Colours › Netball bib areas); set so the stage renders them as the picture's. Nothing from the picture.)
         'netballBib' => ['number' => 'GS', 'main' => '#2c48bc', 'secondary' => '#2c48bc', 'accent' => '#ffffff', 'patternColor' => $cyan, 'parts' => ['collar' => ['colour' => '#f2bb00']], 'zoneColors' => ['netballBib' => '#2c48bc', 'crestInk' => '#f2bb00'],
-            'marks' => ['top_name' => ['hidden' => true], 'top_number' => ['x' => 0, 'y' => 0.26, 'scale' => 0.6], 'top_frontNumber' => ['x' => 0, 'y' => 0.42, 'scale' => 1.4], 'top_crest' => ['x' => 0.095, 'y' => 0.585, 'scale' => 0.45], 'top_wordmark' => ['x' => -0.095, 'y' => 0.585, 'scale' => 0.4]], 'layers' => []],
+            'marks' => ['top_name' => ['hidden' => true], 'top_number' => ['x' => 0, 'y' => 0.26, 'scale' => 0.6], 'top_frontNumber' => ['x' => 0, 'y' => 0.42, 'scale' => 1.4], 'top_crest' => ['x' => 0.095, 'y' => 0.56, 'scale' => 0.45], 'top_wordmark' => ['x' => -0.095, 'y' => 0.56, 'scale' => 0.4]], 'layers' => []],
         'netballDress' => ['number' => '', 'main' => '#30508a', 'secondary' => '#2295dc', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#2295dc',
             'zoneColors' => ['body' => '#30508a', 'panels' => '#2295dc', 'yoke' => '#30508a', 'binding' => '#2295dc']],
     ];

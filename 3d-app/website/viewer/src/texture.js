@@ -971,10 +971,15 @@ export class KitPainter {
     const along = (points) => (c) => points.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
     // Hems and sleeve ends: two rows of cover-stitch and the turned-up edge inside, each an even
     // distance from the edge all the way round.
-    for (const { kind, points } of this.edges()) {
+    // (A ready-made model's hem bindings (main.js modelBand, zones.js useModelHem: the Rugby League shorts): two rows of
+    // cover-stitch level just under each binding's top and no turned-up facing; the model's binding is its own, and the
+    // made hem's facing showed as a pale band above it: MODELTEST 2026-11-13.)
+    const modelHem = this.modelBand ? zoneRects(this.kind, 'hem')[0]?.[3] ?? null : null;
+    for (const { kind, points } of modelHem ? [] : this.edges()) {
       stitches.push(along(this.inset(points, .0115)), along(this.inset(points, .0147)));
       folds.push(along(this.inset(points, .019, .006)));
     }
+    if (modelHem) for (const d of [0.0035, 0.0065]) stitches.push((c) => { c.moveTo(-0.4, modelHem - d); c.lineTo(0.4, modelHem - d); });
     // The netball dress: its neck and armholes bound (the binding stitched down along each), its side panels and yoke
     // sewn in (netballdress.js).
     if (isDress(this.kind)) {
@@ -1976,7 +1981,7 @@ export class KitPainter {
         for (const poly of zoneOutlines(this.kind, 'sleeves')) { poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); }
         g.clip('evenodd');
       }
-      for (const dir of hoodie || track || varsity || bball || isDress(this.kind) || this.kind === 'compression' || this.kind === 'shooting-shirt' || (this.model && !sideStyle) ? [] : [-1, 1]) {
+      for (const dir of hoodie || track || varsity || bball || isDress(this.kind) || this.kind === 'compression' || this.kind === 'shooting-shirt' || (this.model && !sideStyle) || (this.modelBand && !sideStyle) ? [] : [-1, 1]) {
         g.beginPath();
         if (shorts) {
           // Outer-leg stripe.
@@ -2320,6 +2325,8 @@ export class KitPainter {
     if (this.kind === 'shorts') {
       await this.paintShortsMarks(design, logo, textOutline);
       await this.paintLayers(design);
+      // (A ready-made model (main.js modelBand: the Rugby League shorts): marks and objects carry on over the side seams.)
+      if (this.modelBand) await this.wrapSeams(design, logo, textOutline);
       g.setTransform(1, 0, 0, 1, 0, 0);
       return this.canvas;
     }
@@ -2463,12 +2470,13 @@ export class KitPainter {
   paintModelSwatches(design) {
     const g = this.ctx, trim = this.zoneFill(design, 'secondary'), base = this.baseFill(design);
     const own = (key) => this.partStyle(design, key)?.own ?? null, reverse = HEX.test(design.zoneColors?.reverseSide ?? '') ? design.zoneColors.reverseSide : null;
-    const front = own('front') ?? base, backFill = own('back') ?? base;
+
     this.side(false);
     this.model.colours = [own('collar') ?? trim, trim];
     (this.model.swatch ?? []).forEach(([x, y], which) => {
       if (this.model.insert) {
-        g.fillStyle = which === 0 ? this.model.colours[0] : which === 1 ? trim : reverse ?? [front, backFill, own('hem') ?? front, own('hem') ?? backFill][which - 2] ?? base;
+        // (The inside one even colour: the Reverse side's, else the Main: the user 2026-11-13, image 540.)
+        g.fillStyle = which === 0 ? this.model.colours[0] : which === 1 ? trim : reverse ?? design.main;
       } else {
         // (The netball bib's, NBBIB: its edge binding and its side ties (a 4th swatch) each their own colour area,
         // design.zoneColors.bibEdge / bibTies, else the trim colour.)
@@ -3152,6 +3160,88 @@ export class KitPainter {
         g.scale(back ? -1 : 1, -1);
         g.drawImage(img, -w / 2, -h / 2, w, h);
         g.restore();
+      }
+      g.restore();
+    }
+  }
+
+  /**
+   * The ready-made shorts' side seams (main.js modelBand): what of the marks and objects runs past a side seam is drawn
+   * on the other panel, so it carries on round the leg as printed cloth does. On the print the front and the back meet at
+   * a side seam with the cloth running on the same way (main.js / tripo-rugby-shorts.mjs: flat x continuous there), so
+   * the overrun is only moved across the print, row by row (the seam slants). The marks and objects are drawn a second
+   * time, onto a spare canvas (kept), cut to strips WRAP wide beyond the seams; only when one of them reaches a seam.
+   */
+  async wrapSeams(design, logo, textOutline) {
+    const WRAP = 0.15, { minX, maxX, minY, span } = this.frame, H = this.canvas.height, s = H / span;
+    // The side seam's x at a height (the outline's outermost there), wearer's left (+1) or right (-1).
+    const poly = this.outline, seamX = (y, dir) => {
+      let best = 0;
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i], b = poly[(i + 1) % poly.length];
+        if ((a.y - y) * (b.y - y) > 0 || a.y === b.y) continue;
+        const x = a.x + ((b.x - a.x) * (y - a.y)) / (b.y - a.y);
+        if (x * dir > best * dir) best = x;
+      }
+      return best;
+    };
+    const top = Math.max(...poly.map((p) => p.y)), bottom = Math.min(...poly.map((p) => p.y));
+    // Anything near a seam? (Each mark or object's box, turned or not, by its half diagonal.)
+    const boxes = [...this.marks, ...(this.layerBoxes ?? [])];
+    if (!boxes.some((b) => Math.abs(b.x) + Math.hypot(b.w ?? 0, b.h ?? 0) / 2 > seamX(Math.min(top, Math.max(bottom, b.y)), Math.sign(b.x) || 1) - 0.002)) return;
+    const M = Math.ceil(WRAP * s) + 8, W = this.canvas.width;
+    const scratch = (this._wrapCanvas ??= document.createElement('canvas'));
+    if (scratch.width !== W + 2 * M || scratch.height !== H) { scratch.width = W + 2 * M; scratch.height = H; }
+    const sg = scratch.getContext('2d');
+    sg.setTransform(1, 0, 0, 1, 0, 0);
+    sg.clearRect(0, 0, scratch.width, scratch.height);
+    const rows = [];
+    for (let y = bottom - 0.01; y <= top + 0.01; y += 0.004) rows.push(y);
+    const keep = { ctx: this.ctx, marks: this.marks, layerBoxes: this.layerBoxes };
+    const side = (back, g = this.ctx, k = 1) => {
+      const k2 = KitPainter.prototype.side.call(this, back, g, k);
+      if (g === sg) { const m = g.getTransform(); g.setTransform(m.a, m.b, m.c, m.d, m.e + M, m.f); }
+      return k2;
+    };
+    // (Cut to the strips beyond both side seams of one side, instead of its outline; the other side not drawn.)
+    const strips = (back, which) => {
+      this.side(back);
+      const g = this.ctx;
+      g.beginPath();
+      if (back === which) for (const dir of [1, -1]) {
+        rows.forEach((y, i) => (i ? g.lineTo(seamX(y, dir), y) : g.moveTo(seamX(y, dir), y)));
+        for (let i = rows.length - 1; i >= 0; i--) g.lineTo(seamX(rows[i], dir) + dir * WRAP, rows[i]);
+        g.closePath();
+      }
+      g.clip();
+    };
+    // One side at a time (front, then back), so one side's overrun is never taken for the other's: drawn on the spare
+    // canvas, then each strip moved onto the other panel, a band of rows at a time (front x = e and back x = e are the
+    // same seam).
+    const g = this.ctx, band = 8, px = (x, back) => (back ? H + (maxX - x) * s : (x - minX) * s);
+    for (const which of [false, true]) {
+      sg.setTransform(1, 0, 0, 1, 0, 0);
+      sg.clearRect(0, 0, scratch.width, scratch.height);
+      try {
+        Object.assign(this, { ctx: sg, marks: [], layerBoxes: [], side, clipOutline: (back) => strips(back, which) });
+        await this.paintShortsMarks(design, logo, textOutline);
+        await this.paintLayers(design);
+      } finally {
+        delete this.side; delete this.clipOutline;
+        Object.assign(this, keep);
+      }
+      g.save();
+      this.clipOutline(!which);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      for (let py = 0; py < H; py += band) {
+        const y = minY + (H - py - band / 2) / s;
+        if (y < bottom - 0.01 || y > top + 0.01) continue;
+        for (const dir of [1, -1]) {
+          const e = seamX(y, dir), from = px(e, which), shift = px(e, !which) - from;
+          // (Beyond the seam: further right on the print for the front's left seam and the back's right one.)
+          const right = (dir > 0) !== which, x0 = Math.round(right ? from : from - WRAP * s), w = Math.round(WRAP * s);
+          g.drawImage(scratch, x0 + M, py, w, band, x0 + Math.round(shift), py, w, band);
+        }
       }
       g.restore();
     }

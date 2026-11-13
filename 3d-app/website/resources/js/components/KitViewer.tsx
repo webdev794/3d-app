@@ -96,7 +96,7 @@ export function dressColour(design: { main?: string; secondary?: string; zoneCol
     return (key === 'body' ? design.main : design.secondary) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-export const VIEWER_VERSION = '2026-10-20-306';
+export const VIEWER_VERSION = '2026-10-20-313';
 
 /**
  * The browser's own private mode, in its own words and with its own shortcut (LIVEFIX L1 2026-11-12): what works at once
@@ -339,9 +339,12 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
     const appBase = document.querySelector('meta[name="app-base"]')?.getAttribute('content')?.replace(/\/$/, '') || '';
     const iframe = useRef<HTMLIFrameElement>(null);
     const [attempt, setAttempt] = useState(0);
-    // The browser switched 3D off for this page (the viewer's 'webgl' error, LIVEFIX L1 2026-11-12): its own message, with
-    // what works (a private window) first, and no Retry, which cannot help in the same browser.
+    // The browser switched 3D off for this page (the viewer's 'webgl' error, LIVEFIX L1 2026-11-12): its own message.
+    // LOST3D 2026-11-13: it mostly happens when the PC is short of memory (it showed in a private window too), so the
+    // host first reloads the viewer once by itself (autoRetried: one quiet retry per failure, reset when the kit is
+    // shown again), then shows Reload 3D and what else to try; a private window is one thing to try, never "the fix".
     const [webglOff, setWebglOff] = useState(false);
+    const autoRetried = useRef(false);
     const [linkCopied, setLinkCopied] = useState(false);
     const copyLink = () => { void navigator.clipboard?.writeText(window.location.href).then(() => setLinkCopied(true), () => setLinkCopied(false)); };
     // The viewer left part of a design out of the 3D view (its 'notice'): one line over the view for a while.
@@ -448,6 +451,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         if (!revealed.current) return;
         if (!announced.current) {
             announced.current = true;
+            autoRetried.current = false;
             setStatus('ready');
             readyCallback.current?.();
         }
@@ -512,6 +516,7 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
         setWebglOff(false);
         setLinkCopied(false);
         let rotationTimer: ReturnType<typeof setTimeout> | undefined;
+        let quietRetry: ReturnType<typeof setTimeout> | undefined;
 
         const begin = () => {
             if (engineReady.current || failed.current) return;
@@ -573,8 +578,21 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             // The browser switched 3D off (or would not start it): said plainly, at once. If it comes back, a fresh viewer.
             if (message.type === 'error' && (message as { command?: string }).command === 'webgl') {
                 console.warn('The browser switched off 3D for the viewer:', message.message);
+                if (quietRetry) return;
+                if (!autoRetried.current) {
+                    // Once, quietly: a fresh viewer after 3 s (the design is put on again), the "Preparing" screen meanwhile.
+                    autoRetried.current = true;
+                    failed.current = true;
+                    engineReady.current = false;
+                    inFlightDesign.current = null;
+                    if (designTimer.current) clearTimeout(designTimer.current);
+                    rejectCaptures('The 3D preview is restarting. Please try again in a moment.');
+                    setStatus('loading');
+                    quietRetry = setTimeout(() => setAttempt((value) => value + 1), 3000);
+                    return;
+                }
                 setWebglOff(true);
-                fail('Your browser switched off 3D for this page.');
+                fail('Your 3D view needs a quick restart.');
                 return;
             }
             if (message.type === 'webglRestored') { setAttempt((value) => value + 1); return; }
@@ -622,12 +640,16 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
             clearInterval(readinessPoll);
             clearTimeout(loadTimeout);
             clearTimeout(rotationTimer);
+            clearTimeout(quietRetry);
             if (designTimer.current) clearTimeout(designTimer.current);
             rejectCaptures('The 3D preview was closed.');
         };
     }, [attempt, host, fail, rejectCaptures, send]);
 
     useEffect(() => { flush(); }, [design, flush]);
+    // While the lost-3D message is up, the page hides what it puts over the 3D view (as for the viewer's own screens),
+    // so nothing covers the message (on a phone the project name and the view buttons lay over it).
+    useEffect(() => { if (webglOff) modalCallback.current?.(true); return () => { if (webglOff) modalCallback.current?.(false); }; }, [webglOff]);
     useEffect(() => { if (engineReady.current) send('board', board); }, [board, send]);
     useEffect(() => { colourPickMode.current = colourPick; if (engineReady.current) send('colourPick', colourPick); }, [colourPick, send]);
     useEffect(() => { partPickMode.current = partPick; if (engineReady.current) send('partPick', partPick); }, [partPick, send]);
@@ -647,13 +669,30 @@ export const KitViewer = forwardRef<KitViewerHandle, KitViewerProps>(function Ki
                 style={{ width: '100%', height: '100%', minHeight: 260, display: 'block', border: 0 }}
             />
             {status !== 'ready' && (
-                <div role={status === 'error' ? 'alert' : 'status'} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 14, padding: 30, textAlign: 'center', color: '#a9bbc9', background: '#03060a', fontSize: 13 }}>
-                    {status === 'loading' ? <><span style={{ color: '#00d9e8', letterSpacing: 3, fontWeight: 700 }}>3DEEZI</span><span>Preparing your 3D kit…</span></> : webglOff ? <>
-                        <strong style={{ color: '#e6f7ff', fontSize: 14, maxWidth: 420, lineHeight: 1.45 }}>Your browser switched off 3D for this page. To continue, open this page in {privateWindow()}.</strong>
-                        <button type="button" onClick={copyLink} style={ERROR_BUTTON}>{linkCopied ? 'Link copied' : 'Copy page link'}</button>
-                        <span style={{ maxWidth: 420, lineHeight: 1.45 }}>Or open it in another browser.</span>
-                        <span style={{ maxWidth: 420, lineHeight: 1.45, opacity: 0.8 }}>Restarting the browser also fixes it.</span>
-                    </> : <>
+                <div role={status === 'error' ? 'alert' : 'status'} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: webglOff ? 'flex-start' : 'center', alignItems: 'center', gap: 14, padding: webglOff ? 12 : 30, overflowY: webglOff ? 'auto' : undefined, textAlign: 'center', color: '#a9bbc9', background: '#03060a', fontSize: 13 }}>
+                    {status === 'loading' ? <><span style={{ color: '#00d9e8', letterSpacing: 3, fontWeight: 700 }}>3DEEZI</span><span>Preparing your 3D kit…</span></> : webglOff ? (
+                        // (Its own margins: in the middle when it fits; from the top, scrolling inside the view, when the view is short, as on a phone.)
+                        // Calm, hopeful words and no warning colours: the customer may be at a kiosk or on a phone and should stay.
+                        <div style={{ margin: 'auto 0', flexShrink: 0, width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, lineHeight: 1.3 }}>
+                            <strong style={{ color: '#e6f7ff', fontSize: 15 }}>Your 3D view needs a quick restart</strong>
+                            <span>Your design is safe. Your device may be busy or low on memory. Close other tabs or apps, then press Restart 3D view.</span>
+                            <button type="button" onClick={() => setAttempt((value) => value + 1)} style={{ ...ERROR_BUTTON, padding: '8px 28px', background: '#00c2cc', color: '#03060a', fontSize: 14, fontWeight: 700 }}>Restart 3D view</button>
+                            <span style={{ fontSize: 12, opacity: 0.8 }}>Not back yet? Wait a few minutes, then refresh the page. It usually returns by itself.</span>
+                            <strong style={{ color: '#e6f7ff', marginTop: 4 }}>A few other things that help</strong>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, textAlign: 'left' }}>
+                                {/* (The last one, what the customer's own device may need, in smaller, calmer text.) */}
+                                {[
+                                    <>Clear this site&apos;s cache and cookies in your browser settings. <button type="button" onClick={() => { void clearSavedKit(); }} title="Your unsaved changes on this page will be lost. Saved projects are kept." style={{ ...ERROR_BUTTON, padding: '3px 10px', fontSize: 12, margin: '2px 0' }}>Fix it: clear this page&apos;s saved data and reload</button></>,
+                                    <>Use a different browser.</>,
+                                    <>Open this page in {privateWindow()}. <button type="button" onClick={copyLink} style={{ ...ERROR_BUTTON, padding: '3px 10px', fontSize: 12, margin: '2px 0' }}>{linkCopied ? 'Link copied' : 'Copy page link'}</button></>,
+                                    <>Close the browser completely and open it again.</>,
+                                    <>Check that graphics acceleration is switched on in the browser settings.</>,
+                                    <>If it keeps happening, your device may need more free memory or newer graphics software: update your browser and your graphics driver, or use a device with more memory.</>,
+                                ].map((step, index, all) => <div key={index} style={{ display: 'flex', gap: 6, ...(index === all.length - 1 ? { fontSize: 12, opacity: 0.8 } : {}) }}><span>{index + 1}.</span><span>{step}</span></div>)}
+                            </div>
+                            <span style={{ fontSize: 12, opacity: 0.8 }}>Thank you for your patience.</span>
+                        </div>
+                    ) : <>
                         {attempt > 0 && <strong style={{ color: '#e6f7ff', fontSize: 14, maxWidth: 440, lineHeight: 1.45 }}>If it keeps happening, open this page in {privateWindow()}, or clear this site's saved data in your browser.</strong>}
                         <span style={{ maxWidth: 440, lineHeight: 1.45 }}>{error}</span>
                         <button type="button" onClick={() => { void clearSavedKit(); }} style={{ ...ERROR_BUTTON, background: '#0b3a4a', fontWeight: 700 }}>Fix it: clear this page&apos;s saved kit and reload</button>

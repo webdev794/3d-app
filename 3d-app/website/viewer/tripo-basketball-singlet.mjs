@@ -397,6 +397,8 @@ export default {
 
     // ---- Triangles across the halves (the side seams, the strap tops): the corners on the other half get copies on the
     // triangle's half.
+    // (The inside is one even colour: no baked shade on it.)
+    for (let i = 0; i < count; i++) if (band[i] >= 3) S[i] = 1;
     const OP = [...pos], ON = [...nor], OF = [...F], OB = [...back], OS = [...S], OBand = [...band], idx = [];
     const copies = new Map();
     for (let t = 0; t < glb.idx.length; t += 3) {

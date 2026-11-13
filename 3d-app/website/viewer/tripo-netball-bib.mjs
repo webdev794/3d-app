@@ -28,9 +28,10 @@ export default {
     const made = lib.buildGarment('singlet', { detail: true });
     made.geometry.computeBoundingBox();
     const box = made.geometry.boundingBox, { maxY } = made.frame, outline = made.outline;
-    const count = glb.pos.length / 3, log = [];
-    const part = parts(count, glb.idx).part;
-    const nb = neighbours(count, glb.idx);
+    let count = glb.pos.length / 3, tris = glb.idx;
+    const log = [];
+    let part = parts(count, glb.idx).part;
+    let nb = neighbours(count, glb.idx);
 
     // ---- Placed. The model's own frame: y up 0..1, +z the front. Turned forward about x by TILT, scaled so its inner
     // layer at the waist (model height 0.3) is FIT wide either side, its top on the made singlet's strap tops, centred
@@ -44,7 +45,8 @@ export default {
       if (part[i] === 0 && Math.abs(y - 0.3) < 0.02 && z < 0 && z > -0.12) inner = Math.max(inner, Math.abs(x));
     }
     const scale = FIT / inner;
-    const R = new Float64Array(count * 3), nor = new Float64Array(count * 3);
+    const R = new Float64Array(count * 3);
+    let nor = new Float64Array(count * 3);
     for (let i = 0; i < count; i++) {
       R.set(turn(...M0(i)), i * 3);
       const n = turn(glb.nor[i * 3], glb.nor[i * 3 + 1], glb.nor[i * 3 + 2]), l = Math.hypot(...n) || 1;
@@ -61,7 +63,7 @@ export default {
       if (part[i] === 1) zb = Math.min(zb, R[i * 3 + 2]);
     }
     const move = [-scale * (lo[0] + hi[0]) / 2, box.max.y - scale * hi[1], (box.min.z + box.max.z) / 2 - scale * (zf + zb) / 2];
-    const pos = new Float64Array(count * 3);
+    let pos = new Float64Array(count * 3);
     for (let i = 0; i < count * 3; i++) pos[i] = R[i] * scale + move[i % 3];
     const P = (i) => [pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]], N = (i) => [nor[i * 3], nor[i * 3 + 1], nor[i * 3 + 2]];
     const dist = (a, b) => Math.hypot(pos[a * 3] - pos[b * 3], pos[a * 3 + 1] - pos[b * 3 + 1], pos[a * 3 + 2] - pos[b * 3 + 2]);
@@ -110,7 +112,7 @@ export default {
     }
     // Inside (3): faces turned to the body; faces turned out but covered (the inner layer's front, under the bib panel:
     // another surface within 6 cm along its normal); the hanger loop.
-    const band = new Uint8Array(count), covered = new Uint8Array(count);
+    let band = new Uint8Array(count), covered = new Uint8Array(count);
     for (let i = 0; i < count; i++) {
       if (part[i] >= 2) { band[i] = 3; continue; }
       if (out[i] < -0.15) { band[i] = 3; continue; }
@@ -119,7 +121,7 @@ export default {
     }
     // The bib panel (below where it joins the inner layer, model height 0.8): from its front at the hem over the outside
     // points; the rest of that part below there (the inner layer's sides) is inside too.
-    const panel = new Uint8Array(count);
+    let panel = new Uint8Array(count);
     let seed = -1;
     for (let i = 0; i < count; i++) if (part[i] === 0 && !band[i] && my(i) < 0.1 && (seed < 0 || pos[i * 3 + 2] > pos[seed * 3 + 2])) seed = i;
     const pq = [seed];
@@ -129,7 +131,7 @@ export default {
 
     // ---- Front or back half: the bib panel and the outside above it facing forward, the straps' tops by their normal
     // (as tripomesh.js reads them over the top 8 cm), the yoke and the back panel behind.
-    const back = new Uint8Array(count);
+    let back = new Uint8Array(count);
     for (let i = 0; i < count; i++) {
       if (part[i] === 1) back[i] = 1;
       else if (part[i] === 0 && !panel[i]) back[i] = pos[i * 3 + 1] > top - 0.08 ? (nor[i * 3 + 2] < 0 ? 1 : 0) : (pos[i * 3 + 2] < 0 ? 1 : 0);
@@ -236,7 +238,7 @@ export default {
     for (let i = 0; i < count; i++) {
       if (part[i] !== 0 || part[i] > 1) continue;
       const roll = band[i] === 3;
-      if (roll ? gNeck[i] <= ROLL : dNeck[i] <= NECK_W && gNeck[i] < Infinity) band[i] = 1;
+      if (roll ? gNeck[i] <= 0.011 : dNeck[i] <= NECK_W && gNeck[i] < Infinity) band[i] = 1;
       else if (band[i] !== 1 && dNeck[i] > NECK_W + 0.004 && (roll ? gEdge[i] <= ROLL : gEdge[i] < Infinity && toEdge(P(i), 0.03) <= EDGE_W)) band[i] = 2;
     }
     const crestList = edgePts;
@@ -252,6 +254,50 @@ export default {
       if (tie) { band[i] = 4; ties++; }
     }
     log.push(`side ties: ${ties} points`);
+
+    // ---- Clean binding edges: every triangle with cloth and one binding at its corners is cut where that binding ends
+    // (its distance from the neck's or the edge's line equal to its width, straight between the corners), so the
+    // binding's edge is a smooth line, not the triangles' steps. The model's surface is kept exactly: the new points are on
+    // its triangles' own edges. (They are the binding's: tripomesh.js prints a triangle with any cloth corner as cloth.)
+    {
+      const val = (i, b) => (b === 1 ? dNeck[i] - NECK_W : toEdge(P(i), 0.03) - EDGE_W);
+      const NP = Array.from(pos), NN = Array.from(nor), NPart = Array.from(part), NBand = Array.from(band), NBack = Array.from(back), NPanel = Array.from(panel), NCov = Array.from(covered);
+      const cache = new Map(), out = [];
+      const vc = new Map(), V = (i, b) => { const k = i * 4 + b; if (!vc.has(k)) vc.set(k, val(i, b)); return vc.get(k); };
+      const cross = (a, b, bb) => {
+        // (a: a cloth corner, b: a binding corner.)
+        const key = a < b ? `${a},${b}` : `${b},${a}`;
+        if (cache.has(key)) return cache.get(key);
+        const va = V(a, bb), vb = V(b, bb);
+        const t = va > 0 && vb <= 0 ? Math.min(0.85, Math.max(0.15, va / (va - vb))) : 0.5;
+        const i = NP.length / 3;
+        for (let k = 0; k < 3; k++) NP.push(pos[a * 3 + k] + (pos[b * 3 + k] - pos[a * 3 + k]) * t);
+        const n = [0, 1, 2].map((k) => nor[a * 3 + k] + (nor[b * 3 + k] - nor[a * 3 + k]) * t), nl = Math.hypot(...n) || 1;
+        NN.push(...n.map((v) => v / nl));
+        NPart.push(part[a]); NBand.push(bb); NBack.push(back[b]); NPanel.push(panel[a]); NCov.push(0);
+        cache.set(key, i);
+        return i;
+      };
+      let cut = 0;
+      for (let t = 0; t < tris.length; t += 3) {
+        const c = [tris[t], tris[t + 1], tris[t + 2]], bs = c.map((v) => band[v]);
+        const bset = new Set(bs.filter((b) => b === 1 || b === 2));
+        if (bset.size !== 1 || !bs.includes(0) || bs.some((b) => b === 3 || b === 4) || c.some((v) => part[v] !== 0)) { out.push(...c); continue; }
+        const bb = [...bset][0];
+        // Walk round the triangle: cloth corners and binding corners, a new point on each edge between the two.
+        const clothPoly = [], bandPoly = [];
+        for (let k = 0; k < 3; k++) {
+          const a = c[k], b = c[(k + 1) % 3], ca = bs[k] === 0, cb = bs[(k + 1) % 3] === 0;
+          (ca ? clothPoly : bandPoly).push(a);
+          if (ca !== cb) { const q = ca ? cross(a, b, bb) : cross(b, a, bb); clothPoly.push(q); bandPoly.push(q); }
+        }
+        for (const poly of [clothPoly, bandPoly]) for (let k = 1; k + 1 < poly.length; k++) out.push(poly[0], poly[k], poly[k + 1]);
+        cut++;
+      }
+      pos = Float64Array.from(NP); nor = Float64Array.from(NN); part = Int32Array.from(NPart); band = Uint8Array.from(NBand); back = Uint8Array.from(NBack); panel = Uint8Array.from(NPanel); covered = Uint8Array.from(NCov);
+      tris = out; count = pos.length / 3; nb = neighbours(count, tris);
+      log.push(`binding edges: ${cut} triangles cut, ${cache.size} points added (${count} in all)`);
+    }
     const bc = [0, 0, 0, 0, 0];
     for (let i = 0; i < count; i++) bc[band[i]]++;
     log.push(`bindings: neck ${bc[1]}, edges ${bc[2]} points (${crestList.length} on the edges); inside, plain: ${bc[3]}; printed ${bc[0]}`);
@@ -390,8 +436,8 @@ export default {
     // ---- Triangles across the halves: the corners on the other half get copies on the triangle's half.
     const OP = [...pos], ON = [...nor], OF = [...F], OB = [...back], OS = [...S], OBand = [...band], idx = [];
     const copies = new Map();
-    for (let t = 0; t < glb.idx.length; t += 3) {
-      const tri = [glb.idx[t], glb.idx[t + 1], glb.idx[t + 2]];
+    for (let t = 0; t < tris.length; t += 3) {
+      const tri = [tris[t], tris[t + 1], tris[t + 2]];
       const side = tri.filter((v) => back[v]).length >= 2 ? 1 : 0;
       for (let k = 0; k < 3; k++) {
         const v = tri[k];
@@ -419,7 +465,7 @@ export default {
     const swatch = [[0.42, 0.7], [0.42, 0.6], [0.42, 0.5], [0.42, 0.4]];
     if (debug) {
       const fs = await import('node:fs');
-      fs.writeFileSync(`${debug}/bib-debug.json`, JSON.stringify({ count, F: Array.from(F, (v) => +v.toFixed(4)), back: Array.from(back), band: Array.from(band), panel: Array.from(panel), part: Array.from(part), pos: Array.from(pos, (v) => +v.toFixed(4)), nor: Array.from(nor, (v) => +v.toFixed(3)), idx: Array.from(glb.idx), outline: outline.map((p) => [+p.x.toFixed(4), +p.y.toFixed(4)]), neck }));
+      fs.writeFileSync(`${debug}/bib-debug.json`, JSON.stringify({ count, F: Array.from(F, (v) => +v.toFixed(4)), back: Array.from(back), band: Array.from(band), panel: Array.from(panel), part: Array.from(part), pos: Array.from(pos, (v) => +v.toFixed(4)), nor: Array.from(nor, (v) => +v.toFixed(3)), idx: Array.from(tris), outline: outline.map((p) => [+p.x.toFixed(4), +p.y.toFixed(4)]), neck }));
     }
     return {
       data: {

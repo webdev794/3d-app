@@ -1054,8 +1054,9 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // client's reference "Rugby shorts": a golden yellow body, the navy
     // waistband with our 3DEEZI wordmark repeated on it in white, navy hem
     // bindings, our number in navy on the wearer's right leg, our small 3DEEZI
-    // wordmark low on the wearer's left leg; no picture text or logos (website
-    // catalog.php).
+    // wordmark low on the wearer's left leg with the "3" mark (or the team's
+    // logo) above it, the number in the Accent colour; no picture text or
+    // logos (website catalog.php).
     'rlShorts': {
       'main': '#fcd12a',
       'secondary': '#fcd12a',
@@ -1075,10 +1076,9 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
           'x': -0.165,
           'y': 0.085,
           'scale': 1.25,
-          'color': '#343a64',
           'look': {'style': 'outline', 'width': 0},
         },
-        'shorts_crest': {'hidden': true},
+        'shorts_crest': {'x': 0.19, 'y': 0.11, 'scale': 0.9},
         'shorts_wordmark': {
           'side': 'front',
           'x': 0.19,
@@ -1163,8 +1163,8 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'top_name': {'hidden': true},
         'top_number': {'x': 0, 'y': 0.26, 'scale': 0.6},
         'top_frontNumber': {'x': 0, 'y': 0.42, 'scale': 1.4},
-        'top_crest': {'x': 0.095, 'y': 0.585, 'scale': 0.45},
-        'top_wordmark': {'x': -0.095, 'y': 0.585, 'scale': 0.4},
+        'top_crest': {'x': 0.095, 'y': 0.56, 'scale': 0.45},
+        'top_wordmark': {'x': -0.095, 'y': 0.56, 'scale': 0.4},
       },
       'layers': <Map<String, dynamic>>[],
     },

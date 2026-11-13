@@ -152,14 +152,18 @@ export default {
     const flatOf = (i, panel) => {
       const s = side(i), h = M[i * 3 + 1];
       const legW = 1 - smooth(hc - 0.05 * H, hc + 0.03 * H, h);
+      // (Across, the legs' and the body's places blend over a deeper band round the crotch, so straight lines of the print
+      // run on smoothly there instead of kinking: MODELTEST 2026-11-13. Heights blend as before, so the hem bindings and
+      // the crotch stay where they are.)
+      const legX = 1 - smooth(hc - 0.16 * H, hc + 0.06 * H, h);
       // The body: from the crotch up to the waistband's foot, then the waistband.
       const share = bodies[i][panel], hf = lerpTable(foot[panel], share), ht = lerpTable(rim[panel], share);
       let yb = h <= hf ? CROTCH + ((h - hc) / (hf - hc)) * (BAND_FOOT - CROTCH) : BAND_FOOT + ((h - hf) / (ht - hf)) * (BAND_TOP - BAND_FOOT);
       // (The waistband's own foot exactly on ours; the body's top edge tucked under it just below.)
       if (footSet.has(i)) yb = BAND_FOOT + 0.0004;
       if (bodyEdge.has(i)) yb = BAND_FOOT - 0.0015;
-      let x = share * sideX(clamp(yb, 0, 0.35)) * (1 - legW), y = yb * (1 - legW);
-      if (legW > 0) {
+      let x = share * sideX(clamp(yb, 0, 0.35)) * (1 - legX), y = yb * (1 - legW);
+      if (legW > 0 || legX > 0) {
         const raw = legs[i][panel], hh = lerpTable(hems.get(`${s}:${panel}`), raw);
         // Across the panel at a height (the inner seam to the side seam), and the hem there.
         const across = (yy) => { const inner = innerX(yy), out = sideX(yy); return panel === 0 ? inner + raw * (out - inner) : out - raw * (out - inner); };
@@ -167,7 +171,7 @@ export default {
         target = hemY(across(target)) + 0.0015;
         const hb = Math.min(hh + BINDING, hc - 0.02 * H);
         const yl = h <= hh ? target : h <= hb ? target + ((h - hh) / (hb - hh)) * (HEM_TOP - 0.0006 - target) : h <= hc ? HEM_TOP + 0.0006 + ((h - hb) / (hc - hb)) * (CROTCH - HEM_TOP - 0.0006) : yb;
-        x += across(yl) * legW; y += yl * legW;
+        x += across(yl) * legX; y += yl * legW;
       }
       // Kept on the panel, 3-4 mm inside its seams (the atlas's very edge is a darker line); low on the leg 1.2 cm inside
       // the side seam, clear of the printed hem band's end, which runs on up past the outline's rounded corner there.

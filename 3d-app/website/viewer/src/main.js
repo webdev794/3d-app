@@ -71,17 +71,43 @@ const DEFAULT_DESIGN = {
 };
 
 // ---------- renderer, scene, camera
-const canvas = document.getElementById('stage');
+let canvas = document.getElementById('stage');
 // (LIVEFIX L1 2026-11-12: a browser can switch 3D off for a page, as Edge does after the computer ran low on memory: "Web
 // page caused context loss and was blocked". The host is told plainly (its own words: retrying in the same browser does
 // not help); if the 3D comes back, the viewer starts again. Not when the page itself gives its graphics back: pagehide.)
 const webglOff = (why) => post({ type: 'error', command: 'webgl', message: String(why || '3D switched off') });
-let renderer;
+// (CTXFIX 2026-11-13: the viewer gets over a lost 3D by itself. If the 3D cannot start, one more try with the lightest
+// settings before the host hears of it. A lost 3D is kept quiet for 4 seconds: the browser usually gives it back, and
+// then the kit is drawn again in place (restoreGraphics); only a 3D that stays away is told to the host.)
+let renderer, lightStart = false;
 try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true }); }
-catch (error) { webglOff(error?.message); throw error; }
-canvas.addEventListener('webglcontextlost', (event) => { event.preventDefault(); if (!released) webglOff('WebGL context lost'); });
-canvas.addEventListener('webglcontextrestored', () => { if (released) return; post({ type: 'webglRestored' }); setTimeout(() => location.reload(), 50); });
-renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 2 : 2.5));
+catch (first) {
+  try {
+    // (On a new canvas: the first may already hold a 3D made without these settings, by three.js's own second look.)
+    const fresh = canvas.cloneNode(false);
+    canvas.replaceWith(fresh);
+    canvas = fresh;
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true, powerPreference: 'default', failIfMajorPerformanceCaveat: false });
+    lightStart = true;
+  } catch (error) { webglOff(error?.message || first?.message); throw error; }
+}
+let lostTimer = 0, lostTold = false;
+const startAgain = () => { post({ type: 'webglRestored' }); setTimeout(() => location.reload(), 50); };
+canvas.addEventListener('webglcontextlost', (event) => {
+  event.preventDefault();
+  if (released) return;
+  clearTimeout(lostTimer);
+  lostTimer = setTimeout(() => { lostTold = true; webglOff('WebGL context lost'); }, 4000);
+});
+canvas.addEventListener('webglcontextrestored', () => {
+  if (released) return;
+  clearTimeout(lostTimer);
+  // (The host was already told: it shows its message, so the viewer starts again as before.)
+  if (lostTold) return startAgain();
+  try { restoreGraphics(); } catch { startAgain(); }
+});
+// (At most 2 screen pixels per pixel, was 2.5 on computers: a quarter less graphics memory in every buffer.)
+renderer.setPixelRatio(lightStart ? 1 : Math.min(devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.02;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -108,7 +134,25 @@ const scene = new THREE.Scene();
 scene.background = backdrop();
 const pmrem = new THREE.PMREMGenerator(renderer);
 // The tiers: the stadium's own light (floodlights, a warm key, cool rims) in every reflection and sheen.
-scene.environment = pmrem.fromScene(Q ? stadiumEnvironment({ softbox: LOOK2 }) : new RoomEnvironment(), Q ? 0.03 : 0.04).texture;
+const environmentLight = () => pmrem.fromScene(Q ? stadiumEnvironment({ softbox: LOOK2 }) : new RoomEnvironment(), Q ? 0.03 : 0.04);
+let environmentTarget = environmentLight();
+scene.environment = environmentTarget.texture;
+/**
+ * After the browser gave the 3D back (CTXFIX 2026-11-13): three.js sends every geometry, picture and material to the
+ * graphics card again by itself as the next frame is drawn; only what was drawn on the card is gone for good: the
+ * reflections' light (made again here) and the shadows (drawn again). The kit, its design and the camera stay.
+ */
+function restoreGraphics() {
+  const old = environmentTarget;
+  environmentTarget = environmentLight();
+  scene.environment = environmentTarget.texture;
+  old.dispose();
+  renderer.shadowMap.needsUpdate = true;
+  scene.traverse((o) => { for (const m of [o.material ?? []].flat()) m.needsUpdate = true; });
+  // (The first frames after it are slow, everything being sent again: not taken for a slow graphics card, watchSpeed.)
+  speed = [];
+  speedFrom = performance.now() + 3000;
+}
 // (VW1 2026-11-03, client 363 item 4: less shine on the fabric; was 1.3 in the tiers.)
 scene.environmentIntensity = Q ? 1.05 : 0.3;
 
@@ -170,7 +214,7 @@ function addRelief(target, painter) {
   // A garment cut like a drawing has its own (only the latest such is kept).
   // (The crew-neck jersey, FN6: its own, its neck sewn round.)
   // (The football jersey's model, ':raglan': its raglan seams.)
-  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}${painter.raglan ? ':raglan' : ''}${painter.crewNeck ? ':crew' : ''}${painter.neckShape ? `:neck-${painter.neckShape}` : ''}${painter.rugbyCollar ? `:collar-${painter.rugbyCollar.id}` : ''}:${painter.canvas.width}${LOOK2 ? ':pucker' : ''}${painter.kind === 'netball-dress' && dressModel() ? ':model' : ''}${painter.model ? ':model' : ''}${painter.sockModel ? ':sockmodel' : ''}`;
+  const key = `${painter.cut ? `cut:${painter.cut}:` : ''}${painter.kind}${painter.raglan ? ':raglan' : ''}${painter.crewNeck ? ':crew' : ''}${painter.neckShape ? `:neck-${painter.neckShape}` : ''}${painter.rugbyCollar ? `:collar-${painter.rugbyCollar.id}` : ''}:${painter.canvas.width}${LOOK2 ? ':pucker' : ''}${painter.kind === 'netball-dress' && dressModel() ? ':model' : ''}${painter.model ? ':model' : ''}${painter.sockModel ? ':sockmodel' : ''}${painter.modelBand ? ':band' : ''}`;
   // (LIVEFIX L1 2026-11-12, ':model': the dress built on the Tripo model has the model's seams and none of the made
   // outline's bound edges in its relief (texture.js dressEdges, netballdress.js dressSeams); a made dress built first
   // (the model's file slow or failed) left its relief on the model's dress after.)
@@ -200,7 +244,9 @@ function addRelief(target, painter) {
   // the user 2026-11-05, 443.)
   const dress = painter.kind === 'netball-dress';
   // (The basketball shorts: matte, so the edge light does not run along their fold ridges as shiny streaks: BSF.)
-  const bball = painter.kind === 'bballshorts', matte = !!painter.model?.matte;
+  // (And the Rugby League shorts' model (modelBand): its inner legs turn away from the stage, so the full edge light
+  // ran down them as a pale glow at the crotch.)
+  const bball = painter.kind === 'bballshorts' || !!painter.modelBand, matte = !!painter.model?.matte;
   target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '') + (matte ? '-matte' : '');
   target.onBeforeCompile = (shader) => {
     if (skirtLight) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `${SKIRT_LIGHT}\n#include <opaque_fragment>`);
@@ -531,10 +577,16 @@ function buildKit(kind) {
     if (garment.bball) Object.assign(partMaterial, { specularIntensity: 0.15, sheen: 0, envMapIntensity: 0.45 });
     // (The basketball singlet's model: a matt polyester mesh, no glossy streaks at low and side angles: BBSINGLET.)
     if (painter.model?.matte) Object.assign(partMaterial, { specularIntensity: 0.3, envMapIntensity: 0.55 });
+    // (The Rugby League shorts' model too: its inner legs and the roll above its hem bindings turn away from the stage,
+    // where the reflected light made a pale glow: MODELTEST 2026-11-13.)
+    if (tripo && partKind === 'shorts') Object.assign(partMaterial, { specularIntensity: 0.15, envMapIntensity: 0.45 });
     addRelief(partMaterial, painter);
     const group = new THREE.Group();
     // The inside of the fabric, seen through the neck, hem and cuffs: the garment's own colour in shade (paintAll).
     const inside = new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.95, vertexColors: true, side: THREE.BackSide });
+    // (The basketball singlet's model has its own facings just inside its cloth: the cloth's own inside drawn a little
+    // further back, so the two never flicker through each other as blotches (user 2026-11-13, image 540).)
+    if (painter.model?.insert) Object.assign(inside, { polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 8 });
     group.add(new THREE.Mesh(shape, inside));
     // A part's glow (a tap, the part chosen in the host's part panel, a drag over it): the same surface, lit through
     // the part's mask (KitPainter.partMask), drawn over the fabric; hidden until used, never picked or captured.
@@ -542,7 +594,10 @@ function buildKit(kind) {
     glow.userData.glow = true;
     glow.visible = false;
     glow.renderOrder = 5;
-    const fabric = new THREE.Mesh(shape, partMaterial);
+    // (The basketball singlet's model: its inside (facings, hem turned up) in a plain material of its own, one even colour
+    // (paintAll: the Reverse side's, else the Main): tripomesh.js insideGroup.)
+    const insideFront = tripo?.insideGroup ? new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, vertexColors: true }) : null;
+    const fabric = new THREE.Mesh(shape, insideFront ? [partMaterial, insideFront] : partMaterial);
     fabric.userData.part = parts.length;
     fabric.castShadow = true;
     fabric.receiveShadow = true;
@@ -555,6 +610,8 @@ function buildKit(kind) {
       collar.castShadow = true;
       collar.receiveShadow = true;
       group.add(collar);
+      // (The basketball singlet's round neck band: its inside too, so nothing shows through it from within.)
+      if (painter.model?.insert) group.add(new THREE.Mesh(tripo.collar, inside));
     }
     // The pocket polo's chest pocket: its own piece of the same printed fabric, standing off the front.
     if (garment.pocket) {
@@ -727,7 +784,7 @@ function buildKit(kind) {
     base += partKind === 'shorts' || partKind === 'trackpants' ? garment.frame.maxY * stretch - (partKind === 'trackpants' ? 0.09 : 0.06) : 0;
     kit.add(group);
     group.add(glow);
-    parts.push({ painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow, tripo });
+    parts.push({ insideFront, painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow, tripo });
   }
   dressParts(true);
   frameKit();
@@ -900,6 +957,31 @@ function paintVarsityPart(part) {
  * the rest keeps the rib's own colour. null: the rib all one colour, as before.
  */
 // `to`: how far round the band it reaches (the polo's piping runs on over the top and down the inside: FN6).
+/**
+ * The Rugby League shorts' model (painter.modelBand): its inside (one colour, `part.inside`) gets a small map by height on
+ * the print, so the inside of its waistband (from the band's foot up) shows the band's printed colour, in the same shade.
+ */
+function bandInside(part) {
+  const p = part.painter, { minY, span } = p.frame, inside = part.inside;
+  const band = new THREE.Color(p.partStyle(design, 'waistband')?.own ?? design.secondary).multiplyScalar(0.72);
+  if (!part.bandMap) {
+    const c = document.createElement('canvas');
+    c.width = 1; c.height = 512;
+    part.bandMap = new THREE.CanvasTexture(c);
+    part.bandMap.colorSpace = THREE.SRGBColorSpace;
+    part.bandMap.magFilter = part.bandMap.minFilter = THREE.NearestFilter;
+    part.bandMap.generateMipmaps = false;
+  }
+  const c = part.bandMap.image, g = c.getContext('2d'), row = Math.round((1 - (p.modelBand - 0.002 - minY) / span) * c.height);
+  g.fillStyle = `#${inside.color.getHexString()}`;
+  g.fillRect(0, 0, 1, c.height);
+  g.fillStyle = `#${band.getHexString()}`;
+  g.fillRect(0, 0, 1, row);
+  part.bandMap.needsUpdate = true;
+  inside.color.set(0xffffff);
+  if (inside.map !== part.bandMap) { inside.map = part.bandMap; inside.needsUpdate = true; }
+}
+
 function collarStripe(rim, colour, to = 0.62) {
   const m = rim.material, geo = rim.geometry, uv = geo.getAttribute('uv');
   if (!colour) { if (m.vertexColors) { m.vertexColors = false; m.needsUpdate = true; } return; }
@@ -993,7 +1075,15 @@ async function paintAll() {
     part.inside.color.set(layout ? part.layoutInside ?? part.painter.layoutFill ?? design.main : design.main).multiplyScalar(nfl ? 0.45 : part.garment?.bball ? 0.12 : 0.72);
     // (The Custom shallow V's light inner, as the client's reference: rugbycollars.js.)
     if (part.rugby?.collar.inside) part.inside.color.set(part.rugby.collar.inside).multiplyScalar(0.8);
+    // (The basketball singlet's model: its inside one even colour, the Reverse side's (zoneColors.reverseSide) else the
+    // Main, as its facings are printed (texture.js paintModelSwatches).)
+    if (part.painter.model?.insert) {
+      part.inside.color.set(HEX6.test(design.zoneColors?.reverseSide ?? '') ? design.zoneColors.reverseSide : design.main).multiplyScalar(0.9);
+      part.insideFront?.color.copy(part.inside.color);
+    }
     part.inside.envMapIntensity = nfl ? 0.3 : part.garment?.bball ? 0.12 : 1;
+    // (The Rugby League shorts' model: the inside of its waistband in the band's colour, seen from above.)
+    if (part.painter.modelBand && !layout) bandInside(part);
     // (The compression top: a black label with the cyan "3", as its picture.)
     if (part.label) paintLabel(part.label, design.size || 'L', part.painter.kind === 'compression' ? 'mark' : HEX6.test(design.zoneColors?.labelDark ?? '') || HEX6.test(design.zoneColors?.sweep ?? '') || part.painter.kind === 'tee' || part.track ? 'dark' : 'word');
     if (part.hoodie) paintHoodie(part);
