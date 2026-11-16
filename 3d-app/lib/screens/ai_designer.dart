@@ -1785,15 +1785,11 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
   Widget _picture(Concept? o, {required bool big, BoxFit? fit}) {
     if (o == null) {
       // Waiting for the plan while a Generate runs; otherwise nothing yet.
-      return Center(
-        child: c.concepts.isEmpty || c.planError != null
-            ? const Icon(Icons.image_outlined, color: Palette.muted)
-            : const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-      );
+      return c.concepts.isEmpty || c.planError != null
+          ? const Center(
+              child: Icon(Icons.image_outlined, color: Palette.muted),
+            )
+          : _loader(big: big);
     }
     final hasPicture = o.image != null || o.asset != null;
     return Stack(
@@ -1806,27 +1802,13 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
             fit: fit ?? (big ? BoxFit.contain : BoxFit.cover),
           )
         else if (o.busy)
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (big)
-                const EmblemLoader(size: 110)
-              else
-                const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              if (big) ...[
-                const SizedBox(height: 8),
-                Text(
-                  o.pending == 'high'
-                      ? 'Rendering your HD design… about a minute'
-                      : 'Rendering your design… about 40 seconds',
-                  style: const TextStyle(fontSize: 12, color: Palette.muted),
-                ),
-              ],
-            ],
+          _loader(
+            big: big,
+            text: !big
+                ? null
+                : o.pending == 'high'
+                ? 'Rendering your HD design… about a minute'
+                : 'Rendering your design… about 40 seconds',
           )
         else if (!big)
           const Center(
@@ -1860,32 +1842,58 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         if (hasPicture && o.busy)
           ColoredBox(
             color: const Color(0x8802060b),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(strokeWidth: 2),
-                  if (big) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      o.pending == 'refine'
-                          ? 'Refining this design… about a minute'
-                          : o.pending == 'high' && o.quality != 'high'
-                          ? 'Rendering in HD… about a minute'
-                          : 'Regenerating…',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Palette.cyan,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+            child: _loader(
+              big: big,
+              color: Palette.cyan,
+              text: !big
+                  ? null
+                  : o.pending == 'refine'
+                  ? 'Refining this design… about a minute'
+                  : o.pending == 'high' && o.quality != 'high'
+                  ? 'Rendering in HD… about a minute'
+                  : 'Regenerating…',
             ),
           ),
       ],
     );
   }
+
+  /// The spinning 3DEEZI emblem as big as its place allows, centred, with
+  /// [text] under it (client 2026-11-16, 566.png: "Loading is too small,
+  /// should be big"; the cards' loaders were a dot).
+  Widget _loader({
+    required bool big,
+    String? text,
+    Color color = Palette.muted,
+  }) => LayoutBuilder(
+    builder: (context, box) {
+      final w = box.maxWidth.isFinite ? box.maxWidth : 300.0;
+      final h = box.maxHeight.isFinite ? box.maxHeight : 300.0;
+      final side = math.min(w, h - (text == null ? 0 : 70));
+      final size = big
+          ? (side * .62).clamp(110.0, 300.0)
+          : (side * .74).clamp(24.0, 120.0);
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            EmblemLoader(size: size),
+            if (text != null) ...[
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  text,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: color),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    },
+  );
 
   /// Full screen: the selected picture alone, pinch to zoom; closing returns
   /// to the same design.
@@ -2177,8 +2185,9 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
 
   /// The large design open on the page (client 2026-11-02, 303.jpg: no frame,
   /// no blurred copy at its sides), as big as the space it has allows, at its
-  /// own proportions (never cropped or stretched), with a soft fade at its
-  /// edges and ⋯ and full screen on its top right corner.
+  /// own proportions (never stretched; on a phone as wide as the screen, see
+  /// [resultsLayout]), with a soft fade at its edges, pinch / double-tap zoom
+  /// and ⋯ and full screen on its top right corner.
   Widget _viewer(Concept? primary, int sel, {required bool wide}) =>
       LayoutBuilder(
         builder: (context, box) {
@@ -2188,6 +2197,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
             box.maxHeight,
             _ratio(primary),
             picture: hasPicture,
+            fillWidth: !wide,
           );
           final fade = (math.min(box.maxWidth, box.maxHeight) * .022).clamp(
             10.0,
@@ -2203,12 +2213,52 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               ),
             ),
           );
+          // The picture's own edges fade where they show; on a phone it spans
+          // the width (no side fade) and a tall one is cut at the frame's top
+          // and bottom, which fade instead.
+          final sides = l.iw < box.maxWidth - 1;
+          final cut = l.ih > box.maxHeight + 1;
           if (hasPicture && l.iw > fade * 2 && l.ih > fade * 2) {
-            picture = _EdgeFade(
-              fade: fade,
-              axis: Axis.horizontal,
-              child: _EdgeFade(fade: fade, axis: Axis.vertical, child: picture),
+            if (sides) {
+              picture = _EdgeFade(
+                fade: fade,
+                axis: Axis.horizontal,
+                child: picture,
+              );
+            }
+            if (!cut) {
+              picture = _EdgeFade(
+                fade: fade,
+                axis: Axis.vertical,
+                child: picture,
+              );
+            }
+          }
+          Widget art = Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Positioned(
+                left: l.left,
+                top: l.top,
+                width: l.iw,
+                height: l.ih,
+                child: picture,
+              ),
+            ],
+          );
+          if (hasPicture) {
+            // Pinch / double-tap zoom (client 2026-11-16, 567.png); another
+            // design, picture or background starts unzoomed.
+            art = _ZoomArea(
+              key: ValueKey(
+                'zoom-$sel-${identityHashCode(primary)}-'
+                '${identityHashCode(primary?.image)}-${c.aiScene}',
+              ),
+              child: art,
             );
+            if (cut) {
+              art = _EdgeFade(fade: fade, axis: Axis.vertical, child: art);
+            }
           }
           return SizedBox(
             key: const ValueKey('design-viewer'),
@@ -2216,16 +2266,10 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
             height: box.maxHeight,
             child: Stack(
               children: [
-                Positioned(
-                  left: l.left,
-                  top: l.top,
-                  width: l.iw,
-                  height: l.ih,
-                  child: picture,
-                ),
+                Positioned.fill(child: art),
                 if (primary != null)
                   Positioned(
-                    top: l.top + 8,
+                    top: math.max(0.0, l.top) + 8,
                     right: math.max(0.0, box.maxWidth - l.left - l.iw) + 8,
                     child: Row(
                       children: [
@@ -2611,6 +2655,65 @@ const _sideGap = 20.0;
 const _wideControls = 130.0;
 const _minGroup = 640.0;
 
+/// Pinch to zoom and drag to pan, double-tap to zoom in where tapped and
+/// double-tap again to zoom back out (client 2026-11-16, 567.png: "should be
+/// able to zoom in"). A new key starts unzoomed.
+class _ZoomArea extends StatefulWidget {
+  const _ZoomArea({super.key, required this.child});
+  final Widget child;
+  @override
+  State<_ZoomArea> createState() => _ZoomAreaState();
+}
+
+class _ZoomAreaState extends State<_ZoomArea>
+    with SingleTickerProviderStateMixin {
+  final _t = TransformationController();
+  late final AnimationController _a = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 240),
+  )..addListener(() => _t.value = _to?.value ?? _t.value);
+  Animation<Matrix4>? _to;
+  Offset _at = Offset.zero;
+
+  @override
+  void dispose() {
+    _a.dispose();
+    _t.dispose();
+    super.dispose();
+  }
+
+  void _doubleTap() {
+    const k = 2.5;
+    final zoomed = _t.value.getMaxScaleOnAxis() > 1.01;
+    // Zoom in keeping the tapped point where it is.
+    final end = zoomed
+        ? Matrix4.identity()
+        : (Matrix4.identity()
+            ..setEntry(0, 0, k)
+            ..setEntry(1, 1, k)
+            ..setEntry(0, 3, _at.dx * (1 - k))
+            ..setEntry(1, 3, _at.dy * (1 - k)));
+    _to = Matrix4Tween(
+      begin: _t.value,
+      end: end,
+    ).animate(CurvedAnimation(parent: _a, curve: Curves.easeOutCubic));
+    _a.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onDoubleTapDown: (d) => _at = d.localPosition,
+    onDoubleTap: _doubleTap,
+    child: InteractiveViewer(
+      transformationController: _t,
+      minScale: 1,
+      maxScale: 6,
+      onInteractionStart: (_) => _a.stop(),
+      child: widget.child,
+    ),
+  );
+}
+
 /// A soft fade to transparent at both ends of [axis], [fade] long, so the
 /// open picture does not look cut off.
 class _EdgeFade extends StatelessWidget {
@@ -2675,10 +2778,8 @@ class _FullScreenPicture extends StatelessWidget {
     body: Stack(
       children: [
         Positioned.fill(
-          child: InteractiveViewer(
+          child: _ZoomArea(
             key: const ValueKey('full-screen-zoom'),
-            minScale: 1,
-            maxScale: 6,
             child: Center(
               child: artImage(
                 bytes: o.image,
@@ -2712,22 +2813,37 @@ class _FullScreenPicture extends StatelessWidget {
 /// Where the large design goes in its [w]×[h] frame, for a picture of aspect
 /// [ar] (width / height): as big as it fits, centred, never cropped or
 /// stretched (the website's viewerLayout); with no picture, the whole frame.
+///
+/// [fillWidth] (phones, client 2026-11-16 565.png: "cut off on left and right
+/// side, should be full screen"): the picture spans the whole width; a tall
+/// picture loses at most [_maxCut] of its height (sky and floor, more of the
+/// floor) so the garments stay whole.
 ({double iw, double ih, double left, double top}) resultsLayout(
   double w,
   double h,
   double ar, {
   bool picture = true,
+  bool fillWidth = false,
 }) {
   if (!picture) return (iw: w, ih: h, left: 0.0, top: 0.0);
-  final iw = math.max(0.0, math.min(w, h * ar));
+  var iw = math.max(0.0, math.min(w, h * ar));
+  if (fillWidth && ar > 0 && w > 0) {
+    iw = math.min(w, h / (1 - _maxCut) * ar);
+  }
   final ih = ar > 0 ? iw / ar : 0.0;
   return (
     iw: iw,
     ih: ih,
     left: ((w - iw) / 2).roundToDouble(),
-    top: ((h - ih) / 2).roundToDouble(),
+    // A cut picture loses more floor than sky: the garments sit above the
+    // middle of the AI's presentations.
+    top: ((h - ih) * (ih > h ? _topShare : .5)).roundToDouble(),
   );
 }
+
+/// The most of a tall picture's height a phone may cut to fill the width,
+/// and the share of the cut taken from the top.
+const _maxCut = .4, _topShare = .35;
 
 /// A picture's width / height from its PNG or JPEG header (null: unknown).
 double? pictureRatio(Uint8List b) {

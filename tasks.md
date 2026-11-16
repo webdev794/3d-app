@@ -747,3 +747,10 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [ ] **Football jersey: soccer-jersey.glb** (user 2026-11-13; booklet 138303 look). Agent SCJERSEY. FBJERSEY now only does Rugby League Jersey.
 - MODELTEST basketball singlet: 11 findings (HIGH: presets clear zoneColors so ALL new-model tiles fall back to the old shape; patterns torn across the chest). BBSINGLET fixing, incl. the cross-model preset fix. MODELTEST next: rugby shorts + socks.
 - Decided 2026-11-13 (user: "You answered questions" = go with my suggestions): (a) [x] "Order Form Maker" added to the website ORDERS menu (OrdersMenu.tsx; built 16:3x); the Orders page cards unchanged. (b) [ ] Rugby League Kit shows jersey + shorts + socks together, once those three models pass MODELTEST.
+
+- [ ] Order Form Maker (/orders/assistant) looks like the AI section (client 16 Nov: "did we improve so it looks like the AI section"); agent FORMLOOK aa29959e394f046c2
+
+- [ ] App AI "YOUR DESIGNS": design picture cut off left/right, should be full screen width (client 16 Nov, image 565); agent FORMLOOK aa29959e394f046c2
+- [ ] App AI "YOUR DESIGNS": loading animation too small, make it big (client 16 Nov, image 566); agent FORMLOOK
+- [ ] App AI "YOUR DESIGNS": cannot zoom, should be able to zoom in (client 16 Nov, image 567); agent FORMLOOK
+- [ ] Mannequin/stand (black) shows through the cloth on the Training tee and Football jersey models (user 16 Nov); MODELQ3 a4542e4e09ebb74f6, fix once for all model tiles

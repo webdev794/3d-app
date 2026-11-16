@@ -1,0 +1,13 @@
+{
+  "about": "Polo (polo-shirt.glb): the model's own collar (Collar colour, else Secondary), its placket plain Main, its buttons white, its cuffs (Secondary), per triangle from its own seams (MODELQ 2026-11-16).",
+  "glb": "../../../tripo/polo-shirt.glb",
+  "creaseDeg": 25,
+  "keys": ["collar", "trim", "main", "#f4f4f2"],
+  "rules": [
+    { "regions": [1], "part": "collar" },
+    { "regions": [1], "where": "z > 0 && y < 0.875 && Math.abs(x) < 0.035", "part": "main" },
+    { "where": "size < 300 && z > 0.06 && y > 0.83 && y < 0.9 && Math.abs(x) < 0.045 && r !== 1", "part": "#f4f4f2" },
+    { "regions": [3, 4, 7, 8], "part": "trim" }
+  ],
+  "smooth": 1
+}

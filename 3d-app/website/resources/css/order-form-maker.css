@@ -1,78 +1,88 @@
-/* The order form maker (pages/OrderFormMaker.tsx, /orders/assistant; client 2026-11-13). */
-.ofm-page{--cy:#00dbea;--ink:#f4f8fb;--mut:#9fb3c4;--line:#00dbea40;max-width:980px;margin:0 auto;padding:28px 16px 60px;color:var(--ink)}
-.ofm-head{text-align:center;margin-bottom:18px}
-.ofm-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;border:1px solid #00dbeab3;background:#06203366;font-size:13px;font-weight:700;letter-spacing:.12em}
-.ofm-pill svg{color:var(--cy)}
-.ofm-head h1{margin:12px 0 6px;font:italic 800 clamp(26px,5vw,40px)/1.05 Rajdhani,system-ui,sans-serif}
-.ofm-head p{margin:0 auto;max-width:560px;color:#d3dee8;line-height:1.45}
-.ofm-box{display:grid;gap:10px;padding:14px;border-radius:24px;border:1.5px solid #4fd8ff99;background:linear-gradient(180deg,#0c2a40cc,#071624e6);box-shadow:0 0 0 1px #00dbea26 inset,0 0 28px #00b7ff40;transition:box-shadow .15s,border-color .15s}
-.ofm-box.is-over{border-color:var(--cy);box-shadow:0 0 0 2px var(--cy) inset,0 0 36px #00dbea80}
-.ofm-picked{display:flex;flex-wrap:wrap;gap:8px}
-.ofm-picked figure{position:relative;margin:0;width:112px;display:grid;grid-template-rows:84px auto;border-radius:12px;border:1px solid var(--line);background:#00000040;overflow:hidden}
-.ofm-picked img{width:100%;height:84px;object-fit:contain;background:#fff}
-.ofm-picked .is-sheet{place-items:center}.ofm-picked .is-sheet svg{color:var(--cy)}
-.ofm-picked figcaption{padding:3px 6px;font-size:11px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ofm-picked button{position:absolute;top:4px;right:4px;display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:50%;background:#000a;color:#fff;cursor:pointer}
-.ofm-box textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:64px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:#071522cc;color:var(--ink);font:15px/1.45 inherit;outline:0}
-.ofm-box textarea:focus{border-color:var(--cy)}
-.ofm-box textarea::placeholder{color:var(--mut)}
-.ofm-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-.ofm-add{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border-radius:22px;border:1px solid #ffffffa6;background:none;color:#fff;font-weight:600;cursor:pointer}
-.ofm-add:hover{border-color:var(--cy);color:var(--cy)}
-.ofm-hint{flex:1;min-width:160px;color:var(--mut);font-size:13px}
-.ofm-go{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 22px;border:0;border-radius:24px;background:linear-gradient(90deg,#00e5ff,#00a6ff);color:#04202c;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 0 16px #00dbea80}
-.ofm-go:disabled{opacity:.75;cursor:progress}
+/* The order form maker (pages/OrderFormMaker.tsx, /orders/assistant; client 2026-11-13). Since 2026-11-16 ("so it
+   looks like the AI section") it uses the AI designer's stage, logo, prompt bar, file chips, notes and loader
+   (ai-designer.css); this file only adds the order form below the bar, in the same dark glass and teal. */
+.ofm-stage{--cy:#3fe6f5;--teal:#19d6ea;--ink:#eef6fc;--mut:#a3b2c2;--line:#ffffff2b;color:var(--ink)}
+/* With a form below, the page scrolls: the picture stays one screen tall and fades into the page. */
+.ofm-stage.has-result{align-items:flex-start}
+.ofm-stage.has-result .aid-bg{bottom:auto;height:100svh;-webkit-mask-image:linear-gradient(180deg,#000 62%,transparent);mask-image:linear-gradient(180deg,#000 62%,transparent)}
+.ofm-stage.has-result::before{background:radial-gradient(ellipse 30% 40% at 50% 30vh,#02060bb8,#02060b5c 62%,transparent),linear-gradient(180deg,#02060b8c,transparent 16%,transparent 60vh,#02060b 100vh)}
+.ofm-stage.has-result .aid-logo{width:clamp(220px,22vw,380px)}
+.ofm-stage.has-result .aid-heading{margin-bottom:clamp(20px,2.2vw,34px)}
+/* The example prompt is long: it wraps inside the bar instead of being cut. */
+.ofm-stage .aid-field textarea::placeholder{white-space:normal}
+.ofm-stage .aid-field textarea.is-example:placeholder-shown{min-height:76px}
+.ofm-stage .aid-go:disabled{cursor:progress;opacity:.85}
+/* The AI designer's heading is in capitals: the same here, a little tighter for the longer line. */
+.ofm-stage .aid-heading{text-transform:uppercase;letter-spacing:.3em;margin-right:-.3em;max-width:min(100%,920px);line-height:1.35}
+/* Design pictures hold front and back side by side: shown whole in their chips. */
+.ofm-stage .aid-files img{object-fit:contain;background:#fff}
+.ofm-sheet-icon{flex:none;display:grid;place-items:center;width:42px;height:42px;border-radius:7px;background:#0e1b27;color:var(--teal)}
+.ofm-stage .aid-options{max-width:min(100%,720px)}
+.ofm-stage .aid-note{line-height:1.5;text-shadow:0 1px 8px #000}
 .ofm-spin{animation:ofm-spin .9s linear infinite}
 @keyframes ofm-spin{to{transform:rotate(360deg)}}
-.ofm-error{margin:10px 0 0;color:#ff8fa3}
-.ofm-note{margin:8px 0 0;color:var(--mut);font-size:13px;text-align:center}
-.ofm-result{margin-top:22px;display:grid;gap:14px}
-.ofm-reply{margin:0;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:#0b1a28dd;white-space:pre-line;line-height:1.5}
-.ofm-form{display:grid;gap:14px;padding:16px;border-radius:18px;border:1px solid var(--line);background:#0b1a28cc}
+
+/* Busy: the AI designer's loader, on the same glass as the bar. */
+.ofm-busy{width:min(100%,560px);margin-top:clamp(20px,2.6vw,36px);border:1.5px solid #19d6ea66;border-radius:28px;background:linear-gradient(180deg,#07131ecc,#030a12e6);box-shadow:0 0 22px #00d9ed26;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.ofm-busy .loader-inline{padding:26px 18px}
+
+/* The form found, below the bar. */
+.ofm-result{width:min(100%,980px);min-width:0;grid-template-columns:minmax(0,1fr);margin-top:clamp(22px,2.8vw,40px);display:grid;gap:14px;text-align:left}
+.ofm-reply{margin:0;overflow-wrap:anywhere;padding:14px 18px;border-radius:16px;background:#0b2232e6;color:#cfeaf5;white-space:pre-line;line-height:1.5;font-size:14.5px}
+.ofm-form{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;gap:14px;padding:clamp(14px,1.6vw,22px);border:1.5px solid #19d6ea66;border-radius:28px;background:linear-gradient(180deg,#07131ecc,#030a12e6);box-shadow:0 0 22px #00d9ed26,inset 0 0 18px #00d9ed12;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .ofm-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto;gap:12px;align-items:end}
 .ofm-top label,.ofm-sizes label{display:grid;gap:4px}
-.ofm-top label span,.ofm-sizes span{color:var(--mut);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.ofm-form input,.ofm-form select{min-height:40px;box-sizing:border-box;padding:0 10px;border-radius:10px;border:1px solid #ffffff33;background:#040d16;color:var(--ink);font:inherit}
-.ofm-form input:focus,.ofm-form select:focus{outline:0;border-color:var(--cy)}
-.ofm-grand{display:grid;justify-items:end;padding:6px 14px;border-radius:12px;background:#ecfdf5;color:#0f766e;min-width:120px}
-.ofm-grand span{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-.ofm-grand b{font-size:28px;line-height:1.05}
-.ofm-grand small{font-size:12px}
+.ofm-top label span,.ofm-sizes span{color:#7f93a8;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.ofm-form input,.ofm-form select{min-height:42px;box-sizing:border-box;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:#0a141e;color:var(--ink);font:inherit;font-size:14.5px;transition:border-color .2s,box-shadow .2s}
+.ofm-form input:focus,.ofm-form select:focus{outline:0;border-color:var(--cy);box-shadow:0 0 0 1px #00d9ed4d,0 0 14px #00d9ed33}
+.ofm-grand{display:grid;justify-items:end;padding:6px 16px;border:1.5px solid #19d6eacc;border-radius:14px;background:#04101acc;min-width:120px}
+.ofm-grand span{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#7f93a8}
+.ofm-grand b{font:700 30px/1.05 var(--heading,Rajdhani),sans-serif;color:var(--cy)}
+.ofm-grand small{font-size:12px;color:var(--mut)}
 .ofm-designs{list-style:none;margin:0;padding:0;display:grid;gap:12px}
-.ofm-designs>li{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:14px;padding:12px;border-radius:14px;border:1px solid #ffffff1f;border-left:8px solid var(--d);background:#040d16aa}
-.ofm-pics{display:flex;gap:6px;align-items:center;justify-content:center;min-height:120px;border-radius:10px;background:#fff;overflow:hidden;color:#6b7280}
+.ofm-designs>li{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:14px;padding:12px;border-radius:18px;border:1px solid var(--line);border-left:6px solid var(--d);background:#0a141ecc}
+.ofm-pics{display:flex;gap:6px;align-items:center;justify-content:center;min-height:120px;border-radius:12px;background:#fff;overflow:hidden;color:#6b7280}
 .ofm-pics img{min-width:0;flex:1;max-height:160px;object-fit:contain}
 .ofm-fields{display:grid;gap:10px;align-content:start;min-width:0}
 .ofm-name{display:grid;grid-template-columns:auto minmax(0,1.3fr) minmax(0,1fr) auto;gap:8px;align-items:center}
-.ofm-name b{display:grid;place-items:center;width:40px;height:40px;border-radius:10px;background:var(--d);color:#fff;text-shadow:0 1px 2px #000a;box-shadow:inset 0 0 0 1px #ffffff40}
-.ofm-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:10px;border:1px solid #ffffff33;background:none;color:var(--mut);cursor:pointer}
-.ofm-icon:hover{color:#ff8fa3;border-color:#ff8fa3}
+.ofm-name b{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:var(--d);color:#fff;font-family:var(--heading,Rajdhani),sans-serif;text-shadow:0 1px 2px #000a;box-shadow:inset 0 0 0 1px #ffffff40}
+.ofm-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:none;color:var(--mut);cursor:pointer;transition:color .2s,border-color .2s}
+.ofm-icon:hover{color:#ffd7d7;border-color:#ff8fa3}
 .ofm-sizes{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:6px}
 .ofm-sizes input{width:100%;text-align:center;padding:0 4px}
-.ofm-sizes .is-total output{display:grid;place-items:center;min-height:40px;border-radius:10px;background:#0f766e;color:#fff;font-weight:800}
+.ofm-sizes .is-total output{display:grid;place-items:center;min-height:42px;border-radius:12px;background:#14d8ec;color:#021219;font-weight:800;box-shadow:0 0 12px #00d9ed4d}
 .ofm-link{justify-self:start;border:0;background:none;color:var(--cy);font:inherit;font-size:14px;cursor:pointer;padding:4px 0;text-decoration:underline;text-underline-offset:3px}
 .ofm-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
 .ofm-addsize{display:inline-flex;align-items:center;gap:6px;color:var(--cy)}
-.ofm-save{display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 16px;border:0;border-radius:21px;background:var(--cy);color:#04202c;font-weight:800;cursor:pointer}
+.ofm-save{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 18px;border:0;border-radius:999px;background:#14d8ec;color:#021219;font-weight:700;cursor:pointer;box-shadow:0 0 18px #00d9ed80;transition:background .2s,box-shadow .2s}
+.ofm-save:hover{background:#3fe6f5;box-shadow:0 0 24px #00d9edaa}
+.ofm-error{margin:0;padding:8px 14px;border-radius:10px;background:#2a1418e6;color:#ffd7d7;font-size:13.5px}
 .ofm-checks{margin:0;padding:0;list-style:none;display:grid;gap:6px}
-.ofm-checks li{display:flex;gap:8px;align-items:flex-start;color:#fbbf24;line-height:1.4}
+.ofm-checks li{display:flex;gap:8px;align-items:flex-start;color:#ffc46b;line-height:1.4;font-size:14px}
 .ofm-checks svg{flex:none;margin-top:2px}
+/* Downloads: the AI designer's big gradient button and its outlined buttons. */
 .ofm-actions{display:flex;flex-wrap:wrap;gap:10px}
-.ofm-actions>*{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:46px;padding:0 16px;border-radius:23px;border:1px solid #00dbea99;background:none;color:#fff;font:inherit;font-weight:600;text-decoration:none;cursor:pointer}
-.ofm-actions>*:hover{border-color:var(--cy)}
-.ofm-actions .ofm-primary{border:0;background:linear-gradient(90deg,#00e5ff,#00a6ff);color:#04202c;font-weight:800}
+.ofm-actions>*{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 20px;border-radius:14px;border:1.5px solid #19d6eacc;background:#04101acc;color:var(--ink);font:inherit;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;transition:background .2s,border-color .2s,filter .2s}
+.ofm-actions>* svg{color:var(--cy)}
+.ofm-actions>*:hover{background:#0b2636;border-color:var(--cy)}
+.ofm-actions .ofm-primary{border:0;background:linear-gradient(90deg,#17d8f0,#1aa6f6 55%,#2f7bff);color:#031423;font:700 clamp(16px,1.25vw,19px)/1 var(--heading,Rajdhani),sans-serif;letter-spacing:.03em;box-shadow:0 0 22px #00d9ed4d}
+.ofm-actions .ofm-primary svg{color:#031423}
+.ofm-actions .ofm-primary:hover{background:linear-gradient(90deg,#17d8f0,#1aa6f6 55%,#2f7bff);filter:brightness(1.08)}
 .ofm-actions>*:disabled{opacity:.6;cursor:progress}
 .ofm-summary{margin:0;color:var(--cy)}
 .ofm-groups{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
-.ofm-groups li{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:12px;border:1px solid #ffffff26}
+.ofm-groups li{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;border:1px solid #19d6ea8c;background:#05131fd9}
 .ofm-groups i{width:12px;height:12px;border-radius:50%}
 .ofm-again{margin:0;text-align:center}
 .ofm-again button{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:var(--mut);font:inherit;cursor:pointer}
 .ofm-again button:hover{color:var(--cy)}
-@media(max-width:720px){
-  .ofm-top{grid-template-columns:1fr 1fr}.ofm-grand{grid-column:1/-1;justify-items:start}
+@media(max-width:759px){
+  .ofm-stage .aid-field textarea.is-example:placeholder-shown{min-height:124px}
+  .ofm-stage .aid-heading{letter-spacing:.2em;margin-right:-.2em}
+  .ofm-stage.has-result .aid-logo{width:min(56vw,260px)}
+  .ofm-form{border-radius:22px}
+  .ofm-top{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.ofm-grand{grid-column:1/-1;justify-items:start}
   .ofm-designs>li{grid-template-columns:1fr}
   .ofm-name{grid-template-columns:auto minmax(0,1fr) auto}.ofm-name input:nth-of-type(2){grid-column:2/3}
-  .ofm-go{width:100%;justify-content:center}
   .ofm-actions>*{flex:1 1 140px}
 }

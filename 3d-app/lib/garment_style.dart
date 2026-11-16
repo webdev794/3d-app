@@ -103,10 +103,30 @@ List<(String, String, String)> fitsFor(
       ]
     : rugbyFits;
 
+/// A tile on a ready-made 3D model shows that model's own neck only (user
+/// 2026-11-16: nothing is cut; other neck styles come later, laid on top), as
+/// garmentStyle.ts MODEL_OWN_NECKS: its look's flag and the model's own neck.
+const modelOwnNecks = {
+  'scJersey': 'v',
+  'aflGuernsey': 'round',
+  'trainingTee': 'round',
+};
+String? fixedNeck(String garment, Map<String, String> zoneColors) {
+  if (!hasNeckStyle(garment)) return null;
+  for (final e in modelOwnNecks.entries) {
+    if (_hex.hasMatch(zoneColors[e.key] ?? '')) return e.value;
+  }
+  // (Every training tee is on its ready-made model: its own round neck.)
+  if (garment == 'Training Tee') return 'round';
+  return null;
+}
+
 /// The garment's own neck (the Full kit picture's crew-neck look makes its
 /// jersey's round).
 String? ownNeck(String garment, Map<String, String> zoneColors) {
   if (!hasNeckStyle(garment)) return null;
+  final fixed = fixedNeck(garment, zoneColors);
+  if (fixed != null) return fixed;
   final bball = bballOwnNeck(garment, zoneColors);
   if (bball != null) return bball;
   if (isModelJersey(garment, zoneColors) &&
@@ -122,9 +142,10 @@ String? ownNeck(String garment, Map<String, String> zoneColors) {
 /// The neck shown: the design's own choice, else the garment's.
 String? neckOf(String garment, String? neck, Map<String, String> zoneColors) {
   if (!hasNeckStyle(garment)) return null;
-  return neck != null && neckValues.contains(neck)
-      ? neck
-      : ownNeck(garment, zoneColors);
+  return fixedNeck(garment, zoneColors) ??
+      (neck != null && neckValues.contains(neck)
+          ? neck
+          : ownNeck(garment, zoneColors));
 }
 
 /// "V-neck", "Round neck", "RC006 Grandad collar, 1 button".

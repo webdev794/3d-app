@@ -1,0 +1,58 @@
+{
+  "about": "Rash guard tiles (Swimming, Fight Wear): Tripo model rashguard.glb, booklet card 117732 (aqua body with magenta piping along its own raglan, neck, hem and cuff seams; our 3DEEZI wordmark and 3 mark small low on the front left where the card has its small label; nothing of its text). Tile look: the existing 'blades' look + the model flag (2026-11-16 coordinator); `look` is only the check design.",
+  "glb": "../../../tripo/rashguard.glb",
+  "converter": "top",
+  "part": "tee",
+  "flag": "rashGuard",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "Rash guard",
+      "image": "rash-guard"
+    }
+  ],
+  "convert": {
+    "made": "tee",
+    "creaseDeg": 25
+  },
+  "look": {
+    "main": "#45d6dc",
+    "secondary": "#e0249a",
+    "accent": "#1c2430",
+    "patternColor": "#1c2430",
+    "number": "",
+    "zoneColors": {
+      "rashGuard": "#e0249a"
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": -0.1,
+        "y": 0.1,
+        "scale": 0.4
+      },
+      "top_crest": {
+        "x": -0.1,
+        "y": 0.15,
+        "scale": 0.25
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q90",
+      "zoomD70Y700P60"
+    ]
+  },
+  "baseLook": "blades"
+}

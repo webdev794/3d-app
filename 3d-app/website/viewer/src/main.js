@@ -26,11 +26,12 @@ import { buildBeanie } from './beanie.js';
 import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
 import { hqWanted, loadHQ, hqJersey } from './hq.js';
 import { loadTripo, tripoReady, tripoGarment, tripoNeckOutline, bballRoundOutline } from './tripomesh.js';
+import { RECIPE_MODELS } from './recipemodels.js';
 import { FB_JERSEY, FB_SPEC, FB_SWATCH, FB_CUFF_STRIPE, isFbJersey, buildModelFoldCollar, buildModelWing } from './fbjersey.js';
 import { useDressShape, dressModel } from './netballdress.js';
 import { createBoard } from './board.js';
 import { processImage } from './imagetools.js';
-import { zoneAt, partAt, useRaglanJersey, useModelHem, useModelTop } from './zones.js';
+import { zoneAt, partAt, useRaglanJersey, useModelHem, useModelTop, useModelPanels } from './zones.js';
 import { colourFor } from './colourpick.js';
 import { buildWingCollar, paintWingCollar } from './wingcollar.js';
 import { neckShape, neckCut, rugbyCollar, roundBack } from './necks.js';
@@ -187,7 +188,23 @@ const environmentReady = new Promise((resolve) => {
 
 const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 30);
 
-const { podium, ringMat, outerRing, pool, shadow, mirror } = createStudio(scene, renderer, mobile, Q);
+const { podium, ringMat, outerRing, pool, shadow, mirror, key: studioKey, fill: studioFill } = createStudio(scene, renderer, mobile, Q);
+/**
+ * The Rugby League shorts' ready-made model (user 2026-11-16, images 552 / 553): the GLB as it is (its own shape and
+ * normals), lit as in Tripo's own view so its folds read on both sides: the key light more from the front (still from
+ * the upper left, so the folds keep their shade) and a little more fill from the right. Every other kit keeps the
+ * stage's light exactly as it is (put back as soon as another garment is shown). Only on the render tiers (Q).
+ */
+const STAGE_LIGHT = { key: studioKey.intensity, keyAt: studioKey.position.clone(), fill: studioFill.intensity };
+let evenLit = false;
+function evenLight(on) {
+  on = on && !!Q;
+  if (on === evenLit) return;
+  evenLit = on;
+  studioKey.intensity = on ? 1.4 : STAGE_LIGHT.key;
+  if (on) studioKey.position.set(-1.6, 2.2, 2.2); else studioKey.position.copy(STAGE_LIGHT.keyAt);
+  studioFill.intensity = on ? 0.55 : STAGE_LIGHT.fill;
+}
 // Look 2, the showroom: the floodlights behind trace the kit's edges more strongly, and the kit sits in a deeper, wider
 // soft contact shadow on the podium.
 if (LOOK2) {
@@ -355,6 +372,18 @@ const HEX6 = /^#[0-9a-f]{6}$/i;
 // The Basketball > Basketball singlet tile (BBSINGLET 2026-11-13: its look's flag design.zoneColors.bballSinglet): the
 // singlet on its own model, basketball-singlet (its own V neck); every other singlet keeps the made one.
 const bballSinglet = () => !layout && HEX6.test(design.zoneColors?.bballSinglet ?? '');
+// Models added by the shared recipe (viewer/models/<name>.json, viewer/tripo-add.mjs; recipemodels.js is made from those
+// settings): the model a part is shown in when its look's flag (design.zoneColors[flag]) is set, never on a print layout.
+// (A `wide` model (settings `wide`, 2026-11-16: the polo, the training tee) is on every tile of its garment with the tile's own
+// look, no flag needed; a model with its look's flag set comes first.)
+const recipeFor = (part) => {
+  if (layout) return null;
+  const all = Object.entries(RECIPE_MODELS).filter(([, m]) => m.part === part && (!m.garment || m.garment === design.garment));
+  return (all.find(([, m]) => !m.wide && HEX6.test(design.zoneColors?.[m.flag] ?? '')) ?? all.find(([, m]) => m.wide && design.garment === part))?.[0] ?? null;
+};
+// The singlet's model (the basketball singlet's or a recipe one's, both mapped as the basketball singlet's: data neckFront,
+// insert, bands), or null.
+const singletModel = () => (bballSinglet() ? 'basketball-singlet' : recipeFor('singlet'));
 /** The model a part is shown in (tripomesh.js), or null: its own, or the basketball singlet's. */
 // The football jersey's model (fbjersey.js, FBJERSEY 2026-11-13): the Jersey garment alone (never in a kit, never on a print
 // layout) with its look's flag design.zoneColors.fbJersey: the Football jersey and Rugby League Jersey tiles only.
@@ -373,7 +402,15 @@ const rlSocks = () => !layout && HEX6.test(design.zoneColors?.rlSocks ?? '');
  * its point, data neckFront, to where it reaches the strap's top), or our round neck (tripomesh.js bballRoundOutline)
  * and on up the V's edge to the strap's top.
  */
-function bballSingletSpec(data, neck) {
+function bballSingletSpec(data, neck, name = 'basketball-singlet') {
+  // (A recipe model: its own neck (neck null) as unrolled on its pattern (data neckFront); a V cut in it, its point as
+  // tripomesh.js cuts it (the settings' depth under the neck's shoulder point).)
+  const own = RECIPE_MODELS[name];
+  if (own) {
+    const top = data.neckFront.at(-1), cut = neck ? own.necks?.[neck] : null;
+    const run = cut ? [[0, 0.738 - cut.depth], [top[0], top[1]]] : data.neckFront.filter((_, k, a) => k % 2 === 0 || k === a.length - 1);
+    return { ...SPECS.singlet, half: [...run, ...SPECS.singlet.half.slice(3)], neckShape: cut ? 'v' : own.ownNeck };
+  }
   const tip = data.neckFront[0][1], top = data.neckFront.find(([, y]) => y >= 0.735)?.[0] ?? 0.1, xTop = Math.min(0.13, Math.max(0.06, top));
   const round = neck === 'round' ? bballRoundOutline('basketball-singlet') : null;
   const neckRun = round?.length
@@ -390,7 +427,37 @@ function withBackNeck(outline, front, back) {
 // The Netball > Netball bibs tile (NBBIB 2026-11-13: its look's flag design.zoneColors.netballBib): the bib on its own
 // model, netball-bib (its own round neck; a V cut in it, tripomesh.js); every other singlet keeps the made one.
 const netballBib = () => !layout && HEX6.test(design.zoneColors?.netballBib ?? '');
-const tripoOf = (part) => TRIPO_PARTS[part] ?? (part === 'singlet' && bballSinglet() ? 'basketball-singlet' : part === 'jersey' && fbJerseyOn() ? FB_JERSEY : null) ?? (part === 'shorts' && rlShortsOn() ? RL_SHORTS : null) ?? (part === 'socks' && rlSocks() ? 'rugby-socks' : null) ?? (part === 'singlet' && netballBib() ? 'netball-bib' : null);
+// The Football > Football jersey tile (SCJERSEY 2026-11-13: its look's flag design.zoneColors.scJersey): the Jersey garment
+// alone (never in a kit, never on a print layout) on its own model, soccer-jersey (a V-neck with set-in sleeves, side panels
+// and rolled cuffs). Every neck is built on the model (tripomesh.js): its own V, a deeper V cut in it, a round neck or a
+// shallow V filled in with our own cloth and band.
+const SC_JERSEY = 'soccer-jersey';
+const scJerseyOn = () => !layout && design.garment === 'jersey' && HEX6.test(design.zoneColors?.scJersey ?? '');
+const tripoOf = (part) => TRIPO_PARTS[part] ?? (part === 'singlet' && singletModel() ? singletModel() : part === 'jersey' && fbJerseyOn() ? FB_JERSEY : null) ?? (part === 'shorts' && rlShortsOn() ? RL_SHORTS : null) ?? (part === 'socks' && rlSocks() ? 'rugby-socks' : null) ?? (part === 'singlet' && netballBib() ? 'netball-bib' : null) ?? (part === 'jersey' && scJerseyOn() ? SC_JERSEY : null) ?? (part !== 'singlet' ? recipeFor(part) : null);
+/** A part's plain material (a model's part per triangle): the print's fabric without its print; `inside` drawn as the inside. */
+function plainOf(print, key) {
+  const m = key === 'inside' ? new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }) : print.clone();
+  if (key !== 'inside') { m.map = null; m.emissiveMap = null; m.vertexColors = false; }
+  m.userData.plain = key;
+  return m;
+}
+/** The plain parts' colours (texture.js paintModelSwatches: model.partColours) and the print fabric's finish on them. */
+function paintPlains(part, design) {
+  const colours = part.painter.model?.partColours ?? [];
+  part.plains.forEach(({ key, material }, k) => {
+    const c = colours[k] ?? design.secondary;
+    if (key === 'inside') { material.color.set(c).multiplyScalar(0.9); return; }
+    const f = part.material;
+    for (const prop of ['roughness', 'metalness', 'reflectivity', 'specularIntensity', 'sheen', 'sheenRoughness', 'clearcoat', 'clearcoatRoughness', 'envMapIntensity']) if (prop in f && prop in material) material[prop] = f[prop];
+    if (f.sheenColor && material.sheenColor) material.sheenColor.copy(f.sheenColor);
+    material.normalMap = f.normalMap;
+    if (f.normalScale) material.normalScale.copy(f.normalScale);
+    material.color.set(c);
+    if (f.emissiveMap) { material.emissive.set(c); material.emissiveIntensity = f.emissiveIntensity; } else material.emissive.setRGB(0, 0, 0);
+    material.needsUpdate = true;
+  });
+}
+
 function buildKit(kind) {
   // A print layout brings its own parts (a raglan top, shorts or both); the garment chosen shows its top, its
   // shorts or the full kit.
@@ -398,6 +465,10 @@ function buildKit(kind) {
   // The basketball shorts (the Basketball shorts tile, FN3 2026-10-30): the shorts with the royal blue band across their
   // side panels (design.zoneColors.bballBand) are cut long and loose as that picture, with its own print (bballshorts.js).
   if (kind === 'shorts' && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.bballBand ?? '')) list = PARTS.bballshorts;
+  // (Ready-made full-length pants and leggings added by the shared recipe (MODELQ2 2026-11-16: models with part
+  // 'trackpants' and garment 'shorts'): a Shorts tile whose look sets such a model's flag shows those pants alone, as the
+  // track pants' part and print (trackpants.js), on their own model.)
+  if (kind === 'shorts' && !layout && recipeFor('trackpants')) list = ['trackpants'];
   // The Tracksuit tiles (FN10 2026-11-02, the user: their pictures show the jacket and matching pants): the track jacket
   // over its track pants (trackpants.js), shown by the look's pants stripe colour (design.zoneColors.pantsStripe).
   if (kind === 'trackjacket' && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.pantsStripe ?? '')) list = ['trackpants', 'trackjacket'];
@@ -429,19 +500,28 @@ function buildKit(kind) {
   const fbj = list.includes('jersey') && fbJerseyOn(), fbV = fbj && HEX6.test(design.zoneColors?.fbV ?? '');
   useRaglanJersey(fbj);
   // (The basketball singlet: its model's own V, or our round neck filled in on it (tripomesh.js roundFill).)
-  const necks = list.map((p) => (layout ? null : p === 'singlet' && bballSinglet() ? (neckShape(p, design, 'v') === 'round' ? 'round' : 'v') : neckShape(p, design, p === 'jersey' && (crewKit || (fbj && !fbV)) ? 'round' : undefined)));
+  // (A recipe model: its own neck as it is (null), another chosen one built on it (tripomesh.js vOf).)
+  const recipeNeck = (p) => { const m = RECIPE_MODELS[tripoOf(p)]; return m ? ((n) => (n && n !== m.ownNeck && m.necks?.[n] ? n : null))(neckShape(p, design, m.ownNeck)) : undefined; };
+  // (User 2026-11-16, AGENT-RULES 4: the soccer jersey shows its model's own neck only, nothing cut; other neck styles come
+  // later, laid on top. (The basketball singlet and netball bib keep their necks as passed on -330.))
+  const OWN_NECK_ONLY = { 'soccer-jersey': null };
+  const necks = list.map((p) => (layout ? null : Object.hasOwn(OWN_NECK_ONLY, tripoOf(p) ?? '') ? OWN_NECK_ONLY[tripoOf(p)] : recipeNeck(p) !== undefined ? recipeNeck(p) : p === 'singlet' && bballSinglet() ? (neckShape(p, design, 'v') === 'round' ? 'round' : 'v') : neckShape(p, design, p === 'jersey' && (crewKit || (fbj && !fbV)) ? 'round' : undefined)));
   const fbNeck = fbj ? ((n) => (n === 'round' ? null : n ?? (fbV ? 'own' : null)))(necks[list.indexOf('jersey')]) : null;
   // A rugby jersey's collar from the library and its fit (Garment style, rugbycollars.js): on the jersey only.
+  // (The soccer jersey's model, SCJERSEY: its neck built on the model (tripomesh.js fillNeck); no library collar pieces, no fit.)
+  const scj = list.includes('jersey') && scJerseyOn();
+  useModelPanels(scj ? window.TRIPO_MESHES?.[SC_JERSEY]?.panels : null);
   // (The football jersey's model: every library collar made on it: its neck cut in the model, the band's stripes and tips
   // on its own band or our binding (texture.js), its prints, and its own pieces (a fold-down or wing collar sewn on at the
   // band's foot, the band then left off; buttons) on the model: tripomesh.js surface, buildCollarParts.)
-  const collar = !layout && list.includes('jersey') ? rugbyCollar(design) : null;
-  const fit = !layout && !fbj && list.includes('jersey') && (design.fit === 'classic' || design.fit === 'tight') ? design.fit : null;
+  const collar = !layout && list.includes('jersey') && !scj ? rugbyCollar(design) : null;
+  const fit = !layout && !fbj && !scj && list.includes('jersey') && (design.fit === 'classic' || design.fit === 'tight') ? design.fit : null;
   // (The rugby / netball / NFL training tees (tile look zoneColors.teeFlare): sleeves standing out from the body and the
   // body flaring to a wider hem, as their pictures: DT10.)
-  const teeFlare = list.includes('tee') && HEX6.test(design.zoneColors?.teeFlare ?? '');
+  // (Not on the tee's ready-made model: its own shape, MODELQ 2026-11-16.)
+  const teeFlare = list.includes('tee') && !tripoOf('tee') && HEX6.test(design.zoneColors?.teeFlare ?? '');
   // (The Football / Basketball training tee (zoneColors.teeLong): its sleeves longer, ending at .41 of the height: DT10.)
-  const teeLong = !teeFlare && list.includes('tee') && HEX6.test(design.zoneColors?.teeLong ?? '');
+  const teeLong = !teeFlare && list.includes('tee') && !tripoOf('tee') && HEX6.test(design.zoneColors?.teeLong ?? '');
   // (FX-V 2026-11-02: the NFL varsity tile (zoneColors.varsityBoxy): a wide, boxy jacket, its sleeves down to the hem
   // and deep rib cuffs and waistband, as its picture: DT11.)
   const varsityBoxy = list.includes('varsity') && HEX6.test(design.zoneColors?.varsityBoxy ?? '');
@@ -453,7 +533,7 @@ function buildKit(kind) {
   const noCord = !!plainShorts || rugbyCut;
   useModelHem(list.includes('shorts') && rlShortsOn() ? RL_HEM : null);
   // (The basketball singlet's model: its own side insert and hem as the Side panels and Hem areas: zones.js.)
-  const bbData = list.includes('singlet') && bballSinglet() && tripoReady('basketball-singlet') ? window.TRIPO_MESHES['basketball-singlet'] : null;
+  const bbName = list.includes('singlet') ? singletModel() : null, bbData = bbName && tripoReady(bbName) ? window.TRIPO_MESHES[bbName] : null;
   useModelTop(bbData?.insert ? { insert: bbData.insert, hemTop: bbData.hemTop } : null);
   const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '') + (kind === 'beanie' && HEX6.test(design.zoneColors?.beanieOne ?? '') ? ':nopom' : '') + (list.includes('trackpants') && HEX6.test(design.zoneColors?.sideBlade ?? '') ? ':jog' : '') + (teeFlare ? `:flare${design.zones?.sides ? 's' : ''}${HEX6.test(design.zoneColors?.teeNetball ?? '') ? 'n' : ''}` : '') + (teeLong ? ':long' : '') + (rugbyCut ? ':rugcut' : '') + (plainShorts ? `:plain${plainShorts}` : '') + (varsityBoxy ? ':boxy' : '') + (list.includes('jersey') && HEX6.test(design.zoneColors?.wingCollar ?? '') ? ':soccer' : '') + (list.includes('nfljersey') && HEX6.test(design.zoneColors?.badge ?? '') ? ':game' : '') + (list.some((p) => tripoOf(p) && tripoReady(tripoOf(p))) ? `:tripo${list.map((p) => tripoOf(p) ?? '').join(',')}` : '') + (fbj ? `:fbj:${fbNeck ?? 'round'}${design.fit === 'tight' ? ':pro' : ''}` : '');
   if (key === currentKind) return;
@@ -481,15 +561,20 @@ function buildKit(kind) {
     const fbSpec = partKind === 'jersey' && fbj ? (fbNeck ? neckCut('jersey', FB_SPEC, fbNeck === 'own' ? 'v' : fbNeck, tripoReady(FB_JERSEY) ? tripoNeckOutline(FB_JERSEY, fbNeck) : null) : roundBack('jersey', FB_SPEC)) : null;
     // (The basketball singlet's model: the made singlet under it cut with the model's own neck as unrolled on its
     // pattern (data neckFront), so the print's edge and the 2D panels are its V: BBSINGLET.)
-    const bbSpec = partKind === 'singlet' && bbData?.neckFront ? bballSingletSpec(bbData, neck) : null;
-    const garment = bbSpec ? buildGarment('singlet', { spec: bbSpec, detail: LOOK2 }) : fbSpec ? buildGarment('jersey', { spec: fbSpec, detail: LOOK2 }) : partKind === 'socks' ? buildSocks({ detail: LOOK2, split: splitToe }) : partKind === 'bballshorts' ? buildBballShorts({ detail: LOOK2 }) : partKind === 'trackpants' ? buildTrackPants({ detail: LOOK2, jogger: HEX6.test(design.zoneColors?.sideBlade ?? '') }) : partKind === 'skirt' ? buildSkirt({ detail: LOOK2 }) : partKind === 'cap' ? buildCap({ detail: LOOK2, five: kind === 'five-panel-cap' }) : partKind === 'bucket-hat' ? buildBucketHat({ detail: LOOK2 }) : partKind === 'beanie' ? buildBeanie({ detail: LOOK2, pom: !HEX6.test(design.zoneColors?.beanieOne ?? '') }) : buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: rugbyJerseyCut(partKind, rugbyCut, soccerCut(partKind, design, neck || rugby || (fit && partKind === 'jersey') ? fitSpec(collarSpec(neckCut(partKind, own ?? over ?? style ?? SPECS[partKind], neck), rugby), partKind === 'jersey' ? fit : null) : layout ? own ?? over ?? style : roundBack(partKind, own ?? over ?? style ?? SPECS[partKind]))), detail: LOOK2 });
+    const bbSpec = partKind === 'singlet' && bbData?.neckFront ? bballSingletSpec(bbData, neck, bbName) : null;
+    // (The soccer jersey's model: the made jersey under it (its own V, round back: the model was mapped onto it); a round
+    // neck or shallow V cut on it as chosen (the model's filled in to match, tripomesh.js fillNeck). Its V-neck is the
+    // model's own V.)
+    const scNeck = partKind === 'jersey' && scj && (neck === 'round' || neck === 'shallow') ? neck : null;
+    const scSpec = partKind === 'jersey' && scj ? (scNeck ? neckCut('jersey', SPECS.jersey, scNeck) : roundBack('jersey', SPECS.jersey)) : null;
+    const garment = bbSpec ? buildGarment('singlet', { spec: bbSpec, detail: LOOK2 }) : fbSpec ? buildGarment('jersey', { spec: fbSpec, detail: LOOK2 }) : scSpec ? buildGarment('jersey', { spec: scSpec, detail: LOOK2 }) : partKind === 'socks' ? buildSocks({ detail: LOOK2, split: splitToe }) : partKind === 'bballshorts' ? buildBballShorts({ detail: LOOK2 }) : partKind === 'trackpants' ? buildTrackPants({ detail: LOOK2, jogger: HEX6.test(design.zoneColors?.sideBlade ?? '') }) : partKind === 'skirt' ? buildSkirt({ detail: LOOK2 }) : partKind === 'cap' ? buildCap({ detail: LOOK2, five: kind === 'five-panel-cap' }) : partKind === 'bucket-hat' ? buildBucketHat({ detail: LOOK2 }) : partKind === 'beanie' ? buildBeanie({ detail: LOOK2, pom: !HEX6.test(design.zoneColors?.beanieOne ?? '') }) : buildGarment(partKind === 'shorts' && layout ? 'trainingShorts' : partKind, { spec: rugbyJerseyCut(partKind, rugbyCut, soccerCut(partKind, design, neck || rugby || (fit && partKind === 'jersey') ? fitSpec(collarSpec(neckCut(partKind, own ?? over ?? style ?? SPECS[partKind], neck), rugby), partKind === 'jersey' ? fit : null) : layout ? own ?? over ?? style : roundBack(partKind, own ?? over ?? style ?? SPECS[partKind]))), detail: LOOK2 });
     const painter = new KitPainter(garment.frame, garment.outline, printSize(partKind), partKind);
     if (kind === 'five-panel-cap') painter.five = true;
     if (own) painter.cut = layout.key;
     if (partKind === 'jersey' && crewKit) painter.crewNeck = true;
     if (partKind === 'varsity' && varsityBoxy) painter.varsityBoxy = true;
     // A neck cut to another shape: its collar's seam and stitching follow it (texture.js tailoring).
-    if (neck && !fbSpec) Object.assign(painter, { neckShape: neck, crewNeck: neck === 'round', vNeck: neck !== 'round', neckTip: garment.neckTip ?? null });
+    if (neck && !fbSpec && (!scSpec || scNeck)) Object.assign(painter, { neckShape: neck, crewNeck: neck === 'round', vNeck: neck !== 'round', neckTip: garment.neckTip ?? null });
     // The football jersey's model: raglan seams, its neck band and our V binding printed from a swatch (no painted collar
     // trim), the print carried past the pattern's outline, the cuffs of its look (texture.js).
     if (fbSpec) {
@@ -519,7 +604,7 @@ function buildKit(kind) {
     const model = tripoOf(partKind);
     if (model && !tripoReady(model)) throw new Error('The 3D model of this garment did not load.');
     // (A neck chosen in the Style panel cuts the model's own neck: the netball dress's V, tripomesh.js cutNeck.)
-    const tripo = model ? tripoGarment(model, garment, fbSpec ? fbNeck : neck, { dropBand: !!(fbSpec && rugby?.fold) }) : null;
+    const tripo = model ? tripoGarment(model, garment, fbSpec ? fbNeck : scSpec ? scNeck : neck, { dropBand: !!(fbSpec && rugby?.fold) }) : null;
     // (The football jersey's model: how far out its band reaches, for a collar's tips: texture.js.)
     if (fbSpec && tripo) painter.bandReach = tripo.bandReach;
     // (The basketball singlet on its model: its painter prints the model's bindings' and inside's plain colours and none of
@@ -530,8 +615,14 @@ function buildKit(kind) {
       painter.model = bbData ? { swatch: tripo.data.swatch, insert: tripo.data.insert ?? null, matte: true } : { swatch: tripo.data.swatch, areas: tripo.data.areas ?? null };
       if (bbData?.neckBack) painter.backOutline = withBackNeck(garment.outline, bbData.neckFront, bbData.neckBack);
     }
+    // (The soccer jersey's model, SCJERSEY: as the singlet's, its neck band (and our band on a filled neck), its cuff bands and
+    // its hem's inside printed plain from its swatches; on its back the 3DEEZI wordmark as the name line and the "3" mark
+    // above it: texture.js `brandBack`.)
+    if (tripo && scSpec) painter.model = { swatch: tripo.data.swatch, brandBack: true };
+    // (A model with its parts per triangle: the painter paints none of the made garment's trims and gives the parts' colours.)
+    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys };
     // (The Rugby League shorts' model: its own waistband, printed from the waist down the made rib's width: texture.js.)
-    if (tripo && partKind === 'shorts') painter.modelBand = (garment.points?.CF?.[1] ?? 0.35) - garment.rimWidth;
+    if (tripo && partKind === 'shorts' && !tripo.partKeys) painter.modelBand = (garment.points?.CF?.[1] ?? 0.35) - garment.rimWidth;
     // (The Rugby League socks on their model: their welt's seam lower, sockprint.js sockTailoring.)
     if (tripo && partKind === 'socks') painter.sockModel = true;
     const shape = hq?.geometry ?? tripo?.geometry ?? garment.geometry;
@@ -597,7 +688,11 @@ function buildKit(kind) {
     // (The basketball singlet's model: its inside (facings, hem turned up) in a plain material of its own, one even colour
     // (paintAll: the Reverse side's, else the Main): tripomesh.js insideGroup.)
     const insideFront = tripo?.insideGroup ? new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, vertexColors: true }) : null;
-    const fabric = new THREE.Mesh(shape, insideFront ? [partMaterial, insideFront] : partMaterial);
+    // (A model with its parts per triangle (tripomesh.js partKeys, MODELQ 2026-11-16): each part (neck band, armhole bands,
+    // panels, hem, inside...) in a plain material of its own, its colour set with the print (paintPlains), so a trim's colour
+    // ends exactly on the model's own edge.)
+    const plains = tripo?.partKeys ? tripo.partKeys.map((key) => ({ key, material: plainOf(partMaterial, key) })) : null;
+    const fabric = new THREE.Mesh(shape, plains ? [partMaterial, ...plains.map((p) => p.material)] : insideFront ? [partMaterial, insideFront] : partMaterial);
     fabric.userData.part = parts.length;
     fabric.castShadow = true;
     fabric.receiveShadow = true;
@@ -775,7 +870,7 @@ function buildKit(kind) {
     // little slimmer across and front to back, its height kept; the form inside it with it.)
     if (fbSpec && design.fit === 'tight') { group.scale.x *= 0.95; group.scale.z *= 0.96; }
     // (FX-H 2026-11-02, DT11: the hoodies broader from the front, as the pictures (the form's shoulders fix the cut's width).)
-    if (partKind === 'hoodie' || partKind === 'ziphoodie') group.scale.x *= 1.11; if (partKind === 'hoodie') group.scale.y *= 1.05; // (FN14: the lower hood's height back) // (FN13, DT11 on -230/-231: wider, h/w 1.20)
+    if ((partKind === 'hoodie' || partKind === 'ziphoodie') && !tripo) group.scale.x *= 1.11; if (partKind === 'hoodie' && !tripo) group.scale.y *= 1.05; // (FN14: the lower hood's height back) // (FN13, DT11 on -230/-231: wider, h/w 1.20)
     if (partKind === 'varsity' && varsityBoxy) { group.scale.x *= VARSITY_BOXY.wide; group.scale.z *= VARSITY_BOXY.wide; group.scale.y *= VARSITY_BOXY.tall; }
     // In a full kit the jersey sits over the shorts' waistband.
     // Look 2: a garment shown on a form with legs (the netball dress) stands a little higher (garment.js lift).
@@ -784,7 +879,7 @@ function buildKit(kind) {
     base += partKind === 'shorts' || partKind === 'trackpants' ? garment.frame.maxY * stretch - (partKind === 'trackpants' ? 0.09 : 0.06) : 0;
     kit.add(group);
     group.add(glow);
-    parts.push({ insideFront, painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow, tripo });
+    parts.push({ plains, insideFront, painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow, tripo });
   }
   dressParts(true);
   frameKit();
@@ -1032,6 +1127,8 @@ async function paintAll() {
   if (design.garment === 'shorts' && !layout && HEX6.test(design.zoneColors?.bballBand ?? '')) { step('loading the 3D garment model'); await loadTripo(TRIPO_PARTS.bballshorts); }
   step('building the 3D garment');
   buildKit(design.garment);
+  // (The Rugby League shorts' model: its even light; any other kit: the stage's own.)
+  evenLight(parts.some((p) => p.painter.modelBand));
   // A new fabric type on the same kit.
   dressParts(false);
   warpParts();
@@ -1081,6 +1178,7 @@ async function paintAll() {
       part.inside.color.set(HEX6.test(design.zoneColors?.reverseSide ?? '') ? design.zoneColors.reverseSide : design.main).multiplyScalar(0.9);
       part.insideFront?.color.copy(part.inside.color);
     }
+    if (part.plains) paintPlains(part, design);
     part.inside.envMapIntensity = nfl ? 0.3 : part.garment?.bball ? 0.12 : 1;
     // (The Rugby League shorts' model: the inside of its waistband in the band's colour, seen from above.)
     if (part.painter.modelBand && !layout) bandInside(part);

@@ -13,6 +13,17 @@ const modelFlags = [
   'fbV',
   'scJersey',
   'netballBib',
+  'aflGuernsey',
+  'trainingShorts',
+  'womenRugbyShorts',
+  'trackPants',
+  'womenLeggings',
+  'fitnessBottoms',
+  'tsPants',
+  'poloShirt',
+  'trainingTee',
+  'fitnessTop',
+  'rashGuard',
 ];
 
 /// [next] zoneColors with the model flags of [was] it lacks put back.

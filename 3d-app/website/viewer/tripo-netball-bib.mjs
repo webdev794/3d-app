@@ -233,13 +233,55 @@ export default {
     for (let i = 0; i < count; i++) if (printed(i) && dNeck[i] > 0.03 && (open[i] || nb[i].some((j) => bigInside[j]))) { edgePts.push(P(i)); edgeIdx.push(i); }
     const toEdge = nearestTo(edgePts);
     // (Over the surface too, so neither reaches across to a layer lying close behind: within 1.7 times along it.)
-    const gNeck = geo(ring, NECK_W * 1.7, (w) => part[w] === 0), gEdge = geo(edgeIdx, EDGE_W * 1.7, (w) => part[w] === 0);
+    const gEdge = geo(edgeIdx, EDGE_W * 1.7, (w) => part[w] === 0);
+    // The neck binding, even all round (user 2026-11-16: it was wider at the shoulders, with a blue line inside it in
+    // front): measured along the surface from the rolled edge's own crest, where the cloth turns from facing out (or up)
+    // to facing into the opening (its normal across the way up-and-out from the neck's middle line), 1.4 cm on the
+    // outside and 0.8 cm on the inside. (Exact surface distances, a priority queue; the crest's own place on each edge.)
+    const g = new Float64Array(count);
+    for (let i = 0; i < count; i++) {
+      const rx = pos[i * 3], rz = pos[i * 3 + 2] - ncz, rl = Math.hypot(rx, rz) || 1, d = [rx / rl, 1, rz / rl], dl = Math.hypot(...d);
+      g[i] = (nor[i * 3] * d[0] + nor[i * 3 + 1] * d[1] + nor[i * 3 + 2] * d[2]) / dl;
+    }
+    const near = (i) => part[i] === 0 && dNeck[i] < 0.03;
+    const gNeck = new Float64Array(count).fill(Infinity), heap = [], crestPts = [];
+    const push = (i, d) => { if (d >= gNeck[i]) return; gNeck[i] = d; heap.push([d, i]); let k = heap.length - 1; while (k > 0) { const p2 = (k - 1) >> 1; if (heap[p2][0] <= heap[k][0]) break; [heap[p2], heap[k]] = [heap[k], heap[p2]]; k = p2; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const a = 2 * k + 1, b = a + 1; let m = k; if (a < heap.length && heap[a][0] < heap[m][0]) m = a; if (b < heap.length && heap[b][0] < heap[m][0]) m = b; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+    // (Only the outer edge's crest: where the panel and the inner layer each turn at the top, the outermost of them round
+    // each 3 degrees (within 6 mm of it), so one rolled border, not two lines: user 2026-11-16.)
+    const crossings = [];
+    const close = (i) => near(i) && dNeck[i] < 0.015;
+    for (let i = 0; i < count; i++) if (close(i)) for (const j of nb[i]) if (j > i && close(j) && (g[i] > 0) !== (g[j] > 0)) {
+      const t = g[i] / (g[i] - g[j]), q = [0, 1, 2].map((k) => pos[i * 3 + k] + (pos[j * 3 + k] - pos[i * 3 + k]) * t);
+      crossings.push({ i, j, t, q, a: Math.round((Math.atan2(q[2] - ncz, q[0]) * 180) / Math.PI / 3), r: Math.hypot(q[0], q[2] - ncz) });
+    }
+    const rOut = new Map();
+    for (const c of crossings) rOut.set(c.a, Math.max(rOut.get(c.a) ?? 0, c.r));
+    for (const c of crossings) {
+      if (c.r < rOut.get(c.a) - 0.006) continue;
+      const len = dist(c.i, c.j);
+      push(c.i, c.t * len); push(c.j, (1 - c.t) * len);
+      crestPts.push(c.q);
+    }
+    while (heap.length) {
+      const [d, v] = pop();
+      if (d > gNeck[v] || d > 0.03) continue;
+      for (const w of nb[v]) if (part[w] === 0) push(w, d + dist(v, w));
+    }
+    const NECK_IN = 0.008, PIPE = 0.008, PIPE_IN = 0.012;
     const before = Uint8Array.from(band);
     for (let i = 0; i < count; i++) {
       if (part[i] !== 0 || part[i] > 1) continue;
       const roll = band[i] === 3;
-      if (roll ? gNeck[i] <= 0.011 : dNeck[i] <= NECK_W && gNeck[i] < Infinity) band[i] = 1;
-      else if (band[i] !== 1 && dNeck[i] > NECK_W + 0.004 && (roll ? gEdge[i] <= ROLL : gEdge[i] < Infinity && toEdge(P(i), 0.03) <= EDGE_W)) band[i] = 2;
+      // (Every face within its width of the crest, both layers and the faces between them where the panel and the
+      // inner layer part at the top: seen from above no blue shows inside the binding, QATEST 2026-11-16.)
+      // (The outside 1.4 cm; the rim's other faces (the inner layer and the faces between the layers, seen from above
+      // and from 3/4) twice that, so no blue line shows inside the binding: QATEST 2026-11-16.)
+      // (User 2026-11-16: the yellow is the model's own rolled border only: the roll round the opening's edge, 7 mm either
+      // side of its crest, nothing past it on the panel or down the inner layer.)
+      // (Seen from the front the back neck shows its inside: the border's inside as wide as its outside shows, 1.2 cm.)
+      if (gNeck[i] <= (g[i] > 0 && !roll ? PIPE : PIPE_IN)) band[i] = 1;
+      else if (band[i] !== 1 && gNeck[i] > NECK_W + 0.004 && (roll ? gEdge[i] <= ROLL : gEdge[i] < Infinity && toEdge(P(i), 0.03) <= EDGE_W)) band[i] = 2;
     }
     const crestList = edgePts;
     // (No stray bits of a binding: pieces under 25 points go back to what they were.)
@@ -260,7 +302,7 @@ export default {
     // binding's edge is a smooth line, not the triangles' steps. The model's surface is kept exactly: the new points are on
     // its triangles' own edges. (They are the binding's: tripomesh.js prints a triangle with any cloth corner as cloth.)
     {
-      const val = (i, b) => (b === 1 ? dNeck[i] - NECK_W : toEdge(P(i), 0.03) - EDGE_W);
+      const val = (i, b) => (b === 1 ? gNeck[i] - (g[i] > 0 ? PIPE : PIPE_IN) : toEdge(P(i), 0.03) - EDGE_W);
       const NP = Array.from(pos), NN = Array.from(nor), NPart = Array.from(part), NBand = Array.from(band), NBack = Array.from(back), NPanel = Array.from(panel), NCov = Array.from(covered);
       const cache = new Map(), out = [];
       const vc = new Map(), V = (i, b) => { const k = i * 4 + b; if (!vc.has(k)) vc.set(k, val(i, b)); return vc.get(k); };
@@ -455,10 +497,19 @@ export default {
 
     // ---- The neck rim for the viewer: the ring in order (front from the wearer's right to the left, then the back
     // from the left round to the right), every 1.5 cm.
+    // (The opening's visible edge: of the crest's points round the middle (every 3 degrees), the outermost, so on the
+    // panel's own edge in front, not on the inner layer behind it; smoothed; the V-neck is cut from it: NBBIB 2026-11-16.)
+    const outer = new Map();
+    for (const q of crestPts) {
+      const a = Math.round((Math.atan2(q[2] - ncz, q[0]) * 180) / Math.PI / 3), r = Math.hypot(q[0], q[2] - ncz);
+      if (!outer.has(a) || r > outer.get(a).r) outer.set(a, { r, q });
+    }
+    const edgeRing = [...outer.entries()].sort((a2, b2) => b2[0] - a2[0]).map(([, v]) => v.q);
+    const sm = edgeRing.map((_, k) => [0, 1, 2].map((c) => (edgeRing[(k - 1 + edgeRing.length) % edgeRing.length][c] + 2 * edgeRing[k][c] + edgeRing[(k + 1) % edgeRing.length][c]) / 4));
     const neck = [];
-    for (let k = 0, along = Infinity; k < ring.length; k++) {
-      along += k ? dist(ring[k], ring[k - 1]) : 0;
-      if (along >= 0.015) { neck.push(P(ring[k]).map((v) => +v.toFixed(5))); along = 0; }
+    for (let k = 0, along = Infinity; k < sm.length; k++) {
+      along += k ? Math.hypot(sm[k][0] - sm[k - 1][0], sm[k][1] - sm[k - 1][1], sm[k][2] - sm[k - 1][2]) : 0;
+      if (along >= 0.015) { neck.push(sm[k].map((v) => +v.toFixed(5))); along = 0; }
     }
     log.push(`neck edge: ${neck.length} points, front at x 0: y ${Math.max(...neck.filter((p) => p[2] > ncz && Math.abs(p[0]) < 0.02).map((p) => p[1])).toFixed(3)}`);
 

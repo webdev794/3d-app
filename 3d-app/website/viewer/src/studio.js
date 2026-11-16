@@ -136,7 +136,8 @@ export function createStudio(scene, renderer, mobile, quality = null) {
   pool.position.y = -.169;
   scene.add(pool);
 
-  return { podium, ringMat, outerRing, pool, shadow, mirror };
+  // (The key and fill also for main.js evenLight: the Rugby League shorts' model's own even light.)
+  return { podium, ringMat, outerRing, pool, shadow, mirror, key, fill };
 }
 
 /**

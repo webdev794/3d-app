@@ -1,0 +1,40 @@
+{
+  "about": "Training tee (training-tee.glb): the model's own neck band (Collar colour, else Secondary), its cuff bands (Secondary), its inner layer plain inside colour, per triangle from its own seams (MODELQ 2026-11-16).",
+  "glb": "../../../tripo/training-tee.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "collar",
+    "trim",
+    "inside"
+  ],
+  "rules": [
+    {
+      "regions": [
+        1
+      ],
+      "part": "inside"
+    },
+    {
+      "regions": [
+        1
+      ],
+      "part": "inside"
+    },
+    {
+      "regions": [
+        4,
+        7
+      ],
+      "part": "collar"
+    },
+    {
+      "hem": {
+        "seed": "size < 120 && Math.abs(x) > 0.26 && y > 0.555 && y < 0.6",
+        "reach": 0.034
+      },
+      "where": "Math.abs(x) > 0.25 && y > 0.5 && y < 0.7",
+      "part": "trim"
+    }
+  ],
+  "smooth": 1
+}

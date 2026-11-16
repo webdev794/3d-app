@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RECIPE_MODELS } from './recipemodels.js';
 
 /**
  * Ready-made garment models (Tripo, 2026-11-12): a garment's own 3D shape from a model file instead of the shape made
@@ -73,7 +74,7 @@ function decode(name) {
  */
 export const DRESS_V = { tip: 0.712, width: 0.0095, roll: 0.0012, lift: 0.0009 };
 /** The netball bib's V-neck (NBBIB 2026-11-13; its own neck is round): as the dress's, its point `tip` high. */
-export const BIB_V = { tip: 0.6, width: 0.012, roll: 0.0014, lift: 0.0009, key: 'v' };
+export const BIB_V = { tip: 0.6, width: 0.009, roll: 0.0014, lift: 0.0009, key: 'v', wrap: 0.014, over: 0.006 };
 
 /**
  * The football jersey's V-necks (fbjersey.js, 2026-11-13), as the dress's: its point `depth` metres down the flat pattern
@@ -101,7 +102,18 @@ function tripoTip(M, y) {
 /** A model's V-neck settings for a neck ('v', 'shallow' or, the jersey's own, 'own'): the dress's DRESS_V; else its
  *  point found from the pattern (JERSEY_V), or null. */
 function vOf(name, neck) {
+  // (A recipe model's other necks (viewer/models/<name>.json `necks`): a V cut `depth` down the pattern under the neck's
+  // shoulder point, found on the model as the football jersey's; our binding `width` wide.)
+  const own = RECIPE_MODELS[name]?.necks?.[neck];
+  if (own) {
+    if (!window.TRIPO_MESHES?.[name]) return null;
+    const tip = tripoTip(decode(name), 0.738 - own.depth);
+    return tip == null ? null : { width: own.width ?? 0.011, roll: 0.0014, lift: 0.0009, trims: false, tip, key: neck };
+  }
   if (name === 'netball-dress') return neck === 'v' || neck === 'shallow' ? DRESS_V : null;
+  // (The soccer jersey, SCJERSEY: its V-neck is its own V; its round neck and shallow V are filled in: fillNeck.)
+  // (The netball bib's V (user 2026-11-16): the cloth inside the V is only not drawn (the model's data untouched), our
+  // yellow band laid along the V edge, joining its round border at the shoulders.)
   if (name === 'netball-bib') return neck === 'v' || neck === 'shallow' ? BIB_V : null;
   if (name !== 'football-jersey') return null;
   const depth = JERSEY_V[neck];
@@ -256,7 +268,7 @@ function cutNeck(name, V = DRESS_V) {
   path[0].d = into[0];
   path.at(-1).d = into[1];
   // (Each end a little over the model's binding where it is cut off, so no line shows between them.)
-  for (const [p, w] of [[path[0], 0], [path.at(-1), 1]]) { p.x += up[w][0] * 0.0015; p.y += up[w][1] * 0.0015; }
+  for (const [p, w] of [[path[0], 0], [path.at(-1), 1]]) { const o = V.over ?? 0.0015; p.x += up[w][0] * o; p.y += up[w][1] * o; }
   // Each place's way out of the cloth (its normal 1.5 cm into the cloth, where it is the body's own, smoothed along over
   // 3 cm) and its shade.
   for (const p of path) {
@@ -298,6 +310,9 @@ function cutNeck(name, V = DRESS_V) {
   const F = 6, lifts = [0, 0.45, 1, 1, 1, 1], centre = roll - 0.0004, rollProf = [];
   for (let k = 1; k <= 6; k++) { const t = Math.PI / 2 + (k * Math.PI) / 6; rollProf.push([centre + roll * Math.cos(t), roll * Math.sin(t) - roll]); }
   rollProf.push([centre + 0.002, -2 * roll - 0.0001], [centre + 0.005, -2 * roll - 0.0002]);
+  // (A model with an inner layer close behind its front (the netball bib's, `wrap` metres): the binding wraps on down to it,
+  // so both cut edges are inside it.)
+  if (V.wrap) rollProf.push([centre + 0.004, -V.wrap * 0.5], [centre + 0.006, -V.wrap]);
   const R = F + rollProf.length;
   // Its face on the model's own surface there (the outermost cloth seen from the front: where the V meets the model's
   // binding, that binding's own face, so the two meet flush), with its shade, smoothed along (not at its ends), standing
@@ -375,7 +390,8 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   // (Only the dress's V is cut (DRESS_V). The basketball singlet keeps its model's own V whatever is chosen: a round
   // neck cannot be cut from it, its binding is a 2-2.5 cm slab filling its straps' tops: BBSINGLET 2026-11-13.)
   // (The football jersey's V-necks too, FBJERSEY 2026-11-13: tripomesh.js vOf, JERSEY_V.)
-  const V = neck ? vOf(name, neck) : null, cut = V ? cutNeck(name, V) : null;
+  const fill = neck === 'round' || neck === 'shallow' ? FILL_NECKS[name]?.[neck] : null;
+  const V = neck && !fill ? vOf(name, neck) : null, cut = fill ? fillNeck(name, neck, fill) : V ? cutNeck(name, V) : null;
   // (The basketball singlet's round neck: its V's band taken off and the V filled up to a round neck, our band on it.)
   const R = !cut && name === 'basketball-singlet' && neck === 'round' ? roundFill(name) : null;
   const M = cut ?? R ?? decode(name), { minX, maxX, minY, span } = frame, n = M.count;
@@ -389,8 +405,16 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   // A model's bindings (layout.runs: their free edges; or marked per point by its converter): each band printed from its
   // own swatch of the atlas (the model's `swatch`, else BAND_SWATCH; its painter's), so it is one even colour from its
   // free edge right to its seam, whatever the pattern does there.
-  const band = bandsOf(M), SW = M.data.swatch ?? BAND_SWATCH, spread = M.data.swatchSpread ?? 0;
-  let pos = M.pos, nor = M.nor, uvs = uv, cols = col, index = M.idx, insideGroup = null;
+  // (A model whose parts are given per triangle (its data's `triPart` / `partKeys`, MODELQ 2026-11-16, the direct approach):
+  // no part printed from swatches; each part's triangles are a group of their own, drawn in that part's plain colour
+  // (main.js), so a trim's colour ends exactly on the model's own edge. Its cloth is printed as before.)
+  // (The converter's own per-point bands that the parts replace (data `partBands`) are left off: printed as cloth, the part's
+  // triangles drawn plain over them; the others (an edge binding, the inside) stay printed from their swatches.)
+  const triPart = M.data.triPart && M === decoded.get(name) ? new Uint8Array(bytes(M.data.triPart)) : null;
+  let band = bandsOf(M);
+  if (triPart && band) { const off = new Set(M.data.partBands ?? []); band = band.map((b) => (off.has(b) ? 0 : b)); if (!band.some(Boolean)) band = null; }
+  const SW = M.data.swatch ?? BAND_SWATCH, spread = M.data.swatchSpread ?? 0;
+  let pos = M.pos, nor = M.nor, uvs = uv, cols = col, index = M.idx, insideGroup = null, partGroups = null;
   if (band) {
     // Each point's print: its band's swatch, else its own place on the front or back half. Over the straps' tops (the top
     // 8 cm) the half is the one the cloth faces (its normal forward or back), so the shoulder line there is clean.
@@ -446,7 +470,7 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
     // (A model with its inside marked (its data's `inside`: the basketball singlet): the inside's triangles last, as a
     // group of their own, drawn in a plain material of one even colour (main.js): printed from one point of the pattern
     // they have no direction for the fabric's weave, which showed on them as blotches (user 2026-11-13, image 540).)
-    if (M.data.inside) {
+    if (M.data.inside && !triPart) {
       const clothTris = [], insideTris = [];
       for (let t = 0; t < idx.length; t += 3) (insideModes.has(triMode[t / 3]) ? insideTris : clothTris).push(idx[t], idx[t + 1], idx[t + 2]);
       idx.length = 0;
@@ -456,6 +480,18 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
     pos = Float32Array.from(P); nor = Float32Array.from(N); uvs = Float32Array.from(U); cols = Float32Array.from(C);
     index = pos.length / 3 > 65535 ? Uint32Array.from(idx) : Uint16Array.from(idx);
   }
+  // (The parts' triangles each a group of their own (the triangles keep their order through the bands' copies above).)
+  if (triPart && !dropBand) {
+    const all = Array.from(index), order = [], keys = M.data.partKeys ?? [];
+    partGroups = [];
+    for (let p = 0; p <= keys.length; p++) {
+      const start = order.length;
+      // (Every triangle drawn: one the parts do not list (a data file changed after its parts were made) as cloth.)
+      for (let t = 0; t < all.length / 3; t++) if ((t < triPart.length ? triPart[t] : 0) === p) order.push(all[t * 3], all[t * 3 + 1], all[t * 3 + 2]);
+      if (order.length > start) partGroups.push({ start, count: order.length - start, part: p });
+    }
+    index = pos.length / 3 > 65535 ? Uint32Array.from(order) : Uint16Array.from(order);
+  }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(pos === M.pos ? M.pos.slice() : pos, 3));
   geometry.setAttribute('normal', new THREE.BufferAttribute(nor === M.nor ? M.nor.slice() : nor, 3));
@@ -463,6 +499,7 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   geometry.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   geometry.setIndex(new THREE.BufferAttribute(index === M.idx ? M.idx.slice() : index, 1));
   if (insideGroup) { geometry.addGroup(0, insideGroup[0], 0); geometry.addGroup(insideGroup[0], insideGroup[1], 1); }
+  if (partGroups) for (const g of partGroups) geometry.addGroup(g.start, g.count, g.part);
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   const points = geometry.getAttribute('position').array, side = new Uint8Array(points.length / 3);
@@ -470,7 +507,7 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   // (How far out the neck band reaches, for its tips: texture.js.)
   let bandReach = 0;
   if (band && M.across) for (let i = 0; i < n; i++) if (band[i] === 1) bandReach = Math.max(bandReach, Math.abs(M.pos[i * 3]));
-  return { geometry, points, side, data: M.data, layout: layoutOf(M.data), vEdge: cut?.vEdge ?? R?.vEdge ?? null, neckRim: R?.neckRim ?? null, insideGroup: !!insideGroup, collar: cut ? collarGeometry(cut.collar, frame, SW, !!M.across) : R ? collarGeometry(R.collar, frame, SW) : null, bandReach };
+  return { geometry, points, side, data: M.data, layout: layoutOf(M.data), vEdge: cut?.vEdge ?? R?.vEdge ?? null, neckRim: R?.neckRim ?? null, insideGroup: !!insideGroup, partKeys: partGroups ? M.data.partKeys ?? [] : null, collar: cut ? collarGeometry(cut.collar, frame, SW, !!M.across) : R ? collarGeometry(R.collar, frame, SW) : null, bandReach, filled: !!fill };
 }
 
 /**
@@ -492,13 +529,15 @@ function roundFill(name) {
   const M = decode(name), { foot, join, width, top, cell } = BB_ROUND, band = M.band, n0 = M.count;
   const P3 = (v) => [M.pos[v * 3], M.pos[v * 3 + 1], M.pos[v * 3 + 2]];
   const front = (v) => M.pos[v * 3 + 2] > 0.01;
-  // 1. The model without its neck band (every triangle with a corner on it), and the cloth's edge left there: the
-  // outside cloth's points that were joined to the band (its groove).
+  // 1. The model's V opening opened up for our fill: its neck band's triangles in front under the straps (all corners in
+  // front, below `join`) taken off; everything else of the model kept as it is (user 2026-11-16: nothing of the model cut
+  // outside the opening itself; our band lies ON its band over the straps and round the back, covering it). And the
+  // cloth's edge along the band: the outside cloth's points joined to it (its groove, all the way round).
   const idx = [], grooveSet = new Set();
   for (let t = 0; t < M.idx.length; t += 3) {
     const c = [M.idx[t], M.idx[t + 1], M.idx[t + 2]], on = c.filter((v) => band[v] === 1).length;
     if (on) for (const v of c) if (band[v] === 0) grooveSet.add(v);
-    if (!on) idx.push(...c);
+    if (!on || !c.every((v) => M.pos[v * 3 + 2] > 0.01 && M.pos[v * 3 + 1] < join)) idx.push(...c);
   }
   const groove = [...grooveSet];
   // 2. The model's own neck edge (the top of its band's roll): round the opening seen from above, every 3 degrees, the
@@ -666,6 +705,7 @@ function roundFill(name) {
   for (const o of loop) {
     const C = o.p, N = o.N, d = [o.G[0] - C[0], o.G[1] - C[1], o.G[2] - C[2]], dn = d[0] * N[0] + d[1] * N[1] + d[2] * N[2];
     const vt = [d[0] - N[0] * dn, d[1] - N[1] * dn, d[2] - N[2] * dn], vl = Math.hypot(...vt) || 1, v = vt.map((x) => x / vl);
+    o.v = v;
     const add = (base, a, h) => cpos.push(base[0] + v[0] * a + N[0] * h, base[1] + v[1] * a + N[1] * h, base[2] + v[2] * a + N[2] * h);
     add(o.G, 0.007, -0.0012);
     // (Its face a little fuller over the straps and the back, clear of the cloth's edge under it.)
@@ -677,6 +717,49 @@ function roundFill(name) {
     add(C, 0.02, -0.0062);
     cshade.push(...SHADE);
   }
+  // (Where the cloth under it stands higher than its face (over the straps' tops the model's cloth rises up to where its
+  // band was), the face lifted clear of it there, its foot left tucked in, so no cloth shows through the band (user
+  // 2026-11-16, image 551: yellow bits in the band's edge there).)
+  // (The model's band points kept beyond our band's edge, on the cloth side (the model marks a few of the strap tops'
+  // cloth as band): printed as the cloth round them, not as dark bits beside our band (user 2026-11-16, image 551).)
+  for (let v = 0; v < n0; v++) {
+    if (bands[v] !== 1 || pos[v * 3 + 1] < 0.66) continue;
+    let bk = -1, bd = 0.03;
+    for (let k = 0; k < L; k++) { const d = Math.hypot(loop[k].p[0] - pos[v * 3], loop[k].p[1] - pos[v * 3 + 1], loop[k].p[2] - pos[v * 3 + 2]); if (d < bd) { bd = d; bk = k; } }
+    if (bk < 0) continue;
+    const o = loop[bk], q = [0, 1, 2].map((j) => pos[v * 3 + j] - o.p[j]), qg = [0, 1, 2].map((j) => o.G[j] - o.p[j]);
+    const a = q[0] * o.v[0] + q[1] * o.v[1] + q[2] * o.v[2], ag = qg[0] * o.v[0] + qg[1] * o.v[1] + qg[2] * o.v[2];
+    // (Anything of it out past our band's face edge (G), not only 2 mm past it: its own edge showed there as a thin dark line
+    // on the strap tops beside our band (user 2026-11-16, image 558). Colour only.)
+    if (a > ag - 0.0005) bands[v] = 0;
+  }
+  {
+    const W = [0, 1, 1, 0.85, 0.6, 0.3, 0], used = new Set(idx), cloth = [];
+    for (const i of used) if (bands[i] === 0 && pos[i * 3 + 1] > 0.66) cloth.push(i);
+    const need = loop.map((o, k) => {
+      const C = o.p, rows = [];
+      for (let r = 0; r <= 6; r++) { const q = [0, 1, 2].map((j) => cpos[(k * RN + r) * 3 + j] - C[j]); rows.push([q[0] * o.v[0] + q[1] * o.v[1] + q[2] * o.v[2], q[0] * o.N[0] + q[1] * o.N[1] + q[2] * o.N[2]]); }
+      let m = 0;
+      for (const i of cloth) {
+        const q = [pos[i * 3] - C[0], pos[i * 3 + 1] - C[1], pos[i * 3 + 2] - C[2]];
+        if (Math.abs(q[0] * o.T[0] + q[1] * o.T[1] + q[2] * o.T[2]) > 0.003) continue;
+        const a = q[0] * o.v[0] + q[1] * o.v[1] + q[2] * o.v[2], h = q[0] * o.N[0] + q[1] * o.N[1] + q[2] * o.N[2];
+        for (let r = 1; r < 6; r++) {
+          const [a0, h0] = rows[r], [a1, h1] = rows[r + 1];
+          if ((a - a0) * (a - a1) > 0 || a0 === a1) continue;
+          const t = (a - a0) / (a1 - a0), w = W[r] + (W[r + 1] - W[r]) * t, over = h - (h0 + (h1 - h0) * t) + 0.0006;
+          if (over > 0 && w > 0.25) m = Math.max(m, Math.min(0.004, over / w));
+          break;
+        }
+      }
+      return m;
+    });
+    loop.forEach((o, k) => {
+      let m = 0;
+      for (let j = -4; j <= 4; j++) m = Math.max(m, need[((k + j) % L + L) % L] * (1 - Math.abs(j) / 6));
+      if (m) for (let r = 1; r <= 5; r++) for (let j = 0; j < 3; j++) cpos[(k * RN + r) * 3 + j] += o.N[j] * m * W[r];
+    });
+  }
   const cidx = [];
   for (let k = 0; k < L; k++) for (let r = 0; r + 1 < RN; r++) { const a = k * RN + r, c = ((k + 1) % L) * RN + r; cidx.push(a, c, a + 1, a + 1, c, c + 1); }
   // (Wound so its outside faces out: checked on its face at the first place, turned round if not.)
@@ -685,6 +768,11 @@ function roundFill(name) {
     const e1 = b2.map((x, j) => x - a[j]), e2 = c.map((x, j) => x - a[j]), fn = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
     if (fn[0] * loop[0].N[0] + fn[1] * loop[0].N[1] + fn[2] * loop[0].N[2] < 0) for (let t = 0; t < cidx.length; t += 3) { const x = cidx[t + 1]; cidx[t + 1] = cidx[t + 2]; cidx[t + 2] = x; }
   }
+  // 9. The cloth's edges left open where the model's band came off and our band does not reach (over the straps' tops
+  // its band filled the strap from the neck right to the armhole binding, ours is narrower: a gap there you saw through,
+  // user 2026-11-16, image 551): each such edge carried on as cloth up under our band's edge, printed on from the cloth
+  // beside it, and the band's foot turned in under it there, so nothing shows through and nothing beside the band.
+  bridgeGaps({ pos, nor, flat, side, shade, bands, idx, n0, M, cpos, cidx, RN, loop });
   const rimPts = loop.filter((_, k) => k % 5 === 0).map((o) => o.p);
   const count = pos.length / 3;
   const out = {
@@ -696,6 +784,139 @@ function roundFill(name) {
   };
   decoded.set(key, out);
   return out;
+}
+
+/**
+ * roundFill's step 9 (user 2026-11-16, image 551: a hole at the strap tops): the outside cloth's edges near the neck that
+ * taking the model's band off left open (not open in the model) and that our band does not cover (more than 1.2 mm from
+ * its foot and face, no fill over them; the armhole binding's too, carried on as cloth). Where they are, the band's foot
+ * turned in steeply under its face's edge (so it does not show beside the band), and each such edge carried on by a strip
+ * of cloth to just under the band's face at its edge. The strip's new edge points take their print on from the cloth's
+ * triangle at the edge (its flat places carried on). (The inside's edges are left: the outside's strip closes the gap.)
+ */
+function bridgeGaps({ pos, nor, flat, side, shade, bands, idx, n0, M, cpos, cidx, RN, loop }) {
+  // (Edges counted by place: the model's points sewn together where it has two at one place.)
+  const P = (v) => [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]], first = new Map(), same = new Int32Array(n0);
+  for (let v = 0; v < n0; v++) { if (pos[v * 3 + 1] < 0.6) { same[v] = v; continue; } const k = P(v).join(); if (!first.has(k)) first.set(k, v); same[v] = first.get(k); }
+  const key = (a, b) => { const p = a < n0 ? same[a] : a, q = b < n0 ? same[b] : b; return p < q ? p * 1048576 + q : q * 1048576 + p; };
+  // (Only round the neck: triangles with a corner above 0.62 m.)
+  const high = (I, t) => pos[I[t] * 3 + 1] > 0.62 || pos[I[t + 1] * 3 + 1] > 0.62 || pos[I[t + 2] * 3 + 1] > 0.62;
+  const counted = (I) => { const m = new Map(); for (let t = 0; t < I.length; t += 3) if (high(I, t)) for (let k = 0; k < 3; k++) { const e = key(I[t + k], I[t + (k + 1) % 3]); m.set(e, (m.get(e) ?? 0) + 1); } return m; };
+  const now = counted(idx), was = counted(M.idx);
+  // The open edges (as their triangles have them, a to b, c the triangle's third corner).
+  const open = [];
+  for (let t = 0; t < idx.length; t += 3) for (let k = 0; k < 3; k++) {
+    if (!high(idx, t)) break;
+    const a = idx[t + k], b = idx[t + (k + 1) % 3], c = idx[t + (k + 2) % 3];
+    if (a >= n0 || b >= n0 || now.get(key(a, b)) !== 1 || was.get(key(a, b)) === 1) continue;
+    open.push({ a, b, c });
+  }
+  // (The fill's points, by 4 mm cells: a cloth edge with one of them near is under the fill.)
+  const cellOf = (p) => `${Math.floor(p[0] / 0.004)},${Math.floor(p[1] / 0.004)},${Math.floor(p[2] / 0.004)}`, fill = new Map();
+  for (let v = n0; v < pos.length / 3; v++) { const k = cellOf(P(v)); (fill.get(k) ?? fill.set(k, []).get(k)).push(v); }
+  const underFill = (p) => {
+    const c = cellOf(p).split(',').map(Number);
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let d = -1; d <= 1; d++) for (const v of fill.get(`${c[0] + a},${c[1] + b},${c[2] + d}`) ?? []) { const q = P(v); if (Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]) < 0.004) return true; }
+    return false;
+  };
+  // (Our band's outside, rows `from` to 6: its triangles with their outward normals, by 2.5 cm cells of their first corner.)
+  const C3 = (i) => [cpos[i * 3], cpos[i * 3 + 1], cpos[i * 3 + 2]], cell = (p) => `${Math.floor(p[0] / 0.025)},${Math.floor(p[1] / 0.025)},${Math.floor(p[2] / 0.025)}`;
+  const bandTris = (from) => {
+    const out = new Map();
+    for (let t = 0; t < cidx.length; t += 3) {
+      const r = Math.floor(t / 6) % (RN - 1);
+      if (r < from || r > 5) continue;
+      const a = C3(cidx[t]), b = C3(cidx[t + 1]), c = C3(cidx[t + 2]);
+      const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]], l = Math.hypot(...n);
+      if (l > 1e-12) { const k = cell(a); (out.get(k) ?? out.set(k, []).get(k)).push({ a, b, c, n: n.map((x) => x / l) }); }
+    }
+    return out;
+  };
+  // The nearest point of a triangle (Ericson's closest point).
+  const sub = (u, w) => [u[0] - w[0], u[1] - w[1], u[2] - w[2]], dot = (u, w) => u[0] * w[0] + u[1] * w[1] + u[2] * w[2], at = (o, u, s, w = [0, 0, 0], t = 0) => [o[0] + u[0] * s + w[0] * t, o[1] + u[1] * s + w[1] * t, o[2] + u[2] * s + w[2] * t];
+  const closest = (p, { a, b, c }) => {
+    const ab = sub(b, a), ac = sub(c, a), ap = sub(p, a), d1 = dot(ab, ap), d2 = dot(ac, ap);
+    if (d1 <= 0 && d2 <= 0) return a;
+    const bp = sub(p, b), d3 = dot(ab, bp), d4 = dot(ac, bp);
+    if (d3 >= 0 && d4 <= d3) return b;
+    const vc = d1 * d4 - d3 * d2;
+    if (vc <= 0 && d1 >= 0 && d3 <= 0) return at(a, ab, d1 / (d1 - d3));
+    const cp = sub(p, c), d5 = dot(ab, cp), d6 = dot(ac, cp);
+    if (d6 >= 0 && d5 <= d6) return c;
+    const vb = d5 * d2 - d1 * d6;
+    if (vb <= 0 && d2 >= 0 && d6 <= 0) return at(a, ac, d2 / (d2 - d6));
+    const va = d3 * d6 - d5 * d4;
+    if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) return at(b, sub(c, b), (d4 - d3) / (d4 - d3 + (d5 - d6)));
+    const dn = 1 / (va + vb + vc);
+    return at(a, ab, vb * dn, ac, vc * dn);
+  };
+  const nearest = (p, tris) => {
+    let best = null, bd = Infinity;
+    const [i, j, k] = cell(p).split(',').map(Number);
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) for (const tri of tris.get(`${i + a},${j + b},${k + c}`) ?? []) {
+      if (Math.abs(tri.a[0] - p[0]) > 0.025 || Math.abs(tri.a[1] - p[1]) > 0.025 || Math.abs(tri.a[2] - p[2]) > 0.025) continue;
+      const q = closest(p, tri), d = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
+      if (d < bd) { bd = d; best = { q, n: tri.n, d }; }
+    }
+    return best;
+  };
+  // 1. The open edges' points our band does not cover (its foot and face).
+  const gap = new Set(), seen = new Set();
+  const look = (tris) => { for (const { a, b } of open) for (const v of [a, b]) { if (seen.has(v)) continue; const p = P(v); if (p[1] <= 0.66 || bands[v] >= 3 || underFill(p)) { seen.add(v); continue; } const hit = nearest(p, tris); if (hit && hit.d > 0.0012 && hit.d < 0.02) { gap.add(v); seen.add(v); } } };
+  look(bandTris(0));
+  if (!gap.size) return;
+  // 2. There the band's foot turned in steeply: 3 mm out from its face's edge and 3.5 mm down (eased along the band over
+  // 2 cm either way), so it stays under the cloth carried on to it and does not show beside the band.
+  const L = loop.length, want = new Float32Array(L);
+  for (const v of gap) {
+    const p = P(v);
+    let bk = -1, bd = 0.025;
+    for (let k = 0; k < L; k++) { const d = Math.hypot(cpos[(k * RN + 1) * 3] - p[0], cpos[(k * RN + 1) * 3 + 1] - p[1], cpos[(k * RN + 1) * 3 + 2] - p[2]); if (d < bd) { bd = d; bk = k; } }
+    if (bk >= 0) want[bk] = 1;
+  }
+  loop.forEach((o, k) => {
+    let w = 0;
+    for (let j = -8; j <= 8; j++) w = Math.max(w, want[((k + j) % L + L) % L] * Math.min(1, (9 - Math.abs(j)) / 4));
+    if (!w) return;
+    for (let j = 0; j < 3; j++) { const g = cpos[(k * RN + 1) * 3 + j], f = g + o.v[j] * 0.003 - o.N[j] * 0.0035, i = (k * RN) * 3 + j; cpos[i] += (f - cpos[i]) * w; }
+  });
+  // (Edges the turned-in foot no longer covers, with them.)
+  seen.clear();
+  for (const v of gap) seen.add(v);
+  look(bandTris(0));
+  // 3. Each such edge carried on to just under the band's face at its edge.
+  const face = bandTris(1), to = new Map();
+  const target = (v, c, b) => {
+    if (to.has(v)) return to.get(v);
+    let got = null;
+    const hit = gap.has(v) ? nearest(P(v), face) : null;
+    if (hit) {
+      const p = P(v), q = hit.q.map((x, i) => x - hit.n[i] * 0.0006), d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+      // (Its print: the edge triangle's flat places carried on, d = s (b - v) + t (c - v) on its plane.)
+      const e1 = [pos[b * 3] - p[0], pos[b * 3 + 1] - p[1], pos[b * 3 + 2] - p[2]], e2 = [pos[c * 3] - p[0], pos[c * 3 + 1] - p[1], pos[c * 3 + 2] - p[2]];
+      const g11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], g12 = e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2], g22 = e2[0] * e2[0] + e2[1] * e2[1] + e2[2] * e2[2];
+      const r1 = d[0] * e1[0] + d[1] * e1[1] + d[2] * e1[2], r2 = d[0] * e2[0] + d[1] * e2[1] + d[2] * e2[2], det = g11 * g22 - g12 * g12;
+      let s = 0, t2 = 0;
+      if (Math.abs(det) > 1e-16) { s = (r1 * g22 - r2 * g12) / det; t2 = (r2 * g11 - r1 * g12) / det; }
+      let fx = s * (flat[b * 2] - flat[v * 2]) + t2 * (flat[c * 2] - flat[v * 2]), fy = s * (flat[b * 2 + 1] - flat[v * 2 + 1]) + t2 * (flat[c * 2 + 1] - flat[v * 2 + 1]);
+      const fl = Math.hypot(fx, fy), cap = 1.5 * Math.hypot(...d);
+      if (fl > cap) { fx *= cap / fl; fy *= cap / fl; }
+      got = pos.length / 3;
+      pos.push(...q); nor.push(nor[v * 3], nor[v * 3 + 1], nor[v * 3 + 2]); flat.push(flat[v * 2] + fx, flat[v * 2 + 1] + fy);
+      side.push(side[v]); shade.push(shade[v]); bands.push(0);
+    }
+    to.set(v, got);
+    return got;
+  };
+  for (const { a, b, c } of open) {
+    const a2 = target(a, c, b), b2 = target(b, c, a);
+    if (a2 == null && b2 == null) continue;
+    // (Wound as the cloth beside it: the edge b to a here.)
+    if (a2 != null) idx.push(b, a, a2);
+    if (a2 != null && b2 != null) idx.push(b, a2, b2);
+    else if (b2 != null) idx.push(b, a, b2);
+  }
 }
 
 /** The basketball singlet's round neck on its pattern (front, + x side: [x, y] from the middle out), for the made singlet's
@@ -848,7 +1069,8 @@ export function tripoGarment(name, garment, neckShape = null, opts = {}) {
   const own = rim ? rim.map(([x, y, z]) => new THREE.Vector3(x, y, z)) : garment.neck;
   // (A neck made all the way round (the basketball singlet's round neck): its own edge.)
   const neck = shape.neckRim ? shape.neckRim.map(([x, y, z]) => new THREE.Vector3(x, y, z)) : shape.vEdge ? vNeckRim(own, shape.vEdge) : own;
-  const P = shape.points, uncut = shape.vEdge ? decode(name) : null, B = uncut?.pos ?? P, n = B.length / 3;
+  // (A neck filled in with our own cloth (fillNeck): the form under the filled shape, so it stays under the new cloth.)
+  const P = shape.points, uncut = shape.vEdge && !shape.filled ? decode(name) : null, B = uncut?.pos ?? P, n = B.length / 3;
   // (The form under a V-neck and its neck as under the model's own round neck, from the model before its cut: it shows
   // in the V as the form's chest.)
   let body = null;
@@ -1015,4 +1237,357 @@ function backField(P, I, top) {
     const i = Math.round((x - X0) / G), j = Math.round((y - Y0) / G);
     return i < 0 || j < 0 || i >= NX || j >= NY ? -Infinity : z[j * NX + i];
   };
+}
+
+/**
+ * The necks filled in on a V-necked model (SCJERSEY 2026-11-13, the user: every neck style on every model): the soccer
+ * jersey's round neck and shallow V. Seen from the front (the model's x and y, metres): `xJ`, where our band meets the
+ * model's own band on each side (it is cut off straight up and down there, its shoulder and back kept); `drop`, how far
+ * under the top of the model's band there the new neck's edge is at the middle; `v`: straight sides to a point (else a
+ * round curve); `width`, our band's width along the cloth at the middle (at its ends the model band's); `lift` its face off
+ * the cloth, `thick` from its face to its inside (metres).
+ */
+const FILL_NECKS = {
+  'soccer-jersey': {
+    round: { xJ: 0.09, drop: 0.018, width: 0.014, lift: 0.0015, thick: 0.004 },
+    shallow: { xJ: 0.09, drop: 0.04, v: true, width: 0.014, lift: 0.0015, thick: 0.004 },
+  },
+};
+
+/**
+ * The model with its front neck filled in to a higher neck (FILL_NECKS), made once: the model's V (its band and the cloth
+ * just under it, in front between the two ends) taken off along a line 4 mm under the band's foot, the opening filled with
+ * our own cloth up to the new neck (its shape and print carried on smoothly from the cloth round it: a smooth surface fitted
+ * to the chest there, eased to meet the cut edge exactly, the print's places likewise) and our own band along the new
+ * neck's edge, from where it meets the model's band on one side round to the other (`collar`, printed in the Neck trim
+ * colour: collarGeometry). Fields as cutNeck's (`vEdge`: the new neck's edge, x rising).
+ */
+function fillNeck(name, kind, F) {
+  const cacheKey = `${name}:fill:${kind}`;
+  if (decoded.has(cacheKey)) return decoded.get(cacheKey);
+  const M = decode(name), band = M.band ?? new Uint8Array(M.count), { xJ } = F;
+  // The model's band in front seen from the front: its foot (lowest) and top (highest) by |x|, every 5 mm.
+  const STEP = 0.005, bins = Math.ceil((xJ + 0.02) / STEP) + 1, foot = new Array(bins).fill(Infinity), top = new Array(bins).fill(-Infinity);
+  for (let i = 0; i < M.count; i++) {
+    if (band[i] !== 1 || M.pos[i * 3 + 2] <= 0 || M.side[i] & 1) continue;
+    const k = Math.round(Math.abs(M.pos[i * 3]) / STEP);
+    if (k >= bins) continue;
+    foot[k] = Math.min(foot[k], M.pos[i * 3 + 1]);
+    top[k] = Math.max(top[k], M.pos[i * 3 + 1]);
+  }
+  const fill = (arr) => { for (let k = 0; k < bins; k++) if (!Number.isFinite(arr[k])) arr[k] = arr[k - 1] ?? arr.find(Number.isFinite); };
+  // The foot as a straight line each side (a V: least squares over the bins out to the ends), the cut line 1 cm under it
+  // and under every bin's own foot.
+  let sx = 0, sy = 0, sxx = 0, sxy = 0, cnt = 0;
+  for (let k = 0; k * STEP <= xJ; k++) if (Number.isFinite(foot[k])) { const x = k * STEP; sx += x; sy += foot[k]; sxx += x * x; sxy += x * foot[k]; cnt++; }
+  const slope = (cnt * sxy - sx * sy) / (cnt * sxx - sx * sx || 1), icpt = (sy - slope * sx) / cnt;
+  let under = 0;
+  for (let k = 0; k * STEP <= xJ; k++) if (Number.isFinite(foot[k])) under = Math.max(under, icpt + slope * k * STEP - foot[k]);
+  fill(foot); fill(top);
+  const at = (arr, ax) => { const t = Math.min(bins - 1.001, ax / STEP), k = Math.floor(t); return arr[k] + (arr[k + 1] - arr[k]) * (t - k); };
+  const L = (x) => icpt + slope * Math.abs(x) - under - 0.01;
+  const yTopJ = at(top, xJ);
+  // The model's band is cut off square to its run up the V's side (its direction u, the foot line's slope), through the top
+  // of its edge at xJ; ours ends on the same line (dEnd, into the cloth), as wide as the model's there (to the foot line).
+  const ul = Math.hypot(1, slope), u = [1 / ul, slope / ul], dEnd = [slope / ul, -1 / ul];
+  const past = (x, y) => (Math.abs(x) - xJ) * u[0] + (y - yTopJ) * u[1];
+  // (Where the cut line meets the foot line: yTopJ + t dEnd_y = icpt + slope (xJ + t dEnd_x) - under.)
+  // (The model band's own width there: how far its outside reaches from its top along the cut, measured on its points.)
+  let wJ = 0;
+  for (let i = 0; i < M.count; i++) {
+    if (band[i] !== 1 || M.side[i] & 1 || M.pos[i * 3 + 2] <= 0 || M.nor[i * 3 + 2] < 0.2) continue;
+    const x = Math.abs(M.pos[i * 3]), y = M.pos[i * 3 + 1];
+    if (Math.abs(past(x, y)) > 0.004) continue;
+    wJ = Math.max(wJ, (x - xJ) * dEnd[0] + (y - yTopJ) * dEnd[1]);
+  }
+  wJ = Math.min(0.03, Math.max(0.012, wJ || 0.02));
+  // The new neck's edge (our band's top): from (xJ, yTopJ) to the middle, `drop` lower there.
+  const yC = yTopJ - F.drop;
+  // (Its ends run on in the line of the model's band there (its top edge's slope at xJ), so the two meet without a corner
+  // (QATEST 2026-11-16): a cubic from the middle (level for the round neck; for the shallow V straight out of its point).)
+  const topSlope = (at(top, xJ) - at(top, xJ - 0.01)) / 0.01, s0 = F.v ? (yTopJ - yC) / xJ : 0;
+  const T = (x) => { const t = Math.min(1, Math.abs(x) / xJ), h = yTopJ - yC, m0 = s0 * xJ, m1 = Math.max(0, Math.min(topSlope * xJ, 2.4 * h)); return yC * (2 * t ** 3 - 3 * t ** 2 + 1) + m0 * (t ** 3 - 2 * t ** 2 + t) + yTopJ * (-2 * t ** 3 + 3 * t ** 2) + m1 * (t ** 3 - t ** 2) + 0 * h; };
+
+  const pos = Array.from(M.pos), nor = Array.from(M.nor), flat = Array.from(M.flat), side = Array.from(M.side), shade = Array.from(M.shade), bnd = Array.from(band);
+  let tris = [];
+  for (let t = 0; t < M.idx.length; t += 3) {
+    const c = [M.idx[t], M.idx[t + 1], M.idx[t + 2]];
+    const near = c.every((v) => !(side[v] & 1) && pos[v * 3 + 2] > 0) && c.some((v) => Math.abs(pos[v * 3]) < xJ + 0.05 && pos[v * 3 + 1] > L(0) - 0.03);
+    tris.push({ c, near });
+  }
+  const point = (a, b, va, vb) => {
+    const t = va / (va - vb), i = pos.length / 3;
+    for (let k = 0; k < 3; k++) pos.push(pos[a * 3 + k] + (pos[b * 3 + k] - pos[a * 3 + k]) * t);
+    const nx = nor[a * 3] + (nor[b * 3] - nor[a * 3]) * t, ny = nor[a * 3 + 1] + (nor[b * 3 + 1] - nor[a * 3 + 1]) * t, nz = nor[a * 3 + 2] + (nor[b * 3 + 2] - nor[a * 3 + 2]) * t, l = Math.hypot(nx, ny, nz) || 1;
+    nor.push(nx / l, ny / l, nz / l);
+    for (let k = 0; k < 2; k++) flat.push(flat[a * 2 + k] + (flat[b * 2 + k] - flat[a * 2 + k]) * t);
+    side.push(side[a]);
+    shade.push(shade[a] + (shade[b] - shade[a]) * t);
+    bnd.push(bnd[a] === bnd[b] ? bnd[a] : 0);
+    return i;
+  };
+  const made = [];
+  const split = (value, drop, only = () => true) => {
+    const cache = new Map(), memo = new Map(), out = [];
+    const val = (v) => { if (!memo.has(v)) memo.set(v, value(v)); return memo.get(v); };
+    for (const tri of tris) {
+      if (!tri.near || !only(tri)) { out.push(tri); continue; }
+      const v = tri.c.map(val), sg = v.map((x) => (x > 1e-9 ? 1 : x < -1e-9 ? -1 : 0));
+      if (!sg.includes(1) || !sg.includes(-1)) { if ((sg.includes(1) ? 1 : -1) !== drop) out.push(tri); continue; }
+      const above = [], under = [];
+      for (let k = 0; k < 3; k++) {
+        const a = tri.c[k], b = tri.c[(k + 1) % 3];
+        if (sg[k] >= 0) above.push(a);
+        if (sg[k] <= 0) under.push(a);
+        if (sg[k] * sg[(k + 1) % 3] < 0) {
+          const key = a < b ? `${a},${b}` : `${b},${a}`;
+          if (!cache.has(key)) { cache.set(key, a < b ? point(a, b, v[k], v[(k + 1) % 3]) : point(b, a, v[(k + 1) % 3], v[k])); made.push(cache.get(key)); }
+          above.push(cache.get(key));
+          under.push(cache.get(key));
+        }
+      }
+      for (const keep of drop > 0 ? [under] : drop < 0 ? [above] : [above, under]) for (let k = 1; k + 1 < keep.length; k++) out.push({ ...tri, c: [keep[0], keep[k], keep[k + 1]] });
+    }
+    tris = out;
+  };
+  // 1. Straight up and down at each end (past there all is as it was); 2. along the line under the band's foot, the cloth
+  // and band above it (between the ends) dropped.
+  split((v) => past(pos[v * 3], pos[v * 3 + 1]), 0);
+  for (const tri of tris) tri.inside = tri.near && tri.c.reduce((s2, v) => s2 + past(pos[v * 3], pos[v * 3 + 1]), 0) / 3 < 0;
+  made.length = 0;
+  split((v) => pos[v * 3 + 1] - L(pos[v * 3]), 1, (tri) => tri.inside);
+  // (The model's band left over between the ends, above the cut line: gone too.)
+  tris = tris.filter((tri) => !(tri.inside && tri.c.every((v) => pos[v * 3 + 1] > L(pos[v * 3]) - 1e-9)));
+  // The cut edge: the points made on the line (and the line's ends at the band's foot).
+  // (The opening's edge as the cloth now is: the points on its open edges (one triangle) along the line, in front.)
+  const use = new Map();
+  for (const tri of tris) for (let k = 0; k < 3; k++) { const p = tri.c[k], q = tri.c[(k + 1) % 3], key = p < q ? `${p},${q}` : `${q},${p}`; use.set(key, (use.get(key) ?? 0) + 1); }
+  const onEdge = new Set();
+  for (const [key, c] of use) if (c === 1) for (const v of key.split(',').map(Number)) if (past(pos[v * 3], pos[v * 3 + 1]) < 1e-6 && pos[v * 3 + 2] > 0 && Math.abs(pos[v * 3 + 1] - L(pos[v * 3])) < 0.003 && nor[v * 3 + 2] > 0) onEdge.add(v);
+  const edge = [...onEdge].sort((a, b) => pos[a * 3] - pos[b * 3]);
+
+  // ---- The surface there: z, the print's place and shade as smooth functions of (x, y), fitted (least squares) to the
+  // front cloth round the opening (not the band), then eased to the cut edge's own values.
+  const fit = [];
+  for (let i = 0; i < M.count; i++) {
+    const x = M.pos[i * 3], y = M.pos[i * 3 + 1], z = M.pos[i * 3 + 2];
+    if (band[i] || M.side[i] & 1 || z <= 0 || Math.abs(x) > xJ + 0.06 || y < L(0) - 0.06 || y > yTopJ + 0.01 || y > L(x) + 0.001) continue;
+    fit.push(i);
+  }
+  const basis = (x, y) => [1, y, y * y, x * x, x * x * y, x, x * y];
+  const solve = (val) => {
+    const n = 7, A = Array.from({ length: n }, () => new Float64Array(n + 1));
+    for (const i of fit) { const b = basis(M.pos[i * 3], M.pos[i * 3 + 1]), v = val(i); for (let r = 0; r < n; r++) { for (let c = 0; c < n; c++) A[r][c] += b[r] * b[c]; A[r][n] += b[r] * v; } }
+    for (let r = 0; r < n; r++) A[r][r] += 1e-9;
+    for (let c = 0; c < n; c++) { let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r; [A[c], A[p]] = [A[p], A[c]]; for (let r = 0; r < n; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k <= n; k++) A[r][k] -= f * A[c][k]; } }
+    const w = A.map((row, r) => row[n] / row[r]);
+    return (x, y) => basis(x, y).reduce((s2, b, k) => s2 + b * w[k], 0);
+  };
+  const fz = solve((i) => M.pos[i * 3 + 2]), fu = solve((i) => M.flat[i * 2]), fv = solve((i) => M.flat[i * 2 + 1]), fs = solve((i) => M.shade[i]);
+
+  // ---- Our band's line: its top edge along the new neck from one end to the other every 2.5 mm, across it (into the
+  // cloth, seen from the front) square to the line, at the ends straight down (the model band's cut); its width.
+  const path = [];
+  const len = 2 * xJ * 1.6, n = Math.max(24, Math.round(len / 0.0025));
+  for (let k = 0; k <= n; k++) { const x = -xJ + (2 * xJ * k) / n; path.push({ x, y: T(x) }); }
+  if (F.v && !path.some((p) => Math.abs(p.x) < 1e-9)) { path.push({ x: 0, y: T(0) }); path.sort((a, b) => a.x - b.x); }
+  path.forEach((p, k) => {
+    const a = path[Math.max(0, k - 1)], b = path[Math.min(path.length - 1, k + 1)];
+    let tx = b.x - a.x, ty = b.y - a.y;
+    if (F.v && Math.abs(p.x) < 1e-9) { tx = 1; ty = 0; }
+    const l = Math.hypot(tx, ty) || 1;
+    let d = [ty / l, -tx / l];
+    if (d[1] > 0) d = [-d[0], -d[1]];
+    // (Into the cloth: square to the line; within 1.5 cm of an end turning to the model band's cut.)
+    const fromEnd = xJ - Math.abs(p.x), e = Math.min(1, fromEnd / 0.015), sx = p.x < 0 ? -1 : 1;
+    d = [d[0] * e + sx * dEnd[0] * (1 - e), d[1] * e + dEnd[1] * (1 - e)];
+    const dl = Math.hypot(...d);
+    p.d = [d[0] / dl, d[1] / dl];
+    if (F.v && Math.abs(p.x) < 1e-9) { const s = Math.abs(ty / l) || 0; p.d = [0, -1]; p.mitre = 1 / Math.max(0.3, Math.cos(Math.atan2(yTopJ - yC, xJ))); }
+    p.e = e;
+    // (One even width all round, the model band's own (QATEST 2026-11-16).)
+    p.w = wJ * (p.mitre ?? 1);
+  });
+  // The fill's top: just under our band's foot (tucked 3 mm under it).
+  const topEdge = path.map((p) => [p.x + p.d[0] * (p.w - 0.003), p.y + p.d[1] * (p.w - 0.003)]);
+
+  // ---- The fill: in columns, one at each point of the cut edge (from one end to the other), each from that point straight
+  // up (seen from the front) to our band's foot line, a point every 5 mm; neighbouring columns joined in quads.
+  const topAt = (x) => {
+    for (let k = 1; k < topEdge.length; k++) { const [x0, y0] = topEdge[k - 1], [x1, y1] = topEdge[k]; if ((x - x0) * (x - x1) <= 0 && x1 !== x0) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0); }
+    return topEdge[x < 0 ? 0 : topEdge.length - 1][1];
+  };
+  const xy = [], fixed = [], cols = [];
+  for (const v of edge) { cols.push([xy.length / 2]); xy.push(pos[v * 3], pos[v * 3 + 1]); fixed.push(v); }
+  const nEdge = fixed.length, ROWS = Math.max(2, Math.ceil(Math.max(...edge.map((v) => topAt(pos[v * 3]) - pos[v * 3 + 1])) / 0.005));
+  edge.forEach((v, c) => {
+    const x = pos[v * 3], y0 = pos[v * 3 + 1], y1 = Math.max(y0, topAt(x));
+    for (let r = 1; r <= ROWS; r++) { cols[c].push(xy.length / 2); xy.push(x, y0 + ((y1 - y0) * r) / ROWS); fixed.push(-1); }
+  });
+  const m = xy.length / 2, fillIdx = [];
+  for (let c = 0; c + 1 < cols.length; c++) for (let r = 0; r < ROWS; r++) {
+    const a = cols[c][r], b = cols[c + 1][r], d = cols[c][r + 1], e = cols[c + 1][r + 1];
+    // (Counter-clockwise seen from the front: x rises along a row, y up a column.)
+    fillIdx.push(a, b, e, a, e, d);
+  }
+  // The eased difference at the cut edge (the edge's own minus the smooth fit), spread smoothly over the fill (each point
+  // the average of its neighbours, the edge held).
+  const nbs = Array.from({ length: m }, () => new Set());
+  for (let t = 0; t < fillIdx.length; t += 3) for (let k = 0; k < 3; k++) { nbs[fillIdx[t + k]].add(fillIdx[t + (k + 1) % 3]); nbs[fillIdx[t + (k + 1) % 3]].add(fillIdx[t + k]); }
+  const ease = (own, fn) => {
+    const d = new Float64Array(m);
+    for (let k = 0; k < nEdge; k++) d[k] = own(fixed[k]) - fn(xy[k * 2], xy[k * 2 + 1]);
+    for (let it = 0; it < 300; it++) for (let k = nEdge; k < m; k++) { let s2 = 0, c = 0; for (const j of nbs[k]) { s2 += d[j]; c++; } if (c) d[k] = s2 / c; }
+    return Array.from({ length: m }, (_, k) => fn(xy[k * 2], xy[k * 2 + 1]) + d[k]);
+  };
+  const Z = ease((v) => pos[v * 3 + 2], fz), U = ease((v) => flat[v * 2], fu), V = ease((v) => flat[v * 2 + 1], fv), H = ease((v) => shade[v], fs);
+  // The surface's z anywhere near (for our band): the fit eased as at the nearest fill point.
+  const zAt = (x, y) => { let best = 0, bd = Infinity; for (let k = 0; k < m; k++) { const d = (xy[k * 2] - x) ** 2 + (xy[k * 2 + 1] - y) ** 2; if (d < bd) { bd = d; best = k; } } return fz(x, y) + (Z[best] - fz(xy[best * 2], xy[best * 2 + 1])); };
+  const hAt = (x, y) => { let best = 0, bd = Infinity; for (let k = 0; k < m; k++) { const d = (xy[k * 2] - x) ** 2 + (xy[k * 2 + 1] - y) ** 2; if (d < bd) { bd = d; best = k; } } return H[best]; };
+  // The fill's points (the cut edge's are the model's own), normals from its triangles.
+  const id = new Int32Array(m);
+  for (let k = 0; k < m; k++) {
+    if (k < nEdge) { id[k] = fixed[k]; continue; }
+    id[k] = pos.length / 3;
+    pos.push(xy[k * 2], xy[k * 2 + 1], Z[k]);
+    nor.push(0, 0, 1);
+    flat.push(U[k], V[k]);
+    side.push(0);
+    shade.push(H[k]);
+    bnd.push(0);
+  }
+  const acc = new Float64Array(m * 3);
+  for (let t = 0; t < fillIdx.length; t += 3) {
+    const [a, b, c] = [fillIdx[t], fillIdx[t + 1], fillIdx[t + 2]], P = (k) => [xy[k * 2], xy[k * 2 + 1], Z[k]];
+    const A = P(a), B = P(b), C = P(c), e1 = B.map((v, j) => v - A[j]), e2 = C.map((v, j) => v - A[j]);
+    const nn = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    for (const k of [a, b, c]) for (let j = 0; j < 3; j++) acc[k * 3 + j] += nn[j];
+  }
+  // (Mostly the smooth fitted chest's own normal, so the fill is lit as the cloth round it (QATEST 2026-11-16: a lighter patch).)
+  for (let k = nEdge; k < m; k++) {
+    const x = xy[k * 2], y = xy[k * 2 + 1], h = 0.002, gx = (fz(x + h, y) - fz(x - h, y)) / (2 * h), gy = (fz(x, y + h) - fz(x, y - h)) / (2 * h);
+    const fl = Math.hypot(gx, gy, 1), al = Math.hypot(acc[k * 3], acc[k * 3 + 1], acc[k * 3 + 2]) || 1;
+    const nn = [-gx / fl * 0.8 + (acc[k * 3] / al) * 0.2, -gy / fl * 0.8 + (acc[k * 3 + 1] / al) * 0.2, 1 / fl * 0.8 + (acc[k * 3 + 2] / al) * 0.2], l = Math.hypot(...nn) || 1;
+    nor.splice(id[k] * 3, 3, nn[0] / l, nn[1] / l, nn[2] / l);
+  }
+  const idx = tris.flatMap((tri) => tri.c);
+  for (const k of fillIdx) idx.push(id[k]);
+
+  // ---- Our band: its cross-section at each place along its line, seen from the front across it (into the cloth) and
+  // off the cloth: from its foot tucked into the fill, up its face (standing `lift` off the cloth; at its ends on the
+  // model band's own face, flush), over its rolled top edge and down its inside (`thick` behind the face).
+  const ownFace = (x, y) => {
+    // (The model band's outermost face there, seen from the front, as it was.)
+    let best = null;
+    for (let t = 0; t < M.idx.length; t += 3) {
+      const a = M.idx[t], b = M.idx[t + 1], c = M.idx[t + 2];
+      if (band[a] !== 1 || band[b] !== 1 || band[c] !== 1) continue;
+      const P2 = M.pos, det = (P2[b * 3 + 1] - P2[c * 3 + 1]) * (P2[a * 3] - P2[c * 3]) + (P2[c * 3] - P2[b * 3]) * (P2[a * 3 + 1] - P2[c * 3 + 1]);
+      if (Math.abs(det) < 1e-14 || Math.abs(P2[a * 3] - x) > 0.03 || Math.abs(P2[a * 3 + 1] - y) > 0.03) continue;
+      const l1 = ((P2[b * 3 + 1] - P2[c * 3 + 1]) * (x - P2[c * 3]) + (P2[c * 3] - P2[b * 3]) * (y - P2[c * 3 + 1])) / det, l2 = ((P2[c * 3 + 1] - P2[a * 3 + 1]) * (x - P2[c * 3]) + (P2[a * 3] - P2[c * 3]) * (y - P2[c * 3 + 1])) / det, l3 = 1 - l1 - l2;
+      if (l1 < -0.02 || l2 < -0.02 || l3 < -0.02) continue;
+      const z = l1 * P2[a * 3 + 2] + l2 * P2[b * 3 + 2] + l3 * P2[c * 3 + 2];
+      if (!best || z > best) best = z;
+    }
+    return best;
+  };
+  const { lift, thick } = F, r = thick / 2, cpos = [], cshade = [], cidx = [];
+  const prof = [];
+  // (Across from its foot (a = how far into the cloth, metres; o = off the cloth): foot, face, the roll, the inside.)
+  prof.push({ a: 1.0, o: -0.0008, f: true }, { a: 1.0, o: 0.45 }, { a: 0.75, o: 1 }, { a: 0.5, o: 1 }, { a: 0.25, o: 1 }, { a: 0, o: 1 });
+  for (let k = 1; k <= 6; k++) { const th = (k * Math.PI) / 6; prof.push({ roll: true, a: -r * Math.sin(th), o: 1, back: r - r * Math.cos(th) }); }
+  prof.push({ a: 0.35, o: 1, back: thick, inner: true }, { a: 0.75, o: 1, back: thick, inner: true });
+  const RR = prof.length;
+  path.forEach((p) => {
+    const sh = hAt(p.x + p.d[0] * p.w, p.y + p.d[1] * p.w);
+    for (const q of prof) {
+      const a = q.roll ? q.a : q.a * p.w, x = p.x + p.d[0] * a, y = p.y + p.d[1] * a;
+      const cloth = zAt(x, y);
+      let face = cloth + lift;
+      if (p.e < 1) { const own = ownFace(x, y); if (own != null) face = own * (1 - p.e) + face * p.e; }
+      let z = q.f ? cloth - 0.0008 : q.o === 0.45 ? cloth + (face - cloth) * 0.45 : face;
+      if (q.back) z -= q.back;
+      cpos.push(x, y, z);
+      cshade.push(sh * (q.inner ? 0.75 : q.roll && q.back > r ? 0.85 : 1));
+    }
+  });
+  for (let i = 0; i + 1 < path.length; i++) for (let k = 0; k + 1 < RR; k++) { const a = i * RR + k, c = a + RR; cidx.push(a, c, a + 1, a + 1, c, c + 1); }
+  // ONE band all round (QATEST / the user 2026-11-16): from its ends it goes on, in the same piece, ON the model's own band
+  // (left as it is under it) over the shoulders and round the back: each place along the model's neck edge (the data's
+  // `neck`, its band's top) with the band's way down to its foot there (where it meets the cloth), our cross-section as in
+  // front, as wide, 1.5 mm off the model's band; the first and last 12 places (3.5 cm) eased smoothly from the front's ends.
+  {
+    const rim = M.data.neck ?? [];
+    const cx = rim.reduce((q, p2) => q + p2[0], 0) / (rim.length || 1), cz = rim.reduce((q, p2) => q + p2[2], 0) / (rim.length || 1);
+    const ang = (x, z) => Math.atan2(x - cx, z - cz);
+    const secPt = (i, k) => [cpos[(i * RR + k) * 3], cpos[(i * RR + k) * 3 + 1], cpos[(i * RR + k) * 3 + 2]];
+    const TOPK = 5, last = path.length - 1, startTop = secPt(last, TOPK), endTop = secPt(0, TOPK);
+    const aS = ang(startTop[0], startTop[2]), span = ((ang(endTop[0], endTop[2]) - aS) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    const rel = (x, z) => ((ang(x, z) - aS) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    const back = rim.filter((q) => { const t = rel(q[0], q[2]); return t > 0.08 && t < span - 0.08; }).sort((p1, p2) => rel(p1[0], p1[2]) - rel(p2[0], p2[2]));
+    const line = [startTop, ...back, endTop], tops = [];
+    for (let k = 0; k + 1 < line.length; k++) { const A = line[k], B = line[k + 1], n2 = Math.max(1, Math.round(Math.hypot(B[0] - A[0], B[1] - A[1], B[2] - A[2]) / 0.003)); for (let j = 0; j < n2; j++) tops.push(A.map((v, c) => v + ((B[c] - v) * j) / n2)); }
+    tops.push(endTop);
+    // The model's band: its outside points (for its surface) and its foot (its points next to the cloth), in 1 cm cells.
+    const nbr = new Map();
+    for (let t = 0; t < M.idx.length; t += 3) for (let k = 0; k < 3; k++) { const u = M.idx[t + k], w = M.idx[t + (k + 1) % 3]; (nbr.get(u) ?? nbr.set(u, []).get(u)).push(w); }
+    const out2 = (v) => { const rx = M.pos[v * 3] - cx, rz = M.pos[v * 3 + 2] - cz, l = Math.hypot(rx, rz) || 1; return (M.nor[v * 3] * rx + M.nor[v * 3 + 2] * rz) / l; };
+    const surf = [], feet = [];
+    for (let v = 0; v < M.count; v++) {
+      if (band[v] !== 1 || out2(v) < 0.1) continue;
+      surf.push(v);
+      if ((nbr.get(v) ?? []).some((w) => band[w] === 0)) feet.push(v);
+    }
+    const nearestOf = (list, q, ok = () => true) => { let best = -1, bd = Infinity; for (const v of list) { if (!ok(v)) continue; const d = Math.hypot(M.pos[v * 3] - q[0], M.pos[v * 3 + 1] - q[1], M.pos[v * 3 + 2] - q[2]); if (d < bd) { bd = d; best = v; } } return best; };
+    const secs = tops.map((R, j) => {
+      const a0 = ang(R[0], R[2]);
+      const f = nearestOf(feet, R, (v) => Math.abs(((ang(M.pos[v * 3], M.pos[v * 3 + 2]) - a0 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) < 0.2);
+      const F2 = f >= 0 ? [M.pos[f * 3], M.pos[f * 3 + 1], M.pos[f * 3 + 2]] : [R[0], R[1] - wJ, R[2]];
+      let d3 = F2.map((v, c) => v - R[c]); const dl = Math.hypot(...d3) || 1; d3 = d3.map((v) => v / dl);
+      const A = tops[Math.max(0, j - 1)], B = tops[Math.min(tops.length - 1, j + 1)], tg = B.map((v, c) => v - A[c]);
+      let n3 = [tg[1] * d3[2] - tg[2] * d3[1], tg[2] * d3[0] - tg[0] * d3[2], tg[0] * d3[1] - tg[1] * d3[0]];
+      const nl = Math.hypot(...n3) || 1; n3 = n3.map((v) => v / nl);
+      if (n3[0] * (R[0] - cx) + n3[2] * (R[2] - cz) < 0) n3 = n3.map((v) => -v);
+      return { R, d3, n3 };
+    });
+    // (The way down and out smoothed along.)
+    for (const key of ['d3', 'n3']) { const sm = secs.map((_, j) => { const acc = [0, 0, 0]; for (let k = Math.max(0, j - 3); k <= Math.min(secs.length - 1, j + 3); k++) for (let c = 0; c < 3; c++) acc[c] += secs[k][key][c]; const l = Math.hypot(...acc) || 1; return acc.map((v) => v / l); }); secs.forEach((sc, j) => (sc[key] = sm[j])); }
+    const base0 = cpos.length / 3;
+    secs.forEach((sc, j) => {
+      const { R, d3, n3 } = sc;
+      prof.forEach((q, k) => {
+        const a = q.roll ? q.a : q.a * wJ;
+        let pt = R.map((v, c) => v + d3[c] * a);
+        // (On the model band's surface there, then off it.)
+        const v = nearestOf(surf, pt);
+        if (v >= 0) { const h = (M.pos[v * 3] - pt[0]) * n3[0] + (M.pos[v * 3 + 1] - pt[1]) * n3[1] + (M.pos[v * 3 + 2] - pt[2]) * n3[2]; if (h > 0) pt = pt.map((x, c) => x + n3[c] * h); }
+        const off = q.f ? -0.0008 : q.o === 0.45 ? 0.45 * (lift + 0.0012) : lift + 0.0012;
+        pt = pt.map((x, c) => x + n3[c] * (off - (q.back ?? 0)));
+        // (Eased into the front's end sections over the first and last 4 places.)
+        const sm3 = (t) => { const u = Math.max(0, Math.min(1, t)); return 1 - u * u * (3 - 2 * u); }, wS = sm3(j / 12), wE = sm3((secs.length - 1 - j) / 12);
+        if (wS > 0) { const s2 = secPt(last, k); pt = pt.map((x, c) => x * (1 - wS) + s2[c] * wS); }
+        if (wE > 0) { const s2 = secPt(0, k); pt = pt.map((x, c) => x * (1 - wE) + s2[c] * wE); }
+        cpos.push(...pt);
+        cshade.push(q.inner ? 0.75 : q.roll && (q.back ?? 0) > r ? 0.85 : 1);
+      });
+    });
+    // (Joined on from the front's right end, round the back, to its left end: one piece.)
+    const order = [last, ...secs.map((_, j) => base0 / RR + j), 0];
+    for (let i = 0; i + 1 < order.length; i++) for (let k = 0; k + 1 < RR; k++) { const a = order[i] * RR + k, c = order[i + 1] * RR + k; cidx.push(a, c, a + 1, a + 1, c, c + 1); }
+  }
+  // The new neck's edge (the roll's top), every 1.2 cm and at the ends and the middle.
+  const vEdge = [];
+  path.forEach((p, i) => {
+    const k = i * RR + 6 + 3, q = [cpos[k * 3], cpos[k * 3 + 1], cpos[k * 3 + 2]], last = vEdge.at(-1);
+    if (!last || i === path.length - 1 || Math.abs(p.x) < 1e-9 || Math.hypot(q[0] - last[0], q[1] - last[1]) >= 0.012) vEdge.push(q);
+  });
+  const out = {
+    ...M, count: pos.length / 3, pos: Float32Array.from(pos), nor: Float32Array.from(nor), flat: Float32Array.from(flat),
+    side: Uint8Array.from(side), shade: Float32Array.from(shade), idx: pos.length / 3 > 65535 ? Uint32Array.from(idx) : Uint16Array.from(idx),
+    // (The band per point for the print: the new cloth is cloth.)
+    band: Uint8Array.from(bnd),
+    collar: { pos: Float32Array.from(cpos), shade: Float32Array.from(cshade), idx: Uint16Array.from(cidx) }, vEdge,
+  };
+  decoded.set(cacheKey, out);
+  return out;
 }

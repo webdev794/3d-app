@@ -1,9 +1,11 @@
-import { AlertTriangle, ArrowRight, Check, FileDown, FileSpreadsheet, ImagePlus, Link2, LoaderCircle, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowUp, Check, FileDown, FileSpreadsheet, Link2, LoaderCircle, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { User } from '../api';
+import { media, type User } from '../api';
+import Loader from '../components/Loader';
 import { orderApi, type AssistantFormDesign, type AssistantOrder } from '../orderApi';
 import { ALL_SIZES } from '../orderSizes';
+import '../../css/ai-designer.css';
 import '../../css/order-form-maker.css';
 
 const PICTURE = /\.(png|jpe?g|webp)$/i;
@@ -37,6 +39,7 @@ export default function OrderFormMakerPage({ user, requireAuth }: { user: User |
   const [error, setError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
 
   // A form made earlier (?form={token}, kept in the address so a reload or a shared tab opens it again).
   useEffect(() => {
@@ -89,42 +92,56 @@ export default function OrderFormMakerPage({ user, requireAuth }: { user: User |
     setOrder(null); setParams({}, { replace: true }); setPrompt(''); setError(null);
   }
 
+  // The bar grows with the text (as the AI designer's bar), about seven lines, then it scrolls.
+  useEffect(() => { const el = field.current; if (!el) return; el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 196)}px`; }, [prompt, order]);
+
   const reply = order?.messages.filter(m => m.role === 'assistant').at(-1)?.text ?? '';
-  return <main className="ofm-page" data-testid="order-form-maker">
-    <header className="ofm-head">
-      <span className="ofm-pill"><Sparkles size={15} /> ORDER FORM MAKER</span>
-      <h1>Drop your designs. Say what you need.</h1>
-      <p>3DEEZI AI names each design from the artwork, applies your sizes and makes the order form PDF.</p>
-    </header>
+  const ext = (name: string) => (name.split('.').pop() ?? '').toUpperCase();
+  // The AI designer's look (client 2026-11-16: "so it looks like the AI section"): its background, logo, prompt bar,
+  // attached-file chips, notes and loader; the order form below in the same dark glass.
+  return <section className={`aid-stage glass-ui ofm-stage${over ? ' dropping' : ''}${order ? ' has-result' : ''}`} data-testid="order-form-maker" aria-labelledby="ofm-title"
+    onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false); }} onDrop={onDrop} onPaste={onPaste}>
+    <picture className="aid-bg" aria-hidden="true">
+      <source media="(max-aspect-ratio: 4/5)" type="image/webp" srcSet={`${media('images/ai-designer/bg-tall-640.webp')} 640w, ${media('images/ai-designer/bg-tall-1024.webp')} 1024w`} sizes="100vw" />
+      <img src={media('images/ai-designer/bg-1440.webp')} srcSet={`${media('images/ai-designer/bg-960.webp')} 960w, ${media('images/ai-designer/bg-1440.webp')} 1440w, ${media('images/ai-designer/bg-2048.webp')} 2048w`} sizes="100vw" alt="" fetchPriority="high" decoding="async" />
+    </picture>
+    <div className="aid-inner">
+      <img className="aid-logo" src={media('images/brand-final.png')} alt="3DEEZI" width={1712} height={272} />
+      <p className="aid-tagline">ORDER FORM MAKER</p>
+      <h1 id="ofm-title" className="aid-heading">Drop your designs. Say what you need.</h1>
 
-    <section className={`ofm-box${over ? ' is-over' : ''}`} onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={onDrop} onPaste={onPaste} aria-label="Your designs and your prompt">
-      {(pictures.length > 0 || sheets.length > 0) && <div className="ofm-picked">
-        {pictures.map((p, i) => <figure key={p.url}><img src={p.url} alt={p.file.name} /><figcaption>{p.file.name}</figcaption>
-          <button type="button" aria-label={`Remove ${p.file.name}`} onClick={() => removePicture(i)}><X size={14} /></button></figure>)}
-        {sheets.map((f, i) => <figure key={`${f.name}-${i}`} className="is-sheet"><FileSpreadsheet size={30} /><figcaption>{f.name}</figcaption>
-          <button type="button" aria-label={`Remove ${f.name}`} onClick={() => setSheets(s => s.filter((_, j) => j !== i))}><X size={14} /></button></figure>)}
-      </div>}
-      <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={order ? 2 : 3} maxLength={8000}
-        placeholder={order ? 'Ask for a change, e.g. “Samoa: 10 x M instead”, or add more designs' : EXAMPLE}
-        onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); }} aria-label="Your prompt" />
-      <div className="ofm-tools">
-        <button type="button" className="ofm-add" onClick={() => fileInput.current?.click()}><ImagePlus size={18} /> Add pictures</button>
-        <span className="ofm-hint">or drop / paste them here (front and back, any number)</span>
-        <button type="button" className="ofm-go" onClick={send} disabled={busy}>
-          {busy ? <><LoaderCircle size={18} className="ofm-spin" /> Reading your designs…</> : <><Sparkles size={18} /> {order ? 'Update my order form' : 'Make my order form'}</>}
-        </button>
-      </div>
-      <input ref={fileInput} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,.xlsx,.xls,.ods,.csv,.pdf" onChange={e => { add(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
-    </section>
-    {error && <p className="ofm-error" role="alert">{error}</p>}
-    {!user && <p className="ofm-note">3DEEZI AI reads your pictures once you are signed in.</p>}
+      <form className={`aid-prompt${pictures.length || sheets.length ? ' has-files' : ''}`} aria-label="Your designs and your prompt" onSubmit={e => { e.preventDefault(); send(); }}>
+        {(pictures.length > 0 || sheets.length > 0) && <ul className="aid-files" aria-label="Attached files">
+          {pictures.map((p, i) => <li key={p.url} title={p.file.name}><img src={p.url} alt="" /><span className="aid-file-text"><b>{p.file.name}</b><small>{ext(p.file.name)}</small></span>
+            <button type="button" aria-label={`Remove ${p.file.name}`} onClick={() => removePicture(i)}><X size={12} /></button></li>)}
+          {sheets.map((f, i) => <li key={`${f.name}-${i}`} title={f.name}><span className="ofm-sheet-icon" aria-hidden="true"><FileSpreadsheet size={22} /></span><span className="aid-file-text"><b>{f.name}</b><small>{ext(f.name)}</small></span>
+            <button type="button" aria-label={`Remove ${f.name}`} onClick={() => setSheets(s => s.filter((_, j) => j !== i))}><X size={12} /></button></li>)}
+        </ul>}
+        <div className="aid-row">
+          <button type="button" className="aid-plus" onClick={() => fileInput.current?.click()} aria-label="Add pictures" title="Add pictures, or drop / paste them here (front and back, any number)"><Plus size={22} /></button>
+          <label className="aid-field"><span className="sr-only">Your prompt</span>
+            <textarea ref={field} rows={1} value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={8000} className={order ? undefined : 'is-example'}
+              placeholder={order ? 'Ask for a change, e.g. “Samoa: 10 x M instead”, or add more designs' : EXAMPLE}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); }} />
+          </label>
+          <button type="submit" className="aid-go" disabled={busy} aria-label={order ? 'Update my order form' : 'Make my order form'} title={order ? 'Update my order form' : 'Make my order form'}>
+            {busy ? <LoaderCircle size={23} className="ofm-spin" /> : <ArrowUp size={23} strokeWidth={2.4} />}
+          </button>
+        </div>
+        <input ref={fileInput} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,.xlsx,.xls,.ods,.csv,.pdf" onChange={e => { add(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
+      </form>
+      {error && <p className="aid-error" role="alert">{error}</p>}
+      {!user && <p className="aid-info">3DEEZI AI reads your pictures once you are signed in.</p>}
+      <div className="aid-options"><span className="aid-note">3DEEZI AI names each design from the artwork, applies your sizes and makes the order form PDF. Add pictures or drop / paste them here (front and back, any number).</span></div>
 
-    {order && <section className="ofm-result" aria-live="polite">
-      {reply && <p className="ofm-reply">{reply}</p>}
-      {order.analysis?.form ? <FormEditor order={order} onSaved={setOrder} /> : <PlainSummary order={order} />}
-      <p className="ofm-again"><button type="button" onClick={startOver}><RotateCcw size={15} /> Start a new order form</button></p>
-    </section>}
-  </main>;
+      {busy && <div className="ofm-busy"><Loader overlay={false} title="Reading your designs…" subtitle="3DEEZI AI names each design from the artwork, applies your sizes and makes the order form PDF." steps={['Reading your designs', 'Naming each design', 'Applying your sizes', 'Making the order form']} seconds={30} /></div>}
+      {order && !busy && <section className="ofm-result" aria-live="polite">
+        {reply && <p className="ofm-reply">{reply}</p>}
+        {order.analysis?.form ? <FormEditor order={order} onSaved={setOrder} /> : <PlainSummary order={order} />}
+        <p className="ofm-again"><button type="button" onClick={startOver}><RotateCcw size={15} /> Start a new order form</button></p>
+      </section>}
+    </div>
+  </section>;
 }
 
 /** The form found, corrected in place: brand, garment, and per design its name, colourway and sizes. */

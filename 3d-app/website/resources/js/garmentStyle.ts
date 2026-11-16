@@ -72,9 +72,25 @@ export const collarsFor = (design: Pick<Design, 'garment' | 'zoneColors'>) => (i
 /** The fits offered for a design: the model jersey's own shape (Regular) and a slimmer Pro fit (design.fit 'tight'). */
 export const fitsFor = (design: Pick<Design, 'garment' | 'zoneColors'>) => (isModelJersey(design) ? [{ id: 'pro' as RugbyFit, label: 'Regular', note: 'The jersey as made' }, { id: 'tight' as RugbyFit, label: 'Pro fit', note: 'Slimmer, athletic' }] : rugbyFits);
 
+/**
+ * A tile on a ready-made 3D model shows that model's own neck only (user 2026-11-16: nothing is cut; other neck styles come
+ * later, laid on top): its look's flag and the model's own neck. null: the garment's necks can be chosen.
+ */
+export const MODEL_OWN_NECKS: Record<string, NeckStyle> = { scJersey: 'v', aflGuernsey: 'round', trainingTee: 'round' };
+export function fixedNeck(design: Pick<Design, 'garment' | 'zoneColors'>): NeckStyle | null {
+    if (!hasNeckStyle(design.garment)) return null;
+    const zc = (design.zoneColors as Record<string, string> | null | undefined) ?? {};
+    const flag = Object.keys(MODEL_OWN_NECKS).find(f => HEX.test(zc[f] ?? ''));
+    // (Every training tee is on its ready-made model (viewer recipe `wide`): its own round neck.)
+    if (!flag && design.garment === 'tee') return 'round';
+    return flag ? MODEL_OWN_NECKS[flag] : null;
+}
+
 /** The garment's own neck (the Full kit picture's crew-neck look makes its jersey's round). */
 export function ownNeck(design: Pick<Design, 'garment' | 'zoneColors'>): NeckStyle | null {
     if (!hasNeckStyle(design.garment)) return null;
+    const fixed = fixedNeck(design);
+    if (fixed) return fixed;
     const bball = bballOwnNeck(design);
     if (bball) return bball;
     if (isModelJersey(design) && !HEX.test((design.zoneColors as Record<string, string> | null | undefined)?.fbV ?? '')) return 'round';
@@ -85,7 +101,7 @@ export const collarOf = (design: Pick<Design, 'neck'>) => rugbyCollars.find(c =>
 /** The neck shown: the design's own choice, else the garment's. */
 export function neckOf(design: Pick<Design, 'garment' | 'zoneColors' | 'neck'>): string | null {
     if (!hasNeckStyle(design.garment)) return null;
-    return design.neck && neckValues.includes(design.neck) ? design.neck : ownNeck(design);
+    return fixedNeck(design) ?? (design.neck && neckValues.includes(design.neck) ? design.neck : ownNeck(design));
 }
 /** "V-neck", "Round neck", "RC006 Grandad collar, 1 button" (null: the garment has no neck to choose). */
 export function neckLabel(design: Pick<Design, 'garment' | 'zoneColors' | 'neck'>): string | null {

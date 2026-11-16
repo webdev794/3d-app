@@ -170,7 +170,22 @@ const COMPRESSION = { ...VARSITY_ZONES, sleeves: [[0.262, 0.1, 0.8, 0.76]], side
 // The bucket hat (hatprint.js): one area, the whole hat (its parts are its top, brim, underside and binding).
 const HAT = { body: [[-0.3, 0, 0.3, 0.36]] };
 
-const table = (kind) => (kind === 'singlet' && modelTop ? modelTopZones() : kind === 'tee' ? TEE_ZONES : kind === 'bballshorts' ? BBALL_ZONES : kind === 'skirt' ? skirtZones() : kind === 'nfljersey' ? NFL : kind === 'bucket-hat' || kind === 'beanie' ? HAT : kind === 'cap' ? CAP : kind === 'socks' ? SOCKS : kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : kind === 'compression' ? COMPRESSION : TOP);
+// The soccer jersey's model (SCJERSEY 2026-11-13, main.js buildKit: useModelPanels): its side panels as its own seams lie on
+// the flat pattern (the data's `panels`: front and back, each its seam on the +x side, top down), much wider than the made
+// jersey's; its Side panels area reaches in that far too. null: as before.
+let modelPanels = null;
+export function useModelPanels(panels) { modelPanels = panels?.[0]?.length && panels?.[1]?.length ? panels : null; }
+/** The model's side panel (+x side, the back's or the front's) as an outline, or null. */
+export function modelPanelOutline(back) {
+  if (!modelPanels) return null;
+  const c = modelPanels[back ? 1 : 0];
+  // (Up to the armpit, never onto the sleeve's underside beside it.)
+  // (The back's kept under the armpits (QATEST 2026-11-16: its top showed as strips at the back armpits).)
+  if (back) { const low = c.filter(([, y]) => y <= 0.44); return [[0.32, 0.44], [low[0]?.[0] ?? c[0][0], 0.44], ...low, [c.at(-1)[0], -0.01], [0.32, -0.01]]; }
+  return [[0.258, 0.535], ...c, [c.at(-1)[0], -0.01], [0.32, -0.01], [0.32, 0.44]];
+}
+const MODEL_TOP = { ...TOP, sides: [[0.15, 0, 0.3, 0.55]] };
+const table = (kind) => (kind === 'singlet' && modelTop ? modelTopZones() : kind === 'jersey' && modelPanels ? MODEL_TOP : kind === 'tee' ? TEE_ZONES : kind === 'bballshorts' ? BBALL_ZONES : kind === 'skirt' ? skirtZones() : kind === 'nfljersey' ? NFL : kind === 'bucket-hat' || kind === 'beanie' ? HAT : kind === 'cap' ? CAP : kind === 'socks' ? SOCKS : kind === 'shorts' ? SHORTS : isDress(kind) ? DRESS : isHoodie(kind) || isTrack(kind) ? HOODIE : kind === 'varsity' ? VARSITY_ZONES : kind === 'compression' ? COMPRESSION : TOP);
 
 /**
  * A garment's areas that are not rectangles: outlines on the wearer's left (+x), mirrored (the shooting shirt's raglan
@@ -248,6 +263,7 @@ function panelOutline(kind, back = false) {
   if (isDress(kind)) return panelOf(back);
   if (kind === 'nfljersey') return NFL_PANEL;
   if (kind === 'singlet' && modelTop) return modelPanel(back);
+  if (kind === 'jersey' && modelPanels) return modelPanelOutline(back);
   return [...quad([0.262, 0.54], [0.215, 0.3], [0.23, 0]), [0.3, 0], [0.3, 0.54]];
 }
 /** The football jersey's side panel (+x side), as painted (texture.js): from the underarm, its inner edge well round

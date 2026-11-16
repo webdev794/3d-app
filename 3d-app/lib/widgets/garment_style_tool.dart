@@ -85,7 +85,10 @@ class GarmentStyleTool extends StatelessWidget {
           const SectionLabel('Neck style'),
           Row(
             children: [
-              for (final id in const ['round', 'v'])
+              for (final id in [
+                fixedNeck(c.garment, c.zoneColors) ?? 'round',
+                if (fixedNeck(c.garment, c.zoneColors) == null) 'v',
+              ])
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.only(right: id == 'round' ? 10 : 0),
@@ -99,6 +102,9 @@ class GarmentStyleTool extends StatelessWidget {
                     ),
                   ),
                 ),
+              // (A model tile's one card keeps a card's width.)
+              if (fixedNeck(c.garment, c.zoneColors) != null)
+                const Expanded(child: SizedBox()),
             ],
           ),
           if (neck != null)
@@ -120,11 +126,13 @@ class GarmentStyleTool extends StatelessWidget {
                 ],
               ),
             ),
-          const Padding(
-            padding: EdgeInsets.only(top: 4),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
             child: Text(
-              'Available styles vary by garment.',
-              style: TextStyle(color: Palette.muted, fontSize: 12),
+              fixedNeck(c.garment, c.zoneColors) != null
+                  ? 'This ${_product.toLowerCase()} keeps its own ${neckLabels[fixedNeck(c.garment, c.zoneColors)]!.toLowerCase()}.'
+                  : 'Available styles vary by garment.',
+              style: const TextStyle(color: Palette.muted, fontSize: 12),
             ),
           ),
           if (rugby) ...[

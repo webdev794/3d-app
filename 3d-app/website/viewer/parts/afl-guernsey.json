@@ -1,0 +1,72 @@
+{
+  "about": "AFL > AFL guernsey (aussie-rules-singlet.glb): the model's own neck band and armhole bands in the Neck trim colour (the look's azure), per triangle: the band pieces sewn on beyond the body's own edges; its inside (the converter's inside bands) one plain colour (MODELQ 2026-11-16, viewer/tripo-parts.mjs).",
+  "glb": "../../../tripo/aussie-rules-singlet.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "collar",
+    "inside"
+  ],
+  "rules": [
+    {
+      "edge": {
+        "near": [
+          0,
+          0.9,
+          -0.02
+        ],
+        "len": 90,
+        "mode": "up",
+        "within": 0.004,
+        "margin": -0.002
+      },
+      "where": "y > 0.7 && Math.hypot(x, z) < 0.3",
+      "part": "collar"
+    },
+    {
+      "edge": {
+        "near": [
+          0.24,
+          0.8,
+          -0.05
+        ],
+        "len": 86,
+        "mode": "in",
+        "margin": -0.003
+      },
+      "where": "x * 1 > 0.19 && y > 0.55",
+      "part": "collar"
+    },
+    {
+      "edge": {
+        "near": [
+          -0.24,
+          0.8,
+          -0.05
+        ],
+        "len": 86,
+        "mode": "in",
+        "margin": -0.003
+      },
+      "where": "x * -1 > 0.19 && y > 0.55",
+      "part": "collar"
+    },
+    {
+      "oldBand": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "part": "inside"
+    }
+  ],
+  "partBands": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "smooth": 5
+}

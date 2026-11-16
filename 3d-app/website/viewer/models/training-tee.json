@@ -1,0 +1,66 @@
+{
+  "about": "Training tees (every tile showing the tee picture): Tripo model training-tee.glb (made facing away: turned round), booklet card 112791 (light blue body, yellow neck band and cuffs; our 3DEEZI wordmark small high on the back where the card has its neck text; nothing of the card's text). WIDE (2026-11-16 coordinator): on every tile of its garment, the tile's own existing look kept (no card colours); `look` is only the check design.",
+  "glb": "../../../tripo/training-tee.glb",
+  "converter": "top",
+  "part": "tee",
+  "flag": "trainingTee",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "tee",
+    "creaseDeg": 25,
+    "turn": 180
+  },
+  "look": {
+    "main": "#a9cbe8",
+    "secondary": "#f2e52a",
+    "accent": "#1e2a44",
+    "patternColor": "#1e2a44",
+    "number": "",
+    "zoneColors": {
+      "trainingTee": "#f2e52a"
+    },
+    "parts": {
+      "collar": {
+        "colour": "#f2e52a"
+      }
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": 0.09,
+        "y": 0.6,
+        "scale": 0.45
+      },
+      "top_crest": {
+        "x": -0.09,
+        "y": 0.6,
+        "scale": 0.3
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "side": "back",
+        "x": 0,
+        "y": 0.66,
+        "scale": 0.5
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-45",
+      "Q90",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ180D70Y700P60"
+    ]
+  },
+  "wide": true
+}

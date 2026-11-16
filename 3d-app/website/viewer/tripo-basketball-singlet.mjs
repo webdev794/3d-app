@@ -398,6 +398,35 @@ export default {
     // ---- Triangles across the halves (the side seams, the strap tops): the corners on the other half get copies on the
     // triangle's half.
     // (The inside is one even colour: no baked shade on it.)
+    // (Stray bits of the neck binding on the strap tops (QATEST 2026-11-16: thin dark slivers on the cloth just under the
+    // binding at the back): the binding's triangles joined only across gentle edges (under 60 degrees, so not round its
+    // rolled edge into its hidden inside); a piece of under 6 triangles on a strap top, cut off from the binding on the
+    // outside, is the cloth's. MODELQ.)
+    {
+      const I = glb.idx, T = I.length / 3, fn = [];
+      for (let t = 0; t < T; t++) {
+        const [a, b2, c] = [0, 1, 2].map((k) => P(I[t * 3 + k])), e1 = b2.map((v, k) => v - a[k]), e2 = c.map((v, k) => v - a[k]);
+        const m = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]], l = Math.hypot(...m) || 1;
+        fn.push(m.map((v) => v / l));
+      }
+      const bt = (t) => (band[I[t * 3]] === 1 && band[I[t * 3 + 1]] === 1 && band[I[t * 3 + 2]] === 1 ? 1 : 0);
+      const par = Int32Array.from({ length: T }, (_, i) => i), find = (x) => { while (par[x] !== x) { par[x] = par[par[x]]; x = par[x]; } return x; };
+      const edges = new Map();
+      for (let t = 0; t < T; t++) if (bt(t)) for (let k = 0; k < 3; k++) { const a = I[t * 3 + k], b2 = I[t * 3 + (k + 1) % 3], key = a < b2 ? a * count + b2 : b2 * count + a; (edges.get(key) ?? edges.set(key, []).get(key)).push(t); }
+      const cos60 = Math.cos(Math.PI / 3);
+      for (const ts of edges.values()) for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) { const f = fn[ts[i]], g = fn[ts[j]]; if (f[0] * g[0] + f[1] * g[1] + f[2] * g[2] >= cos60) par[find(ts[i])] = find(ts[j]); }
+      const pieces = new Map();
+      for (let t = 0; t < T; t++) if (bt(t)) (pieces.get(find(t)) ?? pieces.set(find(t), []).get(find(t))).push(t);
+      const keep = new Uint8Array(count), drop = [];
+      for (const ts of pieces.values()) {
+        const m = [0, 1, 2].map((a) => ts.reduce((q, t) => q + (pos[I[t * 3] * 3 + a] + pos[I[t * 3 + 1] * 3 + a] + pos[I[t * 3 + 2] * 3 + a]) / 3, 0) / ts.length);
+        if (ts.length < 6 && m[1] > 0.7 && Math.abs(m[0]) > 0.09) drop.push(...ts);
+        else for (const t of ts) for (let k = 0; k < 3; k++) keep[I[t * 3 + k]] = 1;
+      }
+      let freed = 0;
+      for (const t of drop) for (let k = 0; k < 3; k++) { const v = I[t * 3 + k]; if (!keep[v] && band[v] === 1) { band[v] = 0; freed++; } }
+      log.push(`neck binding: ${drop.length} stray triangles on the strap tops given back to the cloth (${freed} points)`);
+    }
     for (let i = 0; i < count; i++) if (band[i] >= 3) S[i] = 1;
     const OP = [...pos], ON = [...nor], OF = [...F], OB = [...back], OS = [...S], OBand = [...band], idx = [];
     const copies = new Map();

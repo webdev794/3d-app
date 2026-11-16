@@ -1,0 +1,8 @@
+{
+  "about": "Women's fitness top (women-fitness-top.glb): its inner layer plain inside colour; everything else printed (its seams are self-coloured on card 117908) (MODELQ 2026-11-16).",
+  "glb": "../../../tripo/women-fitness-top.glb",
+  "creaseDeg": 25,
+  "keys": ["inside"],
+  "rules": [ { "regions": [0], "part": "inside" } ],
+  "smooth": 0
+}

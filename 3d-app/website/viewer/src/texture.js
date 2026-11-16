@@ -2,7 +2,7 @@
 // (mirrored so it reads correctly from behind) on the right half. Everything
 // is drawn in garment coordinates (metres), so placement is exact.
 
-import { zoneRects, zonePolys, zoneOutlines, COMPRESSION_PIPING, NFL_PANEL, POCKET, hasPocket, isHoodie, isTrack, isDress, KANGAROO, kangarooEdge, HOOD_TOP, partRegion, TOP_PARTS, SHORTS_PARTS, modelPanel } from './zones.js';
+import { zoneRects, zonePolys, zoneOutlines, COMPRESSION_PIPING, NFL_PANEL, POCKET, hasPocket, isHoodie, isTrack, isDress, KANGAROO, kangarooEdge, HOOD_TOP, partRegion, TOP_PARTS, SHORTS_PARTS, modelPanelOutline, modelPanel } from './zones.js';
 import { POCKET_ZIP, pocketZipX } from './trackjacket.js';
 import { dressDesign, paintDressBleed, paintDressPanels, paintDressYoke, paintDressBinding, paintDressTabs, dressSeams, dressModel } from './netballdress.js';
 import { isVarsity, varsityTailoring, paintVarsity, paintVarsityMarks } from './varsity.js';
@@ -753,7 +753,8 @@ export class KitPainter {
     const ink = /^#[0-9a-f]{6}$/i.test(own ?? '') ? own : color;
     // The default chest text 3DEEZI is the real brand wordmark (RL1); the user's own words, colour or look stay text.
     // (The socks' small word under the "3", sockWord, too: BR1 2026-11-02.)
-    if ((name === 'wordmark' || name === 'sockWord') && str === '3DEEZI' && !own && !look && this._brandWord) {
+    // (The soccer jersey's model, SCJERSEY: its back name line too, while it is the default 3DEEZI: painter.model.brandBack.)
+    if ((name === 'wordmark' || name === 'sockWord' || (name === 'name' && this.model?.brandBack)) && str === '3DEEZI' && !own && !look && this._brandWord) {
       // (A tile's flat one-colour brand, design.zoneColors.brandInk: the Full kit picture's pale blue, FN6.)
       const flat = HEX.test(design.zoneColors?.brandInk ?? '') ? design.zoneColors.brandInk : null;
       const img = flat ? this.flatInk(this._brandWord, flat) : this._brandWord, w = Math.min(maxWidth, size * 4.2), h = (w * img.height) / img.width;
@@ -950,6 +951,9 @@ export class KitPainter {
    * hem turned up inside). Shared by the painted stitches and the relief map.
    */
   tailoring(back) {
+    // (A model with its parts per triangle (the recipe's, MODELQ 2026-11-16): its seams and stitching are in its own shape;
+    // none of the made garment's are drawn on it.)
+    if (this.model?.keys) return { stitches: [], seams: [], folds: [] };
     // The socks: their toe seam and welt (sockprint.js).
     if (this.kind === 'socks') return sockTailoring(!!this.sockModel);
     // The skirt: its seams, the hem's stitching and the waistband's elastic (skirtprint.js).
@@ -1995,6 +1999,9 @@ export class KitPainter {
         } else if (this.model?.insert) {
           // The basketball singlet's model: its own side insert, between its two seams under the arm (zones.js modelPanel).
           modelPanel(back).forEach(([x, y], i) => (i ? g.lineTo(dir * x, y) : g.moveTo(dir * x, y)));
+        } else if (this.kind === 'jersey' && modelPanelOutline(back)) {
+          // The soccer jersey's model (SCJERSEY): its own side panels, as its seams lie on the pattern (zones.js).
+          modelPanelOutline(back).forEach(([x, y], i) => (i ? g.lineTo(dir * x, y) : g.moveTo(dir * x, y)));
         } else {
           // Side panels.
           g.moveTo(dir * 0.262, 0.54);
@@ -2198,7 +2205,7 @@ export class KitPainter {
       }
       // Polo button placket.
       const zip = HEX.test(design.zoneColors?.quarterZip ?? '') ? design.zoneColors.quarterZip : null;
-      if ((this.kind === 'polo' || this.kind === 'pocketpolo') && !back && zip) {
+      if ((this.kind === 'polo' || this.kind === 'pocketpolo') && !back && zip && !this.model) {
         // The polo pictures' quarter zip (FN6 2026-10-30): a narrow placket in the collar's colour, its edges stitched,
         // the dark zip teeth down the middle and a small metal pull two thirds of the way down.
         const band = this.partStyle(design, 'collar')?.own ?? trim;
@@ -2300,6 +2307,8 @@ export class KitPainter {
     if (this.kind === 'trackpants') {
       await paintTrackPantsMarks(this, design, logo, textOutline, loadImage);
       await this.paintLayers(design);
+      // (A ready-made model's parts per triangle (pants, leggings: MODELQ2 2026-11-16): their plain colours.)
+      if (this.model) this.paintModelSwatches(design);
       g.setTransform(1, 0, 0, 1, 0, 0);
       return this.canvas;
     }
@@ -2326,7 +2335,9 @@ export class KitPainter {
       await this.paintShortsMarks(design, logo, textOutline);
       await this.paintLayers(design);
       // (A ready-made model (main.js modelBand: the Rugby League shorts): marks and objects carry on over the side seams.)
+      // (And any shorts model with parts per triangle (MODELQ2 2026-11-16): its parts' plain colours.)
       if (this.modelBand) await this.wrapSeams(design, logo, textOutline);
+      if (this.model) this.paintModelSwatches(design);
       g.setTransform(1, 0, 0, 1, 0, 0);
       return this.canvas;
     }
@@ -2442,6 +2453,9 @@ export class KitPainter {
     } else {
       this.markText(design, 'name', { side: 'back', x: 0, y: 0.6 }, backName, 0.06, design.accent, 0.28, textOutline);
       this.markText(design, 'number', { side: 'back', x: 0, y: 0.38 }, String(design.number ?? '23'), 0.24, design.accent, 0.3, textOutline);
+      // The soccer jersey's model (SCJERSEY, the client's booklet card 138303's places): the "3" mark small above the name
+      // line, under the back neck (its own mark, moved and hidden as the others).
+      if (this.model?.brandBack && !ownArt) this.markShield(design, 'backCrest', { side: 'back', x: 0, y: 0.66 }, [[0, 0.034], [0.028, 0.018], [0.022, -0.02], [0, -0.036], [-0.022, -0.02], [-0.028, 0.018]].map(([x, y]) => [x * 0.7, y * 0.7]), 0.021, 0.028);
       // The Football jersey picture (images/539): the number big in the middle of the chest too, when its look places it
       // (marks.top_frontNumber); it takes the Number's colour, look and hiding, as the American football jersey's.
       // (The netball bib's model too, NBBIB: its position letters (the Number) front and back, its look placing both.)
@@ -2473,6 +2487,15 @@ export class KitPainter {
 
     this.side(false);
     this.model.colours = [own('collar') ?? trim, trim];
+    // (A model with its parts per triangle (MODELQ 2026-11-16): each part's plain colour by its key, drawn by main.js
+    // paintPlains: 'collar' the Collar part's own else the trim colour, 'trim', 'main' (the body's), 'inside' (the Reverse
+    // side's else the Main), 'accent', '#rrggbb' a fixed colour, 'zone:<name>' that colour area (else the trim colour), 'part:<key>' that design part's own colour (else
+    // the trim colour, or with '|main' the body's: 'part:waistband|main' a pants' waistband as the made pants' own; MODELQ2).)
+    if (this.model.keys) {
+      const solid = (f, d) => (typeof f === 'string' ? f : d);
+      const trimHex = solid(trim, design.secondary), mainHex = solid(base, design.main);
+      this.model.partColours = this.model.keys.map((k) => (k === 'collar' || k === 'waistband' ? solid(own(k), null) ?? trimHex : k === 'trim' ? trimHex : k === 'main' ? mainHex : k === 'accent' ? design.accent : k === 'inside' ? reverse ?? design.main : HEX.test(k) ? k : k.startsWith('zone:') && HEX.test(design.zoneColors?.[k.slice(5)] ?? '') ? design.zoneColors[k.slice(5)] : k.startsWith('part:') ? solid(own(k.slice(5).split('|')[0]), null) ?? (k.endsWith('|main') ? mainHex : trimHex) : trimHex));
+    }
     (this.model.swatch ?? []).forEach(([x, y], which) => {
       if (this.model.insert) {
         // (The inside one even colour: the Reverse side's, else the Main: the user 2026-11-13, image 540.)
@@ -2986,7 +3009,9 @@ export class KitPainter {
         box({ id: layer.id, side: layer.side, x: layer.x, y: layer.y, rot: layer.rot ?? 0, w: g.measureText(str).width * narrow, h: size });
       } else if (layer.type === 'shape') {
         const w = layer.w ?? 0.1, h = layer.h ?? w;
-        g.fillStyle = layer.color ?? design.accent;
+        // (A tile's shape with no colour of its own may follow one of the kit's colours, `colorFrom` (the AFL guernsey's chest
+        // band follows the Secondary: MODELQ 2026-11-16); else the Accent.)
+        g.fillStyle = layer.color ?? (layer.colorFrom === 'secondary' || layer.colorFrom === 'main' ? design[layer.colorFrom] : design.accent);
         // A tile's position bib (ids 'tile-bib…', a rectangle: the client's netball dress) is a patch sewn on.
         if (String(layer.id ?? '').startsWith('tile-bib') && layer.shape !== 'ellipse' && layer.shape !== 'triangle') this.sewnPatch(g, w, h);
         else {

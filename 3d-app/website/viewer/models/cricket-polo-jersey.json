@@ -1,0 +1,54 @@
+{
+  "about": "Cricket > Cricket shirt: Tripo model cricket-polo-jersey.glb, booklet card 39858. The tile keeps its EXISTING look + the model flag (coordinator 2026-11-16); look is only the check design. Our marks only (MODELQ3 2026-11-16).",
+  "glb": "../../../tripo/cricket-polo-jersey.glb",
+  "converter": "top",
+  "part": "polo",
+  "flag": "cricketPolo",
+  "ownNeck": "polo",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "polo",
+    "creaseDeg": 25,
+    "top": 0.95
+  },
+  "look": {
+    "main": "#f4f4f2",
+    "secondary": "#1e2a44",
+    "accent": "#1e2a44",
+    "patternColor": "#1e2a44",
+    "number": "",
+    "zoneColors": {
+      "cricketPolo": "#1e2a44"
+    },
+    "parts": {
+      "collar": {
+        "colour": "#1e2a44"
+      }
+    },
+    "marks": {
+      "top_crest": {
+        "hidden": true
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ40D70Y700P60"
+    ]
+  },
+  "baseLook": "poloZip"
+}
