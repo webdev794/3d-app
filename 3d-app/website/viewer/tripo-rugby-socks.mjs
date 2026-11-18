@@ -13,9 +13,20 @@ const K = 0.48;            // the uniform scale: the top 48 cm over the sole, as
 const FLOOR = -0.0662;     // the sole's height (socks.js FLOOR), plus the made sole's 0.4 mm
 
 export default {
-  model: '../../tripo/rugby-socks.glb',
+  model: '../../tripo/rugby-socks-textured.glb',
   lib: "export { buildSocks, SOCK_LEN, SOCK_FOOT } from './socks.js';",
-  async convert({ glb, lib, tools, debug }) {
+  async convert({ glb: glb0, lib, tools, debug }) {
+    // (The textured model (MODELQ6 2026-11-18): its points split at its texture's seams joined back by place, so each sock
+    // is one piece again; the shape is unchanged, the texture and its UVs are not used.)
+    const glb = (() => {
+      const at = new Map(), remap = new Uint32Array(glb0.pos.length / 3), P = [], N = [];
+      for (let i = 0; i < remap.length; i++) {
+        const k = [0, 1, 2].map((a) => Math.round(glb0.pos[i * 3 + a] * 1e6)).join(',');
+        if (!at.has(k)) { at.set(k, P.length / 3); P.push(glb0.pos[i * 3], glb0.pos[i * 3 + 1], glb0.pos[i * 3 + 2]); N.push(glb0.nor[i * 3], glb0.nor[i * 3 + 1], glb0.nor[i * 3 + 2]); }
+        remap[i] = at.get(k);
+      }
+      return { ...glb0, pos: Float32Array.from(P), nor: Float32Array.from(N), idx: Uint32Array.from(glb0.idx, (v) => remap[v]) };
+    })();
     const { SOCK_LEN, SOCK_FOOT } = lib;
     const made = lib.buildSocks({ detail: true });
     const n = glb.pos.length / 3, I = glb.idx;
@@ -23,6 +34,9 @@ export default {
     const chains = tools.openChains(I).filter((c) => c.length > 20);
     let rz = 0, rn = 0;
     for (const c of chains) for (const v of c) { rz += glb.pos[v * 3 + 2]; rn++; }
+    // (A closed model (the textured one: its top opening closed over): its top's points, within 3 mm of its highest.)
+    let topY = -Infinity; for (let i = 0; i < glb.pos.length / 3; i++) topY = Math.max(topY, glb.pos[i * 3 + 1]);
+    if (!rn) for (let i = 0; i < glb.pos.length / 3; i++) if (glb.pos[i * 3 + 1] > topY - 0.03 / K && glb.nor[i * 3 + 1] > 0.5) { rz += glb.pos[i * 3 + 2]; rn++; }
     let lowY = Infinity;
     for (let i = 0; i < n; i++) lowY = Math.min(lowY, glb.pos[i * 3 + 1]);
     const move = [0, FLOOR + 0.0004 - K * lowY, -K * (rz / rn)];
@@ -54,7 +68,10 @@ export default {
       const tris = [];
       for (let t = 0; t < I.length; t += 3) if (part[I[t]] === p) tris.push([I[t], I[t + 1], I[t + 2]]);
       // The top opening and the toe's tip (the points furthest along the foot, within 3 mm).
-      const rim = new Set(chains.find((c) => part[c[0]] === p));
+      // (its top opening; a closed sock (the textured model, its top closed over by a lid, tilted higher at the back): the
+      // lid's points, facing up, in its top 3 cm)
+      const own = chains.find((c) => part[c[0]] === p);
+      const rim = new Set(own ?? (() => { let t = -Infinity; for (const v of vs) t = Math.max(t, pos[v * 3 + 1]); return vs.filter((v) => pos[v * 3 + 1] > t - 0.03 && glb.nor[v * 3 + 1] > 0.5); })());
       let cx = 0;
       for (const v of rim) cx += pos[v * 3];
       cx /= rim.size;
@@ -229,7 +246,8 @@ export default {
     const count = outPos.length / 3, shade = new Float64Array(count);
     for (let i = 0; i < count; i++) { const y = outPos[i * 3 + 1] - FLOOR, t = Math.min(1, Math.max(0, (0.03 - y) / 0.028)); shade[i] = 1 - 0.25 * t * t * (3 - 2 * t); }
     report.push(`scale ${K}, move (${move.map((v) => v.toFixed(4)).join(', ')}); ${split} seam copies, ${count} points, ${idx.length / 3} triangles`);
-    return { data: { pos: Float32Array.from(outPos), nor: Float32Array.from(outNor), flat: Float64Array.from(flat), back: Uint8Array.from(back), shade, idx, extra: {} }, report: report.join('\n') };
+    // (its placing kept in the data (scale, move): viewer/tripo-glbparts.mjs lays the parts file on it the same way)
+    return { data: { pos: Float32Array.from(outPos), nor: Float32Array.from(outNor), flat: Float64Array.from(flat), back: Uint8Array.from(back), shade, idx, extra: { scale: K, move } }, report: report.join('\n') };
   },
 };
 

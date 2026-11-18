@@ -221,15 +221,31 @@ void main() {
     expect(find.text('UPLOAD\nARTWORK'), findsNWidgets(2), reason: 'the flying copy and the hidden bubble');
     expect(find.text('teal.png'), findsNothing, reason: 'the action runs when the bubble lands');
     await tester.pumpAndSettle();
-    expect(find.text('UPLOAD\nARTWORK'), findsOneWidget);
     expect(find.text('teal.png'), findsOneWidget);
+    // CLIENT598 (client 2026-11-18, picture 602): the bubble and the other
+    // options go; the chosen one stays on the full page, with Change option.
+    Future<void> only(String label) async {
+      expect(find.byKey(const ValueKey('assistant-opened')), findsOneWidget);
+      expect(find.byKey(const ValueKey('assistant-welcome')), findsNothing, reason: 'no bubble');
+      for (final k in ['assistant-scratch', 'assistant-sheet', 'assistant-notes', 'assistant-artwork', 'assistant-team']) {
+        expect(find.byKey(ValueKey(k)), findsNothing, reason: k);
+      }
+      expect(find.text(label), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav-orders')), findsNothing, reason: 'a working page, as DESIGN AI');
+      await tap(tester, find.byKey(const ValueKey('assistant-change')));
+      expect(find.byKey(const ValueKey('assistant-welcome')), findsOneWidget);
+    }
 
+    await only('UPLOAD ARTWORK');
     await tap(tester, find.byKey(const ValueKey('assistant-sheet')));
     expect(find.text('Strickland Family Reuion.xlsx'), findsOneWidget);
+    await only('EXCEL / ORDER SHEET');
     await tap(tester, find.byKey(const ValueKey('assistant-notes')));
     expect(find.text('Strickland Family Reuion.xlsx'), findsNWidgets(2));
+    await only('HANDWRITTEN NOTES');
     await tap(tester, find.byKey(const ValueKey('assistant-scratch')));
     expect(find.text('I need '), findsOneWidget);
+    await only('START FROM SCRATCH');
     expect(tester.takeException(), isNull);
     await tap(tester, find.byKey(const ValueKey('assistant-team')));
     expect(find.byType(TeamScreen), findsOneWidget);

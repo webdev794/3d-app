@@ -122,7 +122,25 @@ const modelOwnNecks = {
   'scJersey': 'v',
   'aflGuernsey': 'round',
   'trainingTee': 'round',
+  'rugbyJersey': 'round',
 };
+
+/// A model's own neck by its name where it is not a plain round or V neck
+/// (RUGBYJ 2026-11-18, the user: the Rugby League jersey's "Stand-up
+/// collar"), as garmentStyle.ts MODEL_NECK_NAMES.
+const modelNeckNames = {'rugbyJersey': 'Stand-up collar'};
+
+/// The name of a neck style on this design: the model's own name for its own
+/// neck, else "Round neck" / "V-neck".
+String neckName(String garment, Map<String, String> zoneColors, String id) {
+  for (final e in modelNeckNames.entries) {
+    if (_hex.hasMatch(zoneColors[e.key] ?? '') &&
+        fixedNeck(garment, zoneColors) == id) {
+      return e.value;
+    }
+  }
+  return neckLabels[id] ?? id;
+}
 String? fixedNeck(String garment, Map<String, String> zoneColors) {
   if (!hasNeckStyle(garment)) return null;
   for (final e in modelOwnNecks.entries) {
@@ -171,7 +189,7 @@ String? neckLabel(
   for (final (id, code, name) in rugbyCollars) {
     if (id == n) return id == 'shallow-v' ? name : '$code $name';
   }
-  return neckLabels[n];
+  return neckName(garment, zoneColors, n);
 }
 
 bool isRugbyCollar(String? neck) => rugbyCollars.any((c) => c.$1 == neck);

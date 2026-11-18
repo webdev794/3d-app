@@ -304,9 +304,10 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     void (async () => {
       try {
         let src = await readImage(await fetchFile(`/assets/${pending.asset}/file`));
+        // (Artwork to 3D: the file's own type, as a print layout's or a flat garment picture's, CLIENT598.)
+        if (pending.type) src = `data:${pending.type};base64,${src.slice(src.indexOf(',') + 1)}`;
         // Artwork to 3D (task 9.153): a print layout's panels checked, then each on its print area of the garment.
         if (pending.kind === 'layout') {
-          if (pending.type) src = `data:${pending.type};base64,${src.slice(src.indexOf(',') + 1)}`;
           const done = await checkPrintLayout(viewer.current!, src, pending.name, pending.asset, latest.current.design.garment);
           if (done) { edit(done.patch, { pendingDrawing: undefined }); onNotice(`Your print layout is on the 3D kit: ${done.panels} panel${done.panels === 1 ? '' : 's'}. Change colours, names and numbers, then save.`); }
           else { onChange({ ...latest.current, pendingDrawing: undefined }); onNotice('Print layout not put on. Use Artwork › Upload print layout to try again.'); }

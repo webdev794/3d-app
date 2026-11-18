@@ -74,7 +74,9 @@ function decode(name) {
  */
 export const DRESS_V = { tip: 0.712, width: 0.0095, roll: 0.0012, lift: 0.0009 };
 /** The netball bib's V-neck (NBBIB 2026-11-13; its own neck is round): as the dress's, its point `tip` high. */
-export const BIB_V = { tip: 0.6, width: 0.009, roll: 0.0014, lift: 0.0009, key: 'v', wrap: 0.014, over: 0.006 };
+// (`pieces`: the model's piece colours kept on the cut shape (MODELQ6 2026-11-18); our band along the V as wide as the
+// model's own rolled border it joins at the shoulders (was 9 mm, as the old wider printed border).)
+export const BIB_V = { tip: 0.6, width: 0.005, roll: 0.0014, lift: 0.0009, key: 'v', wrap: 0.014, over: 0.006, pieces: true };
 
 /**
  * The football jersey's V-necks (fbjersey.js, 2026-11-13), as the dress's: its point `depth` metres down the flat pattern
@@ -158,6 +160,9 @@ function cutNeck(name, V = DRESS_V) {
   // The model's own neck binding: its triangles (bands: all their points on the neck's band).
   const own = bandsOf(M) ?? new Uint8Array(M.count);
   const pos = Array.from(M.pos), nor = Array.from(M.nor), flat = Array.from(M.flat), side = Array.from(M.side), shade = Array.from(M.shade);
+  // (Where each new point and each triangle came from (V.pieces, MODELQ6 2026-11-18): the model's piece colours carried on
+  // onto the cut shape, tripoShape.)
+  const srcPt = [];
   const reach = Math.max(line[0].x, line[1].x) + 0.03;
   // The triangles the V may cross: in front of the middle (also the binding's rolled edge, printed from the back half of
   // the pattern), not a trim, near the neck. (Each triangle's corners are on one half of the pattern: the converter's
@@ -166,7 +171,7 @@ function cutNeck(name, V = DRESS_V) {
   for (let t = 0; t < M.idx.length; t += 3) {
     const c = [M.idx[t], M.idx[t + 1], M.idx[t + 2]];
     const near = c.every((v) => (V.trims || !(side[v] & 2)) && pos[v * 3 + 2] > 0) && c.some((v) => pos[v * 3 + 1] > tip - 0.05 && Math.abs(pos[v * 3]) < reach);
-    tris.push({ c, near, binding: near && c.every((v) => own[v] === 1) });
+    tris.push({ c, near, binding: near && c.every((v) => own[v] === 1), src: t / 3 });
   }
   // A new point where `value` is 0 on the edge a-b (the same point for both triangles on it).
   const point = (a, b, va, vb) => {
@@ -177,6 +182,7 @@ function cutNeck(name, V = DRESS_V) {
     for (let k = 0; k < 2; k++) flat.push(flat[a * 2 + k] + (flat[b * 2 + k] - flat[a * 2 + k]) * t);
     side.push(side[a]);
     shade.push(shade[a] + (shade[b] - shade[a]) * t);
+    srcPt.push([a, b, t]);
     return i;
   };
   // Every near triangle (of those `only` picks) split where `value` (per point) changes sign, then those on the side
@@ -373,6 +379,7 @@ function cutNeck(name, V = DRESS_V) {
     ...M, count: pos.length / 3, pos: Float32Array.from(pos), nor: Float32Array.from(nor), flat: Float32Array.from(flat), vFlat,
     side: Uint8Array.from(side), shade: Float32Array.from(shade), idx: pos.length / 3 > 65535 ? Uint32Array.from(idx) : Uint16Array.from(idx),
     collar: { pos: Float32Array.from(cpos), shade: Float32Array.from(cshade), idx: Uint16Array.from(cidx) }, vEdge,
+    ...(V.pieces ? { srcPt, srcTri: Array.from({ length: idx.length / 3 }, (_, k) => tris[k]?.src ?? -1), n0: M.count } : {}),
   };
   decoded.set(cacheKey, out);
   return out;
@@ -410,11 +417,18 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   // (main.js), so a trim's colour ends exactly on the model's own edge. Its cloth is printed as before.)
   // (The converter's own per-point bands that the parts replace (data `partBands`) are left off: printed as cloth, the part's
   // triangles drawn plain over them; the others (an edge binding, the inside) stay printed from their swatches.)
-  const triPart = M.data.triPart && M === decoded.get(name) ? new Uint8Array(bytes(M.data.triPart)) : null;
+  // (A neck cut with the model's pieces kept (cutNeck V.pieces): its parts and pieces mapped from where it came from.)
+  const carried = !!M.srcTri && M.data === decoded.get(name)?.data;
+  const triPart = M.data.triPart && (M === decoded.get(name) || carried) ? (carried ? ((tp) => Uint8Array.from(M.srcTri, (t) => (t >= 0 ? tp[t] ?? 0 : 0)))(new Uint8Array(bytes(M.data.triPart))) : new Uint8Array(bytes(M.data.triPart))) : null;
   // (A model split into the pieces between its own lines (its data's `piece`, MODELQ4 2026-11-17): per point the pieces on
   // the two sides of its nearest line (0 the print, k the k-th of its partKeys) and how far it is from that line (mm, + on
   // the first's side): the shader colours each piece's cloth up to that smooth line (main.js addRelief, piece).)
-  const pieceData = M.data.piece && M === decoded.get(name) ? new Uint8Array(bytes(M.data.piece)) : null;
+  const pieceData = M.data.piece && (M === decoded.get(name) || carried) ? (carried ? ((pd) => {
+    // (a new point on an edge: its two ends' pieces; the line's distance across it, else the nearer end's)
+    const o = new Uint8Array(n * 3); o.set(pd.subarray(0, M.n0 * 3));
+    M.srcPt.forEach(([a, b, t], k) => { const i = M.n0 + k, same = pd[a * 3] === pd[b * 3] && pd[a * 3 + 1] === pd[b * 3 + 1], e = t < 0.5 ? a : b; o[i * 3] = pd[e * 3]; o[i * 3 + 1] = pd[e * 3 + 1]; o[i * 3 + 2] = same ? Math.round(pd[a * 3 + 2] + (pd[b * 3 + 2] - pd[a * 3 + 2]) * t) : pd[e * 3 + 2]; });
+    return o;
+  })(new Uint8Array(bytes(M.data.piece))) : new Uint8Array(bytes(M.data.piece))) : null;
   const pieceOf = (i) => [pieceData[i * 3], pieceData[i * 3 + 1], (pieceData[i * 3 + 2] - 128) * 0.4];
   let PC = pieceData ? Array.from({ length: n * 3 }, (_, k) => pieceOf((k / 3) | 0)[k % 3]) : null;
   let band = bandsOf(M);
@@ -524,7 +538,10 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   // given for it (data `pieceTri`: triangle (3 bytes), the two pieces, each corner's distance), so the pieces' colours
   // inside it meet on that line and never mix into a third colour. The triangles are in the data's order here.)
   if (PC && M.data.pieceTri && !dropBand && index.length === M.idx.length) {
-    const T = new Uint8Array(bytes(M.data.pieceTri)), idx = Array.from(index), P = Array.from(pos), N = Array.from(nor), U = Array.from(uvs), C = Array.from(cols), K = partKey ? Array.from(partKey) : null;
+    let T = new Uint8Array(bytes(M.data.pieceTri));
+    // (On a cut neck: each entry onto the triangles that came whole from that one.)
+    if (carried) { const at = new Map(); M.srcTri.forEach((t, j) => { if (t >= 0 && [0, 1, 2].every((k) => M.idx[j * 3 + k] < M.n0)) (at.get(t) ?? at.set(t, []).get(t)).push(j); }); const o = []; for (let e = 0; e + 7 < T.length; e += 8) for (const j of at.get(T[e] | (T[e + 1] << 8) | (T[e + 2] << 16)) ?? []) o.push(j & 255, (j >> 8) & 255, (j >> 16) & 255, ...T.subarray(e + 3, e + 8)); T = Uint8Array.from(o); }
+    const idx = Array.from(index), P = Array.from(pos), N = Array.from(nor), U = Array.from(uvs), C = Array.from(cols), K = partKey ? Array.from(partKey) : null;
     for (let e = 0; e + 7 < T.length; e += 8) {
       const t = T[e] | (T[e + 1] << 8) | (T[e + 2] << 16);
       if (t * 3 + 2 >= idx.length) continue;

@@ -489,13 +489,15 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // neck, hem and side seams, the wordmark higher; garment-tee's muted azure
     // sleeves; nfl-tee's cyan sleeves with the "3" centred; rugby-tee and
     // netball-tee's cyan sleeves and side panels.
+    // (MODELQ5 2026-11-18: on the training tee's 3D model the wordmark is smaller,
+    // scale 0.55, all on the front clear of the side seams; as config/catalog.php.)
     'teeTile': {
       'secondary': '#27282a',
       'patternColor': '#00688a',
       'zones': solid(['sleeves']),
       'zoneColors': {'labelDark': '#2e3034', 'teeLong': '#27282a'},
       'marks': {
-        'top_wordmark': {'y': 0.515, 'scale': 0.9},
+        'top_wordmark': {'y': 0.515, 'scale': 0.55},
         'top_crest': {'y': 0.578, 'scale': 0.75},
       },
     },
@@ -506,7 +508,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'zones': solid(['sleeves']),
       'zoneColors': {'labelDark': '#2e3034', 'teeFlare': '#27282a'},
       'marks': {
-        'top_wordmark': {'y': 0.5},
+        'top_wordmark': {'y': 0.5, 'scale': 0.55},
         'top_crest': {'x': 0, 'y': 0.565, 'scale': 0.8},
       },
     },
@@ -517,7 +519,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'zones': solid(['sleeves', 'sides']),
       'zoneColors': {'labelDark': '#2e3034', 'teeFlare': '#27282a'},
       'marks': {
-        'top_wordmark': {'y': 0.5},
+        'top_wordmark': {'y': 0.5, 'scale': 0.55},
         'top_crest': {'y': 0.565},
       },
     },
@@ -531,7 +533,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'teeNetball': '#27282a',
       },
       'marks': {
-        'top_wordmark': {'y': 0.5},
+        'top_wordmark': {'y': 0.5, 'scale': 0.55},
         'top_crest': {'y': 0.565},
       },
     },
@@ -1142,8 +1144,9 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'rugbyJersey': {'main': '#e2bf3a', 'secondary': '#e2bf3a', 'accent': '#32324c', 'patternColor': '#32324c', 'parts': {'leftSleeve': {'colour': '#32324c'}, 'rightSleeve': {'colour': '#32324c'}}, 'zoneColors': {'rugbyJersey': '#32324c'}, 'marks': {'top_number': {'color': '#32324c'}, 'top_frontNumber': {'x': 0, 'y': 0.45}, 'top_wordmark': {'x': -0.07, 'y': 0.575, 'scale': 0.34}, 'top_crest': {'x': 0.075, 'y': 0.575, 'scale': 0.85}}, 'layers': []},
     'tsPants': {'zoneColors': {'shoulder': '#27282a', 'side': '#16b4f0', 'sideBlade': '#0a5ae6', 'stripe': '#16b4f0', 'zip': '#27282a', 'pantsStripe': '#16b4f0', 'tsPants': '#27282a'}, 'marks': {'top_crest': {'x': 0.105, 'y': 0.605, 'scale': 0.6}, 'top_wordmark': {'x': 0.105, 'y': 0.572, 'scale': 0.75}, 'shorts_crest': {'x': 0.17, 'y': 0.84}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802}}},
-    'womenRugbyShorts': {'secondary': '#00a2e8', 'zones': {'sides': 'Solid'}, 'parts': {'waistband': {'colour': '#27282a'}, 'shortsHem': {'colour': '#27282a'}}, 'zoneColors': {'cordTips': '#27282a', 'shortsPlain': '#27282a', 'shortsNarrow': '#27282a', 'womenRugbyShorts': '#27282a'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.13, 'y': 0.115, 'scale': 0.85}}},
+    'womenRugbyShorts': {'main': '#272e48', 'secondary': '#272e48', 'accent': '#e2bf3a', 'patternColor': '#e2bf3a', 'parts': {'waistband': {'colour': '#272e48'}, 'shortsHem': {'colour': '#272e48'}}, 'zoneColors': {'womenRugbyShorts': '#272e48'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.13, 'y': 0.075, 'scale': 0.8}, 'shorts_wordmark': {'side': 'front', 'x': -0.14, 'y': 0.065, 'scale': 0.5}}, 'layers': []},
     'trainingShorts': {'main': '#e3ca3b', 'secondary': '#2a52a8', 'accent': '#2a52a8', 'patternColor': '#2a52a8', 'parts': {'waistband': {'colour': '#2a52a8'}}, 'zoneColors': {'trainingShorts': '#2a52a8'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.13, 'y': 0.075, 'scale': 0.85}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.06, 'scale': 0.5}}, 'layers': []},
     'rashGuard': {'zoneColors': {'rashGuard': '#ffffff'},  'pattern': 'Blades', 'patternColor': '#1672f5', 'parts': {'sides': {'colour': '#27282a', 'pattern': 'Blades'}}},
     'trainingTee': {'main': '#a9cbe8', 'secondary': '#f2e52a', 'accent': '#1e2a44', 'patternColor': '#1e2a44', 'number': '', 'zoneColors': {'trainingTee': '#f2e52a'}, 'parts': {'collar': {'colour': '#f2e52a'}}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.3}, 'top_number': {'hidden': true}, 'top_name': {'side': 'back', 'x': 0, 'y': 0.66, 'scale': 0.5}}, 'layers': []},
@@ -1254,7 +1257,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
           'shape': 'rectangle',
           'w': 0.018,
           'h': 0.028,
-          'color': '#fff21a',
+          'colorFrom': 'secondary',
         },
       ],
     },
@@ -1362,7 +1365,8 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Performance rugby league jersey.',
       'Jersey',
       image: 'rugby-jersey',
-      look: 'rlJersey',
+      // (Its own 3D model, rugby-jersey-textured.glb: RUGBYJ 2026-11-18.)
+      look: 'rugbyJersey',
     ),
     GarmentTile(
       'Playing Shorts',

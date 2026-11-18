@@ -25,6 +25,8 @@
   "pieces": {
     "fromParts": true,
     "snap": 0,
-    "sigma": 6
+    "sigma": 6,
+    "seamLip": 0,
+    "lipsBandsOnly": true
   }
 }

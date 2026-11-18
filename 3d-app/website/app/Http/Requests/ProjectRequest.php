@@ -45,6 +45,25 @@ class ProjectRequest extends FormRequest
         'shards', 'shardsDeep',
     ];
 
+    /**
+     * ZONE_COLORS and every colour area a garment tile's look in the catalog sets (config/catalog.php: the ready-made
+     * models' flags, such as scJersey or aflGuernsey, come with their tiles). CLIENT598 2026-11-18: a kit started from
+     * those tiles could not be saved ("The design.zone colors field must be an array").
+     */
+    public static function zoneColorKeys(): array
+    {
+        $keys = self::ZONE_COLORS;
+        foreach (config('catalog.sports', []) as $sport) {
+            foreach ($sport['tiles'] ?? [] as $tile) {
+                foreach (array_keys($tile['design']['zoneColors'] ?? []) as $key) {
+                    $keys[] = (string) $key;
+                }
+            }
+        }
+
+        return array_values(array_unique($keys));
+    }
+
     /** The fixed marks that can be moved, resized, turned or hidden (top_frontNumber: the football jerseys' front number). */
     public const MARKS = ['top_wordmark', 'top_sponsor', 'top_crest', 'top_name', 'top_number', 'top_frontNumber', 'shorts_crest', 'shorts_number', 'shorts_wordmark'];
 
@@ -192,7 +211,7 @@ class ProjectRequest extends FormRequest
             'design.parts.*.patternOpacity' => ['sometimes', 'nullable', 'numeric', 'between:0,1'],
             // Each colour area's own colour (hoodies: the hood, its lining, the rib cuffs and waistband, the pocket, the zip;
             // the garment tiles' details: ZONE_COLORS).
-            'design.zoneColors' => ['sometimes', 'nullable', 'array:'.implode(',', self::ZONE_COLORS)],
+            'design.zoneColors' => ['sometimes', 'nullable', 'array:'.implode(',', self::zoneColorKeys())],
             'design.zoneColors.*' => ['nullable', $color],
             // The track jacket's style: its stand-up collar or a hood.
             'design.trackStyle' => ['sometimes', 'nullable', Rule::in(['collar', 'hood'])],
@@ -229,9 +248,13 @@ class ProjectRequest extends FormRequest
             'design.layout.joinLines' => ['sometimes', 'boolean'],
             'design.layout.parts' => ['sometimes', 'array', 'max:2'],
             // (The netball dress takes a design picture as the singlet does: task 9.126.)
-            'design.layout.parts.*' => [Rule::in(['raglan', 'shorts', 'singlet', 'netball-dress', 'jersey', 'tee', 'polo'])],
+            // (And every garment a flat garment picture goes on, Artwork to 3D: CLIENT598 2026-11-18.)
+            'design.layout.parts.*' => [Rule::in(['raglan', 'shorts', 'singlet', 'netball-dress', 'jersey', 'tee', 'polo', 'pocketpolo', 'nfljersey', 'shooting-shirt'])],
             'design.layers' => ['sometimes', 'array', 'max:40'],
-            'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape,artboard,clip,font,look,narrow'],
+            'design.layers.*' => ['array:id,name,type,part,side,x,y,w,h,rot,opacity,src,text,size,color,shape,artboard,clip,font,look,narrow,colorFrom'],
+            // A garment tile's own shape in one of the kit's colours (config/catalog.php: the Football jersey's hem tag, the
+            // AFL guernsey's chest bands; CLIENT598 2026-11-18: those kits could not be saved).
+            'design.layers.*.colorFrom' => ['sometimes', 'nullable', Rule::in(['main', 'secondary', 'accent'])],
             // A text object's own font, word look and squeeze (the garment tiles' numbers: the Rugby League Kit's shorts
             // "3", the football jerseys' "3"s; viewer texture.js).
             'design.layers.*.font' => ['sometimes', 'nullable', Rule::in(self::LAYER_FONTS)],

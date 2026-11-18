@@ -49,11 +49,13 @@ $look = function (string $name, array $extra = []): array {
         // netball-tee: bright cyan sleeves and side panels.
         // (FN11 2026-11-02, DT10: the stacks 3-5% lower and the "3" smaller as the pictures; the sleeves' cyan deeper (the
         // stage lifted it); the small dark neck label, zoneColors.labelDark.)
-        'teeTile' => ['secondary' => '#27282a', 'patternColor' => '#00688a', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeLong' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.515, 'scale' => 0.9], 'top_crest' => ['y' => 0.578, 'scale' => 0.75]]],
-        'teeCyan' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5], 'top_crest' => ['x' => 0, 'y' => 0.565, 'scale' => 0.8]]],
-        'teeSides' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves', 'sides'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5], 'top_crest' => ['y' => 0.565]]],
+        // (MODELQ5 2026-11-18, coordinator: on the training tee's 3D model (Tripo, every tee tile) the chest is narrower,
+        // so the wordmark is smaller (scale 0.55), all of it on the front with a clear gap to the side seams and sleeves.)
+        'teeTile' => ['secondary' => '#27282a', 'patternColor' => '#00688a', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeLong' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.515, 'scale' => 0.55], 'top_crest' => ['y' => 0.578, 'scale' => 0.75]]],
+        'teeCyan' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5, 'scale' => 0.55], 'top_crest' => ['x' => 0, 'y' => 0.565, 'scale' => 0.8]]],
+        'teeSides' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves', 'sides'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5, 'scale' => 0.55], 'top_crest' => ['y' => 0.565]]],
         // (FN13: the netball tee's own cut, narrower than the rugby tee's: viewer zoneColors.teeNetball.)
-        'teeSidesNetball' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves', 'sides'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a', 'teeNetball' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5], 'top_crest' => ['y' => 0.565]]],
+        'teeSidesNetball' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves', 'sides'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a', 'teeNetball' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5, 'scale' => 0.55], 'top_crest' => ['y' => 0.565]]],
         // (FN5 2026-10-30, the varsity picture's colours: a cool blue-black body and rib, pale sky blue sleeves, the white
         // felt border round the chest "3" (the accent).)
         'varsity' => ['accent' => '#ffffff', 'zoneColors' => ['body' => '#1a1e23', 'sleeves' => '#4fb2d0', 'rib' => '#1a1e23', 'ribStripe' => $cyan]],
@@ -215,8 +217,9 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'rugbyJersey' => ['main' => '#e2bf3a', 'secondary' => '#e2bf3a', 'accent' => '#32324c', 'patternColor' => '#32324c', 'parts' => ['leftSleeve' => ['colour' => '#32324c'], 'rightSleeve' => ['colour' => '#32324c']], 'zoneColors' => ['rugbyJersey' => '#32324c'], 'marks' => ['top_number' => ['color' => '#32324c'], 'top_frontNumber' => ['x' => 0, 'y' => 0.45], 'top_wordmark' => ['x' => -0.07, 'y' => 0.575, 'scale' => 0.34], 'top_crest' => ['x' => 0.075, 'y' => 0.575, 'scale' => 0.85]], 'layers' => []],
         'tsPants' => ['zoneColors' => ['shoulder' => '#27282a', 'side' => '#16b4f0', 'sideBlade' => '#0a5ae6', 'stripe' => '#16b4f0', 'zip' => '#27282a', 'pantsStripe' => '#16b4f0', 'tsPants' => '#27282a'], 'marks' => ['top_crest' => ['x' => 0.105, 'y' => 0.605, 'scale' => 0.6], 'top_wordmark' => ['x' => 0.105, 'y' => 0.572, 'scale' => 0.75], 'shorts_crest' => ['x' => 0.17, 'y' => 0.84], 'shorts_wordmark' => ['x' => 0.17, 'y' => 0.802]]],
-        'womenRugbyShorts' => ['secondary' => '#00a2e8', 'zones' => ['sides' => 'Solid'], 'parts' => ['waistband' => ['colour' => '#27282a'], 'shortsHem' => ['colour' => '#27282a']], 'zoneColors' => ['cordTips' => '#27282a', 'shortsPlain' => '#27282a', 'shortsNarrow' => '#27282a', 'womenRugbyShorts' => '#27282a'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.13, 'y' => 0.115, 'scale' => 0.85]]],
+        'womenRugbyShorts' => ['main' => '#272e48', 'secondary' => '#272e48', 'accent' => '#e2bf3a', 'patternColor' => '#e2bf3a', 'parts' => ['waistband' => ['colour' => '#272e48'], 'shortsHem' => ['colour' => '#272e48']], 'zoneColors' => ['womenRugbyShorts' => '#272e48'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.13, 'y' => 0.075, 'scale' => 0.8], 'shorts_wordmark' => ['side' => 'front', 'x' => -0.14, 'y' => 0.065, 'scale' => 0.5]], 'layers' => []],
         'trainingShorts' => ['main' => '#e3ca3b', 'secondary' => '#2a52a8', 'accent' => '#2a52a8', 'patternColor' => '#2a52a8', 'parts' => ['waistband' => ['colour' => '#2a52a8']], 'zoneColors' => ['trainingShorts' => '#2a52a8'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.13, 'y' => 0.075, 'scale' => 0.85], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.15, 'y' => 0.06, 'scale' => 0.5]], 'layers' => []],
         'rashGuard' => ['pattern' => 'Blades', 'patternColor' => '#1672f5', 'parts' => ['sides' => ['colour' => '#27282a', 'pattern' => 'Blades']], 'zoneColors' => ['rashGuard' => '#ffffff']],
         'trainingTee' => ['main' => '#a9cbe8', 'secondary' => '#f2e52a', 'accent' => '#1e2a44', 'patternColor' => '#1e2a44', 'number' => '', 'zoneColors' => ['trainingTee' => '#f2e52a'], 'parts' => ['collar' => ['colour' => '#f2e52a']], 'marks' => ['top_wordmark' => ['x' => 0.09, 'y' => 0.6, 'scale' => 0.45], 'top_crest' => ['x' => -0.09, 'y' => 0.6, 'scale' => 0.3], 'top_number' => ['hidden' => true], 'top_name' => ['side' => 'back', 'x' => 0, 'y' => 0.66, 'scale' => 0.5]], 'layers' => []],
@@ -247,7 +250,7 @@ $look = function (string $name, array $extra = []): array {
         // texture.js brandBack), our "3" and wordmark on the front in the usual places; set so the stage renders them as the
         // card's. Nothing from the picture.)
         'scJersey' => ['main' => '#33496a', 'secondary' => '#fff21a', 'accent' => '#ffffff', 'patternColor' => '#fff21a', 'parts' => ['sides' => ['colour' => '#fff21a']], 'zoneColors' => ['scJersey' => '#fff21a'],
-            'layers' => [['type' => 'shape', 'id' => 'tile-tag', 'name' => 'Hem tag', 'part' => 'top', 'side' => 'front', 'x' => 0.1, 'y' => 0.11, 'shape' => 'rectangle', 'w' => 0.018, 'h' => 0.028, 'color' => '#fff21a']]],
+            'layers' => [['type' => 'shape', 'id' => 'tile-tag', 'name' => 'Hem tag', 'part' => 'top', 'side' => 'front', 'x' => 0.1, 'y' => 0.11, 'shape' => 'rectangle', 'w' => 0.018, 'h' => 0.028, 'colorFrom' => 'secondary']]],
         'netballDress' => ['number' => '', 'main' => '#30508a', 'secondary' => '#2295dc', 'accent' => '#00d0ff', 'pattern' => 'None', 'patternColor' => '#2295dc',
             'zoneColors' => ['body' => '#30508a', 'panels' => '#2295dc', 'yoke' => '#30508a', 'binding' => '#2295dc']],
     ];
@@ -270,8 +273,9 @@ $sports = [
     // the client's own tiles (images/161.jpg) remade in high resolution, garment-rugby-*.webp.
     ['id' => 'rugby-league', 'name' => 'Rugby League', 'description' => 'Made for every tackle. Built for your team.', 'group' => 'sports', 'more' => false, 'tiles' => [
         $tile('Rugby League Kit', 'Jersey, playing shorts and socks.', 'fullkit', 'rugby-kit'),
-        // (On its own 3D model in its reference's colours, FBJERSEY 2026-11-13; the kit keeps the made jersey.)
-        $tile('Jersey', 'Performance rugby league jersey.', 'jersey', 'rugby-jersey') + ['design' => $look('rlJersey')],
+        // (On its own 3D model, rugby-jersey-textured.glb (RUGBYJ 2026-11-18, look 'rugbyJersey', viewer/models/rugby-jersey.json);
+        // the kit keeps the made jersey.)
+        $tile('Jersey', 'Performance rugby league jersey.', 'jersey', 'rugby-jersey') + ['design' => $look('rugbyJersey')],
         $tile('Playing Shorts', 'Durable rugby league shorts.', 'shorts', 'rugby-shorts') + ['design' => $look('rlShorts')],
         $tile('Socks', 'Knee-high match socks.', 'socks', 'rugby-socks') + ['design' => $look('rlSocks')],
         $tile('Polo', 'Smart team polo with collar.', 'polo', 'rugby-polo'),

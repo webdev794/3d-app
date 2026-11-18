@@ -1,6 +1,6 @@
 {
-  "about": "Training tees (every tile showing the tee picture): Tripo model training-tee.glb (made facing away: turned round), booklet card 112791 (light blue body, yellow neck band and cuffs; our 3DEEZI wordmark small high on the back where the card has its neck text; nothing of the card's text). WIDE (2026-11-16 coordinator): on every tile of its garment, the tile's own existing look kept (no card colours); `look` is only the check design.",
-  "glb": "../../../tripo/training-tee.glb",
+  "about": "Training tees (every tile showing the tee picture): Tripo model training-tee-textured.glb (made facing away: turned round; its shape only: its painted colours and its own UV atlas are not used; coloured from training-tee-parts.glb by viewer/tripo-glbparts.mjs, MODELQ5 2026-11-18), booklet card 112791 (light blue body, yellow neck band and cuffs; our 3DEEZI wordmark small high on the back where the card has its neck text; nothing of the card's text). WIDE (2026-11-16 coordinator): on every tile of its garment, the tile's own existing look kept (no card colours); `look` is only the check design.",
+  "glb": "../../../tripo/training-tee-textured.glb",
   "converter": "top",
   "part": "tee",
   "flag": "trainingTee",

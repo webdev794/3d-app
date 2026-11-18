@@ -19,7 +19,22 @@
       },
       "where": "y > 0.8",
       "part": "part:waistband|main"
+    },
+    {
+      "regions": [
+        1,
+        2
+      ],
+      "part": "cloth"
     }
   ],
-  "partBands": []
+  "partBands": [],
+  "pieces": {
+    "fromParts": true,
+    "snap": 0,
+    "sigma": 6,
+    "noTapes": true,
+    "seamLip": 0,
+    "lipsBandsOnly": true
+  }
 }

@@ -283,7 +283,14 @@ function addRelief(target, painter) {
   // (Its shadows still cast by the faces turned away from the light, as before: a two-sided print casting from both faces
   // shaded itself in fine stripes.)
   if (lipKey) Object.assign(target, { side: THREE.DoubleSide, shadowSide: THREE.BackSide });
-  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '') + (matte ? '-matte' : '') + (keyed ? '-parts' : '') + (pieced ? `-pieces${lipKey}` : '');
+  // (A model whose data asks for it (`insideCloth`, MODELQ5 2026-11-18: the Football jersey; the user: only cloth shows
+  // through a sleeve's opening): every triangle's inside face drawn by this print too, in its colour and lit as cloth (at
+  // least as the light coming in through the opening), never the dark inside material; no edge light on inside faces.)
+  const insideCloth = !!lipKey && !!painter.model?.insideCloth;
+  // (A model whose data asks for it (`narrowEdge`, RUGBYJ 2026-11-18: the rugby jersey's folded sleeve openings showed specks of
+  // the edge light): the edge light only right at the outline, as the Football jersey's.)
+  const narrowEdge = !!painter.model?.narrowEdge;
+  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '') + (matte ? '-matte' : '') + (keyed ? '-parts' : '') + (pieced ? `-pieces${lipKey}` : '') + (insideCloth ? '-insidecloth' : '') + (narrowEdge ? '-narrowedge' : '');
   target.onBeforeCompile = (shader) => {
     if (keyed) {
       shader.uniforms.partTint = target.userData.partTint;
@@ -297,7 +304,7 @@ function addRelief(target, painter) {
     }
     if (pieced) {
       // (A lip seen from its other face is lit as if it faced the camera: its own normals may point either way.)
-      if (lipKey) shader.fragmentShader = shader.fragmentShader.replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n\tbool pieceLip = abs( vPartKey - ${lipKey}.0 ) < 0.5;\n\tif ( ! gl_FrontFacing && ! pieceLip ) discard;`)
+      if (lipKey) shader.fragmentShader = shader.fragmentShader.replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n\tbool pieceLip = abs( vPartKey - ${lipKey}.0 ) < 0.5;${insideCloth ? '' : '\n\tif ( ! gl_FrontFacing && ! pieceLip ) discard;'}`)
         .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n\tif ( pieceLip && dot( normal, vViewPosition ) < 0.0 ) normal = - normal;');
       shader.uniforms.pieceMain = target.userData.pieceMain;
       shader.vertexShader = shader.vertexShader
@@ -319,13 +326,15 @@ function addRelief(target, painter) {
 	totalEmissiveRadiance = mix( totalEmissiveRadiance, emissive * pieceRep, pieceW );
 #endif`);
     }
+    if (insideCloth) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `if ( ! gl_FrontFacing ) outgoingLight = max( outgoingLight, diffuseColor.rgb * 0.45 );
+#include <opaque_fragment>`);
     if (skirtLight) shader.fragmentShader.replace('#include <opaque_fragment>', `${SKIRT_LIGHT}\n#include <opaque_fragment>`);
     // (LT2 2026-11-02, the client: "a thin highlight around these garments": on the tiers a thin, soft cyan-white edge
     // light only where the surface turns away at the outline, so the kit stands apart from the dark stage; the front
     // faces the camera and keeps its colours.)
     if (Q) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `{
       float edge = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));
-      outgoingLight += vec3(0.62, 0.86, 1.0) * ${dress ? '0.0' : bball || matte ? '0.08' : '0.5'}${lipKey ? ' * ( pieceLip ? 0.0 : 1.0 )' : ''} * smoothstep(${dress || bball || matte ? '0.9, 0.995' : '0.62, 0.95'}, edge);
+      outgoingLight += vec3(0.62, 0.86, 1.0) * ${dress ? '0.0' : bball || matte ? '0.08' : '0.5'}${lipKey ? (insideCloth ? ' * ( pieceLip || ! gl_FrontFacing ? 0.0 : 1.0 )' : ' * ( pieceLip ? 0.0 : 1.0 )') : ''} * smoothstep(${dress || bball || matte || insideCloth || narrowEdge ? '0.9, 0.995' : '0.62, 0.95'}, edge);
     }
 #include <opaque_fragment>`);
     if (dress) shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
@@ -513,14 +522,43 @@ function paintPlains(part, design) {
     // (A model's lips never take a colour of their own: they show what is round them. Under a design picture the parts'
     // colours are not painted (texture.js): the inside then takes the picture's inside colour.)
     if (colours[k] === null || key === 'lip') { tint[k].set(1, 1, 1, 0); return; }
+    // (A model's sleeve pieces (part:leftSleeve / part:rightSleeve, RUGBYJ 2026-11-18) under a design picture: the picture's
+    // own sleeves show there (QATEST / CLIENT598: a flat garment picture's navy sleeves came out in the body's colour).)
+    if (layout && (key === 'part:leftSleeve' || key === 'part:rightSleeve')) { tint[k].set(1, 1, 1, 0); return; }
     if (layout && key === 'inside') { const c = new THREE.Color(part.layoutInside ?? design.main).multiplyScalar(0.9); tint[k].set(c.r, c.g, c.b, 1); return; }
-    const c = new THREE.Color(layout && (key === 'collar' || key === 'waistband') && (part.layoutBand ?? part.layoutRim) ? part.layoutBand ?? part.layoutRim : colours[k] ?? design.secondary);
+    const c = new THREE.Color(layout && (key === 'collar' || key === 'waistband' || key === 'part:cuffs') && (part.layoutBand ?? part.layoutRim) ? part.layoutBand ?? part.layoutRim : colours[k] ?? design.secondary);
     if (key === 'inside') c.multiplyScalar(0.9);
     // (On a model split into pieces (main.js `pieced`): a band (collar, waistband) one plain colour all over (w 2); any
     // other piece takes its colour where the print shows the Main (w 1).)
     // (and a trim named by its design part, 'part:<key>' (a hem band, cuffs), MODELQ2 2026-11-17)
     tint[k].set(c.r, c.g, c.b, part.tripo.pieces && (key === 'collar' || key === 'waistband' || key.startsWith('part:')) ? 2 : 1);
   });
+}
+
+/** A model's stitch lines (data `stitches`: [{ c: [x, y, z, ...] on the cloth, n: its normals, closed }]) as one mesh of thin
+ * strips, `width` wide, lifted `lift` off the cloth, black at low opacity: the cloth under it a shade darker. */
+function stitchStrips(stitches, width = 0.0016, lift = 0.0007) {
+  const P = [], I = [], NN = [];
+  for (const s of stitches) {
+    const n = s.c.length / 3, at = (i) => [s.c[i * 3], s.c[i * 3 + 1], s.c[i * 3 + 2]], base = P.length / 3;
+    for (let i = 0; i < n; i++) {
+      const p = at(i), q = at(s.closed ? (i + 1) % n : Math.min(n - 1, i + 1)), o = at(s.closed ? (i - 1 + n) % n : Math.max(0, i - 1));
+      const N = new THREE.Vector3(s.n[i * 3], s.n[i * 3 + 1], s.n[i * 3 + 2]).normalize(), T = new THREE.Vector3(q[0] - o[0], q[1] - o[1], q[2] - o[2]);
+      const side = new THREE.Vector3().crossVectors(T, N).normalize().multiplyScalar(width / 2), c = new THREE.Vector3(...p).addScaledVector(N, lift);
+      P.push(c.x + side.x, c.y + side.y, c.z + side.z, c.x - side.x, c.y - side.y, c.z - side.z);
+      NN.push(N.x, N.y, N.z, N.x, N.y, N.z);
+    }
+    for (let i = 0; i < (s.closed ? n : n - 1); i++) { const a = base + i * 2, b = base + ((i + 1) % n) * 2; I.push(a, a + 1, b, a + 1, b + 1, b); }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(NN, 3));
+  geometry.setIndex(I);
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+  // (never picked by a click: the cloth under it is)
+  mesh.raycast = () => {};
+  mesh.renderOrder = 2;
+  return mesh;
 }
 
 function buildKit(kind) {
@@ -581,8 +619,10 @@ function buildKit(kind) {
   // (The football jersey's model: every library collar made on it: its neck cut in the model, the band's stripes and tips
   // on its own band or our binding (texture.js), its prints, and its own pieces (a fold-down or wing collar sewn on at the
   // band's foot, the band then left off; buttons) on the model: tripomesh.js surface, buildCollarParts.)
-  const collar = !layout && list.includes('jersey') && !scj ? rugbyCollar(design) : null;
-  const fit = !layout && !fbj && !scj && list.includes('jersey') && (design.fit === 'classic' || design.fit === 'tight') ? design.fit : null;
+  // (A jersey on a model added by the shared recipe (the Rugby League jersey, RUGBYJ 2026-11-18): its own collar and shape only.)
+  const recipeJersey = list.includes('jersey') && !!RECIPE_MODELS[tripoOf('jersey') ?? ''];
+  const collar = !layout && list.includes('jersey') && !scj && !recipeJersey ? rugbyCollar(design) : null;
+  const fit = !layout && !fbj && !scj && !recipeJersey && list.includes('jersey') && (design.fit === 'classic' || design.fit === 'tight') ? design.fit : null;
   // (The rugby / netball / NFL training tees (tile look zoneColors.teeFlare): sleeves standing out from the body and the
   // body flaring to a wider hem, as their pictures: DT10.)
   // (Not on the tee's ready-made model: its own shape, MODELQ 2026-11-16.)
@@ -690,7 +730,7 @@ function buildKit(kind) {
     // above it: texture.js `brandBack`.)
     if (tripo && scSpec) painter.model = { swatch: tripo.data.swatch, brandBack: true };
     // (A model with its parts per triangle: the painter paints none of the made garment's trims and gives the parts' colours.)
-    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces };
+    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
     // (The Rugby League shorts' model: its own waistband, printed from the waist down the made rib's width: texture.js.)
     if (tripo && partKind === 'shorts' && !tripo.partKeys) painter.modelBand = (garment.points?.CF?.[1] ?? 0.35) - garment.rimWidth;
     // (The Rugby League socks on their model: their welt's seam lower, sockprint.js sockTailoring.)
@@ -751,6 +791,7 @@ function buildKit(kind) {
     // (A model split into pieces (MODELQ4): its lips are printed on both faces by the print (addRelief), so the inside is not
     // drawn on them.)
     const insideLip = painter.model?.pieces ? painter.model.keys.indexOf('lip') + 1 : 0;
+    if (insideLip && painter.model?.insideCloth) inside.visible = false;
     if (insideLip) {
       inside.customProgramCacheKey = () => `inside-lips${insideLip}`;
       inside.onBeforeCompile = (shader) => {
@@ -777,6 +818,10 @@ function buildKit(kind) {
     fabric.castShadow = true;
     fabric.receiveShadow = true;
     group.add(fabric);
+    // (A model's stitch lines (its data's `stitches`, RUGBYJ 2026-11-18, the user: the rugby jersey's neck seam, collar edge,
+    // cuff and hem stitching as its pictures 592 / 600 / 601): thin strips laid just on the cloth, a little darker than the
+    // cloth under them, whatever its colour or print; the model's shape is unchanged.)
+    if (tripo?.data?.stitches) group.add(stitchStrips(tripo.data.stitches));
     // The netball dress's V-neck: our own binding along the V cut in its model (tripomesh.js cutNeck), in the print's
     // neck binding colour.
     if (tripo?.collar) {
@@ -1029,7 +1074,7 @@ function dressMannequin(list) {
     const group = part.rim.parent;
     // The HQ jersey: the body it was made on (hq.js), else our form made for the garment.
     const form = part.garment.form ? part.garment.form(mannequinMat) : part.hq?.avatar ? new THREE.Group().add(new THREE.Mesh(part.hq.avatar, mannequinMat))
-      : buildMannequin(part.tripo?.wearer ?? part.garment, mannequinMat, { over: (list.includes('shorts') || list.includes('bballshorts')) && part.painter.kind !== 'shorts', legOpenings: !!RECIPE_MODELS[tripoOf(part.painter.kind) ?? ''] });
+      : buildMannequin(part.tripo?.wearer ?? part.garment, mannequinMat, { over: (list.includes('shorts') || list.includes('bballshorts')) && part.painter.kind !== 'shorts', legOpenings: !!RECIPE_MODELS[tripoOf(part.painter.kind) ?? ''], noArms: !!part.tripo?.data?.insideCloth });
     if (!form) continue;
     group.add(form);
     const s = group.scale.y;
@@ -1549,7 +1594,8 @@ function warpParts() {
     const { painter } = part, shorts = painter.kind === 'shorts';
     painter.layoutBase = warpLayout(renderer, layout.image, regionsFor(painter, layout.panels, layout.image, { drawing: !!layout.drawing }), painter.canvas.width, painter.canvas.height);
     const main = shorts ? byRole.legL ?? byRole.legR : byRole.front ?? byRole.back;
-    painter.layoutFill = main ? panelColour(layout.image, main, 0.45, 0.8) : design.main;
+    // (A drawing: its commonest colour, never a blend of its colours: CLIENT598.)
+    painter.layoutFill = main ? panelColour(layout.image, main, 0.45, 0.8, !!layout.drawing) : design.main;
     part.layoutRim = shorts ? (main ? panelColour(layout.image, main, 0, 0.06) : null) : byRole.neck ? panelColour(layout.image, byRole.neck) : painter.layoutFill;
     // A drawing's collar: the colour of its neckline's trim, just in from the edge.
     if (layout.drawing && main) {
@@ -1566,7 +1612,7 @@ function warpParts() {
       const w = main.x1 - main.x0, middle = [(main.x0 + main.x1) / 2, (main.y0 + main.y1) / 2], neckline = drawingSides(main.outline, !!DRAWN[layout.garment]?.CT).sides[0];
       part.layoutBand = bindingColour(layout.image, main, lineColour(layout.image, neckline, middle, Math.max(8, 0.06 * w))) ?? part.layoutRim;
     }
-    painter.layoutSwatch = layout.drawing && painter.model?.swatch?.length && !painter.model.keys ? { band: part.layoutBand ?? part.layoutRim, inside: part.layoutInside ?? painter.layoutFill } : null;
+    painter.layoutSwatch = layout.drawing && painter.model?.swatch?.length && (!painter.model.keys || painter.model.areas) ? { band: part.layoutBand ?? part.layoutRim, inside: part.layoutInside ?? painter.layoutFill } : null;
     // The trim colour (the neck trim's), for the shorts' eyelets and cord tips.
     part.layoutAccent = byRole.neck ? panelColour(layout.image, byRole.neck) : null;
   }

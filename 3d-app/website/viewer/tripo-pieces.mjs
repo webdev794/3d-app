@@ -19,6 +19,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { colourLines } from './pieces/lines.mjs';
 import { closestOnTri } from './pieces/pieces.mjs';
+import { loops } from './pieces/model.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const name = process.argv[2];
@@ -67,8 +68,26 @@ const partBorders = (S0) => {
 };
 // (`pieces.lines`: lines given as rough paths along the model's expected seams, [{ C: [[x, y, z], ...] (the data's metres),
 // closed, snap, sigma, snapSigma }], drawn onto its creases the same way.)
-const extra = (S0) => [...(triPartIn ? partBorders(S0) : []), ...(settings.lines ?? [])];
-const S = colourLines(name, { slot: () => 'piece', ...settings, ...(triPartIn || settings.lines ? { extraLines: extra } : {}) }), { A } = S;
+// (`pieces.bandEdges`: [{ near: [x, y, z], width, dir: 'down' | 'up', snap? }]: a band one even width along one of the model's own
+// free edges (the open chain whose middle is nearest `near`: a waistband's top, a cuff's bottom): its line is that edge
+// moved `width` metres down (up) and laid onto the cloth, so the band has one even width all round (MODELQ2 2026-11-17).
+// With bandEdges the part borders are not lines.)
+const bandEdgeLines = (S0) => (settings.bandEdges ?? []).map((E) => {
+  const { A: A0 } = S0, E2 = new Map();
+  for (let t2 = 0; t2 < A0.T; t2++) for (let k = 0; k < 3; k++) { const a2 = A0.F[t2 * 3 + k], b2 = A0.F[t2 * 3 + (k + 1) % 3], key = a2 < b2 ? a2 * 1e6 + b2 : b2 * 1e6 + a2; E2.set(key, (E2.get(key) ?? 0) + 1); }
+  const open = [...E2].filter(([, c]) => c === 1).map(([key]) => [Math.floor(key / 1e6), key % 1e6]);
+  const Pv = (v) => [A0.P[v * 3], A0.P[v * 3 + 1], A0.P[v * 3 + 2]], mid = (l) => l.map(Pv).reduce((s2, p) => s2.map((x, i) => x + p[i] / l.length), [0, 0, 0]);
+  const chain = loops(open).filter((l) => l.length >= 10).sort((l1, l2) => Math.hypot(...mid(l1).map((x, i) => x - E.near[i])) - Math.hypot(...mid(l2).map((x, i) => x - E.near[i])))[0];
+  if (!chain) return null;
+  // (each edge point moved straight down (up), then onto the nearest cloth)
+  const G = 0.02, grid = new Map(), gk = (p) => p.map((c) => Math.floor(c / G)).join(',');
+  for (let t2 = 0; t2 < A0.T; t2++) { const c = [0, 1, 2].map((k) => Pv(A0.F[t2 * 3 + k])).reduce((s2, p) => s2.map((x, i) => x + p[i] / 3), [0, 0, 0]); const k = gk(c); (grid.get(k) ?? grid.set(k, []).get(k)).push(t2); }
+  const onCloth = (p) => { const [x, y, z] = p.map((c) => Math.floor(c / G)); let best = null, bd = 9; for (let a2 = -1; a2 <= 1; a2++) for (let b2 = -1; b2 <= 1; b2++) for (let c2 = -1; c2 <= 1; c2++) for (const t2 of grid.get(`${x + a2},${y + b2},${z + c2}`) ?? []) { const q2 = closestOnTri(p, Pv(A0.F[t2 * 3]), Pv(A0.F[t2 * 3 + 1]), Pv(A0.F[t2 * 3 + 2])), d = Math.hypot(q2[0] - p[0], q2[1] - p[1], q2[2] - p[2]); if (d < bd) { bd = d; best = q2; } } return best ?? p; };
+  const s = E.dir === 'up' ? 1 : -1, C = chain.map(Pv).map((p) => onCloth([p[0], p[1] + s * E.width, p[2]]));
+  return { C, closed: true, snap: E.snap ?? 0, sigma: E.sigma ?? 6 };
+}).filter(Boolean);
+const extra = (S0) => [...(settings.bandEdges ? bandEdgeLines(S0) : triPartIn ? partBorders(S0) : []), ...(settings.lines ?? [])];
+const S = colourLines(name, { slot: () => 'piece', ...settings, ...(triPartIn || settings.lines || settings.bandEdges ? { extraLines: extra } : {}) }), { A } = S;
 const P = (v) => [A.P[v * 3], A.P[v * 3 + 1], A.P[v * 3 + 2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const D3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 // The band pieces: nearly all their points within 4.5 cm of one of the cloth's openings.
@@ -103,6 +122,20 @@ for (let i = 0; i < n; i++) {
   if (a < 0) { a = b = 0; s = 1; }
   out[i * 3] = idxOf(a); out[i * 3 + 1] = idxOf(b); out[i * 3 + 2] = q(s);
 }
+// (`tapeFar` (parts file; MODELQ6 2026-11-17, the netball bib): a separate piece of the model standing more than this off the
+// cloth (a patch, a layer in front) shows the print, never the colour of a band it happens to be near.)
+if (settings.tapeFar) {
+  const G = 0.02, grid = new Map(), gk = (p) => p.map((c) => Math.floor(c / G)).join(',');
+  for (const t of S.comps[0].tris) { const c = [0, 1, 2].map((k) => P(A.F[t * 3 + k])).reduce((a, p) => a.map((x, i) => x + p[i] / 3), [0, 0, 0]); const k = gk(c); (grid.get(k) ?? grid.set(k, []).get(k)).push(t); }
+  let far = 0;
+  for (let i = 0; i < n; i++) {
+    const w = A.weld[i]; if (S.bodyPts.has(w) || S.ownReg[w] >= 0) continue;
+    const p = P(w), [x, y, z] = p.map((c) => Math.floor(c / G)); let d = Infinity;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) for (const t of grid.get(`${x + a},${y + b},${z + c}`) ?? []) d = Math.min(d, D3(p, closestOnTri(p, P(A.F[t * 3]), P(A.F[t * 3 + 1]), P(A.F[t * 3 + 2]))));
+    if (d > settings.tapeFar) { out[i * 3] = out[i * 3 + 1] = 0; out[i * 3 + 2] = q(0.01); S.LA[w] = S.LB[w] = 0; S.LS[w] = 1; far++; }
+  }
+  console.log(`[${name}] points of separate pieces off the cloth (print): ${far}`);
+}
 // Triangles whose corners lie by different lines: every corner the same two pieces and its own distance from the one
 // line between them nearest the triangle.
 const ownOf = (w) => (S.LA[w] === S.LB[w] ? S.LA[w] : S.LS[w] >= 0 ? S.LA[w] : S.LB[w]);
@@ -121,8 +154,13 @@ const lineDist = (p, r1, r2) => {
 };
 const raw = Buffer.from(D.idx, 'base64'), IDX = n > 65535 ? new Uint32Array(new Uint8Array(raw).buffer) : new Uint16Array(new Uint8Array(raw).buffer);
 const tris = []; let mixed = 0;
+// (fromParts: a triangle of one of the model's own separate pieces with a colour of its own (a hem band) is that piece's all
+// over, though its edge points sit where the cloth's do (sewn on there: welded to the cloth's points).)
+const ownTri = new Map();
+if (triPartIn) S.own.forEach((cp, k) => { if (regKey[S.nr + k] !== undefined) for (const t2 of cp.tris) ownTri.set(t2, S.nr + k); });
 for (let t = 0; t < IDX.length / 3; t++) {
   const c = [0, 1, 2].map((k) => IDX[t * 3 + k]);
+  if (ownTri.has(t)) { const o = idxOf(ownTri.get(t)); if (c.some((i) => out[i * 3] !== o || out[i * 3 + 1] !== o)) { mixed++; tris.push(t & 255, (t >> 8) & 255, (t >> 16) & 255, o, o, q(0.01), q(0.01), q(0.01)); } continue; }
   if (c.every((i) => out[i * 3] === out[c[0] * 3] && out[i * 3 + 1] === out[c[0] * 3 + 1])) continue;
   mixed++;
   const w = c.map((i) => A.weld[i]), regs = [...new Set(w.map(ownOf))].filter((r) => r >= 0), mid = w.map(P).reduce((s, p) => s.map((x, k) => x + p[k] / 3), [0, 0, 0]);
@@ -181,13 +219,18 @@ for (let t = 0; t < IDX.length / 3; t++) {
     // (and the bands' cloth: a binding wraps over the opening's edge, so its inside face is the band's colour too, and the
     // colour does not change at the rim)
     let lip = !body.has(t) || [0, 1, 2].some((k) => nearLine(P(A.F[t * 3 + k]), settings.seamLip ?? 0.01) || bandKey(regKey[ownOf(A.F[t * 3 + k])]));
-    if (!lip) {
+    // (`lipsBandsOnly` (MODELQ2): only the bands (and the model's own separate pieces) are lips: every other cloth triangle is drawn
+    // on its outer face only, its inside in the inside's one plain colour: an even inside, no print showing through in patches.)
+    if (!lip && !settings.lipsBandsOnly) {
       const c = [0, 1, 2].map((k) => P(A.F[t * 3 + k])).reduce((a, p) => a.map((x, i) => x + p[i] / 3), [0, 0, 0]), n = [A.FN[t * 3], A.FN[t * 3 + 1], A.FN[t * 3 + 2]];
       const front = meets(c.map((x, i) => x + n[i] * 1e-4), n, t), back = meets(c.map((x, i) => x - n[i] * 1e-4), n.map((x) => -x), t);
       if (front !== back) lip = front && !back;
       else { const o = [c[0], (c[1] - yc) * 0.4, c[2] - zc], l = Math.hypot(...o) || 1; lip = dot(n, o) / l < 0; }
     }
     if (lip) { tp[t] = lipKey + 1; lips++; }
+    // (fromParts: a triangle of the model's own separate band (a hem band) keeps its band's own key: drawn in that plain colour
+    // all over, crisp, as the per-triangle parts were; not as a lip.)
+    if (ownTri.has(t)) { tp[t] = idxOf(ownTri.get(t)); if (lip) lips--; }
   }
   D.triPart = Buffer.from(tp).toString('base64');
   console.log(`[${name}] lips (both faces printed): ${lips} triangles`);
@@ -214,6 +257,9 @@ for (let t = 0; t < IDX.length / 3; t++) {
   D.flat = Buffer.from(flat.buffer).toString('base64');
   console.log(`[${name}] tape points printed from the cloth over them: ${moved}`);
 }
+// (`pieces.data`: fields copied into the data as they are, e.g. { insideCloth: true } (main.js); none unless the parts file
+// gives them (MODELQ5 2026-11-18).)
+if (settings.data) Object.assign(D, settings.data);
 D.partKeys = keys; D.piece = Buffer.from(out).toString('base64'); D.pieceTri = Buffer.from(Uint8Array.from(tris)).toString('base64');
 fs.writeFileSync(file, `window.TRIPO_MESHES=window.TRIPO_MESHES||{};window.TRIPO_MESHES[${JSON.stringify(name)}]=${JSON.stringify(D)};\n`);
 console.log(`[${name}] pieces: ${S.nr} between ${S.lines.length} lines; band pieces ${Object.keys(regKey).length} (${settings.bands}); keys ${keys.join(', ')}; triangles by two lines ${mixed}`);

@@ -141,7 +141,23 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
     ('assistant-team', Icons.groups_outlined, '3DEEZI\nTEAM', 'REAL PEOPLE'),
   ];
 
+  /// The option tapped (CLIENT598, client 2026-11-18, picture 602): the
+  /// bubble and the other options go, and the chosen one stays on the full
+  /// page in the DESIGN AI page's look ([_opened]); null: screen 1 with all
+  /// five. (3DEEZI Team opens its own page.)
+  int? _chosen;
+
+  /// Back to screen 1's five options (Back, or "Change option").
+  void _changeOption() {
+    focus.unfocus();
+    setState(() {
+      _chosen = null;
+      error = null;
+    });
+  }
+
   void _optionAction(int i) {
+    if (i != 4 && _chosen != i) setState(() => _chosen = i);
     switch (i) {
       case 0:
         _scratch();
@@ -547,7 +563,10 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
       text.text = 'I need ';
       text.selection = TextSelection.collapsed(offset: text.text.length);
     }
-    focus.requestFocus();
+    // (After the opened page is laid out: the prompt bar moved there.)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) focus.requestFocus();
+    });
   }
 
   void _mic() {
@@ -630,8 +649,8 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
         builder: (_) => OrderFormEditor(
           form: form,
           pictures: {
-            for (final d in ((data?['designs'] as List?) ?? const [])
-                .whereType<Map>())
+            for (final d
+                in ((data?['designs'] as List?) ?? const []).whereType<Map>())
               '${d['name']}': '${d['url']}',
           },
         ),
@@ -701,6 +720,7 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
   @override
   Widget build(BuildContext context) {
     final started = data != null || pending != null;
+    final opened = !started && _chosen != null;
     return Scaffold(
       backgroundColor: Palette.bg,
       body: Stack(
@@ -713,13 +733,17 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
                   chat: started,
                   // The Orders tab's page: back from the chat to screen 1,
                   // none on screen 1 (it is the tab's root).
-                  onBack: !widget.root
+                  // (An option's page: back to the five options.)
+                  onBack: opened
+                      ? _changeOption
+                      : !widget.root
                       ? () => Navigator.of(context).maybePop()
                       : started
                       ? () => setState(() {
                           data = null;
                           pending = null;
                           error = null;
+                          _chosen = null;
                         })
                       : null,
                   root: widget.root,
@@ -737,17 +761,26 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
                           data = null;
                           pending = null;
                           error = null;
+                          _chosen = null;
                         })
                       : null,
                 ),
-                Expanded(child: started ? _chat() : _welcome()),
+                Expanded(
+                  child: started
+                      ? _chat()
+                      : opened
+                      ? _opened(_chosen!)
+                      : _welcome(),
+                ),
                 if (started)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
                     child: _bar(hint: 'Ask 3DEEZI ORDER ASSISTANT…'),
                   )
-                else
+                else if (!opened)
                   // Screen 1 keeps the app's tab bar, Orders on (image 4).
+                  // (An option's page is a working page, as the DESIGN AI
+                  // page: no tab bar.)
                   BottomNav(controller: c),
               ],
             ),
@@ -870,39 +903,7 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 const SizedBox(height: 4),
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text.rich(
-                                    key: const ValueKey('assistant-title'),
-                                    TextSpan(
-                                      children: [
-                                        const TextSpan(text: 'CREATE YOUR '),
-                                        TextSpan(
-                                          text: 'ORDER',
-                                          style: TextStyle(
-                                            color: Palette.cyan,
-                                            shadows: [
-                                              Shadow(
-                                                color: Palette.cyan.withValues(
-                                                  alpha: .6,
-                                                ),
-                                                blurRadius: 14,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    style: const TextStyle(
-                                      fontFamily: 'Rajdhani',
-                                      fontWeight: FontWeight.w800,
-                                      fontStyle: FontStyle.italic,
-                                      fontSize: 34,
-                                      height: 1.05,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
+                                _createTitle(),
                                 const SizedBox(height: 6),
                                 const Text(
                                   'Tell us what you need, upload your notes, images or existing files. I’ll build your complete order form for you.',
@@ -999,6 +1000,173 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
     },
   );
 
+  /// CREATE YOUR ORDER.
+  Widget _createTitle() => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Text.rich(
+      key: const ValueKey('assistant-title'),
+      TextSpan(
+        children: [
+          const TextSpan(text: 'CREATE YOUR '),
+          TextSpan(
+            text: 'ORDER',
+            style: TextStyle(
+              color: Palette.cyan,
+              shadows: [
+                Shadow(
+                  color: Palette.cyan.withValues(alpha: .6),
+                  blurRadius: 14,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      style: const TextStyle(
+        fontFamily: 'Rajdhani',
+        fontWeight: FontWeight.w800,
+        fontStyle: FontStyle.italic,
+        fontSize: 34,
+        height: 1.05,
+        color: Colors.white,
+      ),
+    ),
+  );
+
+  /// What to do next on each option's page.
+  static const _openedHints = [
+    'Type what you need: the garments, sizes, colours and names. I’ll build your complete order form for you.',
+    'Add your Excel or order sheet, then send it. Add a note if you like.',
+    'Add a photo of your handwritten notes, then send it. Add a note if you like.',
+    'Add your artwork or design pictures, then tell me what you need.',
+  ];
+
+  /// An option's page (CLIENT598, client 2026-11-18, picture 602): no
+  /// bubble and no other options, the full page in the DESIGN AI page's
+  /// look: the title, the chosen option, the prompt bar across the page in
+  /// its glass rim, Powered by / Switch to Manual Form, and Change option.
+  /// The keyboard never squeezes it: the page scrolls.
+  Widget _opened(int i) {
+    final (_, icon, label, _) = _options[i];
+    return LayoutBuilder(
+      builder: (context, box) => SingleChildScrollView(
+        key: const ValueKey('assistant-opened'),
+        padding: const EdgeInsets.only(bottom: 24),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: math.max(0.0, box.maxHeight - 24),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _createTitle(),
+              ),
+              const SizedBox(height: 16),
+              // The chosen option (a tap runs it again: another file).
+              Semantics(
+                button: true,
+                label: label.replaceAll('\n', ' '),
+                excludeSemantics: true,
+                child: GlassRim(
+                  radius: 24,
+                  width: 2.5,
+                  glow: .6,
+                  child: Material(
+                    color: const Color(0xd9061019),
+                    shape: const StadiumBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      key: const ValueKey('assistant-chosen'),
+                      onTap: () => _optionAction(i),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 10, 20, 10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(icon, color: Palette.cyan, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              label.replaceAll('\n', ' '),
+                              style: const TextStyle(
+                                fontFamily: 'Rajdhani',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                letterSpacing: .6,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  _openedHints[i],
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.3,
+                    color: Color(0xffd3dee8),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 680),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      KeyedSubtree(
+                        key: _panelKey,
+                        child: _bar(
+                          rim: true,
+                          hint:
+                              'e.g. I need 9 polos: 3 × 4XL, 2 × 2XL and 4 × 5XL. Black with our club logo on the chest.',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Expanded(child: _Powered()),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _OutlinePill(
+                              key: const ValueKey('assistant-manual'),
+                              icon: Icons.keyboard_alt_outlined,
+                              label: 'Switch to Manual Form',
+                              onTap: _manual,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (error != null) _errorText(),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton.icon(
+                key: const ValueKey('assistant-change'),
+                onPressed: _changeOption,
+                icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                label: const Text('Change option'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _tiles() => LayoutBuilder(
     builder: (context, box) {
       final gap = 8.0;
@@ -1057,7 +1225,34 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
   );
 
   /// The prompt bar: the files to send, the text, then attach, image, mic and send.
-  Widget _bar({required String hint}) => Column(
+  /// The prompt bar; [rim]: in the DESIGN AI page's glass rim (an option's
+  /// page, CLIENT598), the files inside it.
+  Widget _bar({required String hint, bool rim = false}) {
+    final bar = _barColumn(hint: hint, rim: rim);
+    if (!rim) return bar;
+    // (The rim drawn as a glowing border: the same look as the DESIGN AI
+    // page's glass rim, which painted stray bands over a taller bar.)
+    return Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: const Color(0xd9061019),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: const Color(0xff7fe6ff).withValues(alpha: .7),
+          width: 2.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xff36d4ff).withValues(alpha: .45),
+            blurRadius: 14,
+          ),
+        ],
+      ),
+      child: bar,
+    );
+  }
+
+  Widget _barColumn({required String hint, required bool rim}) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       for (final (list, kind) in [
@@ -1075,20 +1270,22 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
             ),
           ),
       DecoratedBox(
-        decoration: BoxDecoration(
-          color: const Color(0xcc071522),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: Palette.cyan.withValues(alpha: .35),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Palette.cyan.withValues(alpha: .18),
-              blurRadius: 16,
-            ),
-          ],
-        ),
+        decoration: rim
+            ? const BoxDecoration()
+            : BoxDecoration(
+                color: const Color(0xcc071522),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: Palette.cyan.withValues(alpha: .35),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Palette.cyan.withValues(alpha: .18),
+                    blurRadius: 16,
+                  ),
+                ],
+              ),
         // Client 449: ONE row: sparkle, the text, a thin divider, then
         // paperclip, picture, mic and the round send button.
         child: Padding(

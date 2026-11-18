@@ -167,7 +167,9 @@ if (steps.includes('wire')) {
 const viewerHtml = path.join(web, 'public/media/viewer/index.html'), before = path.join(here, 'models/check', `${name}-before.html`);
 if (steps.includes('build')) {
   fs.mkdirSync(path.dirname(before), { recursive: true });
-  await withLock('viewer.lock', async () => {
+  // (`--held`: the caller already holds viewer.lock (RUGBYJ 2026-11-18, coordinator: hold it from the wire step through the build
+  // and gate), so the build runs without taking it again.)
+  await (args.includes('--held') ? (_l, fn) => fn() : withLock)('viewer.lock', async () => {
     fs.copyFileSync(viewerHtml, before);
     // (The merge gate, recipe/gate.cjs: the viewer as it was saved as "last good" first.)
     execFileSync(process.execPath, [path.join(here, 'recipe/gate.cjs'), 'save'], { cwd: web, stdio: 'inherit' });

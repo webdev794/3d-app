@@ -269,7 +269,7 @@ function addNeck(garment, add) {
  * The mannequin for one garment part (garment.body from buildGarment with detail on). `over`: a top worn over shorts
  * (the shorts' own form carries the hips). Returns a group in the garment's coordinates, or null.
  */
-export function buildMannequin(garment, material, { over = false, legOpenings = false } = {}) {
+export function buildMannequin(garment, material, { over = false, legOpenings = false, noArms = false } = {}) {
   const body = garment.body;
   if (!body) return null;
   const { n, positions, sleeve } = body;
@@ -294,19 +294,18 @@ export function buildMannequin(garment, material, { over = false, legOpenings = 
   const below = (edge) => (ring) => INSIDE + (1 - INSIDE) * ramp(edge + 0.02, edge - 0.012, ring[0].y);
   group.userData.feet = [];
 
+  // (A ready-made model's shorts, pants or leggings added by the recipe (`legOpenings`, main.js): no form at all, so only the
+  // cloth shows from every angle: its black hips and thighs showed between the legs and at a side split (user 579, 580;
+  // MODELQ2 2026-11-17).)
+  if (body.legs && legOpenings) return null;
   if (body.legs) {
     // Shorts: the hips from the crotch to the waist, then each thigh, on past the leg opening.
     const hips = horizontalRings(trunk, body.crotch + 0.01, maxY - 0.008, 0.007);
     if (hips.length) { roundEnd(hips, up, 0.02); add(hips, () => INSIDE); }
-    // (A ready-made model added by the recipe (`legOpenings`, main.js: its own cloth, garment.geometry): each thigh ends above
-    // the top of its leg opening, a side split's top included, so the form never shows through or past the split (user 579,
-    // MODELQ2 2026-11-17).)
-    const openTop = legOpenings && garment.geometry ? legOpeningTops(garment.geometry, body.crotch) : null;
     for (const sg of [1, -1]) {
       // (FN4 2026-10-30: the thighs end just inside the leg openings, so no stubs show under the hems, as on every
       // shorts picture; the stand goes up into one of them.)
-      const legFoot = Math.max(minY + 0.022, openTop?.[sg > 0 ? 1 : 0] != null ? openTop[sg > 0 ? 1 : 0] + 0.012 : -Infinity);
-      const leg = horizontalRings(trunk, legFoot, body.crotch + 0.03, 0.007, (p) => Math.sign(p.x) === sg).reverse();
+      const leg = horizontalRings(trunk, minY + 0.022, body.crotch + 0.03, 0.007, (p) => Math.sign(p.x) === sg).reverse();
       if (leg.length < 2) continue;
       roundEnd(leg, down, 0.01);
       add(leg, below(minY));
@@ -363,7 +362,9 @@ export function buildMannequin(garment, material, { over = false, legOpenings = 
     // Upper arms: along each sleeve, from just inside the armhole on past a short sleeve's end.
     for (const sg of [1, -1]) {
       const arm = all.filter((p) => p.l >= 0 && Math.sign(p.x) === sg);
-      if (arm.length < 30) continue;
+      // (`noArms` (main.js, a model whose data asks for `insideCloth`, MODELQ5 2026-11-18): no arm: through its sleeves'
+      // openings only cloth shows, never the black form.)
+      if (arm.length < 30 || noArms) continue;
       // A long sleeve's arm stops about 5 cm inside it: its rib cuff is drawn in narrower than the arm, and a rounded
       // end there would show below the cuff. Through the cuff the opening then looks into shade.
       const lMax = arm.reduce((m, p) => Math.max(m, p.l), 0), lEnd = body.long ? lMax - 0.05 : body.pads ? lMax - 0.03 : body.looseSleeve ? lMax - 0.012 : lMax - 0.004, bins = [];
@@ -402,26 +403,6 @@ export function buildMannequin(garment, material, { over = false, legOpenings = 
   // 2026-11-16: the black form showed through the Training tee's and the Football jersey's cloth). Only the form moves.)
   if (garment.geometry && body.shoulderFit && group.children.length) keepInside(group, garment.geometry);
   return group.children.length ? group : null;
-}
-
-/** A model's leg openings: per side ([0] the wearer's right, x < 0; [1] the left) the highest point of the cloth's free edge
- * below the crotch (a hem, a side split's top), or null. The cloth's points at one place welded first (its print copies). */
-function legOpeningTops(cloth, crotch) {
-  const P = cloth.getAttribute('position').array, I = cloth.index?.array;
-  if (!I) return null;
-  const at = new Map(), weld = new Int32Array(P.length / 3);
-  for (let i = 0; i < P.length / 3; i++) { const k = `${Math.round(P[i * 3] * 1e4)},${Math.round(P[i * 3 + 1] * 1e4)},${Math.round(P[i * 3 + 2] * 1e4)}`; if (!at.has(k)) at.set(k, i); weld[i] = at.get(k); }
-  const count = new Map();
-  for (let t = 0; t < I.length; t += 3) for (let e = 0; e < 3; e++) { const a = weld[I[t + e]], b = weld[I[t + (e + 1) % 3]], key = a < b ? a * 4194304 + b : b * 4194304 + a; count.set(key, (count.get(key) ?? 0) + 1); }
-  const top = [null, null];
-  for (const [key, c] of count) {
-    if (c !== 1) continue;
-    for (const v of [Math.floor(key / 4194304), key % 4194304]) {
-      const y = P[v * 3 + 1]; if (y >= crotch) continue;
-      const s = P[v * 3] >= 0 ? 1 : 0; if (top[s] == null || y > top[s]) top[s] = y;
-    }
-  }
-  return top;
 }
 
 const KEEP_IN = 0.005;

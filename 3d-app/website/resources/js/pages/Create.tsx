@@ -1027,12 +1027,90 @@ export function AiDesigner({ catalog, draft, onChange, requireAuth, onStudio, on
 /** The garments a print layout or artwork can go on as drawn (our 3D models with print areas). */
 // (CP1 2026-11-02: and headwear and accessories, accessoryArt.ts: their logos go on their own places.)
 const artworkGarments = ['jersey', 'tee', 'polo', 'pocketpolo', 'nfljersey', 'compression', 'singlet', 'netball-dress', 'raglan', 'hoodie', 'ziphoodie', 'trackjacket', 'varsity', 'shorts', 'fullkit', ...accessoryGarments];
-type ArtworkKind = 'layout' | 'front' | 'allover' | 'garment';
+type ArtworkKind = 'flat' | 'layout' | 'front' | 'allover' | 'garment';
+/**
+ * The garments a flat garment picture goes on as drawn (the viewer's garment drawings, layout-warp.js DRAWN): its front
+ * on the front and its back on the back of the sport's own 3D model (CLIENT598, client 2026-11-18).
+ */
+const flatGarments = ['jersey', 'tee', 'polo', 'pocketpolo', 'nfljersey', 'shooting-shirt', 'singlet', 'netball-dress'];
 /** An artwork file read on the page: the file to keep (AI files as PDF), its type, and a preview picture. */
-type ArtworkFile = { file: File; type: string; name: string; preview: string; wide: boolean; look: ArtworkLook };
+type ArtworkFile = { file: File; type: string; name: string; preview: string; wide: boolean; look: ArtworkLook; flat: boolean; panels: number };
 /** What a picture looks like: a photo or mockup (an opaque background, many colours), and its main colour (not its background). */
 type ArtworkLook = { photo: boolean; main: string };
 const plainLook: ArtworkLook = { photo: false, main: '#0b1016' };
+
+/**
+ * A flat garment picture (CLIENT598, client 2026-11-18 "I should be able to upload a flat garment and it comes out
+ * good"), read from a small copy, no AI: one or two garment shapes (its front, or front and back side by side) on a
+ * plain background with no other panels (a factory print layout has its sleeves and collar as panels of their own),
+ * each upright with a straight hem, at least one with its neck opening at the top (a logo has none of these).
+ */
+// (Round 2, QATEST 2026-11-18: a neck opening drawn in a colour of its own (a dark inside) counts too; `panels`: how many big
+// shapes the picture has, so a wide wordmark is not taken for a print layout.)
+async function flatGarment(src: string): Promise<{ flat: boolean; panels: number }> {
+  const img = new Image(); img.src = src; await img.decode();
+  const k = 128 / Math.max(1, img.naturalWidth, img.naturalHeight);
+  const w = Math.max(8, Math.round(img.naturalWidth * k)), h = Math.max(8, Math.round(img.naturalHeight * k));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true })!; g.drawImage(img, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h).data;
+  const key = (i: number) => ((px[i] >> 4) << 8) | ((px[i + 1] >> 4) << 4) | (px[i + 2] >> 4);
+  // The background: see-through, else the commonest colour round the edge.
+  const edge = new Map<number, number>(); let clear = 0, rim = 0;
+  const round = (x: number, y: number) => { const at = (y * w + x) * 4; rim++; if (px[at + 3] < 40) clear++; else edge.set(key(at), (edge.get(key(at)) ?? 0) + 1); };
+  for (let x = 0; x < w; x++) { round(x, 0); round(x, h - 1); }
+  for (let y = 0; y < h; y++) { round(0, y); round(w - 1, y); }
+  const bg = clear > rim * 0.3 ? -1 : [...edge.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? -1;
+  const near = (q: number) => bg >= 0 && Math.abs((q >> 8) - (bg >> 8)) + Math.abs(((q >> 4) & 15) - ((bg >> 4) & 15)) + Math.abs((q & 15) - (bg & 15)) <= 2;
+  const label = new Int32Array(w * h).fill(-1);
+  for (let i = 0; i < w * h; i++) if (px[i * 4 + 3] < 40 || near(key(i * 4))) label[i] = -2;
+  const apart = (a: number, b: number) => Math.abs((a >> 8) - (b >> 8)) + Math.abs(((a >> 4) & 15) - ((b >> 4) & 15)) + Math.abs((a & 15) - (b & 15)) > 4;
+  // The shapes (4-neighbour), each with its size and box.
+  const shapes: { n: number; x0: number; y0: number; x1: number; y1: number }[] = [];
+  for (let i = 0; i < w * h; i++) {
+    if (label[i] !== -1) continue;
+    const id = shapes.length, s = { n: 0, x0: w, y0: h, x1: 0, y1: 0 }, stack = [i]; label[i] = id;
+    while (stack.length) {
+      const p = stack.pop()!, x = p % w, y = (p - x) / w;
+      s.n++; s.x0 = Math.min(s.x0, x); s.x1 = Math.max(s.x1, x); s.y0 = Math.min(s.y0, y); s.y1 = Math.max(s.y1, y);
+      for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1]) if (q >= 0 && label[q] === -1) { label[q] = id; stack.push(q); }
+    }
+    shapes.push(s);
+  }
+  // A garment cut in two by a band in the background's own colour (a white sash on a white page): its pieces, one over the
+  // other, are joined again.
+  const root = shapes.map((_, i) => i), top = (i: number): number => (root[i] === i ? i : (root[i] = top(root[i])));
+  for (let joined = true; joined;) {
+    joined = false;
+    for (let a = 0; a < shapes.length; a++) for (let b = a + 1; b < shapes.length; b++) {
+      const A = shapes[a], B = shapes[b];
+      if (top(a) !== a || top(b) !== b || A.n < 0.002 * w * h || B.n < 0.002 * w * h) continue;
+      const across = Math.min(A.x1, B.x1) - Math.max(A.x0, B.x0), gap = Math.max(A.y0, B.y0) - Math.min(A.y1, B.y1);
+      if (across < 0.5 * Math.min(A.x1 - A.x0, B.x1 - B.x0) || gap > 0.04 * h) continue;
+      Object.assign(A, { n: A.n + B.n, x0: Math.min(A.x0, B.x0), y0: Math.min(A.y0, B.y0), x1: Math.max(A.x1, B.x1), y1: Math.max(A.y1, B.y1) });
+      root[b] = a; joined = true;
+    }
+  }
+  for (let i = 0; i < w * h; i++) if (label[i] >= 0) label[i] = top(label[i]);
+  const counted = shapes.filter((s, i) => top(i) === i && s.n >= 0.002 * w * h);
+  // (Panels: shapes of at least 4% of the picture; a wordmark's letters are smaller.)
+  const panels = counted.filter(s => s.n >= 0.04 * w * h).length;
+  const largest = Math.max(0, ...counted.map(s => s.n));
+  const big = counted.filter(s => s.n >= 0.35 * largest);
+  if (!big.length || big.length > 2 || counted.some(s => s.n >= 0.08 * largest && s.n < 0.35 * largest)) return { flat: false, panels };
+  const filled = (id: number, y: number, from: number, to: number) => { let n = 0; for (let x = from; x <= to; x++) if (label[y * w + x] === id) n++; return n; };
+  // (The hem: the widest of the rows just above it, as a white hem band can melt into a light background.)
+  const shapeOk = (s: typeof big[number]) => { const bw = s.x1 - s.x0 + 1, bh = s.y1 - s.y0 + 1; return bh >= 0.6 * bw && bh <= 2.4 * bw && Math.max(...[0.03, 0.06, 0.09, 0.12, 0.15].map(f => filled(shapes.indexOf(s), s.y1 - Math.round(f * bh), s.x0, s.x1))) >= 0.45 * bw; };
+  // The neck opening at the top: the background, or drawn in a colour of its own (a dark inside), between the shoulders.
+  const neck = (s: typeof big[number]) => {
+    const id = shapes.indexOf(s), bw = s.x1 - s.x0 + 1, bh = s.y1 - s.y0 + 1, cx = Math.round((s.x0 + s.x1) / 2), y = s.y0 + Math.max(1, Math.round(0.03 * bh));
+    const on = (from: number, to: number) => { const xs: number[] = []; for (let x = from; x <= to; x++) if (label[y * w + x] === id) xs.push(x); return xs; };
+    const left = on(s.x0, Math.round(cx - 0.1 * bw)), right = on(Math.round(cx + 0.1 * bw), s.x1), at = (x: number) => key((y * w + x) * 4);
+    if (!left.length || !right.length) return false;
+    return label[y * w + cx] !== id || (apart(at(cx), at(left[left.length >> 1])) && apart(at(cx), at(right[right.length >> 1])));
+  };
+  return { flat: big.every(shapeOk) && big.some(neck), panels };
+}
 
 /** The look of a picture (task 9.153): read from a small copy, no AI. */
 async function artworkLook(src: string): Promise<ArtworkLook> {
@@ -1136,8 +1214,16 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
   const typed: Partial<Design> = { sportName: customSport ? customName(sportText) || undefined : undefined, ...(customGarment ? { productName: customName(garmentText) || undefined } : {}) };
   const missingName = (customSport && !customName(sportText)) || (customGarment && !customName(garmentText));
   const accessory = isAccessory(garment3d);
+  /** The garment takes a flat garment picture as drawn (CLIENT598). */
+  const canFlat = flatGarments.includes(garment3d);
   // A cap or other accessory has no factory print layout here: its artwork is read for its logos (AI) or put on the front.
   useEffect(() => { if (accessory && kind === 'layout') setKind(isAi ? 'garment' : 'front'); }, [accessory, kind, isAi]);
+  // A flat garment picture on a garment without a garment drawing (shorts, a hoodie, a cap): its other choices; back to
+  // the flat garment when a garment that takes it is chosen again.
+  useEffect(() => {
+    if (kind === 'flat' && !canFlat) setKind(accessory ? (isAi ? 'garment' : 'front') : art?.wide && art.panels >= 2 ? 'layout' : 'front');
+    else if (art?.flat && canFlat && (kind === 'layout' || kind === 'front') && !(art.look.photo && isAi)) setKind('flat');
+  }, [canFlat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function read(file: File) {
     setError(''); setResult(null);
@@ -1158,10 +1244,13 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
       const img = new Image(); img.src = preview; await img.decode().catch(() => undefined);
       const wide = (img.naturalWidth || 1) / Math.max(1, img.naturalHeight || 1) > 1.45;
       const look = await artworkLook(preview).catch(() => plainLook);
-      setArt({ file: kept, type, name, preview, wide, look });
-      // A photo or mockup of a garment (a background, many colours) is read by the AI; a wide flat sheet is most likely
-      // a print layout (panels side by side); anything else a single design or logo.
-      setKind(look.photo && isAi ? 'garment' : wide ? 'layout' : 'front');
+      const { flat, panels } = await flatGarment(preview).catch(() => ({ flat: false, panels: 2 }));
+      setArt({ file: kept, type, name, preview, wide, look, flat, panels });
+      // A photo or mockup of a garment (a background, many colours) is read by the AI; a flat garment (its front, or
+      // front and back side by side) goes on the 3D model as drawn (CLIENT598); another wide sheet is most likely a
+      // print layout (panels side by side); anything else a single design or logo.
+      // (A wide picture with no panels, a wordmark: a design for the front, QATEST 2026-11-18.)
+      setKind(look.photo && isAi ? 'garment' : flat && canFlat ? 'flat' : wide && panels >= 2 ? 'layout' : 'front');
     } catch { setError(`${file.name} could not be opened. Try saving it again as PDF, SVG or PNG.`); }
   }
 
@@ -1184,6 +1273,17 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
       const start: Design = { ...defaultDesign, ...(tileDesign ? { ...tileDesign, ...tileMarks(defaultDesign, tileDesign as Design, garment3d), productName: tile!.name } : {}) };
       const design: Design = { ...start, garment: garment3d as Design['garment'], layout: null, layers: start.layers ?? [], patternImage: null, secondary: kind === 'front' ? start.main : look.main, ...(kind === 'allover' ? { main: look.main } : {}), ...(read?.colours ?? {}), ...typed };
       if (kind === 'garment') { await fromGarmentPicture(base, design); return; }
+      if (kind === 'flat') {
+        // A flat garment picture (CLIENT598): kept in Assets, checked in the Studio (its front and back), then on the
+        // sport's own 3D model exactly as drawn: the front on the front, the back on the back (no AI).
+        const form = new FormData(); form.append('file', art.file); form.append('name', art.name.slice(0, 120)); form.append('type', 'layout');
+        const saved = await api<{ id: number; name: string }>('/assets', { method: 'POST', body: form });
+        // (The picture is the whole design: the tile look's own bands, numbers and tags would cover it.)
+        const layers = (design.layers ?? []).filter(l => !l.id.startsWith('tile-'));
+        onChange({ ...base, design: { ...design, layers }, pendingDrawing: { asset: saved.id, name: saved.name || art.name, type: art.type, known: true } });
+        onStudio();
+        return;
+      }
       if (kind === 'layout') {
         const form = new FormData(); form.append('file', art.file); form.append('name', art.name.slice(0, 120)); form.append('type', 'layout');
         const saved = await api<{ id: number; name: string }>('/assets', { method: 'POST', body: form });
@@ -1303,6 +1403,7 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
   if (busy) return <Loader title="Making the AI preview…" subtitle="Reading colours, patterns and lettering from your artwork." steps={['Reading the artwork', 'Finding colours', 'Matching pattern and lettering']} seconds={18} />;
   const kinds: { id: ArtworkKind; label: string; hint: string }[] = [
     ...(isAi ? [{ id: 'garment' as const, label: 'Picture of a garment (mockup / photo)', hint: accessory ? 'A mock-up or artwork sheet of the cap or accessory (front, back, sides). AI reads its colours and logos and puts each logo on its place on the 3D model. Uses AI (a small fee per picture).' : 'A mock-up or photo of the garment, front and back. AI redraws it flat and puts it on the 3D kit, sides, crest and number included. Uses AI (a small fee per picture).' }] : []),
+    ...(canFlat ? [{ id: 'flat' as const, label: 'Flat garment (front and back)', hint: 'Your garment drawn or laid flat: its front, or front and back side by side. It goes on the 3D model as it is: the front on the front, the back on the back.' }] : []),
     ...(accessory ? [] : [{ id: 'layout' as const, label: 'Full print layout', hint: 'Front, back and sleeve panels side by side, as the factory prints them. Each panel goes on its part of the garment.' }]),
     { id: 'front', label: 'Logo or design on the front', hint: 'One design or logo on the front. Move and resize it on the 3D kit.' },
     { id: 'allover', label: 'All-over print', hint: 'The design repeated over the whole garment.' },
@@ -1330,6 +1431,7 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
               : kind === 'front' ? 'Your artwork goes on the front of the kit, in the colours read from it. Move and resize it in the Studio.'
               : kind === 'allover' ? 'Your artwork is printed all over the kit, in the colours read from it.'
               : kind === 'layout' ? 'Each panel of your print layout goes on its part of the garment: check them in the Studio.'
+              : kind === 'flat' ? 'Your flat garment goes on the 3D model as it is: the front on the front, the back on the back. Check them in the Studio.'
               : 'Your design is drawn flat and put on the kit as drawn (AI, about 30 seconds): check it in the Studio.'}</small>
           </div>
           {error && <p className="error-message" role="alert">{error}</p>}</>
@@ -1348,6 +1450,7 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
           {kind === 'allover' && art?.look.photo && <p className="field-hint convert-warn" role="status">This looks like a photo or mock-up: the whole picture, background included, would repeat over the kit.{isAi ? ' Choose “Picture of a garment” to put its design on the kit.' : ''}</p>}
           {kind === 'garment' && <p className="field-hint">{accessory ? 'Uses AI: about 15 seconds. Your front logo goes on the front, the back logo on the back and the side labels on the sides, in your artwork’s colours.' : 'Uses AI: about 30 seconds. The Studio then shows the front and back it drew for you to check.'}</p>}
           {kind === 'layout' && <p className="field-hint">The Studio shows each panel it found: check it is the front, back or a sleeve, then put it on.</p>}
+          {kind === 'flat' && <p className="field-hint">The Studio shows the front and back it found: check which is which, then put it on.</p>}
           {error && <p className="error-message" role="alert">{error}</p>}
           <button className="button button-gradient full-width" disabled={!art || placing || missingName} onClick={() => requireAuth(() => void toStudio())}>{placing ? <LoaderCircle className="spin" size={18} /> : <Box size={18} />} PUT IT ON THE 3D KIT</button>
           {art && isAi && <button className="button button-outline full-width" disabled={placing} onClick={() => requireAuth(() => void convert())}><WandSparkles size={16} /> AI preview picture</button>}</>}

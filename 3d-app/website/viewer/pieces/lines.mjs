@@ -39,6 +39,9 @@ export function colourLines(name, template) {
   const lines = [];
   for (const cp of S.pcs) {
     if (own.includes(cp)) continue;
+    // (`noTapes` (MODELQ2): a one-piece model whose lines all come from extraLines; its seam tapes, cords and loops lying in
+    // the cloth are no colour lines: they show what the cloth round them shows.)
+    if (template.noTapes) continue;
     const rings = cp.loops.filter((l) => l.closed && l.Q.length > 40);
     let C, closed, beadOut = false;
     if (rings.length >= 2) {

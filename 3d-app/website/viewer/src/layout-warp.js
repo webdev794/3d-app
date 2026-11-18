@@ -1406,7 +1406,9 @@ function bleed(px, width, height, passes = 4) {
 }
 
 /** The average colour of a panel (or of a strip of it from `top` to `bottom`, as fractions of its height). */
-export function panelColour(image, panel, top = 0, bottom = 1) {
+// (`common`: the commonest colour instead of the average (a garment drawing's fill, CLIENT598 2026-11-18: the average of a
+// red body with a yellow sash gave orange underarms and an orange back on a front-only drawing).)
+export function panelColour(image, panel, top = 0, bottom = 1, common = false) {
   const w = 48, h = 48, c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -1419,14 +1421,25 @@ export function panelColour(image, panel, top = 0, bottom = 1) {
   const sx = w / (panel.x1 - panel.x0), sy = h / (y1 - y0);
   const P = panel.outline.map(([x, y]) => [(x - panel.x0) * sx, (y - y0) * sy]);
   let r = 0, gg = 0, b = 0, n = 0;
+  const buckets = common ? new Map() : null;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (!insidePoly(P, x + 0.5, y + 0.5)) continue;
       const i = (y * w + x) * 4;
+      if (buckets) {
+        const k = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4), e = buckets.get(k) ?? [0, 0, 0, 0];
+        e[0] += d[i]; e[1] += d[i + 1]; e[2] += d[i + 2]; e[3]++;
+        buckets.set(k, e);
+      }
       r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++;
     }
   }
   if (!n) return '#808080';
+  if (buckets) {
+    const [cr, cg, cb, cn] = [...buckets.values()].reduce((a, e) => (e[3] > a[3] ? e : a));
+    const hex1 = (v) => Math.round(v / cn).toString(16).padStart(2, '0');
+    return `#${hex1(cr)}${hex1(cg)}${hex1(cb)}`;
+  }
   const hex = (v) => Math.round(v / n).toString(16).padStart(2, '0');
   return `#${hex(r)}${hex(gg)}${hex(b)}`;
 }

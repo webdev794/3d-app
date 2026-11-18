@@ -1,40 +1,71 @@
 {
-  "about": "Training tee (training-tee.glb): the model's own neck band (Collar colour, else Secondary), its cuff bands (Secondary), its inner layer plain inside colour, per triangle from its own seams (MODELQ 2026-11-16).",
-  "glb": "../../../tripo/training-tee.glb",
-  "creaseDeg": 25,
-  "keys": [
-    "collar",
-    "trim",
-    "inside"
-  ],
-  "rules": [
-    {
-      "regions": [
-        1
-      ],
-      "part": "inside"
+  "about": "Training tee (training-tee-textured.glb, MODELQ5 2026-11-18): coloured from the same garment split into 40 parts by Tripo (training-tee-parts.glb) by viewer/tripo-glbparts.mjs: the body and sleeves the print (Main); the neck band the Collar colour, its foot one smooth line; each cuff band (its own parts, the user: kept on purpose) the trim colour, its top one smooth line round the sleeve, its lining the same; the hem band (its own parts) the print. Stitch lines (the user 2026-11-18): the neck band foot, a cuff line and a hem line, drawn by main.js as thin darker strips.",
+  "glbParts": {
+    "glb": "../../../tripo/training-tee-parts.glb",
+    "keys": {
+      "tripo_part_0": null,
+      "tripo_part_1": null,
+      "tripo_part_2": null,
+      "tripo_part_3": null,
+      "tripo_part_4": null,
+      "tripo_part_5": null,
+      "tripo_part_6": null,
+      "tripo_part_7": null,
+      "tripo_part_8": null,
+      "tripo_part_9": null,
+      "tripo_part_10": null,
+      "tripo_part_11": null,
+      "tripo_part_12": null,
+      "tripo_part_13": "collar",
+      "tripo_part_14": "collar",
+      "tripo_part_15": null,
+      "tripo_part_16": "part:rightCuff",
+      "tripo_part_17": "part:leftCuff",
+      "tripo_part_18": null,
+      "tripo_part_19": null,
+      "tripo_part_20": "part:rightCuff",
+      "tripo_part_21": null,
+      "tripo_part_22": "part:leftCuff",
+      "tripo_part_23": null,
+      "tripo_part_24": null,
+      "tripo_part_25": null,
+      "tripo_part_26": null,
+      "tripo_part_27": null,
+      "tripo_part_28": null,
+      "tripo_part_29": null,
+      "tripo_part_30": null,
+      "tripo_part_31": null,
+      "tripo_part_32": null,
+      "tripo_part_33": null,
+      "tripo_part_34": "collar",
+      "tripo_part_35": "collar",
+      "tripo_part_36": null,
+      "tripo_part_37": null,
+      "tripo_part_38": null,
+      "tripo_part_39": null
     },
-    {
-      "regions": [
-        1
-      ],
-      "part": "inside"
+    "collar": "collar",
+    "sleeves": [
+      "part:leftCuff",
+      "part:rightCuff"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.015,
+    "stitches": {
+      "collarFoot": 0.006,
+      "cuff": 0.015,
+      "hem": 0.017,
+      "sigma": 0.03
     },
-    {
-      "regions": [
-        4,
-        7
-      ],
-      "part": "collar"
-    },
-    {
-      "hem": {
-        "seed": "size < 120 && Math.abs(x) > 0.26 && y > 0.555 && y < 0.6",
-        "reach": 0.034
-      },
-      "where": "Math.abs(x) > 0.25 && y > 0.5 && y < 0.7",
-      "part": "trim"
+    "evenCuffs": true,
+    "cuffWidth": 0.0175,
+    "evenCollar": true,
+    "data": {
+      "insideCloth": true
     }
-  ],
-  "smooth": 1
+  }
 }

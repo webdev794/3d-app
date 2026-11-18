@@ -14,7 +14,8 @@ import '../assist.dart';
 import '../custom_choice.dart';
 import '../project_sync.dart';
 import '../sports_catalog.dart';
-import '../widgets/bubble_page.dart' show BubblePage, BubbleCornerPill;
+import '../widgets/bubble_page.dart'
+    show BubblePage, BubbleCornerPill, kAssistRoom, kPageSide;
 import '../widgets/category_icon.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/glass_bubble.dart' show GlassRim;
@@ -2941,12 +2942,14 @@ class GarmentScreen extends StatelessWidget {
     // an own background.
     final described = sport?.descriptions ?? true;
     final hint = sport?.selectHint;
-    // The bubble look (user 2026-11-05): the picker in the glass bubble.
+    // No glass bubble (client 2026-11-18, picture 598: "I don't think we
+    // need bubble"): the picker stands on the sport's own background, its
+    // rows on the page margins ([kPageSide]), as Design your own.
     return BubblePage(
       c: c,
       title: '',
-      compact: true,
-      // (The sport's own background stays behind the bubble.)
+      bubble: false,
+      // (The sport's own background stays behind the page.)
       backdrop: StageBackground(
         dim: true,
         image: sport?.backdrop,
@@ -2970,7 +2973,12 @@ class GarmentScreen extends StatelessWidget {
                   // the second row of tiles shows above Continue.
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      padding: const EdgeInsets.fromLTRB(
+                        kPageSide,
+                        0,
+                        kPageSide,
+                        12,
+                      ),
                       child: Row(
                         children: [
                           Container(
@@ -3022,7 +3030,12 @@ class GarmentScreen extends StatelessWidget {
                     ),
                   ),
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
+                    padding: const EdgeInsets.fromLTRB(
+                      kPageSide,
+                      4,
+                      kPageSide,
+                      0,
+                    ),
                     sliver: _grid([
                       for (final t in tiles)
                         _tile(
@@ -3067,7 +3080,12 @@ class GarmentScreen extends StatelessWidget {
                     ),
                   if (all && more.isNotEmpty)
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
+                      padding: const EdgeInsets.fromLTRB(
+                        kPageSide,
+                        0,
+                        kPageSide,
+                        10,
+                      ),
                       sliver: _grid([
                         for (final t in more)
                           _tile(
@@ -3086,8 +3104,15 @@ class GarmentScreen extends StatelessWidget {
               ),
             ),
           ),
+          // (CONTINUE and Change sport stay clear of 3DEEZI Assist's round
+          // button over the tab bar.)
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 6, 18, 8),
+            padding: const EdgeInsets.fromLTRB(
+              kPageSide,
+              6,
+              kPageSide,
+              kAssistRoom - 34,
+            ),
             child: Column(
               children: [
                 if (hint != null)
@@ -3244,8 +3269,207 @@ Future<DesignSpec?> _readArtworkColours(
   }
 }
 
-/// What the user's artwork is (Artwork to 3D, task 9.153).
-enum _ArtworkKind { layout, front, allOver, garment }
+/// What the user's artwork is (Artwork to 3D, task 9.153; [flat]: a flat
+/// garment, its front or front and back, CLIENT598).
+enum _ArtworkKind { flat, layout, front, allOver, garment }
+
+/// The garments a flat garment goes on as drawn (the 3D view's garment
+/// drawings, website/viewer/src/layout-warp.js DRAWN; the website's
+/// Create.tsx flatGarments).
+const _flatGarments = {
+  'Jersey',
+  'Training Tee',
+  'Polo',
+  'Polo with pocket',
+  'Football jersey',
+  'Shooting shirt',
+  'Singlet',
+  'Netball dress',
+};
+
+/// A flat garment picture (CLIENT598, client 2026-11-18 "I should be able to
+/// upload a flat garment and it comes out good"), read from a small copy, no
+/// AI, as the website's Create.tsx flatGarment: one or two garment shapes
+/// (its front, or front and back side by side) on a plain background with no
+/// other panels (a factory print layout has its sleeves and collar as panels
+/// of their own), each upright with a straight hem, at least one with its
+/// neck opening at the top (a logo has none of these). [panels]: how many big
+/// shapes the picture has (round 2, QATEST 2026-11-18: a wide wordmark is not
+/// a print layout; a neck opening drawn in a colour of its own counts too).
+Future<({bool flat, int panels})> _flatGarment(ui.Image image) async {
+  final k = 128 / math.max(1, math.max(image.width, image.height));
+  final w = math.max(8, (image.width * k).round());
+  final h = math.max(8, (image.height * k).round());
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder).drawImageRect(
+    image,
+    Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+    Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+    Paint()..filterQuality = FilterQuality.low,
+  );
+  final small = await recorder.endRecording().toImage(w, h);
+  final data = await small.toByteData(format: ui.ImageByteFormat.rawRgba);
+  if (data == null) return (flat: false, panels: 2);
+  final px = data.buffer.asUint8List();
+  int key(int i) => (px[i] >> 4) << 8 | (px[i + 1] >> 4) << 4 | px[i + 2] >> 4;
+  // The background: see-through, else the commonest colour round the edge.
+  final edge = <int, int>{};
+  var clear = 0, rim = 0;
+  void round(int x, int y) {
+    final at = (y * w + x) * 4;
+    rim++;
+    if (px[at + 3] < 40) {
+      clear++;
+    } else {
+      edge[key(at)] = (edge[key(at)] ?? 0) + 1;
+    }
+  }
+
+  for (var x = 0; x < w; x++) {
+    round(x, 0);
+    round(x, h - 1);
+  }
+  for (var y = 0; y < h; y++) {
+    round(0, y);
+    round(w - 1, y);
+  }
+  final bg = clear > rim * 0.3 || edge.isEmpty
+      ? -1
+      : (edge.entries.toList()..sort((a, b) => b.value - a.value)).first.key;
+  bool near(int q) =>
+      bg >= 0 &&
+      ((q >> 8) - (bg >> 8)).abs() +
+              (((q >> 4) & 15) - ((bg >> 4) & 15)).abs() +
+              ((q & 15) - (bg & 15)).abs() <=
+          2;
+  final label = Int32List(w * h)..fillRange(0, w * h, -1);
+  for (var i = 0; i < w * h; i++) {
+    if (px[i * 4 + 3] < 40 || near(key(i * 4))) label[i] = -2;
+  }
+  // The shapes (4-neighbour): [size, x0, y0, x1, y1] each.
+  final shapes = <List<int>>[];
+  for (var i = 0; i < w * h; i++) {
+    if (label[i] != -1) continue;
+    final id = shapes.length, s = [0, w, h, 0, 0], stack = [i];
+    label[i] = id;
+    while (stack.isNotEmpty) {
+      final p = stack.removeLast(), x = p % w, y = p ~/ w;
+      s[0]++;
+      s[1] = math.min(s[1], x);
+      s[3] = math.max(s[3], x);
+      s[2] = math.min(s[2], y);
+      s[4] = math.max(s[4], y);
+      for (final q in [
+        x > 0 ? p - 1 : -1,
+        x < w - 1 ? p + 1 : -1,
+        y > 0 ? p - w : -1,
+        y < h - 1 ? p + w : -1,
+      ]) {
+        if (q >= 0 && label[q] == -1) {
+          label[q] = id;
+          stack.add(q);
+        }
+      }
+    }
+    shapes.add(s);
+  }
+  // A garment cut in two by a band in the background's own colour (a white
+  // sash on a white page): its pieces, one over the other, are joined again.
+  final root = List.generate(shapes.length, (i) => i);
+  int top(int i) => root[i] == i ? i : (root[i] = top(root[i]));
+  for (var joined = true; joined;) {
+    joined = false;
+    for (var a = 0; a < shapes.length; a++) {
+      for (var b = a + 1; b < shapes.length; b++) {
+        final A = shapes[a], B = shapes[b];
+        if (top(a) != a ||
+            top(b) != b ||
+            A[0] < 0.002 * w * h ||
+            B[0] < 0.002 * w * h) {
+          continue;
+        }
+        final across = math.min(A[3], B[3]) - math.max(A[1], B[1]);
+        final gap = math.max(A[2], B[2]) - math.min(A[4], B[4]);
+        if (across < 0.5 * math.min(A[3] - A[1], B[3] - B[1]) ||
+            gap > 0.04 * h) {
+          continue;
+        }
+        A[0] += B[0];
+        A[1] = math.min(A[1], B[1]);
+        A[2] = math.min(A[2], B[2]);
+        A[3] = math.max(A[3], B[3]);
+        A[4] = math.max(A[4], B[4]);
+        root[b] = a;
+        joined = true;
+      }
+    }
+  }
+  for (var i = 0; i < w * h; i++) {
+    if (label[i] >= 0) label[i] = top(label[i]);
+  }
+  final counted = [
+    for (var id = 0; id < shapes.length; id++)
+      if (top(id) == id && shapes[id][0] >= 0.002 * w * h) id,
+  ];
+  // (Panels: shapes of at least 4% of the picture; a wordmark's letters are
+  // smaller.)
+  final panels = counted.where((id) => shapes[id][0] >= 0.04 * w * h).length;
+  if (counted.isEmpty) return (flat: false, panels: panels);
+  final largest = counted.map((id) => shapes[id][0]).reduce(math.max);
+  final big = counted.where((id) => shapes[id][0] >= 0.35 * largest).toList();
+  if (big.length > 2 ||
+      counted.any(
+        (id) =>
+            shapes[id][0] >= 0.08 * largest && shapes[id][0] < 0.35 * largest,
+      )) {
+    return (flat: false, panels: panels);
+  }
+  int filled(int id, int y, int from, int to) {
+    var n = 0;
+    for (var x = from; x <= to; x++) {
+      if (label[y * w + x] == id) n++;
+    }
+    return n;
+  }
+
+  // (The hem: the widest of the rows just above it, as a white hem band can
+  // melt into a light background.)
+  bool shapeOk(int id) {
+    final s = shapes[id], bw = s[3] - s[1] + 1, bh = s[4] - s[2] + 1;
+    return bh >= 0.6 * bw &&
+        bh <= 2.4 * bw &&
+        [.03, .06, .09, .12, .15]
+                .map((f) => filled(id, s[4] - (f * bh).round(), s[1], s[3]))
+                .reduce(math.max) >=
+            0.45 * bw;
+  }
+
+  // The neck opening at the top: the background, or drawn in a colour of its
+  // own (a dark inside), between the shoulders.
+  bool apart(int a, int b) =>
+      ((a >> 8) - (b >> 8)).abs() +
+          (((a >> 4) & 15) - ((b >> 4) & 15)).abs() +
+          ((a & 15) - (b & 15)).abs() >
+      4;
+  bool neck(int id) {
+    final s = shapes[id], bw = s[3] - s[1] + 1, bh = s[4] - s[2] + 1;
+    final cx = ((s[1] + s[3]) / 2).round();
+    final y = s[2] + math.max<int>(1, (0.03 * bh).round());
+    List<int> on(int from, int to) => [
+      for (var x = from; x <= to; x++)
+        if (label[y * w + x] == id) x,
+    ];
+    final left = on(s[1], (cx - 0.1 * bw).round());
+    final right = on((cx + 0.1 * bw).round(), s[3]);
+    if (left.isEmpty || right.isEmpty) return false;
+    int at(int x) => key((y * w + x) * 4);
+    return label[y * w + cx] != id ||
+        (apart(at(cx), at(left[left.length >> 1])) &&
+            apart(at(cx), at(right[right.length >> 1])));
+  }
+
+  return (flat: big.every(shapeOk) && big.any(neck), panels: panels);
+}
 
 /// ARTWORK TO 3D (task 9.153): the user's own artwork (PDF, SVG, AI, PNG,
 /// JPG or WebP) on the REAL 3D garment, editable in the Studio. A full print
@@ -3302,14 +3526,21 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
     showToast(context, 'Choose a file smaller than 30 MB.');
     return;
   }
-  // A wide picture is most likely a print layout (panels side by side).
+  // A wide picture is most likely a print layout (panels side by side); a
+  // flat garment (its front, or front and back side by side) goes on the 3D
+  // model as drawn (CLIENT598, client 2026-11-18).
   var wide = pdf;
+  var flat = false;
   var look = (photo: false, main: null as Color?);
   if (!pdf && !svg) {
     try {
       final image = await decodeImageFromList(bytes);
-      wide = image.width > image.height * 1.45;
       look = await _artworkLook(image);
+      final read = await _flatGarment(image);
+      flat = read.flat;
+      // (A wide picture with no panels, a wordmark: a design for the front,
+      // QATEST 2026-11-18.)
+      wide = image.width > image.height * 1.45 && read.panels >= 2;
     } on Object {
       wide = false;
     }
@@ -3335,10 +3566,14 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
           preview: pdf || svg ? null : bytes,
           kind: look.photo && AiService.enabled
               ? _ArtworkKind.garment
+              : flat
+              ? _ArtworkKind.flat
               : wide
               ? _ArtworkKind.layout
               : _ArtworkKind.front,
           photo: look.photo,
+          wide: wide,
+          flat: flat,
         ),
       );
   if (choice == null || !context.mounted) return;
@@ -3349,10 +3584,13 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
       (choice.ai || choice.kind == _ArtworkKind.garment);
   if (!c.signedIn &&
       (choice.kind == _ArtworkKind.layout ||
-          choice.kind == _ArtworkKind.garment)) {
+          choice.kind == _ArtworkKind.garment ||
+          choice.kind == _ArtworkKind.flat)) {
     showToast(
       context,
-      'Sign in to use print layouts: the file is kept with your saved assets.',
+      choice.kind == _ArtworkKind.flat
+          ? 'Sign in to put your garment on the 3D kit: the file is kept with your saved assets.'
+          : 'Sign in to use print layouts: the file is kept with your saved assets.',
     );
     c.go(AppScreen.auth);
     return;
@@ -3400,6 +3638,14 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
         break;
       }
     }
+  }
+  // A flat garment is the whole design: the tile look's own bands, numbers
+  // and tags would cover it (CLIENT598).
+  if (choice.kind == _ArtworkKind.flat) {
+    c.layers = [
+      for (final l in c.layers)
+        if (!'${l['id']}'.startsWith('tile-')) l,
+    ];
   }
   // The side panels and trims take the artwork's main colour (not the
   // default cyan); a logo's kit stays plain, its sides matching the body.
@@ -3485,6 +3731,17 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
         known: reading != null,
       );
       say(done ?? 'The print sheet is kept in Assets › Artwork.');
+      return;
+    }
+    if (choice.kind == _ArtworkKind.flat) {
+      // A flat garment (CLIENT598): kept with the saved assets, its front and
+      // back checked in the 3D view, then on the sport's own 3D model exactly
+      // as drawn: the front on the front, the back on the back (no AI).
+      say('Reading $name…');
+      final done = await c.importDesignPicture(name, bytes, known: true);
+      say(
+        done ?? 'Your garment was not put on. Use Artwork to 3D to try again.',
+      );
       return;
     }
     if (choice.kind == _ArtworkKind.layout) {
@@ -3658,8 +3915,14 @@ class _ArtworkSheet extends StatefulWidget {
     required this.preview,
     required this.kind,
     this.photo = false,
+    this.wide = false,
+    this.flat = false,
   });
   final bool photo;
+
+  /// The picture is wide (most likely a print layout) and a flat garment
+  /// ([_flatGarment]).
+  final bool wide, flat;
   final AppController c;
   final String name;
   final Uint8List? preview;
@@ -3722,8 +3985,14 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
         ),
       );
 
+  /// The kind was chosen here (a garment change then keeps it).
+  bool _picked = false;
+
   Widget _option(_ArtworkKind k, String title, String hint) => ListTile(
-    onTap: () => setState(() => kind = k),
+    onTap: () => setState(() {
+      kind = k;
+      _picked = true;
+    }),
     dense: true,
     contentPadding: EdgeInsets.zero,
     leading: Icon(
@@ -3754,6 +4023,24 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
       kind = AiService.enabled && widget.preview != null
           ? _ArtworkKind.garment
           : _ArtworkKind.front;
+    }
+    // A flat garment on a garment without a garment drawing (shorts, a
+    // hoodie, a cap): its other choices; back to the flat garment when a
+    // garment that takes it is chosen again (CLIENT598).
+    final canFlat = _flatGarments.contains(customGarment ? nearest : garment);
+    if (kind == _ArtworkKind.flat && !canFlat) {
+      kind = accessory
+          ? (AiService.enabled && widget.preview != null
+                ? _ArtworkKind.garment
+                : _ArtworkKind.front)
+          : widget.wide
+          ? _ArtworkKind.layout
+          : _ArtworkKind.front;
+    } else if (widget.flat &&
+        canFlat &&
+        !_picked &&
+        (kind == _ArtworkKind.layout || kind == _ArtworkKind.front)) {
+      kind = _ArtworkKind.flat;
     }
     void done(bool ai) => Navigator.pop(context, (
       kind: kind,
@@ -3797,6 +4084,12 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
                 accessory
                     ? 'A mock-up or artwork sheet of the cap or accessory (front, back, sides). AI reads its colours and logos and puts each logo on its place on the 3D model. Uses AI (a small fee per picture).'
                     : 'A mock-up or photo of the garment, front and back. AI redraws it flat and puts it on the 3D kit, sides, crest and number included. Uses AI (a small fee per picture).',
+              ),
+            if (canFlat)
+              _option(
+                _ArtworkKind.flat,
+                'Flat garment (front and back)',
+                'Your garment drawn or laid flat: its front, or front and back side by side. It goes on the 3D model as it is: the front on the front, the back on the back.',
               ),
             if (!accessory)
               _option(
@@ -3909,6 +4202,14 @@ class _ArtworkSheetState extends State<_ArtworkSheet> {
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
                   'The Studio shows each panel it found: check it is the front, back or a sleeve, then put it on.',
+                  style: TextStyle(color: Palette.muted, fontSize: 12),
+                ),
+              ),
+            if (kind == _ArtworkKind.flat)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'The Studio shows the front and back it found: check which is which, then put it on.',
                   style: TextStyle(color: Palette.muted, fontSize: 12),
                 ),
               ),

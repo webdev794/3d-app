@@ -86,7 +86,15 @@ export const fitsFor = (design: Pick<Design, 'garment' | 'zoneColors'>) => (isMo
  * A tile on a ready-made 3D model shows that model's own neck only (user 2026-11-16: nothing is cut; other neck styles come
  * later, laid on top): its look's flag and the model's own neck. null: the garment's necks can be chosen.
  */
-export const MODEL_OWN_NECKS: Record<string, NeckStyle> = { scJersey: 'v', aflGuernsey: 'round', trainingTee: 'round' };
+export const MODEL_OWN_NECKS: Record<string, NeckStyle> = { scJersey: 'v', aflGuernsey: 'round', trainingTee: 'round', rugbyJersey: 'round' };
+/** A model's own neck by its name where it is not a plain round or V neck (RUGBYJ 2026-11-18, the user: the Rugby League jersey's "Stand-up collar"). */
+export const MODEL_NECK_NAMES: Record<string, string> = { rugbyJersey: 'Stand-up collar' };
+/** The name of a neck style on this design: the model's own name for its own neck, else "Round neck" / "V-neck". */
+export function neckName(design: Pick<Design, 'garment' | 'zoneColors'>, id: NeckStyle): string {
+    const zc = (design.zoneColors as Record<string, string> | null | undefined) ?? {};
+    const flag = Object.keys(MODEL_NECK_NAMES).find(f => HEX.test(zc[f] ?? ''));
+    return flag && fixedNeck(design) === id ? MODEL_NECK_NAMES[flag] : neckLabels[id];
+}
 export function fixedNeck(design: Pick<Design, 'garment' | 'zoneColors'>): NeckStyle | null {
     if (!hasNeckStyle(design.garment)) return null;
     const zc = (design.zoneColors as Record<string, string> | null | undefined) ?? {};
@@ -118,7 +126,7 @@ export function neckLabel(design: Pick<Design, 'garment' | 'zoneColors' | 'neck'
     const neck = neckOf(design);
     if (!neck) return null;
     const collar = rugbyCollars.find(c => c.id === neck);
-    return collar ? `${collar.code === 'CUSTOM' ? '' : `${collar.code} `}${collar.name}` : neckLabels[neck as NeckStyle];
+    return collar ? `${collar.code === 'CUSTOM' ? '' : `${collar.code} `}${collar.name}` : neckName(design, neck as NeckStyle);
 }
 export const fitOf = (design: Pick<Design, 'fit'>): RugbyFit => (design.fit === 'classic' || design.fit === 'tight' ? design.fit : 'pro');
 export const fitLabel = (design: Pick<Design, 'fit' | 'garment' | 'zoneColors'>) => (isModelJersey(design) ? (design.fit === 'tight' ? 'Pro fit' : 'Regular') : rugbyFits.find(f => f.id === fitOf(design))!.label);

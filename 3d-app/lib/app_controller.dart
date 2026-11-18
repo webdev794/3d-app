@@ -977,6 +977,8 @@ class AppController extends ChangeNotifier {
         'pocketpolo' => 'Polo with pocket',
         'netball-dress' => 'Netball dress',
         'nfljersey' => 'Football jersey',
+        // (A flat garment on the shooting shirt stays on it, CLIENT598.)
+        'shooting-shirt' => 'Shooting shirt',
         _ => 'Singlet',
       };
       layout = copyLayout({

@@ -276,6 +276,25 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (!rule.oldBand || !oldBand) continue;
     const set = new Set(rule.oldBand), p = S.keys.indexOf(rule.part) + 1;
     for (let t = 0; t < triPart.length; t++) if (!triPart[t] && [0, 1, 2].every((k) => set.has(oldBand[idx[t * 3 + k]]))) triPart[t] = p;
+    // (`erode` (metres; MODELQ6 2026-11-17, the netball bib): the part taken back that far from where it meets the outside
+    // cloth (the converter's band 0): a converter band reaching past the model's own edge (its roll's foot) onto the flat
+    // cloth below; tripo-pieces.mjs then draws the part's border onto the crease there (fromParts, snap).)
+    if (rule.erode) {
+      const at = (i) => [0, 1, 2].map((c) => D.lo[c] + (q[i * 3 + c] / 65535) * (D.hi[c] - D.lo[c])), wk = (i) => at(i).map((v) => Math.round(v * 1e4)).join(',');
+      const clothPts = new Set(), partPts = new Set();
+      for (let t = 0; t < triPart.length; t++) { const c = [0, 1, 2].map((k) => idx[t * 3 + k]); if (triPart[t] === p) c.forEach((i) => partPts.add(wk(i))); else if (!triPart[t] && c.some((i) => oldBand[i] === 0)) c.forEach((i) => clothPts.add(wk(i))); }
+      const edge = [...partPts].filter((k) => clothPts.has(k)).map((k) => k.split(',').map((v) => +v / 1e4));
+      const EG = 0.01, eg = new Map(); for (const e of edge) { const k = e.map((v) => Math.floor(v / EG)).join(','); (eg.get(k) ?? eg.set(k, []).get(k)).push(e); }
+      let taken = 0;
+      for (let t = 0; t < triPart.length; t++) {
+        if (triPart[t] !== p) continue;
+        const m = [0, 1, 2].map((c) => [0, 1, 2].reduce((acc, k) => acc + at(idx[t * 3 + k])[c] / 3, 0)), g0 = m.map((v) => Math.floor(v / EG)), r = Math.ceil(rule.erode / EG);
+        let near = false;
+        for (let a2 = -r; a2 <= r && !near; a2++) for (let b2 = -r; b2 <= r && !near; b2++) for (let c2 = -r; c2 <= r && !near; c2++) for (const e of eg.get(`${g0[0] + a2},${g0[1] + b2},${g0[2] + c2}`) ?? []) if (Math.hypot(e[0] - m[0], e[1] - m[1], e[2] - m[2]) < rule.erode) { near = true; break; }
+        if (near) { triPart[t] = 0; taken++; }
+      }
+      console.log(`[${name}] ${rule.part}: ${taken} triangles taken back within ${rule.erode * 1000} mm of the outside cloth`);
+    }
   }
   D.triPart = Buffer.from(triPart.buffer).toString('base64');
   D.partKeys = S.keys;

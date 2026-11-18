@@ -2082,7 +2082,7 @@ export class KitPainter {
         this.side(back);
         g.fillStyle = trim;
       }
-      if (shorts) {
+      if (shorts && !bare) {
         g.fillStyle = this.partStyle(design, 'waistband')?.own ?? trim;
         g.fillRect(-0.4, (this.points?.CF?.[1] ?? 0.42) - 0.025, 0.8, 0.03);
         // (A ready-made model's own waistband (main.js modelBand: the Rugby League shorts): printed down to its foot.)
@@ -2522,7 +2522,7 @@ export class KitPainter {
       // ('area:<name>' (MODELQ3 2026-11-16): a model part that IS that area of the garment (its sleeves, side panels...): the
       // area's own colour (design.parts) or its solid colour (design.zones 'Solid'), else null: the cloth's print shows there.)
       const areaHex = (name) => solid(own(name), null) ?? (design.zones?.[name] === 'Solid' ? solid(this.zoneFill(design, ownPatternInk(design) ? 'patternColor' : 'secondary'), design.secondary) : null);
-      this.model.partColours = this.model.keys.map((k) => (k === 'lip' ? null : k === 'collar' || k === 'waistband' ? solid(own(k), null) ?? trimHex : k === 'trim' ? trimHex : k === 'main' ? mainHex : k === 'accent' ? design.accent : k === 'inside' ? reverse ?? design.main : HEX.test(k) ? k : k.startsWith('zone:') && HEX.test(design.zoneColors?.[k.slice(5)] ?? '') ? design.zoneColors[k.slice(5)] : k.startsWith('part:') ? solid(own(k.slice(5).split('|')[0]), null) ?? (k.endsWith('|main') ? mainHex : trimHex) : k.startsWith('area:') ? areaHex(k.slice(5)) : trimHex));
+      this.model.partColours = this.model.keys.map((k) => (k === 'lip' ? null : k === 'collar' || k === 'waistband' ? solid(own(k), null) ?? trimHex : k === 'trim' ? trimHex : k === 'main' ? mainHex : k === 'accent' ? design.accent : k === 'inside' ? reverse ?? design.main : HEX.test(k) ? k : k.startsWith('zone:') && HEX.test(design.zoneColors?.[k.slice(5)] ?? '') ? design.zoneColors[k.slice(5)] : k.startsWith('part:') ? solid(own(k.slice(5).split('|')[0]), null) ?? (k.endsWith('|main') ? mainHex : k.endsWith('|accent') ? design.accent : trimHex) : k.startsWith('area:') ? areaHex(k.slice(5)) : trimHex));
     }
     (this.model.swatch ?? []).forEach(([x, y], which) => {
       if (this.model.insert) {

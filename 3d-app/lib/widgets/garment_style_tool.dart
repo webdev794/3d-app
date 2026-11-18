@@ -145,7 +145,11 @@ class GarmentStyleTool extends StatelessWidget {
                     child: _NeckCard(
                       key: ValueKey('neck-$id'),
                       id: id,
-                      label: neckLabels[id]!.toUpperCase(),
+                      label: neckName(
+                        c.garment,
+                        c.zoneColors,
+                        id,
+                      ).toUpperCase(),
                       selected: neck == id,
                       c: c,
                       onTap: () => _setNeck(id),
@@ -180,12 +184,14 @@ class GarmentStyleTool extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               fixedNeck(c.garment, c.zoneColors) != null
-                  ? 'This ${_product.toLowerCase()} keeps its own ${neckLabels[fixedNeck(c.garment, c.zoneColors)]!.toLowerCase()}.'
+                  ? 'This ${_product.toLowerCase()} keeps its own ${neckName(c.garment, c.zoneColors, fixedNeck(c.garment, c.zoneColors)!).toLowerCase()}.'
                   : 'Available styles vary by garment.',
               style: const TextStyle(color: Palette.muted, fontSize: 12),
             ),
           ),
-          if (rugby) ...[
+          // (A jersey on its ready-made model keeps the model's own collar and
+          // shape: no collar library, no fit (RUGBYJ 2026-11-18).)
+          if (rugby && fixedNeck(c.garment, c.zoneColors) == null) ...[
             const SectionLabel('Rugby collar options'),
             GridView.count(
               crossAxisCount: 3,
@@ -259,7 +265,7 @@ class GarmentStyleTool extends StatelessWidget {
               ),
             ],
           ),
-          if (rugby) ...[
+          if (rugby && fixedNeck(c.garment, c.zoneColors) == null) ...[
             const SectionLabel('Fit'),
             for (final (id, label, note) in fitsFor(c.garment, c.zoneColors))
               Padding(

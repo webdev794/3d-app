@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronRight, Info, Search } from 'lucide-react';
 import type { Design, KitViewerHandle } from './KitViewer';
 import { isTrack } from './KitViewer';
 import { withPart } from '../parts';
-import { collarOf, collarsFor, fitOf, fitsFor, fixedNeck, hasNeckStyle, hasNoNeck, hasPoloCollar, hasRugbyStyle, isZipPolo, POLO_ZIP_READY, neckLabel, neckLabels, neckOf, ownNeck, rugbyCollars, rugbyFits, trimOf, trimSwatches, type NeckStyle } from '../garmentStyle';
+import { collarOf, collarsFor, fitOf, fitsFor, fixedNeck, hasNeckStyle, hasNoNeck, hasPoloCollar, hasRugbyStyle, isZipPolo, POLO_ZIP_READY, neckLabel, neckName, neckOf, ownNeck, rugbyCollars, rugbyFits, trimOf, trimSwatches, type NeckStyle } from '../garmentStyle';
 import '../../css/garment-style.css';
 
 /** The Style tool's icon: a sleeveless top, as on the client's mockup (images/299). */
@@ -66,10 +66,11 @@ export function StylePanel({ design, sport, product, edit, onGarment, onMoreColo
         <label className="field">Product<button type="button" className="style-product" onClick={onGarment} aria-label={`Product: ${product}. Change garment`}><span>{product}</span><ChevronDown size={16} /></button></label>
         {hasNeckStyle(design.garment) ? <>
             <h4>NECK STYLE</h4>
-            <div className="neck-cards" role="radiogroup" aria-label="Neck style">{(fixedNeck(design) ? [fixedNeck(design)!] : (['round', 'v'] as NeckStyle[])).map(id => { const on = neck === id; return <button key={id} type="button" role="radio" aria-checked={on} className={on ? 'selected' : ''} onClick={() => setNeck(id)}><NeckArt id={id} design={design} /><span>{neckLabels[id].toUpperCase()}</span>{on && <i className="neck-tick"><Check size={13} /></i>}</button>; })}</div>
+            <div className="neck-cards" role="radiogroup" aria-label="Neck style">{(fixedNeck(design) ? [fixedNeck(design)!] : (['round', 'v'] as NeckStyle[])).map(id => { const on = neck === id; return <button key={id} type="button" role="radio" aria-checked={on} className={on ? 'selected' : ''} onClick={() => setNeck(id)}><NeckArt id={id} design={design} /><span>{neckName(design, id).toUpperCase()}</span>{on && <i className="neck-tick"><Check size={13} /></i>}</button>; })}</div>
             {neck && <p className="neck-chosen"><Check size={14} /> {neckLabel(design)} selected</p>}
-            <p className="field-hint">{fixedNeck(design) ? `This ${product.toLowerCase()} keeps its own ${neckLabels[fixedNeck(design)!].toLowerCase()}.` : 'Available styles vary by garment.'}</p>
-            {rugby && <>
+            <p className="field-hint">{fixedNeck(design) ? `This ${product.toLowerCase()} keeps its own ${neckName(design, fixedNeck(design)!).toLowerCase()}.` : 'Available styles vary by garment.'}</p>
+            {/* (A jersey on its ready-made model keeps the model's own collar and shape: no collar library, no fit (RUGBYJ 2026-11-18).) */}
+            {rugby && !fixedNeck(design) && <>
                 <h4>RUGBY COLLAR OPTIONS</h4>
                 <div className="neck-cards rugby-collars" role="radiogroup" aria-label="Rugby collar">{collarsFor(design).map(c => { const on = neck === c.id; return <button key={c.id} type="button" role="radio" aria-checked={on} className={`${on ? 'selected' : ''} ${c.id === 'shallow-v' ? 'wide' : ''}`} onClick={() => setNeck(c.id)} title={c.name}><NeckArt id={c.id} design={design} /><span>{c.id === 'shallow-v' ? 'CUSTOM SHALLOW V' : c.code}</span>{on && <i className="neck-tick"><Check size={13} /></i>}</button>; })}</div>
                 {collar && <p className="field-hint"><Info size={13} /> {collar.name}. Final shape to match supplier pattern.</p>}
@@ -78,7 +79,7 @@ export function StylePanel({ design, sport, product, edit, onGarment, onMoreColo
             <div className="trim-swatches" role="radiogroup" aria-label={rugby ? 'Collar colour' : 'Neck trim colour'}>{trimSwatches.map(s => { const on = trim.toLowerCase() === s.hex; return <button key={s.hex} type="button" role="radio" aria-checked={on} aria-label={s.label} title={s.label} className={on ? 'selected' : ''} style={{ background: s.hex }} onClick={() => setTrim(s.hex)}>{on && <Check size={18} />}</button>; })}
                 {!trimSwatches.some(s => s.hex === trim.toLowerCase()) && <span className="trim-own" style={{ background: trim }} title={`Now ${trim.toUpperCase()}`} />}</div>
             <button type="button" className="text-button more-colours" onClick={onMoreColours}>More colours <ChevronRight size={15} /></button>
-            {rugby && <>
+            {rugby && !fixedNeck(design) && <>
                 <h4>FIT</h4>
                 <div className="fit-options" role="radiogroup" aria-label="Rugby jersey fit">{fitsFor(design).map(f => { const on = fitsFor(design) === rugbyFits ? fitOf(design) === f.id : (f.id === 'tight') === (design.fit === 'tight'); return <button key={f.id} type="button" role="radio" aria-checked={on} className={on ? 'selected' : ''} onClick={() => edit({ fit: f.id === 'pro' ? null : f.id })}><strong>{f.label}</strong><small>{f.note}</small></button>; })}</div>
             </>}
